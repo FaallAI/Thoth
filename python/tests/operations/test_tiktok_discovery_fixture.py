@@ -242,3 +242,37 @@ def test_main_writes_when_a_caption_token_matches_its_own_derived_published_at(
 
     assert capsys.readouterr().out.strip().endswith("leaks=0")
     assert target.exists()
+
+
+def test_main_writes_when_an_author_stats_v2_counter_coincides_with_item_stats(
+    tmp_path, capsys
+) -> None:
+    """Raw `authorStatsV2` (never a VERBATIM_KEYS slot, so never copied by the sanitizer) can
+    share digits with the item's own verbatim-copied `statsV2` counters in a real capture. The
+    output scan must skip VERBATIM_KEYS slots the same way the raw side already does, so this
+    numeric coincidence must not block the write."""
+    item = {
+        **RAW_ITEM,
+        "statsV2": {"playCount": "912345678", "diggCount": "1234567"},
+        "authorStatsV2": {"heartCount": "1234567", "followerCount": "912345"},
+    }
+    page = {"statusCode": 0, "hasMore": True, "itemList": [item]}
+    raw = _raw("trending", [page])
+    source, target = tmp_path / "raw.json", tmp_path / "fixture.json"
+    source.write_text(json.dumps(raw), encoding="utf-8")
+
+    assert main([str(source), str(target)]) == 0
+
+    assert capsys.readouterr().out.strip().endswith("leaks=0")
+    assert target.exists()
+
+
+def test_leak_report_still_catches_a_raw_id_in_a_non_verbatim_value() -> None:
+    """The VERBATIM_KEYS exclusion added to the output scan must not blind it to a raw id
+    (never a verbatim slot) surviving into an ordinary output string like `desc`."""
+    raw = _raw("profile", [PAGE])
+    leaking_text = json.dumps({"desc": f"copy of {RAW_ITEM['id']} here"})
+
+    _checked, leaks = fixture_module.leak_report(raw, leaking_text)
+
+    assert leaks >= 1

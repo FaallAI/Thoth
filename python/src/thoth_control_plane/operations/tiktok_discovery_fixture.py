@@ -215,10 +215,10 @@ def leak_report(raw: dict[str, Any], text: str) -> tuple[int, int]:
     any URL. A whole-value match would miss a token embedded in an otherwise-clean string."""
     tokens = _originals(raw)
     try:
-        # `expected` is a pure replay of `pages` (`sanitize_capture` already rejects a mismatch),
-        # so it carries no leak information `pages` lacks and only produces false positives
-        # (e.g. a caption year coinciding with its own derived `published_at` date).
-        values = list(_strings(json.loads(text), frozenset({"expected"})))
+        # `expected` is a pure parser replay of `pages`, and `VERBATIM_KEYS` slots hold only
+        # public `_numeric` values the sanitizer copies by design; neither carries leak signal
+        # beyond `pages` itself, so both are excluded the same way the raw side already is.
+        values = list(_strings(json.loads(text), VERBATIM_KEYS | {"expected"}))
     except (ValueError, RecursionError):
         values = [text]
     leaks = sum(any(token in value for value in values) for token in tokens)
