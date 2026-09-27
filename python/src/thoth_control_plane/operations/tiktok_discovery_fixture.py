@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -20,21 +21,61 @@ from thoth_control_plane.acquisition.discovery import parse_discovery_page
 from thoth_control_plane.operations.tiktok_comment_fixture import _Pseudonyms
 
 MAX_FIXTURE_PAGES = 2
-ENVELOPE_KEYS = ("statusCode", "status_code", "hasMore", "has_more")
 STAT_KEYS = ("playCount", "diggCount", "commentCount", "shareCount", "collectCount")
 MIN_SECRET_LENGTH = 4
+# Keys whose values the sanitizer copies verbatim by design (never pseudonymized), so a raw
+# leak check must not tokenize them and a leak check comparison must accept whatever type the
+# parser reads for them.
+VERBATIM_KEYS = frozenset(
+    {
+        "statusCode",
+        "status_code",
+        "hasMore",
+        "has_more",
+        "stats",
+        "statsV2",
+        "createTime",
+        "duration",
+    }
+)
+
+
+def _fill_caption_char(char: str) -> bool:
+    """Pseudonymize every caption/hashtag character except whitespace and the structural
+    `#`/`@` markers a hashtag or mention needs to stay recognizable as one.
+
+    Unlike the comment reducer's `_is_letter`, this covers stylized Unicode (enclosed
+    alphanumerics, fullwidth letters, etc., category `So`) that `str.isalnum()` misses, so no
+    original character survives in a caption or hashtag title.
+    """
+    return not char.isspace() and char not in "#@"
+
+
+def _numeric(value: Any) -> bool:
+    """What `parse_discovery_page` accepts for a counter, timestamp, or duration slot: a
+    non-bool int/float, or an ASCII decimal string."""
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, (int, float)):
+        return True
+    return isinstance(value, str) and value.isascii() and value.isdecimal()
 
 
 def _stats(value: Any) -> dict[str, Any] | None:
     if not isinstance(value, dict):
         return None
-    return {key: value[key] for key in STAT_KEYS if key in value}
+    return {key: value[key] for key in STAT_KEYS if key in value and _numeric(value[key])}
 
 
-def _create_time(value: Any) -> bool:
-    if isinstance(value, bool):
-        return False
-    return isinstance(value, int) or (isinstance(value, str) and value.isdecimal())
+def _envelope(payload: dict[str, Any]) -> dict[str, Any]:
+    kept: dict[str, Any] = {}
+    for key in ("statusCode", "status_code"):
+        if key in payload and _numeric(payload[key]):
+            kept[key] = payload[key]
+    for key in ("hasMore", "has_more"):
+        if key in payload and (isinstance(payload[key], bool) or _numeric(payload[key])):
+            kept[key] = payload[key]
+    return kept
 
 
 def _item(names: _Pseudonyms, item: Any) -> dict[str, Any] | None:
@@ -45,14 +86,14 @@ def _item(names: _Pseudonyms, item: Any) -> dict[str, Any] | None:
         kept["id"] = names.comment_id(item["id"])
     if isinstance(item.get("desc"), str):
         kept["desc"] = names.text(item["desc"])
-    if _create_time(item.get("createTime")):
+    if _numeric(item.get("createTime")):
         kept["createTime"] = item["createTime"]
     for key in ("stats", "statsV2"):
         stats = _stats(item.get(key))
         if stats is not None:
             kept[key] = stats
     video = item.get("video")
-    if isinstance(video, dict) and "duration" in video:
+    if isinstance(video, dict) and _numeric(video.get("duration")):
         kept["video"] = {"duration": video["duration"]}
     author = item.get("author")
     if isinstance(author, dict) and isinstance(author.get("uniqueId"), str):
@@ -92,7 +133,7 @@ def _page(names: _Pseudonyms, kind: str, text: str) -> dict[str, Any] | None:
     payload = _payload(text)
     if payload is None:
         return None
-    page = {key: payload[key] for key in ENVELOPE_KEYS if key in payload}
+    page = _envelope(payload)
     if kind == "keyword":
         data = payload.get("data")
         if isinstance(data, list):
@@ -133,7 +174,7 @@ def sanitize_capture(raw: dict[str, Any]) -> dict[str, Any]:
     kind = raw["kind"]
     if kind not in ("profile", "keyword", "trending"):
         raise ValueError("unknown discovery kind")
-    names = _Pseudonyms()
+    names = _Pseudonyms(fill=_fill_caption_char)
     texts = raw["pages"][:MAX_FIXTURE_PAGES]
     pages = [_page(names, kind, text) for text in texts]
     expected = [replay_page(kind, text.encode("utf-8")) for text in texts]
@@ -142,51 +183,43 @@ def sanitize_capture(raw: dict[str, Any]) -> dict[str, Any]:
     return {"kind": kind, "pages": pages, "expected": expected}
 
 
-def _raw_items(kind: str, payload: dict[str, Any]) -> list[Any]:
-    if kind == "keyword":
-        data = payload.get("data")
-        return (
-            [e.get("item") for e in data if isinstance(e, dict)] if isinstance(data, list) else []
-        )
-    items = payload.get("itemList")
-    return items if isinstance(items, list) else []
+def _strings(value: Any, exclude: frozenset[str] = frozenset()) -> Iterator[str]:
+    """Every string leaf in a JSON-shaped value, skipping subtrees under an excluded key."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, list):
+        for item in value:
+            yield from _strings(item, exclude)
+    elif isinstance(value, dict):
+        for key, sub in value.items():
+            if key not in exclude:
+                yield from _strings(sub, exclude)
 
 
 def _originals(raw: dict[str, Any]) -> set[str]:
-    """Every original id, handle, caption, and hashtag long enough to identify a source."""
-    secrets: set[str] = set()
+    """Every whitespace-split token, long enough to identify a source, in any raw string leaf
+    outside the slots the sanitizer keeps verbatim by design — independent of which fields the
+    sanitizer happens to pseudonymize, so an unpseudonymized or unknown key is still checked."""
+    tokens: set[str] = set()
     for text in raw["pages"]:
         payload = _payload(text)
-        for item in _raw_items(raw["kind"], payload) if payload is not None else []:
-            if not isinstance(item, dict):
-                continue
-            author = item.get("author") if isinstance(item.get("author"), dict) else {}
-            challenges = item.get("challenges") if isinstance(item.get("challenges"), list) else []
-            values = [
-                item.get("id"),
-                item.get("desc"),
-                author.get("uniqueId"),
-                author.get("secUid"),
-                author.get("nickname"),
-                *(c.get("title") for c in challenges if isinstance(c, dict)),
-            ]
-            secrets.update(
-                value.strip()
-                for value in values
-                if isinstance(value, str)
-                and len(value.strip()) >= MIN_SECRET_LENGTH
-                and any(char.isalnum() for char in value)
-            )
-    return secrets
+        if payload is None:
+            continue
+        for leaf in _strings(payload, VERBATIM_KEYS):
+            tokens.update(token for token in leaf.split() if len(token) >= MIN_SECRET_LENGTH)
+    return tokens
 
 
 def leak_report(raw: dict[str, Any], text: str) -> tuple[int, int]:
-    """Count originals that survive into `text`, raw or JSON-escaped, plus any URL."""
-    secrets = _originals(raw)
-    leaks = sum(
-        secret in text or json.dumps(secret, ensure_ascii=False)[1:-1] in text for secret in secrets
-    )
-    return len(secrets), leaks + ("http" in text)
+    """Count original tokens that survive as a substring of any sanitized string value, plus
+    any URL. A whole-value match would miss a token embedded in an otherwise-clean string."""
+    tokens = _originals(raw)
+    try:
+        values = list(_strings(json.loads(text)))
+    except (ValueError, RecursionError):
+        values = [text]
+    leaks = sum(any(token in value for value in values) for token in tokens)
+    return len(tokens), leaks + ("http" in text)
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -135,7 +135,7 @@ def test_main_writes_a_leak_free_lf_fixture(tmp_path, capsys) -> None:
 
     assert main([str(source), str(target)]) == 0
 
-    assert capsys.readouterr().out == "checked=6 leaks=0\n"
+    assert capsys.readouterr().out == "checked=14 leaks=0\n"
     data = target.read_bytes()
     assert b"\r\n" not in data
     for secret in (b"real.creator", b"Secret caption", b"7412345678901234567", b"http"):
@@ -155,3 +155,71 @@ def test_main_refuses_to_write_when_an_original_survives(tmp_path, capsys, monke
 
     assert not target.exists()
     assert "leaks=0" not in capsys.readouterr().out
+
+
+ENCLOSED_ALPHANUMERICS = "Ⓢⓔⓒⓡⓔⓣ"  # circled "Secret"
+
+
+def test_enclosed_alphanumeric_caption_is_fully_pseudonymized(tmp_path, capsys) -> None:
+    """Stylized letters (Unicode category So) must not survive `_is_letter`'s alnum filter."""
+    item = {
+        **RAW_ITEM,
+        "desc": f"{ENCLOSED_ALPHANUMERICS} post",
+        "challenges": [{"title": ENCLOSED_ALPHANUMERICS[:3]}],
+    }
+    page = {"statusCode": 0, "hasMore": True, "itemList": [item]}
+    raw = _raw("profile", [page])
+
+    [sanitized] = sanitize_capture(raw)["pages"]
+    [out_item] = sanitized["itemList"]
+    for char in ENCLOSED_ALPHANUMERICS:
+        assert char not in out_item["desc"]
+    for char in ENCLOSED_ALPHANUMERICS[:3]:
+        assert char not in out_item["challenges"][0]["title"]
+
+    source, target = tmp_path / "raw.json", tmp_path / "fixture.json"
+    source.write_text(json.dumps(raw), encoding="utf-8")
+    assert main([str(source), str(target)]) == 0
+    assert capsys.readouterr().out.strip().endswith("leaks=0")
+
+
+def test_leak_report_catches_a_token_from_an_unknown_raw_key() -> None:
+    """`_originals` must not be limited to the fields the sanitizer already pseudonymizes."""
+    item = {**RAW_ITEM, "music": {"title": "Moonlight Serenade Unknown"}}
+    page = {"statusCode": 0, "hasMore": True, "itemList": [item]}
+    raw = _raw("profile", [page])
+    leaking_text = json.dumps({"note": "a Moonlight Serenade Unknown tribute"})
+
+    _checked, leaks = fixture_module.leak_report(raw, leaking_text)
+
+    assert leaks >= 1
+
+
+def test_leak_report_catches_a_partial_stylized_survival() -> None:
+    """Whole-value matching misses a stylized token embedded in an otherwise-clean caption."""
+    item = {**RAW_ITEM, "desc": f"{ENCLOSED_ALPHANUMERICS} post"}
+    page = {"statusCode": 0, "hasMore": True, "itemList": [item]}
+    raw = _raw("profile", [page])
+    partially_sanitized = json.dumps({"desc": f"{ENCLOSED_ALPHANUMERICS} zzz"})
+
+    _checked, leaks = fixture_module.leak_report(raw, partially_sanitized)
+
+    assert leaks >= 1
+
+
+def test_invalid_verbatim_slot_values_are_dropped() -> None:
+    """Stats/createTime/duration slots copy only int/float (not bool) or `isdecimal()` strings."""
+    item = {
+        **RAW_ITEM,
+        "createTime": "not-a-number",
+        "stats": {"playCount": {"nested": "dict"}, "diggCount": 5},
+        "video": {"duration": "fifteen", "playAddr": "https://v16.example/p.mp4"},
+    }
+    page = {"statusCode": 0, "hasMore": True, "itemList": [item]}
+
+    [sanitized] = sanitize_capture(_raw("profile", [page]))["pages"]
+
+    [out_item] = sanitized["itemList"]
+    assert "createTime" not in out_item
+    assert out_item["stats"] == {"diggCount": 5}
+    assert "video" not in out_item

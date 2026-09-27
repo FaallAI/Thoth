@@ -18,6 +18,7 @@ import re
 import string
 import sys
 import unicodedata
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -53,10 +54,11 @@ def _stat(stat: dict[str, Any]) -> dict[str, Any]:
 
 
 class _Pseudonyms:
-    def __init__(self) -> None:
+    def __init__(self, fill: Callable[[str], bool] = _is_letter) -> None:
         self._ids: dict[str, str] = {}
         self._handles: dict[str, str] = {}
         self._texts: dict[str, str] = {}
+        self._fill = fill
 
     def comment_id(self, value: Any) -> str | None:
         if value is None:
@@ -90,7 +92,7 @@ class _Pseudonyms:
         used = set(self._texts.values())
         for index in range(len(self._texts), len(FILL_ALPHABET) ** FILL_WIDTH):
             fill = _fill(index)
-            pseudonym = "".join(next(fill) if _is_letter(char) else char for char in core)
+            pseudonym = "".join(next(fill) if self._fill(char) else char for char in core)
             if pseudonym not in used:
                 self._texts[core] = pseudonym
                 return pseudonym
