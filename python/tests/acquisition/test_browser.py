@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from thoth_control_plane.acquisition.browser import (
+    MAX_COMMENTS,
     HeadlessBrowserError,
     ScraplingHeadlessBrowser,
     _extract_from_response,
@@ -441,3 +442,106 @@ def test_production_adapter_carries_the_browser_session_to_media_without_leaking
     ]
     assert "cookie-secret" not in snapshot.model_dump_json()
     assert "cookie-secret" not in repr(snapshot)
+
+
+def _comment(cid: object, text: object, author: object = "fan", likes: object = 3) -> dict:
+    return {"cid": cid, "text": text, "unique_id": author, "digg_count": likes}
+
+
+def test_comment_pages_are_reduced_deduplicated_and_capped() -> None:
+    pages = [
+        {"comments": [_comment("70000111", "first"), _comment("70000222", "second", likes=None)]},
+        {
+            "comments": [
+                _comment("70000111", "first again"),
+                _comment("not-digits", "bad id"),
+                _comment("70000333", ""),
+                _comment("70000444", "x" * 5_000),
+                _comment("70000555", "bad author", author="no spaces allowed"),
+                "not a dict",
+            ]
+        },
+        None,
+    ]
+    snapshot = extract_browser_snapshot(
+        final_url=POST_URL,
+        og_title=None,
+        author="creator",
+        video_sources=["https://video.example/a.mp4"],
+        captured_xhr=[],
+        comment_pages=pages,
+    )
+    assert [(c.comment_id, c.author, c.text, c.likes) for c in snapshot.comments] == [
+        ("70000111", "fan", "first", 3),
+        ("70000222", "fan", "second", 0),
+    ]
+
+    many = [{"comments": [_comment(str(10_000 + i), f"c{i}") for i in range(80)]}]
+    capped = extract_browser_snapshot(
+        final_url=POST_URL,
+        og_title=None,
+        author="creator",
+        video_sources=["https://video.example/a.mp4"],
+        captured_xhr=[],
+        comment_pages=many,
+    )
+    assert len(capped.comments) == MAX_COMMENTS
+
+
+class _CommentPage:
+    def __init__(self, pages: list[object]) -> None:
+        self._pages = pages
+        self.calls: list[object] = []
+
+    async def evaluate(self, script: str, arg: object = None) -> object:
+        self.calls.append(arg)
+        page = self._pages.pop(0)
+        if isinstance(page, BaseException):
+            raise page
+        return page
+
+
+def _session_running_page_action(page: _CommentPage):
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, traceback):
+            return None
+
+        async def fetch(self, url: str, **kwargs):
+            await kwargs["page_action"](page)
+            return _response(POST_URL)
+
+    return lambda **kwargs: FakeSession()
+
+
+@pytest.mark.asyncio
+async def test_comments_are_paged_in_page_by_cursor_during_the_same_visit() -> None:
+    page = _CommentPage(
+        [
+            {"comments": [_comment("70000111", "a")], "has_more": 1, "cursor": 20},
+            {"comments": [_comment("70000222", "b")], "has_more": 0, "cursor": 40},
+        ]
+    )
+    browser = ScraplingHeadlessBrowser(session_factory=_session_running_page_action(page))
+    snapshot = await browser.fetch(POST_URL)
+    await browser.close()
+    assert page.calls == [["1234567890", 0], ["1234567890", 20]]
+    assert [c.comment_id for c in snapshot.comments] == ["70000111", "70000222"]
+
+
+@pytest.mark.asyncio
+async def test_comment_failure_never_fails_acquisition() -> None:
+    page = _CommentPage(
+        [
+            {"comments": [_comment("70000111", "a")], "has_more": 1, "cursor": 20},
+            RuntimeError("captcha"),
+        ]
+    )
+    browser = ScraplingHeadlessBrowser(session_factory=_session_running_page_action(page))
+    snapshot = await browser.fetch(POST_URL)
+    await browser.close()
+    assert snapshot.media_candidates
+    assert [c.comment_id for c in snapshot.comments] == ["70000111"]
+    assert active_scrapling_session_count() == 0

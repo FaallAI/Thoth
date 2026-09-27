@@ -85,10 +85,18 @@ class MaterializedMedia(StrictModel):
         return location
 
 
+class TikTokComment(StrictModel):
+    comment_id: Annotated[str, Field(pattern=r"^[0-9]{5,32}$")]
+    author: Annotated[str, Field(pattern=r"^[A-Za-z0-9._-]{1,64}$")]
+    text: Annotated[str, Field(min_length=1, max_length=2_000)]
+    likes: Annotated[int, Field(ge=0)] = 0
+
+
 class BrowserSnapshot(StrictModel):
     final_url: HttpUrl
     post_candidates: list[TikTokPost] = Field(default_factory=list)
     media_candidates: list[ResolvedMedia] = Field(default_factory=list)
+    comments: list[TikTokComment] = Field(default_factory=list)
 
 
 class TikTokSource(StrictModel):

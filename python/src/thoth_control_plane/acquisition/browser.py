@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 
 from thoth_control_plane.acquisition.adapters.tiktok import (
     TikTokUrlError,
@@ -27,6 +27,7 @@ from thoth_control_plane.acquisition.models import (
     BrowserSnapshot,
     MediaRequestContext,
     ResolvedMedia,
+    TikTokComment,
     TikTokPost,
 )
 
@@ -35,6 +36,20 @@ EMBEDDED_DATA_SELECTOR = "script#__UNIVERSAL_DATA_FOR_REHYDRATION__::text"
 MEDIA_REFERER = "https://www.tiktok.com/"
 FETCH_TIMEOUT_MS = 45_000
 FETCH_WAIT_MS = 1_000
+MAX_COMMENTS = 50
+MAX_COMMENT_PAGES = 5
+# Same-origin fetch from the loaded post page: it rides the browser's own network
+# stack and cookies, needs no request signature, and never opens the comment panel
+# (clicking the panel is what raises TikTok's captcha in headless). Only the four
+# fields the snapshot keeps cross back into Python.
+COMMENT_PAGE_JS = """async ([awemeId, cursor]) => {
+  const r = await fetch(`/api/comment/list/?aid=1988&aweme_id=${awemeId}&count=20&cursor=${cursor}`,
+                        {credentials: 'include'});
+  const d = JSON.parse(await r.text());
+  return {has_more: d.has_more, cursor: d.cursor,
+          comments: (d.comments || []).map(c => ({cid: c.cid, text: c.text,
+            digg_count: c.digg_count, unique_id: c.user && c.user.unique_id}))};
+}"""
 
 _active_session_count = 0
 
@@ -148,6 +163,54 @@ def _parse_captured_xhr(raw_entries: list[Any]) -> list[dict[str, Any]]:
     return parsed
 
 
+def _reduce_comments(comment_pages: list[Any]) -> list[TikTokComment]:
+    """First `MAX_COMMENTS` valid, distinct comments; malformed records are dropped."""
+    comments: dict[str, TikTokComment] = {}
+    for page in comment_pages:
+        raw = page.get("comments") if isinstance(page, dict) else None
+        for entry in raw if isinstance(raw, list) else ():
+            if not isinstance(entry, dict) or str(entry.get("cid")) in comments:
+                continue
+            likes = entry.get("digg_count")
+            try:
+                comment = TikTokComment(
+                    comment_id=str(entry.get("cid")),
+                    author=entry.get("unique_id"),
+                    text=entry.get("text"),
+                    likes=likes if isinstance(likes, int) and likes >= 0 else 0,
+                )
+            except ValidationError:
+                continue
+            comments[comment.comment_id] = comment
+            if len(comments) == MAX_COMMENTS:
+                return list(comments.values())
+    return list(comments.values())
+
+
+def _comment_collector(post_id: str, pages: list[Any]) -> Callable[[Any], Any]:
+    """Scrapling `page_action` that pages comments by cursor into `pages`.
+
+    Best effort: any failure (captcha body, non-JSON, navigation) just stops paging,
+    so comments can never fail the acquisition itself.
+    """
+
+    async def collect(page: Any) -> None:
+        cursor: Any = 0
+        with contextlib.suppress(Exception):
+            for _ in range(MAX_COMMENT_PAGES):
+                result = await page.evaluate(COMMENT_PAGE_JS, [post_id, cursor])
+                pages.append(result)
+                if (
+                    not isinstance(result, dict)
+                    or not result.get("has_more")
+                    or sum(len(p.get("comments") or []) for p in pages) >= MAX_COMMENTS
+                ):
+                    return
+                cursor = result.get("cursor")
+
+    return collect
+
+
 def _normalize_handle(value: str) -> str:
     return value.strip().removeprefix("@").casefold()
 
@@ -161,6 +224,7 @@ def extract_browser_snapshot(
     captured_xhr: list[dict[str, Any]],
     embedded_data: dict[str, Any] | None = None,
     request_context: MediaRequestContext | None = None,
+    comment_pages: list[Any] | None = None,
 ) -> BrowserSnapshot:
     """Reduce raw headless browser output to a sanitized `BrowserSnapshot`.
 
@@ -226,10 +290,13 @@ def extract_browser_snapshot(
         final_url=identity.canonical_url,
         post_candidates=post_candidates,
         media_candidates=media_candidates,
+        comments=_reduce_comments(comment_pages or []),
     )
 
 
-def _extract_from_response(response: Any) -> BrowserSnapshot:
+def _extract_from_response(
+    response: Any, comment_pages: list[Any] | None = None
+) -> BrowserSnapshot:
     og_title = response.css('meta[property="og:title"]::attr(content)').get()
     author = response.css('meta[name="author"]::attr(content)').get()
     video_sources = response.css("video::attr(src)").getall()
@@ -245,6 +312,7 @@ def _extract_from_response(response: Any) -> BrowserSnapshot:
         captured_xhr=captured_xhr,
         embedded_data=embedded_data if isinstance(embedded_data, dict) else None,
         request_context=_media_request_context(response),
+        comment_pages=comment_pages,
     )
 
 
@@ -287,7 +355,9 @@ class ScraplingHeadlessBrowser:
 
         self._session = session
         _increment_active_sessions()
+        comment_pages: list[Any] = []
         try:
+            post_id = canonicalize_tiktok_post_url(url).post_id
             response = await active.fetch(
                 url,
                 timeout=FETCH_TIMEOUT_MS,
@@ -295,8 +365,9 @@ class ScraplingHeadlessBrowser:
                 disable_resources=False,
                 google_search=False,
                 wait=FETCH_WAIT_MS,
+                page_action=_comment_collector(post_id, comment_pages),
             )
-            snapshot = _extract_from_response(response)
+            snapshot = _extract_from_response(response, comment_pages)
         except TikTokUrlError:
             await self.close()
             raise HeadlessBrowserError(AcquisitionReason.HEADLESS_BLOCKED) from None
