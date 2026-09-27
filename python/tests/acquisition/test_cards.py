@@ -34,8 +34,15 @@ def test_png_size_reads_ihdr_dimensions() -> None:
 
 @pytest.mark.parametrize(
     "data",
-    [b"", b"\x89PNG\r\n\x1a\n", b"GIF89a" + bytes(40), make_png(300, 80)[:20]],
-    ids=["empty", "signature-only", "gif", "truncated-ihdr"],
+    [
+        b"",
+        b"\x89PNG\r\n\x1a\n",
+        b"GIF89a" + bytes(40),
+        make_png(300, 80)[:20],
+        make_png(300, 80)[:-12],
+        make_png(300, 80)[:-1],
+    ],
+    ids=["empty", "signature-only", "gif", "truncated-ihdr", "no-iend", "truncated-iend"],
 )
 def test_png_size_rejects_non_png_or_truncated(data: bytes) -> None:
     with pytest.raises(CardRejected):

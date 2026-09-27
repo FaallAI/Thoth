@@ -24,6 +24,8 @@ from thoth_control_plane.acquisition.models import (
 logger = logging.getLogger(__name__)
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+# The IEND chunk: zero length, type, and its fixed CRC.
+PNG_IEND = b"\x00\x00\x00\x00IEND\xaeB`\x82"
 # Scout keeps a crop only when rect.w > 30 and rect.h > 12.
 MIN_CARD_WIDTH = 31
 MIN_CARD_HEIGHT = 13
@@ -38,8 +40,13 @@ class CardRejected(ValueError):
 
 
 def png_size(data: bytes) -> tuple[int, int]:
-    """Width and height from the PNG IHDR chunk."""
-    if len(data) < 24 or not data.startswith(PNG_SIGNATURE) or data[12:16] != b"IHDR":
+    """Width and height from the PNG IHDR chunk; a crop cut off before IEND is rejected."""
+    if (
+        len(data) < 24
+        or not data.startswith(PNG_SIGNATURE)
+        or data[12:16] != b"IHDR"
+        or not data.endswith(PNG_IEND)
+    ):
         raise CardRejected("not a png")
     width, height = struct.unpack(">II", data[16:24])
     return width, height
