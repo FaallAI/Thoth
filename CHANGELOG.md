@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-09-27 - Stage 2: TikTok discovery primitives and engagement normalization
+
+- Spec `docs/superpowers/specs/2026-09-27-tiktok-discovery-primitives-design.md`, plan
+  `docs/superpowers/plans/2026-09-27-tiktok-discovery-primitives.md`.
+- `952dc5a`: discovery contracts: profile, keyword, and trending requests, `DiscoveredVideo`, and a
+  `DiscoveryResult` with a typed reason (`captcha`, `blocked`, `no_data`, `timeout`,
+  `browser_unavailable`).
+- `c73e407`: `acquisition/normalize.py` maps `stats`/`statsV2` and TikWM counters to
+  play/like/comment/share/collect, and epoch seconds to ISO 8601 UTC. Malformed values are
+  skipped, never guessed.
+- `96820b1`: the single-post path fills `TikTokPost.published_at` and `engagement` from the headless
+  item and from TikWM. `_merge_post` merges them per field, headless first. No schema change.
+- `e62e56d`, `72c3e9a` (fixes `1df4b5f`): `acquisition/discovery.py` scrolls the ordinary profile, search, or explore
+  page in one stealthy headless session and parses the list responses the page itself makes. It
+  never builds or signs a request. Captchas are avoided, never solved or blocked: a refusal
+  returns a partial result with a typed reason.
+- `25634fd` (fixes `50a143c`, `6cc27b2`, `dbd07b1`), `3152431`: a sanitizer with built-in replay and leak checks, and golden fixtures from one
+  read-only anonymous capture: profile 2 pages / 27 videos, search 1 / 12, explore 2 / 13. Leak check 0 leaks. Raw captures stay outside the repository.
+  - Text pseudonymization fills every non-whitespace character except `#`/`@`; the leak check
+    tokenizes every raw string leaf outside the verbatim numeric slots and scans the fixture
+    pages.
+- No production caller: discovery orchestration is Stage 8.
+- Verification:
+  - WSL, Python 3.12: 2124 passed, 6 skipped, and 1 failed. The failure is the
+    pre-existing `test_route_modules_do_not_depend_on_a_process_runner`.
+  - ruff check and ruff format are clean.
+  - No Rust changed, so no `build_cuda.bat` run was needed.
+- Not pushed.
+
 ## 2026-09-27 - Stage 2: TikTok comments and real card artifacts (report v2)
 
 - Spec `docs/superpowers/specs/2026-09-27-tiktok-stage2-comments-cards-design.md`, plan

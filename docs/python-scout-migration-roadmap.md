@@ -143,6 +143,10 @@ After single-post inspection and media materialization are stable, migrate the r
 
 At the end of this stage, normal TikTok inputs must run Python-only. The TypeScript path remains available only as a time-bounded emergency switch until its removal gate is approved.
 
+Status (2026-09-27): items 1-7 are implemented. Items 1-4 run on the single-post acquisition
+path. Items 5-7 are delivered as offline-tested acquisition primitives with no production
+caller; discovery orchestration is Stage 8. Closing Stage 2 is the operator's decision.
+
 ## Stage 3: Port the Remaining Platform Adapters
 
 Reuse the acquisition kernel proven by TikTok. The recommended order is:
@@ -333,8 +337,9 @@ Retirement then proceeds in this order:
 
 ## Immediate Next Step
 
-Stage 1 is closed. Write the Stage 2 design specification and implementation plan
-("Complete the TikTok Vertical Slice" above) under the direct-migration strategy of
+Stage 2 items 1-7 are implemented (see the status note under Stage 2). The operator
+decides whether Stage 2 closes; the next stage then proceeds under the direct-migration
+strategy of
 [ADR 0001](adr/0001-direct-full-python-migration.md): golden fixtures, offline parity, a stage
 diff review, and no live traffic until the final acceptance. The deployed worker mode stays unchanged until a
 later deployment changes it.
