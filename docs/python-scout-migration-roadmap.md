@@ -24,12 +24,16 @@ Target
 FastAPI -> Temporal
                 |-- Python acquisition
                 |-- Python source intelligence
-                |-- Python content assembly
                 |-- Python enrichment
-                `-- Rust media engine
+                `-- Python content assembly
                           |
-                          `-- validated content-set
+                          `-- validated content-set -> Creator Studio (Remotion render)
 ```
+
+The Content Set page still reads through the Rust `thoth-server` route
+`/api/scout/content-set/data`; that route must move before Rust retires. Acquisition output
+(the source report with comments and real card artifacts) reaches Studio only through the
+content set, never directly.
 
 Since 2026-09-27 the migration follows
 [ADR 0001: direct full migration](adr/0001-direct-full-python-migration.md). Scout TypeScript is

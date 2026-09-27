@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-09-27 - Stage 2: TikTok comments and real card artifacts (report v2)
+
+- Spec `docs/superpowers/specs/2026-09-27-tiktok-stage2-comments-cards-design.md`, plan
+  `docs/superpowers/plans/2026-09-27-tiktok-stage2-comments-cards.md`.
+- `75db10b`: `TikTokSourceReport` schema v2 adds `comments[]` (`ReportComment`) and `profile_card`.
+  Cards are path-only `CardArtifact` records. Version 1 reports, including the Stage 1 evidence,
+  still validate.
+- `3916e06`: `acquisition/cards.py` validates each real crop with the standard library and writes it
+  atomically to `reports/<workflow_id>/cards/`. The checks are PNG IHDR, 2 MiB, 31..4096 x
+  13..4096, and bytes-per-pixel of at least 0.02. A rejected or failed card is dropped and its
+  comment is kept.
+- `63fb911`: both success paths record comments and cards, including a TikWM rescue. Failure paths
+  write no card files.
+- `21bfd4d`: a report persistence failure also removes the recorded card files.
+- `07c24fb`, `0d59349`: a deterministic sanitizer and golden fixtures from one live capture of 3 public
+  posts: 45/50/50 comments, 9/10/9 carded, profile cards 2/3. The fixtures replay
+  the reducer exactly. The lowest real card density is 0.0804 B/px against the 0.02 floor.
+  - This deviates from ADR 0001: the fixtures come from Python, not Scout. The operator approved
+    this on 2026-09-27.
+- The roadmap target diagram now ends in the content set and Creator Studio, not a Rust media
+  engine. It also notes that the Rust content-set route must move before Rust retires.
+- Verification:
+  - WSL, Python 3.12: 1976 passed, 6 skipped, and 1 failed. The failure is the pre-existing
+    `test_route_modules_do_not_depend_on_a_process_runner`.
+  - ruff check and ruff format are clean.
+  - No Rust changed, so no `build_cuda.bat` run was needed.
+- Deferred for an operator decision: the sticker-only filter and the 10 vs 12 card cap.
+- Not pushed.
+
 ## 2026-09-27 - Headless TikTok comments and real card crops (branch `feat/tiktok-headless-comments`)
 
 - `600b435`: the Scrapling headless visit pages comments in-page through the unsigned
@@ -38,7 +67,7 @@ All notable changes to this project will be documented in this file.
     - no crop appeared in the JSON dump.
   - Early probes, before the placeholder gate existed, produced some preview-header crops. Every
     profile crop the final code kept was inspected by eye.
-- Not pushed: `0742c21` and `b1798b6` need the operator's push approval.
+- Pushed on 2026-09-27 with the operator's approval.
 
 ## 2026-09-27 - Stage 1 closed by operator decision; direct full Python migration (ADR 0001)
 
