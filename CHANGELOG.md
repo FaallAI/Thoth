@@ -24,6 +24,15 @@ All notable changes to this project will be documented in this file.
 - Final-review fix: `ScraplingHeadlessBrowser.fetch` returns an incomplete snapshot instead of
   raising, so comments and cards survive a TikWM rescue when headless found no post or media
   candidate. Full suite after the fix: 1977 passed, 6 skipped, 1 failed (same pre-existing test).
+- Review minors, fixed at the operator's request:
+  - `1cb7670`: `png_size` rejects a crop cut off before the IEND trailer.
+  - `94bdace`: `make_png` moved to `tests/acquisition/png_fixtures.py`.
+  - `646c393`: the sanitizer also replaces combining marks (Mn/Mc), keeping emoji variation
+    selectors, and keeps only width, height, and bytes from card stats. The post-2 fixture was
+    regenerated; leak check 0 leaks.
+  - `9afe779`: card crops are written through `asyncio.to_thread`, off the event loop.
+  - `b522cb2`: a schema_version 1 report rejects comments and a profile card.
+  - Full suite: 1985 passed, 6 skipped, 1 failed (same pre-existing test); ruff clean.
 - The roadmap target diagram now ends in the content set and Creator Studio, not a Rust media
   engine. It also notes that the Rust content-set route must move before Rust retires.
 - Verification:
