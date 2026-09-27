@@ -21,6 +21,9 @@ All notable changes to this project will be documented in this file.
   the reducer exactly. The lowest real card density is 0.0804 B/px against the 0.02 floor.
   - This deviates from ADR 0001: the fixtures come from Python, not Scout. The operator approved
     this on 2026-09-27.
+- Final-review fix: `ScraplingHeadlessBrowser.fetch` returns an incomplete snapshot instead of
+  raising, so comments and cards survive a TikWM rescue when headless found no post or media
+  candidate. Full suite after the fix: 1977 passed, 6 skipped, 1 failed (same pre-existing test).
 - The roadmap target diagram now ends in the content set and Creator Studio, not a Rust media
   engine. It also notes that the Rust content-set route must move before Rust retires.
 - Verification:

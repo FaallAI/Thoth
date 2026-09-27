@@ -718,6 +718,24 @@ async def test_comments_survive_a_tikwm_rescue(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_comments_survive_a_tikwm_rescue_of_an_incomplete_snapshot(tmp_path) -> None:
+    incomplete = snapshot_with_comments().model_copy(update={"media_candidates": []})
+    result = await TikTokAcquisitionService(
+        FakeBrowser(incomplete),
+        FakeResolver.from_payload(tikwm_fixture_payload()),
+        FakeMaterializer(),
+    ).inspect(workflow_id="wf_cards_006", source_url=SOURCE_URL, artifact_root=tmp_path)
+
+    assert result.report is not None
+    headless, tikwm = result.report.outcome.attempts
+    assert headless.reason == AcquisitionReason.HEADLESS_INCOMPLETE
+    assert tikwm.strategy == "tikwm_cdn"
+    assert [comment.comment_id for comment in result.report.comments] == ["11111", "22222"]
+    assert result.report.comments[0].card is not None
+    assert result.report.profile_card is not None
+
+
+@pytest.mark.asyncio
 async def test_headless_exception_rescue_has_no_comments_or_cards(tmp_path) -> None:
     result = await TikTokAcquisitionService(
         FakeBrowser(HeadlessBrowserError(AcquisitionReason.HEADLESS_BLOCKED)),

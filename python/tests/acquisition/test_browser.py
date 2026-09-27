@@ -284,22 +284,25 @@ async def test_navigation_away_from_post_is_classified_as_blocked() -> None:
 
 
 @pytest.mark.asyncio
-async def test_missing_media_candidates_is_classified_as_incomplete() -> None:
+async def test_missing_media_candidates_returns_the_incomplete_snapshot() -> None:
+    # The service classifies an incomplete snapshot itself, so comments and cards
+    # the visit already collected can survive a TikWM rescue.
     response = _response(POST_URL, video_sources=[])
     browser = ScraplingHeadlessBrowser(session_factory=_session_returning(response))
-    with pytest.raises(HeadlessBrowserError) as exc_info:
-        await browser.fetch(POST_URL)
-    assert exc_info.value.reason == AcquisitionReason.HEADLESS_INCOMPLETE
+    snapshot = await browser.fetch(POST_URL)
+    assert snapshot.media_candidates == []
+    assert snapshot.post_candidates
+    await browser.close()
     assert active_scrapling_session_count() == 0
 
 
 @pytest.mark.asyncio
-async def test_missing_post_candidates_is_classified_as_incomplete() -> None:
+async def test_missing_post_candidates_returns_the_incomplete_snapshot() -> None:
     response = _response(POST_URL, og_title=None, author="someone-else")
     browser = ScraplingHeadlessBrowser(session_factory=_session_returning(response))
-    with pytest.raises(HeadlessBrowserError) as exc_info:
-        await browser.fetch(POST_URL)
-    assert exc_info.value.reason == AcquisitionReason.HEADLESS_INCOMPLETE
+    snapshot = await browser.fetch(POST_URL)
+    assert snapshot.post_candidates == []
+    await browser.close()
     assert active_scrapling_session_count() == 0
 
 

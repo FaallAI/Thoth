@@ -545,10 +545,9 @@ class ScraplingHeadlessBrowser:
             await self.close()
             raise
 
-        if not snapshot.post_candidates or not snapshot.media_candidates:
-            await self.close()
-            raise HeadlessBrowserError(AcquisitionReason.HEADLESS_INCOMPLETE)
-
+        # An incomplete snapshot (no post or no media candidate) is returned, not
+        # raised: the service classifies it as `headless_incomplete` and keeps the
+        # comments and cards the visit already collected through a TikWM rescue.
         return snapshot
 
     async def close(self) -> None:
