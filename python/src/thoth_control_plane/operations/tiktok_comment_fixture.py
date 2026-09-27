@@ -17,6 +17,7 @@ import json
 import re
 import string
 import sys
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,7 @@ ID_BASE = 7_000_000_000_000_000_000
 COMMENT_ID = re.compile(r"[0-9]{5,32}")
 HANDLE = re.compile(r"[A-Za-z0-9._-]{1,64}")
 STICKER = re.compile(r"\[\s*sti?c?ker\s*\]", re.IGNORECASE)
+STAT_KEYS = ("width", "height", "bytes")
 FILL_ALPHABET = string.ascii_lowercase + string.digits
 FILL_WIDTH = 3
 
@@ -36,6 +38,18 @@ def _fill(index: int) -> itertools.cycle[str]:
     return itertools.cycle(
         FILL_ALPHABET[(index // size**place) % size] for place in range(FILL_WIDTH)
     )
+
+
+def _is_letter(char: str) -> bool:
+    """Alphanumerics and combining marks (vowel signs, diacritics) are original text;
+    emoji variation selectors are not."""
+    if "\ufe00" <= char <= "\ufe0f":
+        return False
+    return char.isalnum() or unicodedata.category(char) in {"Mn", "Mc"}
+
+
+def _stat(stat: dict[str, Any]) -> dict[str, Any]:
+    return {key: stat[key] for key in STAT_KEYS}
 
 
 class _Pseudonyms:
@@ -76,7 +90,7 @@ class _Pseudonyms:
         used = set(self._texts.values())
         for index in range(len(self._texts), len(FILL_ALPHABET) ** FILL_WIDTH):
             fill = _fill(index)
-            pseudonym = "".join(next(fill) if char.isalnum() else char for char in core)
+            pseudonym = "".join(next(fill) if _is_letter(char) else char for char in core)
             if pseudonym not in used:
                 self._texts[core] = pseudonym
                 return pseudonym
@@ -107,8 +121,10 @@ def sanitize_capture(raw: dict[str, Any]) -> dict[str, Any]:
     return {
         "pages": pages,
         "card_texts": [names.text(text) for text in raw["card_texts"]],
-        "card_stats": raw["card_stats"],
-        "profile_card_stats": raw["profile_card_stats"],
+        "card_stats": [_stat(stat) for stat in raw["card_stats"]],
+        "profile_card_stats": (
+            None if raw["profile_card_stats"] is None else _stat(raw["profile_card_stats"])
+        ),
         "expected": [
             {"comment_id": names.comment_id(item["comment_id"]), "card": item["card"]}
             for item in raw["expected"]

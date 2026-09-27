@@ -3,6 +3,7 @@
 import copy
 import json
 import re
+import unicodedata
 from pathlib import Path
 
 import pytest
@@ -159,6 +160,44 @@ def test_sanitizer_refuses_texts_it_cannot_keep_distinct() -> None:
         sanitize_capture(capture)
 
 
+STAT_KEYS = {"width", "height", "bytes"}
+
+
+def _original_marks(text: str) -> list[str]:
+    """Combining marks other than emoji variation selectors, which carry no letters."""
+    return [
+        char
+        for char in text
+        if unicodedata.category(char) in {"Mn", "Mc"} and not "\ufe00" <= char <= "\ufe0f"
+    ]
+
+
+def test_sanitizer_replaces_combining_marks_but_keeps_emoji_selectors() -> None:
+    capture = copy.deepcopy(raw_capture())
+    marked = "কাবু بُ ❤️"
+    capture["pages"][0]["comments"][4]["text"] = marked
+    capture["card_texts"][1] = marked
+    sanitized = sanitize_capture(capture)
+    text = sanitized["pages"][0]["comments"][4]["text"]
+    assert len(text) == len(marked)
+    assert not _original_marks(text)
+    assert text.endswith(" ❤️")
+    assert sanitized["card_texts"][1] == text
+    assert replay(sanitized) == sanitized["expected"]
+
+
+def test_sanitizer_keeps_only_card_dimensions_and_size() -> None:
+    capture = copy.deepcopy(raw_capture())
+    extra = {"width": 300, "height": 80, "bytes": 6_000, "path": "/out/capture-1-c0.png"}
+    capture["card_stats"] = [extra] * 3
+    capture["profile_card_stats"] = {**extra, "url": "https://example.invalid/p.png"}
+    sanitized = sanitize_capture(capture)
+    assert sanitized["card_stats"] == [{"width": 300, "height": 80, "bytes": 6_000}] * 3
+    assert sanitized["profile_card_stats"] == {"width": 300, "height": 80, "bytes": 6_000}
+    capture["profile_card_stats"] = None
+    assert sanitize_capture(capture)["profile_card_stats"] is None
+
+
 def test_cli_writes_lf_json(tmp_path: Path) -> None:
     source = tmp_path / "raw.json"
     target = tmp_path / "post-1.json"
@@ -217,3 +256,8 @@ def test_golden_capture_carries_only_pseudonyms(path: Path) -> None:
             assert handle in (None, INVALID_HANDLE) or re.fullmatch(r"user_\d{3}", handle)
             cid = entry["cid"]
             assert cid in (None, INVALID_ID) or int(cid) >= ID_BASE
+            assert not _original_marks(entry["text"] or "")
+    for text in capture["card_texts"]:
+        assert not _original_marks(text)
+    for stat in [*capture["card_stats"], capture["profile_card_stats"] or {}]:
+        assert set(stat) <= STAT_KEYS
