@@ -26,7 +26,7 @@ from thoth_control_plane.acquisition.models import (
     TikTokComment,
     TikTokPost,
 )
-from thoth_control_plane.acquisition.service import TikTokAcquisitionService
+from thoth_control_plane.acquisition.service import TikTokAcquisitionService, _merge_post
 
 TIKWM_FIXTURE_PATH = (
     Path(__file__).resolve().parent.parent / "fixtures" / "tiktok" / "tikwm_success.json"
@@ -813,3 +813,76 @@ async def test_failed_tikwm_after_headless_comments_writes_no_cards(tmp_path) ->
     assert result.failure is not None
     assert result.failure.code == "cdn_unavailable"
     assert list(tmp_path.rglob("*.png")) == []
+
+
+def test_parse_tikwm_payload_fills_publication_time_and_engagement() -> None:
+    payload = _valid_tikwm_payload(
+        create_time=1709287200,
+        play_count=9,
+        digg_count=8,
+        comment_count=7,
+        share_count=6,
+        collect_count=5,
+    )
+
+    post = parse_tikwm_payload(payload).post
+
+    assert post.published_at == "2024-03-01T10:00:00Z"
+    assert post.engagement == {"play": 9, "like": 8, "comment": 7, "share": 6, "collect": 5}
+
+
+def test_parse_tikwm_payload_without_counters_leaves_them_empty() -> None:
+    post = parse_tikwm_payload(_valid_tikwm_payload()).post
+
+    assert post.published_at is None
+    assert post.engagement == {}
+
+
+def test_parse_tikwm_payload_skips_malformed_counters_without_failing() -> None:
+    payload = _valid_tikwm_payload(create_time="soon", play_count=-1, digg_count=4)
+
+    post = parse_tikwm_payload(payload).post
+
+    assert post.published_at is None
+    assert post.engagement == {"like": 4}
+
+
+def _post(published_at: str | None = None, engagement: dict[str, int] | None = None) -> TikTokPost:
+    return TikTokPost(
+        post_id="1234567890",
+        owner_handle="creator",
+        published_at=published_at,
+        engagement=engagement or {},
+    )
+
+
+HEADLESS_TIME = "2024-03-01T10:00:00Z"
+PROVIDER_TIME = "2024-02-01T00:00:00Z"
+
+
+@pytest.mark.parametrize(
+    ("headless", "provider", "published_at", "engagement"),
+    [
+        (
+            _post(HEADLESS_TIME, {"play": 7}),
+            _post(PROVIDER_TIME, {"like": 3}),
+            HEADLESS_TIME,
+            {"play": 7},
+        ),
+        (_post(), _post(PROVIDER_TIME, {"like": 3}), PROVIDER_TIME, {"like": 3}),
+        (_post(HEADLESS_TIME), _post(PROVIDER_TIME, {"like": 3}), HEADLESS_TIME, {"like": 3}),
+        (None, _post(PROVIDER_TIME, {"like": 3}), PROVIDER_TIME, {"like": 3}),
+        (_post(HEADLESS_TIME, {"play": 7}), None, HEADLESS_TIME, {"play": 7}),
+        (_post(), _post(), None, {}),
+    ],
+)
+def test_merge_post_fills_each_field_from_headless_first(
+    headless: TikTokPost | None,
+    provider: TikTokPost | None,
+    published_at: str | None,
+    engagement: dict[str, int],
+) -> None:
+    post = _merge_post(None, headless, provider)
+
+    assert post.published_at == published_at
+    assert post.engagement == engagement

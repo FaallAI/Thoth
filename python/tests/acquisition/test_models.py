@@ -348,3 +348,15 @@ def test_partial_discovery_result_round_trips_through_json() -> None:
 
     assert json.loads(dumped)["reason"] == "captcha"
     assert DiscoveryResult.model_validate_json(dumped) == result
+
+
+@pytest.mark.parametrize("schema_version", [1, 2])
+def test_reports_carry_publication_time_and_engagement(schema_version: int) -> None:
+    payload = _fixture_report().model_dump(mode="json")
+    payload["schema_version"] = schema_version
+    payload["post"].update(published_at="2024-03-01T10:00:00Z", engagement={"play": 7, "like": 2})
+
+    report = TikTokSourceReport.model_validate_json(json.dumps(payload))
+
+    assert report.post.published_at == "2024-03-01T10:00:00Z"
+    assert report.post.engagement == {"play": 7, "like": 2}

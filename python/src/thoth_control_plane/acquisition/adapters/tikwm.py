@@ -19,6 +19,7 @@ import httpx
 from pydantic import SecretStr, ValidationError
 
 from thoth_control_plane.acquisition.models import ResolvedMedia, TikTokPost
+from thoth_control_plane.acquisition.normalize import normalize_engagement, published_at_from_epoch
 from thoth_control_plane.domain.models import StrictModel
 
 TIKWM_ORIGIN = "https://www.tikwm.com"
@@ -109,7 +110,14 @@ def parse_tikwm_payload(payload: object) -> TikWmResolution:
 
     try:
         return TikWmResolution(
-            post=TikTokPost(post_id=str(post_id), owner_handle=unique_id, caption=caption[:10_000]),
+            post=TikTokPost(
+                post_id=str(post_id),
+                owner_handle=unique_id,
+                caption=caption[:10_000],
+                # TikWM field names are an assumption (spec 4.4); absent fields stay empty.
+                published_at=published_at_from_epoch(data.get("create_time")),
+                engagement=normalize_engagement(data, None),
+            ),
             media=ResolvedMedia(
                 ephemeral_url=SecretStr(normalized_url), duration_seconds=duration_seconds
             ),

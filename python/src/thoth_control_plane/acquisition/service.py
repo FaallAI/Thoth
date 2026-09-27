@@ -98,12 +98,20 @@ def _merge_post(
 ) -> TikTokPost:
     """Prefer a valid headless caption over a provider caption, while
     canonical URL identity (if derivable) wins all post-id/handle conflicts.
+    `published_at` and `engagement` merge per field, headless first.
     """
     caption = ""
     if headless_post is not None and headless_post.caption:
         caption = headless_post.caption
     elif provider_post is not None:
         caption = provider_post.caption
+
+    published_at: str | None = None
+    engagement: dict[str, int] = {}
+    for post in (headless_post, provider_post):
+        if post is not None:
+            published_at = published_at or post.published_at
+            engagement = engagement or post.engagement
 
     identity_source = identity or headless_post or provider_post
     if identity_source is None:
@@ -112,6 +120,8 @@ def _merge_post(
         post_id=identity_source.post_id,
         owner_handle=identity_source.owner_handle,
         caption=caption,
+        published_at=published_at,
+        engagement=engagement,
     )
 
 

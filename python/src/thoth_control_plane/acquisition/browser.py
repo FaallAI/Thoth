@@ -33,6 +33,7 @@ from thoth_control_plane.acquisition.models import (
     TikTokComment,
     TikTokPost,
 )
+from thoth_control_plane.acquisition.normalize import normalize_engagement, published_at_from_epoch
 
 CAPTURE_XHR_PATTERN = r"https://[^\s]+"
 EMBEDDED_DATA_SELECTOR = "script#__UNIVERSAL_DATA_FOR_REHYDRATION__::text"
@@ -392,7 +393,8 @@ def extract_browser_snapshot(
 
     `final_url` is validated through Task 2's canonicalization before any
     candidate is accepted. Raw XHR bodies are inspected only long enough to
-    pull out `id`/`desc`/`author.uniqueId`; nothing raw is retained.
+    pull out `id`/`desc`/`author.uniqueId`, `createTime`, and the `stats`/`statsV2`
+    counters; nothing raw is retained.
 
     Owner-handle cross-check precedence: the XHR `uniqueId` is an
     authoritative signal straight from TikTok's own item data, so when it is
@@ -415,8 +417,12 @@ def extract_browser_snapshot(
 
     item_struct = _item_struct(captured_xhr, embedded_data, identity.post_id)
     caption = ""
+    published_at: str | None = None
+    engagement: dict[str, int] = {}
     xhr_unique_id: str | None = None
     if item_struct is not None:
+        published_at = published_at_from_epoch(item_struct.get("createTime"))
+        engagement = normalize_engagement(item_struct.get("stats"), item_struct.get("statsV2"))
         xhr_desc = item_struct.get("desc")
         if isinstance(xhr_desc, str):
             caption = xhr_desc
@@ -438,6 +444,8 @@ def extract_browser_snapshot(
                 post_id=identity.post_id,
                 owner_handle=identity.owner_handle,
                 caption=caption[:10_000],
+                published_at=published_at,
+                engagement=engagement,
             )
         )
 

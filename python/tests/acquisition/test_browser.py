@@ -699,3 +699,44 @@ async def test_profile_card_is_kept_only_when_the_header_verifies_after_the_shot
     await browser.close()
     assert snapshot.profile_card_png is None
     assert snapshot.media_candidates
+
+
+def _embedded(item: dict) -> dict:
+    return {"__DEFAULT_SCOPE__": {"webapp.video-detail": {"itemInfo": {"itemStruct": item}}}}
+
+
+def test_item_struct_fills_publication_time_and_engagement() -> None:
+    # The rehydration script carries createTime as a decimal string.
+    item = {
+        **_item_struct(),
+        "createTime": "1709287200",
+        "stats": {"playCount": 5, "diggCount": 2},
+        "statsV2": {"playCount": "7"},
+    }
+    snapshot = extract_browser_snapshot(
+        final_url=POST_URL,
+        og_title=None,
+        author=None,
+        video_sources=[],
+        captured_xhr=[],
+        embedded_data=_embedded(item),
+    )
+
+    post = snapshot.post_candidates[0]
+    assert post.published_at == "2024-03-01T10:00:00Z"
+    assert post.engagement == {"play": 7, "like": 2}
+
+
+def test_item_struct_without_counters_leaves_them_empty() -> None:
+    snapshot = extract_browser_snapshot(
+        final_url=POST_URL,
+        og_title=None,
+        author=None,
+        video_sources=[],
+        captured_xhr=[],
+        embedded_data=_embedded(_item_struct()),
+    )
+
+    post = snapshot.post_candidates[0]
+    assert post.published_at is None
+    assert post.engagement == {}
