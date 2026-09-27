@@ -182,6 +182,7 @@ class _Scroll:
     done: bool = False
     captcha: bool = False
     timed_out: bool = False
+    stop: str = "none"
 
     def on_response(self, response: Any) -> None:
         if re.search(XHR_PATTERNS[self.kind], response.url):
@@ -196,6 +197,7 @@ class _Scroll:
         self.done = False
         self.captcha = False
         self.timed_out = False
+        self.stop = "none"
         page.on("response", self.on_response)
 
     async def absorb(self) -> None:
@@ -215,8 +217,13 @@ class _Scroll:
 def _scroll_action(scroll: _Scroll) -> Callable[[Any], Awaitable[None]]:
     async def action(page: Any) -> None:
         # A failed scroll must never discard the pages Scrapling already captured.
-        with contextlib.suppress(Exception):
+        try:
             await _paginate(page, scroll)
+        except Exception as error:
+            scroll.stop = f"error:{type(error).__name__}"
+            logger.warning(
+                "tiktok discovery scroll failed kind=%s error=%s", scroll.kind, type(error).__name__
+            )
 
     return action
 
@@ -226,13 +233,19 @@ async def _paginate(page: Any, scroll: _Scroll) -> None:
     idle = 0
     for _ in range(MAX_SCROLLS):
         await scroll.absorb()
-        if scroll.done or len(scroll.seen) >= scroll.limit:
+        if len(scroll.seen) >= scroll.limit:
+            scroll.stop = "limit"
+            return
+        if scroll.done:
+            scroll.stop = "done"
             return
         if await page.query_selector(CAPTCHA_SELECTOR) is not None:
             scroll.captcha = True
+            scroll.stop = "captcha"
             return
         if time.monotonic() >= deadline:
             scroll.timed_out = True
+            scroll.stop = "deadline"
             return
         before = len(scroll.responses)
         await page.mouse.wheel(0, SCROLL_PX)
@@ -241,7 +254,9 @@ async def _paginate(page: Any, scroll: _Scroll) -> None:
         else:
             idle += 1
             if idle >= IDLE_SCROLLS:
+                scroll.stop = "idle"
                 return
+    scroll.stop = "max_scrolls"
 
 
 async def _wait_for_new(page: Any, scroll: _Scroll, before: int) -> bool:
@@ -379,6 +394,7 @@ class ScraplingDiscoveryBrowser:
             finally:
                 _decrement_active_sessions()
 
+        logger.debug("tiktok discovery scroll ended kind=%s stop=%s", kind, scroll.stop)
         bodies = [_body(entry) for entry in getattr(response, "captured_xhr", None) or []]
         return _assemble(
             kind,

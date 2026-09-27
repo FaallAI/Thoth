@@ -610,6 +610,36 @@ async def test_a_failed_in_page_body_read_stops_scrolling_but_keeps_the_capture(
     assert result.reason is None
 
 
+@pytest.mark.parametrize(
+    ("flags", "patch", "limit", "stop"),
+    [
+        ({}, {}, 3, "limit"),
+        ({"last_has_more": False}, {}, 100, "done"),
+        ({"captcha": True}, {}, 100, "captcha"),
+        ({}, {"SCROLL_DEADLINE_S": 0.0}, 100, "deadline"),
+        ({}, {}, 100, "idle"),
+        ({}, {"MAX_SCROLLS": 1}, 100, "max_scrolls"),
+        ({"wheel_error": RuntimeError("detached")}, {}, 100, "error:RuntimeError"),
+    ],
+)
+async def test_the_scroll_stop_cause_is_logged(caplog, monkeypatch, flags, patch, limit, stop):
+    for name, value in patch.items():
+        monkeypatch.setattr(discovery_module, name, value)
+    last_has_more = flags.pop("last_has_more", True)
+    session = FakeSession("profile", _pages("profile", 2, last_has_more=last_has_more), **flags)
+    caplog.set_level(logging.DEBUG, logger=discovery_module.__name__)
+
+    await _browser(session).discover(ProfileDiscovery(handle="creator", limit=limit))
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any(message.endswith(f"stop={stop}") for message in messages)
+    warned = [record for record in caplog.records if record.levelname == "WARNING"]
+    if stop.startswith("error:"):
+        assert [record.getMessage() for record in warned] == [
+            "tiktok discovery scroll failed kind=profile error=RuntimeError"
+        ]
+
+
 async def test_logs_carry_counts_but_never_targets_or_content(caplog) -> None:
     session = FakeSession("keyword", _pages("keyword", 1), captcha=True)
     caplog.set_level(logging.INFO, logger=discovery_module.__name__)

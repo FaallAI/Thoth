@@ -24,6 +24,10 @@ All notable changes to this project will be documented in this file.
     tokenizes every raw string leaf outside the verbatim numeric slots and scans the fixture
     pages.
 - No production caller: discovery orchestration is Stage 8.
+- Live pagination past the first scroll is not yet demonstrated. Every live capture stopped
+  below its limit while TikTok still reported more results. The scroll now logs its stop
+  cause at `debug` and a suppressed scroll error at `warning`; diagnosing the shortfall is an
+  explicit item for the final live acceptance or Stage 8.
 - Verification:
   - WSL, Python 3.12: 2124 passed, 6 skipped, and 1 failed. The failure is the
     pre-existing `test_route_modules_do_not_depend_on_a_process_runner`.
