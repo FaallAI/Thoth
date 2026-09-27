@@ -2,6 +2,8 @@
 
 **Status:** accepted — operator decision, 2026-09-27
 
+**Amended 2026-09-27 (operator decision):** no live test runs until every stage is ported. The per-stage live smoke moves into the final acceptance, and the offline suite refuses non-loopback connections outside tests marked `live`.
+
 Until now the [Python Scout migration](../python-scout-migration-roadmap.md) moved one capability
 at a time through its own operational gates: activation parity, controlled fallback, an
 accelerated acceptance window with in-window parity samples, restart recovery, a rollback drill,
@@ -44,7 +46,7 @@ Every stage requires:
   produce them;
 - deterministic offline parity tests against those fixtures;
 - a small review of the stage's diff;
-- one controlled live smoke.
+- no live traffic: every stage test stays offline.
 
 Individual stages no longer require:
 
@@ -55,6 +57,7 @@ Individual stages no longer require:
 
 After the last port, one final acceptance comes before Stage 10 retires Scout:
 
+- one controlled live smoke per ported capability;
 - one end-to-end soak of the complete Python path;
 - a full review;
 - restart recovery;

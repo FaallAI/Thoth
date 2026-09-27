@@ -40,9 +40,8 @@ per stage:   golden fixtures recorded once
                  -> Python implementation
                  -> offline contract parity
                  -> stage diff review
-                 -> controlled live smoke
 
-at the end:  end-to-end soak -> full review -> restart recovery
+at the end:  live smokes -> end-to-end soak -> full review -> restart recovery
                  -> deployment rollback test -> operator approval -> legacy removal
 ```
 
@@ -55,7 +54,7 @@ exercises, or the `shadow` / `python_preferred` / `python_only` progression.
 |---|---|---|
 | 1. TikTok single post | Headless-first TikTok inspection and media materialization | Offline tests, live smoke, cancellation, and parity pass |
 | 2. Complete TikTok vertical slice | All active TikTok acquisition capabilities run in Python | Normal TikTok operation no longer needs Scout fallback |
-| 3. Remaining platform adapters | Threads, Instagram, X, Facebook, YouTube, and Reddit use the Python acquisition kernel | Parity and live smoke pass per platform |
+| 3. Remaining platform adapters | Threads, Instagram, X, Facebook, YouTube, and Reddit use the Python acquisition kernel | Offline parity passes per platform; live smoke waits for the final acceptance |
 | 4. Source intelligence | Source tracing, credit evidence, OCR, and candidate decisions move to Python | Original-source decision matches the stable Scout contract |
 | 5. Content assembly | Comments, footage, figures, main candidate, and media gates move to Python | A complete valid content-set is produced without Scout |
 | 6. Enrichment | Topic dossier, web grounding, CKB, and cultural pulse move to Python | Enriched output meets the accepted fixture contract |
@@ -333,7 +332,7 @@ Retirement then proceeds in this order:
 Stage 1 is closed. Write the Stage 2 design specification and implementation plan
 ("Complete the TikTok Vertical Slice" above) under the direct-migration strategy of
 [ADR 0001](adr/0001-direct-full-python-migration.md): golden fixtures, offline parity, a stage
-diff review, and one controlled live smoke. The deployed worker mode stays unchanged until a
+diff review, and no live traffic until the final acceptance. The deployed worker mode stays unchanged until a
 later deployment changes it.
 
 Two operational items carry into the final end-to-end soak:

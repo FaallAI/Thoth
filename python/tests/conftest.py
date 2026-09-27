@@ -1,5 +1,7 @@
 import asyncio
+import ipaddress
 import json
+import socket
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from hashlib import sha256
@@ -39,6 +41,41 @@ from thoth_control_plane.infrastructure.temporal_gateway import (
     TemporalWorkflowGateway,
 )
 from thoth_control_plane.workflows.source_investigation import SourceInvestigationWorkflow
+
+
+def _is_local(address: Any) -> bool:
+    if not isinstance(address, tuple):
+        return True  # AF_UNIX path
+    host = str(address[0])
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+@pytest.fixture(autouse=True)
+def _offline_unless_live(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch):
+    """Refuse every non-loopback connection outside tests marked ``live``.
+
+    Feature tests must never reach TikTok or any provider; live checks wait for the
+    end-to-end acceptance after the whole Scout migration.
+    """
+    if request.node.get_closest_marker("live"):
+        return
+    connect, connect_ex = socket.socket.connect, socket.socket.connect_ex
+
+    def guard(original):
+        def checked(sock: socket.socket, address: Any):
+            if not _is_local(address):
+                raise ConnectionRefusedError("network access is blocked in offline tests")
+            return original(sock, address)
+
+        return checked
+
+    monkeypatch.setattr(socket.socket, "connect", guard(connect))
+    monkeypatch.setattr(socket.socket, "connect_ex", guard(connect_ex))
 
 
 class InMemoryWorkflowGateway:
