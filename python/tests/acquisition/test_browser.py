@@ -6,11 +6,17 @@ from pathlib import Path
 
 import pytest
 
+from thoth_control_plane.acquisition import browser as browser_module
 from thoth_control_plane.acquisition.browser import (
+    COMMENT_CARDS_JS,
+    COMMENT_PAGE_JS,
     MAX_COMMENTS,
+    PROFILE_CARD_CHECK_JS,
+    PROFILE_CARD_JS,
     HeadlessBrowserError,
     ScraplingHeadlessBrowser,
     _extract_from_response,
+    _unsigned_comment_url,
     active_scrapling_session_count,
     check_scrapling_capability,
     extract_browser_snapshot,
@@ -545,3 +551,148 @@ async def test_comment_failure_never_fails_acquisition() -> None:
     assert snapshot.media_candidates
     assert [c.comment_id for c in snapshot.comments] == ["70000111"]
     assert active_scrapling_session_count() == 0
+
+
+def test_rerouted_comment_request_keeps_only_the_unsigned_parameters() -> None:
+    url = (
+        "https://www.tiktok.com/api/comment/list/?WebIdLastTime=1&aid=1988&aweme_id=123"
+        "&count=20&cursor=40&msToken=secret&X-Bogus=sig&X-Gnarly=sig"
+    )
+    assert _unsigned_comment_url(url) == (
+        "https://www.tiktok.com/api/comment/list/?aid=1988&aweme_id=123&count=20&cursor=40"
+    )
+
+
+class _Locator:
+    def __init__(self, page: "_CardPage", selector: str) -> None:
+        self._page, self._selector = page, selector
+
+    @property
+    def first(self) -> "_Locator":
+        return self
+
+    async def count(self) -> int:
+        return self._page.dom_comments if self._selector.endswith('comment-level-1"]') else 1
+
+    async def click(self, timeout: float) -> None:
+        self._page.dom_comments = 2
+
+    async def scroll_into_view_if_needed(self, timeout: float) -> None:
+        return None
+
+    async def screenshot(self, timeout: float) -> bytes:
+        return f"png:{self._selector}".encode()
+
+
+class _Context:
+    def __init__(self, tab: "_ProfileTab") -> None:
+        self.routes: list[str] = []
+        self._tab = tab
+
+    async def route(self, pattern: str, handler: object) -> None:
+        self.routes.append(pattern)
+
+    async def new_page(self) -> "_ProfileTab":
+        return self._tab
+
+
+class _ProfileTab:
+    def __init__(self, checks: list[bool]) -> None:
+        self._checks = checks
+        self.visited: list[str] = []
+        self.shots = 0
+        self.closed = False
+
+    async def goto(self, url: str, **kwargs: object) -> None:
+        self.visited.append(url)
+
+    async def evaluate(self, script: str) -> object:
+        if script == PROFILE_CARD_JS:
+            return {"x": 0, "y": 0, "width": 400, "height": 200}
+        assert script == PROFILE_CARD_CHECK_JS
+        return self._checks.pop(0) if self._checks else False
+
+    async def screenshot(self, clip: dict) -> bytes:
+        self.shots += 1
+        return f"profile-png-{self.shots}".encode()
+
+    async def wait_for_timeout(self, ms: float) -> None:
+        return None
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+class _CardPage:
+    def __init__(self, tab: _ProfileTab) -> None:
+        self.context = _Context(tab)
+        self.dom_comments = 0
+
+    def locator(self, selector: str) -> _Locator:
+        return _Locator(self, selector)
+
+    async def wait_for_timeout(self, ms: float) -> None:
+        return None
+
+    async def evaluate(self, script: str, arg: object = None) -> object:
+        if script == COMMENT_PAGE_JS:
+            return {
+                "comments": [_comment("70000111", "real card"), _comment("70000222", "no card")],
+                "has_more": 0,
+            }
+        assert script == COMMENT_CARDS_JS
+        return [[0, " real card "], [1, "unmatched dom text"]]
+
+
+def _session_with_setup(page: _CardPage):
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, traceback):
+            return None
+
+        async def fetch(self, url: str, **kwargs):
+            await kwargs["page_setup"](page)
+            await kwargs["page_action"](page)
+            return _response(POST_URL)
+
+    return lambda **kwargs: FakeSession()
+
+
+@pytest.mark.asyncio
+async def test_real_comment_and_profile_cards_are_cropped_without_leaking(monkeypatch) -> None:
+    monkeypatch.setattr(browser_module, "CARD_WAIT_S", 1)
+    tab = _ProfileTab([True, True])
+    page = _CardPage(tab)
+    browser = ScraplingHeadlessBrowser(session_factory=_session_with_setup(page))
+    snapshot = await browser.fetch(POST_URL)
+    await browser.close()
+
+    assert page.context.routes == ["**/api/comment/list/**", "**/api/post/item_list/**"]
+    cards = {c.comment_id: c.card_png for c in snapshot.comments}
+    assert cards == {"70000111": b'png:[data-thoth-card="0"]', "70000222": None}
+    assert tab.visited == ["https://www.tiktok.com/@creator"] and tab.closed
+    assert snapshot.profile_card_png == b"profile-png-1"
+    assert "png" not in snapshot.model_dump_json()
+
+
+@pytest.mark.asyncio
+async def test_profile_card_is_kept_only_when_the_header_verifies_after_the_shot(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(browser_module, "CARD_WAIT_S", 2)
+    # Attempt 1: ready, but the header regressed during the shot. Attempt 2: clean.
+    tab = _ProfileTab([True, False, True, True])
+    page = _CardPage(tab)
+    browser = ScraplingHeadlessBrowser(session_factory=_session_with_setup(page))
+    snapshot = await browser.fetch(POST_URL)
+    await browser.close()
+    assert snapshot.profile_card_png == b"profile-png-2"
+
+    never_ready = _CardPage(_ProfileTab([]))
+    browser = ScraplingHeadlessBrowser(session_factory=_session_with_setup(never_ready))
+    snapshot = await browser.fetch(POST_URL)
+    await browser.close()
+    assert snapshot.profile_card_png is None
+    assert snapshot.media_candidates

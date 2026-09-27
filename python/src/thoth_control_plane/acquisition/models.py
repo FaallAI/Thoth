@@ -90,6 +90,8 @@ class TikTokComment(StrictModel):
     author: Annotated[str, Field(pattern=r"^[A-Za-z0-9._-]{1,64}$")]
     text: Annotated[str, Field(min_length=1, max_length=2_000)]
     likes: Annotated[int, Field(ge=0)] = 0
+    # Real TikTok card crop (PNG); never a synthetic render, never serialized.
+    card_png: bytes | None = Field(default=None, exclude=True, repr=False)
 
 
 class BrowserSnapshot(StrictModel):
@@ -97,6 +99,7 @@ class BrowserSnapshot(StrictModel):
     post_candidates: list[TikTokPost] = Field(default_factory=list)
     media_candidates: list[ResolvedMedia] = Field(default_factory=list)
     comments: list[TikTokComment] = Field(default_factory=list)
+    profile_card_png: bytes | None = Field(default=None, exclude=True, repr=False)
 
 
 class TikTokSource(StrictModel):
