@@ -21,6 +21,7 @@ from thoth_control_plane.acquisition.adapters.tiktok import (
 )
 from thoth_control_plane.acquisition.adapters.tikwm import TikWmError, TikWmResolver
 from thoth_control_plane.acquisition.browser import HeadlessBrowser, HeadlessBrowserError
+from thoth_control_plane.acquisition.cards import persist_cards
 from thoth_control_plane.acquisition.materializer import (
     MediaMaterializationError,
     MediaMaterializer,
@@ -32,7 +33,9 @@ from thoth_control_plane.acquisition.models import (
     AcquisitionStrategy,
     AttemptStatus,
     BrowserSnapshot,
+    CardArtifact,
     MaterializedMedia,
+    ReportComment,
     ResolvedMedia,
     TikTokAcquisitionFailure,
     TikTokAcquisitionResult,
@@ -122,6 +125,8 @@ def _build_report(
     post: TikTokPost,
     materialized: MaterializedMedia,
     attempts: list[AcquisitionAttempt],
+    comments: list[ReportComment],
+    profile_card: CardArtifact | None,
 ) -> TikTokSourceReport:
     canonical_url = (
         identity.canonical_url if identity is not None else _fallback_canonical_url(post)
@@ -132,6 +137,8 @@ def _build_report(
         post=post,
         media=[materialized],
         outcome=AcquisitionOutcome(attempts=attempts),
+        comments=comments,
+        profile_card=profile_card,
     )
 
 
@@ -230,8 +237,11 @@ class TikTokAcquisitionService:
 
         if materialized is not None:
             post = _merge_post(identity, headless_post, None)
+            comments, profile_card = persist_cards(snapshot, workflow_id, artifact_root)
             return TikTokAcquisitionResult(
-                report=_build_report(workflow_id, identity, post, materialized, attempts)
+                report=_build_report(
+                    workflow_id, identity, post, materialized, attempts, comments, profile_card
+                )
             )
 
         # Headless did not produce usable, materialized media: this is the
@@ -282,6 +292,10 @@ class TikTokAcquisitionService:
             _make_attempt(AcquisitionStrategy.TIKWM_CDN, None, _elapsed_ms(tikwm_start))
         )
         post = _merge_post(merged_identity, headless_post, resolution.post)
+        # Comments come only from the headless visit; TikWM yields none.
+        comments, profile_card = persist_cards(snapshot, workflow_id, artifact_root)
         return TikTokAcquisitionResult(
-            report=_build_report(workflow_id, merged_identity, post, materialized, attempts)
+            report=_build_report(
+                workflow_id, merged_identity, post, materialized, attempts, comments, profile_card
+            )
         )

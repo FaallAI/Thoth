@@ -7,6 +7,7 @@ import httpx
 import pytest
 from pydantic import SecretStr
 
+from tests.acquisition.test_cards import make_png
 from thoth_control_plane.acquisition.adapters.tikwm import (
     TikWmError,
     TikWmRateGate,
@@ -20,6 +21,7 @@ from thoth_control_plane.acquisition.models import (
     BrowserSnapshot,
     MaterializedMedia,
     ResolvedMedia,
+    TikTokComment,
     TikTokPost,
 )
 from thoth_control_plane.acquisition.service import TikTokAcquisitionService
@@ -662,3 +664,104 @@ async def test_headless_tries_every_media_candidate_before_falling_back(tmp_path
     ]
     assert materializer.calls == ["rejected", "scrapling_headless"]
     assert resolver.calls == []
+
+
+def snapshot_with_comments() -> BrowserSnapshot:
+    return complete_snapshot().model_copy(
+        update={
+            "comments": [
+                TikTokComment(
+                    comment_id="11111", author="alpha", text="first", card_png=make_png(300, 80)
+                ),
+                TikTokComment(comment_id="22222", author="beta", text="second"),
+            ],
+            "profile_card_png": make_png(500, 200),
+        }
+    )
+
+
+@pytest.mark.asyncio
+async def test_headless_success_records_comments_and_card_artifacts(tmp_path) -> None:
+    result = await TikTokAcquisitionService(
+        FakeBrowser(snapshot_with_comments()), FakeResolver(), FakeMaterializer()
+    ).inspect(workflow_id="wf_cards_001", source_url=SOURCE_URL, artifact_root=tmp_path)
+
+    assert result.report is not None
+    report = result.report
+    assert report.schema_version == 2
+    assert [comment.comment_id for comment in report.comments] == ["11111", "22222"]
+    first_card = report.comments[0].card
+    assert first_card is not None
+    assert first_card.location == PurePosixPath("reports/wf_cards_001/cards/comment-11111.png")
+    assert (tmp_path / first_card.location).is_file()
+    assert report.comments[1].card is None
+    assert report.profile_card is not None
+    assert report.profile_card.location == PurePosixPath("reports/wf_cards_001/cards/profile.png")
+
+
+@pytest.mark.asyncio
+async def test_comments_survive_a_tikwm_rescue(tmp_path) -> None:
+    result = await TikTokAcquisitionService(
+        FakeBrowser(snapshot_with_comments()),
+        FakeResolver.from_payload(tikwm_fixture_payload()),
+        FakeMaterializer(fail_for=frozenset({"scrapling_headless"})),
+    ).inspect(workflow_id="wf_cards_002", source_url=SOURCE_URL, artifact_root=tmp_path)
+
+    assert result.report is not None
+    assert [attempt.strategy for attempt in result.report.outcome.attempts] == [
+        "scrapling_headless",
+        "tikwm_cdn",
+    ]
+    assert [comment.comment_id for comment in result.report.comments] == ["11111", "22222"]
+    assert result.report.comments[0].card is not None
+    assert result.report.profile_card is not None
+
+
+@pytest.mark.asyncio
+async def test_headless_exception_rescue_has_no_comments_or_cards(tmp_path) -> None:
+    result = await TikTokAcquisitionService(
+        FakeBrowser(HeadlessBrowserError(AcquisitionReason.HEADLESS_BLOCKED)),
+        FakeResolver.from_payload(tikwm_fixture_payload()),
+        FakeMaterializer(),
+    ).inspect(workflow_id="wf_cards_003", source_url=SOURCE_URL, artifact_root=tmp_path)
+
+    assert result.report is not None
+    assert result.report.comments == []
+    assert result.report.profile_card is None
+    assert not (tmp_path / "reports" / "wf_cards_003" / "cards").exists()
+
+
+@pytest.mark.asyncio
+async def test_a_rejected_card_never_fails_acquisition(tmp_path) -> None:
+    snapshot = complete_snapshot().model_copy(
+        update={
+            "comments": [
+                TikTokComment(
+                    comment_id="11111", author="alpha", text="first", card_png=b"not a png"
+                )
+            ],
+            "profile_card_png": make_png(400, 100, flat=True),
+        }
+    )
+    result = await TikTokAcquisitionService(
+        FakeBrowser(snapshot), FakeResolver(), FakeMaterializer()
+    ).inspect(workflow_id="wf_cards_004", source_url=SOURCE_URL, artifact_root=tmp_path)
+
+    assert result.failure is None
+    assert result.report is not None
+    assert [comment.comment_id for comment in result.report.comments] == ["11111"]
+    assert result.report.comments[0].card is None
+    assert result.report.profile_card is None
+
+
+@pytest.mark.asyncio
+async def test_failed_tikwm_after_headless_comments_writes_no_cards(tmp_path) -> None:
+    result = await TikTokAcquisitionService(
+        FakeBrowser(snapshot_with_comments()),
+        FakeResolver(TikWmError("cdn_unavailable")),
+        FakeMaterializer(fail_for=frozenset({"scrapling_headless"})),
+    ).inspect(workflow_id="wf_cards_005", source_url=SOURCE_URL, artifact_root=tmp_path)
+
+    assert result.failure is not None
+    assert result.failure.code == "cdn_unavailable"
+    assert list(tmp_path.rglob("*.png")) == []
