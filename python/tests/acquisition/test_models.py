@@ -225,6 +225,31 @@ def test_report_rejects_more_than_fifty_comments() -> None:
         TikTokSourceReport.model_validate_json(json.dumps(payload))
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("comments", [{"comment_id": "12345", "author": "user_001", "text": "x"}]),
+        (
+            "profile_card",
+            {
+                "location": "reports/wf/cards/profile.png",
+                "bytes": 4_000,
+                "checksum": "sha256:" + "b" * 64,
+                "width": 300,
+                "height": 80,
+            },
+        ),
+    ],
+    ids=["comments", "profile_card"],
+)
+def test_v1_report_rejects_v2_enrichment(field: str, value: object) -> None:
+    payload = json.loads(_fixture_report().model_dump_json())
+    assert payload["schema_version"] == 1
+    payload[field] = value
+    with pytest.raises(ValidationError, match="schema_version 1"):
+        TikTokSourceReport.model_validate_json(json.dumps(payload))
+
+
 def test_report_comment_rejects_image_bytes() -> None:
     with pytest.raises(ValidationError):
         ReportComment.model_validate(

@@ -150,6 +150,12 @@ class TikTokSourceReport(StrictModel):
     comments: list[ReportComment] = Field(default_factory=list, max_length=MAX_COMMENTS)
     profile_card: CardArtifact | None = None
 
+    @model_validator(mode="after")
+    def keep_v1_free_of_enrichment(self) -> TikTokSourceReport:
+        if self.schema_version == 1 and (self.comments or self.profile_card is not None):
+            raise ValueError("schema_version 1 reports carry no comments or cards")
+        return self
+
 
 class TikTokAcquisitionFailure(StrictModel):
     code: Literal[
