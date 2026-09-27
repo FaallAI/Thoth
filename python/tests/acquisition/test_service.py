@@ -7,7 +7,7 @@ import httpx
 import pytest
 from pydantic import SecretStr
 
-from tests.acquisition.test_cards import make_png
+from tests.acquisition.png_fixtures import make_png
 from thoth_control_plane.acquisition.adapters.tikwm import (
     TikWmError,
     TikWmRateGate,

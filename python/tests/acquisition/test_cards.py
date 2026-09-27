@@ -4,13 +4,11 @@ import asyncio
 import hashlib
 import json
 import logging
-import random
-import struct
-import zlib
 from pathlib import PurePosixPath
 
 import pytest
 
+from tests.acquisition.png_fixtures import make_png
 from thoth_control_plane.acquisition import cards
 from thoth_control_plane.acquisition.cards import (
     CardRejected,
@@ -24,25 +22,6 @@ from thoth_control_plane.acquisition.models import MAX_CARD_BYTES, BrowserSnapsh
 SOURCE_URL = "https://www.tiktok.com/@creator/video/1234567890"
 CARD_ROOT = PurePosixPath("reports/wf_cards_001/cards")
 CARD_LOCATION = CARD_ROOT / "comment-12345.png"
-
-
-def make_png(width: int, height: int, *, flat: bool = False) -> bytes:
-    """A valid RGB PNG: noisy pixels stay large like a real card, flat ones compress away."""
-    rng = random.Random(width * 10_007 + height)
-    row = width * 3
-    raw = b"".join(b"\x00" + (bytes(row) if flat else rng.randbytes(row)) for _ in range(height))
-
-    def chunk(kind: bytes, data: bytes) -> bytes:
-        crc = struct.pack(">I", zlib.crc32(kind + data))
-        return struct.pack(">I", len(data)) + kind + data + crc
-
-    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
-    return (
-        b"\x89PNG\r\n\x1a\n"
-        + chunk(b"IHDR", header)
-        + chunk(b"IDAT", zlib.compress(raw))
-        + chunk(b"IEND", b"")
-    )
 
 
 def _snapshot(comments: list[TikTokComment], profile: bytes | None = None) -> BrowserSnapshot:
