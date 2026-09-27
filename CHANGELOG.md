@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-09-27 - Stage 1 closed by operator decision; direct full Python migration (ADR 0001)
+
+Step 9 opened acceptance window `56fa84e6` with operator authorization. The operator then closed
+Stage 1 without an evaluator `ready` verdict and changed the migration strategy. The decision is
+recorded in `docs/adr/0001-direct-full-python-migration.md`.
+
+- Window `56fa84e6`: 226 valid completed runs, all `python_native` with
+  `scrapling_headless:succeeded`, 0 legacy fallbacks, and 0 terminal failures. The first valid run
+  was at 2026-09-26T05:38Z. The collector stopped at 2026-09-27T01:43Z, so the span is 20.08 hours.
+- `p10` (in-window parity sample): the Python workflow succeeded and was recorded as a window
+  observation. The Scout reference exited nonzero with no report because it could not get TikTok
+  oEmbed metadata. The pairing index row is `evidence_incomparable`
+  (`tiktok_oembed_unavailable`), and the observation's `parity_passed` stays unset. A one-request
+  probe per fixture returned HTTP 429 for both `p10` and `p11`, an IP-level rate limit on this
+  host. The Python path does not call oEmbed. `p11` was not run, and its fixture is unspent.
+- Operator waiver: the window's 24-hour span and its two in-window parity samples. The evaluator
+  would still report `INSUFFICIENT_WINDOW` and `INSUFFICIENT_PARITY_SAMPLES`. Restart recovery and
+  the rollback drill were not run; they move to the final end-to-end acceptance.
+- Strategy: Stages 2-10 now port directly to Python. Each stage needs golden fixtures, offline
+  parity, a diff review, and one controlled live smoke. Per-stage soak windows, activation gates,
+  and fallback exercises are dropped. The roadmap, the Stage 1 cutover spec, and the accelerated
+  acceptance spec are amended to point to the ADR.
+- Unchanged: the deployment stays on digest `56fa84e6…`, and the worker mode stays
+  `python_tiktok_with_legacy_fallback`. No S3 export, Issue #5 post, or deployment change was made.
+
 ## 2026-09-26 - Step 8 passed on `56fa84e6` / `478b06f` (`f4` and `p9`)
 
 This entry supersedes the "Not done" line of the entry below. The push, image, and redeploy on

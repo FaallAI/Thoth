@@ -1,6 +1,7 @@
 # Python TikTok Stage 1 Operational Soak and Cutover Design
 
-**Status:** Approved
+**Status:** Approved; Stage 1 closed by operator decision on 2026-09-27 without an evaluator `ready`
+verdict. See [ADR 0001](../../adr/0001-direct-full-python-migration.md).
 
 **Date:** 2026-09-02
 

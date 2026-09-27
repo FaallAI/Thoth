@@ -1,6 +1,6 @@
 # Stage 1 Accelerated Acceptance Design
 
-**Status:** Approved
+**Status:** Approved; Stage 1 closed by operator decision on 2026-09-27 without an evaluator `ready` verdict, see [ADR 0001](../../adr/0001-direct-full-python-migration.md)
 **Date:** 2026-09-07
 **Scope:** TikTok Stage 1 Python acquisition cutover only
 

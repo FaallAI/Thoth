@@ -2,7 +2,7 @@
 
 **Status:** Active migration knowledge
 
-**Last updated:** 2026-08-31
+**Last updated:** 2026-09-27
 
 ## Purpose
 
@@ -31,20 +31,23 @@ FastAPI -> Temporal
                           `-- validated content-set
 ```
 
-Each capability crosses the same migration gates:
+Since 2026-09-27 the migration follows
+[ADR 0001: direct full migration](adr/0001-direct-full-python-migration.md). Scout TypeScript is
+no longer used for daily work, so each stage is ported directly and is not operated in stages:
 
 ```text
-offline fixtures
-    -> Python implementation
-    -> contract parity
-    -> controlled live smoke
-    -> shadow operation
-    -> Python preferred
-    -> Python only
-    -> legacy removal
+per stage:   golden fixtures recorded once
+                 -> Python implementation
+                 -> offline contract parity
+                 -> stage diff review
+                 -> controlled live smoke
+
+at the end:  end-to-end soak -> full review -> restart recovery
+                 -> deployment rollback test -> operator approval -> legacy removal
 ```
 
-Fallback is retired per capability and per platform. A platform that has passed its gates does not need to wait for every other platform before operating Python-only.
+Individual stages no longer run soak windows, activation parity gates, controlled fallback
+exercises, or the `shadow` / `python_preferred` / `python_only` progression.
 
 ## Migration Stages
 
@@ -63,11 +66,15 @@ Fallback is retired per capability and per platform. A platform that has passed 
 
 ## Stage 1: TikTok Single-Post Acquisition
 
-**Stage 1 status:** Implemented; live gates passed. The deterministic suite, the controlled
-live acquisition smoke, the live cancellation gate, and the same-URL Python/Scout parity gate
-all pass on a first-party public TikTok post. The operational soak and the capability-specific
-retirement decision remain open, so Scout stays reachable through the explicit fallback mode.
-The authoritative
+**Stage 1 status:** Closed by operator decision on 2026-09-27
+([ADR 0001](adr/0001-direct-full-python-migration.md)). The deterministic suite, the controlled
+live acquisition smoke, the live cancellation gate, the same-URL Python/Scout parity gate, the
+activation parity gate (`p9`), and the controlled fallback exercise (`f4`) passed. Acceptance
+window `56fa84e6` recorded 226 valid Python-route runs. The operator waived that window's
+24-hour span, which reached 20.08 hours, and its two in-window parity samples: no sample was
+recorded, because the Scout reference was rate-limited on TikTok oEmbed. Restart recovery and the
+rollback drill move to the final end-to-end acceptance. The accelerated acceptance text below is
+kept as history. The authoritative
 [design specification](superpowers/specs/2026-08-31-python-tiktok-scout-rewrite-design.md) and
 [implementation plan](superpowers/plans/2026-08-31-python-tiktok-scout-rewrite.md) define this
 slice and its retirement gates. The cutover decision itself — soak evidence, human approval, and
@@ -257,6 +264,10 @@ Discovery outputs a strict candidate list that starts the same durable workflow 
 
 ## Stage 9: Operational Cutover
 
+Under [ADR 0001](adr/0001-direct-full-python-migration.md), capabilities no longer pass through
+the states below one at a time. Stage 9 is the single final end-to-end acceptance. The states
+describe the worker modes that deployment can select.
+
 Use four explicit operating states:
 
 ```text
@@ -313,25 +324,19 @@ Retirement then proceeds in this order:
 - Require offline fixtures before live tests.
 - Require controlled live smoke before changing the authoritative path.
 - Treat cancellation, retry, artifact atomicity, redaction, and restart behavior as acceptance requirements, not follow-up hardening.
-- Remove fallback as soon as its capability-specific retirement gates pass.
+- Record golden fixtures once per stage and keep parity checks offline and deterministic; do not
+  add per-stage soak windows or fallback exercises ([ADR 0001](adr/0001-direct-full-python-migration.md)).
 - Never declare the migration complete while any production path still requires Bun Scout.
 
 ## Immediate Next Step
 
-The Stage 1 implementation live gate has passed. Clear the containerized activation parity gate,
-whose current state is recorded in the operator change record, then complete the accelerated
-acceptance window on the Python
-acquisition path — see the "TikTok Stage 1 operational soak" section of
-[python-control-plane.md](python-control-plane.md) — then make the capability-specific retirement
-decision for TikTok single-post acquisition, following its own
-[design specification](superpowers/specs/2026-09-02-python-tiktok-stage1-cutover-design.md),
-[implementation plan](superpowers/plans/2026-09-02-python-tiktok-stage1-cutover.md), and the
-superseding accelerated-acceptance thresholds above. Keep
-`legacy_scout` and `python_tiktok_with_legacy_fallback` reachable until that decision is made, and
-do not widen Stage 1 scope beyond one public TikTok post URL. Stage 2 ("Complete the TikTok
-Vertical Slice" above) starts only after the Stage 1 cutover decision is completed.
+Stage 1 is closed. Write the Stage 2 design specification and implementation plan
+("Complete the TikTok Vertical Slice" above) under the direct-migration strategy of
+[ADR 0001](adr/0001-direct-full-python-migration.md): golden fixtures, offline parity, a stage
+diff review, and one controlled live smoke. The deployed worker mode stays unchanged until a
+later deployment changes it.
 
-Two operational items carry into the soak:
+Two operational items carry into the final end-to-end soak:
 
 - Configure logging for the `scrapling` logger in the production worker. The library logs signed
   CDN URLs at INFO. Reports, Temporal history, and events stay clean -- this is library stdout
