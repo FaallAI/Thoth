@@ -188,6 +188,14 @@ class _Scroll:
             self.responses.append(response)
 
     async def attach(self, page: Any) -> None:
+        # A session retry re-runs page_setup on a fresh page; start a clean tally so a
+        # stale response or flag from the failed attempt never carries into this one.
+        self.responses = []
+        self.parsed = 0
+        self.seen = set()
+        self.done = False
+        self.captcha = False
+        self.timed_out = False
         page.on("response", self.on_response)
 
     async def absorb(self) -> None:

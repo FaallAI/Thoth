@@ -424,6 +424,27 @@ async def test_stops_at_max_scrolls() -> None:
     assert len(result.videos) == 33
 
 
+async def test_attach_resets_stale_scroll_state_from_a_session_retry() -> None:
+    """Scrapling re-runs page_setup/page_action on a fresh page when it retries a failed
+    goto/load-state; a stale response left over from the failed attempt must never carry
+    into the retry's tally (a closed page's body() raises there, which reads as done)."""
+    scroll = discovery_module._Scroll(kind="profile", limit=100)
+    failed_page = FakePage(
+        API_URLS["profile"], _pages("profile", 1, last_has_more=False), body_error=True
+    )
+    await scroll.attach(failed_page)
+    await discovery_module._paginate(failed_page, scroll)
+    assert scroll.done is True  # the failed attempt's stale response looked like captcha
+
+    retry_page = FakePage(API_URLS["profile"], _pages("profile", 1, last_has_more=False))
+    await scroll.attach(retry_page)
+    await discovery_module._paginate(retry_page, scroll)
+
+    assert retry_page.scrolls == 1
+    assert scroll.captcha is False
+    assert len(scroll.seen) == 3
+
+
 async def test_captcha_container_stops_with_a_partial_result() -> None:
     session = FakeSession("profile", _pages("profile", 3), captcha=True)
 
