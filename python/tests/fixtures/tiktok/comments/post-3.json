@@ -1,0 +1,617 @@
+{
+  "pages": [
+    {
+      "comments": [
+        {
+          "cid": "7000000000000000000",
+          "unique_id": "user_001",
+          "text": "a aaaa aaaaaa",
+          "digg_count": 1
+        },
+        {
+          "cid": "7000000000000000001",
+          "unique_id": "user_002",
+          "text": "baabaa b aa",
+          "digg_count": 3
+        },
+        {
+          "cid": "7000000000000000002",
+          "unique_id": "user_003",
+          "text": "caac aacaaca aca 😹",
+          "digg_count": 13
+        },
+        {
+          "cid": "7000000000000000003",
+          "unique_id": "user_004",
+          "text": "da’a daada a’d aad aada adaadaada",
+          "digg_count": 31
+        },
+        {
+          "cid": "7000000000000000004",
+          "unique_id": "user_005",
+          "text": "eaae aaeaa",
+          "digg_count": 3
+        },
+        {
+          "cid": "7000000000000000005",
+          "unique_id": "user_006",
+          "text": "faafaa",
+          "digg_count": 3
+        },
+        {
+          "cid": "7000000000000000006",
+          "unique_id": "user_007",
+          "text": "g aaga aga aga aga 🥰🥰🥰",
+          "digg_count": 3
+        },
+        {
+          "cid": "7000000000000000007",
+          "unique_id": "user_008",
+          "text": "haah aahaah🥳",
+          "digg_count": 0
+        },
+        {
+          "cid": "7000000000000000008",
+          "unique_id": "user_009",
+          "text": "i aaia aiaai",
+          "digg_count": 2
+        },
+        {
+          "cid": "7000000000000000009",
+          "unique_id": "user_010",
+          "text": "jaajaa",
+          "digg_count": 2
+        },
+        {
+          "cid": "7000000000000000010",
+          "unique_id": "user_011",
+          "text": "k aaka akaaka ak aakaa kaa",
+          "digg_count": 2
+        },
+        {
+          "cid": "7000000000000000011",
+          "unique_id": "user_012",
+          "text": "la ala ala ala a la al aa",
+          "digg_count": 1
+        },
+        {
+          "cid": "7000000000000000012",
+          "unique_id": "user_013",
+          "text": "maa",
+          "digg_count": 15
+        },
+        {
+          "cid": "7000000000000000013",
+          "unique_id": "user_014",
+          "text": "naan aanaan",
+          "digg_count": 4
+        },
+        {
+          "cid": "7000000000000000014",
+          "unique_id": "user_015",
+          "text": "oaaoa://ao.aaoaao.aao/aaoaaoaao/🙏🏻",
+          "digg_count": 1
+        },
+        {
+          "cid": "7000000000000000015",
+          "unique_id": "user_016",
+          "text": "p aapa ap aa paapa",
+          "digg_count": 5
+        },
+        {
+          "cid": "7000000000000000016",
+          "unique_id": "user_017",
+          "text": "q",
+          "digg_count": 1
+        },
+        {
+          "cid": "7000000000000000017",
+          "unique_id": "user_018",
+          "text": "ra ara ara ara araa raa raa raa ra",
+          "digg_count": 2
+        }
+      ]
+    },
+    {
+      "comments": [
+        {
+          "cid": "7000000000000000013",
+          "unique_id": "user_014",
+          "text": "naan aanaan",
+          "digg_count": 4
+        },
+        {
+          "cid": "7000000000000000018",
+          "unique_id": "user_019",
+          "text": "saa sa’a saasaa",
+          "digg_count": 2
+        },
+        {
+          "cid": "7000000000000000019",
+          "unique_id": "user_020",
+          "text": "taata://at.aataat.aat/aataataat/",
+          "digg_count": 3
+        },
+        {
+          "cid": "7000000000000000020",
+          "unique_id": "user_021",
+          "text": "uaau aa u-aa uaa uaaua a uaaua.. 🔥🥰",
+          "digg_count": 16
+        },
+        {
+          "cid": "7000000000000000021",
+          "unique_id": "user_022",
+          "text": "vaavaav",
+          "digg_count": 4
+        },
+        {
+          "cid": "7000000000000000022",
+          "unique_id": "user_023",
+          "text": "jaajaa",
+          "digg_count": 1
+        },
+        {
+          "cid": "7000000000000000023",
+          "unique_id": "user_002",
+          "text": "w",
+          "digg_count": 3
+        },
+        {
+          "cid": "7000000000000000024",
+          "unique_id": "user_024",
+          "text": "xaaxaa xaa x'a axaaxaax aa xaax?",
+          "digg_count": 8
+        },
+        {
+          "cid": "7000000000000000025",
+          "unique_id": "user_025",
+          "text": "y aaya ayaaya",
+          "digg_count": 1
+        },
+        {
+          "cid": "7000000000000000026",
+          "unique_id": "user_026",
+          "text": "#zaazaazaa♥️🌞💚",
+          "digg_count": 2
+        },
+        {
+          "cid": "7000000000000000027",
+          "unique_id": "user_027",
+          "text": "0aa0aa 0aa 0aa0aa 0a a0aa0aa0aa0aa0aa",
+          "digg_count": 7
+        },
+        {
+          "cid": "7000000000000000028",
+          "unique_id": "user_028",
+          "text": "1 aa1a a1 aa 1aa1a a1 aa1aa1❤️",
+          "digg_count": 1
+        },
+        {
+          "cid": "7000000000000000029",
+          "unique_id": "user_029",
+          "text": "2aa2a a2a a2aa 2aa 2aa2",
+          "digg_count": 2
+        },
+        {
+          "cid": "7000000000000000030",
+          "unique_id": "user_030",
+          "text": "jaajaa",
+          "digg_count": 1
+        },
+        {
+          "cid": "7000000000000000031",
+          "unique_id": "user_031",
+          "text": "3aa3 aa3aa😭",
+          "digg_count": 2
+        },
+        {
+          "cid": "7000000000000000032",
+          "unique_id": "user_032",
+          "text": "p aapa ap aa paapa",
+          "digg_count": 2
+        },
+        {
+          "cid": "7000000000000000033",
+          "unique_id": "user_033",
+          "text": "4aa4a a4a a4aa4 aa4 aa 4a a4a",
+          "digg_count": 2
+        },
+        {
+          "cid": "7000000000000000034",
+          "unique_id": "user_034",
+          "text": "y aaya ayaaya",
+          "digg_count": 3
+        },
+        {
+          "cid": "7000000000000000035",
+          "unique_id": "user_035",
+          "text": "5aa5a a5aa5a a5a 🇵🇸🇵🇸🇵🇸🇵🇸🇵🇸🇵🇸",
+          "digg_count": 10
+        },
+        {
+          "cid": "7000000000000000036",
+          "unique_id": "user_036",
+          "text": "6aa6 aa6 aa6 aa6 🫶🏻❣️❣️❣️🥹💘",
+          "digg_count": 11
+        }
+      ]
+    },
+    {
+      "comments": [
+        {
+          "cid": "7000000000000000037",
+          "unique_id": "user_037",
+          "text": "7aa7aa.7aa7aa7a",
+          "digg_count": 6
+        },
+        {
+          "cid": "7000000000000000038",
+          "unique_id": "user_002",
+          "text": "w",
+          "digg_count": 1
+        },
+        {
+          "cid": "7000000000000000039",
+          "unique_id": "user_038",
+          "text": "8aa8aa8 aa8aa8aa 8a a8aa8a",
+          "digg_count": 5
+        },
+        {
+          "cid": "7000000000000000040",
+          "unique_id": "user_039",
+          "text": "9aa9aa 9aa 9aa9aa 9aa9!",
+          "digg_count": 2
+        },
+        {
+          "cid": "7000000000000000041",
+          "unique_id": "user_040",
+          "text": "jaajaa",
+          "digg_count": 2
+        },
+        {
+          "cid": "7000000000000000042",
+          "unique_id": "user_041",
+          "text": "abaaba",
+          "digg_count": 8
+        },
+        {
+          "cid": "7000000000000000043",
+          "unique_id": "user_042",
+          "text": "bbabbab",
+          "digg_count": 6
+        },
+        {
+          "cid": "7000000000000000044",
+          "unique_id": "user_043",
+          "text": "c bacb acbacb 💗",
+          "digg_count": 6
+        },
+        {
+          "cid": "7000000000000000045",
+          "unique_id": "user_044",
+          "text": "dbad 🥲🫠",
+          "digg_count": 3
+        },
+        {
+          "cid": "7000000000000000046",
+          "unique_id": "user_045",
+          "text": "ebaeb aeb aeb aeb",
+          "digg_count": 6
+        },
+        {
+          "cid": "7000000000000000047",
+          "unique_id": "user_046",
+          "text": "fbafba fba fba fba fba fba fbaf bafbafb afbaf baf baf bafbaf ba fbaf bafbaf?",
+          "digg_count": 15
+        },
+        {
+          "cid": "7000000000000000048",
+          "unique_id": "user_047",
+          "text": "gb",
+          "digg_count": 5
+        },
+        {
+          "cid": "7000000000000000049",
+          "unique_id": "user_048",
+          "text": "hbahb",
+          "digg_count": 8
+        },
+        {
+          "cid": "7000000000000000050",
+          "unique_id": "user_049",
+          "text": "jaajaa",
+          "digg_count": 1
+        },
+        {
+          "cid": "7000000000000000051",
+          "unique_id": "user_050",
+          "text": "iba iba ibaib aibaib aib ai baib aib",
+          "digg_count": 7
+        },
+        {
+          "cid": "7000000000000000052",
+          "unique_id": "user_051",
+          "text": "@ jb aj b a jb",
+          "digg_count": 3
+        },
+        {
+          "cid": "7000000000000000053",
+          "unique_id": "user_052",
+          "text": "kbakb akbakb",
+          "digg_count": 8
+        }
+      ]
+    }
+  ],
+  "card_texts": [
+    "a aaaa aaaaaa",
+    "da’a daada a’d aad aada adaadaada",
+    "faafaa",
+    "i aaia aiaai",
+    "eaae aaeaa",
+    "baabaa b aa",
+    "g aaga aga aga aga 🥰🥰🥰",
+    "jaajaa",
+    "maa",
+    "l balb albalb"
+  ],
+  "card_stats": [
+    {
+      "width": 768,
+      "height": 154,
+      "bytes": 14886
+    },
+    {
+      "width": 768,
+      "height": 154,
+      "bytes": 22570
+    },
+    {
+      "width": 768,
+      "height": 154,
+      "bytes": 18362
+    },
+    {
+      "width": 768,
+      "height": 154,
+      "bytes": 16577
+    },
+    {
+      "width": 768,
+      "height": 154,
+      "bytes": 18826
+    },
+    {
+      "width": 768,
+      "height": 154,
+      "bytes": 11077
+    },
+    {
+      "width": 768,
+      "height": 154,
+      "bytes": 12694
+    },
+    {
+      "width": 768,
+      "height": 154,
+      "bytes": 11223
+    },
+    {
+      "width": 768,
+      "height": 154,
+      "bytes": 16820
+    },
+    {
+      "width": 768,
+      "height": 154,
+      "bytes": 18623
+    }
+  ],
+  "profile_card_stats": {
+    "width": 1168,
+    "height": 416,
+    "bytes": 39046
+  },
+  "expected": [
+    {
+      "comment_id": "7000000000000000000",
+      "card": 0
+    },
+    {
+      "comment_id": "7000000000000000001",
+      "card": 5
+    },
+    {
+      "comment_id": "7000000000000000002",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000003",
+      "card": 1
+    },
+    {
+      "comment_id": "7000000000000000004",
+      "card": 4
+    },
+    {
+      "comment_id": "7000000000000000005",
+      "card": 2
+    },
+    {
+      "comment_id": "7000000000000000006",
+      "card": 6
+    },
+    {
+      "comment_id": "7000000000000000007",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000008",
+      "card": 3
+    },
+    {
+      "comment_id": "7000000000000000009",
+      "card": 7
+    },
+    {
+      "comment_id": "7000000000000000010",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000011",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000012",
+      "card": 8
+    },
+    {
+      "comment_id": "7000000000000000013",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000014",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000015",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000016",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000017",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000018",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000019",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000020",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000021",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000022",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000023",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000024",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000025",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000026",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000027",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000028",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000029",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000030",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000031",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000032",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000033",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000034",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000035",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000036",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000037",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000038",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000039",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000040",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000041",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000042",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000043",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000044",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000045",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000046",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000047",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000048",
+      "card": null
+    },
+    {
+      "comment_id": "7000000000000000049",
+      "card": null
+    }
+  ]
+}

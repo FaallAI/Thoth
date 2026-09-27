@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from thoth_control_plane.acquisition.browser import _reduce_comments
+from thoth_control_plane.acquisition.cards import MIN_CARD_BPP, card_problem
 from thoth_control_plane.operations.tiktok_comment_fixture import (
     ENTRY_KEYS,
     ID_BASE,
@@ -167,3 +168,52 @@ def test_cli_writes_lf_json(tmp_path: Path) -> None:
     assert b"\r\n" not in data
     assert json.loads(data) == sanitize_capture(raw_capture())
     assert re.search(rb"user_\d{3}", data)
+
+
+GOLDEN = sorted(
+    (Path(__file__).resolve().parent.parent / "fixtures" / "tiktok" / "comments").glob(
+        "post-*.json"
+    )
+)
+
+
+def _golden(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_three_golden_captures_exist() -> None:
+    assert [path.name for path in GOLDEN] == ["post-1.json", "post-2.json", "post-3.json"]
+
+
+@pytest.mark.parametrize("path", GOLDEN, ids=lambda path: path.stem)
+def test_reducer_replays_the_golden_capture(path: Path) -> None:
+    capture = _golden(path)
+    assert capture["expected"]
+    assert replay(capture) == capture["expected"]
+
+
+@pytest.mark.parametrize("path", GOLDEN, ids=lambda path: path.stem)
+def test_real_card_statistics_clear_the_card_guard_with_margin(path: Path) -> None:
+    capture = _golden(path)
+    stats = list(capture["card_stats"])
+    if capture["profile_card_stats"] is not None:
+        stats.append(capture["profile_card_stats"])
+    assert stats
+    for stat in stats:
+        assert card_problem(stat["width"], stat["height"], stat["bytes"]) is None
+        assert stat["bytes"] / (stat["width"] * stat["height"]) >= 2 * MIN_CARD_BPP
+
+
+@pytest.mark.parametrize("path", GOLDEN, ids=lambda path: path.stem)
+def test_golden_capture_carries_only_pseudonyms(path: Path) -> None:
+    capture = _golden(path)
+    assert set(capture) == {"pages", "card_texts", "card_stats", "profile_card_stats", "expected"}
+    for page in capture["pages"]:
+        for entry in (page or {}).get("comments", []):
+            if entry is None:
+                continue
+            assert set(entry) == set(ENTRY_KEYS)
+            handle = entry["unique_id"]
+            assert handle in (None, INVALID_HANDLE) or re.fullmatch(r"user_\d{3}", handle)
+            cid = entry["cid"]
+            assert cid in (None, INVALID_ID) or int(cid) >= ID_BASE
