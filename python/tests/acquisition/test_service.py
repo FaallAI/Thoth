@@ -1,5 +1,6 @@
 import asyncio
 import json
+import threading
 import time
 from pathlib import Path, PurePosixPath
 
@@ -15,6 +16,7 @@ from thoth_control_plane.acquisition.adapters.tikwm import (
     parse_tikwm_payload,
 )
 from thoth_control_plane.acquisition.browser import HeadlessBrowserError
+from thoth_control_plane.acquisition.cards import persist_cards
 from thoth_control_plane.acquisition.materializer import MediaMaterializationError
 from thoth_control_plane.acquisition.models import (
     AcquisitionReason,
@@ -733,6 +735,34 @@ async def test_comments_survive_a_tikwm_rescue_of_an_incomplete_snapshot(tmp_pat
     assert [comment.comment_id for comment in result.report.comments] == ["11111", "22222"]
     assert result.report.comments[0].card is not None
     assert result.report.profile_card is not None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "materializer",
+    [FakeMaterializer(), FakeMaterializer(fail_for=frozenset({"scrapling_headless"}))],
+    ids=["headless", "tikwm"],
+)
+async def test_card_writes_run_off_the_event_loop(
+    tmp_path, monkeypatch: pytest.MonkeyPatch, materializer: FakeMaterializer
+) -> None:
+    threads: list[int] = []
+
+    def recording_persist(*args):
+        threads.append(threading.get_ident())
+        return persist_cards(*args)
+
+    monkeypatch.setattr("thoth_control_plane.acquisition.service.persist_cards", recording_persist)
+    result = await TikTokAcquisitionService(
+        FakeBrowser(snapshot_with_comments()),
+        FakeResolver.from_payload(tikwm_fixture_payload()),
+        materializer,
+    ).inspect(workflow_id="wf_cards_007", source_url=SOURCE_URL, artifact_root=tmp_path)
+
+    assert result.report is not None
+    assert result.report.comments[0].card is not None
+    assert len(threads) == 1
+    assert threads[0] != threading.get_ident()
 
 
 @pytest.mark.asyncio

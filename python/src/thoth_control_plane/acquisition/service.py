@@ -237,7 +237,9 @@ class TikTokAcquisitionService:
 
         if materialized is not None:
             post = _merge_post(identity, headless_post, None)
-            comments, profile_card = persist_cards(snapshot, workflow_id, artifact_root)
+            comments, profile_card = await asyncio.to_thread(
+                persist_cards, snapshot, workflow_id, artifact_root
+            )
             return TikTokAcquisitionResult(
                 report=_build_report(
                     workflow_id, identity, post, materialized, attempts, comments, profile_card
@@ -293,7 +295,9 @@ class TikTokAcquisitionService:
         )
         post = _merge_post(merged_identity, headless_post, resolution.post)
         # Comments come only from the headless visit; TikWM yields none.
-        comments, profile_card = persist_cards(snapshot, workflow_id, artifact_root)
+        comments, profile_card = await asyncio.to_thread(
+            persist_cards, snapshot, workflow_id, artifact_root
+        )
         return TikTokAcquisitionResult(
             report=_build_report(
                 workflow_id, merged_identity, post, materialized, attempts, comments, profile_card
