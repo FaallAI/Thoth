@@ -164,9 +164,9 @@ def _terminal_events(
 def _cleanup_after_persistence_failure(
     part_path: Path, report: TikTokSourceReport, artifact_root: Path
 ) -> None:
-    """Remove the partial report and every materialized media file the report recorded.
+    """Remove the partial report and every media and card file the report recorded.
 
-    `media.location` is validated as a `PurePosixPath` (POSIX separators only),
+    Artifact locations are validated as `PurePosixPath` (POSIX separators only),
     but a Windows-style backslash string can slip past that check as a single
     opaque segment and then, once joined with a real `Path`, resolve to an
     absolute path or a `..` escape outside `artifact_root`. Only unlink
@@ -175,8 +175,12 @@ def _cleanup_after_persistence_failure(
     with contextlib.suppress(OSError):
         part_path.unlink(missing_ok=True)
     resolved_root = artifact_root.resolve()
-    for media in report.media:
-        candidate = (artifact_root / media.location).resolve()
+    locations = [media.location for media in report.media]
+    locations += [comment.card.location for comment in report.comments if comment.card]
+    if report.profile_card is not None:
+        locations.append(report.profile_card.location)
+    for location in locations:
+        candidate = (artifact_root / location).resolve()
         if not candidate.is_relative_to(resolved_root):
             continue
         with contextlib.suppress(OSError):

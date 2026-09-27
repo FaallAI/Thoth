@@ -14,6 +14,8 @@ from thoth_control_plane.acquisition.models import (
     AcquisitionReason,
     AcquisitionStrategy,
     AttemptStatus,
+    CardArtifact,
+    ReportComment,
     TikTokAcquisitionFailure,
     TikTokAcquisitionResult,
     TikTokSourceReport,
@@ -585,3 +587,56 @@ async def test_capability_failure_keeps_its_code_when_cleanup_probe_raises(
         "partial_cleanup_passed": False,
         "browser_cleanup_passed": True,
     }
+
+
+async def test_report_persistence_failure_removes_recorded_card_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    card_dir = PurePosixPath("reports/wf_contract_001/cards")
+
+    def card(name: str) -> CardArtifact:
+        return CardArtifact(
+            location=card_dir / name,
+            bytes=4_000,
+            checksum="sha256:" + "b" * 64,
+            width=300,
+            height=80,
+        )
+
+    report = _load_fixture_report().model_copy(
+        update={
+            "schema_version": 2,
+            "comments": [
+                ReportComment(
+                    comment_id="11111", author="alpha", text="first", card=card("comment-11111.png")
+                )
+            ],
+            "profile_card": card("profile.png"),
+        }
+    )
+    paths = [
+        tmp_path / str(report.media[0].location),
+        tmp_path / str(card_dir / "comment-11111.png"),
+        tmp_path / str(card_dir / "profile.png"),
+    ]
+    for path in paths:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"0" * 10_100)
+
+    async def runner(workflow_id: str, source_url: str, artifact_root: Path):
+        del workflow_id, source_url, artifact_root
+        return TikTokAcquisitionResult(report=report)
+
+    from thoth_control_plane.activities import source_investigation as module
+
+    def raising_replace(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(module.os, "replace", raising_replace)
+
+    result = await build_source_investigation_activity(_settings(tmp_path), runner=runner)(INPUT)
+
+    assert result.failure is not None
+    assert result.failure.code == "artifact_persistence_failed"
+    assert [path for path in paths if path.exists()] == []
+    assert list(tmp_path.rglob("*.part")) == []
