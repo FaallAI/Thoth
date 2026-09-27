@@ -223,3 +223,22 @@ def test_invalid_verbatim_slot_values_are_dropped() -> None:
     assert "createTime" not in out_item
     assert out_item["stats"] == {"diggCount": 5}
     assert "video" not in out_item
+
+
+def test_main_writes_when_a_caption_token_matches_its_own_derived_published_at(
+    tmp_path, capsys
+) -> None:
+    """`expected` is a pure replay of the sanitized pages; a caption token (e.g. a year) that
+    only coincides with its own derived `published_at` date must not block the write."""
+    item = {**RAW_ITEM, "createTime": 1704067200, "desc": "Filmed in 2024 again"}
+    page = {"statusCode": 0, "hasMore": True, "itemList": [item]}
+    raw = _raw("profile", [page])
+    fixture = sanitize_capture(raw)
+    assert fixture["expected"][0]["videos"][0]["published_at"] == "2024-01-01T00:00:00Z"
+    source, target = tmp_path / "raw.json", tmp_path / "fixture.json"
+    source.write_text(json.dumps(raw), encoding="utf-8")
+
+    assert main([str(source), str(target)]) == 0
+
+    assert capsys.readouterr().out.strip().endswith("leaks=0")
+    assert target.exists()
