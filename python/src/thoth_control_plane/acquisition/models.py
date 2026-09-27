@@ -6,9 +6,24 @@ from enum import StrEnum
 from pathlib import PurePosixPath
 from typing import Annotated, Literal
 
-from pydantic import Field, HttpUrl, SecretStr, field_validator, model_validator
+from pydantic import AfterValidator, Field, HttpUrl, SecretStr, model_validator
 
 from thoth_control_plane.domain.models import Checksum, OpaqueId, StrictModel
+
+MAX_COMMENTS = 50
+MAX_CARD_BYTES = 2 * 1024 * 1024
+
+
+def _safe_relative_location(location: PurePosixPath) -> PurePosixPath:
+    if location.is_absolute() or ".." in location.parts:
+        raise ValueError("artifact location must be a safe relative path")
+    return location
+
+
+SafeRelativeLocation = Annotated[PurePosixPath, AfterValidator(_safe_relative_location)]
+TikTokNumericId = Annotated[str, Field(pattern=r"^[0-9]{5,32}$")]
+TikTokHandle = Annotated[str, Field(pattern=r"^[A-Za-z0-9._-]{1,64}$")]
+CommentText = Annotated[str, Field(min_length=1, max_length=2_000)]
 
 
 class AcquisitionStrategy(StrEnum):
@@ -68,7 +83,7 @@ class MaterializedMedia(StrictModel):
     media_id: OpaqueId
     kind: Literal["video"] = "video"
     index: Literal[1] = 1
-    location: PurePosixPath
+    location: SafeRelativeLocation
     media_type: Literal["video/mp4"] = "video/mp4"
     bytes: Annotated[int, Field(ge=10_000, le=524_288_000)]
     checksum: Checksum
@@ -77,18 +92,11 @@ class MaterializedMedia(StrictModel):
     height: Annotated[int, Field(gt=0)] | None = None
     duration_seconds: Annotated[float, Field(ge=0)] | None = None
 
-    @field_validator("location")
-    @classmethod
-    def validate_location(cls, location: PurePosixPath) -> PurePosixPath:
-        if location.is_absolute() or ".." in location.parts:
-            raise ValueError("media location must be a safe relative path")
-        return location
-
 
 class TikTokComment(StrictModel):
-    comment_id: Annotated[str, Field(pattern=r"^[0-9]{5,32}$")]
-    author: Annotated[str, Field(pattern=r"^[A-Za-z0-9._-]{1,64}$")]
-    text: Annotated[str, Field(min_length=1, max_length=2_000)]
+    comment_id: TikTokNumericId
+    author: TikTokHandle
+    text: CommentText
     likes: Annotated[int, Field(ge=0)] = 0
     # Real TikTok card crop (PNG); never a synthetic render, never serialized.
     card_png: bytes | None = Field(default=None, exclude=True, repr=False)
@@ -112,13 +120,35 @@ class AcquisitionOutcome(StrictModel):
     attempts: Annotated[list[AcquisitionAttempt], Field(min_length=1, max_length=3)]
 
 
+class CardArtifact(StrictModel):
+    """A real TikTok card crop persisted beside the report; never a synthetic render."""
+
+    location: SafeRelativeLocation
+    media_type: Literal["image/png"] = "image/png"
+    bytes: Annotated[int, Field(ge=1, le=MAX_CARD_BYTES)]
+    checksum: Checksum
+    width: Annotated[int, Field(gt=0)]
+    height: Annotated[int, Field(gt=0)]
+
+
+class ReportComment(StrictModel):
+    comment_id: TikTokNumericId
+    author: TikTokHandle
+    text: CommentText
+    likes: Annotated[int, Field(ge=0)] = 0
+    card: CardArtifact | None = None
+
+
 class TikTokSourceReport(StrictModel):
-    schema_version: Literal[1] = 1
+    # Version 1 reports (Stage 1 evidence) carry no comments or cards and still validate.
+    schema_version: Literal[1, 2] = 2
     workflow_id: OpaqueId
     source: TikTokSource
     post: TikTokPost
     media: Annotated[list[MaterializedMedia], Field(min_length=1, max_length=1)]
     outcome: AcquisitionOutcome
+    comments: list[ReportComment] = Field(default_factory=list, max_length=MAX_COMMENTS)
+    profile_card: CardArtifact | None = None
 
 
 class TikTokAcquisitionFailure(StrictModel):

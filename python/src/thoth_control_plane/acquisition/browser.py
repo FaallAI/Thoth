@@ -25,6 +25,7 @@ from thoth_control_plane.acquisition.adapters.tiktok import (
     canonicalize_tiktok_post_url,
 )
 from thoth_control_plane.acquisition.models import (
+    MAX_COMMENTS,
     AcquisitionReason,
     BrowserSnapshot,
     MediaRequestContext,
@@ -38,7 +39,6 @@ EMBEDDED_DATA_SELECTOR = "script#__UNIVERSAL_DATA_FOR_REHYDRATION__::text"
 MEDIA_REFERER = "https://www.tiktok.com/"
 FETCH_TIMEOUT_MS = 45_000
 FETCH_WAIT_MS = 1_000
-MAX_COMMENTS = 50
 MAX_COMMENT_PAGES = 5
 # Same-origin fetch from the loaded post page: it rides the browser's own network
 # stack and cookies, needs no request signature, and never opens the comment panel

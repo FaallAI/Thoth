@@ -1,15 +1,19 @@
+import json
 from pathlib import Path, PurePosixPath
 
 import pytest
 from pydantic import SecretStr, ValidationError
 
 from thoth_control_plane.acquisition.models import (
+    MAX_CARD_BYTES,
     AcquisitionAttempt,
     AcquisitionReason,
     AcquisitionStrategy,
     AttemptStatus,
     BrowserSnapshot,
+    CardArtifact,
     MaterializedMedia,
+    ReportComment,
     ResolvedMedia,
     TikTokAcquisitionFailure,
     TikTokAcquisitionResult,
@@ -141,3 +145,88 @@ def test_browser_snapshot_contains_sanitized_candidates_only() -> None:
     assert "raw_html" not in dumped
     assert "cookie" not in dumped
     assert "cdn.example" not in dumped
+
+
+FIXTURE_REPORT = (
+    Path(__file__).resolve().parent.parent / "fixtures" / "tiktok" / "normalized_report.json"
+)
+
+
+def _fixture_report() -> TikTokSourceReport:
+    return TikTokSourceReport.model_validate_json(FIXTURE_REPORT.read_text(encoding="utf-8"))
+
+
+def _card(location: str = "reports/wf_contract_001/cards/comment-12345.png") -> CardArtifact:
+    return CardArtifact(
+        location=PurePosixPath(location),
+        bytes=4_000,
+        checksum="sha256:" + "b" * 64,
+        width=300,
+        height=80,
+    )
+
+
+def test_v1_report_still_validates_with_empty_enrichment() -> None:
+    report = _fixture_report()
+    assert report.schema_version == 1
+    assert report.comments == []
+    assert report.profile_card is None
+
+
+def test_new_reports_default_to_schema_v2() -> None:
+    assert TikTokSourceReport.model_fields["schema_version"].default == 2
+
+
+def test_v2_report_round_trips_comments_and_cards() -> None:
+    report = _fixture_report().model_copy(
+        update={
+            "schema_version": 2,
+            "comments": [
+                ReportComment(
+                    comment_id="12345", author="user_001", text="hello 😂", likes=3, card=_card()
+                ),
+                ReportComment(comment_id="12346", author="user_002", text="no card"),
+            ],
+            "profile_card": _card("reports/wf_contract_001/cards/profile.png"),
+        }
+    )
+    restored = TikTokSourceReport.model_validate_json(report.model_dump_json())
+    assert restored == report
+    assert restored.comments[1].card is None
+
+
+@pytest.mark.parametrize(
+    "location", ["/reports/wf/cards/profile.png", "reports/../../outside/profile.png"]
+)
+def test_card_artifact_rejects_unsafe_locations(location: str) -> None:
+    with pytest.raises(ValidationError):
+        _card(location)
+
+
+@pytest.mark.parametrize("size", [0, MAX_CARD_BYTES + 1])
+def test_card_artifact_rejects_out_of_range_sizes(size: int) -> None:
+    with pytest.raises(ValidationError):
+        CardArtifact(
+            location=PurePosixPath("reports/wf/cards/profile.png"),
+            bytes=size,
+            checksum="sha256:" + "b" * 64,
+            width=300,
+            height=80,
+        )
+
+
+def test_report_rejects_more_than_fifty_comments() -> None:
+    payload = json.loads(_fixture_report().model_dump_json())
+    payload["comments"] = [
+        {"comment_id": str(10_000 + index), "author": "user_001", "text": "x"}
+        for index in range(51)
+    ]
+    with pytest.raises(ValidationError):
+        TikTokSourceReport.model_validate_json(json.dumps(payload))
+
+
+def test_report_comment_rejects_image_bytes() -> None:
+    with pytest.raises(ValidationError):
+        ReportComment.model_validate(
+            {"comment_id": "12345", "author": "user_001", "text": "x", "card_png": b"\x89PNG"}
+        )
