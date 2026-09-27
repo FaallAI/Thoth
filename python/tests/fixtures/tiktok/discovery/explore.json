@@ -1,0 +1,633 @@
+{
+  "kind": "trending",
+  "pages": [
+    {
+      "statusCode": 0,
+      "status_code": 0,
+      "hasMore": true,
+      "itemList": [
+        {
+          "id": "7000000000000000000",
+          "desc": "aaaaaaaaaa aaaa aaaa aaaa aaaaaaa aaaaaa aaaa #aaaaaaaaaaa #aaaaaaaaaaaa ",
+          "createTime": 1790216945,
+          "stats": {
+            "playCount": 21200000,
+            "diggCount": 503700,
+            "commentCount": 40300,
+            "shareCount": 70200,
+            "collectCount": 19000
+          },
+          "statsV2": {
+            "playCount": "21200000",
+            "diggCount": "503700",
+            "commentCount": "40300",
+            "shareCount": "70200",
+            "collectCount": "18998"
+          },
+          "video": {
+            "duration": 10
+          },
+          "author": {
+            "uniqueId": "user_001"
+          },
+          "challenges": [
+            {
+              "title": "baabaabaaba"
+            },
+            {
+              "title": "caacaacaacaa"
+            }
+          ],
+          "isAd": false
+        },
+        {
+          "id": "7000000000000000001",
+          "desc": "daadaadaadaad aadaa daa daa daadaa d aad aadaa daadaadaa daad a #adaadaadaada #adaadaadaad #aadaadaadaa ",
+          "createTime": 1789951381,
+          "stats": {
+            "playCount": 12200000,
+            "diggCount": 763400,
+            "commentCount": 10100,
+            "shareCount": 47900,
+            "collectCount": 18500
+          },
+          "statsV2": {
+            "playCount": "12200000",
+            "diggCount": "763400",
+            "commentCount": "10100",
+            "shareCount": "47900",
+            "collectCount": "18488"
+          },
+          "video": {
+            "duration": 17
+          },
+          "author": {
+            "uniqueId": "user_002"
+          },
+          "challenges": [
+            {
+              "title": "caacaacaacaa"
+            },
+            {
+              "title": "baabaabaaba"
+            },
+            {
+              "title": "eaaeaaeaaea"
+            }
+          ],
+          "isAd": false
+        },
+        {
+          "id": "7000000000000000002",
+          "desc": "faafaafaa faaf aafaafa afaa faafaafaaf aaf aafaafa afaaf aaf aafaafaafa afa afaafaa fa afaaf aafaafa afaafa afaafaaf aafaaf aaf aafaafa afaafa afaaf aafaafa afaafaa faafaa  faafa afaafa afaafaafaaf aaf aafaafa af aafaa faafa afaafaa faafa afaaf aafa afaafaafaafa afaafaafa afaafaafa afaafaafa afaaf aaf aafaaf aafaa faafaafaaf aafaafaa faafaafa af aafaaf aafaafaa faaf aa faafaafaa faafa afaafa afaafaa faafaafaa faafaafaafaa faafaa faaf aafaa faafaafaa faafa afaafaafa afaafaafa afaafa afaafaa faafa afaafaafaa faafaafaaf aafaaf aafaafaaf aafaafaaf aafa afaafa afaafaa faafa afaafaa faafa afa afaaf aafaafaaf aafa afaafa afaafa afaafa a faafaafaafaa faafaafa afaafaa faafaa faaf aafa af aaf aafa afaafaaf aafaafaa fa afaafaaf aaf aafaaf aafa afaafa #afaafaafa #afaafaaf #aafaafaa #faafaa #faafaafaaf ",
+          "createTime": 1789818508,
+          "stats": {
+            "playCount": 95500000,
+            "diggCount": 1900000,
+            "commentCount": 62600,
+            "shareCount": 245400,
+            "collectCount": 136600
+          },
+          "statsV2": {
+            "playCount": "95500000",
+            "diggCount": "1900000",
+            "commentCount": "62600",
+            "shareCount": "245400",
+            "collectCount": "136645"
+          },
+          "video": {
+            "duration": 35
+          },
+          "author": {
+            "uniqueId": "user_003"
+          },
+          "challenges": [
+            {
+              "title": "gaagaagaa"
+            },
+            {
+              "title": "haahaaha"
+            },
+            {
+              "title": "iaaiaaia"
+            },
+            {
+              "title": "jaajaa"
+            },
+            {
+              "title": "kaakaakaak"
+            }
+          ],
+          "isAd": false
+        },
+        {
+          "id": "7000000000000000003",
+          "desc": "laalaal aal aala alaalaalaa #laa #laalaalaal ",
+          "createTime": 1790132793,
+          "stats": {
+            "playCount": 8700000,
+            "diggCount": 922800,
+            "commentCount": 6449,
+            "shareCount": 241800,
+            "collectCount": 29300
+          },
+          "statsV2": {
+            "playCount": "8700000",
+            "diggCount": "922800",
+            "commentCount": "6449",
+            "shareCount": "241800",
+            "collectCount": "29266"
+          },
+          "video": {
+            "duration": 18
+          },
+          "author": {
+            "uniqueId": "user_004"
+          },
+          "challenges": [
+            {
+              "title": "maa"
+            },
+            {
+              "title": "naanaanaan"
+            }
+          ],
+          "isAd": false
+        },
+        {
+          "id": "7000000000000000004",
+          "desc": "",
+          "createTime": 1789820870,
+          "stats": {
+            "playCount": 14900000,
+            "diggCount": 1900000,
+            "commentCount": 4583,
+            "shareCount": 80100,
+            "collectCount": 29600
+          },
+          "statsV2": {
+            "playCount": "14900000",
+            "diggCount": "1900000",
+            "commentCount": "4583",
+            "shareCount": "80100",
+            "collectCount": "29638"
+          },
+          "video": {
+            "duration": 15
+          },
+          "author": {
+            "uniqueId": "user_005"
+          },
+          "isAd": false
+        },
+        {
+          "id": "7000000000000000005",
+          "desc": "paa pa apaapa apaa paapaap a",
+          "createTime": 1789909505,
+          "stats": {
+            "playCount": 8300000,
+            "diggCount": 1800000,
+            "commentCount": 6255,
+            "shareCount": 107800,
+            "collectCount": 37700
+          },
+          "statsV2": {
+            "playCount": "8300000",
+            "diggCount": "1800000",
+            "commentCount": "6255",
+            "shareCount": "107800",
+            "collectCount": "37665"
+          },
+          "video": {
+            "duration": 12
+          },
+          "author": {
+            "uniqueId": "user_006"
+          },
+          "isAd": false
+        }
+      ]
+    },
+    {
+      "statusCode": 0,
+      "status_code": 0,
+      "hasMore": true,
+      "itemList": [
+        {
+          "id": "7000000000000000006",
+          "desc": "qaa qa aqaa qaa #qaa #qa #aqaaqaaqaaqaaqa #aqaaqa #aqaaqaaq ",
+          "createTime": 1789695303,
+          "stats": {
+            "playCount": 23600000,
+            "diggCount": 3300000,
+            "commentCount": 29500,
+            "shareCount": 575900,
+            "collectCount": 161900
+          },
+          "statsV2": {
+            "playCount": "23600000",
+            "diggCount": "3300000",
+            "commentCount": "29500",
+            "shareCount": "575900",
+            "collectCount": "161864"
+          },
+          "video": {
+            "duration": 15
+          },
+          "author": {
+            "uniqueId": "user_007"
+          },
+          "challenges": [
+            {
+              "title": "raa"
+            },
+            {
+              "title": "sa"
+            },
+            {
+              "title": "taataataataataa"
+            },
+            {
+              "title": "uaauaa"
+            },
+            {
+              "title": "vaavaava"
+            }
+          ],
+          "isAd": false
+        },
+        {
+          "id": "7000000000000000007",
+          "desc": "waawaaw aaw aawaawa awaawaa waawaa waawaawa awaawa awaawaawaawa awaa waawaa w aawaaw aa waawaawa awa awaawaa wa aw aawaawa awaawaawaaw aawaawaaw aawaaw aawaaw aawaaw aawaawa awaawaa wa awaaw aaw aawaawaa waawa awaawaa waawaa waawaawa awaa waawaa waawaawaa waawaawaa waawaaw aawaawaawaawa awaawaawaa waawaawa awaaw aawaawaaw aawaaw aawaaw aawaaw aawaawa awaawaawa aw aawaaw aawaa waawaa wa awaawa awaawaaw aaw aawaawaa waawa awaawaa waawaa waawaawaa waaw aawaawaawaa waawa awaawaawaawaa waawaawa awaa waawaawaaw aa waawaawa awaawaa waawaawaa waawaa waawaaw aa waawaawa awaawaaw aawaawa awaawaawa awaawaaw aawaawa awaawaa waawaawa awa awaawaaw aawa awaawaaw aawaawaa waawaa waawa",
+          "createTime": 1789865665,
+          "stats": {
+            "playCount": 6600000,
+            "diggCount": 149900,
+            "commentCount": 944,
+            "shareCount": 11600,
+            "collectCount": 4429
+          },
+          "statsV2": {
+            "playCount": "6600000",
+            "diggCount": "149900",
+            "commentCount": "944",
+            "shareCount": "11600",
+            "collectCount": "4429"
+          },
+          "video": {
+            "duration": 11
+          },
+          "author": {
+            "uniqueId": "user_008"
+          },
+          "isAd": false
+        },
+        {
+          "id": "7000000000000000008",
+          "desc": "xaax aaxaa xaa @xaaxaax @aaxaaxaax ",
+          "createTime": 1790052827,
+          "stats": {
+            "playCount": 7700000,
+            "diggCount": 690900,
+            "commentCount": 2260,
+            "shareCount": 9295,
+            "collectCount": 21800
+          },
+          "statsV2": {
+            "playCount": "7700000",
+            "diggCount": "690900",
+            "commentCount": "2260",
+            "shareCount": "9295",
+            "collectCount": "21817"
+          },
+          "video": {
+            "duration": 23
+          },
+          "author": {
+            "uniqueId": "user_009"
+          },
+          "isAd": false
+        },
+        {
+          "id": "7000000000000000009",
+          "desc": "",
+          "createTime": 1789839859,
+          "stats": {
+            "playCount": 7400000,
+            "diggCount": 1400000,
+            "commentCount": 6852,
+            "shareCount": 385000,
+            "collectCount": 67800
+          },
+          "statsV2": {
+            "playCount": "7400000",
+            "diggCount": "1400000",
+            "commentCount": "6852",
+            "shareCount": "385000",
+            "collectCount": "67788"
+          },
+          "video": {
+            "duration": 5
+          },
+          "author": {
+            "uniqueId": "user_010"
+          },
+          "isAd": false
+        },
+        {
+          "id": "7000000000000000010",
+          "desc": "ya ayaa yaa yaa yaa yaa yaa #yaayaayaayaa #yaayaa #yaayaay #aaya",
+          "createTime": 1789732800,
+          "stats": {
+            "playCount": 31200000,
+            "diggCount": 1800000,
+            "commentCount": 17400,
+            "shareCount": 2000000,
+            "collectCount": 101200
+          },
+          "statsV2": {
+            "playCount": "31200000",
+            "diggCount": "1800000",
+            "commentCount": "17400",
+            "shareCount": "2000000",
+            "collectCount": "101206"
+          },
+          "video": {
+            "duration": 11
+          },
+          "author": {
+            "uniqueId": "user_011"
+          },
+          "challenges": [
+            {
+              "title": "zaazaazaazaa"
+            },
+            {
+              "title": "0aa0aa"
+            },
+            {
+              "title": "1aa1aa1"
+            },
+            {
+              "title": "2aa2"
+            }
+          ],
+          "isAd": false
+        },
+        {
+          "id": "7000000000000000011",
+          "desc": "3aa3aa3aa3aa3aa3aa 3aa3aa 3a a3a a3aa3aa3aa3 aa3aa3 aa3aa3aa3aa #3aa3aa #3aa3aa ",
+          "createTime": 1789557668,
+          "stats": {
+            "playCount": 27700000,
+            "diggCount": 1600000,
+            "commentCount": 10600,
+            "shareCount": 68800,
+            "collectCount": 68600
+          },
+          "statsV2": {
+            "playCount": "27700000",
+            "diggCount": "1600000",
+            "commentCount": "10600",
+            "shareCount": "68800",
+            "collectCount": "68576"
+          },
+          "video": {
+            "duration": 17
+          },
+          "author": {
+            "uniqueId": "user_012"
+          },
+          "challenges": [
+            {
+              "title": "4aa4aa"
+            },
+            {
+              "title": "5aa5aa"
+            }
+          ],
+          "isAd": false
+        },
+        {
+          "id": "7000000000000000012",
+          "desc": "",
+          "createTime": 1789910414,
+          "stats": {
+            "playCount": 9000000,
+            "diggCount": 807200,
+            "commentCount": 0,
+            "shareCount": 335400,
+            "collectCount": 19200
+          },
+          "statsV2": {
+            "playCount": "9000000",
+            "diggCount": "807200",
+            "commentCount": "0",
+            "shareCount": "335400",
+            "collectCount": "19242"
+          },
+          "video": {
+            "duration": 35
+          },
+          "author": {
+            "uniqueId": "user_013"
+          },
+          "isAd": false
+        }
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "has_more": true,
+      "reason": null,
+      "drops": {
+        "ads": 0,
+        "photo_posts": 0,
+        "invalid": 0
+      },
+      "videos": [
+        {
+          "published_at": "2026-09-24T02:29:05Z",
+          "duration_seconds": 10.0,
+          "engagement": {
+            "play": 21200000,
+            "like": 503700,
+            "comment": 40300,
+            "share": 70200,
+            "collect": 18998
+          },
+          "caption_length": 73,
+          "hashtags": 2
+        },
+        {
+          "published_at": "2026-09-21T00:43:01Z",
+          "duration_seconds": 17.0,
+          "engagement": {
+            "play": 12200000,
+            "like": 763400,
+            "comment": 10100,
+            "share": 47900,
+            "collect": 18488
+          },
+          "caption_length": 104,
+          "hashtags": 3
+        },
+        {
+          "published_at": "2026-09-19T11:48:28Z",
+          "duration_seconds": 35.0,
+          "engagement": {
+            "play": 95500000,
+            "like": 1900000,
+            "comment": 62600,
+            "share": 245400,
+            "collect": 136645
+          },
+          "caption_length": 801,
+          "hashtags": 5
+        },
+        {
+          "published_at": "2026-09-23T03:06:33Z",
+          "duration_seconds": 18.0,
+          "engagement": {
+            "play": 8700000,
+            "like": 922800,
+            "comment": 6449,
+            "share": 241800,
+            "collect": 29266
+          },
+          "caption_length": 45,
+          "hashtags": 2
+        },
+        {
+          "published_at": "2026-09-19T12:27:50Z",
+          "duration_seconds": 15.0,
+          "engagement": {
+            "play": 14900000,
+            "like": 1900000,
+            "comment": 4583,
+            "share": 80100,
+            "collect": 29638
+          },
+          "caption_length": 0,
+          "hashtags": 0
+        },
+        {
+          "published_at": "2026-09-20T13:05:05Z",
+          "duration_seconds": 12.0,
+          "engagement": {
+            "play": 8300000,
+            "like": 1800000,
+            "comment": 6255,
+            "share": 107800,
+            "collect": 37665
+          },
+          "caption_length": 28,
+          "hashtags": 0
+        }
+      ]
+    },
+    {
+      "has_more": true,
+      "reason": null,
+      "drops": {
+        "ads": 0,
+        "photo_posts": 0,
+        "invalid": 0
+      },
+      "videos": [
+        {
+          "published_at": "2026-09-18T01:35:03Z",
+          "duration_seconds": 15.0,
+          "engagement": {
+            "play": 23600000,
+            "like": 3300000,
+            "comment": 29500,
+            "share": 575900,
+            "collect": 161864
+          },
+          "caption_length": 60,
+          "hashtags": 5
+        },
+        {
+          "published_at": "2026-09-20T00:54:25Z",
+          "duration_seconds": 11.0,
+          "engagement": {
+            "play": 6600000,
+            "like": 149900,
+            "comment": 944,
+            "share": 11600,
+            "collect": 4429
+          },
+          "caption_length": 677,
+          "hashtags": 0
+        },
+        {
+          "published_at": "2026-09-22T04:53:47Z",
+          "duration_seconds": 23.0,
+          "engagement": {
+            "play": 7700000,
+            "like": 690900,
+            "comment": 2260,
+            "share": 9295,
+            "collect": 21817
+          },
+          "caption_length": 35,
+          "hashtags": 0
+        },
+        {
+          "published_at": "2026-09-19T17:44:19Z",
+          "duration_seconds": 5.0,
+          "engagement": {
+            "play": 7400000,
+            "like": 1400000,
+            "comment": 6852,
+            "share": 385000,
+            "collect": 67788
+          },
+          "caption_length": 0,
+          "hashtags": 0
+        },
+        {
+          "published_at": "2026-09-18T12:00:00Z",
+          "duration_seconds": 11.0,
+          "engagement": {
+            "play": 31200000,
+            "like": 1800000,
+            "comment": 17400,
+            "share": 2000000,
+            "collect": 101206
+          },
+          "caption_length": 64,
+          "hashtags": 4
+        },
+        {
+          "published_at": "2026-09-16T11:21:08Z",
+          "duration_seconds": 17.0,
+          "engagement": {
+            "play": 27700000,
+            "like": 1600000,
+            "comment": 10600,
+            "share": 68800,
+            "collect": 68576
+          },
+          "caption_length": 80,
+          "hashtags": 2
+        },
+        {
+          "published_at": "2026-09-20T13:20:14Z",
+          "duration_seconds": 35.0,
+          "engagement": {
+            "play": 9000000,
+            "like": 807200,
+            "comment": 0,
+            "share": 335400,
+            "collect": 19242
+          },
+          "caption_length": 0,
+          "hashtags": 0
+        }
+      ]
+    }
+  ]
+}

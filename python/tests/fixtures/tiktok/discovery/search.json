@@ -1,0 +1,729 @@
+{
+  "kind": "keyword",
+  "pages": [
+    {
+      "status_code": 0,
+      "has_more": 1,
+      "data": [
+        {
+          "type": 1,
+          "item": {
+            "id": "7000000000000000000",
+            "desc": "aaaa aaaaa aaa aaaaa aaa aaaaaa aaaaaaa aa aaaaaaaaa a aaaaa aaa aaaaa aa aaa aaaaaaaaaaa #aaaaaaa #aaaaaaaaa #aaaaaaaaaaaaaaaaaaaaa #aaaa #aaaaaa ",
+            "createTime": 1784428932,
+            "stats": {
+              "playCount": 76400,
+              "diggCount": 2966,
+              "commentCount": 63,
+              "shareCount": 120,
+              "collectCount": 268
+            },
+            "statsV2": {
+              "playCount": "76400",
+              "diggCount": "2966",
+              "commentCount": "63",
+              "shareCount": "120",
+              "collectCount": "268"
+            },
+            "video": {
+              "duration": 18
+            },
+            "author": {
+              "uniqueId": "user_001"
+            },
+            "challenges": [
+              {
+                "title": "baabaab"
+              },
+              {
+                "title": "caacaacaa"
+              },
+              {
+                "title": "daadaadaadaadaadaadaa"
+              },
+              {
+                "title": "eaae"
+              },
+              {
+                "title": "faafaa"
+              }
+            ],
+            "isAd": false
+          }
+        },
+        {
+          "type": 1,
+          "item": {
+            "id": "7000000000000000001",
+            "desc": "gaag aagaaga ag aagaagaa gaag #aagaagaagaagaagaagaagaag #aagaagaagaag #aagaagaagaagaa #gaagaaga #agaagaa ",
+            "createTime": 1762083997,
+            "stats": {
+              "playCount": 3900000,
+              "diggCount": 205200,
+              "commentCount": 1059,
+              "shareCount": 2225,
+              "collectCount": 15400
+            },
+            "statsV2": {
+              "playCount": "3900000",
+              "diggCount": "205200",
+              "commentCount": "1059",
+              "shareCount": "2225",
+              "collectCount": "15438"
+            },
+            "video": {
+              "duration": 65
+            },
+            "author": {
+              "uniqueId": "user_002"
+            },
+            "challenges": [
+              {
+                "title": "haahaahaahaahaahaahaahaa"
+              },
+              {
+                "title": "iaaiaaiaaiaa"
+              },
+              {
+                "title": "jaajaajaajaaja"
+              },
+              {
+                "title": "kaakaaka"
+              },
+              {
+                "title": "laalaal"
+              }
+            ],
+            "isAd": false
+          }
+        },
+        {
+          "type": 1,
+          "item": {
+            "id": "7000000000000000002",
+            "desc": "maam aam aamaama amaamaa ma amaamaam #aamaamaama #amaamaam #aamaamaama #ama #amaam ",
+            "createTime": 1776337286,
+            "stats": {
+              "playCount": 4900000,
+              "diggCount": 118600,
+              "commentCount": 243,
+              "shareCount": 1434,
+              "collectCount": 6048
+            },
+            "statsV2": {
+              "playCount": "4900000",
+              "diggCount": "118600",
+              "commentCount": "243",
+              "shareCount": "1434",
+              "collectCount": "6048"
+            },
+            "video": {
+              "duration": 60
+            },
+            "author": {
+              "uniqueId": "user_003"
+            },
+            "challenges": [
+              {
+                "title": "naanaanaan"
+              },
+              {
+                "title": "oaaoaaoa"
+              },
+              {
+                "title": "paapaapaap"
+              },
+              {
+                "title": "qaa"
+              },
+              {
+                "title": "raara"
+              }
+            ],
+            "isAd": false
+          }
+        },
+        {
+          "type": 1,
+          "item": {
+            "id": "7000000000000000003",
+            "desc": "saasaas aasaasa as aasaasaa #saasaa #saasaasaasaasa #asaasa #asaasaa #saasaasaasaasa ",
+            "createTime": 1780569150,
+            "stats": {
+              "playCount": 229500,
+              "diggCount": 13300,
+              "commentCount": 28,
+              "shareCount": 252,
+              "collectCount": 821
+            },
+            "statsV2": {
+              "playCount": "229500",
+              "diggCount": "13300",
+              "commentCount": "28",
+              "shareCount": "252",
+              "collectCount": "821"
+            },
+            "video": {
+              "duration": 131
+            },
+            "author": {
+              "uniqueId": "user_004"
+            },
+            "challenges": [
+              {
+                "title": "taataa"
+              },
+              {
+                "title": "uaauaauaauaaua"
+              },
+              {
+                "title": "vaavaa"
+              },
+              {
+                "title": "waawaaw"
+              },
+              {
+                "title": "xaaxaaxaaxaaxa"
+              }
+            ],
+            "isAd": false
+          }
+        },
+        {
+          "type": 1,
+          "item": {
+            "id": "7000000000000000004",
+            "desc": "yaayaayaay aayaaya ayaayaay #aayaayaayaa #yaayaayaay #aay #aayaay #aayaayaaya ",
+            "createTime": 1789156703,
+            "stats": {
+              "playCount": 1300000,
+              "diggCount": 12300,
+              "commentCount": 38,
+              "shareCount": 158,
+              "collectCount": 880
+            },
+            "statsV2": {
+              "playCount": "1300000",
+              "diggCount": "12300",
+              "commentCount": "38",
+              "shareCount": "158",
+              "collectCount": "880"
+            },
+            "video": {
+              "duration": 60
+            },
+            "author": {
+              "uniqueId": "user_005"
+            },
+            "challenges": [
+              {
+                "title": "zaazaazaaza"
+              },
+              {
+                "title": "0aa0aa0aa0"
+              },
+              {
+                "title": "qaa"
+              },
+              {
+                "title": "taataa"
+              },
+              {
+                "title": "paapaapaap"
+              }
+            ],
+            "isAd": false
+          }
+        },
+        {
+          "type": 1,
+          "item": {
+            "id": "7000000000000000005",
+            "desc": "1 aa1a a1 aa1a a1aa 1aa1aa1a a1aa1aa 1aa1a a1aa1 aa1 #aa1aa1a #a1aa1aa1 #aa1aa1aa1aa1aa #1aa1aa1aa1aa1 #aa1 ",
+            "createTime": 1788472730,
+            "stats": {
+              "playCount": 236300,
+              "diggCount": 8340,
+              "commentCount": 78,
+              "shareCount": 136,
+              "collectCount": 1035
+            },
+            "statsV2": {
+              "playCount": "236300",
+              "diggCount": "8340",
+              "commentCount": "78",
+              "shareCount": "136",
+              "collectCount": "1035"
+            },
+            "video": {
+              "duration": 62
+            },
+            "author": {
+              "uniqueId": "user_006"
+            },
+            "challenges": [
+              {
+                "title": "waawaaw"
+              },
+              {
+                "title": "kaakaaka"
+              },
+              {
+                "title": "xaaxaaxaaxaaxa"
+              },
+              {
+                "title": "2aa2aa2aa2aa2"
+              },
+              {
+                "title": "qaa"
+              }
+            ],
+            "isAd": false
+          }
+        },
+        {
+          "type": 1,
+          "item": {
+            "id": "7000000000000000006",
+            "desc": "3aa3aa3 aa3aa3 aa 3aa3aa3a a3#aa3aa3aa #3aa3aa3aa3aa3a #a3aa3aa3aa3aa3 ",
+            "createTime": 1784699568,
+            "stats": {
+              "playCount": 43300,
+              "diggCount": 2457,
+              "commentCount": 14,
+              "shareCount": 151,
+              "collectCount": 298
+            },
+            "statsV2": {
+              "playCount": "43300",
+              "diggCount": "2457",
+              "commentCount": "14",
+              "shareCount": "151",
+              "collectCount": "298"
+            },
+            "video": {
+              "duration": 66
+            },
+            "author": {
+              "uniqueId": "user_007"
+            },
+            "challenges": [
+              {
+                "title": "kaakaaka"
+              },
+              {
+                "title": "4aa4aa4aa4aa4a"
+              },
+              {
+                "title": "xaaxaaxaaxaaxa"
+              }
+            ],
+            "isAd": false
+          }
+        },
+        {
+          "type": 1,
+          "item": {
+            "id": "7000000000000000007",
+            "desc": "5aa5a a5aa5aa 5a a5aa5aa5 aa #5aa #5aa5aa #5aa5aa5aa5aa5aa #5aa5aa5aa5aa5a ",
+            "createTime": 1786917185,
+            "stats": {
+              "playCount": 50100,
+              "diggCount": 2726,
+              "commentCount": 102,
+              "shareCount": 89,
+              "collectCount": 346
+            },
+            "statsV2": {
+              "playCount": "50100",
+              "diggCount": "2726",
+              "commentCount": "102",
+              "shareCount": "89",
+              "collectCount": "346"
+            },
+            "video": {
+              "duration": 64
+            },
+            "author": {
+              "uniqueId": "user_008"
+            },
+            "challenges": [
+              {
+                "title": "qaa"
+              },
+              {
+                "title": "6aa6aa"
+              },
+              {
+                "title": "7aa7aa7aa7aa7aa"
+              },
+              {
+                "title": "4aa4aa4aa4aa4a"
+              }
+            ],
+            "isAd": false
+          }
+        },
+        {
+          "type": 1,
+          "item": {
+            "id": "7000000000000000008",
+            "desc": "8aa8aa8 aa 8aa8aa8 a #a8aa8aa #8aa8aa  #8aa8aa8aa8aa8aa8 #aa8aa8aa #8aa8aa8aa8aa8a #a8aa8a #a8aa8aa8aa8aa8aa ",
+            "createTime": 1789672287,
+            "stats": {
+              "playCount": 692000,
+              "diggCount": 7620,
+              "commentCount": 13,
+              "shareCount": 60,
+              "collectCount": 532
+            },
+            "statsV2": {
+              "playCount": "692000",
+              "diggCount": "7620",
+              "commentCount": "13",
+              "shareCount": "60",
+              "collectCount": "532"
+            },
+            "video": {
+              "duration": 60
+            },
+            "author": {
+              "uniqueId": "user_009"
+            },
+            "challenges": [
+              {
+                "title": "waawaaw"
+              },
+              {
+                "title": "taataa"
+              },
+              {
+                "title": "9aa9aa9aa9aa9aa9"
+              },
+              {
+                "title": "kaakaaka"
+              },
+              {
+                "title": "xaaxaaxaaxaaxa"
+              },
+              {
+                "title": "abaaba"
+              },
+              {
+                "title": "bbabbabbabbabbab"
+              }
+            ],
+            "isAd": false
+          }
+        },
+        {
+          "type": 1,
+          "item": {
+            "id": "7000000000000000009",
+            "desc": "cb ac bacbacbac bacb acb acba cb#acbacb #acbacbacbacb #acbacbacbacba #cbacbacbacb #acbacbac ",
+            "createTime": 1786899826,
+            "stats": {
+              "playCount": 64300,
+              "diggCount": 1764,
+              "commentCount": 18,
+              "shareCount": 65,
+              "collectCount": 182
+            },
+            "statsV2": {
+              "playCount": "64300",
+              "diggCount": "1764",
+              "commentCount": "18",
+              "shareCount": "65",
+              "collectCount": "182"
+            },
+            "video": {
+              "duration": 79
+            },
+            "author": {
+              "uniqueId": "user_010"
+            },
+            "challenges": [
+              {
+                "title": "taataa"
+              },
+              {
+                "title": "dbadbadbadba"
+              },
+              {
+                "title": "ebaebaebaebae"
+              },
+              {
+                "title": "fbafbafbafb"
+              },
+              {
+                "title": "kaakaaka"
+              }
+            ],
+            "isAd": false
+          }
+        },
+        {
+          "type": 1,
+          "item": {
+            "id": "7000000000000000010",
+            "desc": "gba gbagbagb ag bagbag bagbag  bagbagba gbagbagb agbagb ag ba gbagb agbag bagbag bagbagb agbagbag bagb agbagbagba gbagb agbagbag ba #gbagba #gbag #bagbag #bagbagb #agbagb ",
+            "createTime": 1782847950,
+            "stats": {
+              "playCount": 105100,
+              "diggCount": 1937,
+              "commentCount": 30,
+              "shareCount": 127,
+              "collectCount": 102
+            },
+            "statsV2": {
+              "playCount": "105100",
+              "diggCount": "1937",
+              "commentCount": "30",
+              "shareCount": "127",
+              "collectCount": "102"
+            },
+            "video": {
+              "duration": 23
+            },
+            "author": {
+              "uniqueId": "user_001"
+            },
+            "challenges": [
+              {
+                "title": "hbahba"
+              },
+              {
+                "title": "eaae"
+              },
+              {
+                "title": "faafaa"
+              },
+              {
+                "title": "ibaibai"
+              },
+              {
+                "title": "jbajba"
+              }
+            ],
+            "isAd": false
+          }
+        },
+        {
+          "type": 1,
+          "item": {
+            "id": "7000000000000000011",
+            "desc": "kbakbak bakbak ba kbakbakb akbakb  #akb #akbak #bakbak #bakbakba #kbakbak ",
+            "createTime": 1787120562,
+            "stats": {
+              "playCount": 126000,
+              "diggCount": 1881,
+              "commentCount": 18,
+              "shareCount": 84,
+              "collectCount": 364
+            },
+            "statsV2": {
+              "playCount": "126000",
+              "diggCount": "1881",
+              "commentCount": "18",
+              "shareCount": "84",
+              "collectCount": "364"
+            },
+            "video": {
+              "duration": 63
+            },
+            "author": {
+              "uniqueId": "user_011"
+            },
+            "challenges": [
+              {
+                "title": "qaa"
+              },
+              {
+                "title": "raara"
+              },
+              {
+                "title": "lbalba"
+              },
+              {
+                "title": "kaakaaka"
+              },
+              {
+                "title": "waawaaw"
+              }
+            ],
+            "isAd": false
+          }
+        }
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "has_more": true,
+      "reason": null,
+      "drops": {
+        "ads": 0,
+        "photo_posts": 0,
+        "invalid": 0
+      },
+      "videos": [
+        {
+          "published_at": "2026-07-19T02:42:12Z",
+          "duration_seconds": 18.0,
+          "engagement": {
+            "play": 76400,
+            "like": 2966,
+            "comment": 63,
+            "share": 120,
+            "collect": 268
+          },
+          "caption_length": 147,
+          "hashtags": 5
+        },
+        {
+          "published_at": "2025-11-02T11:46:37Z",
+          "duration_seconds": 65.0,
+          "engagement": {
+            "play": 3900000,
+            "like": 205200,
+            "comment": 1059,
+            "share": 2225,
+            "collect": 15438
+          },
+          "caption_length": 105,
+          "hashtags": 5
+        },
+        {
+          "published_at": "2026-04-16T11:01:26Z",
+          "duration_seconds": 60.0,
+          "engagement": {
+            "play": 4900000,
+            "like": 118600,
+            "comment": 243,
+            "share": 1434,
+            "collect": 6048
+          },
+          "caption_length": 83,
+          "hashtags": 5
+        },
+        {
+          "published_at": "2026-06-04T10:32:30Z",
+          "duration_seconds": 131.0,
+          "engagement": {
+            "play": 229500,
+            "like": 13300,
+            "comment": 28,
+            "share": 252,
+            "collect": 821
+          },
+          "caption_length": 85,
+          "hashtags": 5
+        },
+        {
+          "published_at": "2026-09-11T19:58:23Z",
+          "duration_seconds": 60.0,
+          "engagement": {
+            "play": 1300000,
+            "like": 12300,
+            "comment": 38,
+            "share": 158,
+            "collect": 880
+          },
+          "caption_length": 78,
+          "hashtags": 5
+        },
+        {
+          "published_at": "2026-09-03T21:58:50Z",
+          "duration_seconds": 62.0,
+          "engagement": {
+            "play": 236300,
+            "like": 8340,
+            "comment": 78,
+            "share": 136,
+            "collect": 1035
+          },
+          "caption_length": 108,
+          "hashtags": 5
+        },
+        {
+          "published_at": "2026-07-22T05:52:48Z",
+          "duration_seconds": 66.0,
+          "engagement": {
+            "play": 43300,
+            "like": 2457,
+            "comment": 14,
+            "share": 151,
+            "collect": 298
+          },
+          "caption_length": 71,
+          "hashtags": 3
+        },
+        {
+          "published_at": "2026-08-16T21:53:05Z",
+          "duration_seconds": 64.0,
+          "engagement": {
+            "play": 50100,
+            "like": 2726,
+            "comment": 102,
+            "share": 89,
+            "collect": 346
+          },
+          "caption_length": 75,
+          "hashtags": 4
+        },
+        {
+          "published_at": "2026-09-17T19:11:27Z",
+          "duration_seconds": 60.0,
+          "engagement": {
+            "play": 692000,
+            "like": 7620,
+            "comment": 13,
+            "share": 60,
+            "collect": 532
+          },
+          "caption_length": 109,
+          "hashtags": 7
+        },
+        {
+          "published_at": "2026-08-16T17:03:46Z",
+          "duration_seconds": 79.0,
+          "engagement": {
+            "play": 64300,
+            "like": 1764,
+            "comment": 18,
+            "share": 65,
+            "collect": 182
+          },
+          "caption_length": 92,
+          "hashtags": 5
+        },
+        {
+          "published_at": "2026-06-30T19:32:30Z",
+          "duration_seconds": 23.0,
+          "engagement": {
+            "play": 105100,
+            "like": 1937,
+            "comment": 30,
+            "share": 127,
+            "collect": 102
+          },
+          "caption_length": 171,
+          "hashtags": 5
+        },
+        {
+          "published_at": "2026-08-19T06:22:42Z",
+          "duration_seconds": 63.0,
+          "engagement": {
+            "play": 126000,
+            "like": 1881,
+            "comment": 18,
+            "share": 84,
+            "collect": 364
+          },
+          "caption_length": 74,
+          "hashtags": 5
+        }
+      ]
+    }
+  ]
+}

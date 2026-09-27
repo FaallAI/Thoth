@@ -1,12 +1,19 @@
 """Golden TikTok discovery captures: sanitizer, leak check, and parser replay."""
 
 import json
+import re
+from pathlib import Path
 
+import pytest
+
+from thoth_control_plane.acquisition.discovery import _assemble, parse_discovery_page
 from thoth_control_plane.operations import tiktok_discovery_fixture as fixture_module
 from thoth_control_plane.operations.tiktok_comment_fixture import ID_BASE
 from thoth_control_plane.operations.tiktok_discovery_fixture import (
     MAX_FIXTURE_PAGES,
+    fixture_page_bytes,
     main,
+    replay_page,
     sanitize_capture,
 )
 
@@ -276,3 +283,54 @@ def test_leak_report_still_catches_a_raw_id_in_a_non_verbatim_value() -> None:
     _checked, leaks = fixture_module.leak_report(raw, leaking_text)
 
     assert leaks >= 1
+
+
+FIXTURES = Path(__file__).resolve().parent.parent / "fixtures" / "tiktok" / "discovery"
+GOLDEN = {"profile": "profile.json", "keyword": "search.json", "trending": "explore.json"}
+GOLDEN_PAGES = {"profile": 2, "keyword": 1, "trending": 2}
+ISO_UTC = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z")
+PSEUDONYMOUS_URL = re.compile(r"https://www\.tiktok\.com/@user_[0-9]{3}/video/7[0-9]{18}")
+ENGAGEMENT_KEYS = {"play", "like", "comment", "share", "collect"}
+
+
+def _golden(kind: str) -> dict:
+    return json.loads((FIXTURES / GOLDEN[kind]).read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("kind", list(GOLDEN))
+def test_golden_pages_replay_exactly(kind: str) -> None:
+    fixture = _golden(kind)
+
+    assert fixture["kind"] == kind
+    assert len(fixture["pages"]) == GOLDEN_PAGES[kind]
+    replayed = [replay_page(kind, fixture_page_bytes(page)) for page in fixture["pages"]]
+    assert replayed == fixture["expected"]
+
+
+@pytest.mark.parametrize("kind", list(GOLDEN))
+def test_golden_pages_yield_normalized_pseudonymous_videos(kind: str) -> None:
+    fixture = _golden(kind)
+
+    videos = [
+        video
+        for page in fixture["pages"]
+        for video in parse_discovery_page(kind, fixture_page_bytes(page)).videos
+    ]
+
+    assert videos
+    for video in videos:
+        assert PSEUDONYMOUS_URL.fullmatch(str(video.canonical_url))
+        assert set(video.engagement) <= ENGAGEMENT_KEYS
+        assert video.published_at is None or ISO_UTC.fullmatch(video.published_at)
+    assert any(len(video.engagement) == 5 and video.published_at for video in videos)
+
+
+@pytest.mark.parametrize("kind", list(GOLDEN))
+def test_golden_pages_assemble_without_a_reason(kind: str) -> None:
+    fixture = _golden(kind)
+    bodies = [fixture_page_bytes(page) for page in fixture["pages"]]
+
+    result = _assemble(kind, 100, bodies, captcha=False, timed_out=False)
+
+    assert result.pages == GOLDEN_PAGES[kind]
+    assert result.reason is None
