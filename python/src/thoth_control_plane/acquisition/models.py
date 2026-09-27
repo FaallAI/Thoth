@@ -1,7 +1,8 @@
-"""Strict, serializable contracts for single-post TikTok acquisition."""
+"""Strict, serializable contracts for TikTok acquisition: single-post and discovery."""
 
 from __future__ import annotations
 
+import unicodedata
 from enum import StrEnum
 from pathlib import PurePosixPath
 from typing import Annotated, Literal
@@ -183,3 +184,78 @@ class TikTokAcquisitionResult(StrictModel):
         if (self.report is None) == (self.failure is None):
             raise ValueError("acquisition result requires exactly one outcome")
         return self
+
+
+EngagementKey = Literal["play", "like", "comment", "share", "collect"]
+DiscoveryKind = Literal["profile", "keyword", "trending"]
+DiscoveryLimit = Annotated[int, Field(ge=1, le=100)]
+
+
+def _search_query(value: str) -> str:
+    value = value.strip()
+    if not value or any(unicodedata.category(char) == "Cc" for char in value):
+        raise ValueError("search query must be non-blank text without control characters")
+    return value
+
+
+SearchQuery = Annotated[str, Field(min_length=1, max_length=100), AfterValidator(_search_query)]
+
+
+class DiscoveryReason(StrEnum):
+    CAPTCHA = "captcha"  # empty/non-JSON API body or captcha container rendered
+    BLOCKED = "blocked"  # API JSON with a non-zero status code
+    NO_DATA = "no_data"  # no matching API response was captured
+    TIMEOUT = "timeout"  # navigation or the scroll deadline expired
+    BROWSER_UNAVAILABLE = "browser_unavailable"  # the Scrapling stack could not start
+
+
+class ProfileDiscovery(StrictModel):
+    kind: Literal["profile"] = "profile"
+    handle: TikTokHandle
+    limit: DiscoveryLimit = 30
+
+
+class KeywordDiscovery(StrictModel):
+    kind: Literal["keyword"] = "keyword"
+    query: SearchQuery
+    limit: DiscoveryLimit = 30
+
+
+class TrendingDiscovery(StrictModel):
+    kind: Literal["trending"] = "trending"
+    limit: DiscoveryLimit = 30
+
+
+DiscoveryRequest = Annotated[
+    ProfileDiscovery | KeywordDiscovery | TrendingDiscovery, Field(discriminator="kind")
+]
+
+
+class DiscoveredVideo(StrictModel):
+    post_id: TikTokNumericId
+    owner_handle: TikTokHandle
+    canonical_url: HttpUrl  # rebuilt from handle and id, never taken from TikTok
+    caption: Annotated[str, Field(max_length=10_000)] = ""
+    published_at: str | None = None  # ISO 8601 UTC, "YYYY-MM-DDTHH:MM:SSZ"
+    duration_seconds: Annotated[float, Field(ge=0)] | None = None
+    engagement: dict[EngagementKey, Annotated[int, Field(ge=0)]] = Field(default_factory=dict)
+    hashtags: list[Annotated[str, Field(min_length=1, max_length=100)]] = Field(
+        default_factory=list
+    )
+
+
+class DiscoveryDrops(StrictModel):
+    ads: int = 0
+    photo_posts: int = 0
+    invalid: int = 0  # missing/invalid id or handle, or a failed model validation
+
+
+class DiscoveryResult(StrictModel):
+    """A result with `reason` set and non-empty `videos` is a valid partial result."""
+
+    kind: DiscoveryKind
+    videos: list[DiscoveredVideo]  # deduplicated by post_id, first seen wins, at most limit
+    pages: Annotated[int, Field(ge=0)]
+    exhausted: bool  # the last captured page reported no more results
+    drops: DiscoveryDrops
+    reason: DiscoveryReason | None = None

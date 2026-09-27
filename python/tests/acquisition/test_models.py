@@ -2,7 +2,7 @@ import json
 from pathlib import Path, PurePosixPath
 
 import pytest
-from pydantic import SecretStr, ValidationError
+from pydantic import SecretStr, TypeAdapter, ValidationError
 
 from thoth_control_plane.acquisition.models import (
     MAX_CARD_BYTES,
@@ -12,13 +12,21 @@ from thoth_control_plane.acquisition.models import (
     AttemptStatus,
     BrowserSnapshot,
     CardArtifact,
+    DiscoveredVideo,
+    DiscoveryDrops,
+    DiscoveryReason,
+    DiscoveryRequest,
+    DiscoveryResult,
+    KeywordDiscovery,
     MaterializedMedia,
+    ProfileDiscovery,
     ReportComment,
     ResolvedMedia,
     TikTokAcquisitionFailure,
     TikTokAcquisitionResult,
     TikTokPost,
     TikTokSourceReport,
+    TrendingDiscovery,
 )
 
 
@@ -255,3 +263,88 @@ def test_report_comment_rejects_image_bytes() -> None:
         ReportComment.model_validate(
             {"comment_id": "12345", "author": "user_001", "text": "x", "card_png": b"\x89PNG"}
         )
+
+
+DISCOVERY_REQUEST = TypeAdapter(DiscoveryRequest)
+VIDEO_URL = "https://www.tiktok.com/@creator/video/1000000001"
+
+
+def test_discovery_request_is_discriminated_by_kind() -> None:
+    profile = DISCOVERY_REQUEST.validate_python({"kind": "profile", "handle": "creator"})
+    keyword = DISCOVERY_REQUEST.validate_python({"kind": "keyword", "query": "  cats  "})
+    trending = DISCOVERY_REQUEST.validate_python({"kind": "trending", "limit": 5})
+
+    assert isinstance(profile, ProfileDiscovery) and profile.limit == 30
+    assert isinstance(keyword, KeywordDiscovery) and keyword.query == "cats"
+    assert isinstance(trending, TrendingDiscovery) and trending.limit == 5
+    with pytest.raises(ValidationError):
+        DISCOVERY_REQUEST.validate_python({"kind": "hashtag"})
+
+
+@pytest.mark.parametrize("query", ["", "   ", "cats\ndogs", "tab\there", "x" * 101])
+def test_keyword_query_rejects_blank_control_and_oversized_text(query: str) -> None:
+    with pytest.raises(ValidationError):
+        KeywordDiscovery(query=query)
+
+
+def test_keyword_query_keeps_punctuation_and_emoji() -> None:
+    query = "anak & kucing/2 \U0001f63a"
+    assert KeywordDiscovery(query=query).query == query
+
+
+@pytest.mark.parametrize("limit", [0, 101])
+def test_discovery_limit_is_bounded(limit: int) -> None:
+    with pytest.raises(ValidationError):
+        TrendingDiscovery(limit=limit)
+
+
+@pytest.mark.parametrize("handle", ["", "bad handle", "a/b", "x" * 65])
+def test_profile_discovery_rejects_invalid_handles(handle: str) -> None:
+    with pytest.raises(ValidationError):
+        ProfileDiscovery(handle=handle)
+
+
+def test_discovered_video_rejects_unknown_engagement_keys() -> None:
+    with pytest.raises(ValidationError):
+        DiscoveredVideo(
+            post_id="1000000001",
+            owner_handle="creator",
+            canonical_url=VIDEO_URL,
+            engagement={"views": 1},
+        )
+
+
+@pytest.mark.parametrize("hashtag", ["", "x" * 101])
+def test_discovered_video_rejects_empty_or_oversized_hashtags(hashtag: str) -> None:
+    with pytest.raises(ValidationError):
+        DiscoveredVideo(
+            post_id="1000000001",
+            owner_handle="creator",
+            canonical_url=VIDEO_URL,
+            hashtags=[hashtag],
+        )
+
+
+def test_partial_discovery_result_round_trips_through_json() -> None:
+    video = DiscoveredVideo(
+        post_id="1000000001",
+        owner_handle="creator",
+        canonical_url=VIDEO_URL,
+        published_at="2024-03-01T10:00:00Z",
+        duration_seconds=15.0,
+        engagement={"play": 1, "like": 2},
+        hashtags=["cats"],
+    )
+    result = DiscoveryResult(
+        kind="keyword",
+        videos=[video],
+        pages=1,
+        exhausted=False,
+        drops=DiscoveryDrops(ads=1),
+        reason=DiscoveryReason.CAPTCHA,
+    )
+
+    dumped = result.model_dump_json()
+
+    assert json.loads(dumped)["reason"] == "captcha"
+    assert DiscoveryResult.model_validate_json(dumped) == result
