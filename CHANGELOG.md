@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-09-27 - Headless TikTok comments and real card crops (branch `feat/tiktok-headless-comments`)
+
+- `600b435`: the Scrapling headless visit pages comments in-page through the unsigned
+  `/api/comment/list/` endpoint (capped at 50 comments / 5 pages) onto `BrowserSnapshot.comments`.
+  A comment failure never fails acquisition.
+- `0742c21`: an autouse fixture refuses every non-loopback connection outside tests marked
+  `live`. ADR 0001 and the migration roadmap now defer every live smoke to the final acceptance.
+- `b1798b6`: the same visit crops **real** TikTok cards. The Rust synthetic comment and author
+  card is never a fallback; a card that cannot be cropped is absent.
+  - `page_setup` routes TikTok's signed comment XHR to its unsigned form and answers the
+    profile-grid `item_list` XHR empty. Those two failing signed calls were what raised the
+    headless captcha.
+  - Comment cards: up to 10 per post, via Scout's climb to the smallest ancestor that holds the
+    username and the avatar. Each card attaches to the API comment whose text it renders.
+  - Profile header card: taken in a second tab, because Scrapling builds its response from the
+    post tab. It covers the avatar, the name row, and the counts with their labels; the rows
+    below them are hidden.
+  - The profile crop is kept only when the header passes its check both before and after the
+    screenshot. TikTok first paints a preview header (`*Placeholder` elements, grey label bars)
+    that passes every text check.
+  - The crops travel as `TikTokComment.card_png` and `BrowserSnapshot.profile_card_png`. They
+    are excluded from serialization. Persisting them and wiring them into the report is Stage 2
+    work.
+- Verification:
+  - WSL, Python 3.12: `tests/acquisition` 121 passed. The full suite had 1918 passed and 1 failed;
+    the failure is the pre-existing `test_route_modules_do_not_depend_on_a_process_runner`
+    (`'bun'` matches "bundle").
+  - ruff check and ruff format are clean.
+  - A one-time live check ran the branch code in the deployed image against 5 public posts,
+    with 12 visits in total:
+    - every visit resolved media;
+    - every visit got 49-50 comments, 10 of them with real card crops;
+    - 11 of 12 visits kept a real profile card and 1 kept none;
+    - no crop appeared in the JSON dump.
+  - Early probes, before the placeholder gate existed, produced some preview-header crops. Every
+    profile crop the final code kept was inspected by eye.
+- Not pushed: `0742c21` and `b1798b6` need the operator's push approval.
+
 ## 2026-09-27 - Stage 1 closed by operator decision; direct full Python migration (ADR 0001)
 
 Step 9 opened acceptance window `56fa84e6` with operator authorization. The operator then closed
