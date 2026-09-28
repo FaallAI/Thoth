@@ -262,7 +262,7 @@ v1 and v2 reports keep validating.
 ## 5. Fixtures and data hygiene
 
 Sanitized golden fixtures go under `python/tests/fixtures/tiktok/discovery/`:
-`profile.json`, `search.json` and `explore.json`. Each holds two captured pages.
+`profile.json`, `search.json` and `explore.json`. Each holds up to two captured pages.
 
 - They are produced by a new operator tool, `operations/tiktok_discovery_fixture.py`, which
   reuses the comment fixture's pseudonym helpers:
@@ -271,10 +271,19 @@ Sanitized golden fixtures go under `python/tests/fixtures/tiktok/discovery/`:
   - captions and hashtags become synthetic text of the same length;
   - media, cover, avatar and every other URL are dropped;
   - only the keys the parser reads are kept.
-- Engagement numbers and `createTime` are kept. They are public aggregate values and are needed
-  to test normalization.
+- Engagement numbers and `createTime` are de-identified, because exact values could still
+  identify a post:
+  - each counter is floored to two significant digits, keeping its type and digit count;
+  - each distinct `createTime` becomes a synthetic epoch, starting at `1700000000` and adding
+    one hour per value in order of first appearance, keeping its type;
+  - a value the normalizer rejects is dropped, which replays the same.
+- `expected` is the parser's replay of the sanitized pages. The tool refuses to write when the
+  raw capture replays to a different shape: publication time present or absent, and counters
+  at two significant digits.
 - At generation time the tool checks that no original id, handle, caption or hashtag survives.
-  The counts are recorded in the SDD ledger; the originals are never committed.
+  Id and handle slots are checked by whole value, and other text by substring. Short words are
+  checked where they stood. The counts are recorded in the SDD ledger; the originals are never
+  committed.
 - Raw captures stay under `D:/thoth-tmp/bu/out/` and are never committed or described publicly.
 - The fixture capture is a separate read-only live run. It needs its own operator authorization
   at the plan execution gate. The feasibility probe does not cover it.
