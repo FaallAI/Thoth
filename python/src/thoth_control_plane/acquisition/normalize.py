@@ -2,7 +2,8 @@
 
 A value that is not what it claims to be is skipped, never guessed. A count must be a
 non-negative integer or an ASCII decimal string of one. A publication time must be a positive
-integer epoch in seconds, or an ASCII decimal string of one.
+integer epoch in seconds, or an ASCII decimal string of one. Both are bounded by `MAX_INT64`,
+whether they arrive as a JSON number or as a decimal string (at most 19 digits).
 """
 
 from __future__ import annotations
@@ -17,12 +18,16 @@ ENGAGEMENT_KEYS: dict[str, tuple[str, ...]] = {
     "share": ("shareCount", "share_count"),
     "collect": ("collectCount", "collect_count"),
 }
-MAX_COUNT_DIGITS = 19
+# Signed 64-bit bound for every integer read here, so a later store never overflows.
+MAX_INT64 = 2**63 - 1
+MAX_INT64_DIGITS = len(str(MAX_INT64))
 
 
 def _decimal(value: str) -> int | None:
-    if value.isascii() and value.isdecimal() and len(value) <= MAX_COUNT_DIGITS:
-        return int(value)
+    # The length check runs first: `int()` of a very long digit string is slow or refused.
+    if value.isascii() and value.isdecimal() and len(value) <= MAX_INT64_DIGITS:
+        number = int(value)
+        return number if number <= MAX_INT64 else None
     return None
 
 
@@ -30,7 +35,7 @@ def _count(value: object) -> int | None:
     if isinstance(value, bool):
         return None
     if isinstance(value, int):
-        return value if value >= 0 else None
+        return value if 0 <= value <= MAX_INT64 else None
     if isinstance(value, str):
         return _decimal(value)
     return None
