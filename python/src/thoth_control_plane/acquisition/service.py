@@ -50,6 +50,9 @@ RETRYABLE_FAILURES = frozenset(
         "headless_timeout",
         "headless_blocked",
         "headless_incomplete",
+        "request_timeout",
+        "request_blocked",
+        "request_incomplete",
         "cdn_rate_limited",
         "cdn_unavailable",
         "media_validation_failed",
@@ -66,7 +69,7 @@ def _make_attempt(
 ) -> AcquisitionAttempt:
     if reason is None:
         status = AttemptStatus.SUCCEEDED
-    elif reason is AcquisitionReason.HEADLESS_INCOMPLETE:
+    elif reason in (AcquisitionReason.HEADLESS_INCOMPLETE, AcquisitionReason.REQUEST_INCOMPLETE):
         status = AttemptStatus.INCOMPLETE
     else:
         status = AttemptStatus.FAILED

@@ -13,6 +13,11 @@ from thoth_control_plane.acquisition.materializer import MediaMaterializer
 from thoth_control_plane.acquisition.models import AcquisitionResult
 from thoth_control_plane.acquisition.platforms import platform_of
 from thoth_control_plane.acquisition.service import TikTokAcquisitionService
+from thoth_control_plane.acquisition.threads_service import (
+    ThreadsAcquirer,
+    ThreadsHeadlessBrowser,
+    ThreadsRequestFetcher,
+)
 
 
 class Acquirer(Protocol):
@@ -31,4 +36,6 @@ def acquirer_for(
         return TikTokAcquisitionService(
             ScraplingHeadlessBrowser(), TikWmResolver(client), materializer
         )
+    if platform == "threads":
+        return ThreadsAcquirer(ThreadsRequestFetcher(), ThreadsHeadlessBrowser(), materializer)
     raise LookupError("no python acquirer for this platform")
