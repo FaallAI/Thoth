@@ -2,7 +2,7 @@
 
 **Status:** Active migration knowledge
 
-**Last updated:** 2026-09-27
+**Last updated:** 2026-09-28
 
 ## Purpose
 
@@ -150,7 +150,7 @@ demonstrated and is an explicit item for the final live acceptance or Stage 8.
 Closure hardening (2026-09-28) fixed the review risks and the deferred minor findings,
 de-identified the golden fixtures' counters and publication times, and settled the two
 deferred decisions: sticker-only comments are skipped and a post gets up to 12 comment
-cards. Closing Stage 2 is the operator's decision.
+cards. The operator closed Stage 2 on 2026-09-28.
 
 ## Stage 3: Port the Remaining Platform Adapters
 
@@ -342,8 +342,8 @@ Retirement then proceeds in this order:
 
 ## Immediate Next Step
 
-Stage 2 items 1-7 are implemented (see the status note under Stage 2). The operator
-decides whether Stage 2 closes; the next stage then proceeds under the direct-migration
+Stage 2 is closed (see the status note under Stage 2). Stage 3, the remaining platform
+adapters, starts with its own design specification and proceeds under the direct-migration
 strategy of
 [ADR 0001](adr/0001-direct-full-python-migration.md): golden fixtures, offline parity, a stage
 diff review, and no live traffic until the final acceptance. The deployed worker mode stays unchanged until a

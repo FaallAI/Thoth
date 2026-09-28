@@ -40,7 +40,7 @@ All notable changes to this project will be documented in this file.
     `test_route_modules_do_not_depend_on_a_process_runner`.
   - ruff check and ruff format are clean.
   - No Rust changed, so no `build_cuda.bat` run was needed.
-- Not pushed. Closing Stage 2 is the operator's decision.
+- Not pushed. The operator closed Stage 2 on 2026-09-28.
 
 ## 2026-09-27 - Stage 2: TikTok discovery primitives and engagement normalization
 
