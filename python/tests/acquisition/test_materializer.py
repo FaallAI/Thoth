@@ -246,10 +246,8 @@ async def test_streamed_body_exceeding_cap_without_content_length_is_rejected(
     MP4 (real ftyp header, over MIN_MEDIA_BYTES) so only the live running-total
     comparison against the media-kind byte cap can reject it.
     """
-    from thoth_control_plane.acquisition import models
-
     bounds = {"video": (1_000, 5_000), "image": (1_000, 20 * 1024 * 1024)}
-    monkeypatch.setattr(models, "MEDIA_BYTE_BOUNDS", bounds)
+    monkeypatch.setattr(materializer_module, "MEDIA_BYTE_BOUNDS", bounds)
 
     async def chunked_body():
         # Multiple chunks: proves the cap is enforced while iterating, not
