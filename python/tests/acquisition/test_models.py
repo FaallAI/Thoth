@@ -7,7 +7,9 @@ from pydantic import SecretStr, TypeAdapter, ValidationError
 from thoth_control_plane.acquisition.models import (
     MAX_CARD_BYTES,
     AcquisitionAttempt,
+    AcquisitionFailure,
     AcquisitionReason,
+    AcquisitionResult,
     AcquisitionStrategy,
     AttemptStatus,
     BrowserSnapshot,
@@ -22,6 +24,7 @@ from thoth_control_plane.acquisition.models import (
     ProfileDiscovery,
     ReportComment,
     ResolvedMedia,
+    SourceReport,
     TikTokAcquisitionFailure,
     TikTokAcquisitionResult,
     TikTokPost,
@@ -387,3 +390,132 @@ def test_reports_carry_publication_time_and_engagement(schema_version: int) -> N
 
     assert report.post.published_at == "2024-03-01T10:00:00Z"
     assert report.post.engagement == {"play": 7, "like": 2}
+
+
+_CHECKSUM = "sha256:" + "0" * 64
+
+
+def _media(index: int, kind: str, media_type: str, bytes_: int) -> MaterializedMedia:
+    suffix = {"video/mp4": "mp4", "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
+    return MaterializedMedia(
+        media_id=f"media_{index}",
+        kind=kind,
+        index=index,
+        location=PurePosixPath(f"reports/wf_contract_001/media/m{index}.{suffix[media_type]}"),
+        media_type=media_type,
+        bytes=bytes_,
+        checksum=_CHECKSUM,
+        # Enum member, not the raw string literal from the plan brief: `StrictModel`
+        # (unrelated to this task, out of scope to change) sets `strict=True`, which
+        # rejects raw strings for enum-typed fields with an `is_instance_of` error,
+        # same substitution already ledgered above for `AcquisitionAttempt`.
+        acquisition_strategy=AcquisitionStrategy.SCRAPLING_REQUEST,
+    )
+
+
+def _image(index: int, bytes_: int = 5_000, media_type: str = "image/jpeg") -> MaterializedMedia:
+    return _media(index, "image", media_type, bytes_)
+
+
+def _v3(**overrides: object) -> SourceReport:
+    data: dict[str, object] = {
+        "workflow_id": "wf_contract_001",
+        "source": {
+            "platform": "threads",
+            "canonical_url": "https://www.threads.com/@user_001/post/code_001",
+        },
+        "post": {"post_id": "code_001", "owner_handle": "user_001", "text": "hello"},
+        "media": [],
+        "outcome": {
+            "attempts": [
+                {
+                    # Enum members, not the plan brief's raw string literals; see the
+                    # `_media` comment above for why.
+                    "strategy": AcquisitionStrategy.SCRAPLING_REQUEST,
+                    "status": AttemptStatus.SUCCEEDED,
+                    "attempt_count": 1,
+                    "elapsed_ms": 5,
+                }
+            ]
+        },
+    }
+    data.update(overrides)
+    return SourceReport.model_validate(data)
+
+
+def test_v3_accepts_a_text_only_post() -> None:
+    report = _v3()
+    assert report.schema_version == 3
+    assert report.media == []
+    assert report.post_card is None
+
+
+def test_v3_accepts_ordered_images() -> None:
+    report = _v3(media=[_image(1), _image(2, media_type="image/png")])
+    assert [item.index for item in report.media] == [1, 2]
+
+
+def test_v3_rejects_a_post_with_neither_text_nor_media() -> None:
+    with pytest.raises(ValidationError):
+        _v3(post={"post_id": "code_001", "owner_handle": "user_001", "text": "  \n "})
+
+
+@pytest.mark.parametrize("indexes", [[2], [1, 1], [2, 1]])
+def test_v3_rejects_out_of_order_media(indexes: list[int]) -> None:
+    with pytest.raises(ValidationError):
+        _v3(media=[_image(index) for index in indexes])
+
+
+def test_v3_rejects_more_than_twenty_media() -> None:
+    with pytest.raises(ValidationError):
+        _v3(media=[_image(index) for index in range(1, 22)])
+
+
+@pytest.mark.parametrize(
+    "post",
+    [
+        {"post_id": "code/001", "owner_handle": "user_001", "text": "x"},
+        {"post_id": "code_001", "owner_handle": "user_001", "text": "x" * 50_001},
+    ],
+)
+def test_v3_rejects_unsafe_post_fields(post: dict[str, str]) -> None:
+    with pytest.raises(ValidationError):
+        _v3(post=post)
+
+
+@pytest.mark.parametrize(
+    ("kind", "media_type", "bytes_"),
+    [
+        ("image", "image/jpeg", 999),
+        ("image", "image/jpeg", 20 * 1024 * 1024 + 1),
+        ("image", "video/mp4", 5_000),
+        ("video", "image/jpeg", 20_000),
+        ("video", "video/mp4", 5_000),
+    ],
+)
+def test_materialized_media_bounds_follow_the_kind(kind: str, media_type: str, bytes_: int) -> None:
+    with pytest.raises(ValidationError):
+        _media(1, kind, media_type, bytes_)
+
+
+def test_v1_and_v2_reports_still_reject_images() -> None:
+    payload = json.loads(FIXTURE_REPORT.read_text(encoding="utf-8"))
+    payload["media"] = [_image(1).model_dump(mode="json")]
+    with pytest.raises(ValidationError):
+        TikTokSourceReport.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    "code", ["invalid_source_url", "no_content", "request_blocked", "request_timeout"]
+)
+def test_neutral_failure_accepts_new_codes(code: str) -> None:
+    assert AcquisitionFailure(code=code, retryable=False).code == code
+
+
+def test_neutral_result_requires_exactly_one_outcome() -> None:
+    with pytest.raises(ValidationError):
+        AcquisitionResult()
+    with pytest.raises(ValidationError):
+        AcquisitionResult(
+            report=_v3(), failure=AcquisitionFailure(code="no_content", retryable=False)
+        )
