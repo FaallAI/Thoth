@@ -8,6 +8,7 @@ import pytest
 
 from thoth_control_plane.acquisition.adapters.threads import (
     ThreadsUrlError,
+    canonical_threads_share_url,
     canonicalize_threads_post_url,
     json_roots,
     parse_documents,
@@ -81,6 +82,32 @@ def test_canonicalize_threads_post_url_accepts_variants(url: str) -> None:
 def test_canonicalize_threads_post_url_rejects_other_shapes(url: str) -> None:
     with pytest.raises(ThreadsUrlError):
         canonicalize_threads_post_url(url)
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["https://www.threads.com/share/BAxyz12_-/", "https://threads.net/share/BAxyz12_-?utm=x#f"],
+)
+def test_canonical_threads_share_url_keeps_only_the_token(url: str) -> None:
+    assert canonical_threads_share_url(url) == "https://www.threads.com/share/BAxyz12_-/"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://www.threads.com/share/BAxyz12/",
+        "https://www.instagram.com/share/BAxyz12/",
+        "https://www.threads.com/share/",
+        "https://www.threads.com/share/BAxyz12/extra",
+        "https://user:pw@www.threads.com/share/BAxyz12/",
+        "https://www.threads.com:8443/share/BAxyz12/",
+        "https://www.threads.com/@user_001/post/code_001",
+        "https://[::1",
+    ],
+)
+def test_canonical_threads_share_url_rejects_other_shapes(url: str) -> None:
+    with pytest.raises(ThreadsUrlError):
+        canonical_threads_share_url(url)
 
 
 def test_text_only_post_parses_without_media() -> None:

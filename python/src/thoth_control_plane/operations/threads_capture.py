@@ -1,7 +1,8 @@
 """Operator-run, read-only Threads capture for the Stage 3a method comparison.
 
 Never run by the test suite and only after the operator authorizes the capture. Reads
-`<kind> <url>` lines (kind: video, image, text) from `--urls`, fetches each post once per
+`<kind> <url>` lines (kind: video, image, text; url: a post or share link) from `--urls`,
+resolves share links in the browser, fetches each post once per
 method, and writes one raw JSON per post plus the card PNG under `--out`. URLs, handles,
 and bodies are never printed; stdout carries kinds, statuses, and counts only.
 """
@@ -15,19 +16,19 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from thoth_control_plane.acquisition.adapters.threads import canonicalize_threads_post_url
 from thoth_control_plane.acquisition.browser import HeadlessBrowserError
 from thoth_control_plane.acquisition.threads_service import (
     RequestFetchError,
     ThreadsHeadlessBrowser,
     ThreadsRequestFetcher,
+    resolve_threads_identity,
 )
 
 KINDS = ("video", "image", "text")
 
 
 async def _capture(kind: str, url: str, out: Path) -> dict[str, Any]:
-    identity = canonicalize_threads_post_url(url)
+    identity = await resolve_threads_identity(url, ThreadsHeadlessBrowser())
     target = str(identity.canonical_url)
     raw: dict[str, Any] = {
         "kind": kind,

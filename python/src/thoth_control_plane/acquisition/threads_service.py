@@ -17,9 +17,12 @@ from typing import Any, Literal
 from urllib.parse import urlsplit
 
 from thoth_control_plane.acquisition.adapters.threads import (
+    POST_PATH,
+    SHARE_PATH,
     ThreadsParse,
     ThreadsPostIdentity,
     ThreadsUrlError,
+    canonical_threads_share_url,
     canonicalize_threads_post_url,
     json_roots,
     parse_documents,
@@ -69,6 +72,7 @@ REQUEST_OPTIONS: dict[str, Any] = {
 THREADS_CAPTURE_XHR = r"https://www\.threads\.(?:com|net)/(?:api/)?graphql.*"
 POST_CARD_SELECTOR = 'div[data-pressable-container="true"]'
 SCRIPT_SELECTOR = 'script[type="application/json"]::text'
+SHARE_RESOLVE_TIMEOUT_MS = 15_000
 _STRATEGIES = {
     "request": AcquisitionStrategy.SCRAPLING_REQUEST,
     "headless": AcquisitionStrategy.SCRAPLING_HEADLESS,
@@ -130,6 +134,19 @@ def _crop_post_card(cards: list[bytes]) -> Callable[[Any], Awaitable[None]]:
     return crop
 
 
+def _await_post_url(landing: list[str]) -> Callable[[Any], Awaitable[None]]:
+    async def wait(page: Any) -> None:
+        # A share link redirects client-side; record wherever the page ends up.
+        with contextlib.suppress(Exception):
+            await page.wait_for_url(
+                lambda url: POST_PATH.fullmatch(urlsplit(url).path) is not None,
+                timeout=SHARE_RESOLVE_TIMEOUT_MS,
+            )
+        landing.append(page.url)
+
+    return wait
+
+
 class ThreadsHeadlessBrowser:
     """A stealthy headless visit: GraphQL bodies, embedded JSON, and a post-card crop."""
 
@@ -167,6 +184,33 @@ class ThreadsHeadlessBrowser:
             await self.close()
             raise
 
+    async def resolve(self, share_url: str) -> str:
+        """Follow a share link in its own short-lived session; return the landing URL."""
+        session = self._session_factory(headless=True, max_pages=1)
+        try:
+            active = await session.__aenter__()
+        except Exception as error:
+            raise HeadlessBrowserError(_classify_fetch_error(error)) from None
+        _increment_active_sessions()
+        landing: list[str] = []
+        try:
+            await active.fetch(share_url, page_action=_await_post_url(landing), **FETCH_OPTIONS)
+        except Exception as error:
+            raise HeadlessBrowserError(_classify_fetch_error(error)) from None
+        finally:
+            try:
+                await asyncio.shield(session.__aexit__(None, None, None))
+            except Exception:
+                pass
+            finally:
+                _decrement_active_sessions()
+        if landing and _blocked(landing[0]):
+            raise HeadlessBrowserError(AcquisitionReason.HEADLESS_BLOCKED)
+        if not landing or SHARE_PATH.fullmatch(urlsplit(landing[0]).path):
+            # The client-side redirect never happened in time; a retry may still land.
+            raise HeadlessBrowserError(AcquisitionReason.HEADLESS_INCOMPLETE)
+        return landing[0]
+
     async def close(self) -> None:
         session, self._session = self._session, None
         if session is None:
@@ -177,6 +221,17 @@ class ThreadsHeadlessBrowser:
             pass
         finally:
             _decrement_active_sessions()
+
+
+async def resolve_threads_identity(
+    source_url: str, headless: ThreadsHeadlessBrowser
+) -> ThreadsPostIdentity:
+    """A post URL is its own identity; a share link is followed once in the browser."""
+    try:
+        return canonicalize_threads_post_url(source_url)
+    except ThreadsUrlError:
+        share_url = canonical_threads_share_url(source_url)
+    return canonicalize_threads_post_url(await headless.resolve(share_url))
 
 
 def _persist_post_card(
@@ -265,15 +320,22 @@ class ThreadsAcquirer:
     async def inspect(
         self, *, workflow_id: str, source_url: str, artifact_root: Path
     ) -> AcquisitionResult:
-        try:
-            identity = canonicalize_threads_post_url(source_url)
-        except ThreadsUrlError:
-            return AcquisitionResult(
-                failure=AcquisitionFailure(code="invalid_source_url", retryable=False)
-            )
         strategy = _STRATEGIES[CONTENT_METHOD]
-        start = time.monotonic()
         try:
+            try:
+                identity = await resolve_threads_identity(source_url, self._headless)
+            except ThreadsUrlError:
+                return AcquisitionResult(
+                    failure=AcquisitionFailure(code="invalid_source_url", retryable=False)
+                )
+            except HeadlessBrowserError as error:
+                return AcquisitionResult(
+                    failure=AcquisitionFailure(
+                        code=error.reason.value,
+                        retryable=error.reason.value in RETRYABLE_FAILURES,
+                    )
+                )
+            start = time.monotonic()
             parsed, reason, card_png = await self._content(identity)
             if parsed is not None and not parsed.post.text.strip() and not parsed.media:
                 attempt = _make_attempt(strategy, None, _elapsed_ms(start))

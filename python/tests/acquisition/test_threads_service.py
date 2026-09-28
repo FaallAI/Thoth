@@ -69,8 +69,20 @@ class FakeRequest:
 
 
 class FakeHeadless:
-    def __init__(self, page: ThreadsPage | None = None, error: AcquisitionReason | None = None):
+    def __init__(
+        self,
+        page: ThreadsPage | None = None,
+        error: AcquisitionReason | None = None,
+        landing: str | AcquisitionReason = "https://www.threads.com/@user_001/post/code_001?x=1",
+    ):
         self.page, self.error, self.calls, self.closed = page, error, 0, 0
+        self.landing, self.resolved = landing, []
+
+    async def resolve(self, share_url: str) -> str:
+        self.resolved.append(share_url)
+        if isinstance(self.landing, AcquisitionReason):
+            raise HeadlessBrowserError(self.landing)
+        return self.landing
 
     async def fetch(self, url: str) -> ThreadsPage:
         self.calls += 1
@@ -222,6 +234,41 @@ async def test_invalid_url_fails_before_any_fetch(tmp_path: Path) -> None:
     assert (request.calls, headless.calls) == (0, 0)
 
 
+SHARE = "https://www.threads.com/share/BAxyz12/?utm=x"
+
+
+@pytest.mark.asyncio
+async def test_share_link_resolves_to_its_post_before_any_fetch(tmp_path: Path) -> None:
+    request, headless = FakeRequest(_texts(_node())), FakeHeadless(_card_page())
+    result = await _inspect(tmp_path, request, headless, url=SHARE)
+    assert result.report is not None
+    assert headless.resolved == ["https://www.threads.com/share/BAxyz12/"]
+    assert str(result.report.source.canonical_url) == (
+        "https://www.threads.com/@user_001/post/code_001"
+    )
+
+
+@pytest.mark.asyncio
+async def test_share_link_landing_off_a_post_is_invalid(tmp_path: Path) -> None:
+    request = FakeRequest(_texts(_node()))
+    headless = FakeHeadless(_card_page(), landing="https://www.threads.com/")
+    result = await _inspect(tmp_path, request, headless, url=SHARE)
+    assert result.failure is not None
+    assert (result.failure.code, result.failure.retryable) == ("invalid_source_url", False)
+    assert request.calls == 0
+
+
+@pytest.mark.asyncio
+async def test_share_link_resolution_failure_keeps_its_reason(tmp_path: Path) -> None:
+    request = FakeRequest(_texts(_node()))
+    headless = FakeHeadless(_card_page(), landing=AcquisitionReason.HEADLESS_BLOCKED)
+    result = await _inspect(tmp_path, request, headless, url=SHARE)
+    assert result.failure is not None
+    assert result.failure.code == "headless_blocked"
+    assert request.calls == 0
+    assert headless.closed == 1
+
+
 @pytest.mark.asyncio
 async def test_headless_method_uses_one_visit_for_post_and_card(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -349,4 +396,54 @@ async def test_headless_browser_classifies_a_startup_timeout() -> None:
     with pytest.raises(HeadlessBrowserError) as caught:
         await browser.fetch("https://www.threads.com/@user_001/post/code_001")
     assert caught.value.reason is AcquisitionReason.HEADLESS_TIMEOUT
+    assert active_scrapling_session_count() == 0
+
+
+class _SharePage:
+    def __init__(self, landing: str) -> None:
+        self.url, self._landing = "https://www.threads.com/share/BAxyz12/", landing
+
+    async def wait_for_url(self, predicate: Any, timeout: int) -> None:
+        self.url = self._landing
+        if not predicate(self.url):
+            raise TimeoutError()
+
+
+class _ShareActive:
+    def __init__(self, landing: str) -> None:
+        self.landing = landing
+
+    async def fetch(self, url: str, **kwargs: Any):
+        await kwargs["page_action"](_SharePage(self.landing))
+        return SimpleNamespace(url=url)
+
+
+@pytest.mark.asyncio
+async def test_headless_resolve_returns_the_landing_post_url() -> None:
+    session = _Session(_ShareActive("https://www.threads.com/@user_001/post/code_001?x=1"))
+    browser = ThreadsHeadlessBrowser(lambda **kwargs: session)
+    landing = await browser.resolve("https://www.threads.com/share/BAxyz12/")
+    assert landing == "https://www.threads.com/@user_001/post/code_001?x=1"
+    assert session.exited == 1
+    assert active_scrapling_session_count() == 0
+
+
+@pytest.mark.asyncio
+async def test_headless_resolve_on_a_login_wall_is_blocked() -> None:
+    session = _Session(_ShareActive("https://www.threads.com/login?next=x"))
+    browser = ThreadsHeadlessBrowser(lambda **kwargs: session)
+    with pytest.raises(HeadlessBrowserError) as caught:
+        await browser.resolve("https://www.threads.com/share/BAxyz12/")
+    assert caught.value.reason is AcquisitionReason.HEADLESS_BLOCKED
+    assert session.exited == 1
+    assert active_scrapling_session_count() == 0
+
+
+@pytest.mark.asyncio
+async def test_headless_resolve_stuck_on_the_share_page_is_incomplete() -> None:
+    session = _Session(_ShareActive("https://www.threads.com/share/BAxyz12/"))
+    browser = ThreadsHeadlessBrowser(lambda **kwargs: session)
+    with pytest.raises(HeadlessBrowserError) as caught:
+        await browser.resolve("https://www.threads.com/share/BAxyz12/")
+    assert caught.value.reason is AcquisitionReason.HEADLESS_INCOMPLETE
     assert active_scrapling_session_count() == 0

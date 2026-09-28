@@ -26,6 +26,7 @@ from thoth_control_plane.domain.models import StrictModel
 
 CANONICAL_BASE = "https://www.threads.com"
 POST_PATH = re.compile(r"^/@(?P<owner>[A-Za-z0-9._]{1,64})/post/(?P<code>[A-Za-z0-9_-]{1,64})/?$")
+SHARE_PATH = re.compile(r"^/share/(?P<token>[A-Za-z0-9_-]{1,64})/?$")
 ENGAGEMENT_KEYS = {
     "like": ("like_count",),
     "comment": ("direct_reply_count",),
@@ -50,8 +51,8 @@ class ThreadsParse(StrictModel):
     media: list[ResolvedMedia]
 
 
-def canonicalize_threads_post_url(url: str) -> ThreadsPostIdentity:
-    """Reduce any accepted Threads post URL (query, fragment, slash, host alias) to its identity."""
+def _match_safe_path(url: str, pattern: re.Pattern[str]) -> re.Match[str]:
+    """Match `pattern` against the path of a safe https Threads URL, or raise."""
     try:
         parsed = urlsplit(url)
         host = (parsed.hostname or "").lower()
@@ -59,7 +60,7 @@ def canonicalize_threads_post_url(url: str) -> ThreadsPostIdentity:
     except ValueError:
         # The bare ValueError embeds the raw offending substring; never chain it.
         raise ThreadsUrlError("invalid_source_url") from None
-    match = POST_PATH.fullmatch(parsed.path)
+    match = pattern.fullmatch(parsed.path)
     if (
         parsed.scheme != "https"
         or bare_host(host) not in PYTHON_PLATFORM_HOSTS["threads"]
@@ -69,10 +70,23 @@ def canonicalize_threads_post_url(url: str) -> ThreadsPostIdentity:
         or match is None
     ):
         raise ThreadsUrlError("invalid_source_url")
+    return match
+
+
+def canonicalize_threads_post_url(url: str) -> ThreadsPostIdentity:
+    """Reduce any accepted Threads post URL (query, fragment, slash, host alias) to its identity."""
+    match = _match_safe_path(url, POST_PATH)
     owner, code = match.group("owner"), match.group("code")
     return ThreadsPostIdentity(
         canonical_url=f"{CANONICAL_BASE}/@{owner}/post/{code}", post_id=code, owner_handle=owner
     )
+
+
+def canonical_threads_share_url(url: str) -> str:
+    """Reduce a Threads share link to its token URL. A share link names no post: only a
+    browser following its client-side redirect learns the post identity."""
+    token = _match_safe_path(url, SHARE_PATH).group("token")
+    return f"{CANONICAL_BASE}/share/{token}/"
 
 
 def json_roots(texts: Iterable[str]) -> list[object]:
