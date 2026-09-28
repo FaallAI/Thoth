@@ -1,0 +1,371 @@
+{
+  "kind": "image",
+  "method": "request",
+  "identity": {
+    "post_id": "code_001",
+    "owner_handle": "user_001"
+  },
+  "counts": {
+    "request": {
+      "found": 1,
+      "text_chars": 468,
+      "media": 3,
+      "videos": 0,
+      "engagement_keys": 5,
+      "published_at": 1
+    },
+    "headless": {
+      "found": 1,
+      "text_chars": 468,
+      "media": 3,
+      "videos": 0,
+      "engagement_keys": 5,
+      "published_at": 1
+    }
+  },
+  "document": {
+    "data": {
+      "thread_items": [
+        {
+          "post": {
+            "code": "code_001",
+            "user": {
+              "username": "user_001"
+            },
+            "caption": {
+              "text": "aaaaaaa aaaa aaaaaa\n\na. aaaaaaaaaaaaaaa · aaa ★ · aaaaa aa aaaaaa aaaa aaaaaaaaa aaa aaaaaa\na. aaaaaaaa-aaaaaaaa-aaaaaa · aaa ★ · aaaaaa aa aaaaaa aaaaaaa aaaaaaaa aaaaaaaa\na. aaa-aaa · aaa ★ · aaaaaaa aa aaaaaaaa aaaa aaa aaaaaa aaaaa\na. aaaaaaa-aaaaaaa-aaaaaa · aaa ★ · aaaaaaa aa aaaaa aaaaaa aaaaaaaaa aaa aaaaaaaa\na. aaaaaaaaaa-aaaaa-aaaaaa · aaa ★ · aaaaaa aa aaaaaa aaaa aaaaaaaaaa aaaaaaaa aaaaaa\n\naaaaaaa aaaaa aa aaaaaaaaa.aaa\n\naa a aaaaaaaa aa aaa aa aaaaa?"
+            },
+            "taken_at": 1700000000,
+            "like_count": 9,
+            "text_post_app_info": {
+              "direct_reply_count": 1,
+              "repost_count": 1,
+              "quote_count": 0,
+              "reshare_count": 5
+            },
+            "image_versions2": {
+              "candidates": [
+                {
+                  "url": "https://media.example.test/image/1.jpg",
+                  "width": 1440,
+                  "height": 1800
+                },
+                {
+                  "url": "https://media.example.test/image/2.jpg",
+                  "width": 1080,
+                  "height": 1350
+                },
+                {
+                  "url": "https://media.example.test/image/3.jpg",
+                  "width": 720,
+                  "height": 900
+                },
+                {
+                  "url": "https://media.example.test/image/4.jpg",
+                  "width": 640,
+                  "height": 800
+                },
+                {
+                  "url": "https://media.example.test/image/5.jpg",
+                  "width": 480,
+                  "height": 600
+                },
+                {
+                  "url": "https://media.example.test/image/6.jpg",
+                  "width": 320,
+                  "height": 400
+                },
+                {
+                  "url": "https://media.example.test/image/7.jpg",
+                  "width": 240,
+                  "height": 300
+                },
+                {
+                  "url": "https://media.example.test/image/8.jpg",
+                  "width": 1080,
+                  "height": 1080
+                },
+                {
+                  "url": "https://media.example.test/image/9.jpg",
+                  "width": 750,
+                  "height": 750
+                },
+                {
+                  "url": "https://media.example.test/image/10.jpg",
+                  "width": 640,
+                  "height": 640
+                },
+                {
+                  "url": "https://media.example.test/image/11.jpg",
+                  "width": 480,
+                  "height": 480
+                },
+                {
+                  "url": "https://media.example.test/image/12.jpg",
+                  "width": 320,
+                  "height": 320
+                },
+                {
+                  "url": "https://media.example.test/image/13.jpg",
+                  "width": 240,
+                  "height": 240
+                },
+                {
+                  "url": "https://media.example.test/image/14.jpg",
+                  "width": 150,
+                  "height": 150
+                }
+              ]
+            },
+            "carousel_media": [
+              {
+                "image_versions2": {
+                  "candidates": [
+                    {
+                      "url": "https://media.example.test/image/15.jpg",
+                      "width": 1440,
+                      "height": 1800
+                    },
+                    {
+                      "url": "https://media.example.test/image/16.jpg",
+                      "width": 1080,
+                      "height": 1350
+                    },
+                    {
+                      "url": "https://media.example.test/image/17.jpg",
+                      "width": 720,
+                      "height": 900
+                    },
+                    {
+                      "url": "https://media.example.test/image/18.jpg",
+                      "width": 640,
+                      "height": 800
+                    },
+                    {
+                      "url": "https://media.example.test/image/19.jpg",
+                      "width": 480,
+                      "height": 600
+                    },
+                    {
+                      "url": "https://media.example.test/image/20.jpg",
+                      "width": 320,
+                      "height": 400
+                    },
+                    {
+                      "url": "https://media.example.test/image/21.jpg",
+                      "width": 240,
+                      "height": 300
+                    },
+                    {
+                      "url": "https://media.example.test/image/22.jpg",
+                      "width": 1080,
+                      "height": 1080
+                    },
+                    {
+                      "url": "https://media.example.test/image/23.jpg",
+                      "width": 750,
+                      "height": 750
+                    },
+                    {
+                      "url": "https://media.example.test/image/24.jpg",
+                      "width": 640,
+                      "height": 640
+                    },
+                    {
+                      "url": "https://media.example.test/image/25.jpg",
+                      "width": 480,
+                      "height": 480
+                    },
+                    {
+                      "url": "https://media.example.test/image/26.jpg",
+                      "width": 320,
+                      "height": 320
+                    },
+                    {
+                      "url": "https://media.example.test/image/27.jpg",
+                      "width": 240,
+                      "height": 240
+                    },
+                    {
+                      "url": "https://media.example.test/image/28.jpg",
+                      "width": 150,
+                      "height": 150
+                    }
+                  ]
+                }
+              },
+              {
+                "image_versions2": {
+                  "candidates": [
+                    {
+                      "url": "https://media.example.test/image/29.jpg",
+                      "width": 1440,
+                      "height": 1800
+                    },
+                    {
+                      "url": "https://media.example.test/image/30.jpg",
+                      "width": 1080,
+                      "height": 1350
+                    },
+                    {
+                      "url": "https://media.example.test/image/31.jpg",
+                      "width": 720,
+                      "height": 900
+                    },
+                    {
+                      "url": "https://media.example.test/image/32.jpg",
+                      "width": 640,
+                      "height": 800
+                    },
+                    {
+                      "url": "https://media.example.test/image/33.jpg",
+                      "width": 480,
+                      "height": 600
+                    },
+                    {
+                      "url": "https://media.example.test/image/34.jpg",
+                      "width": 320,
+                      "height": 400
+                    },
+                    {
+                      "url": "https://media.example.test/image/35.jpg",
+                      "width": 240,
+                      "height": 300
+                    },
+                    {
+                      "url": "https://media.example.test/image/36.jpg",
+                      "width": 1080,
+                      "height": 1080
+                    },
+                    {
+                      "url": "https://media.example.test/image/37.jpg",
+                      "width": 750,
+                      "height": 750
+                    },
+                    {
+                      "url": "https://media.example.test/image/38.jpg",
+                      "width": 640,
+                      "height": 640
+                    },
+                    {
+                      "url": "https://media.example.test/image/39.jpg",
+                      "width": 480,
+                      "height": 480
+                    },
+                    {
+                      "url": "https://media.example.test/image/40.jpg",
+                      "width": 320,
+                      "height": 320
+                    },
+                    {
+                      "url": "https://media.example.test/image/41.jpg",
+                      "width": 240,
+                      "height": 240
+                    },
+                    {
+                      "url": "https://media.example.test/image/42.jpg",
+                      "width": 150,
+                      "height": 150
+                    }
+                  ]
+                }
+              },
+              {
+                "image_versions2": {
+                  "candidates": [
+                    {
+                      "url": "https://media.example.test/image/43.jpg",
+                      "width": 1440,
+                      "height": 1800
+                    },
+                    {
+                      "url": "https://media.example.test/image/44.jpg",
+                      "width": 1080,
+                      "height": 1350
+                    },
+                    {
+                      "url": "https://media.example.test/image/45.jpg",
+                      "width": 720,
+                      "height": 900
+                    },
+                    {
+                      "url": "https://media.example.test/image/46.jpg",
+                      "width": 640,
+                      "height": 800
+                    },
+                    {
+                      "url": "https://media.example.test/image/47.jpg",
+                      "width": 480,
+                      "height": 600
+                    },
+                    {
+                      "url": "https://media.example.test/image/48.jpg",
+                      "width": 320,
+                      "height": 400
+                    },
+                    {
+                      "url": "https://media.example.test/image/49.jpg",
+                      "width": 240,
+                      "height": 300
+                    },
+                    {
+                      "url": "https://media.example.test/image/50.jpg",
+                      "width": 1080,
+                      "height": 1080
+                    },
+                    {
+                      "url": "https://media.example.test/image/51.jpg",
+                      "width": 750,
+                      "height": 750
+                    },
+                    {
+                      "url": "https://media.example.test/image/52.jpg",
+                      "width": 640,
+                      "height": 640
+                    },
+                    {
+                      "url": "https://media.example.test/image/53.jpg",
+                      "width": 480,
+                      "height": 480
+                    },
+                    {
+                      "url": "https://media.example.test/image/54.jpg",
+                      "width": 320,
+                      "height": 320
+                    },
+                    {
+                      "url": "https://media.example.test/image/55.jpg",
+                      "width": 240,
+                      "height": 240
+                    },
+                    {
+                      "url": "https://media.example.test/image/56.jpg",
+                      "width": 150,
+                      "height": 150
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "expected": {
+    "text": "aaaaaaa aaaa aaaaaa\n\na. aaaaaaaaaaaaaaa · aaa ★ · aaaaa aa aaaaaa aaaa aaaaaaaaa aaa aaaaaa\na. aaaaaaaa-aaaaaaaa-aaaaaa · aaa ★ · aaaaaa aa aaaaaa aaaaaaa aaaaaaaa aaaaaaaa\na. aaa-aaa · aaa ★ · aaaaaaa aa aaaaaaaa aaaa aaa aaaaaa aaaaa\na. aaaaaaa-aaaaaaa-aaaaaa · aaa ★ · aaaaaaa aa aaaaa aaaaaa aaaaaaaaa aaa aaaaaaaa\na. aaaaaaaaaa-aaaaa-aaaaaa · aaa ★ · aaaaaa aa aaaaaa aaaa aaaaaaaaaa aaaaaaaa aaaaaa\n\naaaaaaa aaaaa aa aaaaaaaaa.aaa\n\naa a aaaaaaaa aa aaa aa aaaaa?",
+    "media_kinds": [
+      "image",
+      "image",
+      "image"
+    ],
+    "engagement": {
+      "like": 9,
+      "comment": 1,
+      "repost": 1,
+      "quote": 0,
+      "share": 5
+    },
+    "published_at": "2023-11-14T22:13:20Z"
+  }
+}

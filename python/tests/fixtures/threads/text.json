@@ -1,0 +1,66 @@
+{
+  "kind": "text",
+  "method": "request",
+  "identity": {
+    "post_id": "code_001",
+    "owner_handle": "user_001"
+  },
+  "counts": {
+    "request": {
+      "found": 1,
+      "text_chars": 436,
+      "media": 0,
+      "videos": 0,
+      "engagement_keys": 5,
+      "published_at": 1
+    },
+    "headless": {
+      "found": 1,
+      "text_chars": 436,
+      "media": 0,
+      "videos": 0,
+      "engagement_keys": 5,
+      "published_at": 1
+    }
+  },
+  "document": {
+    "data": {
+      "thread_items": [
+        {
+          "post": {
+            "code": "code_001",
+            "user": {
+              "username": "user_001"
+            },
+            "caption": {
+              "text": "🚨 aaaa aaaa  aaaaaaaa 📚🔎\n\naaaaa aaaaaaaa aaaaaaa aaaaaaaaa & aaaaaaaa aaaaaaaa (aaaa) aaaa aaaa aaaa aaaa aaaaaaaa!\n\n✅ aaaaaaa aaaaaaaaa\n✅ aaaaaaaa aaaaaaaa\n✅ aaaaaaaaa aaaa aaaaaaaa\n✅ aaaaaaaa-aaaaaaaa aaaaa\n\n🎯 aaaaaaa aaa: aaa aaaaaaaa, aaaa aaaaaaaaa, aaaa aaaaaaa & aaaaaaaaaaaaa aaaaaaaa.\n\n📥 aaaa aaaa:\n👉 \naaaaa://aaaaa.aaaaaa.aaa/aaaa/a/aaaaaaaaaaaaaaaaaaaaaaaaaaaa_a-aa/aaaa?aaa=aaaaaaa\n\naaaaa, aaaaaa aaa aaaaaa aaa aaaa aaaaaaa"
+            },
+            "taken_at": 1700000000,
+            "like_count": 13,
+            "text_post_app_info": {
+              "direct_reply_count": 1,
+              "repost_count": 4,
+              "quote_count": 0,
+              "reshare_count": 2
+            },
+            "image_versions2": {
+              "candidates": []
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expected": {
+    "text": "🚨 aaaa aaaa  aaaaaaaa 📚🔎\n\naaaaa aaaaaaaa aaaaaaa aaaaaaaaa & aaaaaaaa aaaaaaaa (aaaa) aaaa aaaa aaaa aaaa aaaaaaaa!\n\n✅ aaaaaaa aaaaaaaaa\n✅ aaaaaaaa aaaaaaaa\n✅ aaaaaaaaa aaaa aaaaaaaa\n✅ aaaaaaaa-aaaaaaaa aaaaa\n\n🎯 aaaaaaa aaa: aaa aaaaaaaa, aaaa aaaaaaaaa, aaaa aaaaaaa & aaaaaaaaaaaaa aaaaaaaa.\n\n📥 aaaa aaaa:\n👉 \naaaaa://aaaaa.aaaaaa.aaa/aaaa/a/aaaaaaaaaaaaaaaaaaaaaaaaaaaa_a-aa/aaaa?aaa=aaaaaaa\n\naaaaa, aaaaaa aaa aaaaaa aaa aaaa aaaaaaa",
+    "media_kinds": [],
+    "engagement": {
+      "like": 13,
+      "comment": 1,
+      "repost": 4,
+      "quote": 0,
+      "share": 2
+    },
+    "published_at": "2023-11-14T22:13:20Z"
+  }
+}

@@ -60,7 +60,7 @@ from thoth_control_plane.acquisition.service import (
     _make_attempt,
 )
 
-# Provisional until Task 10 records the comparison; a test pins it to the fixtures.
+# Decided by the Stage 3a comparison (restricted evidence in the checkpoint).
 CONTENT_METHOD: Literal["request", "headless"] = "request"
 REQUEST_OPTIONS: dict[str, Any] = {
     "impersonate": "chrome",
