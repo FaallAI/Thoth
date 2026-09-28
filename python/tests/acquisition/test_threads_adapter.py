@@ -166,3 +166,17 @@ def test_text_is_truncated_to_the_contract_limit() -> None:
 
 def test_json_roots_skips_non_json_texts() -> None:
     assert json_roots(["not json", json.dumps({"a": 1}), ""]) == [{"a": 1}]
+
+
+@pytest.mark.parametrize(
+    ("user", "owner"),
+    [
+        ({"username": "real_author"}, "real_author"),
+        ({"username": "bad handle!"}, "user_001"),
+        ({}, "user_001"),
+    ],
+)
+def test_owner_handle_comes_from_the_post_author(user: dict[str, object], owner: str) -> None:
+    parsed = parse_documents([{"post": _node(user=user)}], IDENTITY)
+    assert parsed is not None
+    assert parsed.post.owner_handle == owner

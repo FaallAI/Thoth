@@ -249,6 +249,17 @@ async def test_share_link_resolves_to_its_post_before_any_fetch(tmp_path: Path) 
 
 
 @pytest.mark.asyncio
+async def test_report_credits_the_post_author_not_the_url_owner(tmp_path: Path) -> None:
+    request = FakeRequest(_texts(_node(user={"username": "real_author"})))
+    result = await _inspect(tmp_path, request, FakeHeadless(_card_page()))
+    assert result.report is not None
+    assert result.report.post.owner_handle == "real_author"
+    assert str(result.report.source.canonical_url) == (
+        "https://www.threads.com/@real_author/post/code_001"
+    )
+
+
+@pytest.mark.asyncio
 async def test_share_link_landing_off_a_post_is_invalid(tmp_path: Path) -> None:
     request = FakeRequest(_texts(_node()))
     headless = FakeHeadless(_card_page(), landing="https://www.threads.com/")

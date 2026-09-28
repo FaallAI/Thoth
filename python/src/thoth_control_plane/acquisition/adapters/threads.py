@@ -26,6 +26,7 @@ from thoth_control_plane.domain.models import StrictModel
 
 CANONICAL_BASE = "https://www.threads.com"
 POST_PATH = re.compile(r"^/@(?P<owner>[A-Za-z0-9._]{1,64})/post/(?P<code>[A-Za-z0-9_-]{1,64})/?$")
+HANDLE = re.compile(r"[A-Za-z0-9._]{1,64}")
 SHARE_PATH = re.compile(r"^/share/(?P<token>[A-Za-z0-9_-]{1,64})/?$")
 ENGAGEMENT_KEYS = {
     "like": ("like_count",),
@@ -165,6 +166,9 @@ def parse_documents(roots: Iterable[object], identity: ThreadsPostIdentity) -> T
     text = caption.get("text") if isinstance(caption, dict) else None
     info = node.get("text_post_app_info")
     counters = {**node, **info} if isinstance(info, dict) else node
+    # The post's author wins over the URL's @owner, which a pasted link may get wrong.
+    username = node["user"].get("username")
+    owner = username if isinstance(username, str) and HANDLE.fullmatch(username) else None
     engagement = {
         key: value
         for key, names in ENGAGEMENT_KEYS.items()
@@ -173,7 +177,7 @@ def parse_documents(roots: Iterable[object], identity: ThreadsPostIdentity) -> T
     return ThreadsParse(
         post=SourcePost(
             post_id=identity.post_id,
-            owner_handle=identity.owner_handle,
+            owner_handle=owner or identity.owner_handle,
             text=text[:MAX_POST_TEXT] if isinstance(text, str) else "",
             published_at=published_at_from_epoch(node.get("taken_at")),
             engagement=engagement,

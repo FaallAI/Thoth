@@ -372,7 +372,12 @@ class ThreadsAcquirer:
             return AcquisitionResult(
                 report=SourceReport(
                     workflow_id=workflow_id,
-                    source=ReportSource(platform="threads", canonical_url=identity.canonical_url),
+                    source=ReportSource(
+                        platform="threads",
+                        canonical_url=canonicalize_threads_post_url(
+                            f"https://www.threads.com/@{parsed.post.owner_handle}/post/{identity.post_id}"
+                        ).canonical_url,
+                    ),
                     post=parsed.post,
                     media=media,
                     outcome=AcquisitionOutcome(attempts=[attempt]),
