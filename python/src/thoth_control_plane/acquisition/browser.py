@@ -41,6 +41,14 @@ EMBEDDED_DATA_SELECTOR = "script#__UNIVERSAL_DATA_FOR_REHYDRATION__::text"
 MEDIA_REFERER = "https://www.tiktok.com/"
 FETCH_TIMEOUT_MS = 45_000
 FETCH_WAIT_MS = 1_000
+# Page-load options shared by every TikTok page visit (post and discovery).
+FETCH_OPTIONS: dict[str, Any] = {
+    "timeout": FETCH_TIMEOUT_MS,
+    "network_idle": True,
+    "disable_resources": False,
+    "google_search": False,
+    "wait": FETCH_WAIT_MS,
+}
 MAX_COMMENT_PAGES = 5
 # Same-origin fetch from the loaded post page: it rides the browser's own network
 # stack and cookies, needs no request signature, and never opens the comment panel
@@ -520,8 +528,13 @@ def _media_request_context(response: Any) -> MediaRequestContext:
     return MediaRequestContext(user_agent=user_agent, referer=MEDIA_REFERER, cookies=cookies)
 
 
+def _is_timeout(error: Exception) -> bool:
+    # Playwright and asyncio name their timeout errors differently; both say "timeout".
+    return "timeout" in type(error).__name__.lower()
+
+
 def _classify_fetch_error(error: Exception) -> AcquisitionReason:
-    if "timeout" in type(error).__name__.lower():
+    if _is_timeout(error):
         return AcquisitionReason.HEADLESS_TIMEOUT
     return AcquisitionReason.HEADLESS_BLOCKED
 
@@ -547,13 +560,9 @@ class ScraplingHeadlessBrowser:
             identity = canonicalize_tiktok_post_url(url)
             response = await active.fetch(
                 url,
-                timeout=FETCH_TIMEOUT_MS,
-                network_idle=True,
-                disable_resources=False,
-                google_search=False,
-                wait=FETCH_WAIT_MS,
                 page_setup=_page_setup,
                 page_action=_visit_action(identity, visit),
+                **FETCH_OPTIONS,
             )
             snapshot = _extract_from_response(response, visit)
         except TikTokUrlError:

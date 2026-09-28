@@ -328,9 +328,9 @@ def test_golden_pages_yield_normalized_pseudonymous_videos(kind: str) -> None:
 @pytest.mark.parametrize("kind", list(GOLDEN))
 def test_golden_pages_assemble_without_a_reason(kind: str) -> None:
     fixture = _golden(kind)
-    bodies = [fixture_page_bytes(page) for page in fixture["pages"]]
+    pages = [parse_discovery_page(kind, fixture_page_bytes(page)) for page in fixture["pages"]]
 
-    result = _assemble(kind, 100, bodies, captcha=False, timed_out=False)
+    result = _assemble(kind, 100, pages, captcha=False, timed_out=False)
 
     assert result.pages == GOLDEN_PAGES[kind]
     assert result.reason is None

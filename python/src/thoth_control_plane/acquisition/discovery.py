@@ -11,12 +11,12 @@ This is the sole boundary where raw list payloads are inspected. Only validated
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json
 import logging
 import math
 import re
-import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -25,11 +25,11 @@ from urllib.parse import quote
 from pydantic import ValidationError
 
 from thoth_control_plane.acquisition.browser import (
-    FETCH_TIMEOUT_MS,
-    FETCH_WAIT_MS,
+    FETCH_OPTIONS,
     _decrement_active_sessions,
     _default_session_factory,
     _increment_active_sessions,
+    _is_timeout,
 )
 from thoth_control_plane.acquisition.models import (
     DiscoveredVideo,
@@ -62,13 +62,6 @@ SCROLL_WAIT_MS = 3_000
 POLL_MS = 250
 IDLE_SCROLLS = 2
 SCROLL_DEADLINE_S = 60.0
-_FETCH_OPTIONS: dict[str, Any] = {
-    "timeout": FETCH_TIMEOUT_MS,
-    "network_idle": True,
-    "disable_resources": False,
-    "google_search": False,
-    "wait": FETCH_WAIT_MS,
-}
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,12 +74,17 @@ class DiscoveryPage:
     reason: DiscoveryReason | None = None
 
 
-def parse_discovery_page(kind: DiscoveryKind, body: bytes) -> DiscoveryPage:
+def parse_discovery_page(
+    kind: DiscoveryKind, body: bytes, http_status: int | None = None
+) -> DiscoveryPage:
     """Reduce one raw list response body to validated videos and drop counts.
 
-    A body that is not a JSON object is what TikTok serves a refused request, so it maps to
-    `captcha`. A non-zero status code maps to `blocked`.
+    A non-2xx HTTP status or a non-zero TikTok status code maps to `blocked`, whatever the
+    body. Otherwise a body that is not a JSON object is what TikTok serves a refused request,
+    so it maps to `captcha`.
     """
+    if isinstance(http_status, int) and not 200 <= http_status < 300:
+        return DiscoveryPage([], False, DiscoveryDrops(), DiscoveryReason.BLOCKED)
     try:
         payload = json.loads(body)
     except (ValueError, RecursionError):
@@ -94,7 +92,7 @@ def parse_discovery_page(kind: DiscoveryKind, body: bytes) -> DiscoveryPage:
     if not isinstance(payload, dict):
         return DiscoveryPage([], False, DiscoveryDrops(), DiscoveryReason.CAPTCHA)
     status = payload.get("statusCode", payload.get("status_code"))
-    if status not in (None, 0):
+    if status not in (None, 0, "0"):
         return DiscoveryPage([], False, DiscoveryDrops(), DiscoveryReason.BLOCKED)
 
     videos: list[DiscoveredVideo] = []
@@ -208,7 +206,7 @@ class _Scroll:
                 body = await response.body()
             except Exception:
                 body = b""
-            page = parse_discovery_page(self.kind, body)
+            page = parse_discovery_page(self.kind, body, getattr(response, "status", None))
             self.seen.update(video.post_id for video in page.videos)
             if page.reason is not None or not page.has_more:
                 self.done = True
@@ -216,9 +214,13 @@ class _Scroll:
 
 def _scroll_action(scroll: _Scroll) -> Callable[[Any], Awaitable[None]]:
     async def action(page: Any) -> None:
-        # A failed scroll must never discard the pages Scrapling already captured.
+        # A failed or overlong scroll must never discard the pages Scrapling already captured.
         try:
-            await _paginate(page, scroll)
+            # A hard bound: a page await that never returns cannot outlive the deadline.
+            await asyncio.wait_for(_paginate(page, scroll), SCROLL_DEADLINE_S)
+        except TimeoutError:
+            scroll.timed_out = True
+            scroll.stop = "deadline"
         except Exception as error:
             scroll.stop = f"error:{type(error).__name__}"
             logger.warning(
@@ -229,7 +231,6 @@ def _scroll_action(scroll: _Scroll) -> Callable[[Any], Awaitable[None]]:
 
 
 async def _paginate(page: Any, scroll: _Scroll) -> None:
-    deadline = time.monotonic() + SCROLL_DEADLINE_S
     idle = 0
     for _ in range(MAX_SCROLLS):
         await scroll.absorb()
@@ -242,10 +243,6 @@ async def _paginate(page: Any, scroll: _Scroll) -> None:
         if await page.query_selector(CAPTCHA_SELECTOR) is not None:
             scroll.captcha = True
             scroll.stop = "captcha"
-            return
-        if time.monotonic() >= deadline:
-            scroll.timed_out = True
-            scroll.stop = "deadline"
             return
         before = len(scroll.responses)
         await page.mouse.wheel(0, SCROLL_PX)
@@ -270,18 +267,17 @@ async def _wait_for_new(page: Any, scroll: _Scroll, before: int) -> bool:
 def _assemble(
     kind: DiscoveryKind,
     limit: int,
-    bodies: list[bytes],
+    parsed: list[DiscoveryPage],
     *,
     captcha: bool,
     timed_out: bool,
 ) -> DiscoveryResult:
-    """Parse captured pages in order; the first page reason stops assembly."""
+    """Merge parsed pages in capture order; the first page reason stops assembly."""
     videos: dict[str, DiscoveredVideo] = {}
     pages = ads = photo_posts = invalid = 0
     exhausted = False
     reason: DiscoveryReason | None = None
-    for body in bodies:
-        page = parse_discovery_page(kind, body)
+    for page in parsed:
         if page.reason is not None:
             reason = page.reason
             exhausted = False
@@ -296,7 +292,7 @@ def _assemble(
     if reason is None:
         if captcha:
             reason = DiscoveryReason.CAPTCHA
-        elif not bodies:
+        elif not parsed:
             reason = DiscoveryReason.NO_DATA
         elif timed_out:
             reason = DiscoveryReason.TIMEOUT
@@ -316,9 +312,10 @@ def _empty(kind: DiscoveryKind, reason: DiscoveryReason) -> DiscoveryResult:
     )
 
 
-def _body(entry: Any) -> bytes:
+def _parse_entry(kind: DiscoveryKind, entry: Any) -> DiscoveryPage:
     body = getattr(entry, "body", None)
-    return body if isinstance(body, bytes) else b""
+    body = body if isinstance(body, bytes) else b""
+    return parse_discovery_page(kind, body, getattr(entry, "status", None))
 
 
 def _captcha_rendered(response: Any) -> bool:
@@ -363,10 +360,9 @@ class ScraplingDiscoveryBrowser:
 
     async def _collect(self, request: DiscoveryRequest) -> DiscoveryResult:
         kind = request.kind
+        pattern = XHR_PATTERNS[kind]
         try:
-            session = self._session_factory(
-                headless=True, max_pages=1, capture_xhr=XHR_PATTERNS[kind]
-            )
+            session = self._session_factory(headless=True, max_pages=1, capture_xhr=pattern)
             active = await session.__aenter__()
         except Exception:
             return _empty(kind, DiscoveryReason.BROWSER_UNAVAILABLE)
@@ -376,15 +372,15 @@ class ScraplingDiscoveryBrowser:
         try:
             if isinstance(request, KeywordDiscovery):
                 # Search answers only a session warmed on /explore; that visit is discarded.
-                await active.fetch(EXPLORE_URL, **_FETCH_OPTIONS)
+                await active.fetch(EXPLORE_URL, **FETCH_OPTIONS)
             response = await active.fetch(
                 _page_url(request),
                 page_setup=scroll.attach,
                 page_action=_scroll_action(scroll),
-                **_FETCH_OPTIONS,
+                **FETCH_OPTIONS,
             )
         except Exception as error:
-            if "timeout" in type(error).__name__.lower():
+            if _is_timeout(error):
                 return _empty(kind, DiscoveryReason.TIMEOUT)
             return _empty(kind, DiscoveryReason.BROWSER_UNAVAILABLE)
         finally:
@@ -395,11 +391,11 @@ class ScraplingDiscoveryBrowser:
                 _decrement_active_sessions()
 
         logger.debug("tiktok discovery scroll ended kind=%s stop=%s", kind, scroll.stop)
-        bodies = [_body(entry) for entry in getattr(response, "captured_xhr", None) or []]
+        captured = getattr(response, "captured_xhr", None) or []
         return _assemble(
             kind,
             request.limit,
-            bodies,
+            [_parse_entry(kind, entry) for entry in captured],
             captcha=scroll.captcha or _captcha_rendered(response),
             timed_out=scroll.timed_out,
         )

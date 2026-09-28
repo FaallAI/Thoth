@@ -149,6 +149,29 @@ def test_non_zero_status_is_blocked(kind: str, payload: dict) -> None:
     assert page.videos == []
 
 
+@pytest.mark.parametrize(
+    ("kind", "payload"),
+    [
+        ("profile", {"statusCode": "0", "itemList": [_item()], "hasMore": False}),
+        ("keyword", {"status_code": "0", "data": [{"type": 1, "item": _item()}], "has_more": 0}),
+    ],
+)
+def test_a_string_zero_status_is_ok(kind: str, payload: dict) -> None:
+    page = parse_discovery_page(kind, json.dumps(payload).encode())
+
+    assert page.reason is None
+    assert len(page.videos) == 1
+
+
+@pytest.mark.parametrize("status", [403, 429, 500, 302])
+def test_a_non_2xx_response_is_blocked_whatever_its_body(status: int) -> None:
+    for body in (_list_body([_item()]), b"<html>denied</html>"):
+        page = parse_discovery_page("profile", body, status)
+
+        assert page.reason is DiscoveryReason.BLOCKED
+        assert page.videos == []
+
+
 def test_canonical_url_is_rebuilt_never_taken_from_tiktok() -> None:
     item = _item(shareUrl="https://evil.example/@creator/video/1000000001")
 
@@ -176,11 +199,19 @@ def test_invalid_duration_is_none_and_the_video_is_kept(duration: object) -> Non
 
 
 def test_bad_hashtags_are_dropped_and_the_video_is_kept() -> None:
-    challenges = [{"title": ""}, {"title": "x" * 101}, {"title": 5}, "junk", {"title": "ok"}]
+    longest = "x" * 100
+    challenges = [
+        {"title": ""},
+        {"title": longest + "x"},
+        {"title": 5},
+        "junk",
+        {"title": "ok"},
+        {"title": longest},
+    ]
 
     [video] = parse_discovery_page("profile", _list_body([_item(challenges=challenges)])).videos
 
-    assert video.hashtags == ["ok"]
+    assert video.hashtags == ["ok", longest]
 
 
 def test_missing_stats_yield_empty_engagement() -> None:
@@ -237,6 +268,7 @@ class FakePage:
         self.captcha = flags.get("captcha", False)
         self.body_error = flags.get("body_error", False)
         self.wheel_error = flags.get("wheel_error")
+        self.hang = flags.get("hang", False)
         self.scrolls = 0
         self.handlers: list = []
         self.mouse = SimpleNamespace(wheel=self._wheel)
@@ -258,6 +290,8 @@ class FakePage:
     async def _wheel(self, delta_x: int, delta_y: int) -> None:
         if self.wheel_error is not None:
             raise self.wheel_error
+        if self.hang:
+            await asyncio.Event().wait()
         self.scrolls += 1
         self.emit()
 
@@ -275,6 +309,8 @@ class FakeSession:
         self.css_captcha = flags.get("css_captcha", False)
         self.fetch_error = flags.get("fetch_error")
         self.enter_error = flags.get("enter_error")
+        self.exit_error = flags.get("exit_error")
+        self.status = flags.get("status", 200)
         self.factory_kwargs: dict = {}
         self.fetched: list[str] = []
         self.fetch_kwargs: list[dict] = []
@@ -287,6 +323,8 @@ class FakeSession:
 
     async def __aexit__(self, *exc_info: object) -> None:
         self.exited = True
+        if self.exit_error is not None:
+            raise self.exit_error
 
     async def fetch(self, url: str, **kwargs: object) -> SimpleNamespace:
         self.fetched.append(url)
@@ -301,7 +339,10 @@ class FakeSession:
         await kwargs["page_setup"](self.page)
         self.page.emit()
         await kwargs["page_action"](self.page)
-        captured = [SimpleNamespace(url=self.page.api_url, body=body) for body in self.page.emitted]
+        captured = [
+            SimpleNamespace(url=self.page.api_url, status=self.status, body=body)
+            for body in self.page.emitted
+        ]
         rendered = ["captcha"] if self.css_captcha else []
         return SimpleNamespace(captured_xhr=captured, css=lambda selector: rendered)
 
@@ -321,6 +362,10 @@ def _browser(session: FakeSession) -> ScraplingDiscoveryBrowser:
         (
             KeywordDiscovery(query="anak & kucing/2"),
             "https://www.tiktok.com/search?q=anak%20%26%20kucing%2F2",
+        ),
+        (
+            KeywordDiscovery(query="kucing 🐱"),
+            "https://www.tiktok.com/search?q=kucing%20%F0%9F%90%B1",
         ),
         (TrendingDiscovery(), "https://www.tiktok.com/explore"),
     ],
@@ -441,8 +486,24 @@ async def test_attach_resets_stale_scroll_state_from_a_session_retry() -> None:
     await discovery_module._paginate(retry_page, scroll)
 
     assert retry_page.scrolls == 1
-    assert scroll.captcha is False
     assert len(scroll.seen) == 3
+
+
+async def test_attach_clears_a_captcha_flag_left_by_a_failed_attempt() -> None:
+    scroll = discovery_module._Scroll(kind="profile", limit=100)
+    failed_page = FakePage(API_URLS["profile"], _pages("profile", 1), captcha=True)
+    await scroll.attach(failed_page)
+    failed_page.emit()
+    await discovery_module._paginate(failed_page, scroll)
+    assert scroll.captcha is True
+
+    retry_page = FakePage(API_URLS["profile"], _pages("profile", 1, last_has_more=False))
+    await scroll.attach(retry_page)
+    retry_page.emit()
+    await discovery_module._paginate(retry_page, scroll)
+
+    assert scroll.captcha is False
+    assert scroll.stop == "done"
 
 
 async def test_captcha_container_stops_with_a_partial_result() -> None:
@@ -465,15 +526,28 @@ async def test_captcha_rendered_in_the_final_page_is_reported() -> None:
     assert len(result.videos) == 3
 
 
-async def test_scroll_deadline_is_a_timeout_with_a_partial_result(monkeypatch) -> None:
-    monkeypatch.setattr(discovery_module, "SCROLL_DEADLINE_S", 0.0)
-    session = FakeSession("profile", _pages("profile", 3))
+async def test_scroll_deadline_bounds_a_hanging_scroll_with_a_partial_result(monkeypatch) -> None:
+    monkeypatch.setattr(discovery_module, "SCROLL_DEADLINE_S", 0.05)
+    session = FakeSession("profile", _pages("profile", 3), hang=True)
 
-    result = await _browser(session).discover(ProfileDiscovery(handle="creator"))
+    # The outer bound only keeps a regression from hanging the suite.
+    result = await asyncio.wait_for(
+        _browser(session).discover(ProfileDiscovery(handle="creator")), 5
+    )
 
     assert session.page.scrolls == 0
     assert result.reason is DiscoveryReason.TIMEOUT
     assert len(result.videos) == 3
+
+
+@pytest.mark.parametrize("status", [403, 500])
+async def test_a_non_2xx_captured_page_is_blocked(status: int) -> None:
+    session = FakeSession("profile", _pages("profile", 1, last_has_more=False), status=status)
+
+    result = await _browser(session).discover(ProfileDiscovery(handle="creator"))
+
+    assert result.reason is DiscoveryReason.BLOCKED
+    assert result.videos == []
 
 
 async def test_an_empty_first_body_is_captcha_with_no_pages() -> None:
@@ -504,7 +578,9 @@ def test_assembly_ignores_pages_after_the_first_reason() -> None:
     first = _body_for("profile", ["1000000001"])
     later = _body_for("profile", ["1000000002"], has_more=False)
 
-    result = _assemble("profile", 100, [first, blocked, later], captcha=False, timed_out=False)
+    pages = [parse_discovery_page("profile", body) for body in (first, blocked, later)]
+
+    result = _assemble("profile", 100, pages, captcha=False, timed_out=False)
 
     assert [video.post_id for video in result.videos] == ["1000000001"]
     assert result.pages == 1
@@ -521,7 +597,9 @@ def test_assembly_deduplicates_first_seen_sums_drops_and_truncates() -> None:
         has_more=False,
     )
 
-    result = _assemble("profile", 2, [first, second], captcha=False, timed_out=False)
+    pages = [parse_discovery_page("profile", body) for body in (first, second)]
+
+    result = _assemble("profile", 2, pages, captcha=False, timed_out=False)
 
     assert [video.post_id for video in result.videos] == ["1000000001", "1000000002"]
     assert result.videos[0].caption == "first"
@@ -579,6 +657,19 @@ async def test_fetch_errors_are_classified_and_close_the_session(error, reason) 
     assert active_scrapling_session_count() == 0
 
 
+async def test_a_failing_session_close_keeps_the_result_and_the_session_count() -> None:
+    session = FakeSession(
+        "profile", _pages("profile", 1, last_has_more=False), exit_error=RuntimeError("closed")
+    )
+
+    result = await _browser(session).discover(ProfileDiscovery(handle="creator"))
+
+    assert result.reason is None
+    assert len(result.videos) == 3
+    assert session.exited is True
+    assert active_scrapling_session_count() == 0
+
+
 async def test_cancellation_propagates_and_still_closes_the_session() -> None:
     session = FakeSession("profile", _pages("profile", 1), fetch_error=asyncio.CancelledError())
 
@@ -616,7 +707,7 @@ async def test_a_failed_in_page_body_read_stops_scrolling_but_keeps_the_capture(
         ({}, {}, 3, "limit"),
         ({"last_has_more": False}, {}, 100, "done"),
         ({"captcha": True}, {}, 100, "captcha"),
-        ({}, {"SCROLL_DEADLINE_S": 0.0}, 100, "deadline"),
+        ({"hang": True}, {"SCROLL_DEADLINE_S": 0.05}, 100, "deadline"),
         ({}, {}, 100, "idle"),
         ({}, {"MAX_SCROLLS": 1}, 100, "max_scrolls"),
         ({"wheel_error": RuntimeError("detached")}, {}, 100, "error:RuntimeError"),
@@ -629,7 +720,9 @@ async def test_the_scroll_stop_cause_is_logged(caplog, monkeypatch, flags, patch
     session = FakeSession("profile", _pages("profile", 2, last_has_more=last_has_more), **flags)
     caplog.set_level(logging.DEBUG, logger=discovery_module.__name__)
 
-    await _browser(session).discover(ProfileDiscovery(handle="creator", limit=limit))
+    await asyncio.wait_for(
+        _browser(session).discover(ProfileDiscovery(handle="creator", limit=limit)), 5
+    )
 
     messages = [record.getMessage() for record in caplog.records]
     assert any(message.endswith(f"stop={stop}") for message in messages)
