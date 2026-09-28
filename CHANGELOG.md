@@ -23,13 +23,15 @@ All notable changes to this project will be documented in this file.
   to their post URL; the share page is a script shell with no HTTP redirect.
 - `a37c3a1`: sanitized Threads golden fixtures (video, image carousel, text-only) and replay
   tests. The fixtures were captured under operator authorization at capture time.
+- `2c38d6c`: the final review found reports credited the URL's `@owner`; the owner handle
+  and canonical URL now come from the post's author, falling back to the URL owner.
 - Method decision: Threads uses `request`. Request and headless both returned `ok` with
   identical counts for every post:
   - video: text 258 chars, 1 media (1 video), 5 engagement keys, published time present;
   - image: text 468 chars, 3 media (0 videos), 5 engagement keys, published time present;
   - text: text 436 chars, 0 media, 5 engagement keys, published time present;
   - sanitizer leaks: 0 for each fixture.
-- Verification: `tests` 1 failed, 2303 passed, 6 skipped. The one failure is the pre-existing
+- Verification: `tests` 1 failed, 2307 passed, 6 skipped. The one failure is the pre-existing
   `tests/api/test_workflows.py::test_route_modules_do_not_depend_on_a_process_runner`
   ("bun" matched inside "bundle"), which also fails on `master`. Ruff: all checks passed, no
   files to reformat.
