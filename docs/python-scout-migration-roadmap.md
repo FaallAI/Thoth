@@ -162,8 +162,8 @@ Reuse the acquisition kernel proven by TikTok. The recommended order is:
 4. YouTube and Reddit, which can use more public metadata and direct HTTP behavior.
 
 Scope decision (operator, 2026-09-28): Facebook and Reddit are deferred and excluded from
-Stage 3. They stay on the legacy Scout path until the operator brings them back into scope.
-While they still need Scout, Stage 10 cannot retire it. Stage 3 is split into sub-projects,
+Stage 3. Requests for them are rejected as unsupported and are never routed to legacy Scout;
+they return only if the operator brings them back into scope. Stage 3 is split into sub-projects,
 each with its own specification, plan, and implementation:
 
 - 3a: a platform-neutral acquisition kernel and Threads as its first platform.
