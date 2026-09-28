@@ -292,6 +292,33 @@ def test_keyword_query_keeps_punctuation_and_emoji() -> None:
     assert KeywordDiscovery(query=query).query == query
 
 
+def test_keyword_query_is_stripped_before_its_length_is_checked() -> None:
+    assert KeywordDiscovery(query="  " + "x" * 100 + "  ").query == "x" * 100
+
+
+@pytest.mark.parametrize("field", ["ads", "photo_posts", "invalid"])
+def test_discovery_drops_are_never_negative(field: str) -> None:
+    with pytest.raises(ValidationError):
+        DiscoveryDrops(**{field: -1})
+
+
+@pytest.mark.parametrize(
+    "published_at", ["", "yesterday", "2024-03-01", "2024-03-01T10:00:00", "2024-03-01 10:00:00Z"]
+)
+def test_publication_time_must_be_iso_utc_seconds(published_at: str) -> None:
+    with pytest.raises(ValidationError):
+        DiscoveredVideo(
+            post_id="1000000001",
+            owner_handle="creator",
+            canonical_url=VIDEO_URL,
+            published_at=published_at,
+        )
+    payload = _fixture_report().model_dump(mode="json")
+    payload["post"]["published_at"] = published_at
+    with pytest.raises(ValidationError):
+        TikTokSourceReport.model_validate_json(json.dumps(payload))
+
+
 @pytest.mark.parametrize("limit", [0, 101])
 def test_discovery_limit_is_bounded(limit: int) -> None:
     with pytest.raises(ValidationError):

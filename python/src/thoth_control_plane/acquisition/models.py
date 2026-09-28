@@ -7,7 +7,14 @@ from enum import StrEnum
 from pathlib import PurePosixPath
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, Field, HttpUrl, SecretStr, model_validator
+from pydantic import (
+    AfterValidator,
+    Field,
+    HttpUrl,
+    SecretStr,
+    StringConstraints,
+    model_validator,
+)
 
 from thoth_control_plane.domain.models import Checksum, OpaqueId, StrictModel
 
@@ -25,6 +32,8 @@ SafeRelativeLocation = Annotated[PurePosixPath, AfterValidator(_safe_relative_lo
 TikTokNumericId = Annotated[str, Field(pattern=r"^[0-9]{5,32}$")]
 TikTokHandle = Annotated[str, Field(pattern=r"^[A-Za-z0-9._-]{1,64}$")]
 CommentText = Annotated[str, Field(min_length=1, max_length=2_000)]
+# The only shape `normalize.published_at_from_epoch` produces.
+PublishedAt = Annotated[str, Field(pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")]
 
 
 class AcquisitionStrategy(StrEnum):
@@ -59,7 +68,7 @@ class TikTokPost(StrictModel):
     post_id: Annotated[str, Field(pattern=r"^[0-9]{5,32}$")]
     owner_handle: Annotated[str, Field(pattern=r"^[A-Za-z0-9._-]{1,64}$")]
     caption: Annotated[str, Field(max_length=10_000)] = ""
-    published_at: str | None = None
+    published_at: PublishedAt | None = None
     engagement: dict[str, Annotated[int, Field(ge=0)]] = Field(default_factory=dict)
 
 
@@ -192,13 +201,17 @@ DiscoveryLimit = Annotated[int, Field(ge=1, le=100)]
 
 
 def _search_query(value: str) -> str:
-    value = value.strip()
     if not value or any(unicodedata.category(char) == "Cc" for char in value):
         raise ValueError("search query must be non-blank text without control characters")
     return value
 
 
-SearchQuery = Annotated[str, Field(min_length=1, max_length=100), AfterValidator(_search_query)]
+# Stripped before the length check, so padding never counts against the 100 characters.
+SearchQuery = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=100),
+    AfterValidator(_search_query),
+]
 
 
 class DiscoveryReason(StrEnum):
@@ -236,7 +249,7 @@ class DiscoveredVideo(StrictModel):
     owner_handle: TikTokHandle
     canonical_url: HttpUrl  # rebuilt from handle and id, never taken from TikTok
     caption: Annotated[str, Field(max_length=10_000)] = ""
-    published_at: str | None = None  # ISO 8601 UTC, "YYYY-MM-DDTHH:MM:SSZ"
+    published_at: PublishedAt | None = None
     duration_seconds: Annotated[float, Field(ge=0)] | None = None
     engagement: dict[EngagementKey, Annotated[int, Field(ge=0)]] = Field(default_factory=dict)
     hashtags: list[Annotated[str, Field(min_length=1, max_length=100)]] = Field(
@@ -245,9 +258,9 @@ class DiscoveredVideo(StrictModel):
 
 
 class DiscoveryDrops(StrictModel):
-    ads: int = 0
-    photo_posts: int = 0
-    invalid: int = 0  # missing/invalid id or handle, or a failed model validation
+    ads: Annotated[int, Field(ge=0)] = 0
+    photo_posts: Annotated[int, Field(ge=0)] = 0
+    invalid: Annotated[int, Field(ge=0)] = 0  # missing/invalid id or handle, or a failed model validation
 
 
 class DiscoveryResult(StrictModel):
