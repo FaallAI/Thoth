@@ -18,8 +18,10 @@ kernel with full Scout parity:
 Out of scope:
 
 - Any Instagram login or session cookie. Comment pagination, the grid beyond 12 posts,
-  and view/play counts need one; adding an optional IG session cookie is a later, separate
-  operator decision.
+  and view/play counts need one. Operator direction (2026-09-28): after 3b is implemented,
+  a separate feature with its own spec adds login support for every platform, holding a
+  pool of accounts per platform used in rotation; the login-only capabilities are tested
+  then.
 - `instagr.am` short links and profile URLs as acquisition input.
 - Renaming the TikTok-named shared types (`TikTokNumericId`, `TikTokHandle`,
   `DiscoveredVideo`).
@@ -248,8 +250,8 @@ reported as-is, not counted as a new failure.
 
 - The Instagram live capture needs operator authorization at capture time, with the posts,
   share link, and profile supplied by the operator.
-- An optional IG session cookie (comment pagination, grid beyond 12, view counts) is a
-  separate operator decision.
+- Login-only capabilities (comment pagination, grid beyond 12, view counts) wait for the
+  separate multi-account, rotating login feature that follows 3b.
 - About three Instagram hits per acquired post (post request, post page, profile page) is
   a rate risk to observe at the live smoke.
 - Push, deployment, and any live smoke stay operator gates; live smokes wait for the final
