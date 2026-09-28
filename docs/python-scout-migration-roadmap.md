@@ -171,6 +171,13 @@ each with its own specification, plan, and implementation:
 - 3c: X.
 - 3d: YouTube.
 
+Method decision (operator, 2026-09-28): each Stage 3 platform tries two acquisition methods,
+a plain Scrapling HTTP request (browser TLS impersonation, no browser) pushed as far as it
+goes, and the headless browser. A platform whose request results match or beat headless uses
+the request method only. TikTok gets the same comparison after Stage 3. Golden fixtures come
+from one sanitized, read-only live capture per platform, authorized separately at capture
+time.
+
 Each platform follows the same sequence:
 
 ```text
