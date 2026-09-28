@@ -1,4 +1,4 @@
-"""SSRF-safe, atomic streaming download of a resolved TikTok media URL."""
+"""SSRF-safe, atomic streaming download of a resolved media URL."""
 
 from __future__ import annotations
 
@@ -13,9 +13,11 @@ from pathlib import Path, PurePosixPath
 from urllib.parse import urljoin, urlsplit
 
 import httpx
-from pydantic import ValidationError
 
+from thoth_control_plane.acquisition.cards import PNG_SIGNATURE
 from thoth_control_plane.acquisition.models import (
+    MEDIA_BYTE_BOUNDS,
+    MEDIA_TYPES,
     AcquisitionStrategy,
     MaterializedMedia,
     MediaRequestContext,
@@ -30,6 +32,22 @@ DOWNLOAD_TIMEOUT_SECONDS = 30.0
 _FTYP_OFFSET = 4
 _FTYP_MAGIC = b"ftyp"
 _HEADER_PROBE_BYTES = 12
+
+_SUFFIXES = {"video/mp4": ".mp4", "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+
+
+def _sniff(header: bytes) -> str | None:
+    """The media type the leading bytes prove, else None; declared types are never trusted."""
+    if header[_FTYP_OFFSET : _FTYP_OFFSET + len(_FTYP_MAGIC)] == _FTYP_MAGIC:
+        return "video/mp4"
+    if header.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if header.startswith(PNG_SIGNATURE):
+        return "image/png"
+    if header[:4] == b"RIFF" and header[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
 
 HostResolver = Callable[[str], Awaitable[list[str]]]
 
@@ -122,10 +140,14 @@ class MediaMaterializer:
         destination: Path,
         relative_location: PurePosixPath,
         strategy: AcquisitionStrategy | str,
+        *,
+        media_id: str = "media_1",
+        index: int = 1,
     ) -> MaterializedMedia:
         # Ruling F-3: normalize plain str -> AcquisitionStrategy before it
         # reaches the strict MaterializedMedia field.
         acquisition_strategy = AcquisitionStrategy(strategy)
+        low, high = MEDIA_BYTE_BOUNDS[candidate.kind]
         part_path = destination.with_name(destination.name + ".part")
         current_url = candidate.ephemeral_url.get_secret_value()
         digest = hashlib.sha256()
@@ -162,13 +184,13 @@ class MediaMaterializer:
                                 declared_bytes = int(content_length)
                             except ValueError:
                                 raise MediaMaterializationError() from None
-                            if declared_bytes <= 0 or declared_bytes > MAX_MEDIA_BYTES:
+                            if declared_bytes <= 0 or declared_bytes > high:
                                 raise MediaMaterializationError()
 
                         with part_path.open("wb") as handle:
                             async for chunk in response.aiter_bytes():
                                 total_bytes += len(chunk)
-                                if total_bytes > MAX_MEDIA_BYTES:
+                                if total_bytes > high:
                                     raise MediaMaterializationError()
                                 if len(header) < _HEADER_PROBE_BYTES:
                                     header += chunk[: _HEADER_PROBE_BYTES - len(header)]
@@ -180,27 +202,29 @@ class MediaMaterializer:
             else:
                 raise MediaMaterializationError()
 
-            if (
-                len(header) < _HEADER_PROBE_BYTES
-                or header[_FTYP_OFFSET : _FTYP_OFFSET + len(_FTYP_MAGIC)] != _FTYP_MAGIC
-            ):
-                raise MediaMaterializationError()
-            if total_bytes < MIN_MEDIA_BYTES:
+            media_type = _sniff(header) if len(header) >= _HEADER_PROBE_BYTES else None
+            if media_type not in MEDIA_TYPES[candidate.kind] or total_bytes < low:
                 raise MediaMaterializationError()
 
             try:
+                suffix = _SUFFIXES[media_type]
+                final_destination = destination.with_suffix(suffix)
                 result = MaterializedMedia(
-                    media_id="media_1",
-                    location=relative_location,
+                    media_id=media_id,
+                    kind=candidate.kind,
+                    index=index,
+                    location=relative_location.with_suffix(suffix),
+                    media_type=media_type,
                     bytes=total_bytes,
                     checksum=f"sha256:{digest.hexdigest()}",
                     acquisition_strategy=acquisition_strategy,
                     duration_seconds=candidate.duration_seconds,
                 )
-            except ValidationError:
+            except ValueError:
+                # ValidationError is a ValueError; so is `with_suffix` on a bare `..`.
                 raise MediaMaterializationError() from None
 
-            os.replace(part_path, destination)
+            os.replace(part_path, final_destination)
             return result
         except OSError:
             # Filesystem errors (mkdir/open/write/replace) can carry an

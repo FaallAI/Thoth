@@ -7,6 +7,7 @@ import pytest
 from pydantic import SecretStr
 
 import thoth_control_plane.acquisition.materializer as materializer_module
+from thoth_control_plane.acquisition.cards import PNG_SIGNATURE
 from thoth_control_plane.acquisition.materializer import (
     MAX_MEDIA_BYTES,
     MAX_REDIRECTS,
@@ -243,9 +244,12 @@ async def test_streamed_body_exceeding_cap_without_content_length_is_rejected(
     generator (so httpx emits chunked transfer-encoding with no Content-Length
     header, meaning the pre-check can't fire) and is otherwise a fully valid
     MP4 (real ftyp header, over MIN_MEDIA_BYTES) so only the live running-total
-    comparison against MAX_MEDIA_BYTES can reject it.
+    comparison against the media-kind byte cap can reject it.
     """
-    monkeypatch.setattr(materializer_module, "MAX_MEDIA_BYTES", 5_000)
+    from thoth_control_plane.acquisition import models
+
+    bounds = {"video": (1_000, 5_000), "image": (1_000, 20 * 1024 * 1024)}
+    monkeypatch.setattr(models, "MEDIA_BYTE_BOUNDS", bounds)
 
     async def chunked_body():
         # Multiple chunks: proves the cap is enforced while iterating, not
@@ -585,3 +589,77 @@ async def test_materializer_replays_the_browser_session_only_to_matching_cookie_
         ("v16.tiktok.com", "tt_chain_token=a", "agent/1", "https://www.tiktok.com/"),
         ("cdn.example", None, "agent/1", "https://www.tiktok.com/"),
     ]
+
+
+JPEG_BODY = b"\xff\xd8\xff\xe0" + b"0" * 5_000
+PNG_BODY = PNG_SIGNATURE + b"0" * 5_000
+WEBP_BODY = b"RIFF\x00\x00\x00\x00WEBP" + b"0" * 5_000
+
+
+def _candidate(kind: str) -> ResolvedMedia:
+    return ResolvedMedia(
+        kind=kind,
+        ephemeral_url=SecretStr("https://cdn.example.test/item"),
+        media_type="video/mp4" if kind == "video" else None,
+    )
+
+
+async def _materialize(tmp_path, kind: str, body: bytes, name: str = "threads-x-2"):
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, content=body))
+    async with httpx.AsyncClient(transport=transport) as client:
+        return await MediaMaterializer(client, public_resolver).materialize(
+            _candidate(kind),
+            tmp_path / name,
+            PurePosixPath("reports/wf/media") / name,
+            "scrapling_request",
+            media_id="media_2",
+            index=2,
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("body", "media_type", "suffix"),
+    [
+        (JPEG_BODY, "image/jpeg", ".jpg"),
+        (PNG_BODY, "image/png", ".png"),
+        (WEBP_BODY, "image/webp", ".webp"),
+    ],
+)
+async def test_materialize_names_images_by_sniffed_type(
+    tmp_path, body: bytes, media_type: str, suffix: str
+) -> None:
+    result = await _materialize(tmp_path, "image", body)
+
+    assert result.kind == "image"
+    assert result.media_type == media_type
+    assert (result.media_id, result.index) == ("media_2", 2)
+    assert result.location == PurePosixPath(f"reports/wf/media/threads-x-2{suffix}")
+    assert (tmp_path / f"threads-x-2{suffix}").read_bytes() == body
+    assert sorted(path.name for path in tmp_path.iterdir()) == [f"threads-x-2{suffix}"]
+
+
+@pytest.mark.asyncio
+async def test_materialize_keeps_the_tiktok_video_name(tmp_path) -> None:
+    result = await _materialize(tmp_path, "video", MP4_BODY, name="tiktok-1234567.mp4")
+    assert result.location == PurePosixPath("reports/wf/media/tiktok-1234567.mp4")
+    assert (tmp_path / "tiktok-1234567.mp4").read_bytes() == MP4_BODY
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("kind", "body"),
+    [
+        ("image", MP4_BODY),
+        ("video", JPEG_BODY),
+        ("image", b"GIF89a" + b"0" * 5_000),
+        ("image", b"\xff\xd8\xff" + b"0" * 996),
+        ("image", b"\xff\xd8\xff\xe0" + b"0" * (20 * 1024 * 1024)),
+    ],
+)
+async def test_materialize_rejects_mismatched_or_out_of_bounds_media(
+    tmp_path, kind: str, body: bytes
+) -> None:
+    with pytest.raises(MediaMaterializationError):
+        await _materialize(tmp_path, kind, body)
+    assert list(tmp_path.iterdir()) == []
