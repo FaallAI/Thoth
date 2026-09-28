@@ -25,6 +25,7 @@ from thoth_control_plane.activities.source_investigation import (
     build_source_investigation_activity,
 )
 from thoth_control_plane.config import Settings
+from thoth_control_plane.domain.models import SafeActivityError
 
 FIXTURE_PATH = (
     Path(__file__).resolve().parent.parent / "fixtures" / "tiktok" / "source_report_v3.json"
@@ -639,3 +640,51 @@ async def test_report_persistence_failure_removes_recorded_card_files(
     assert result.failure.code == "artifact_persistence_failed"
     assert [path for path in paths if path.exists()] == []
     assert list(tmp_path.rglob("*.part")) == []
+
+
+@pytest.mark.asyncio
+async def test_unknown_platform_never_enters_the_runner(tmp_path: Path) -> None:
+    calls: list[str] = []
+
+    async def runner(workflow_id: str, source_url: str, artifact_root: Path) -> AcquisitionResult:
+        calls.append(source_url)
+        raise AssertionError("runner must not run")
+
+    activity_fn = build_source_investigation_activity(_settings(tmp_path), runner=runner)
+    result = await activity_fn(
+        INPUT.model_copy(update={"canonical_source_url": "https://www.instagram.com/p/abc/"})
+    )
+
+    assert result.failure == SafeActivityError(code="unsupported_platform", retryable=False)
+    assert result.events == []
+    assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_threads_attempts_use_platform_stage_names(tmp_path: Path) -> None:
+    async def runner(workflow_id: str, source_url: str, artifact_root: Path) -> AcquisitionResult:
+        attempt = AcquisitionAttempt(
+            strategy=AcquisitionStrategy.SCRAPLING_REQUEST,
+            status=AttemptStatus.FAILED,
+            reason=AcquisitionReason.REQUEST_BLOCKED,
+            attempt_count=1,
+            elapsed_ms=5,
+        )
+        return AcquisitionResult(
+            failure=AcquisitionFailure(code="request_blocked", retryable=True, attempts=[attempt])
+        )
+
+    activity_fn = build_source_investigation_activity(_settings(tmp_path), runner=runner)
+    result = await activity_fn(
+        INPUT.model_copy(
+            update={"canonical_source_url": "https://www.threads.com/@user_001/post/code_001"}
+        )
+    )
+
+    assert result.failure == SafeActivityError(code="request_blocked", retryable=True)
+    assert [event.payload["stage"] for event in result.events] == [
+        "threads_request",
+        "threads_request",
+        "threads_cleanup",
+    ]
+    assert result.events[1].payload["reason"] == "request_blocked"

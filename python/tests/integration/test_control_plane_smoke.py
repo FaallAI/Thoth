@@ -160,7 +160,7 @@ async def test_production_activity_and_api_share_a_custom_artifact_root(tmp_path
                     json={
                         **VALID_PRODUCE_REQUEST,
                         "source": {
-                            "url": "https://example.com/source/custom-root",
+                            "url": "https://www.tiktok.com/@custom-root/video/1000000004",
                             "intent": "identify_original",
                         },
                     },

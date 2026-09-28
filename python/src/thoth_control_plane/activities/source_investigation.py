@@ -13,10 +13,8 @@ import httpx
 from pydantic import HttpUrl, TypeAdapter
 from temporalio import activity
 
-from thoth_control_plane.acquisition.adapters.tikwm import TikWmResolver
 from thoth_control_plane.acquisition.browser import (
     ScraplingCapability,
-    ScraplingHeadlessBrowser,
     active_scrapling_session_count,
 )
 from thoth_control_plane.acquisition.materializer import (
@@ -30,7 +28,8 @@ from thoth_control_plane.acquisition.models import (
     AttemptStatus,
     SourceReport,
 )
-from thoth_control_plane.acquisition.service import TikTokAcquisitionService
+from thoth_control_plane.acquisition.platforms import platform_of
+from thoth_control_plane.acquisition.registry import acquirer_for
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain import (
     ArtifactRef,
@@ -47,9 +46,10 @@ AcquisitionRunner = Callable[[str, str, Path], Awaitable[AcquisitionResult]]
 
 _CAPABILITY_ADAPTER = TypeAdapter(ScraplingCapability)
 
-_STAGE_NAMES: dict[AcquisitionStrategy, str] = {
-    AcquisitionStrategy.SCRAPLING_HEADLESS: "tiktok_headless",
-    AcquisitionStrategy.TIKWM_CDN: "tiktok_cdn",
+_STAGE_SUFFIXES: dict[AcquisitionStrategy, str] = {
+    AcquisitionStrategy.SCRAPLING_HEADLESS: "headless",
+    AcquisitionStrategy.TIKWM_CDN: "cdn",
+    AcquisitionStrategy.SCRAPLING_REQUEST: "request",
 }
 
 
@@ -71,7 +71,7 @@ def _coerce_capability(
 
 
 def build_production_acquisition_runner(settings: Settings) -> AcquisitionRunner:
-    """Build a fresh headless-browser + HTTP acquisition stack per activity call.
+    """Build a fresh HTTP client and materializer per activity call; the acquirer owns its browser.
 
     `settings` is accepted for interface symmetry with `build_source_investigation_activity`
     and future acquisition-stack configuration; the stack itself needs no settings today.
@@ -79,23 +79,17 @@ def build_production_acquisition_runner(settings: Settings) -> AcquisitionRunner
     del settings
 
     async def run(workflow_id: str, source_url: str, artifact_root: Path) -> AcquisitionResult:
-        browser = ScraplingHeadlessBrowser()
-        client = httpx.AsyncClient(follow_redirects=False)
-        try:
-            resolver = TikWmResolver(client)
+        async with httpx.AsyncClient(follow_redirects=False) as client:
             materializer = MediaMaterializer(client, resolve_host_via_getaddrinfo)
-            service = TikTokAcquisitionService(browser, resolver, materializer)
-            return await service.inspect(
+            acquirer = acquirer_for(source_url, client=client, materializer=materializer)
+            return await acquirer.inspect(
                 workflow_id=workflow_id, source_url=source_url, artifact_root=artifact_root
             )
-        finally:
-            await browser.close()
-            await client.aclose()
 
     return run
 
 
-def _attempt_events(attempts: list[AcquisitionAttempt]) -> list[SourceProgressEvent]:
+def _attempt_events(attempts: list[AcquisitionAttempt], platform: str) -> list[SourceProgressEvent]:
     """Reduce acquisition attempts to safe, fixed-taxonomy progress events.
 
     Only enum values and elapsed milliseconds cross this boundary; no raw
@@ -103,7 +97,7 @@ def _attempt_events(attempts: list[AcquisitionAttempt]) -> list[SourceProgressEv
     """
     events: list[SourceProgressEvent] = []
     for attempt in attempts:
-        stage = _STAGE_NAMES[attempt.strategy]
+        stage = f"{platform}_{_STAGE_SUFFIXES[attempt.strategy]}"
         events.append(SourceProgressEvent(kind="stage.started", payload={"stage": stage}))
         completion_kind = (
             "stage.failed" if attempt.status == AttemptStatus.FAILED else "stage.completed"
@@ -119,7 +113,7 @@ def _attempt_events(attempts: list[AcquisitionAttempt]) -> list[SourceProgressEv
     return events
 
 
-def _cleanup_event(artifact_root: Path, workflow_id: str) -> SourceProgressEvent:
+def _cleanup_event(artifact_root: Path, workflow_id: str, platform: str) -> SourceProgressEvent:
     """Inspect and report cleanup evidence as booleans and safe codes only.
 
     Never includes the report directory path, an exception, or any other
@@ -140,7 +134,7 @@ def _cleanup_event(artifact_root: Path, workflow_id: str) -> SourceProgressEvent
     return SourceProgressEvent(
         kind="stage.completed" if passed else "stage.failed",
         payload={
-            "stage": "tiktok_cleanup",
+            "stage": f"{platform}_cleanup",
             "status": "succeeded" if passed else "failed",
             "partial_cleanup_passed": partial_cleanup_passed,
             "browser_cleanup_passed": browser_cleanup_passed,
@@ -149,14 +143,17 @@ def _cleanup_event(artifact_root: Path, workflow_id: str) -> SourceProgressEvent
 
 
 def _terminal_events(
-    attempts: list[AcquisitionAttempt], artifact_root: Path, workflow_id: str
+    attempts: list[AcquisitionAttempt], artifact_root: Path, workflow_id: str, platform: str
 ) -> list[SourceProgressEvent]:
     """Compose the full history-safe event trail for a terminal activity result.
 
     Always attempt events followed by exactly one cleanup event, so every
     path that enters the runner boundary leaves matching evidence behind.
     """
-    return [*_attempt_events(attempts), _cleanup_event(artifact_root, workflow_id)]
+    return [
+        *_attempt_events(attempts, platform),
+        _cleanup_event(artifact_root, workflow_id, platform),
+    ]
 
 
 def _cleanup_after_persistence_failure(
@@ -194,6 +191,14 @@ async def _run(
     capability: ScraplingCapability,
 ) -> SourceInvestigationActivityResult:
     """Run the injected acquisition runner and persist its report atomically."""
+    platform = platform_of(str(input_.canonical_source_url))
+    if platform is None:
+        # The workflow guard routes only Python platforms here; anything else is
+        # refused before the capability gate and never enters the runner.
+        return SourceInvestigationActivityResult(
+            failure=SafeActivityError(code="unsupported_platform", retryable=False)
+        )
+
     if not capability.available:
         # A capability-unavailable result is terminal, and the soak contract
         # requires cleanup evidence for every terminal route -- so this branch
@@ -210,7 +215,7 @@ async def _run(
             failure=SafeActivityError(
                 code=capability.code or "acquisition_dependency_unavailable", retryable=False
             ),
-            events=_terminal_events([], artifact_root, input_.workflow_id),
+            events=_terminal_events([], artifact_root, input_.workflow_id, platform),
         )
 
     try:
@@ -228,7 +233,7 @@ async def _run(
         # even though no acquisition attempt ever completed.
         return SourceInvestigationActivityResult(
             failure=SafeActivityError(code="acquisition_runner_failed", retryable=False),
-            events=_terminal_events([], artifact_root, input_.workflow_id),
+            events=_terminal_events([], artifact_root, input_.workflow_id, platform),
         )
 
     if acquisition_result.failure is not None:
@@ -238,7 +243,7 @@ async def _run(
                 retryable=acquisition_result.failure.retryable,
             ),
             events=_terminal_events(
-                acquisition_result.failure.attempts, artifact_root, input_.workflow_id
+                acquisition_result.failure.attempts, artifact_root, input_.workflow_id, platform
             ),
         )
 
@@ -270,7 +275,9 @@ async def _run(
         _cleanup_after_persistence_failure(part_path, report, artifact_root)
         return SourceInvestigationActivityResult(
             failure=SafeActivityError(code="artifact_persistence_failed", retryable=True),
-            events=_terminal_events(report.outcome.attempts, artifact_root, input_.workflow_id),
+            events=_terminal_events(
+                report.outcome.attempts, artifact_root, input_.workflow_id, platform
+            ),
         )
 
     digest = sha256(content).hexdigest()
@@ -283,7 +290,7 @@ async def _run(
         checksum=f"sha256:{digest}",
         size_bytes=len(content),
     )
-    events = _terminal_events(report.outcome.attempts, artifact_root, input_.workflow_id)
+    events = _terminal_events(report.outcome.attempts, artifact_root, input_.workflow_id, platform)
     return SourceInvestigationActivityResult(report=artifact, events=events)
 
 
