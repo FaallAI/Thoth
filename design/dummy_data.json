@@ -1,4 +1,13 @@
 {
+  "content_set": {
+    "id": "cs-kyoto-0925",
+    "title": "Neon Nights & Kyoto Stories",
+    "template": "vertical_text_story",
+    "version": "v4",
+    "created_at": "2026-09-24T18:00:00Z",
+    "legacy_ready": true,
+    "summary": "1 main footage, 3 footage, 1 poster frame, 6 text scenes · 2 unsupported metadata fields"
+  },
   "project": {
     "id": "p-182",
     "title": "A Day in Kyoto",

@@ -40,6 +40,10 @@
       padding: 0;
     }
 
+    html {
+      overflow-x: hidden;
+    }
+
     body {
       background-color: #0d0e10;
       color: var(--foreground);
@@ -125,16 +129,21 @@
       border-bottom: 1px solid rgba(71, 73, 74, 0.6);
       padding: 6px 16px;
       display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
       align-items: center;
       justify-content: space-between;
       font-size: 12px;
       color: var(--muted-foreground);
       z-index: 100;
       flex-shrink: 0;
+      max-width: 100%;
+      box-sizing: border-box;
     }
 
     .proto-meta-left {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: 12px;
     }
@@ -152,6 +161,7 @@
 
     .proto-controls {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: 8px;
     }
@@ -194,8 +204,12 @@
       display: flex;
       justify-content: center;
       background: #090a0c;
-      overflow: auto;
+      overflow-x: hidden;
+      overflow-y: auto;
       padding: 0;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
       transition: all 200ms ease;
     }
 
@@ -456,7 +470,7 @@
       width: 100%;
       height: 100%;
       display: grid;
-      grid-template-columns: 1fr 19rem;
+      grid-template-columns: minmax(0, 1fr) 19rem;
       grid-template-rows: 1fr auto;
       overflow: hidden;
     }
@@ -1486,9 +1500,330 @@
       transition: opacity 200ms ease, transform 200ms ease;
       z-index: 1000;
     }
-    .toast-msg.show {
-      opacity: 1;
-      transform: translateX(-50%) translateY(-6px);
+    /* ==========================================================================
+       Content Set Entry Surface (UI-01)
+       ========================================================================== */
+    .content-set-surface {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--background);
+      overflow-y: auto;
+      padding-bottom: 60px;
+    }
+    .cs-topbar {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .cs-breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+    .cs-breadcrumb .muted { color: var(--muted-foreground); }
+    .cs-breadcrumb .sep { color: var(--border); }
+    .cs-breadcrumb .active { color: var(--foreground); font-weight: 600; }
+    .cs-status-tag {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      background: var(--studio-well);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 4px 10px;
+    }
+    .cs-content-wrap {
+      max-width: 1120px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+    .cs-header-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .cs-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .cs-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--foreground);
+    }
+    .cs-meta-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 12px;
+      color: var(--muted-foreground);
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
+    .cs-stats-pills {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .cs-stat-pill {
+      background: var(--studio-well);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      color: var(--foreground);
+    }
+    .cs-stat-pill .num {
+      font-weight: 700;
+      color: var(--primary);
+      margin-right: 4px;
+    }
+    .cs-stat-pill.warn .num {
+      color: var(--status-succeeded);
+    }
+    .cs-desc {
+      font-size: 14px;
+      color: var(--muted-foreground);
+      line-height: 1.6;
+    }
+    .cs-action-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+    }
+    .cs-action-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      position: relative;
+    }
+    .cs-action-card.studio-card {
+      border-color: rgba(212, 154, 121, 0.45);
+      background: linear-gradient(180deg, #242628 0%, #1f2022 100%);
+    }
+    .cs-action-card.legacy-card {
+      border-color: var(--border);
+    }
+    .card-badge-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .badge-primary {
+      background: rgba(212, 154, 121, 0.2);
+      color: var(--primary);
+      font-size: 11px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      letter-spacing: 0.05em;
+    }
+    .badge-muted {
+      background: rgba(197, 198, 199, 0.15);
+      color: var(--muted-foreground);
+      font-size: 11px;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .badge-subtle {
+      font-size: 12px;
+      color: var(--muted-foreground);
+    }
+    .card-heading {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--foreground);
+    }
+    .card-copy {
+      font-size: 13px;
+      color: var(--muted-foreground);
+      line-height: 1.5;
+      flex: 1;
+    }
+    .card-feature-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--foreground);
+      border-top: 1px solid rgba(71, 73, 74, 0.5);
+      padding-top: 12px;
+    }
+    .feat-item {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .feat-item .check { color: var(--primary); font-weight: bold; }
+    .feat-item .bullet { color: var(--muted-foreground); font-size: 14px; }
+    .card-btn-row {
+      margin-top: 4px;
+    }
+    .cs-enter-btn, .cs-legacy-btn {
+      width: 100%;
+      height: 42px;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+    .secondary-btn {
+      background: var(--studio-well);
+      color: var(--foreground);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 150ms ease, border-color 150ms ease;
+    }
+    .secondary-btn:hover {
+      background: var(--accent);
+      border-color: var(--muted-foreground);
+    }
+    .cs-inventory-summary {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .cs-table-wrap {
+      overflow-x: auto;
+    }
+    .cs-unsupported-note {
+      background: var(--studio-well);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 16px;
+      font-size: 12px;
+      color: var(--muted-foreground);
+      line-height: 1.5;
+    }
+
+    /* Zoom 200% Simulator Class */
+    .viewport-container.zoom-200 {
+      zoom: 1.5;
+      font-size: 16px;
+    }
+
+    /* 44px Minimum Touch Targets on Compact Viewports (§2.4) */
+    .view-tablet .action-btn-sm,
+    .view-tablet .compact-nav-btn,
+    .view-tablet .job-nav-btn,
+    .view-phone .action-btn-sm,
+    .view-phone .compact-nav-btn,
+    .view-phone .job-nav-btn,
+    .view-phone .primary-btn {
+      min-height: 44px;
+    }
+
+    /* Responsive Mode Overrides for Breakpoint Simulator (§3.4, §3.5) */
+    .view-compact .edit-simple-layout {
+      grid-template-columns: minmax(0, 1fr) 17rem;
+    }
+
+    .view-tablet .edit-simple-layout,
+    .view-phone .edit-simple-layout {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow-y: auto;
+    }
+    .view-tablet .inspector-col,
+    .view-phone .inspector-col {
+      border-left: none;
+      border-top: 1px solid var(--border);
+      width: 100%;
+    }
+
+    /* Draft Choice Radio Cards (Stage 1) */
+    .draft-radio-card {
+      padding: 12px 16px;
+      background: var(--studio-well);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      cursor: pointer;
+      transition: border-color 150ms ease, background 150ms ease;
+    }
+    .draft-radio-card:hover {
+      border-color: var(--primary);
+    }
+    .draft-radio-card.selected {
+      border-color: var(--primary);
+      background: rgba(212, 154, 121, 0.08);
+    }
+    .draft-radio-card input[type="radio"] {
+      accent-color: var(--primary);
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    /* In-Flow Dialog Error Summary (§5.2, ui-ux-pro-max error summary) */
+    .gate-error-summary {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid var(--status-failed);
+      border-radius: 6px;
+      padding: 10px 14px;
+      color: #fca5a5;
+      font-size: 13px;
+      display: none;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .gate-error-summary.show {
+      display: flex;
+    }
+
+    /* Ready Asset Picker List Items */
+    .ready-asset-picker-item {
+      padding: 10px 14px;
+      background: var(--studio-well);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: background 150ms ease, border-color 150ms ease;
+    }
+    .ready-asset-picker-item:hover {
+      background: var(--accent);
+      border-color: var(--primary);
     }
   </style>
 </head>
@@ -1499,16 +1834,23 @@
        ======================================================================== -->
   <div class="proto-meta-bar">
     <div class="proto-meta-left">
-      <span class="proto-tag">PROTOTYPE</span>
+      <span class="proto-tag">PROTOTYPE TOOLS</span>
       <span><strong>Creator Studio F3 UI/UX</strong> (Spec: <code>2026-09-25</code>)</span>
+      <span style="color: var(--border);">|</span>
+      <span>Surface:</span>
+      <div class="proto-controls">
+        <button class="proto-btn" id="btnSurfaceCS" onclick="switchSurface('content-set')">Content Set (UI-01)</button>
+        <button class="proto-btn active" id="btnSurfaceStudio" onclick="switchSurface('studio')">Studio Workspace</button>
+      </div>
       <span style="color: var(--border);">|</span>
       <span>Breakpoint:</span>
       <div class="proto-controls">
-        <button class="proto-btn active" onclick="setViewport('desktop', this)">Desktop (1440+)</button>
-        <button class="proto-btn" onclick="setViewport('compact', this)">Compact (1120px)</button>
-        <button class="proto-btn" onclick="setViewport('tablet', this)">Tablet (820px)</button>
-        <button class="proto-btn" onclick="setViewport('phone', this)">Phone (375px)</button>
+        <button class="proto-btn active" id="vpBtnDesktop" onclick="setViewport('desktop', this)">Desktop (1440+)</button>
+        <button class="proto-btn" id="vpBtnCompact" onclick="setViewport('compact', this)">Compact (1120px)</button>
+        <button class="proto-btn" id="vpBtnTablet" onclick="setViewport('tablet', this)">Tablet (820px)</button>
+        <button class="proto-btn" id="vpBtnPhone" onclick="setViewport('phone', this)">Phone (375px)</button>
       </div>
+      <button class="proto-btn" id="zoomToggleBtn" onclick="toggleZoom200()" title="Test 200% Zoom Reflow">Zoom 200%</button>
     </div>
     <div class="proto-controls">
       <span>Save State:</span>
@@ -1519,6 +1861,11 @@
         <option value="failed">Failed (Red Dot + Alert)</option>
         <option value="conflict">Conflict (Terracotta + Banner)</option>
         <option value="offline">Offline (Muted Dot + Banner)</option>
+      </select>
+      <span>Import:</span>
+      <select class="proto-select" id="importStateSelect" onchange="setImportReadinessState(this.value)">
+        <option value="unresolved">2 Unresolved (Blocked)</option>
+        <option value="resolved">All Resolved (Ready)</option>
       </select>
       <button class="proto-btn" onclick="openImportGate()">
         <svg class="icon-svg" viewBox="0 0 24 24"><path d="M15 3h6v6M10 14L21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
@@ -1535,12 +1882,121 @@
        VIEWPORT & STUDIO SHELL
        ======================================================================== -->
   <div class="viewport-container view-desktop" id="viewportContainer">
-    <div class="studio-shell">
+
+    <!-- SURFACE 1: CONTENT SET ENTRY (UI-01) -->
+    <div class="content-set-surface" id="surfaceContentSet" style="display: none;">
+      <div class="cs-topbar">
+        <div class="cs-breadcrumb">
+          <span class="muted">Content Sets</span>
+          <span class="sep">/</span>
+          <span class="active" id="csBreadcrumbTitle">Neon Nights &amp; Kyoto Stories</span>
+        </div>
+        <div class="cs-status-tag">
+          <span class="status-dot saved"></span>
+          <span>Source Ready</span>
+        </div>
+      </div>
+
+      <div class="cs-content-wrap">
+        <div class="cs-header-card">
+          <div class="cs-title-row">
+            <div>
+              <h1 class="cs-title" id="csDisplayTitle">Neon Nights &amp; Kyoto Stories</h1>
+              <div class="cs-meta-row">
+                <span class="mono">Template: vertical_text_story v4</span>
+                <span>•</span>
+                <span class="mono">ID: cs-kyoto-0925</span>
+                <span>•</span>
+                <span>Created 24 Sep 18:00</span>
+              </div>
+            </div>
+            <div class="cs-stats-pills">
+              <div class="cs-stat-pill"><span class="mono num">6</span> scenes</div>
+              <div class="cs-stat-pill"><span class="mono num">5</span> media sources</div>
+              <div class="cs-stat-pill warn"><span class="mono num">2</span> unsupported fields</div>
+            </div>
+          </div>
+          <p class="cs-desc">Vertical short-form video generated from Kyoto cultural travel story footage. Contains 1 primary footage clip, 3 b-roll footage clips, 1 still image, and 6 synchronized caption scenes.</p>
+        </div>
+
+        <!-- UI-01 DUAL ACTION DECISION CARDS -->
+        <div class="cs-action-grid">
+          <!-- Card 1: Creator Studio (New) -->
+          <div class="cs-action-card studio-card">
+            <div class="card-badge-row">
+              <span class="badge-primary">NEW IN F3</span>
+              <span class="badge-subtle">Interactive Workstation</span>
+            </div>
+            <h2 class="card-heading">Open in Creator Studio</h2>
+            <p class="card-copy">Open this Content Set in the browser-based Creator Studio. Inspect source inventory, choose an existing draft or create a new draft, edit scenes and audio, and render an exact saved revision.</p>
+            <div class="card-feature-list">
+              <div class="feat-item"><span class="check">✓</span> Inspect ordered source inventory before writing any draft</div>
+              <div class="feat-item"><span class="check">✓</span> Full browser editing: text, scene order, captions, audio &amp; style</div>
+              <div class="feat-item"><span class="check">✓</span> Revision-bound review and server-verified render readiness</div>
+            </div>
+            <div class="card-btn-row">
+              <button class="primary-btn cs-enter-btn" id="btnOpenInStudio" onclick="handleOpenInStudioClick()">
+                <svg class="icon-svg" viewBox="0 0 24 24"><path d="M15 3h6v6M10 14L21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+                Open in Studio
+              </button>
+            </div>
+          </div>
+
+          <!-- Card 2: Send Render (Legacy) -->
+          <div class="cs-action-card legacy-card">
+            <div class="card-badge-row">
+              <span class="badge-muted">LEGACY PATH</span>
+              <span class="badge-subtle">CLI Pipeline</span>
+            </div>
+            <h2 class="card-heading">Send Render (Legacy)</h2>
+            <p class="card-copy">Send directly to the legacy CLI render pipeline. Retains the original unattended automated rendering behavior. Does NOT open Studio or create an editable draft.</p>
+            <div class="card-feature-list">
+              <div class="feat-item"><span class="bullet">•</span> Dispatches directly to the backend FFmpeg renderer</div>
+              <div class="feat-item"><span class="bullet">•</span> Uses saved Content Set file directly without draft inspection</div>
+              <div class="feat-item"><span class="bullet">•</span> Unattended background render; monitor via CLI/workflow view</div>
+            </div>
+            <div class="card-btn-row">
+              <button class="secondary-btn cs-legacy-btn" id="btnSendRenderLegacy" onclick="handleLegacyRenderClick()">
+                <svg class="icon-svg" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Send render (Legacy)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Source Items Summary Table -->
+        <div class="cs-inventory-summary">
+          <div class="section-label">SOURCE INVENTORY PREVIEW</div>
+          <div class="cs-table-wrap">
+            <table class="inventory-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>ROLE</th>
+                  <th>SOURCE NAME</th>
+                  <th>MEDIA KIND</th>
+                  <th>STATUS IN STUDIO</th>
+                </tr>
+              </thead>
+              <tbody id="csSummaryTableBody">
+                <!-- populated by JS -->
+              </tbody>
+            </table>
+          </div>
+          <div class="cs-unsupported-note">
+            <strong>Recorded unsupported metadata:</strong> <code>crop focal rect (image 5)</code>, <code>2 comments</code>. These inputs are tracked honestly and will appear in Studio Import Gate.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SURFACE 2: STUDIO WORKSPACE (UI-02 through UI-12) -->
+    <div class="studio-shell" id="surfaceStudio">
 
       <!-- HEADER (§4.1) -->
       <header class="studio-header">
         <div class="header-left">
-          <button class="action-btn-sm" id="headerBackBtn" style="padding: 4px 8px;" title="Back to Project">
+          <button class="action-btn-sm" id="headerBackBtn" onclick="handleHeaderBackClick()" style="padding: 4px 8px;" title="Back to Content Set">
             <svg class="icon-svg" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
             <span style="font-size: 12px;">Back</span>
           </button>
@@ -2122,18 +2578,42 @@
           <button class="action-btn-sm active" id="gateTab2Btn" onclick="switchGateStage(2)">Stage 2: Source Inventory</button>
         </div>
 
-        <!-- STAGE 1: DRAFT CHOICE -->
-        <div id="gateStage1" style="display: none; flex-direction: column; gap: 12px;">
-          <div class="section-label">EXISTING DRAFTS FOR THIS SOURCE</div>
-          <div id="draftOptionsList" style="display: flex; flex-direction: column; gap: 8px;">
-            <!-- Rendered drafts -->
+        <!-- In-Flow Error Summary (§5.2) -->
+        <div class="gate-error-summary" id="gateErrorSummary" role="alert">
+          <div style="display: flex; align-items: center; gap: 6px; font-weight: 600;">
+            <svg class="icon-svg" style="width: 16px; height: 16px; color: var(--status-failed);" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span id="gateErrorSummaryTitle">Import Resolution Error</span>
           </div>
-          <div style="margin-top: 8px; display: flex; justify-content: flex-end;">
-            <button class="action-btn-sm" onclick="createNewDraft()"><svg class="icon-svg" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Create new draft</button>
+          <div id="gateErrorSummaryMsg" style="font-size: 12px;">One or more items could not be attached. Please inspect the affected row.</div>
+        </div>
+
+        <!-- STAGE 1: DRAFT CHOICE (§5.2, UI-02) -->
+        <div id="gateStage1" style="display: none; flex-direction: column; gap: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="section-label">EXISTING DRAFTS FOR THIS SOURCE</div>
+            <span style="font-size: 11px; color: var(--muted-foreground);">Source key: <code class="mono">src-kyoto-teaser-0925</code></span>
+          </div>
+
+          <div id="draftOptionsList" style="display: flex; flex-direction: column; gap: 8px;">
+            <!-- Rendered drafts with radio cards -->
+          </div>
+
+          <div id="gateOfflineNotice" style="display: none; background: rgba(139,135,148,0.15); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-size: 12px; color: var(--muted-foreground);">
+            Offline — reconnect to inspect remote drafts or create new drafts.
+          </div>
+
+          <div style="margin-top: 6px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(71,73,74,0.4); padding-top: 12px;">
+            <button class="secondary-btn" style="padding: 6px 14px; font-size: 13px;" id="btnCreateNewDraft" onclick="createNewDraft()">
+              <svg class="icon-svg" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Create new draft
+            </button>
+            <button class="primary-btn" style="padding: 6px 16px; font-size: 13px;" id="btnResumeSelectedDraft" onclick="resumeSelectedDraft()">
+              Resume selected draft
+            </button>
           </div>
         </div>
 
-        <!-- STAGE 2: SOURCE INVENTORY -->
+        <!-- STAGE 2: SOURCE INVENTORY (§5.2, UI-03, UI-04) -->
         <div id="gateStage2" style="display: flex; flex-direction: column; gap: 12px;">
           <div class="section-label">SOURCE INVENTORY — WHAT THIS STUDIO EDIT CONTAINS</div>
           <table class="inventory-table">
@@ -2151,15 +2631,16 @@
             </tbody>
           </table>
 
-          <div style="background: var(--studio-well); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-size: 12px; color: var(--muted-foreground);">
-            <strong>Unsupported fields:</strong> crop focal rect (image 5) · 2 comments
+          <div style="background: var(--studio-well); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; font-size: 12px; color: var(--muted-foreground); line-height: 1.5;">
+            <strong>Unsupported fields:</strong> <code>crop focal rect (image 5)</code> · <code>2 comments</code>.
+            <div style="margin-top: 4px; color: var(--foreground); opacity: 0.85;">These source inputs cannot be represented in the current Studio composition. Studio Render is blocked until all source items have media or are explicitly excluded.</div>
           </div>
         </div>
       </div>
 
       <div class="dialog-footer">
         <span id="gateFooterCount" style="font-size: 13px; color: var(--status-failed);">2 items need media before Studio Render</span>
-        <button class="primary-btn" onclick="closeImportGate()">Continue in Studio</button>
+        <button class="primary-btn" onclick="continueToStudioWorkspace()">Continue in Studio</button>
       </div>
     </div>
   </div>
@@ -2170,9 +2651,93 @@
       <svg class="icon-svg" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       Upload file...
     </div>
-    <div class="popover-item" onclick="selectReadyAssetModal()">
+    <div class="popover-item" onclick="openReadyAssetPickerModal()">
       <svg class="icon-svg" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
-      Choose ready asset
+      Choose ready asset...
+    </div>
+  </div>
+
+  <!-- Ready Asset Picker Modal (§5.2, Plan B Task 3/5) -->
+  <div class="modal-backdrop" id="readyAssetModalBackdrop" onclick="handleReadyAssetModalBackdrop(event)">
+    <div class="import-dialog" style="max-width: 520px;" role="dialog" aria-modal="true">
+      <div class="dialog-header">
+        <div>
+          <div class="section-label">PROJECT ASSET LIBRARY</div>
+          <div class="dialog-title">Choose Ready Asset for Scene</div>
+        </div>
+        <button onclick="closeReadyAssetModal()" style="color: var(--muted-foreground); padding: 4px;" title="Close (Esc)">
+          <svg class="icon-svg" style="width: 20px; height: 20px;" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="dialog-body" style="padding: 16px;">
+        <div style="font-size: 12px; color: var(--muted-foreground); margin-bottom: 12px;">Select a verified, registered asset from this project under <code>THOTH_CONTROL_PLANE_ARTIFACT_ROOT</code>:</div>
+        <div id="readyAssetsPickerList" style="display: flex; flex-direction: column; gap: 8px;">
+          <!-- dynamic ready assets list -->
+        </div>
+      </div>
+      <div class="dialog-footer" style="justify-content: flex-end;">
+        <button class="action-btn-sm" onclick="closeReadyAssetModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Legacy Render Confirmation Modal (UI-01) -->
+  <div class="modal-backdrop" id="legacyRenderModalBackdrop" onclick="handleLegacyModalBackdrop(event)">
+    <div class="import-dialog" style="max-width: 480px;" role="dialog" aria-modal="true">
+      <div class="dialog-header">
+        <div>
+          <div class="section-label">LEGACY CLI PIPELINE</div>
+          <div class="dialog-title">Legacy Render Dispatched</div>
+        </div>
+        <button onclick="closeLegacyModal()" style="color: var(--muted-foreground); padding: 4px;" title="Close (Esc)">
+          <svg class="icon-svg" style="width: 20px; height: 20px;" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="dialog-body" style="padding: 18px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="background: rgba(34, 211, 238, 0.1); border: 1px solid var(--status-running); border-radius: 6px; padding: 12px; color: var(--status-running); font-size: 13px;">
+          ✓ Job <strong>#legacy-88</strong> queued for background execution with FFmpeg engine.
+        </div>
+        <div style="font-size: 13px; color: var(--foreground); line-height: 1.6;">
+          Content Set <strong>Neon Nights &amp; Kyoto Stories</strong> was sent directly to the unattended legacy render path.
+        </div>
+        <div style="background: var(--studio-well); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-size: 12px; color: var(--muted-foreground);">
+          <strong>Note on UI-01 boundaries:</strong> This legacy action does <em>not</em> open Creator Studio, does <em>not</em> inspect or create an EditDocument draft, and leaves existing Studio drafts untouched.
+        </div>
+      </div>
+      <div class="dialog-footer" style="justify-content: flex-end;">
+        <button class="primary-btn" onclick="closeLegacyModal()">Acknowledge &amp; Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Failed Job Details Modal (UI-10, UI-11) -->
+  <div class="modal-backdrop" id="jobDetailsModalBackdrop" onclick="handleJobDetailsModalBackdrop(event)">
+    <div class="import-dialog" style="max-width: 500px;" role="dialog" aria-modal="true">
+      <div class="dialog-header">
+        <div>
+          <div class="section-label">RENDER DIAGNOSTICS</div>
+          <div class="dialog-title" id="jobDetailsTitle">Job #11 Failure Details</div>
+        </div>
+        <button onclick="closeJobDetailsModal()" style="color: var(--muted-foreground); padding: 4px;" title="Close (Esc)">
+          <svg class="icon-svg" style="width: 20px; height: 20px;" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="dialog-body" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <span class="status-dot failed"></span>
+          <span style="font-weight: 600; color: var(--status-failed);">Safe Error Code: renderer_unavailable</span>
+        </div>
+        <div style="background: var(--studio-well); border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-size: 13px; color: var(--foreground); line-height: 1.5;">
+          GPU NVENC encoder session timed out during pass 2 (safe diagnostic: host NVENC pool exhausted).
+        </div>
+        <div style="font-size: 12px; color: var(--muted-foreground);">
+          This failure code indicates a transient hardware encoder pool contention. No secrets, host paths, or internal queues are exposed. An operator retry will re-stage the job safely.
+        </div>
+      </div>
+      <div class="dialog-footer" style="justify-content: space-between;">
+        <button class="action-btn-sm" onclick="closeJobDetailsModal()">Dismiss</button>
+        <button class="primary-btn" onclick="retryFailedJobFromModal('#11')">Retry Job #11</button>
+      </div>
     </div>
   </div>
 
@@ -2212,11 +2777,13 @@
        ======================================================================== -->
   <script>
     let appData = null;
+    let currentSurface = 'studio';
     let currentJob = 'edit';
     let currentMode = 'simple';
     let currentSceneIndex = 0;
     let currentViewport = 'desktop';
     let activeAttachItemId = null;
+    let selectedDraftRevision = 3;
     let isPlaying = false;
     let playInterval = null;
     let currentTime = 0; // seconds
@@ -2224,22 +2791,368 @@
     let saveTimeout = null;
 
     const variants = [
-      { id: 'simple', label: 'Variant 1: Simple Mode Studio (Mockup 1:1)', job: 'edit', mode: 'simple' },
-      { id: 'advanced', label: 'Variant 2: Advanced Mode Multi-Track Timeline', job: 'edit', mode: 'advanced' },
-      { id: 'gate', label: 'Variant 3: Import Gate & Source Inventory', job: 'edit', mode: 'simple', openGate: true },
-      { id: 'prompt', label: 'Variant 4: Prompt Lab AI Proposals', job: 'prompt', mode: 'simple' },
-      { id: 'review', label: 'Variant 5: Review Decisions & Comments', job: 'review', mode: 'simple' },
-      { id: 'render', label: 'Variant 6: Render Readiness Gate & Jobs', job: 'render', mode: 'simple' }
+      { id: 'simple', label: 'Variant 1: Simple Mode Studio (Mockup 1:1)', surface: 'studio', job: 'edit', mode: 'simple' },
+      { id: 'advanced', label: 'Variant 2: Advanced Mode Multi-Track Timeline', surface: 'studio', job: 'edit', mode: 'advanced' },
+      { id: 'contentset', label: 'Variant 3: Content Set Entry (UI-01)', surface: 'content-set', job: 'edit', mode: 'simple' },
+      { id: 'gate', label: 'Variant 4: Import Gate & Source Inventory (UI-02..04)', surface: 'studio', job: 'edit', mode: 'simple', openGate: true },
+      { id: 'prompt', label: 'Variant 5: Prompt Lab AI Proposals (UI-08)', surface: 'studio', job: 'prompt', mode: 'simple' },
+      { id: 'review', label: 'Variant 6: Review Decisions & Comments (UI-09)', surface: 'studio', job: 'review', mode: 'simple' },
+      { id: 'render', label: 'Variant 7: Render Readiness Gate & Jobs (UI-10)', surface: 'studio', job: 'render', mode: 'simple' }
     ];
     let currentVariantIdx = 0;
+
+    // Robust embedded fallback fixture data (ensures zero CORS issue when opened via file://)
+    const defaultFixtureData = {
+      "content_set": {
+        "id": "cs-kyoto-0925",
+        "title": "Neon Nights & Kyoto Stories",
+        "template": "vertical_text_story",
+        "version": "v4",
+        "created_at": "2026-09-24T18:00:00Z",
+        "legacy_ready": true,
+        "summary": "1 main footage, 3 footage, 1 poster frame, 6 text scenes · 2 unsupported metadata fields"
+      },
+      "project": {
+        "id": "p-182",
+        "title": "A Day in Kyoto",
+        "template": "vertical_text_story",
+        "version": "v4",
+        "current_revision": 3,
+        "saved_at": "2026-09-25T01:15:00Z",
+        "fps": 30,
+        "canvas_dimensions": { "width": 1080, "height": 1920, "aspect_ratio": "9:16" }
+      },
+      "scenes": [
+        {
+          "id": "scene-01",
+          "index": 1,
+          "heading": "Morning in Gion",
+          "body": "Quiet streets, wooden houses and a timeless beauty to start the day.",
+          "duration_seconds": 5,
+          "role": "footage",
+          "ownership": "user",
+          "visual": {
+            "bg_gradient": "linear-gradient(180deg, #1c1410 0%, #3a271d 40%, #15110e 100%)",
+            "accent_color": "#d49a79",
+            "tag": "Gion Pagoda · Morning Sunlight",
+            "image": "assets/preview_reference.png"
+          },
+          "media": {
+            "status": "ready",
+            "asset_name": "gion-pagoda-street.mp4",
+            "kind": "video",
+            "unresolved": false
+          },
+          "captions": [
+            { "id": "cap-1", "start": 0.5, "end": 2.5, "text": "A DAY IN KYOTO" },
+            { "id": "cap-2", "start": 2.6, "end": 4.8, "text": "TRADITION LIVES HERE" }
+          ],
+          "audio": {
+            "attached": true,
+            "track_name": "ambient_bamboo_wind.mp3",
+            "volume": 80,
+            "muted": false
+          },
+          "style": "cinematic"
+        },
+        {
+          "id": "scene-02",
+          "index": 2,
+          "heading": "City loop",
+          "body": "Bustling alleys weaving between historic machiya and local artisans.",
+          "duration_seconds": 4,
+          "role": "footage",
+          "ownership": "user",
+          "visual": {
+            "bg_gradient": "linear-gradient(180deg, #181d22 0%, #24333e 45%, #101519 100%)",
+            "accent_color": "#82b1e8",
+            "tag": "Machiya Alleys · Artisan Craft",
+            "image": null
+          },
+          "media": {
+            "status": "unresolved",
+            "asset_name": "city-loop",
+            "kind": "video",
+            "unresolved": true
+          },
+          "captions": [
+            { "id": "cap-3", "start": 0.2, "end": 3.6, "text": "WHISPERS OF HISTORY IN EVERY CORNER" }
+          ],
+          "audio": {
+            "attached": true,
+            "track_name": "city_ambient.mp3",
+            "volume": 65,
+            "muted": false
+          },
+          "style": "modern_bold"
+        },
+        {
+          "id": "scene-03",
+          "index": 3,
+          "heading": "Fushimi Inari",
+          "body": "Thousands of vermillion torii gates winding through sacred mountaintop trails.",
+          "duration_seconds": 5,
+          "role": "footage",
+          "ownership": "ai",
+          "visual": {
+            "bg_gradient": "linear-gradient(180deg, #2b110b 0%, #572014 45%, #180906 100%)",
+            "accent_color": "#f87171",
+            "tag": "Torii Gates · Sacred Mountain",
+            "image": null
+          },
+          "media": {
+            "status": "ready",
+            "asset_name": "fushimi-torii-path.mp4",
+            "kind": "video",
+            "unresolved": false
+          },
+          "captions": [
+            { "id": "cap-4", "start": 0.5, "end": 4.2, "text": "PATHS OF ENDLESS VERMILLION" }
+          ],
+          "audio": {
+            "attached": true,
+            "track_name": "shrine_bells.mp3",
+            "volume": 70,
+            "muted": false
+          },
+          "style": "cinematic"
+        },
+        {
+          "id": "scene-04",
+          "index": 4,
+          "heading": "Sakura by the River",
+          "body": "Soft cherry blossom petals floating gently across the Kamogawa banks at dusk.",
+          "duration_seconds": 5,
+          "role": "image",
+          "ownership": "locked",
+          "visual": {
+            "bg_gradient": "linear-gradient(180deg, #261622 0%, #46273e 45%, #180e15 100%)",
+            "accent_color": "#f472b6",
+            "tag": "Kamogawa River · Twilight Blossom",
+            "image": null
+          },
+          "media": {
+            "status": "ready",
+            "asset_name": "kamogawa-sakura-still.jpg",
+            "kind": "image",
+            "unresolved": false
+          },
+          "captions": [
+            { "id": "cap-5", "start": 0.5, "end": 4.5, "text": "BLOSSOMS DRIFTING WITH THE TIDE" }
+          ],
+          "audio": {
+            "attached": false,
+            "track_name": null,
+            "volume": 0,
+            "muted": true
+          },
+          "style": "minimal_clean"
+        },
+        {
+          "id": "scene-05",
+          "index": 5,
+          "heading": "Night Lights CTA",
+          "body": "Lanterns illuminating Pontocho alley. Explore the full story now.",
+          "duration_seconds": 3,
+          "role": "footage",
+          "ownership": "user",
+          "visual": {
+            "bg_gradient": "linear-gradient(180deg, #1f1325 0%, #3e1e4a 45%, #120a17 100%)",
+            "accent_color": "#c084fc",
+            "tag": "Pontocho Alley · Lantern Glow",
+            "image": null
+          },
+          "media": {
+            "status": "ready",
+            "asset_name": "pontocho-lanterns.mp4",
+            "kind": "video",
+            "unresolved": false
+          },
+          "captions": [
+            { "id": "cap-6", "start": 0.2, "end": 2.8, "text": "DISCOVER YOUR JOURNEY · LINK IN BIO" }
+          ],
+          "audio": {
+            "attached": true,
+            "track_name": "koto_outro.mp3",
+            "volume": 90,
+            "muted": false
+          },
+          "style": "tokyo_neon"
+        }
+      ],
+      "import_manifest": {
+        "source_title": "Neon Nights & Kyoto Stories",
+        "source_key": "src-kyoto-teaser-0925",
+        "existing_drafts": [
+          {
+            "id": "draft-03",
+            "revision": 3,
+            "saved_at": "2026-09-25T01:15:00Z",
+            "unresolved_count": 2,
+            "summary": "Draft · revision 3 · saved 25 Sep 01:15 · 2 items unresolved"
+          },
+          {
+            "id": "draft-01",
+            "revision": 1,
+            "saved_at": "2026-09-24T18:02:00Z",
+            "unresolved_count": 5,
+            "summary": "Draft · revision 1 · saved 24 Sep 18:02 · 5 items unresolved"
+          }
+        ],
+        "inventory_items": [
+          {
+            "id": "item-01",
+            "order": 1,
+            "role": "main_footage",
+            "source_name": "neon-nights-main",
+            "scene_ref": "Scene 1",
+            "kind": "video",
+            "disposition": "unresolved",
+            "attached_asset": null
+          },
+          {
+            "id": "item-02",
+            "order": 2,
+            "role": "footage",
+            "source_name": "city-loop",
+            "scene_ref": "Scene 2",
+            "kind": "video",
+            "disposition": "unresolved",
+            "attached_asset": null
+          },
+          {
+            "id": "item-03",
+            "order": 3,
+            "role": "footage",
+            "source_name": "react-closeup",
+            "scene_ref": "Scene 3",
+            "kind": "video",
+            "disposition": "attached",
+            "attached_asset": "kyoto-pagoda-street.mp4"
+          },
+          {
+            "id": "item-04",
+            "order": 4,
+            "role": "footage",
+            "source_name": "skyline-drone",
+            "scene_ref": "Scene 4",
+            "kind": "video",
+            "disposition": "excluded",
+            "attached_asset": null
+          },
+          {
+            "id": "item-05",
+            "order": 5,
+            "role": "image",
+            "source_name": "poster-frame",
+            "scene_ref": "Scene 4",
+            "kind": "image",
+            "disposition": "attached",
+            "attached_asset": "kamogawa-sakura-still.jpg"
+          },
+          {
+            "id": "item-06",
+            "order": 6,
+            "role": "text_scenes",
+            "source_name": "6 ordered scenes",
+            "scene_ref": "All Scenes",
+            "kind": "text",
+            "disposition": "attached",
+            "attached_asset": "imported from content set"
+          }
+        ],
+        "unsupported_fields": [
+          "crop focal rect (image 5)",
+          "2 comments"
+        ]
+      },
+      "ready_assets": [
+        { "id": "asset-1", "name": "gion-pagoda-street.mp4", "kind": "video", "size_mb": 42.1, "duration": "00:15" },
+        { "id": "asset-2", "name": "fushimi-torii-path.mp4", "kind": "video", "size_mb": 38.6, "duration": "00:12" },
+        { "id": "asset-3", "name": "kamogawa-sakura-still.jpg", "kind": "image", "size_mb": 4.8, "resolution": "1080x1920" },
+        { "id": "asset-4", "name": "pontocho-lanterns.mp4", "kind": "video", "size_mb": 29.4, "duration": "00:08" },
+        { "id": "asset-5", "name": "ambient_bamboo_wind.mp3", "kind": "audio", "size_mb": 3.2, "duration": "01:30" }
+      ],
+      "render_readiness": {
+        "text_complete": true,
+        "timeline_valid": true,
+        "import_resolved": false,
+        "unsaved_changes": false
+      },
+      "recent_render_jobs": [
+        {
+          "id": "#12",
+          "status": "succeeded",
+          "timestamp": "24 Sep 18:31",
+          "template": "vertical_text_story",
+          "duration": "0:22",
+          "progress": 100,
+          "actions": ["Download"]
+        },
+        {
+          "id": "#11",
+          "status": "failed",
+          "timestamp": "24 Sep 17:02",
+          "template": "vertical_text_story",
+          "error_code": "renderer_unavailable",
+          "error_msg": "GPU NVENC encoder session timed out during pass 2 (safe diagnostic: host NVENC pool exhausted)",
+          "progress": 42,
+          "actions": ["Details", "Retry"]
+        },
+        {
+          "id": "#10",
+          "status": "succeeded",
+          "timestamp": "23 Sep 14:15",
+          "template": "vertical_text_story",
+          "duration": "0:22",
+          "progress": 100,
+          "actions": ["Download"]
+        }
+      ],
+      "review_comments": [
+        {
+          "id": "comm-1",
+          "revision": 3,
+          "actor": "Sarah K.",
+          "timecode": "00:02.15",
+          "text": "Can we trim the transition between Gion and Fushimi? 0.5s feels slightly sluggish on mobile.",
+          "timestamp": "12m ago"
+        },
+        {
+          "id": "comm-2",
+          "revision": 2,
+          "actor": "Alex M.",
+          "timecode": null,
+          "text": "Color grading on Kyoto pagoda looks much warmer now, fits the morning sunrise vibe perfectly.",
+          "timestamp": "2h ago"
+        }
+      ],
+      "prompt_lab": {
+        "active_prompt": "Create an evocative 15-second TikTok story highlighting traditional Kyoto morning culture. Focus on sensory details: wooden machiya, stone pavement, morning mist, and vermillion shrine gates.",
+        "system_policy": "Strict brand guardrails: No sensationalist clickbait, no modern vehicle footage, preserve traditional aesthetic tone, max 300 chars per scene heading.",
+        "proposals": [
+          {
+            "id": "prop-1",
+            "provider": "Gemini 1.5 Pro",
+            "headline": "More poetic cadence with tighter hooks",
+            "changes": [
+              { "scene_id": "scene-01", "field": "Heading", "from": "Morning in Gion", "to": "Gion at First Light" },
+              { "scene_id": "scene-01", "field": "Body", "from": "Quiet streets, wooden houses and a timeless beauty to start the day.", "to": "Before the city awakens, ancient wooden eaves breathe in the morning chill." }
+            ]
+          }
+        ]
+      }
+    };
 
     // Load data and boot
     async function init() {
       try {
         const resp = await fetch('dummy_data.json');
+        if (!resp.ok) throw new Error('Fetch status ' + resp.status);
         appData = await resp.json();
       } catch (e) {
-        console.error('Failed to load dummy_data.json', e);
+        console.warn('Using embedded fixture data (safe fallback for file://):', e);
+        appData = JSON.parse(JSON.stringify(defaultFixtureData));
       }
       recalculateTotalDuration();
       renderAll();
@@ -2258,6 +3171,7 @@
     function renderAll() {
       if (!appData) return;
       document.getElementById('headerProjectTitle').textContent = appData.project.title;
+      renderContentSetSummary();
       renderSceneBoard();
       renderInspector();
       renderInventoryTable();
@@ -2872,25 +3786,38 @@
 
     function renderDraftOptions() {
       const container = document.getElementById('draftOptionsList');
+      if (!container || !appData || !appData.import_manifest) return;
       container.innerHTML = '';
-      appData.import_manifest.existing_drafts.forEach((draft) => {
-        const item = document.createElement('div');
-        item.style.padding = '10px 14px';
-        item.style.background = 'var(--studio-well)';
-        item.style.border = '1px solid var(--border)';
-        item.style.borderRadius = '6px';
-        item.style.display = 'flex';
-        item.style.alignItems = 'center';
-        item.style.justifyContent = 'space-between';
-        item.innerHTML = `
-          <div>
-            <div style="font-weight: 500; font-size: 13px;">Draft · revision ${draft.revision}</div>
-            <div style="font-size: 11px; color: var(--muted-foreground);">${draft.summary}</div>
+      const drafts = appData.import_manifest.existing_drafts || [];
+      drafts.forEach((draft, idx) => {
+        const isSelected = (draft.revision === selectedDraftRevision) || (idx === 0 && !selectedDraftRevision);
+        if (isSelected) selectedDraftRevision = draft.revision;
+
+        const row = document.createElement('div');
+        row.className = `draft-radio-card ${isSelected ? 'selected' : ''}`;
+        row.style.cursor = 'pointer';
+        row.onclick = () => selectDraftRow(draft.revision);
+        row.innerHTML = `
+          <input type="radio" name="draft_selection" value="${draft.revision}" ${isSelected ? 'checked' : ''} style="margin-top: 3px; accent-color: var(--primary);">
+          <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <strong style="color: var(--foreground);">Draft · revision ${draft.revision}</strong>
+              ${idx === 0 ? '<span class="status-dot saved" style="display:inline-block;"></span><span style="font-size:10px; color:var(--status-succeeded); font-weight:600;">Latest / Recommended</span>' : ''}
+            </div>
+            <div style="font-size: 11px; color: var(--muted-foreground); margin-top: 2px;">${draft.summary}</div>
           </div>
-          <button class="action-btn-sm" onclick="resumeDraft(${draft.revision})">Resume draft</button>
         `;
-        container.appendChild(item);
+        container.appendChild(row);
       });
+    }
+
+    function selectDraftRow(rev) {
+      selectedDraftRevision = rev;
+      renderDraftOptions();
+    }
+
+    function resumeSelectedDraft() {
+      resumeDraft(selectedDraftRevision);
     }
 
     function resumeDraft(rev) {
@@ -2898,13 +3825,22 @@
       document.getElementById('saveStatusText').textContent = `Saved revision ${rev}`;
       showToast(`Resumed draft revision ${rev}`);
       closeImportGate();
+      switchSurface('studio');
     }
 
     function createNewDraft() {
-      showToast('Created new draft revision 4');
-      appData.project.current_revision = 4;
-      document.getElementById('saveStatusText').textContent = 'Saved revision 4';
+      const idempKey = 'idemp-' + Math.random().toString(36).substring(2, 9);
+      const nextRev = (appData.project.current_revision || 3) + 1;
+      appData.project.current_revision = nextRev;
+      document.getElementById('saveStatusText').textContent = `Saved revision ${nextRev}`;
+      showToast(`Created new draft revision ${nextRev} (Idempotency: ${idempKey})`);
       switchGateStage(2);
+    }
+
+    function continueToStudioWorkspace() {
+      closeImportGate();
+      switchSurface('studio');
+      showToast(`Entered Studio workspace (revision ${appData.project.current_revision})`);
     }
 
     function renderInventoryTable() {
@@ -2992,21 +3928,69 @@
       }, 500);
     }
 
-    function selectReadyAssetModal() {
+    function openReadyAssetPickerModal() {
       closeAttachPopover();
-      const item = appData.import_manifest.inventory_items.find(i => i.id === activeAttachItemId);
-      if (!item) return;
+      const modal = document.getElementById('readyAssetModalBackdrop');
+      const list = document.getElementById('readyAssetsPickerList');
+      if (!list || !appData) return;
+      list.innerHTML = '';
+      appData.ready_assets.forEach(asset => {
+        const card = document.createElement('div');
+        card.style.padding = '10px 12px';
+        card.style.background = 'var(--studio-well)';
+        card.style.border = '1px solid var(--border)';
+        card.style.borderRadius = '6px';
+        card.style.cursor = 'pointer';
+        card.style.display = 'flex';
+        card.style.alignItems = 'center';
+        card.style.justifyContent = 'space-between';
+        card.style.transition = 'all 120ms ease';
+        card.onmouseover = () => { card.style.borderColor = 'var(--primary)'; card.style.background = 'var(--studio-raised)'; };
+        card.onmouseout = () => { card.style.borderColor = 'var(--border)'; card.style.background = 'var(--studio-well)'; };
+        card.onclick = () => selectReadyAsset(asset.name);
+        card.innerHTML = `
+          <div>
+            <div style="font-weight: 500; font-size: 13px; color: var(--foreground);">${asset.name}</div>
+            <div style="font-size: 11px; color: var(--muted-foreground); margin-top: 2px;">
+              ${asset.kind.toUpperCase()} · ${asset.size_mb} MB ${asset.duration ? '· ' + asset.duration : (asset.resolution ? '· ' + asset.resolution : '')}
+            </div>
+          </div>
+          <button class="action-btn-sm" style="padding: 3px 8px;">Select</button>
+        `;
+        list.appendChild(card);
+      });
+      modal.classList.add('open');
+    }
 
-      item.disposition = 'attached';
-      item.attached_asset = appData.ready_assets[0].name;
-      if (item.source_name === 'city-loop' && appData.scenes[1]) {
-        appData.scenes[1].media.unresolved = false;
-        appData.scenes[1].media.asset_name = appData.ready_assets[0].name;
+    function closeReadyAssetModal() {
+      const modal = document.getElementById('readyAssetModalBackdrop');
+      if (modal) modal.classList.remove('open');
+    }
+
+    function handleReadyAssetModalBackdrop(e) {
+      if (e.target.id === 'readyAssetModalBackdrop') closeReadyAssetModal();
+    }
+
+    function selectReadyAsset(assetName) {
+      closeReadyAssetModal();
+      const item = appData.import_manifest.inventory_items.find(i => i.id === activeAttachItemId);
+      if (item) {
+        item.disposition = 'attached';
+        item.attached_asset = assetName;
+        if (item.source_name === 'city-loop' && appData.scenes[1]) {
+          appData.scenes[1].media.unresolved = false;
+          appData.scenes[1].media.asset_name = assetName;
+        }
+      } else if (appData.scenes[currentSceneIndex]) {
+        appData.scenes[currentSceneIndex].media.unresolved = false;
+        appData.scenes[currentSceneIndex].media.asset_name = assetName;
       }
       renderInventoryTable();
       renderSceneBoard();
       renderInspector();
-      showToast(`Attached ready asset ${appData.ready_assets[0].name}`);
+      renderAdvTimelineTracks();
+      markDirtyAndAutoSave();
+      showToast(`Attached ready asset ${assetName}`);
     }
 
     function excludeItem(itemId) {
@@ -3274,8 +4258,49 @@
       } else if (action === 'Retry') {
         startRenderSimulation();
       } else if (action === 'Details') {
-        alert(`Job ${jobId} Diagnostic Details:\n\nError Code: renderer_unavailable\nSafe Reason: GPU NVENC encoder session timed out during pass 2.\nResolution: Retry job.`);
+        openJobDetailsModal(jobId);
       }
+    }
+
+    // Modal Handlers: Safe Diagnostic Details (§5.9, UI-10/11)
+    function openJobDetailsModal(jobId) {
+      const modal = document.getElementById('jobDetailsModalBackdrop');
+      if (!modal) return;
+      const job = (appData.recent_render_jobs || []).find(j => j.id === jobId) || (appData.recent_render_jobs || [])[1];
+      if (job) {
+        document.getElementById('jobDetailsTitle').textContent = `Job ${job.id} Failure Details`;
+      }
+      modal.classList.add('open');
+    }
+
+    function closeJobDetailsModal() {
+      const modal = document.getElementById('jobDetailsModalBackdrop');
+      if (modal) modal.classList.remove('open');
+    }
+
+    function handleJobDetailsModalBackdrop(e) {
+      if (e.target.id === 'jobDetailsModalBackdrop') closeJobDetailsModal();
+    }
+
+    function retryFailedJobFromModal(jobId) {
+      closeJobDetailsModal();
+      startRenderSimulation();
+      showToast(`Retrying Job ${jobId} with fresh GPU encoder pass...`);
+    }
+
+    // Legacy Render Modal Handlers (UI-01)
+    function handleLegacyRenderClick() {
+      const modal = document.getElementById('legacyRenderModalBackdrop');
+      if (modal) modal.classList.add('open');
+    }
+
+    function closeLegacyModal() {
+      const modal = document.getElementById('legacyRenderModalBackdrop');
+      if (modal) modal.classList.remove('open');
+    }
+
+    function handleLegacyModalBackdrop(e) {
+      if (e.target.id === 'legacyRenderModalBackdrop') closeLegacyModal();
     }
 
     // 10. Navigation, Viewports & Save State
@@ -3438,6 +4463,125 @@
       }, 600);
     }
 
+    // Surface Switching & Content Set Surface (UI-01)
+    function switchSurface(surface) {
+      currentSurface = surface;
+      const csSurface = document.getElementById('surfaceContentSet');
+      const studioSurface = document.getElementById('surfaceStudio');
+      const btnCS = document.getElementById('btnSurfaceCS');
+      const btnStudio = document.getElementById('btnSurfaceStudio');
+
+      if (surface === 'content-set') {
+        if (csSurface) csSurface.style.display = 'block';
+        if (studioSurface) studioSurface.style.display = 'none';
+        if (btnCS) btnCS.classList.add('active');
+        if (btnStudio) btnStudio.classList.remove('active');
+        renderContentSetSummary();
+      } else {
+        if (csSurface) csSurface.style.display = 'none';
+        if (studioSurface) studioSurface.style.display = 'flex';
+        if (btnStudio) btnStudio.classList.add('active');
+        if (btnCS) btnCS.classList.remove('active');
+        renderSceneBoard();
+        renderInspector();
+        drawVideoArtCanvas();
+      }
+      updateSwitcherLabel();
+    }
+
+    function handleOpenInStudioClick() {
+      // PRD UI-01 & UI-02: Open in Studio opens draft inspection/choice in Creator Studio without auto-creating draft on inspect
+      switchSurface('studio');
+      openImportGate();
+      switchGateStage(1);
+      showToast('Opened in Creator Studio (Stage 1: Choose Draft)');
+    }
+
+    function handleHeaderBackClick() {
+      // Prevent accidental loss if dirty
+      const dot = document.getElementById('statusDot');
+      if (dot && (dot.classList.contains('dirty') || dot.classList.contains('saving'))) {
+        alert('You have unsaved changes. Please allow auto-save to finish or save before returning to Content Set.');
+        return;
+      }
+      switchSurface('content-set');
+      showToast('Returned to Content Set');
+    }
+
+    function renderContentSetSummary() {
+      const tbody = document.getElementById('csSummaryTableBody');
+      if (!tbody || !appData) return;
+      tbody.innerHTML = '';
+      const items = (appData.import_manifest && appData.import_manifest.inventory_items) || [];
+      items.forEach(item => {
+        const tr = document.createElement('tr');
+        let statusBadge = '';
+        if (item.disposition === 'unresolved') {
+          statusBadge = '<span style="color:var(--status-failed); display:inline-flex; align-items:center; gap:4px;"><span class="status-dot failed"></span> Unresolved (Action required)</span>';
+        } else if (item.disposition === 'attached') {
+          statusBadge = '<span style="color:var(--status-succeeded); display:inline-flex; align-items:center; gap:4px;"><span class="status-dot saved"></span> Ready / Attached</span>';
+        } else {
+          statusBadge = '<span style="color:var(--muted-foreground); display:inline-flex; align-items:center; gap:4px;"><span class="status-dot offline"></span> Excluded</span>';
+        }
+        tr.innerHTML = `
+          <td class="mono">${item.order}</td>
+          <td><code>${item.role}</code></td>
+          <td><strong>${item.source_name}</strong></td>
+          <td>${item.kind}</td>
+          <td>${statusBadge}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function setImportReadinessState(val) {
+      if (!appData) return;
+      if (val === 'unresolved') {
+        if (appData.import_manifest.inventory_items[1]) {
+          appData.import_manifest.inventory_items[1].disposition = 'unresolved';
+          appData.import_manifest.inventory_items[1].attached_asset = null;
+        }
+        if (appData.import_manifest.inventory_items[0]) {
+          appData.import_manifest.inventory_items[0].disposition = 'unresolved';
+          appData.import_manifest.inventory_items[0].attached_asset = null;
+        }
+        if (appData.scenes[1]) {
+          appData.scenes[1].media.unresolved = true;
+          appData.scenes[1].media.asset_name = 'city-loop';
+        }
+        appData.render_readiness.import_resolved = false;
+        showToast('Simulated: 2 items unresolved (Render blocked)');
+      } else {
+        appData.import_manifest.inventory_items.forEach(item => {
+          if (item.disposition === 'unresolved') {
+            item.disposition = 'attached';
+            item.attached_asset = 'resolved_' + item.source_name + '.mp4';
+          }
+        });
+        appData.scenes.forEach(scene => {
+          if (scene.media) scene.media.unresolved = false;
+        });
+        appData.render_readiness.import_resolved = true;
+        showToast('Simulated: All items resolved (Render ready)');
+      }
+      renderInventoryTable();
+      renderSceneBoard();
+      renderInspector();
+      renderReadinessList();
+      renderAdvTimelineTracks();
+      renderContentSetSummary();
+    }
+
+    function toggleZoom200() {
+      const container = document.getElementById('viewportContainer');
+      const btn = document.getElementById('zoomToggleBtn');
+      container.classList.toggle('zoom-200');
+      const isZoomed = container.classList.contains('zoom-200');
+      btn.classList.toggle('active', isZoomed);
+      btn.textContent = isZoomed ? 'Zoom 200% (Active)' : 'Zoom 200%';
+      showToast(isZoomed ? '200% Zoom Reflow Active (WCAG 1.4.10)' : 'Zoom 100% (Normal)');
+    }
+
     // Floating prototype switcher
     function cycleVariant(dir) {
       currentVariantIdx = (currentVariantIdx + dir + variants.length) % variants.length;
@@ -3445,14 +4589,24 @@
     }
 
     function applyVariant(v) {
+      if (v.surface) switchSurface(v.surface);
       switchJob(v.job, document.querySelector(`.job-nav-btn[data-job="${v.job}"]`));
       setEditorMode(v.mode, document.querySelector(`.mode-option:nth-child(${v.mode === 'simple' ? 1 : 2})`));
-      if (v.openGate) openImportGate(); else closeImportGate();
+      if (v.openGate) {
+        openImportGate();
+        switchGateStage(1);
+      } else {
+        closeImportGate();
+      }
       document.getElementById('variantLabel').textContent = v.label;
     }
 
     function updateSwitcherLabel() {
-      document.getElementById('variantLabel').textContent = `Job: ${currentJob.toUpperCase()} | Mode: ${currentMode}`;
+      if (currentSurface === 'content-set') {
+        document.getElementById('variantLabel').textContent = 'Surface: Content Set Entry (UI-01)';
+      } else {
+        document.getElementById('variantLabel').textContent = `Job: ${currentJob.toUpperCase()} | Mode: ${currentMode}`;
+      }
     }
 
     function toggleReferenceDrawer() {
