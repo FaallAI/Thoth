@@ -25,8 +25,6 @@ from thoth_control_plane.acquisition.models import (
     ReportComment,
     ResolvedMedia,
     SourceReport,
-    TikTokAcquisitionFailure,
-    TikTokAcquisitionResult,
     TikTokPost,
     TikTokSourceReport,
     TrendingDiscovery,
@@ -86,15 +84,15 @@ def test_report_serializes_only_relative_materialized_media() -> None:
 
 def test_result_requires_exactly_one_terminal_outcome() -> None:
     with pytest.raises(ValidationError):
-        TikTokAcquisitionResult()
+        AcquisitionResult()
     with pytest.raises(ValidationError):
-        TikTokAcquisitionResult(
-            report=TikTokSourceReport.model_validate_json(
+        AcquisitionResult(
+            report=SourceReport.model_validate_json(
                 (
                     Path(__file__).resolve().parent.parent
                     / "fixtures"
                     / "tiktok"
-                    / "normalized_report.json"
+                    / "source_report_v3.json"
                 ).read_text(encoding="utf-8")
             ),
             failure={"code": "headless_blocked", "retryable": True},
@@ -123,7 +121,7 @@ def test_failure_serializes_safe_ordered_attempts() -> None:
             elapsed_ms=20,
         ),
     ]
-    failure = TikTokAcquisitionFailure(code="cdn_unavailable", retryable=True, attempts=attempts)
+    failure = AcquisitionFailure(code="cdn_unavailable", retryable=True, attempts=attempts)
 
     assert failure.model_dump(mode="json") == {
         "code": "cdn_unavailable",
@@ -141,7 +139,7 @@ def test_failure_rejects_more_than_three_attempts() -> None:
         elapsed_ms=1,
     )
     with pytest.raises(ValidationError):
-        TikTokAcquisitionFailure(code="headless_timeout", retryable=True, attempts=[attempt] * 4)
+        AcquisitionFailure(code="headless_timeout", retryable=True, attempts=[attempt] * 4)
 
 
 def test_browser_snapshot_contains_sanitized_candidates_only() -> None:

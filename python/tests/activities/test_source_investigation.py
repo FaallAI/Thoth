@@ -10,15 +10,15 @@ from pydantic import ValidationError
 
 from thoth_control_plane.acquisition.models import (
     AcquisitionAttempt,
+    AcquisitionFailure,
     AcquisitionOutcome,
     AcquisitionReason,
+    AcquisitionResult,
     AcquisitionStrategy,
     AttemptStatus,
     CardArtifact,
     ReportComment,
-    TikTokAcquisitionFailure,
-    TikTokAcquisitionResult,
-    TikTokSourceReport,
+    SourceReport,
 )
 from thoth_control_plane.activities.source_investigation import (
     SourceInvestigationActivityInput,
@@ -27,7 +27,7 @@ from thoth_control_plane.activities.source_investigation import (
 from thoth_control_plane.config import Settings
 
 FIXTURE_PATH = (
-    Path(__file__).resolve().parent.parent / "fixtures" / "tiktok" / "normalized_report.json"
+    Path(__file__).resolve().parent.parent / "fixtures" / "tiktok" / "source_report_v3.json"
 )
 
 INPUT = SourceInvestigationActivityInput(
@@ -50,8 +50,8 @@ CDN_FAILED_ATTEMPT = AcquisitionAttempt(
     attempt_count=1,
     elapsed_ms=7,
 )
-TERMINAL_FAILURE_WITH_ATTEMPTS = TikTokAcquisitionResult(
-    failure=TikTokAcquisitionFailure(
+TERMINAL_FAILURE_WITH_ATTEMPTS = AcquisitionResult(
+    failure=AcquisitionFailure(
         code="cdn_unavailable",
         retryable=True,
         attempts=[HEADLESS_FAILED_ATTEMPT, CDN_FAILED_ATTEMPT],
@@ -66,8 +66,8 @@ def _settings(tmp_path: Path) -> Settings:
     )
 
 
-def _load_fixture_report() -> TikTokSourceReport:
-    return TikTokSourceReport.model_validate_json(FIXTURE_PATH.read_text(encoding="utf-8"))
+def _load_fixture_report() -> SourceReport:
+    return SourceReport.model_validate_json(FIXTURE_PATH.read_text(encoding="utf-8"))
 
 
 @pytest.fixture
@@ -77,7 +77,7 @@ def successful_runner():
         media_path = artifact_root / f"reports/{workflow_id}/media/tiktok-1234567890.mp4"
         media_path.parent.mkdir(parents=True, exist_ok=True)
         media_path.write_bytes(b"\x00\x00\x00\x18ftypmp42" + b"0" * 10_100)
-        return TikTokAcquisitionResult(report=_load_fixture_report())
+        return AcquisitionResult(report=_load_fixture_report())
 
     return run
 
@@ -210,9 +210,7 @@ async def test_acquisition_failures_map_to_safe_activity_failure(
 ) -> None:
     async def failing_runner(workflow_id: str, source_url: str, artifact_root: Path):
         del workflow_id, source_url, artifact_root
-        return TikTokAcquisitionResult(
-            failure=TikTokAcquisitionFailure(code=code, retryable=retryable)
-        )
+        return AcquisitionResult(failure=AcquisitionFailure(code=code, retryable=retryable))
 
     configured = build_source_investigation_activity(_settings(tmp_path), runner=failing_runner)
     result = await configured(INPUT)
@@ -238,7 +236,7 @@ async def test_report_persistence_failure_removes_part_file_and_materialized_med
 
     async def runner(workflow_id: str, source_url: str, artifact_root: Path):
         del workflow_id, source_url, artifact_root
-        return TikTokAcquisitionResult(report=report)
+        return AcquisitionResult(report=report)
 
     import os
 
@@ -302,7 +300,7 @@ async def test_cleanup_after_persistence_failure_never_touches_outside_artifact_
 
     async def runner(workflow_id: str, source_url: str, artifact_root: Path):
         del workflow_id, source_url, artifact_root
-        return TikTokAcquisitionResult(report=report)
+        return AcquisitionResult(report=report)
 
     from thoth_control_plane.activities import source_investigation as module
 
@@ -352,7 +350,7 @@ async def test_attempts_convert_to_safe_progress_events_with_fixed_stage_names(
         media_path = artifact_root / f"reports/{workflow_id}/media/tiktok-1234567890.mp4"
         media_path.parent.mkdir(parents=True, exist_ok=True)
         media_path.write_bytes(b"0" * 10_100)
-        return TikTokAcquisitionResult(report=report)
+        return AcquisitionResult(report=report)
 
     configured = build_source_investigation_activity(_settings(tmp_path), runner=runner)
     result = await configured(INPUT)
@@ -395,8 +393,8 @@ async def test_attempts_convert_to_safe_progress_events_with_fixed_stage_names(
 async def test_terminal_failure_emits_attempts_then_one_cleanup_event(tmp_path: Path) -> None:
     async def runner(workflow_id: str, source_url: str, artifact_root: Path):
         del workflow_id, source_url, artifact_root
-        return TikTokAcquisitionResult(
-            failure=TikTokAcquisitionFailure(
+        return AcquisitionResult(
+            failure=AcquisitionFailure(
                 code="cdn_unavailable",
                 retryable=True,
                 attempts=[HEADLESS_FAILED_ATTEMPT, CDN_FAILED_ATTEMPT],
@@ -445,8 +443,8 @@ async def test_empty_attempts_still_emits_single_cleanup_event(tmp_path: Path) -
     # a bogus attempt event, but must still emit the one cleanup event.
     async def runner(workflow_id: str, source_url: str, artifact_root: Path):
         del workflow_id, source_url, artifact_root
-        return TikTokAcquisitionResult(
-            failure=TikTokAcquisitionFailure(code="invalid_tiktok_url", retryable=False)
+        return AcquisitionResult(
+            failure=AcquisitionFailure(code="invalid_tiktok_url", retryable=False)
         )
 
     result = await build_source_investigation_activity(_settings(tmp_path), runner=runner)(INPUT)
@@ -605,19 +603,20 @@ async def test_report_persistence_failure_removes_recorded_card_files(
 
     report = _load_fixture_report().model_copy(
         update={
-            "schema_version": 2,
             "comments": [
                 ReportComment(
                     comment_id="11111", author="alpha", text="first", card=card("comment-11111.png")
                 )
             ],
             "profile_card": card("profile.png"),
+            "post_card": card("post.png"),
         }
     )
     paths = [
         tmp_path / str(report.media[0].location),
         tmp_path / str(card_dir / "comment-11111.png"),
         tmp_path / str(card_dir / "profile.png"),
+        tmp_path / str(card_dir / "post.png"),
     ]
     for path in paths:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -625,7 +624,7 @@ async def test_report_persistence_failure_removes_recorded_card_files(
 
     async def runner(workflow_id: str, source_url: str, artifact_root: Path):
         del workflow_id, source_url, artifact_root
-        return TikTokAcquisitionResult(report=report)
+        return AcquisitionResult(report=report)
 
     from thoth_control_plane.activities import source_investigation as module
 

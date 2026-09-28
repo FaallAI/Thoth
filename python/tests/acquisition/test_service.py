@@ -157,7 +157,7 @@ async def test_incomplete_headless_uses_tikwm_once_and_preserves_safe_metadata(t
         "scrapling_headless",
         "tikwm_cdn",
     ]
-    assert result.report.post.caption == "headless"
+    assert result.report.post.text == "headless"
     assert resolver.calls == ["tikwm"]
     assert "fixture-secret" not in result.report.model_dump_json()
 
@@ -269,7 +269,7 @@ async def test_headless_snapshot_without_post_candidate_falls_back_and_uses_prov
         "scrapling_headless",
         "tikwm_cdn",
     ]
-    assert result.report.post.caption == "A public caption"
+    assert result.report.post.text == "A public caption"
     assert result.report.post.post_id == "1234567890"
     assert result.report.post.owner_handle == "creator"
     assert resolver.calls == ["tikwm"]
@@ -690,7 +690,8 @@ async def test_headless_success_records_comments_and_card_artifacts(tmp_path) ->
 
     assert result.report is not None
     report = result.report
-    assert report.schema_version == 2
+    assert report.schema_version == 3
+    assert report.source.platform == "tiktok"
     assert [comment.comment_id for comment in report.comments] == ["11111", "22222"]
     first_card = report.comments[0].card
     assert first_card is not None

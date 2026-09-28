@@ -197,34 +197,6 @@ class TikTokSourceReport(StrictModel):
         return self
 
 
-class TikTokAcquisitionFailure(StrictModel):
-    code: Literal[
-        "invalid_tiktok_url",
-        "unsupported_platform",
-        "headless_timeout",
-        "headless_blocked",
-        "headless_incomplete",
-        "cdn_rate_limited",
-        "cdn_unavailable",
-        "media_validation_failed",
-        "artifact_persistence_failed",
-        "acquisition_dependency_unavailable",
-    ]
-    retryable: bool
-    attempts: Annotated[list[AcquisitionAttempt], Field(max_length=3)] = Field(default_factory=list)
-
-
-class TikTokAcquisitionResult(StrictModel):
-    report: TikTokSourceReport | None = None
-    failure: TikTokAcquisitionFailure | None = None
-
-    @model_validator(mode="after")
-    def require_exactly_one_outcome(self) -> TikTokAcquisitionResult:
-        if (self.report is None) == (self.failure is None):
-            raise ValueError("acquisition result requires exactly one outcome")
-        return self
-
-
 class SourcePost(StrictModel):
     post_id: SafeId
     owner_handle: TikTokHandle

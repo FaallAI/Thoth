@@ -25,10 +25,10 @@ from thoth_control_plane.acquisition.materializer import (
 )
 from thoth_control_plane.acquisition.models import (
     AcquisitionAttempt,
+    AcquisitionResult,
     AcquisitionStrategy,
     AttemptStatus,
-    TikTokAcquisitionResult,
-    TikTokSourceReport,
+    SourceReport,
 )
 from thoth_control_plane.acquisition.service import TikTokAcquisitionService
 from thoth_control_plane.config import Settings
@@ -43,7 +43,7 @@ from thoth_control_plane.domain.models import (
     StrictModel,
 )
 
-AcquisitionRunner = Callable[[str, str, Path], Awaitable[TikTokAcquisitionResult]]
+AcquisitionRunner = Callable[[str, str, Path], Awaitable[AcquisitionResult]]
 
 _CAPABILITY_ADAPTER = TypeAdapter(ScraplingCapability)
 
@@ -78,9 +78,7 @@ def build_production_acquisition_runner(settings: Settings) -> AcquisitionRunner
     """
     del settings
 
-    async def run(
-        workflow_id: str, source_url: str, artifact_root: Path
-    ) -> TikTokAcquisitionResult:
+    async def run(workflow_id: str, source_url: str, artifact_root: Path) -> AcquisitionResult:
         browser = ScraplingHeadlessBrowser()
         client = httpx.AsyncClient(follow_redirects=False)
         try:
@@ -162,7 +160,7 @@ def _terminal_events(
 
 
 def _cleanup_after_persistence_failure(
-    part_path: Path, report: TikTokSourceReport, artifact_root: Path
+    part_path: Path, report: SourceReport, artifact_root: Path
 ) -> None:
     """Remove the partial report and every media and card file the report recorded.
 
@@ -179,6 +177,8 @@ def _cleanup_after_persistence_failure(
     locations += [comment.card.location for comment in report.comments if comment.card]
     if report.profile_card is not None:
         locations.append(report.profile_card.location)
+    if report.post_card is not None:
+        locations.append(report.post_card.location)
     for location in locations:
         candidate = (artifact_root / location).resolve()
         if not candidate.is_relative_to(resolved_root):
@@ -243,7 +243,7 @@ async def _run(
         )
 
     report = acquisition_result.report
-    assert report is not None  # TikTokAcquisitionResult guarantees exactly one outcome
+    assert report is not None  # AcquisitionResult guarantees exactly one outcome
 
     # Ruling F-4a: the report artifact location is derived solely from the
     # activity input's workflow_id, never from the report body.

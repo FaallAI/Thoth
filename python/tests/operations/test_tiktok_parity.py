@@ -30,6 +30,7 @@ from thoth_control_plane.operations.tiktok_parity import (
 runner = CliRunner()
 
 _FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "tiktok" / "normalized_report.json"
+_V3_FIXTURE = _FIXTURE.parent / "source_report_v3.json"
 _CANONICAL_URL = "https://www.tiktok.com/@creator/video/1234567890"
 _PYTHON_MEDIA_LOCATION = "reports/wf_contract_001/media/tiktok-1234567890.mp4"
 _RECORDED_MEDIA = "/opt/thoth/scout/output/acquisition-media/main.mp4"
@@ -55,6 +56,7 @@ def _write_json(path: Path, payload: dict[str, Any]) -> str:
 def _pair(
     tmp_path: Path,
     *,
+    fixture: Path = _FIXTURE,
     python_media: bytes | None = _mp4(12_000),
     scout_media: bytes | None = _mp4(15_000, b"\x37"),
     python_media_location: str = _PYTHON_MEDIA_LOCATION,
@@ -68,7 +70,7 @@ def _pair(
     """
     python_root = tmp_path / "python-root"
     python_root.mkdir(parents=True, exist_ok=True)
-    payload = json.loads(_FIXTURE.read_text(encoding="utf-8"))
+    payload = json.loads(fixture.read_text(encoding="utf-8"))
     payload["media"][0]["location"] = python_media_location
     if python_media is not None:
         media_path = python_root / python_media_location
@@ -230,6 +232,10 @@ def test_compare_parity_sample_still_matches_after_extraction(tmp_path: Path) ->
     """The refactor must not change `compare_parity_sample()`'s own behavior."""
     comparison = compare_parity_sample(**_pair(tmp_path))
     assert comparison.passed is True
+
+
+def test_parity_accepts_a_v3_python_report(tmp_path: Path) -> None:
+    assert compare_parity_sample(**_pair(tmp_path, fixture=_V3_FIXTURE)).passed is True
 
 
 def test_matching_pair_with_different_valid_encodings_passes(tmp_path: Path) -> None:

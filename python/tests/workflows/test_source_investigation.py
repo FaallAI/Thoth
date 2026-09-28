@@ -15,7 +15,7 @@ from temporalio.worker import Worker
 
 import thoth_control_plane.infrastructure.temporal_gateway as temporal_gateway
 from thoth_control_plane import worker
-from thoth_control_plane.acquisition.models import TikTokAcquisitionResult, TikTokSourceReport
+from thoth_control_plane.acquisition.models import AcquisitionResult, SourceReport
 from thoth_control_plane.activities.legacy_scout import LEGACY_ADAPTER_TASK_QUEUE, LegacyScoutInput
 from thoth_control_plane.activities.source_investigation import (
     SourceInvestigationActivityInput,
@@ -592,7 +592,7 @@ async def test_temporal_history_contains_only_redacted_workflow_values(
 
 CANONICAL_TIKTOK_URL = "https://www.tiktok.com/@creator/video/1234567890"
 _FIXTURE_REPORT_PATH = (
-    Path(__file__).resolve().parent.parent / "fixtures" / "tiktok" / "normalized_report.json"
+    Path(__file__).resolve().parent.parent / "fixtures" / "tiktok" / "source_report_v3.json"
 )
 
 
@@ -608,10 +608,10 @@ def _offline_successful_runner():
         media_path = artifact_root / f"reports/{workflow_id}/media/tiktok-1234567890.mp4"
         media_path.parent.mkdir(parents=True, exist_ok=True)
         media_path.write_bytes(b"\x00\x00\x00\x18ftypmp42" + b"0" * 10_100)
-        report = TikTokSourceReport.model_validate_json(
+        report = SourceReport.model_validate_json(
             _FIXTURE_REPORT_PATH.read_text(encoding="utf-8")
         ).model_copy(update={"workflow_id": workflow_id})
-        return TikTokAcquisitionResult(report=report)
+        return AcquisitionResult(report=report)
 
     return run
 

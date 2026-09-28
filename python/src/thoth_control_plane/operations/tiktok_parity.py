@@ -33,13 +33,13 @@ from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 
 from thoth_control_plane.acquisition.adapters.tiktok import (
     TikTokUrlError,
     canonicalize_tiktok_post_url,
 )
-from thoth_control_plane.acquisition.models import TikTokSourceReport
+from thoth_control_plane.acquisition.models import SourceReport, TikTokSourceReport
 from thoth_control_plane.domain.models import SHA256_PATTERN
 
 PARITY_FIELDS = (
@@ -53,6 +53,8 @@ PARITY_FIELDS = (
     "local_media_present",
     "outcome",
 )
+
+_PYTHON_REPORT = TypeAdapter(TikTokSourceReport | SourceReport)
 
 # The live smoke's own media floor. Repeated here rather than imported so the
 # helper keeps working when tests are absent, as they are in the runtime image.
@@ -167,7 +169,7 @@ def normalize_python_tiktok(payload: Mapping[str, Any], artifact_root: Path) -> 
         "platform": payload["source"]["platform"],
         "post_id": payload["post"]["post_id"],
         "owner_handle": payload["post"]["owner_handle"],
-        "caption": payload["post"]["caption"],
+        "caption": payload["post"].get("text", payload["post"].get("caption")),
         "media_kind": media["kind"],
         "media_index": media["index"],
         "local_media_present": media_path is not None and media_path.is_file(),
@@ -424,7 +426,7 @@ def compare_parity_sample(
     python_payload, python_text = _read_report(python_report)
     scout_payload, scout_text = _read_report(scout_report)
     try:
-        validated_python = TikTokSourceReport.model_validate_json(python_text)
+        validated_python = _PYTHON_REPORT.validate_json(python_text)
     except ValidationError as error:
         raise TikTokParityEvidenceError("python parity report failed schema validation") from error
     validated_scout = _validate_scout_schema(scout_text)

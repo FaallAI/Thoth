@@ -28,20 +28,21 @@ from thoth_control_plane.acquisition.materializer import (
 )
 from thoth_control_plane.acquisition.models import (
     AcquisitionAttempt,
+    AcquisitionFailure,
     AcquisitionOutcome,
     AcquisitionReason,
+    AcquisitionResult,
     AcquisitionStrategy,
     AttemptStatus,
     BrowserSnapshot,
     CardArtifact,
     MaterializedMedia,
     ReportComment,
+    ReportSource,
     ResolvedMedia,
-    TikTokAcquisitionFailure,
-    TikTokAcquisitionResult,
+    SourcePost,
+    SourceReport,
     TikTokPost,
-    TikTokSource,
-    TikTokSourceReport,
 )
 
 RETRYABLE_FAILURES = frozenset(
@@ -137,14 +138,20 @@ def _build_report(
     attempts: list[AcquisitionAttempt],
     comments: list[ReportComment],
     profile_card: CardArtifact | None,
-) -> TikTokSourceReport:
+) -> SourceReport:
     canonical_url = (
         identity.canonical_url if identity is not None else _fallback_canonical_url(post)
     )
-    return TikTokSourceReport(
+    return SourceReport(
         workflow_id=workflow_id,
-        source=TikTokSource(canonical_url=canonical_url),
-        post=post,
+        source=ReportSource(platform="tiktok", canonical_url=canonical_url),
+        post=SourcePost(
+            post_id=post.post_id,
+            owner_handle=post.owner_handle,
+            text=post.caption,
+            published_at=post.published_at,
+            engagement=post.engagement,
+        ),
         media=[materialized],
         outcome=AcquisitionOutcome(attempts=attempts),
         comments=comments,
@@ -183,12 +190,12 @@ class TikTokAcquisitionService:
 
     async def inspect(
         self, *, workflow_id: str, source_url: str, artifact_root: Path
-    ) -> TikTokAcquisitionResult:
+    ) -> AcquisitionResult:
         try:
             validate_tiktok_entry_url(source_url)
         except TikTokUrlError:
-            return TikTokAcquisitionResult(
-                failure=TikTokAcquisitionFailure(code="invalid_tiktok_url", retryable=False)
+            return AcquisitionResult(
+                failure=AcquisitionFailure(code="invalid_tiktok_url", retryable=False)
             )
 
         attempts: list[AcquisitionAttempt] = []
@@ -250,7 +257,7 @@ class TikTokAcquisitionService:
             comments, profile_card = await asyncio.to_thread(
                 persist_cards, snapshot, workflow_id, artifact_root
             )
-            return TikTokAcquisitionResult(
+            return AcquisitionResult(
                 report=_build_report(
                     workflow_id, identity, post, materialized, attempts, comments, profile_card
                 )
@@ -269,8 +276,8 @@ class TikTokAcquisitionService:
             attempts.append(
                 _make_attempt(AcquisitionStrategy.TIKWM_CDN, reason, _elapsed_ms(tikwm_start))
             )
-            return TikTokAcquisitionResult(
-                failure=TikTokAcquisitionFailure(
+            return AcquisitionResult(
+                failure=AcquisitionFailure(
                     code=reason.value,
                     retryable=reason.value in RETRYABLE_FAILURES,
                     attempts=list(attempts),
@@ -294,8 +301,8 @@ class TikTokAcquisitionService:
                     _elapsed_ms(tikwm_start),
                 )
             )
-            return TikTokAcquisitionResult(
-                failure=TikTokAcquisitionFailure(
+            return AcquisitionResult(
+                failure=AcquisitionFailure(
                     code="media_validation_failed", retryable=True, attempts=list(attempts)
                 )
             )
@@ -308,7 +315,7 @@ class TikTokAcquisitionService:
         comments, profile_card = await asyncio.to_thread(
             persist_cards, snapshot, workflow_id, artifact_root
         )
-        return TikTokAcquisitionResult(
+        return AcquisitionResult(
             report=_build_report(
                 workflow_id, merged_identity, post, materialized, attempts, comments, profile_card
             )
