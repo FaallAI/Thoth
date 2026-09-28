@@ -104,6 +104,44 @@ def test_blocked_request_falls_back_to_the_headless_document() -> None:
     assert fixture["counts"]["headless"]["media"] == 2
 
 
+def test_weaker_request_document_falls_back_to_headless() -> None:
+    """Request parses but with fewer media items than headless; decide() should pick headless."""
+    # Simulate request capturing only the first media item
+    document_weak = json.dumps(
+        {
+            "require": [
+                {
+                    "thread_items": [
+                        {
+                            "post": {
+                                **_raw_node(),
+                                "carousel_media": [_raw_node()["carousel_media"][0]],
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    )
+    raw = {
+        "kind": "image",
+        "post_id": "Xy9Qk2Lm",
+        "owner": "realperson",
+        "request": {"status": "ok", "script_texts": [document_weak]},
+        "headless": {
+            "status": "ok",
+            "xhr_bodies": [],
+            "script_texts": [json.dumps({"require": [{"thread_items": [{"post": _raw_node()}]}]})],
+            "card": True,
+        },
+    }
+    fixture = build_fixture(raw)
+    assert fixture["method"] == "headless"
+    assert fixture["counts"]["request"]["media"] == 1
+    assert fixture["counts"]["headless"]["media"] == 2
+    assert fixture["expected"]["media_kinds"] == ["image", "video"]
+
+
 def test_leak_count_flags_a_surviving_value() -> None:
     assert leak_count(_raw_node(), "... realperson ...") == 1
 

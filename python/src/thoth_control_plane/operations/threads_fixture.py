@@ -149,7 +149,7 @@ def build_fixture(raw: dict[str, Any]) -> dict[str, Any]:
         f"https://www.threads.com/@{raw['owner']}/post/{raw['post_id']}"
     )
     parses = {m: parse_documents(method_roots(raw, m), identity) for m in ("request", "headless")}
-    method = "request" if parses["request"] is not None else "headless"
+    method = decide([(counts(parses["request"]), counts(parses["headless"]))])
     raw_node = find_post_node(method_roots(raw, method), identity.post_id)
     if raw_node is None:
         raise ValueError("neither method captured the post")
