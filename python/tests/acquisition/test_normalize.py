@@ -40,8 +40,24 @@ def test_tikwm_snake_case_counters_are_recognized() -> None:
 
 @pytest.mark.parametrize(
     "value",
-    [True, False, -1, 1.5, "-3", "1e3", " 12", "١٢", "9" * 20, "", None, [1], {"n": 1}]
-    + [2**63, str(2**63), "9" * 5_000],
+    [
+        True,
+        False,
+        -1,
+        1.5,
+        "-3",
+        "1e3",
+        " 12",
+        "١٢",
+        "9" * 20,
+        "",
+        None,
+        [1],
+        {"n": 1},
+        2**63,
+        str(2**63),
+        "9" * 5_000,
+    ],
 )
 def test_invalid_counts_are_skipped_never_guessed(value: object) -> None:
     assert normalize_engagement({"playCount": value}, {"playCount": value}) == {}

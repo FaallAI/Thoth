@@ -33,7 +33,9 @@ TikTokNumericId = Annotated[str, Field(pattern=r"^[0-9]{5,32}$")]
 TikTokHandle = Annotated[str, Field(pattern=r"^[A-Za-z0-9._-]{1,64}$")]
 CommentText = Annotated[str, Field(min_length=1, max_length=2_000)]
 # The only shape `normalize.published_at_from_epoch` produces.
-PublishedAt = Annotated[str, Field(pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")]
+PublishedAt = Annotated[
+    str, Field(pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
+]
 
 
 class AcquisitionStrategy(StrEnum):
@@ -260,7 +262,8 @@ class DiscoveredVideo(StrictModel):
 class DiscoveryDrops(StrictModel):
     ads: Annotated[int, Field(ge=0)] = 0
     photo_posts: Annotated[int, Field(ge=0)] = 0
-    invalid: Annotated[int, Field(ge=0)] = 0  # missing/invalid id or handle, or a failed model validation
+    # Missing/invalid id or handle, or a failed model validation.
+    invalid: Annotated[int, Field(ge=0)] = 0
 
 
 class DiscoveryResult(StrictModel):

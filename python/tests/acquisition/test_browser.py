@@ -499,7 +499,9 @@ def test_comment_pages_are_reduced_deduplicated_and_capped() -> None:
 
 
 def test_sticker_only_comments_are_dropped_before_the_cap() -> None:
-    stickers = [_comment(str(20_000 + i), text) for i, text in enumerate(["[Sticker]", " [stiker] "])]
+    stickers = [
+        _comment(str(20_000 + i), text) for i, text in enumerate(["[Sticker]", " [stiker] "])
+    ]
     real = [_comment(str(10_000 + i), f"c{i}") for i in range(MAX_COMMENTS)]
     snapshot = extract_browser_snapshot(
         final_url=POST_URL,
