@@ -44,9 +44,8 @@ def _fill_caption_char(char: str) -> bool:
     """Pseudonymize every caption/hashtag character except whitespace and the structural
     `#`/`@` markers a hashtag or mention needs to stay recognizable as one.
 
-    Unlike the comment reducer's `_is_letter`, this covers stylized Unicode (enclosed
-    alphanumerics, fullwidth letters, etc., category `So`) that `str.isalnum()` misses, so no
-    original character survives in a caption or hashtag title.
+    Unlike the comment reducer's `_is_letter`, this also replaces emoji and other symbols, so
+    no original character survives in a caption or hashtag title.
     """
     return not char.isspace() and char not in "#@"
 

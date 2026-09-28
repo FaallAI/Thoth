@@ -43,11 +43,19 @@ def _fill(index: int) -> itertools.cycle[str]:
 
 
 def _is_letter(char: str) -> bool:
-    """Alphanumerics and combining marks (vowel signs, diacritics) are original text;
-    emoji variation selectors are not."""
+    """Alphanumerics, combining marks (vowel signs, diacritics), and stylized letters are
+    original text; emoji variation selectors and other symbols are not.
+
+    A stylized letter (circled, squared, parenthesized, regional indicator) is category `So`,
+    which `str.isalnum()` misses; its Unicode name spells `LETTER <x>`, unlike emoji such as
+    LOVE LETTER.
+    """
     if "\ufe00" <= char <= "\ufe0f":
         return False
-    return char.isalnum() or unicodedata.category(char) in {"Mn", "Mc"}
+    category = unicodedata.category(char)
+    if category == "So":
+        return " LETTER " in unicodedata.name(char, "")
+    return char.isalnum() or category in {"Mn", "Mc"}
 
 
 def _stat(stat: dict[str, Any]) -> dict[str, Any]:

@@ -168,7 +168,7 @@ ENCLOSED_ALPHANUMERICS = "Ⓢⓔⓒⓡⓔⓣ"  # circled "Secret"
 
 
 def test_enclosed_alphanumeric_caption_is_fully_pseudonymized(tmp_path, capsys) -> None:
-    """Stylized letters (Unicode category So) must not survive `_is_letter`'s alnum filter."""
+    """Stylized letters (Unicode category So), which `str.isalnum()` misses, must not survive."""
     item = {
         **RAW_ITEM,
         "desc": f"{ENCLOSED_ALPHANUMERICS} post",

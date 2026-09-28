@@ -164,12 +164,14 @@ def test_sanitizer_refuses_texts_it_cannot_keep_distinct() -> None:
 STAT_KEYS = {"width", "height", "bytes"}
 
 
-def _original_marks(text: str) -> list[str]:
-    """Combining marks other than emoji variation selectors, which carry no letters."""
+def _originals(text: str) -> list[str]:
+    """Combining marks other than emoji variation selectors (which carry no letters), and
+    stylized letters: characters the sanitizer must always replace."""
     return [
         char
         for char in text
-        if unicodedata.category(char) in {"Mn", "Mc"} and not "\ufe00" <= char <= "\ufe0f"
+        if (unicodedata.category(char) in {"Mn", "Mc"} and not "\ufe00" <= char <= "\ufe0f")
+        or (unicodedata.category(char) == "So" and " LETTER " in unicodedata.name(char, ""))
     ]
 
 
@@ -181,9 +183,22 @@ def test_sanitizer_replaces_combining_marks_but_keeps_emoji_selectors() -> None:
     sanitized = sanitize_capture(capture)
     text = sanitized["pages"][0]["comments"][4]["text"]
     assert len(text) == len(marked)
-    assert not _original_marks(text)
+    assert not _originals(text)
     assert text.endswith(" ❤️")
     assert sanitized["card_texts"][1] == text
+    assert replay(sanitized) == sanitized["expected"]
+
+
+def test_sanitizer_replaces_stylized_letters_but_keeps_emoji() -> None:
+    capture = copy.deepcopy(raw_capture())
+    stylized = "Ⓐ🅰🄰⒜🇮🇩 💌🔠😀"
+    capture["pages"][0]["comments"][4]["text"] = stylized
+    capture["card_texts"][1] = stylized
+    sanitized = sanitize_capture(capture)
+    text = sanitized["pages"][0]["comments"][4]["text"]
+    assert len(text) == len(stylized)
+    assert not set(text[:6]) & set(stylized)
+    assert text.endswith(" 💌🔠😀")
     assert replay(sanitized) == sanitized["expected"]
 
 
@@ -257,8 +272,8 @@ def test_golden_capture_carries_only_pseudonyms(path: Path) -> None:
             assert handle in (None, INVALID_HANDLE) or re.fullmatch(r"user_\d{3}", handle)
             cid = entry["cid"]
             assert cid in (None, INVALID_ID) or int(cid) >= ID_BASE
-            assert not _original_marks(entry["text"] or "")
+            assert not _originals(entry["text"] or "")
     for text in capture["card_texts"]:
-        assert not _original_marks(text)
+        assert not _originals(text)
     for stat in [*capture["card_stats"], capture["profile_card_stats"] or {}]:
         assert set(stat) <= STAT_KEYS
