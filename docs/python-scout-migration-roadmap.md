@@ -178,6 +178,11 @@ the request method only. TikTok gets the same comparison after Stage 3. Golden f
 from one sanitized, read-only live capture per platform, authorized separately at capture
 time.
 
+- Stage 3a implemented (2026-09-28, branch `feat/stage3a-platform-kernel-threads`):
+  the platform-neutral kernel, source report v3, Facebook and Reddit rejection at intake and
+  in routing, and Threads acquisition by the `request` method, including share links
+  resolved in the browser. Stage 3b, Instagram, is next.
+
 Each platform follows the same sequence:
 
 ```text

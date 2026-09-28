@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-09-28 - Stage 3a: platform-neutral kernel and Threads
+
+- Implements `docs/superpowers/specs/2026-09-28-stage3a-platform-kernel-threads-design.md`
+  through the plan `docs/superpowers/plans/2026-09-28-stage3a-platform-kernel-threads.md`
+  (`63eeb4e`).
+- `0a3ca67`: pure platform routing (`platform_support`).
+- `8d30f58`: the platform-neutral source report v3.
+- `0ffc741`, `133a0bc`: the materializer keeps sniffed images alongside video; the streaming byte
+  cap is pinned by a test.
+- `f976de2`: TikTok writes source report v3.
+- `bbe26d4`: acquisition activities route through the platform registry.
+- `71d5fdf`: Facebook and Reddit are refused at intake (422 `unsupported_platform`) and in
+  workflow routing, in every activity mode.
+- `d809bf6`: Threads URL identity and pure post parsers; text-only posts are valid reports.
+- `15e81f1`: the Threads acquirer with a request fetcher and a headless browser.
+- `d53f593`, `4f6144b`: the operator-run Threads capture and fixture sanitizer; the fixture
+  method is chosen per post with `decide`.
+- `bd411bd`: Threads share links (`/share/<token>/`) are resolved once in the headless browser
+  to their post URL; the share page is a script shell with no HTTP redirect.
+- `a37c3a1`: sanitized Threads golden fixtures (video, image carousel, text-only) and replay
+  tests. The fixtures were captured under operator authorization at capture time.
+- Method decision: Threads uses `request`. Request and headless both returned `ok` with
+  identical counts for every post:
+  - video: text 258 chars, 1 media (1 video), 5 engagement keys, published time present;
+  - image: text 468 chars, 3 media (0 videos), 5 engagement keys, published time present;
+  - text: text 436 chars, 0 media, 5 engagement keys, published time present;
+  - sanitizer leaks: 0 for each fixture.
+- Verification: `tests` 1 failed, 2303 passed, 6 skipped. The one failure is the pre-existing
+  `tests/api/test_workflows.py::test_route_modules_do_not_depend_on_a_process_runner`
+  ("bun" matched inside "bundle"), which also fails on `master`. Ruff: all checks passed, no
+  files to reformat.
+
 ## 2026-09-28 - Stage 2 closure hardening
 
 - A bounded change the operator approved in chat, so there is no separate spec or plan. It

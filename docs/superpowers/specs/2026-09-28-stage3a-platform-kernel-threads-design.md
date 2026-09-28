@@ -1,6 +1,6 @@
 # Stage 3a: Platform-Neutral Acquisition Kernel and Threads
 
-Status: design approved in chat on 2026-09-28; this written spec awaits operator review.
+Status: approved by the operator on 2026-09-28; implemented by the Stage 3a plan.
 
 ## 1. Context and scope
 
