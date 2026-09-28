@@ -58,7 +58,7 @@ exercises, or the `shadow` / `python_preferred` / `python_only` progression.
 |---|---|---|
 | 1. TikTok single post | Headless-first TikTok inspection and media materialization | Offline tests, live smoke, cancellation, and parity pass |
 | 2. Complete TikTok vertical slice | All active TikTok acquisition capabilities run in Python | Normal TikTok operation no longer needs Scout fallback |
-| 3. Remaining platform adapters | Threads, Instagram, X, Facebook, YouTube, and Reddit use the Python acquisition kernel | Offline parity passes per platform; live smoke waits for the final acceptance |
+| 3. Remaining platform adapters | Threads, Instagram, X, and YouTube use the Python acquisition kernel; Facebook and Reddit are deferred | Offline parity passes per platform; live smoke waits for the final acceptance |
 | 4. Source intelligence | Source tracing, credit evidence, OCR, and candidate decisions move to Python | Original-source decision matches the stable Scout contract |
 | 5. Content assembly | Comments, footage, figures, main candidate, and media gates move to Python | A complete valid content-set is produced without Scout |
 | 6. Enrichment | Topic dossier, web grounding, CKB, and cultural pulse move to Python | Enriched output meets the accepted fixture contract |
@@ -160,6 +160,16 @@ Reuse the acquisition kernel proven by TikTok. The recommended order is:
 2. Instagram, including carousel and public/authenticated page behavior.
 3. X and Facebook, which depend heavily on browser and network-capture behavior.
 4. YouTube and Reddit, which can use more public metadata and direct HTTP behavior.
+
+Scope decision (operator, 2026-09-28): Facebook and Reddit are deferred and excluded from
+Stage 3. They stay on the legacy Scout path until the operator brings them back into scope.
+While they still need Scout, Stage 10 cannot retire it. Stage 3 is split into sub-projects,
+each with its own specification, plan, and implementation:
+
+- 3a: a platform-neutral acquisition kernel and Threads as its first platform.
+- 3b: Instagram.
+- 3c: X.
+- 3d: YouTube.
 
 Each platform follows the same sequence:
 
