@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -63,7 +64,10 @@ UNSIGNED_COMMENT_PARAMS = frozenset({"aid", "aweme_id", "count", "cursor"})
 EMPTY_ITEM_LIST = '{"statusCode":0,"itemList":[],"hasMore":false,"cursor":"0"}'
 COMMENT_SELECTOR = '[data-e2e="comment-level-1"]'
 COMMENT_ICON_SELECTOR = '[data-e2e="comment-icon"]'
-MAX_COMMENT_CARDS = 10
+MAX_COMMENT_CARDS = 12  # Scout's `--max` default
+# A "[Sticker]"/"[Stiker]"-only comment carries no text to ground a narration on, and its
+# card is only the sticker image; both are dropped before any cap (Scout's `isStickerOnly`).
+STICKER_ONLY = re.compile(r"\[\s*sti?c?ker\s*\]", re.IGNORECASE)
 CARD_WAIT_S = 15
 # Tag each rendered comment's card: the smallest ancestor holding the username and the
 # avatar (Scout's climb). Returns [tag, text] per card; text keys the API comment.
@@ -239,10 +243,15 @@ def _parse_captured_xhr(raw_entries: list[Any]) -> list[dict[str, Any]]:
     return parsed
 
 
+def _sticker_only(text: object) -> bool:
+    return isinstance(text, str) and STICKER_ONLY.fullmatch(text.strip()) is not None
+
+
 def _reduce_comments(
     comment_pages: list[Any], comment_cards: list[tuple[str, bytes]]
 ) -> list[TikTokComment]:
-    """First `MAX_COMMENTS` valid, distinct comments; malformed records are dropped.
+    """First `MAX_COMMENTS` valid, distinct comments; malformed and sticker-only records are
+    dropped.
 
     A card crop attaches to the first comment whose text matches its rendered text;
     a comment without a matching crop simply has none.
@@ -254,7 +263,11 @@ def _reduce_comments(
     for page in comment_pages:
         raw = page.get("comments") if isinstance(page, dict) else None
         for entry in raw if isinstance(raw, list) else ():
-            if not isinstance(entry, dict) or str(entry.get("cid")) in comments:
+            if (
+                not isinstance(entry, dict)
+                or str(entry.get("cid")) in comments
+                or _sticker_only(entry.get("text"))
+            ):
                 continue
             likes = entry.get("digg_count")
             try:
@@ -314,7 +327,9 @@ async def _crop_comment_cards(page: Any, cards: list[tuple[str, bytes]]) -> None
         await page.locator(COMMENT_ICON_SELECTOR).first.click(timeout=5_000)
         if not await _wait_for(page, COMMENT_SELECTOR):
             return
-    for tag, text in (await page.evaluate(COMMENT_CARDS_JS))[:MAX_COMMENT_CARDS]:
+    tagged = await page.evaluate(COMMENT_CARDS_JS)
+    tagged = [(tag, text) for tag, text in tagged if not _sticker_only(text)]
+    for tag, text in tagged[:MAX_COMMENT_CARDS]:
         with contextlib.suppress(Exception):
             card = page.locator(f'[data-thoth-card="{tag}"]')
             await card.scroll_into_view_if_needed(timeout=5_000)

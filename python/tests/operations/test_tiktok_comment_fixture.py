@@ -83,15 +83,16 @@ def raw_capture() -> dict:
     return capture
 
 
-def test_raw_capture_exercises_matching_and_duplicates() -> None:
-    assert [item["card"] for item in raw_capture()["expected"]] == [0, None, 1, None]
+def test_raw_capture_exercises_matching_duplicates_and_stickers() -> None:
+    # The sticker-only comment is dropped by the reducer; its sanitized marker is kept.
+    assert [item["card"] for item in raw_capture()["expected"]] == [0, 1, None]
 
 
 def test_sanitized_capture_replays_like_the_raw_capture() -> None:
     raw = raw_capture()
     sanitized = sanitize_capture(raw)
     assert replay(sanitized) == sanitized["expected"]
-    assert [item["card"] for item in sanitized["expected"]] == [0, None, 1, None]
+    assert [item["card"] for item in sanitized["expected"]] == [0, 1, None]
     assert sanitized["card_stats"] == raw["card_stats"]
     assert sanitized["profile_card_stats"] == raw["profile_card_stats"]
 

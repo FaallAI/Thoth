@@ -15,6 +15,7 @@ from thoth_control_plane.acquisition.browser import (
     PROFILE_CARD_JS,
     HeadlessBrowserError,
     ScraplingHeadlessBrowser,
+    _crop_comment_cards,
     _extract_from_response,
     _unsigned_comment_url,
     active_scrapling_session_count,
@@ -497,6 +498,20 @@ def test_comment_pages_are_reduced_deduplicated_and_capped() -> None:
     assert len(capped.comments) == MAX_COMMENTS
 
 
+def test_sticker_only_comments_are_dropped_before_the_cap() -> None:
+    stickers = [_comment(str(20_000 + i), text) for i, text in enumerate(["[Sticker]", " [stiker] "])]
+    real = [_comment(str(10_000 + i), f"c{i}") for i in range(MAX_COMMENTS)]
+    snapshot = extract_browser_snapshot(
+        final_url=POST_URL,
+        og_title=None,
+        author="creator",
+        video_sources=["https://video.example/a.mp4"],
+        captured_xhr=[],
+        comment_pages=[{"comments": [*stickers, *real, _comment("30000", "[Sticker] lol")]}],
+    )
+    assert [c.text for c in snapshot.comments] == [f"c{i}" for i in range(MAX_COMMENTS)]
+
+
 class _CommentPage:
     def __init__(self, pages: list[object]) -> None:
         self._pages = pages
@@ -678,6 +693,20 @@ async def test_real_comment_and_profile_cards_are_cropped_without_leaking(monkey
     assert tab.visited == ["https://www.tiktok.com/@creator"] and tab.closed
     assert snapshot.profile_card_png == b"profile-png-1"
     assert "png" not in snapshot.model_dump_json()
+
+
+@pytest.mark.asyncio
+async def test_comment_cards_skip_sticker_only_and_stop_at_twelve() -> None:
+    class ManyCards(_CardPage):
+        async def evaluate(self, script: str, arg: object = None) -> object:
+            assert script == COMMENT_CARDS_JS
+            return [[0, "[Sticker]"], *[[i, f"text {i}"] for i in range(1, 20)]]
+
+    page = ManyCards(_ProfileTab([]))
+    page.dom_comments = 20
+    cards: list[tuple[str, bytes]] = []
+    await _crop_comment_cards(page, cards)
+    assert [text for text, _ in cards] == [f"text {i}" for i in range(1, 13)]
 
 
 @pytest.mark.asyncio

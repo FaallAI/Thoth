@@ -22,13 +22,14 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from thoth_control_plane.acquisition.browser import STICKER_ONLY
+
 ENTRY_KEYS = ("cid", "unique_id", "text", "digg_count")
 INVALID_ID = "invalid-id"
 INVALID_HANDLE = "invalid handle"
 ID_BASE = 7_000_000_000_000_000_000
 COMMENT_ID = re.compile(r"[0-9]{5,32}")
 HANDLE = re.compile(r"[A-Za-z0-9._-]{1,64}")
-STICKER = re.compile(r"\[\s*sti?c?ker\s*\]", re.IGNORECASE)
 STAT_KEYS = ("width", "height", "bytes")
 FILL_ALPHABET = string.ascii_lowercase + string.digits
 FILL_WIDTH = 3
@@ -86,7 +87,7 @@ class _Pseudonyms:
     def _core(self, core: str) -> str:
         if core in self._texts:
             return self._texts[core]
-        if not core or STICKER.fullmatch(core):
+        if not core or STICKER_ONLY.fullmatch(core):
             self._texts[core] = core
             return core
         used = set(self._texts.values())
