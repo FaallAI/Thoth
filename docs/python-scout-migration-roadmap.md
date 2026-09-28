@@ -146,8 +146,11 @@ At the end of this stage, normal TikTok inputs must run Python-only. The TypeScr
 Status (2026-09-27): items 1-7 are implemented. Items 1-4 run on the single-post acquisition
 path. Items 5-7 are delivered as offline-tested acquisition primitives with no production
 caller; discovery orchestration is Stage 8. Live pagination past the first scroll is not yet
-demonstrated and is an explicit item for the final live acceptance or Stage 8. Closing Stage 2
-is the operator's decision.
+demonstrated and is an explicit item for the final live acceptance or Stage 8.
+Closure hardening (2026-09-28) fixed the review risks and the deferred minor findings,
+de-identified the golden fixtures' counters and publication times, and settled the two
+deferred decisions: sticker-only comments are skipped and a post gets up to 12 comment
+cards. Closing Stage 2 is the operator's decision.
 
 ## Stage 3: Port the Remaining Platform Adapters
 

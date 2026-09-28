@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-09-28 - Stage 2 closure hardening
+
+- A bounded change the operator approved in chat, so there is no separate spec or plan. It
+  covers the review risks, the category gap, every deferred minor finding, and the two deferred
+  decisions.
+- `414b243`: the TikTok comment and discovery research note.
+- `7cdf62b`: sticker-only comments are dropped before the comment cap. A post now gets up to 12
+  comment cards instead of 10.
+- `4a379b2`: `acquisition/normalize.py` applies one int64 bound to counts and epochs, whether
+  they arrive as JSON numbers or as decimal strings.
+- `543d71b`: the models are tightened:
+  - `DiscoveryDrops` counters are non-negative.
+  - `published_at` must be ISO 8601 UTC on `DiscoveredVideo` and `TikTokPost`.
+  - `SearchQuery` strips whitespace before its length check.
+- `64f1de8`: ruff line-length and style fixes.
+- `5df5edb`: discovery reads a string `"0"` status as success and a non-2xx list response as
+  `blocked`. The scroll has a hard deadline, and the fetch options and the timeout check are
+  shared with `browser.py`. New tests cover:
+  - a 100-character hashtag;
+  - an emoji URL;
+  - a session exit that raises;
+  - the captcha flag resetting on retry.
+- `3f5c661`: the pseudonymizer also replaces stylized letters, meaning category So characters
+  with LETTER in their Unicode name. The golden guard rejects them, and the post-2 and post-3
+  comment fixtures were regenerated.
+- `c1a1f92`: discovery fixtures carry no real publication times or exact counters:
+  - `createTime` becomes a synthetic epoch on a one-hour grid.
+  - Counters keep two significant digits.
+  - `expected` is the replay of the sanitized pages, and the raw capture must replay to the same
+    shape.
+  - The leak check works per slot: ids and handles by whole value, long tokens by substring, and
+    short words in place.
+  - The three fixtures were regenerated with 0 leaks, and spec section 5 was amended.
+- Verification:
+  - WSL, Python 3.12: 2166 passed, 6 skipped, and 1 failed. The failure is the pre-existing
+    `test_route_modules_do_not_depend_on_a_process_runner`.
+  - ruff check and ruff format are clean.
+  - No Rust changed, so no `build_cuda.bat` run was needed.
+- Not pushed. Closing Stage 2 is the operator's decision.
+
 ## 2026-09-27 - Stage 2: TikTok discovery primitives and engagement normalization
 
 - Spec `docs/superpowers/specs/2026-09-27-tiktok-discovery-primitives-design.md`, plan
@@ -14,12 +54,15 @@ All notable changes to this project will be documented in this file.
   skipped, never guessed.
 - `96820b1`: the single-post path fills `TikTokPost.published_at` and `engagement` from the headless
   item and from TikWM. `_merge_post` merges them per field, headless first. No schema change.
-- `e62e56d`, `72c3e9a` (fixes `1df4b5f`): `acquisition/discovery.py` scrolls the ordinary profile, search, or explore
-  page in one stealthy headless session and parses the list responses the page itself makes. It
+- `e62e56d`, `72c3e9a` (fixes `1df4b5f`): `acquisition/discovery.py` scrolls the ordinary
+  profile, search, or explore page in one stealthy headless session and parses the list
+  responses the page itself makes. It
   never builds or signs a request. Captchas are avoided, never solved or blocked: a refusal
   returns a partial result with a typed reason.
-- `25634fd` (fixes `50a143c`, `6cc27b2`, `dbd07b1`), `3152431`: a sanitizer with built-in replay and leak checks, and golden fixtures from one
-  read-only anonymous capture: profile 2 pages / 27 videos, search 1 / 12, explore 2 / 13. Leak check 0 leaks. Raw captures stay outside the repository.
+- `25634fd` (fixes `50a143c`, `6cc27b2`, `dbd07b1`), `3152431`: a sanitizer with built-in
+  replay and leak checks, and golden fixtures from one read-only anonymous capture: profile
+  2 pages / 27 videos, search 1 / 12, explore 2 / 13. Leak check 0 leaks. Raw captures stay
+  outside the repository.
   - Text pseudonymization fills every non-whitespace character except `#`/`@`; the leak check
     tokenizes every raw string leaf outside the verbatim numeric slots and scans the fixture
     pages.
@@ -49,8 +92,8 @@ All notable changes to this project will be documented in this file.
 - `63fb911`: both success paths record comments and cards, including a TikWM rescue. Failure paths
   write no card files.
 - `21bfd4d`: a report persistence failure also removes the recorded card files.
-- `07c24fb`, `0d59349`: a deterministic sanitizer and golden fixtures from one live capture of 3 public
-  posts: 45/50/50 comments, 9/10/9 carded, profile cards 2/3. The fixtures replay
+- `07c24fb`, `0d59349`: a deterministic sanitizer and golden fixtures from one live capture of
+  3 public posts: 45/50/50 comments, 9/10/9 carded, profile cards 2/3. The fixtures replay
   the reducer exactly. The lowest real card density is 0.0804 B/px against the 0.02 floor.
   - This deviates from ADR 0001: the fixtures come from Python, not Scout. The operator approved
     this on 2026-09-27.
@@ -73,7 +116,8 @@ All notable changes to this project will be documented in this file.
     `test_route_modules_do_not_depend_on_a_process_runner`.
   - ruff check and ruff format are clean.
   - No Rust changed, so no `build_cuda.bat` run was needed.
-- Deferred for an operator decision: the sticker-only filter and the 10 vs 12 card cap.
+- Deferred for an operator decision: the sticker-only filter and the 10 vs 12 card cap. Both
+  were settled on 2026-09-28 (Stage 2 closure hardening).
 - Not pushed.
 
 ## 2026-09-27 - Headless TikTok comments and real card crops (branch `feat/tiktok-headless-comments`)
