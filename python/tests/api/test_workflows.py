@@ -52,6 +52,24 @@ async def test_cors_preflight_allows_configured_dashboard_origin(gateway) -> Non
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "url", ["https://m.facebook.com/story.php?id=1", "https://www.reddit.com/r/x/comments/abc/"]
+)
+async def test_unsupported_platform_is_rejected_before_any_workflow_starts(
+    client: httpx.AsyncClient, gateway, url: str
+) -> None:
+    response = await client.post(
+        "/api/v1/workflows",
+        headers={**AUTH_HEADERS, "Idempotency-Key": "create-unsupported"},
+        json={**VALID_REQUEST, "source": {**VALID_REQUEST["source"], "url": url}},
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": {"code": "unsupported_platform"}}
+    assert gateway.workflows == {}
+
+
+@pytest.mark.asyncio
 async def test_create_workflow_returns_accepted_v1_summary(client: httpx.AsyncClient) -> None:
     response = await client.post(
         "/api/v1/workflows",

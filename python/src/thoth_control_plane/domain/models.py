@@ -331,6 +331,9 @@ LEGACY_FALLBACK_ELIGIBLE_CODES = frozenset(
         "headless_timeout",
         "headless_blocked",
         "headless_incomplete",
+        "request_timeout",
+        "request_blocked",
+        "request_incomplete",
         "cdn_rate_limited",
         "cdn_unavailable",
         "media_validation_failed",
@@ -340,6 +343,9 @@ LEGACY_FALLBACK_ELIGIBLE_CODES = frozenset(
 
 Imported by the deterministic workflow (routing) and the soak contract
 (allowlist assertions) so the two cannot drift apart.
+
+Eligible code families: `headless_*`, `request_*`, `cdn_*`, and
+`media_validation_failed`.
 
 Membership means "a Python provider attempt was made and failed in a way legacy
 might still recover from". Pre-provider rejections are therefore excluded:

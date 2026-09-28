@@ -16,6 +16,7 @@ with workflow.unsafe.imports_passed_through():
 
     del annotated_types
 
+    from thoth_control_plane.acquisition.platforms import platform_support
     from thoth_control_plane.activities.legacy_scout import (
         LEGACY_ADAPTER_TASK_QUEUE,
         LegacyScoutInput,
@@ -41,6 +42,7 @@ with workflow.unsafe.imports_passed_through():
     from thoth_control_plane.domain.models import (
         LEGACY_FALLBACK_ELIGIBLE_CODES,
         LegacyScoutProgressEvent,
+        SafeActivityError,
         SourceProgressEvent,
         StageProgress,
         StageSummary,
@@ -211,13 +213,23 @@ class SourceInvestigationWorkflow:
         transition is recorded on `self._source_events` before awaiting the
         legacy activity, so a query can still retrieve the Python and
         transition evidence if the legacy activity itself raises.
+
+        Facebook and Reddit are refused in every mode before any activity
+        runs; a legacy-only platform in `python` mode is refused the same
+        way.
         """
+        support = platform_support(str(input_.source.display_url))
+        if support == "unsupported":
+            return SourceInvestigationActivityResult(
+                failure=SafeActivityError(code="unsupported_platform", retryable=False)
+            )
         if input_.activity_mode == "legacy_scout":
             return await self._execute_legacy_activity(input_)
-        if (
-            input_.activity_mode == "python_tiktok_with_legacy_fallback"
-            and input_.source.platform != "tiktok"
-        ):
+        if support == "legacy":
+            if input_.activity_mode == "python":
+                return SourceInvestigationActivityResult(
+                    failure=SafeActivityError(code="unsupported_platform", retryable=False)
+                )
             return await self._execute_legacy_activity(input_)
         result = await self._execute_python_activity(input_)
         if (

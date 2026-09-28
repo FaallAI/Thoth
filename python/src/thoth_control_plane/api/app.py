@@ -30,6 +30,7 @@ from thoth_control_plane.application import (
     ArtifactNotFound,
     IdempotencyConflict,
     UnavailableWorkflowGateway,
+    UnsupportedPlatform,
     WorkflowGateway,
     WorkflowNotFound,
     WorkflowNotReady,
@@ -304,6 +305,13 @@ def create_app(
             mapped_status: int = status_code,
         ) -> JSONResponse:
             return JSONResponse(status_code=mapped_status, content={"detail": str(exc)})
+
+    @app.exception_handler(UnsupportedPlatform)
+    async def unsupported_platform_handler(request: Request, exc: Exception) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={"detail": {"code": "unsupported_platform"}},
+        )
 
     # A required Idempotency-Key header is part of the OpenAPI contract (so
     # generated clients cannot omit it), but FastAPI's own missing-header error

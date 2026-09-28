@@ -3,6 +3,7 @@
 from asyncio import Lock
 from collections.abc import AsyncIterator
 
+from thoth_control_plane.acquisition.platforms import platform_support
 from thoth_control_plane.application.ports import ApprovalSubmission, WorkflowGateway
 from thoth_control_plane.domain import (
     Actor,
@@ -27,6 +28,12 @@ class IdempotencyConflict(WorkflowApplicationError):
     """An idempotency key was reused for a different request body."""
 
     default_detail = "Idempotency key was already used for a different request"
+
+
+class UnsupportedPlatform(WorkflowApplicationError):
+    """The source URL belongs to a platform Thoth refuses in every mode."""
+
+    default_detail = "unsupported_platform"
 
 
 class WorkflowNotReady(WorkflowApplicationError):
@@ -119,6 +126,8 @@ class WorkflowService:
         actor: Actor,
         idempotency_key: str,
     ) -> WorkflowSummary:
+        if platform_support(str(request.source.url)) == "unsupported":
+            raise UnsupportedPlatform
         cache_key = (actor.actor_type, actor.actor_id, idempotency_key)
         fingerprint = request.model_dump_json()
         lock = self._start_locks.setdefault(cache_key, Lock())

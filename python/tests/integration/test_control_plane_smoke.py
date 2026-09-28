@@ -44,7 +44,7 @@ def _offline_successful_runner():
 
 VALID_PRODUCE_REQUEST = {
     "source": {
-        "url": "https://example.com/source/ready",
+        "url": "https://www.tiktok.com/@ready/video/1000000001",
         "intent": "produce_video",
     },
     "style": {"preset_id": "news-vertical"},
@@ -94,7 +94,7 @@ async def test_source_workflow_survives_restart_and_never_uses_a_cli_route(
         {
             **VALID_PRODUCE_REQUEST,
             "source": {
-                "url": "https://example.com/source/retryable-failure",
+                "url": "https://www.tiktok.com/@retryable-failure/video/1000000002",
                 "intent": "identify_original",
             },
         },
@@ -109,7 +109,7 @@ async def test_source_workflow_survives_restart_and_never_uses_a_cli_route(
         {
             **VALID_PRODUCE_REQUEST,
             "source": {
-                "url": "https://example.com/source/block-until-cancelled",
+                "url": "https://www.tiktok.com/@block-until-cancelled/video/1000000003",
                 "intent": "identify_original",
             },
         },

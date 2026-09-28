@@ -52,7 +52,7 @@ from thoth_control_plane.workflows.source_investigation import SourceInvestigati
 VALID_IDENTIFY_REQUEST = WorkflowRequest.model_validate(
     {
         "source": {
-            "url": "https://example.test/post?signature=must-not-leak",
+            "url": "https://www.tiktok.com/@creator/video/1234567890?signature=must-not-leak",
             "intent": "identify_original",
         },
         "style": {"preset_id": "news-vertical"},
@@ -930,6 +930,13 @@ async def counted_python_success(input_: SourceInvestigationActivityInput):
     return await fake_inspect(input_)
 
 
+@activity.defn(name="inspect_source_candidates")
+async def request_blocked_python_failure(input_: SourceInvestigationActivityInput):
+    global PYTHON_CALLS
+    PYTHON_CALLS += 1
+    return SourceInvestigationActivityResult(failure={"code": "request_blocked", "retryable": True})
+
+
 async def run_routing_case(workflow_env, *, source_url: str, mode: str, python_activity):
     global PYTHON_CALLS, LEGACY_CALLS
     PYTHON_CALLS = 0
@@ -1071,6 +1078,78 @@ async def run_routing_case(workflow_env, *, source_url: str, mode: str, python_a
             None,
             0,
             1,
+        ),
+        (
+            "https://m.facebook.com/story.php?id=1",
+            "python_tiktok_with_legacy_fallback",
+            counted_python_success,
+            "failed",
+            "unsupported_platform",
+            0,
+            0,
+        ),
+        (
+            "https://m.facebook.com/story.php?id=1",
+            "python",
+            counted_python_success,
+            "failed",
+            "unsupported_platform",
+            0,
+            0,
+        ),
+        (
+            "https://m.facebook.com/story.php?id=1",
+            "legacy_scout",
+            counted_python_success,
+            "failed",
+            "unsupported_platform",
+            0,
+            0,
+        ),
+        (
+            "https://www.reddit.com/r/x/comments/abc/",
+            "python_tiktok_with_legacy_fallback",
+            counted_python_success,
+            "failed",
+            "unsupported_platform",
+            0,
+            0,
+        ),
+        (
+            "https://www.threads.com/@user_001/post/code_001",
+            "python_tiktok_with_legacy_fallback",
+            counted_python_success,
+            "succeeded",
+            None,
+            1,
+            0,
+        ),
+        (
+            "https://www.threads.com/@user_001/post/code_001",
+            "python_tiktok_with_legacy_fallback",
+            request_blocked_python_failure,
+            "succeeded",
+            None,
+            1,
+            1,
+        ),
+        (
+            "https://www.instagram.com/p/abc/",
+            "python_tiktok_with_legacy_fallback",
+            counted_python_success,
+            "succeeded",
+            None,
+            0,
+            1,
+        ),
+        (
+            "https://www.instagram.com/p/abc/",
+            "python",
+            counted_python_success,
+            "failed",
+            "unsupported_platform",
+            0,
+            0,
         ),
     ],
 )
