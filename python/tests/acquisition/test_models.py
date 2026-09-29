@@ -453,6 +453,13 @@ def test_v3_accepts_ordered_images() -> None:
     assert [item.index for item in report.media] == [1, 2]
 
 
+def test_v3_report_accepts_an_instagram_source() -> None:
+    report = _v3(
+        source={"platform": "instagram", "canonical_url": "https://www.instagram.com/p/code_001/"}
+    )
+    assert report.source.platform == "instagram"
+
+
 def test_v3_rejects_a_post_with_neither_text_nor_media() -> None:
     with pytest.raises(ValidationError):
         _v3(post={"post_id": "code_001", "owner_handle": "user_001", "text": "  \n "})

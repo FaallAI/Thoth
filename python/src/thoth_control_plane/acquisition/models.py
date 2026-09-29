@@ -206,7 +206,7 @@ class SourcePost(StrictModel):
 
 
 class ReportSource(StrictModel):
-    platform: Literal["tiktok", "threads"]
+    platform: Literal["tiktok", "threads", "instagram"]
     canonical_url: HttpUrl
 
 

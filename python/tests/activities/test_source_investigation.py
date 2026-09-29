@@ -652,7 +652,7 @@ async def test_unknown_platform_never_enters_the_runner(tmp_path: Path) -> None:
 
     activity_fn = build_source_investigation_activity(_settings(tmp_path), runner=runner)
     result = await activity_fn(
-        INPUT.model_copy(update={"canonical_source_url": "https://www.instagram.com/p/abc/"})
+        INPUT.model_copy(update={"canonical_source_url": "https://x.com/a/status/1"})
     )
 
     assert result.failure == SafeActivityError(code="unsupported_platform", retryable=False)

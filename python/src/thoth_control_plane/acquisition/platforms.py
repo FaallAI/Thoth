@@ -12,6 +12,7 @@ from urllib.parse import urlsplit
 PYTHON_PLATFORM_HOSTS: dict[str, frozenset[str]] = {
     "tiktok": frozenset({"tiktok.com", "vm.tiktok.com", "vt.tiktok.com"}),
     "threads": frozenset({"threads.net", "threads.com"}),
+    "instagram": frozenset({"instagram.com"}),
 }
 # Rejected in every mode by operator decision; never routed to legacy Scout.
 UNSUPPORTED_DOMAINS = ("facebook.com", "fb.com", "fb.watch", "reddit.com", "redd.it")
