@@ -52,25 +52,30 @@ class ThreadsParse(StrictModel):
     media: list[ResolvedMedia]
 
 
-def _match_safe_path(url: str, pattern: re.Pattern[str]) -> re.Match[str]:
-    """Match `pattern` against the path of a safe https Threads URL, or raise."""
+def _match_safe_path(
+    url: str,
+    pattern: re.Pattern[str],
+    platform: str = "threads",
+    error: type[ValueError] = ThreadsUrlError,
+) -> re.Match[str]:
+    """Match `pattern` against the path of a safe https URL on `platform`'s hosts, or raise."""
     try:
         parsed = urlsplit(url)
         host = (parsed.hostname or "").lower()
         port = parsed.port
     except ValueError:
         # The bare ValueError embeds the raw offending substring; never chain it.
-        raise ThreadsUrlError("invalid_source_url") from None
+        raise error("invalid_source_url") from None
     match = pattern.fullmatch(parsed.path)
     if (
         parsed.scheme != "https"
-        or bare_host(host) not in PYTHON_PLATFORM_HOSTS["threads"]
+        or bare_host(host) not in PYTHON_PLATFORM_HOSTS[platform]
         or parsed.username is not None
         or parsed.password is not None
         or port not in {None, 443}
         or match is None
     ):
-        raise ThreadsUrlError("invalid_source_url")
+        raise error("invalid_source_url")
     return match
 
 
@@ -130,9 +135,8 @@ def _video_url(item: dict[str, Any]) -> str | None:
     return None
 
 
-def _largest_image_url(item: dict[str, Any]) -> str | None:
-    container = item.get("image_versions2")
-    candidates = container.get("candidates") if isinstance(container, dict) else None
+def _widest(candidates: object) -> str | None:
+    """The https URL of the largest-area candidate; the first one wins a tie."""
     best: tuple[int, str] | None = None
     for candidate in candidates if isinstance(candidates, list) else []:
         if not isinstance(candidate, dict) or (url := _https(candidate.get("url"))) is None:
@@ -141,6 +145,11 @@ def _largest_image_url(item: dict[str, Any]) -> str | None:
         if best is None or area > best[0]:
             best = (area, url)
     return best[1] if best else None
+
+
+def _largest_image_url(item: dict[str, Any]) -> str | None:
+    container = item.get("image_versions2")
+    return _widest(container.get("candidates") if isinstance(container, dict) else None)
 
 
 def _media_of(node: dict[str, Any]) -> list[ResolvedMedia]:
