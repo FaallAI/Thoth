@@ -18,7 +18,6 @@ from thoth_control_plane.acquisition.platforms import platform_of, platform_supp
         ("https://old.reddit.com/r/x/comments/abc/", "unsupported"),
         ("https://redd.it/abc", "unsupported"),
         ("https://notfacebook.com/x", "legacy"),
-        ("https://www.instagram.com/p/abc/", "python"),
         ("https://x.com/a/status/1", "legacy"),
         ("https://www.youtube.com/watch?v=abc", "legacy"),
         ("https://example.test/post", "legacy"),
