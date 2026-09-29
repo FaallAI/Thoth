@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -134,12 +135,14 @@ def _crop_post_card(cards: list[bytes]) -> Callable[[Any], Awaitable[None]]:
     return crop
 
 
-def _await_post_url(landing: list[str]) -> Callable[[Any], Awaitable[None]]:
+def _await_post_url(
+    landing: list[str], path: re.Pattern[str] = POST_PATH
+) -> Callable[[Any], Awaitable[None]]:
     async def wait(page: Any) -> None:
         # A share link redirects client-side; record wherever the page ends up.
         with contextlib.suppress(Exception):
             await page.wait_for_url(
-                lambda url: POST_PATH.fullmatch(urlsplit(url).path) is not None,
+                lambda url: path.fullmatch(urlsplit(url).path) is not None,
                 timeout=SHARE_RESOLVE_TIMEOUT_MS,
             )
         landing.append(page.url)
