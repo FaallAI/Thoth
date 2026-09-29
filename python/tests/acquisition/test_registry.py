@@ -5,6 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
+from thoth_control_plane.acquisition.instagram_service import InstagramAcquirer
 from thoth_control_plane.acquisition.materializer import (
     MediaMaterializer,
     resolve_host_via_getaddrinfo,
@@ -28,3 +29,7 @@ async def test_acquirer_for_routes_tiktok_and_refuses_legacy_hosts() -> None:
             "https://www.threads.net/@a/post/B", client=client, materializer=materializer
         )
         assert isinstance(threads, ThreadsAcquirer)
+        instagram = acquirer_for(
+            "https://www.instagram.com/p/code_001/", client=client, materializer=materializer
+        )
+        assert isinstance(instagram, InstagramAcquirer)

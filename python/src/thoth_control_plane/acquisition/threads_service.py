@@ -53,6 +53,7 @@ from thoth_control_plane.acquisition.models import (
     CardArtifact,
     MaterializedMedia,
     ReportSource,
+    ResolvedMedia,
     SourceReport,
 )
 from thoth_control_plane.acquisition.service import (
@@ -249,6 +250,38 @@ def _persist_post_card(
         return None
 
 
+async def materialize_media(
+    materializer: MediaMaterializer,
+    media: list[ResolvedMedia],
+    name: str,
+    workflow_id: str,
+    strategy: AcquisitionStrategy,
+    artifact_root: Path,
+) -> list[MaterializedMedia]:
+    """Materialize `media` in order as `<name>-<index>`; a failure removes what this wrote."""
+    done: list[MaterializedMedia] = []
+    try:
+        for index, candidate in enumerate(media[:MAX_MEDIA_ITEMS], start=1):
+            location = PurePosixPath("reports") / workflow_id / "media" / f"{name}-{index}"
+            done.append(
+                await materializer.materialize(
+                    candidate,
+                    artifact_root / location,
+                    location,
+                    strategy,
+                    media_id=f"media_{index}",
+                    index=index,
+                )
+            )
+    except BaseException:
+        # A partial carousel is never reported; remove what this call wrote.
+        for item in done:
+            with contextlib.suppress(OSError):
+                (artifact_root / item.location).unlink(missing_ok=True)
+        raise
+    return done
+
+
 class ThreadsAcquirer:
     """One Threads post: content by `CONTENT_METHOD`, media in order, a card for non-video."""
 
@@ -286,40 +319,6 @@ class ThreadsAcquirer:
         except HeadlessBrowserError:
             return None
 
-    async def _materialize_all(
-        self,
-        parsed: ThreadsParse,
-        workflow_id: str,
-        strategy: AcquisitionStrategy,
-        artifact_root: Path,
-    ) -> list[MaterializedMedia]:
-        done: list[MaterializedMedia] = []
-        try:
-            for index, candidate in enumerate(parsed.media[:MAX_MEDIA_ITEMS], start=1):
-                location = (
-                    PurePosixPath("reports")
-                    / workflow_id
-                    / "media"
-                    / f"threads-{parsed.post.post_id}-{index}"
-                )
-                done.append(
-                    await self._materializer.materialize(
-                        candidate,
-                        artifact_root / location,
-                        location,
-                        strategy,
-                        media_id=f"media_{index}",
-                        index=index,
-                    )
-                )
-        except BaseException:
-            # A partial carousel is never reported; remove what this call wrote.
-            for item in done:
-                with contextlib.suppress(OSError):
-                    (artifact_root / item.location).unlink(missing_ok=True)
-            raise
-        return done
-
     async def inspect(
         self, *, workflow_id: str, source_url: str, artifact_root: Path
     ) -> AcquisitionResult:
@@ -350,8 +349,13 @@ class ThreadsAcquirer:
             media: list[MaterializedMedia] = []
             if parsed is not None:
                 try:
-                    media = await self._materialize_all(
-                        parsed, workflow_id, strategy, artifact_root
+                    media = await materialize_media(
+                        self._materializer,
+                        parsed.media,
+                        f"threads-{parsed.post.post_id}",
+                        workflow_id,
+                        strategy,
+                        artifact_root,
                     )
                 except MediaMaterializationError:
                     reason = AcquisitionReason.MEDIA_VALIDATION_FAILED

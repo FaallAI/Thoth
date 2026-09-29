@@ -9,6 +9,11 @@ import httpx
 
 from thoth_control_plane.acquisition.adapters.tikwm import TikWmResolver
 from thoth_control_plane.acquisition.browser import ScraplingHeadlessBrowser
+from thoth_control_plane.acquisition.instagram_service import (
+    InstagramAcquirer,
+    InstagramHeadlessBrowser,
+    InstagramRequestFetcher,
+)
 from thoth_control_plane.acquisition.materializer import MediaMaterializer
 from thoth_control_plane.acquisition.models import AcquisitionResult
 from thoth_control_plane.acquisition.platforms import platform_of
@@ -38,4 +43,8 @@ def acquirer_for(
         )
     if platform == "threads":
         return ThreadsAcquirer(ThreadsRequestFetcher(), ThreadsHeadlessBrowser(), materializer)
+    if platform == "instagram":
+        return InstagramAcquirer(
+            InstagramRequestFetcher(), InstagramHeadlessBrowser(), materializer
+        )
     raise LookupError("no python acquirer for this platform")
