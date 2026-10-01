@@ -1,4 +1,5 @@
-import { useEffect, useId, useMemo, useReducer, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useId, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { ArrowLeft, Feather, Pencil, SlidersHorizontal } from "lucide-react";
 
 import type { ControlPlaneClient, EditDocument, EditDocumentOperation, EditorAsset } from "@/api/control-plane";
 import type { PreviewSources } from "./AdvancedTimelineComposition";
@@ -20,6 +21,7 @@ import { PromptLab, type PromptLabClient } from "./PromptLab";
 import { RenderPanel, type RenderPanelClient } from "./RenderPanel";
 import { SceneAudioInspector } from "./SceneAudioInspector";
 import { SceneBoard } from "./SceneBoard";
+import { SceneMediaInspector } from "./SceneMediaInspector";
 import { Timeline } from "./Timeline";
 import { TimelineInspector } from "./TimelineInspector";
 import {
@@ -61,6 +63,9 @@ type Props = {
     >;
   projectId: string;
   documentId: string;
+  documentTitle?: string;
+  projectName?: string;
+  workspaceControls?: ReactNode;
   onBack: () => void;
   /** Reopen the source inventory of a draft opened from a Content Set. */
   onResolveImports?: () => void;
@@ -69,7 +74,7 @@ type Props = {
 const toolbarButton =
   "rounded-md border border-border px-3 py-1.5 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
 
-function Editor({ client, projectId, documentId, onBack, onResolveImports, document }: Props & { document: EditDocument }) {
+function Editor({ client, projectId, documentId, documentTitle, projectName, workspaceControls, onBack, onResolveImports, document }: Props & { document: EditDocument }) {
   const [state, dispatch] = useReducer(editorReducer, document, createEditorState);
   // The job is the destination at every width; compact screens also pick one
   // Edit pane at a time.
@@ -87,7 +92,7 @@ function Editor({ client, projectId, documentId, onBack, onResolveImports, docum
   const sceneWidthId = useId();
   const inspectorWidthId = useId();
   const [sceneBoardWidth, setSceneBoardWidth] = useState(14);
-  const [inspectorWidth, setInspectorWidth] = useState(19);
+  const [inspectorWidth, setInspectorWidth] = useState(22.25);
   const selectedScene = state.draft.scenes.find((scene) => scene.scene_id === state.selectedSceneId);
   const timeline = isTimelineDocument(state.draft) ? state.draft : undefined;
   // Both modes project the same draft; only version 2 can show the advanced one.
@@ -117,13 +122,13 @@ function Editor({ client, projectId, documentId, onBack, onResolveImports, docum
   const upgrading = state.upgradeStatus === "running";
   const editing = job === "edit";
   // Simple desktop editing lays the scenes out as a strip under the preview.
-  const stripLayout = !compact && !advanced;
+  const stripLayout = editing && !compact && !advanced;
   const workstationStyle = compact
     ? undefined
     : ({
         "--scene-board-width": `${sceneBoardWidth}rem`,
         "--inspector-width": `${inspectorWidth}rem`,
-        gridTemplateRows: stripLayout ? "minmax(0,1fr) auto" : undefined,
+        gridTemplateRows: stripLayout ? "minmax(0,1fr) 228px" : undefined,
         gridTemplateColumns: [
           editing && sceneRegionOpen && !stripLayout && "var(--scene-board-width)",
           "minmax(0,1fr)",
@@ -343,22 +348,61 @@ function Editor({ client, projectId, documentId, onBack, onResolveImports, docum
   };
 
   return (
-    <section className="studio-shell flex min-h-0 flex-1 flex-col bg-background text-foreground" aria-label="Guided Studio">
-      <header className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-2">
+    <section className={`studio-shell pen-studio studio-job-${job} ${advanced ? "studio-advanced" : "studio-simple"} flex min-h-0 flex-1 flex-col bg-background text-foreground`} aria-label="Guided Studio">
+      <header className="studio-topbar flex flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-2">
         <button
           type="button"
-          className={toolbarButton}
+          className={`studio-back ${toolbarButton}`}
           onClick={onBack}
           disabled={backDisabled}
           aria-describedby={backDisabled ? backDescriptionId : undefined}
         >
-          Back
+          <ArrowLeft size={15} /> Back
         </button>
         <span id={backDescriptionId} className="sr-only">
           Back is available after changes are saved and Studio is online.
         </span>
+        <Feather className="studio-brand-icon" size={22} />
+        <strong className="studio-brand">Thoth</strong>
+        <span className="studio-title">Creator Studio</span>
+        <span className="studio-document-title" title={documentTitle ?? documentId}>{documentTitle ?? documentId}</span>
+        <button type="button" className="studio-rename" aria-label="Rename document unavailable" title="Document renaming is not available in this session." disabled><Pencil size={14} /></button>
         <StudioJobNav selected={job} onSelect={selectJob} />
-        <div className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+
+        {!compact && timeline ? (
+          <div role="group" aria-label="Editor mode" id={modeGroupId} className="studio-mode-switch flex gap-1">
+            {(["simple", "advanced"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                className={`${toolbarButton} ${state.mode === mode ? "bg-accent" : ""}`}
+                aria-pressed={state.mode === mode}
+                onClick={() => dispatch({ type: "set_editor_mode", mode })}
+              >
+                {mode === "simple" ? "Simple" : "Advanced"}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {!compact && !timeline ? <div className="studio-mode-switch" role="group" aria-label="Editor mode"><button type="button" aria-pressed="true">Simple</button><button type="button" disabled title="Enable the advanced timeline in Workspace controls to use this mode.">Advanced</button></div> : null}
+        {compact && ((timeline && state.mode === "advanced") || (!timeline && client.upgradeEditDocument)) ? (
+          <p className="text-xs text-muted-foreground">
+            {timeline
+              ? "Advanced timeline editing needs a desktop-width screen. Your Advanced workspace returns on a wider screen."
+              : "Enabling the advanced timeline needs a desktop-width screen."}
+          </p>
+        ) : null}
+        <div className="studio-save-status flex min-w-0 flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
+          {/* The document's own project, which the global project switcher may no longer show. */}
+          <span aria-live="polite">{statusLabel[state.saveStatus]}</span><span aria-hidden="true"> · rev {base.revision}</span>
+          <span className="sr-only">Saved revision {base.revision}</span>
+        </div>
+        <details className="studio-avatar-menu">
+          <summary className="studio-avatar" aria-label="Studio workspace menu">MF</summary>
+          <div className="studio-avatar-popover"><span>Project {projectName ?? base.project_id}</span>{workspaceControls ?? <p>Workspace switching is unavailable in this session.</p>}
+        <details className="studio-workspace-controls">
+        <summary aria-label="Workspace controls"><SlidersHorizontal size={16} /></summary>
+        <div className="studio-workspace-menu">
         <button
           type="button"
           className={toolbarButton}
@@ -394,90 +438,20 @@ function Editor({ client, projectId, documentId, onBack, onResolveImports, docum
             </span>
           </>
         ) : null}
-        {!compact && timeline ? (
-          <div role="group" aria-label="Editor mode" id={modeGroupId} className="flex gap-1">
-            {(["simple", "advanced"] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                className={`${toolbarButton} ${state.mode === mode ? "bg-accent" : ""}`}
-                aria-pressed={state.mode === mode}
-                onClick={() => dispatch({ type: "set_editor_mode", mode })}
-              >
-                {mode === "simple" ? "Simple" : "Advanced"}
-              </button>
-            ))}
-          </div>
-        ) : null}
-        {compact && ((timeline && state.mode === "advanced") || (!timeline && client.upgradeEditDocument)) ? (
-          <p className="text-xs text-muted-foreground">
-            {timeline
-              ? "Advanced timeline editing needs a desktop-width screen. Your Advanced workspace returns on a wider screen."
-              : "Enabling the advanced timeline needs a desktop-width screen."}
-          </p>
-        ) : null}
         {compact || !editing ? null : (
           <div className="flex flex-wrap items-center gap-3 px-2 text-xs text-muted-foreground" aria-label="Workspace layout">
-            {collapsible ? (
-              <button
-                type="button"
-                className={toolbarButton}
-                aria-expanded={sceneBoardOpen}
-                aria-controls="studio-region-scenes"
-                onClick={() => setSceneBoardOpen((open) => !open)}
-              >
-                Scene board panel
-              </button>
-            ) : null}
-            {sceneRegionOpen && !stripLayout ? (
-              <>
-                <label htmlFor={sceneWidthId}>Scene board width</label>
-                <input
-                  id={sceneWidthId}
-                  type="range"
-                  min={12}
-                  max={22}
-                  step={1}
-                  value={sceneBoardWidth}
-                  onChange={(event) => setSceneBoardWidth(event.target.valueAsNumber)}
-                  className="h-2 w-24 accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-              </>
-            ) : null}
-            {collapsible ? (
-              <button
-                type="button"
-                className={toolbarButton}
-                aria-expanded={inspectorOpen}
-                aria-controls="studio-region-inspector"
-                onClick={() => setInspectorOpen((open) => !open)}
-              >
-                Inspector panel
-              </button>
-            ) : null}
-            {inspectorRegionOpen ? (
-              <>
-                <label htmlFor={inspectorWidthId}>Inspector width</label>
-                <input
-                  id={inspectorWidthId}
-                  type="range"
-                  min={16}
-                  max={28}
-                  step={1}
-                  value={inspectorWidth}
-                  onChange={(event) => setInspectorWidth(event.target.valueAsNumber)}
-                  className="h-2 w-24 accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-              </>
-            ) : null}
+            {collapsible ? <>
+              <button type="button" className={toolbarButton} aria-expanded={sceneBoardOpen} aria-controls="studio-region-scenes" onClick={() => setSceneBoardOpen((open) => !open)}>Scene board panel</button>
+              <button type="button" className={toolbarButton} aria-expanded={inspectorOpen} aria-controls="studio-region-inspector" onClick={() => setInspectorOpen((open) => !open)}>Inspector panel</button>
+            </> : null}
+            {sceneRegionOpen && !stripLayout ? <><label htmlFor={sceneWidthId}>Scene board width</label><input id={sceneWidthId} type="range" min={12} max={22} step={1} value={sceneBoardWidth} onChange={(event) => setSceneBoardWidth(event.target.valueAsNumber)} /></> : null}
+            {inspectorRegionOpen ? <><label htmlFor={inspectorWidthId}>Inspector width</label><input id={inspectorWidthId} type="range" min={16} max={28} step={0.25} value={inspectorWidth} onChange={(event) => setInspectorWidth(event.target.valueAsNumber)} /></> : null}
           </div>
         )}
-        <div className="ml-auto flex min-w-0 flex-wrap items-center gap-x-3 font-mono text-xs text-muted-foreground">
-          {/* The document's own project, which the global project switcher may no longer show. */}
-          <span className="break-all">Project {base.project_id}</span>
-          <span>Saved revision {base.revision}</span>
-          <span aria-live="polite">{statusLabel[state.saveStatus]}</span>
         </div>
+        </details>
+</div>
+        </details>
       </header>
 
       {state.upgradeStatus === "failed" && (
@@ -539,7 +513,7 @@ function Editor({ client, projectId, documentId, onBack, onResolveImports, docum
         >
           <div
             id="studio-region-scenes"
-            className={stripLayout ? "col-start-1 row-start-2 min-w-0" : "contents"}
+            className={stripLayout ? "col-span-2 col-start-1 row-start-2 min-w-0" : "contents"}
             hidden={!editing || (compact ? editPane !== "scenes" : !sceneRegionOpen)}
           >
             {advanced ? (
@@ -570,6 +544,9 @@ function Editor({ client, projectId, documentId, onBack, onResolveImports, docum
                     : undefined
                 }
                 moveDisabled={upgrading}
+                onPreview={player.play}
+                previewDisabled={saveStatus !== "saved"}
+                onAdvanced={() => { if (timeline) dispatch({ type: "set_editor_mode", mode: "advanced" }); else upgradeDocument(); }}
               />
             )}
           </div>
@@ -583,7 +560,7 @@ function Editor({ client, projectId, documentId, onBack, onResolveImports, docum
             }`}
           >
             {reviewing ? (
-              <p className="text-sm text-muted-foreground">Reviewing saved revision {base.revision}</p>
+              <header className="studio-review-preview-header"><div><h2>Review video</h2><p>Reviewing saved revision {base.revision}</p></div><span>Read-only preview</span></header>
             ) : null}
             <StudioPreview
               // Review shows what was saved; Edit shows the draft.
@@ -620,7 +597,7 @@ function Editor({ client, projectId, documentId, onBack, onResolveImports, docum
             ) : null}
             {reviewClient ? (
               // Beside the one shared preview; other jobs hide it without unmounting unsent text.
-              <div hidden={!reviewing} className={compact ? undefined : "max-h-[40%] shrink-0 overflow-y-auto"}>
+              <div hidden={!reviewing} className="studio-review-panel-region">
                 <StudioReviewPanel
                   client={reviewClient}
                   projectId={projectId}
@@ -639,6 +616,7 @@ function Editor({ client, projectId, documentId, onBack, onResolveImports, docum
                 Review is not available in this Studio session. Your draft is unaffected.
               </p>
             )}
+            {reviewing ? <p className="studio-review-preview-footer">Comments may be pinned to the current frame. Decisions apply to the saved revision.</p> : null}
           </main>
           <div
             id="studio-region-inspector"
@@ -655,13 +633,15 @@ function Editor({ client, projectId, documentId, onBack, onResolveImports, docum
             ) : (
               // One grid cell: the caption editor stacks under the copy inspector.
               <div
-                className={`flex min-h-0 flex-col overflow-auto ${stripLayout ? "col-start-2 row-span-2 row-start-1" : ""}`}
+                className={`studio-simple-inspector flex min-h-0 flex-col overflow-auto ${stripLayout ? "col-start-2 row-start-1" : ""}`}
               >
                 <Inspector
                   scene={selectedScene}
                   clip={selectedClip}
                   fps={state.draft.canvas.fps}
                   disabled={upgrading}
+                  sceneIndex={state.draft.scenes.findIndex((scene) => scene.scene_id === state.selectedSceneId)}
+                  sceneCount={state.draft.scenes.length}
                   textOnly={viewport === "phone"}
                   onTextChange={(clipId, field, value) =>
                     dispatch({ type: "edit_text", clipId, field, value, operationId: makeOperationId() })
@@ -672,15 +652,13 @@ function Editor({ client, projectId, documentId, onBack, onResolveImports, docum
                   onDurationChange={(sceneId, durationInFrames) =>
                     dispatch({ type: "edit_duration", sceneId, durationInFrames, operationId: makeOperationId() })
                   }
-                />
+                >
+                  <SceneMediaInspector document={state.draft} sceneId={state.selectedSceneId} />
+                  {timeline && viewport !== "phone" ? <CaptionTextInspector document={timeline} selectedSceneId={state.selectedSceneId} disabled={upgrading} compact onOperation={(operation) => dispatch({ type: "commit_timeline_operation", operation })} /> : <section className="studio-caption-summary" aria-label="Captions"><h3>Captions</h3><p>No editable captions in this document.</p><button className="studio-style-trigger" type="button" disabled>Caption style unavailable</button></section>}
+                </Inspector>
                 {timeline && viewport !== "phone" ? (
                   <>
-                    <CaptionTextInspector
-                      document={timeline}
-                      selectedSceneId={state.selectedSceneId}
-                      disabled={upgrading}
-                      onOperation={(operation) => dispatch({ type: "commit_timeline_operation", operation })}
-                    />
+                    <details className="studio-audio-settings"><summary>Scene audio</summary>
                     <SceneAudioInspector
                       document={timeline}
                       selectedSceneId={state.selectedSceneId}
@@ -689,6 +667,7 @@ function Editor({ client, projectId, documentId, onBack, onResolveImports, docum
                       disabled={upgrading}
                       onOperation={commitSceneOperation}
                     />
+                    </details>
                   </>
                 ) : null}
               </div>
@@ -704,6 +683,8 @@ function Editor({ client, projectId, documentId, onBack, onResolveImports, docum
               // The saved revision, never the draft: an unsaved or conflicted
               // document cannot be rendered, and the panel's gate explains why.
               documentRevision={base.revision}
+              documentTitle={documentTitle}
+              canvas={base.canvas}
               // The template the saved document carries, not one the UI assumes.
               templateId={base.template.template_id}
               templateVersion={base.template.version}

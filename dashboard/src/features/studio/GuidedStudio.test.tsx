@@ -556,7 +556,7 @@ test("offers labelled Simple and Advanced modes for a version 2 document", async
   expect(screen.queryByLabelText("Asset library")).toBeNull();
 });
 
-test("hides the mode control for a version 1 document", async () => {
+test("retains the design mode control with an unavailable Advanced choice for a version 1 document", async () => {
   const { GuidedStudio } = await import("./GuidedStudio");
   render(
     <GuidedStudio
@@ -572,7 +572,8 @@ test("hides the mode control for a version 1 document", async () => {
   );
 
   await screen.findByLabelText("Heading");
-  expect(screen.queryByLabelText("Editor mode")).toBeNull();
+  expect(screen.getByLabelText("Editor mode")).toBeDefined();
+  expect(screen.getByRole("button", { name: /^Advanced$/ }).hasAttribute("disabled")).toBe(true);
 });
 
 test("edits a version 2 text clip from Simple mode through the existing operations", async () => {
@@ -1111,6 +1112,8 @@ test("captions and scene audio added in Simple mode persist in one autosave", as
     />,
   );
   fireEvent.click(await screen.findByRole("button", { name: "Simple" }));
+  fireEvent.click(screen.getByText("Scene audio", { selector: "summary" }));
+  fireEvent.click(screen.getByText("Edit captions and timing", { selector: "summary" }));
   const addAudio = await screen.findByRole("button", { name: "Add audio to scene" });
 
   fireEvent.change(screen.getByLabelText("New caption"), { target: { value: "Hello" } });

@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { Check, ChevronRight, Palette, X } from "lucide-react";
 
 import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane";
 import { applyTimelineOperation, CAPTION_STYLE_LABELS, compatibleTrackIds } from "./timeline_domain";
@@ -8,6 +9,7 @@ type CaptionTextInspectorProps = {
   selectedSceneId: string;
   onOperation: (operation: EditDocumentOperation) => void;
   disabled: boolean;
+  compact?: boolean;
 };
 
 type CaptionStyle = keyof typeof CAPTION_STYLE_LABELS;
@@ -23,12 +25,13 @@ const operationId = () => `op_${crypto.randomUUID()}`;
  * caption when the scene has none. Each edit is one operation on the shared
  * draft, checked against the same rules the server applies before it is sent.
  */
-export function CaptionTextInspector({ document, selectedSceneId, onOperation, disabled }: CaptionTextInspectorProps) {
+export function CaptionTextInspector({ document, selectedSceneId, onOperation, disabled, compact = false }: CaptionTextInspectorProps) {
   const lockedId = useId();
   const styleId = useId();
   const newCaptionId = useId();
   const [refusal, setRefusal] = useState<string>();
   const [newCaption, setNewCaption] = useState("");
+  const [styleOpen, setStyleOpen] = useState(false);
   const fps = document.canvas.fps;
   const toSeconds = (frame: number) => String(Number((frame / fps).toFixed(2)));
   const seconds = (from: number, duration: number) =>
@@ -78,13 +81,16 @@ export function CaptionTextInspector({ document, selectedSceneId, onOperation, d
   };
 
   return (
-    <section aria-label="Captions" className="border-l border-t border-border bg-card/60 p-4">
+    <section aria-label="Captions" className={`${compact ? "studio-caption-summary" : ""} border-l border-t border-border bg-card/60 p-4`}>
       <h2 className="font-mono text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Captions</h2>
       {refusal ? (
         <p role="alert" className="mt-3 text-xs text-destructive">
           {refusal}
         </p>
       ) : null}
+      {compact ? <div className="studio-caption-rows">{captions.flatMap((clip) => clip.cues.map((cue, index) => <details key={`${clip.clip_id}-${index}`}><summary><span>{seconds(clip.from_frame + cue.from_frame, cue.duration_in_frames)}</span><span>{cue.text}</span><ChevronRight size={12} /></summary><textarea aria-label={`Edit compact caption ${index + 1}`} value={cue.text} disabled={disabled || clip.locked || document.tracks.find((track) => track.track_id === clip.track_id)?.locked} onChange={(event) => { if (event.target.value.trim()) emit({ kind: "set_caption_cue_text", operation_id: operationId(), clip_id: clip.clip_id, cue_index: index, text: event.target.value }); }} /></details>))}</div> : null}
+      <details className={compact ? "studio-caption-editors" : "contents"} open={!compact || undefined}>
+      {compact ? <summary>Edit captions and timing</summary> : null}
       {captions.length ? (
         captions.map((clip) => {
           const track = document.tracks.find((entry) => entry.track_id === clip.track_id);
@@ -237,6 +243,11 @@ export function CaptionTextInspector({ document, selectedSceneId, onOperation, d
           )}
         </>
       )}
+      </details>
+      {compact ? <>
+        <button type="button" className="studio-style-trigger" aria-label="Caption style" onClick={() => setStyleOpen((open) => !open)}><Palette size={16} /><span>{captions.length ? CAPTION_STYLE_LABELS[(captions[0]!.style_slot ?? "caption_default") as CaptionStyle] ?? captions[0]!.style_slot : "Caption style"}</span><ChevronRight size={15} /></button>
+        {styleOpen ? <div className="studio-caption-style-menu" role="dialog" aria-label="Caption style"><header><strong>Caption style</strong><button type="button" aria-label="Close caption style" onClick={() => setStyleOpen(false)}><X size={15} /></button></header><p>Current supported choices</p>{Object.entries(CAPTION_STYLE_LABELS).map(([id, label]) => <button key={id} type="button" disabled={disabled || !captions.length || captions[0]!.locked || document.tracks.find((track) => track.track_id === captions[0]!.track_id)?.locked} onClick={() => { emit({ kind: "set_caption_style", operation_id: operationId(), clip_id: captions[0]!.clip_id, style_slot: id as CaptionStyle }); setStyleOpen(false); }}><Palette size={15} /><span>{label}</span>{captions[0]?.style_slot === id ? <Check size={14} /> : null}</button>)}<small>Styles apply to the selected scene's caption clip.</small></div> : null}
+      </> : null}
     </section>
   );
 }

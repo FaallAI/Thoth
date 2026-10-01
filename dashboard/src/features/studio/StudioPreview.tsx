@@ -1,5 +1,6 @@
 import { Player } from "@remotion/player";
 import { useEffect, useState, type ComponentProps } from "react";
+import { Maximize, Minimize, Pause, Play, Volume2, VolumeX } from "lucide-react";
 
 import type { ControlPlaneClient, EditDocument } from "@/api/control-plane";
 import type { PreviewSources } from "./AdvancedTimelineComposition";
@@ -57,6 +58,7 @@ export function StudioPreview({
 
   const preview = currentDocument ? (
     <div className="min-h-0 flex-1 overflow-auto rounded border border-border bg-black p-4">
+      {embedded ? <span className="studio-preview-badge">{currentDocument.canvas.width === 1080 && currentDocument.canvas.height === 1920 ? "9:16" : `${currentDocument.canvas.width}:${currentDocument.canvas.height}`} · {currentDocument.canvas.width}×{currentDocument.canvas.height}</span> : null}
       <Player
         ref={ref}
         // The Player ties component and inputProps together through one generic;
@@ -67,7 +69,11 @@ export function StudioPreview({
         })}
         controls
         spaceKeyToPlayOrPause
+        renderPlayPauseButton={({ playing }) => playing ? <Pause size={15} /> : <Play size={15} />}
+        renderMuteButton={({ muted }) => muted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+        renderFullscreenButton={({ isFullscreen }) => isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
         className="mx-auto max-h-full max-w-full"
+        style={{ width: "100%", height: "100%" }}
         {...getPlayerConfig(currentDocument)}
       />
     </div>
@@ -75,7 +81,7 @@ export function StudioPreview({
     <p className="text-sm text-muted-foreground">Loading Studio preview…</p>
   );
 
-  if (embedded) return <section className="flex h-full min-h-0 flex-col" aria-label="Studio preview">{preview}</section>;
+  if (embedded) return <section className="flex h-full min-h-0 flex-col" aria-label="Studio preview">{preview}<p className="studio-preview-hint">Space to play/pause · Click scenes to jump</p></section>;
 
   return (
     <section className="flex min-h-0 flex-1 flex-col gap-4 p-4" aria-label="Studio preview">

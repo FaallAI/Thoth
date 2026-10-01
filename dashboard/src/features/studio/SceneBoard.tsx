@@ -1,4 +1,5 @@
 import { formatSceneSeconds } from "./studio_time";
+import { ChevronDown, Image, PanelBottom, Play } from "lucide-react";
 
 /** The smallest scene strip shape both document versions share. */
 type SceneBoardDocument = {
@@ -14,14 +15,21 @@ type Props = {
   /** Offered only where the document can persist a scene reorder. */
   onMove?: (sceneId: string, toIndex: number) => void;
   moveDisabled?: boolean;
+  onPreview?: () => void;
+  previewDisabled?: boolean;
+  onAdvanced?: () => void;
 };
 
-export function SceneBoard({ document, selectedSceneId, onSelect, onMove, moveDisabled = false }: Props) {
+export function SceneBoard({ document, selectedSceneId, onSelect, onMove, moveDisabled = false, onPreview, previewDisabled, onAdvanced }: Props) {
   return (
-    <aside className="min-h-0 min-w-0 overflow-auto border-t border-border bg-card/60 p-3" aria-label="Scene board">
-      <h2 className="mb-3 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-        Scenes
-      </h2>
+    <aside className="studio-scene-board min-h-0 min-w-0 overflow-auto border-t border-border bg-card p-3" aria-label="Scene board">
+      <div className="studio-tray-heading">
+        <h2>Scenes ({document.scenes.length})</h2>
+        <div>
+          {onMove ? <span>Reorder scenes by dragging</span> : null}
+          {onPreview ? <button type="button" onClick={onPreview} disabled={previewDisabled}>Preview changes <Play size={15} /></button> : null}
+        </div>
+      </div>
       <ol className="flex gap-2 overflow-x-auto pb-1">
         {document.scenes.map((scene, index) => {
           const clip = document.clips?.find((candidate) => candidate.clip_id === scene.clip_ids[0]);
@@ -32,7 +40,15 @@ export function SceneBoard({ document, selectedSceneId, onSelect, onMove, moveDi
           const selected = scene.scene_id === selectedSceneId;
           const label = heading || `Scene ${index + 1}`;
           return (
-            <li key={scene.scene_id} className="w-40 shrink-0">
+            <li key={scene.scene_id} className="studio-scene-item shrink-0"
+              draggable={Boolean(onMove && !moveDisabled)}
+              onDragStart={(event) => event.dataTransfer.setData("text/plain", scene.scene_id)}
+              onDragOver={(event) => { if (onMove && !moveDisabled) event.preventDefault(); }}
+              onDrop={(event) => {
+                event.preventDefault();
+                const source = event.dataTransfer.getData("text/plain");
+                if (onMove && !moveDisabled && source !== scene.scene_id && document.scenes.some((entry) => entry.scene_id === source)) onMove(source, index);
+              }}>
               <button
                 type="button"
                 aria-pressed={selected}
@@ -43,19 +59,20 @@ export function SceneBoard({ document, selectedSceneId, onSelect, onMove, moveDi
                     : "border-border bg-background/40 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 }`}
               >
+                <span className="studio-scene-symbol" aria-hidden="true"><Image /></span>
+                <span className="studio-scene-number">{String(index + 1).padStart(2, "0")}</span>
                 <span className="block truncate text-sm font-medium text-foreground">
                   {label}
                 </span>
                 <span className="mt-1 flex items-center justify-between gap-2 text-xs">
-                  <span className="capitalize">{scene.role}</span>
                   <span className="font-mono">{formatSceneSeconds(scene.duration_in_frames, document.canvas.fps)}s</span>
                 </span>
-                <span className="mt-2 block truncate text-xs">
+                <span className="studio-scene-ownership sr-only">
                   {clip?.ownership === "user_edited" ? "Edited" : clip?.ownership?.replace("_", " ")}
                 </span>
               </button>
               {onMove && (
-                <span className="mt-1 flex gap-1">
+                <span className="studio-scene-moves mt-1 flex gap-1">
                   {([
                     ["earlier", -1, "←"],
                     ["later", 1, "→"],
@@ -80,6 +97,9 @@ export function SceneBoard({ document, selectedSceneId, onSelect, onMove, moveDi
           );
         })}
       </ol>
+      {onAdvanced ? <button className="studio-advanced-affordance" type="button" onClick={onAdvanced}>
+        <PanelBottom size={16} /><strong>Advanced timeline</strong><span>Get finer control with a full timeline</span><ChevronDown size={15} />
+      </button> : null}
     </aside>
   );
 }

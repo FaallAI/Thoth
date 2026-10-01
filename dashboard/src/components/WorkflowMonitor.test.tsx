@@ -66,6 +66,7 @@ test("shows human workflow status before optional diagnostics", async () => {
   expect(screen.getByText("Progress")).toBeDefined();
   expect(screen.getByText("Needs your decision")).toBeDefined();
   expect(screen.getByText("Results")).toBeDefined();
+  await userEvent.setup().click(screen.getByText("Actions & results"));
   expect(screen.getByRole("button", { name: "Retry" })).toBeDefined();
   expect(screen.getByRole("button", { name: "Cancel" })).toBeDefined();
   expect(screen.queryByText("Diagnostics")).toBeNull();
@@ -117,6 +118,7 @@ test("renders action summaries and errors, and averages all stage progress", asy
   };
   render(<WorkflowMonitor workflowId="wf_001" client={client} />);
 
+  await user.click(screen.getByText("Actions & results"));
   await user.click(screen.getByRole("button", { name: "Cancel" }));
   expect(await screen.findByText("cancelled")).toBeDefined();
   expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("50");

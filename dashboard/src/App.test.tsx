@@ -24,6 +24,7 @@ const sourceKey = "c".repeat(64);
 const draft = { document_id: "document_001", source_key: sourceKey, revision: 1, created_at: "2026-09-24T18:02:00Z" };
 let inspectBodies: string[] = [];
 let createCalls = 0;
+let apiWrites: string[] = [];
 let revision = 1;
 let inventoryItems: unknown[] = [];
 let projects: unknown[] = [{ id: "project_001", name: "Project", workspace_path: "", created_at: "", updated_at: "" }];
@@ -33,6 +34,7 @@ const response = (value: unknown) => new Response(JSON.stringify(value), { statu
 function stubFetch() {
   globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
+    if (init?.method && init.method !== "GET") apiWrites.push(path);
     if (path === "/api/projects" && init?.method === "POST") {
       return response({ id: "project_002", name: "Other", workspace_path: "", created_at: "", updated_at: "" });
     }
@@ -58,7 +60,38 @@ function stubFetch() {
   }) as unknown as typeof fetch;
 }
 
-afterEach(() => { cleanup(); globalThis.fetch = originalFetch; inspectBodies = []; createCalls = 0; revision = 1; inventoryItems = []; projects = [{ id: "project_001", name: "Project", workspace_path: "", created_at: "", updated_at: "" }]; });
+afterEach(() => { cleanup(); globalThis.fetch = originalFetch; inspectBodies = []; createCalls = 0; apiWrites = []; revision = 1; inventoryItems = []; projects = [{ id: "project_001", name: "Project", workspace_path: "", created_at: "", updated_at: "" }]; });
+
+test("creating a blank workflow keeps a local draft and blocks unsupported execution without API writes", async () => {
+  stubFetch();
+  const { default: App } = await import("./App");
+  render(<App />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "New workflow" }));
+  const dialog = await screen.findByRole("dialog", { name: "Create a workflow" });
+  await user.type(within(dialog).getByLabelText("Workflow name"), "My custom cut");
+  await user.click(within(dialog).getByRole("button", { name: /Blank workflow/ }));
+  await user.click(within(dialog).getByRole("button", { name: /Add your first step/ }));
+  await user.click(within(dialog).getByRole("button", { name: /Script Start from a written idea/ }));
+  await user.click(within(dialog).getByRole("button", { name: "Create draft" }));
+  expect((await screen.findByRole("status")).textContent).toContain("My custom cut");
+  expect(screen.getByRole("status").textContent).toContain("Custom stage execution is unavailable");
+  expect((screen.getByRole("button", { name: "Start pipeline" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(apiWrites).toHaveLength(0);
+});
+
+test("search navigates to the selected workspace page and closes its dialog", async () => {
+  stubFetch();
+  const { default: App } = await import("./App");
+  render(<App />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Search projects, workflows…" }));
+  const dialog = await screen.findByRole("dialog");
+  await user.click(within(dialog).getByRole("button", { name: /Discovery/ }));
+  expect(await screen.findByRole("heading", { level: 1, name: "Discover the next story" })).toBeDefined();
+  expect(Boolean(screen.queryByRole("dialog"))).toBe(false);
+  expect(apiWrites).toHaveLength(0);
+});
 
 async function openContentSet() {
   stubFetch();
@@ -73,6 +106,19 @@ async function resumeDraft(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "Resume" }));
   await user.click(await screen.findByRole("button", { name: "Continue in Studio" }));
 }
+
+test("workspace navigation identifies the active page and guides Studio entry through Content Set", async () => {
+  stubFetch();
+  const { default: App } = await import("./App");
+  render(<App />);
+  const nav = screen.getByRole("navigation", { name: "Workspace" });
+  expect(within(nav).getByRole("button", { name: "Workflows" }).getAttribute("aria-current")).toBe("page");
+  await userEvent.setup().click(within(nav).getByRole("button", { name: "Creator Studio" }));
+  expect(await screen.findByRole("button", { name: "Open in Studio" })).toBeDefined();
+  expect(within(nav).getByRole("button", { name: "Content Set" }).getAttribute("aria-current")).toBe("page");
+  expect(createCalls).toBe(0);
+  expect(inspectBodies).toHaveLength(0);
+});
 
 test("Open in Studio only inspects, and Resume opens the chosen draft in Guided Studio", async () => {
   await openContentSet();
@@ -110,10 +156,11 @@ test("switching the project while choosing never creates a draft", async () => {
   await user.click(screen.getByRole("button", { name: "Open in Studio" }));
   await screen.findByRole("radio", { name: /revision 1/ });
 
-  await user.click(screen.getByRole("button", { name: /new project/i }));
+  await user.click(screen.getByRole("combobox", { name: "Project" }));
+  await user.click(await screen.findByRole("button", { name: /new project/i }));
   await user.type(screen.getByLabelText("New project name"), "Other");
   await user.click(screen.getByRole("button", { name: /^create$/i }));
-  await screen.findByRole("button", { name: /new project/i });
+  await waitFor(() => expect(Boolean(screen.queryByLabelText("New project name"))).toBe(false));
 
   expect(createCalls).toBe(0);
   expect(inspectBodies).toHaveLength(1);
@@ -132,15 +179,17 @@ test("keeps naming the Studio document's project after the global project change
   await resumeDraft(user);
   await screen.findByLabelText("Heading");
   const header = globalThis.document.querySelector<HTMLElement>('section[aria-label="Guided Studio"] > header')!;
-  expect(within(header).getByText("Project project_001")).toBeDefined();
+  expect(within(header).getAllByText("Project Project").length).toBeGreaterThan(0);
 
-  await user.click(screen.getByRole("button", { name: /new project/i }));
+  await user.click(screen.getByLabelText("Studio workspace menu"));
+  await user.click(screen.getByRole("combobox", { name: "Project" }));
+  await user.click(await screen.findByRole("button", { name: /new project/i }));
   await user.type(screen.getByLabelText("New project name"), "Other");
   await user.click(screen.getByRole("button", { name: /^create$/i }));
 
   // The switcher selects the new project once its form closes.
-  await screen.findByRole("button", { name: /new project/i });
-  expect(within(header).getByText("Project project_001")).toBeDefined();
+  await waitFor(() => expect(Boolean(screen.queryByLabelText("New project name"))).toBe(false));
+  expect(within(header).getAllByText("Project Project").length).toBeGreaterThan(0);
   expect(within(header).getByText("Saved revision 1")).toBeDefined();
 });
 

@@ -379,7 +379,7 @@ test("ContentSet shows forced-main package facts: counts, duration, size, mode, 
   });
 
   const panel = await view.findByTestId("forced-main-facts");
-  expect(view.getByText(/Forced main/i)).toBeTruthy();
+  expect(view.getAllByText(/Forced main/i).length).toBeGreaterThan(0);
   expect(panel.textContent).toContain("2 usable");
   expect(panel.textContent).toContain("1 skipped");
   expect(panel.textContent).toContain("1 ignored");

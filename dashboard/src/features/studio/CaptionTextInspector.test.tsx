@@ -10,6 +10,16 @@ import { typedTimelineDocument } from "./timeline-test-fixtures";
 
 afterEach(() => cleanup());
 
+test("compact design exposes the supported caption style menu and persists its selection", () => {
+  const document = typedTimelineDocument();
+  const onOperation = mock((_operation: EditDocumentOperation) => {});
+  render(<CaptionTextInspector document={document} selectedSceneId="scene_001" disabled={false} compact onOperation={onOperation} />);
+  fireEvent.click(screen.getByRole("button", { name: "Caption style" }));
+  expect(screen.getByRole("dialog", { name: "Caption style" })).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: CAPTION_STYLE_LABELS.source }));
+  expect(onOperation.mock.calls[0]![0]).toMatchObject({ kind: "set_caption_style", clip_id: "clip_caption", style_slot: "source" });
+});
+
 type CaptionClip = Extract<NonNullable<EditDocumentV2["clips"]>[number], { kind: "caption" }>;
 
 /** Two scenes: the fixture's caption clip covers the first; a second clip covers only the second. */

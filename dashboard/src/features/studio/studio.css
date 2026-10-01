@@ -17,6 +17,30 @@
   --ring: #efb28e;
 }
 
+.studio-title { padding: 0 16px 0 6px; font-size: 14px; font-weight: 600; border-right: 1px solid var(--border); }
+.studio-shell > header { min-height: 70px; }
+.studio-shell [aria-label="Studio jobs"] button[aria-current="page"] { position: relative; background: transparent; color: var(--primary); }
+.studio-shell [aria-label="Studio jobs"] button[aria-current="page"]::after { content: ""; position: absolute; bottom: 5px; left: 12px; right: 12px; height: 2px; background: var(--primary); }
+.studio-shell [aria-label="Guided editing workstation"] > main { background: #101113; }
+.studio-shell [aria-label="Studio preview"] { align-items: center; }
+.studio-shell [aria-label="Studio preview"] > div { width: min(100%, 370px); padding: 0; border-radius: 8px; }
+.studio-shell #studio-region-inspector > div { background: var(--card); }
+.studio-shell #studio-region-inspector input:not([type="checkbox"]):not([type="range"]),
+.studio-shell #studio-region-inspector textarea,
+.studio-shell #studio-region-inspector select { background: #101113; border: 1px solid var(--border); border-radius: 6px; padding: 10px; }
+.studio-scene-board { padding: 20px 24px; }
+.studio-scene-item { width: 220px; }
+.studio-scene-item > button { min-height: 96px; }
+.studio-scene-symbol { float: left; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; width: 48px; min-height: 64px; margin-right: 12px; background: var(--secondary); border-radius: 4px; color: var(--primary); }
+.studio-scene-symbol svg { width: 20px; height: 20px; }
+.studio-scene-symbol > span { font: 11px var(--font-mono); }
+.studio-scene-item > button[aria-pressed="true"] .studio-scene-symbol { background: var(--primary); color: var(--primary-foreground); }
+@media (max-width: 1023px) {
+  .studio-shell button { min-height: 44px; }
+  .studio-title { border: 0; }
+  .studio-scene-board { padding: 16px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .studio-shell *,
   .studio-shell *::before,

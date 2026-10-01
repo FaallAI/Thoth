@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ArrowRight, ArrowUpRight, Link2 } from "lucide-react";
 
 type WizardClient = Pick<ControlPlaneClient, "listStylePresets"> & {
   createWorkflow: (request: WorkflowRequest) => Promise<{ workflow_id: string }>;
@@ -13,9 +14,11 @@ type WizardClient = Pick<ControlPlaneClient, "listStylePresets"> & {
 export function WorkflowWizard({
   client,
   onStarted,
+  disabledReason,
 }: {
   client: WizardClient;
   onStarted: (workflowId: string) => void;
+  disabledReason?: string;
 }) {
   const [url, setUrl] = useState("");
   const [styles, setStyles] = useState<StylePreset[]>([]);
@@ -39,6 +42,7 @@ export function WorkflowWizard({
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (disabledReason) return;
     setError("");
     setSubmitting(true);
     const request: WorkflowRequest = {
@@ -57,23 +61,28 @@ export function WorkflowWizard({
   }
 
   return (
-    <Card className="m-3 max-w-2xl">
-      <CardHeader><CardTitle>New video</CardTitle></CardHeader>
+    <Card className="workflow-create">
+      <CardHeader><div><p className="dashboard-eyebrow">Start a new run</p><CardTitle>From source to finished cut</CardTitle></div><ArrowUpRight aria-hidden="true" /></CardHeader>
       <CardContent>
         <form className="flex flex-col gap-4" onSubmit={submit}>
           <div className="grid gap-2">
             <Label htmlFor="workflow-source">Source URL</Label>
-            <Input id="workflow-source" value={url} onChange={(event) => setUrl(event.target.value)} required type="url" />
+            <div className="pen-source-input"><Link2 aria-hidden="true" /><Input id="workflow-source" placeholder="Paste a TikTok, YouTube, or source URL" value={url} onChange={(event) => setUrl(event.target.value)} required type="url" /></div>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="workflow-style">Style</Label>
+          <div className="pen-launch-controls"><div className="grid gap-2">
+            <Label htmlFor="workflow-style">Style profile</Label>
             <select id="workflow-style" aria-label="Style" value={style} onChange={(event) => setStyle(event.target.value)} required>
               {styles.map((preset) => <option key={preset.preset_id} value={preset.preset_id}>{preset.label}</option>)}
             </select>
           </div>
-          <label className="flex items-center gap-2 text-sm"><input checked={review} onChange={(event) => setReview(event.target.checked)} type="checkbox" /> Review before publishing</label>
+          <div className="grid gap-2"><Label htmlFor="workflow-review">Review mode</Label>
+            <select id="workflow-review" value={review ? "publish" : "none"} onChange={(event) => setReview(event.target.value === "publish")}>
+              <option value="publish">Approval before publishing</option><option value="none">No publish approval</option>
+              <option value="stages" disabled>Approval at every stage · unavailable</option>
+            </select>
+          </div></div>
           {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
-          <Button disabled={submitting || !style} type="submit">Start workflow</Button>
+          <div className="pen-launch-footer"><span title={disabledReason || "Duration depends on the source and configured providers."}>{disabledReason || "Estimated run time varies"}</span><Button disabled={submitting || !style || Boolean(disabledReason)} type="submit">Start pipeline<ArrowRight aria-hidden="true" /></Button></div>
         </form>
       </CardContent>
     </Card>

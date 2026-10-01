@@ -16,6 +16,23 @@ afterEach(() => {
   createProject.mockClear();
 });
 
+test("shows the selected project name before the menu is opened", async () => {
+  const { ProjectSwitcher } = await import("./ProjectSwitcher");
+  render(<ProjectSwitcher projectId="p1" onSelect={() => {}} />);
+  expect(await screen.findByText("Alpha")).toBeDefined();
+});
+
+test("the compact project picker keeps creation inside its menu", async () => {
+  const { ProjectSwitcher } = await import("./ProjectSwitcher");
+  const user = userEvent.setup();
+  render(<ProjectSwitcher compact projectId="p1" onSelect={() => {}} />);
+  expect(await screen.findByText("Alpha")).toBeDefined();
+  expect(Boolean(screen.queryByRole("button", { name: /new project/i }))).toBe(false);
+  await user.click(screen.getByRole("combobox", { name: "Project" }));
+  await user.click(await screen.findByRole("button", { name: "New project" }));
+  expect(await screen.findByRole("textbox", { name: "New project name" })).toBeDefined();
+});
+
 test("creates a project from the inline form and selects it", async () => {
   const user = userEvent.setup();
   const onSelect = mock(() => {});

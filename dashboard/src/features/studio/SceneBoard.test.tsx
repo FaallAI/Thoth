@@ -60,7 +60,9 @@ test("labels a scene by its first text heading even when media comes first", () 
   render(<SceneBoard document={mediaFirst} selectedSceneId="scene_002" onSelect={onSelect} />);
 
   const buttons = within(screen.getByRole("list")).getAllByRole("button");
-  expect(buttons.map((button) => button.querySelector("span")?.textContent)).toEqual(["Text second", "Scene 2", "Scene 3"]);
+  for (const [index, label] of ["Text second", "Scene 2", "Scene 3"].entries()) {
+    expect(within(buttons[index]!).getByText(label)).toBeDefined();
+  }
   expect(buttons.map((button) => button.getAttribute("aria-pressed"))).toEqual(["false", "true", "false"]);
   fireEvent.click(buttons[2]!);
   expect(onSelect.mock.calls).toEqual([["scene_003"]]);
@@ -92,4 +94,25 @@ test("disables every move while the strip is busy", () => {
   render(<SceneBoard document={document} selectedSceneId="scene_001" onSelect={() => {}} onMove={() => {}} moveDisabled />);
 
   expect(screen.getAllByRole("button", { name: /^Move / }).every((button) => button.hasAttribute("disabled"))).toBe(true);
+});
+
+test("the design tray previews changes and opens the same advanced workspace", () => {
+  const onPreview = mock(() => {});
+  const onAdvanced = mock(() => {});
+  render(<SceneBoard document={document} selectedSceneId="scene_001" onSelect={() => {}} onPreview={onPreview} onAdvanced={onAdvanced} />);
+  expect(screen.getByText("Scenes (2)")).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "Preview changes" }));
+  fireEvent.click(screen.getByRole("button", { name: /Advanced timeline/ }));
+  expect(onPreview).toHaveBeenCalledTimes(1);
+  expect(onAdvanced).toHaveBeenCalledTimes(1);
+});
+
+test("native scene dragging emits one persisted reorder and respects busy state", () => {
+  const onMove = mock((_sceneId: string, _toIndex: number) => {});
+  render(<SceneBoard document={document} selectedSceneId="scene_001" onSelect={() => {}} onMove={onMove} />);
+  const tiles = within(screen.getByRole("list")).getAllByRole("listitem");
+  const dataTransfer = { setData: mock(() => {}), getData: () => "scene_001" };
+  fireEvent.dragStart(tiles[0]!, { dataTransfer });
+  fireEvent.drop(tiles[1]!, { dataTransfer });
+  expect(onMove.mock.calls).toEqual([["scene_001", 1]]);
 });

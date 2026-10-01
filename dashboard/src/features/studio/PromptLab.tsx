@@ -273,9 +273,9 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
   };
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col bg-background" aria-label="Prompt Lab">
+    <section className="studio-prompt-lab flex min-h-0 flex-1 flex-col bg-background" aria-label="Prompt Lab">
       <header className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-2">
-        <h2 className="text-sm font-semibold">Prompt Lab</h2>
+        <div><h2 className="text-sm font-semibold">Prompt Lab</h2><p className="studio-prompt-subtitle">Stage templates, project overrides and resolved preview</p></div>
         <div className="ml-auto font-mono text-xs text-muted-foreground" aria-live="polite">
           {statusLabel[state.saveStatus]}
         </div>
@@ -324,8 +324,9 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-auto p-4 lg:grid-cols-[16rem_minmax(0,1fr)_24rem] lg:overflow-hidden">
+      <div className="studio-prompt-columns grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-auto p-4 lg:grid-cols-[16rem_minmax(0,1fr)_24rem] lg:overflow-hidden">
         <nav aria-label="Prompt stages" className="flex flex-col gap-2">
+          <h3>Prompt stages</h3>
           {state.stages.map((stage) => (
             <button
               key={stage.stage_id}
@@ -338,9 +339,11 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
               {stage.label}
             </button>
           ))}
+          <span className="studio-prompt-stage-count">{state.stages.length} stages available</span>
         </nav>
 
-        <div className="flex min-h-0 min-w-0 flex-col gap-4">
+        <div className="studio-prompt-template-editor flex min-h-0 min-w-0 flex-col gap-4">
+          <header><h3>{state.stages.find((stage) => stage.stage_id === state.selectedStageId)?.label ?? "Select a stage"}</h3><p>Choose a template and edit its instructions for this project.</p></header>
           <nav aria-label="Prompt templates" className="flex flex-wrap gap-2">
             {state.templates.map((template) => (
               <button
@@ -443,7 +446,9 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
         </div>
 
         <aside className="flex min-h-0 min-w-0 flex-col gap-2">
+          <span className="studio-prompt-eyebrow">Resolved draft</span>
           <h3 className="text-sm font-semibold">Resolved prompt preview</h3>
+          <p className="studio-prompt-context">{state.stages.find((stage) => stage.stage_id === state.selectedStageId)?.label ?? "No stage"} · {state.binding ? "saved binding" : "no binding"}</p>
           {state.resolved === null ? (
             <p className="text-xs text-muted-foreground">
               No resolved preview yet. Save a binding to see the resolved draft.
@@ -456,6 +461,7 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
               {state.resolved.visible_text}
             </pre>
           )}
+          <p className="studio-prompt-update-note">Updates after the template and project binding are saved.</p>
         </aside>
       </div>
     </section>

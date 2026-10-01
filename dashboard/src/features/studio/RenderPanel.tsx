@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useReducer, useRef, useState } from "react";
+import { CheckCircle2, Film, Info } from "lucide-react";
 
 import {
   StudioImportRequestError,
@@ -60,6 +61,8 @@ type Props = {
   /** The saved document and the exact revision a render would name. */
   documentId: string;
   documentRevision: number;
+  documentTitle?: string;
+  canvas?: { width: number; height: number; fps: number; duration_in_frames: number };
   templateId: RenderJob["template_id"];
   templateVersion: RenderJob["template_version"];
   facts: Omit<RenderEditorFacts, "documentValid" | "importBlock">;
@@ -200,6 +203,8 @@ function RenderSurface({
   projectId,
   documentId,
   documentRevision,
+  documentTitle,
+  canvas,
   templateId,
   templateVersion,
   facts,
@@ -542,7 +547,13 @@ function RenderSurface({
   };
 
   return (
-    <section className="flex flex-col gap-3 border-t border-border px-4 py-3" aria-label="Render">
+    <section className="studio-render-workspace flex flex-col gap-3 border-t border-border px-4 py-3" aria-label="Render">
+      <div className="studio-render-preparation">
+      <header><span className="studio-render-eyebrow">Final output</span><h2>Render your video</h2><p>Create a downloadable video from the saved version of {documentTitle ?? documentId}.</p></header>
+      <div className="studio-render-revision"><div><strong>{documentTitle ?? documentId}</strong><p>Saved revision {documentRevision} · {templateId} v{templateVersion}</p></div><span><CheckCircle2 size={14} />{facts.saveStatus === "saved" ? "Saved" : "Saved version"}</span></div>
+      <div className="studio-render-source-card">
+        <div className="studio-render-thumbnail"><Film size={32} /><strong>{documentTitle ?? documentId}</strong><span>Saved version</span>{canvas ? <small>{canvas.width} × {canvas.height}</small> : null}</div>
+        <div className="studio-render-source-details"><h3>Ready to render</h3><p>Rendering uses saved revision {documentRevision}.</p><dl><div><dt>Format</dt><dd>{state.capability?.preset_id ?? "Unavailable"}</dd></div><div><dt>Canvas</dt><dd>{canvas ? `${canvas.width} × ${canvas.height}` : "—"}</dd></div><div><dt>Duration</dt><dd>{canvas ? `${(canvas.duration_in_frames / canvas.fps).toFixed(1)}s` : "—"}</dd></div><div><dt>Frame rate</dt><dd>{canvas ? `${canvas.fps} fps` : "—"}</dd></div></dl>
       <div className="flex flex-wrap items-center gap-2">
         {monitorOnly ? (
           <p className="text-xs text-muted-foreground">
@@ -625,6 +636,14 @@ function RenderSurface({
         </p>
       ) : null}
 
+      </div></div>
+      <p className="studio-render-scope"><Info size={15} />Rendering creates an output file. It does not publish the video.</p>
+      </div>
+      <aside className="studio-render-activity">
+      <header><span className="studio-render-eyebrow">Render activity</span><h2>Output queue</h2><p>Track rendering and download completed videos here.</p></header>
+      <h3 className="studio-render-section-heading">Current render</h3>
+      {!selected ? <div className="studio-render-no-current"><Film size={20} /><strong>No active render</strong><p>Start a render from the saved version when you are ready.</p></div> : null}
+
       {selected ? (
         <div className="flex flex-col gap-2" aria-label="Current render">
           <p role="status" className="text-sm">
@@ -684,6 +703,9 @@ function RenderSurface({
         </div>
       ) : null}
 
+      <div className="studio-render-lifecycle"><h3>What happens next</h3>{[["Preparing", "Checks the saved document and source media."], ["Rendering", "Creates the video from this saved revision."], ["Finalizing", "Prepares the output for download."]].map(([label, description], index) => <div key={label}><span>{index + 1}</span><p><strong>{label}</strong><small>{description}</small></p></div>)}</div>
+      <h3 className="studio-render-section-heading">Render history</h3>
+      {!state.history.length ? <p className="studio-render-history-empty">Your completed and failed renders will appear here.</p> : null}
       <ol className="flex flex-col gap-1" aria-label="Render history">
         {state.history.map((entry) => (
           <li key={entry.render_job_id}>
@@ -701,6 +723,7 @@ function RenderSurface({
           </li>
         ))}
       </ol>
+      </aside>
 
       {!monitorOnly && confirmCreate ? (
         <div

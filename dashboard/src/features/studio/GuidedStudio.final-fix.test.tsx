@@ -299,7 +299,7 @@ test("exposes native labelled controls for the resizable simple workstation with
   fireEvent.change(inspectorWidth, { target: { value: "24" } });
 
   expect(workstation.getAttribute("style")).toContain("--inspector-width: 24rem");
-  expect(workstation.getAttribute("style")).toContain("grid-template-rows: minmax(0,1fr) auto");
+  expect(workstation.getAttribute("style")).toContain("grid-template-rows: minmax(0,1fr) 228px");
   expect(screen.getByLabelText("Draft preview")).toBeDefined();
 });
 

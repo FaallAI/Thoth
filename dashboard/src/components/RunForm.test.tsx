@@ -74,12 +74,23 @@ afterEach(() => {
   updateProfile.mockClear();
 });
 
+test("new run opens a source composer without posting a job", async () => {
+  const user = userEvent.setup();
+  const { RunForm } = await import("./RunForm");
+  render(<RunForm projectId="p1" onCreated={() => {}} />);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  await user.click(screen.getByRole("button", { name: /new run/i }));
+  expect(screen.getByRole("dialog", { name: /new run/i })).toBeDefined();
+  expect(createProfileJob).not.toHaveBeenCalled();
+});
+
 test("run sends profile_id + typed overrides and never mutates the profile", async () => {
   const user = userEvent.setup();
   const onCreated = mock(() => {});
   const { RunForm } = await import("./RunForm");
 
   render(<RunForm projectId="p1" onCreated={onCreated} />);
+  await user.click(screen.getByRole("button", { name: /new run/i }));
 
   await user.click(await screen.findByLabelText("Profile"));
   await user.click(await screen.findByRole("option", { name: "Default" }));
@@ -103,7 +114,8 @@ test("run with no source (profile has none, no URL/content-set) shows an error a
   const user = userEvent.setup();
   const { RunForm } = await import("./RunForm");
   render(<RunForm projectId="p1" onCreated={mock(() => {})} />);
-  await screen.findByText("Default");
+  await user.click(screen.getByRole("button", { name: /new run/i }));
+  await screen.findByText("Default", { selector: '[data-slot="select-value"]' });
 
   await user.click(screen.getByRole("button", { name: /^run$/i }));
 
@@ -123,7 +135,7 @@ test("forced handoff with effective narrator mode disabled is rejected locally",
       initialContentSetForced
     />,
   );
-  await screen.findByText("Default");
+  await screen.findByText("Default", { selector: '[data-slot="select-value"]' });
 
   await user.click(screen.getByRole("button", { name: /^run$/i }));
 
@@ -145,7 +157,7 @@ test("forced handoff remains trusted after parent clears the consumed props", as
       initialContentSetForced
     />,
   );
-  await screen.findByText("Default");
+  await screen.findByText("Default", { selector: '[data-slot="select-value"]' });
 
   view.rerender(<RunForm projectId="p1" onCreated={() => {}} />);
   await user.click(screen.getByRole("button", { name: /^run$/i }));
@@ -168,7 +180,7 @@ test("forced handoff respects a one-off narrator disable override", async () => 
       initialContentSetForced
     />,
   );
-  await screen.findByText("Default");
+  await screen.findByText("Default", { selector: '[data-slot="select-value"]' });
   await user.click(screen.getByRole("button", { name: /overrides for this run/i }));
   await user.click(screen.getByLabelText("Narrator mode"));
   await user.click(await screen.findByRole("option", { name: "disabled" }));
@@ -193,7 +205,7 @@ test("forced handoff can enable narrator mode for one run", async () => {
       initialContentSetForced
     />,
   );
-  await screen.findByText("Default");
+  await screen.findByText("Default", { selector: '[data-slot="select-value"]' });
   await user.click(screen.getByRole("button", { name: /overrides for this run/i }));
   await user.click(screen.getByLabelText("Narrator mode"));
   await user.click(await screen.findByRole("option", { name: "enabled" }));
@@ -215,7 +227,8 @@ test("manual content-set paths map the authoritative narration error", async () 
   const user = userEvent.setup();
   const { RunForm } = await import("./RunForm");
   render(<RunForm projectId="p1" onCreated={() => {}} />);
-  await screen.findByText("Default");
+  await user.click(screen.getByRole("button", { name: /new run/i }));
+  await screen.findByText("Default", { selector: '[data-slot="select-value"]' });
   await user.type(screen.getByLabelText(/content-set path/i), "scout/output/manual.json");
 
   await user.click(screen.getByRole("button", { name: /^run$/i }));

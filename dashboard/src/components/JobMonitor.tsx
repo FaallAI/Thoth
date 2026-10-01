@@ -18,6 +18,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { LogPane, type LogLine } from "@/components/LogPane";
 import { ReviewPanel } from "@/components/ReviewPanel";
 import { terminalEventIsFailure, terminalEventKind } from "@/lib/job-events";
+import { Check, RotateCcw, ScanEye } from "lucide-react";
 
 let seq = 0;
 function nextId() {
@@ -110,7 +111,7 @@ export function JobMonitor({ jobId }: { jobId: string | null }) {
 
   if (!jobId) {
     return (
-      <Card className="flex h-full items-center justify-center py-3">
+      <Card className="pen-job-monitor pen-job-empty flex h-full items-center justify-center py-3">
         <p className="text-sm text-muted-foreground">Start a job or select one from the list.</p>
       </Card>
     );
@@ -124,27 +125,39 @@ export function JobMonitor({ jobId }: { jobId: string | null }) {
   const facts = manifest.main_footage;
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <Card className="gap-3 py-3">
-        <CardHeader className="flex flex-row items-center justify-between px-3">
-          <CardTitle className="flex items-center gap-2 font-mono text-sm">
-            <span className="text-muted-foreground">{jobId.slice(0, 8)}</span>
-            {record && <StatusBadge status={record.status} />}
-          </CardTitle>
-          <Button variant="outline" size="sm" disabled={!cancellable} onClick={handleCancel}>
-            Cancel
-          </Button>
+    <div className="pen-job-monitor flex h-full min-h-0 flex-col">
+      <Card className="pen-job-progress">
+        <CardHeader className="pen-job-monitor-heading">
+          <div><span className="pen-eyebrow">Job #{jobId.slice(0, 8)}</span><CardTitle>{record?.spec?.command || "Loading job…"}</CardTitle></div>
+          <div className="pen-job-stage-actions"><Button variant="secondary" disabled title="Retry is not supported by the job API">Retry <RotateCcw size={14} /></Button><Button disabled title="Stage approval is not supported by the job API">Approve stage <Check size={14} /></Button></div>
         </CardHeader>
-        <CardContent className="flex flex-col gap-2 px-3">
-          <div className="flex items-center justify-between font-mono text-xs text-muted-foreground">
-            <span>{record?.stage ?? "—"}</span>
-            <span>{Math.round((record?.pct ?? 0) * 100)}%</span>
+        <CardContent className="pen-job-pipeline">
+          <div className="pen-job-progress-label">
+            <span>Pipeline progress</span>
+            <span>{Math.round((record?.pct ?? 0) * 100)}% complete</span>
           </div>
           <Progress value={(record?.pct ?? 0) * 100} />
-          {record?.error && <p className="text-sm text-destructive">{record.error}</p>}
+          <div className="pen-job-stages">{["Ingest", "Analyze", "Script", "Render", "Export"].map((stage, index) => <div key={stage} className={record?.stage?.toLowerCase() === stage.toLowerCase() ? "is-current" : ""}><span>{String(index + 1).padStart(2, "0")}</span><strong>{stage}</strong><small>{record?.stage?.toLowerCase() === stage.toLowerCase() ? "Current stage" : "Not reported"}</small></div>)}</div>
         </CardContent>
       </Card>
-
+      <div className="pen-job-detail-columns">
+        <section className="pen-job-review">
+          <span className="pen-eyebrow"><ScanEye size={16} />Job details</span>
+          <h3>{record?.stage || "Waiting for job state"}</h3>
+          <p>{record?.error || "Inspect the current status and intervene when this run needs attention."}</p>
+          {record && <StatusBadge status={record.status} />}
+          <div className="pen-job-operational-actions">
+            <Button variant="outline" size="sm" disabled={!cancellable} onClick={handleCancel}>Cancel</Button>
+            <CleanupButton
+              id={jobId}
+              trigger="Delete artifacts"
+              disabled={!terminal}
+              disabledReason="The job is still running; finish or cancel it first"
+              onCleanup={cleanupJob}
+              onDone={() => setManifestNonce((n) => n + 1)}
+            />
+          </div>
+          {(facts || record?.status === "succeeded") && <details className="pen-job-artifact-details"><summary>Outputs &amp; review</summary>
       {facts && (
         <Card className="gap-2 py-3">
           <CardHeader className="px-3">
@@ -183,21 +196,12 @@ export function JobMonitor({ jobId }: { jobId: string | null }) {
         </Card>
       )}
 
-      {jobId && (
-        <CleanupButton
-          id={jobId}
-          trigger="Delete artifacts"
-          disabled={!terminal}
-          disabledReason="The job is still running; finish or cancel it first"
-          onCleanup={cleanupJob}
-          onDone={() => setManifestNonce((n) => n + 1)}
-        />
-      )}
-
       {record?.status === "succeeded" && jobId && <ReviewPanel jobId={jobId} />}
-
-      <div className="min-h-0 flex-1">
+          </details>}
+        </section>
+      <div className="pen-job-activity min-h-0">
         <LogPane lines={lines} />
+      </div>
       </div>
     </div>
   );

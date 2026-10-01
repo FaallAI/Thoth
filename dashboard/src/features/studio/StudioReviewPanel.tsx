@@ -202,9 +202,9 @@ export function StudioReviewPanel({
   const when = (createdAt: string) => new Date(createdAt).toLocaleString();
 
   return (
-    <section className="flex flex-col gap-3 rounded-md border border-border bg-card p-3" aria-label="Review">
-      <p className="text-sm">Review applies to saved revision {savedRevision}.</p>
-      <p className="text-sm font-medium">
+    <section className="studio-review-panel flex flex-col gap-3 rounded-md border border-border bg-card p-3" aria-label="Review">
+      <header className="studio-review-panel-heading"><div><h2>Review</h2><p>Review applies to saved revision {savedRevision}.</p></div><span>rev {savedRevision}</span></header>
+      <p className="studio-review-current text-sm font-medium">
         {current
           ? `Current decision: ${DECISION_LABEL[current.decision]} on revision ${current.document_revision}`
           : `No decision on revision ${savedRevision} yet.`}
@@ -365,6 +365,8 @@ export function StudioReviewPanel({
         </div>
       ) : null}
 
+      <h3 className="studio-review-history-heading">Comments</h3>
+      {!state.comments.length ? <p className="studio-review-empty">No comments on this revision yet.</p> : null}
       <ol className="flex flex-col gap-2" aria-label="Review comments">
         {state.comments.map((comment) => (
           <li key={comment.comment_id} className="rounded-md border border-border p-2 text-sm">
@@ -385,6 +387,8 @@ export function StudioReviewPanel({
         </button>
       ) : null}
 
+      <h3 className="studio-review-history-heading">Decision history</h3>
+      {!state.decisions.length ? <p className="studio-review-empty">No decision recorded.</p> : null}
       <ol className="flex flex-col gap-1" aria-label="Decision history">
         {state.decisions.map((decision) => (
           <li key={decision.decision_id} className="text-xs text-muted-foreground">

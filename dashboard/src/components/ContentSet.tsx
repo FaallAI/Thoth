@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowUpRight, BookOpen, ChevronRight, CircleCheck, ImageIcon, MessageSquare, Pin, Send, Sparkles, UserRound, X } from "lucide-react";
+import { PageActions } from "@/components/PageActions";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { LogPane, type LogLine } from "@/components/LogPane";
@@ -27,7 +28,7 @@ import {
 // The curate surface only touches these shapes; everything else in `content` is
 // preserved verbatim on save.
 type Main = { title?: string; description?: string; thumbnail?: string; image_path?: string; profile?: any };
-type Footage = { url?: string; title?: string; platform?: string; thumbnail?: string; image_path?: string };
+type Footage = { url?: string; title?: string; description?: string; platform?: string; duration_sec?: number; thumbnail?: string; image_path?: string };
 type Comment = { author?: string; text?: string; likes?: number; image_path?: string };
 type Figure = { name?: string; kind?: string; role?: string; description?: string };
 type Reference = { term?: string; kind?: string; summary?: string };
@@ -207,267 +208,73 @@ export function ContentSet({
     kind: l.stream === "err" ? "error" : "log",
   }));
 
-  if (loadErr)
-    return (
-      <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-destructive">
-        Couldn't load the content-set: {loadErr}
-      </div>
-    );
-  if (!data)
-    return (
-      <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-muted-foreground">
-        Loading…
-      </div>
-    );
-  if (!data.exists)
-    return (
-      <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-muted-foreground">
-        No content-set yet — run Discovery first.
-      </div>
-    );
-  if (data.error === "malformed" || !content)
-    return (
-      <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-destructive">
-        The content-set on disk isn't valid JSON ({data.path}).
-      </div>
-    );
-
-  const main: Main = content.main ?? {};
-  const footage: Footage[] = Array.isArray(content.footage) ? content.footage : [];
-  const comments: Comment[] = Array.isArray(content.comments) ? content.comments : [];
-  const figures: Figure[] = Array.isArray(content.figures) ? content.figures : [];
-  const references: Reference[] = Array.isArray(content.references) ? content.references : [];
+  const main: Main = content?.main ?? {};
+  const footage: Footage[] = Array.isArray(content?.footage) ? content.footage : [];
+  const comments: Comment[] = Array.isArray(content?.comments) ? content.comments : [];
+  const figures: Figure[] = Array.isArray(content?.figures) ? content.figures : [];
+  const references: Reference[] = Array.isArray(content?.references) ? content.references : [];
   const mainImg = imgSrc(main.thumbnail ?? main.image_path);
+  const unavailable = loadErr ? `Couldn't load the content-set: ${loadErr}` : !data ? "Loading…" : !data.exists ? "No content-set yet — run Discovery first." : data.error === "malformed" || !content ? `The content-set on disk isn't valid JSON (${data.path}).` : null;
+  const ready = !unavailable && !!content;
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4">
-        {/* Main */}
-        <Card size="sm" className="gap-2">
-          <CardHeader>
-            <CardTitle className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
-              Main
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-3">
-              {mainImg && (
-                <img
-                  src={mainImg}
-                  alt=""
-                  className="h-24 w-24 shrink-0 rounded object-cover"
-                />
-              )}
-              <div className="flex-1 space-y-2">
-                <Input
-                  value={main.title ?? ""}
-                  placeholder="title"
-                  onChange={(e) => setMain("title", e.target.value)}
-                />
-                <Textarea
-                  className="h-20"
-                  value={main.description ?? ""}
-                  placeholder="description"
-                  onChange={(e) => setMain("description", e.target.value)}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Forced main footage — retained Scout package facts + explicit cleanup */}
-        {packageId && (
-          <Card size="sm" className="gap-2">
-            <CardHeader>
-              <CardTitle className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
-                Forced main ({packageId})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {!pkg ? (
-                <p className="text-xs text-muted-foreground">
-                  Package facts unavailable — it may already have been deleted.
-                </p>
-              ) : (
-                <div className="space-y-2 text-xs" data-testid="forced-main-facts">
-                  <div className="text-muted-foreground">
-                    {pkg.platform} · {pkg.usable_count} usable · {pkg.skipped_count} skipped ·{" "}
-                    {pkg.ignored_count} ignored
-                  </div>
-                  <div className="text-muted-foreground">
-                    {pkg.total_duration_sec.toFixed(1)}s · {formatBytes(pkg.total_bytes)} across{" "}
-                    {pkg.file_count} files
-                  </div>
-                  <div className="font-mono text-muted-foreground">
-                    mode: {pkg.analysis_mode ?? "unknown"} · fingerprint:{" "}
-                    {(pkg.fingerprint ?? "—").replace(/^sha256:/, "").slice(0, 12)}
-                  </div>
-                  {pkg.warnings.length > 0 && (
-                    <ul className="space-y-1 text-muted-foreground">
-                      {pkg.warnings.map((code) => (
-                        <li key={code}>{describeCode(code)}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-              <div className="mt-2">
-                <CleanupButton
-                  id={packageId}
-                  trigger="Delete package"
-                  disabled={running}
-                  disabledReason="Scout is running and may still be writing into this package"
-                  onCleanup={cleanupPackage}
-                  onDone={() => setPkgNonce((n) => n + 1)}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Footage */}
-        <Card size="sm" className="gap-2">
-          <CardHeader>
-            <CardTitle className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
-              Footage ({footage.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-              {footage.map((f, i) => {
-                const src = imgSrc(f.thumbnail ?? f.image_path);
-                return (
-                <div key={`${f.url ?? "f"}-${i}`} className="relative rounded border border-border bg-background p-2">
-                  {src && (
-                    <img src={src} alt="" className="mb-1 h-20 w-full rounded object-cover" />
-                  )}
-                  <div className="truncate text-xs">{f.title ?? f.url}</div>
-                  <div className="text-xs text-muted-foreground">{f.platform}</div>
-                  <Button
-                    size="icon-xs"
-                    variant="destructive"
-                    aria-label="Remove footage"
-                    className="absolute right-1 top-1"
-                    onClick={() => removeAt("footage", i)}
-                  >
-                    ✕
-                  </Button>
-                </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Comments */}
-        <Card size="sm" className="gap-2">
-          <CardHeader>
-            <CardTitle className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
-              Comments ({comments.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-              {comments.map((c, i) => {
-                const src = imgSrc(c.image_path);
-                return (
-                <div key={`${c.image_path ?? c.author ?? "c"}-${i}`} className="relative rounded border border-border bg-background p-2">
-                  {src && (
-                    <img src={src} alt="" className="mb-1 w-full rounded object-contain" />
-                  )}
-                  <div className="truncate text-xs">{c.author}</div>
-                  <div className="line-clamp-2 text-xs text-muted-foreground">{c.text}</div>
-                  <Button
-                    size="icon-xs"
-                    variant="destructive"
-                    aria-label="Remove comment"
-                    className="absolute right-1 top-1"
-                    onClick={() => removeAt("comments", i)}
-                  >
-                    ✕
-                  </Button>
-                </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Figures + References */}
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Card size="sm" className="gap-2">
-            <CardHeader>
-              <CardTitle className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
-                Figures ({figures.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {figures.map((f, i) => (
-                <div key={`${f.name ?? "fig"}-${i}`} className="mb-1 flex items-center justify-between rounded border border-border bg-background px-2 py-1">
-                  <span className="truncate text-xs">
-                    {f.name} <span className="text-muted-foreground">· {f.kind} · {f.role}</span>
-                  </span>
-                  <Button size="icon-xs" variant="ghost" aria-label="Remove figure"
-                    className="text-destructive" onClick={() => removeAt("figures", i)}>
-                    ✕
-                  </Button>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-          <Card size="sm" className="gap-2">
-            <CardHeader>
-              <CardTitle className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
-                References ({references.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {references.map((r, i) => (
-                <div key={`${r.term ?? "ref"}-${i}`} className="mb-1 flex items-center justify-between rounded border border-border bg-background px-2 py-1">
-                  <span className="truncate text-xs">
-                    {r.term} <span className="text-muted-foreground">· {r.kind}</span>
-                  </span>
-                  <Button size="icon-xs" variant="ghost" aria-label="Remove reference"
-                    className="text-destructive" onClick={() => removeAt("references", i)}>
-                    ✕
-                  </Button>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* Validate log — lives in the scroll area, not squeezed into the footer. */}
-        {logLines.length > 0 && (
-          <div className="h-32">
-            <LogPane lines={logLines} />
+    <div className="contentset-workspace pen-contentset">
+      <PageActions>
+        {dirty && <Button onClick={save} disabled={!ready || saving || running}>{saving ? "Saving…" : "Save"}</Button>}
+        <Button className="pen-secondary-action" onClick={sendToRender} disabled={saving || running || !data?.path || !ready}>Send to render <Send aria-hidden="true" /></Button>
+        <Button onClick={openInStudio} disabled={running || !projectId || !ready} title={!projectId ? "Select a project to open this brief in Studio" : undefined}>Open in Studio <ArrowUpRight aria-hidden="true" /></Button>
+      </PageActions>
+      <div className="contentset-summary">
+        <div><p className="pen-section-eyebrow">Current brief</p><h2>{main.title || "Untitled content set"}</h2></div>
+        <dl><div><dt>Source</dt><dd>{references.length} references</dd></div><div title="Drafted scene totals are not supplied by this Content Set"><dt>Scenes</dt><dd>—</dd></div><div><dt>Status</dt><dd>{dirty ? "Unsaved changes" : ready ? "Saved source" : "No saved source"}</dd></div></dl>
+      </div>
+      <div className="contentset-grid">
+        <section className="contentset-story" aria-label="Story structure">
+          <header className="pen-story-heading"><div><p className="pen-section-eyebrow">Story structure</p><h2>The story we are telling</h2></div><small>{dirty ? "Unsaved changes" : ""}</small></header>
+          <div className="pen-main-angle">
+            <p className="pen-section-eyebrow"><Sparkles aria-hidden="true" /> Main angle</p>
+            <Input aria-label="Story title" value={main.title ?? ""} placeholder="Add a story title" disabled={!ready} onChange={(event) => setMain("title", event.target.value)} />
+            <Textarea aria-label="Story description" value={main.description ?? ""} placeholder="Add the angle and supporting context" disabled={!ready} onChange={(event) => setMain("description", event.target.value)} />
           </div>
-        )}
+          <div className="pen-forced-main"><Pin aria-hidden="true" /><div><span>Forced main footage</span><p>{packageId ? `${packageId}${pkg ? ` · ${pkg.total_duration_sec.toFixed(1)}s` : ""}` : "No forced main footage attached"}</p></div><small>{pkg ? "Attached" : packageId ? "Unavailable" : "None"}</small></div>
+          <p className="pen-field-label">Footage &amp; scenes</p>
+          <div className="pen-footage-list">
+            {footage.length === 0 && <p className="pen-empty-state">No footage in this content set.</p>}
+            {footage.map((item, index) => {
+              const source = imgSrc(item.thumbnail ?? item.image_path);
+              return <div key={`${item.url ?? "footage"}-${index}`} className="pen-footage-row">
+                <span className="pen-footage-thumbnail">{source ? <img src={source} alt="" /> : <ImageIcon aria-hidden="true" />}</span>
+                <span className="pen-footage-copy"><strong>{item.title ?? item.url ?? "Untitled footage"}</strong><small>{item.description ?? item.platform ?? "Source footage"}</small></span>
+                <span className="pen-footage-duration" title={typeof item.duration_sec === "number" ? undefined : "Duration is not supplied"}>{typeof item.duration_sec === "number" ? `${item.duration_sec}s` : "—"}</span>
+                <Button className="pen-remove-footage" size="icon-xs" variant="ghost" aria-label="Remove footage" disabled={running || saving} onClick={() => removeAt("footage", index)}><X aria-hidden="true" /></Button>
+              </div>;
+            })}
+          </div>
+        </section>
+        <aside className="contentset-context" aria-label="Evidence and context">
+          <div className="contentset-context-heading"><p className="pen-section-eyebrow">Evidence &amp; context</p><h2>What supports this story</h2></div>
+          <details className="pen-evidence-group pen-evidence-comments">
+            <summary><span className="pen-evidence-icon"><MessageSquare aria-hidden="true" /></span><span><strong>Comments <em>{comments.length}</em></strong><small>Audience language and questions</small></span><ChevronRight aria-hidden="true" /></summary>
+            <div className="pen-evidence-items">{comments.length === 0 && <p>No comments in this content set.</p>}{comments.map((item, index) => <div key={`${item.author ?? "comment"}-${index}`}><strong>{item.author ?? "Unknown author"}</strong><p>{item.text}</p>{imgSrc(item.image_path) && <img src={imgSrc(item.image_path)} alt="Comment capture" />}<Button size="icon-xs" variant="ghost" aria-label="Remove comment" disabled={running || saving} onClick={() => removeAt("comments", index)}><X aria-hidden="true" /></Button></div>)}</div>
+          </details>
+          <details className="pen-evidence-group pen-evidence-figures">
+            <summary><span className="pen-evidence-icon"><UserRound aria-hidden="true" /></span><span><strong>Figures <em>{String(figures.length).padStart(2, "0")}</em></strong><small>People and creators referenced</small></span><ChevronRight aria-hidden="true" /></summary>
+            <div className="pen-evidence-items">{figures.length === 0 && <p>No figures in this content set.</p>}{figures.map((item, index) => <div key={`${item.name ?? "figure"}-${index}`}><strong>{item.name}</strong><p>{[item.kind, item.role].filter(Boolean).join(" · ")}</p><p>{item.description}</p><Button size="icon-xs" variant="ghost" aria-label="Remove figure" disabled={running || saving} onClick={() => removeAt("figures", index)}><X aria-hidden="true" /></Button></div>)}</div>
+          </details>
+          <details className="pen-evidence-group pen-evidence-references">
+            <summary><span className="pen-evidence-icon"><BookOpen aria-hidden="true" /></span><span><strong>References <em>{references.length}</em></strong><small>Sources linked to the brief</small></span><ChevronRight aria-hidden="true" /></summary>
+            <div className="pen-evidence-items">{references.length === 0 && <p>No references in this content set.</p>}{references.map((item, index) => <div key={`${item.term ?? "reference"}-${index}`}><strong>{item.term}</strong><p>{item.kind}</p><p>{item.summary}</p><Button size="icon-xs" variant="ghost" aria-label="Remove reference" disabled={running || saving} onClick={() => removeAt("references", index)}><X aria-hidden="true" /></Button></div>)}</div>
+          </details>
+          <div className="pen-import-readiness"><CircleCheck aria-hidden="true" /><span>{ready ? "Review source compatibility in Studio" : "Source brief is not available"}</span></div>
+        </aside>
       </div>
-
-      {/* Footer */}
-      <div className="flex items-center gap-3 border-t border-border p-3">
-        <Button onClick={save} disabled={!dirty || saving || running}>
-          {saving ? "Saving…" : "Save"}
-        </Button>
-        <Button
-          variant="outline"
-          onClick={sendToRender}
-          disabled={saving || running || !data?.path || !content}
-        >
-          Send to render →
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={openInStudio}
-          disabled={running || !projectId || !content}
-        >
-          Open in Studio
-        </Button>
-        {dirty && <span className="text-xs text-muted-foreground">unsaved changes</span>}
-        {running && <span className="text-xs text-muted-foreground">scout busy — save disabled</span>}
-        {notice && <span className="text-xs">{notice}</span>}
-      </div>
+      {(unavailable || notice || running) && <p className="pen-surface-notice" role="status">{unavailable ?? notice ?? "Scout busy — save disabled"}</p>}
+      {ready && <details className="pen-operational-details"><summary>Source file &amp; package details</summary><div className="pen-operation-panel"><p className="pen-source-path">{data?.path}</p>{mainImg && <img className="pen-source-image" src={mainImg} alt="Source thumbnail" />}{packageId && <>
+        <h3>Forced main ({packageId})</h3>
+        {!pkg ? <p>Package facts unavailable — it may already have been deleted.</p> : <div data-testid="forced-main-facts"><p>{pkg.platform} · {pkg.usable_count} usable · {pkg.skipped_count} skipped · {pkg.ignored_count} ignored</p><p>{pkg.total_duration_sec.toFixed(1)}s · {formatBytes(pkg.total_bytes)} across {pkg.file_count} files</p><p>mode: {pkg.analysis_mode ?? "unknown"} · fingerprint: {(pkg.fingerprint ?? "—").replace(/^sha256:/, "").slice(0, 12)}</p>{pkg.warnings.length > 0 && <ul>{pkg.warnings.map((code) => <li key={code}>{describeCode(code)}</li>)}</ul>}</div>}
+        <CleanupButton id={packageId} trigger="Delete package" disabled={running} disabledReason="Scout is running and may still be writing into this package" onCleanup={cleanupPackage} onDone={() => setPkgNonce((value) => value + 1)} />
+      </>}</div></details>}
+      {logLines.length > 0 && <div className="pen-validation-log"><LogPane lines={logLines} /></div>}
     </div>
   );
 }

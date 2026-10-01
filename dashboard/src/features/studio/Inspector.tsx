@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 
 import type { EditableTextClip } from "./editor_state";
 import { formatSceneSeconds, parseSceneSeconds } from "./studio_time";
@@ -20,6 +20,9 @@ type Props = {
   disabled?: boolean;
   /** Phone light edits: heading and body only. */
   textOnly?: boolean;
+  children?: ReactNode;
+  sceneIndex?: number;
+  sceneCount?: number;
 };
 
 const fieldClass =
@@ -34,6 +37,9 @@ export function Inspector({
   fps,
   disabled = false,
   textOnly = false,
+  children,
+  sceneIndex,
+  sceneCount,
 }: Props) {
   const headingId = useId();
   const headingErrorId = useId();
@@ -42,24 +48,24 @@ export function Inspector({
   const headingInvalid = Boolean(clip && !clip.heading.trim());
 
   return (
-    <aside className="min-h-0 overflow-auto border-l border-border bg-card/60 p-4" aria-label="Inspector">
-      <h2 className="font-mono text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+    <aside className={`studio-copy-inspector min-h-0 overflow-auto border-l border-border bg-card/60 p-4 ${sceneIndex === undefined ? "" : "studio-copy-designed"}`} aria-label="Inspector">
+      {sceneIndex === undefined ? <h2 className="font-mono text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
         Inspector
-      </h2>
-      {scene && clip ? (
+      </h2> : <div className="studio-inspector-heading"><div><span>Scene {String(sceneIndex + 1).padStart(2, "0")} / {String(sceneCount).padStart(2, "0")}</span><h2>{clip?.heading || `Scene ${sceneIndex + 1}`}</h2></div><small>{scene ? formatSceneSeconds(scene.duration_in_frames, fps) : "—"}s</small></div>}
+      {scene ? (
         <div className="mt-4 space-y-5">
           <div>
             <label htmlFor={headingId} className="text-sm font-medium">Heading</label>
             <input
               id={headingId}
               className={fieldClass}
-              value={clip.heading}
+              value={clip?.heading ?? ""}
               maxLength={300}
-              required
-              disabled={disabled}
+              required={Boolean(clip)}
+              disabled={disabled || !clip}
               aria-invalid={headingInvalid}
               aria-describedby={headingInvalid ? headingErrorId : undefined}
-              onChange={(event) => onTextChange(clip.clip_id, "heading", event.target.value)}
+              onChange={(event) => { if (clip) onTextChange(clip.clip_id, "heading", event.target.value); }}
             />
             {headingInvalid && (
               <p id={headingErrorId} role="alert" className="mt-1 text-xs text-destructive">
@@ -72,22 +78,24 @@ export function Inspector({
             <textarea
               id={bodyId}
               className={`${fieldClass} min-h-28 resize-y`}
-              value={clip.body}
+              value={clip?.body ?? ""}
               maxLength={2_000}
-              disabled={disabled}
-              onChange={(event) => onTextChange(clip.clip_id, "body", event.target.value)}
+              disabled={disabled || !clip}
+              onChange={(event) => { if (clip) onTextChange(clip.clip_id, "body", event.target.value); }}
             />
           </div>
+          {children}
           {textOnly ? null : (
-            <>
+            <details className="studio-scene-settings" open={sceneIndex === undefined ? true : undefined}>
+            <summary>Scene settings</summary>
             <div>
               <label htmlFor={ownershipId} className="text-sm font-medium">Ownership</label>
               <select
                 id={ownershipId}
                 className={fieldClass}
-                value={clip.ownership}
-                disabled={disabled}
-                onChange={(event) => onOwnershipChange(clip.clip_id, event.target.value as Ownership)}
+                value={clip?.ownership ?? "ai_managed"}
+                disabled={disabled || !clip}
+                onChange={(event) => { if (clip) onOwnershipChange(clip.clip_id, event.target.value as Ownership); }}
               >
                 <option value="ai_managed">AI managed</option>
                 <option value="user_edited">User edited</option>
@@ -101,7 +109,7 @@ export function Inspector({
               disabled={disabled}
               onDurationChange={onDurationChange}
             />
-            </>
+            </details>
           )}
         </div>
       ) : (

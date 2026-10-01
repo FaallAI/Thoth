@@ -28,6 +28,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { Check, Copy, Grip, Mountain, Plus, Search } from "lucide-react";
+import { PageActions } from "@/components/PageActions";
 
 // Mirrors `ProfileSettings::default()` in crates/thoth-jobs/src/profiles.rs so a
 // brand-new profile is valid the moment it's created (the server validates it).
@@ -96,6 +98,7 @@ export function ProfileStudio({
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const refresh = useCallback(async () => {
     try {
@@ -207,16 +210,16 @@ export function ProfileStudio({
   const s = draft?.settings;
 
   return (
-    <div className="grid h-full gap-4 lg:grid-cols-[16rem_1fr_18rem]">
+    <div className="profile-workspace pen-profiles">
+      <PageActions><Button onClick={startNew}>New profile <Plus size={14} /></Button></PageActions>
       {/* Left: profile list */}
-      <aside className="flex min-h-0 flex-col gap-3">
+      <aside className="profile-list flex min-h-0 flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">Profiles</h2>
-          <Button size="sm" variant="secondary" onClick={startNew}>
-            New profile
-          </Button>
+          <h2 className="text-sm font-semibold">Your profiles</h2>
+          <span className="profile-count">{String(profiles.length).padStart(2, "0")}</span>
         </div>
-        <ScrollArea className="min-h-0 flex-1 rounded-md border">
+        <div className="pen-profile-search"><Search size={14} /><Input aria-label="Find a profile" placeholder="Find a profile" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+        <ScrollArea className="min-h-0 flex-1">
           {loading ? (
             <p className="p-3 text-sm text-muted-foreground">Loading profiles…</p>
           ) : profiles.length === 0 ? (
@@ -224,15 +227,15 @@ export function ProfileStudio({
               No profiles yet. Create one to get started.
             </p>
           ) : (
-            <ul className="divide-y">
-              {profiles.map((profile) => (
+            <ul className="pen-profile-items">
+              {profiles.filter((profile) => `${profile.name} ${profile.description}`.toLowerCase().includes(search.toLowerCase())).map((profile) => (
                 <li key={profile.id}>
                   <button
                     type="button"
                     onClick={() => void selectProfile(profile)}
                     className={cn(
-                      "w-full px-3 py-2 text-left text-sm hover:bg-accent",
-                      selectedId === profile.id && "bg-accent font-medium",
+                      "pen-profile-item",
+                      selectedId === profile.id && "is-selected",
                     )}
                   >
                     <span className="block truncate">{profile.name}</span>
@@ -247,43 +250,57 @@ export function ProfileStudio({
             </ul>
           )}
         </ScrollArea>
+        <p className="pen-profile-footnote">Profiles apply to new runs and can be refined at any time.</p>
       </aside>
 
       {/* Center: editor */}
-      <section className="rounded-md border p-4">
+      <section className="pen-profile-editor">
         {!editing || !draft || !s ? (
           <div className="flex h-full min-h-40 items-center justify-center text-sm text-muted-foreground">
             No profile selected. Pick one on the left or create a new profile.
           </div>
         ) : (
           <form
-            className="grid gap-6"
+            className="pen-profile-form"
             onSubmit={(e) => {
               e.preventDefault();
               void save();
             }}
           >
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="pen-profile-editor-heading">
               <div className="grid gap-2">
-                <Label htmlFor="profile-name">Profile name</Label>
+                <Label htmlFor="profile-name" className="pen-eyebrow">Creative profile</Label>
                 <Input
                   id="profile-name"
+                  aria-label="Profile name"
                   value={draft.name}
                   onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                  placeholder="e.g. Berita vertical"
+                  placeholder="Untitled profile"
                 />
               </div>
-              <div className="grid gap-2">
+              <div className="pen-profile-save-actions">
+                <Button type="button" variant="secondary" onClick={() => void duplicate()} disabled={selectedId === null}>Duplicate <Copy size={14} /></Button>
+                <Button type="button" aria-label="Save profile" onClick={() => void save()} disabled={saving}>{saving ? "Saving…" : "Save changes"} <Check size={14} /></Button>
+              </div>
+            </div>
+            <div className="pen-profile-description">
                 <Label htmlFor="profile-desc">Description</Label>
-                <Input
+                <textarea
                   id="profile-desc"
                   value={draft.description}
                   onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-                  placeholder="Optional"
+                  placeholder="Describe this profile’s creative direction."
                 />
-              </div>
             </div>
-
+            <div className="pen-profile-summary">
+              <div><h3>Voice &amp; tone</h3><div className="pen-profile-summary-card"><strong>{s.narration.enabled ? "Narration enabled" : "Narration disabled"}</strong><span>{s.narration.language || "Auto-detect language"}</span></div></div>
+              <div><h3>Visual language</h3><div className="pen-profile-summary-card"><strong>{s.visual_edit.style_profile}</strong><span>{s.visual_edit.layout} · {s.visual_edit.clip_style}</span></div></div>
+            </div>
+            <div className="pen-profile-principles">
+              <h3 title="Creative principles are unavailable in the profile API; these rows summarize actual production settings.">Production principles</h3>
+              {[`${s.analysis.provider} · ${s.analysis.model} analysis`, `Up to ${s.analysis.max_clips} clips per run`, `${s.visual_edit.headline_dur}s headline · ${Math.round(s.visual_edit.bgm_volume * 100)}% music volume`].map((value, index) => <div className="pen-profile-principle" key={index}><span>{String(index + 1).padStart(2, "0")}</span>{value}<Grip size={14} aria-hidden="true" /></div>)}
+            </div>
+            <details className="pen-profile-settings"><summary>All profile settings</summary>
             <Fieldset legend="Narration">
               <Field label="Narrator mode" htmlFor="nar-enabled">
                 <input
@@ -561,6 +578,8 @@ export function ProfileStudio({
               </p>
             </Fieldset>
 
+            </details>
+            <p className="pen-profile-availability">Creative principles are unavailable. The rows above show current production settings.</p>
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
             <div className="flex gap-2">
@@ -569,21 +588,20 @@ export function ProfileStudio({
                   saves even where the DOM doesn't synthesize a submit on click —
                   it is type=button, so the two paths never double-fire. */}
               <button type="submit" className="sr-only" tabIndex={-1} aria-hidden="true" />
-              <Button type="button" onClick={() => void save()} disabled={saving}>
-                {saving ? "Saving…" : "Save profile"}
-              </Button>
-              {selectedId !== null ? (
-                <Button type="button" variant="secondary" onClick={() => void duplicate()}>
-                  Duplicate
-                </Button>
-              ) : null}
             </div>
           </form>
         )}
       </section>
 
       {/* Right: validation + revisions */}
-      <aside className="flex flex-col gap-4">
+      <aside className="pen-profile-preview">
+        <span className="pen-eyebrow">Live preview</span>
+        <h2>How it feels</h2>
+        <div className="pen-profile-preview-art" aria-hidden="true"><Mountain size={44} strokeWidth={2} /></div>
+        <span className="pen-eyebrow">{s ? `${s.visual_edit.layout} · ${s.visual_edit.clip_style}` : "Awaiting selection"}</span>
+        <h3>{draft?.name || "Your creative voice"}</h3>
+        <p className="pen-profile-preview-description">{draft?.description || "Choose a profile to see its saved description and production settings."}</p>
+        <details className="pen-profile-tools"><summary>Validation &amp; revisions</summary>
         <div className="rounded-md border p-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold">Validation</h3>
@@ -634,6 +652,8 @@ export function ProfileStudio({
             </ul>
           )}
         </div>
+        </details>
+        <p className="pen-profile-footnote">Workflow usage is unavailable.</p>
       </aside>
     </div>
   );

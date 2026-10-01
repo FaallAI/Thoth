@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Plus } from "lucide-react";
+import { PageActions } from "@/components/PageActions";
+import { PenDialog } from "@/components/PenDialog";
 import {
   createProfileJob, listProfiles,
   PROVIDERS, WHISPER_MODELS, LAYOUTS, CLIP_STYLES,
@@ -48,6 +51,7 @@ export function RunForm({
   const [showOverrides, setShowOverrides] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(Boolean(initialContentSet));
 
   // Typed per-run override fields (all optional; empty ⇒ omitted ⇒ profile value).
   const [provider, setProvider] = useState("");
@@ -140,6 +144,7 @@ export function RunForm({
       setUrl("");
       setContentSet("");
       setForcedHandoffContentSet(null);
+      setOpen(false);
       onCreated(job_id);
     } catch (err) {
       const message = err instanceof Error ? err.message : "failed to start run";
@@ -184,16 +189,18 @@ export function RunForm({
 
   const v = selected?.settings;
 
-  return (
+  return (<>
+    <PageActions><Button type="button" onClick={() => setOpen(true)}>New run <Plus size={14} /></Button></PageActions>
+    <PenDialog open={open} onOpenChange={setOpen} title="New run" eyebrow="Legacy console" className="pen-run-dialog">
     <form onSubmit={handleSubmit}
-      className="flex flex-col gap-3 border-b border-border bg-card px-4 py-3">
+      className="pen-run-form flex flex-col gap-3">
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
           <Label htmlFor="profile" className="text-xs text-muted-foreground">Profile</Label>
           <Select value={profileId === "" ? null : profileId}
             onValueChange={(v) => setProfileId(String(v))}>
             <SelectTrigger id="profile" className="w-52">
-              <SelectValue placeholder="No profiles — create one in Profiles" />
+              <SelectValue placeholder="No profiles — create one in Profiles">{selected?.name}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               {profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
@@ -264,5 +271,7 @@ export function RunForm({
 
       {error && <p className="w-full text-sm text-destructive">{error}</p>}
     </form>
+    </PenDialog>
+  </>
   );
 }

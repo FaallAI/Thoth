@@ -50,6 +50,7 @@ test("creating a profile posts the typed name + settings via createProfile", asy
   const nameInput = screen.getByLabelText("Profile name") as HTMLInputElement;
   await user.type(nameInput, "Berita Indonesian");
   expect(nameInput.value).toBe("Berita Indonesian");
+  await user.click(screen.getByText("All profile settings"));
   await user.click(screen.getByLabelText("Layout"));
   await user.click(await screen.findByRole("option", { name: "horizontal" }));
   await user.click(screen.getByRole("button", { name: /save profile/i }));
@@ -68,6 +69,7 @@ test("narrator mode defaults enabled and is persisted when disabled", async () =
   render(<ProfileStudio projectId="p1" onProfileChanged={() => {}} />);
 
   await user.click(await screen.findByRole("button", { name: /new profile/i }));
+  await user.click(screen.getByText("All profile settings"));
   const narrator = screen.getByLabelText("Narrator mode") as HTMLInputElement;
   expect(narrator.checked).toBe(true);
   await user.click(narrator);
@@ -84,6 +86,7 @@ test("validate is disabled while creating an unsaved profile", async () => {
   render(<ProfileStudio projectId="p1" onProfileChanged={() => {}} />);
 
   await user.click(await screen.findByRole("button", { name: /new profile/i }));
+  await user.click(screen.getByText("Validation & revisions"));
 
   // A brand-new profile has no id yet; the server validate route requires an
   // existing profile, so Validate must stay disabled until the first save.

@@ -2,6 +2,85 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-01 - Dashboard .pen fidelity correction
+
+- Corrected the earlier six-export adaptation against all 25 named frames in
+  `design/thoth-dashboard.pen`. Shipped locally licensed Inter, disabled optical
+  autosizing drift, matched frame-specific navigation fills, header/sidebar/main
+  geometry, and recreated metrics, tables, search, menus, workflow creation,
+  Discovery/Content Set panels, Profiles, Legacy Console, and Studio job surfaces.
+- Studio now uses the source title from the inspected Content Set, preserves its
+  document project, places additional controls in the avatar menu, and matches
+  the 70px header, 602px body, and full-width 228px scene strip. Caption/media,
+  Advanced, Prompt (all three stages), Review, and Render states retain actual
+  document/operation semantics and one mounted Player.
+- Kept unknown statistics/history associations and unavailable operations honest.
+  New workflow drafts are explicitly session-local; custom stage execution is
+  blocked. Search and Recent runs use observed workflows. Production sample
+  footage is never substituted for the user's assets. `design-qa.md` records
+  individual API/content limitations, so full pixel/content equality is not claimed.
+- Full integration exposed and fixed access to a missing job specification in
+  incomplete snapshots, the new-run select/dialog stacking conflict, and a
+  duplicate-text test query. Preserved lossless Content Set saves, save-before-run,
+  import/recovery, credentials/revisions, artifact cleanup safeguards, and log follow.
+- Verification: full `build_cuda.bat` exit 0 with zero error/warning matches;
+  671 dashboard tests passed across 48 files (2,251 assertions), frontend build
+  exit 0, lint exit 0 with three pre-existing warnings. Existing Vite chunk-size
+  warning remains. `cargo test --bin thoth config` exit 0 ran zero matching tests;
+  it provides no Rust unit coverage for this frontend-only change.
+- Offline browser evidence: 37 captures at 1440 x 900 and 375 x 812 cover all
+  25 reference states plus responsive variants. Zero page errors, foreign/unmatched
+  requests, or horizontal page overflow. The 234-line synthetic SSE log reaches
+  bottomGap=0 at both widths, with operational controls inside the panel.
+- Source/render comparisons and overlays are saved under
+  `C:/Users/mfr/.codex/visualizations/2026/09/30/01a0f3ec-6576-72f3-ad55-f094ebf31ac8/pen-fidelity/comparison/`.
+  Harnesses, logs, and the final checkpoint are under
+  `.superpowers/sdd/2026-10-01-dashboard-pen-fidelity/`. Coordinator integration
+  review completed; independent final review could not run due to the reviewer's
+  reported account usage limit and is not claimed.
+- `graphify update .` exited 0: 22,048 nodes / 51,577 edges; generated indexes stay
+  ignored. API/backend/client/generated contracts/dependencies and operator design
+  assets remain untouched. Changes remain local; no push, deployment,
+  provider call, live render, operational evidence change, or cutover.
+
+## 2026-10-01 - Dashboard design application and offline verification
+
+- Applied the six dashboard design exports to Workflows, Discovery, Content Set,
+  Profiles, Legacy Console, and Creator Studio using the existing product flows.
+  Added responsive workspace navigation, keyboard skip link, charcoal/terracotta
+  tokens, and the shipped Geist font. Preserved project creation, import decisions,
+  recovery controls, saved/local revision semantics, and one Studio preview.
+- Fixed the project selector's initial label mapping and a compact Studio Player
+  sizing defect: at a 375px viewport, the display previously retained a 1920px
+  native height at 341px width. It now measures 341 x 606.21875px, preserving the
+  document aspect ratio without changing composition geometry.
+- Independent review found a Legacy Console log auto-follow regression caused by
+  unbounded grid panels. Bounded the existing Jobs/monitor panels with one CSS
+  rule; a 200-message synthetic SSE check failed before the fix and passed at
+  1440 x 1000 and 375 x 812 afterward. Internal scrolling reaches the latest log;
+  Cancel and Delete artifacts remain inside the panel. No material review
+  findings remain within the reviewed dashboard scope.
+- Verification: full `build_cuda.bat` exit 0 with no warning/error matches;
+  655 dashboard tests passed across 43 files; frontend typecheck/build and lint
+  exit 0. The existing Vite chunk-size warning and four existing lint warnings
+  remain. `cargo test --bin thoth config` exited 0 but ran zero tests, so it
+  provides no Rust regression coverage.
+- Offline browser verification: 45 captures across 1440/1120/820/375px and 720px
+  CSS viewport reflow, zero page overflow/errors, keyboard skip-link and
+  at-most-one-preview checks passed. Added mobile project-form coverage and
+  waited for Player resize visibility before captures. All API responses were
+  synthetic and foreign origins blocked. Prompt Lab preferences intentionally
+  returned 503; full Prompt Lab success is outside this harness coverage.
+- Fresh evidence: `.superpowers/sdd/2026-09-30-dashboard-design-application/`
+  (`resume-*.log`) and
+  `C:/Users/mfr/.codex/visualizations/2026/09/30/01a0f3ec-6576-72f3-ad55-f094ebf31ac8/`
+  (harness, screenshots, `qa-results.json`). Final `graphify update .` exited 0
+  and rebuilt 21995 nodes / 51481 edges; its HTML visualization was skipped by
+  the existing 5000-node ceiling. Indexes remain ignored.
+- API/backend/client/contract/dependency files and operator-owned design assets
+  were preserved. Work remains local and uncommitted; no push, deployment,
+  provider request, live render, or cutover was performed.
+
 ## 2026-09-28 - Stage 3a: platform-neutral kernel and Threads
 
 - Implements `docs/superpowers/specs/2026-09-28-stage3a-platform-kernel-threads-design.md`

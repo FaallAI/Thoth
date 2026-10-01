@@ -1,19 +1,18 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "./dashboard.css";
+@import "./pen.css";
+@import "./pen-discovery-content.css";
+@import "./pen-profiles-legacy.css";
+@import "./pen-studio.css";
 
 @custom-variant dark (&:is(.dark *));
 
-/*
- * Thoth cockpit theme — "Ink & Gold", lifted directly from the CLI's own
- * brand.rs ANSI palette (gold 179 / violet 141) so the dashboard reads as
- * the same tool as the terminal, not a generic admin skin. Dark is the
- * only mode: this is an ops cockpit, not a marketing surface.
- */
+/* Dashboard visual tokens from design/DESIGN.md; existing status semantics are retained. */
 @theme inline {
     --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+    --font-sans: 'Inter', sans-serif;
     --font-mono: ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
@@ -64,39 +63,39 @@
 }
 
 :root {
-    --background: #0b0b0f;
-    --foreground: #f0ede4;
-    --card: #16151c;
-    --card-foreground: #f0ede4;
-    --popover: #16151c;
-    --popover-foreground: #f0ede4;
-    --primary: #d7af5f;
-    --primary-foreground: #16130a;
-    --secondary: #201e28;
-    --secondary-foreground: #f0ede4;
-    --muted: #1a1922;
-    --muted-foreground: #8b8794;
-    --accent: #af87ff;
-    --accent-foreground: #0b0b0f;
+    --background: #18191b;
+    --foreground: #f5f3ee;
+    --card: #242628;
+    --card-foreground: #f5f3ee;
+    --popover: #2a2c2e;
+    --popover-foreground: #f5f3ee;
+    --primary: #d49a79;
+    --primary-foreground: #1b1918;
+    --secondary: #2a2c2e;
+    --secondary-foreground: #f5f3ee;
+    --muted: #2a2c2e;
+    --muted-foreground: #c5c6c7;
+    --accent: #3b3532;
+    --accent-foreground: #f5f3ee;
     --destructive: #ef4444;
     --destructive-foreground: #f0ede4;
-    --border: #2a2833;
-    --input: #2a2833;
-    --ring: #af87ff;
+    --border: #47494a;
+    --input: #47494a;
+    --ring: #efb28e;
     --chart-1: #d7af5f;
     --chart-2: #af87ff;
     --chart-3: #22d3ee;
     --chart-4: #f2a93b;
     --chart-5: #ef4444;
     --radius: 0.5rem;
-    --sidebar: #121118;
+    --sidebar: #242628;
     --sidebar-foreground: #f0ede4;
-    --sidebar-primary: #d7af5f;
+    --sidebar-primary: #d49a79;
     --sidebar-primary-foreground: #16130a;
-    --sidebar-accent: #201e28;
+    --sidebar-accent: #2a2c2e;
     --sidebar-accent-foreground: #f0ede4;
-    --sidebar-border: #2a2833;
-    --sidebar-ring: #af87ff;
+    --sidebar-border: #47494a;
+    --sidebar-ring: #efb28e;
     /* CLI-mirrored job status colors: queued=dim, running=cyan, succeeded=gold, failed=red, cancelled=muted */
     --status-queued: #8b8794;
     --status-running: #22d3ee;
@@ -106,7 +105,7 @@
     --spine: #af87ff;
 }
 
-/* No .dark override — the cockpit ships one theme (ink), matching the CLI. */
+/* The dashboard ships one dark theme. */
 
 @layer base {
   * {
