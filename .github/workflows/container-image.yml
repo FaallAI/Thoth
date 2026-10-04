@@ -57,8 +57,11 @@ jobs:
       - name: Install locked Python dependencies
         run: uv sync --project python --frozen --all-groups --extra acquisition
 
+      # Run from python/ so pytest reads python/pyproject.toml (asyncio_mode, markers);
+      # from the repository root it finds no config and unmarked async tests fail.
       - name: Run Python non-live tests
-        run: uv run --project python pytest -m "not live" -q
+        working-directory: python
+        run: uv run pytest -m "not live" -q
 
       - name: Run Ruff checks
         run: |
