@@ -29,9 +29,10 @@ from thoth_control_plane.operations.threads_fixture import (
     MEDIA_HOST,
     _leaves,
     decide,
+    leak_count,
     method_roots,
 )
-from thoth_control_plane.operations.tiktok_comment_fixture import _is_letter, _Pseudonyms
+from thoth_control_plane.operations.tiktok_comment_fixture import _Pseudonyms
 from thoth_control_plane.operations.tiktok_discovery_fixture import (
     SYNTHETIC_EPOCH,
     SYNTHETIC_EPOCH_STEP,
@@ -210,7 +211,6 @@ def build_profile(raw: dict[str, Any]) -> Fixture:
         "document": document,
         "expected": {
             "post_ids": [video.post_id for video in result.videos],
-            "likes": [video.engagement.get("like", 0) for video in result.videos],
             "drops": result.drops.model_dump(),
         },
     }
@@ -246,10 +246,8 @@ def main(argv: list[str] | None = None) -> int:
     raw = json.loads(args.raw.read_text(encoding="utf-8"))
     fixture, scope = build(raw)
     # Compare raw string leaves with fixture string leaves, not JSON text: escaping in the
-    # JSON text would hide a surviving value that contains a quote or a newline. A raw leaf
-    # with no letter or digit (an emoji-only comment) is kept by the pseudonymizer by design.
-    text = "\n".join(sorted(_leaves(fixture)))
-    leaks = sum(leaf in text for leaf in _leaves(scope) if any(map(_is_letter, leaf)))
+    # JSON text would hide a surviving value that contains a quote or a newline.
+    leaks = leak_count(scope, "\n".join(sorted(_leaves(fixture))))
     print(
         json.dumps(
             {

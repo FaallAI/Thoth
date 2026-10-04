@@ -20,7 +20,7 @@ from thoth_control_plane.acquisition.adapters.threads import (
     json_roots,
     parse_documents,
 )
-from thoth_control_plane.operations.tiktok_comment_fixture import _Pseudonyms
+from thoth_control_plane.operations.tiktok_comment_fixture import _is_letter, _Pseudonyms
 from thoth_control_plane.operations.tiktok_discovery_fixture import (
     MIN_SECRET_LENGTH,
     SYNTHETIC_EPOCH,
@@ -141,7 +141,9 @@ def _leaves(value: object) -> set[str]:
 
 
 def leak_count(raw_node: dict[str, Any], text: str) -> int:
-    return sum(leaf in text for leaf in _leaves(raw_node))
+    """Raw leaves that survive in `text`; a leaf with no letter or digit (an emoji-only
+    comment) is kept by the pseudonymizer by design and identifies no one."""
+    return sum(leaf in text for leaf in _leaves(raw_node) if any(map(_is_letter, leaf)))
 
 
 def build_fixture(raw: dict[str, Any]) -> dict[str, Any]:

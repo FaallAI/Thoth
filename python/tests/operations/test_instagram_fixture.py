@@ -170,10 +170,11 @@ def test_profile_fixture_replays_like_sorted_videos() -> None:
     fixture, scope = build_profile(raw)
     _no_leak(fixture, scope)
     assert fixture["handle"] == "user_001"
-    assert fixture["expected"]["likes"] == [4_000, 900]
+    assert set(fixture["expected"]) == {"post_ids", "drops"}
     assert fixture["expected"]["drops"] == {"ads": 0, "photo_posts": 1, "invalid": 0}
     result = parse_profile([fixture["document"]], fixture["handle"], 30)
     assert [v.post_id for v in result.videos] == fixture["expected"]["post_ids"]
+    assert [v.engagement["like"] for v in result.videos] == [4_000, 900]
 
 
 @pytest.mark.parametrize(

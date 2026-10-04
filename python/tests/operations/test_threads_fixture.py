@@ -146,6 +146,13 @@ def test_leak_count_flags_a_surviving_value() -> None:
     assert leak_count(_raw_node(), "... realperson ...") == 1
 
 
+def test_leak_count_ignores_a_letterless_value() -> None:
+    # The pseudonymizer keeps symbols by design; an emoji-only comment identifies no one.
+    raw = {"text": "🔥🔥🔥🔥🔥", "digits": "31415926"}
+    assert leak_count(raw, "🔥🔥🔥🔥🔥") == 0
+    assert leak_count(raw, "31415926") == 1
+
+
 def test_counts_of_a_missing_parse_are_none() -> None:
     assert counts(None) is None
 

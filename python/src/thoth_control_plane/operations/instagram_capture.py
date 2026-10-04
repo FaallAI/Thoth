@@ -34,7 +34,6 @@ from thoth_control_plane.acquisition.instagram_service import (
 from thoth_control_plane.acquisition.threads_service import RequestFetchError
 
 KINDS = ("video", "image", "carousel", "share", "profile")
-POST_KINDS = ("video", "image", "carousel")
 SPACING_SECONDS = 5
 PROFILE_PATH = re.compile(r"^/(?P<handle>[A-Za-z0-9._]{1,64})/?$")
 
