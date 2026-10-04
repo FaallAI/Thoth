@@ -141,7 +141,8 @@ def test_container_workflow_smoke_never_starts_the_live_services() -> None:
 def test_container_workflow_pins_gates_tags_platform_and_digest_summary() -> None:
     workflow = _repo_text(".github/workflows/container-image.yml")
     assert "REGISTRY_IMAGE: ghcr.io/muhfalihr/thoth" in workflow
-    assert 'uv run --project python pytest -m "not live" -q' in workflow
+    # From python/, so pytest reads python/pyproject.toml (asyncio_mode and markers).
+    assert 'working-directory: python\n        run: uv run pytest -m "not live" -q' in workflow
     assert "bun --cwd=scout run test:acquisition" in workflow
     assert "bun --cwd scout" not in workflow
     assert "platforms: linux/amd64" in workflow
