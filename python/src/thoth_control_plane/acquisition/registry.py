@@ -23,6 +23,11 @@ from thoth_control_plane.acquisition.threads_service import (
     ThreadsHeadlessBrowser,
     ThreadsRequestFetcher,
 )
+from thoth_control_plane.acquisition.x_service import (
+    XAcquirer,
+    XHeadlessBrowser,
+    XRequestFetcher,
+)
 
 
 class Acquirer(Protocol):
@@ -47,4 +52,6 @@ def acquirer_for(
         return InstagramAcquirer(
             InstagramRequestFetcher(), InstagramHeadlessBrowser(), materializer
         )
+    if platform == "x":
+        return XAcquirer(XRequestFetcher(), XHeadlessBrowser(), materializer)
     raise LookupError("no python acquirer for this platform")

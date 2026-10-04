@@ -13,6 +13,7 @@ from thoth_control_plane.acquisition.materializer import (
 from thoth_control_plane.acquisition.registry import acquirer_for
 from thoth_control_plane.acquisition.service import TikTokAcquisitionService
 from thoth_control_plane.acquisition.threads_service import ThreadsAcquirer
+from thoth_control_plane.acquisition.x_service import XAcquirer
 
 
 @pytest.mark.asyncio
@@ -35,3 +36,9 @@ async def test_acquirer_for_routes_tiktok_and_refuses_legacy_hosts() -> None:
             "https://www.instagram.com/p/code_001/", client=client, materializer=materializer
         )
         assert isinstance(instagram, InstagramAcquirer)
+        x = acquirer_for(
+            "https://x.com/user_001/status/1800000000000000001",
+            client=client,
+            materializer=materializer,
+        )
+        assert isinstance(x, XAcquirer)
