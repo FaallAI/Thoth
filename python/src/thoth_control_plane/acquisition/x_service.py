@@ -17,6 +17,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 from thoth_control_plane.acquisition.adapters.seroval import decode_scripts
 from thoth_control_plane.acquisition.adapters.x import (
@@ -77,9 +78,13 @@ LOGIN_PATHS = ("/i/flow/login", "/login", "/account/access")
 # From the Stage 3c capture survey. The post's own article links to its status; on a reply's
 # page the parent tweet's article comes first. The profile card is the block holding the
 # avatar, name, and bio, directly under the banner.
+# Both fail closed: a shifted layout matches nothing rather than the wrong block.
 POST_CARD_SELECTOR = 'article:has(a[href$="/status/{post_id}"])'
-PROFILE_CARD_SELECTOR = "main > div:nth-child(4)"
+PROFILE_CARD_SELECTOR = 'main > div:nth-child(4):has-text("@{owner}")'
+# A tag no page uses: an unreadable URL crops nothing.
+NO_MATCH = "thoth-no-card"
 STATUS_ID = re.compile(r"/status/([0-9]{1,19})")
+PROFILE_OWNER = re.compile(r"^/([A-Za-z0-9_]{1,15})/?$")
 # Tags each matched reply row; targets arrive as the evaluate argument, never interpolated.
 # A row is a top-level article (never a nested quote) whose own text mentions `@author` as a
 # whole handle and holds the reply's text prefix.
@@ -103,8 +108,11 @@ TAG_REPLIES_JS = """
     return false;
   };
   for (const target of targets) {
+    // A row linking to the reply's own status is exact; text matching is the fallback.
+    const linked = rows.find((article) => !article.hasAttribute("data-thoth-comment")
+      && article.querySelector('a[href$="/status/' + target.comment_id + '"]'));
     const handle = "@" + target.author.toLowerCase();
-    const row = rows.find((article) => {
+    const row = linked || rows.find((article) => {
       const text = own(article);
       return !article.hasAttribute("data-thoth-comment")
         && mentions(text.toLowerCase(), handle)
@@ -185,11 +193,17 @@ class XHeadlessBrowser(CardBrowser):
         want_post: bool,
         targets: list[CommentTarget],
     ) -> Cards:
-        """Crop the article that links to the post itself, never the parent above it."""
-        found = STATUS_ID.search(post_url)
-        post_id = found.group(1) if found else ""
+        """The post's own article (never the parent above it); the owner's profile block."""
+        status = STATUS_ID.search(post_url)
+        owner = PROFILE_OWNER.match(urlsplit(profile_url).path)
         self._layout = replace(
-            self._layout, post_selector=POST_CARD_SELECTOR.format(post_id=post_id)
+            self._layout,
+            post_selector=(
+                POST_CARD_SELECTOR.format(post_id=status.group(1)) if status else NO_MATCH
+            ),
+            profile_selector=(
+                PROFILE_CARD_SELECTOR.format(owner=owner.group(1)) if owner else NO_MATCH
+            ),
         )
         return await super().cards(post_url, profile_url, want_post=want_post, targets=targets)
 
@@ -214,7 +228,12 @@ class XAcquirer:
         except RequestFetchError as error:
             logger.warning("x page enrichment unavailable reason=%s", error.reason.value)
             return XPageParse()
-        page = parse_page(decode_scripts(html), identity)
+        try:
+            page = parse_page(decode_scripts(html), identity)
+        except Exception:
+            # Defense in depth: an unforeseen page shape never fails the acquisition.
+            logger.warning("x page enrichment unreadable")
+            return XPageParse()
         if not page.engagement:
             logger.warning(
                 "x page enrichment found no post replies=%d dropped=%d",

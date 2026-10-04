@@ -108,4 +108,8 @@ class XProfileDiscovery:
             html = await self._fetcher.page(f"{CANONICAL_BASE}/{request.handle}")
         except RequestFetchError as error:
             return _empty("profile", _reason(error))
-        return parse_profile(decode_scripts(html), request.handle, request.limit)
+        try:
+            return parse_profile(decode_scripts(html), request.handle, request.limit)
+        except Exception:
+            # Defense in depth: discovery never raises on an unforeseen page shape.
+            return _empty("profile", DiscoveryReason.NO_DATA)

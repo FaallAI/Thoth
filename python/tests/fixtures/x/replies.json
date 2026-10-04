@@ -234,7 +234,7 @@
   },
   "expected": {
     "owner_handle": "user_001",
-    "text": "aaaa, aaaa @aaaaaa aa aaaa 😠 ",
+    "text": "aaaa, aaaa @aaaaaa aa aaaa 😠",
     "media_kinds": [
       "video"
     ],

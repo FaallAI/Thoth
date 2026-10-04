@@ -99,6 +99,7 @@ def test_malformed_input_never_raises() -> None:
         _page("($R=>$R[0].next({a:1})"),
         _page("($R=>" + "[" * 5_000 + "]" * 5_000 + ')($R["k1"])'),
         "<script>($R=>",
+        _page(_next("[" + ",".join(f"$R[{n}]=[$R[{n + 1}]]" for n in range(3_000)) + "]")),
         "",
     ):
         assert decode_scripts(html) == []

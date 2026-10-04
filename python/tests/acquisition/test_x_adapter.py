@@ -301,3 +301,10 @@ def test_with_page_adds_views_reposts_and_the_long_text() -> None:
     assert merged.post.text == "the whole long text"
     short = with_page(parse_syndication(_synd(), IDENTITY), page)
     assert short.post.text == "hello world"
+
+
+def test_the_display_range_counts_utf16_units() -> None:
+    # X counts UTF-16 code units: each emoji is two, so a code-point slice overruns.
+    text = "hi 😀😀 there https://t.co/abc"
+    data = _synd(text=text, display_text_range=[0, 13])
+    assert parse_syndication(data, IDENTITY).post.text == "hi 😀😀 there"

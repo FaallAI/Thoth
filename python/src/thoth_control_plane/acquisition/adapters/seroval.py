@@ -191,4 +191,11 @@ def decode_scripts(html: str) -> list[Any]:
             value, key, table = found
             tables.setdefault(key, {}).update(table)
             decoded.append((value, key))
-    return [_resolve(value, tables[key], set()) for value, key in decoded]
+    resolved: list[Any] = []
+    for value, key in decoded:
+        try:
+            resolved.append(_resolve(value, tables[key], set()))
+        except RecursionError:
+            # A reference chain nests deeper than the parser's own depth limit allows.
+            continue
+    return resolved

@@ -128,7 +128,10 @@ async def test_cards_use_the_x_layout_with_no_dialog() -> None:
     assert post_page.evaluated == [
         (TAG_REPLIES_JS, [{"comment_id": C1, "author": "fan_001", "prefix": "a reply"}])
     ]
-    assert profile_page.shots == [PROFILE_CARD_SELECTOR] == ["main > div:nth-child(4)"]
+    # Fail closed: a shifted layout matches nothing rather than the wrong block.
+    profile_selector = 'main > div:nth-child(4):has-text("@user_001")'
+    assert PROFILE_CARD_SELECTOR.format(owner="user_001") == profile_selector
+    assert profile_page.shots == [profile_selector]
     assert session.exited == 1
     assert active_scrapling_session_count() == 0
 

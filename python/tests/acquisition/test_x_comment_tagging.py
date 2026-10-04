@@ -10,11 +10,16 @@ from typing import Any
 import pytest
 
 from thoth_control_plane.acquisition.card_browser import COMMENT_ROW_ATTRIBUTE
-from thoth_control_plane.acquisition.x_service import POST_CARD_SELECTOR, TAG_REPLIES_JS
+from thoth_control_plane.acquisition.x_service import (
+    POST_CARD_SELECTOR,
+    PROFILE_CARD_SELECTOR,
+    TAG_REPLIES_JS,
+)
 
 async_api = pytest.importorskip("playwright.async_api")
 
 ROW = "<article><div>Name</div><div>@{a}</div><div>{t}</div>{quote}</article>"
+LINKED = '<article id="a{i}"><a href="/{a}/status/{i}">@{a}</a><div>{t}</div></article>'
 
 
 def _list(rows: list[tuple[str, str, str]]) -> str:
@@ -88,3 +93,46 @@ async def test_the_post_selector_skips_the_parent_tweet() -> None:
         finally:
             await browser.close()
     assert found == "post"
+
+
+@pytest.mark.asyncio
+async def test_a_reply_row_is_the_one_linking_to_its_own_status() -> None:
+    # The post (by the same author) also says "Yes" first; the reply's own link decides.
+    post = LINKED.format(a="ann", i="1800000000000000001", t="Yesterday was great")
+    reply = LINKED.format(a="ann", i="1800000000000000101", t="Yes")
+    target = {"comment_id": "1800000000000000101", "author": "ann", "prefix": "Yes"}
+    async with async_api.async_playwright() as playwright:
+        try:
+            browser = await playwright.chromium.launch()
+        except Exception:
+            pytest.skip("no Chromium build installed")
+        try:
+            page = await browser.new_page()
+            await page.set_content(f"<main>{post}{reply}</main>")
+            tagged = await page.evaluate(TAG_REPLIES_JS, [target])
+            owner = await page.eval_on_selector(
+                f"[{COMMENT_ROW_ATTRIBUTE}]", "(e) => e.getAttribute('id')"
+            )
+        finally:
+            await browser.close()
+    assert (tagged, owner) == (["1800000000000000101"], "a1800000000000000101")
+
+
+@pytest.mark.asyncio
+async def test_the_profile_selector_fails_closed() -> None:
+    blocks = "<main><div>a</div><div>b</div><div>c</div><div>Sign up today</div></main>"
+    async with async_api.async_playwright() as playwright:
+        try:
+            browser = await playwright.chromium.launch()
+        except Exception:
+            pytest.skip("no Chromium build installed")
+        try:
+            page = await browser.new_page()
+            await page.set_content(blocks)
+            selector = PROFILE_CARD_SELECTOR.format(owner="user_001")
+            missing = await page.locator(selector).count()
+            await page.set_content(blocks.replace("Sign up today", "Name @user_001 bio"))
+            found = await page.locator(selector).count()
+        finally:
+            await browser.close()
+    assert (missing, found) == (0, 1)

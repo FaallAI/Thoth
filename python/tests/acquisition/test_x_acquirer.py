@@ -12,6 +12,7 @@ import pytest
 
 from tests.acquisition.fakes import FakeMaterializer
 from tests.acquisition.png_fixtures import make_png
+from thoth_control_plane.acquisition import x_service
 from thoth_control_plane.acquisition.card_browser import Cards
 from thoth_control_plane.acquisition.models import AcquisitionReason, AcquisitionStrategy
 from thoth_control_plane.acquisition.x_service import RequestFetchError, XAcquirer
@@ -181,6 +182,19 @@ async def test_a_failed_page_still_yields_a_report(
     assert result.report.comments == []
     assert result.report.post.engagement == {"like": 1200, "comment": 34}
     assert "x page enrichment unavailable reason=request_blocked" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_a_page_parse_error_still_yields_a_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def explode(html: str) -> list[object]:
+        raise RecursionError
+
+    monkeypatch.setattr(x_service, "decode_scripts", explode)
+    result = await _inspect(tmp_path, FakeRequest(), FakeHeadless(_cards()))
+    assert result.report is not None
+    assert result.report.comments == []
 
 
 @pytest.mark.asyncio

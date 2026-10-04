@@ -180,7 +180,7 @@
   },
   "expected": {
     "owner_handle": "user_001",
-    "text": "🚨 aaaa a.a (aaaaaa) aa aaaa a.a (aaaaa)\n\naaaa aaaaa aaaaaa\n\naaa aaaaa’a aaaaaa aaaaa aaaaaaaaaa aaaaaa aaaa aaaaaa, aaaa aaaaaa, aaa aaa aaaaaaa aaaaaa aaaa aaaaa’a aaa aaa aaaa\n\naa aaaaaaaa aaaaa aaaa aaaa a.a aaa aaaaaa aaaaaa ",
+    "text": "🚨 aaaa a.a (aaaaaa) aa aaaa a.a (aaaaa)\n\naaaa aaaaa aaaaaa\n\naaa aaaaa’a aaaaaa aaaaa aaaaaaaaaa aaaaaa aaaa aaaaaa, aaaa aaaaaa, aaa aaa aaaaaaa aaaaaa aaaa aaaaa’a aaa aaa aaaa\n\naa aaaaaaaa aaaaa aaaa aaaa a.a aaa aaaaaa aaaaaa",
     "media_kinds": [
       "video"
     ],

@@ -157,7 +157,9 @@ def parse_syndication(
         and len(span) == 2
         and all(isinstance(i, int) and not isinstance(i, bool) for i in span)
     ):
-        text = text[span[0] : span[1]]
+        # X counts UTF-16 code units (an emoji is two); slicing code points would overrun.
+        units = text.encode("utf-16-le")
+        text = units[2 * span[0] : 2 * span[1]].decode("utf-16-le", "ignore")
     engagement = {
         key: count
         for key, name in (("like", "favorite_count"), ("comment", "conversation_count"))

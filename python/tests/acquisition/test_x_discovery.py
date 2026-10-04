@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+from thoth_control_plane.acquisition import x_discovery
 from thoth_control_plane.acquisition.models import (
     AcquisitionReason,
     DiscoveryReason,
@@ -128,6 +129,16 @@ async def test_fetch_failures_map_to_reasons(
 ) -> None:
     result = await _discover(FakeFetcher(error=error))
     assert (result.videos, result.pages, result.reason) == ([], 0, reason)
+
+
+@pytest.mark.asyncio
+async def test_a_decode_error_is_no_data(monkeypatch: pytest.MonkeyPatch) -> None:
+    def explode(html: str) -> list[object]:
+        raise RecursionError
+
+    monkeypatch.setattr(x_discovery, "decode_scripts", explode)
+    result = await _discover(FakeFetcher(_page(_tweet(1))))
+    assert (result.videos, result.reason) == ([], DiscoveryReason.NO_DATA)
 
 
 @pytest.mark.asyncio
