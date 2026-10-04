@@ -3363,7 +3363,356 @@ git commit -m "feat(operations): add instagram capture and fixture tooling"
 
 ---
 
+### Task 5b: Multi-signal discovery ranking with detail fetches (amendment 2026-10-04)
+
+Added after the live capture (spec 3.5, amended): anonymous grid nodes carry no like, view,
+comment, or date fields, and the operator chose to fetch each grid video's post page and
+rank by the mean of like, view, and upload-date ranks.
+
+**Files:**
+- Modify: `python/src/thoth_control_plane/acquisition/adapters/instagram.py` (`ENGAGEMENT_KEYS`)
+- Modify: `python/src/thoth_control_plane/acquisition/instagram_discovery.py`
+- Test: `python/tests/acquisition/test_instagram_discovery.py`
+
+**Interfaces:**
+- Consumes: `find_instagram_media`, `engagement_of`, `login_required` (Task 2);
+  `InstagramRequestFetcher.fetch` (Task 3); `parse_profile` (Task 5).
+- Produces: `rank_videos(videos) -> list[DiscoveredVideo]`, `DETAIL_SPACING_SECONDS`,
+  `InstagramProfileDiscovery(fetcher=None, sleep=asyncio.sleep)`. `parse_profile` keeps its
+  signature and now orders with `rank_videos`.
+
+- [ ] **Step 1: Write the failing tests**
+
+In `test_instagram_discovery.py`, replace `FakeFetcher` and `_discover` and add the
+helpers below (keep `_node` and `_page`):
+
+```python
+class FakeFetcher:
+    """The profile URL serves `texts`; a post URL serves its `details` entry or nothing."""
+
+    def __init__(
+        self,
+        texts: list[str] | None = None,
+        error: AcquisitionReason | None = None,
+        details: dict[str, list[str] | AcquisitionReason] | None = None,
+    ):
+        self.texts, self.error, self.details, self.urls = texts or [], error, details or {}, []
+
+    async def fetch(self, url: str) -> list[str]:
+        self.urls.append(url)
+        if "/p/" not in url:
+            if self.error is not None:
+                raise RequestFetchError(self.error)
+            return self.texts
+        detail = self.details.get(url, [])
+        if isinstance(detail, AcquisitionReason):
+            raise RequestFetchError(detail)
+        return detail
+
+
+async def _discover(fetcher: FakeFetcher, handle: str = "nasa", limit: int = 30, sleeps=None):
+    async def sleep(seconds: float) -> None:
+        if sleeps is not None:
+            sleeps.append(seconds)
+
+    discovery = InstagramProfileDiscovery(fetcher, sleep=sleep)
+    return await discovery.discover(ProfileDiscovery(handle=handle, limit=limit))
+
+
+def _bare(n: int) -> dict[str, Any]:
+    """A grid node as the anonymous grid serves it: no counts and no date."""
+    node = _node(n)
+    for key in ("like_count", "comment_count", "taken_at"):
+        node.pop(key)
+    return node
+
+
+def _post_page(n: int, likes: int, taken_at: int) -> list[str]:
+    post = {
+        "code": f"code_{n:03d}",
+        "pk": str(3_100_000_000_000_000_000 + n),
+        "user": {"username": "nasa"},
+        "like_count": likes,
+        "comment_count": 3,
+        "taken_at": taken_at,
+    }
+    return [json.dumps({"require": [{"xig_polaris_media": {"if_not_gated_logged_out": post}}]})]
+
+
+def _url(n: int) -> str:
+    return f"https://www.instagram.com/p/code_{n:03d}/"
+
+
+def _video(n: int, **fields: Any) -> DiscoveredVideo:
+    return DiscoveredVideo(
+        post_id=str(3_100_000_000_000_000_000 + n),
+        owner_handle="nasa",
+        canonical_url=_url(n),
+        **fields,
+    )
+```
+
+Add `DiscoveredVideo` to the models import and `DETAIL_SPACING_SECONDS, rank_videos` to the
+`instagram_discovery` import.
+
+Change `test_videos_only_sorted_by_likes`: rename it `test_videos_only_ranked`, and replace
+its last assertion with
+
+```python
+    assert fetcher.urls == ["https://www.instagram.com/nasa/", _url(4), _url(5), _url(1)]
+```
+
+(the grid's likes and dates still rank 4, 5, 1, and detail pages are fetched in that order). In
+`test_handle_match_is_case_insensitive` replace the URL assertion with
+`assert fetcher.urls[0] == "https://www.instagram.com/NASA/"`.
+
+Append:
+
+```python
+def test_rank_is_the_mean_of_like_view_and_recency_ranks() -> None:
+    old_liked = _video(1, engagement={"like": 100}, published_at="2024-01-01T00:00:00Z")
+    new_viewed = _video(
+        2, engagement={"like": 10, "play": 5_000}, published_at="2024-03-01T00:00:00Z"
+    )
+    middle = _video(
+        3, engagement={"like": 50, "play": 1_000}, published_at="2024-02-01T00:00:00Z"
+    )
+    # like: 1, 0, .5; play: missing (lowest), 1, 0; date: 0, 1, .5 -> 1, 2, 1.
+    ranked = rank_videos([old_liked, new_viewed, middle])
+    assert [v.post_id for v in ranked] == [
+        new_viewed.post_id,
+        old_liked.post_id,  # ties keep the grid order
+        middle.post_id,
+    ]
+
+
+def test_rank_without_any_signal_keeps_the_grid_order() -> None:
+    videos = [_video(n, engagement={"like": 7}) for n in (3, 1, 2)]
+    assert rank_videos(videos) == videos
+
+
+@pytest.mark.asyncio
+async def test_detail_pages_supply_the_signals_the_grid_lacks() -> None:
+    details = {
+        _url(1): _post_page(1, likes=900, taken_at=1_700_000_000),
+        _url(2): _post_page(2, likes=100, taken_at=1_700_900_000),
+        # _url(3) serves no post node: the video stays as the grid had it.
+    }
+    sleeps: list[float] = []
+    fetcher = FakeFetcher(_page([_bare(1), _bare(2), _bare(3)]), details=details)
+    result = await _discover(fetcher, sleeps=sleeps)
+    assert [v.engagement for v in result.videos] == [
+        {"like": 900, "comment": 3},
+        {"like": 100, "comment": 3},
+        {},
+    ]
+    assert result.videos[1].published_at == "2023-11-25T08:13:20Z"
+    assert result.videos[2].published_at is None
+    assert sleeps == [DETAIL_SPACING_SECONDS] * 3
+    assert fetcher.urls[1:] == [_url(1), _url(2), _url(3)]
+    assert result.reason is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("error", "reason"),
+    [
+        (AcquisitionReason.REQUEST_BLOCKED, DiscoveryReason.BLOCKED),
+        (AcquisitionReason.REQUEST_TIMEOUT, DiscoveryReason.TIMEOUT),
+    ],
+)
+async def test_detail_failure_stops_and_returns_a_partial_result(
+    error: AcquisitionReason, reason: DiscoveryReason
+) -> None:
+    details: dict[str, list[str] | AcquisitionReason] = {
+        _url(1): _post_page(1, likes=5, taken_at=1_700_000_000),
+        _url(2): error,
+    }
+    fetcher = FakeFetcher(_page([_bare(1), _bare(2), _bare(3)]), details=details)
+    result = await _discover(fetcher)
+    assert fetcher.urls[1:] == [_url(1), _url(2)]
+    assert len(result.videos) == 3
+    assert result.reason is reason
+    assert result.videos[0].engagement == {"like": 5, "comment": 3}
+
+
+@pytest.mark.asyncio
+async def test_a_login_wall_on_a_detail_page_is_blocked() -> None:
+    details: dict[str, list[str] | AcquisitionReason] = {
+        _url(1): [json.dumps({"require_login": True, "status": "fail"})],
+    }
+    fetcher = FakeFetcher(_page([_bare(1), _bare(2)]), details=details)
+    result = await _discover(fetcher)
+    assert fetcher.urls[1:] == [_url(1)]
+    assert len(result.videos) == 2
+    assert result.reason is DiscoveryReason.BLOCKED
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `MSYS_NO_PATHCONV=1 timeout 590 wsl -e bash /mnt/d/thoth-tmp/bu/pt.sh tests/acquisition/test_instagram_discovery.py -q`
+Expected: collection fails with `ImportError` for `DETAIL_SPACING_SECONDS` / `rank_videos`.
+
+- [ ] **Step 3: Implement**
+
+In `adapters/instagram.py`:
+
+```python
+ENGAGEMENT_KEYS = {
+    "like": ("like_count",),
+    "comment": ("comment_count",),
+    # Absent from anonymous pages; a logged-in page carries a play count.
+    "play": ("play_count", "ig_play_count", "view_count"),
+}
+```
+
+In `instagram_discovery.py`, update the module docstring's first paragraph to:
+
+```python
+"""Instagram profile discovery: video posts from the anonymous 12-post profile grid.
+
+Request only: one Scrapling GET of `/<handle>/`, then one GET per grid video's post page,
+because the anonymous grid carries no like, view, or date fields. Never raises; every
+failure is a `DiscoveryResult` with a reason. A library with no caller until Stage 8, like
+TikTok discovery.
+"""
+```
+
+Add `import asyncio`; import `Awaitable, Callable, Sequence` from `collections.abc`
+alongside `Iterable`; add `find_instagram_media` to the `adapters.instagram` import. Add
+below `TIMELINE_KEY`:
+
+```python
+DETAIL_SPACING_SECONDS = 3.0
+
+
+def _recency(video: DiscoveredVideo) -> str | None:
+    # `YYYY-MM-DDTHH:MM:SSZ` strings sort chronologically.
+    return video.published_at
+
+
+SIGNALS: tuple[Callable[[DiscoveredVideo], int | str | None], ...] = (
+    lambda video: video.engagement.get("like"),
+    lambda video: video.engagement.get("play"),
+    _recency,
+)
+
+
+def rank_videos(videos: Sequence[DiscoveredVideo]) -> list[DiscoveredVideo]:
+    """Order by the mean of per-signal ranks: likes, views, and upload date.
+
+    Each signal ranks the videos 0..1 by distinct value. A signal with fewer than two
+    distinct values carries no order and is skipped; a video missing a signal the others
+    have ranks lowest on it. Ties, and the no-signal case, keep the grid order.
+    """
+    scores = [0.0] * len(videos)
+    for signal in SIGNALS:
+        values = [signal(video) for video in videos]
+        levels = sorted({value for value in values if value is not None})
+        if len(levels) < 2:
+            continue
+        for index, value in enumerate(values):
+            if value is not None:
+                scores[index] += levels.index(value) / (len(levels) - 1)
+    # Every video is scored over the same signals, so the sum orders like the mean.
+    order = sorted(range(len(videos)), key=lambda index: -scores[index])
+    return [videos[index] for index in order]
+
+
+def _reason(error: RequestFetchError) -> DiscoveryReason:
+    timeout = error.reason is AcquisitionReason.REQUEST_TIMEOUT
+    return DiscoveryReason.TIMEOUT if timeout else DiscoveryReason.BLOCKED
+
+
+def _with_detail(video: DiscoveredVideo, roots: list[object]) -> DiscoveredVideo:
+    """Take likes, comments, and the upload date from the video's own post node."""
+    code = str(video.canonical_url).rstrip("/").rsplit("/", 1)[-1]
+    found = find_instagram_media(roots, code)
+    if found is None:
+        return video
+    node = found[0]
+    return video.model_copy(
+        update={
+            "engagement": engagement_of(node) or video.engagement,
+            "published_at": published_at_from_epoch(node.get("taken_at"))
+            or video.published_at,
+        }
+    )
+```
+
+In `parse_profile`, replace the comment and the `ranked = sorted(...)` line with
+`ranked = rank_videos(list(videos.values()))`.
+
+Replace the `InstagramProfileDiscovery.__init__` and `_collect`, and add `_details`:
+
+```python
+    def __init__(
+        self,
+        fetcher: InstagramRequestFetcher | None = None,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    ) -> None:
+        self._fetcher = fetcher or InstagramRequestFetcher()
+        self._sleep = sleep
+
+    async def _collect(self, request: ProfileDiscovery) -> DiscoveryResult:
+        try:
+            texts = await self._fetcher.fetch(f"{CANONICAL_BASE}/{request.handle}/")
+        except RequestFetchError as error:
+            return _empty("profile", _reason(error))
+        roots = json_roots(texts)
+        if login_required(roots):
+            return _empty("profile", DiscoveryReason.BLOCKED)
+        grid = parse_profile(roots, request.handle, GRID_SIZE)
+        if grid.reason is not None:
+            return grid
+        videos, reason = await self._details(grid.videos)
+        return grid.model_copy(
+            update={"videos": rank_videos(videos)[: request.limit], "reason": reason}
+        )
+
+    async def _details(
+        self, videos: list[DiscoveredVideo]
+    ) -> tuple[list[DiscoveredVideo], DiscoveryReason | None]:
+        """Each video's post page carries the signals the anonymous grid lacks.
+
+        The first failure stops the remaining fetches: the rest keep their grid fields.
+        """
+        enriched: list[DiscoveredVideo] = []
+        for index, video in enumerate(videos):
+            await self._sleep(DETAIL_SPACING_SECONDS)
+            try:
+                roots = json_roots(await self._fetcher.fetch(str(video.canonical_url)))
+            except RequestFetchError as error:
+                return enriched + videos[index:], _reason(error)
+            if login_required(roots):
+                return enriched + videos[index:], DiscoveryReason.BLOCKED
+            enriched.append(_with_detail(video, roots))
+        return enriched, None
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+
+Run: `MSYS_NO_PATHCONV=1 timeout 590 wsl -e bash /mnt/d/thoth-tmp/bu/pt.sh tests/acquisition -q`
+Expected: PASS (the Instagram adapter, acquirer, and discovery suites included).
+
+- [ ] **Step 5: Ruff and commit**
+
+```bash
+git add python/src/thoth_control_plane/acquisition/adapters/instagram.py python/src/thoth_control_plane/acquisition/instagram_discovery.py python/tests/acquisition/test_instagram_discovery.py
+git commit -m "feat(acquisition): rank instagram discovery by likes, views, recency"
+```
+
+---
+
 ### Task 7: Live capture, golden fixtures, and method decisions (HARD STOP)
+
+> Amended 2026-10-04 (spec 6.1, 6.3): the capture ran with operator authorization. The
+> operator's share link is a plain post URL, so there is no `share` fixture: the replay
+> test covers `video`, `image`, `carousel`, and `profile`, drops
+> `test_share_method_matches_recorded_comparison`, and `SHARE_RESOLUTION_METHOD` stays
+> `request`. Raw captures live in `D:/thoth-tmp/bu/instagram/capture/`; the profile fixture
+> is built from the second (reel-heavy) profile capture. The profile replay test checks
+> `parse_profile`'s order against `rank_videos` and the recorded post ids.
 
 **Files:**
 - Create: `python/tests/fixtures/instagram/{video,image,carousel,share,profile}.json`

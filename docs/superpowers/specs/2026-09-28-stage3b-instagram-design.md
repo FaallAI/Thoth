@@ -1,7 +1,9 @@
 # Stage 3b: Instagram Acquisition on the Platform Kernel
 
 Status: design approved section by section by the operator on 2026-09-28; written spec
-awaiting operator review.
+awaiting operator review. Amended 2026-10-04 after the live capture: share links arrive as
+plain post URLs, and profile discovery ranks by likes, views, and upload date (sections
+3.5, 6, 7, 8).
 
 ## 1. Context and scope
 
@@ -73,8 +75,9 @@ Out of scope:
 
 - `ReportSource.platform` adds `"instagram"`. No other model changes.
 - `SourcePost`: `post_id` = the post `code`; `text` = `caption.text` (empty when absent);
-  `published_at` from `taken_at` (epoch seconds, UTC); `engagement` holds `like` and
-  `comment` only, and is empty when `like_and_view_counts_disabled` is true.
+  `published_at` from `taken_at` (epoch seconds, UTC); `engagement` holds `like`,
+  `comment`, and `play` (a view count, absent from anonymous pages) when present, and is
+  empty when `like_and_view_counts_disabled` is true.
 - Comments use the existing `ReportComment`: `comment_id` = `pk` (numeric),
   `author` = `user.username`, `text`, `likes` = `comment_like_count`, and `card` = a real
   crop or `None`.
@@ -122,15 +125,26 @@ parsers stay because the method-decision test replays them.
   `polaris_ordered_timeline_connection.edges`.
 - Mapping to the existing `DiscoveredVideo`: `post_id` = `pk` (numeric);
   `canonical_url` rebuilt as `https://www.instagram.com/p/<code>/` after validating `code`;
-  `caption`, `published_at`; `engagement` = `like` and `comment`; `duration_seconds` and
-  `hashtags` left empty.
+  `caption`, `published_at`; `engagement` = `like`, `comment`, and `play`;
+  `duration_seconds` and `hashtags` left empty.
 - Kept: video posts only (`media_type == 2`), matching legacy `igProfileReels`. Image and
   carousel posts count in `drops.photo_posts`; malformed nodes count in `drops.invalid`.
-- Sorted by `like_count` descending (the legacy view sort is unavailable anonymously), then
-  cut to `limit`. At most 12 results whatever the limit; `pages=1`, `exhausted=False`.
-- Failures return an empty `DiscoveryResult` with a reason and never raise: login redirect
-  is `blocked`; no user or timeline in the JSON (including private accounts) is `no_data`;
-  timeout is `timeout`.
+- Detail fetch (amended 2026-10-04): the live capture showed the anonymous grid nodes carry
+  no like, view, comment, or date fields. Each kept video's post page is then fetched by
+  request, spaced a few seconds apart, and its `engagement` and `published_at` are taken
+  from the post node when found. A post page without the node leaves the video unchanged.
+  A detail fetch failure stops the remaining detail fetches and returns the videos ranked
+  on what was gathered, with the failure's reason (a valid partial result). Anonymous
+  pages carry no view count; `play` fills in once a login session supplies it.
+- Ranking (amended 2026-10-04): each of three signals, likes, views (`play`), and upload
+  date (newer is better), gives every video a rank scaled to 0..1 within the profile; the
+  score is the mean of those ranks. A signal with fewer than two distinct values is
+  skipped; a video missing a signal the others have ranks lowest on it. With no usable
+  signal, or on ties, the grid order (newest first) stands. Then cut to `limit`. At most 12
+  results whatever the limit; `pages=1`, `exhausted=False`.
+- Failures of the profile fetch return an empty `DiscoveryResult` with a reason and never
+  raise: login redirect is `blocked`; no user or timeline in the JSON (including private
+  accounts) is `no_data`; timeout is `timeout`.
 
 ## 4. Data flow and progress
 
@@ -178,7 +192,11 @@ handle, or caption text is logged. No raw diagnostic crosses into Temporal histo
 
 - One read-only anonymous session against public posts the operator supplies at capture
   time: one reel or video, one image, one carousel, one share link, plus one profile (the
-  owner of one of those posts) for discovery.
+  owner of one of those posts) for discovery. Amended 2026-10-04: the operator confirmed
+  that app share links arrive as plain post URLs with a share query (`/p/<code>/?igsh=`),
+  which canonicalize as posts, so no `/share/` link was captured. The `/share/` shapes stay
+  supported and unit-tested; `SHARE_RESOLUTION_METHOD` stays `request`, unverified live. A
+  second profile with a reel-heavy grid was captured to measure the discovery signals.
 - Each post is fetched once per method: the request post HTML, and the headless visit's
   page JSON plus the post card, comment card, and profile card crops. The share link
   records where the request and the headless resolution each land. The profile is fetched
@@ -202,8 +220,8 @@ enums only) in `CHANGELOG.md` and the checkpoint, and sets the section 3.4 const
   caption and comment text pseudonymized; handles, `pk`, and `code` replaced by stable
   pseudonyms (`pk` stays numeric); synthetic timestamps on a one-hour grid; counters kept
   to two significant digits; CDN URLs replaced by synthetic URLs.
-- Committed under `python/tests/fixtures/instagram/`: `video`, `image`, `carousel`,
-  `share`, and `profile`, each with the sanitized responses and the expected parser output,
+- Committed under `python/tests/fixtures/instagram/`: `video`, `image`, `carousel`, and
+  `profile` (no `share` fixture, see 6.1), each with the sanitized responses and the expected parser output,
   passing the leak check with 0 leaks. Card PNGs are not committed; tests use
   `png_fixtures.make_png`.
 
@@ -223,10 +241,11 @@ The conftest `_offline_unless_live` guard is not changed. New or changed tests:
 - Service: the post card only for non-video posts; unmatched comment rows get
   `card = None`; a failing headless still yields a report without cards; the browser is
   closed on cancellation.
-- Discovery: video only, like-sorted, `limit` respected, at most 12; drop counts and each
-  reason.
-- Method decision: the chosen content and share methods still match or beat the other on
-  the fixtures.
+- Discovery: video only, ranked by the mean of like, view, and recency ranks with skipped
+  and missing signals, detail fetch enrichment and a detail failure as a partial result,
+  `limit` respected, at most 12; drop counts and each reason.
+- Method decision: the chosen content method still matches or beats the other on the
+  fixtures.
 - `SourceReport` v3 accepts `platform="instagram"`.
 
 Verification: WSL Python 3.12 full suite and ruff check and format. No Rust changes are
@@ -240,9 +259,10 @@ reported as-is, not counted as a new failure.
    a valid v3 report with media, first-page comments, and real cards where cropping
    succeeds.
 2. Card failures never fail acquisition, and no card is synthetic.
-3. Profile discovery returns like-sorted video posts from the anonymous 12-post grid.
-4. The content and share-resolution method decisions are recorded with
-   offline-reproducible evidence.
+3. Profile discovery returns video posts from the anonymous 12-post grid, ranked by likes,
+   views, and upload date as available.
+4. The content method decision is recorded with offline-reproducible evidence; the share
+   resolution method stays provisional (6.1).
 5. TikTok and Threads behavior is unchanged.
 6. The full suite passes with no new failures and no live test.
 
@@ -253,6 +273,7 @@ reported as-is, not counted as a new failure.
 - Login-only capabilities (comment pagination, grid beyond 12, view counts) wait for the
   separate multi-account, rotating login feature that follows 3b.
 - About three Instagram hits per acquired post (post request, post page, profile page) is
-  a rate risk to observe at the live smoke.
+  a rate risk to observe at the live smoke. Profile discovery adds up to 13 hits (the
+  profile page and one post page per grid video).
 - Push, deployment, and any live smoke stay operator gates; live smokes wait for the final
   acceptance (ADR 0001).
