@@ -9,12 +9,10 @@ fallback lives in the workflow. Cards always come from one anonymous headless se
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 import time
 from collections.abc import Awaitable, Callable
-from dataclasses import asdict, dataclass, field
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
@@ -32,12 +30,24 @@ from thoth_control_plane.acquisition.adapters.instagram import (
 )
 from thoth_control_plane.acquisition.adapters.threads import json_roots
 from thoth_control_plane.acquisition.browser import (
-    FETCH_OPTIONS,
     HeadlessBrowserError,
-    _classify_fetch_error,
     _default_session_factory,
-    _increment_active_sessions,
     _is_timeout,
+)
+from thoth_control_plane.acquisition.card_browser import (
+    COMMENT_ROW_ATTRIBUTE as COMMENT_ROW_ATTRIBUTE,
+)
+from thoth_control_plane.acquisition.card_browser import (
+    CardBrowser,
+    CardLayout,
+    Cards,
+    comment_targets,
+    is_login_path,
+    log_outcome,
+    persist_cards,
+)
+from thoth_control_plane.acquisition.card_browser import (
+    CommentTarget as CommentTarget,
 )
 from thoth_control_plane.acquisition.materializer import (
     MediaMaterializationError,
@@ -48,9 +58,7 @@ from thoth_control_plane.acquisition.models import (
     AcquisitionOutcome,
     AcquisitionReason,
     AcquisitionResult,
-    CardArtifact,
     MaterializedMedia,
-    ReportComment,
     ReportSource,
     SourceReport,
 )
@@ -66,9 +74,7 @@ from thoth_control_plane.acquisition.threads_service import (
     RequestFetchError,
     _await_post_url,
     _scrapling_get,
-    exit_session,
     materialize_media,
-    save_card,
 )
 
 logger = logging.getLogger(__name__)
@@ -79,9 +85,6 @@ SHARE_RESOLUTION_METHOD: Literal["request", "headless"] = "request"
 DIALOG_CLOSE_SELECTOR = 'div[role=dialog] svg[aria-label="Close"]'
 POST_CARD_SELECTOR = "main > div > div"
 PROFILE_CARD_SELECTOR = "header"
-COMMENT_ROW_ATTRIBUTE = "data-thoth-comment"
-COMMENT_PREFIX_CHARS = 30
-DIALOG_TIMEOUT_MS = 3_000
 LOGIN_PATHS = ("/accounts/login", "/login", "/challenge")
 # Tags each matched comment row; targets arrive as the evaluate argument, never interpolated.
 TAG_COMMENTS_JS = """
@@ -111,9 +114,19 @@ TAG_COMMENTS_JS = """
 """
 
 
+INSTAGRAM_LAYOUT = CardLayout(
+    post_selector=POST_CARD_SELECTOR,
+    profile_selector=PROFILE_CARD_SELECTOR,
+    tag_js=TAG_COMMENTS_JS,
+    login_paths=LOGIN_PATHS,
+    dismiss_selector=DIALOG_CLOSE_SELECTOR,
+)
+# Kept under its Stage 3b name for the Instagram callers and tests.
+InstagramCards = Cards
+
+
 def _blocked(url: object) -> bool:
-    path = urlsplit(str(url)).path
-    return any(path == prefix or path.startswith(prefix + "/") for prefix in LOGIN_PATHS)
+    return is_login_path(url, LOGIN_PATHS)
 
 
 class InstagramRequestFetcher:
@@ -160,107 +173,11 @@ async def resolve_instagram_identity(
     return canonicalize_instagram_post_url(landing)
 
 
-@dataclass(frozen=True)
-class CommentTarget:
-    comment_id: str
-    author: str
-    prefix: str
-
-
-def comment_targets(comments: list[ReportComment]) -> list[CommentTarget]:
-    targets: list[CommentTarget] = []
-    for comment in comments:
-        line = next((part.strip() for part in comment.text.splitlines() if part.strip()), "")
-        targets.append(
-            CommentTarget(comment.comment_id, comment.author, line[:COMMENT_PREFIX_CHARS])
-        )
-    return targets
-
-
-@dataclass
-class InstagramCards:
-    post_png: bytes | None = None
-    comment_pngs: dict[str, bytes] = field(default_factory=dict)
-    profile_png: bytes | None = None
-    problems: list[str] = field(default_factory=list)
-
-
-async def _dismiss(page: Any) -> None:
-    # The anonymous sign-up dialog covers the page; a missing dialog is fine.
-    with contextlib.suppress(Exception):
-        await page.locator(DIALOG_CLOSE_SELECTOR).first.click(timeout=DIALOG_TIMEOUT_MS)
-
-
-async def _crop(page: Any, selector: str) -> bytes | None:
-    with contextlib.suppress(Exception):
-        element = page.locator(selector).first
-        await element.scroll_into_view_if_needed(timeout=5_000)
-        return await element.screenshot(timeout=10_000)
-    return None
-
-
-def _on_post(
-    cards: InstagramCards, want_post: bool, targets: list[CommentTarget]
-) -> Callable[[Any], Awaitable[None]]:
-    async def action(page: Any) -> None:
-        if _blocked(page.url):
-            cards.problems.append(AcquisitionReason.HEADLESS_BLOCKED.value)
-            return
-        await _dismiss(page)
-        if want_post:
-            cards.post_png = await _crop(page, POST_CARD_SELECTOR)
-        if not targets:
-            return
-        tagged: object = []
-        with contextlib.suppress(Exception):
-            tagged = await page.evaluate(TAG_COMMENTS_JS, [asdict(t) for t in targets])
-        known = {target.comment_id for target in targets}
-        for comment_id in tagged if isinstance(tagged, list) else []:
-            # Only ids we sent (validated numeric) ever reach a selector.
-            if comment_id in known and comment_id not in cards.comment_pngs:
-                png = await _crop(page, f'[{COMMENT_ROW_ATTRIBUTE}="{comment_id}"]')
-                if png is not None:
-                    cards.comment_pngs[comment_id] = png
-
-    return action
-
-
-def _on_profile(cards: InstagramCards) -> Callable[[Any], Awaitable[None]]:
-    async def action(page: Any) -> None:
-        if _blocked(page.url):
-            cards.problems.append(AcquisitionReason.HEADLESS_BLOCKED.value)
-            return
-        await _dismiss(page)
-        cards.profile_png = await _crop(page, PROFILE_CARD_SELECTOR)
-
-    return action
-
-
-class InstagramHeadlessBrowser:
-    """One lazily opened stealthy session for share resolution, page JSON, and card crops."""
+class InstagramHeadlessBrowser(CardBrowser):
+    """The Instagram card session, plus share resolution and page JSON in the same session."""
 
     def __init__(self, session_factory: Callable[..., Any] = _default_session_factory) -> None:
-        self._session_factory = session_factory
-        self._session: Any | None = None
-        self._active: Any | None = None
-
-    async def _open(self) -> Any:
-        if self._active is None:
-            session = self._session_factory(headless=True, max_pages=1)
-            try:
-                active = await session.__aenter__()
-            except Exception as error:
-                raise HeadlessBrowserError(_classify_fetch_error(error)) from None
-            self._session, self._active = session, active
-            _increment_active_sessions()
-        return self._active
-
-    async def _visit(self, url: str, action: Callable[[Any], Awaitable[None]] | None = None):
-        active = await self._open()
-        try:
-            return await active.fetch(url, page_action=action, **FETCH_OPTIONS)
-        except Exception as error:
-            raise HeadlessBrowserError(_classify_fetch_error(error)) from None
+        super().__init__(INSTAGRAM_LAYOUT, session_factory)
 
     async def scripts(self, url: str) -> list[str]:
         response = await self._visit(url)
@@ -277,92 +194,6 @@ class InstagramHeadlessBrowser:
             # The client-side redirect never happened in time; a retry may still land.
             raise HeadlessBrowserError(AcquisitionReason.HEADLESS_INCOMPLETE)
         return landing[0]
-
-    async def _card_visit(
-        self, url: str, action: Callable[[Any], Awaitable[None]], cards: InstagramCards
-    ) -> None:
-        try:
-            await self._visit(url, action)
-        except HeadlessBrowserError as error:
-            cards.problems.append(error.reason.value)
-
-    async def cards(
-        self,
-        post_url: str,
-        profile_url: str,
-        *,
-        want_post: bool,
-        targets: list[CommentTarget],
-    ) -> InstagramCards:
-        """Best effort: every failure lands in `problems`; only cancellation propagates."""
-        cards = InstagramCards()
-        if want_post or targets:
-            await self._card_visit(post_url, _on_post(cards, want_post, targets), cards)
-        await self._card_visit(profile_url, _on_profile(cards), cards)
-        return cards
-
-    async def close(self) -> None:
-        session, self._session, self._active = self._session, None, None
-        await exit_session(session)
-
-
-def _persist_cards(
-    cards: InstagramCards, comments: list[ReportComment], workflow_id: str, artifact_root: Path
-) -> tuple[CardArtifact | None, list[ReportComment], CardArtifact | None]:
-    base = PurePosixPath("reports") / workflow_id / "cards"
-
-    def save(png: bytes | None, name: str) -> CardArtifact | None:
-        return save_card(png, artifact_root, base / name)
-
-    carded = [
-        comment.model_copy(
-            update={
-                "card": save(
-                    cards.comment_pngs.get(comment.comment_id),
-                    f"comment-{comment.comment_id}.png",
-                )
-            }
-        )
-        for comment in comments
-    ]
-    return save(cards.post_png, "post.png"), carded, save(cards.profile_png, "profile.png")
-
-
-def _log_outcome(
-    parsed: InstagramParse,
-    media: list[MaterializedMedia],
-    comments: list[ReportComment],
-    post_card: CardArtifact | None,
-    profile_card: CardArtifact | None,
-    want_post: bool,
-    problems: list[str],
-) -> None:
-    carded = sum(comment.card is not None for comment in comments)
-    logger.info(
-        "instagram acquisition finished method=%s media=%d comments=%d comment_cards=%d "
-        "post_card=%s profile_card=%s",
-        CONTENT_METHOD,
-        len(media),
-        len(comments),
-        carded,
-        post_card is not None,
-        profile_card is not None,
-    )
-    missing = []
-    if want_post and post_card is None:
-        missing.append("post")
-    if profile_card is None:
-        missing.append("profile")
-    if carded < len(comments):
-        missing.append(f"comments={len(comments) - carded}")
-    if missing or problems:
-        logger.warning(
-            "instagram cards missing missing=%s problems=%s",
-            ",".join(missing) or "none",
-            ",".join(problems) or "none",
-        )
-    if parsed.dropped_comments:
-        logger.debug("instagram comments dropped count=%d", parsed.dropped_comments)
 
 
 class InstagramAcquirer:
@@ -461,10 +292,18 @@ class InstagramAcquirer:
                 targets=comment_targets(parsed.comments),
             )
             post_card, comments, profile_card = await asyncio.to_thread(
-                _persist_cards, cards, parsed.comments, workflow_id, artifact_root
+                persist_cards, cards, parsed.comments, workflow_id, artifact_root
             )
-            _log_outcome(
-                parsed, media, comments, post_card, profile_card, want_post, cards.problems
+            log_outcome(
+                "instagram",
+                CONTENT_METHOD,
+                len(media),
+                comments,
+                post_card,
+                profile_card,
+                want_post=want_post,
+                problems=cards.problems,
+                dropped=parsed.dropped_comments,
             )
             return AcquisitionResult(
                 report=SourceReport(
