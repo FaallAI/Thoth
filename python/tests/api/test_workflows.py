@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import httpx
@@ -429,13 +430,17 @@ async def test_approval_input_rejects_provider_payloads(client: httpx.AsyncClien
 
 
 def test_route_modules_do_not_depend_on_a_process_runner() -> None:
-    routes = Path("src/thoth_control_plane/api/routes")
-    source = "\n".join(path.read_text(encoding="utf-8") for path in routes.glob("*.py"))
+    # Anchored to this file: a cwd-relative path globs nothing when pytest runs elsewhere.
+    routes = Path(__file__).resolve().parents[2] / "src/thoth_control_plane/api/routes"
+    modules = sorted(routes.glob("*.py"))
+    assert modules
+    source = "\n".join(path.read_text(encoding="utf-8") for path in modules)
     lowered = source.lower()
 
     assert "Command(" not in source
     assert "subprocess" not in lowered
-    assert "bun" not in lowered
+    # A word match: render "bundle" routes are not the Bun runtime.
+    assert re.search(r"\bbun\b", lowered) is None
     assert "scout" not in lowered
     assert "stdout" not in lowered
     assert '"thoth"' not in lowered
