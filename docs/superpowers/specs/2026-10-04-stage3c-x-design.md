@@ -242,9 +242,11 @@ Logs never carry a URL, a raw handle, or tweet or reply text.
   file the operator writes and Claude never reads: `video`, `image`, `text`, `replies`,
   `profile`.
 - Fixtures go under `python/tests/fixtures/x/`, all sanitized with 0 leaks:
-  - `video`, `image`, `text`, `replies`: each holds the syndication JSON and the decoded
-    page roots;
-  - `profile`: the decoded timeline roots.
+  - `video`, `image`, `text`, `replies`: each holds the sanitized syndication JSON and a
+    whitelisted list of the page's decoded tweets;
+  - `profile`: a whitelisted list of the timeline's decoded tweets.
+  - The fixtures do not keep the decoded page roots whole. That is a privacy tradeoff: the
+    replay covers the parsers over real tweet shapes, not the walk over every page shape.
 - What the golden replay covers:
   - The replay runs `parse_syndication`, `parse_page`, and the discovery parse.
   - The seroval decoder is covered by synthetic samples built from the observed grammar.

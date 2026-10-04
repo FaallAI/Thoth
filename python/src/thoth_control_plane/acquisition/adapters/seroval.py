@@ -121,7 +121,7 @@ class _Parser:
             self.pos += 1
             if char == '"':
                 # `😀` arrives as two halves; re-encoding joins the pair.
-                return "".join(chars).encode("utf-16", "surrogatepass").decode("utf-16")
+                return "".join(chars).encode("utf-16", "surrogatepass").decode("utf-16", "replace")
             if char != "\\":
                 chars.append(char)
                 continue

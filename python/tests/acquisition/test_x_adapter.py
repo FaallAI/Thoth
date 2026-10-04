@@ -308,3 +308,12 @@ def test_the_display_range_counts_utf16_units() -> None:
     text = "hi 😀😀 there https://t.co/abc"
     data = _synd(text=text, display_text_range=[0, 13])
     assert parse_syndication(data, IDENTITY).post.text == "hi 😀😀 there"
+
+
+def test_html_entities_are_unescaped_after_slicing() -> None:
+    text = "@someone fish &amp; chips &lt;3 https://t.co/abc"
+    # The range counts the unescaped text: "fish & chips <3" is 15 units long.
+    parsed = parse_syndication(_synd(text=text, display_text_range=[9, 24]), IDENTITY)
+    assert parsed.post.text == "fish & chips <3"
+    reply = _tweet(C1, text="@user_001 salt &amp; vinegar")
+    assert parse_page(_roots(reply), IDENTITY).comments[0].text == "salt & vinegar"

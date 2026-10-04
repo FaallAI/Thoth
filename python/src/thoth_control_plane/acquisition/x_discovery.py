@@ -15,6 +15,8 @@ from typing import Any
 from thoth_control_plane.acquisition.adapters.seroval import decode_scripts
 from thoth_control_plane.acquisition.adapters.x import (
     CANONICAL_BASE,
+    HANDLE,
+    _get,
     author_of,
     page_tweets,
     post_url,
@@ -38,8 +40,16 @@ from thoth_control_plane.acquisition.x_service import XRequestFetcher
 logger = logging.getLogger(__name__)
 
 
+# The shapes X has used for a repost's original; none was seen live in Stage 3c.
+REPOST_PATHS = (
+    ("retweeted_status_results",),
+    ("retweeted_status_result",),
+    ("legacy", "retweeted_status_result"),
+)
+
+
 def _repost(tweet: dict[str, Any]) -> bool:
-    return isinstance(tweet.get("retweeted_status_results"), dict)
+    return any(isinstance(_get(tweet, *path), dict) for path in REPOST_PATHS)
 
 
 def _video(tweet: dict[str, Any], owner: str) -> DiscoveredVideo | None:
@@ -104,6 +114,9 @@ class XProfileDiscovery:
         return result
 
     async def _collect(self, request: ProfileDiscovery) -> DiscoveryResult:
+        if HANDLE.fullmatch(request.handle) is None:
+            # A handle X cannot have names no profile; skip the fetch.
+            return _empty("profile", DiscoveryReason.NO_DATA)
         try:
             html = await self._fetcher.page(f"{CANONICAL_BASE}/{request.handle}")
         except RequestFetchError as error:

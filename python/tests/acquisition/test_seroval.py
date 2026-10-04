@@ -94,7 +94,6 @@ def test_malformed_input_never_raises() -> None:
         _page("($R=>$R[0].next({a:"),
         _page('($R=>$R[0].next({a:"unterminated}))($R["k1"])'),
         _page('($R=>$R[0].next({a:"\\x4"}))($R["k1"])'),
-        _page('($R=>$R[0].next({a:"\\ud83d"}))($R["k1"])'),
         _page('($R=>$R[0].next([,1]))($R["k1"])'),
         _page("($R=>$R[0].next({a:1})"),
         _page("($R=>" + "[" * 5_000 + "]" * 5_000 + ')($R["k1"])'),
@@ -103,3 +102,7 @@ def test_malformed_input_never_raises() -> None:
         "",
     ):
         assert decode_scripts(html) == []
+
+
+def test_a_lone_surrogate_becomes_a_replacement_character() -> None:
+    assert decode_scripts(_page(_next('{a:"x\\ud83dy"}'))) == [{"a": "x�y"}]

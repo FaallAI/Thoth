@@ -147,3 +147,25 @@ async def test_a_malformed_tweet_is_invalid() -> None:
     result = await _discover(FakeFetcher(page))
     assert [v.post_id for v in result.videos] == [_id(3)]
     assert result.drops.invalid == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "repost",
+    [
+        {"retweeted_status_results": {"result": {}}},
+        {"legacy": {"retweeted_status_result": {"result": {}}}},
+        {"retweeted_status_result": {"result": {}}},
+    ],
+)
+async def test_every_known_repost_shape_is_dropped(repost: dict[str, Any]) -> None:
+    result = await _discover(FakeFetcher(_page(_tweet(1, **repost))))
+    assert (result.videos, result.drops.invalid) == ([], 1)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("handle", ["a.b", "has-dash", "x" * 16])
+async def test_a_handle_x_cannot_have_is_no_data_without_a_fetch(handle: str) -> None:
+    fetcher = FakeFetcher(_page(_tweet(1)))
+    result = await _discover(fetcher, handle=handle)
+    assert (result.videos, result.reason, fetcher.urls) == ([], DiscoveryReason.NO_DATA, [])

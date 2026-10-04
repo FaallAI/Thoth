@@ -8,6 +8,7 @@ error. Nothing here performs I/O.
 
 from __future__ import annotations
 
+import html
 import re
 from collections.abc import Iterable, Iterator, Sequence
 from datetime import UTC, datetime
@@ -150,7 +151,8 @@ def parse_syndication(
     author = syndication_author(data)
     if author is None:
         return None
-    text = data.get("text") if isinstance(data.get("text"), str) else ""
+    # Tweet text arrives HTML-escaped (`&amp;`); its ranges count the unescaped text.
+    text = html.unescape(data["text"]) if isinstance(data.get("text"), str) else ""
     span = data.get("display_text_range")
     if (
         isinstance(span, list)
@@ -219,7 +221,7 @@ def tweet_text(tweet: dict[str, Any]) -> str | None:
     """A long tweet's note text, else its full text, without mentions and media links."""
     note = _get(tweet, "note_tweet", "note_tweet_results", "result", "text")
     text = note if isinstance(note, str) else _get(tweet, "details", "full_text")
-    return display_text(text) if isinstance(text, str) else None
+    return display_text(html.unescape(text)) if isinstance(text, str) else None
 
 
 def tweet_published(tweet: dict[str, Any]) -> str | None:
