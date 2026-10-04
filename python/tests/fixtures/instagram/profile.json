@@ -1,0 +1,208 @@
+{
+  "kind": "profile",
+  "method": "request",
+  "handle": "user_001",
+  "counts": {
+    "raw_edges": 12,
+    "sanitized_edges": 12
+  },
+  "document": {
+    "data": {
+      "xig_user_by_username": {
+        "username": "user_001",
+        "polaris_ordered_timeline_connection": {
+          "edges": [
+            {
+              "node": {
+                "code": "code_001",
+                "pk": "7000000000000000000",
+                "user": {
+                  "username": "user_001"
+                },
+                "caption": {
+                  "text": "aa aaa aaaaaa, aaa a aaaaa aaaa aa"
+                },
+                "media_type": 2
+              }
+            },
+            {
+              "node": {
+                "code": "code_002",
+                "pk": "7000000000000000001",
+                "user": {
+                  "username": "user_001"
+                },
+                "caption": {
+                  "text": "baab aabaab aaba abaa baaba, abaab aabaab aaba abaabaabaab"
+                },
+                "media_type": 2
+              }
+            },
+            {
+              "node": {
+                "code": "code_003",
+                "pk": "7000000000000000002",
+                "user": {
+                  "username": "user_001"
+                },
+                "caption": {
+                  "text": "caaca ac aaca acaac"
+                },
+                "media_type": 2
+              }
+            },
+            {
+              "node": {
+                "code": "code_004",
+                "pk": "7000000000000000003",
+                "user": {
+                  "username": "user_001"
+                },
+                "caption": {
+                  "text": "daada adaada adaada"
+                },
+                "media_type": 2
+              }
+            },
+            {
+              "node": {
+                "code": "code_005",
+                "pk": "7000000000000000004",
+                "user": {
+                  "username": "user_001"
+                },
+                "caption": {
+                  "text": "eaae aaeaaeaaea aeaae aaea aea aeaaeaa\n#eaaeaa"
+                },
+                "media_type": 2
+              }
+            },
+            {
+              "node": {
+                "code": "code_006",
+                "pk": "7000000000000000005",
+                "user": {
+                  "username": "user_001"
+                },
+                "caption": {
+                  "text": "faafaa faaf aafaaf aafaaf"
+                },
+                "media_type": 2
+              }
+            },
+            {
+              "node": {
+                "code": "code_007",
+                "pk": "7000000000000000006",
+                "user": {
+                  "username": "user_001"
+                },
+                "caption": {
+                  "text": "gaaga aga agaaga ag"
+                },
+                "media_type": 2
+              }
+            },
+            {
+              "node": {
+                "code": "code_008",
+                "pk": "7000000000000000007",
+                "user": {
+                  "username": "user_001"
+                },
+                "media_type": 2
+              }
+            },
+            {
+              "node": {
+                "code": "code_009",
+                "pk": "7000000000000000008",
+                "user": {
+                  "username": "user_001"
+                },
+                "caption": {
+                  "text": "h aaha ahaa"
+                },
+                "media_type": 2
+              }
+            },
+            {
+              "node": {
+                "code": "code_010",
+                "pk": "7000000000000000009",
+                "user": {
+                  "username": "user_001"
+                },
+                "caption": {
+                  "text": "iaai aaiaaiaaia aiaaia aiaaia, aiaai, aai aaiaaiaa"
+                },
+                "media_type": 2
+              }
+            },
+            {
+              "node": {
+                "code": "code_011",
+                "pk": "7000000000000000010",
+                "user": {
+                  "username": "user_001"
+                },
+                "caption": {
+                  "text": "jaaja ajaajaajaa jaaj aajaa, jaaj aaj aajaa jaaj aajaa jaa jaaj 😬"
+                },
+                "media_type": 2
+              }
+            },
+            {
+              "node": {
+                "code": "code_012",
+                "pk": "7000000000000000011",
+                "user": {
+                  "username": "user_001"
+                },
+                "caption": {
+                  "text": "kaaka akaa kaa kaak aa ka ???"
+                },
+                "media_type": 2
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "expected": {
+    "post_ids": [
+      "7000000000000000000",
+      "7000000000000000001",
+      "7000000000000000002",
+      "7000000000000000003",
+      "7000000000000000004",
+      "7000000000000000005",
+      "7000000000000000006",
+      "7000000000000000007",
+      "7000000000000000008",
+      "7000000000000000009",
+      "7000000000000000010",
+      "7000000000000000011"
+    ],
+    "likes": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "drops": {
+      "ads": 0,
+      "photo_posts": 0,
+      "invalid": 0
+    }
+  }
+}

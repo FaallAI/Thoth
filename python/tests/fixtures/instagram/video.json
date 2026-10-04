@@ -1,0 +1,354 @@
+{
+  "kind": "video",
+  "method": "request",
+  "counts": {
+    "request": {
+      "found": 1,
+      "text_chars": 714,
+      "media": 1,
+      "videos": 1,
+      "engagement_keys": 2,
+      "published_at": 1,
+      "comments": 12
+    },
+    "headless": {
+      "found": 1,
+      "text_chars": 714,
+      "media": 1,
+      "videos": 1,
+      "engagement_keys": 2,
+      "published_at": 1,
+      "comments": 12
+    }
+  },
+  "document": {
+    "data": {
+      "xig_polaris_media": {
+        "if_not_gated_logged_out": {
+          "code": "code_001",
+          "pk": "7000000000000000000",
+          "user": {
+            "username": "user_001"
+          },
+          "caption": {
+            "text": "aaaaaa aaaaaaa aaaaaaa, aaaaaaaa, aaaaaaa aaaaa aaaaa aaaaaaaaa aaaaaaaa aaaaaaa aaaaa aaaaaaaa aaaa aaaaaaaa. aaaaaaaa aaa aaa aaaaaaaa aaaaa aaaaaa aaaaaaaaaa aaaaa.\n\naaaaaaaa aaaa aaaaaaaaaa.aa aaaa aaaaa (aa/a/aaaa), aa aaaaaa aaaaaaa aaaaaaaa, aaaaa aaaaaaaaaa aaaaa aaaa aaaa aa aaaaaa aaaaa aaaaaa aaaaa aaaaaaa aaaaaa aaaa aaaaa aaaaa aa aaaaa aaaaaa. aaaaaa aaaaaaaa aaaaaaaaaaa aaa aaaaaaaa aaaaa aaaaa aaaaaaaaaaa aaaaaaaa aaa.\n\naaaaaaaa aaa aaaaaa aaaaaaa aaaaaa aaa aaaaaa aaaaaaa aaaaaa aaaaaaaaaaaaa aaa aaaaaaa aaaaaaaa aaaaa aaaa aaaaaaaa, aaaaaaaa aaaaaa aaaaaa aaa aaaaaaa aaaa aaaa aaaaa aaaaaa.\n\naaaa aaaaaa aaaaaaa aaaaaaa aaaaa aa aaaaa.aaa!\n\naaaaaaa: aaaa\n\n#aaaaaaaa #aaaaaa #aaaaaaa #aaaaa"
+          },
+          "taken_at": 1700003600,
+          "like_count": 5300,
+          "comment_count": 560,
+          "like_and_view_counts_disabled": false,
+          "media_type": 2,
+          "video_versions": [
+            {
+              "url": "https://media.example.test/video/1.mp4"
+            },
+            {
+              "url": "https://media.example.test/video/2.mp4"
+            },
+            {
+              "url": "https://media.example.test/video/3.mp4"
+            }
+          ],
+          "image_versions2": {
+            "candidates": [
+              {
+                "url": "https://media.example.test/image/4.jpg",
+                "width": 900,
+                "height": 1600
+              },
+              {
+                "url": "https://media.example.test/image/5.jpg",
+                "width": 720,
+                "height": 1280
+              },
+              {
+                "url": "https://media.example.test/image/6.jpg",
+                "width": 640,
+                "height": 1138
+              },
+              {
+                "url": "https://media.example.test/image/7.jpg",
+                "width": 480,
+                "height": 853
+              },
+              {
+                "url": "https://media.example.test/image/8.jpg",
+                "width": 320,
+                "height": 569
+              },
+              {
+                "url": "https://media.example.test/image/9.jpg",
+                "width": 240,
+                "height": 427
+              },
+              {
+                "url": "https://media.example.test/image/10.jpg",
+                "width": 900,
+                "height": 900
+              },
+              {
+                "url": "https://media.example.test/image/11.jpg",
+                "width": 750,
+                "height": 750
+              },
+              {
+                "url": "https://media.example.test/image/12.jpg",
+                "width": 640,
+                "height": 640
+              },
+              {
+                "url": "https://media.example.test/image/13.jpg",
+                "width": 480,
+                "height": 480
+              },
+              {
+                "url": "https://media.example.test/image/14.jpg",
+                "width": 320,
+                "height": 320
+              },
+              {
+                "url": "https://media.example.test/image/15.jpg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "url": "https://media.example.test/image/16.jpg",
+                "width": 150,
+                "height": 150
+              }
+            ]
+          }
+        },
+        "comments_connection": {
+          "edges": [
+            {
+              "node": {
+                "pk": "7000000000000000001",
+                "user": {
+                  "username": "user_002"
+                },
+                "text": "baab aaba abaa",
+                "comment_like_count": 0
+              }
+            },
+            {
+              "node": {
+                "pk": "7000000000000000002",
+                "user": {
+                  "username": "user_003"
+                },
+                "text": "caacaa!ca acaacaa 😂😂😂😂😭",
+                "comment_like_count": 0
+              }
+            },
+            {
+              "node": {
+                "pk": "7000000000000000003",
+                "user": {
+                  "username": "user_004"
+                },
+                "text": "daada adaa daad aadaadaa da adaadaadaa daa d aa da adaada adaadaa da adaad aadaa",
+                "comment_like_count": 0
+              }
+            },
+            {
+              "node": {
+                "pk": "7000000000000000004",
+                "user": {
+                  "username": "user_005"
+                },
+                "text": "@eaae.aaea 🤪",
+                "comment_like_count": 0
+              }
+            },
+            {
+              "node": {
+                "pk": "7000000000000000005",
+                "user": {
+                  "username": "user_006"
+                },
+                "text": "faafaafa afaaf aafaa faafaafa",
+                "comment_like_count": 0
+              }
+            },
+            {
+              "node": {
+                "pk": "7000000000000000006",
+                "user": {
+                  "username": "user_007"
+                },
+                "text": "gaagaagaa gaag😂",
+                "comment_like_count": 0
+              }
+            },
+            {
+              "node": {
+                "pk": "7000000000000000007",
+                "user": {
+                  "username": "user_008"
+                },
+                "text": "😮😮",
+                "comment_like_count": 0
+              }
+            },
+            {
+              "node": {
+                "pk": "7000000000000000008",
+                "user": {
+                  "username": "user_009"
+                },
+                "text": "iaaia aia aia?",
+                "comment_like_count": 0
+              }
+            },
+            {
+              "node": {
+                "pk": "7000000000000000009",
+                "user": {
+                  "username": "user_010"
+                },
+                "text": "jaajaajaajaaja",
+                "comment_like_count": 0
+              }
+            },
+            {
+              "node": {
+                "pk": "7000000000000000010",
+                "user": {
+                  "username": "user_011"
+                },
+                "text": "@kaakaak__ 😂😂",
+                "comment_like_count": 0
+              }
+            },
+            {
+              "node": {
+                "pk": "7000000000000000011",
+                "user": {
+                  "username": "user_012"
+                },
+                "text": "",
+                "comment_like_count": 1
+              }
+            },
+            {
+              "node": {
+                "pk": "7000000000000000012",
+                "user": {
+                  "username": "user_013"
+                },
+                "text": "maama amaama amaa maamaam aama amaam...",
+                "comment_like_count": 0
+              }
+            },
+            {
+              "node": {
+                "pk": "7000000000000000013",
+                "user": {
+                  "username": "user_014"
+                },
+                "text": "",
+                "comment_like_count": 0
+              }
+            },
+            {
+              "node": {
+                "pk": "7000000000000000014",
+                "user": {
+                  "username": "user_015"
+                },
+                "text": "naanaanaa naana anaanaanaan aan",
+                "comment_like_count": 0
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "expected": {
+    "text": "aaaaaa aaaaaaa aaaaaaa, aaaaaaaa, aaaaaaa aaaaa aaaaa aaaaaaaaa aaaaaaaa aaaaaaa aaaaa aaaaaaaa aaaa aaaaaaaa. aaaaaaaa aaa aaa aaaaaaaa aaaaa aaaaaa aaaaaaaaaa aaaaa.\n\naaaaaaaa aaaa aaaaaaaaaa.aa aaaa aaaaa (aa/a/aaaa), aa aaaaaa aaaaaaa aaaaaaaa, aaaaa aaaaaaaaaa aaaaa aaaa aaaa aa aaaaaa aaaaa aaaaaa aaaaa aaaaaaa aaaaaa aaaa aaaaa aaaaa aa aaaaa aaaaaa. aaaaaa aaaaaaaa aaaaaaaaaaa aaa aaaaaaaa aaaaa aaaaa aaaaaaaaaaa aaaaaaaa aaa.\n\naaaaaaaa aaa aaaaaa aaaaaaa aaaaaa aaa aaaaaa aaaaaaa aaaaaa aaaaaaaaaaaaa aaa aaaaaaa aaaaaaaa aaaaa aaaa aaaaaaaa, aaaaaaaa aaaaaa aaaaaa aaa aaaaaaa aaaa aaaa aaaaa aaaaaa.\n\naaaa aaaaaa aaaaaaa aaaaaaa aaaaa aa aaaaa.aaa!\n\naaaaaaa: aaaa\n\n#aaaaaaaa #aaaaaa #aaaaaaa #aaaaa",
+    "media_kinds": [
+      "video"
+    ],
+    "engagement": {
+      "like": 5300,
+      "comment": 560
+    },
+    "published_at": "2023-11-14T23:13:20Z",
+    "comments": [
+      {
+        "comment_id": "7000000000000000001",
+        "author": "user_002",
+        "text": "baab aaba abaa",
+        "likes": 0
+      },
+      {
+        "comment_id": "7000000000000000002",
+        "author": "user_003",
+        "text": "caacaa!ca acaacaa 😂😂😂😂😭",
+        "likes": 0
+      },
+      {
+        "comment_id": "7000000000000000003",
+        "author": "user_004",
+        "text": "daada adaa daad aadaadaa da adaadaadaa daa d aa da adaada adaadaa da adaad aadaa",
+        "likes": 0
+      },
+      {
+        "comment_id": "7000000000000000004",
+        "author": "user_005",
+        "text": "@eaae.aaea 🤪",
+        "likes": 0
+      },
+      {
+        "comment_id": "7000000000000000005",
+        "author": "user_006",
+        "text": "faafaafa afaaf aafaa faafaafa",
+        "likes": 0
+      },
+      {
+        "comment_id": "7000000000000000006",
+        "author": "user_007",
+        "text": "gaagaagaa gaag😂",
+        "likes": 0
+      },
+      {
+        "comment_id": "7000000000000000007",
+        "author": "user_008",
+        "text": "😮😮",
+        "likes": 0
+      },
+      {
+        "comment_id": "7000000000000000008",
+        "author": "user_009",
+        "text": "iaaia aia aia?",
+        "likes": 0
+      },
+      {
+        "comment_id": "7000000000000000009",
+        "author": "user_010",
+        "text": "jaajaajaajaaja",
+        "likes": 0
+      },
+      {
+        "comment_id": "7000000000000000010",
+        "author": "user_011",
+        "text": "@kaakaak__ 😂😂",
+        "likes": 0
+      },
+      {
+        "comment_id": "7000000000000000012",
+        "author": "user_013",
+        "text": "maama amaama amaa maamaam aama amaam...",
+        "likes": 0
+      },
+      {
+        "comment_id": "7000000000000000014",
+        "author": "user_015",
+        "text": "naanaanaa naana anaanaanaan aan",
+        "likes": 0
+      }
+    ]
+  }
+}
