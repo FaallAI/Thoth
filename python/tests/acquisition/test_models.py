@@ -460,6 +460,11 @@ def test_v3_report_accepts_an_instagram_source() -> None:
     assert report.source.platform == "instagram"
 
 
+def test_v3_report_accepts_an_x_source() -> None:
+    report = _v3(source={"platform": "x", "canonical_url": "https://x.com/user_001/status/1"})
+    assert report.source.platform == "x"
+
+
 def test_v3_rejects_a_post_with_neither_text_nor_media() -> None:
     with pytest.raises(ValidationError):
         _v3(post={"post_id": "code_001", "owner_handle": "user_001", "text": "  \n "})

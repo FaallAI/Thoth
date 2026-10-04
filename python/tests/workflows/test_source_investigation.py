@@ -1134,7 +1134,7 @@ async def run_routing_case(workflow_env, *, source_url: str, mode: str, python_a
             1,
         ),
         (
-            "https://x.com/a/status/1",
+            "https://www.youtube.com/watch?v=abc",
             "python_tiktok_with_legacy_fallback",
             counted_python_success,
             "succeeded",
@@ -1143,7 +1143,7 @@ async def run_routing_case(workflow_env, *, source_url: str, mode: str, python_a
             1,
         ),
         (
-            "https://x.com/a/status/1",
+            "https://www.youtube.com/watch?v=abc",
             "python",
             counted_python_success,
             "failed",
