@@ -39,7 +39,12 @@ POST_PATH = re.compile(
 SHARE_PATH = re.compile(r"^/share/(?P<kind>(?:reel|p)/)?(?P<token>[A-Za-z0-9_-]{1,64})/?$")
 HANDLE = re.compile(r"[A-Za-z0-9._]{1,64}")
 MEDIA_KEY = "xig_polaris_media"
-ENGAGEMENT_KEYS = {"like": ("like_count",), "comment": ("comment_count",)}
+ENGAGEMENT_KEYS = {
+    "like": ("like_count",),
+    "comment": ("comment_count",),
+    # Absent from anonymous pages; a logged-in page carries a play count.
+    "play": ("play_count", "ig_play_count", "view_count"),
+}
 
 
 class InstagramUrlError(ValueError):
