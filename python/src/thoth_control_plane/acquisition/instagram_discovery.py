@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Iterable, Sequence
+from fractions import Fraction
 from typing import Any
 
 from thoth_control_plane.acquisition.adapters.instagram import (
@@ -61,7 +62,8 @@ def rank_videos(videos: Sequence[DiscoveredVideo]) -> list[DiscoveredVideo]:
     distinct values carries no order and is skipped; a video missing a signal the others
     have ranks lowest on it. Ties, and the no-signal case, keep the grid order.
     """
-    scores = [0.0] * len(videos)
+    # Exact fractions: equal scores must tie, so the grid order breaks them, not rounding.
+    scores = [Fraction(0)] * len(videos)
     for signal in SIGNALS:
         values = [signal(video) for video in videos]
         levels = sorted({value for value in values if value is not None})
@@ -69,7 +71,7 @@ def rank_videos(videos: Sequence[DiscoveredVideo]) -> list[DiscoveredVideo]:
             continue
         for index, value in enumerate(values):
             if value is not None:
-                scores[index] += levels.index(value) / (len(levels) - 1)
+                scores[index] += Fraction(levels.index(value), len(levels) - 1)
     # Every video is scored over the same signals, so the sum orders like the mean.
     order = sorted(range(len(videos)), key=lambda index: -scores[index])
     return [videos[index] for index in order]

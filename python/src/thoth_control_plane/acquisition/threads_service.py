@@ -217,14 +217,19 @@ class ThreadsHeadlessBrowser:
 
     async def close(self) -> None:
         session, self._session = self._session, None
-        if session is None:
-            return
-        try:
-            await session.__aexit__(None, None, None)
-        except Exception:
-            pass
-        finally:
-            _decrement_active_sessions()
+        await exit_session(session)
+
+
+async def exit_session(session: Any | None) -> None:
+    """Close a counted browser session; a failing close is ignored."""
+    if session is None:
+        return
+    try:
+        await session.__aexit__(None, None, None)
+    except Exception:
+        pass
+    finally:
+        _decrement_active_sessions()
 
 
 async def resolve_threads_identity(
@@ -238,16 +243,23 @@ async def resolve_threads_identity(
     return canonicalize_threads_post_url(await headless.resolve(share_url))
 
 
+def save_card(
+    png: bytes | None, artifact_root: Path, location: PurePosixPath
+) -> CardArtifact | None:
+    """Write one card; an absent, rejected, or unwritable card is simply absent."""
+    if png is None:
+        return None
+    try:
+        return write_card(png, artifact_root, location)
+    except (CardRejected, OSError):
+        return None
+
+
 def _persist_post_card(
     card_png: bytes | None, workflow_id: str, artifact_root: Path
 ) -> CardArtifact | None:
-    if card_png is None:
-        return None
     location = PurePosixPath("reports") / workflow_id / "cards" / "post.png"
-    try:
-        return write_card(card_png, artifact_root, location)
-    except (CardRejected, OSError):
-        return None
+    return save_card(card_png, artifact_root, location)
 
 
 async def materialize_media(

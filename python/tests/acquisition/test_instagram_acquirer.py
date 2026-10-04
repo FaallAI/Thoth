@@ -272,6 +272,18 @@ async def test_missing_owner_is_request_incomplete(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_text_only_post_is_a_report_with_a_post_card(tmp_path: Path) -> None:
+    node = _node(image_versions2=None)
+    headless = FakeHeadless(_cards())
+    result = await _inspect(tmp_path, FakeRequest(_texts(node)), headless)
+    assert result.report is not None
+    assert result.report.post.text == "hello world"
+    assert result.report.media == []
+    assert headless.card_calls[0]["want_post"] is True
+    assert result.report.post_card is not None
+
+
+@pytest.mark.asyncio
 async def test_whitespace_only_post_without_media_is_no_content(tmp_path: Path) -> None:
     node = _node(caption={"text": "   "}, image_versions2=None)
     result = await _inspect(tmp_path, FakeRequest(_texts(node)), FakeHeadless())

@@ -14,10 +14,12 @@ from typing import Any
 from pydantic import HttpUrl
 
 from thoth_control_plane.acquisition.adapters.threads import (
-    _largest_image_url,
     _match_safe_path,
     _walk,
     _widest,
+)
+from thoth_control_plane.acquisition.adapters.threads import (
+    _media_of as _threads_media_of,
 )
 from thoth_control_plane.acquisition.models import (
     MAX_COMMENTS,
@@ -88,9 +90,10 @@ def find_instagram_media(
                 continue
             connection = media.get("comments_connection")
             connection = connection if isinstance(connection, dict) else None
-            if loose is None:
-                loose = connection
             post = media.get("if_not_gated_logged_out")
+            # Only a holder without a post is loose; another post's comments are never borrowed.
+            if loose is None and not isinstance(post, dict):
+                loose = connection
             if (
                 found is None
                 and isinstance(post, dict)
@@ -119,16 +122,8 @@ def engagement_of(node: dict[str, Any]) -> dict[str, int]:
 
 
 def _media_of(node: dict[str, Any]) -> list[ResolvedMedia]:
-    carousel = node.get("carousel_media")
-    items = carousel if isinstance(carousel, list) and carousel else [node]
-    media: list[ResolvedMedia] = []
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        if (video := _widest(item.get("video_versions"))) is not None:
-            media.append(ResolvedMedia(kind="video", ephemeral_url=video))
-        elif (image := _largest_image_url(item)) is not None:
-            media.append(ResolvedMedia(kind="image", ephemeral_url=image, media_type=None))
+    # Unlike Threads, the video versions arrive unordered: take the widest.
+    media = _threads_media_of(node, lambda item: _widest(item.get("video_versions")))
     return media[:MAX_MEDIA_ITEMS]
 
 

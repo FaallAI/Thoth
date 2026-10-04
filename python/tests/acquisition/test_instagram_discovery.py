@@ -273,9 +273,37 @@ async def test_detail_failure_stops_and_returns_a_partial_result(
     fetcher = FakeFetcher(_page([_bare(1), _bare(2), _bare(3)]), details=details)
     result = await _discover(fetcher)
     assert fetcher.urls[1:] == [_url(1), _url(2)]
-    assert len(result.videos) == 3
     assert result.reason is reason
-    assert result.videos[0].engagement == {"like": 5, "comment": 3}
+    # The unfetched tail keeps its grid fields and its grid order.
+    assert [(v.canonical_url.path, v.engagement, v.published_at) for v in result.videos] == [
+        ("/p/code_001/", {"like": 5, "comment": 3}, "2023-11-14T22:13:20Z"),
+        ("/p/code_002/", {}, None),
+        ("/p/code_003/", {}, None),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_limit_cuts_after_ranking_on_detail_signals() -> None:
+    details: dict[str, list[str] | AcquisitionReason] = {
+        _url(n): _post_page(n, likes=n * 100, taken_at=1_700_000_000 + n) for n in (1, 2, 3)
+    }
+    fetcher = FakeFetcher(_page([_bare(1), _bare(2), _bare(3)]), details=details)
+    result = await _discover(fetcher, limit=2)
+    # Every grid video is fetched before the cut, so the best two win, not the first two.
+    assert fetcher.urls[1:] == [_url(1), _url(2), _url(3)]
+    assert [v.canonical_url.path for v in result.videos] == ["/p/code_003/", "/p/code_002/"]
+
+
+def test_an_exact_tie_keeps_the_grid_order() -> None:
+    # like ranks 1/2 and 0, date ranks 2/6 and 5/6: both sum to exactly 5/6.
+    first = _video(1, engagement={"like": 20}, published_at="2024-01-03T00:00:00Z")
+    second = _video(2, engagement={"like": 10}, published_at="2024-01-06T00:00:00Z")
+    rest = [
+        _video(n, engagement={"like": 30}, published_at=f"2024-01-0{day}T00:00:00Z")
+        for n, day in ((3, 1), (4, 2), (5, 4), (6, 5), (7, 7))
+    ]
+    ranked = rank_videos([first, second, *rest])
+    assert ranked.index(first) < ranked.index(second)
 
 
 @pytest.mark.asyncio

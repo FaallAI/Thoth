@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -152,14 +152,17 @@ def _largest_image_url(item: dict[str, Any]) -> str | None:
     return _widest(container.get("candidates") if isinstance(container, dict) else None)
 
 
-def _media_of(node: dict[str, Any]) -> list[ResolvedMedia]:
+def _media_of(
+    node: dict[str, Any], video_url: Callable[[dict[str, Any]], str | None] = _video_url
+) -> list[ResolvedMedia]:
+    """A carousel's items in order, else the node itself; an item without https is skipped."""
     carousel = node.get("carousel_media")
     items = carousel if isinstance(carousel, list) and carousel else [node]
     media: list[ResolvedMedia] = []
     for item in items:
         if not isinstance(item, dict):
             continue
-        if (video := _video_url(item)) is not None:
+        if (video := video_url(item)) is not None:
             media.append(ResolvedMedia(kind="video", ephemeral_url=video))
         elif (image := _largest_image_url(item)) is not None:
             media.append(ResolvedMedia(kind="image", ephemeral_url=image, media_type=None))

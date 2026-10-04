@@ -241,6 +241,13 @@ def test_a_connection_outside_the_post_holder_is_used() -> None:
     assert [c.author for c in parsed.comments] == ["fan_001"]
 
 
+def test_another_posts_comments_are_never_borrowed() -> None:
+    other = _doc(_post(code="other_01"), _connection(_raw_comment(1)))
+    parsed = parse_post([other, _doc(_post())], IDENTITY)
+    assert parsed is not None
+    assert parsed.comments == []
+
+
 @pytest.mark.parametrize("user", [{}, {"username": None}, {"username": "bad name"}])
 def test_missing_or_invalid_owner_is_no_parse(user: dict[str, Any]) -> None:
     assert parse_post([_doc(_post(user=user))], IDENTITY) is None

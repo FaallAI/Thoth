@@ -35,12 +35,10 @@ from thoth_control_plane.acquisition.browser import (
     FETCH_OPTIONS,
     HeadlessBrowserError,
     _classify_fetch_error,
-    _decrement_active_sessions,
     _default_session_factory,
     _increment_active_sessions,
     _is_timeout,
 )
-from thoth_control_plane.acquisition.cards import CardRejected, write_card
 from thoth_control_plane.acquisition.materializer import (
     MediaMaterializationError,
     MediaMaterializer,
@@ -68,7 +66,9 @@ from thoth_control_plane.acquisition.threads_service import (
     RequestFetchError,
     _await_post_url,
     _scrapling_get,
+    exit_session,
     materialize_media,
+    save_card,
 )
 
 logger = logging.getLogger(__name__)
@@ -303,14 +303,7 @@ class InstagramHeadlessBrowser:
 
     async def close(self) -> None:
         session, self._session, self._active = self._session, None, None
-        if session is None:
-            return
-        try:
-            await session.__aexit__(None, None, None)
-        except Exception:
-            pass
-        finally:
-            _decrement_active_sessions()
+        await exit_session(session)
 
 
 def _persist_cards(
@@ -319,12 +312,7 @@ def _persist_cards(
     base = PurePosixPath("reports") / workflow_id / "cards"
 
     def save(png: bytes | None, name: str) -> CardArtifact | None:
-        if png is None:
-            return None
-        try:
-            return write_card(png, artifact_root, base / name)
-        except (CardRejected, OSError):
-            return None
+        return save_card(png, artifact_root, base / name)
 
     carded = [
         comment.model_copy(
