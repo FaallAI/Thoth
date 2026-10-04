@@ -19,6 +19,22 @@ checkpoint at `.superpowers/sdd/<task>/progress.md` and its linked design and pl
   verification evidence, and audit records to `CHANGELOG.md`; do not recreate a
   chronological history section in `BLUEPRINT.md`.
 
+## Stage and phase completion reports
+
+This applies when a stage or phase began from a plan agreed with the operator, such as an
+approved spec and plan or a roadmap stage. Work that was not planned with the operator up
+front does not need it.
+
+When such a stage or phase finishes, end the completion report to the operator with a
+**Next steps** section. List:
+
+- the next stage or phase from the roadmap or plan;
+- the pending operator gates (push, merge, deploy, live capture or smoke), each needing
+  its own authorization;
+- open follow-ups that carry forward.
+
+Write the same next steps into that work's `CHANGELOG.md` entry and its active checkpoint.
+
 ## Technical stack and build verification
 
 - **Stack:** Rust 2024 edition (async Tokio), Windows (CUDA 13.2, LLVM), local `ffmpeg.exe` at root, NVIDIA NVENC for encoding, CUDA for Whisper, `config.toml` (no secrets) + `.env` (API keys).
