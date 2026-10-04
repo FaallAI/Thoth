@@ -1,7 +1,8 @@
 # Stage 3b: Instagram Acquisition on the Platform Kernel
 
-Status: design approved section by section by the operator on 2026-09-28; written spec
-awaiting operator review. Amended 2026-10-04 after the live capture: share links arrive as
+Status: written spec approved by the operator on 2026-09-28; implemented on branch
+`feat/stage3b-instagram` (see `docs/superpowers/plans/2026-09-28-stage3b-instagram.md`).
+Amended 2026-10-04 after the live capture: share links arrive as
 plain post URLs, and profile discovery ranks by likes, views, and upload date (sections
 3.5, 6, 7, 8).
 

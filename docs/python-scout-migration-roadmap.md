@@ -378,3 +378,14 @@ Two operational items carry into the final end-to-end soak:
   only -- but those logs must not be shipped as-is.
 - Install the `acquisition` extra and its browsers on worker hosts only. The ordinary test suite
   is deterministic with or without the extra and never requires it.
+
+## Stage 3b status (2026-10-04)
+
+Stage 3b (Instagram) is implemented on `feat/stage3b-instagram`. That covers post, reel, and
+share-link acquisition with real cards, and profile discovery ranked by likes, views, and
+upload date. The evidence is in the `CHANGELOG.md` section "2026-10-04 - Stage 3b".
+
+- Views need a login, so they wait for the multi-account rotating login feature that follows
+  3b.
+- Next gate: the operator reviews the branch. Push, merge, and deploy each need their own
+  authorization.

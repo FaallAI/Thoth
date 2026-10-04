@@ -2,6 +2,52 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-04 - Stage 3b: Instagram acquisition and profile discovery
+
+- Implements `docs/superpowers/specs/2026-09-28-stage3b-instagram-design.md` (amended
+  2026-10-04) through the plan `docs/superpowers/plans/2026-09-28-stage3b-instagram.md`
+  (`87ebd19`, amendment `1fc39cc`).
+- `aafe63b`, `2fde9ac`: Instagram URLs route to the Python kernel; `ReportSource.platform`
+  accepts `instagram`.
+- `e5cc783`: Instagram URL identity (`/p/`, `/reel/`, `/reels/`, `/tv/`, and the three
+  `/share/` shapes) and the pure post parser; text-only posts stay first-class.
+- `a3d494b`: the Instagram request fetcher, share-link resolution, and the headless browser
+  that crops real post, comment, and profile cards.
+- `8979bd8`: the Instagram acquirer and its registry branch; card failures never fail
+  acquisition.
+- `ae49436`: profile discovery from the anonymous 12-post grid.
+- `c351eeb`: discovery fetches each grid video's post page (spaced 3 s) and ranks by the
+  mean of like, view, and upload-date ranks. A detail failure returns a partial result with
+  its reason. Views are absent anonymously and join the ranking once a login supplies them.
+- `65a3681`, `66f7214`: the operator-run Instagram capture and fixture tools. The leak check
+  skips raw leaves with no letter or digit, because the pseudonymizer keeps emoji-only
+  comments by design.
+- `7a8722e`: sanitized golden fixtures (video, image, carousel, profile) and replay tests.
+  The fixtures were captured under operator authorization at capture time.
+- The branch also carries `8cb59be` (dashboard design work), which is outside Stage 3b.
+- Live capture evidence (restricted: counts, keys, enums only):
+  - video, image, carousel: request and headless both `ok`, no login wall, identical counts.
+    Comments parsed 12, 15, and 14. Media 1 (1 video), 1 (0 videos), and 2 (1 video). Two
+    engagement keys and a published time on each.
+  - Cards: post and profile cards cropped for every post. Comment cards 12/12, 15/15, and
+    14/14. Problems: none.
+  - Profiles: the first grid held 10 carousels and 2 photos. The second, reel-heavy grid held
+    12 `clips`. Neither grid node carries like, view, comment, or date keys. Post pages carry
+    `like_count`, `comment_count`, and `taken_at`, but no view count.
+  - Sanitizer leaks: 0 for each fixture.
+- Method decisions:
+  - Content uses `request`, because request matched headless on every count.
+  - Share resolution stays `request`, unverified live. The operator confirmed that app share
+    links arrive as plain post URLs with a share query, and those canonicalize as posts.
+- Verification: `tests` 1 failed, 2435 passed, 6 skipped. The one failure is the pre-existing
+  `tests/api/test_workflows.py::test_route_modules_do_not_depend_on_a_process_runner`. Ruff:
+  all checks passed, no files to reformat.
+- Next gate:
+  - The operator reviews the branch. Push, merge, and deploy each need their own explicit
+    authorization.
+  - The live smoke waits for final acceptance (ADR 0001).
+  - Profile discovery makes up to 13 Instagram hits; observe that rate at the live smoke.
+
 ## 2026-10-01 - Dashboard .pen fidelity correction
 
 - Corrected the earlier six-export adaptation against all 25 named frames in
