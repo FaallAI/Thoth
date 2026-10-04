@@ -92,13 +92,15 @@ TAG_COMMENTS_JS = """
     const link = `a[href="/${CSS.escape(target.author)}/"]`;
     for (const span of spans) {
       if (!(span.textContent || "").trim().startsWith(target.prefix)) continue;
+      // A span inside an already tagged row belongs to another comment.
+      if (span.closest("[data-thoth-comment]")) continue;
+      // The row is the smallest ancestor holding an avatar, and it must hold this author:
+      // climbing further would reach the whole comment list.
       let row = span;
-      while (
-        row && row !== document.body && !(row.querySelector(link) && row.querySelector("img"))
-      ) {
+      while (row && row !== document.body && !row.querySelector("img")) {
         row = row.parentElement;
       }
-      if (!row || row === document.body || row.hasAttribute("data-thoth-comment")) continue;
+      if (!row || row === document.body || !row.querySelector(link)) continue;
       row.setAttribute("data-thoth-comment", target.comment_id);
       tagged.push(target.comment_id);
       break;
