@@ -1,7 +1,10 @@
 # Stage 3c: X Acquisition on the Platform Kernel
 
-Status: design approved section by section by the operator on 2026-10-04; written spec
-awaiting operator review.
+Status: written spec approved by the operator on 2026-10-04.
+
+Amended the same day after a throwaway decoder ran over the probe pages. The changes cover
+field paths, video variants, long-tweet text, and the shared card browser (sections 2, 3.1,
+3.2, 3.4, and 3.5).
 
 ## 1. Context and scope
 
@@ -52,6 +55,24 @@ post, a reply-heavy post, and a profile.
 - **Profile page** (request): 200. It serves about 6 timeline tweets, including a
   `TimelinePinEntry`, in the same format.
 - **Syndication profile timeline**: 429.
+- **Decoded page tweets**: a throwaway decoder ran over the probe pages.
+  - It decoded every page: 4 to 6 tweets per page. It skipped only the router's runtime
+    script.
+  - Field paths:
+    - `rest_id`;
+    - `core.user_results.result.core.screen_name`;
+    - `details.full_text` and `details.created_at_ms`;
+    - for a long tweet, `note_tweet.note_tweet_results.result.text` (`full_text` is cut
+      there);
+    - `counts.{favorite,reply,retweet}_count`;
+    - `views.count`, a decimal string;
+    - `reply_to_results.rest_id`;
+    - `media_entities2[]`, each with `type` and `video_info.variants[]` of
+      `{content_type, url}`.
+  - A tweet can appear twice.
+- **Syndication media**: `mediaDetails[]` items carry no id and no video variants. The only
+  variants are the top-level `video.variants[]` of `{type, src}`. They cover one video and
+  carry no bitrate. `note_tweet` carries only an `id`, not the long text.
 - **Headless**: the page renders with no login wall.
   - The logged-out layout has no `data-testid` attributes. It shows 3 `<article>`
     elements and one `<video>`.
@@ -62,8 +83,9 @@ post, a reply-heavy post, and a profile.
 
 ### 3.1 Routing (`acquisition/platforms.py`, `acquisition/models.py`)
 
-- `PYTHON_PLATFORM_HOSTS["x"] = frozenset({"x.com", "twitter.com"})`.
-  - `bare_host` already strips `www.` and `mobile.`.
+- `PYTHON_PLATFORM_HOSTS["x"] = frozenset({"x.com", "twitter.com", "mobile.x.com",
+  "mobile.twitter.com"})`.
+  - `bare_host` strips `www.` and `m.`, so the `mobile.` hosts are listed explicitly.
   - `t.co` is not an X host and stays legacy.
 - `ReportSource.platform` accepts `"x"`.
 
@@ -81,16 +103,20 @@ post, a reply-heavy post, and a profile.
   - The canonical URL is rebuilt as `https://x.com/<author>/status/<id>`.
   - `<author>` comes from the tweet's `user.screen_name`, never from the URL.
   - Profile URLs are not posts and fail as `invalid_source_url`.
-- **`parse_syndication(data, identity) -> XParse | None`:**
+- **`parse_syndication(data, identity, page_videos) -> XParse | None`:**
   - `post_id` = `id_str`. The id must equal the identity's.
-  - `text`: when `note_tweet` holds text, use it. Otherwise use `text` sliced by
-    `display_text_range`, which drops the trailing media `t.co` link.
+  - `text` is sliced by `display_text_range`. That drops the leading reply mentions and
+    the trailing media `t.co` link.
+  - A long tweet (`note_tweet` present) is truncated in syndication. When the page parse
+    found the post, the page's text replaces it.
   - `owner_handle` = `user.screen_name`. A missing or invalid value gives `None`.
   - `published_at` comes from `created_at`.
   - `engagement`: `like` = `favorite_count`, `comment` = `conversation_count`.
   - Media keep the order of `mediaDetails`:
-    - `video` and `animated_gif` take the highest-bitrate `video/mp4` variant with an
-      https URL;
+    - `video` and `animated_gif` take the largest-resolution https `video/mp4` variant.
+      The size is the `<w>x<h>` path segment, and the first variant wins a tie.
+    - The n-th video item takes the n-th video of the page's post. A single video falls
+      back to the syndication `video.variants`. A video with neither is skipped.
     - `photo` takes `media_url_https` with `name=orig`.
     - An item with no https URL is skipped. A quote tweet's media are not the post's.
   - A text-only post is valid.
@@ -99,9 +125,12 @@ post, a reply-heavy post, and a profile.
   values.
   - For the post: `play` (`views.count`, a decimal string) and `share`
     (`retweet_count`).
-  - Replies: tweets whose `legacy.in_reply_to_status_id_str` equals the post id.
-    - Fields: `comment_id` = `rest_id`, `author` = `screen_name`, `text` = `full_text`,
+  - Replies: distinct tweets whose `reply_to_results.rest_id` equals the post id.
+    - Fields: `comment_id` = `rest_id`, `author` = `screen_name`, and
       `likes` = `favorite_count`.
+    - `text` = the note text when present, else `full_text`. Either way, the leading
+      `@mentions` and the trailing `t.co` links are removed, and the result is cut to 2,000
+      characters. The post's own page text follows the same rule.
     - First seen wins on a duplicate. Invalid entries are dropped and counted. At most 50.
   - Nothing found gives an empty parse, never an error.
 
@@ -126,14 +155,22 @@ The decoder never raises and never runs code.
   - `page(url) -> str`.
   - A login redirect or a non-200 status raises `RequestFetchError(REQUEST_BLOCKED)`.
     A timeout raises `REQUEST_TIMEOUT`.
-- **`XHeadlessBrowser`** opens one lazily opened stealthy session, used for cards only.
+- **Shared card browser.** Several pieces move from Instagram to
+  `acquisition/card_browser.py`: the card session, crop, tagging, persistence, and outcome
+  logging.
+  - Each platform supplies a `CardLayout`: the post and profile selectors, the tagging
+    script, the login paths, and an optional dialog to dismiss.
+  - Instagram behavior is unchanged.
+- **`XHeadlessBrowser`** is a `CardBrowser` with the X layout. It opens one lazily opened
+  stealthy session and is used for cards only.
   - On the post page:
-    - The post card is the first `<article>`, taken only when the post has no video.
-    - Comment cards are tagged by a tagging script that follows the corrected 3b rule: a
-      row is the smallest `<article>` holding the author's link, and a span inside a row
-      that is already tagged is skipped.
-  - On the profile page: the profile card. Its selector is fixed from the capture.
-  - It uses the shared `exit_session` and `save_card` helpers.
+    - The post card comes from the post selector, and only when the post has no video.
+    - The tagging script tags comment rows. A row is a top-level `<article>`, never a
+      nested quoted one. It must not be tagged yet, and it must hold both `@<author>` and
+      the reply's text prefix.
+  - On the profile page: the profile card.
+  - The post and profile selectors are provisional (`article` and `main`). The capture
+    fixes them.
 - **`XAcquirer.inspect`** runs these steps:
   1. Identity.
   2. Syndication, then `parse_syndication`.
@@ -157,7 +194,7 @@ The decoder never raises and never runs code.
   - `post_id` = `rest_id`.
   - `canonical_url` rebuilt.
   - `caption` = `full_text`.
-  - `published_at` from `created_at` when present, else derived from the snowflake id.
+  - `published_at` from `details.created_at_ms`.
   - `engagement` = `like`, `comment`, `share`, `play`.
 - Ranked with the shared `rank_videos` (likes, views, recency), then cut to `limit`.
   - Anonymous pages serve about 6 tweets.
@@ -250,5 +287,8 @@ Verification: the WSL full suite, plus Ruff check and format. No Rust changes.
 - The live capture needs operator authorization at capture time.
 - Push, merge, and deploy are each a separate operator authorization.
 - Replies past the first page and a longer timeline wait for the login feature.
+- Anonymous profile pages serve about six tweets. In the probe, one of five was a video, so
+  X discovery often yields 0 or 1 videos until the login feature lengthens the timeline.
+  The operator chose to build it now regardless.
 - The seroval format is X's front-end internals. Watch it at the live smoke; the
   syndication core keeps posts working if it changes.
