@@ -1,6 +1,7 @@
 # Stage 3c: X Acquisition on the Platform Kernel
 
-Status: written spec approved by the operator on 2026-10-04.
+Status: written spec approved by the operator on 2026-10-04; implemented on branch
+`feat/stage3c-x` (see `docs/superpowers/plans/2026-10-04-stage3c-x.md`).
 
 Amended the same day after a throwaway decoder ran over the probe pages. The changes cover
 field paths, video variants, long-tweet text, and the shared card browser (sections 2, 3.1,

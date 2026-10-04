@@ -2,6 +2,77 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-04 - Stage 3c: X acquisition and profile discovery
+
+- Implements `docs/superpowers/specs/2026-10-04-stage3c-x-design.md` through the plan
+  `docs/superpowers/plans/2026-10-04-stage3c-x.md` (`dcf9212`, `2e56165`). The operator
+  chose native execution. The plan's code was validated in a scratch worktree before it was
+  committed.
+- `7307753`: X URLs route to the Python kernel, and `ReportSource.platform` accepts `x`. The
+  hosts are `x.com`, `twitter.com`, and their `mobile.` forms. `t.co` stays legacy.
+- `e766ddc`: a pure decoder for the seroval-serialized data that logged-out X pages stream.
+  - It never runs code.
+  - An unsupported wrapper, such as the router runtime, decodes to nothing.
+  - It never raises.
+- `e0b9181`: X URL identity and parsers.
+  - The public syndication JSON is the core of a post.
+  - The page's decoded data adds first-page replies, views (`play`), and reposts (`share`).
+  - A long tweet takes the page's note text.
+  - Media keep syndication order, and each video takes its largest MP4.
+- `ba2fd02`: the Instagram card session, crop, tagging, persistence, and outcome log moved to
+  `card_browser.py`, with a per-platform `CardLayout`. Instagram behavior is unchanged.
+- `3996f30`: the X acquirer and registry branch.
+  - The content method is `request` by construction: logged-out pages give a browser no
+    content data.
+  - A page failure never fails acquisition.
+- `23d5416`: X profile discovery, ranked by likes, views, and recency.
+  - Anonymous pages serve about six tweets, so it often yields 0 or 1 videos.
+  - The operator chose to build it now. The login feature lengthens the timeline.
+- `9e09e6a`: the operator-run X capture and fixture tools. Leaks are checked against every
+  raw string except seven exact type names.
+- `df10615`: sanitized golden fixtures (video, image, text, replies, profile) and replay
+  tests. The fixtures were captured under operator authorization at capture time.
+  - A selector survey over the live pages fixed the card selectors.
+  - The post card is the article that links to the post's own status. On a reply's page the
+    parent tweet comes first, and the previous `article` selector had cropped it.
+  - The profile card is the avatar, name, and bio block. The previous `main` selector had
+    cropped the whole page, 5080 to 7776 px tall.
+- `733bd3f`: the final review's findings, fixed test-first.
+  - Syndication `display_text_range` is counted in UTF-16 units. Before the fix, an emoji
+    pushed the cut into the media link. The video and replies fixtures lost a trailing
+    space.
+  - A deep reference chain no longer escapes the decoder. The page and discovery steps also
+    catch any unforeseen parse error.
+  - The profile selector fails closed. It requires the owner's `@handle`, so a shifted
+    layout yields no card instead of a wrong one.
+  - A reply's card row is the article that links to the reply's own status. Text matching
+    is the fallback.
+- The fixtures keep a whitelisted list of tweets, not the decoded page roots that spec 6
+  describes. That is a privacy tradeoff: the replay covers the parsers, not every page
+  shape.
+- Live capture evidence (restricted: counts, keys, and enums only):
+  - **Posts:** all four had syndication `ok`, with typename `Tweet`. The pages decoded 3, 4,
+    4, and 5 tweets. The profile page decoded 5 tweets, one of them a video.
+  - **Replies:** 2, 3, 3, and 2. One malformed reply was dropped.
+  - **Cards:** 10 comment cards for 10 targets. Post and profile cards on every post kind.
+    Problems: none.
+  - **Fixtures:** `leaks: 0` for all five. No real media host. Every handle is
+    pseudonymized.
+- Verification: `tests` 2572 passed, 0 failed, 8 skipped. The skips are browser tests where
+  Playwright is absent; they pass, 8 of 8, in the capture image. Ruff: all checks passed.
+- Next steps:
+  - The operator reviews the branch. Push, merge, and deploy each need their own
+    authorization.
+  - Stage 3d (YouTube) is next.
+  - Then the multi-account rotating login feature with UI integration. It lengthens X
+    timelines and replies, and it adds views where pages hide them.
+  - At the live smoke:
+    - check that card PNGs look right;
+    - check for HTML entities in tweet text;
+    - check the repost key;
+    - check the positional profile selector on other profiles.
+  - The live smoke waits for final acceptance (ADR 0001).
+
 ## 2026-10-04 - CI: Python tests read their pytest config
 
 - Cause: CI ran `uv run --project python pytest` from the repository root. From there,

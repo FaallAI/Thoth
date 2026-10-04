@@ -389,3 +389,17 @@ upload date. The evidence is in the `CHANGELOG.md` section "2026-10-04 - Stage 3
   3b.
 - Next gate: the operator reviews the branch. Push, merge, and deploy each need their own
   authorization.
+
+## Stage 3c status (2026-10-04)
+
+Stage 3c (X) is implemented on `feat/stage3c-x`. Post, media, first-page reply, and card
+acquisition is anonymous: the syndication JSON is the core, and the page's seroval data is
+the enrichment. Profile discovery is ranked by likes, views, and recency. The evidence is in
+the `CHANGELOG.md` section "2026-10-04 - Stage 3c".
+
+Next steps:
+
+- The operator reviews the branch. Push, merge, and deploy each need their own
+  authorization.
+- Stage 3d (YouTube).
+- The multi-account rotating login feature with UI integration.
