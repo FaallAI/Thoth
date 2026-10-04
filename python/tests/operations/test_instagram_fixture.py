@@ -203,6 +203,21 @@ def test_main_writes_a_clean_fixture(tmp_path: Path, capsys: pytest.CaptureFixtu
     assert json.loads(out.read_text(encoding="utf-8"))["kind"] == "carousel"
 
 
+def test_main_writes_a_fixture_whose_emoji_only_comment_survives(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The pseudonymizer keeps symbols by design; a letterless comment identifies no one.
+    raw = _raw()
+    emoji = {**_raw_comment(), "pk": "17900000000000002", "text": "🔥🔥🔥🔥🔥"}
+    full = _doc(_raw_node(), [_raw_comment(), emoji])
+    raw["request"] = raw["headless"] = {"status": "ok", "script_texts": [full]}
+    raw_path, out = tmp_path / "carousel.json", tmp_path / "out.json"
+    raw_path.write_text(json.dumps(raw), encoding="utf-8")
+    assert main(["--raw", str(raw_path), "--out", str(out)]) == 0
+    assert json.loads(capsys.readouterr().out)["leaks"] == 0
+    assert out.exists()
+
+
 def test_main_refuses_to_write_a_leaking_fixture(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
