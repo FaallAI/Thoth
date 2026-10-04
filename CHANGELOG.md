@@ -48,6 +48,18 @@ All notable changes to this project will be documented in this file.
 - Verification: `tests` 1 failed, 2435 passed, 6 skipped. The one failure is the pre-existing
   `tests/api/test_workflows.py::test_route_modules_do_not_depend_on_a_process_runner`. Ruff:
   all checks passed, no files to reformat.
+- `82f1936` and `3ebbe29` close the review's minor findings.
+  - A post without its own comment connection no longer borrows another post's comments.
+  - Ranking scores are exact fractions, so tied videos keep the grid order.
+  - Card saving, session closing, and the carousel loop are shared with Threads.
+  - The letterless-leaf leak rule now lives in the shared `leak_count`.
+  - New tests cover:
+    - text-only posts;
+    - the partial-result tail;
+    - the limit cut after detail ranking.
+  - Removed: the unused `expected.likes` fixture key and `POST_KINDS`.
+  - Verification: `tests` 1 failed (the same pre-existing one), 2440 passed, 7 skipped. The
+    browser tagging test skips without Playwright. Ruff is clean.
 - Next gate:
   - The operator reviews the branch. Push, merge, and deploy each need their own explicit
     authorization.
