@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-04 - CI: Python tests read their pytest config
+
+- Cause: CI ran `uv run --project python pytest` from the repository root. From there,
+  pytest found no config, so `asyncio_mode = "auto"` in `python/pyproject.toml` did not
+  apply.
+  - Unmarked async tests failed with "async def functions are not natively supported": 38 in
+    `tests/acquisition/test_discovery.py` and 1 in `tests/activities`.
+  - The `Container image` workflow has failed on `master` since 2026-09-27. The later steps
+    never ran.
+- `1b3ec3f`: the test step now runs from `python/` (`working-directory: python`).
+- `1235285`: `test_route_modules_do_not_depend_on_a_process_runner` was anchored to a
+  cwd-relative path. From the root it globbed nothing and passed vacuously; locally it failed
+  because "bun" matched "bundle". It now resolves the routes from its own file location,
+  asserts that it found modules, and matches `bun` as a word.
+- `33d13e8`: the container contract test pins the new step.
+- Verification: `tests` 2441 passed, 0 failed, 7 skipped. Ruff is clean. actionlint reports
+  the same 13 pre-existing shellcheck notes before and after the change.
+- Next steps:
+  - The operator pushes `master`, then CI is re-checked. The steps after the tests (Ruff,
+    Compose validation, image build) run for the first time since 2026-09-27 and may surface
+    new failures.
+  - Then Stage 3c (X) starts from its own spec, as the operator ordered: 3c X, 3d YouTube,
+    then the multi-account rotating login feature with UI integration.
+
 ## 2026-10-04 - Stage 3b: Instagram acquisition and profile discovery
 
 - Implements `docs/superpowers/specs/2026-09-28-stage3b-instagram-design.md` (amended
