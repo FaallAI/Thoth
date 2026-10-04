@@ -31,6 +31,12 @@ All notable changes to this project will be documented in this file.
     engagement keys and a published time on each.
   - Cards: post and profile cards cropped for every post. Comment cards 12/12, 15/15, and
     14/14. Problems: none.
+    The counts did not check correctness: the final review found one carousel comment card
+    3208 px tall, against 170 to 242 px for the rest. The tagging script had climbed past a
+    comment row to the whole list. `c261bc1` fixes this: a row is the smallest ancestor
+    holding an avatar, and it must hold the comment's author. A browser test pins the fix;
+    it runs only where Playwright is installed. Check card correctness again at the live
+    smoke.
   - Profiles: the first grid held 10 carousels and 2 photos. The second, reel-heavy grid held
     12 `clips`. Neither grid node carries like, view, comment, or date keys. Post pages carry
     `like_count`, `comment_count`, and `taken_at`, but no view count.
