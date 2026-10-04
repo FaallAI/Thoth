@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 
 from thoth_control_plane.acquisition.card_browser import COMMENT_ROW_ATTRIBUTE
-from thoth_control_plane.acquisition.x_service import TAG_REPLIES_JS
+from thoth_control_plane.acquisition.x_service import POST_CARD_SELECTOR, TAG_REPLIES_JS
 
 async_api = pytest.importorskip("playwright.async_api")
 
@@ -67,3 +67,24 @@ async def test_a_handle_never_matches_a_longer_handle() -> None:
     html = _list([("anna", "same words", "")])
     target = {"comment_id": "9", "author": "ann", "prefix": "same words"}
     assert await _tag(html, [target]) == ([], [])
+
+
+@pytest.mark.asyncio
+async def test_the_post_selector_skips_the_parent_tweet() -> None:
+    post_id = "1800000000000000001"
+    parent = '<article id="parent"><a href="/parent_01/status/1700000000000000001">t</a></article>'
+    post = f'<article id="post"><a href="/user_001/status/{post_id}">t</a></article>'
+    reply = '<article id="reply"><a href="/fan_001/status/1800000000000000101">t</a></article>'
+    async with async_api.async_playwright() as playwright:
+        try:
+            browser = await playwright.chromium.launch()
+        except Exception:
+            pytest.skip("no Chromium build installed")
+        try:
+            page = await browser.new_page()
+            await page.set_content(f"<main>{parent}{post}{reply}</main>")
+            selector = POST_CARD_SELECTOR.format(post_id=post_id)
+            found = await page.locator(selector).first.get_attribute("id")
+        finally:
+            await browser.close()
+    assert found == "post"

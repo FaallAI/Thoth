@@ -11,8 +11,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Literal
 
@@ -33,6 +35,8 @@ from thoth_control_plane.acquisition.browser import _default_session_factory, _i
 from thoth_control_plane.acquisition.card_browser import (
     CardBrowser,
     CardLayout,
+    Cards,
+    CommentTarget,
     comment_targets,
     is_login_path,
     log_outcome,
@@ -70,9 +74,12 @@ CONTENT_METHOD: Literal["request"] = "request"
 # Any token is accepted (Stage 3c probe); the id names the tweet.
 SYNDICATION_URL = "https://cdn.syndication.twimg.com/tweet-result?id={post_id}&token=0&lang=en"
 LOGIN_PATHS = ("/i/flow/login", "/login", "/account/access")
-# Provisional until the Stage 3c capture fixes them (Task 9).
-POST_CARD_SELECTOR = "article"
-PROFILE_CARD_SELECTOR = "main"
+# From the Stage 3c capture survey. The post's own article links to its status; on a reply's
+# page the parent tweet's article comes first. The profile card is the block holding the
+# avatar, name, and bio, directly under the banner.
+POST_CARD_SELECTOR = 'article:has(a[href$="/status/{post_id}"])'
+PROFILE_CARD_SELECTOR = "main > div:nth-child(4)"
+STATUS_ID = re.compile(r"/status/([0-9]{1,19})")
 # Tags each matched reply row; targets arrive as the evaluate argument, never interpolated.
 # A row is a top-level article (never a nested quote) whose own text mentions `@author` as a
 # whole handle and holds the reply's text prefix.
@@ -169,6 +176,22 @@ class XHeadlessBrowser(CardBrowser):
 
     def __init__(self, session_factory: Callable[..., Any] = _default_session_factory) -> None:
         super().__init__(x_layout(), session_factory)
+
+    async def cards(
+        self,
+        post_url: str,
+        profile_url: str,
+        *,
+        want_post: bool,
+        targets: list[CommentTarget],
+    ) -> Cards:
+        """Crop the article that links to the post itself, never the parent above it."""
+        found = STATUS_ID.search(post_url)
+        post_id = found.group(1) if found else ""
+        self._layout = replace(
+            self._layout, post_selector=POST_CARD_SELECTOR.format(post_id=post_id)
+        )
+        return await super().cards(post_url, profile_url, want_post=want_post, targets=targets)
 
 
 class XAcquirer:

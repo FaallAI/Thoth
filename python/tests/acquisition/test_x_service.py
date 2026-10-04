@@ -121,11 +121,14 @@ async def test_cards_use_the_x_layout_with_no_dialog() -> None:
     assert list(cards.comment_pngs) == [C1]
     assert cards.profile_png is not None
     assert post_page.clicked == []
-    assert post_page.shots == [POST_CARD_SELECTOR, f'[{COMMENT_ROW_ATTRIBUTE}="{C1}"]']
+    # The post's own article: on a reply's page the parent tweet comes first.
+    post_selector = f'article:has(a[href$="/status/{POST_ID}"])'
+    assert POST_CARD_SELECTOR.format(post_id=POST_ID) == post_selector
+    assert post_page.shots == [post_selector, f'[{COMMENT_ROW_ATTRIBUTE}="{C1}"]']
     assert post_page.evaluated == [
         (TAG_REPLIES_JS, [{"comment_id": C1, "author": "fan_001", "prefix": "a reply"}])
     ]
-    assert profile_page.shots == [PROFILE_CARD_SELECTOR]
+    assert profile_page.shots == [PROFILE_CARD_SELECTOR] == ["main > div:nth-child(4)"]
     assert session.exited == 1
     assert active_scrapling_session_count() == 0
 

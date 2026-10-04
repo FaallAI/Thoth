@@ -1,0 +1,195 @@
+{
+  "kind": "text",
+  "method": "request",
+  "post_id": "7000000000000000000",
+  "counts": {
+    "media": 0,
+    "videos": 0,
+    "long_text": true,
+    "decoded_tweets": 4,
+    "replies": 3,
+    "dropped_replies": 0,
+    "page_engagement_keys": [
+      "comment",
+      "like",
+      "play",
+      "share"
+    ]
+  },
+  "document": {
+    "syndication": {
+      "__typename": "Tweet",
+      "id_str": "7000000000000000000",
+      "user": {
+        "screen_name": "user_001"
+      },
+      "text": "aaaa aaaaaa.aa aaaaa aaaaaaaa aa aaaaaa aaaa a.a aaaaa.\n\naaa aaaaaa aaaa “aaaaa aaaa aa aaaa” aaa “aaaaaa-aaaaa aaaa aaaa” aaa aaa aaaaaaaaaaa aaaa aaaa aaaaa aaaaaa.\n\naaaaaaaaa’a aaaaa aaaaaa aaaaaa a aaaaaa aaa:\n\naaaa aaaaaa aaaa aaa aaa:\n\n⁠ /aaaaaa-aaa aaaaaa-aaaaa ⁠\n\naa",
+      "display_text_range": [
+        0,
+        274
+      ],
+      "created_at": "2023-11-14T23:13:20.000Z",
+      "favorite_count": 610,
+      "conversation_count": 26,
+      "note_tweet": {
+        "id": "note"
+      }
+    },
+    "page": {
+      "tweets": [
+        {
+          "__typename": "Tweet",
+          "rest_id": "7000000000000000000",
+          "core": {
+            "user_results": {
+              "result": {
+                "core": {
+                  "screen_name": "user_001"
+                }
+              }
+            }
+          },
+          "details": {
+            "full_text": "aaaa aaaaaa.aa aaaaa aaaaaaaa aa aaaaaa aaaa a.a aaaaa.\n\naaa aaaaaa aaaa “aaaaa aaaa aa aaaa” aaa “aaaaaa-aaaaa aaaa aaaa” aaa aaa aaaaaaaaaaa aaaa aaaa aaaaa aaaaaa.\n\naaaaaaaaa’a aaaaa aaaaaa aaaaaa a aaaaaa aaa:\n\naaaa aaaaaa aaaa aaa aaa:\n\n⁠ /aaaaaa-aaa aaaaaa-aaaaa ⁠\n\naa",
+            "created_at_ms": 1700007200000
+          },
+          "note_tweet": {
+            "note_tweet_results": {
+              "result": {
+                "text": "baab aabaab.aa baaba abaabaab aa baabaa baab a.a baaba.\n\naba abaaba abaa “baaba abaa ba abaa” baa “baabaa-baaba abaa baab” aab aab aabaabaabaa baab aaba abaab aabaab.\n\naabaabaab’a abaab aabaab aabaab a abaaba aba:\n\nabaa baabaa baab aab aab:\n\n⁠ /aabaab-aab aabaab-aabaa ⁠\n\nba abaab aaba abaaba, abaaba.ab aab aabaaba, abaabaa baabaaba abaabaabaaba, abaa baabaaba abaa baabaa baa baabaa baab a.a baabaaba.\n\nabaab a aba abaabaa.\n\nbaaba abaabaa baabaab."
+              }
+            }
+          },
+          "counts": {
+            "favorite_count": 610,
+            "reply_count": 26,
+            "retweet_count": 31
+          },
+          "views": {
+            "count": 90000
+          },
+          "media_entities2": []
+        },
+        {
+          "__typename": "Tweet",
+          "rest_id": "7000000000000000001",
+          "core": {
+            "user_results": {
+              "result": {
+                "core": {
+                  "screen_name": "user_002"
+                }
+              }
+            }
+          },
+          "details": {
+            "full_text": "@caacaacaacaacaa @caacaacaacaacaa caaca aca aca acaaca acaac, aacaa? c’aa caaca acaa caacaac aacaacaac aacaa caacaacaa caa caacaa caaca acaaca ac aaca acaac aacaa caacaa.",
+            "created_at_ms": 1700010800000
+          },
+          "counts": {
+            "favorite_count": 2,
+            "reply_count": 0,
+            "retweet_count": 0
+          },
+          "views": {
+            "count": 610
+          },
+          "reply_to_results": {
+            "rest_id": "7000000000000000000"
+          },
+          "media_entities2": []
+        },
+        {
+          "__typename": "Tweet",
+          "rest_id": "7000000000000000002",
+          "core": {
+            "user_results": {
+              "result": {
+                "core": {
+                  "screen_name": "user_003"
+                }
+              }
+            }
+          },
+          "details": {
+            "full_text": "@daadaadaadaadaa daadaa'd aada‑ad‑aada ad aada a daadaada ada—ada ad aad aad aad aadaad aad.",
+            "created_at_ms": 1700014400000
+          },
+          "counts": {
+            "favorite_count": 2,
+            "reply_count": 0,
+            "retweet_count": 0
+          },
+          "views": {
+            "count": 900
+          },
+          "reply_to_results": {
+            "rest_id": "7000000000000000000"
+          },
+          "media_entities2": []
+        },
+        {
+          "__typename": "Tweet",
+          "rest_id": "7000000000000000003",
+          "core": {
+            "user_results": {
+              "result": {
+                "core": {
+                  "screen_name": "user_004"
+                }
+              }
+            }
+          },
+          "details": {
+            "full_text": "@eaaeaaeaaeaaeaa eaae aaea aea aea aea aeaa \"eaaeaaea: aea aeaa\" eaaea. aeaae aaeaae aaeaaea aeaaea aeaaeaaeaaea, aeaaeaae aaea aeaae aaea aeaaeaaea aea aeaae aae aaea aeaaeaaeaa. \neaae aae aaeaae.aa eaaea aea aeaae aae aaea aeaaea aeaaeaaeaaeaa eaa. ea aeaaea aeaaea.",
+            "created_at_ms": 1700018000000
+          },
+          "counts": {
+            "favorite_count": 2,
+            "reply_count": 0,
+            "retweet_count": 0
+          },
+          "views": {
+            "count": 1500
+          },
+          "reply_to_results": {
+            "rest_id": "7000000000000000000"
+          },
+          "media_entities2": []
+        }
+      ]
+    }
+  },
+  "expected": {
+    "owner_handle": "user_001",
+    "text": "baab aabaab.aa baaba abaabaab aa baabaa baab a.a baaba.\n\naba abaaba abaa “baaba abaa ba abaa” baa “baabaa-baaba abaa baab” aab aab aabaabaabaa baab aaba abaab aabaab.\n\naabaabaab’a abaab aabaab aabaab a abaaba aba:\n\nabaa baabaa baab aab aab:\n\n⁠ /aabaab-aab aabaab-aabaa ⁠\n\nba abaab aaba abaaba, abaaba.ab aab aabaaba, abaabaa baabaaba abaabaabaaba, abaa baabaaba abaa baabaa baa baabaa baab a.a baabaaba.\n\nabaab a aba abaabaa.\n\nbaaba abaabaa baabaab.",
+    "media_kinds": [],
+    "engagement": {
+      "like": 610,
+      "comment": 26,
+      "share": 31,
+      "play": 90000
+    },
+    "published_at": "2023-11-14T23:13:20Z",
+    "comments": [
+      {
+        "comment_id": "7000000000000000001",
+        "author": "user_002",
+        "text": "caaca aca aca acaaca acaac, aacaa? c’aa caaca acaa caacaac aacaacaac aacaa caacaacaa caa caacaa caaca acaaca ac aaca acaac aacaa caacaa.",
+        "likes": 2
+      },
+      {
+        "comment_id": "7000000000000000002",
+        "author": "user_003",
+        "text": "daadaa'd aada‑ad‑aada ad aada a daadaada ada—ada ad aad aad aad aadaad aad.",
+        "likes": 2
+      },
+      {
+        "comment_id": "7000000000000000003",
+        "author": "user_004",
+        "text": "eaae aaea aea aea aea aeaa \"eaaeaaea: aea aeaa\" eaaea. aeaae aaeaae aaeaaea aeaaea aeaaeaaeaaea, aeaaeaae aaea aeaae aaea aeaaeaaea aea aeaae aae aaea aeaaeaaeaa. \neaae aae aaeaae.aa eaaea aea aeaae aae aaea aeaaea aeaaeaaeaaeaa eaa. ea aeaaea aeaaea.",
+        "likes": 2
+      }
+    ]
+  }
+}
