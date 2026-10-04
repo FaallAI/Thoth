@@ -47,6 +47,15 @@ All notable changes to this project will be documented in this file.
     layout yields no card instead of a wrong one.
   - A reply's card row is the article that links to the reply's own status. Text matching
     is the fallback.
+- `27c4bcc`: the deferred minors, fixed test-first.
+  - Tweet text is HTML-unescaped before `display_text_range` slices it. The range counts
+    the unescaped text, which is the Twitter convention; no captured tweet contained `&`,
+    so the live smoke still checks this.
+  - Discovery drops every known repost shape.
+  - A handle X cannot have returns `no_data` without a fetch.
+  - A lone-surrogate escape becomes U+FFFD instead of dropping its whole wrapper.
+  - Spec 6 now describes the whitelisted fixtures.
+  - Suite: 2580 passed, 0 failed, 8 skipped.
 - The fixtures keep a whitelisted list of tweets, not the decoded page roots that spec 6
   describes. That is a privacy tradeoff: the replay covers the parsers, not every page
   shape.
