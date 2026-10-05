@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from tests.acquisition.png_fixtures import make_png
@@ -73,8 +74,30 @@ def card_session(pages: dict[str, FakeCardPage]) -> FakeSession:
 class FakeMaterializer:
     """Writes a placeholder file per item; raises at `fail_at` like a failed validation."""
 
-    def __init__(self, fail_at: int | None = None) -> None:
-        self.fail_at = fail_at
+    def __init__(self, fail_at: int | None = None, fail_adopt: bool = False) -> None:
+        self.fail_at, self.fail_adopt = fail_at, fail_adopt
+        self.adopted: list[Path] = []
+
+    async def adopt(
+        self, source, destination, relative_location, strategy, *, kind="video", **kwargs
+    ):
+        self.adopted.append(source)
+        if self.fail_adopt or not source.is_file():
+            source.unlink(missing_ok=True)
+            raise MediaMaterializationError()
+        destination.with_suffix(".mp4").parent.mkdir(parents=True, exist_ok=True)
+        source.replace(destination.with_suffix(".mp4"))
+        return MaterializedMedia(
+            media_id=kwargs.get("media_id", "media_1"),
+            kind=kind,
+            index=kwargs.get("index", 1),
+            location=relative_location.with_suffix(".mp4"),
+            media_type="video/mp4",
+            bytes=20_000,
+            checksum="sha256:" + "0" * 64,
+            acquisition_strategy=strategy,
+            duration_seconds=kwargs.get("duration_seconds"),
+        )
 
     async def materialize(
         self, candidate, destination, relative_location, strategy, *, media_id="media_1", index=1

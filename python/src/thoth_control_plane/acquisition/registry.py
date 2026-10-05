@@ -28,6 +28,11 @@ from thoth_control_plane.acquisition.x_service import (
     XHeadlessBrowser,
     XRequestFetcher,
 )
+from thoth_control_plane.acquisition.youtube_service import (
+    YouTubeAcquirer,
+    YouTubeHeadlessBrowser,
+    YtDlpClient,
+)
 
 
 class Acquirer(Protocol):
@@ -54,4 +59,6 @@ def acquirer_for(
         )
     if platform == "x":
         return XAcquirer(XRequestFetcher(), XHeadlessBrowser(), materializer)
+    if platform == "youtube":
+        return YouTubeAcquirer(YtDlpClient(), YouTubeHeadlessBrowser(), materializer)
     raise LookupError("no python acquirer for this platform")
