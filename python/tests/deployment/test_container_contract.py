@@ -1074,3 +1074,21 @@ def test_container_workflow_never_promotes_or_uploads_a_candidate() -> None:
     assert "golden-manifest" not in workflow
     # A candidate is local evidence for one run, not an artifact CI hands around.
     assert "upload-artifact" not in _parity_job()
+
+
+def test_the_yt_dlp_update_workflow_bumps_tests_merges_and_builds() -> None:
+    workflow = _repo_text(".github/workflows/yt-dlp-update.yml")
+    assert 'cron: "17 3 * * *"' in workflow
+    assert "https://pypi.org/pypi/yt-dlp/json" in workflow
+    assert "uv lock --project python --upgrade-package yt-dlp" in workflow
+    assert 'uv run pytest -m "not live" -q' in workflow
+    assert 'gh pr merge "$branch" --squash --delete-branch' in workflow
+    assert "gh workflow run container-image.yml --ref master" in workflow
+    # The image build must accept the dispatch the update workflow sends.
+    assert "workflow_dispatch:" in _repo_text(".github/workflows/container-image.yml")
+
+
+def test_yt_dlp_is_pinned_identically_in_both_extras() -> None:
+    pyproject = _repo_text("python/pyproject.toml")
+    pins = re.findall(r'"yt-dlp==([0-9.]+)"', pyproject)
+    assert len(pins) == 2 and len(set(pins)) == 1

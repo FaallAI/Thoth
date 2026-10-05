@@ -28,6 +28,7 @@ from thoth_control_plane.infrastructure.prompt_proposal_repository import (
 from thoth_control_plane.infrastructure.prompt_provider import OpenAICompatiblePromptProvider
 from thoth_control_plane.infrastructure.temporal_gateway import TASK_QUEUE
 from thoth_control_plane.observability import configure_provider_logging
+from thoth_control_plane.operations.yt_dlp_version import check_freshness
 from thoth_control_plane.workflows import SourceInvestigationWorkflow
 from thoth_control_plane.workflows.prompt_proposal import PromptProposalWorkflow
 
@@ -86,23 +87,28 @@ async def run_worker(settings: Settings | None = None) -> None:
     runtime_settings = settings or Settings()  # type: ignore[call-arg]
     configure_provider_logging()
     capability = await check_scrapling_capability()
-    client = await Client.connect(
-        runtime_settings.THOTH_TEMPORAL_TARGET,
-        namespace=runtime_settings.THOTH_TEMPORAL_NAMESPACE,
-        data_converter=pydantic_data_converter,
-    )
-    async with (
-        build_source_investigation_worker(client, runtime_settings, capability=capability),
-        Worker(
-            client,
-            task_queue=LEGACY_ADAPTER_TASK_QUEUE,
-            activities=[
-                build_legacy_scout_activity(runtime_settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT)
-            ],
-            max_concurrent_activities=LEGACY_ADAPTER_MAX_CONCURRENT_ACTIVITIES,
-        ),
-    ):
-        await asyncio.Future()
+    # A stale yt-dlp fails YouTube extraction; warn once, in the background, never block.
+    freshness = asyncio.create_task(check_freshness())
+    try:
+        client = await Client.connect(
+            runtime_settings.THOTH_TEMPORAL_TARGET,
+            namespace=runtime_settings.THOTH_TEMPORAL_NAMESPACE,
+            data_converter=pydantic_data_converter,
+        )
+        async with (
+            build_source_investigation_worker(client, runtime_settings, capability=capability),
+            Worker(
+                client,
+                task_queue=LEGACY_ADAPTER_TASK_QUEUE,
+                activities=[
+                    build_legacy_scout_activity(runtime_settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT)
+                ],
+                max_concurrent_activities=LEGACY_ADAPTER_MAX_CONCURRENT_ACTIVITIES,
+            ),
+        ):
+            await asyncio.Future()
+    finally:
+        freshness.cancel()
 
 
 def main() -> None:

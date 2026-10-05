@@ -7,6 +7,8 @@ on:
     tags:
       - "v*"
   pull_request:
+  # The yt-dlp update workflow dispatches a build after it merges a bump.
+  workflow_dispatch:
 
 permissions:
   contents: read

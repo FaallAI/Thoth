@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from thoth_control_plane import worker
@@ -25,3 +27,35 @@ async def test_worker_configures_provider_logging_before_capability_check(monkey
     with pytest.raises(_StopWorker):
         await worker.run_worker(Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"))
     assert calls == ["logging", "capability"]
+
+
+@pytest.mark.asyncio
+async def test_the_yt_dlp_check_runs_in_the_background_and_stops_with_the_worker(
+    monkeypatch,
+) -> None:
+    started = asyncio.Event()
+    cancelled: list[bool] = []
+
+    async def capability():
+        return None
+
+    async def freshness():
+        started.set()
+        try:
+            await asyncio.Future()
+        except asyncio.CancelledError:
+            cancelled.append(True)
+            raise
+
+    async def connect(*args, **kwargs):
+        await started.wait()
+        raise _StopWorker
+
+    monkeypatch.setattr(worker, "configure_provider_logging", lambda: None)
+    monkeypatch.setattr(worker, "check_scrapling_capability", capability)
+    monkeypatch.setattr(worker, "check_freshness", freshness)
+    monkeypatch.setattr(worker.Client, "connect", connect)
+    with pytest.raises(_StopWorker):
+        await worker.run_worker(Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"))
+    await asyncio.sleep(0)
+    assert cancelled == [True]

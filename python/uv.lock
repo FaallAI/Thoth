@@ -1295,6 +1295,7 @@ dependencies = [
 [package.optional-dependencies]
 acquisition = [
     { name = "scrapling", extra = ["fetchers"] },
+    { name = "yt-dlp" },
 ]
 scout-runtime = [
     { name = "gallery-dl" },
@@ -1323,6 +1324,7 @@ requires-dist = [
     { name = "temporalio", specifier = ">=1.10,<2" },
     { name = "typer", specifier = ">=0.15,<1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30,<1" },
+    { name = "yt-dlp", marker = "extra == 'acquisition'", specifier = "==2026.8.19" },
     { name = "yt-dlp", marker = "extra == 'scout-runtime'", specifier = "==2026.8.19" },
 ]
 provides-extras = ["acquisition", "scout-runtime"]

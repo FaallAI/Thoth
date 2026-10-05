@@ -16,7 +16,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-acquisition = ["scrapling[fetchers]>=0.4.15,<0.5"]
+# yt-dlp is pinned in both extras; the yt-dlp update workflow bumps both.
+acquisition = ["scrapling[fetchers]>=0.4.15,<0.5", "yt-dlp==2026.8.19"]
 # Legacy Scout shells out to both executables; the compatibility image must ship them.
 scout-runtime = ["gallery-dl==1.32.11", "yt-dlp==2026.8.19"]
 
