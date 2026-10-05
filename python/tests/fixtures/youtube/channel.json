@@ -1,0 +1,291 @@
+{
+  "kind": "channel",
+  "method": "yt_dlp",
+  "handle": "user_001",
+  "counts": {
+    "entries": 24,
+    "details": 12
+  },
+  "document": {
+    "listings": {
+      "videos": {
+        "entries": [
+          {
+            "id": "vid00000001",
+            "view_count": 66000
+          },
+          {
+            "id": "vid00000002",
+            "view_count": 200000
+          },
+          {
+            "id": "vid00000003",
+            "view_count": 50000
+          },
+          {
+            "id": "vid00000004",
+            "view_count": 52000
+          },
+          {
+            "id": "vid00000005",
+            "view_count": 180000
+          },
+          {
+            "id": "vid00000006",
+            "view_count": 83000
+          },
+          {
+            "id": "vid00000007",
+            "view_count": 210000
+          },
+          {
+            "id": "vid00000008",
+            "view_count": 260000
+          },
+          {
+            "id": "vid00000009",
+            "view_count": 290000
+          },
+          {
+            "id": "vid00000010",
+            "view_count": 400000
+          },
+          {
+            "id": "vid00000011",
+            "view_count": 320000
+          },
+          {
+            "id": "vid00000012",
+            "view_count": 300000
+          }
+        ]
+      },
+      "shorts": {
+        "entries": [
+          {
+            "id": "vid00000013",
+            "view_count": 370000
+          },
+          {
+            "id": "vid00000014",
+            "view_count": 560000
+          },
+          {
+            "id": "vid00000015",
+            "view_count": 460000
+          },
+          {
+            "id": "vid00000016",
+            "view_count": 580000
+          },
+          {
+            "id": "vid00000017",
+            "view_count": 920000
+          },
+          {
+            "id": "vid00000018",
+            "view_count": 1400000
+          },
+          {
+            "id": "vid00000019",
+            "view_count": 700000
+          },
+          {
+            "id": "vid00000020",
+            "view_count": 420000
+          },
+          {
+            "id": "vid00000021",
+            "view_count": 490000
+          },
+          {
+            "id": "vid00000022",
+            "view_count": 310000
+          },
+          {
+            "id": "vid00000023",
+            "view_count": 1200000
+          },
+          {
+            "id": "vid00000024",
+            "view_count": 950000
+          }
+        ]
+      }
+    },
+    "details": {
+      "vid00000018": {
+        "id": "vid00000018",
+        "uploader_id": "@user_001",
+        "channel_id": "UC0000000000000000000001",
+        "live_status": "not_live",
+        "title": "aaaa aaaaaaa aaaaa aaaa aa aaaaa🗿 #aaaaa #aaaaaaaaa",
+        "description": "baabaa baabaab aabaaba\n\nabaaba",
+        "timestamp": 1700003600,
+        "duration": 42,
+        "view_count": 1400000,
+        "like_count": 63000,
+        "comment_count": 510
+      },
+      "vid00000023": {
+        "id": "vid00000023",
+        "uploader_id": "@user_001",
+        "channel_id": "UC0000000000000000000001",
+        "live_status": "not_live",
+        "title": "ca acaa caacaa caa💀 #caaca #acaacaaca",
+        "description": "daadaa daada adaad",
+        "timestamp": 1700007200,
+        "duration": 43,
+        "view_count": 1200000,
+        "like_count": 67000,
+        "comment_count": 470
+      },
+      "vid00000024": {
+        "id": "vid00000024",
+        "uploader_id": "@user_001",
+        "channel_id": "UC0000000000000000000001",
+        "live_status": "not_live",
+        "title": "eaaeaaeaae aaeaaeaa eaaea aeaae 🗿 #aaeaa #eaaeaaeaa",
+        "description": "faafa afaaf aafaafa afaaf\n\naafaaf aafaaf",
+        "timestamp": 1700010800,
+        "duration": 48,
+        "view_count": 950000,
+        "like_count": 50000,
+        "comment_count": 1400
+      },
+      "vid00000017": {
+        "id": "vid00000017",
+        "uploader_id": "@user_001",
+        "channel_id": "UC0000000000000000000001",
+        "live_status": "not_live",
+        "title": "gaag aagaagaag aag aaga aga 💀#agaag #aagaagaag",
+        "description": "haa-ha-aha-ahaah aahaahaah\n\na a h a a h a a h a a h",
+        "timestamp": 1700014400,
+        "duration": 36,
+        "view_count": 920000,
+        "like_count": 52000,
+        "comment_count": 330
+      },
+      "vid00000019": {
+        "id": "vid00000019",
+        "uploader_id": "@user_001",
+        "channel_id": "UC0000000000000000000001",
+        "live_status": "not_live",
+        "title": "iaai aaia aiaa iaaiaaia aiaai 😔 #aaiaa #iaaiaaiaa",
+        "description": "jaaja ajaaja ajaaja ajaa ja ajaajaa\n\njaaja aj aajaa jaajaaja aja ajaa jaaja (aj aajaaja)",
+        "timestamp": 1700018000,
+        "duration": 37,
+        "view_count": 700000,
+        "like_count": 34000,
+        "comment_count": 1500
+      },
+      "vid00000016": {
+        "id": "vid00000016",
+        "uploader_id": "@user_001",
+        "channel_id": "UC0000000000000000000001",
+        "live_status": "not_live",
+        "title": "kaaka akaa ka akaa kaak🗿 #aakaa #kaakaakaa",
+        "description": "laa laalaal aalaala alaa\n\nlaalaal aalaal",
+        "timestamp": 1700021600,
+        "duration": 38,
+        "view_count": 580000,
+        "like_count": 28000,
+        "comment_count": 390
+      },
+      "vid00000014": {
+        "id": "vid00000014",
+        "uploader_id": "@user_001",
+        "channel_id": "UC0000000000000000000001",
+        "live_status": "not_live",
+        "title": "maama amaamaa ma amaa maamaa 🙂‍↕️ #maama #amaamaama",
+        "description": "naanaana anaana anaa\n\nnaanaa na anaan",
+        "timestamp": 1700025200,
+        "duration": 31,
+        "view_count": 560000,
+        "like_count": 27000,
+        "comment_count": 450
+      },
+      "vid00000021": {
+        "id": "vid00000021",
+        "uploader_id": "@user_001",
+        "channel_id": "UC0000000000000000000001",
+        "live_status": "not_live",
+        "title": "oaao aaoaao aaoaao aaoa🗿#aoaao #aaoaaoaao",
+        "description": "paap aapaapa apaa paapaap\n\naapaa paap aap aapa'a paapaap aapaapaap",
+        "timestamp": 1700028800,
+        "duration": 53,
+        "view_count": 490000,
+        "like_count": 24000,
+        "comment_count": 450
+      },
+      "vid00000015": {
+        "id": "vid00000015",
+        "uploader_id": "@user_001",
+        "channel_id": "UC0000000000000000000001",
+        "live_status": "not_live",
+        "title": "qaaqa aqaaq aaq...🗿 #aaqaa #qaaqaaqaa",
+        "description": "raaraa raara araaraa raaraara\n\naraaraaraar aaraa raaraaraa",
+        "timestamp": 1700032400,
+        "duration": 38,
+        "view_count": 460000,
+        "like_count": 27000,
+        "comment_count": 460
+      },
+      "vid00000020": {
+        "id": "vid00000020",
+        "uploader_id": "@user_001",
+        "channel_id": "UC0000000000000000000001",
+        "live_status": "not_live",
+        "title": "saa saasa asaasa😔#asaas #aasaasaas",
+        "description": "taa taataata ataa taat\n\naa ta at aa taa",
+        "timestamp": 1700036000,
+        "duration": 44,
+        "view_count": 420000,
+        "like_count": 27000,
+        "comment_count": 870
+      },
+      "vid00000010": {
+        "id": "vid00000010",
+        "uploader_id": "@user_001",
+        "channel_id": "UC0000000000000000000001",
+        "live_status": "not_live",
+        "title": "uaauaauaaua aua auaau aa uaauaa uaauaa - uaauaaua au",
+        "description": "-------------------------------------------------------------\nvaav aavaav aava avaa vaav aav 🥷:\naavaa://vaa.vaavaav.aav/aavaava/avaavaavaavaavaavaavaava/avaa\n\nvaavaava / avaavaa vaav aava ⛩️:\navaav://aav.aavaavaav.aav/aava.av/\n\naavaava + avaavaa:\nvaava://avaava.av/aavaava\navaav://aavaavaav.aav/aavaava/avaav\n(aavaava av aavaa vaavaav-aav! 😊)",
+        "timestamp": 1700039600,
+        "duration": 979,
+        "view_count": 400000,
+        "like_count": 13000,
+        "comment_count": 1100
+      },
+      "vid00000013": {
+        "id": "vid00000013",
+        "uploader_id": "@user_001",
+        "channel_id": "UC0000000000000000000001",
+        "live_status": "not_live",
+        "title": "waawa awaawa awaawa awaaw aawaa 🗿 #waawa #awaawaawa",
+        "description": "xaaxaa xaaxaaxaa xaaxaa xaaxaaxa\n\naxaax aaxaaxa axaax aaxaax",
+        "timestamp": 1700043200,
+        "duration": 53,
+        "view_count": 370000,
+        "like_count": 25000,
+        "comment_count": 450
+      }
+    }
+  },
+  "expected": {
+    "candidates": [
+      "vid00000018",
+      "vid00000023",
+      "vid00000024",
+      "vid00000017",
+      "vid00000019",
+      "vid00000016",
+      "vid00000014",
+      "vid00000021",
+      "vid00000015",
+      "vid00000020",
+      "vid00000010",
+      "vid00000013"
+    ]
+  }
+}
