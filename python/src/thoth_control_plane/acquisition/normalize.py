@@ -8,6 +8,7 @@ whether they arrive as a JSON number or as a decimal string (at most 19 digits).
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 
 # Engagement key -> accepted source names: camelCase from TikTok's web API, snake_case from TikWM.
@@ -21,6 +22,9 @@ ENGAGEMENT_KEYS: dict[str, tuple[str, ...]] = {
 # Signed 64-bit bound for every integer read here, so a later store never overflows.
 MAX_INT64 = 2**63 - 1
 MAX_INT64_DIGITS = len(str(MAX_INT64))
+# TikTok, Instagram, and X ids are numeric. Report and discovery models admit YouTube's string
+# ids too, so the numeric platforms check theirs here.
+NUMERIC_ID = re.compile(r"[0-9]{5,32}")
 
 
 def _decimal(value: str) -> int | None:
@@ -49,6 +53,13 @@ def _pick(source: object, names: tuple[str, ...]) -> int | None:
         if count is not None:
             return count
     return None
+
+
+def numeric_id(value: object) -> str | None:
+    """`value` as a numeric id string (an int or an ASCII digit string of 5-32), else None."""
+    if isinstance(value, int) and not isinstance(value, bool):
+        value = str(value)
+    return value if isinstance(value, str) and NUMERIC_ID.fullmatch(value) else None
 
 
 def normalize_engagement(stats: object, stats_v2: object) -> dict[str, int]:

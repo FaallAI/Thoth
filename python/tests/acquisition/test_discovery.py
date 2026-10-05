@@ -111,13 +111,15 @@ def test_ads_photo_posts_and_invalid_items_are_dropped_and_counted() -> None:
         _item(1000000004),
         _item("12"),
         _item("1000000006", author={}),
+        # The model admits YouTube's string ids; TikTok ids stay numeric.
+        _item("abcdefghijk"),
         "junk",
     ]
 
     page = parse_discovery_page("profile", _list_body(items))
 
     assert [video.post_id for video in page.videos] == ["1000000001"]
-    assert page.drops == DiscoveryDrops(ads=1, photo_posts=1, invalid=4)
+    assert page.drops == DiscoveryDrops(ads=1, photo_posts=1, invalid=5)
 
 
 def test_an_ad_that_is_also_a_photo_post_counts_as_an_ad() -> None:

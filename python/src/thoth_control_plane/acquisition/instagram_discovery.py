@@ -33,7 +33,7 @@ from thoth_control_plane.acquisition.models import (
     DiscoveryResult,
     ProfileDiscovery,
 )
-from thoth_control_plane.acquisition.normalize import published_at_from_epoch
+from thoth_control_plane.acquisition.normalize import numeric_id, published_at_from_epoch
 from thoth_control_plane.acquisition.threads_service import RequestFetchError
 
 logger = logging.getLogger(__name__)
@@ -122,13 +122,14 @@ def _timeline(roots: Iterable[object], handle: str) -> tuple[str, list[Any]] | N
 
 def _video(node: dict[str, Any], owner: str) -> DiscoveredVideo | None:
     code = node.get("code")
-    if not isinstance(code, str) or CODE.fullmatch(code) is None:
+    pk = numeric_id(node.get("pk"))
+    if not isinstance(code, str) or CODE.fullmatch(code) is None or pk is None:
         return None
     caption = node.get("caption")
     text = caption.get("text") if isinstance(caption, dict) else None
     try:
         return DiscoveredVideo(
-            post_id=str(node.get("pk")),
+            post_id=pk,
             owner_handle=owner,
             canonical_url=f"{CANONICAL_BASE}/p/{code}/",
             caption=text[:MAX_CAPTION] if isinstance(text, str) else "",

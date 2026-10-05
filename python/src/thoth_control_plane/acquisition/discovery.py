@@ -41,7 +41,11 @@ from thoth_control_plane.acquisition.models import (
     KeywordDiscovery,
     ProfileDiscovery,
 )
-from thoth_control_plane.acquisition.normalize import normalize_engagement, published_at_from_epoch
+from thoth_control_plane.acquisition.normalize import (
+    normalize_engagement,
+    numeric_id,
+    published_at_from_epoch,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -125,10 +129,10 @@ def _items(kind: DiscoveryKind, payload: dict[str, Any]) -> list[Any]:
 
 
 def _video(item: dict[str, Any]) -> DiscoveredVideo | None:
-    post_id = item.get("id")
+    post_id = numeric_id(item.get("id")) if isinstance(item.get("id"), str) else None
     author = item.get("author")
     handle = author.get("uniqueId") if isinstance(author, dict) else None
-    if not isinstance(post_id, str) or not isinstance(handle, str):
+    if post_id is None or not isinstance(handle, str):
         return None
     desc = item.get("desc")
     video = item.get("video")

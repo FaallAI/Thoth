@@ -26,7 +26,11 @@ from thoth_control_plane.acquisition.platforms import platform_of, platform_supp
         ("https://X.COM./a/status/1", "python"),
         ("https://t.co/abc", "legacy"),
         ("https://notx.com/a/status/1", "legacy"),
-        ("https://www.youtube.com/watch?v=abc", "legacy"),
+        ("https://www.youtube.com/watch?v=abc", "python"),
+        ("https://m.youtube.com/watch?v=abc", "python"),
+        ("https://youtu.be/abc", "python"),
+        ("https://music.youtube.com/watch?v=abc", "legacy"),
+        ("https://vimeo.com/123", "legacy"),
         ("https://example.test/post", "legacy"),
         ("https://[::1", "legacy"),
         ("https://www.tiktok.com/@a/video/1234567", "python"),
@@ -52,6 +56,7 @@ def test_platform_of_names_python_platforms_only() -> None:
     assert platform_of("https://www.threads.net/@a/post/B") == "threads"
     assert platform_of("https://www.instagram.com/p/abc/") == "instagram"
     assert platform_of("https://x.com/a/status/1") == "x"
-    assert platform_of("https://www.youtube.com/watch?v=abc") is None
+    assert platform_of("https://www.youtube.com/watch?v=abc") == "youtube"
+    assert platform_of("https://vimeo.com/123") is None
     assert platform_of("https://www.facebook.com/x") is None
     assert platform_of("not a url") is None

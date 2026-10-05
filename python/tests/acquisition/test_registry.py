@@ -25,9 +25,7 @@ async def test_acquirer_for_routes_tiktok_and_refuses_legacy_hosts() -> None:
         )
         assert isinstance(acquirer, TikTokAcquisitionService)
         with pytest.raises(LookupError):
-            acquirer_for(
-                "https://www.youtube.com/watch?v=abc", client=client, materializer=materializer
-            )
+            acquirer_for("https://vimeo.com/123", client=client, materializer=materializer)
         threads = acquirer_for(
             "https://www.threads.net/@a/post/B", client=client, materializer=materializer
         )

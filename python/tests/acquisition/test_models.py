@@ -465,6 +465,24 @@ def test_v3_report_accepts_an_x_source() -> None:
     assert report.source.platform == "x"
 
 
+def test_v3_report_accepts_a_youtube_source_and_string_comment_ids() -> None:
+    report = _v3(
+        source={"platform": "youtube", "canonical_url": "https://www.youtube.com/watch?v=abc"},
+        comments=[{"comment_id": "UgzAbC-1_x", "author": "user_001", "text": "x"}],
+    )
+    assert (report.source.platform, report.comments[0].comment_id) == ("youtube", "UgzAbC-1_x")
+
+
+@pytest.mark.parametrize("comment_id", ["abc", "has space", "a/b", "x" * 65])
+def test_a_comment_id_outside_the_safe_pattern_is_rejected(comment_id: str) -> None:
+    with pytest.raises(ValidationError):
+        ReportComment(comment_id=comment_id, author="user_001", text="x")
+
+
+def test_the_yt_dlp_strategy_is_a_method_label() -> None:
+    assert AcquisitionStrategy("yt_dlp") is AcquisitionStrategy.YT_DLP
+
+
 def test_v3_rejects_a_post_with_neither_text_nor_media() -> None:
     with pytest.raises(ValidationError):
         _v3(post={"post_id": "code_001", "owner_handle": "user_001", "text": "  \n "})

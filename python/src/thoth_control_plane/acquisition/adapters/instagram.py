@@ -29,7 +29,12 @@ from thoth_control_plane.acquisition.models import (
     ResolvedMedia,
     SourcePost,
 )
-from thoth_control_plane.acquisition.normalize import _count, _pick, published_at_from_epoch
+from thoth_control_plane.acquisition.normalize import (
+    _count,
+    _pick,
+    numeric_id,
+    published_at_from_epoch,
+)
 from thoth_control_plane.domain.models import StrictModel
 
 CANONICAL_BASE = "https://www.instagram.com"
@@ -131,11 +136,12 @@ def _comment(node: object) -> ReportComment | None:
     if not isinstance(node, dict) or not isinstance(node.get("user"), dict):
         return None
     text = node.get("text")
-    if not isinstance(text, str) or not text.strip():
+    pk = numeric_id(node.get("pk"))
+    if not isinstance(text, str) or not text.strip() or pk is None:
         return None
     try:
         return ReportComment(
-            comment_id=str(node.get("pk")),
+            comment_id=pk,
             author=node["user"].get("username"),
             text=text,
             likes=_count(node.get("comment_like_count")) or 0,

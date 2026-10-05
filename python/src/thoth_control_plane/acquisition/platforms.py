@@ -15,6 +15,7 @@ PYTHON_PLATFORM_HOSTS: dict[str, frozenset[str]] = {
     "instagram": frozenset({"instagram.com"}),
     # `bare_host` strips `www.` and `m.` only, so the `mobile.` hosts are listed.
     "x": frozenset({"x.com", "twitter.com", "mobile.x.com", "mobile.twitter.com"}),
+    "youtube": frozenset({"youtube.com", "youtu.be"}),
 }
 # Rejected in every mode by operator decision; never routed to legacy Scout.
 UNSUPPORTED_DOMAINS = ("facebook.com", "fb.com", "fb.watch", "reddit.com", "redd.it")

@@ -317,3 +317,9 @@ def test_html_entities_are_unescaped_after_slicing() -> None:
     assert parsed.post.text == "fish & chips <3"
     reply = _tweet(C1, text="@user_001 salt &amp; vinegar")
     assert parse_page(_roots(reply), IDENTITY).comments[0].text == "salt & vinegar"
+
+
+def test_a_reply_with_a_non_numeric_id_is_dropped() -> None:
+    # The report's comment id admits YouTube's string ids; X ids stay numeric.
+    page = parse_page(_roots(POST_NODE, _tweet("abc12345")), IDENTITY)
+    assert (page.comments, page.dropped_comments) == ([], 1)

@@ -34,6 +34,7 @@ from thoth_control_plane.acquisition.models import (
     DiscoveryResult,
     ProfileDiscovery,
 )
+from thoth_control_plane.acquisition.normalize import numeric_id
 from thoth_control_plane.acquisition.threads_service import RequestFetchError
 from thoth_control_plane.acquisition.x_service import XRequestFetcher
 
@@ -53,11 +54,14 @@ def _repost(tweet: dict[str, Any]) -> bool:
 
 
 def _video(tweet: dict[str, Any], owner: str) -> DiscoveredVideo | None:
+    rest_id = numeric_id(tweet["rest_id"])
+    if rest_id is None:
+        return None
     try:
         return DiscoveredVideo(
-            post_id=tweet["rest_id"],
+            post_id=rest_id,
             owner_handle=owner,
-            canonical_url=post_url(owner, tweet["rest_id"]),
+            canonical_url=post_url(owner, rest_id),
             caption=(tweet_text(tweet) or "")[:MAX_CAPTION],
             published_at=tweet_published(tweet),
             engagement=tweet_engagement(tweet),

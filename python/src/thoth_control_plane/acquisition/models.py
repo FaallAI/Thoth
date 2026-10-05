@@ -30,6 +30,8 @@ def _safe_relative_location(location: PurePosixPath) -> PurePosixPath:
 
 SafeRelativeLocation = Annotated[PurePosixPath, AfterValidator(_safe_relative_location)]
 TikTokNumericId = Annotated[str, Field(pattern=r"^[0-9]{5,32}$")]
+# Report comment ids: numeric on TikTok, Instagram, and X; base64-like on YouTube (`Ugz…`).
+CommentId = Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{5,64}$")]
 TikTokHandle = Annotated[str, Field(pattern=r"^[A-Za-z0-9._-]{1,64}$")]
 CommentText = Annotated[str, Field(min_length=1, max_length=2_000)]
 # The only shape `normalize.published_at_from_epoch` produces.
@@ -56,6 +58,7 @@ class AcquisitionStrategy(StrEnum):
     SCRAPLING_HEADLESS = "scrapling_headless"
     SCRAPLING_REQUEST = "scrapling_request"
     TIKWM_CDN = "tikwm_cdn"
+    YT_DLP = "yt_dlp"
 
 
 class AttemptStatus(StrEnum):
@@ -170,7 +173,7 @@ class CardArtifact(StrictModel):
 
 
 class ReportComment(StrictModel):
-    comment_id: TikTokNumericId
+    comment_id: CommentId
     author: TikTokHandle
     text: CommentText
     likes: Annotated[int, Field(ge=0)] = 0
@@ -206,7 +209,7 @@ class SourcePost(StrictModel):
 
 
 class ReportSource(StrictModel):
-    platform: Literal["tiktok", "threads", "instagram", "x"]
+    platform: Literal["tiktok", "threads", "instagram", "x", "youtube"]
     canonical_url: HttpUrl
 
 
@@ -315,7 +318,8 @@ DiscoveryRequest = Annotated[
 
 
 class DiscoveredVideo(StrictModel):
-    post_id: TikTokNumericId
+    # Numeric on TikTok, Instagram, and X (their parsers check); an 11-character id on YouTube.
+    post_id: SafeId
     owner_handle: TikTokHandle
     canonical_url: HttpUrl  # rebuilt from handle and id, never taken from TikTok
     caption: Annotated[str, Field(max_length=10_000)] = ""

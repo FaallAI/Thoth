@@ -25,7 +25,7 @@ from thoth_control_plane.acquisition.models import (
     ResolvedMedia,
     SourcePost,
 )
-from thoth_control_plane.acquisition.normalize import _count, published_at_from_epoch
+from thoth_control_plane.acquisition.normalize import _count, numeric_id, published_at_from_epoch
 from thoth_control_plane.domain.models import StrictModel
 
 CANONICAL_BASE = "https://x.com"
@@ -255,11 +255,12 @@ def tweet_videos(tweet: dict[str, Any]) -> list[str]:
 
 def _comment(tweet: dict[str, Any]) -> ReportComment | None:
     author, text = author_of(tweet), tweet_text(tweet)
-    if author is None or not text:
+    rest_id = numeric_id(tweet["rest_id"])
+    if author is None or not text or rest_id is None:
         return None
     try:
         return ReportComment(
-            comment_id=tweet["rest_id"],
+            comment_id=rest_id,
             author=author,
             text=text[:MAX_COMMENT_TEXT],
             likes=_count(_get(tweet, "counts", "favorite_count")) or 0,
