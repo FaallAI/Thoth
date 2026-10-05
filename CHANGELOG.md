@@ -65,15 +65,16 @@ All notable changes to this project will be documented in this file.
   - The card counts predate the comment-sort fix; the live smoke measures the new ratio.
   - No selector survey was needed. Fixtures: `leaks: 0` for all three; the real-host scan
     found none.
-- Deferred minors from the final review:
-  - no hard `max_filesize` on the yt-dlp download (`adopt` rejects over 500 MB only after
-    writing);
-  - one unsized top-bitrate format skips its whole height instead of falling back;
-  - the PyPI version reaches `sed` unvalidated in the update workflow; consider
-    `persist-credentials: false`;
-  - an older failed update pull request stays open when a newer version arrives;
-  - `installed_version` imports the whole `yt_dlp` package at startup;
-  - a `card_browser.py` comment still says "(validated numeric)".
+- `ec1531a`: the final review's minors, fixed test-first.
+  - yt-dlp refuses a format over the 450 MB cap while downloading (`max_filesize`).
+  - Only formats with a known size compete, so an unsized top-bitrate format no longer hides
+    a sized one at the same height.
+  - The update workflow accepts only a date version from PyPI, keeps no token in the
+    checkout while the tests run (`persist-credentials: false`, then `gh auth setup-git`),
+    and closes an older bump it supersedes.
+  - The installed version comes from package metadata instead of importing `yt_dlp`.
+  - A stale `card_browser.py` comment now names the comment-id pattern.
+  - Suite: 2722 passed, 0 failed, 9 skipped; Ruff and actionlint clean.
 
 Next steps:
 
