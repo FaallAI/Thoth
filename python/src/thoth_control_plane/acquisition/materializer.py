@@ -20,6 +20,7 @@ from thoth_control_plane.acquisition.models import (
     MEDIA_TYPES,
     AcquisitionStrategy,
     MaterializedMedia,
+    MediaKind,
     MediaRequestContext,
     ResolvedMedia,
 )
@@ -125,6 +126,61 @@ async def _ensure_publicly_routable(host: str, resolver: HostResolver) -> None:
             raise MediaMaterializationError() from None
         if not address.is_global:
             raise MediaMaterializationError()
+
+
+def _adopt(
+    source: Path,
+    destination: Path,
+    relative_location: PurePosixPath,
+    strategy: AcquisitionStrategy | str,
+    kind: MediaKind,
+    media_id: str,
+    index: int,
+    duration_seconds: float | None,
+) -> MaterializedMedia:
+    acquisition_strategy = AcquisitionStrategy(strategy)
+    low, high = MEDIA_BYTE_BOUNDS[kind]
+    digest = hashlib.sha256()
+    header = b""
+    total_bytes = 0
+    try:
+        with source.open("rb") as handle:
+            while chunk := handle.read(1024 * 1024):
+                total_bytes += len(chunk)
+                if total_bytes > high:
+                    raise MediaMaterializationError()
+                if len(header) < _HEADER_PROBE_BYTES:
+                    header += chunk[: _HEADER_PROBE_BYTES - len(header)]
+                digest.update(chunk)
+        media_type = _sniff(header) if len(header) >= _HEADER_PROBE_BYTES else None
+        if media_type not in MEDIA_TYPES[kind] or total_bytes < low:
+            raise MediaMaterializationError()
+        try:
+            suffix = _SUFFIXES[media_type]
+            final_destination = destination.with_suffix(suffix)
+            result = MaterializedMedia(
+                media_id=media_id,
+                kind=kind,
+                index=index,
+                location=relative_location.with_suffix(suffix),
+                media_type=media_type,
+                bytes=total_bytes,
+                checksum=f"sha256:{digest.hexdigest()}",
+                acquisition_strategy=acquisition_strategy,
+                duration_seconds=duration_seconds,
+            )
+        except ValueError:
+            raise MediaMaterializationError() from None
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(source, final_destination)
+        return result
+    except OSError:
+        # Filesystem errors can carry an absolute path in their message; never let it escape.
+        raise MediaMaterializationError() from None
+    finally:
+        # A rejected file never lingers; after `os.replace` there is nothing left to remove.
+        with contextlib.suppress(OSError):
+            source.unlink(missing_ok=True)
 
 
 class MediaMaterializer:
@@ -233,3 +289,32 @@ class MediaMaterializer:
         finally:
             with contextlib.suppress(OSError):
                 part_path.unlink(missing_ok=True)
+
+    async def adopt(
+        self,
+        source: Path,
+        destination: Path,
+        relative_location: PurePosixPath,
+        strategy: AcquisitionStrategy | str,
+        *,
+        kind: MediaKind = "video",
+        media_id: str = "media_1",
+        index: int = 1,
+        duration_seconds: float | None = None,
+    ) -> MaterializedMedia:
+        """Validate a file a local downloader wrote (yt-dlp) and place it as `materialize` does.
+
+        The same byte bounds, magic-byte sniff, and checksum apply. `source` must sit on the
+        destination's filesystem, and it is always removed: a rejected file never lingers.
+        """
+        return await asyncio.to_thread(
+            _adopt,
+            source,
+            destination,
+            relative_location,
+            strategy,
+            kind,
+            media_id,
+            index,
+            duration_seconds,
+        )
