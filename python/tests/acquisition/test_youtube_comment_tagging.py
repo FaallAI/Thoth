@@ -76,3 +76,19 @@ async def test_without_a_link_the_author_and_text_decide() -> None:
     # The author and the text are separate blocks, as on YouTube; "@ann" must not match the
     # "@anna" thread above it.
     assert await _tag(html, [target]) == (["UgzZZ"], ["c2"])
+
+
+@pytest.mark.asyncio
+async def test_scrolling_continues_until_every_target_has_rendered() -> None:
+    # Two threads are already on the page, but the target only loads after a scroll.
+    html = (
+        _thread("UgzA", "@ann", "one")
+        + _thread("UgzB", "@bob", "two")
+        + f'<template id="late">{_thread("UgzLATE", "@cat", "late one")}</template>'
+        + '<div style="height: 5000px"></div>'
+        + "<script>window.addEventListener('scroll', () => { if (!document.getElementById("
+        + "'tUgzLATE')) document.getElementById('comments').appendChild("
+        + "document.getElementById('late').content.cloneNode(true)); });</script>"
+    )
+    target = {"comment_id": "UgzLATE", "author": "cat", "prefix": "late one"}
+    assert await _tag(html, [target]) == (["UgzLATE"], ["cUgzLATE"])

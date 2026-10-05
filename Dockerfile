@@ -78,7 +78,7 @@ RUN test -w /var/lib/thoth/artifacts \
     && test -x "$GALLERY_DL" \
     && test -x "$YTDLP" \
     && test "$("$GALLERY_DL" --version)" = "1.32.11" \
-    && test "$("$YTDLP" --version)" = "2026.08.19" \
+    && test "$("$YTDLP" --version | sed -E 's/(^|\.)0+([0-9])/\1\2/g')" = "$(/opt/thoth/python/.venv/bin/python -c 'import importlib.metadata as m; print(m.version("yt-dlp"))')" \
     && /usr/bin/ffmpeg -version >/dev/null 2>&1 \
     && /usr/bin/ffprobe -version >/dev/null 2>&1 \
     && cdp_check_log="$(mktemp)" \

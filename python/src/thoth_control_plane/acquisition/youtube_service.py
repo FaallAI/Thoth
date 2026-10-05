@@ -12,6 +12,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import shutil
+import tempfile
+import threading
 import time
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
@@ -58,7 +60,12 @@ logger = logging.getLogger(__name__)
 
 CONTENT_METHOD = "yt_dlp"
 EXTRACT_TIMEOUT_SECONDS = 90.0
-DOWNLOAD_TIMEOUT_SECONDS = 600.0
+# `inspect_source_candidates` runs under a 5-minute start-to-close timeout; extract and
+# download must time out first and leave a minute for the cards and the adoption.
+# ponytail: 450 MB in 150 s needs about 25 Mbit/s; heartbeat the activity to go slower.
+DOWNLOAD_TIMEOUT_SECONDS = 150.0
+# How long an abandoned download gets to reach its next hook and stop.
+STOP_GRACE_SECONDS = 30.0
 COMMENT_PAGE = "50"
 YTDLP_OPTIONS: dict[str, Any] = {
     "quiet": True,
@@ -94,9 +101,16 @@ LOGIN_PATHS = ("/signin",)
 TAG_COMMENTS_JS = """
 async (targets) => {
   const threads = () => Array.from(document.querySelectorAll("ytd-comment-thread-renderer"));
-  for (let step = 0; step < 8 && threads().length < targets.length; step++) {
+  const linked = (id) => document.querySelector(
+    'a[href$="lc=' + id + '"], a[href*="lc=' + id + '&"]');
+  // Scroll until every target's own link has rendered, or two scrolls load nothing.
+  let idle = 0;
+  for (let step = 0; step < 20 && idle < 2
+       && targets.some((target) => !linked(target.comment_id)); step++) {
+    const before = threads().length;
     window.scrollBy(0, 1500);
     await new Promise((resolve) => setTimeout(resolve, 1200));
+    idle = threads().length > before ? 0 : idle + 1;
   }
   const head = (thread) => thread.querySelector("ytd-comment-view-model, #comment") || thread;
   const free = (thread) => !head(thread).hasAttribute("data-thoth-comment");
@@ -156,6 +170,10 @@ def classify(error: BaseException) -> AcquisitionReason:
     return AcquisitionReason.REQUEST_BLOCKED
 
 
+class _Stopped(Exception):
+    """Raised from a yt-dlp hook to end a download its caller abandoned."""
+
+
 class _Silent:
     """yt-dlp's logger: its messages can carry URLs, so none are kept."""
 
@@ -180,23 +198,26 @@ class YtDlpClient:
     def __init__(self, factory: Callable[[dict[str, Any]], Any] | None = None) -> None:
         self._factory = factory or _default_factory
 
+    def _call(self, options: dict[str, Any], call: Callable[[Any], Any]) -> Any:
+        with self._factory({**YTDLP_OPTIONS, "logger": _Silent(), **options}) as ydl:
+            return call(ydl)
+
     async def _run(
         self, options: dict[str, Any], call: Callable[[Any], Any], timeout: float
     ) -> Any:
-        def work() -> Any:
-            with self._factory({**YTDLP_OPTIONS, "logger": _Silent(), **options}) as ydl:
-                return call(ydl)
-
-        # ponytail: a timed-out thread finishes in the background (socket_timeout bounds it);
-        # yt-dlp offers no cancellation.
-        return await asyncio.wait_for(asyncio.to_thread(work), timeout)
+        # ponytail: a timed-out extract finishes in the background (socket_timeout bounds it);
+        # it writes nothing. A download is stopped instead; see `download`.
+        return await asyncio.wait_for(asyncio.to_thread(self._call, options, call), timeout)
 
     async def extract(self, url: str, *, comments: bool) -> dict[str, Any]:
         options: dict[str, Any] = {"skip_download": True}
         if comments:
             options["getcomments"] = True
             options["extractor_args"] = {
-                "youtube": {"max_comments": [COMMENT_PAGE, COMMENT_PAGE, "0", "0"]}
+                "youtube": {
+                    "max_comments": [COMMENT_PAGE, COMMENT_PAGE, "0", "0"],
+                    "comment_sort": ["top"],
+                }
             }
         return await self._info(url, options)
 
@@ -217,17 +238,39 @@ class YtDlpClient:
         return info
 
     async def download(self, url: str, choice: FormatChoice, directory: Path) -> Path:
-        """Download the chosen video and audio and merge them into `directory/merged.mp4`."""
+        """Download the chosen video and audio and merge them into `directory/merged.mp4`.
+
+        yt-dlp cannot be cancelled, so a timed-out or cancelled download is stopped at its next
+        progress or postprocessor hook and awaited: nothing still writes into `directory` when
+        this returns, and the caller can remove it.
+        """
+        stop = threading.Event()
+
+        def check(_status: object) -> None:
+            if stop.is_set():
+                raise _Stopped
+
         options = {
             "format": f"{choice.video_format}+{choice.audio_format}",
             "merge_output_format": "mp4",
             "outtmpl": {"default": str(directory / "merged.%(ext)s")},
             "overwrites": True,
+            "progress_hooks": [check],
+            "postprocessor_hooks": [check],
         }
+        work = asyncio.ensure_future(
+            asyncio.to_thread(self._call, options, lambda ydl: ydl.download([url]))
+        )
+        # A stopped download ends in `_Stopped`; that end is expected, so it is never logged.
+        work.add_done_callback(lambda done: done.cancelled() or done.exception())
         try:
-            await self._run(options, lambda ydl: ydl.download([url]), DOWNLOAD_TIMEOUT_SECONDS)
-        except Exception:
-            raise MediaMaterializationError() from None
+            await asyncio.wait_for(asyncio.shield(work), DOWNLOAD_TIMEOUT_SECONDS)
+        except BaseException as error:
+            stop.set()
+            await asyncio.wait({work}, timeout=STOP_GRACE_SECONDS)
+            if isinstance(error, Exception):
+                raise MediaMaterializationError() from None
+            raise
         merged = directory / "merged.mp4"
         if not merged.is_file():
             raise MediaMaterializationError()
@@ -264,10 +307,16 @@ class YouTubeAcquirer:
     ) -> MaterializedMedia:
         name = f"youtube-{identity.video_id}-1"
         location = PurePosixPath("reports") / workflow_id / "media" / name
-        # On the artifact filesystem, so `adopt` places the file with an atomic rename.
-        work = artifact_root / location.parent / f".youtube-{identity.video_id}.download"
+        parent = artifact_root / location.parent
         try:
-            work.mkdir(parents=True, exist_ok=True)
+            parent.mkdir(parents=True, exist_ok=True)
+            # On the artifact filesystem, so `adopt` places the file with an atomic rename; one
+            # per attempt, so a retry never shares a directory with an abandoned download.
+            prefix = f".youtube-{identity.video_id}-"
+            work = Path(tempfile.mkdtemp(prefix=prefix, suffix=".download", dir=parent))
+        except OSError:
+            raise MediaMaterializationError() from None
+        try:
             merged = await self._client.download(str(identity.canonical_url), choice, work)
             return await self._materializer.adopt(
                 merged,

@@ -531,6 +531,12 @@ def test_blueprint_records_the_safe_parity_diagnostic_contract() -> None:
     assert "p5 remains a separate operator authorization" in prose
 
 
+def _yt_dlp_pin() -> str:
+    """The single yt-dlp pin; the yt-dlp update workflow bumps it and the lock only."""
+    (pin,) = set(re.findall(r'"yt-dlp==([0-9.]+)"', _repo_text("python/pyproject.toml")))
+    return pin
+
+
 def test_scout_runtime_downloader_versions_are_exact() -> None:
     """Scout shells out to both downloaders; neither was installed in the image.
 
@@ -542,7 +548,7 @@ def test_scout_runtime_downloader_versions_are_exact() -> None:
     project = tomllib.loads(_repo_text("python/pyproject.toml"))
     assert project["project"]["optional-dependencies"]["scout-runtime"] == [
         "gallery-dl==1.32.11",
-        "yt-dlp==2026.8.19",
+        f"yt-dlp=={_yt_dlp_pin()}",
     ]
 
 
@@ -550,7 +556,7 @@ def test_uv_lock_resolves_the_pinned_downloaders() -> None:
     lock = tomllib.loads(_repo_text("python/uv.lock"))
     locked = {package["name"]: package["version"] for package in lock["package"]}
     assert locked["gallery-dl"] == "1.32.11"
-    assert locked["yt-dlp"] == "2026.8.19"
+    assert locked["yt-dlp"] == _yt_dlp_pin()
 
 
 def test_dockerfile_syncs_the_scout_runtime_extra_in_every_locked_install() -> None:
@@ -574,7 +580,15 @@ def test_dockerfile_probes_downloader_executables_as_the_runtime_user() -> None:
     assert 'test -x "$GALLERY_DL"' in runtime_stage
     assert 'test -x "$YTDLP"' in runtime_stage
     assert 'test "$("$GALLERY_DL" --version)" = "1.32.11"' in runtime_stage
-    assert 'test "$("$YTDLP" --version)" = "2026.08.19"' in runtime_stage
+    # yt-dlp prints `2026.08.19` where the lock says `2026.8.19`; the probe compares the
+    # executable with the package the frozen sync installed, so a bump needs no edit here.
+    ytdlp_probe = (
+        '&& test "$("$YTDLP" --version | sed -E \'s/(^|\\.)0+([0-9])/\\1\\2/g\')" = '
+        "\"$(/opt/thoth/python/.venv/bin/python -c 'import importlib.metadata as m; "
+        'print(m.version("yt-dlp"))\')" \\'
+    )
+    assert ytdlp_probe in runtime_stage
+    assert not re.search(r'"\d{4}\.\d{2}\.\d{2}"', runtime_stage)
 
 
 def test_pull_request_builds_load_the_image_and_prove_cdp_transport() -> None:
@@ -1086,6 +1100,14 @@ def test_the_yt_dlp_update_workflow_bumps_tests_merges_and_builds() -> None:
     assert "gh workflow run container-image.yml --ref master" in workflow
     # The image build must accept the dispatch the update workflow sends.
     assert "workflow_dispatch:" in _repo_text(".github/workflows/container-image.yml")
+
+
+def test_a_dispatched_build_publishes_and_smokes_like_a_push() -> None:
+    # The yt-dlp update workflow merges with the default token, whose push starts no
+    # workflow, then dispatches this one; the dispatch must publish the image.
+    jobs = _workflow_jobs()
+    for name in ("publish-image", "stack-smoke"):
+        assert "github.event_name == 'workflow_dispatch'" in jobs[name], name
 
 
 def test_yt_dlp_is_pinned_identically_in_both_extras() -> None:

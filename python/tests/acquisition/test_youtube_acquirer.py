@@ -264,3 +264,24 @@ async def test_cancellation_during_cards_still_closes_the_browser(tmp_path: Path
     with pytest.raises(asyncio.CancelledError):
         await task
     assert headless.closed == 1
+
+
+class _RecordingClient(FakeClient):
+    def __init__(self) -> None:
+        super().__init__()
+        self.directories: list[Path] = []
+
+    async def download(self, url: str, choice, directory: Path) -> Path:
+        self.directories.append(directory)
+        return await super().download(url, choice, directory)
+
+
+@pytest.mark.asyncio
+async def test_each_attempt_downloads_into_its_own_work_directory(tmp_path: Path) -> None:
+    # A retry must never share a directory with an earlier attempt's leftover download.
+    client = _RecordingClient()
+    for _ in range(2):
+        await _inspect(tmp_path, client, FakeHeadless())
+    first, second = client.directories
+    assert first != second and first.parent == second.parent
+    assert _work_dirs(tmp_path) == []

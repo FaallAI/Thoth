@@ -150,7 +150,7 @@ jobs:
 
   publish-image:
     name: Publish image
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     needs: quality
     runs-on: ubuntu-latest
     permissions:
@@ -270,7 +270,7 @@ jobs:
 
   stack-smoke:
     name: Non-live stack smoke
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     needs: publish-image
     runs-on: ubuntu-latest
     permissions:

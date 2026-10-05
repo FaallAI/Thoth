@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+import gc
 import logging
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -104,7 +107,10 @@ async def test_extract_asks_for_first_page_comments_with_bun() -> None:
     assert info == {"id": "x"}
     options = seen[0]
     assert options["getcomments"] is True
-    assert options["extractor_args"] == {"youtube": {"max_comments": ["50", "50", "0", "0"]}}
+    # The watch page renders top comments; yt-dlp's default order is newest first.
+    assert options["extractor_args"] == {
+        "youtube": {"max_comments": ["50", "50", "0", "0"], "comment_sort": ["top"]}
+    }
     assert options["js_runtimes"] == {"bun": {}}
     assert options["skip_download"] is True
     assert options["quiet"] is True
@@ -189,3 +195,57 @@ async def test_cards_crop_comments_and_the_channel_header_never_a_post() -> None
     assert post_page.clicked == channel_page.clicked == []
     assert session.exited == 1
     assert active_scrapling_session_count() == 0
+
+
+class _EndlessYdl(FakeYdl):
+    """A download that runs until a progress hook stops it; `running` is set while it runs."""
+
+    running = threading.Event()
+
+    def download(self, urls: list[str]) -> int:
+        self.running.set()
+        try:
+            for _ in range(300):
+                for hook in self.options.get("progress_hooks", []):
+                    hook({"status": "downloading"})
+                time.sleep(0.01)
+        finally:
+            self.running.clear()
+        return 0
+
+
+@pytest.mark.asyncio
+async def test_a_timed_out_download_is_stopped_before_it_returns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(youtube_service, "DOWNLOAD_TIMEOUT_SECONDS", 0.05)
+    client = YtDlpClient(lambda options: _EndlessYdl(options, None))
+    with pytest.raises(MediaMaterializationError):
+        await client.download(URL, CHOICE, tmp_path)
+    # Nothing still writes into the work directory the caller is about to remove.
+    assert not _EndlessYdl.running.is_set()
+    gc.collect()
+    assert [r for r in caplog.records if r.name == "asyncio"] == []
+
+
+@pytest.mark.asyncio
+async def test_a_cancelled_download_is_stopped_before_the_cancellation_returns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    client = YtDlpClient(lambda options: _EndlessYdl(options, None))
+    task = asyncio.create_task(client.download(URL, CHOICE, tmp_path))
+    while not _EndlessYdl.running.is_set():
+        await asyncio.sleep(0.01)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert not _EndlessYdl.running.is_set()
+    gc.collect()
+    assert [r for r in caplog.records if r.name == "asyncio"] == []
+
+
+def test_extract_and_download_fit_inside_the_activity_budget() -> None:
+    # `inspect_source_candidates` runs under a 5-minute start-to-close timeout; the cards and
+    # the adoption need what is left, so yt-dlp's own timeouts must fire first.
+    budget = youtube_service.EXTRACT_TIMEOUT_SECONDS + youtube_service.DOWNLOAD_TIMEOUT_SECONDS
+    assert budget <= 240
