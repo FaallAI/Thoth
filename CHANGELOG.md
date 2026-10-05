@@ -2,6 +2,90 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-05 - Stage 3d: YouTube acquisition, channel discovery, and yt-dlp freshness
+
+- Implements `docs/superpowers/specs/2026-10-04-stage3d-youtube-design.md` through the plan
+  `docs/superpowers/plans/2026-10-04-stage3d-youtube.md` (`92720bd`, `2652610`). The operator
+  chose native execution. The plan's code was validated in a scratch worktree before it was
+  committed.
+- `fd83b10`: YouTube URLs route to the Python kernel (`youtube.com`, `youtu.be`;
+  `music.youtube.com` stays legacy). After this stage no post URL routes to legacy Scout for
+  acquisition.
+  - `ReportSource.platform` accepts `youtube`, and `AcquisitionStrategy.YT_DLP` labels the
+    method.
+  - `ReportComment.comment_id` widens to `^[A-Za-z0-9_-]{5,64}$` for YouTube's string ids, and
+    `DiscoveredVideo.post_id` becomes `SafeId`.
+  - `normalize.numeric_id` keeps TikTok, Instagram, and X ids numeric; disabling it fails
+    five existing drop tests.
+- `371adfa`: YouTube URL identity, `parse_info`, `select_formats`, and `channel_candidates`.
+  - Watch, Shorts, embed, live, and `youtu.be` links canonicalize to `/watch?v=<id>`.
+  - The format choice is the highest of 1080, 720, and 480 by the shorter side, MP4 video
+    plus `m4a` audio over https, estimated under 450 MB.
+- `4ff9bc0`: `MediaMaterializer.adopt` validates a file a local downloader wrote (bounds,
+  sniff, checksum) and places it atomically; the source is always removed.
+- `01fadf8`: `YtDlpClient` (yt-dlp as a library with the `bun` JavaScript runtime, its own
+  log messages discarded), the YouTube card browser, the acquirer, and the registry branch.
+  Comment cards come from `/watch?v=<id>`, the profile card from the channel header; there
+  is no post card.
+- `e8bb3a0`: channel discovery. Flat `/videos` and `/shorts` listings, the 12 most viewed
+  detailed without comments, ranked by likes, views, and recency. A detail failure returns
+  what was gathered.
+- `cc06683`: yt-dlp freshness.
+  - `.github/workflows/yt-dlp-update.yml` runs daily: it bumps the pin and the lock, runs the
+    offline suite in its own job, opens and merges a pull request, then dispatches
+    `container-image.yml`, which gains a `workflow_dispatch` trigger.
+  - The worker checks PyPI once in the background at startup and warns when yt-dlp is
+    behind. It never installs anything; the task is cancelled when the worker stops.
+  - yt-dlp joins the `acquisition` extra with the `scout-runtime` pin.
+- `4ed61e7`: the operator-run YouTube capture and fixture tools.
+- `9d15935`: sanitized golden fixtures (video, short, channel) and replay tests, captured
+  under operator authorization at capture time.
+- `535e19b`: the final review's findings, fixed test-first.
+  - The update chain could not finish: contract tests and the Dockerfile probe hard-coded
+    the yt-dlp version, and a dispatched build never published. The pin now lives only in
+    `pyproject.toml` and the lock; the image probe compares the executable with the
+    installed package (proved in the image); `publish-image` and `stack-smoke` accept
+    `workflow_dispatch`.
+  - yt-dlp returned the newest comments while the watch page renders top comments, so few
+    comments could be matched to a card. Comments are now sorted `top`, and the tagging
+    scroll continues until every target has rendered or two scrolls load nothing.
+  - A download could outlive the 5-minute activity, and an abandoned yt-dlp thread could
+    keep writing into a shared work directory. The download timeout is 150 s; a timed-out
+    or cancelled download is stopped at its next yt-dlp hook and awaited; each attempt
+    downloads into its own directory.
+- Verification: full suite 2718 passed, 0 failed, 9 skipped; Ruff check and format clean;
+  actionlint clean for both workflows; the browser tagging tests pass in the capture image
+  (12 passed). No Rust changes.
+- Live capture evidence (restricted: counts, keys, and enums only):
+  - **Video:** extract `ok`, 50 comments, 55 formats; 1080 chosen, estimate and size under
+    250 MB, media valid; 15 comment cards for 50 targets, profile card, no problems.
+  - **Short:** extract `ok`, 50 comments, 47 formats; 1080 chosen by the shorter side,
+    under 50 MB, media valid; 7 comment cards for 50 targets, profile card, no problems.
+  - **Channel:** `/videos` 12 and `/shorts` 12 entries; 12 of 12 details succeeded.
+  - The card counts predate the comment-sort fix; the live smoke measures the new ratio.
+  - No selector survey was needed. Fixtures: `leaks: 0` for all three; the real-host scan
+    found none.
+- Deferred minors from the final review:
+  - no hard `max_filesize` on the yt-dlp download (`adopt` rejects over 500 MB only after
+    writing);
+  - one unsized top-bitrate format skips its whole height instead of falling back;
+  - the PyPI version reaches `sed` unvalidated in the update workflow; consider
+    `persist-credentials: false`;
+  - an older failed update pull request stays open when a newer version arrives;
+  - `installed_version` imports the whole `yt_dlp` package at startup;
+  - a `card_browser.py` comment still says "(validated numeric)".
+
+Next steps:
+
+- The operator reviews the branch. Push, merge, and deploy each need their own
+  authorization.
+- After the merge, the first scheduled or dispatched `yt-dlp update` run is the workflow's
+  own proof; the operator watches it once. A branch protection that requires checks would
+  block its automatic merge.
+- The multi-account rotating login feature with UI integration.
+- The live smoke waits for final acceptance (ADR 0001); it re-measures the comment-card
+  ratio after the sort fix.
+
 ## 2026-10-04 - Stage 3c: X acquisition and profile discovery
 
 - Implements `docs/superpowers/specs/2026-10-04-stage3c-x-design.md` through the plan

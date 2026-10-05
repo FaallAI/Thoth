@@ -403,3 +403,20 @@ Next steps:
   authorization.
 - Stage 3d (YouTube).
 - The multi-account rotating login feature with UI integration.
+
+## Stage 3d status (2026-10-05)
+
+Stage 3d (YouTube) is implemented on `feat/stage3d-youtube`. yt-dlp, run as a library,
+provides metadata, first-page top comments, and the merged MP4 at the highest of 1080, 720,
+or 480 under 450 MB; Scrapling crops real comment and channel cards. Channel discovery is
+ranked by likes, views, and recency. A daily workflow keeps yt-dlp current, and the worker
+warns when it is behind. The evidence is in the `CHANGELOG.md` section "2026-10-05 - Stage
+3d". After this stage no post URL routes to legacy Scout for acquisition.
+
+Next steps:
+
+- The operator reviews the branch. Push, merge, and deploy each need their own
+  authorization.
+- After the merge, the operator watches the first `yt-dlp update` run once.
+- The multi-account rotating login feature with UI integration.
+- The live smoke waits for final acceptance (ADR 0001).

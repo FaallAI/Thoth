@@ -1,7 +1,7 @@
 # Stage 3d: YouTube Acquisition on the Platform Kernel
 
-Status: design approved section by section by the operator on 2026-10-04; written spec
-awaiting operator review.
+Status: written spec approved by the operator on 2026-10-04; implemented on branch
+`feat/stage3d-youtube` (see `docs/superpowers/plans/2026-10-04-stage3d-youtube.md`).
 
 ## 1. Context and scope
 
