@@ -14,7 +14,7 @@ import pytest
 
 from tests.acquisition.fakes import FakeCardPage, card_session
 from thoth_control_plane.acquisition import youtube_service
-from thoth_control_plane.acquisition.adapters.youtube import FormatChoice
+from thoth_control_plane.acquisition.adapters.youtube import MAX_DOWNLOAD_BYTES, FormatChoice
 from thoth_control_plane.acquisition.browser import active_scrapling_session_count
 from thoth_control_plane.acquisition.card_browser import COMMENT_ROW_ATTRIBUTE, CommentTarget
 from thoth_control_plane.acquisition.materializer import MediaMaterializationError
@@ -161,6 +161,8 @@ async def test_download_merges_the_chosen_pair_into_mp4(tmp_path: Path) -> None:
     assert options["format"] == "137+140"
     assert options["merge_output_format"] == "mp4"
     assert options["outtmpl"] == {"default": str(tmp_path / "merged.%(ext)s")}
+    # A bitrate estimate can be far off; yt-dlp stops a format over the cap itself.
+    assert options["max_filesize"] == MAX_DOWNLOAD_BYTES
 
 
 @pytest.mark.asyncio
@@ -234,7 +236,7 @@ async def test_a_cancelled_download_is_stopped_before_the_cancellation_returns(
 ) -> None:
     client = YtDlpClient(lambda options: _EndlessYdl(options, None))
     task = asyncio.create_task(client.download(URL, CHOICE, tmp_path))
-    while not _EndlessYdl.running.is_set():
+    while not _EndlessYdl.running.is_set() and not task.done():
         await asyncio.sleep(0.01)
     task.cancel()
     with pytest.raises(asyncio.CancelledError):

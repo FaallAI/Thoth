@@ -6,6 +6,7 @@ import logging
 
 import pytest
 
+from thoth_control_plane.operations import yt_dlp_version
 from thoth_control_plane.operations.yt_dlp_version import (
     check_freshness,
     is_behind,
@@ -81,3 +82,19 @@ async def test_a_current_install_is_quiet(caplog: pytest.LogCaptureFixture) -> N
 @pytest.mark.parametrize("payload", [RuntimeError("offline"), {"info": {}}])
 async def test_an_unknown_answer_never_raises(payload: object) -> None:
     assert await check_freshness(_fetch(payload), installed="2026.8.19") is None
+
+
+def test_the_installed_version_is_read_from_package_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    versions = {"yt-dlp": "2026.8.19"}
+    monkeypatch.setattr(yt_dlp_version.metadata, "version", versions.__getitem__)
+    assert yt_dlp_version.installed_version() == "2026.8.19"
+
+
+def test_a_missing_package_has_no_installed_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    def missing(name: str) -> str:
+        raise yt_dlp_version.metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(yt_dlp_version.metadata, "version", missing)
+    assert yt_dlp_version.installed_version() is None

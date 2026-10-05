@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
+from importlib import metadata
 
 import httpx
 
@@ -40,11 +41,11 @@ def latest_from_pypi(payload: object) -> str | None:
 
 
 def installed_version() -> str | None:
+    """From package metadata: importing yt_dlp at worker startup would be slow."""
     try:
-        from yt_dlp.version import __version__
-    except ImportError:
+        return metadata.version("yt-dlp")
+    except metadata.PackageNotFoundError:
         return None
-    return __version__ if isinstance(__version__, str) else None
 
 
 async def _fetch_json(url: str) -> object:

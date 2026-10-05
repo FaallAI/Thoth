@@ -1114,3 +1114,14 @@ def test_yt_dlp_is_pinned_identically_in_both_extras() -> None:
     pyproject = _repo_text("python/pyproject.toml")
     pins = re.findall(r'"yt-dlp==([0-9.]+)"', pyproject)
     assert len(pins) == 2 and len(set(pins)) == 1
+
+
+def test_the_yt_dlp_update_workflow_trusts_no_unchecked_input() -> None:
+    workflow = _repo_text(".github/workflows/yt-dlp-update.yml")
+    # PyPI's answer must look like a yt-dlp date version before it reaches sed.
+    assert "grep -Eq '^[0-9]{4}\\.[0-9]{1,2}\\.[0-9]{1,2}(\\.[0-9]+)?$'" in workflow
+    # The tests run newly published code; the checkout keeps no token while they do.
+    assert "persist-credentials: false" in workflow
+    assert "gh auth setup-git" in workflow
+    # A newer bump supersedes an older pull request left open.
+    assert 'gh pr close "$old" --delete-branch' in workflow

@@ -216,13 +216,12 @@ def select_formats(formats: object, duration: float | None) -> FormatChoice | No
         if f.get("vcodec") == "none"
         and f.get("acodec") not in (None, "none")
         and f.get("ext") == "m4a"
+        and _size(f, duration) is not None
     ]
     if not audios:
         return None
     audio = max(audios, key=lambda f: _number(f.get("tbr")) or 0.0)
-    audio_bytes = _size(audio, duration)
-    if audio_bytes is None:
-        return None
+    audio_bytes = _size(audio, duration) or 0
     videos = [
         f
         for f in listed
@@ -230,16 +229,14 @@ def select_formats(formats: object, duration: float | None) -> FormatChoice | No
         and f.get("vcodec") not in (None, "none")
         and f.get("ext") == "mp4"
         and _short_side(f) is not None
+        and _size(f, duration) is not None
     ]
     for target in TARGET_HEIGHTS:
         fitting = [f for f in videos if (_short_side(f) or 0) <= target]
         if not fitting:
             continue
         video = max(fitting, key=lambda f: (_short_side(f) or 0, _number(f.get("tbr")) or 0.0))
-        video_bytes = _size(video, duration)
-        if video_bytes is None:
-            continue
-        total = video_bytes + audio_bytes
+        total = (_size(video, duration) or 0) + audio_bytes
         if total < MAX_DOWNLOAD_BYTES:
             return FormatChoice(
                 video_format=video["format_id"],

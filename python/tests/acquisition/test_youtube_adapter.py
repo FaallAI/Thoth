@@ -263,3 +263,17 @@ def test_channel_candidates_are_the_most_viewed_each_once() -> None:
         ]
     }
     assert channel_candidates([videos, shorts], 2) == ["ccccccccccc", "bbbbbbbbbbb"]
+
+
+def test_an_unsized_top_format_falls_back_to_a_sized_one_at_its_height() -> None:
+    # Without a duration, a bitrate alone gives no size; the sized formats still qualify.
+    unsized_audio = {**AUDIO, "format_id": "140-drc", "tbr": 256.0, "filesize": None}
+    formats = [
+        _video("399", 1920, 1080, None, tbr=5_000.0),
+        _video("137", 1920, 1080, 100 * MB, tbr=900.0),
+        unsized_audio,
+        AUDIO,
+    ]
+    choice = select_formats(formats, None)
+    assert choice is not None
+    assert (choice.video_format, choice.audio_format, choice.short_side) == ("137", "140", 1080)

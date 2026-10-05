@@ -29,11 +29,19 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # The tests run newly published code; no token stays in the checkout.
+          persist-credentials: false
 
       - name: Compare the pin with PyPI
         id: versions
         run: |
           latest="$(curl -fsS https://pypi.org/pypi/yt-dlp/json | jq -r .info.version)"
+          # Only a date version may reach sed and the branch name.
+          if ! printf '%s' "$latest" | grep -Eq '^[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}(\.[0-9]+)?$'; then
+            echo "unexpected yt-dlp version from PyPI" >&2
+            exit 1
+          fi
           pinned="$(grep -oP 'yt-dlp==\K[0-9.]+' python/pyproject.toml | head -n 1)"
           newest="$(printf '%s\n%s\n' "$pinned" "$latest" | sort -V | tail -n 1)"
           echo "latest=$latest" >> "$GITHUB_OUTPUT"
@@ -96,7 +104,12 @@ jobs:
           git switch -c "$branch"
           git add python/pyproject.toml python/uv.lock
           git commit -m "chore(deps): bump yt-dlp to ${LATEST}"
+          gh auth setup-git
           git push --force origin "$branch"
+          # A newer bump supersedes any older one still open.
+          for old in $(gh pr list --state open --json headRefName --jq '.[].headRefName | select(startswith("chore/yt-dlp-"))'); do
+            [ "$old" = "$branch" ] || gh pr close "$old" --delete-branch --comment "Superseded by yt-dlp ${LATEST}."
+          done
           gh pr view "$branch" > /dev/null 2>&1 || gh pr create --base master --head "$branch" \
             --title "chore(deps): bump yt-dlp to ${LATEST}" \
             --body "Automated daily bump. The offline suite passed in the yt-dlp update job."

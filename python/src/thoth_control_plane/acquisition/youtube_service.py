@@ -20,6 +20,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from thoth_control_plane.acquisition.adapters.youtube import (
+    MAX_DOWNLOAD_BYTES,
     FormatChoice,
     YouTubeIdentity,
     YouTubeParse,
@@ -255,6 +256,8 @@ class YtDlpClient:
             "merge_output_format": "mp4",
             "outtmpl": {"default": str(directory / "merged.%(ext)s")},
             "overwrites": True,
+            # A bitrate estimate can be far off; yt-dlp stops a format over the cap.
+            "max_filesize": MAX_DOWNLOAD_BYTES,
             "progress_hooks": [check],
             "postprocessor_hooks": [check],
         }

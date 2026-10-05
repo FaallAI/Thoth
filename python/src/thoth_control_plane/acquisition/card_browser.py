@@ -112,7 +112,7 @@ def _on_post(
             tagged = await page.evaluate(layout.tag_js, [asdict(t) for t in targets])
         known = {target.comment_id for target in targets}
         for comment_id in tagged if isinstance(tagged, list) else []:
-            # Only ids we sent (validated numeric) ever reach a selector.
+            # Only ids we sent (validated `[A-Za-z0-9_-]`) ever reach a selector.
             if comment_id in known and comment_id not in cards.comment_pngs:
                 png = await _crop(page, f'[{COMMENT_ROW_ATTRIBUTE}="{comment_id}"]')
                 if png is not None:
