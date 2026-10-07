@@ -22,7 +22,9 @@ The operator chose:
 - **Usage mode C.** One mode per platform, set in the dashboard: `anonymous`, `fallback`
   (default), or `always`.
 - **The rotation and health policy in section 4.**
-- **An optional proxy per account**, from the first version.
+- **A proxy pool**, from the first version. The operator imports a list of proxies once; each
+  account picks one proxy from the pool, or none ("Direct"). One proxy serves at most one
+  account.
 - **Integration A.** One shared `AccountBroker`; the acquirers only receive a session.
 - **Decomposition.** This spec covers the account core and its dashboard page. Login-only
   platform capabilities (Instagram views and comment pages, longer X timelines, and so on)
@@ -40,7 +42,7 @@ These stay as they are:
 
 ## 2. Data model and vault
 
-An Alembic revision in the editor database adds two tables, mapped with SQLAlchemy ORM.
+An Alembic revision in the editor database adds three tables, mapped with SQLAlchemy ORM.
 
 **`source_account_policies`**, one row per platform:
 
@@ -68,9 +70,19 @@ An Alembic revision in the editor database adds two tables, mapped with SQLAlche
 | `cookies_ciphertext` | bytea | Fernet token of the cookie set |
 | `cookie_names` | text[] | names only, for display |
 | `cookies_earliest_expiry` | timestamptz, nullable | earliest expiry among session cookies |
-| `proxy_ciphertext` | bytea, nullable | Fernet token of the full proxy URL |
-| `proxy_display` | text, nullable | `host:port` only |
+| `proxy_id` | uuid, nullable, unique | foreign key to `source_proxies`, `ON DELETE RESTRICT`; unique, so one proxy serves at most one account |
 | `created_at`, `updated_at` | timestamptz | |
+
+**`source_proxies`**:
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid, primary key | |
+| `scheme` | text | `http`, `https`, or `socks5` |
+| `display` | text | `host:port` only; not unique, since a provider gateway can serve several proxies on one `host:port` with different usernames |
+| `fingerprint` | text, unique | HMAC-SHA256 of the normalized full URL, keyed from the vault key; detects duplicates without storing the URL in clear |
+| `proxy_ciphertext` | bytea | Fernet token of the full proxy URL, credentials included |
+| `created_at` | timestamptz | |
 
 **Vault.**
 - `THOTH_ACCOUNT_VAULT_KEY` is a `SecretStr` holding a Fernet key.
@@ -122,8 +134,18 @@ A pure module parses and validates an import; it holds no state.
 - The result is a `CookieSet` plus a safe summary: count, names, earliest expiry, and the
   error code if any. No message ever contains a cookie value.
 
-**Proxy.** An optional URL with scheme `http`, `https`, or `socks5`, a host, a port, and
-optional credentials. It is validated, encrypted whole, and displayed as `host:port`.
+**Proxy import.** A pure module parses a pasted list (or a `.txt` upload) into the pool:
+- One proxy per line, `scheme://[user:pass@]host:port`, with scheme `http`, `https`, or
+  `socks5`. Blank lines and lines starting with `#` are skipped.
+- At most 500 lines and 64 KB per import.
+- Each valid line is normalized, fingerprinted (section 2), encrypted whole, and displayed as
+  `host:port`. A line whose fingerprint already exists is a duplicate and is skipped.
+- The result is a summary: added, duplicates, and invalid line numbers. A line's content is
+  never echoed.
+
+**Assignment.** An account has at most one proxy, and a proxy serves at most one account.
+Assigning a proxy that another account holds is refused with `proxy_in_use`. A proxy that is
+assigned cannot be deleted (`proxy_in_use`); unassign it first.
 
 ## 4. Rotation and health
 
@@ -136,7 +158,8 @@ optional credentials. It is validated, encrypted whole, and displayed as `host:p
   - `leased_until` is null or in the past;
 - order by `last_used_at` (nulls first), take one;
 - set `leased_until = now() + 10 minutes` and `last_used_at = now()`;
-- decrypt; on failure, mark it `expired` with `undecryptable` and try the next account.
+- decrypt its cookies and, when it has one, its proxy; on failure, mark it `expired` with
+  `undecryptable` and try the next account.
 
 `report(lease, outcome)` clears `leased_until` and applies:
 
@@ -210,14 +233,18 @@ with `generate:control-plane-types`.
 | `GET /source-accounts` | `available`, plus per platform: mode, spacing, counts per status, and accounts with safe fields only |
 | `PUT /source-accounts/policies/{platform}` | set `mode` and `min_spacing_seconds` |
 | `POST /source-accounts/validate` | dry run of an import: the safe summary, nothing stored |
-| `POST /source-accounts` | add an account: platform, label, cookies, optional proxy |
+| `POST /source-accounts` | add an account: platform, label, cookies, optional `proxy_id` |
 | `PUT /source-accounts/{id}/cookies` | re-import: status `healthy`, cooldown reset |
-| `PATCH /source-accounts/{id}` | label, proxy (omitted keeps it, `null` clears it, a value sets it), disabled flag |
-| `DELETE /source-accounts/{id}` | delete |
+| `PATCH /source-accounts/{id}` | label, `proxy_id` (omitted keeps it, `null` clears it, a value sets it), disabled flag |
+| `DELETE /source-accounts/{id}` | delete; its proxy returns to the pool |
 | `POST /source-accounts/{id}/test` | the session check (below) |
+| `GET /source-proxies` | the pool: id, scheme, display, and the assigned account's platform and label, or none |
+| `POST /source-proxies/import` | import a pasted list: added, duplicates, invalid line numbers |
+| `DELETE /source-proxies/{id}` | delete an unassigned proxy; 409 `proxy_in_use` otherwise |
 
 - Safe account fields: id, platform, label, status, cooldown until, last used, last
-  outcome, counters, cookie names, earliest expiry, proxy display, timestamps.
+  outcome, counters, cookie names, earliest expiry, proxy id and display, timestamps.
+- Assigning a proxy another account holds returns 409 `proxy_in_use`.
 - Request bodies are never logged. Validation errors name fields and codes, never values.
 - A route that changes an account never returns the cookies or the proxy.
 
@@ -240,11 +267,17 @@ with `generate:control-plane-types`.
 - Per platform:
   - the mode selector and the spacing field;
   - status counts;
-  - the account table: label, status, proxy display, cookie names, earliest expiry, last
-    used, last outcome, counters, and actions (test, re-import, edit, disable or enable,
-    delete).
+  - the account table, as in the frames: label, status, proxy display, cookie names,
+    earliest expiry, and actions (test, re-import, edit, disable or enable, delete). Last
+    used, last outcome, and the counters are stored and returned by the API but not shown
+    in this version, by operator decision on 2026-10-07.
 - The add and re-import dialogs call `validate` as the input changes and show its safe
   summary before saving.
+- The add and edit dialogs pick the proxy from a select of unassigned pool proxies, plus
+  "Direct"; proxies held by another account show as disabled with their holder.
+- A proxies view lists the pool (display, scheme, holder, delete) and opens an import
+  dialog that shows the import summary. Its frames come from the design follow-up of
+  2026-10-07; the UI task waits for them.
 - States:
   - unavailable;
   - an empty platform;
@@ -273,6 +306,10 @@ with `generate:control-plane-types`.
   - Netscape and JSON formats, and the `#HttpOnly_` prefix;
   - domain filtering, required cookies, expiry;
   - the size and count limits, and broken input.
+- **Proxy import:** schemes, credentials optional, comments and blank lines, duplicates by
+  fingerprint, invalid lines reported by number only, the size and line limits.
+- **Assignment:** one proxy per account, `proxy_in_use` on a second assignment and on
+  deleting an assigned proxy, a deleted account frees its proxy.
 - **Vault:** round trip; a wrong key gives `undecryptable`.
 - **Broker**, on the test Postgres pattern the repositories already use:
   - least-recently-used order, spacing, and `SKIP LOCKED` under two concurrent leases;
@@ -284,7 +321,8 @@ with `generate:control-plane-types`.
   options (through fakes); the cookie file is deleted.
 - **Login wall detection** per platform, from fixtures.
 - **API:** every route; 503 when unavailable; no secret in any response.
-- **Dashboard:** component tests for each state and both dialogs.
+- **Dashboard:** component tests for each state, the account dialogs, the proxy select, and
+  the proxies view with its import dialog.
 - **The leak test** in section 8.
 
 Verification: the full Python suite, Ruff, the dashboard tests and type check, and the
@@ -311,6 +349,8 @@ Alembic upgrade and downgrade. No Rust changes.
 - Buying proxies and creating accounts are the operator's.
 
 ## Appendix: proxy recommendations (researched 2026-10-07)
+
+The operator already holds proxies; this list is for later purchases.
 
 **What to buy.**
 - One **dedicated static ISP (static residential) IP per account**, in the country where the
