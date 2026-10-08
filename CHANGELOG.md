@@ -2,6 +2,66 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-08 - Source accounts: rotating logged-in sessions with a proxy pool
+
+- Implements `docs/superpowers/specs/2026-10-07-source-accounts-design.md` through the plan
+  `docs/superpowers/plans/2026-10-08-source-accounts.md` on `feat/source-accounts`. The
+  operator chose native execution.
+- `3f6c39d`, `24c5a36`, `9394a6d`: the Fernet vault keyed by `THOTH_ACCOUNT_VAULT_KEY`, the
+  cookie-export parser (Netscape and Cookie-Editor JSON, platform-scoped, login cookies
+  required) and the proxy-list parser, and editor revision 0008 with the source-account,
+  proxy, and policy tables (SQLAlchemy ORM).
+- `df2e5d6`, `13d0311`, `9e4b088`: the store (least-recently-used lease with
+  `FOR UPDATE SKIP LOCKED`, per-platform minimum spacing, cooldown ladder 15 min / 1 h / 6 h /
+  24 h, login wall marks the account expired), `SessionAccess` carried through Scrapling
+  browser and fetcher calls and yt-dlp, and the runner that applies each platform's mode
+  (`anonymous`, `fallback`, `always`) around every acquisition and emits account events.
+- `7eb06fa`: a sign-in page is reported as a `login_wall` attempt; it keeps the
+  `request_blocked` failure code.
+- `7f6fc94`: `/api/v1/source-accounts` and `/api/v1/source-proxies` (import, re-import,
+  edit, disable, delete, policy, and the manual session check). Validation errors on these
+  routes carry only a field and a code, never a value.
+- `dadc78d`: the dashboard Source Accounts and Proxies pages, following the
+  `design/thoth-dashboard.pen` frames.
+- `6260fc3`: final review fixes (browser proxy credentials passed decoded, a YouTube age
+  gate no longer expires the account, the primary host's cookie wins on a name clash,
+  provider logging configured in the API, labelled row actions).
+- `4da19e8`: the X session check also treats the onboarding flow as signed out.
+
+Verification:
+
+- Python: 2872 passed, 6 skipped, 0 failed (Postgres tests ran).
+- Ruff check and format: clean.
+- Dashboard: 684 pass, 0 fail; `tsc -b` clean; production build succeeds.
+
+Live session-check probe (operator-authorized, direct, no proxy):
+
+- tiktok, threads, instagram, youtube: signed-in `valid`, anonymous `expired`, as written.
+- x: signed-in `valid`; anonymous read `valid` until the onboarding path was added, then
+  `expired`.
+
+Departures from the spec's wording (the behavior is the spec's):
+
+- `cookie_names` is JSONB instead of `text[]`; the migration is forward-only.
+- A `socks5://` proxy with credentials is refused at import.
+- Flagged-account pages (Instagram `/challenge`, X `/account/access`) stay
+  `request_blocked`, so the account cools down; `challenge` is never produced.
+- An expired TikTok session is found by "Test session" only.
+- The edit dialog carries Disable/Enable and Delete as secondary footer actions.
+- The yt-dlp cookie file lives in a private temporary directory.
+- Media downloads bypass the account proxy.
+
+Next steps:
+
+- The operator reviews the branch. Push, merge, and deploy each need their own
+  authorization.
+- Deploy: set `THOTH_ACCOUNT_VAULT_KEY` in the API and worker environment, run
+  `thoth-control editor migrate` (revision 0008), import accounts and proxies in the
+  dashboard, and choose each platform's mode.
+- The live smoke with real accounts joins the final acceptance (ADR 0001).
+- Follow-ups: interactive login through a worker-run browser, the login-only platform
+  capabilities, and vault key rotation.
+
 ## 2026-10-05 - Stage 3d: YouTube acquisition, channel discovery, and yt-dlp freshness
 
 - Implements `docs/superpowers/specs/2026-10-04-stage3d-youtube-design.md` through the plan

@@ -1,7 +1,7 @@
 # Source Accounts: Multi-Account Rotating Login for Acquisition
 
-Status: design approved section by section by the operator on 2026-10-07; written spec
-awaiting operator review.
+Status: written spec approved by the operator on 2026-10-07; implemented on branch
+`feat/source-accounts` (see `docs/superpowers/plans/2026-10-08-source-accounts.md`).
 
 ## 1. Context and scope
 

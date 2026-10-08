@@ -420,3 +420,22 @@ Next steps:
 - After the merge, the operator watches the first `yt-dlp update` run once.
 - The multi-account rotating login feature with UI integration.
 - The live smoke waits for final acceptance (ADR 0001).
+
+## Source accounts status (2026-10-08)
+
+Source accounts are implemented on `feat/source-accounts`: cookie-imported sessions for
+TikTok, Threads, Instagram, X, and YouTube, stored encrypted in the editor database, leased
+least-recently-used with a cooldown ladder and one proxy per account, applied per platform
+in `anonymous`, `fallback`, or `always` mode, and managed from the dashboard. The live
+session-check probe confirmed all five platforms. The evidence is in the `CHANGELOG.md`
+section "2026-10-08 - Source accounts".
+
+Next steps:
+
+- The operator reviews the branch. Push, merge, and deploy each need their own
+  authorization.
+- Deploy: set `THOTH_ACCOUNT_VAULT_KEY`, run `thoth-control editor migrate`, import
+  accounts and proxies, choose each platform's mode.
+- The live smoke with real accounts joins the final acceptance (ADR 0001).
+- Follow-ups: interactive login through a worker-run browser, the login-only platform
+  capabilities, and vault key rotation.
