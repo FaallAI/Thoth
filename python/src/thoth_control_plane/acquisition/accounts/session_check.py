@@ -53,7 +53,7 @@ CHECKS: dict[str, SessionCheck] = {
     ),
     "x": SessionCheck(
         url="https://x.com/settings/account",
-        signed_out_paths=("/i/flow/login", "/login"),
+        signed_out_paths=("/i/flow/login", "/login", "/i/jf/onboarding"),
     ),
     "youtube": SessionCheck(
         url="https://www.youtube.com/account",

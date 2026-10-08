@@ -45,6 +45,8 @@ def _response(url: str, status: int = 200, body: object = b"", location: str | N
         ("threads", _response("https://www.threads.com/login?next=x"), "expired"),
         ("x", _response("https://x.com/settings/account"), "valid"),
         ("x", _response("https://x.com/i/flow/login?redirect_after_login=x"), "expired"),
+        # The live probe saw a signed-out request land on the onboarding flow.
+        ("x", _response("https://x.com/i/jf/onboarding/web"), "expired"),
         (
             "tiktok",
             _response(
