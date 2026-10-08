@@ -26,9 +26,10 @@ from temporalio import activity
 from thoth_control_plane.acquisition.models import SourceReport
 from thoth_control_plane.activities.source_investigation import (
     AcquisitionRunner,
+    _account_store,
     build_production_acquisition_runner,
 )
-from thoth_control_plane.attribution.adapters.discovery import ProfileDiscoverer
+from thoth_control_plane.attribution.adapters.discovery import ProfileDiscoverer, StoreLeases
 from thoth_control_plane.attribution.adapters.frames import FfmpegFrameSource, ImageHasher
 from thoth_control_plane.attribution.adapters.jev import JevDecisionModel
 from thoth_control_plane.attribution.adapters.ocr import RapidOcrReader
@@ -106,11 +107,12 @@ class RunnerAcquirer:
 
 def build_production_ports(settings: Settings, artifact_root: Path) -> AttributionPorts:
     openrouter = settings.openrouter_api_key
+    store = _account_store(settings)
     return AttributionPorts(
         frames=FfmpegFrameSource(settings.THOTH_FFMPEG),
         hasher=ImageHasher(),
         text=RapidOcrReader(),
-        discoverer=ProfileDiscoverer(),
+        discoverer=ProfileDiscoverer(leases=StoreLeases(store) if store is not None else None),
         acquirer=RunnerAcquirer(build_production_acquisition_runner(settings), artifact_root),
         vision=AgnoVisionReader(openrouter, settings.THOTH_SOURCE_VISION_MODEL)
         if openrouter

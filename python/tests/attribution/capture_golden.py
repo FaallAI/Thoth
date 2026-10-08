@@ -14,9 +14,12 @@ import json
 import tempfile
 from collections.abc import Sequence
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from thoth_control_plane.acquisition.accounts.access import SessionAccess
+from thoth_control_plane.acquisition.accounts.policy import Mode, Outcome
 from thoth_control_plane.acquisition.models import DiscoveredVideo, SourceReport
 from thoth_control_plane.attribution.models import Platform
 from thoth_control_plane.attribution.ports import (
@@ -27,6 +30,7 @@ from thoth_control_plane.attribution.ports import (
     VisualKind,
 )
 from thoth_control_plane.attribution.service import AttributionPorts, SourceAttributor, Tuning
+from thoth_control_plane.infrastructure.source_account_store import AccountLease
 
 CAPTURE_TUNING = Tuning(max_finalists=5, finalist_concurrency=1, match_threshold=1.01)
 WORKFLOW = "wf_golden"
@@ -35,6 +39,25 @@ WORKFLOW = "wf_golden"
 def _plain(report: SourceReport) -> dict[str, Any]:
     trimmed = report.model_copy(update={"comments": [], "post_card": None, "profile_card": None})
     return json.loads(trimmed.model_dump_json())
+
+
+class StaticLeases:
+    """Sessions from cookie files, for the capture only: no store, no rotation, no cooldown."""
+
+    def __init__(self, sessions: dict[str, SessionAccess]) -> None:
+        self._sessions = sessions
+
+    async def mode(self, platform: Platform) -> Mode:
+        return "always" if platform in self._sessions else "anonymous"
+
+    async def lease(self, platform: Platform) -> AccountLease | None:
+        access = self._sessions.get(platform)
+        if access is None:
+            return None
+        return AccountLease("capture", platform, access, datetime.now(UTC))
+
+    async def release(self, lease: AccountLease, outcome: Outcome | None) -> None:
+        return None
 
 
 class _Store:
@@ -170,11 +193,21 @@ async def record_case(
 
 
 async def _main(arguments: argparse.Namespace) -> None:
+    from thoth_control_plane.acquisition.accounts.cookies import parse_cookies
     from thoth_control_plane.activities.source_attribution import _video, build_production_ports
     from thoth_control_plane.activities.source_investigation import (
         build_production_acquisition_runner,
     )
+    from thoth_control_plane.attribution.adapters.discovery import ProfileDiscoverer
     from thoth_control_plane.config import Settings
+
+    sessions: dict[str, SessionAccess] = {}
+    for entry in arguments.cookies:
+        platform, _, path = entry.partition("=")
+        text = Path(path).read_text(encoding="utf-8")
+        sessions[platform] = SessionAccess(
+            parse_cookies(platform, text, now=datetime.now(UTC))  # type: ignore[arg-type]
+        )
 
     with tempfile.TemporaryDirectory(prefix="thoth-golden-") as directory:
         root = Path(directory)
@@ -189,8 +222,12 @@ async def _main(arguments: argparse.Namespace) -> None:
             "verdict": arguments.expect_verdict,
             "source_url": arguments.expect_source_url,
         }
-        fixture = await record_case(
+        ports = replace(
             build_production_ports(settings, root),
+            discoverer=ProfileDiscoverer(leases=StaticLeases(sessions)),
+        )
+        fixture = await record_case(
+            ports,
             result.report,
             _video(result.report, root),
             case=arguments.case,
@@ -217,4 +254,5 @@ if __name__ == "__main__":
     parser.add_argument("--scout-main-url", default=None)
     parser.add_argument("--scout-note", default="")
     parser.add_argument("--departure", default=None)
+    parser.add_argument("--cookies", action="append", default=[], help="platform=path")
     asyncio.run(_main(parser.parse_args()))

@@ -7,6 +7,14 @@ Decisions API only (`https://openrouter.ai/api/alpha/decisions`, model `typesafe
 with `THOTH_OPENROUTER_API_KEY` in place of `THOTH_TYPESAFE_API_KEY`. The request and answer
 shapes are unchanged.
 
+Amendment (operator, 2026-10-09, after the first live capture): the Novita key was dead, so
+vision also goes through OpenRouter (`https://openrouter.ai/api/v1`, same model
+`qwen/qwen3-vl-30b-a3b-instruct`) on `THOTH_OPENROUTER_API_KEY`; the Python
+`THOTH_NOVITA_API_KEY` setting is gone. Anonymous TikTok profile discovery hits a captcha
+every time, so profile discovery now follows the platform's source-account mode, as
+acquisition does: `anonymous` never leases, `always` leases first, `fallback` leases once
+after a captcha or a block, and the lease is released with `success` or `blocked`.
+
 - Roadmap: Stage 4, "Move Source Intelligence", in `docs/python-scout-migration-roadmap.md`.
 - Inputs to this design:
   - `docs/research/2026-10-08-stage4-source-intelligence-ideas.md` (flow map S1 to S8,

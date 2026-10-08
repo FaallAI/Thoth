@@ -223,3 +223,28 @@ def test_the_verdict_is_a_closed_event_payload_value() -> None:
         SourceProgressEvent(
             kind="stage.completed", payload={"stage": "attribution", "verdict": "@someone"}
         )
+
+
+def test_production_discovery_leases_from_the_account_store_when_configured(
+    tmp_path: Path,
+) -> None:
+    from cryptography.fernet import Fernet
+
+    from thoth_control_plane.attribution.adapters.discovery import StoreLeases
+
+    common: dict[str, Any] = {
+        "THOTH_CONTROL_PLANE_API_KEY": "k",
+        "THOTH_CONTROL_PLANE_ARTIFACT_ROOT": tmp_path,
+    }
+    anonymous = build_production_ports(Settings(**common), tmp_path)
+    signed_in = build_production_ports(
+        Settings(
+            **common,
+            THOTH_ACCOUNT_VAULT_KEY=Fernet.generate_key().decode(),
+            THOTH_EDITOR_DATABASE_URL="postgresql://u:p@127.0.0.1:1/editor",
+        ),
+        tmp_path,
+    )
+
+    assert anonymous.discoverer._leases is None  # type: ignore[attr-defined]
+    assert isinstance(signed_in.discoverer._leases, StoreLeases)  # type: ignore[attr-defined]

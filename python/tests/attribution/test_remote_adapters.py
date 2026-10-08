@@ -188,7 +188,7 @@ async def test_profile_discoverer_routes_by_platform() -> None:
         canonical_url=f"https://www.tiktok.com/@{SOURCE}/video/7677137235434687752",
     )
     fake = _FakeDiscovery(video)
-    discoverer = ProfileDiscoverer({"tiktok": lambda: fake})
+    discoverer = ProfileDiscoverer({"tiktok": lambda access, scratch: fake})
 
     assert await discoverer.discover("tiktok", SOURCE) == [video]
     assert (fake.requests[0].handle, fake.requests[0].limit) == (SOURCE, 30)
