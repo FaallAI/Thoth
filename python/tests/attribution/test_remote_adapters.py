@@ -131,10 +131,14 @@ def _completion(content: str) -> httpx.Response:
 @respx.mock
 async def test_vision_reads_the_cover_from_jpeg_frames() -> None:
     pytest.importorskip("openai")
-    from thoth_control_plane.attribution.adapters.vision import NOVITA_BASE_URL, AgnoVisionReader
+    from thoth_control_plane.attribution.adapters.vision import (
+        OPENROUTER_BASE_URL,
+        AgnoVisionReader,
+    )
 
+    assert OPENROUTER_BASE_URL == "https://openrouter.ai/api/v1"
     reading = {"headline": "BANJIR", "scene": "a flooded street", "icon": "a note, bottom left"}
-    route = respx.post(f"{NOVITA_BASE_URL}/chat/completions").mock(
+    route = respx.post(f"{OPENROUTER_BASE_URL}/chat/completions").mock(
         return_value=_completion(json.dumps(reading))
     )
     reader = AgnoVisionReader("synthetic-novita-key", "qwen/qwen3-vl-30b-a3b-instruct")
@@ -149,9 +153,12 @@ async def test_vision_reads_the_cover_from_jpeg_frames() -> None:
 @respx.mock
 async def test_vision_classifies_and_degrades_to_none() -> None:
     pytest.importorskip("openai")
-    from thoth_control_plane.attribution.adapters.vision import NOVITA_BASE_URL, AgnoVisionReader
+    from thoth_control_plane.attribution.adapters.vision import (
+        OPENROUTER_BASE_URL,
+        AgnoVisionReader,
+    )
 
-    route = respx.post(f"{NOVITA_BASE_URL}/chat/completions")
+    route = respx.post(f"{OPENROUTER_BASE_URL}/chat/completions")
     reader = AgnoVisionReader("synthetic-novita-key", "qwen/qwen3-vl-30b-a3b-instruct")
     frames = [Frame(0.0, _tiny_jpeg())]
 

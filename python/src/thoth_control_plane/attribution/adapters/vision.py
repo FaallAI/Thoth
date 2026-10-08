@@ -1,4 +1,4 @@
-"""Structured vision answers through Agno over Novita's OpenAI-compatible endpoint.
+"""Structured vision answers through Agno over OpenRouter's OpenAI-compatible endpoint.
 
 Agno sends anonymous telemetry by default; it is switched off here. The model is asked for
 prose (a headline, a scene, an icon description) or one class, never for a platform name or an
@@ -17,7 +17,8 @@ from thoth_control_plane.attribution.ports import CoverReading, Frame, VisualCla
 
 logger = logging.getLogger(__name__)
 
-NOVITA_BASE_URL = "https://api.novita.ai/openai/v1"
+# OpenRouter only (operator, 2026-10-09): one key for vision and Jev decisions.
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 TIMEOUT_SECONDS = 60.0
 MAX_FRAMES = 3
 COVER_PROMPT = (
@@ -33,7 +34,7 @@ Schema = TypeVar("Schema", bound=BaseModel)
 
 
 class AgnoVisionReader:
-    def __init__(self, api_key: str, model: str, *, base_url: str = NOVITA_BASE_URL) -> None:
+    def __init__(self, api_key: str, model: str, *, base_url: str = OPENROUTER_BASE_URL) -> None:
         self._key = api_key
         self._model = model
         self._base_url = base_url

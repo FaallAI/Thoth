@@ -80,9 +80,8 @@ class Settings(BaseSettings):
     THOTH_ACCOUNT_VAULT_KEY: SecretStr | None = None
     # Stage 4 source attribution. Without a key, that half of the evidence is skipped.
     THOTH_FFMPEG: str = "ffmpeg"
-    THOTH_NOVITA_API_KEY: SecretStr | None = None
     THOTH_SOURCE_VISION_MODEL: str = "qwen/qwen3-vl-30b-a3b-instruct"
-    # Jev decisions go through OpenRouter's Decisions API (operator, 2026-10-08).
+    # Vision and Jev decisions both go through OpenRouter (operator, 2026-10-08/09).
     THOTH_OPENROUTER_API_KEY: SecretStr | None = None
     # Read by the API when it starts an identify_original workflow; a kill switch.
     THOTH_SOURCE_ATTRIBUTION_ENABLED: bool = True
@@ -146,13 +145,8 @@ class Settings(BaseSettings):
         return self.THOTH_ACCOUNT_VAULT_KEY.get_secret_value().strip() or None
 
     @property
-    def novita_api_key(self) -> str | None:
-        """The vision provider key, or None when attribution runs without vision."""
-        return _secret(self.THOTH_NOVITA_API_KEY)
-
-    @property
     def openrouter_api_key(self) -> str | None:
-        """The OpenRouter key for Jev decisions, or None when attribution uses rules alone."""
+        """The OpenRouter key for vision and Jev, or None when attribution uses rules alone."""
         return _secret(self.THOTH_OPENROUTER_API_KEY)
 
     @property
