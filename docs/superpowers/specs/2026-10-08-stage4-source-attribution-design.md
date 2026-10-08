@@ -1,7 +1,6 @@
 # Stage 4: Source Attribution in Python — Design
 
-Status: design approved by the operator in conversation on 2026-10-08; written spec awaiting
-operator review.
+Status: written spec approved by the operator on 2026-10-08.
 
 - Roadmap: Stage 4, "Move Source Intelligence", in `docs/python-scout-migration-roadmap.md`.
 - Inputs to this design:
