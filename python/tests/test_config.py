@@ -123,3 +123,14 @@ def test_the_render_deadline_stays_inside_its_bounds(seconds: int) -> None:
 def test_the_render_preset_cannot_be_switched_to_another_value() -> None:
     with pytest.raises(ValueError):
         settings(THOTH_RENDER_PRESET_ID="wide_1080p_prores")
+
+
+def test_the_account_vault_key_needs_the_editor_database() -> None:
+    assert settings().account_vault_key is None
+    assert settings(THOTH_ACCOUNT_VAULT_KEY="k").account_vault_key is None
+    with_database = {"THOTH_EDITOR_DATABASE_URL": "postgresql://db/editor"}
+    assert settings(THOTH_ACCOUNT_VAULT_KEY=" k ", **with_database).account_vault_key == "k"
+    assert settings(THOTH_ACCOUNT_VAULT_KEY="  ", **with_database).account_vault_key is None
+    assert "vault-secret" not in repr(
+        settings(THOTH_ACCOUNT_VAULT_KEY="vault-secret", **with_database)
+    )

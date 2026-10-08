@@ -76,6 +76,8 @@ class Settings(BaseSettings):
     THOTH_RENDER_MAX_SECONDS: Annotated[int, Field(ge=60, le=7200)] = 900
     THOTH_RENDERER_VERSION: str = "remotion-4.0.523"
     THOTH_RENDER_PRESET_ID: Literal["standard_vertical_mp4_v1"] = "standard_vertical_mp4_v1"
+    # A Fernet key; source accounts need it and the editor database, else they stay off.
+    THOTH_ACCOUNT_VAULT_KEY: SecretStr | None = None
 
     def __init__(self, **values: object) -> None:
         """Load settings, then reject an incomplete gateway pair without retaining inputs."""
@@ -127,6 +129,13 @@ class Settings(BaseSettings):
     def prompt_provider_secrets(self) -> dict[str, SecretStr]:
         """Worker-only credential map keyed by catalog credential_id."""
         return dict(self.THOTH_PROMPT_PROVIDER_SECRETS)
+
+    @property
+    def account_vault_key(self) -> str | None:
+        """The source-account vault key, when the editor database is configured too."""
+        if self.THOTH_ACCOUNT_VAULT_KEY is None or self.THOTH_EDITOR_DATABASE_URL is None:
+            return None
+        return self.THOTH_ACCOUNT_VAULT_KEY.get_secret_value().strip() or None
 
     @property
     def legacy_bridge_enabled(self) -> bool:
