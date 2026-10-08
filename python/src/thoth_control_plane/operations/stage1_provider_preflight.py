@@ -5,7 +5,7 @@ the fallback worker and every one-off reference must be given the same provider
 input. That input is an operator-held file on restricted storage rather than a
 tracked value, which makes its shape part of the deployment contract:
 
-* exactly two variables, both required — a wider file is usually an accidental copy
+* two required variables and one optional key — a wider file is usually an accidental copy
   of the repository `.env`, and a service-level `env_file` injects every line of it
   into the container;
 * an absolute path resolved outside the repository, so it can never be captured by a
@@ -29,6 +29,8 @@ from thoth_control_plane.operations.stage1_local_preflight import Stage1Prefligh
 PROVIDER_KEY_VARIABLE = "THOTH_NOVITA_API_KEY"
 PROVIDER_OCR_MODEL_VARIABLE = "THOTH_SUBTITLE_OCR_MODEL"
 REQUIRED_PROVIDER_VARIABLES = (PROVIDER_KEY_VARIABLE, PROVIDER_OCR_MODEL_VARIABLE)
+PROVIDER_TYPESAFE_VARIABLE = "THOTH_TYPESAFE_API_KEY"
+OPTIONAL_PROVIDER_VARIABLES = (PROVIDER_TYPESAFE_VARIABLE,)
 
 MINIMUM_KEY_LENGTH = 12
 PLACEHOLDER_MARKERS = ("replace-with", "changeme", "change-me", "your-", "example", "todo", "<")
@@ -92,10 +94,11 @@ def _parse_provider_file(path: Path) -> dict[str, str]:
             raise Stage1PreflightError("the provider env file has a line that is not an assignment")
         name, _, value = entry.partition("=")
         name = name.strip()
-        if name not in REQUIRED_PROVIDER_VARIABLES:
+        if name not in REQUIRED_PROVIDER_VARIABLES + OPTIONAL_PROVIDER_VARIABLES:
             raise Stage1PreflightError(
                 "the provider env file contains an unrecognized variable; "
-                f"it admits only {' and '.join(REQUIRED_PROVIDER_VARIABLES)}"
+                f"it admits only {' and '.join(REQUIRED_PROVIDER_VARIABLES)}, "
+                f"and optionally {PROVIDER_TYPESAFE_VARIABLE}"
             )
         if name in values:
             raise Stage1PreflightError(f"{name} is defined more than once in the provider env file")
@@ -110,7 +113,23 @@ def _check_values(values: dict[str, str]) -> None:
         if any(character < " " or character == "\x7f" for character in values[name]):
             raise Stage1PreflightError(f"{name} must not contain control characters")
 
-    key = values[PROVIDER_KEY_VARIABLE]
+    _check_key(PROVIDER_KEY_VARIABLE, values[PROVIDER_KEY_VARIABLE])
+    if PROVIDER_TYPESAFE_VARIABLE in values:
+        typesafe = values[PROVIDER_TYPESAFE_VARIABLE]
+        if any(character < " " or character == "" for character in typesafe):
+            raise Stage1PreflightError(
+                f"{PROVIDER_TYPESAFE_VARIABLE} must not contain control characters"
+            )
+        _check_key(PROVIDER_TYPESAFE_VARIABLE, typesafe)
+
+    if not OCR_MODEL_PATTERN.fullmatch(values[PROVIDER_OCR_MODEL_VARIABLE]):
+        raise Stage1PreflightError(
+            f"{PROVIDER_OCR_MODEL_VARIABLE} must be a provider-qualified model such as "
+            "vendor/model, without whitespace"
+        )
+
+
+def _check_key(name: str, key: str) -> None:
     lowered = key.lower()
     if (
         len(key) < MINIMUM_KEY_LENGTH
@@ -118,11 +137,5 @@ def _check_values(values: dict[str, str]) -> None:
         or any(marker in lowered for marker in PLACEHOLDER_MARKERS)
     ):
         raise Stage1PreflightError(
-            f"{PROVIDER_KEY_VARIABLE} must be a real provider key, not empty or a placeholder"
-        )
-
-    if not OCR_MODEL_PATTERN.fullmatch(values[PROVIDER_OCR_MODEL_VARIABLE]):
-        raise Stage1PreflightError(
-            f"{PROVIDER_OCR_MODEL_VARIABLE} must be a provider-qualified model such as "
-            "vendor/model, without whitespace"
+            f"{name} must be a real provider key, not empty or a placeholder"
         )

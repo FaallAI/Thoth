@@ -78,6 +78,13 @@ class Settings(BaseSettings):
     THOTH_RENDER_PRESET_ID: Literal["standard_vertical_mp4_v1"] = "standard_vertical_mp4_v1"
     # A Fernet key; source accounts need it and the editor database, else they stay off.
     THOTH_ACCOUNT_VAULT_KEY: SecretStr | None = None
+    # Stage 4 source attribution. Without a key, that half of the evidence is skipped.
+    THOTH_FFMPEG: str = "ffmpeg"
+    THOTH_NOVITA_API_KEY: SecretStr | None = None
+    THOTH_SOURCE_VISION_MODEL: str = "qwen/qwen3-vl-30b-a3b-instruct"
+    THOTH_TYPESAFE_API_KEY: SecretStr | None = None
+    # Read by the API when it starts an identify_original workflow; a kill switch.
+    THOTH_SOURCE_ATTRIBUTION_ENABLED: bool = True
 
     def __init__(self, **values: object) -> None:
         """Load settings, then reject an incomplete gateway pair without retaining inputs."""
@@ -138,6 +145,16 @@ class Settings(BaseSettings):
         return self.THOTH_ACCOUNT_VAULT_KEY.get_secret_value().strip() or None
 
     @property
+    def novita_api_key(self) -> str | None:
+        """The vision provider key, or None when attribution runs without vision."""
+        return _secret(self.THOTH_NOVITA_API_KEY)
+
+    @property
+    def typesafe_api_key(self) -> str | None:
+        """The Jev decision key, or None when attribution decides by rules alone."""
+        return _secret(self.THOTH_TYPESAFE_API_KEY)
+
+    @property
     def legacy_bridge_enabled(self) -> bool:
         """Whether the validated legacy observation bridge can be constructed."""
         return self.THOTH_LEGACY_API_BASE_URL is not None and self.THOTH_LEGACY_API_KEY is not None
@@ -154,3 +171,7 @@ class Settings(BaseSettings):
     def source_investigation_activity_mode(self) -> SourceActivityMode:
         """Worker-owned activity selection, intentionally outside HTTP request handling."""
         return self.THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE
+
+
+def _secret(value: SecretStr | None) -> str | None:
+    return (value.get_secret_value().strip() or None) if value is not None else None

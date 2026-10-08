@@ -38,6 +38,11 @@ the value.
 | `THOTH_CONTROL_PLANE_ARTIFACT_ROOT` | FastAPI, Python worker working directory | Root for safe relative artifact locations. Defaults to `.thoth-artifacts`; API and worker must resolve the same root. |
 | `THOTH_EDITOR_DATABASE_URL` | FastAPI, `thoth-control editor migrate` | Secret PostgreSQL URL for immutable Creator Studio revisions. Stage 1 Compose derives it from the isolated editor database password. |
 | `THOTH_ACCOUNT_VAULT_KEY` | FastAPI, Python worker | Optional secret Fernet key that seals source-account cookies and proxies in the editor database. Without it (or without `THOTH_EDITOR_DATABASE_URL`) source accounts are off and acquisition runs anonymously. Generate one with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. |
+| `THOTH_NOVITA_API_KEY` | Python worker | Optional secret vision key for source attribution (Novita, OpenAI-compatible). Without it attribution skips cover vision and finalist classification. |
+| `THOTH_SOURCE_VISION_MODEL` | Python worker | Vision model for source attribution; default `qwen/qwen3-vl-30b-a3b-instruct`. |
+| `THOTH_TYPESAFE_API_KEY` | Python worker | Optional secret TypeSafe Jev key for typed attribution decisions. Without it attribution decides by deterministic credit rules. |
+| `THOTH_FFMPEG` | Python worker | ffmpeg executable for attribution frames; default `ffmpeg`, `/usr/bin/ffmpeg` in the image. |
+| `THOTH_SOURCE_ATTRIBUTION_ENABLED` | FastAPI | Default `true`. `false` starts `identify_original` workflows without the attribution stage. |
 | `THOTH_TEMPORAL_TARGET` | FastAPI, Python worker | Temporal gRPC target; default `localhost:7233`. |
 | `THOTH_TEMPORAL_NAMESPACE` | FastAPI, Python worker | Temporal namespace; default `default`. |
 | `THOTH_LEGACY_API_BASE_URL` | FastAPI | Optional read-only Rust observation bridge base URL. |

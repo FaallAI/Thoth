@@ -79,7 +79,8 @@ $EDITOR "$HOME/secrets/stage1.providers.env"
 export THOTH_STAGE1_PROVIDER_ENV_FILE="$HOME/secrets/stage1.providers.env"
 ```
 
-The file holds exactly `THOTH_NOVITA_API_KEY` and `THOTH_SUBTITLE_OCR_MODEL`. A wider file is
+The file holds exactly `THOTH_NOVITA_API_KEY` and `THOTH_SUBTITLE_OCR_MODEL`, plus the
+optional `THOTH_TYPESAFE_API_KEY` that source attribution uses. A wider file is
 usually an accidental copy of the repository `.env`, and a service-level `env_file` injects every
 line of the file it names into that container, so the extra variables would become container
 environment. The preflight rejects a third variable, a placeholder key, a relative or
