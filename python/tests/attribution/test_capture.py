@@ -56,7 +56,7 @@ async def test_static_leases_hand_out_the_cookie_session_for_its_platforms() -> 
     )
     leases = StaticLeases({"tiktok": access})
 
-    assert (await leases.mode("tiktok"), await leases.mode("x")) == ("always", "anonymous")
+    assert (await leases.mode("tiktok"), await leases.mode("x")) == ("fallback", "anonymous")
     lease = await leases.lease("tiktok")
     assert lease is not None and lease.access is access
     assert await leases.lease("x") is None

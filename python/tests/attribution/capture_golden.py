@@ -42,13 +42,17 @@ def _plain(report: SourceReport) -> dict[str, Any]:
 
 
 class StaticLeases:
-    """Sessions from cookie files, for the capture only: no store, no rotation, no cooldown."""
+    """Sessions from cookie files, for the capture only: no store, no rotation, no cooldown.
+
+    The mode is `fallback`, the production default: Instagram's profile parser reads the
+    anonymous page and returns no_data on the signed-in one, so anonymous goes first.
+    """
 
     def __init__(self, sessions: dict[str, SessionAccess]) -> None:
         self._sessions = sessions
 
     async def mode(self, platform: Platform) -> Mode:
-        return "always" if platform in self._sessions else "anonymous"
+        return "fallback" if platform in self._sessions else "anonymous"
 
     async def lease(self, platform: Platform) -> AccountLease | None:
         access = self._sessions.get(platform)
