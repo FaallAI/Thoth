@@ -201,3 +201,50 @@ test("every row action names its account", async () => {
     expect(screen.getByRole("button", { name: `${name} Cedar · backup` })).toBeDefined();
   }
 });
+
+test("an account whose cooldown has passed counts as usable, so no warning shows", async () => {
+  const rested = account({ status: "cooldown", cooldown_until: new Date(NOW - 60_000).toISOString() });
+  render(<SourceAccounts client={fakeClient(overview(true, [rested]))} onManageProxies={() => {}} />);
+  await screen.findByText("Cedar · primary");
+  expect(screen.queryByText(/No healthy account/) === null).toBe(true);
+});
+
+test("the re-import dialog starts clean for each account", async () => {
+  const client = fakeClient();
+  (client.reimport as unknown as ReturnType<typeof mock>).mockImplementation(async () => {
+    throw new SourceAccountsRequestError(409, "label_taken");
+  });
+  render(<SourceAccounts client={client} onManageProxies={() => {}} />);
+  await screen.findByText("Cedar · primary");
+  await userEvent.click(screen.getByRole("button", { name: "Re-import cookies for Cedar · primary" }));
+  let dialog = await screen.findByRole("dialog");
+  await userEvent.click(within(dialog).getByRole("button", { name: "Paste" }));
+  await userEvent.type(within(dialog).getByLabelText("Cookie export"), "sessionid");
+  await waitFor(() => expect((within(dialog).getByRole("button", { name: "Replace cookies" }) as HTMLButtonElement).disabled).toBe(false));
+  await userEvent.click(within(dialog).getByRole("button", { name: "Replace cookies" }));
+  expect(await within(dialog).findByRole("alert")).toBeDefined();
+  await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+  await userEvent.click(screen.getByRole("button", { name: "Re-import cookies for Cedar · backup" }));
+  dialog = await screen.findByRole("dialog");
+  expect(within(dialog).queryByRole("alert") === null).toBe(true);
+});
+
+test("editing an account keeps showing its proxy when the pool list lacks it", async () => {
+  render(<SourceAccounts client={fakeClient()} onManageProxies={() => {}} />);
+  await screen.findByText("Cedar · backup");
+  await userEvent.click(screen.getByRole("button", { name: "Edit Cedar · backup" }));
+  const dialog = await screen.findByRole("dialog");
+  expect(within(dialog).getByRole("combobox", { name: "Proxy" }).textContent).toContain("proxy.thoth.local:8080");
+});
+
+test("arrow keys move the access mode like a radio group", async () => {
+  const client = fakeClient();
+  render(<SourceAccounts client={client} onManageProxies={() => {}} />);
+  const checked = await screen.findByRole("radio", { name: "fallback", checked: true });
+  expect(screen.getAllByRole("radio").map((radio) => (radio as HTMLElement).tabIndex)).toEqual([-1, 0, -1]);
+  checked.focus();
+  await userEvent.keyboard("{ArrowRight}");
+  expect(client.setPolicy).toHaveBeenCalledWith("tiktok", { mode: "always", min_spacing_seconds: 60 });
+  await userEvent.keyboard("{ArrowLeft}");
+  expect(client.setPolicy).toHaveBeenCalledWith("tiktok", { mode: "anonymous", min_spacing_seconds: 60 });
+});

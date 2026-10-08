@@ -51,7 +51,9 @@ def test_the_orm_round_trips_through_the_shipped_schema(store: SourceAccountStor
     assert store.account(account.id) == account
     assert account.cookie_names == ("sessionid",)
     assert account.cookies_earliest_expiry == datetime(2030, 1, 1, tzinfo=UTC)
-    store.report(store.lease("instagram").account_id, "blocked")
+    lease = store.lease("instagram")
+    # The lease identity survives the timestamptz round trip, so its own report applies.
+    store.report(lease.account_id, "blocked", leased_until=lease.leased_until)
     assert store.account(account.id).cooldown_until is not None
     with pytest.raises(SourceAccountError):
         store.delete_proxy(proxy.id)

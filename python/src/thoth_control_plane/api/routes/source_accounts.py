@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from typing import Annotated, Any, TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy.exc import IntegrityError
 
 from thoth_control_plane.acquisition.accounts.cookies import (
     PLATFORMS,
@@ -59,6 +60,8 @@ _ERROR_STATUS = {
     "undecryptable": status.HTTP_409_CONFLICT,
     "platform_mismatch": status.HTTP_422_UNPROCESSABLE_CONTENT,
 }
+# A write that raced past the store's check meets a unique constraint; its name picks the code.
+_UNIQUE_CODES = (("proxy_id", "proxy_in_use"), ("label", "label_taken"))
 
 
 def get_source_account_store(request: Request) -> SourceAccountStore | None:
@@ -88,6 +91,10 @@ async def _call(function: Callable[..., T], *args: Any, **kwargs: Any) -> T:
         return await asyncio.to_thread(function, *args, **kwargs)
     except SourceAccountError as error:
         raise _error(_ERROR_STATUS.get(error.code, status.HTTP_409_CONFLICT), error.code) from None
+    except IntegrityError as error:
+        text = str(error.orig)
+        code = next((code for key, code in _UNIQUE_CODES if key in text), "conflict")
+        raise _error(status.HTTP_409_CONFLICT, code) from None
 
 
 def _account(view: AccountView) -> SourceAccount:

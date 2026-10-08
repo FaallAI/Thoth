@@ -315,6 +315,8 @@ async def test_share_link_landing_on_the_login_wall_is_request_blocked(tmp_path:
     result = await _inspect(tmp_path, InstagramRequestFetcher(get), FakeHeadless(), url=SHARE_URL)
     assert result.failure is not None
     assert (result.failure.code, result.failure.retryable) == ("request_blocked", True)
+    # The attempt names the login wall, so a leased account expires instead of cooling down.
+    assert [a.reason for a in result.failure.attempts] == [AcquisitionReason.LOGIN_WALL]
 
 
 @pytest.mark.asyncio

@@ -114,18 +114,21 @@ function CookieInput({ platform, client, onChange }: {
 }
 
 /** Direct, or one pool proxy; a proxy another account holds is shown but cannot be chosen. */
-function ProxySelect({ proxies, value, onChange, currentProxyId, onImportProxies }: {
+function ProxySelect({ proxies, value, onChange, currentProxyId, currentDisplay, onImportProxies }: {
   proxies: SourceProxy[];
   value: string | null;
   onChange: (proxyId: string | null) => void;
   currentProxyId?: string | null;
+  currentDisplay?: string | null;
   onImportProxies: () => void;
 }) {
   const selected = proxies.find((proxy) => proxy.id === value);
+  // A held proxy missing from the list (not loaded yet, or the list failed) still shows by name.
+  const shown = selected?.display ?? (value ? (value === currentProxyId && currentDisplay) || "Unlisted proxy" : "Direct");
   return <div className="sa-field">
     <label htmlFor="sa-proxy">Proxy</label>
     <Select value={value ?? DIRECT} onValueChange={(next) => onChange(next === DIRECT ? null : String(next))}>
-      <SelectTrigger id="sa-proxy" aria-label="Proxy" className="sa-select"><SelectValue>{selected?.display ?? "Direct"}</SelectValue></SelectTrigger>
+      <SelectTrigger id="sa-proxy" aria-label="Proxy" className="sa-select"><SelectValue>{shown}</SelectValue></SelectTrigger>
       <SelectContent>
         <SelectItem value={DIRECT}><span className="sa-option"><strong>Direct</strong><small>No proxy</small></span></SelectItem>
         {proxies.map((proxy) => {
@@ -222,6 +225,10 @@ export function ReimportDialog({ account, onOpenChange, client, onSaved }: {
   const [cookies, setCookies] = useState({ text: "", valid: false });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    setCookies({ text: "", valid: false });
+    setError("");
+  }, [account?.id]);
   if (!account) return null;
 
   async function save() {
@@ -245,7 +252,7 @@ export function ReimportDialog({ account, onOpenChange, client, onSaved }: {
         <p className="sa-readonly">{platformLabel(account.platform)} · {account.label}</p></div>
       <div className="sa-field">
         <span className="sa-field-label">Browser cookie export</span>
-        <CookieInput platform={account.platform} client={client} onChange={(text, valid) => setCookies({ text, valid })} />
+        <CookieInput key={account.id} platform={account.platform} client={client} onChange={(text, valid) => setCookies({ text, valid })} />
       </div>
       {cookies.valid && <p className="sa-field-hint">Validation passed. Existing session is replaced on save.</p>}
       {error && <p role="alert" className="sa-validation sa-validation--error">{error}</p>}
@@ -321,7 +328,7 @@ export function EditAccountDialog({ account, onOpenChange, client, proxies, onSa
         <Input id="sa-edit-label" maxLength={64} value={label} onChange={(event) => setLabel(event.target.value)} />
       </div>
       <ProxySelect proxies={proxies} value={proxyId} onChange={setProxyId} currentProxyId={account.proxy_id}
-        onImportProxies={onImportProxies} />
+        currentDisplay={account.proxy_display} onImportProxies={onImportProxies} />
       <p className="sa-field-hint">A proxy can serve one account at a time.</p>
       {confirming && <p role="alert" className="sa-validation sa-validation--error">Delete {account.label}? Its cookies are removed and its proxy returns to the pool.</p>}
       {error && <p role="alert" className="sa-validation sa-validation--error">{error}</p>}

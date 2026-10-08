@@ -94,6 +94,8 @@ class AccountLease:
     account_id: str
     platform: Platform
     access: SessionAccess
+    # Identifies this lease: a report carrying another one is stale.
+    leased_until: datetime
 
 
 def _uuid(value: str) -> uuid.UUID:
@@ -191,6 +193,8 @@ class SourceAccountStore:
             if row.status != "disabled":
                 row.status = "healthy"
             row.cooldown_level, row.cooldown_until = 0, None
+            # A lease taken on the old cookies ends here; its report must not judge the new ones.
+            row.leased_until = None
             row.updated_at = self._clock()
             return self._account_view(session, row)
 
@@ -283,15 +287,23 @@ class SourceAccountStore:
                     row.status, row.last_outcome, row.updated_at = "expired", "undecryptable", now
                     continue
                 row.leased_until, row.last_used_at = now + LEASE, now
-                return AccountLease(str(row.id), platform, access)
+                return AccountLease(str(row.id), platform, access, row.leased_until)
         return None
 
-    def report(self, account_id: str, outcome: Outcome | None) -> None:
-        """Release a lease; `outcome` None releases it without touching the account's health."""
+    def report(
+        self, account_id: str, outcome: Outcome | None, leased_until: datetime | None = None
+    ) -> None:
+        """Release a lease; `outcome` None releases it without touching the account's health.
+
+        With `leased_until`, a lease that is no longer the account's (expired and re-leased,
+        or ended by a re-import) is ignored.
+        """
         now = self._clock()
         with self._sessions.begin() as session:
             row = session.get(SourceAccountRow, _uuid(account_id))
             if row is None:
+                return
+            if leased_until is not None and row.leased_until != leased_until:
                 return
             row.leased_until = None
             if outcome is not None:

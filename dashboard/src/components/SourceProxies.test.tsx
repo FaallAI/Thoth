@@ -27,10 +27,12 @@ test("lists the pool by host and port and blocks deleting an assigned proxy", as
   const table = await screen.findByRole("table");
   expect(within(table).getByText("TikTok · Cedar · backup")).toBeDefined();
   expect(within(table).getByText("Unassigned")).toBeDefined();
-  const held = within(table).getByRole("button", { name: "Delete proxy.thoth.local:8080" }) as HTMLButtonElement;
+  const held = within(table).getByRole("button", { name: "Delete proxy 1, proxy.thoth.local:8080" }) as HTMLButtonElement;
   expect(held.title).toBe("Assigned to an account");
   expect(held.disabled).toBe(true);
-  await userEvent.click(within(table).getByRole("button", { name: "Delete eu-west.proxy.local:3128" }));
+  await userEvent.click(within(table).getByRole("button", { name: "Delete proxy 2, eu-west.proxy.local:3128" }));
+  expect(client.removeProxy).not.toHaveBeenCalled();
+  await userEvent.click(within(table).getByRole("button", { name: "Confirm delete proxy 2, eu-west.proxy.local:3128" }));
   expect(client.removeProxy).toHaveBeenCalledWith("p2");
   expect(screen.getByText("02 proxies")).toBeDefined();
 });
@@ -51,4 +53,12 @@ test("importing shows the summary by line number only", async () => {
 test("an empty pool invites an import", async () => {
   render(<SourceProxies client={fakeClient([])} onBack={() => {}} />);
   expect(await screen.findByText("No proxies yet")).toBeDefined();
+});
+
+test("two proxies on the same host and port keep distinct delete labels", async () => {
+  const twin = { ...POOL[1], id: "p3" };
+  render(<SourceProxies client={fakeClient([POOL[1], twin])} onBack={() => {}} />);
+  const table = await screen.findByRole("table");
+  const names = within(table).getAllByRole("button").map((button) => button.getAttribute("aria-label"));
+  expect(new Set(names).size).toBe(2);
 });

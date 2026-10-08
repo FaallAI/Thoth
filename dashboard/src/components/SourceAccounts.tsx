@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type KeyboardEvent } from "react";
 import { CircleAlert, Info, KeyRound, Network, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,13 +55,23 @@ function AccessCard({ group, available, onSave }: {
   const commitSpacing = () => {
     if (spacingValid && parsed !== group.min_spacing_seconds) void onSave(group.mode, parsed);
   };
+  // Arrow keys move the choice like a native radio group; only the checked radio is tabbable.
+  const step = (event: KeyboardEvent<HTMLDivElement>) => {
+    const delta = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+    if (!delta || !available) return;
+    event.preventDefault();
+    const index = (MODES.findIndex((mode) => mode.id === group.mode) + delta + MODES.length) % MODES.length;
+    event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[index]?.focus();
+    void onSave(MODES[index].id, group.min_spacing_seconds);
+  };
   return <section className="sa-card sa-access" aria-label={`${platformLabel(group.platform)} access`}>
     <header><h2><KeyRound aria-hidden="true" />{platformLabel(group.platform)} access</h2><span>Accounts rotate when used</span></header>
     <div className="sa-access-grid">
       <div>
         <p className="sa-field-label" id="sa-mode-label">Access mode</p>
-        <div className="sa-segmented" role="radiogroup" aria-labelledby="sa-mode-label">
+        <div className="sa-segmented" role="radiogroup" aria-labelledby="sa-mode-label" onKeyDown={step}>
           {MODES.map((mode) => <button key={mode.id} type="button" role="radio" aria-checked={group.mode === mode.id}
+            tabIndex={group.mode === mode.id ? 0 : -1}
             disabled={!available} onClick={() => mode.id !== group.mode && void onSave(mode.id, group.min_spacing_seconds)}>
             {mode.id}</button>)}
         </div>
@@ -110,6 +120,9 @@ export function SourceAccounts({ client, onManageProxies }: {
   const available = overview?.available ?? false;
   const group = overview?.platforms.find((entry) => entry.platform === platform);
   const now = Date.now();
+  // A cooldown that has run out is leasable again, as the store treats it.
+  const usable = group?.accounts.some((entry) => entry.status === "healthy"
+    || (entry.status === "cooldown" && entry.cooldown_until !== null && Date.parse(entry.cooldown_until) <= now));
 
   async function savePolicy(mode: AccessMode, spacing: number) {
     try {
@@ -152,7 +165,7 @@ export function SourceAccounts({ client, onManageProxies }: {
       <button type="button" aria-label="Dismiss" onClick={() => setNotice(null)}>×</button></p>}
     {group && <>
       <AccessCard group={group} available={available} onSave={savePolicy} />
-      {available && group.mode !== "anonymous" && group.counts.healthy === 0 && <p role="status" className="sa-banner sa-banner--warning">
+      {available && group.mode !== "anonymous" && !usable && <p role="status" className="sa-banner sa-banner--warning">
         <CircleAlert aria-hidden="true" />No healthy account. Acquisition on {platformLabel(platform)} runs anonymously.</p>}
       <section className="sa-card sa-counts" aria-label="Account status counts">
         {(Object.keys(STATUS_LABEL) as (keyof typeof STATUS_LABEL)[]).map((status) => <div key={status}>

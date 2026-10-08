@@ -56,7 +56,7 @@ async def _lease(store: SourceAccountStore, platform: str) -> AccountLease | Non
 
 async def _release(store: SourceAccountStore, lease: AccountLease, outcome: Outcome | None) -> None:
     try:
-        await asyncio.to_thread(store.report, lease.account_id, outcome)
+        await asyncio.to_thread(store.report, lease.account_id, outcome, lease.leased_until)
     except Exception:
         logger.warning("source account release failed; its lease expires on its own")
 

@@ -361,8 +361,13 @@ def create_app(
                 {"field": str(error.get("loc", ("",))[-1]), "code": str(error.get("type", ""))}
                 for error in exc.errors()
             ]
+            # An oversized import is a file problem, named as the parser would name it.
+            oversized = {"cookies": "invalid_cookie_file", "text": "invalid_proxy_file"}
+            code = "invalid_request"
+            if len(errors) == 1 and errors[0]["code"] == "string_too_long":
+                code = oversized.get(errors[0]["field"], code)
             return JSONResponse(
-                status_code=422, content={"detail": {"code": "invalid_request", "errors": errors}}
+                status_code=422, content={"detail": {"code": code, "errors": errors}}
             )
         if request.method == "GET" and path.endswith("/editor-assets"):
             return JSONResponse(

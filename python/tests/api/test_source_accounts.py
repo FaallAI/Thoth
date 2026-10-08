@@ -7,12 +7,16 @@ from datetime import UTC, datetime
 import httpx
 import pytest
 from cryptography.fernet import Fernet
+from fastapi import HTTPException
 from sqlalchemy import create_engine
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.pool import StaticPool
 
-from thoth_control_plane.acquisition.accounts.cookies import parse_cookies
+from thoth_control_plane.acquisition.accounts.cookies import MAX_IMPORT_BYTES, parse_cookies
+from thoth_control_plane.acquisition.accounts.proxies import MAX_PROXY_BYTES
 from thoth_control_plane.acquisition.accounts.vault import Vault
 from thoth_control_plane.api import create_app
+from thoth_control_plane.api.routes import source_accounts as source_accounts_routes
 from thoth_control_plane.config import Settings
 from thoth_control_plane.infrastructure.source_account_models import Base
 from thoth_control_plane.infrastructure.source_account_store import SourceAccountStore
@@ -297,3 +301,52 @@ def test_the_api_installs_the_provider_log_redaction(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(app_module, "configure_provider_logging", lambda: calls.append(True))
     create_app(Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"))
     assert calls == [True]
+
+
+@pytest.mark.asyncio
+async def test_a_proxy_taken_between_the_check_and_the_write_is_a_conflict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store()
+    async with client(store) as api:
+        await api.post("/source-proxies/import", headers=AUTH, json={"text": "http://1.2.3.4:8080"})
+        (proxy,) = (await api.get("/source-proxies", headers=AUTH)).json()
+        body = {"platform": "instagram", "cookies": COOKIES, "proxy_id": proxy["id"]}
+        await api.post("/source-accounts", headers=AUTH, json={**body, "label": "a"})
+        # The check sees a free proxy; the unique constraint catches the race instead.
+        monkeypatch.setattr(store, "_holder", lambda session, proxy_id: None)
+        raced = await api.post("/source-accounts", headers=AUTH, json={**body, "label": "b"})
+        assert (raced.status_code, raced.json()["detail"]["code"]) == (409, "proxy_in_use")
+
+
+@pytest.mark.asyncio
+async def test_a_label_taken_between_the_check_and_the_write_is_a_conflict() -> None:
+    def write() -> None:
+        raise IntegrityError(
+            "INSERT", None, Exception('unique constraint "source_accounts_platform_label_key"')
+        )
+
+    with pytest.raises(HTTPException) as caught:
+        await source_accounts_routes._call(write)
+    assert (caught.value.status_code, caught.value.detail) == (409, {"code": "label_taken"})
+
+
+@pytest.mark.asyncio
+async def test_an_oversized_import_names_the_file_problem() -> None:
+    async with client(_store()) as api:
+        cookies = await api.post(
+            "/source-accounts",
+            headers=AUTH,
+            json={"platform": "instagram", "label": "a", "cookies": "x" * (MAX_IMPORT_BYTES + 1)},
+        )
+        assert (cookies.status_code, cookies.json()["detail"]["code"]) == (
+            422,
+            "invalid_cookie_file",
+        )
+        proxies = await api.post(
+            "/source-proxies/import", headers=AUTH, json={"text": "x" * (MAX_PROXY_BYTES + 1)}
+        )
+        assert (proxies.status_code, proxies.json()["detail"]["code"]) == (
+            422,
+            "invalid_proxy_file",
+        )

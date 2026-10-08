@@ -251,3 +251,15 @@ def test_releasing_a_lease_on_a_deleted_account_is_quiet(store: SourceAccountSto
     store.delete_account(account.id)
     store.report(lease.account_id, "success")
     assert store.accounts() == []
+
+
+def test_a_stale_report_after_a_re_import_leaves_the_fresh_session_alone(
+    store: SourceAccountStore,
+) -> None:
+    store.set_policy("instagram", "always", 0)
+    account = store.add_account("instagram", "a", _cookies())
+    lease = store.lease("instagram")
+    store.replace_cookies(account.id, _cookies(value="fresh"))
+    store.report(lease.account_id, "login_wall", leased_until=lease.leased_until)
+    assert store.account(account.id).status == "healthy"
+    assert store.lease("instagram") is not None

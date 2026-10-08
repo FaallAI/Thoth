@@ -76,6 +76,7 @@ function ImportProxiesDialog({ open, onOpenChange, client, onImported }: {
 export function SourceProxies({ client, onBack }: { client: SourceAccountsClient; onBack: () => void }) {
   const [proxies, setProxies] = useState<SourceProxy[] | null>(null);
   const [importing, setImporting] = useState(false);
+  const [confirming, setConfirming] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -90,6 +91,11 @@ export function SourceProxies({ client, onBack }: { client: SourceAccountsClient
   useEffect(() => { void load(); }, [load]);
 
   async function remove(proxy: SourceProxy) {
+    if (confirming !== proxy.id) {
+      setConfirming(proxy.id);
+      return;
+    }
+    setConfirming(null);
     try {
       await client.removeProxy(proxy.id);
       await load();
@@ -117,15 +123,18 @@ export function SourceProxies({ client, onBack }: { client: SourceAccountsClient
       <header><h2>Proxy pool</h2><span>{pad(total)} proxies</span></header>
       {total ? <table className="sa-proxies-table">
         <thead><tr>{["Proxy", "Scheme", "Assigned to", "Actions"].map((name) => <th key={name}>{name}</th>)}</tr></thead>
-        <tbody>{proxies!.map((proxy) => {
+        <tbody>{proxies!.map((proxy, index) => {
           const held = proxy.account_label !== null;
+          // The position keeps two proxies on one host and port apart for a screen reader.
+          const name = `proxy ${index + 1}, ${proxy.display}`;
+          const sure = confirming === proxy.id;
           return <tr key={proxy.id}>
             <td className="sa-label">{proxy.display}</td>
             <td><span className="sa-chip">{proxy.scheme}</span></td>
             <td>{held ? `${platformLabel(proxy.account_platform ?? "")} · ${proxy.account_label}` : "Unassigned"}</td>
             <td><div className="sa-row-actions"><button type="button" disabled={held}
-              title={held ? "Assigned to an account" : undefined} aria-label={`Delete ${proxy.display}`}
-              onClick={() => remove(proxy)}>Delete</button></div></td>
+              title={held ? "Assigned to an account" : undefined} aria-label={`${sure ? "Confirm delete" : "Delete"} ${name}`}
+              onClick={() => remove(proxy)}>{sure ? "Confirm delete" : "Delete"}</button></div></td>
           </tr>;
         })}</tbody>
       </table> : proxies && <div className="sa-empty">

@@ -241,6 +241,7 @@ class InstagramAcquirer:
     ) -> AcquisitionResult:
         strategy = _STRATEGIES[CONTENT_METHOD]
         try:
+            start = time.monotonic()
             try:
                 identity = await resolve_instagram_identity(
                     source_url, self._request, self._headless
@@ -250,10 +251,14 @@ class InstagramAcquirer:
                     failure=AcquisitionFailure(code="invalid_source_url", retryable=False)
                 )
             except (RequestFetchError, HeadlessBrowserError) as error:
+                attempt = _make_attempt(
+                    _STRATEGIES[SHARE_RESOLUTION_METHOD], error.reason, _elapsed_ms(start)
+                )
                 return AcquisitionResult(
                     failure=AcquisitionFailure(
                         code=failure_code(error.reason),
                         retryable=failure_code(error.reason) in RETRYABLE_FAILURES,
+                        attempts=[attempt],
                     )
                 )
             start = time.monotonic()
