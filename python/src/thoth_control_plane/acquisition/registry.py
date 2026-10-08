@@ -105,7 +105,7 @@ def acquirer_for(
         return XAcquirer(XRequestFetcher(get), XHeadlessBrowser(browser), materializer)
     if platform == "youtube":
         return YouTubeAcquirer(
-            YtDlpClient(_yt_dlp_factory(access, scratch)),
+            YtDlpClient(_yt_dlp_factory(access, scratch), signed_in=access is not None),
             YouTubeHeadlessBrowser(browser),
             materializer,
         )

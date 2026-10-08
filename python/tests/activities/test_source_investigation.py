@@ -688,3 +688,31 @@ async def test_threads_attempts_use_platform_stage_names(tmp_path: Path) -> None
         "threads_cleanup",
     ]
     assert result.events[1].payload["reason"] == "request_blocked"
+
+
+@pytest.mark.asyncio
+async def test_a_login_wall_attempt_is_a_safe_event_and_a_request_blocked_failure(
+    tmp_path: Path,
+) -> None:
+    async def runner(workflow_id: str, source_url: str, artifact_root: Path):
+        del workflow_id, source_url, artifact_root
+        return AcquisitionResult(
+            failure=AcquisitionFailure(
+                code="request_blocked",
+                retryable=True,
+                attempts=[
+                    AcquisitionAttempt(
+                        strategy=AcquisitionStrategy.SCRAPLING_HEADLESS,
+                        status=AttemptStatus.FAILED,
+                        reason=AcquisitionReason.LOGIN_WALL,
+                        attempt_count=1,
+                        elapsed_ms=10,
+                    )
+                ],
+            )
+        )
+
+    result = await build_source_investigation_activity(_settings(tmp_path), runner=runner)(INPUT)
+
+    assert result.failure == SafeActivityError(code="request_blocked", retryable=True)
+    assert result.events[1].payload["reason"] == "login_wall"

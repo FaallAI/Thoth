@@ -61,6 +61,7 @@ from thoth_control_plane.acquisition.models import (
     MaterializedMedia,
     ReportSource,
     SourceReport,
+    failure_code,
 )
 from thoth_control_plane.acquisition.service import (
     RETRYABLE_FAILURES,
@@ -86,6 +87,8 @@ DIALOG_CLOSE_SELECTOR = 'div[role=dialog] svg[aria-label="Close"]'
 POST_CARD_SELECTOR = "main > div > div"
 PROFILE_CARD_SELECTOR = "header"
 LOGIN_PATHS = ("/accounts/login", "/login", "/challenge")
+# A sign-in page means no usable session; a challenge means the session was flagged.
+SIGN_IN_PATHS = ("/accounts/login", "/login")
 # Tags each matched comment row; targets arrive as the evaluate argument, never interpolated.
 TAG_COMMENTS_JS = """
 (targets) => {
@@ -145,6 +148,8 @@ class InstagramRequestFetcher:
                 else AcquisitionReason.REQUEST_BLOCKED
             )
             raise RequestFetchError(reason) from None
+        if is_login_path(response.url, SIGN_IN_PATHS):
+            raise RequestFetchError(AcquisitionReason.LOGIN_WALL)
         if getattr(response, "status", None) != 200 or _blocked(response.url):
             raise RequestFetchError(AcquisitionReason.REQUEST_BLOCKED)
         return response
@@ -213,12 +218,11 @@ class InstagramAcquirer:
         self, identity: InstagramPostIdentity
     ) -> tuple[InstagramParse | None, AcquisitionReason | None]:
         url = str(identity.canonical_url)
-        if CONTENT_METHOD == "request":
-            blocked = AcquisitionReason.REQUEST_BLOCKED
-            incomplete = AcquisitionReason.REQUEST_INCOMPLETE
-        else:
-            blocked = AcquisitionReason.HEADLESS_BLOCKED
-            incomplete = AcquisitionReason.HEADLESS_INCOMPLETE
+        incomplete = (
+            AcquisitionReason.REQUEST_INCOMPLETE
+            if CONTENT_METHOD == "request"
+            else AcquisitionReason.HEADLESS_INCOMPLETE
+        )
         try:
             if CONTENT_METHOD == "request":
                 texts = await self._request.fetch(url)
@@ -228,7 +232,7 @@ class InstagramAcquirer:
             return None, error.reason
         roots = json_roots(texts)
         if login_required(roots):
-            return None, blocked
+            return None, AcquisitionReason.LOGIN_WALL
         parsed = parse_post(roots, identity)
         return parsed, None if parsed else incomplete
 
@@ -248,8 +252,8 @@ class InstagramAcquirer:
             except (RequestFetchError, HeadlessBrowserError) as error:
                 return AcquisitionResult(
                     failure=AcquisitionFailure(
-                        code=error.reason.value,
-                        retryable=error.reason.value in RETRYABLE_FAILURES,
+                        code=failure_code(error.reason),
+                        retryable=failure_code(error.reason) in RETRYABLE_FAILURES,
                     )
                 )
             start = time.monotonic()
@@ -278,8 +282,8 @@ class InstagramAcquirer:
             if reason is not None:
                 return AcquisitionResult(
                     failure=AcquisitionFailure(
-                        code=reason.value,
-                        retryable=reason.value in RETRYABLE_FAILURES,
+                        code=failure_code(reason),
+                        retryable=failure_code(reason) in RETRYABLE_FAILURES,
                         attempts=[attempt],
                     )
                 )

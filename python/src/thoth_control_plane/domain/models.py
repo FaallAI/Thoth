@@ -382,6 +382,7 @@ SOURCE_EVENT_REASONS = frozenset(
         "cdn_rate_limited",
         "cdn_unavailable",
         "media_validation_failed",
+        "login_wall",
     }
 )
 

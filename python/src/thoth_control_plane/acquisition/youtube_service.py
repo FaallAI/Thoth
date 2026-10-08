@@ -50,6 +50,7 @@ from thoth_control_plane.acquisition.models import (
     MaterializedMedia,
     ReportSource,
     SourceReport,
+    failure_code,
 )
 from thoth_control_plane.acquisition.service import (
     RETRYABLE_FAILURES,
@@ -156,13 +157,14 @@ class YtDlpError(Exception):
         self.reason = reason
 
 
-def classify(error: BaseException) -> AcquisitionReason:
+def classify(error: BaseException, *, signed_in: bool = False) -> AcquisitionReason:
     """Map a yt-dlp failure to a reason by message class; the message never leaves here."""
     text = str(error).lower()
     if isinstance(error, TimeoutError) or "timed out" in text:
         return AcquisitionReason.REQUEST_TIMEOUT
     if any(phrase in text for phrase in BOT_CHECK):
-        return AcquisitionReason.REQUEST_BLOCKED
+        # With a session's cookies, a sign-in demand means the session no longer works.
+        return AcquisitionReason.LOGIN_WALL if signed_in else AcquisitionReason.REQUEST_BLOCKED
     if any(phrase in text for phrase in STALE):
         logger.warning("youtube extraction failed in a way that suggests yt-dlp needs an update")
         return AcquisitionReason.REQUEST_BLOCKED
@@ -196,8 +198,14 @@ def _default_factory(options: dict[str, Any]) -> Any:
 class YtDlpClient:
     """yt-dlp as a library, run in a worker thread under a timeout."""
 
-    def __init__(self, factory: Callable[[dict[str, Any]], Any] | None = None) -> None:
+    def __init__(
+        self,
+        factory: Callable[[dict[str, Any]], Any] | None = None,
+        *,
+        signed_in: bool = False,
+    ) -> None:
         self._factory = factory or _default_factory
+        self._signed_in = signed_in
 
     def _call(self, options: dict[str, Any], call: Callable[[Any], Any]) -> Any:
         with self._factory({**YTDLP_OPTIONS, "logger": _Silent(), **options}) as ydl:
@@ -233,7 +241,7 @@ class YtDlpClient:
                 options, lambda ydl: ydl.extract_info(url, download=False), EXTRACT_TIMEOUT_SECONDS
             )
         except Exception as error:
-            raise YtDlpError(classify(error)) from None
+            raise YtDlpError(classify(error, signed_in=self._signed_in)) from None
         if not isinstance(info, dict):
             raise YtDlpError(AcquisitionReason.REQUEST_INCOMPLETE)
         return info
@@ -369,7 +377,7 @@ class YouTubeAcquirer:
                         reason = AcquisitionReason.MEDIA_VALIDATION_FAILED
             attempt = _make_attempt(strategy, reason, _elapsed_ms(start))
             if reason is not None or parsed is None:
-                code = (reason or AcquisitionReason.REQUEST_INCOMPLETE).value
+                code = failure_code(reason or AcquisitionReason.REQUEST_INCOMPLETE)
                 return AcquisitionResult(
                     failure=AcquisitionFailure(
                         code=code, retryable=code in RETRYABLE_FAILURES, attempts=[attempt]

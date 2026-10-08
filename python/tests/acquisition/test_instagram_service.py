@@ -70,7 +70,7 @@ async def test_request_fetcher_returns_script_texts() -> None:
         (_response(status=429), AcquisitionReason.REQUEST_BLOCKED),
         (
             _response(url="https://www.instagram.com/accounts/login/?next=%2Fp%2Fx%2F"),
-            AcquisitionReason.REQUEST_BLOCKED,
+            AcquisitionReason.LOGIN_WALL,
         ),
         (_response(url="https://www.instagram.com/challenge/"), AcquisitionReason.REQUEST_BLOCKED),
         (TimeoutError(), AcquisitionReason.REQUEST_TIMEOUT),

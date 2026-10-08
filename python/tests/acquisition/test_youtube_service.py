@@ -251,3 +251,23 @@ def test_extract_and_download_fit_inside_the_activity_budget() -> None:
     # the adoption need what is left, so yt-dlp's own timeouts must fire first.
     budget = youtube_service.EXTRACT_TIMEOUT_SECONDS + youtube_service.DOWNLOAD_TIMEOUT_SECONDS
     assert budget <= 240
+
+
+def test_a_sign_in_demand_with_cookies_is_a_login_wall() -> None:
+    error = RuntimeError("ERROR: Sign in to confirm you're not a bot")
+    assert classify(error) is AcquisitionReason.REQUEST_BLOCKED
+    assert classify(error, signed_in=True) is AcquisitionReason.LOGIN_WALL
+    assert classify(RuntimeError("Video unavailable"), signed_in=True) is (
+        AcquisitionReason.REQUEST_INCOMPLETE
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_signed_in_client_reports_a_login_wall() -> None:
+    client = YtDlpClient(
+        lambda options: FakeYdl(options, RuntimeError("Sign in to confirm your age")),
+        signed_in=True,
+    )
+    with pytest.raises(YtDlpError) as caught:
+        await client.extract(URL, comments=True)
+    assert caught.value.reason is AcquisitionReason.LOGIN_WALL

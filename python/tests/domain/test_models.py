@@ -261,6 +261,13 @@ def test_source_progress_event_rejects_out_of_set_reason(reason: str) -> None:
         SourceProgressEvent(kind="stage.failed", payload={"stage": "tiktok_cdn", "reason": reason})
 
 
+def test_a_login_wall_reason_is_a_safe_event_reason() -> None:
+    event = SourceProgressEvent(
+        kind="stage.failed", payload={"stage": "x_request", "reason": "login_wall"}
+    )
+    assert event.payload["reason"] == "login_wall"
+
+
 def test_unsupported_platform_is_not_legacy_fallback_eligible() -> None:
     """`unsupported_platform` is a pre-provider rejection, not a Python failure.
 

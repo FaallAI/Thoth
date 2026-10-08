@@ -77,6 +77,16 @@ class AcquisitionReason(StrEnum):
     CDN_RATE_LIMITED = "cdn_rate_limited"
     CDN_UNAVAILABLE = "cdn_unavailable"
     MEDIA_VALIDATION_FAILED = "media_validation_failed"
+    # A login page instead of the content: reported as `request_blocked`; the reason
+    # tells source-account rotation that a session has expired.
+    LOGIN_WALL = "login_wall"
+
+
+def failure_code(reason: AcquisitionReason) -> str:
+    """The failure code for `reason`; a login wall adds no code of its own."""
+    if reason is AcquisitionReason.LOGIN_WALL:
+        return AcquisitionReason.REQUEST_BLOCKED.value
+    return reason.value
 
 
 class AcquisitionAttempt(StrictModel):

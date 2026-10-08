@@ -70,7 +70,10 @@ async def test_a_non_json_syndication_body_is_missing() -> None:
     [
         (_response(status=403), BLOCKED),
         (_response(status=429), BLOCKED),
-        (_response(url="https://x.com/i/flow/login?redirect_after_login=%2F"), BLOCKED),
+        (
+            _response(url="https://x.com/i/flow/login?redirect_after_login=%2F"),
+            AcquisitionReason.LOGIN_WALL,
+        ),
         (_response(url="https://x.com/account/access"), BLOCKED),
         (TimeoutError(), TIMEOUT),
         (RuntimeError("boom"), BLOCKED),

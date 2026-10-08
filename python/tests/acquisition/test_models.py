@@ -28,6 +28,7 @@ from thoth_control_plane.acquisition.models import (
     TikTokPost,
     TikTokSourceReport,
     TrendingDiscovery,
+    failure_code,
 )
 
 
@@ -547,3 +548,12 @@ def test_neutral_result_requires_exactly_one_outcome() -> None:
         AcquisitionResult(
             report=_v3(), failure=AcquisitionFailure(code="no_content", retryable=False)
         )
+
+
+def test_a_login_wall_is_reported_with_the_request_blocked_code() -> None:
+    assert failure_code(AcquisitionReason.LOGIN_WALL) == "request_blocked"
+    for reason in AcquisitionReason:
+        if reason is not AcquisitionReason.LOGIN_WALL:
+            assert failure_code(reason) == reason.value
+    failure = AcquisitionFailure(code=failure_code(AcquisitionReason.LOGIN_WALL), retryable=True)
+    assert failure.code == "request_blocked"

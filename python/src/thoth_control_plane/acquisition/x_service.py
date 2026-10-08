@@ -55,6 +55,7 @@ from thoth_control_plane.acquisition.models import (
     MaterializedMedia,
     ReportSource,
     SourceReport,
+    failure_code,
 )
 from thoth_control_plane.acquisition.service import (
     RETRYABLE_FAILURES,
@@ -75,6 +76,8 @@ CONTENT_METHOD: Literal["request"] = "request"
 # Any token is accepted (Stage 3c probe); the id names the tweet.
 SYNDICATION_URL = "https://cdn.syndication.twimg.com/tweet-result?id={post_id}&token=0&lang=en"
 LOGIN_PATHS = ("/i/flow/login", "/login", "/account/access")
+# A sign-in page means no usable session; `/account/access` means the account was flagged.
+SIGN_IN_PATHS = ("/i/flow/login", "/login")
 # From the Stage 3c capture survey. The post's own article links to its status; on a reply's
 # page the parent tweet's article comes first. The profile card is the block holding the
 # avatar, name, and bio, directly under the banner.
@@ -161,6 +164,8 @@ class XRequestFetcher:
         status = getattr(response, "status", None)
         if missing_ok and status == 404:
             return None
+        if is_login_path(response.url, SIGN_IN_PATHS):
+            raise RequestFetchError(AcquisitionReason.LOGIN_WALL)
         if status != 200 or is_login_path(response.url, LOGIN_PATHS):
             raise RequestFetchError(AcquisitionReason.REQUEST_BLOCKED)
         return response
@@ -291,7 +296,7 @@ class XAcquirer:
                     reason = AcquisitionReason.MEDIA_VALIDATION_FAILED
             attempt = _make_attempt(strategy, reason, _elapsed_ms(start))
             if reason is not None or parsed is None:
-                code = (reason or AcquisitionReason.REQUEST_INCOMPLETE).value
+                code = failure_code(reason or AcquisitionReason.REQUEST_INCOMPLETE)
                 return AcquisitionResult(
                     failure=AcquisitionFailure(
                         code=code, retryable=code in RETRYABLE_FAILURES, attempts=[attempt]

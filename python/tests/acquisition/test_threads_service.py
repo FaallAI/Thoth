@@ -329,7 +329,7 @@ async def test_request_fetcher_returns_script_texts() -> None:
     ("get_result", "reason"),
     [
         (_response(status=403), AcquisitionReason.REQUEST_BLOCKED),
-        (_response(url="https://www.threads.com/login?next=x"), AcquisitionReason.REQUEST_BLOCKED),
+        (_response(url="https://www.threads.com/login?next=x"), AcquisitionReason.LOGIN_WALL),
         (TimeoutError(), AcquisitionReason.REQUEST_TIMEOUT),
         (RuntimeError("boom"), AcquisitionReason.REQUEST_BLOCKED),
     ],

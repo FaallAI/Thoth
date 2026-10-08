@@ -55,6 +55,7 @@ from thoth_control_plane.acquisition.models import (
     ReportSource,
     ResolvedMedia,
     SourceReport,
+    failure_code,
 )
 from thoth_control_plane.acquisition.service import (
     RETRYABLE_FAILURES,
@@ -113,7 +114,9 @@ class ThreadsRequestFetcher:
                 else AcquisitionReason.REQUEST_BLOCKED
             )
             raise RequestFetchError(reason) from None
-        if getattr(response, "status", None) != 200 or _blocked(response.url):
+        if _blocked(response.url):
+            raise RequestFetchError(AcquisitionReason.LOGIN_WALL)
+        if getattr(response, "status", None) != 200:
             raise RequestFetchError(AcquisitionReason.REQUEST_BLOCKED)
         return [text for text in response.css(SCRIPT_SELECTOR).getall() if text]
 
@@ -345,8 +348,8 @@ class ThreadsAcquirer:
             except HeadlessBrowserError as error:
                 return AcquisitionResult(
                     failure=AcquisitionFailure(
-                        code=error.reason.value,
-                        retryable=error.reason.value in RETRYABLE_FAILURES,
+                        code=failure_code(error.reason),
+                        retryable=failure_code(error.reason) in RETRYABLE_FAILURES,
                     )
                 )
             start = time.monotonic()
@@ -375,8 +378,8 @@ class ThreadsAcquirer:
             if reason is not None:
                 return AcquisitionResult(
                     failure=AcquisitionFailure(
-                        code=reason.value,
-                        retryable=reason.value in RETRYABLE_FAILURES,
+                        code=failure_code(reason),
+                        retryable=failure_code(reason) in RETRYABLE_FAILURES,
                         attempts=[attempt],
                     )
                 )

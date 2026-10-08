@@ -250,11 +250,12 @@ async def test_a_blocked_request_is_retryable_and_skips_cards(tmp_path: Path) ->
 
 
 @pytest.mark.asyncio
-async def test_require_login_is_request_blocked(tmp_path: Path) -> None:
+async def test_require_login_is_request_blocked_with_a_login_wall_attempt(tmp_path: Path) -> None:
     texts = [json.dumps({"message": "x", "require_login": True, "status": "fail"})]
     result = await _inspect(tmp_path, FakeRequest(texts), FakeHeadless())
     assert result.failure is not None
-    assert result.failure.code == "request_blocked"
+    assert (result.failure.code, result.failure.retryable) == ("request_blocked", True)
+    assert [a.reason for a in result.failure.attempts] == [AcquisitionReason.LOGIN_WALL]
 
 
 @pytest.mark.asyncio
