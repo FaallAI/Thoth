@@ -82,7 +82,8 @@ class Settings(BaseSettings):
     THOTH_FFMPEG: str = "ffmpeg"
     THOTH_NOVITA_API_KEY: SecretStr | None = None
     THOTH_SOURCE_VISION_MODEL: str = "qwen/qwen3-vl-30b-a3b-instruct"
-    THOTH_TYPESAFE_API_KEY: SecretStr | None = None
+    # Jev decisions go through OpenRouter's Decisions API (operator, 2026-10-08).
+    THOTH_OPENROUTER_API_KEY: SecretStr | None = None
     # Read by the API when it starts an identify_original workflow; a kill switch.
     THOTH_SOURCE_ATTRIBUTION_ENABLED: bool = True
 
@@ -150,9 +151,9 @@ class Settings(BaseSettings):
         return _secret(self.THOTH_NOVITA_API_KEY)
 
     @property
-    def typesafe_api_key(self) -> str | None:
-        """The Jev decision key, or None when attribution decides by rules alone."""
-        return _secret(self.THOTH_TYPESAFE_API_KEY)
+    def openrouter_api_key(self) -> str | None:
+        """The OpenRouter key for Jev decisions, or None when attribution uses rules alone."""
+        return _secret(self.THOTH_OPENROUTER_API_KEY)
 
     @property
     def legacy_bridge_enabled(self) -> bool:

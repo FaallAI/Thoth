@@ -40,7 +40,7 @@ the value.
 | `THOTH_ACCOUNT_VAULT_KEY` | FastAPI, Python worker | Optional secret Fernet key that seals source-account cookies and proxies in the editor database. Without it (or without `THOTH_EDITOR_DATABASE_URL`) source accounts are off and acquisition runs anonymously. Generate one with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. |
 | `THOTH_NOVITA_API_KEY` | Python worker | Optional secret vision key for source attribution (Novita, OpenAI-compatible). Without it attribution skips cover vision and finalist classification. |
 | `THOTH_SOURCE_VISION_MODEL` | Python worker | Vision model for source attribution; default `qwen/qwen3-vl-30b-a3b-instruct`. |
-| `THOTH_TYPESAFE_API_KEY` | Python worker | Optional secret TypeSafe Jev key for typed attribution decisions. Without it attribution decides by deterministic credit rules. |
+| `THOTH_OPENROUTER_API_KEY` | Python worker | Optional secret OpenRouter key; attribution asks TypeSafe Jev (`typesafe/jev-1.13`) for typed decisions through OpenRouter's Decisions API. Without it attribution decides by deterministic credit rules. |
 | `THOTH_FFMPEG` | Python worker | ffmpeg executable for attribution frames; default `ffmpeg`, `/usr/bin/ffmpeg` in the image. |
 | `THOTH_SOURCE_ATTRIBUTION_ENABLED` | FastAPI | Default `true`. `false` starts `identify_original` workflows without the attribution stage. |
 | `THOTH_TEMPORAL_TARGET` | FastAPI, Python worker | Temporal gRPC target; default `localhost:7233`. |

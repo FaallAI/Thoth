@@ -106,7 +106,7 @@ class RunnerAcquirer:
 
 def build_production_ports(settings: Settings, artifact_root: Path) -> AttributionPorts:
     novita = settings.novita_api_key
-    typesafe = settings.typesafe_api_key
+    openrouter = settings.openrouter_api_key
     return AttributionPorts(
         frames=FfmpegFrameSource(settings.THOTH_FFMPEG),
         hasher=ImageHasher(),
@@ -114,7 +114,7 @@ def build_production_ports(settings: Settings, artifact_root: Path) -> Attributi
         discoverer=ProfileDiscoverer(),
         acquirer=RunnerAcquirer(build_production_acquisition_runner(settings), artifact_root),
         vision=AgnoVisionReader(novita, settings.THOTH_SOURCE_VISION_MODEL) if novita else None,
-        decisions=JevDecisionModel(typesafe) if typesafe else None,
+        decisions=JevDecisionModel(openrouter) if openrouter else None,
     )
 
 

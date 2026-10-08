@@ -1,4 +1,4 @@
-"""Typed decisions from TypeSafe Jev over plain HTTP; no SDK, never prose.
+"""Typed decisions from TypeSafe Jev through OpenRouter's Decisions API; never prose.
 
 Jev answers typed questions about one state with calibrated probabilities: `noul` (a yes
 probability) and `choice` (one of the declared options). The handle question only ever offers
@@ -19,8 +19,10 @@ from thoth_control_plane.attribution.ports import Decisions
 
 logger = logging.getLogger(__name__)
 
-JEV_URL = "https://api.typesafe.ai/v1/systemone"
-JEV_MODEL = "jev-1.13"
+# OpenRouter only for now (operator, 2026-10-08); the request and answer shapes are
+# the same as TypeSafe's own API.
+JEV_URL = "https://openrouter.ai/api/alpha/decisions"
+JEV_MODEL = "typesafe/jev-1.13"
 TIMEOUT_SECONDS = 10.0
 NONE_OPTION = "none"
 IS_REPOST = (

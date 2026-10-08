@@ -2,6 +2,11 @@
 
 Status: written spec approved by the operator on 2026-10-08.
 
+Amendment (operator, 2026-10-08, during implementation): Jev is reached through OpenRouter's
+Decisions API only (`https://openrouter.ai/api/alpha/decisions`, model `typesafe/jev-1.13`),
+with `THOTH_OPENROUTER_API_KEY` in place of `THOTH_TYPESAFE_API_KEY`. The request and answer
+shapes are unchanged.
+
 - Roadmap: Stage 4, "Move Source Intelligence", in `docs/python-scout-migration-roadmap.md`.
 - Inputs to this design:
   - `docs/research/2026-10-08-stage4-source-intelligence-ideas.md` (flow map S1 to S8,

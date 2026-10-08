@@ -186,13 +186,13 @@ def test_production_ports_follow_the_configured_keys(tmp_path: Path) -> None:
         "THOTH_CONTROL_PLANE_ARTIFACT_ROOT": tmp_path,
     }
     without = build_production_ports(
-        Settings(**common, THOTH_NOVITA_API_KEY=None, THOTH_TYPESAFE_API_KEY=None), tmp_path
+        Settings(**common, THOTH_NOVITA_API_KEY=None, THOTH_OPENROUTER_API_KEY=None), tmp_path
     )
     with_keys = build_production_ports(
         Settings(
             **common,
             THOTH_NOVITA_API_KEY="nv-synthetic-key",
-            THOTH_TYPESAFE_API_KEY="ts-synthetic-key",
+            THOTH_OPENROUTER_API_KEY="or-synthetic-key",
         ),
         tmp_path,
     )
@@ -209,13 +209,13 @@ def test_provider_keys_never_reach_an_adapter_repr_or_the_ports(tmp_path: Path) 
             THOTH_CONTROL_PLANE_API_KEY="k",
             THOTH_CONTROL_PLANE_ARTIFACT_ROOT=tmp_path,
             THOTH_NOVITA_API_KEY="nv-canary-0123456789",
-            THOTH_TYPESAFE_API_KEY="ts-canary-0123456789",
+            THOTH_OPENROUTER_API_KEY="or-canary-0123456789",
         ),
         tmp_path,
     )
 
     rendered = repr(ports)
-    assert "nv-canary" not in rendered and "ts-canary" not in rendered
+    assert "nv-canary" not in rendered and "or-canary" not in rendered
 
 
 def test_the_verdict_is_a_closed_event_payload_value() -> None:
