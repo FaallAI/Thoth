@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from temporalio.service import RPCError
 
+from thoth_control_plane.acquisition.accounts.vault import Vault
 from thoth_control_plane.api.routes.edit_documents import router as edit_document_router
 from thoth_control_plane.api.routes.editor_assets import router as editor_asset_router
 from thoth_control_plane.api.routes.health import router as health_router
@@ -22,6 +23,7 @@ from thoth_control_plane.api.routes.internal_render_jobs import router as intern
 from thoth_control_plane.api.routes.prompt_lab import router as prompt_lab_router
 from thoth_control_plane.api.routes.prompt_proposals import router as prompt_proposal_router
 from thoth_control_plane.api.routes.render_jobs import router as render_job_router
+from thoth_control_plane.api.routes.source_accounts import router as source_account_router
 from thoth_control_plane.api.routes.studio_imports import router as studio_import_router
 from thoth_control_plane.api.routes.studio_review import router as studio_review_router
 from thoth_control_plane.api.routes.workflows import router as workflow_router
@@ -82,6 +84,7 @@ from thoth_control_plane.infrastructure.renderer_gateway import (
     HttpRendererGateway,
     UnavailableRendererGateway,
 )
+from thoth_control_plane.infrastructure.source_account_store import SourceAccountStore
 from thoth_control_plane.infrastructure.studio_import_repository import (
     PostgresStudioImportRepository,
 )
@@ -156,6 +159,14 @@ async def _reconcile_render_deadlines(service: RenderJobService, interval: float
             await service.reconcile_expired(datetime.now(UTC))
 
 
+def _source_account_store(settings: Settings) -> SourceAccountStore | None:
+    """The source-account store, when the vault key and the editor database are configured."""
+    vault = Vault.from_key(settings.account_vault_key)
+    if vault is None or settings.THOTH_EDITOR_DATABASE_URL is None:
+        return None
+    return SourceAccountStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value(), vault)
+
+
 def create_app(
     settings: Settings | None = None,
     gateway: WorkflowGateway | None = None,
@@ -168,6 +179,7 @@ def create_app(
     render_job_service: RenderJobService | None = None,
     studio_review_repository: StudioReviewRepository | None = None,
     studio_import_repository: StudioImportRepository | None = None,
+    source_account_store: SourceAccountStore | None = None,
 ) -> FastAPI:
     """Create an isolated v1 API application for the supplied workflow gateway."""
     settings = settings or Settings()  # type: ignore[call-arg]
@@ -273,6 +285,7 @@ def create_app(
     app.state.render_job_service = render_service
     app.state.studio_review_service = StudioReviewService(studio_review_repository)
     app.state.studio_import_service = StudioImportService(studio_import_repository)
+    app.state.source_account_store = source_account_store or _source_account_store(settings)
 
     app.add_middleware(
         CORSMiddleware,
@@ -339,6 +352,15 @@ def create_app(
                     return JSONResponse(
                         status_code=422, content={"detail": {"code": "missing_idempotency_key"}}
                     )
+        if "/source-accounts" in path or "/source-proxies" in path:
+            # These bodies hold cookies and proxy credentials: name the field, never echo it.
+            errors = [
+                {"field": str(error.get("loc", ("",))[-1]), "code": str(error.get("type", ""))}
+                for error in exc.errors()
+            ]
+            return JSONResponse(
+                status_code=422, content={"detail": {"code": "invalid_request", "errors": errors}}
+            )
         if request.method == "GET" and path.endswith("/editor-assets"):
             return JSONResponse(
                 status_code=422, content={"detail": {"code": "invalid_asset_query"}}
@@ -360,6 +382,7 @@ def create_app(
     app.include_router(render_job_router, prefix="/api/v1")
     app.include_router(studio_review_router, prefix="/api/v1")
     app.include_router(studio_import_router, prefix="/api/v1")
+    app.include_router(source_account_router, prefix="/api/v1")
     # Unversioned and unpublished: only the private renderer ever calls these.
     app.include_router(internal_render_router)
     return app

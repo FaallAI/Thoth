@@ -1,6 +1,32 @@
 {
   "components": {
     "schemas": {
+      "AccessPolicyUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "min_spacing_seconds": {
+            "maximum": 86400.0,
+            "minimum": 0.0,
+            "title": "Min Spacing Seconds",
+            "type": "integer"
+          },
+          "mode": {
+            "enum": [
+              "anonymous",
+              "fallback",
+              "always"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "min_spacing_seconds"
+        ],
+        "title": "AccessPolicyUpdate",
+        "type": "object"
+      },
       "ActorSnapshot": {
         "additionalProperties": false,
         "properties": {
@@ -591,6 +617,115 @@
           "footage"
         ],
         "title": "ContentSetImportRequest",
+        "type": "object"
+      },
+      "CookieReimport": {
+        "additionalProperties": false,
+        "properties": {
+          "cookies": {
+            "maxLength": 262144,
+            "minLength": 1,
+            "title": "Cookies",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cookies"
+        ],
+        "title": "CookieReimport",
+        "type": "object"
+      },
+      "CookieValidation": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "earliest_expiry": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Earliest Expiry"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "enum": [
+                  "invalid_cookie_file",
+                  "all_cookies_expired",
+                  "missing_required_cookie"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
+          },
+          "names": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Names",
+            "type": "array"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "valid",
+          "count",
+          "names",
+          "earliest_expiry",
+          "error",
+          "missing"
+        ],
+        "title": "CookieValidation",
+        "type": "object"
+      },
+      "CookieValidationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "cookies": {
+            "maxLength": 262144,
+            "minLength": 1,
+            "title": "Cookies",
+            "type": "string"
+          },
+          "platform": {
+            "enum": [
+              "tiktok",
+              "threads",
+              "instagram",
+              "x",
+              "youtube"
+            ],
+            "title": "Platform",
+            "type": "string"
+          }
+        },
+        "required": [
+          "platform",
+          "cookies"
+        ],
+        "title": "CookieValidationRequest",
         "type": "object"
       },
       "CreateComment": {
@@ -1546,6 +1681,54 @@
         "title": "OverlayParameters",
         "type": "object"
       },
+      "PlatformAccounts": {
+        "additionalProperties": false,
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/SourceAccount"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/StatusCounts"
+          },
+          "min_spacing_seconds": {
+            "title": "Min Spacing Seconds",
+            "type": "integer"
+          },
+          "mode": {
+            "enum": [
+              "anonymous",
+              "fallback",
+              "always"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "platform": {
+            "enum": [
+              "tiktok",
+              "threads",
+              "instagram",
+              "x",
+              "youtube"
+            ],
+            "title": "Platform",
+            "type": "string"
+          }
+        },
+        "required": [
+          "platform",
+          "mode",
+          "min_spacing_seconds",
+          "counts",
+          "accounts"
+        ],
+        "title": "PlatformAccounts",
+        "type": "object"
+      },
       "Position": {
         "additionalProperties": false,
         "properties": {
@@ -2315,6 +2498,49 @@
           "body"
         ],
         "title": "PromptTemplateRevision",
+        "type": "object"
+      },
+      "ProxyImportRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "maxLength": 65536,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "ProxyImportRequest",
+        "type": "object"
+      },
+      "ProxyImportSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "added": {
+            "title": "Added",
+            "type": "integer"
+          },
+          "duplicates": {
+            "title": "Duplicates",
+            "type": "integer"
+          },
+          "invalid_lines": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Invalid Lines",
+            "type": "array"
+          }
+        },
+        "required": [
+          "added",
+          "duplicates",
+          "invalid_lines"
+        ],
+        "title": "ProxyImportSummary",
         "type": "object"
       },
       "RemoveClip": {
@@ -3352,6 +3578,29 @@
         "title": "Scene",
         "type": "object"
       },
+      "SessionCheckResult": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/SourceAccount"
+          },
+          "result": {
+            "enum": [
+              "valid",
+              "expired",
+              "inconclusive"
+            ],
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result",
+          "account"
+        ],
+        "title": "SessionCheckResult",
+        "type": "object"
+      },
       "SetCaptionCueText": {
         "additionalProperties": false,
         "properties": {
@@ -3738,6 +3987,274 @@
         "title": "SetTrackVisibility",
         "type": "object"
       },
+      "SourceAccount": {
+        "additionalProperties": false,
+        "properties": {
+          "cookie_names": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Cookie Names",
+            "type": "array"
+          },
+          "cookies_earliest_expiry": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cookies Earliest Expiry"
+          },
+          "cooldown_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cooldown Until"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "failure_count": {
+            "title": "Failure Count",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "last_outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "success",
+                  "blocked",
+                  "challenge",
+                  "rate_limited",
+                  "login_wall",
+                  "undecryptable"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Outcome"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "platform": {
+            "enum": [
+              "tiktok",
+              "threads",
+              "instagram",
+              "x",
+              "youtube"
+            ],
+            "title": "Platform",
+            "type": "string"
+          },
+          "proxy_display": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proxy Display"
+          },
+          "proxy_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proxy Id"
+          },
+          "status": {
+            "enum": [
+              "healthy",
+              "cooldown",
+              "expired",
+              "disabled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "success_count": {
+            "title": "Success Count",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "platform",
+          "label",
+          "status",
+          "cooldown_until",
+          "last_used_at",
+          "last_outcome",
+          "success_count",
+          "failure_count",
+          "cookie_names",
+          "cookies_earliest_expiry",
+          "proxy_id",
+          "proxy_display",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SourceAccount",
+        "type": "object"
+      },
+      "SourceAccountCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "cookies": {
+            "maxLength": 262144,
+            "minLength": 1,
+            "title": "Cookies",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "platform": {
+            "enum": [
+              "tiktok",
+              "threads",
+              "instagram",
+              "x",
+              "youtube"
+            ],
+            "title": "Platform",
+            "type": "string"
+          },
+          "proxy_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f-]{36}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proxy Id"
+          }
+        },
+        "required": [
+          "platform",
+          "label",
+          "cookies"
+        ],
+        "title": "SourceAccountCreate",
+        "type": "object"
+      },
+      "SourceAccountUpdate": {
+        "additionalProperties": false,
+        "description": "Omit a field to keep it; `proxy_id: null` removes the proxy.",
+        "properties": {
+          "disabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disabled"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "proxy_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f-]{36}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proxy Id"
+          }
+        },
+        "title": "SourceAccountUpdate",
+        "type": "object"
+      },
+      "SourceAccountsOverview": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "platforms": {
+            "items": {
+              "$ref": "#/components/schemas/PlatformAccounts"
+            },
+            "title": "Platforms",
+            "type": "array"
+          }
+        },
+        "required": [
+          "available",
+          "platforms"
+        ],
+        "title": "SourceAccountsOverview",
+        "type": "object"
+      },
       "SourceInput": {
         "additionalProperties": false,
         "properties": {
@@ -3762,6 +4279,66 @@
           "intent"
         ],
         "title": "SourceInput",
+        "type": "object"
+      },
+      "SourceProxy": {
+        "additionalProperties": false,
+        "properties": {
+          "account_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Label"
+          },
+          "account_platform": {
+            "anyOf": [
+              {
+                "enum": [
+                  "tiktok",
+                  "threads",
+                  "instagram",
+                  "x",
+                  "youtube"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Platform"
+          },
+          "display": {
+            "title": "Display",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "scheme": {
+            "enum": [
+              "http",
+              "https",
+              "socks5"
+            ],
+            "title": "Scheme",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "scheme",
+          "display",
+          "account_platform",
+          "account_label"
+        ],
+        "title": "SourceProxy",
         "type": "object"
       },
       "SplitClip": {
@@ -3879,6 +4456,33 @@
           "status"
         ],
         "title": "StageSummary",
+        "type": "object"
+      },
+      "StatusCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "cooldown": {
+            "default": 0,
+            "title": "Cooldown",
+            "type": "integer"
+          },
+          "disabled": {
+            "default": 0,
+            "title": "Disabled",
+            "type": "integer"
+          },
+          "expired": {
+            "default": 0,
+            "title": "Expired",
+            "type": "integer"
+          },
+          "healthy": {
+            "default": 0,
+            "title": "Healthy",
+            "type": "integer"
+          }
+        },
+        "title": "StatusCounts",
         "type": "object"
       },
       "StudioDraft": {
@@ -8714,6 +9318,621 @@
           }
         },
         "summary": "Get Prompt Starter"
+      }
+    },
+    "/api/v1/source-accounts": {
+      "get": {
+        "operationId": "list_source_accounts_api_v1_source_accounts_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceAccountsOverview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Source Accounts"
+      },
+      "post": {
+        "operationId": "create_source_account_api_v1_source_accounts_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceAccountCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceAccount"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Source Account"
+      }
+    },
+    "/api/v1/source-accounts/policies/{platform}": {
+      "put": {
+        "operationId": "update_access_policy_api_v1_source_accounts_policies__platform__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "platform",
+            "required": true,
+            "schema": {
+              "enum": [
+                "tiktok",
+                "threads",
+                "instagram",
+                "x",
+                "youtube"
+              ],
+              "title": "Platform",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessPolicyUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessPolicyUpdate"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Access Policy"
+      }
+    },
+    "/api/v1/source-accounts/validate": {
+      "post": {
+        "description": "A dry run of an import: the safe summary; nothing is stored.",
+        "operationId": "validate_cookies_api_v1_source_accounts_validate_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CookieValidationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CookieValidation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Validate Cookies"
+      }
+    },
+    "/api/v1/source-accounts/{account_id}": {
+      "delete": {
+        "operationId": "delete_source_account_api_v1_source_accounts__account_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Source Account"
+      },
+      "patch": {
+        "operationId": "update_source_account_api_v1_source_accounts__account_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceAccountUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceAccount"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Source Account"
+      }
+    },
+    "/api/v1/source-accounts/{account_id}/cookies": {
+      "put": {
+        "operationId": "reimport_cookies_api_v1_source_accounts__account_id__cookies_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CookieReimport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceAccount"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reimport Cookies"
+      }
+    },
+    "/api/v1/source-accounts/{account_id}/test": {
+      "post": {
+        "description": "One live request with the account's session; only an operator's press sends it.",
+        "operationId": "test_source_account_api_v1_source_accounts__account_id__test_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionCheckResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Source Account"
+      }
+    },
+    "/api/v1/source-proxies": {
+      "get": {
+        "operationId": "list_source_proxies_api_v1_source_proxies_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SourceProxy"
+                  },
+                  "title": "Response List Source Proxies Api V1 Source Proxies Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Source Proxies"
+      }
+    },
+    "/api/v1/source-proxies/import": {
+      "post": {
+        "operationId": "import_source_proxies_api_v1_source_proxies_import_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProxyImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProxyImportSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Source Proxies"
+      }
+    },
+    "/api/v1/source-proxies/{proxy_id}": {
+      "delete": {
+        "operationId": "delete_source_proxy_api_v1_source_proxies__proxy_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proxy_id",
+            "required": true,
+            "schema": {
+              "title": "Proxy Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Source Proxy"
       }
     },
     "/api/v1/style-presets": {
