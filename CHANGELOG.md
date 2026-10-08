@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-08 - Source accounts deployed on `18ec5a5b`; CI smoke fix
+
+- The push of `575398e` (source accounts) failed the "Non-live stack smoke" job. The job
+  expected `editor migrate` to print `7` on a fresh database; revision 0008 makes it `8`. The
+  image itself built and published. `6112651` makes the job count the shipped
+  `python/migrations/editor/0*.sql` files instead of hard-coding the number (actionlint clean).
+  CI run `37754045783` on `6112651` passed every job.
+- The Stage 3d run `37594276295` failed only "Template release parity"; the next run passed it
+  with no renderer change, matching the earlier recorded parity flake.
+- Deployed with operator authorization: acquisition commit `6112651`, digest
+  `sha256:18ec5a5ba436c07fbed16850a8b65d8cba7667c083f991b7defd712d945b8687`; the renderer stays
+  on `2c9c1da7…`.
+  - `.env.stage1.local`: a backup was taken first; `THOTH_IMAGE` was repointed and a new
+    `THOTH_ACCOUNT_VAULT_KEY` (a Fernet key, never printed) was added; CRLF kept.
+  - `stage1-local-preflight --provider-env-file` passed; `config --quiet` passed for the
+    local, providers, and renderer files; all three THOTH roles resolve to the one digest.
+  - `editor migrate` printed `1`: revision 0008 (source accounts) applied.
+  - `up --wait`: every service healthy. `api`, `worker`, and `legacy-cdp` run `18ec5a5b` at
+    revision `6112651` as `10001:10001` with 0 restarts; only `127.0.0.1:8000` (api) and
+    `127.0.0.1:8080` (Temporal UI) are published; 18800 is not. Worker mode stays
+    `python_tiktok_with_legacy_fallback`. `healthz` and `readyz` return 200.
+  - The vault key is set in the api and worker; `GET /api/v1/source-accounts` reports
+    `available: true`, every platform in the default `fallback` mode, no accounts yet.
+
+Next steps:
+
+- The operator imports accounts and proxies in the dashboard and chooses each platform's mode.
+- The live smoke with real accounts joins the final acceptance (ADR 0001).
+
 ## 2026-10-08 - Source accounts: rotating logged-in sessions with a proxy pool
 
 - Implements `docs/superpowers/specs/2026-10-07-source-accounts-design.md` through the plan
