@@ -65,6 +65,9 @@ class Tuning:
     finalist_concurrency: int = 2
 
 
+DEFAULT_TUNING = Tuning()
+
+
 @dataclass(frozen=True)
 class AttributionPorts:
     frames: FrameSource
@@ -105,7 +108,7 @@ class SourceAttributor:
     def __init__(
         self,
         ports: AttributionPorts,
-        tuning: Tuning = Tuning(),
+        tuning: Tuning = DEFAULT_TUNING,
         curated: frozenset[str] = frozenset(),
     ) -> None:
         self._ports = ports
