@@ -474,6 +474,8 @@ class SourceInvestigationWorkflowInput(StrictModel):
     intent: Literal["identify_original", "produce_video"]
     actor: ActorSnapshot
     activity_mode: SourceActivityMode = "python"
+    # Absent from histories started before Stage 4, so those replay without the new stage.
+    attribute_source: bool = False
 
 
 def request_snapshot_id(request: WorkflowRequest) -> str:
