@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from pathlib import Path
+
 import httpx
 import pytest
 
+from thoth_control_plane.acquisition import browser, registry, threads_service, youtube_service
+from thoth_control_plane.acquisition.accounts.access import SessionAccess
+from thoth_control_plane.acquisition.accounts.cookies import parse_cookies
 from thoth_control_plane.acquisition.instagram_service import InstagramAcquirer
 from thoth_control_plane.acquisition.materializer import (
     MediaMaterializer,
@@ -45,3 +51,85 @@ async def test_acquirer_for_routes_tiktok_and_refuses_legacy_hosts() -> None:
             "https://youtu.be/abcDEF123_-", client=client, materializer=materializer
         )
         assert isinstance(youtube, YouTubeAcquirer)
+
+
+COOKIES = parse_cookies(
+    "instagram",
+    "\t".join([".instagram.com", "TRUE", "/", "TRUE", "1893456000", "sessionid", "s"]) + "\n",
+    now=datetime(2026, 10, 7, tzinfo=UTC),
+)
+PROXY = "http://u:p@1.2.3.4:8080"
+
+
+@pytest.mark.asyncio
+async def test_a_session_reaches_every_access_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    seen: dict[str, dict] = {}
+    monkeypatch.setattr(
+        registry, "_default_session_factory", lambda **kw: seen.setdefault("browser", kw)
+    )
+    monkeypatch.setattr(
+        registry, "_default_factory", lambda options: seen.setdefault("yt", options)
+    )
+
+    async def fake_get(url: str, **kwargs: object) -> None:
+        seen["request"] = kwargs
+
+    monkeypatch.setattr(registry, "_scrapling_get", fake_get)
+    access = SessionAccess(COOKIES, PROXY)
+    async with httpx.AsyncClient() as client:
+        materializer = MediaMaterializer(client, resolve_host_via_getaddrinfo)
+        instagram = acquirer_for(
+            "https://www.instagram.com/p/abc/",
+            client=client,
+            materializer=materializer,
+            access=access,
+        )
+        await instagram._request._get("https://www.instagram.com/p/abc/", impersonate="chrome")
+        instagram._headless._session_factory(headless=True, max_pages=1)
+        youtube = acquirer_for(
+            "https://youtu.be/abcDEF123_-",
+            client=client,
+            materializer=materializer,
+            access=access,
+            scratch=tmp_path,
+        )
+        youtube._client._factory({"quiet": True})
+    assert seen["request"] == {
+        "impersonate": "chrome",
+        "cookies": {"sessionid": "s"},
+        "proxy": PROXY,
+    }
+    assert (seen["browser"]["headless"], seen["browser"]["proxy"]) == (True, PROXY)
+    assert [c["name"] for c in seen["browser"]["cookies"]] == ["sessionid"]
+    assert (seen["yt"]["quiet"], seen["yt"]["proxy"]) == (True, PROXY)
+    assert Path(seen["yt"]["cookiefile"]).parent == tmp_path
+
+
+@pytest.mark.asyncio
+async def test_without_a_session_the_default_access_is_untouched() -> None:
+    async with httpx.AsyncClient() as client:
+        materializer = MediaMaterializer(client, resolve_host_via_getaddrinfo)
+        instagram = acquirer_for(
+            "https://www.instagram.com/p/abc/", client=client, materializer=materializer
+        )
+        youtube = acquirer_for(
+            "https://youtu.be/abcDEF123_-", client=client, materializer=materializer
+        )
+    assert instagram._request._get is threads_service._scrapling_get
+    assert instagram._headless._session_factory is browser._default_session_factory
+    assert youtube._client._factory is youtube_service._default_factory
+
+
+@pytest.mark.asyncio
+async def test_a_yt_dlp_session_needs_a_scratch_directory() -> None:
+    async with httpx.AsyncClient() as client:
+        materializer = MediaMaterializer(client, resolve_host_via_getaddrinfo)
+        with pytest.raises(ValueError):
+            acquirer_for(
+                "https://youtu.be/abcDEF123_-",
+                client=client,
+                materializer=materializer,
+                access=SessionAccess(COOKIES),
+            )
