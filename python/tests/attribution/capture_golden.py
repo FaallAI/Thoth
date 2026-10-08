@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import tempfile
 from collections.abc import Sequence
 from dataclasses import replace
@@ -205,12 +206,16 @@ async def _main(arguments: argparse.Namespace) -> None:
     from thoth_control_plane.attribution.adapters.discovery import ProfileDiscoverer
     from thoth_control_plane.config import Settings
 
+    # The capture container's own IP is rate-limited by TikTok's profile listing; a
+    # session carries the operator's proxy when THOTH_CAPTURE_PROXY is set.
+    proxy = os.environ.get("THOTH_CAPTURE_PROXY") or None
     sessions: dict[str, SessionAccess] = {}
     for entry in arguments.cookies:
         platform, _, path = entry.partition("=")
         text = Path(path).read_text(encoding="utf-8")
         sessions[platform] = SessionAccess(
-            parse_cookies(platform, text, now=datetime.now(UTC))  # type: ignore[arg-type]
+            parse_cookies(platform, text, now=datetime.now(UTC)),  # type: ignore[arg-type]
+            proxy,
         )
 
     with tempfile.TemporaryDirectory(prefix="thoth-golden-") as directory:
