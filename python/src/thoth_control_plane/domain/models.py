@@ -370,10 +370,12 @@ SOURCE_EVENT_PAYLOAD_KEYS = frozenset(
         "account_used",
         "account_outcome",
         "no_account_available",
+        "verdict",
     }
 )
 SOURCE_EVENT_STAGE_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 SOURCE_EVENT_STATUSES = frozenset({"succeeded", "failed", "incomplete"})
+SOURCE_ATTRIBUTION_VERDICTS = frozenset({"original", "replaced", "unresolved"})
 SOURCE_ACCOUNT_OUTCOMES = frozenset(
     {"success", "blocked", "challenge", "rate_limited", "login_wall"}
 )
@@ -419,6 +421,8 @@ class SourceProgressEvent(StrictModel):
             raise ValueError("source event account outcome is unsupported")
         if "status" in payload and payload["status"] not in SOURCE_EVENT_STATUSES:
             raise ValueError("source event status is unsupported")
+        if "verdict" in payload and payload["verdict"] not in SOURCE_ATTRIBUTION_VERDICTS:
+            raise ValueError("source event verdict is unsupported")
         if "reason" in payload and payload["reason"] not in SOURCE_EVENT_REASONS:
             raise ValueError("source event reason is unsupported")
         if (
