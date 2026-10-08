@@ -38,6 +38,7 @@ def test_editor_migrations_stay_explicit_forward_only_sql_files() -> None:
         "0005_revision_bound_render_jobs.sql",
         "0006_studio_review_events.sql",
         "0007_studio_import_sources.sql",
+        "0008_source_accounts.sql",
     ]
     for name in MIGRATION_FILES:
         sql = migration(name).lower()
@@ -400,3 +401,18 @@ def test_studio_review_migration_stores_no_secret_path_or_workflow_approval() ->
 
     for forbidden in ("secret", "token", "cookie", "http", "workflow", "approval_id", "path"):
         assert forbidden not in sql
+
+
+def test_source_accounts_keep_secrets_sealed_and_proxies_dedicated() -> None:
+    sql = " ".join(migration("0008_source_accounts.sql").split())
+
+    for table in ("source_account_policies", "source_proxies", "source_accounts"):
+        assert f"CREATE TABLE {table}" in sql
+    assert "cookies_ciphertext BYTEA NOT NULL" in sql
+    assert "proxy_ciphertext BYTEA NOT NULL" in sql
+    assert "proxy_id UUID UNIQUE REFERENCES source_proxies (id) ON DELETE RESTRICT" in sql
+    assert "fingerprint TEXT NOT NULL UNIQUE" in sql
+    assert "UNIQUE (platform, label)" in sql
+    assert "CHECK (mode IN ('anonymous', 'fallback', 'always'))" in sql
+    for clear in ("cookie_value", "password", "proxy_url"):
+        assert clear not in sql.lower()

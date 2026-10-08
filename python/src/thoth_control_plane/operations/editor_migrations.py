@@ -21,6 +21,7 @@ _LEGACY_MARKERS = {
     "0005": "render_jobs",
     "0006": "studio_review_events",
     "0007": "studio_import_drafts",
+    "0008": "source_accounts",
 }
 
 
