@@ -1,0 +1,220 @@
+"""Record one golden attribution case from live traffic (operator-authorized; plan Task 11).
+
+Run only inside the capture container. It acquires the repost, runs attribution through
+recording ports with a wide tuning (more finalists, no early exit), then fills the hash and OCR
+boxes of every frame it saw and a visual class per candidate, so a replay can use any tuning.
+The fixture holds no key, no URL query, and no CDN address.
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import tempfile
+from collections.abc import Sequence
+from dataclasses import replace
+from pathlib import Path
+from typing import Any
+
+from thoth_control_plane.acquisition.models import DiscoveredVideo, SourceReport
+from thoth_control_plane.attribution.models import Platform
+from thoth_control_plane.attribution.ports import (
+    AcquiredCandidate,
+    CoverReading,
+    Decisions,
+    Frame,
+    VisualKind,
+)
+from thoth_control_plane.attribution.service import AttributionPorts, SourceAttributor, Tuning
+
+CAPTURE_TUNING = Tuning(max_finalists=5, finalist_concurrency=1, match_threshold=1.01)
+WORKFLOW = "wf_golden"
+
+
+def _plain(report: SourceReport) -> dict[str, Any]:
+    trimmed = report.model_copy(update={"comments": [], "post_card": None, "profile_card": None})
+    return json.loads(trimmed.model_dump_json())
+
+
+class _Store:
+    def __init__(self) -> None:
+        self.frames: dict[str, list[Frame]] = {}
+        self.cover: CoverReading | None = None
+        self.decisions: Decisions | None = None
+        self.discovery: list[DiscoveredVideo] | None = None
+        self.acquired: dict[str, tuple[SourceReport, str | None]] = {}
+
+
+class _Frames:
+    def __init__(self, inner: Any, store: _Store) -> None:
+        self._inner, self._store = inner, store
+
+    async def frames(self, video: Path, *, fps: float, seconds: float | None = None) -> list[Frame]:
+        frames = await self._inner.frames(video, fps=fps, seconds=seconds)
+        if seconds is None:
+            self._store.frames[video.stem] = frames
+        return frames
+
+
+class _Vision:
+    def __init__(self, inner: Any, store: _Store) -> None:
+        self._inner, self._store = inner, store
+
+    async def read_cover(self, frames: Sequence[Frame]) -> CoverReading | None:
+        self._store.cover = await self._inner.read_cover(frames)
+        return self._store.cover
+
+    async def classify(self, frames: Sequence[Frame]) -> VisualKind | None:
+        return await self._inner.classify(frames)
+
+
+class _Decisions:
+    def __init__(self, inner: Any, store: _Store) -> None:
+        self._inner, self._store = inner, store
+
+    async def decide(self, evidence: dict[str, object], handles: Sequence[str]) -> Decisions | None:
+        self._store.decisions = await self._inner.decide(evidence, handles)
+        return self._store.decisions
+
+
+class _Discoverer:
+    def __init__(self, inner: Any, store: _Store) -> None:
+        self._inner, self._store = inner, store
+
+    def supports(self, platform: Platform) -> bool:
+        return self._inner.supports(platform)
+
+    async def discover(self, platform: Platform, handle: str) -> list[DiscoveredVideo]:
+        self._store.discovery = await self._inner.discover(platform, handle)
+        return self._store.discovery
+
+
+class _Acquirer:
+    def __init__(self, inner: Any, store: _Store) -> None:
+        self._inner, self._store = inner, store
+
+    async def acquire(self, candidate_id: str, url: str) -> AcquiredCandidate | None:
+        acquired = await self._inner.acquire(candidate_id, url)
+        if acquired is not None:
+            key = acquired.video.stem if acquired.video is not None else None
+            self._store.acquired[url] = (acquired.report, key)
+        return acquired
+
+    async def discard(self, candidate_id: str) -> None:
+        return None  # keep every candidate until its frames are recorded
+
+
+async def record_case(
+    ports: AttributionPorts,
+    report: SourceReport,
+    video: Path | None,
+    *,
+    case: str,
+    expected: dict[str, Any],
+    scout: dict[str, Any],
+    departure: str | None = None,
+) -> dict[str, Any]:
+    store = _Store()
+    recording = replace(
+        ports,
+        frames=_Frames(ports.frames, store),
+        discoverer=_Discoverer(ports.discoverer, store),
+        acquirer=_Acquirer(ports.acquirer, store),
+        vision=_Vision(ports.vision, store) if ports.vision is not None else None,
+        decisions=_Decisions(ports.decisions, store) if ports.decisions is not None else None,
+    )
+    await SourceAttributor(recording, CAPTURE_TUNING).identify(WORKFLOW, report, video)
+
+    frames: dict[str, list[dict[str, Any]]] = {}
+    for key, recorded in store.frames.items():
+        entries = []
+        for frame in recorded:
+            value = ports.hasher.hash(frame)
+            boxes = await ports.text.read(frame)
+            entries.append(
+                {
+                    "second": frame.second,
+                    "hash": f"{value:016x}" if value is not None else None,
+                    "boxes": [[box.text, round(box.top, 4), round(box.bottom, 4)] for box in boxes],
+                }
+            )
+        frames[key] = entries
+    classify: dict[str, str] = {}
+    if ports.vision is not None:
+        for _, key in store.acquired.values():
+            if key is not None and store.frames.get(key):
+                classify[key] = await ports.vision.classify(store.frames[key][:3]) or "unknown"
+    return {
+        "case": case,
+        "synthetic": False,
+        "report": _plain(report),
+        "repost_frames": video.stem if video is not None else None,
+        "frames": frames,
+        "cover": store.cover.model_dump() if store.cover is not None else None,
+        "classify": classify,
+        "decisions": vars(store.decisions) if store.decisions is not None else None,
+        "discovery": (
+            {"videos": [json.loads(item.model_dump_json()) for item in store.discovery]}
+            if store.discovery is not None
+            else None
+        ),
+        "acquired": {
+            url: {"report": _plain(acquired_report), "frames": key}
+            for url, (acquired_report, key) in store.acquired.items()
+        },
+        "expected": expected,
+        "scout": scout,
+        **({"departure": departure} if departure else {}),
+    }
+
+
+async def _main(arguments: argparse.Namespace) -> None:
+    from thoth_control_plane.activities.source_attribution import _video, build_production_ports
+    from thoth_control_plane.activities.source_investigation import (
+        build_production_acquisition_runner,
+    )
+    from thoth_control_plane.config import Settings
+
+    with tempfile.TemporaryDirectory(prefix="thoth-golden-") as directory:
+        root = Path(directory)
+        settings = Settings(  # type: ignore[call-arg]
+            THOTH_CONTROL_PLANE_API_KEY="capture-only", THOTH_CONTROL_PLANE_ARTIFACT_ROOT=root
+        )
+        runner = build_production_acquisition_runner(settings)
+        result = await runner(WORKFLOW, arguments.url, root)
+        if result.report is None:
+            raise SystemExit("repost acquisition failed")
+        expected: dict[str, Any] = {
+            "verdict": arguments.expect_verdict,
+            "source_url": arguments.expect_source_url,
+        }
+        fixture = await record_case(
+            build_production_ports(settings, root),
+            result.report,
+            _video(result.report, root),
+            case=arguments.case,
+            expected=expected,
+            scout={"main_url": arguments.scout_main_url, "note": arguments.scout_note},
+            departure=arguments.departure,
+        )
+    Path(arguments.out).write_text(
+        json.dumps(fixture, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    counts = {key: len(value) for key, value in fixture["frames"].items()}
+    print("recorded", arguments.case, "frames:", counts)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--url", required=True)
+    parser.add_argument("--case", required=True)
+    parser.add_argument("--out", required=True)
+    parser.add_argument(
+        "--expect-verdict", required=True, choices=["original", "replaced", "unresolved"]
+    )
+    parser.add_argument("--expect-source-url", default=None)
+    parser.add_argument("--scout-main-url", default=None)
+    parser.add_argument("--scout-note", default="")
+    parser.add_argument("--departure", default=None)
+    asyncio.run(_main(parser.parse_args()))
