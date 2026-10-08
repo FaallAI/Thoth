@@ -288,3 +288,12 @@ async def test_a_session_check_of_an_unknown_account_is_not_found() -> None:
             "/source-accounts/00000000-0000-0000-0000-000000000000/test", headers=AUTH
         )
     assert (missing.status_code, missing.json()["detail"]["code"]) == (404, "not_found")
+
+
+def test_the_api_installs_the_provider_log_redaction(monkeypatch: pytest.MonkeyPatch) -> None:
+    from thoth_control_plane.api import app as app_module
+
+    calls: list[bool] = []
+    monkeypatch.setattr(app_module, "configure_provider_logging", lambda: calls.append(True))
+    create_app(Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"))
+    assert calls == [True]

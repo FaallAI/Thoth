@@ -170,9 +170,11 @@ export function SourceAccounts({ client, onManageProxies }: {
             <td><div className="sa-chips">{account.cookie_names.map((name) => <span key={name}>{name}</span>)}</div></td>
             <td>{expiryText(account.cookies_earliest_expiry, now)}</td>
             <td><div className="sa-row-actions">
-              <button type="button" disabled={testing !== null} onClick={() => test(account)}>{testing === account.id ? "Testing…" : "Test"}</button>
-              <button type="button" onClick={() => setReimporting(account)}>Re-import</button>
-              <button type="button" onClick={() => setEditing(account)}>Edit</button>
+              <button type="button" disabled={testing !== null} aria-label={`Test session for ${account.label}`}
+                onClick={() => test(account)}>{testing === account.id ? "Testing…" : "Test"}</button>
+              <button type="button" aria-label={`Re-import cookies for ${account.label}`}
+                onClick={() => setReimporting(account)}>Re-import</button>
+              <button type="button" aria-label={`Edit ${account.label}`} onClick={() => setEditing(account)}>Edit</button>
             </div></td>
           </tr>)}</tbody>
         </table> : <div className="sa-empty">

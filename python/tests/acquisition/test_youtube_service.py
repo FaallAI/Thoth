@@ -265,9 +265,15 @@ def test_a_sign_in_demand_with_cookies_is_a_login_wall() -> None:
 @pytest.mark.asyncio
 async def test_a_signed_in_client_reports_a_login_wall() -> None:
     client = YtDlpClient(
-        lambda options: FakeYdl(options, RuntimeError("Sign in to confirm your age")),
+        lambda options: FakeYdl(options, RuntimeError("Sign in to confirm you're not a bot")),
         signed_in=True,
     )
     with pytest.raises(YtDlpError) as caught:
         await client.extract(URL, comments=True)
     assert caught.value.reason is AcquisitionReason.LOGIN_WALL
+
+
+def test_an_age_gate_with_a_session_leaves_the_account_alone() -> None:
+    age = RuntimeError("ERROR: Sign in to confirm your age. This video may be inappropriate")
+    assert classify(age) is AcquisitionReason.REQUEST_BLOCKED
+    assert classify(age, signed_in=True) is AcquisitionReason.REQUEST_INCOMPLETE

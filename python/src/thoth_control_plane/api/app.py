@@ -92,6 +92,7 @@ from thoth_control_plane.infrastructure.studio_review_repository import (
     PostgresStudioReviewRepository,
 )
 from thoth_control_plane.infrastructure.temporal_gateway import TemporalWorkflowGateway
+from thoth_control_plane.observability import configure_provider_logging
 
 CONTRACT_VERSION = "1"
 
@@ -183,6 +184,8 @@ def create_app(
 ) -> FastAPI:
     """Create an isolated v1 API application for the supplied workflow gateway."""
     settings = settings or Settings()  # type: ignore[call-arg]
+    # The session check runs Scrapling in this process, so its log records are redacted too.
+    configure_provider_logging()
     if editor_repository is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
         editor_repository = PostgresEditDocumentRepository(
             settings.THOTH_EDITOR_DATABASE_URL.get_secret_value()

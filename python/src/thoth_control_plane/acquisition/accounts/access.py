@@ -6,10 +6,25 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
 from thoth_control_plane.acquisition.accounts.cookies import CookieSet
 
 COOKIE_FILE_NAME = "cookies.txt"
+
+
+def _browser_proxy(proxy: str) -> str | dict[str, str]:
+    """Playwright reads URL credentials raw, so a proxy with credentials goes decoded."""
+    parts = urlsplit(proxy)
+    if parts.username is None:
+        return proxy
+    host = parts.hostname or ""
+    shown = f"[{host}]" if ":" in host else host
+    return {
+        "server": f"{parts.scheme}://{shown}:{parts.port}",
+        "username": unquote(parts.username),
+        "password": unquote(parts.password or ""),
+    }
 
 
 @dataclass(frozen=True)
@@ -25,7 +40,7 @@ class SessionAccess:
         """Extra `AsyncStealthySession` arguments: the cookies, and the proxy if any."""
         kwargs: dict[str, Any] = {"cookies": self.cookies.to_playwright()}
         if self.proxy:
-            kwargs["proxy"] = self.proxy
+            kwargs["proxy"] = _browser_proxy(self.proxy)
         return kwargs
 
     def request_kwargs(self) -> dict[str, Any]:

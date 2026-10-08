@@ -172,3 +172,16 @@ def test_a_cookie_set_round_trips_and_feeds_every_access_path() -> None:
         "expires": LATER,
     }
     assert "expires" not in by_name["csrftoken"]
+
+
+def test_a_request_prefers_the_platforms_own_host_for_a_repeated_name() -> None:
+    text = _netscape(
+        _line(".x.com", "auth_token", "fresh"),
+        _line(".x.com", "ct0", "c"),
+        _line(".twitter.com", "auth_token", "stale"),
+    )
+    assert parse_cookies("x", text, now=NOW).to_request() == {"auth_token": "fresh", "ct0": "c"}
+    threads = _netscape(
+        _line(".threads.com", "sessionid", "own"), _line(".instagram.com", "sessionid", "other")
+    )
+    assert parse_cookies("threads", threads, now=NOW).to_request() == {"sessionid": "own"}

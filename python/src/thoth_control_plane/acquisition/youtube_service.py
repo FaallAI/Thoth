@@ -79,6 +79,8 @@ YTDLP_OPTIONS: dict[str, Any] = {
     "js_runtimes": {"bun": {}},
 }
 BOT_CHECK = ("sign in to confirm",)
+# An age gate is about the video, not the session: a signed-in miss leaves the account alone.
+AGE_GATE = ("confirm your age",)
 GONE = (
     "private video",
     "video unavailable",
@@ -163,8 +165,12 @@ def classify(error: BaseException, *, signed_in: bool = False) -> AcquisitionRea
     if isinstance(error, TimeoutError) or "timed out" in text:
         return AcquisitionReason.REQUEST_TIMEOUT
     if any(phrase in text for phrase in BOT_CHECK):
+        if not signed_in:
+            return AcquisitionReason.REQUEST_BLOCKED
+        if any(phrase in text for phrase in AGE_GATE):
+            return AcquisitionReason.REQUEST_INCOMPLETE
         # With a session's cookies, a sign-in demand means the session no longer works.
-        return AcquisitionReason.LOGIN_WALL if signed_in else AcquisitionReason.REQUEST_BLOCKED
+        return AcquisitionReason.LOGIN_WALL
     if any(phrase in text for phrase in STALE):
         logger.warning("youtube extraction failed in a way that suggests yt-dlp needs an update")
         return AcquisitionReason.REQUEST_BLOCKED

@@ -101,7 +101,12 @@ async def test_a_session_reaches_every_access_path(
         "cookies": {"sessionid": "s"},
         "proxy": PROXY,
     }
-    assert (seen["browser"]["headless"], seen["browser"]["proxy"]) == (True, PROXY)
+    assert seen["browser"]["headless"] is True
+    assert seen["browser"]["proxy"] == {
+        "server": "http://1.2.3.4:8080",
+        "username": "u",
+        "password": "p",
+    }
     assert [c["name"] for c in seen["browser"]["cookies"]] == ["sessionid"]
     assert (seen["yt"]["quiet"], seen["yt"]["proxy"]) == (True, PROXY)
     assert Path(seen["yt"]["cookiefile"]).parent == tmp_path

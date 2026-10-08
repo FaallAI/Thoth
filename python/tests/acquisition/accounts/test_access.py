@@ -22,7 +22,11 @@ COOKIES = parse_cookies(
 def test_each_access_path_gets_the_cookies_and_the_proxy() -> None:
     access = SessionAccess(COOKIES, PROXY)
     browser = access.browser_kwargs()
-    assert browser["proxy"] == PROXY
+    assert browser["proxy"] == {
+        "server": "http://1.2.3.4:8080",
+        "username": "user",
+        "password": "pr0xy-pa55",
+    }
     assert [c["value"] for c in browser["cookies"]] == [SECRET]
     assert access.request_kwargs() == {"cookies": {"sessionid": SECRET}, "proxy": PROXY}
 
@@ -44,3 +48,17 @@ def test_the_yt_dlp_cookie_file_is_private_and_readable_by_yt_dlp(tmp_path: Path
 def test_a_session_never_prints_its_secrets() -> None:
     text = repr(SessionAccess(COOKIES, PROXY)) + str(SessionAccess(COOKIES, PROXY)) + repr(COOKIES)
     assert SECRET not in text and "pr0xy-pa55" not in text
+
+
+def test_the_browser_gets_decoded_credentials_while_curl_and_yt_dlp_keep_the_url() -> None:
+    encoded = "http://us%40er:p%40ss%3Aw@[2001:db8::1]:8080"
+    access = SessionAccess(COOKIES, encoded)
+    assert access.browser_kwargs()["proxy"] == {
+        "server": "http://[2001:db8::1]:8080",
+        "username": "us@er",
+        "password": "p@ss:w",
+    }
+    assert access.request_kwargs()["proxy"] == encoded
+    assert SessionAccess(COOKIES, "socks5://10.0.0.1:1080").browser_kwargs()["proxy"] == (
+        "socks5://10.0.0.1:1080"
+    )

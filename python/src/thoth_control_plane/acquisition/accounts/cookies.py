@@ -29,6 +29,14 @@ REQUIRED_COOKIES: dict[str, tuple[str, ...]] = {
     "x": ("auth_token", "ct0"),
     "youtube": ("SAPISID", "__Secure-3PSID"),
 }
+# The host each platform's requests go to: its cookie wins when a name repeats across hosts.
+PRIMARY_DOMAINS: dict[str, str] = {
+    "tiktok": "tiktok.com",
+    "threads": "threads.com",
+    "instagram": "instagram.com",
+    "x": "x.com",
+    "youtube": "youtube.com",
+}
 MAX_IMPORT_BYTES = 256 * 1024
 MAX_COOKIES = 500
 _SAME_SITE = {"lax": "Lax", "strict": "Strict", "none": "None", "no_restriction": "None"}
@@ -94,7 +102,14 @@ class CookieSet:
         return out
 
     def to_request(self) -> dict[str, str]:
-        return {cookie.name: cookie.value for cookie in self.cookies}
+        """Name to value; when a name repeats across hosts, the platform's own host wins."""
+        primary = PRIMARY_DOMAINS[self.platform]
+
+        def own(cookie: Cookie) -> bool:
+            host = cookie.domain.lstrip(".").lower()
+            return host == primary or host.endswith("." + primary)
+
+        return {cookie.name: cookie.value for cookie in sorted(self.cookies, key=own)}
 
     def to_netscape(self) -> str:
         lines = ["# Netscape HTTP Cookie File"]

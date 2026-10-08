@@ -118,7 +118,7 @@ test("testing a session reports the verdict", async () => {
   const client = fakeClient();
   render(<SourceAccounts client={client} onManageProxies={() => {}} />);
   await screen.findByText("Cedar · primary");
-  await userEvent.click(screen.getAllByRole("button", { name: "Test" })[0]);
+  await userEvent.click(screen.getByRole("button", { name: "Test session for Cedar · primary" }));
   expect(await screen.findByText("Cedar · primary: Session valid")).toBeDefined();
   expect(client.test).toHaveBeenCalledWith(ROWS[0].id);
 });
@@ -166,7 +166,7 @@ test("editing renames, disables, and deletes with a confirmation", async () => {
   const client = fakeClient();
   render(<SourceAccounts client={client} onManageProxies={() => {}} />);
   await screen.findByText("Cedar · primary");
-  await userEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+  await userEvent.click(screen.getByRole("button", { name: "Edit Cedar · primary" }));
   let dialog = await screen.findByRole("dialog");
   const label = within(dialog).getByLabelText("Account label");
   await userEvent.clear(label);
@@ -174,12 +174,12 @@ test("editing renames, disables, and deletes with a confirmation", async () => {
   await userEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
   expect(client.update).toHaveBeenCalledWith(ROWS[0].id, { label: "Renamed", proxy_id: null });
 
-  await userEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+  await userEvent.click(screen.getByRole("button", { name: "Edit Cedar · primary" }));
   dialog = await screen.findByRole("dialog");
   await userEvent.click(within(dialog).getByRole("button", { name: "Disable account" }));
   expect(client.update).toHaveBeenCalledWith(ROWS[0].id, { disabled: true });
 
-  await userEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+  await userEvent.click(screen.getByRole("button", { name: "Edit Cedar · primary" }));
   dialog = await screen.findByRole("dialog");
   await userEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
   expect(client.remove).not.toHaveBeenCalled();
@@ -192,4 +192,12 @@ test("manage proxies hands over to the proxy view", async () => {
   render(<SourceAccounts client={fakeClient()} onManageProxies={onManage} />);
   await userEvent.click(await screen.findByRole("button", { name: /manage proxies/i }));
   expect(onManage).toHaveBeenCalled();
+});
+
+test("every row action names its account", async () => {
+  render(<SourceAccounts client={fakeClient()} onManageProxies={() => {}} />);
+  await screen.findByText("Cedar · backup");
+  for (const name of ["Test session for", "Re-import cookies for", "Edit"]) {
+    expect(screen.getByRole("button", { name: `${name} Cedar · backup` })).toBeDefined();
+  }
 });
