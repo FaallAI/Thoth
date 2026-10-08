@@ -337,7 +337,7 @@ jobs:
       - name: Apply Creator Studio editor migration
         run: |
           set -euo pipefail
-          test "$(docker compose ${COMPOSE_FILE_ARGS} run --rm --no-deps api thoth-control editor migrate | tail -1)" = "7"
+          test "$(docker compose ${COMPOSE_FILE_ARGS} run --rm --no-deps api thoth-control editor migrate | tail -1)" = "$(ls python/migrations/editor/0*.sql | wc -l | tr -d ' ')"
           test "$(docker compose ${COMPOSE_FILE_ARGS} run --rm --no-deps api thoth-control editor migrate | tail -1)" = "0"
 
       - name: Verify identity, storage, and loopback isolation
