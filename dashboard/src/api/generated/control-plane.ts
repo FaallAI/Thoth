@@ -656,6 +656,167 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/source-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Source Accounts */
+        get: operations["list_source_accounts_api_v1_source_accounts_get"];
+        put?: never;
+        /** Create Source Account */
+        post: operations["create_source_account_api_v1_source_accounts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/source-accounts/policies/{platform}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Access Policy */
+        put: operations["update_access_policy_api_v1_source_accounts_policies__platform__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/source-accounts/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate Cookies
+         * @description A dry run of an import: the safe summary; nothing is stored.
+         */
+        post: operations["validate_cookies_api_v1_source_accounts_validate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/source-accounts/{account_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Source Account */
+        delete: operations["delete_source_account_api_v1_source_accounts__account_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Source Account */
+        patch: operations["update_source_account_api_v1_source_accounts__account_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/source-accounts/{account_id}/cookies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Reimport Cookies */
+        put: operations["reimport_cookies_api_v1_source_accounts__account_id__cookies_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/source-accounts/{account_id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Source Account
+         * @description One live request with the account's session; only an operator's press sends it.
+         */
+        post: operations["test_source_account_api_v1_source_accounts__account_id__test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/source-proxies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Source Proxies */
+        get: operations["list_source_proxies_api_v1_source_proxies_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/source-proxies/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import Source Proxies */
+        post: operations["import_source_proxies_api_v1_source_proxies_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/source-proxies/{proxy_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Source Proxy */
+        delete: operations["delete_source_proxy_api_v1_source_proxies__proxy_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/style-presets": {
         parameters: {
             query?: never;
@@ -836,6 +997,16 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AccessPolicyUpdate */
+        AccessPolicyUpdate: {
+            /** Min Spacing Seconds */
+            min_spacing_seconds: number;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "anonymous" | "fallback" | "always";
+        };
         /** ActorSnapshot */
         ActorSnapshot: {
             /** Actor Id */
@@ -1054,6 +1225,36 @@ export interface components {
             /** Footage */
             footage: components["schemas"]["FootageImport"][];
             main: components["schemas"]["MainImport"];
+        };
+        /** CookieReimport */
+        CookieReimport: {
+            /** Cookies */
+            cookies: string;
+        };
+        /** CookieValidation */
+        CookieValidation: {
+            /** Count */
+            count: number;
+            /** Earliest Expiry */
+            earliest_expiry: string | null;
+            /** Error */
+            error: ("invalid_cookie_file" | "all_cookies_expired" | "missing_required_cookie") | null;
+            /** Missing */
+            missing: string[];
+            /** Names */
+            names: string[];
+            /** Valid */
+            valid: boolean;
+        };
+        /** CookieValidationRequest */
+        CookieValidationRequest: {
+            /** Cookies */
+            cookies: string;
+            /**
+             * Platform
+             * @enum {string}
+             */
+            platform: "tiktok" | "threads" | "instagram" | "x" | "youtube";
         };
         /**
          * CreateComment
@@ -1354,6 +1555,24 @@ export interface components {
             /** Text */
             text?: string | null;
         };
+        /** PlatformAccounts */
+        PlatformAccounts: {
+            /** Accounts */
+            accounts: components["schemas"]["SourceAccount"][];
+            counts: components["schemas"]["StatusCounts"];
+            /** Min Spacing Seconds */
+            min_spacing_seconds: number;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "anonymous" | "fallback" | "always";
+            /**
+             * Platform
+             * @enum {string}
+             */
+            platform: "tiktok" | "threads" | "instagram" | "x" | "youtube";
+        };
         /** Position */
         Position: {
             /**
@@ -1635,6 +1854,20 @@ export interface components {
             stage_id: "narrative_plan" | "visual_plan" | "caption_copy";
             /** Template Id */
             template_id: string;
+        };
+        /** ProxyImportRequest */
+        ProxyImportRequest: {
+            /** Text */
+            text: string;
+        };
+        /** ProxyImportSummary */
+        ProxyImportSummary: {
+            /** Added */
+            added: number;
+            /** Duplicates */
+            duplicates: number;
+            /** Invalid Lines */
+            invalid_lines: number[];
         };
         /** RemoveClip */
         RemoveClip: {
@@ -2011,6 +2244,15 @@ export interface components {
             /** Start Frame */
             start_frame: number;
         };
+        /** SessionCheckResult */
+        SessionCheckResult: {
+            account: components["schemas"]["SourceAccount"];
+            /**
+             * Result
+             * @enum {string}
+             */
+            result: "valid" | "expired" | "inconclusive";
+        };
         /** SetCaptionCueText */
         SetCaptionCueText: {
             /** Clip Id */
@@ -2180,6 +2422,84 @@ export interface components {
             /** Track Id */
             track_id: string;
         };
+        /** SourceAccount */
+        SourceAccount: {
+            /** Cookie Names */
+            cookie_names: string[];
+            /** Cookies Earliest Expiry */
+            cookies_earliest_expiry: string | null;
+            /** Cooldown Until */
+            cooldown_until: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Failure Count */
+            failure_count: number;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Last Outcome */
+            last_outcome: ("success" | "blocked" | "challenge" | "rate_limited" | "login_wall" | "undecryptable") | null;
+            /** Last Used At */
+            last_used_at: string | null;
+            /**
+             * Platform
+             * @enum {string}
+             */
+            platform: "tiktok" | "threads" | "instagram" | "x" | "youtube";
+            /** Proxy Display */
+            proxy_display: string | null;
+            /** Proxy Id */
+            proxy_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "healthy" | "cooldown" | "expired" | "disabled";
+            /** Success Count */
+            success_count: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** SourceAccountCreate */
+        SourceAccountCreate: {
+            /** Cookies */
+            cookies: string;
+            /** Label */
+            label: string;
+            /**
+             * Platform
+             * @enum {string}
+             */
+            platform: "tiktok" | "threads" | "instagram" | "x" | "youtube";
+            /** Proxy Id */
+            proxy_id?: string | null;
+        };
+        /**
+         * SourceAccountUpdate
+         * @description Omit a field to keep it; `proxy_id: null` removes the proxy.
+         */
+        SourceAccountUpdate: {
+            /** Disabled */
+            disabled?: boolean | null;
+            /** Label */
+            label?: string | null;
+            /** Proxy Id */
+            proxy_id?: string | null;
+        };
+        /** SourceAccountsOverview */
+        SourceAccountsOverview: {
+            /** Available */
+            available: boolean;
+            /** Platforms */
+            platforms: components["schemas"]["PlatformAccounts"][];
+        };
         /** SourceInput */
         SourceInput: {
             /**
@@ -2192,6 +2512,22 @@ export interface components {
              * Format: uri
              */
             url: string;
+        };
+        /** SourceProxy */
+        SourceProxy: {
+            /** Account Label */
+            account_label: string | null;
+            /** Account Platform */
+            account_platform: ("tiktok" | "threads" | "instagram" | "x" | "youtube") | null;
+            /** Display */
+            display: string;
+            /** Id */
+            id: string;
+            /**
+             * Scheme
+             * @enum {string}
+             */
+            scheme: "http" | "https" | "socks5";
         };
         /** SplitClip */
         SplitClip: {
@@ -2231,6 +2567,29 @@ export interface components {
              * @enum {string}
              */
             status: "queued" | "running" | "completed" | "waiting" | "failed" | "cancelled";
+        };
+        /** StatusCounts */
+        StatusCounts: {
+            /**
+             * Cooldown
+             * @default 0
+             */
+            cooldown: number;
+            /**
+             * Disabled
+             * @default 0
+             */
+            disabled: number;
+            /**
+             * Expired
+             * @default 0
+             */
+            expired: number;
+            /**
+             * Healthy
+             * @default 0
+             */
+            healthy: number;
         };
         /**
          * StudioDraft
@@ -4482,6 +4841,379 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PromptStarterDefinition"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_source_accounts_api_v1_source_accounts_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceAccountsOverview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_source_account_api_v1_source_accounts_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SourceAccountCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceAccount"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_access_policy_api_v1_source_accounts_policies__platform__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                platform: "tiktok" | "threads" | "instagram" | "x" | "youtube";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccessPolicyUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessPolicyUpdate"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_cookies_api_v1_source_accounts_validate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CookieValidationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CookieValidation"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_source_account_api_v1_source_accounts__account_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_source_account_api_v1_source_accounts__account_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SourceAccountUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceAccount"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reimport_cookies_api_v1_source_accounts__account_id__cookies_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CookieReimport"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceAccount"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_source_account_api_v1_source_accounts__account_id__test_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionCheckResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_source_proxies_api_v1_source_proxies_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceProxy"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_source_proxies_api_v1_source_proxies_import_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProxyImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProxyImportSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_source_proxy_api_v1_source_proxies__proxy_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                proxy_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

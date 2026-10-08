@@ -6,6 +6,7 @@
 @import "./pen-discovery-content.css";
 @import "./pen-profiles-legacy.css";
 @import "./pen-studio.css";
+@import "./pen-source-accounts.css";
 
 @custom-variant dark (&:is(.dark *));
 

@@ -10,10 +10,13 @@ import { GuidedStudio } from "@/features/studio/GuidedStudio";
 import { StudioImportGate } from "@/features/studio/StudioImportGate";
 import { WorkflowMonitor } from "@/components/WorkflowMonitor";
 import { WorkflowWizard } from "@/components/WorkflowWizard";
+import { SourceAccounts } from "@/components/SourceAccounts";
+import { SourceProxies } from "@/components/SourceProxies";
+import { sourceAccountsClient } from "@/api/source-accounts";
 import { controlPlaneClient, type StudioSourceProjection, type WorkflowSummary } from "@/api/control-plane";
 import type { ProjectRecord } from "@/api";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, CircleHelp, Clapperboard, Compass, Feather, Layers, Plus, Terminal, UserRound, Workflow } from "lucide-react";
+import { ArrowRight, CircleHelp, Clapperboard, Compass, Feather, KeyRound, Layers, Plus, Terminal, UserRound, Workflow } from "lucide-react";
 import { DashboardSearch } from "@/components/DashboardSearch";
 import { WorkspaceMenu } from "@/components/WorkspaceMenu";
 import { PenDialog } from "@/components/PenDialog";
@@ -26,6 +29,8 @@ const pages = {
   profiles: { label: "Profiles", eyebrow: "Identity / 04", description: "Keep every production consistent with a reusable creative voice.", icon: UserRound },
   runs: { label: "Legacy Console", eyebrow: "Operations / 05", description: "Inspect jobs, review outputs, and intervene when a run needs attention.", icon: Terminal },
   studio: { label: "Creator Studio", eyebrow: "Create / 06", description: "Shape your story, one scene at a time.", icon: Clapperboard },
+  accounts: { label: "Source Accounts", eyebrow: "Access / 07", description: "Logged-in sessions that acquisition rotates through, per platform.", icon: KeyRound },
+  proxies: { label: "Proxies", eyebrow: "Access / 07", description: "Dedicated proxies for source accounts. Each proxy serves one account.", icon: KeyRound },
 };
 
 /** Cockpit shell with a Runs/Profiles/Discovery/Content Set view toggle,
@@ -33,7 +38,7 @@ const pages = {
 export default function App() {
   const [projectId, setProjectId] = useState<string | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [view, setView] = useState<"workflows" | "runs" | "profiles" | "discovery" | "contentset" | "studio">("workflows");
+  const [view, setView] = useState<keyof typeof pages>("workflows");
   const [workflowId, setWorkflowId] = useState<string | null>(null);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [newWorkflowOpen, setNewWorkflowOpen] = useState(false);
@@ -104,12 +109,12 @@ export default function App() {
           {([
             ["workflows", "Workflows"], ["discovery", "Discovery"],
             ["contentset", "Content Set"], ["profiles", "Profiles"],
-            ["runs", "Legacy console"], ["studio", "Creator Studio"],
+            ["runs", "Legacy console"], ["studio", "Creator Studio"], ["accounts", "Source Accounts"],
           ] as const).map(([id, label]) => {
             const Icon = pages[id].icon;
             return <div key={id} className={id === "runs" ? "dashboard-tools-start" : undefined}>
               {id === "runs" && <p className="dashboard-nav-label">Tools</p>}
-              <Button className="dashboard-nav-item" variant="ghost" aria-current={view === id ? "page" : undefined}
+              <Button className="dashboard-nav-item" variant="ghost" aria-current={view === id || (id === "accounts" && view === "proxies") ? "page" : undefined}
                 onClick={() => setView(id === "studio" && !studioDocument ? "contentset" : id)}>
                 <Icon aria-hidden="true" /><span>{label}</span>
               </Button>
@@ -153,6 +158,10 @@ export default function App() {
           projectId={projectId}
           onOpenInStudio={handleOpenInStudio}
         />
+      ) : view === "accounts" ? (
+        <SourceAccounts client={sourceAccountsClient} onManageProxies={() => setView("proxies")} />
+      ) : view === "proxies" ? (
+        <SourceProxies client={sourceAccountsClient} onBack={() => setView("accounts")} />
       ) : view === "studio" && studioDocument ? (
         <GuidedStudio
           key={`${studioDocument.documentId}:${studioDocument.opened}`}
