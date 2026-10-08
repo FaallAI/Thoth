@@ -367,10 +367,16 @@ SOURCE_EVENT_PAYLOAD_KEYS = frozenset(
         "partial_cleanup_passed",
         "browser_cleanup_passed",
         "fallback_from",
+        "account_used",
+        "account_outcome",
+        "no_account_available",
     }
 )
 SOURCE_EVENT_STAGE_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 SOURCE_EVENT_STATUSES = frozenset({"succeeded", "failed", "incomplete"})
+SOURCE_ACCOUNT_OUTCOMES = frozenset(
+    {"success", "blocked", "challenge", "rate_limited", "login_wall"}
+)
 SOURCE_EVENT_REASONS = frozenset(
     {
         "headless_timeout",
@@ -405,6 +411,12 @@ class SourceProgressEvent(StrictModel):
         stage = payload.get("stage")
         if not isinstance(stage, str) or not SOURCE_EVENT_STAGE_PATTERN.fullmatch(stage):
             raise ValueError("source event stage must be a safe code")
+        for flag in ("account_used", "no_account_available"):
+            if flag in payload and not isinstance(payload[flag], bool):
+                raise ValueError("source event account flags must be booleans")
+        outcome = payload.get("account_outcome")
+        if outcome is not None and outcome not in SOURCE_ACCOUNT_OUTCOMES:
+            raise ValueError("source event account outcome is unsupported")
         if "status" in payload and payload["status"] not in SOURCE_EVENT_STATUSES:
             raise ValueError("source event status is unsupported")
         if "reason" in payload and payload["reason"] not in SOURCE_EVENT_REASONS:

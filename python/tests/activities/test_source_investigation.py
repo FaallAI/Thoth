@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import os
 from pathlib import Path, PurePosixPath
 
@@ -9,6 +10,7 @@ import pytest
 from pydantic import ValidationError
 
 from thoth_control_plane.acquisition.models import (
+    AccountUse,
     AcquisitionAttempt,
     AcquisitionFailure,
     AcquisitionOutcome,
@@ -22,6 +24,7 @@ from thoth_control_plane.acquisition.models import (
 )
 from thoth_control_plane.activities.source_investigation import (
     SourceInvestigationActivityInput,
+    build_production_acquisition_runner,
     build_source_investigation_activity,
 )
 from thoth_control_plane.config import Settings
@@ -716,3 +719,34 @@ async def test_a_login_wall_attempt_is_a_safe_event_and_a_request_blocked_failur
 
     assert result.failure == SafeActivityError(code="request_blocked", retryable=True)
     assert result.events[1].payload["reason"] == "login_wall"
+
+
+@pytest.mark.asyncio
+async def test_account_use_becomes_one_enum_only_event_before_cleanup(tmp_path: Path) -> None:
+    async def runner(workflow_id: str, source_url: str, artifact_root: Path):
+        del workflow_id, source_url, artifact_root
+        return AcquisitionResult(
+            failure=AcquisitionFailure(code="request_timeout", retryable=True),
+            account=AccountUse(used=False, no_account_available=True),
+        )
+
+    result = await build_source_investigation_activity(_settings(tmp_path), runner=runner)(INPUT)
+
+    assert [event.payload["stage"] for event in result.events] == [
+        "tiktok_account",
+        "tiktok_cleanup",
+    ]
+    assert result.events[0].kind == "stage.progress"
+    assert result.events[0].payload == {
+        "stage": "tiktok_account",
+        "account_used": False,
+        "no_account_available": True,
+    }
+
+
+def test_without_a_vault_the_production_runner_warns_once_and_stays_anonymous(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        build_production_acquisition_runner(_settings(tmp_path))
+    assert caplog.text.count("source accounts unavailable") == 1

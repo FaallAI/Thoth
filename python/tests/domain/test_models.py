@@ -261,6 +261,25 @@ def test_source_progress_event_rejects_out_of_set_reason(reason: str) -> None:
         SourceProgressEvent(kind="stage.failed", payload={"stage": "tiktok_cdn", "reason": reason})
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"stage": "x_account", "account_used": "yes"},
+        {"stage": "x_account", "no_account_available": 1},
+        {"stage": "x_account", "account_outcome": "account 42 expired"},
+        {"stage": "x_account", "account_label": "main"},
+    ],
+)
+def test_account_events_carry_booleans_and_fixed_outcomes_only(payload: dict) -> None:
+    with pytest.raises(ValidationError):
+        SourceProgressEvent(kind="stage.progress", payload=payload)
+
+
+def test_an_account_event_with_enums_only_is_accepted() -> None:
+    payload = {"stage": "x_account", "account_used": True, "account_outcome": "login_wall"}
+    assert SourceProgressEvent(kind="stage.progress", payload=payload).payload == payload
+
+
 def test_a_login_wall_reason_is_a_safe_event_reason() -> None:
     event = SourceProgressEvent(
         kind="stage.failed", payload={"stage": "x_request", "reason": "login_wall"}

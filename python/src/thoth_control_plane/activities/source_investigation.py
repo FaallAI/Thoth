@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import os
+import tempfile
 from collections.abc import Awaitable, Callable, Mapping
 from hashlib import sha256
 from pathlib import Path, PurePosixPath
@@ -13,6 +15,9 @@ import httpx
 from pydantic import HttpUrl, TypeAdapter
 from temporalio import activity
 
+from thoth_control_plane.acquisition.accounts.access import SessionAccess
+from thoth_control_plane.acquisition.accounts.runner import account_runner
+from thoth_control_plane.acquisition.accounts.vault import Vault
 from thoth_control_plane.acquisition.browser import (
     ScraplingCapability,
     active_scrapling_session_count,
@@ -22,6 +27,7 @@ from thoth_control_plane.acquisition.materializer import (
     resolve_host_via_getaddrinfo,
 )
 from thoth_control_plane.acquisition.models import (
+    AccountUse,
     AcquisitionAttempt,
     AcquisitionResult,
     AcquisitionStrategy,
@@ -41,10 +47,12 @@ from thoth_control_plane.domain.models import (
     SourceProgressEvent,
     StrictModel,
 )
+from thoth_control_plane.infrastructure.source_account_store import SourceAccountStore
 
 AcquisitionRunner = Callable[[str, str, Path], Awaitable[AcquisitionResult]]
 
 _CAPABILITY_ADAPTER = TypeAdapter(ScraplingCapability)
+logger = logging.getLogger(__name__)
 
 _STAGE_SUFFIXES: dict[AcquisitionStrategy, str] = {
     AcquisitionStrategy.SCRAPLING_HEADLESS: "headless",
@@ -70,23 +78,45 @@ def _coerce_capability(
     return _CAPABILITY_ADAPTER.validate_python(capability)
 
 
+def _account_store(settings: Settings) -> SourceAccountStore | None:
+    vault = Vault.from_key(settings.account_vault_key)
+    if vault is None or settings.THOTH_EDITOR_DATABASE_URL is None:
+        logger.warning("source accounts unavailable; acquisition runs anonymously")
+        return None
+    return SourceAccountStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value(), vault)
+
+
 def build_production_acquisition_runner(settings: Settings) -> AcquisitionRunner:
-    """Build a fresh HTTP client and materializer per activity call; the acquirer owns its browser.
+    """Build a fresh HTTP client and materializer per acquisition; the acquirer owns its browser.
 
-    `settings` is accepted for interface symmetry with `build_source_investigation_activity`
-    and future acquisition-stack configuration; the stack itself needs no settings today.
+    Source accounts wrap the acquisition when the vault key and the editor database are
+    configured; otherwise every acquisition runs anonymously.
     """
-    del settings
 
-    async def run(workflow_id: str, source_url: str, artifact_root: Path) -> AcquisitionResult:
-        async with httpx.AsyncClient(follow_redirects=False) as client:
-            materializer = MediaMaterializer(client, resolve_host_via_getaddrinfo)
-            acquirer = acquirer_for(source_url, client=client, materializer=materializer)
-            return await acquirer.inspect(
-                workflow_id=workflow_id, source_url=source_url, artifact_root=artifact_root
+    async def acquire(
+        workflow_id: str, source_url: str, artifact_root: Path, access: SessionAccess | None
+    ) -> AcquisitionResult:
+        with contextlib.ExitStack() as stack:
+            # A private directory for yt-dlp's cookie file, removed with everything in it.
+            scratch = (
+                Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="thoth-session-")))
+                if access is not None
+                else None
             )
+            async with httpx.AsyncClient(follow_redirects=False) as client:
+                materializer = MediaMaterializer(client, resolve_host_via_getaddrinfo)
+                acquirer = acquirer_for(
+                    source_url,
+                    client=client,
+                    materializer=materializer,
+                    access=access,
+                    scratch=scratch,
+                )
+                return await acquirer.inspect(
+                    workflow_id=workflow_id, source_url=source_url, artifact_root=artifact_root
+                )
 
-    return run
+    return account_runner(_account_store(settings), acquire)
 
 
 def _attempt_events(attempts: list[AcquisitionAttempt], platform: str) -> list[SourceProgressEvent]:
@@ -142,8 +172,26 @@ def _cleanup_event(artifact_root: Path, workflow_id: str, platform: str) -> Sour
     )
 
 
+def _account_events(account: AccountUse | None, platform: str) -> list[SourceProgressEvent]:
+    """One enum-only event when source accounts took part; never an account or a label."""
+    if account is None:
+        return []
+    payload: dict[str, str | int | float | bool | None] = {
+        "stage": f"{platform}_account",
+        "account_used": account.used,
+        "no_account_available": account.no_account_available,
+    }
+    if account.outcome is not None:
+        payload["account_outcome"] = account.outcome
+    return [SourceProgressEvent(kind="stage.progress", payload=payload)]
+
+
 def _terminal_events(
-    attempts: list[AcquisitionAttempt], artifact_root: Path, workflow_id: str, platform: str
+    attempts: list[AcquisitionAttempt],
+    artifact_root: Path,
+    workflow_id: str,
+    platform: str,
+    account: AccountUse | None = None,
 ) -> list[SourceProgressEvent]:
     """Compose the full history-safe event trail for a terminal activity result.
 
@@ -152,6 +200,7 @@ def _terminal_events(
     """
     return [
         *_attempt_events(attempts, platform),
+        *_account_events(account, platform),
         _cleanup_event(artifact_root, workflow_id, platform),
     ]
 
@@ -243,7 +292,11 @@ async def _run(
                 retryable=acquisition_result.failure.retryable,
             ),
             events=_terminal_events(
-                acquisition_result.failure.attempts, artifact_root, input_.workflow_id, platform
+                acquisition_result.failure.attempts,
+                artifact_root,
+                input_.workflow_id,
+                platform,
+                acquisition_result.account,
             ),
         )
 
@@ -276,7 +329,11 @@ async def _run(
         return SourceInvestigationActivityResult(
             failure=SafeActivityError(code="artifact_persistence_failed", retryable=True),
             events=_terminal_events(
-                report.outcome.attempts, artifact_root, input_.workflow_id, platform
+                report.outcome.attempts,
+                artifact_root,
+                input_.workflow_id,
+                platform,
+                acquisition_result.account,
             ),
         )
 
@@ -290,7 +347,13 @@ async def _run(
         checksum=f"sha256:{digest}",
         size_bytes=len(content),
     )
-    events = _terminal_events(report.outcome.attempts, artifact_root, input_.workflow_id, platform)
+    events = _terminal_events(
+        report.outcome.attempts,
+        artifact_root,
+        input_.workflow_id,
+        platform,
+        acquisition_result.account,
+    )
     return SourceInvestigationActivityResult(report=artifact, events=events)
 
 

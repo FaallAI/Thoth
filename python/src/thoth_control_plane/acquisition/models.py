@@ -267,9 +267,18 @@ class AcquisitionFailure(StrictModel):
     attempts: Annotated[list[AcquisitionAttempt], Field(max_length=3)] = Field(default_factory=list)
 
 
+class AccountUse(StrictModel):
+    """Whether a source account served this acquisition; enums only, never an account."""
+
+    used: bool
+    outcome: Literal["success", "blocked", "challenge", "rate_limited", "login_wall"] | None = None
+    no_account_available: bool = False
+
+
 class AcquisitionResult(StrictModel):
     report: SourceReport | None = None
     failure: AcquisitionFailure | None = None
+    account: AccountUse | None = None
 
     @model_validator(mode="after")
     def require_exactly_one_outcome(self) -> AcquisitionResult:
