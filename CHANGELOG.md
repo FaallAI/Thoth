@@ -27,12 +27,25 @@ All notable changes to this project will be documented in this file.
   gate no longer expires the account, the primary host's cookie wins on a name clash,
   provider logging configured in the API, labelled row actions).
 - `4da19e8`: the X session check also treats the onboarding flow as signed out.
+- `4e6eda8`: the final review's deferred minors, each with a test that failed first.
+  - An Instagram share link that lands on a sign-in page carries a `login_wall` attempt, so a
+    leased account expires instead of cooling down.
+  - A lease report carries its lease identity; a stale report (the lease expired and was
+    re-leased, or a re-import ended it) no longer touches the account.
+  - A label or proxy taken between the store's check and its write answers 409
+    `label_taken` / `proxy_in_use` instead of 500.
+  - An oversized cookie or proxy import answers `invalid_cookie_file` / `invalid_proxy_file`.
+  - Dashboard: the no-healthy warning counts an elapsed cooldown as usable; the re-import
+    dialog starts clean per account; an account's proxy keeps its name when the pool list
+    lacks it; deleting a proxy asks for confirmation; delete labels carry the row position;
+    the access-mode radio group moves with the arrow keys.
 
 Verification:
 
-- Python: 2872 passed, 6 skipped, 0 failed (Postgres tests ran).
+- Python: 2876 passed, 6 skipped, 0 failed (Postgres tests ran).
 - Ruff check and format: clean.
-- Dashboard: 684 pass, 0 fail; `tsc -b` clean; production build succeeds.
+- Dashboard: 689 pass, 0 fail; `tsc -b` clean; oxlint adds no warning; production build
+  succeeds.
 
 Live session-check probe (operator-authorized, direct, no proxy):
 
