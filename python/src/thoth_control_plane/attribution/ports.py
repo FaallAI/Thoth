@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from thoth_control_plane.acquisition.models import DiscoveredVideo, SourceReport
 from thoth_control_plane.attribution.matching import TextBox
@@ -43,6 +43,18 @@ class CoverReading(BaseModel):
         max_length=10,
         description="Every @username or account name printed on the image, exactly as written",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _clip(cls, data: Any) -> Any:
+        """A text-heavy cover is clipped, not rejected: the rest of the reading still counts."""
+        if not isinstance(data, dict):
+            return data
+        clipped = dict(data)
+        for name, limit in (("headline", 300), ("scene", 300), ("icon", 200), ("handles", 10)):
+            if isinstance(clipped.get(name), str | list):
+                clipped[name] = clipped[name][:limit]
+        return clipped
 
 
 class VisualClass(BaseModel):

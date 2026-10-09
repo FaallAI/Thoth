@@ -35,7 +35,13 @@ Verification:
   `instagram_deOUJ60SHeI` replaced by the Instagram original; `tiktok_kabinetketiduran`
   original.
 - Live ORB strength on the recorded pairs: true originals 124 to 418 inliers, every other
-  candidate at most 16; the threshold is 25 inliers in at least one sampled frame.
+  candidate at most 16; the threshold is 40 inliers in at least one sampled frame.
+- Final whole-branch review (fresh reviewer): no Critical. One fix pass, each fix RED then
+  GREEN: the match threshold rose from 25 to 40 inliers (a logo or end card shared across an
+  account's videos); a repost whose frames fail is `unresolved` (`frames_failed`) instead of
+  the low-confidence nearest candidate; a near variant of the reposting account (its own
+  watermark misread) is never a credit option; a long cover reading is clipped, not lost; the
+  duration filter is gone (a reaction repost runs longer than its original).
 
 Operator decisions and rulings:
 

@@ -149,6 +149,14 @@ async def test_vision_reads_the_cover_from_jpeg_frames() -> None:
     assert "qwen/qwen3-vl-30b-a3b-instruct" in body
 
 
+def test_a_long_cover_reading_is_clipped_not_rejected() -> None:
+    reading = CoverReading.model_validate(
+        {"headline": "x" * 400, "icon": "y" * 250, "handles": [f"akun{n}" for n in range(12)]}
+    )
+
+    assert (len(reading.headline), len(reading.icon), len(reading.handles)) == (300, 200, 10)
+
+
 @pytest.mark.asyncio
 @respx.mock
 async def test_vision_classifies_and_degrades_to_none() -> None:

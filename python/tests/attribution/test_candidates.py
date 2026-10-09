@@ -41,7 +41,6 @@ def _kept(videos: list[DiscoveredVideo]) -> tuple[list[int], dict[str, int]]:
         repost_owner="detikjatim",
         curated=frozenset({"curatedaggregator"}),
         repost_time=REPOST_TIME,
-        repost_duration=90.0,
     )
     return [int(video.post_id) - 7677137235434687000 for video in kept], counts
 
@@ -52,13 +51,19 @@ def test_the_window_keeps_only_plausible_sources() -> None:
             _video(1, "2026-08-24T10:00:00Z"),  # after the repost
             _video(2, "2026-08-23T08:13:31Z"),  # 23 hours before: plausible
             _video(3, "2026-08-08T00:00:00Z"),  # more than 14 days before
-            _video(4, "2026-08-23T09:00:00Z", duration=80.0),  # shorter than 90% of 90 s
-            _video(5, None, duration=None),  # unknown values pass
+            _video(4, None, duration=None),  # unknown values pass
         ]
     )
 
-    assert kept == [2, 5]
-    assert counts == {"filtered_window": 3}
+    assert kept == [2, 4]
+    assert counts == {"filtered_window": 2}
+
+
+def test_a_source_shorter_than_its_repost_is_kept() -> None:
+    # A reaction repost shows a 20 s original inside a 90 s video.
+    kept, _ = _kept([_video(1, "2026-08-23T08:13:31Z", duration=20.0)])
+
+    assert kept == [1]
 
 
 def test_closest_before_the_repost_comes_first_then_most_played() -> None:

@@ -36,6 +36,8 @@ def test_credit_options_never_offer_the_reposting_account() -> None:
 
     assert options == ["Vincentius.Christ76"]
     assert credit.credit_options([], ["detik.jatim"], "detikjatim") == []
+    # OCR misreads the owner's own watermark; a near variant is still the owner.
+    assert credit.credit_options([], ["detikjatlm", "detikjatm"], "detikjatim") == []
 
 
 def test_frame_text_tolerates_a_space_after_the_at_sign() -> None:

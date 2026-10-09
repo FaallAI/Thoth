@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 # Stage 10 moves this list into Python when Scout retires.
 DEFAULT_CURATED_FILE = Path(__file__).resolve().parents[4] / "scout" / "config" / "ig_accounts.json"
 MAX_SOURCE_AGE = timedelta(days=14)
-MIN_DURATION_RATIO = 0.9
 
 
 def load_curated(path: Path = DEFAULT_CURATED_FILE) -> frozenset[str]:
@@ -50,17 +49,16 @@ def parse_time(value: str | None) -> datetime | None:
     return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
 
 
-def plausible(
-    video: DiscoveredVideo, repost_time: datetime | None, repost_duration: float | None
-) -> bool:
-    """Published shortly before the repost and not shorter than it; unknown values pass."""
+def plausible(video: DiscoveredVideo, repost_time: datetime | None) -> bool:
+    """Published shortly before the repost; an unknown time passes.
+
+    Duration is no filter: a reaction repost runs longer than the original it shows.
+    """
     published = parse_time(video.published_at)
-    if repost_time is not None and published is not None:
-        gap = repost_time - published
-        if gap <= timedelta(0) or gap > MAX_SOURCE_AGE:
-            return False
-    duration = video.duration_seconds
-    return not (repost_duration and duration and duration < repost_duration * MIN_DURATION_RATIO)
+    if repost_time is None or published is None:
+        return True
+    gap = repost_time - published
+    return timedelta(0) < gap <= MAX_SOURCE_AGE
 
 
 def shortlist(
@@ -69,7 +67,6 @@ def shortlist(
     repost_owner: str,
     curated: frozenset[str],
     repost_time: datetime | None,
-    repost_duration: float | None,
 ) -> tuple[list[DiscoveredVideo], dict[str, int]]:
     """The plausible videos, closest before the repost first, then the most played."""
     owner = normalize(repost_owner)
@@ -79,7 +76,7 @@ def shortlist(
         account = normalize(video.owner_handle)
         if account == owner or account in curated:
             counts["excluded_account"] += 1
-        elif not plausible(video, repost_time, repost_duration):
+        elif not plausible(video, repost_time):
             counts["filtered_window"] += 1
         else:
             kept.append(video)

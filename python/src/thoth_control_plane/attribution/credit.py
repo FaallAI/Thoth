@@ -121,10 +121,15 @@ def _distance(a: str, b: str) -> int:
 def credit_options(
     caption_handles: Sequence[str], found_in_frames: Sequence[str], owner: str
 ) -> list[str]:
-    """Every distinct handle that could be the source credit; never the reposting account."""
+    """Every distinct handle that could be the source credit; never the reposting account.
+
+    A near variant of the owner is the owner's own watermark misread by OCR.
+    """
     owner_key = normalize(owner)
     usable = _usable([*caption_handles, *found_in_frames])
-    return [handle for handle in usable if normalize(handle) != owner_key][:MAX_OPTIONS]
+    return [handle for handle in usable if _distance(normalize(handle), owner_key) > 2][
+        :MAX_OPTIONS
+    ]
 
 
 def _bare_handle(token: str) -> bool:

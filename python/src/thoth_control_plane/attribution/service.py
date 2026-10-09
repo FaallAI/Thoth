@@ -56,9 +56,10 @@ class Tuning:
     frame_fps: float = 1.0
     credit_seconds: float = 3.0
     reaction_frames: int = 10
-    # A repost frame holds a candidate frame at this many RANSAC inliers (spike 2026-10-10:
-    # true pairs 124 to 418, unrelated pairs at most 12).
-    min_inliers: int = 25
+    # A repost frame holds a candidate frame at this many RANSAC inliers. Live captures
+    # (2026-10-10): true originals 124 to 418, unrelated videos at most 16; 40 also stays
+    # above a logo or an end card the account stamps on every video.
+    min_inliers: int = 40
     min_matched_frames: int = 1
     repost_threshold: float = 0.5
     handle_threshold: float = 0.5
@@ -125,6 +126,9 @@ class SourceAttributor:
         self, workflow_id: str, report: SourceReport, video: Path | None
     ) -> AttributionOutcome:
         frames = await self._frames(video)
+        if video is not None and not frames:
+            # The video exists but sampling failed: no evidence, so no verdict on the source.
+            return self._finish(workflow_id, report, "unresolved", [], reason="frames_failed")
         lines: list[str] = []
         for frame in frames:
             if frame.second < self._tuning.credit_seconds:
@@ -184,16 +188,11 @@ class SourceAttributor:
                     videos = found
                     break
         counts["discovered"] = len(videos)
-        repost_duration = next(
-            (m.duration_seconds for m in report.media if m.kind == "video" and m.duration_seconds),
-            None,
-        )
         kept, dropped = shortlist(
             videos,
             repost_owner=owner,
             curated=self._curated,
             repost_time=parse_time(report.post.published_at),
-            repost_duration=repost_duration,
         )
         counts.update(dropped)
         if not kept:

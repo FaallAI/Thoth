@@ -26,13 +26,22 @@ Amendment (operator, 2026-10-10, from the fresh-case captures): decision 4 is re
 Perceptual hashes missed every transformed repost (a reaction panel, a zoom, overlays), so
 visual matching uses OpenCV ORB features with a RANSAC homography: for each sampled repost
 frame (every second frame at 1 fps), the most inliers it shares with any candidate frame. A
-candidate matches when at least one repost frame reaches 25 inliers (`Tuning.min_inliers`,
+candidate matches when at least one repost frame reaches 40 inliers (`Tuning.min_inliers`,
 `Tuning.min_matched_frames`); the strongest candidate wins. On the real pairs true matches
-scored 124 to 418 inliers and unrelated videos at most 12. `imagehash` is dropped and
+scored 124 to 418 inliers and unrelated videos at most 16; 40 also stays above a logo or an
+end card an account stamps on every video. `imagehash` is dropped and
 `opencv-python` (already pulled by RapidOCR) is an explicit dependency. Golden fixtures record
 the inliers per candidate instead of frame hashes. A measured visual match outranks the
 finalist genre checks (vision called both real originals "commentary"); the commentary and
 burned-in speech checks apply only when the repost's frames cannot be matched.
+
+Amendment (final review, 2026-10-10): the candidate window drops the duration filter (S4b):
+a reaction repost runs longer than the original it shows, and frame matching now does that
+work. A repost whose video exists but whose frames cannot be sampled (ffmpeg missing, failed,
+or timed out) is `unresolved` with reason `frames_failed`, not the low-confidence nearest
+candidate. A credit option within edit distance 2 of the reposting account is that account's
+own watermark misread by OCR and is never offered. A cover reading longer than its bounds is
+clipped, not rejected.
 
 - Roadmap: Stage 4, "Move Source Intelligence", in `docs/python-scout-migration-roadmap.md`.
 - Inputs to this design:

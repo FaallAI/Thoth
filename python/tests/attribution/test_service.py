@@ -71,7 +71,7 @@ def _case(**overrides: Any) -> dict[str, Any]:
             "other": _frames(2),
         },
         # Inliers each repost frame finds in a candidate: the original holds two of three.
-        "matches": {"original": [40, 31, 0], "other": [3, 0, 12]},
+        "matches": {"original": [120, 64, 0], "other": [3, 0, 12]},
         "cover": {"headline": "BANJIR DI JATIM", "scene": "a flooded street", "icon": "a note"},
         "decisions": {
             "is_repost": 0.95,
@@ -123,7 +123,7 @@ async def test_the_reference_pair_resolves_to_the_credited_original() -> None:
     assert {
         "@vincentius.christ76",
         "credit @vincentius.christ76",
-        "2 repost frames hold it, up to 40 inliers",
+        "2 repost frames hold it, up to 120 inliers",
     } <= details
     assert ports.decisions.calls[0][1] == [SOURCE]
 
@@ -215,6 +215,30 @@ async def test_a_visual_match_outranks_a_commentary_label() -> None:
     assert (outcome.attribution.verdict, outcome.attribution.confidence) == ("replaced", "high")
     source = outcome.attribution.source
     assert source is not None and str(source.canonical_url) == _url(3)
+
+
+@pytest.mark.asyncio
+async def test_a_weak_match_on_one_shared_frame_is_no_match() -> None:
+    # A logo or an end card the account puts on every video: a few dozen inliers at most.
+    weak = _case(matches={"original": [30, 0, 0], "other": [3, 0, 12]})
+
+    outcome, _ = await _identify(weak)
+
+    assert (outcome.attribution.verdict, outcome.attribution.reason) == ("unresolved", "no_match")
+
+
+@pytest.mark.asyncio
+async def test_a_repost_whose_frames_fail_is_unresolved() -> None:
+    broken = _case()
+    del broken["frames"]["repost"]  # ffmpeg missing, crashed, or timed out
+
+    outcome, ports = await _identify(broken)
+
+    assert (outcome.attribution.verdict, outcome.attribution.reason) == (
+        "unresolved",
+        "frames_failed",
+    )
+    assert ports.acquirer.acquired == []
 
 
 @pytest.mark.asyncio
