@@ -1,6 +1,7 @@
 # Stage 4: Source Attribution in Python — Design
 
-Status: written spec approved by the operator on 2026-10-08.
+Status: written spec approved by the operator on 2026-10-08; implemented on branch
+`feat/stage4-source-attribution` (see `docs/superpowers/plans/2026-10-08-stage4-source-attribution.md`).
 
 Amendment (operator, 2026-10-08, during implementation): Jev is reached through OpenRouter's
 Decisions API only (`https://openrouter.ai/api/alpha/decisions`, model `typesafe/jev-1.13`),

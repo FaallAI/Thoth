@@ -2,6 +2,77 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-10 - Stage 4: source attribution in Python
+
+- Implements `docs/superpowers/specs/2026-10-08-stage4-source-attribution-design.md` through
+  the plan `docs/superpowers/plans/2026-10-08-stage4-source-attribution.md` on
+  `feat/stage4-source-attribution`. The operator chose native execution.
+- `6ae43b7`: attribution settings (`THOTH_SOURCE_ATTRIBUTION_ENABLED`, default `true`;
+  `THOTH_SOURCE_VISION_MODEL`) and the worker-only dependencies.
+- `dbb793a`: the typed `SourceAttribution` models and the credit rules (caption conventions,
+  frame-text handles, self-credit ignored, placeholders rejected).
+- `cb8eeda`, `7fa7b69`, `892b923`: frame matching. Perceptual hashes first; replaced after the
+  live captures by OpenCV ORB features with a RANSAC homography (`OrbMatcher`), and a measured
+  match now outranks the finalist genre checks.
+- `de8120f`: the candidate shortlist from free metadata (publish window, duration, recency).
+- `8e37826`, `4d1b35a`, `0f5a6e8`, `54c823b`, `f62c4d4`: ports and adapters. ffmpeg frames,
+  RapidOCR, Jev through OpenRouter's Decisions API, vision through OpenRouter, and profile
+  discovery that leases a source account under the platform's account mode.
+- `33528de`, `4532683`, `8373ea0`: the `SourceAttributor` service (S1 to S6). OCR tolerates
+  "@ name"; the cover vision call reads account names; a handle that discovers nothing
+  retries its near variants found in the evidence.
+- `1d86acf`: the `attribute_source` activity; `07e4fcb`: the workflow runs attribution after
+  an identify acquisition, and the gateway carries it.
+- `1fba78b`, `3881332`, `3d2e2a1`, `0d34660`: the golden harness, the capture tool (cookie
+  sessions, fallback mode, `THOTH_CAPTURE_PROXY`), and four live cases recorded on
+  2026-10-10.
+
+Verification:
+
+- Python suite: 2950 passed, 8 skipped (Playwright absent, ffmpeg absent in WSL, live tests unset), 0 failed. Ruff check and format clean.
+- Golden replay, offline: `synthetic_reference` replaced; `tiktok_officialinews` replaced by
+  the Instagram original; `instagram_deHz54GT4ea` replaced by the TikTok original;
+  `instagram_deOUJ60SHeI` replaced by the Instagram original; `tiktok_kabinetketiduran`
+  original.
+- Live ORB strength on the recorded pairs: true originals 124 to 418 inliers, every other
+  candidate at most 16; the threshold is 25 inliers in at least one sampled frame.
+
+Operator decisions and rulings:
+
+- Jev and vision go through OpenRouter only (`THOTH_OPENROUTER_API_KEY`); the Python Novita
+  setting is gone.
+- Profile discovery uses a logged-in account under the source-account mode; Instagram's
+  signed-in profile page breaks the Stage 3 parser, so `fallback` (anonymous first) is the
+  default.
+- Visual matching is ORB+RANSAC instead of perceptual hashes (operator option B): hashes
+  missed every transformed repost (reaction panel, zoom, overlays).
+- A measured visual match skips the commentary and burned-in speech checks: vision called
+  both real originals "commentary".
+- `tiktok_kabinetketiduran` has no operator ground truth. Jev put `is_repost` at the 0.50
+  threshold (0.50 on one capture, 0.49 on the recorded one), so its expected verdict follows
+  the recorded answer.
+
+Departures from Scout (spec section 10): the repost decision comes first; visual matching
+replaces text-embedding similarity; no story search until Stage 8; the credit is a
+constrained choice among handles in the evidence; the platform logo is read by vision prose
+plus a Jev choice.
+
+Next steps:
+
+- The operator reviews the branch. Push, merge, and deploy each need their own authorization.
+- Deploy: the image gains `libgl1` and `libglib2.0-0` for OpenCV and RapidOCR.
+  `THOTH_OPENROUTER_API_KEY` must reach the worker (provider file or compose); today it sits
+  only in `.env.stage1.local` and `.env`.
+- The operator's proxies speak HTTP although their lines say `socks5://`; import them as
+  `http://`. Instagram blocks that proxy while anonymous direct access works.
+- Confirm the ground truth of `tiktok_kabinetketiduran` (original or repost).
+- The live smoke joins the final acceptance (ADR 0001).
+- Follow-ups: parse the signed-in Instagram profile page; RapidOCR INFO log noise; spec
+  section 12 (Stage 8 story search, Stage 5 final OCR, per-post cache, the TikTok original
+  sound shortcut, Threads profile discovery, cover ordering of candidates).
+- The parked backlog stays on offer: interactive login, login-only capabilities, vault key
+  rotation, the Creator Studio backlog.
+
 ## 2026-10-08 - Source accounts: rotating logged-in sessions with a proxy pool
 
 - Implements `docs/superpowers/specs/2026-10-07-source-accounts-design.md` through the plan
