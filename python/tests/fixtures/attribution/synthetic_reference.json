@@ -51,7 +51,6 @@
     "repost": [
       {
         "second": 0.0,
-        "hash": "0f0f0f0f0f0f0f0f",
         "boxes": [
           [
             "♪ vincentius.christ76   detikjatim",
@@ -62,55 +61,59 @@
       },
       {
         "second": 1.0,
-        "hash": "f0f0f0f0f0f0f0f0",
         "boxes": []
       },
       {
         "second": 2.0,
-        "hash": "00ff00ff00ff00ff",
         "boxes": []
       }
     ],
     "original": [
       {
         "second": 0.0,
-        "hash": "0f0f0f0f0f0f0f0f",
         "boxes": []
       },
       {
         "second": 1.0,
-        "hash": "f0f0f0f0f0f0f0f0",
         "boxes": []
       },
       {
         "second": 2.0,
-        "hash": "00ff00ff00ff00ff",
         "boxes": []
       },
       {
         "second": 3.0,
-        "hash": "aaaaaaaaaaaaaaaa",
         "boxes": []
       },
       {
         "second": 4.0,
-        "hash": "5555555555555555",
         "boxes": []
       }
     ],
     "other": [
       {
         "second": 0.0,
-        "hash": "aaaaaaaaaaaaaaaa",
         "boxes": []
       },
       {
         "second": 1.0,
-        "hash": "5555555555555555",
         "boxes": []
       }
     ]
   },
+  "matches": {
+    "original": [
+      40,
+      31,
+      0
+    ],
+    "other": [
+      3,
+      0,
+      12
+    ]
+  },
+  "unmatchable": [],
   "cover": {
     "headline": "BANJIR DI JATIM",
     "scene": "a flooded street",

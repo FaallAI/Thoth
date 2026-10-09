@@ -58,7 +58,7 @@ RUN /opt/thoth/python/.venv/bin/scrapling install \
     && chown -R thoth:thoth /home/thoth /ms-playwright /opt/thoth/python/.venv
 
 RUN /opt/thoth/python/.venv/bin/python -c \
-        "import scrapling, thoth_control_plane, imagehash, rapidocr, openai" \
+        "import scrapling, thoth_control_plane, cv2, rapidocr, openai" \
     && /opt/thoth/python/.venv/bin/python -c \
         "import sys; assert sys.version_info[:2] == (3, 12), sys.version" \
     && /opt/thoth/python/.venv/bin/python -c \

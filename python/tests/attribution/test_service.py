@@ -19,8 +19,6 @@ FIXTURE = json.loads(
 )
 REPOST_URL = "https://www.tiktok.com/@detikjatim/video/7677496203042360594"
 SOURCE = "vincentius.christ76"
-REPOST_HASHES = ["0f0f0f0f0f0f0f0f", "f0f0f0f0f0f0f0f0", "00ff00ff00ff00ff"]
-OTHER_HASHES = ["aaaaaaaaaaaaaaaa", "5555555555555555"]
 VIDEO = Path("repost.mp4")
 
 
@@ -50,11 +48,8 @@ def _report(
     return data
 
 
-def _frames(hashes: list[str | None], boxes: dict[int, list[Any]] | None = None) -> list[dict]:
-    return [
-        {"second": float(n), "hash": value, "boxes": (boxes or {}).get(n, [])}
-        for n, value in enumerate(hashes)
-    ]
+def _frames(count: int, boxes: dict[int, list[Any]] | None = None) -> list[dict]:
+    return [{"second": float(n), "boxes": (boxes or {}).get(n, [])} for n in range(count)]
 
 
 def _video(n: int, published: str) -> dict[str, Any]:
@@ -71,12 +66,12 @@ def _video(n: int, published: str) -> dict[str, Any]:
 def _case(**overrides: Any) -> dict[str, Any]:
     case: dict[str, Any] = {
         "frames": {
-            "repost": _frames(
-                REPOST_HASHES, {0: [["♪ vincentius.christ76   detikjatim", 0.88, 0.93]]}
-            ),
-            "original": _frames([*REPOST_HASHES, *OTHER_HASHES]),
-            "other": _frames(OTHER_HASHES),
+            "repost": _frames(3, {0: [["♪ vincentius.christ76   detikjatim", 0.88, 0.93]]}),
+            "original": _frames(5),
+            "other": _frames(2),
         },
+        # Inliers each repost frame finds in a candidate: the original holds two of three.
+        "matches": {"original": [40, 31, 0], "other": [3, 0, 12]},
         "cover": {"headline": "BANJIR DI JATIM", "scene": "a flooded street", "icon": "a note"},
         "decisions": {
             "is_repost": 0.95,
@@ -125,7 +120,11 @@ async def test_the_reference_pair_resolves_to_the_credited_original() -> None:
         "not_evaluated": 1,
     }
     details = {item.detail for item in attribution.evidence}
-    assert {"@vincentius.christ76", "credit @vincentius.christ76"} <= details
+    assert {
+        "@vincentius.christ76",
+        "credit @vincentius.christ76",
+        "2 repost frames hold it, up to 40 inliers",
+    } <= details
     assert ports.decisions.calls[0][1] == [SOURCE]
 
 
@@ -201,8 +200,7 @@ async def test_commentary_and_reaction_finalists_are_skipped() -> None:
 
     speaking = _case()
     speaking["frames"]["original"] = _frames(
-        [*REPOST_HASHES, *OTHER_HASHES],
-        {n: [[f"kata ke {n}", 0.70, 0.76]] for n in range(5)},
+        5, {n: [[f"kata ke {n}", 0.70, 0.76]] for n in range(5)}
     )
     reaction, _ = await _identify(speaking)
     assert reaction.attribution.candidates["reaction"] == 1
@@ -219,9 +217,7 @@ async def test_a_repost_without_video_replaces_with_low_confidence() -> None:
 @pytest.mark.asyncio
 async def test_flat_repost_frames_leave_the_match_unmeasured() -> None:
     flat = _case()
-    flat["frames"]["repost"] = _frames(
-        [None, None, None], {0: [["♪ vincentius.christ76   detikjatim", 0.88, 0.93]]}
-    )
+    flat["unmatchable"] = ["repost"]
 
     outcome, _ = await _identify(flat)
 

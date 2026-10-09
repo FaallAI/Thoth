@@ -30,10 +30,11 @@ from thoth_control_plane.activities.source_investigation import (
     build_production_acquisition_runner,
 )
 from thoth_control_plane.attribution.adapters.discovery import ProfileDiscoverer, StoreLeases
-from thoth_control_plane.attribution.adapters.frames import FfmpegFrameSource, ImageHasher
+from thoth_control_plane.attribution.adapters.frames import FfmpegFrameSource
 from thoth_control_plane.attribution.adapters.jev import JevDecisionModel
 from thoth_control_plane.attribution.adapters.ocr import RapidOcrReader
 from thoth_control_plane.attribution.adapters.vision import AgnoVisionReader
+from thoth_control_plane.attribution.adapters.visual import OrbMatcher
 from thoth_control_plane.attribution.candidates import load_curated
 from thoth_control_plane.attribution.ports import AcquiredCandidate
 from thoth_control_plane.attribution.service import (
@@ -110,7 +111,7 @@ def build_production_ports(settings: Settings, artifact_root: Path) -> Attributi
     store = _account_store(settings)
     return AttributionPorts(
         frames=FfmpegFrameSource(settings.THOTH_FFMPEG),
-        hasher=ImageHasher(),
+        matcher=OrbMatcher(),
         text=RapidOcrReader(),
         discoverer=ProfileDiscoverer(leases=StoreLeases(store) if store is not None else None),
         acquirer=RunnerAcquirer(build_production_acquisition_runner(settings), artifact_root),

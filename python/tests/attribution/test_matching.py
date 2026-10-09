@@ -1,41 +1,22 @@
-"""Frame-hash matching and burned-in speech detection, without any model."""
+"""Visual match summaries and burned-in speech detection, without any model."""
 
 from __future__ import annotations
 
 from thoth_control_plane.attribution.matching import (
-    FrameHash,
     TextBox,
-    distance,
     looks_like_burned_in_speech,
-    match_share,
+    summarize_matches,
 )
 
-A, B, C = 0x0F0F0F0F0F0F0F0F, 0xF0F0F0F0F0F0F0F0, 0x00FF00FF00FF00FF
-FAR = 0xAAAAAAAAAAAAAAAA
+
+def test_a_match_counts_the_repost_frames_that_hold_the_candidate() -> None:
+    # The reaction case: the original shows only in two sampled frames, but strongly.
+    assert summarize_matches([0, 418, 0, 31, 4], min_inliers=25) == (2, 418)
+    assert summarize_matches([12, 9, 10], min_inliers=25) == (0, 12)
 
 
-def _hashes(*values: int) -> list[FrameHash]:
-    return [FrameHash(float(second), value) for second, value in enumerate(values)]
-
-
-def test_distance_counts_differing_bits() -> None:
-    assert distance(A, A) == 0
-    assert distance(A, B) == 64
-    assert distance(A, A ^ 0b111) == 3
-
-
-def test_a_cut_of_the_original_matches_fully_and_another_video_does_not() -> None:
-    repost = _hashes(A, B, C)
-    original = _hashes(FAR, A ^ 0b11, B, C, FAR)
-
-    assert match_share(repost, original, max_distance=10) == 1.0
-    assert match_share(repost, _hashes(FAR, FAR ^ 1), max_distance=10) == 0.0
-    assert match_share(repost, _hashes(A), max_distance=10) == 1 / 3
-
-
-def test_no_frames_on_either_side_is_unmeasured() -> None:
-    assert match_share([], _hashes(A), max_distance=10) is None
-    assert match_share(_hashes(A), [], max_distance=10) is None
+def test_no_comparable_frames_is_unmeasured() -> None:
+    assert summarize_matches([], min_inliers=25) is None
 
 
 def test_changing_lower_text_is_speech_and_a_static_lower_third_is_not() -> None:

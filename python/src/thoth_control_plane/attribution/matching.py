@@ -1,8 +1,9 @@
-"""Visual signals that need no model: frame-hash matching and burned-in speech detection.
+"""Visual signals that need no model: match summaries and burned-in speech detection.
 
-A repost is a cut of the original's footage, so most of its frames reappear in the original.
-Frames are compared as an unordered bag of 64-bit perceptual hashes, in the manner of Meta's
-vPDQ. Hashing itself lives in `adapters/frames.py`; this module only compares numbers.
+A repost reuses the original's footage, often transformed: cut, zoomed, framed by overlays, or
+shrunk into a panel of a reaction video. The matcher (`adapters/visual.py`, ORB features with a
+RANSAC homography) reports, for each sampled repost frame, the most geometrically consistent
+feature matches it found in any candidate frame; this module only reads those numbers.
 """
 
 from __future__ import annotations
@@ -14,12 +15,6 @@ LOWER_BAND = 0.55
 
 
 @dataclass(frozen=True)
-class FrameHash:
-    second: float
-    value: int
-
-
-@dataclass(frozen=True)
 class TextBox:
     """One OCR line; `top` and `bottom` are fractions of the frame height."""
 
@@ -28,23 +23,11 @@ class TextBox:
     bottom: float
 
 
-def distance(a: int, b: int) -> int:
-    return (a ^ b).bit_count()
-
-
-def match_share(
-    repost: Sequence[FrameHash], candidate: Sequence[FrameHash], max_distance: int
-) -> float | None:
-    """The share of the repost's frames found in the candidate; None when a side has none."""
-    if not repost or not candidate:
+def summarize_matches(inliers: Sequence[int], *, min_inliers: int) -> tuple[int, int] | None:
+    """(repost frames holding the candidate, best inlier count); None when nothing compared."""
+    if not inliers:
         return None
-    # ponytail: O(n*m) comparisons, a few thousand for short clips; index by hash band if long
-    hits = sum(
-        1
-        for frame in repost
-        if any(distance(frame.value, other.value) <= max_distance for other in candidate)
-    )
-    return hits / len(repost)
+    return sum(1 for count in inliers if count >= min_inliers), max(inliers)
 
 
 def looks_like_burned_in_speech(

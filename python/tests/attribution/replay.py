@@ -1,7 +1,9 @@
 """Ports that answer from a recorded case; the service tests and golden fixtures share them.
 
 A case maps frame keys to frames. A video path's stem names its key; a frame's JPEG bytes carry
-`"<key>:<second>"`, so the hasher and the OCR reader can find what was recorded for it.
+`"<key>:<second>"`, so the matcher and the OCR reader can find what was recorded for it.
+`matches` maps a candidate key to the inliers each repost frame found in it; a key listed
+in `unmatchable` has no features to match (flat frames).
 """
 
 from __future__ import annotations
@@ -49,17 +51,17 @@ class ReplayFrames:
         ]
 
 
-class ReplayHasher:
-    def __init__(self, frames: dict[str, list[dict[str, Any]]]) -> None:
-        self._hashes = {
-            (key, entry["second"]): entry.get("hash")
-            for key, entries in frames.items()
-            for entry in entries
-        }
+class ReplayMatcher:
+    def __init__(self, case: dict[str, Any]) -> None:
+        self._matches: dict[str, list[int]] = case.get("matches", {})
+        self._unmatchable = set(case.get("unmatchable", []))
 
-    def hash(self, frame: Frame) -> int | None:
-        value = self._hashes.get(frame_key(frame))
-        return int(value, 16) if value else None
+    async def prepare(self, frames: Sequence[Frame]) -> str:
+        key = frame_key(frames[0])[0]
+        return "" if key in self._unmatchable else key
+
+    async def compare(self, repost: str, candidate: str) -> list[int]:
+        return list(self._matches.get(candidate, []))
 
 
 class ReplayText:
@@ -144,7 +146,7 @@ def replay_ports(case: dict[str, Any]) -> AttributionPorts:
     frames = case["frames"]
     return AttributionPorts(
         frames=ReplayFrames(frames),
-        hasher=ReplayHasher(frames),
+        matcher=ReplayMatcher(case),
         text=ReplayText(frames),
         discoverer=ReplayDiscoverer(case.get("discovery")),
         acquirer=ReplayAcquirer(case.get("acquired", {})),

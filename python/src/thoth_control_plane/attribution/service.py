@@ -20,10 +20,9 @@ from thoth_control_plane.acquisition.models import DiscoveredVideo, SourceReport
 from thoth_control_plane.attribution import credit
 from thoth_control_plane.attribution.candidates import parse_time, shortlist
 from thoth_control_plane.attribution.matching import (
-    FrameHash,
     TextBox,
     looks_like_burned_in_speech,
-    match_share,
+    summarize_matches,
 )
 from thoth_control_plane.attribution.models import (
     MAX_EVIDENCE,
@@ -40,10 +39,10 @@ from thoth_control_plane.attribution.ports import (
     DecisionModel,
     Discoverer,
     Frame,
-    FrameHasher,
     FrameSource,
     TextReader,
     VisionReader,
+    VisualMatcher,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,11 +53,13 @@ T = TypeVar("T")
 class Tuning:
     """Provisional until the golden-fixture capture calibrates them (plan Task 11)."""
 
-    hash_fps: float = 1.0
+    frame_fps: float = 1.0
     credit_seconds: float = 3.0
     reaction_frames: int = 10
-    max_distance: int = 10
-    match_threshold: float = 0.6
+    # A repost frame holds a candidate frame at this many RANSAC inliers (spike 2026-10-10:
+    # true pairs 124 to 418, unrelated pairs at most 12).
+    min_inliers: int = 25
+    min_matched_frames: int = 1
     repost_threshold: float = 0.5
     handle_threshold: float = 0.5
     max_finalists: int = 3
@@ -71,7 +72,7 @@ DEFAULT_TUNING = Tuning()
 @dataclass(frozen=True)
 class AttributionPorts:
     frames: FrameSource
-    hasher: FrameHasher
+    matcher: VisualMatcher
     text: TextReader
     discoverer: Discoverer
     acquirer: CandidateAcquirer
@@ -100,7 +101,8 @@ class _Finalist:
     candidate_id: str
     checked: bool = False
     acquired: AcquiredCandidate | None = None
-    share: float | None = None
+    matched_frames: int = 0
+    inliers: int | None = None
     rejected: str | None = None
 
 
@@ -208,7 +210,7 @@ class SourceAttributor:
             _Finalist(video, f"{workflow_id}-c{index}")
             for index, video in enumerate(kept[: self._tuning.max_finalists], start=1)
         ]
-        winner = await self._evaluate(finalists, self._hashes(frames))
+        winner = await self._evaluate(finalists, await self._prepare(frames))
         for finalist in finalists:
             counts[_outcome(finalist)] += 1
             if finalist is not winner and finalist.acquired is not None:
@@ -222,10 +224,11 @@ class SourceAttributor:
         evidence.append(
             AttributionEvidence(
                 kind="visual_match",
-                detail=f"match_share={winner.share:.2f}"
-                if winner.share is not None
+                detail=(
+                    f"{winner.matched_frames} repost frames hold it, up to {winner.inliers} inliers"
+                )
+                if winner.inliers is not None
                 else "match_unmeasured",
-                confidence=winner.share,
             )
         )
         source = AttributedPost(
@@ -239,7 +242,7 @@ class SourceAttributor:
             "replaced",
             evidence,
             source=source,
-            confidence="high" if winner.share is not None else "low",
+            confidence="high" if winner.inliers is not None else "low",
             counts=counts,
         )
         return AttributionOutcome(attribution, original=acquired)
@@ -300,22 +303,20 @@ class SourceAttributor:
             None, None, 1.0 if options else 0.0, by_model=False, ambiguous=len(options) > 1
         )
 
-    async def _evaluate(
-        self, finalists: list[_Finalist], repost_hashes: list[FrameHash]
-    ) -> _Finalist | None:
+    async def _evaluate(self, finalists: list[_Finalist], repost: object) -> _Finalist | None:
         step = max(1, self._tuning.finalist_concurrency)
         for start in range(0, len(finalists), step):
             batch = finalists[start : start + step]
-            await asyncio.gather(*(self._check(finalist, repost_hashes) for finalist in batch))
-            if any(f.rejected is None and f.share is not None for f in batch):
+            await asyncio.gather(*(self._check(finalist, repost) for finalist in batch))
+            if any(f.rejected is None and f.inliers is not None for f in batch):
                 break
         accepted = [f for f in finalists if f.checked and f.rejected is None]
-        measured = [f for f in accepted if f.share is not None]
+        measured = [f for f in accepted if f.inliers is not None]
         if measured:
-            return max(measured, key=lambda f: f.share or 0.0)
+            return max(measured, key=lambda f: f.inliers or 0)
         return accepted[0] if accepted else None
 
-    async def _check(self, finalist: _Finalist, repost_hashes: list[FrameHash]) -> None:
+    async def _check(self, finalist: _Finalist, repost: object) -> None:
         finalist.checked = True
         acquired = await self._guard(
             self._ports.acquirer.acquire(finalist.candidate_id, str(finalist.video.canonical_url)),
@@ -326,13 +327,19 @@ class SourceAttributor:
             return
         finalist.acquired = acquired
         frames = await self._frames(acquired.video)
-        if repost_hashes:
-            share = match_share(repost_hashes, self._hashes(frames), self._tuning.max_distance)
-            if share is None:
+        if repost:
+            candidate = await self._prepare(frames)
+            scores = (
+                await self._guard(self._ports.matcher.compare(repost, candidate), "match")
+                if candidate
+                else None
+            )
+            summary = summarize_matches(scores or [], min_inliers=self._tuning.min_inliers)
+            if summary is None:
                 finalist.rejected = "no_video"
                 return
-            finalist.share = share
-            if share < self._tuning.match_threshold:
+            finalist.matched_frames, finalist.inliers = summary
+            if finalist.matched_frames < self._tuning.min_matched_frames:
                 finalist.rejected = "no_match"
                 return
         if self._ports.vision is not None and frames:
@@ -350,7 +357,7 @@ class SourceAttributor:
         if video is None:
             return []
         frames = await self._guard(
-            self._ports.frames.frames(video, fps=self._tuning.hash_fps), "frames"
+            self._ports.frames.frames(video, fps=self._tuning.frame_fps), "frames"
         )
         return frames or []
 
@@ -362,17 +369,11 @@ class SourceAttributor:
             return None
         return await self._guard(self._ports.vision.read_cover(frames[:3]), "vision")
 
-    def _hashes(self, frames: list[Frame]) -> list[FrameHash]:
-        hashes: list[FrameHash] = []
-        for frame in frames:
-            try:
-                value = self._ports.hasher.hash(frame)
-            except Exception:
-                logger.warning("source attribution hash unavailable for one frame")
-                continue
-            if value is not None:
-                hashes.append(FrameHash(frame.second, value))
-        return hashes
+    async def _prepare(self, frames: list[Frame]) -> object:
+        """Matcher features for a video's frames; falsy when nothing can be matched."""
+        if not frames:
+            return None
+        return await self._guard(self._ports.matcher.prepare(frames), "match")
 
     async def _guard(self, awaitable: Awaitable[T], what: str) -> T | None:
         try:
@@ -428,7 +429,7 @@ def _outcome(finalist: _Finalist) -> str:
         return "not_evaluated"
     if finalist.rejected is not None:
         return finalist.rejected
-    return "matched" if finalist.share is not None else "unmeasured"
+    return "matched" if finalist.inliers is not None else "unmeasured"
 
 
 def _text_evidence(

@@ -21,6 +21,16 @@ it can read, and those join the Jev options; when discovery finds nothing for th
 handle, near variants (edit distance at most 2) that the evidence itself holds are tried,
 because OCR drops letters ("ferdysambo_offcial" for "ferdysambo_official").
 
+Amendment (operator, 2026-10-10, from the fresh-case captures): decision 4 is replaced.
+Perceptual hashes missed every transformed repost (a reaction panel, a zoom, overlays), so
+visual matching uses OpenCV ORB features with a RANSAC homography: for each sampled repost
+frame (every second frame at 1 fps), the most inliers it shares with any candidate frame. A
+candidate matches when at least one repost frame reaches 25 inliers (`Tuning.min_inliers`,
+`Tuning.min_matched_frames`); the strongest candidate wins. On the real pairs true matches
+scored 124 to 418 inliers and unrelated videos at most 12. `imagehash` is dropped and
+`opencv-python` (already pulled by RapidOCR) is an explicit dependency. Golden fixtures record
+the inliers per candidate instead of frame hashes.
+
 - Roadmap: Stage 4, "Move Source Intelligence", in `docs/python-scout-migration-roadmap.md`.
 - Inputs to this design:
   - `docs/research/2026-10-08-stage4-source-intelligence-ideas.md` (flow map S1 to S8,

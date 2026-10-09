@@ -1,8 +1,9 @@
 """Record one golden attribution case from live traffic (operator-authorized; plan Task 11).
 
 Run only inside the capture container. It acquires the repost, runs attribution through
-recording ports with a wide tuning (more finalists, no early exit), then fills the hash and OCR
-boxes of every frame it saw and a visual class per candidate, so a replay can use any tuning.
+recording ports with a wide tuning (more finalists, no early exit), then records the OCR boxes
+of every frame it saw, the matcher's inliers per candidate, and a visual class per candidate, so
+a replay can use any tuning.
 The fixture holds no key, no URL query, and no CDN address.
 """
 
@@ -33,7 +34,8 @@ from thoth_control_plane.attribution.ports import (
 from thoth_control_plane.attribution.service import AttributionPorts, SourceAttributor, Tuning
 from thoth_control_plane.infrastructure.source_account_store import AccountLease
 
-CAPTURE_TUNING = Tuning(max_finalists=5, finalist_concurrency=1, match_threshold=1.01)
+# No candidate can reach 10,000 matched frames, so every finalist is acquired and recorded.
+CAPTURE_TUNING = Tuning(max_finalists=5, finalist_concurrency=1, min_matched_frames=10_000)
 WORKFLOW = "wf_golden"
 
 
@@ -159,16 +161,26 @@ async def record_case(
     for key, recorded in store.frames.items():
         entries = []
         for frame in recorded:
-            value = ports.hasher.hash(frame)
             boxes = await ports.text.read(frame)
             entries.append(
                 {
                     "second": frame.second,
-                    "hash": f"{value:016x}" if value is not None else None,
                     "boxes": [[box.text, round(box.top, 4), round(box.bottom, 4)] for box in boxes],
                 }
             )
         frames[key] = entries
+    prepared = {
+        key: await ports.matcher.prepare(recorded)
+        for key, recorded in store.frames.items()
+        if recorded
+    }
+    repost_key = video.stem if video is not None else None
+    repost = prepared.get(repost_key) if repost_key is not None else None
+    matches = {
+        key: await ports.matcher.compare(repost, value)
+        for key, value in prepared.items()
+        if repost and value and key != repost_key
+    }
     classify: dict[str, str] = {}
     if ports.vision is not None:
         for _, key in store.acquired.values():
@@ -180,6 +192,8 @@ async def record_case(
         "report": _plain(report),
         "repost_frames": video.stem if video is not None else None,
         "frames": frames,
+        "matches": matches,
+        "unmatchable": sorted(key for key, value in prepared.items() if not value),
         "cover": store.cover.model_dump() if store.cover is not None else None,
         "classify": classify,
         "decisions": vars(store.decisions) if store.decisions is not None else None,

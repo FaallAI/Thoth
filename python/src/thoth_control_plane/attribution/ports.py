@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, Field
 
@@ -76,8 +76,16 @@ class FrameSource(Protocol):
     ) -> list[Frame]: ...
 
 
-class FrameHasher(Protocol):
-    def hash(self, frame: Frame) -> int | None: ...
+class VisualMatcher(Protocol):
+    """Finds a candidate's footage inside repost frames, whatever the framing."""
+
+    async def prepare(self, frames: Sequence[Frame]) -> Any:
+        """Features of a video's sampled frames; falsy when no frame has usable detail."""
+        ...
+
+    async def compare(self, repost: Any, candidate: Any) -> list[int]:
+        """For each sampled repost frame, the best inlier count against any candidate frame."""
+        ...
 
 
 class TextReader(Protocol):

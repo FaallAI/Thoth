@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 import random
 import shutil
@@ -22,42 +23,68 @@ def _jpeg(image: object, quality: int = 90) -> bytes:
     return buffer.getvalue()
 
 
-def _noise(seed: int) -> object:
-    from PIL import Image
+def _scene(seed: int) -> object:
+    """A synthetic frame with corners and edges, the detail ORB keys on."""
+    from PIL import Image, ImageDraw
 
     rng = random.Random(seed)
-    small = Image.new("L", (36, 64))
-    small.putdata([rng.randrange(256) for _ in range(36 * 64)])
-    return small.resize((360, 640)).convert("RGB")
+    image = Image.new("RGB", (360, 640), (rng.randrange(60), rng.randrange(60), rng.randrange(60)))
+    draw = ImageDraw.Draw(image)
+    for _ in range(60):
+        x, y = rng.randrange(340), rng.randrange(620)
+        w, h = rng.randrange(10, 80), rng.randrange(10, 80)
+        colour = (rng.randrange(256), rng.randrange(256), rng.randrange(256))
+        if rng.random() < 0.5:
+            draw.rectangle((x, y, x + w, y + h), fill=colour)
+        else:
+            draw.ellipse((x, y, x + w, y + h), outline=colour, width=3)
+    return image
 
 
-def test_hasher_ignores_flat_frames() -> None:
-    pytest.importorskip("imagehash")
+def _reaction(original: object, seed: int) -> object:
+    """A reaction frame: the original shrunk into the top panel above an unrelated scene."""
+    canvas = _scene(seed)
+    canvas.paste(original.resize((216, 384)), (72, 20))  # type: ignore[attr-defined]
+    return canvas
+
+
+def test_matcher_finds_nothing_in_flat_frames() -> None:
+    pytest.importorskip("cv2")
     from PIL import Image
 
-    from thoth_control_plane.attribution.adapters.frames import ImageHasher
+    from thoth_control_plane.attribution.adapters.visual import OrbMatcher
 
     black = Frame(0.0, _jpeg(Image.new("RGB", (360, 640), "black")))
-    assert ImageHasher().hash(black) is None
+    matcher = OrbMatcher(step=1)
+
+    async def run() -> object:
+        return await matcher.prepare([black, black])
+
+    assert not asyncio.run(run())
 
 
-def test_hasher_matches_a_reencoded_frame_with_a_new_credit_bar() -> None:
-    pytest.importorskip("imagehash")
-    from PIL import ImageDraw
+def test_matcher_finds_the_original_shrunk_into_a_reaction_panel() -> None:
+    pytest.importorskip("cv2")
+    from thoth_control_plane.attribution.adapters.visual import OrbMatcher
 
-    from thoth_control_plane.attribution.adapters.frames import ImageHasher
-    from thoth_control_plane.attribution.matching import distance
+    original = [_scene(seed) for seed in (1, 2, 3)]
+    repost = [
+        Frame(float(n), _jpeg(_reaction(frame, 100 + n), quality=70))
+        for n, frame in enumerate(original)
+    ]
+    candidate = [Frame(float(n), _jpeg(frame)) for n, frame in enumerate(original)]
+    unrelated = [Frame(float(n), _jpeg(_scene(200 + n))) for n in range(3)]
+    matcher = OrbMatcher(step=1)
 
-    original = _noise(1)
-    repost = original.copy()  # type: ignore[attr-defined]
-    ImageDraw.Draw(repost).rectangle((0, 0, 360, 90), fill="white")
-    hasher = ImageHasher()
-    first = hasher.hash(Frame(0.0, _jpeg(original)))
-    reposted = hasher.hash(Frame(0.0, _jpeg(repost, quality=60)))
-    other = hasher.hash(Frame(0.0, _jpeg(_noise(2))))
+    async def run() -> tuple[list[int], list[int]]:
+        prepared = await matcher.prepare(repost)
+        found = await matcher.compare(prepared, await matcher.prepare(candidate))
+        other = await matcher.compare(prepared, await matcher.prepare(unrelated))
+        return found, other
 
-    assert first is not None and reposted is not None and other is not None
-    assert distance(first, reposted) <= 10 < distance(first, other)
+    found, other = asyncio.run(run())
+    assert len(found) == 3 and min(found) >= 25, found
+    assert max(other) < 25, other
 
 
 @needs_ffmpeg
