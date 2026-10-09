@@ -341,7 +341,9 @@ class SourceAttributor:
             finalist.matched_frames, finalist.inliers = summary
             if finalist.matched_frames < self._tuning.min_matched_frames:
                 finalist.rejected = "no_match"
-                return
+            # Matched footage is the source whatever its genre: vision calls talking-head
+            # originals "commentary", so the genre checks below run only when unmeasured.
+            return
         if self._ports.vision is not None and frames:
             kind = await self._guard(self._ports.vision.classify(frames[:3]), "vision")
             if kind == "commentary":

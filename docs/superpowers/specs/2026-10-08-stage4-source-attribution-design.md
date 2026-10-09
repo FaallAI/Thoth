@@ -29,7 +29,9 @@ candidate matches when at least one repost frame reaches 25 inliers (`Tuning.min
 `Tuning.min_matched_frames`); the strongest candidate wins. On the real pairs true matches
 scored 124 to 418 inliers and unrelated videos at most 12. `imagehash` is dropped and
 `opencv-python` (already pulled by RapidOCR) is an explicit dependency. Golden fixtures record
-the inliers per candidate instead of frame hashes.
+the inliers per candidate instead of frame hashes. A measured visual match outranks the
+finalist genre checks (vision called both real originals "commentary"); the commentary and
+burned-in speech checks apply only when the repost's frames cannot be matched.
 
 - Roadmap: Stage 4, "Move Source Intelligence", in `docs/python-scout-migration-roadmap.md`.
 - Inputs to this design:

@@ -189,21 +189,32 @@ async def test_a_threads_credit_or_a_failed_discovery_is_unresolved() -> None:
 
 
 @pytest.mark.asyncio
-async def test_commentary_and_reaction_finalists_are_skipped() -> None:
-    commentary, ports = await _identify(_case(classify={"original": "commentary"}))
+async def test_unmeasured_commentary_and_reaction_finalists_are_skipped() -> None:
+    both = {"original": "commentary", "other": "commentary"}
+    commentary, ports = await _identify(_case(classify=both, unmatchable=["repost"]))
     assert (commentary.attribution.verdict, commentary.attribution.reason) == (
         "unresolved",
         "no_match",
     )
-    assert commentary.attribution.candidates["commentary"] == 1
+    assert commentary.attribution.candidates["commentary"] == 2
     assert sorted(ports.acquirer.discarded) == ["wf_ref-c1", "wf_ref-c2"]
 
-    speaking = _case()
+    speaking = _case(unmatchable=["repost"])
     speaking["frames"]["original"] = _frames(
         5, {n: [[f"kata ke {n}", 0.70, 0.76]] for n in range(5)}
     )
     reaction, _ = await _identify(speaking)
     assert reaction.attribution.candidates["reaction"] == 1
+
+
+@pytest.mark.asyncio
+async def test_a_visual_match_outranks_a_commentary_label() -> None:
+    # Live captures: vision called talking-head originals "commentary" while ORB matched them.
+    outcome, _ = await _identify(_case(classify={"original": "commentary"}))
+
+    assert (outcome.attribution.verdict, outcome.attribution.confidence) == ("replaced", "high")
+    source = outcome.attribution.source
+    assert source is not None and str(source.canonical_url) == _url(3)
 
 
 @pytest.mark.asyncio
