@@ -70,7 +70,7 @@ class _Store:
         self.frames: dict[str, list[Frame]] = {}
         self.cover: CoverReading | None = None
         self.decisions: Decisions | None = None
-        self.discovery: list[DiscoveredVideo] | None = None
+        self.discovery: dict[str, list[DiscoveredVideo]] = {}
         self.acquired: dict[str, tuple[SourceReport, str | None]] = {}
 
 
@@ -114,8 +114,9 @@ class _Discoverer:
         return self._inner.supports(platform)
 
     async def discover(self, platform: Platform, handle: str) -> list[DiscoveredVideo]:
-        self._store.discovery = await self._inner.discover(platform, handle)
-        return self._store.discovery
+        videos = await self._inner.discover(platform, handle)
+        self._store.discovery[handle] = videos
+        return videos
 
 
 class _Acquirer:
@@ -183,8 +184,13 @@ async def record_case(
         "classify": classify,
         "decisions": vars(store.decisions) if store.decisions is not None else None,
         "discovery": (
-            {"videos": [json.loads(item.model_dump_json()) for item in store.discovery]}
-            if store.discovery is not None
+            {
+                "by_handle": {
+                    handle: [json.loads(item.model_dump_json()) for item in videos]
+                    for handle, videos in store.discovery.items()
+                }
+            }
+            if store.discovery
             else None
         ),
         "acquired": {

@@ -131,8 +131,11 @@ class SourceAttributor:
         owner = report.post.owner_handle
         caption_handles = credit.text_handles(report.post.text)
         found_in_frames = credit.frame_handles(lines)
-        options = credit.credit_options(caption_handles, found_in_frames, owner)
-        evidence = _text_evidence(caption_handles, found_in_frames, owner, cover)
+        read_by_vision = credit.vision_handles(cover.handles) if cover is not None else []
+        options = credit.credit_options(caption_handles, [*found_in_frames, *read_by_vision], owner)
+        evidence = _text_evidence(
+            caption_handles, [*found_in_frames, *read_by_vision], owner, cover
+        )
         decided = await self._credit(report, options, lines, cover, evidence)
 
         if decided.handle is None:
@@ -163,6 +166,21 @@ class SourceAttributor:
             return self._finish(
                 workflow_id, report, "unresolved", evidence, reason="discovery_failed"
             )
+        if not videos:
+            # An OCR misread names a profile that does not exist; a near variant the
+            # evidence also holds (another frame, the vision reading) may be the real one.
+            for variant in credit.near_variants(decided.handle, options):
+                found = await self._guard(
+                    self._ports.discoverer.discover(platform, variant), "discovery"
+                )
+                if found:
+                    evidence.append(
+                        AttributionEvidence(
+                            kind="decision", detail=f"credit corrected to @{variant}"
+                        )
+                    )
+                    videos = found
+                    break
         counts["discovered"] = len(videos)
         repost_duration = next(
             (m.duration_seconds for m in report.media if m.kind == "video" and m.duration_seconds),

@@ -38,6 +38,11 @@ class CoverReading(BaseModel):
         max_length=200,
         description="Any app or platform logo you see and where it is; empty if none",
     )
+    handles: list[str] = Field(
+        default_factory=list,
+        max_length=10,
+        description="Every @username or account name printed on the image, exactly as written",
+    )
 
 
 class VisualClass(BaseModel):

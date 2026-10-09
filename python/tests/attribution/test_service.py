@@ -257,3 +257,28 @@ async def test_port_failures_degrade_instead_of_failing() -> None:
 
     assert (outcome.attribution.verdict, outcome.attribution.reason) == ("unresolved", "no_match")
     assert outcome.attribution.candidates["acquisition_failed"] == 1
+
+
+@pytest.mark.asyncio
+async def test_a_misread_handle_is_corrected_from_a_near_variant_in_the_evidence() -> None:
+    case = _case(
+        cover={"headline": "", "scene": "", "icon": "", "handles": ["@vincentius.christ76"]},
+        decisions={
+            "is_repost": 0.95,
+            "handle": "vincentius.christ7",
+            "handle_probability": 0.9,
+            "platform": "tiktok",
+            "platform_probability": 0.9,
+        },
+    )
+    case["frames"]["repost"][0]["boxes"] = [["@vincentius.christ7", 0.88, 0.93]]
+    case["discovery"] = {"by_handle": {SOURCE: case["discovery"]["videos"]}}
+
+    outcome, ports = await _identify(case, finalist_concurrency=1)
+
+    assert ports.decisions.calls[0][1] == ["vincentius.christ7", SOURCE]
+    assert ports.discoverer.calls == [("tiktok", "vincentius.christ7"), ("tiktok", SOURCE)]
+    assert outcome.attribution.verdict == "replaced"
+    assert "credit corrected to @vincentius.christ76" in {
+        e.detail for e in outcome.attribution.evidence
+    }

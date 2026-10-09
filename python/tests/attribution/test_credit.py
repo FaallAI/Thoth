@@ -36,3 +36,15 @@ def test_credit_options_never_offer_the_reposting_account() -> None:
 
     assert options == ["Vincentius.Christ76"]
     assert credit.credit_options([], ["detik.jatim"], "detikjatim") == []
+
+
+def test_frame_text_tolerates_a_space_after_the_at_sign() -> None:
+    assert credit.frame_handles(["TikTok", "@ manicsofficials"]) == ["manicsofficials"]
+    assert credit.text_handles("email @ home") == []  # captions keep the strict rule
+
+
+def test_near_variants_come_only_from_the_evidence() -> None:
+    options = ["ferdysambo_offcial", "ferdysambo_official", "other.account", "FerdySambo_Offcial"]
+
+    assert credit.near_variants("ferdysambo_offcial", options) == ["ferdysambo_official"]
+    assert credit.near_variants("other.account", options) == []

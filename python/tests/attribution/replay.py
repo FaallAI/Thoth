@@ -116,10 +116,10 @@ class ReplayDiscoverer:
         self.calls.append((platform, handle))
         if self._discovery is None:
             raise RuntimeError("discovery unavailable")
-        return [
-            DiscoveredVideo.model_validate_json(json.dumps(video))
-            for video in self._discovery["videos"]
-        ]
+        # A capture records discovery per handle; a hand-written case lists one set for all.
+        by_handle = self._discovery.get("by_handle")
+        videos = by_handle.get(handle, []) if by_handle is not None else self._discovery["videos"]
+        return [DiscoveredVideo.model_validate_json(json.dumps(video)) for video in videos]
 
 
 class ReplayAcquirer:

@@ -23,8 +23,9 @@ TIMEOUT_SECONDS = 60.0
 MAX_FRAMES = 3
 COVER_PROMPT = (
     "These are the cover and the first frames of a short video. Copy the text printed on the "
-    "image, describe the scene in one sentence, and describe any app or platform logo you see "
-    "and where it is. Answer in JSON."
+    "image, describe the scene in one sentence, describe any app or platform logo you see "
+    "and where it is, and list every @username or account name printed on the image exactly "
+    "as written. Answer in JSON."
 )
 CLASSIFY_PROMPT = (
     "These are frames of a short video. Is it raw footage of an event, or commentary (a person "

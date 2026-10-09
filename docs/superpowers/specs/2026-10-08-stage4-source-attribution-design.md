@@ -15,6 +15,12 @@ every time, so profile discovery now follows the platform's source-account mode,
 acquisition does: `anonymous` never leases, `always` leases first, `fallback` leases once
 after a captcha or a block, and the lease is released with `success` or `blocked`.
 
+Amendment (operator, 2026-10-09, from the fresh-case captures): frame text tolerates one
+space after "@" (OCR reads "@ name"); the cover vision call also lists the account names
+it can read, and those join the Jev options; when discovery finds nothing for the chosen
+handle, near variants (edit distance at most 2) that the evidence itself holds are tried,
+because OCR drops letters ("ferdysambo_offcial" for "ferdysambo_official").
+
 - Roadmap: Stage 4, "Move Source Intelligence", in `docs/python-scout-migration-roadmap.md`.
 - Inputs to this design:
   - `docs/research/2026-10-08-stage4-source-intelligence-ideas.md` (flow map S1 to S8,

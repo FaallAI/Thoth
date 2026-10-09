@@ -13,6 +13,9 @@ from collections.abc import Iterable, Sequence
 from thoth_control_plane.attribution.models import Platform
 
 AT_HANDLE = re.compile(r"(?<![\w@])@([A-Za-z0-9._]{2,30})")
+# OCR often reads a burned-in credit as "@ name"; frames tolerate one space after "@".
+FRAME_AT_HANDLE = re.compile(r"(?<![\w@])@\s?([A-Za-z0-9._]{2,30})")
+PLAIN_HANDLE = re.compile(r"[A-Za-z0-9._]{2,30}")
 BARE_TOKEN = re.compile(r"[a-z0-9][a-z0-9._]{1,28}[a-z0-9]")
 DOMAIN_SUFFIX = re.compile(r"\.(com|net|org|id|co|tv|me|io|app)$")
 CAMERA_CREDIT = re.compile(
@@ -78,12 +81,41 @@ def frame_handles(lines: Iterable[str]) -> list[str]:
     """Handles burned into frames: `@handles`, and bare watermark usernames."""
     found: list[str] = []
     for line in lines:
-        found += [match.group(1).rstrip(".") for match in AT_HANDLE.finditer(line)]
+        found += [match.group(1).rstrip(".") for match in FRAME_AT_HANDLE.finditer(line)]
         for token in line.split():
             bare = token.strip(TOKEN_EDGES)
             if _bare_handle(bare):
                 found.append(bare)
     return _usable(found)
+
+
+def vision_handles(names: Iterable[str]) -> list[str]:
+    """Account names the vision model read off the image, with or without "@"."""
+    cleaned = [name.strip().lstrip("@").strip().rstrip(".") for name in names]
+    return _usable(name for name in cleaned if PLAIN_HANDLE.fullmatch(name))
+
+
+def near_variants(handle: str, options: Sequence[str], max_distance: int = 2) -> list[str]:
+    """Other handles from the evidence that differ by a misread or two (OCR drops a letter)."""
+    key = normalize(handle)
+    return [
+        option
+        for option in _usable(options)
+        if normalize(option) != key and _distance(normalize(option), key) <= max_distance
+    ]
+
+
+def _distance(a: str, b: str) -> int:
+    """Levenshtein distance; handles are at most 30 characters."""
+    previous = list(range(len(b) + 1))
+    for i, left in enumerate(a, start=1):
+        current = [i]
+        for j, right in enumerate(b, start=1):
+            current.append(
+                min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (left != right))
+            )
+        previous = current
+    return previous[-1]
 
 
 def credit_options(
