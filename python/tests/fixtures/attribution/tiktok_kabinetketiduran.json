@@ -1,0 +1,922 @@
+{
+  "case": "tiktok_kabinetketiduran",
+  "synthetic": false,
+  "report": {
+    "schema_version": 3,
+    "workflow_id": "wf_golden",
+    "source": {
+      "platform": "tiktok",
+      "canonical_url": "https://www.tiktok.com/@kabinetketiduran/video/7691716113746365717"
+    },
+    "post": {
+      "post_id": "7691716113746365717",
+      "owner_handle": "kabinetketiduran",
+      "text": "Gol menit akhir Mitchell Baker Vs Bangladesh #fifaaseancup  #timnasindonesia  #mitcchellbaker  #oleromeny ",
+      "published_at": "2026-10-01T15:06:59Z",
+      "engagement": {
+        "play": 151100,
+        "like": 3018,
+        "comment": 138,
+        "share": 1916,
+        "collect": 269
+      }
+    },
+    "media": [
+      {
+        "media_id": "media_1",
+        "kind": "video",
+        "index": 1,
+        "location": "reports/wf_golden/media/tiktok-7691716113746365717.mp4",
+        "media_type": "video/mp4",
+        "bytes": 8011632,
+        "checksum": "sha256:81afa8d89e73669f3135319ee06e5789d40d867164d0c3959a24aeadecc1e534",
+        "acquisition_strategy": "scrapling_headless",
+        "width": null,
+        "height": null,
+        "duration_seconds": null
+      }
+    ],
+    "outcome": {
+      "status": "resolved",
+      "attempts": [
+        {
+          "strategy": "scrapling_headless",
+          "status": "succeeded",
+          "reason": null,
+          "attempt_count": 1,
+          "elapsed_ms": 39284
+        }
+      ]
+    },
+    "comments": [],
+    "post_card": null,
+    "profile_card": null
+  },
+  "repost_frames": "tiktok-7691716113746365717",
+  "frames": {
+    "tiktok-7691716113746365717": [
+      {
+        "second": 0.0,
+        "boxes": [
+          [
+            "Danantara",
+            0.1328,
+            0.1578
+          ],
+          [
+            "Indone",
+            0.1531,
+            0.1797
+          ]
+        ]
+      },
+      {
+        "second": 1.0,
+        "boxes": [
+          [
+            "h,",
+            0.2859,
+            0.3312
+          ],
+          [
+            "Danantara",
+            0.2859,
+            0.3156
+          ],
+          [
+            "Indonesia",
+            0.3063,
+            0.3344
+          ]
+        ]
+      },
+      {
+        "second": 2.0,
+        "boxes": [
+          [
+            "th, in",
+            0.2812,
+            0.3359
+          ],
+          [
+            "st in tomorrow",
+            0.2875,
+            0.3312
+          ],
+          [
+            "Da",
+            0.2938,
+            0.3203
+          ],
+          [
+            "In",
+            0.3141,
+            0.3406
+          ],
+          [
+            "10",
+            0.55,
+            0.6078
+          ]
+        ]
+      },
+      {
+        "second": 3.0,
+        "boxes": [
+          [
+            "creating grov th, invest in tor",
+            0.3141,
+            0.3703
+          ]
+        ]
+      },
+      {
+        "second": 4.0,
+        "boxes": [
+          [
+            "Mo",
+            0.3391,
+            0.375
+          ]
+        ]
+      },
+      {
+        "second": 5.0,
+        "boxes": []
+      },
+      {
+        "second": 6.0,
+        "boxes": []
+      },
+      {
+        "second": 7.0,
+        "boxes": []
+      },
+      {
+        "second": 8.0,
+        "boxes": []
+      },
+      {
+        "second": 9.0,
+        "boxes": []
+      },
+      {
+        "second": 10.0,
+        "boxes": []
+      },
+      {
+        "second": 11.0,
+        "boxes": []
+      },
+      {
+        "second": 12.0,
+        "boxes": [
+          [
+            "peatgtnesthtommy",
+            0.1469,
+            0.2969
+          ]
+        ]
+      },
+      {
+        "second": 13.0,
+        "boxes": []
+      },
+      {
+        "second": 14.0,
+        "boxes": []
+      },
+      {
+        "second": 15.0,
+        "boxes": [
+          [
+            "FIFA",
+            0.4656,
+            0.5172
+          ]
+        ]
+      },
+      {
+        "second": 16.0,
+        "boxes": [
+          [
+            "FIFA",
+            0.4844,
+            0.5234
+          ]
+        ]
+      },
+      {
+        "second": 17.0,
+        "boxes": [
+          [
+            "cedignt hestitbouny",
+            0.0797,
+            0.2078
+          ],
+          [
+            "creatigoot netitmmw",
+            0.1953,
+            0.3719
+          ]
+        ]
+      },
+      {
+        "second": 18.0,
+        "boxes": [
+          [
+            "vetiggnh hesthtonmn",
+            0.0953,
+            0.2156
+          ],
+          [
+            "thgowt hnestihtmy",
+            0.2141,
+            0.3547
+          ],
+          [
+            "FIFA FA",
+            0.4813,
+            0.5234
+          ]
+        ]
+      },
+      {
+        "second": 19.0,
+        "boxes": [
+          [
+            "Deadtgndheetom",
+            0.0891,
+            0.2047
+          ],
+          [
+            "creaigtt hneshtormrmon",
+            0.1906,
+            0.3484
+          ],
+          [
+            "FIFA",
+            0.4906,
+            0.5219
+          ],
+          [
+            "FIFA",
+            0.4859,
+            0.5359
+          ]
+        ]
+      },
+      {
+        "second": 20.0,
+        "boxes": [
+          [
+            "FIFAFIFA",
+            0.475,
+            0.5234
+          ],
+          [
+            "HB",
+            0.5266,
+            0.5766
+          ]
+        ]
+      },
+      {
+        "second": 21.0,
+        "boxes": [
+          [
+            "FIFA",
+            0.4047,
+            0.4859
+          ],
+          [
+            "FIFA",
+            0.4062,
+            0.4641
+          ],
+          [
+            "HB",
+            0.4891,
+            0.6
+          ]
+        ]
+      },
+      {
+        "second": 22.0,
+        "boxes": [
+          [
+            "FIFA",
+            0.4422,
+            0.4938
+          ],
+          [
+            "FIFA",
+            0.4375,
+            0.5
+          ]
+        ]
+      },
+      {
+        "second": 23.0,
+        "boxes": [
+          [
+            "Indoresa",
+            0.0938,
+            0.175
+          ]
+        ]
+      },
+      {
+        "second": 24.0,
+        "boxes": [
+          [
+            "ivest i tomoron",
+            0.0484,
+            0.1875
+          ],
+          [
+            "TIFA",
+            0.3797,
+            0.4484
+          ],
+          [
+            "FIFA",
+            0.4813,
+            0.5516
+          ],
+          [
+            "FIFI",
+            0.5031,
+            0.575
+          ]
+        ]
+      },
+      {
+        "second": 25.0,
+        "boxes": [
+          [
+            "23",
+            0.4313,
+            0.4688
+          ],
+          [
+            "HB",
+            0.4906,
+            0.5484
+          ]
+        ]
+      },
+      {
+        "second": 26.0,
+        "boxes": [
+          [
+            "23",
+            0.4266,
+            0.4594
+          ],
+          [
+            "HB",
+            0.4859,
+            0.5656
+          ],
+          [
+            "23",
+            0.5437,
+            0.5766
+          ]
+        ]
+      },
+      {
+        "second": 27.0,
+        "boxes": [
+          [
+            "HB",
+            0.5062,
+            0.6031
+          ]
+        ]
+      },
+      {
+        "second": 28.0,
+        "boxes": [
+          [
+            "FIHA",
+            0.425,
+            0.4875
+          ]
+        ]
+      },
+      {
+        "second": 29.0,
+        "boxes": [
+          [
+            "23",
+            0.5047,
+            0.5547
+          ]
+        ]
+      },
+      {
+        "second": 30.0,
+        "boxes": [
+          [
+            "B",
+            0.2016,
+            0.9984
+          ]
+        ]
+      },
+      {
+        "second": 31.0,
+        "boxes": [
+          [
+            "FIFA",
+            0.5188,
+            0.5719
+          ]
+        ]
+      },
+      {
+        "second": 32.0,
+        "boxes": [
+          [
+            "2308",
+            0.4562,
+            0.5547
+          ],
+          [
+            "FIFA",
+            0.5312,
+            0.5687
+          ]
+        ]
+      },
+      {
+        "second": 33.0,
+        "boxes": []
+      },
+      {
+        "second": 34.0,
+        "boxes": [
+          [
+            "11",
+            0.0,
+            0.0344
+          ]
+        ]
+      },
+      {
+        "second": 35.0,
+        "boxes": []
+      },
+      {
+        "second": 36.0,
+        "boxes": [
+          [
+            "9",
+            0.0906,
+            0.2703
+          ]
+        ]
+      },
+      {
+        "second": 37.0,
+        "boxes": [
+          [
+            "23",
+            0.5234,
+            0.5766
+          ],
+          [
+            "FIFA",
+            0.6984,
+            0.7438
+          ]
+        ]
+      },
+      {
+        "second": 38.0,
+        "boxes": [
+          [
+            "Danantara",
+            0.1016,
+            0.1281
+          ],
+          [
+            "Indonesia",
+            0.1234,
+            0.1469
+          ]
+        ]
+      },
+      {
+        "second": 39.0,
+        "boxes": [
+          [
+            "nvest in tomorrow",
+            0.0484,
+            0.0938
+          ],
+          [
+            "Indonesia",
+            0.0656,
+            0.0891
+          ],
+          [
+            "Danantara",
+            0.0469,
+            0.0703
+          ]
+        ]
+      },
+      {
+        "second": 40.0,
+        "boxes": [
+          [
+            "Danantara",
+            0.0,
+            0.0203
+          ],
+          [
+            "Indonesia",
+            0.0156,
+            0.0406
+          ]
+        ]
+      },
+      {
+        "second": 41.0,
+        "boxes": [
+          [
+            "FIFA",
+            0.5266,
+            0.5734
+          ],
+          [
+            "13",
+            0.5953,
+            0.6531
+          ]
+        ]
+      },
+      {
+        "second": 42.0,
+        "boxes": [
+          [
+            "FIFA",
+            0.5547,
+            0.5922
+          ],
+          [
+            "FIFA",
+            0.9469,
+            0.9656
+          ]
+        ]
+      },
+      {
+        "second": 43.0,
+        "boxes": [
+          [
+            "2",
+            0.0641,
+            0.1
+          ],
+          [
+            "FIFI",
+            0.4437,
+            0.4672
+          ],
+          [
+            "FIFA",
+            0.5563,
+            0.5984
+          ]
+        ]
+      },
+      {
+        "second": 44.0,
+        "boxes": [
+          [
+            "2",
+            0.0547,
+            0.075
+          ],
+          [
+            "FIFA",
+            0.725,
+            0.7578
+          ],
+          [
+            "ASEAN CUP",
+            0.7406,
+            0.7828
+          ],
+          [
+            "2026",
+            0.7734,
+            0.8031
+          ]
+        ]
+      },
+      {
+        "second": 45.0,
+        "boxes": [
+          [
+            "CoaCola",
+            0.0,
+            0.0297
+          ],
+          [
+            "FIFA",
+            0.7625,
+            0.7953
+          ],
+          [
+            "ASEAN CUP",
+            0.7797,
+            0.8203
+          ],
+          [
+            "2026",
+            0.8109,
+            0.8406
+          ]
+        ]
+      },
+      {
+        "second": 46.0,
+        "boxes": []
+      },
+      {
+        "second": 47.0,
+        "boxes": []
+      },
+      {
+        "second": 48.0,
+        "boxes": []
+      },
+      {
+        "second": 49.0,
+        "boxes": [
+          [
+            "VARAY",
+            0.1219,
+            0.425
+          ]
+        ]
+      },
+      {
+        "second": 50.0,
+        "boxes": []
+      },
+      {
+        "second": 51.0,
+        "boxes": []
+      },
+      {
+        "second": 52.0,
+        "boxes": [
+          [
+            "79",
+            0.1391,
+            0.1656
+          ]
+        ]
+      },
+      {
+        "second": 53.0,
+        "boxes": []
+      },
+      {
+        "second": 54.0,
+        "boxes": [
+          [
+            "1",
+            0.7156,
+            0.9984
+          ]
+        ]
+      },
+      {
+        "second": 55.0,
+        "boxes": [
+          [
+            "zcrosugul",
+            0.0,
+            0.0125
+          ],
+          [
+            "IFA",
+            0.5188,
+            0.55
+          ],
+          [
+            "FA",
+            0.575,
+            0.6016
+          ],
+          [
+            "ASEAN CUP",
+            0.6891,
+            0.7156
+          ],
+          [
+            "FIFA",
+            0.6844,
+            0.7016
+          ],
+          [
+            "2026",
+            0.7125,
+            0.725
+          ],
+          [
+            "POWERADE",
+            0.8625,
+            0.9016
+          ]
+        ]
+      },
+      {
+        "second": 56.0,
+        "boxes": [
+          [
+            "zero sugar",
+            0.0016,
+            0.0437
+          ],
+          [
+            "CocaCola",
+            0.0,
+            0.0437
+          ],
+          [
+            "zerosugar",
+            0.0,
+            0.0375
+          ],
+          [
+            "Coca",
+            0.0,
+            0.0516
+          ],
+          [
+            "FIFA",
+            0.5281,
+            0.5547
+          ],
+          [
+            "13",
+            0.5969,
+            0.65
+          ],
+          [
+            "FIFA",
+            0.7109,
+            0.7328
+          ],
+          [
+            "ASEAN CUP",
+            0.7188,
+            0.7469
+          ],
+          [
+            "2026",
+            0.7391,
+            0.7594
+          ]
+        ]
+      },
+      {
+        "second": 57.0,
+        "boxes": [
+          [
+            "zero sugar",
+            0.0,
+            0.0406
+          ],
+          [
+            "Coca-Cola",
+            0.0,
+            0.0422
+          ],
+          [
+            "zero sugar",
+            0.0,
+            0.0375
+          ],
+          [
+            "Coca-Cola",
+            0.0,
+            0.0547
+          ],
+          [
+            "FIFA",
+            0.4594,
+            0.4828
+          ],
+          [
+            "FIEA",
+            0.525,
+            0.55
+          ],
+          [
+            "FIFA",
+            0.5984,
+            0.6266
+          ],
+          [
+            "FIFA",
+            0.7078,
+            0.7328
+          ],
+          [
+            "ASEANCUP",
+            0.7172,
+            0.7469
+          ],
+          [
+            "2026",
+            0.7375,
+            0.7562
+          ]
+        ]
+      },
+      {
+        "second": 58.0,
+        "boxes": [
+          [
+            "zeroSugdl",
+            0.0,
+            0.0187
+          ],
+          [
+            "zel",
+            0.0,
+            0.025
+          ],
+          [
+            "FIFA",
+            0.4219,
+            0.45
+          ],
+          [
+            "FA",
+            0.5188,
+            0.5437
+          ],
+          [
+            "FIF",
+            0.5813,
+            0.6047
+          ],
+          [
+            "FIFA",
+            0.6875,
+            0.7109
+          ],
+          [
+            "ASEAN CUP",
+            0.6953,
+            0.7234
+          ],
+          [
+            "2026",
+            0.7172,
+            0.7359
+          ]
+        ]
+      }
+    ]
+  },
+  "matches": {},
+  "unmatchable": [],
+  "cover": {
+    "headline": "Danantara Indonesia",
+    "scene": "A soccer player in a red jersey with the number 10 is dribbling the ball while being pursued by opponents on a field.",
+    "icon": "Danantara Indonesia logo on the advertising board",
+    "handles": [
+      "Danantara Indonesia"
+    ]
+  },
+  "classify": {},
+  "decisions": {
+    "is_repost": 0.49,
+    "handle": null,
+    "handle_probability": 0.0,
+    "platform": null,
+    "platform_probability": 0.52
+  },
+  "discovery": null,
+  "acquired": {},
+  "expected": {
+    "verdict": "original",
+    "source_url": null
+  },
+  "scout": {
+    "main_url": null,
+    "note": "No operator ground truth: no credit anywhere, and Jev put is_repost at the 0.50 threshold (0.50 on 2026-10-09, 0.49 on this capture), so the verdict follows the recorded answer."
+  },
+  "departure": "scout_not_run"
+}
