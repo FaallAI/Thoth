@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import json
 from pathlib import Path
@@ -239,6 +240,81 @@ async def test_a_repost_whose_frames_fail_is_unresolved() -> None:
         "frames_failed",
     )
     assert ports.acquirer.acquired == []
+
+
+@pytest.mark.asyncio
+async def test_a_cancelled_attribution_still_discards_its_finalists() -> None:
+    case = _case()
+    ports = replay_ports(case)
+
+    class _Cancelling(type(ports.frames)):  # type: ignore[misc]
+        async def frames(self, video: Path, *, fps: float, seconds: float | None = None) -> Any:
+            if video.stem == "original":
+                raise asyncio.CancelledError
+            return await super().frames(video, fps=fps, seconds=seconds)
+
+    object.__setattr__(ports, "frames", _Cancelling(case["frames"]))
+    attributor = SourceAttributor(ports, Tuning(finalist_concurrency=1))
+
+    with pytest.raises(asyncio.CancelledError):
+        await attributor.identify("wf_ref", parse_report(_report()), VIDEO)
+    assert ports.acquirer.discarded == ["wf_ref-c1"]
+
+
+@pytest.mark.asyncio
+async def test_a_candidate_whose_frames_fail_is_counted_as_frames_failed() -> None:
+    case = _case()
+    case["acquired"][_url(3)]["frames"] = "unreadable"  # ffmpeg fails on the candidate
+
+    outcome, _ = await _identify(case)
+
+    assert outcome.attribution.candidates["frames_failed"] == 1
+
+
+@pytest.mark.asyncio
+async def test_handles_read_by_vision_keep_their_origin() -> None:
+    case = _case()
+    case["cover"] = {**case["cover"], "handles": ["kreator.asli"]}
+
+    outcome, _ = await _identify(case)
+
+    pairs = {(item.kind, item.detail) for item in outcome.attribution.evidence}
+    assert ("cover_vision", "handle: @kreator.asli") in pairs
+    assert ("frame_text", "@kreator.asli") not in pairs
+
+
+@pytest.mark.asyncio
+async def test_candidate_sampling_stops_at_the_candidate_limit() -> None:
+    case = _case()
+    ports = replay_ports(case)
+    asked: list[tuple[str, float | None]] = []
+
+    class _Spy(type(ports.frames)):  # type: ignore[misc]
+        async def frames(self, video: Path, *, fps: float, seconds: float | None = None) -> Any:
+            asked.append((video.stem, seconds))
+            return await super().frames(video, fps=fps, seconds=seconds)
+
+    object.__setattr__(ports, "frames", _Spy(case["frames"]))
+    await SourceAttributor(ports, Tuning(candidate_seconds=120.0)).identify(
+        "wf_ref", parse_report(_report()), VIDEO
+    )
+
+    assert ("original", 120.0) in asked
+    assert ("repost", None) in asked
+
+
+@pytest.mark.asyncio
+async def test_without_a_decision_key_a_caption_mention_alone_is_no_credit() -> None:
+    case = _case(decisions=None)
+    case["frames"]["repost"][0]["boxes"] = []
+
+    outcome, ports = await _identify(case, _report(text="lucu banget @kreator.asli"))
+
+    assert (outcome.attribution.verdict, outcome.attribution.reason) == (
+        "unresolved",
+        "no_credit",
+    )
+    assert ports.discoverer.calls == []
 
 
 @pytest.mark.asyncio

@@ -82,8 +82,7 @@ class _Frames:
 
     async def frames(self, video: Path, *, fps: float, seconds: float | None = None) -> list[Frame]:
         frames = await self._inner.frames(video, fps=fps, seconds=seconds)
-        if seconds is None:
-            self._store.frames[video.stem] = frames
+        self._store.frames[video.stem] = frames
         return frames
 
 

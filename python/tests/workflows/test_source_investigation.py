@@ -1615,6 +1615,39 @@ async def test_cancel_during_attribution_finishes_as_cancelled(
 
 
 @pytest.mark.asyncio
+async def test_a_legacy_fallback_report_is_not_attributed(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    fallback = _tiktok_fallback_input("python_tiktok_with_legacy_fallback").model_copy(
+        update={"attribute_source": True}
+    )
+    async with (
+        Worker(
+            workflow_env.client,
+            task_queue="test",
+            workflows=[SourceInvestigationWorkflow],
+            activities=[eligible_headless_failure_with_events, fake_attribute],
+        ),
+        Worker(
+            workflow_env.client,
+            task_queue=LEGACY_ADAPTER_TASK_QUEUE,
+            activities=[legacy_success_two_events],
+            max_concurrent_activities=1,
+        ),
+    ):
+        result = await workflow_env.client.execute_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[fallback],
+            id="wf_test_attribution_after_legacy",
+            task_queue="test",
+        )
+
+    # Legacy writes no v3 report, so attribution would only record a failed stage.
+    assert result.status == "succeeded"
+    assert [artifact.kind for artifact in result.artifacts] == ["source_report"]
+
+
+@pytest.mark.asyncio
 async def test_the_gateway_requests_attribution_when_enabled(
     workflow_env: WorkflowEnvironment,
 ) -> None:

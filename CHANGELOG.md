@@ -42,6 +42,13 @@ Verification:
   the low-confidence nearest candidate; a near variant of the reposting account (its own
   watermark misread) is never a credit option; a long cover reading is clipped, not lost; the
   duration filter is gone (a reaction repost runs longer than its original).
+- The review's minors, fixed at the operator's request (each RED then GREEN): attribution is
+  skipped after a legacy fallback; acquired finalists are discarded even on cancellation; a
+  blocked discovery reads `discovery_failed` and a candidate whose frames fail reads
+  `frames_failed`; vision-read handles are `cover_vision` evidence; candidates are sampled up
+  to 600 s; without a Jev key a caption mention alone is no credit (spec S3); one RapidOCR
+  engine under a lock, its log kept to errors. Parsing the signed-in Instagram profile page
+  stays a follow-up: it needs a live capture of that page.
 
 Operator decisions and rulings:
 
@@ -73,7 +80,7 @@ Next steps:
   `http://`. Instagram blocks that proxy while anonymous direct access works.
 - Confirm the ground truth of `tiktok_kabinetketiduran` (original or repost).
 - The live smoke joins the final acceptance (ADR 0001).
-- Follow-ups: parse the signed-in Instagram profile page; RapidOCR INFO log noise; spec
+- Follow-ups: parse the signed-in Instagram profile page (needs a live capture); spec
   section 12 (Stage 8 story search, Stage 5 final OCR, per-post cache, the TikTok original
   sound shortcut, Threads profile discovery, cover ordering of candidates).
 - The parked backlog stays on offer: interactive login, login-only capabilities, vault key

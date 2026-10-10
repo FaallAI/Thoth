@@ -51,9 +51,11 @@ T = TypeVar("T")
 
 @dataclass(frozen=True)
 class Tuning:
-    """Provisional until the golden-fixture capture calibrates them (plan Task 11)."""
+    """Calibrated on the live golden captures of 2026-10-10."""
 
     frame_fps: float = 1.0
+    # A candidate is sampled up to here: a long upload would cost minutes of ffmpeg and ORB.
+    candidate_seconds: float = 600.0
     credit_seconds: float = 3.0
     reaction_frames: int = 10
     # A repost frame holds a candidate frame at this many RANSAC inliers. Live captures
@@ -139,10 +141,9 @@ class SourceAttributor:
         found_in_frames = credit.frame_handles(lines)
         read_by_vision = credit.vision_handles(cover.handles) if cover is not None else []
         options = credit.credit_options(caption_handles, [*found_in_frames, *read_by_vision], owner)
-        evidence = _text_evidence(
-            caption_handles, [*found_in_frames, *read_by_vision], owner, cover
-        )
-        decided = await self._credit(report, options, lines, cover, evidence)
+        evidence = _text_evidence(caption_handles, found_in_frames, read_by_vision, owner, cover)
+        on_screen = credit.credit_options([], [*found_in_frames, *read_by_vision], owner)
+        decided = await self._credit(report, options, on_screen, lines, cover, evidence)
 
         if decided.handle is None:
             if decided.ambiguous:
@@ -209,11 +210,18 @@ class SourceAttributor:
             _Finalist(video, f"{workflow_id}-c{index}")
             for index, video in enumerate(kept[: self._tuning.max_finalists], start=1)
         ]
-        winner = await self._evaluate(finalists, await self._prepare(frames))
+        winner: _Finalist | None = None
+        try:
+            winner = await self._evaluate(finalists, await self._prepare(frames))
+        finally:
+            # Also on cancellation: an acquired finalist is a directory of media on disk.
+            for finalist in finalists:
+                if finalist is not winner and finalist.acquired is not None:
+                    await self._guard(
+                        self._ports.acquirer.discard(finalist.candidate_id), "discard"
+                    )
         for finalist in finalists:
             counts[_outcome(finalist)] += 1
-            if finalist is not winner and finalist.acquired is not None:
-                await self._guard(self._ports.acquirer.discard(finalist.candidate_id), "discard")
         if winner is None or winner.acquired is None:
             return self._finish(
                 workflow_id, report, "unresolved", evidence, reason="no_match", counts=counts
@@ -250,6 +258,7 @@ class SourceAttributor:
         self,
         report: SourceReport,
         options: list[str],
+        on_screen: list[str],
         lines: list[str],
         cover: CoverReading | None,
         evidence: list[AttributionEvidence],
@@ -296,7 +305,9 @@ class SourceAttributor:
                         )
                     )
                 return _Credit(handle, decided.platform, decided.is_repost, by_model=True)
-        if len(options) == 1:
+        # Without the model only an on-screen handle with no competitor is a credit (spec S3);
+        # a caption mention alone may be a tag or a reply.
+        if len(options) == 1 and options[0] in on_screen:
             return _Credit(options[0], None, 1.0, by_model=False)
         return _Credit(
             None, None, 1.0 if options else 0.0, by_model=False, ambiguous=len(options) > 1
@@ -325,7 +336,10 @@ class SourceAttributor:
             finalist.rejected = "acquisition_failed"
             return
         finalist.acquired = acquired
-        frames = await self._frames(acquired.video)
+        frames = await self._frames(acquired.video, self._tuning.candidate_seconds)
+        if acquired.video is not None and not frames:
+            finalist.rejected = "frames_failed"
+            return
         if repost:
             candidate = await self._prepare(frames)
             scores = (
@@ -354,11 +368,11 @@ class SourceAttributor:
         if looks_like_burned_in_speech(readings):
             finalist.rejected = "reaction"
 
-    async def _frames(self, video: Path | None) -> list[Frame]:
+    async def _frames(self, video: Path | None, seconds: float | None = None) -> list[Frame]:
         if video is None:
             return []
         frames = await self._guard(
-            self._ports.frames.frames(video, fps=self._tuning.frame_fps), "frames"
+            self._ports.frames.frames(video, fps=self._tuning.frame_fps, seconds=seconds), "frames"
         )
         return frames or []
 
@@ -436,6 +450,7 @@ def _outcome(finalist: _Finalist) -> str:
 def _text_evidence(
     caption_handles: list[str],
     found_in_frames: list[str],
+    read_by_vision: list[str],
     owner: str,
     cover: CoverReading | None,
 ) -> list[AttributionEvidence]:
@@ -448,6 +463,11 @@ def _text_evidence(
     evidence += [
         AttributionEvidence(kind="frame_text", detail=f"@{handle}")
         for handle in found_in_frames
+        if credit.normalize(handle) != owner_key
+    ]
+    evidence += [
+        AttributionEvidence(kind="cover_vision", detail=f"handle: @{handle}")
+        for handle in read_by_vision
         if credit.normalize(handle) != owner_key
     ]
     if cover is not None:

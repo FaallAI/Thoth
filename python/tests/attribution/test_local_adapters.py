@@ -1,9 +1,10 @@
-"""The local adapters: ffmpeg frames, perceptual hashes, and RapidOCR text."""
+"""The local adapters: ffmpeg frames, ORB frame matching, and RapidOCR text."""
 
 from __future__ import annotations
 
 import asyncio
 import io
+import logging
 import random
 import shutil
 import subprocess
@@ -143,3 +144,5 @@ async def test_rapidocr_reads_a_handle_with_its_vertical_position() -> None:
     found = [box for box in boxes if "christ76" in box.text.replace(" ", "")]
     assert found, [box.text for box in boxes]
     assert 0.7 < found[0].top < found[0].bottom < 0.9
+    # RapidOCR logs model loads at INFO and every empty frame at WARNING: worker noise.
+    assert logging.getLogger("RapidOCR").level >= logging.ERROR

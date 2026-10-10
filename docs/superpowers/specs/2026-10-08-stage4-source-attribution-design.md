@@ -43,6 +43,12 @@ candidate. A credit option within edit distance 2 of the reposting account is th
 own watermark misread by OCR and is never offered. A cover reading longer than its bounds is
 clipped, not rejected.
 
+Amendment (operator-requested minor fixes, 2026-10-10): a captcha or block during profile
+discovery is `discovery_failed`, not an empty profile; a candidate whose frames cannot be
+sampled is counted `frames_failed`; candidates are sampled up to `Tuning.candidate_seconds`
+(600 s); handles read by the cover vision call are `cover_vision` evidence; attribution is
+skipped when legacy Scout produced the report (no v3 report to attribute).
+
 - Roadmap: Stage 4, "Move Source Intelligence", in `docs/python-scout-migration-roadmap.md`.
 - Inputs to this design:
   - `docs/research/2026-10-08-stage4-source-intelligence-ideas.md` (flow map S1 to S8,

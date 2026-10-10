@@ -17,7 +17,7 @@ from thoth_control_plane.acquisition.models import (
     DiscoveryResult,
     ProfileDiscovery,
 )
-from thoth_control_plane.attribution.adapters.discovery import ProfileDiscoverer
+from thoth_control_plane.attribution.adapters.discovery import DiscoveryBlocked, ProfileDiscoverer
 from thoth_control_plane.infrastructure.source_account_store import AccountLease
 
 SOURCE = "vincentius.christ76"
@@ -118,9 +118,21 @@ async def test_anonymous_mode_and_no_store_never_lease() -> None:
     fake = FakeDiscovery(CAPTCHA, _result([VIDEO]))
     leases = FakeLeases("anonymous")
 
-    assert await _discover(fake, leases) == []
-    assert await _discover(fake, None) == []
+    # A captcha is a failed discovery, not an empty profile.
+    with pytest.raises(DiscoveryBlocked):
+        await _discover(fake, leases)
+    with pytest.raises(DiscoveryBlocked):
+        await _discover(fake, None)
     assert (fake.built_with, leases.released) == ([None, None], [])
+    assert await _discover(FakeDiscovery(_result([]), CAPTCHA), None) == []  # truly empty
+
+
+@pytest.mark.asyncio
+async def test_fallback_without_an_account_after_a_captcha_is_blocked() -> None:
+    fake = FakeDiscovery(CAPTCHA, _result([VIDEO]))
+
+    with pytest.raises(DiscoveryBlocked):
+        await _discover(fake, FakeLeases("fallback", available=False))
 
 
 @pytest.mark.asyncio
@@ -140,7 +152,8 @@ async def test_a_blocked_account_is_released_as_blocked() -> None:
     fake = FakeDiscovery(CAPTCHA, CAPTCHA)
     leases = FakeLeases("fallback")
 
-    assert await _discover(fake, leases) == []
+    with pytest.raises(DiscoveryBlocked):
+        await _discover(fake, leases)
     assert leases.released == ["blocked"]
 
 

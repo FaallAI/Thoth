@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
+import threading
 from typing import Any
 
 from thoth_control_plane.attribution.matching import TextBox
@@ -16,6 +17,7 @@ MAX_TEXT = 200
 class RapidOcrReader:
     def __init__(self) -> None:
         self._engine: Any = None
+        self._lock = threading.Lock()  # finalists read in parallel threads; build one engine
 
     async def read(self, frame: Frame) -> list[TextBox]:
         return await asyncio.to_thread(self._read, frame.jpeg)
@@ -35,10 +37,12 @@ class RapidOcrReader:
         return boxes
 
     def _get(self) -> Any:
-        if self._engine is None:
-            from rapidocr import RapidOCR
+        with self._lock:
+            if self._engine is None:
+                from rapidocr import RapidOCR
 
-            # RapidOCR logs every model load at INFO; keep the worker log to warnings.
-            logging.getLogger("RapidOCR").setLevel(logging.WARNING)
-            self._engine = RapidOCR()
+                self._engine = RapidOCR()
+                # RapidOCR resets its logger to INFO while it builds, then logs every model
+                # load and, at WARNING, every frame without text; keep only its errors.
+                logging.getLogger("RapidOCR").setLevel(logging.ERROR)
         return self._engine

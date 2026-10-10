@@ -74,6 +74,7 @@ class SourceInvestigationWorkflow:
         self._approval: ApprovalRequest | None = None
         self._approval_decision: str | None = None
         self._cancel_requested = False
+        self._report_from_legacy = False
         self._failure: WorkflowFailure | None = None
         self._source_events: list[LegacyScoutProgressEvent] = []
         self._event_sequence = 0
@@ -166,7 +167,8 @@ class SourceInvestigationWorkflow:
             return self._summary()
 
         if input_.intent == "identify_original":
-            if input_.attribute_source and input_.activity_mode != "legacy_scout":
+            # Legacy Scout writes no v3 report, so there is nothing to attribute.
+            if input_.attribute_source and not self._report_from_legacy:
                 await self._attribute()
                 if self._cancel_requested:
                     self._transition(WorkflowStatus.CANCELLED)
@@ -273,6 +275,7 @@ class SourceInvestigationWorkflow:
     async def _execute_legacy_activity(
         self, input_: SourceInvestigationWorkflowInput
     ) -> SourceInvestigationActivityResult:
+        self._report_from_legacy = True
         return await workflow.execute_activity(
             inspect_legacy_scout,
             LegacyScoutInput(

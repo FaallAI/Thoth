@@ -114,6 +114,16 @@ DEFAULT_FACTORIES: Mapping[str, DiscoveryFactory] = {
 }
 
 
+class DiscoveryBlocked(RuntimeError):
+    """A captcha or a block, not an empty profile: the attribution reports discovery_failed."""
+
+
+def _videos(result: DiscoveryResult) -> list[DiscoveredVideo]:
+    if not result.videos and result.reason in RETRY_REASONS:
+        raise DiscoveryBlocked(str(result.reason))
+    return list(result.videos)
+
+
 class ProfileDiscoverer:
     def __init__(
         self,
@@ -132,14 +142,14 @@ class ProfileDiscoverer:
         if mode != "always":
             anonymous = await self._run(platform, handle, None)
             if mode == "anonymous" or anonymous.videos or anonymous.reason not in RETRY_REASONS:
-                return list(anonymous.videos)
+                return _videos(anonymous)
         assert self._leases is not None  # a leasing mode implies a lease source
         lease = await self._leases.lease(platform)
         if lease is None:
             logger.info("no source account for discovery platform=%s mode=%s", platform, mode)
             if mode == "always":
-                return list((await self._run(platform, handle, None)).videos)
-            return []
+                return _videos(await self._run(platform, handle, None))
+            raise DiscoveryBlocked(f"{platform} discovery blocked and no source account to lease")
         outcome: Outcome | None = None
         try:
             result = await self._run(platform, handle, lease.access)
@@ -150,7 +160,7 @@ class ProfileDiscoverer:
         finally:
             await self._leases.release(lease, outcome)
         logger.info("discovery used a source account platform=%s outcome=%s", platform, outcome)
-        return list(result.videos)
+        return _videos(result)
 
     async def _run(
         self, platform: Platform, handle: str, access: SessionAccess | None
