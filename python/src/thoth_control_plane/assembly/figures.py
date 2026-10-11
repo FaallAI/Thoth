@@ -6,7 +6,7 @@ The model proposes names and types; code trims, drops empty names, maps an unkno
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from thoth_control_plane.assembly.models import MAX_FIGURES, Figure
 
@@ -37,6 +37,12 @@ class FigureItem(BaseModel):
     type: str = ""
     role: str = ""
     description: str = ""
+
+    @field_validator("name", "type", "role", "description", mode="before")
+    @classmethod
+    def _null_is_empty(cls, value: object) -> object:
+        # Scout coerced with `String(f.role || '')`: a null field must not lose the answer.
+        return "" if value is None else value
 
 
 class FigureAnswer(BaseModel):

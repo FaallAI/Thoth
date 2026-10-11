@@ -86,3 +86,20 @@ async def test_adapter_reads_structured_figures_and_degrades_to_none() -> None:
     assert "deepseek/deepseek-v4-flash-0731" in route.calls.last.request.content.decode()
     route.mock(return_value=httpx.Response(500, json={"error": "down"}))
     assert await model.read("prompt") is None
+
+
+def test_null_fields_from_the_model_are_tolerated() -> None:
+    # Review 2026-10-12: Scout coerced with `String(f.role || '')`; a null must not cost the
+    # whole answer.
+    answer = FigureAnswer.model_validate(
+        {
+            "figures": [
+                {"name": "Najwa Shihab", "type": None, "role": None, "description": None},
+                {"name": None, "type": "person"},
+            ]
+        }
+    )
+
+    assert [(f.name, f.type, f.role) for f in normalize_figures(answer)] == [
+        ("Najwa Shihab", "person", "")
+    ]
