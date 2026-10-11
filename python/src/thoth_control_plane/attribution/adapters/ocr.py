@@ -15,7 +15,10 @@ MAX_TEXT = 200
 
 
 class RapidOcrReader:
-    def __init__(self) -> None:
+    def __init__(self, angle: bool = True) -> None:
+        # Video text is upright; without the angle classifier a 720 px frame reads in about
+        # 0.55 s instead of 0.84 s with the same text (bench, 2026-10-11).
+        self._angle = angle
         self._engine: Any = None
         self._lock = threading.Lock()  # finalists read in parallel threads; build one engine
 
@@ -26,14 +29,23 @@ class RapidOcrReader:
         from PIL import Image
 
         with Image.open(io.BytesIO(jpeg)) as image:
-            height = image.height
-        result = self._get()(jpeg)
+            width, height = image.size
+        result = self._get()(jpeg, use_cls=self._angle)
         if result.boxes is None or result.txts is None:
             return []
         boxes: list[TextBox] = []
         for quad, text in zip(result.boxes, result.txts, strict=False):
+            xs = [float(point[0]) for point in quad]
             ys = [float(point[1]) for point in quad]
-            boxes.append(TextBox(str(text)[:MAX_TEXT], min(ys) / height, max(ys) / height))
+            boxes.append(
+                TextBox(
+                    str(text)[:MAX_TEXT],
+                    min(ys) / height,
+                    max(ys) / height,
+                    max(0.0, min(xs) / width),
+                    min(1.0, max(xs) / width),
+                )
+            )
         return boxes
 
     def _get(self) -> Any:

@@ -371,6 +371,9 @@ SOURCE_EVENT_PAYLOAD_KEYS = frozenset(
         "account_outcome",
         "no_account_available",
         "verdict",
+        "ocr_outcome",
+        "comment_count",
+        "figure_count",
     }
 )
 SOURCE_EVENT_STAGE_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
@@ -379,19 +382,36 @@ SOURCE_ATTRIBUTION_VERDICTS = frozenset({"original", "replaced", "unresolved"})
 SOURCE_ACCOUNT_OUTCOMES = frozenset(
     {"success", "blocked", "challenge", "rate_limited", "login_wall"}
 )
-SOURCE_EVENT_REASONS = frozenset(
+ASSEMBLY_REASONS = frozenset(
     {
-        "headless_timeout",
-        "headless_blocked",
-        "headless_incomplete",
-        "request_timeout",
-        "request_blocked",
-        "request_incomplete",
-        "cdn_rate_limited",
-        "cdn_unavailable",
-        "media_validation_failed",
-        "login_wall",
+        "source_report_missing",
+        "original_report_missing",
+        "main_media_missing",
+        "ffmpeg_missing",
+        "ffprobe_missing",
+        "duration_probe_failed",
+        "incomplete_frame_coverage",
+        "content_set_invalid",
+        "artifact_write_failed",
     }
+)
+OCR_OUTCOMES = frozenset({"clean", "cover", "subtitle", "none"})
+SOURCE_EVENT_REASONS = (
+    frozenset(
+        {
+            "headless_timeout",
+            "headless_blocked",
+            "headless_incomplete",
+            "request_timeout",
+            "request_blocked",
+            "request_incomplete",
+            "cdn_rate_limited",
+            "cdn_unavailable",
+            "media_validation_failed",
+            "login_wall",
+        }
+    )
+    | ASSEMBLY_REASONS
 )
 
 
@@ -430,6 +450,14 @@ class SourceProgressEvent(StrictModel):
             and payload["fallback_from"] not in LEGACY_FALLBACK_ELIGIBLE_CODES
         ):
             raise ValueError("source event fallback code is unsupported")
+        if "ocr_outcome" in payload and payload["ocr_outcome"] not in OCR_OUTCOMES:
+            raise ValueError("source event OCR outcome is unsupported")
+        for count in ("comment_count", "figure_count"):
+            value = payload.get(count)
+            if count in payload and (
+                isinstance(value, bool) or not isinstance(value, int) or value < 0
+            ):
+                raise ValueError("source event counts must be non-negative integers")
         progress = payload.get("progress")
         if progress is not None and (
             isinstance(progress, bool)

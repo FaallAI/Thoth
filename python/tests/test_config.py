@@ -154,3 +154,11 @@ def test_attribution_keys_are_stripped_and_a_blank_key_is_absent() -> None:
         "or-synthetic"
     )
     assert settings(THOTH_OPENROUTER_API_KEY="  ").openrouter_api_key is None
+
+
+def test_content_assembly_settings_default_off() -> None:
+    settings = Settings(THOTH_CONTROL_PLANE_API_KEY="test-key")
+
+    assert settings.THOTH_CONTENT_ASSEMBLY_ENABLED is False
+    assert settings.THOTH_SUBTITLE_OCR_MAX_FRAMES == 12
+    assert settings.THOTH_FIGURES_MODEL == "deepseek/deepseek-v4-flash-0731"

@@ -15,7 +15,14 @@ import pytest
 from thoth_control_plane.attribution.ports import Frame
 
 FFMPEG = shutil.which("ffmpeg")
-needs_ffmpeg = pytest.mark.skipif(FFMPEG is None, reason="ffmpeg is not installed")
+
+
+@pytest.fixture
+def ffmpeg() -> str:
+    # Operator, 2026-10-11: a missing ffmpeg is an error, never a skip.
+    if FFMPEG is None:
+        pytest.fail("ffmpeg is required for this test and is not installed")
+    return FFMPEG
 
 
 def _jpeg(image: object, quality: int = 90) -> bytes:
@@ -106,15 +113,14 @@ def test_matcher_finds_a_zoomed_repost_over_a_busy_background() -> None:
     assert found and found[0] >= 40, found
 
 
-@needs_ffmpeg
 @pytest.mark.asyncio
-async def test_ffmpeg_samples_frames_by_second(tmp_path: Path) -> None:
+async def test_ffmpeg_samples_frames_by_second(tmp_path: Path, ffmpeg: str) -> None:
     from thoth_control_plane.attribution.adapters.frames import FfmpegFrameSource
 
     video = tmp_path / "clip.mp4"
     subprocess.run(
         [
-            FFMPEG,
+            ffmpeg,
             "-v",
             "error",
             "-f",
@@ -127,7 +133,7 @@ async def test_ffmpeg_samples_frames_by_second(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    source = FfmpegFrameSource(FFMPEG)  # type: ignore[arg-type]
+    source = FfmpegFrameSource(ffmpeg)
 
     frames = await source.frames(video, fps=1.0)
     assert [frame.second for frame in frames][:3] == [0.0, 1.0, 2.0]
@@ -135,12 +141,11 @@ async def test_ffmpeg_samples_frames_by_second(tmp_path: Path) -> None:
     assert all(frame.second < 2 for frame in await source.frames(video, fps=1.0, seconds=1.0))
 
 
-@needs_ffmpeg
 @pytest.mark.asyncio
-async def test_ffmpeg_failure_raises_a_frame_error(tmp_path: Path) -> None:
+async def test_ffmpeg_failure_raises_a_frame_error(tmp_path: Path, ffmpeg: str) -> None:
     from thoth_control_plane.attribution.adapters.frames import FfmpegFrameSource, FrameError
 
-    source = FfmpegFrameSource(FFMPEG)  # type: ignore[arg-type]
+    source = FfmpegFrameSource(ffmpeg)
     with pytest.raises(FrameError):
         await source.frames(tmp_path / "missing.mp4", fps=1.0)
 

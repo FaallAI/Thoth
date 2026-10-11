@@ -16,11 +16,13 @@ LOWER_BAND = 0.55
 
 @dataclass(frozen=True)
 class TextBox:
-    """One OCR line; `top` and `bottom` are fractions of the frame height."""
+    """One OCR line; `top`/`bottom` are fractions of the height, `left`/`right` of the width."""
 
     text: str
     top: float
     bottom: float
+    left: float = 0.0
+    right: float = 1.0
 
 
 def summarize_matches(inliers: Sequence[int], *, min_inliers: int) -> tuple[int, int] | None:
