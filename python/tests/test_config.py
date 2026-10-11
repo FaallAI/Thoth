@@ -136,7 +136,10 @@ def test_the_account_vault_key_needs_the_editor_database() -> None:
     )
 
 
-def test_attribution_settings_default_to_no_keys_and_an_enabled_feature() -> None:
+def test_attribution_settings_default_to_no_keys_and_an_enabled_feature(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("THOTH_FFMPEG", raising=False)  # CI points it at /usr/bin/ffmpeg
     configured = settings(THOTH_OPENROUTER_API_KEY=None)
 
     assert configured.openrouter_api_key is None
