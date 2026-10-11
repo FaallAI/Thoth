@@ -139,3 +139,24 @@ def test_an_ocr_crash_is_a_lost_frame() -> None:
             )
         )
     assert raised.value.code == "incomplete_frame_coverage"
+
+
+def test_a_missing_ocr_engine_is_its_own_code() -> None:
+    # Operator, 2026-10-11: a missing tool is an explicit error, never a media failure.
+    class Uninstalled(Text):
+        async def read(self, frame: Frame) -> list[TextBox]:
+            raise ModuleNotFoundError("No module named 'rapidocr'")
+
+    with pytest.raises(AssemblyError) as raised:
+        asyncio.run(
+            analyze_main_ocr(
+                VIDEO,
+                30.0,
+                frames=Frames(),
+                probe=Probe(30.0),
+                text=Uninstalled(),
+                max_frames=12,
+                now=NOW,
+            )
+        )
+    assert raised.value.code == "rapidocr_missing"

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import shutil
 from collections.abc import Mapping
+from importlib.util import find_spec
 
 from temporalio.client import Client
 from temporalio.contrib.pydantic import pydantic_data_converter
@@ -58,7 +59,7 @@ def build_source_investigation_worker(
 
 
 def check_media_tools(settings: Settings) -> None:
-    """Content assembly needs ffmpeg and ffprobe: refuse to start without them.
+    """Content assembly needs ffmpeg, ffprobe, and RapidOCR: refuse to start without them.
 
     Operator, 2026-10-11: a missing tool is an explicit error, never a silent degradation.
     """
@@ -70,6 +71,8 @@ def check_media_tools(settings: Settings) -> None:
     ):
         if shutil.which(binary) is None:
             raise SettingsValidationError(code)
+    if find_spec("rapidocr") is None:
+        raise SettingsValidationError("rapidocr_missing")
 
 
 def build_prompt_proposal_worker(client: Client, settings: Settings) -> Worker:

@@ -389,6 +389,7 @@ ASSEMBLY_REASONS = frozenset(
         "main_media_missing",
         "ffmpeg_missing",
         "ffprobe_missing",
+        "rapidocr_missing",
         "duration_probe_failed",
         "incomplete_frame_coverage",
         "content_set_invalid",

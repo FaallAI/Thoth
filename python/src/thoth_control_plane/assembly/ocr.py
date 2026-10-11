@@ -85,6 +85,8 @@ async def analyze_main_ocr(
             continue
         try:
             boxes = await text.read(frame)
+        except ImportError:
+            raise AssemblyError("rapidocr_missing") from None
         except Exception:
             read.append(OcrFrame(frame.second, error="ocr_failed"))
             continue

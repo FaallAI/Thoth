@@ -75,3 +75,17 @@ def test_assembly_refuses_to_start_without_ffmpeg() -> None:
     )
     with pytest.raises(SettingsValidationError, match="ffprobe_missing"):
         worker.check_media_tools(probe_missing)
+
+
+def test_assembly_refuses_to_start_without_rapidocr(monkeypatch: pytest.MonkeyPatch) -> None:
+    from thoth_control_plane.config import SettingsValidationError
+
+    monkeypatch.setattr(worker, "find_spec", lambda name: None)
+    on = Settings(
+        THOTH_CONTROL_PLANE_API_KEY="k",
+        THOTH_CONTENT_ASSEMBLY_ENABLED=True,
+        THOTH_FFMPEG="sh",
+        THOTH_FFPROBE="sh",
+    )
+    with pytest.raises(SettingsValidationError, match="rapidocr_missing"):
+        worker.check_media_tools(on)
