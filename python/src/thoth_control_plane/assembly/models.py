@@ -67,10 +67,13 @@ class MainOcr(StrictModel):
     analyzed_at: AwareDatetime
     requested_frames: Annotated[int, Field(gt=0)]
     valid_frames: Annotated[int, Field(gt=0)]
-    outcome: Literal["clean", "cover", "subtitle"]
+    # `overlay` (amendment 2026-10-12): a persistent added band, blurred with the audio kept.
+    outcome: Literal["clean", "cover", "subtitle", "overlay"]
     trim_start: Seconds
     mute_audio: bool
     subtitle_blur: list[BlurRegion] = Field(default_factory=list, max_length=200)
+    # True when the region comparison moved the trim off the classifier's sample midpoint.
+    trim_refined: bool = False
 
     @model_validator(mode="after")
     def consistent(self) -> MainOcr:
@@ -84,6 +87,8 @@ class MainOcr(StrictModel):
             raise ValueError("a cover verdict trims and carries no mute or blur")
         if self.outcome == "subtitle" and (not self.mute_audio or not self.subtitle_blur):
             raise ValueError("a subtitle verdict mutes and blurs")
+        if self.outcome == "overlay" and (self.mute_audio or not self.subtitle_blur):
+            raise ValueError("an overlay verdict blurs and keeps the audio")
         return self
 
 

@@ -89,3 +89,17 @@ def test_assembly_refuses_to_start_without_rapidocr(monkeypatch: pytest.MonkeyPa
     )
     with pytest.raises(SettingsValidationError, match="rapidocr_missing"):
         worker.check_media_tools(on)
+
+
+def test_assembly_refuses_to_start_without_opencv(monkeypatch: pytest.MonkeyPatch) -> None:
+    from thoth_control_plane.config import SettingsValidationError
+
+    monkeypatch.setattr(worker, "find_spec", lambda name: None if name == "cv2" else object())
+    on = Settings(
+        THOTH_CONTROL_PLANE_API_KEY="k",
+        THOTH_CONTENT_ASSEMBLY_ENABLED=True,
+        THOTH_FFMPEG="sh",
+        THOTH_FFPROBE="sh",
+    )
+    with pytest.raises(SettingsValidationError, match="opencv_missing"):
+        worker.check_media_tools(on)

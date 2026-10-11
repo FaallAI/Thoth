@@ -390,13 +390,14 @@ ASSEMBLY_REASONS = frozenset(
         "ffmpeg_missing",
         "ffprobe_missing",
         "rapidocr_missing",
+        "opencv_missing",
         "duration_probe_failed",
         "incomplete_frame_coverage",
         "content_set_invalid",
         "artifact_write_failed",
     }
 )
-OCR_OUTCOMES = frozenset({"clean", "cover", "subtitle", "none"})
+OCR_OUTCOMES = frozenset({"clean", "cover", "subtitle", "overlay", "none"})
 SOURCE_EVENT_REASONS = (
     frozenset(
         {

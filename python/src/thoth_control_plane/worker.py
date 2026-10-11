@@ -59,7 +59,7 @@ def build_source_investigation_worker(
 
 
 def check_media_tools(settings: Settings) -> None:
-    """Content assembly needs ffmpeg, ffprobe, and RapidOCR: refuse to start without them.
+    """Content assembly needs ffmpeg, ffprobe, RapidOCR, and OpenCV: refuse to start without.
 
     Operator, 2026-10-11: a missing tool is an explicit error, never a silent degradation.
     """
@@ -73,6 +73,8 @@ def check_media_tools(settings: Settings) -> None:
             raise SettingsValidationError(code)
     if find_spec("rapidocr") is None:
         raise SettingsValidationError("rapidocr_missing")
+    if find_spec("cv2") is None:
+        raise SettingsValidationError("opencv_missing")
 
 
 def build_prompt_proposal_worker(client: Client, settings: Settings) -> Worker:

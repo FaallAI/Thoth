@@ -157,3 +157,17 @@ def test_at_most_twelve_comments() -> None:
     comment = {"text": "mantap", "author": "a", "likes": 1, "source": "input"}
     with pytest.raises(ValidationError):
         parse(content_set() | {"comments": [comment] * 13})
+
+
+def test_an_overlay_blurs_without_muting() -> None:
+    region = {"x": 0.03, "y": 0.58, "w": 0.93, "h": 0.15, "start": 0.0, "end": 39.1}
+    ocr = copy.deepcopy(OCR) | {
+        "outcome": "overlay",
+        "mute_audio": False,
+        "subtitle_blur": [region],
+        "trim_refined": False,
+    }
+    assert parse(content_set(ocr=ocr)).main.ocr.outcome == "overlay"  # type: ignore[union-attr]
+    for broken in ({"mute_audio": True}, {"subtitle_blur": []}):
+        with pytest.raises(ValidationError, match="overlay"):
+            parse(content_set(ocr=ocr | broken))
