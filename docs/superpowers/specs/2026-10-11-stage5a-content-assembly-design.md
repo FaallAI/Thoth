@@ -134,9 +134,16 @@ Media references reuse the location and checksum already in the report; nothing 
 3. Sample times: `build_sample_times(duration, THOTH_SUBTITLE_OCR_MAX_FRAMES)` (intro samples
    at 0.5, 1, 2, 3, 4, 5 s, the rest spread to the end, at most 12 by default).
 4. Frames: ffmpeg seeks each time and writes one JPEG at **720 px** wide (attribution uses 360;
-   subtitle glyphs need more). A failed extraction retries at offsets +0, +0.25, +0.5, +1 s,
-   two attempts each, as Scout does.
-5. Boxes: RapidOCR reads each frame; boxes are normalized to 0..1 on both axes.
+   subtitle glyphs need more; RapidOCR's detector resizes the short side to 736 anyway), JPEG
+   quality `-q:v 2`. One ffmpeg process per sample time: a single multi-input process and a
+   `select` filter were no faster (bench, 2026-10-11: 1.48 s, 1.48 s, 1.35 s for 12 frames of
+   a 90 s 1080x1920 clip), and per-time calls keep the recovery simple. A failed extraction
+   retries at offsets +0, +0.25, +0.5, +1 s, two attempts each, as Scout does.
+5. Boxes: RapidOCR reads each frame with the angle classifier off (`use_cls=False`: video
+   text is upright; bench: 549 ms instead of 841 ms per 720 px frame, identical text); boxes
+   are normalized to 0..1 on both axes. The image ships the PP-OCRv6 small models (rapidocr
+   3.9.2 default), whose single recognizer covers 46 Latin-script languages, Indonesian
+   included.
 6. Coverage: valid frames must equal requested frames, else `incomplete_frame_coverage`. Only
    complete coverage may produce a verdict.
 7. Classification: `classify_ocr_frames(frames, duration)`.
@@ -153,9 +160,14 @@ Media references reuse the location and checksum already in the report; nothing 
 
 ### A5 Figures
 
-- Input: main title, description, and the OCR headline text when the outcome is `cover`.
-- One structured call through Agno over OpenRouter (`THOTH_FIGURES_MODEL`), prompt ported from
-  `extract_figures.ts` (rules unchanged, translated to English).
+- Input: main title and description, as Scout's pipeline passes them, plus the cover
+  headline that attribution's vision read already recorded (`cover_vision` evidence
+  `headline: ...`) when there is one. Figures never wait for the OCR, so the call runs
+  concurrently with A3 and costs no wall time. 5b adds footage descriptions, as Scout does.
+- One structured call through Agno over OpenRouter (`THOTH_FIGURES_MODEL`, default the pinned
+  `deepseek/deepseek-v4-flash-0731`, the successor of Scout's `deepseek-v3.1`, with native
+  structured outputs), prompt ported from `extract_figures.ts` (rules unchanged, translated to
+  English).
 - Output: at most 5 figures, each `name`, `type` (`person`, `organization`, `community`),
   `role`, `description`; `figures_status = "ok"`.
 - An empty list from the model: `figures_status = "none"`.
@@ -239,7 +251,7 @@ Never a CDN URL, a cookie, a proxy, a prompt, or raw model output.
 |---|---|---|
 | `THOTH_CONTENT_ASSEMBLY_ENABLED` | `false` | no `assembly` stage |
 | `THOTH_SUBTITLE_OCR_MAX_FRAMES` | `12` | default |
-| `THOTH_FIGURES_MODEL` | an OpenRouter text model, chosen in the plan after checking the catalog | default |
+| `THOTH_FIGURES_MODEL` | `deepseek/deepseek-v4-flash-0731` (dated, never a `~latest` alias) | default |
 | `THOTH_OPENROUTER_API_KEY` (exists) | — | `figures_status = "unavailable"` |
 | `THOTH_FFMPEG` (exists), ffprobe beside it | — | worker refuses to start (`ffmpeg_missing`, `ffprobe_missing`) |
 
@@ -294,6 +306,10 @@ All offline; no live test joins the suite.
 - Comments come from reports acquisition already wrote; no browser visit during assembly.
 - Media are artifact references with checksums, not absolute `image_path` values.
 - The lint is a set of model validators; an invalid Content Set cannot be written.
+- Figures also read the cover headline attribution recorded; Scout passed only title and
+  description.
+- Expected OCR cost for a video main: about 8 s on the worker (12 frames at roughly 0.12 s
+  extraction and 0.55 s recognition each), with figures running alongside.
 
 ## 11. Operator gates
 
