@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-11 - Stage 4 deployed on `6b654027`; CI config test fix
+
+- The push of `5b67648` (the Stage 4 merge) failed "Offline quality gates" on one test: the
+  workflow sets `THOTH_FFMPEG=/usr/bin/ffmpeg`, which leaked into the attribution-settings
+  default test. `4f46c56` isolates it with `monkeypatch.delenv`; CI run `38131783117` on
+  `4f46c56` passed every job.
+- Deployed with operator authorization: acquisition commit `4f46c56`, digest
+  `sha256:6b6540278f044a2ce83bbf10e3724e686e76aef4b3f4516fc59b5efc1e3981ac`; the renderer
+  stays on `2c9c1da7…`.
+  - The operator added `THOTH_OPENROUTER_API_KEY` to the restricted provider file. The
+    operator set `THOTH_IMAGE` to the `sha-` tag, which the preflight rejects; after a backup
+    it was pinned to the index digest (CRLF kept).
+  - `stage1-local-preflight --provider-env-file` passed; `config --quiet` passed for the
+    local, providers, and renderer files; all three THOTH roles resolve to the one digest.
+  - `editor migrate` printed `0`: Stage 4 adds no editor revision.
+  - `up --wait`: every service healthy. `api`, `worker`, and `legacy-cdp` run `6b654027` at
+    revision `4f46c56` as `10001:10001` with 0 restarts; only `127.0.0.1:8000` (api) and
+    `127.0.0.1:8080` (Temporal UI) are published. Worker mode stays
+    `python_tiktok_with_legacy_fallback`. `healthz` and `readyz` return 200.
+  - The worker holds the OpenRouter key and the api does not. In the worker, OpenCV `5.0.0`
+    and RapidOCR import; attribution is enabled with the vision model
+    `qwen/qwen3-vl-30b-a3b-instruct`.
+
+Next steps:
+
+- Golden cases for spec section 9 case 2 (caption credit) and case 5 (commentary) from the
+  operator's URLs.
+- The live smoke of attribution joins the final acceptance (ADR 0001).
+
 ## 2026-10-10 - Stage 4: source attribution in Python
 
 - Implements `docs/superpowers/specs/2026-10-08-stage4-source-attribution-design.md` through
