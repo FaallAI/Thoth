@@ -1,8 +1,9 @@
 """Record one RapidOCR calibration case from live traffic (operator-authorized; plan Task 10).
 
-Run only inside the capture container. It acquires the post, samples the main video exactly as
-assembly does, and records every frame's boxes and the classifier's verdict. The fixture holds
-no key, no URL query, no CDN address, and no video.
+Run only inside the capture container. It acquires the post and runs the production main OCR
+(`analyze_main_ocr`: the same samples, frame recovery, and coverage rule) through a recording
+text reader, so the fixture holds exactly the boxes production classified, unrounded. The
+fixture holds no key, no URL query, no CDN address, and no video.
 """
 
 from __future__ import annotations
@@ -11,86 +12,102 @@ import argparse
 import asyncio
 import json
 import tempfile
-from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from thoth_control_plane.activities.source_investigation import build_production_acquisition_runner
-from thoth_control_plane.assembly.ocr import FRAME_WIDTH
-from thoth_control_plane.assembly.subtitles import (
-    OcrBox,
-    OcrFrame,
-    build_sample_times,
-    classify_ocr_frames,
-)
+from thoth_control_plane.assembly.ocr import analyze_main_ocr
+from thoth_control_plane.assembly.ports import DurationProbe, FrameSampler, TextReader
 from thoth_control_plane.attribution.adapters.frames import FfmpegFrameSource, FfprobeDuration
-from thoth_control_plane.attribution.adapters.ocr import RapidOcrReader
+from thoth_control_plane.attribution.matching import TextBox
+from thoth_control_plane.attribution.ports import Frame
 from thoth_control_plane.config import Settings
 
 
+class _Recording:
+    def __init__(self, inner: TextReader) -> None:
+        self._inner = inner
+        self.frames: list[dict[str, Any]] = []
+
+    async def read(self, frame: Frame) -> list[TextBox]:
+        boxes = await self._inner.read(frame)
+        self.frames.append(
+            {
+                "t": frame.second,
+                "boxes": [[b.text, b.left, b.top, b.right, b.bottom] for b in boxes],
+            }
+        )
+        return boxes
+
+
+async def record_ocr(
+    video: Path,
+    duration: float,
+    *,
+    frames: FrameSampler,
+    probe: DurationProbe,
+    text: TextReader,
+    max_frames: int,
+) -> dict[str, Any]:
+    recording = _Recording(text)
+    ocr = await analyze_main_ocr(
+        video,
+        duration,
+        frames=frames,
+        probe=probe,
+        text=recording,
+        max_frames=max_frames,
+        now=datetime.now(UTC),
+    )
+    return {
+        "duration": duration,
+        "frames": recording.frames,
+        "captured": {
+            "outcome": ocr.outcome,
+            "trim_start": ocr.trim_start,
+            "blur_count": len(ocr.subtitle_blur),
+            "blur": [region.model_dump() for region in ocr.subtitle_blur],
+        },
+        "ocr": ocr,
+    }
+
+
 async def capture(case: str, url: str, out: Path) -> None:
+    from thoth_control_plane.attribution.adapters.ocr import RapidOcrReader
+
     settings = Settings()  # type: ignore[call-arg]
     with tempfile.TemporaryDirectory(prefix="thoth-ocr-capture-") as directory:
         root = Path(directory)
         result = await build_production_acquisition_runner(settings)("wf_ocr_golden", url, root)
         if result.report is None:
-            raise SystemExit(
-                f"acquisition failed: {result.failure.code if result.failure else 'unknown'}"
-            )
+            code = result.failure.code if result.failure else "unknown"
+            raise SystemExit(f"acquisition failed: {code}")
         video = next(m for m in result.report.media if m.kind == "video")
         path = root / video.location
-        duration = video.duration_seconds or await FfprobeDuration(settings.THOTH_FFPROBE).duration(
-            path
+        probe = FfprobeDuration(settings.THOTH_FFPROBE)
+        duration = video.duration_seconds or await probe.duration(path)
+        recorded = await record_ocr(
+            path,
+            duration,
+            frames=FfmpegFrameSource(settings.THOTH_FFMPEG),
+            probe=probe,
+            text=RapidOcrReader(angle=False),
+            max_frames=settings.THOTH_SUBTITLE_OCR_MAX_FRAMES,
         )
-        frames_source = FfmpegFrameSource(settings.THOTH_FFMPEG)
-        reader = RapidOcrReader(angle=False)
-        frames = []
-        for second in build_sample_times(duration, settings.THOTH_SUBTITLE_OCR_MAX_FRAMES):
-            frame = await frames_source.frame_at(path, second, width=FRAME_WIDTH)
-            boxes = await reader.read(frame)
-            frames.append(
-                OcrFrame(
-                    second,
-                    tuple(
-                        OcrBox(
-                            b.text,
-                            round(b.left, 4),
-                            round(b.top, 4),
-                            round(b.right, 4),
-                            round(b.bottom, 4),
-                        )
-                        for b in boxes
-                    ),
-                )
-            )
-        verdict = classify_ocr_frames(frames, duration)
-        out.write_text(
-            json.dumps(
-                {
-                    "case": case,
-                    "platform": result.report.source.platform,
-                    "captured_at": datetime.now(UTC).isoformat(timespec="seconds"),
-                    "duration": duration,
-                    "frames": [
-                        {"t": f.t, "boxes": [[b.text, b.x0, b.y0, b.x1, b.y1] for b in f.boxes]}
-                        for f in frames
-                    ],
-                    "captured": {
-                        "outcome": verdict.outcome,
-                        "trim_start": verdict.trim_start,
-                        "blur_count": len(verdict.subtitle_blur),
-                        "blur": [asdict(r) for r in verdict.subtitle_blur],
-                    },
-                    "expected": None,
-                },
-                ensure_ascii=False,
-                indent=1,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
+        recorded.pop("ocr")
+        fixture = {
+            "case": case,
+            "platform": result.report.source.platform,
+            "captured_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            **recorded,
+            "expected": None,
+        }
+        out.write_text(json.dumps(fixture, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        captured = fixture["captured"]
         print(
-            f"{case}: {verdict.outcome} trim={verdict.trim_start} blur={len(verdict.subtitle_blur)}"
+            f"{case}: {captured['outcome']} trim={captured['trim_start']} "
+            f"blur={captured['blur_count']}"
         )
 
 
