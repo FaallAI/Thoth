@@ -59,7 +59,7 @@ def build_source_investigation_worker(
 
 
 def check_media_tools(settings: Settings) -> None:
-    """Content assembly needs ffmpeg, ffprobe, RapidOCR, and OpenCV: refuse to start without.
+    """Content assembly needs ffmpeg, ffprobe, RapidOCR, and OpenCV; refuse to start without them.
 
     Operator, 2026-10-11: a missing tool is an explicit error, never a silent degradation.
     """
