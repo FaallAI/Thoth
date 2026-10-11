@@ -134,3 +134,20 @@ def test_the_account_vault_key_needs_the_editor_database() -> None:
     assert "vault-secret" not in repr(
         settings(THOTH_ACCOUNT_VAULT_KEY="vault-secret", **with_database)
     )
+
+
+def test_attribution_settings_default_to_no_keys_and_an_enabled_feature() -> None:
+    configured = settings(THOTH_OPENROUTER_API_KEY=None)
+
+    assert configured.openrouter_api_key is None
+    assert not hasattr(configured, "novita_api_key")
+    assert configured.THOTH_SOURCE_ATTRIBUTION_ENABLED is True
+    assert configured.THOTH_SOURCE_VISION_MODEL == "qwen/qwen3-vl-30b-a3b-instruct"
+    assert configured.THOTH_FFMPEG == "ffmpeg"
+
+
+def test_attribution_keys_are_stripped_and_a_blank_key_is_absent() -> None:
+    assert settings(THOTH_OPENROUTER_API_KEY=" or-synthetic ").openrouter_api_key == (
+        "or-synthetic"
+    )
+    assert settings(THOTH_OPENROUTER_API_KEY="  ").openrouter_api_key is None

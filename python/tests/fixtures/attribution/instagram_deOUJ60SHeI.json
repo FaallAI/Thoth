@@ -1,0 +1,2161 @@
+{
+  "case": "instagram_deOUJ60SHeI",
+  "synthetic": false,
+  "report": {
+    "schema_version": 3,
+    "workflow_id": "wf_golden",
+    "source": {
+      "platform": "instagram",
+      "canonical_url": "https://www.instagram.com/p/DeOUJ60SHeI/"
+    },
+    "post": {
+      "post_id": "DeOUJ60SHeI",
+      "owner_handle": "sadampermana.w",
+      "text": "Rusa makan plastik di Jepang?",
+      "published_at": "2026-10-08T06:43:37Z",
+      "engagement": {
+        "like": 20071,
+        "comment": 243
+      }
+    },
+    "media": [
+      {
+        "media_id": "media_1",
+        "kind": "video",
+        "index": 1,
+        "location": "reports/wf_golden/media/instagram-DeOUJ60SHeI-1.mp4",
+        "media_type": "video/mp4",
+        "bytes": 12228210,
+        "checksum": "sha256:868132bf9e408239ae68dc6ed8dacb7d31f27b60020a5c60d3e172f012e5358d",
+        "acquisition_strategy": "scrapling_request",
+        "width": null,
+        "height": null,
+        "duration_seconds": null
+      }
+    ],
+    "outcome": {
+      "status": "resolved",
+      "attempts": [
+        {
+          "strategy": "scrapling_request",
+          "status": "succeeded",
+          "reason": null,
+          "attempt_count": 1,
+          "elapsed_ms": 2738
+        }
+      ]
+    },
+    "comments": [],
+    "post_card": null,
+    "profile_card": null
+  },
+  "repost_frames": "instagram-DeOUJ60SHeI-1",
+  "frames": {
+    "instagram-DeOUJ60SHeI-1": [
+      {
+        "second": 0.0,
+        "boxes": [
+          [
+            "@hezumaryuaaa",
+            0.3266,
+            0.3594
+          ]
+        ]
+      },
+      {
+        "second": 1.0,
+        "boxes": [
+          [
+            "@hezumaryuaaa",
+            0.3266,
+            0.3578
+          ]
+        ]
+      },
+      {
+        "second": 2.0,
+        "boxes": [
+          [
+            "@hezumaryuaaa",
+            0.3266,
+            0.3609
+          ]
+        ]
+      },
+      {
+        "second": 3.0,
+        "boxes": [
+          [
+            "@hezumaryuaaa",
+            0.3266,
+            0.3609
+          ]
+        ]
+      },
+      {
+        "second": 4.0,
+        "boxes": [
+          [
+            "@hezumaryuaaa",
+            0.325,
+            0.3609
+          ]
+        ]
+      },
+      {
+        "second": 5.0,
+        "boxes": [
+          [
+            "@hezumaryuaaa",
+            0.3266,
+            0.3594
+          ]
+        ]
+      },
+      {
+        "second": 6.0,
+        "boxes": [
+          [
+            "@hezumaryuaaa",
+            0.3281,
+            0.3594
+          ]
+        ]
+      },
+      {
+        "second": 7.0,
+        "boxes": [
+          [
+            "ト一キ",
+            0.1219,
+            0.1609
+          ],
+          [
+            "TOMY",
+            0.1562,
+            0.1719
+          ],
+          [
+            "@hezumaryuaaa",
+            0.3266,
+            0.3609
+          ]
+        ]
+      },
+      {
+        "second": 8.0,
+        "boxes": [
+          [
+            "F3",
+            0.0,
+            0.0234
+          ],
+          [
+            "CYO",
+            0.0187,
+            0.0437
+          ],
+          [
+            "@hezumaryuaaa",
+            0.3266,
+            0.3578
+          ]
+        ]
+      },
+      {
+        "second": 9.0,
+        "boxes": [
+          [
+            "@hezumaryuaaa",
+            0.3281,
+            0.3594
+          ]
+        ]
+      },
+      {
+        "second": 10.0,
+        "boxes": [
+          [
+            "A",
+            0.2219,
+            0.3406
+          ],
+          [
+            "yuaaa",
+            0.3234,
+            0.3609
+          ]
+        ]
+      },
+      {
+        "second": 11.0,
+        "boxes": [
+          [
+            "hezumaryuaaa",
+            0.3266,
+            0.3609
+          ]
+        ]
+      },
+      {
+        "second": 12.0,
+        "boxes": [
+          [
+            "福",
+            0.1328,
+            0.9984
+          ]
+        ]
+      },
+      {
+        "second": 13.0,
+        "boxes": []
+      },
+      {
+        "second": 14.0,
+        "boxes": []
+      },
+      {
+        "second": 15.0,
+        "boxes": []
+      },
+      {
+        "second": 16.0,
+        "boxes": []
+      },
+      {
+        "second": 17.0,
+        "boxes": []
+      },
+      {
+        "second": 18.0,
+        "boxes": [
+          [
+            "CD",
+            0.0922,
+            0.9984
+          ]
+        ]
+      },
+      {
+        "second": 19.0,
+        "boxes": []
+      },
+      {
+        "second": 20.0,
+        "boxes": []
+      },
+      {
+        "second": 21.0,
+        "boxes": []
+      },
+      {
+        "second": 22.0,
+        "boxes": []
+      },
+      {
+        "second": 23.0,
+        "boxes": [
+          [
+            "The deer in Nara Park are",
+            0.2453,
+            0.3078
+          ],
+          [
+            "They have long been protected as \"sacred deer\" of Kasuga Taisha Shrine deer and are",
+            0.2906,
+            0.3266
+          ],
+          [
+            "奈良公园里的鹿是野生动物",
+            0.325,
+            0.375
+          ],
+          [
+            "自古以来，它们就被视为春日大社的神鹿，受到保护，",
+            0.3656,
+            0.3953
+          ],
+          [
+            "并被指定为国家天然纪念物。",
+            0.3891,
+            0.4141
+          ],
+          [
+            "The following actions towards",
+            0.4297,
+            0.4594
+          ],
+          [
+            "the deer are prohibited.",
+            0.4484,
+            0.4797
+          ],
+          [
+            "以下行为对鹿是禁止的。",
+            0.4719,
+            0.5062
+          ],
+          [
+            "No touching",
+            0.5734,
+            0.5938
+          ],
+          [
+            "T",
+            0.5953,
+            0.625
+          ],
+          [
+            "No leeding",
+            0.5687,
+            0.5875
+          ],
+          [
+            "No Sittering",
+            0.5641,
+            0.5828
+          ],
+          [
+            "BVELICO",
+            0.5844,
+            0.6
+          ],
+          [
+            "不要的出n",
+            0.6516,
+            0.6656
+          ],
+          [
+            "with crackers",
+            0.7031,
+            0.7219
+          ],
+          [
+            "No leasing",
+            0.6922,
+            0.7109
+          ],
+          [
+            "Do not harm",
+            0.6859,
+            0.7016
+          ],
+          [
+            "the deer",
+            0.6969,
+            0.7125
+          ],
+          [
+            "出服力",
+            0.7141,
+            0.7297
+          ],
+          [
+            "请不要证",
+            0.7063,
+            0.7188
+          ],
+          [
+            "anty",
+            0.6969,
+            0.7063
+          ],
+          [
+            "余良県/Nara Prefecture/奈良县",
+            0.7406,
+            0.7766
+          ]
+        ]
+      },
+      {
+        "second": 24.0,
+        "boxes": [
+          [
+            "The deer in Nara Park are",
+            0.2437,
+            0.3063
+          ],
+          [
+            "They have long been protected as \"sacred deer\" of Kasuga Taisha Shrine deer and are",
+            0.2906,
+            0.3266
+          ],
+          [
+            "奈良公园里的鹿是野生动物",
+            0.3234,
+            0.375
+          ],
+          [
+            "自古以来，它们就被视为春日大社的神鹿，受到保护，",
+            0.3656,
+            0.3953
+          ],
+          [
+            "并被指定为国家天然纪念物。",
+            0.3891,
+            0.4141
+          ],
+          [
+            "The following actions towards",
+            0.4297,
+            0.4594
+          ],
+          [
+            "the deer are prohibited.",
+            0.45,
+            0.4781
+          ],
+          [
+            "以下行为对鹿是禁止的。",
+            0.4719,
+            0.5062
+          ],
+          [
+            "No touching",
+            0.5734,
+            0.5938
+          ],
+          [
+            "2049",
+            0.6078,
+            0.6219
+          ],
+          [
+            "No ftsding",
+            0.5625,
+            0.5922
+          ],
+          [
+            "No littering",
+            0.5641,
+            0.5828
+          ],
+          [
+            "No leasing",
+            0.6922,
+            0.7109
+          ],
+          [
+            "Do not harm",
+            0.6828,
+            0.7031
+          ],
+          [
+            "the deer",
+            0.6969,
+            0.7125
+          ],
+          [
+            "物服力",
+            0.7141,
+            0.7297
+          ],
+          [
+            "Eeep",
+            0.6891,
+            0.6969
+          ],
+          [
+            "请不要证",
+            0.7063,
+            0.7188
+          ],
+          [
+            "anty",
+            0.6969,
+            0.7063
+          ],
+          [
+            "奈良県/Nara Prefecture/奈良县",
+            0.7406,
+            0.7766
+          ]
+        ]
+      },
+      {
+        "second": 25.0,
+        "boxes": [
+          [
+            "The deer in Nara Park are",
+            0.2453,
+            0.3078
+          ],
+          [
+            "They have long been protected as sacred deer\" of Kasuga Taisha Shrine deer and are",
+            0.2906,
+            0.3266
+          ],
+          [
+            "奈良公园里的鹿是野生动物",
+            0.325,
+            0.375
+          ],
+          [
+            "自古以来，它们就被视为春日大社的神真，受到保护，",
+            0.3656,
+            0.3953
+          ],
+          [
+            "并被指定为国家天然纪念物。",
+            0.3891,
+            0.4141
+          ],
+          [
+            "The following actions towards",
+            0.4297,
+            0.4594
+          ],
+          [
+            "the deer are prohibited.",
+            0.45,
+            0.4781
+          ],
+          [
+            "以下行为对鹿是禁止的。",
+            0.4719,
+            0.5062
+          ],
+          [
+            "No touching",
+            0.5734,
+            0.5938
+          ],
+          [
+            "No feeding",
+            0.5641,
+            0.5922
+          ],
+          [
+            "No litterieg",
+            0.5641,
+            0.5828
+          ],
+          [
+            "EUAUTLOEUV",
+            0.725,
+            0.7438
+          ],
+          [
+            "with crackers",
+            0.7031,
+            0.7219
+          ],
+          [
+            "No leasing",
+            0.6922,
+            0.7109
+          ],
+          [
+            "Do not harm",
+            0.6828,
+            0.7031
+          ],
+          [
+            "the deer",
+            0.6953,
+            0.7141
+          ],
+          [
+            "加服力",
+            0.7156,
+            0.7297
+          ],
+          [
+            "Keng do",
+            0.6875,
+            0.7
+          ],
+          [
+            "请不输证",
+            0.7047,
+            0.7188
+          ],
+          [
+            "奈良県/ Nara Prefecture/奈良县",
+            0.7406,
+            0.7766
+          ]
+        ]
+      },
+      {
+        "second": 26.0,
+        "boxes": [
+          [
+            "The deer in Nara Park are",
+            0.2453,
+            0.3063
+          ],
+          [
+            "They have long been protected as \"sacred deer\" of Kasuga Taisha Shrine deer and are",
+            0.2906,
+            0.3266
+          ],
+          [
+            "奈良公园里的鹿是野生动物",
+            0.325,
+            0.375
+          ],
+          [
+            "自古以来，它们就被视为春日大社的神真，受到保护，",
+            0.3656,
+            0.3953
+          ],
+          [
+            "并被指定为国家天然纪念物。",
+            0.3891,
+            0.4141
+          ],
+          [
+            "The following actions towards",
+            0.4297,
+            0.4594
+          ],
+          [
+            "the deer are prohibited.",
+            0.45,
+            0.4781
+          ],
+          [
+            "以下行为对鹿是禁止的。",
+            0.4719,
+            0.5062
+          ],
+          [
+            "No touching",
+            0.5734,
+            0.5938
+          ],
+          [
+            "No feeding",
+            0.5641,
+            0.5922
+          ],
+          [
+            "No litterieg",
+            0.5641,
+            0.5828
+          ],
+          [
+            "with crackers",
+            0.7031,
+            0.7219
+          ],
+          [
+            "No leasing",
+            0.6922,
+            0.7109
+          ],
+          [
+            "Do not harm",
+            0.6828,
+            0.7031
+          ],
+          [
+            "the deer",
+            0.6953,
+            0.7141
+          ],
+          [
+            "加服力",
+            0.7156,
+            0.7297
+          ],
+          [
+            "请不输证",
+            0.7047,
+            0.7188
+          ],
+          [
+            "奈良県/Nara Prefecture/奈良县",
+            0.7406,
+            0.7766
+          ]
+        ]
+      },
+      {
+        "second": 27.0,
+        "boxes": [
+          [
+            "The deer in Nara Park are",
+            0.2453,
+            0.3078
+          ],
+          [
+            "They have long been protected as \"sacred deer\" of Kasuga Taisha Shrine deer and are",
+            0.2906,
+            0.3266
+          ],
+          [
+            "奈良公园里的鹿是野生动物",
+            0.325,
+            0.375
+          ],
+          [
+            "自古以来，它们就被视为春日大社的神真，受到保护，",
+            0.3656,
+            0.3953
+          ],
+          [
+            "并被指定为国家天然纪念物。",
+            0.3891,
+            0.4141
+          ],
+          [
+            "The following actions towards",
+            0.4297,
+            0.4594
+          ],
+          [
+            "the deer are prohibited.",
+            0.45,
+            0.4781
+          ],
+          [
+            "以下行为对鹿是禁止的。",
+            0.4719,
+            0.5062
+          ],
+          [
+            "No touching",
+            0.575,
+            0.5938
+          ],
+          [
+            "No feeding",
+            0.5625,
+            0.5922
+          ],
+          [
+            "No litterieg",
+            0.5641,
+            0.5828
+          ],
+          [
+            "with crackers",
+            0.7031,
+            0.7219
+          ],
+          [
+            "No leasing",
+            0.6922,
+            0.7109
+          ],
+          [
+            "Do not harm",
+            0.6828,
+            0.7031
+          ],
+          [
+            "the deer",
+            0.6953,
+            0.7125
+          ],
+          [
+            "加服力",
+            0.7156,
+            0.7297
+          ],
+          [
+            "请不输证",
+            0.7047,
+            0.7188
+          ],
+          [
+            "奈良県/Nara Prefecture/奈良县",
+            0.7406,
+            0.7766
+          ]
+        ]
+      },
+      {
+        "second": 28.0,
+        "boxes": [
+          [
+            "The deer in Nara Park are",
+            0.2453,
+            0.3078
+          ],
+          [
+            "They have long been protected as \"sacred deer\" of Kasuga Taisha Shrine deer and are",
+            0.2906,
+            0.3266
+          ],
+          [
+            "奈良公园里的鹿是野生动物",
+            0.325,
+            0.375
+          ],
+          [
+            "自古以来，它们就被视为春日大社的神真，受到保护，",
+            0.3656,
+            0.3953
+          ],
+          [
+            "并被指定为国家天然纪念物。",
+            0.3891,
+            0.4141
+          ],
+          [
+            "The following actions towards",
+            0.4297,
+            0.4594
+          ],
+          [
+            "the deer are prohibited.",
+            0.45,
+            0.4781
+          ],
+          [
+            "以下行为对鹿是禁止的。",
+            0.4719,
+            0.5062
+          ],
+          [
+            "No touching",
+            0.5734,
+            0.5938
+          ],
+          [
+            "No feeding",
+            0.5641,
+            0.5922
+          ],
+          [
+            "No litterieg",
+            0.5641,
+            0.5828
+          ],
+          [
+            "with crackers",
+            0.7031,
+            0.7219
+          ],
+          [
+            "No leasing",
+            0.6922,
+            0.7109
+          ],
+          [
+            "Do not harm",
+            0.6828,
+            0.7031
+          ],
+          [
+            "the deer",
+            0.6953,
+            0.7141
+          ],
+          [
+            "加服力",
+            0.7156,
+            0.7297
+          ],
+          [
+            "请不输证",
+            0.7047,
+            0.7188
+          ],
+          [
+            "奈良県/Nara Prefecture/奈良县",
+            0.7406,
+            0.7766
+          ]
+        ]
+      },
+      {
+        "second": 29.0,
+        "boxes": [
+          [
+            "The deer in Nara Park are",
+            0.2453,
+            0.3078
+          ],
+          [
+            "They have long been protected as \"sacred deer\" of Kasuga Taisha Shrine deer and are",
+            0.2906,
+            0.3266
+          ],
+          [
+            "奈良公园里的鹿是野生动物",
+            0.325,
+            0.375
+          ],
+          [
+            "自古以来，它们就被视为春日大社的神真，受到保护，",
+            0.3656,
+            0.3953
+          ],
+          [
+            "并被指定为国家天然纪念物。",
+            0.3891,
+            0.4141
+          ],
+          [
+            "The following actions towards",
+            0.4297,
+            0.4594
+          ],
+          [
+            "the deer are prohibited.",
+            0.45,
+            0.4781
+          ],
+          [
+            "以下行为对鹿是禁止的。",
+            0.4719,
+            0.5062
+          ],
+          [
+            "No touching",
+            0.575,
+            0.5938
+          ],
+          [
+            "No feeding",
+            0.5641,
+            0.5922
+          ],
+          [
+            "No litterieg",
+            0.5641,
+            0.5828
+          ],
+          [
+            "with crackers",
+            0.7031,
+            0.7219
+          ],
+          [
+            "No leasing",
+            0.6922,
+            0.7109
+          ],
+          [
+            "Do not harm",
+            0.6828,
+            0.7031
+          ],
+          [
+            "the deer",
+            0.6953,
+            0.7125
+          ],
+          [
+            "加服力",
+            0.7156,
+            0.7297
+          ],
+          [
+            "请不要证",
+            0.7063,
+            0.7188
+          ],
+          [
+            "奈良県/ Nara Prefecture /奈良县",
+            0.7406,
+            0.7766
+          ]
+        ]
+      },
+      {
+        "second": 30.0,
+        "boxes": [
+          [
+            "The deer in Nara Park are",
+            0.2453,
+            0.3078
+          ],
+          [
+            "They have long been protected as \"sacred deer\" of Kasuga Taisha Shrine deer and are",
+            0.2906,
+            0.3266
+          ],
+          [
+            "奈良公园里的鹿是野生动物",
+            0.325,
+            0.375
+          ],
+          [
+            "自古以来，它们就被视为春日大社的神鹿，受到保护，",
+            0.3656,
+            0.3953
+          ],
+          [
+            "并被指定为国家天然纪念物。",
+            0.3891,
+            0.4141
+          ],
+          [
+            "The following actions towards",
+            0.4297,
+            0.4594
+          ],
+          [
+            "the deer are prohibited.",
+            0.4484,
+            0.4797
+          ],
+          [
+            "以下行为对鹿是禁止的。",
+            0.4719,
+            0.5062
+          ],
+          [
+            "Nio touching",
+            0.5734,
+            0.5938
+          ],
+          [
+            "No Sittering",
+            0.5641,
+            0.5828
+          ],
+          [
+            "不要酒站",
+            0.6531,
+            0.6656
+          ],
+          [
+            "No leasing",
+            0.6922,
+            0.7109
+          ],
+          [
+            "Do not harm",
+            0.6828,
+            0.7031
+          ],
+          [
+            "the deer",
+            0.6969,
+            0.7125
+          ],
+          [
+            "加版力",
+            0.7156,
+            0.7297
+          ],
+          [
+            "Keng",
+            0.6875,
+            0.7
+          ],
+          [
+            "请不要证",
+            0.7063,
+            0.7188
+          ],
+          [
+            "anry",
+            0.6969,
+            0.7063
+          ],
+          [
+            "奈良県/ Nara Prefecture/奈良县",
+            0.7406,
+            0.7766
+          ]
+        ]
+      },
+      {
+        "second": 31.0,
+        "boxes": []
+      },
+      {
+        "second": 32.0,
+        "boxes": []
+      },
+      {
+        "second": 33.0,
+        "boxes": []
+      },
+      {
+        "second": 34.0,
+        "boxes": []
+      },
+      {
+        "second": 35.0,
+        "boxes": []
+      },
+      {
+        "second": 36.0,
+        "boxes": []
+      },
+      {
+        "second": 37.0,
+        "boxes": []
+      },
+      {
+        "second": 38.0,
+        "boxes": []
+      },
+      {
+        "second": 39.0,
+        "boxes": []
+      },
+      {
+        "second": 40.0,
+        "boxes": []
+      },
+      {
+        "second": 41.0,
+        "boxes": []
+      },
+      {
+        "second": 42.0,
+        "boxes": []
+      },
+      {
+        "second": 43.0,
+        "boxes": []
+      },
+      {
+        "second": 44.0,
+        "boxes": []
+      },
+      {
+        "second": 45.0,
+        "boxes": []
+      },
+      {
+        "second": 46.0,
+        "boxes": []
+      },
+      {
+        "second": 47.0,
+        "boxes": []
+      },
+      {
+        "second": 48.0,
+        "boxes": []
+      },
+      {
+        "second": 49.0,
+        "boxes": []
+      },
+      {
+        "second": 50.0,
+        "boxes": []
+      },
+      {
+        "second": 51.0,
+        "boxes": []
+      },
+      {
+        "second": 52.0,
+        "boxes": [
+          [
+            "A",
+            0.6797,
+            0.975
+          ]
+        ]
+      },
+      {
+        "second": 53.0,
+        "boxes": []
+      },
+      {
+        "second": 54.0,
+        "boxes": []
+      },
+      {
+        "second": 55.0,
+        "boxes": [
+          [
+            "A",
+            0.675,
+            0.9688
+          ]
+        ]
+      },
+      {
+        "second": 56.0,
+        "boxes": []
+      },
+      {
+        "second": 57.0,
+        "boxes": []
+      },
+      {
+        "second": 58.0,
+        "boxes": []
+      },
+      {
+        "second": 59.0,
+        "boxes": [
+          [
+            "A",
+            0.6625,
+            0.9609
+          ]
+        ]
+      },
+      {
+        "second": 60.0,
+        "boxes": []
+      },
+      {
+        "second": 61.0,
+        "boxes": [
+          [
+            "A",
+            0.6438,
+            0.9984
+          ]
+        ]
+      },
+      {
+        "second": 62.0,
+        "boxes": []
+      },
+      {
+        "second": 63.0,
+        "boxes": []
+      },
+      {
+        "second": 64.0,
+        "boxes": []
+      }
+    ],
+    "instagram-DeMU05JpXCY-1": [
+      {
+        "second": 0.0,
+        "boxes": []
+      },
+      {
+        "second": 1.0,
+        "boxes": []
+      },
+      {
+        "second": 2.0,
+        "boxes": []
+      },
+      {
+        "second": 3.0,
+        "boxes": []
+      },
+      {
+        "second": 4.0,
+        "boxes": [
+          [
+            "BA",
+            0.6391,
+            0.7797
+          ]
+        ]
+      },
+      {
+        "second": 5.0,
+        "boxes": [
+          [
+            "T",
+            0.3453,
+            0.5344
+          ]
+        ]
+      },
+      {
+        "second": 6.0,
+        "boxes": []
+      },
+      {
+        "second": 7.0,
+        "boxes": [
+          [
+            "トーキ",
+            0.1391,
+            0.1672
+          ],
+          [
+            "TOKYO",
+            0.1578,
+            0.1781
+          ]
+        ]
+      },
+      {
+        "second": 8.0,
+        "boxes": [
+          [
+            "トーキヨー",
+            0.1047,
+            0.1406
+          ],
+          [
+            "TOKYO",
+            0.1297,
+            0.1547
+          ]
+        ]
+      },
+      {
+        "second": 9.0,
+        "boxes": [
+          [
+            "トーキョ",
+            0.0,
+            0.0375
+          ],
+          [
+            "TOKYO",
+            0.0187,
+            0.0563
+          ]
+        ]
+      },
+      {
+        "second": 10.0,
+        "boxes": []
+      },
+      {
+        "second": 11.0,
+        "boxes": [
+          [
+            "68",
+            0.0,
+            0.5656
+          ]
+        ]
+      },
+      {
+        "second": 12.0,
+        "boxes": []
+      },
+      {
+        "second": 13.0,
+        "boxes": []
+      }
+    ],
+    "instagram-DeMK8CTJKFz-1": [
+      {
+        "second": 0.0,
+        "boxes": [
+          [
+            "居眠り議員",
+            0.1594,
+            0.2141
+          ],
+          [
+            "共産党に起こされる",
+            0.225,
+            0.2766
+          ],
+          [
+            "小松市議会",
+            0.3484,
+            0.375
+          ],
+          [
+            "第4口定列",
+            0.3688,
+            0.3953
+          ]
+        ]
+      },
+      {
+        "second": 1.0,
+        "boxes": [
+          [
+            "居眠り議員",
+            0.1594,
+            0.2141
+          ],
+          [
+            "共産党に起こされる",
+            0.2219,
+            0.2781
+          ],
+          [
+            "小松市議会",
+            0.3484,
+            0.375
+          ],
+          [
+            "第4回定例",
+            0.3688,
+            0.3937
+          ]
+        ]
+      },
+      {
+        "second": 2.0,
+        "boxes": [
+          [
+            "居眠り議員",
+            0.1594,
+            0.2141
+          ],
+          [
+            "共産党に起こされる",
+            0.2219,
+            0.2781
+          ],
+          [
+            "小松市議会",
+            0.3469,
+            0.3766
+          ],
+          [
+            "第4口定例",
+            0.3688,
+            0.3953
+          ]
+        ]
+      },
+      {
+        "second": 3.0,
+        "boxes": [
+          [
+            "居眠り議員",
+            0.1594,
+            0.2141
+          ],
+          [
+            "共産党に起こされる",
+            0.2219,
+            0.2781
+          ],
+          [
+            "小松市議会",
+            0.3469,
+            0.375
+          ],
+          [
+            "第4日定例会",
+            0.3688,
+            0.3969
+          ]
+        ]
+      },
+      {
+        "second": 4.0,
+        "boxes": [
+          [
+            "居眠り議員",
+            0.1594,
+            0.2141
+          ],
+          [
+            "共産党に起こされる",
+            0.225,
+            0.2766
+          ],
+          [
+            "小松市議会",
+            0.3469,
+            0.375
+          ],
+          [
+            "第4日定例会",
+            0.3688,
+            0.3969
+          ]
+        ]
+      },
+      {
+        "second": 5.0,
+        "boxes": [
+          [
+            "居眠り議員",
+            0.1594,
+            0.2141
+          ],
+          [
+            "共産党に起こされる",
+            0.2219,
+            0.2781
+          ],
+          [
+            "小松市議会",
+            0.3469,
+            0.3766
+          ],
+          [
+            "第4回定例会",
+            0.3688,
+            0.3969
+          ]
+        ]
+      },
+      {
+        "second": 6.0,
+        "boxes": [
+          [
+            "居眠り議員",
+            0.1594,
+            0.2141
+          ],
+          [
+            "共産党に起こされる",
+            0.2219,
+            0.2781
+          ],
+          [
+            "小松市議会",
+            0.3469,
+            0.3766
+          ],
+          [
+            "第4回定例会",
+            0.3672,
+            0.3969
+          ]
+        ]
+      },
+      {
+        "second": 7.0,
+        "boxes": [
+          [
+            "居眠り議員",
+            0.1594,
+            0.2141
+          ],
+          [
+            "共産党に起こされる",
+            0.2219,
+            0.2781
+          ],
+          [
+            "小松市議会",
+            0.3469,
+            0.3766
+          ],
+          [
+            "第4回定例会",
+            0.3672,
+            0.3969
+          ]
+        ]
+      },
+      {
+        "second": 8.0,
+        "boxes": [
+          [
+            "居眠り議員",
+            0.1594,
+            0.2141
+          ],
+          [
+            "共産党に起こされる",
+            0.2219,
+            0.2781
+          ],
+          [
+            "小松市議会",
+            0.3469,
+            0.375
+          ],
+          [
+            "第4回定例会",
+            0.3703,
+            0.3953
+          ]
+        ]
+      },
+      {
+        "second": 9.0,
+        "boxes": [
+          [
+            "居眠り議員",
+            0.1594,
+            0.2141
+          ],
+          [
+            "共産党に起こされる",
+            0.2219,
+            0.2781
+          ],
+          [
+            "小松市議会",
+            0.3469,
+            0.3766
+          ],
+          [
+            "第4日定例会",
+            0.3688,
+            0.3969
+          ]
+        ]
+      },
+      {
+        "second": 10.0,
+        "boxes": [
+          [
+            "居眠り議員",
+            0.1594,
+            0.2141
+          ],
+          [
+            "共産党に起こされる",
+            0.2219,
+            0.2781
+          ],
+          [
+            "小松市議会",
+            0.3469,
+            0.3766
+          ],
+          [
+            "第4日定例会",
+            0.3688,
+            0.3953
+          ]
+        ]
+      },
+      {
+        "second": 11.0,
+        "boxes": [
+          [
+            "居眠り議員",
+            0.1594,
+            0.2141
+          ],
+          [
+            "共産党に起こされる",
+            0.2219,
+            0.2781
+          ],
+          [
+            "小松市議会",
+            0.3469,
+            0.3766
+          ],
+          [
+            "第4百定例",
+            0.3688,
+            0.3953
+          ]
+        ]
+      },
+      {
+        "second": 12.0,
+        "boxes": [
+          [
+            "居眠り議員",
+            0.1594,
+            0.2141
+          ],
+          [
+            "共産党に起こされる",
+            0.2234,
+            0.275
+          ],
+          [
+            "小松市議会",
+            0.3469,
+            0.3766
+          ],
+          [
+            "第4回定例会",
+            0.3688,
+            0.3969
+          ],
+          [
+            "議長",
+            0.6031,
+            0.6266
+          ],
+          [
+            "南藤陽一",
+            0.6203,
+            0.6484
+          ]
+        ]
+      },
+      {
+        "second": 13.0,
+        "boxes": [
+          [
+            "居眠り議員",
+            0.1594,
+            0.2141
+          ],
+          [
+            "共産党に起こされる",
+            0.2234,
+            0.275
+          ],
+          [
+            "小松市議会",
+            0.3469,
+            0.3766
+          ],
+          [
+            "第4回定例会",
+            0.3688,
+            0.3969
+          ],
+          [
+            "議長",
+            0.6031,
+            0.6266
+          ],
+          [
+            "南藤陽一",
+            0.6203,
+            0.6484
+          ]
+        ]
+      }
+    ],
+    "instagram-DeG-QvNyYwI-1": [
+      {
+        "second": 0.0,
+        "boxes": [
+          [
+            "子",
+            0.2391,
+            0.3391
+          ]
+        ]
+      },
+      {
+        "second": 1.0,
+        "boxes": [
+          [
+            "子",
+            0.2516,
+            0.3375
+          ],
+          [
+            "ShOt",
+            0.9391,
+            0.9891
+          ]
+        ]
+      },
+      {
+        "second": 2.0,
+        "boxes": [
+          [
+            "ShOt",
+            0.9437,
+            0.9891
+          ]
+        ]
+      },
+      {
+        "second": 3.0,
+        "boxes": [
+          [
+            "文开",
+            0.2219,
+            0.3234
+          ]
+        ]
+      },
+      {
+        "second": 4.0,
+        "boxes": [
+          [
+            "Inshoa",
+            0.9391,
+            0.9922
+          ]
+        ]
+      },
+      {
+        "second": 5.0,
+        "boxes": [
+          [
+            "云寺",
+            0.2141,
+            0.2953
+          ],
+          [
+            "InshOt",
+            0.9359,
+            0.9938
+          ]
+        ]
+      },
+      {
+        "second": 6.0,
+        "boxes": [
+          [
+            "工",
+            0.1656,
+            0.2562
+          ],
+          [
+            "inshOt",
+            0.9266,
+            0.9984
+          ]
+        ]
+      },
+      {
+        "second": 7.0,
+        "boxes": [
+          [
+            "诚",
+            0.1109,
+            0.2906
+          ],
+          [
+            "工卖",
+            0.1484,
+            0.2406
+          ],
+          [
+            "InShOt",
+            0.9266,
+            0.9938
+          ]
+        ]
+      }
+    ]
+  },
+  "matches": {
+    "instagram-DeMU05JpXCY-1": [
+      124,
+      24,
+      0,
+      8,
+      8,
+      7,
+      5,
+      7,
+      5,
+      6,
+      0,
+      6,
+      0,
+      0,
+      0,
+      0,
+      5,
+      5,
+      0,
+      7,
+      0,
+      0,
+      0,
+      4,
+      6,
+      6,
+      0,
+      4,
+      6,
+      0,
+      8,
+      7,
+      5
+    ],
+    "instagram-DeMK8CTJKFz-1": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "instagram-DeG-QvNyYwI-1": [
+      2,
+      0,
+      5,
+      0,
+      5,
+      0,
+      6,
+      4,
+      0,
+      4,
+      4,
+      0,
+      0,
+      0,
+      0,
+      0,
+      5,
+      4,
+      6,
+      0,
+      0,
+      0,
+      0,
+      6,
+      0,
+      5,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      5
+    ]
+  },
+  "unmatchable": [],
+  "cover": {
+    "headline": "",
+    "scene": "A woman in a hijab and a man are feeding deer in a crowded area with traditional buildings in the background.",
+    "icon": "Instagram logo in the bottom right corner",
+    "handles": [
+      "@hezumaryuaaa"
+    ]
+  },
+  "classify": {
+    "instagram-DeMU05JpXCY-1": "footage",
+    "instagram-DeMK8CTJKFz-1": "commentary",
+    "instagram-DeG-QvNyYwI-1": "footage"
+  },
+  "decisions": {
+    "is_repost": 0.89,
+    "handle": "hezumaryuaaa",
+    "handle_probability": 1.0,
+    "platform": "instagram",
+    "platform_probability": 1.0
+  },
+  "discovery": {
+    "by_handle": {
+      "hezumaryuaaa": [
+        {
+          "post_id": "4002665764533661848",
+          "owner_handle": "hezumaryuaaa",
+          "canonical_url": "https://www.instagram.com/p/DeMU05JpXCY/",
+          "caption": "これは酷すぎる。\nヒジャヴの仲間がわざと鹿さんにゴミを食べさせた。\nすぐに謝罪するもカメラを止めた瞬間に逆ギレとか日本から出て行け。\nフォロー拡散で応援よろしくお願いします。",
+          "published_at": "2026-10-07T12:10:20Z",
+          "duration_seconds": null,
+          "engagement": {
+            "like": 246645,
+            "comment": 14453
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "3984290388495654510",
+          "owner_handle": "hezumaryuaaa",
+          "canonical_url": "https://www.instagram.com/p/DdLCv-oSV5u/",
+          "caption": "居眠り議員を起こしました。\n奈良市議会の内藤さとし議員。\n税金の無駄なので辞職されて下さい。\n追加で情報を公開していきますので引き続きフォロー拡散で応援よろしくお願いします。",
+          "published_at": "2026-09-12T03:41:54Z",
+          "duration_seconds": null,
+          "engagement": {
+            "like": 184503,
+            "comment": 6164
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4002622274927894899",
+          "owner_handle": "hezumaryuaaa",
+          "canonical_url": "https://www.instagram.com/p/DeMK8CTJKFz/",
+          "caption": "【拡散希望】\n話題の小松市議会の居眠り議員を発見！\n画面右側を見て下さい。\n共産党に起こされて情けない。",
+          "published_at": "2026-10-07T10:43:31Z",
+          "duration_seconds": null,
+          "engagement": {
+            "like": 5604,
+            "comment": 222
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4001159148057758728",
+          "owner_handle": "hezumaryuaaa",
+          "canonical_url": "https://www.instagram.com/p/DeG-QvNyYwI/",
+          "caption": "本日、中国人が鹿さんを蹴っていると動画が送られてきました。(10月5日)",
+          "published_at": "2026-10-05T10:17:18Z",
+          "duration_seconds": null,
+          "engagement": {
+            "like": 6520,
+            "comment": 417
+          },
+          "hashtags": []
+        }
+      ]
+    }
+  },
+  "acquired": {
+    "https://www.instagram.com/p/DeMU05JpXCY/": {
+      "report": {
+        "schema_version": 3,
+        "workflow_id": "wf_golden-c1",
+        "source": {
+          "platform": "instagram",
+          "canonical_url": "https://www.instagram.com/p/DeMU05JpXCY/"
+        },
+        "post": {
+          "post_id": "DeMU05JpXCY",
+          "owner_handle": "hezumaryuaaa",
+          "text": "これは酷すぎる。\nヒジャヴの仲間がわざと鹿さんにゴミを食べさせた。\nすぐに謝罪するもカメラを止めた瞬間に逆ギレとか日本から出て行け。\nフォロー拡散で応援よろしくお願いします。",
+          "published_at": "2026-10-07T12:10:20Z",
+          "engagement": {
+            "like": 246646,
+            "comment": 14454
+          }
+        },
+        "media": [
+          {
+            "media_id": "media_1",
+            "kind": "video",
+            "index": 1,
+            "location": "reports/wf_golden-c1/media/instagram-DeMU05JpXCY-1.mp4",
+            "media_type": "video/mp4",
+            "bytes": 5730171,
+            "checksum": "sha256:5dac9c6cc2f9e14fd2659f04baaab738309c22eece25ec996aa0f23cd5b5dfc2",
+            "acquisition_strategy": "scrapling_request",
+            "width": null,
+            "height": null,
+            "duration_seconds": null
+          }
+        ],
+        "outcome": {
+          "status": "resolved",
+          "attempts": [
+            {
+              "strategy": "scrapling_request",
+              "status": "succeeded",
+              "reason": null,
+              "attempt_count": 1,
+              "elapsed_ms": 1760
+            }
+          ]
+        },
+        "comments": [],
+        "post_card": null,
+        "profile_card": null
+      },
+      "frames": "instagram-DeMU05JpXCY-1"
+    },
+    "https://www.instagram.com/p/DeMK8CTJKFz/": {
+      "report": {
+        "schema_version": 3,
+        "workflow_id": "wf_golden-c2",
+        "source": {
+          "platform": "instagram",
+          "canonical_url": "https://www.instagram.com/p/DeMK8CTJKFz/"
+        },
+        "post": {
+          "post_id": "DeMK8CTJKFz",
+          "owner_handle": "hezumaryuaaa",
+          "text": "【拡散希望】\n話題の小松市議会の居眠り議員を発見！\n画面右側を見て下さい。\n共産党に起こされて情けない。",
+          "published_at": "2026-10-07T10:43:31Z",
+          "engagement": {
+            "like": 5604,
+            "comment": 222
+          }
+        },
+        "media": [
+          {
+            "media_id": "media_1",
+            "kind": "video",
+            "index": 1,
+            "location": "reports/wf_golden-c2/media/instagram-DeMK8CTJKFz-1.mp4",
+            "media_type": "video/mp4",
+            "bytes": 716618,
+            "checksum": "sha256:0cc3932c564bf33ff07683ca408507edbefeb324fac59bf643f1eb46b0cfc2bb",
+            "acquisition_strategy": "scrapling_request",
+            "width": null,
+            "height": null,
+            "duration_seconds": null
+          }
+        ],
+        "outcome": {
+          "status": "resolved",
+          "attempts": [
+            {
+              "strategy": "scrapling_request",
+              "status": "succeeded",
+              "reason": null,
+              "attempt_count": 1,
+              "elapsed_ms": 1190
+            }
+          ]
+        },
+        "comments": [],
+        "post_card": null,
+        "profile_card": null
+      },
+      "frames": "instagram-DeMK8CTJKFz-1"
+    },
+    "https://www.instagram.com/p/DeG-QvNyYwI/": {
+      "report": {
+        "schema_version": 3,
+        "workflow_id": "wf_golden-c3",
+        "source": {
+          "platform": "instagram",
+          "canonical_url": "https://www.instagram.com/p/DeG-QvNyYwI/"
+        },
+        "post": {
+          "post_id": "DeG-QvNyYwI",
+          "owner_handle": "hezumaryuaaa",
+          "text": "本日、中国人が鹿さんを蹴っていると動画が送られてきました。(10月5日)",
+          "published_at": "2026-10-05T10:17:18Z",
+          "engagement": {
+            "like": 6520,
+            "comment": 417
+          }
+        },
+        "media": [
+          {
+            "media_id": "media_1",
+            "kind": "video",
+            "index": 1,
+            "location": "reports/wf_golden-c3/media/instagram-DeG-QvNyYwI-1.mp4",
+            "media_type": "video/mp4",
+            "bytes": 4369485,
+            "checksum": "sha256:3185c1c54b90b406a7700a132eaa277e2ef21dcfe025a30c2b87598284c04f7a",
+            "acquisition_strategy": "scrapling_request",
+            "width": null,
+            "height": null,
+            "duration_seconds": null
+          }
+        ],
+        "outcome": {
+          "status": "resolved",
+          "attempts": [
+            {
+              "strategy": "scrapling_request",
+              "status": "succeeded",
+              "reason": null,
+              "attempt_count": 1,
+              "elapsed_ms": 1710
+            }
+          ]
+        },
+        "comments": [],
+        "post_card": null,
+        "profile_card": null
+      },
+      "frames": "instagram-DeG-QvNyYwI-1"
+    }
+  },
+  "expected": {
+    "verdict": "replaced",
+    "source_url": "https://www.instagram.com/p/DeMU05JpXCY/"
+  },
+  "scout": {
+    "main_url": null,
+    "note": ""
+  },
+  "departure": "scout_not_run"
+}

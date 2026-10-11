@@ -1,6 +1,53 @@
 # Stage 4: Source Attribution in Python — Design
 
-Status: written spec approved by the operator on 2026-10-08.
+Status: written spec approved by the operator on 2026-10-08; implemented on branch
+`feat/stage4-source-attribution` (see `docs/superpowers/plans/2026-10-08-stage4-source-attribution.md`).
+
+Amendment (operator, 2026-10-08, during implementation): Jev is reached through OpenRouter's
+Decisions API only (`https://openrouter.ai/api/alpha/decisions`, model `typesafe/jev-1.13`),
+with `THOTH_OPENROUTER_API_KEY` in place of `THOTH_TYPESAFE_API_KEY`. The request and answer
+shapes are unchanged.
+
+Amendment (operator, 2026-10-09, after the first live capture): the Novita key was dead, so
+vision also goes through OpenRouter (`https://openrouter.ai/api/v1`, same model
+`qwen/qwen3-vl-30b-a3b-instruct`) on `THOTH_OPENROUTER_API_KEY`; the Python
+`THOTH_NOVITA_API_KEY` setting is gone. Anonymous TikTok profile discovery hits a captcha
+every time, so profile discovery now follows the platform's source-account mode, as
+acquisition does: `anonymous` never leases, `always` leases first, `fallback` leases once
+after a captcha or a block, and the lease is released with `success` or `blocked`.
+
+Amendment (operator, 2026-10-09, from the fresh-case captures): frame text tolerates one
+space after "@" (OCR reads "@ name"); the cover vision call also lists the account names
+it can read, and those join the Jev options; when discovery finds nothing for the chosen
+handle, near variants (edit distance at most 2) that the evidence itself holds are tried,
+because OCR drops letters ("ferdysambo_offcial" for "ferdysambo_official").
+
+Amendment (operator, 2026-10-10, from the fresh-case captures): decision 4 is replaced.
+Perceptual hashes missed every transformed repost (a reaction panel, a zoom, overlays), so
+visual matching uses OpenCV ORB features with a RANSAC homography: for each sampled repost
+frame (every second frame at 1 fps), the most inliers it shares with any candidate frame. A
+candidate matches when at least one repost frame reaches 40 inliers (`Tuning.min_inliers`,
+`Tuning.min_matched_frames`); the strongest candidate wins. On the real pairs true matches
+scored 124 to 418 inliers and unrelated videos at most 16; 40 also stays above a logo or an
+end card an account stamps on every video. `imagehash` is dropped and
+`opencv-python` (already pulled by RapidOCR) is an explicit dependency. Golden fixtures record
+the inliers per candidate instead of frame hashes. A measured visual match outranks the
+finalist genre checks (vision called both real originals "commentary"); the commentary and
+burned-in speech checks apply only when the repost's frames cannot be matched.
+
+Amendment (final review, 2026-10-10): the candidate window drops the duration filter (S4b):
+a reaction repost runs longer than the original it shows, and frame matching now does that
+work. A repost whose video exists but whose frames cannot be sampled (ffmpeg missing, failed,
+or timed out) is `unresolved` with reason `frames_failed`, not the low-confidence nearest
+candidate. A credit option within edit distance 2 of the reposting account is that account's
+own watermark misread by OCR and is never offered. A cover reading longer than its bounds is
+clipped, not rejected.
+
+Amendment (operator-requested minor fixes, 2026-10-10): a captcha or block during profile
+discovery is `discovery_failed`, not an empty profile; a candidate whose frames cannot be
+sampled is counted `frames_failed`; candidates are sampled up to `Tuning.candidate_seconds`
+(600 s); handles read by the cover vision call are `cover_vision` evidence; attribution is
+skipped when legacy Scout produced the report (no v3 report to attribute).
 
 - Roadmap: Stage 4, "Move Source Intelligence", in `docs/python-scout-migration-roadmap.md`.
 - Inputs to this design:

@@ -311,3 +311,25 @@ def test_provider_file_rejects_the_editor_preview_signing_key(tmp_path: Path) ->
         check_stage1_provider_file(candidate, repository_root=tmp_path / "repo")
 
     assert "do-not-print-this" not in str(failure.value)
+
+
+def test_provider_file_accepts_the_optional_openrouter_key(tmp_path: Path) -> None:
+    candidate = _provider_file(
+        _outside_repository(tmp_path),
+        VALID_CONTENT + "THOTH_OPENROUTER_API_KEY=synthetic-openrouter-canary\n",
+    )
+
+    check_stage1_provider_file(candidate, repository_root=tmp_path / "repo")
+
+
+@pytest.mark.parametrize("key", ["", "replace-with-local-secret", "short"])
+def test_provider_file_rejects_a_placeholder_openrouter_key(tmp_path: Path, key: str) -> None:
+    candidate = _provider_file(
+        _outside_repository(tmp_path), VALID_CONTENT + f"THOTH_OPENROUTER_API_KEY={key}\n"
+    )
+
+    with pytest.raises(Stage1PreflightError) as failure:
+        check_stage1_provider_file(candidate, repository_root=tmp_path / "repo")
+    assert "THOTH_OPENROUTER_API_KEY" in str(failure.value)
+    if key:
+        assert key not in str(failure.value)

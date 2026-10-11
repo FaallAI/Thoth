@@ -1,0 +1,262 @@
+{
+  "case": "synthetic_reference",
+  "synthetic": true,
+  "report": {
+    "schema_version": 3,
+    "workflow_id": "wf_contract_001",
+    "source": {
+      "platform": "tiktok",
+      "canonical_url": "https://www.tiktok.com/@detikjatim/video/7677496203042360594"
+    },
+    "post": {
+      "post_id": "7677496203042360594",
+      "owner_handle": "detikjatim",
+      "published_at": "2026-08-24T07:26:32Z",
+      "engagement": {},
+      "text": ""
+    },
+    "media": [
+      {
+        "media_id": "media_1",
+        "kind": "video",
+        "index": 1,
+        "location": "reports/wf_contract_001/media/tiktok-1234567890.mp4",
+        "media_type": "video/mp4",
+        "bytes": 10000,
+        "checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "acquisition_strategy": "scrapling_headless",
+        "width": null,
+        "height": null,
+        "duration_seconds": 90.0
+      }
+    ],
+    "outcome": {
+      "status": "resolved",
+      "attempts": [
+        {
+          "strategy": "scrapling_headless",
+          "status": "succeeded",
+          "reason": null,
+          "attempt_count": 1,
+          "elapsed_ms": 12
+        }
+      ]
+    },
+    "comments": [],
+    "post_card": null,
+    "profile_card": null
+  },
+  "repost_frames": "repost",
+  "frames": {
+    "repost": [
+      {
+        "second": 0.0,
+        "boxes": [
+          [
+            "♪ vincentius.christ76   detikjatim",
+            0.88,
+            0.93
+          ]
+        ]
+      },
+      {
+        "second": 1.0,
+        "boxes": []
+      },
+      {
+        "second": 2.0,
+        "boxes": []
+      }
+    ],
+    "original": [
+      {
+        "second": 0.0,
+        "boxes": []
+      },
+      {
+        "second": 1.0,
+        "boxes": []
+      },
+      {
+        "second": 2.0,
+        "boxes": []
+      },
+      {
+        "second": 3.0,
+        "boxes": []
+      },
+      {
+        "second": 4.0,
+        "boxes": []
+      }
+    ],
+    "other": [
+      {
+        "second": 0.0,
+        "boxes": []
+      },
+      {
+        "second": 1.0,
+        "boxes": []
+      }
+    ]
+  },
+  "matches": {
+    "original": [
+      120,
+      64,
+      0
+    ],
+    "other": [
+      3,
+      0,
+      12
+    ]
+  },
+  "unmatchable": [],
+  "cover": {
+    "headline": "BANJIR DI JATIM",
+    "scene": "a flooded street",
+    "icon": "a note"
+  },
+  "classify": {},
+  "decisions": {
+    "is_repost": 0.95,
+    "handle": "vincentius.christ76",
+    "handle_probability": 0.9,
+    "platform": "tiktok",
+    "platform_probability": 0.9
+  },
+  "discovery": {
+    "videos": [
+      {
+        "post_id": "7677000000000000001",
+        "owner_handle": "vincentius.christ76",
+        "canonical_url": "https://www.tiktok.com/@vincentius.christ76/video/7677000000000000001",
+        "published_at": "2026-08-22T09:00:00Z",
+        "duration_seconds": 124.0,
+        "engagement": {
+          "play": 1
+        }
+      },
+      {
+        "post_id": "7677137235434687752",
+        "owner_handle": "vincentius.christ76",
+        "canonical_url": "https://www.tiktok.com/@vincentius.christ76/video/7677137235434687752",
+        "published_at": "2026-08-23T08:13:31Z",
+        "duration_seconds": 124.0,
+        "engagement": {
+          "play": 77400
+        }
+      }
+    ]
+  },
+  "acquired": {
+    "https://www.tiktok.com/@vincentius.christ76/video/7677137235434687752": {
+      "report": {
+        "schema_version": 3,
+        "workflow_id": "wf_contract_001",
+        "source": {
+          "platform": "tiktok",
+          "canonical_url": "https://www.tiktok.com/@vincentius.christ76/video/7677137235434687752"
+        },
+        "post": {
+          "post_id": "7677137235434687752",
+          "owner_handle": "vincentius.christ76",
+          "published_at": "2026-08-23T08:13:31Z",
+          "engagement": {},
+          "text": ""
+        },
+        "media": [
+          {
+            "media_id": "media_1",
+            "kind": "video",
+            "index": 1,
+            "location": "reports/wf_contract_001/media/tiktok-1234567890.mp4",
+            "media_type": "video/mp4",
+            "bytes": 10000,
+            "checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "acquisition_strategy": "scrapling_headless",
+            "width": null,
+            "height": null,
+            "duration_seconds": 124.0
+          }
+        ],
+        "outcome": {
+          "status": "resolved",
+          "attempts": [
+            {
+              "strategy": "scrapling_headless",
+              "status": "succeeded",
+              "reason": null,
+              "attempt_count": 1,
+              "elapsed_ms": 12
+            }
+          ]
+        },
+        "comments": [],
+        "post_card": null,
+        "profile_card": null
+      },
+      "frames": "original"
+    },
+    "https://www.tiktok.com/@vincentius.christ76/video/7677000000000000001": {
+      "report": {
+        "schema_version": 3,
+        "workflow_id": "wf_contract_001",
+        "source": {
+          "platform": "tiktok",
+          "canonical_url": "https://www.tiktok.com/@vincentius.christ76/video/7677000000000000001"
+        },
+        "post": {
+          "post_id": "7677000000000000001",
+          "owner_handle": "vincentius.christ76",
+          "published_at": "2026-08-22T09:00:00Z",
+          "engagement": {},
+          "text": ""
+        },
+        "media": [
+          {
+            "media_id": "media_1",
+            "kind": "video",
+            "index": 1,
+            "location": "reports/wf_contract_001/media/tiktok-1234567890.mp4",
+            "media_type": "video/mp4",
+            "bytes": 10000,
+            "checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "acquisition_strategy": "scrapling_headless",
+            "width": null,
+            "height": null,
+            "duration_seconds": 124.0
+          }
+        ],
+        "outcome": {
+          "status": "resolved",
+          "attempts": [
+            {
+              "strategy": "scrapling_headless",
+              "status": "succeeded",
+              "reason": null,
+              "attempt_count": 1,
+              "elapsed_ms": 12
+            }
+          ]
+        },
+        "comments": [],
+        "post_card": null,
+        "profile_card": null
+      },
+      "frames": "other"
+    }
+  },
+  "expected": {
+    "verdict": "replaced",
+    "source_url": "https://www.tiktok.com/@vincentius.christ76/video/7677137235434687752",
+    "confidence": "high"
+  },
+  "scout": {
+    "main_url": null,
+    "note": "Scout ends in MainCandidateNotFoundError on this pair (docs/superpowers/specs/2026-08-26-source-video-identification-design.md)"
+  },
+  "departure": "visual_match"
+}

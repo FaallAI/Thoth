@@ -22,6 +22,10 @@ with workflow.unsafe.imports_passed_through():
         LegacyScoutInput,
         inspect_legacy_scout,
     )
+    from thoth_control_plane.activities.source_attribution import (
+        SourceAttributionActivityInput,
+        attribute_source,
+    )
     from thoth_control_plane.activities.source_investigation import (
         SourceInvestigationActivityInput,
         inspect_source_candidates,
@@ -70,6 +74,7 @@ class SourceInvestigationWorkflow:
         self._approval: ApprovalRequest | None = None
         self._approval_decision: str | None = None
         self._cancel_requested = False
+        self._report_from_legacy = False
         self._failure: WorkflowFailure | None = None
         self._source_events: list[LegacyScoutProgressEvent] = []
         self._event_sequence = 0
@@ -162,6 +167,13 @@ class SourceInvestigationWorkflow:
             return self._summary()
 
         if input_.intent == "identify_original":
+            # Legacy Scout writes no v3 report, so there is nothing to attribute.
+            if input_.attribute_source and not self._report_from_legacy:
+                await self._attribute()
+                if self._cancel_requested:
+                    self._transition(WorkflowStatus.CANCELLED)
+                    self._record_event(EventKind.WORKFLOW_CANCELLED)
+                    return self._summary()
             self._transition(WorkflowStatus.SUCCEEDED)
             self._record_event(EventKind.WORKFLOW_COMPLETED)
             return self._summary()
@@ -263,6 +275,7 @@ class SourceInvestigationWorkflow:
     async def _execute_legacy_activity(
         self, input_: SourceInvestigationWorkflowInput
     ) -> SourceInvestigationActivityResult:
+        self._report_from_legacy = True
         return await workflow.execute_activity(
             inspect_legacy_scout,
             LegacyScoutInput(
@@ -275,6 +288,45 @@ class SourceInvestigationWorkflow:
             start_to_close_timeout=timedelta(minutes=5),
             retry_policy=RetryPolicy(maximum_attempts=1),
             task_queue=LEGACY_ADAPTER_TASK_QUEUE,
+        )
+
+    async def _attribute(self) -> None:
+        """Attribute the acquired post; a failed attribution never fails the workflow."""
+        self._record_event(
+            EventKind.STAGE_STARTED, stage=StageProgress(name="attribution", progress=0.0)
+        )
+        task = asyncio.create_task(
+            workflow.execute_activity(
+                attribute_source,
+                SourceAttributionActivityInput(workflow_id=self._workflow_id),
+                start_to_close_timeout=timedelta(minutes=15),
+                heartbeat_timeout=timedelta(minutes=2),
+                retry_policy=RetryPolicy(maximum_attempts=2),
+            )
+        )
+        await workflow.wait_condition(lambda: self._cancel_requested or task.done())
+        if self._cancel_requested and not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, ActivityError):
+                await task
+            return
+        try:
+            result = await task
+        except ActivityError:
+            self._record_event(
+                EventKind.STAGE_COMPLETED, stage=StageProgress(name="attribution", progress=1.0)
+            )
+            return
+        self._source_events.extend(result.events)
+        self._event_sequence += len(result.events)
+        for artifact in (result.attribution, result.original_report):
+            if artifact is not None:
+                self._artifacts.append(artifact)
+                self._record_event(EventKind.ARTIFACT_CREATED, artifact=artifact)
+                self._event_sequence += 1
+        self._updated_at = workflow.now()
+        self._record_event(
+            EventKind.STAGE_COMPLETED, stage=StageProgress(name="attribution", progress=1.0)
         )
 
     @workflow.signal

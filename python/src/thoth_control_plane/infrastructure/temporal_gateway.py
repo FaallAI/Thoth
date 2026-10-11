@@ -42,9 +42,16 @@ TASK_QUEUE = "thoth-control-plane"
 class TemporalWorkflowGateway:
     """Run application lifecycle operations against durable Temporal state."""
 
-    def __init__(self, client: Client, *, activity_mode: SourceActivityMode = "python") -> None:
+    def __init__(
+        self,
+        client: Client,
+        *,
+        activity_mode: SourceActivityMode = "python",
+        attribute_source: bool = False,
+    ) -> None:
         self._client = client
         self._activity_mode = activity_mode
+        self._attribute_source = attribute_source
 
     @property
     def client(self) -> Client:
@@ -58,7 +65,11 @@ class TemporalWorkflowGateway:
             namespace=settings.THOTH_TEMPORAL_NAMESPACE,
             data_converter=pydantic_data_converter,
         )
-        return cls(client, activity_mode=settings.source_investigation_activity_mode)
+        return cls(
+            client,
+            activity_mode=settings.source_investigation_activity_mode,
+            attribute_source=settings.THOTH_SOURCE_ATTRIBUTION_ENABLED,
+        )
 
     async def check_connection(self) -> bool:
         try:
@@ -95,6 +106,7 @@ class TemporalWorkflowGateway:
                         intent=request.source.intent,
                         actor=ActorSnapshot.model_validate(actor.model_dump()),
                         activity_mode=self._activity_mode,
+                        attribute_source=self._attribute_source,
                     )
                 ],
                 id=workflow_id,

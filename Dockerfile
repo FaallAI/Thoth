@@ -25,6 +25,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends ca-certificates ffmpeg tini \
+        libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 10001 thoth \
     && useradd --uid 10001 --gid 10001 --create-home \
@@ -57,7 +58,7 @@ RUN /opt/thoth/python/.venv/bin/scrapling install \
     && chown -R thoth:thoth /home/thoth /ms-playwright /opt/thoth/python/.venv
 
 RUN /opt/thoth/python/.venv/bin/python -c \
-        "import scrapling, thoth_control_plane" \
+        "import scrapling, thoth_control_plane, cv2, rapidocr, openai" \
     && /opt/thoth/python/.venv/bin/python -c \
         "import sys; assert sys.version_info[:2] == (3, 12), sys.version" \
     && /opt/thoth/python/.venv/bin/python -c \

@@ -15,6 +15,7 @@ from thoth_control_plane.activities import (
     LEGACY_ADAPTER_TASK_QUEUE,
     AcquisitionRunner,
     build_legacy_scout_activity,
+    build_source_attribution_activity,
     build_source_investigation_activity,
 )
 from thoth_control_plane.activities.prompt_proposal import (
@@ -46,7 +47,8 @@ def build_source_investigation_worker(
         task_queue=TASK_QUEUE,
         workflows=[SourceInvestigationWorkflow],
         activities=[
-            build_source_investigation_activity(settings, runner=runner, capability=capability)
+            build_source_investigation_activity(settings, runner=runner, capability=capability),
+            build_source_attribution_activity(settings),
         ],
         max_concurrent_activities=1,
     )

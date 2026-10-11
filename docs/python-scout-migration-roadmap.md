@@ -439,3 +439,15 @@ Next steps:
 - The live smoke with real accounts joins the final acceptance (ADR 0001).
 - Follow-ups: interactive login through a worker-run browser, the login-only platform
   capabilities, and vault key rotation.
+
+## Stage 4 status (2026-10-10)
+
+Stage 4, source attribution in Python, is implemented on `feat/stage4-source-attribution`
+(not pushed). `SourceAttributor` decides whether a post is the original and, for a credited
+repost, finds the original by ORB+RANSAC frame matching over the credited account's recent
+videos. Four live golden cases and the synthetic reference replay offline. Details, rulings,
+and verification: the 2026-10-10 section of `CHANGELOG.md`.
+
+Next steps: the operator reviews the branch; push, merge, and deploy each need their own
+authorization; `THOTH_OPENROUTER_API_KEY` must reach the worker; golden cases for spec
+section 9 cases 2 and 5 are still open; the live smoke joins the final acceptance (ADR 0001).

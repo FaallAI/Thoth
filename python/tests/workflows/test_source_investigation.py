@@ -17,6 +17,10 @@ import thoth_control_plane.infrastructure.temporal_gateway as temporal_gateway
 from thoth_control_plane import worker
 from thoth_control_plane.acquisition.models import AcquisitionResult, SourceReport
 from thoth_control_plane.activities.legacy_scout import LEGACY_ADAPTER_TASK_QUEUE, LegacyScoutInput
+from thoth_control_plane.activities.source_attribution import (
+    SourceAttributionActivityInput,
+    SourceAttributionActivityResult,
+)
 from thoth_control_plane.activities.source_investigation import (
     SourceInvestigationActivityInput,
     build_source_investigation_activity,
@@ -1471,3 +1475,199 @@ async def test_legacy_activity_failure_still_preserves_python_and_transition_evi
         "stage": "legacy_fallback",
         "fallback_from": "headless_blocked",
     }
+
+
+ATTRIBUTION_RELEASE: asyncio.Event | None = None
+
+
+def _attribution_artifact(workflow_id: str, kind: str, name: str) -> dict[str, object]:
+    return {
+        "artifact_id": f"art_{kind}_001",
+        "kind": kind,
+        "label": "Attribution artifact",
+        "media_type": "application/json",
+        "location": f"reports/{workflow_id}/{name}",
+        "checksum": "sha256:" + "b" * 64,
+    }
+
+
+@activity.defn(name="attribute_source")
+async def fake_attribute(input_: SourceAttributionActivityInput) -> SourceAttributionActivityResult:
+    return SourceAttributionActivityResult.model_validate(
+        {
+            "verdict": "replaced",
+            "attribution": _attribution_artifact(
+                input_.workflow_id, "source_attribution", "source-attribution.json"
+            ),
+            "original_report": _attribution_artifact(
+                f"{input_.workflow_id}-c1", "original_source_report", "source-report.json"
+            ),
+            "events": [
+                {
+                    "kind": "stage.completed",
+                    "payload": {
+                        "stage": "attribution",
+                        "status": "succeeded",
+                        "elapsed_ms": 5,
+                        "verdict": "replaced",
+                    },
+                }
+            ],
+        }
+    )
+
+
+@activity.defn(name="attribute_source")
+async def crashing_attribute(
+    input_: SourceAttributionActivityInput,
+) -> SourceAttributionActivityResult:
+    raise RuntimeError("attribution detail must not enter history")
+
+
+@activity.defn(name="attribute_source")
+async def blocking_attribute(
+    input_: SourceAttributionActivityInput,
+) -> SourceAttributionActivityResult:
+    assert ATTRIBUTION_RELEASE is not None
+    await ATTRIBUTION_RELEASE.wait()
+    return SourceAttributionActivityResult(verdict="unresolved")
+
+
+def _attributed(
+    request: WorkflowRequest = VALID_IDENTIFY_REQUEST,
+) -> SourceInvestigationWorkflowInput:
+    return workflow_input(request).model_copy(update={"attribute_source": True})
+
+
+@pytest.mark.asyncio
+async def test_identify_original_appends_the_attribution_artifacts(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[fake_inspect, fake_attribute],
+    ):
+        result = await workflow_env.client.execute_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_attributed()],
+            id="wf_test_attribution",
+            task_queue="test",
+        )
+
+    assert result.status == "succeeded"
+    assert [artifact.kind for artifact in result.artifacts] == [
+        "source_report",
+        "source_attribution",
+        "original_source_report",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_a_failing_attribution_keeps_the_repost_result(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[fake_inspect, crashing_attribute],
+    ):
+        result = await workflow_env.client.execute_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_attributed()],
+            id="wf_test_attribution_failure",
+            task_queue="test",
+        )
+
+    assert result.status == "succeeded"
+    assert [artifact.kind for artifact in result.artifacts] == ["source_report"]
+    assert "attribution detail" not in str(result.model_dump(mode="json"))
+
+
+@pytest.mark.asyncio
+async def test_cancel_during_attribution_finishes_as_cancelled(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    global ATTRIBUTION_RELEASE
+    ATTRIBUTION_RELEASE = asyncio.Event()
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[fake_inspect, blocking_attribute],
+    ):
+        handle = await workflow_env.client.start_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_attributed()],
+            id="wf_test_attribution_cancel",
+            task_queue="test",
+        )
+        for _ in range(100):
+            events = await handle.query(SourceInvestigationWorkflow.workflow_events)
+            if any(event.stage and event.stage.name == "attribution" for event in events):
+                break
+            await asyncio.sleep(0.01)
+        await handle.signal(SourceInvestigationWorkflow.request_cancel)
+        await wait_for_status(handle, "cancelled")
+        ATTRIBUTION_RELEASE.set()
+
+
+@pytest.mark.asyncio
+async def test_a_legacy_fallback_report_is_not_attributed(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    fallback = _tiktok_fallback_input("python_tiktok_with_legacy_fallback").model_copy(
+        update={"attribute_source": True}
+    )
+    async with (
+        Worker(
+            workflow_env.client,
+            task_queue="test",
+            workflows=[SourceInvestigationWorkflow],
+            activities=[eligible_headless_failure_with_events, fake_attribute],
+        ),
+        Worker(
+            workflow_env.client,
+            task_queue=LEGACY_ADAPTER_TASK_QUEUE,
+            activities=[legacy_success_two_events],
+            max_concurrent_activities=1,
+        ),
+    ):
+        result = await workflow_env.client.execute_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[fallback],
+            id="wf_test_attribution_after_legacy",
+            task_queue="test",
+        )
+
+    # Legacy writes no v3 report, so attribution would only record a failed stage.
+    assert result.status == "succeeded"
+    assert [artifact.kind for artifact in result.artifacts] == ["source_report"]
+
+
+@pytest.mark.asyncio
+async def test_the_gateway_requests_attribution_when_enabled(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    async with Worker(
+        workflow_env.client,
+        task_queue=TASK_QUEUE,
+        workflows=[SourceInvestigationWorkflow],
+        activities=[fake_inspect, fake_attribute],
+    ):
+        gateway = TemporalWorkflowGateway(workflow_env.client, attribute_source=True)
+        summary = await gateway.start(
+            VALID_IDENTIFY_REQUEST,
+            actor=Actor(actor_id="owner", actor_type="user"),
+            idempotency_key="attribution-001",
+        )
+        result = await workflow_env.client.get_workflow_handle_for(
+            SourceInvestigationWorkflow.run, summary.workflow_id
+        ).result()
+
+    assert [artifact.kind for artifact in result.artifacts][1:] == [
+        "source_attribution",
+        "original_source_report",
+    ]

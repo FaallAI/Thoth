@@ -8,6 +8,12 @@ from thoth_control_plane.activities.legacy_scout import (
     build_legacy_scout_activity,
     inspect_legacy_scout,
 )
+from thoth_control_plane.activities.source_attribution import (
+    SourceAttributionActivityInput,
+    SourceAttributionActivityResult,
+    attribute_source,
+    build_source_attribution_activity,
+)
 from thoth_control_plane.activities.source_investigation import (
     AcquisitionRunner,
     SourceInvestigationActivityInput,
@@ -21,8 +27,12 @@ __all__ = [
     "AcquisitionRunner",
     "LegacyScoutActivity",
     "LegacyScoutInput",
+    "SourceAttributionActivityInput",
+    "SourceAttributionActivityResult",
     "SourceInvestigationActivityInput",
+    "attribute_source",
     "build_legacy_scout_activity",
+    "build_source_attribution_activity",
     "build_source_investigation_activity",
     "inspect_legacy_scout",
     "inspect_source_candidates",
