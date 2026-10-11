@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
 from collections.abc import Mapping
 
 from temporalio.client import Client
@@ -14,6 +15,7 @@ from thoth_control_plane.activities import (
     LEGACY_ADAPTER_MAX_CONCURRENT_ACTIVITIES,
     LEGACY_ADAPTER_TASK_QUEUE,
     AcquisitionRunner,
+    build_content_assembly_activity,
     build_legacy_scout_activity,
     build_source_attribution_activity,
     build_source_investigation_activity,
@@ -49,9 +51,25 @@ def build_source_investigation_worker(
         activities=[
             build_source_investigation_activity(settings, runner=runner, capability=capability),
             build_source_attribution_activity(settings),
+            build_content_assembly_activity(settings),
         ],
         max_concurrent_activities=1,
     )
+
+
+def check_media_tools(settings: Settings) -> None:
+    """Content assembly needs ffmpeg and ffprobe: refuse to start without them.
+
+    Operator, 2026-10-11: a missing tool is an explicit error, never a silent degradation.
+    """
+    if not settings.THOTH_CONTENT_ASSEMBLY_ENABLED:
+        return
+    for code, binary in (
+        ("ffmpeg_missing", settings.THOTH_FFMPEG),
+        ("ffprobe_missing", settings.THOTH_FFPROBE),
+    ):
+        if shutil.which(binary) is None:
+            raise SettingsValidationError(code)
 
 
 def build_prompt_proposal_worker(client: Client, settings: Settings) -> Worker:
@@ -87,6 +105,7 @@ def build_prompt_proposal_worker(client: Client, settings: Settings) -> Worker:
 async def run_worker(settings: Settings | None = None) -> None:
     """Run normal activities and the isolated single-concurrency legacy adapter."""
     runtime_settings = settings or Settings()  # type: ignore[call-arg]
+    check_media_tools(runtime_settings)
     configure_provider_logging()
     capability = await check_scrapling_capability()
     # A stale yt-dlp fails YouTube extraction; warn once, in the background, never block.

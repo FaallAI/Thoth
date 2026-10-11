@@ -504,6 +504,8 @@ class SourceInvestigationWorkflowInput(StrictModel):
     activity_mode: SourceActivityMode = "python"
     # Absent from histories started before Stage 4, so those replay without the new stage.
     attribute_source: bool = False
+    # Absent from histories started before Stage 5a, so those replay without the new stage.
+    assemble_content: bool = False
 
 
 def request_snapshot_id(request: WorkflowRequest) -> str:

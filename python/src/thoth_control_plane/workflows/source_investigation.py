@@ -17,6 +17,10 @@ with workflow.unsafe.imports_passed_through():
     del annotated_types
 
     from thoth_control_plane.acquisition.platforms import platform_support
+    from thoth_control_plane.activities.content_assembly import (
+        ContentAssemblyActivityInput,
+        assemble_content,
+    )
     from thoth_control_plane.activities.legacy_scout import (
         LEGACY_ADAPTER_TASK_QUEUE,
         LegacyScoutInput,
@@ -75,6 +79,7 @@ class SourceInvestigationWorkflow:
         self._approval_decision: str | None = None
         self._cancel_requested = False
         self._report_from_legacy = False
+        self._original_report: str | None = None
         self._failure: WorkflowFailure | None = None
         self._source_events: list[LegacyScoutProgressEvent] = []
         self._event_sequence = 0
@@ -167,13 +172,30 @@ class SourceInvestigationWorkflow:
             return self._summary()
 
         if input_.intent == "identify_original":
-            # Legacy Scout writes no v3 report, so there is nothing to attribute.
-            if input_.attribute_source and not self._report_from_legacy:
-                await self._attribute()
-                if self._cancel_requested:
-                    self._transition(WorkflowStatus.CANCELLED)
-                    self._record_event(EventKind.WORKFLOW_CANCELLED)
-                    return self._summary()
+            # Legacy Scout writes no v3 report, so there is nothing to attribute or assemble.
+            if not self._report_from_legacy:
+                if input_.attribute_source:
+                    await self._attribute()
+                    if self._cancel_requested:
+                        self._transition(WorkflowStatus.CANCELLED)
+                        self._record_event(EventKind.WORKFLOW_CANCELLED)
+                        return self._summary()
+                if input_.assemble_content:
+                    assembled = await self._assemble()
+                    if self._cancel_requested:
+                        self._transition(WorkflowStatus.CANCELLED)
+                        self._record_event(EventKind.WORKFLOW_CANCELLED)
+                        return self._summary()
+                    if not assembled:
+                        self._failure = WorkflowFailure(
+                            code="content_assembly_failed",
+                            message="Content assembly failed",
+                            failed_stage="assembly",
+                            retryable=True,
+                        )
+                        self._transition(WorkflowStatus.FAILED)
+                        self._record_event(EventKind.WORKFLOW_FAILED)
+                        return self._summary()
             self._transition(WorkflowStatus.SUCCEEDED)
             self._record_event(EventKind.WORKFLOW_COMPLETED)
             return self._summary()
@@ -324,10 +346,57 @@ class SourceInvestigationWorkflow:
                 self._artifacts.append(artifact)
                 self._record_event(EventKind.ARTIFACT_CREATED, artifact=artifact)
                 self._event_sequence += 1
+        if result.original_report is not None:
+            self._original_report = result.original_report.location
         self._updated_at = workflow.now()
         self._record_event(
             EventKind.STAGE_COMPLETED, stage=StageProgress(name="attribution", progress=1.0)
         )
+
+    async def _assemble(self) -> bool:
+        """Build the content set; False when a required part failed (the workflow fails)."""
+        self._record_event(
+            EventKind.STAGE_STARTED, stage=StageProgress(name="assembly", progress=0.0)
+        )
+        task = asyncio.create_task(
+            workflow.execute_activity(
+                assemble_content,
+                ContentAssemblyActivityInput(
+                    workflow_id=self._workflow_id, original_report=self._original_report
+                ),
+                start_to_close_timeout=timedelta(minutes=10),
+                heartbeat_timeout=timedelta(minutes=2),
+                retry_policy=RetryPolicy(maximum_attempts=2),
+            )
+        )
+        await workflow.wait_condition(lambda: self._cancel_requested or task.done())
+        if self._cancel_requested and not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, ActivityError):
+                await task
+            return False
+        try:
+            result = await task
+        except ActivityError:
+            self._record_event(
+                EventKind.STAGE_COMPLETED, stage=StageProgress(name="assembly", progress=1.0)
+            )
+            return False
+        self._source_events.extend(result.events)
+        self._event_sequence += len(result.events)
+        self._updated_at = workflow.now()
+        if result.content_set is None:
+            self._record_event(
+                EventKind.STAGE_COMPLETED, stage=StageProgress(name="assembly", progress=1.0)
+            )
+            return False
+        self._artifacts.append(result.content_set)
+        self._record_event(EventKind.ARTIFACT_CREATED, artifact=result.content_set)
+        self._event_sequence += 1
+        self._record_event(
+            EventKind.STAGE_COMPLETED, stage=StageProgress(name="assembly", progress=1.0)
+        )
+        return True
 
     @workflow.signal
     def request_cancel(self) -> None:

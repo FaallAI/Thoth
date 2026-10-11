@@ -59,3 +59,19 @@ async def test_the_yt_dlp_check_runs_in_the_background_and_stops_with_the_worker
         await worker.run_worker(Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"))
     await asyncio.sleep(0)
     assert cancelled == [True]
+
+
+def test_assembly_refuses_to_start_without_ffmpeg() -> None:
+    from thoth_control_plane.config import SettingsValidationError
+
+    off = Settings(THOTH_CONTROL_PLANE_API_KEY="k", THOTH_FFMPEG="/nonexistent/ffmpeg")
+    worker.check_media_tools(off)  # assembly off: nothing to check
+
+    on = off.model_copy(update={"THOTH_CONTENT_ASSEMBLY_ENABLED": True})
+    with pytest.raises(SettingsValidationError, match="ffmpeg_missing"):
+        worker.check_media_tools(on)
+    probe_missing = on.model_copy(
+        update={"THOTH_FFMPEG": "ffmpeg", "THOTH_FFPROBE": "/nonexistent/ffprobe"}
+    )
+    with pytest.raises(SettingsValidationError, match="ffprobe_missing"):
+        worker.check_media_tools(probe_missing)

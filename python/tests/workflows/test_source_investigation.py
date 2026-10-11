@@ -16,6 +16,10 @@ from temporalio.worker import Worker
 import thoth_control_plane.infrastructure.temporal_gateway as temporal_gateway
 from thoth_control_plane import worker
 from thoth_control_plane.acquisition.models import AcquisitionResult, SourceReport
+from thoth_control_plane.activities.content_assembly import (
+    ContentAssemblyActivityInput,
+    ContentAssemblyActivityResult,
+)
 from thoth_control_plane.activities.legacy_scout import LEGACY_ADAPTER_TASK_QUEUE, LegacyScoutInput
 from thoth_control_plane.activities.source_attribution import (
     SourceAttributionActivityInput,
@@ -1671,3 +1675,234 @@ async def test_the_gateway_requests_attribution_when_enabled(
         "source_attribution",
         "original_source_report",
     ]
+
+
+ASSEMBLY_RELEASE: asyncio.Event | None = None
+ASSEMBLY_INPUTS: list[ContentAssemblyActivityInput] = []
+
+
+@activity.defn(name="assemble_content")
+async def fake_assemble(input_: ContentAssemblyActivityInput) -> ContentAssemblyActivityResult:
+    ASSEMBLY_INPUTS.append(input_)
+    return ContentAssemblyActivityResult.model_validate(
+        {
+            "content_set": _attribution_artifact(
+                input_.workflow_id, "content_set", "content-set.json"
+            ),
+            "events": [
+                {
+                    "kind": "stage.completed",
+                    "payload": {
+                        "stage": "assembly",
+                        "status": "succeeded",
+                        "elapsed_ms": 7,
+                        "ocr_outcome": "clean",
+                        "comment_count": 3,
+                        "figure_count": 1,
+                    },
+                }
+            ],
+        }
+    )
+
+
+@activity.defn(name="assemble_content")
+async def failing_assemble(input_: ContentAssemblyActivityInput) -> ContentAssemblyActivityResult:
+    return ContentAssemblyActivityResult.model_validate(
+        {
+            "failure": "incomplete_frame_coverage",
+            "events": [
+                {
+                    "kind": "stage.failed",
+                    "payload": {
+                        "stage": "assembly",
+                        "status": "failed",
+                        "reason": "incomplete_frame_coverage",
+                    },
+                }
+            ],
+        }
+    )
+
+
+@activity.defn(name="assemble_content")
+async def crashing_assemble(input_: ContentAssemblyActivityInput) -> ContentAssemblyActivityResult:
+    raise RuntimeError("assembly detail must not enter history")
+
+
+@activity.defn(name="assemble_content")
+async def blocking_assemble(input_: ContentAssemblyActivityInput) -> ContentAssemblyActivityResult:
+    assert ASSEMBLY_RELEASE is not None
+    await ASSEMBLY_RELEASE.wait()
+    return await fake_assemble(input_)
+
+
+def _assembled(attribute: bool = True) -> SourceInvestigationWorkflowInput:
+    return workflow_input(VALID_IDENTIFY_REQUEST).model_copy(
+        update={"attribute_source": attribute, "assemble_content": True}
+    )
+
+
+@pytest.mark.asyncio
+async def test_assembly_appends_the_content_set_after_attribution(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    ASSEMBLY_INPUTS.clear()
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[fake_inspect, fake_attribute, fake_assemble],
+    ):
+        result = await workflow_env.client.execute_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_assembled()],
+            id="wf_test_assembly",
+            task_queue="test",
+        )
+
+    assert result.status == "succeeded"
+    assert [a.kind for a in result.artifacts] == [
+        "source_report",
+        "source_attribution",
+        "original_source_report",
+        "content_set",
+    ]
+    assert ASSEMBLY_INPUTS[-1].original_report == "reports/wf_test_assembly-c1/source-report.json"
+
+
+@pytest.mark.asyncio
+async def test_assembly_runs_without_attribution(workflow_env: WorkflowEnvironment) -> None:
+    ASSEMBLY_INPUTS.clear()
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[fake_inspect, fake_assemble],
+    ):
+        result = await workflow_env.client.execute_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_assembled(attribute=False)],
+            id="wf_test_assembly_alone",
+            task_queue="test",
+        )
+
+    assert [a.kind for a in result.artifacts] == ["source_report", "content_set"]
+    assert ASSEMBLY_INPUTS[-1].original_report is None
+
+
+@pytest.mark.asyncio
+async def test_a_failed_assembly_fails_the_workflow_with_its_reason(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[fake_inspect, fake_attribute, failing_assemble],
+    ):
+        handle = await workflow_env.client.start_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_assembled()],
+            id="wf_test_assembly_failed",
+            task_queue="test",
+        )
+        result = await handle.result()
+        events = await handle.query(SourceInvestigationWorkflow.source_events)
+
+    assert result.status == "failed"
+    assert result.failure is not None
+    assert (result.failure.code, result.failure.failed_stage) == (
+        "content_assembly_failed",
+        "assembly",
+    )
+    assert [a.kind for a in result.artifacts][-1] != "content_set"
+    assert any(e.payload.get("reason") == "incomplete_frame_coverage" for e in events)
+
+
+@pytest.mark.asyncio
+async def test_a_crashing_assembly_fails_without_leaking(workflow_env: WorkflowEnvironment) -> None:
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[fake_inspect, crashing_assemble],
+    ):
+        result = await workflow_env.client.execute_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_assembled(attribute=False)],
+            id="wf_test_assembly_crash",
+            task_queue="test",
+        )
+
+    assert result.status == "failed" and result.failure.code == "content_assembly_failed"  # type: ignore[union-attr]
+    assert "assembly detail" not in str(result.model_dump(mode="json"))
+
+
+@pytest.mark.asyncio
+async def test_cancel_during_assembly_finishes_as_cancelled(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    global ASSEMBLY_RELEASE
+    ASSEMBLY_RELEASE = asyncio.Event()
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[fake_inspect, blocking_assemble],
+    ):
+        handle = await workflow_env.client.start_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_assembled(attribute=False)],
+            id="wf_test_assembly_cancel",
+            task_queue="test",
+        )
+        for _ in range(100):
+            events = await handle.query(SourceInvestigationWorkflow.workflow_events)
+            if any(event.stage and event.stage.name == "assembly" for event in events):
+                break
+            await asyncio.sleep(0.01)
+        await handle.signal(SourceInvestigationWorkflow.request_cancel)
+        await wait_for_status(handle, "cancelled")
+        ASSEMBLY_RELEASE.set()
+
+
+@pytest.mark.asyncio
+async def test_the_flag_off_keeps_todays_behavior(workflow_env: WorkflowEnvironment) -> None:
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[fake_inspect, fake_attribute, fake_assemble],
+    ):
+        result = await workflow_env.client.execute_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_attributed()],
+            id="wf_test_assembly_off",
+            task_queue="test",
+        )
+
+    assert "content_set" not in [a.kind for a in result.artifacts]
+
+
+@pytest.mark.asyncio
+async def test_the_gateway_requests_assembly_when_enabled(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    async with Worker(
+        workflow_env.client,
+        task_queue=TASK_QUEUE,
+        workflows=[SourceInvestigationWorkflow],
+        activities=[fake_inspect, fake_assemble],
+    ):
+        gateway = TemporalWorkflowGateway(workflow_env.client, assemble_content=True)
+        summary = await gateway.start(
+            VALID_IDENTIFY_REQUEST,
+            actor=Actor(actor_id="owner", actor_type="user"),
+            idempotency_key="assembly-001",
+        )
+        result = await workflow_env.client.get_workflow_handle_for(
+            SourceInvestigationWorkflow.run, summary.workflow_id
+        ).result()
+
+    assert [a.kind for a in result.artifacts][-1] == "content_set"
