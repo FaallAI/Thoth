@@ -2,13 +2,23 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Protocol
 
 from thoth_control_plane.assembly.figures import FigureAnswer
+from thoth_control_plane.assembly.subtitles import OcrBox
 from thoth_control_plane.attribution.ports import Frame, TextReader
 
-__all__ = ["AssemblyError", "DurationProbe", "FigureModel", "FrameSampler", "TextReader"]
+__all__ = [
+    "AssemblyError",
+    "CaptionJudge",
+    "DurationProbe",
+    "FigureModel",
+    "FrameSampler",
+    "RegionTracker",
+    "TextReader",
+]
 
 
 class AssemblyError(Exception):
@@ -29,3 +39,13 @@ class DurationProbe(Protocol):
 
 class FigureModel(Protocol):
     async def read(self, prompt: str) -> FigureAnswer | None: ...
+
+
+class RegionTracker(Protocol):
+    async def first_absent(
+        self, video: Path, region: OcrBox, start: float, end: float
+    ) -> float | None: ...
+
+
+class CaptionJudge(Protocol):
+    async def speech_captions(self, frames: Sequence[Frame]) -> bool | None: ...

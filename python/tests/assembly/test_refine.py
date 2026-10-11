@@ -128,3 +128,23 @@ def test_retrim_moves_the_first_caption_window_with_the_trim() -> None:
 
     assert moved.trim_start == 6.5
     assert moved.subtitle_blur == (Region(0.17, 0.67, 0.66, 0.21, 6.5, 26.2), later)
+
+
+def test_headline_span_brackets_the_trim_with_the_lines_that_left() -> None:
+    from thoth_control_plane.assembly.refine import headline_span
+
+    headline = (
+        OcrBox("Ferdy Sambo Tunjukkan Ruangan", 0.09, 0.19, 0.91, 0.23),
+        OcrBox("yang Dituding Kamar Mewah", 0.15, 0.23, 0.86, 0.26),
+        OcrBox("iNews", 0.09, 0.09, 0.39, 0.15),
+    )
+    later = (OcrBox("iNews", 0.09, 0.09, 0.39, 0.15),)
+    shot = frames(*[headline] * 6, *[later] * 6)
+
+    span = headline_span(shot, Verdict("cover", 7.85, False, ()))
+
+    assert span is not None
+    box, present, absent = span
+    assert (present, absent) == (5.0, 10.7)
+    assert (box.x0, box.y0, box.x1, box.y1) == (0.09, 0.19, 0.91, 0.26)
+    assert headline_span(shot, Verdict("clean", 0.0, False, ())) is None

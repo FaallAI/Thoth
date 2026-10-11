@@ -21,6 +21,8 @@ from thoth_control_plane.assembly.subtitles import (
     OcrFrame,
     Region,
     Verdict,
+    _area,
+    _iou,
     _similarity,
     norm_text,
 )
@@ -86,6 +88,44 @@ def sort_windows(frames: Sequence[OcrFrame], verdict: Verdict) -> Windows:
         else:
             captions.append(region)
     return Windows(tuple(captions), tuple(overlays), tuple(dropped))
+
+
+def headline_span(
+    frames: Sequence[OcrFrame], verdict: Verdict
+) -> tuple[OcrBox, float, float] | None:
+    """The headline a trim removes: its envelope, the last sample holding it, the first not.
+
+    The classifier puts the trim at the midpoint of those two samples; the lines that left are
+    the headline-sized boxes (Scout's anchor rule) of the earlier one with no match in the later.
+    """
+    if verdict.trim_start <= 0:
+        return None
+    usable = sorted((frame for frame in frames if not frame.error), key=lambda f: f.t)
+    before = [frame for frame in usable if frame.t < verdict.trim_start]
+    after = [frame for frame in usable if frame.t > verdict.trim_start]
+    if not before or not after:
+        return None
+    present, absent = before[-1], after[0]
+    left = [
+        box
+        for box in present.boxes
+        if _area(box) >= 0.015
+        and box.x1 - box.x0 >= 0.45
+        and not any(
+            _similarity(box.text, other.text) >= 0.5 and _iou(box, other) >= 0.45
+            for other in absent.boxes
+        )
+    ]
+    if not left:
+        return None
+    envelope = OcrBox(
+        " ".join(box.text for box in left),
+        min(box.x0 for box in left),
+        min(box.y0 for box in left),
+        max(box.x1 for box in left),
+        max(box.y1 for box in left),
+    )
+    return envelope, present.t, absent.t
 
 
 def without_trim(verdict: Verdict) -> Verdict:
