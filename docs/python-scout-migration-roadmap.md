@@ -449,5 +449,5 @@ videos. Four live golden cases and the synthetic reference replay offline. Detai
 and verification: the 2026-10-10 section of `CHANGELOG.md`.
 
 Next steps: the operator reviews the branch; push, merge, and deploy each need their own
-authorization; `THOTH_OPENROUTER_API_KEY` must reach the worker; confirm the ground truth of
-`tiktok_kabinetketiduran`; the live smoke joins the final acceptance (ADR 0001).
+authorization; `THOTH_OPENROUTER_API_KEY` must reach the worker; golden cases for spec
+section 9 cases 2 and 5 are still open; the live smoke joins the final acceptance (ADR 0001).

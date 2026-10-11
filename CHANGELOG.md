@@ -33,7 +33,8 @@ Verification:
 - Golden replay, offline: `synthetic_reference` replaced; `tiktok_officialinews` replaced by
   the Instagram original; `instagram_deHz54GT4ea` replaced by the TikTok original;
   `instagram_deOUJ60SHeI` replaced by the Instagram original; `tiktok_kabinetketiduran`
-  original.
+  original (operator-confirmed); `instagram_deRDs6DCX07` unresolved (spec section 9 case 4: the
+  credited account's recent posts hold no source).
 - Live ORB strength on the recorded pairs: true originals 124 to 418 inliers, every other
   candidate at most 16; the threshold is 40 inliers in at least one sampled frame.
 - Final whole-branch review (fresh reviewer): no Critical. One fix pass, each fix RED then
@@ -61,9 +62,9 @@ Operator decisions and rulings:
   missed every transformed repost (reaction panel, zoom, overlays).
 - A measured visual match skips the commentary and burned-in speech checks: vision called
   both real originals "commentary".
-- `tiktok_kabinetketiduran` has no operator ground truth. Jev put `is_repost` at the 0.50
-  threshold (0.50 on one capture, 0.49 on the recorded one), so its expected verdict follows
-  the recorded answer.
+- `tiktok_kabinetketiduran` is the account's own video (operator, 2026-10-11). Jev put
+  `is_repost` at the 0.50 threshold (0.50 on one capture, 0.49 on the recorded one).
+- The duration filter is dropped (operator accepted, 2026-10-11).
 
 Departures from Scout (spec section 10): the repost decision comes first; visual matching
 replaces text-embedding similarity; no story search until Stage 8; the credit is a
@@ -78,7 +79,10 @@ Next steps:
   only in `.env.stage1.local` and `.env`.
 - The operator's proxies speak HTTP although their lines say `socks5://`; import them as
   `http://`. Instagram blocks that proxy while anonymous direct access works.
-- Confirm the ground truth of `tiktok_kabinetketiduran` (original or repost).
+- Golden cases still open: `instagram_DeVlbTORhmq` fails anonymous repost acquisition
+  (`request_incomplete`: the page loads but the Stage 3 parser finds no post), so it needs
+  either a signed-in acquisition in the capture tool or a parser fix; a `📸 @user` caption
+  credit (spec section 9 case 2) and a commentary case (case 5) have no real fixture yet.
 - The live smoke joins the final acceptance (ADR 0001).
 - Follow-ups: parse the signed-in Instagram profile page (needs a live capture); spec
   section 12 (Stage 8 story search, Stage 5 final OCR, per-post cache, the TikTok original

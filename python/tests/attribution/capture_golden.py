@@ -245,7 +245,8 @@ async def _main(arguments: argparse.Namespace) -> None:
         runner = build_production_acquisition_runner(settings)
         result = await runner(WORKFLOW, arguments.url, root)
         if result.report is None:
-            raise SystemExit("repost acquisition failed")
+            code = result.failure.code if result.failure is not None else "unknown"
+            raise SystemExit(f"repost acquisition failed: {code}")
         expected: dict[str, Any] = {
             "verdict": arguments.expect_verdict,
             "source_url": arguments.expect_source_url,

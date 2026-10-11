@@ -916,7 +916,7 @@
   },
   "scout": {
     "main_url": null,
-    "note": "No operator ground truth: no credit anywhere, and Jev put is_repost at the 0.50 threshold (0.50 on 2026-10-09, 0.49 on this capture), so the verdict follows the recorded answer."
+    "note": "The operator confirmed on 2026-10-11 that this is the account's own video: no credit anywhere, and Jev's is_repost sits at the 0.50 threshold (0.50 on 2026-10-09, 0.49 on this capture)."
   },
   "departure": "scout_not_run"
 }
