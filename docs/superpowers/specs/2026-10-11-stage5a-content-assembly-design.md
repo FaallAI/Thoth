@@ -1,7 +1,7 @@
 # Stage 5a: Content Assembly Core in Python — Design
 
-Status: design approved section by section by the operator on 2026-10-11; written spec awaiting
-operator review.
+Status: written spec approved by the operator on 2026-10-11; implemented on branch
+`feat/stage5a-content-assembly` (see `docs/superpowers/plans/2026-10-11-stage5a-content-assembly.md`).
 
 ## 1. Goal
 

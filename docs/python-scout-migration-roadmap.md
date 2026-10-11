@@ -451,3 +451,13 @@ and verification: the 2026-10-10 section of `CHANGELOG.md`.
 On 2026-10-11 ORB moved to 3000 features and two matched frames after a zoomed repost was
 missed (not deployed yet). Next steps: golden cases for spec section 9 cases 4 and 5 and the
 reaction-as-original research are parked by the operator; the live smoke joins the final acceptance (ADR 0001).
+
+## Stage 5a status (2026-10-12)
+
+Stage 5 is split: 5a builds the Content Set core (main with its final renderer OCR, comments,
+figures), 5b adds footage, and forced main comes later. Stage 5a is implemented on branch
+`feat/stage5a-content-assembly`: `ContentAssembler` writes a typed, checksummed
+`content-set.json` artifact after attribution, behind `THOTH_CONTENT_ASSEMBLY_ENABLED`. Scout's
+subtitle classifier is ported with a parity fixture generated from Scout itself; OCR boxes come
+from local RapidOCR. Details: the 2026-10-12 section of `CHANGELOG.md`. Next: the RapidOCR
+calibration capture, push and deploy (operator gates), then Stage 5b.
