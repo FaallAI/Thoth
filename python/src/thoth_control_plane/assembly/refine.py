@@ -17,11 +17,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 
 from thoth_control_plane.assembly.subtitles import (
+    COVER_MAX,
     OcrBox,
     OcrFrame,
     Region,
     Verdict,
     _area,
+    _group,
     _iou,
     _similarity,
     norm_text,
@@ -96,7 +98,9 @@ def headline_span(
     """The headline a trim removes: its envelope, the last sample holding it, the first not.
 
     The classifier puts the trim at the midpoint of those two samples; the lines that left are
-    the headline-sized boxes (Scout's anchor rule) of the earlier one with no match in the later.
+    the headline-sized boxes of the earlier one with no match in the later. Like Scout's anchor,
+    a line must hold in at least two intro samples, and only the band around the widest line
+    counts: a box seen once elsewhere would widen the region into moving footage.
     """
     if verdict.trim_start <= 0:
         return None
@@ -106,18 +110,23 @@ def headline_span(
     if not before or not after:
         return None
     present, absent = before[-1], after[0]
+
+    def same(box: OcrBox, other: OcrBox) -> bool:
+        return _similarity(box.text, other.text) >= 0.5 and _iou(box, other) >= 0.45
+
+    intro = [frame for frame in usable if frame.t <= COVER_MAX]
     left = [
         box
         for box in present.boxes
         if _area(box) >= 0.015
         and box.x1 - box.x0 >= 0.45
-        and not any(
-            _similarity(box.text, other.text) >= 0.5 and _iou(box, other) >= 0.45
-            for other in absent.boxes
-        )
+        and not any(same(box, other) for other in absent.boxes)
+        and sum(1 for frame in intro if any(same(box, other) for other in frame.boxes)) >= 2
     ]
     if not left:
         return None
+    widest = max(left, key=lambda box: box.x1 - box.x0)
+    left = next(group for group in _group(left) if widest in group)
     envelope = OcrBox(
         " ".join(box.text for box in left),
         min(box.x0 for box in left),

@@ -148,3 +148,21 @@ def test_headline_span_brackets_the_trim_with_the_lines_that_left() -> None:
     assert (present, absent) == (5.0, 10.7)
     assert (box.x0, box.y0, box.x1, box.y1) == (0.09, 0.19, 0.91, 0.26)
     assert headline_span(shot, Verdict("clean", 0.0, False, ())) is None
+
+
+def test_headline_span_ignores_boxes_that_were_not_part_of_the_headline() -> None:
+    # officialinews, 2026-10-12: a wide box seen only at 5 s, far below the headline, widened the
+    # envelope into moving footage and the tracker cut at 5.1 s instead of 9.6 s.
+    from thoth_control_plane.assembly.refine import headline_span
+
+    headline = (
+        OcrBox("Ferdy Sambo Tunjukkan Ruangan", 0.09, 0.19, 0.91, 0.23),
+        OcrBox("yang Dituding Kamar Mewah", 0.15, 0.23, 0.86, 0.26),
+    )
+    stray = OcrBox("teks lain di bawah", 0.1, 0.74, 0.7, 0.79)
+    shot = frames(*[headline] * 5, (*headline, stray), *[()] * 6)
+
+    span = headline_span(shot, Verdict("cover", 7.85, False, ()))
+
+    assert span is not None
+    assert (span[0].y0, span[0].y1) == (0.19, 0.26)
