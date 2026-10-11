@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-12 - Stage 4 ORB fix deployed on `7dbab996`
+
+- Deployed with operator authorization: commit `f9d4bb2` (3000 ORB features, two matched
+  frames), CI run `38142166023` green, index digest
+  `sha256:7dbab99607b7f769d8d72132407ed974431921b480c98bcc53d31ee93da5aec4`. The operator
+  pinned `THOTH_IMAGE` (auto mode blocked the agent from editing `.env.stage1.local`).
+- `stage1-local-preflight --provider-env-file` passed; `config --quiet` passed; `pull` and
+  `up -d --wait` brought every service healthy. `api`, `worker`, and `legacy-cdp` run
+  `7dbab996` at revision `f9d4bb2`, user `10001:10001`, 0 restarts; `/healthz` and `/readyz`
+  200; the worker reads `FEATURES 3000`, `min_matched_frames 2`, `min_inliers 40`, and holds
+  the OpenRouter key; the api does not.
+- Deployed from the `feat/stage5a-content-assembly` checkout, whose compose differs from master
+  only by `THOTH_CONTENT_ASSEMBLY_ENABLED: ${THOTH_CONTENT_ASSEMBLY_ENABLED:-false}`, which this
+  image ignores.
+
 ## 2026-10-12 - Stage 5a: content assembly in Python
 
 Branch `feat/stage5a-content-assembly` (not pushed). Spec
