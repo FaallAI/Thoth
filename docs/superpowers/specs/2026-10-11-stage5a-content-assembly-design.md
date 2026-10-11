@@ -3,6 +3,37 @@
 Status: written spec approved by the operator on 2026-10-11; implemented on branch
 `feat/stage5a-content-assembly` (see `docs/superpowers/plans/2026-10-11-stage5a-content-assembly.md`).
 
+Amendment (operator, 2026-10-12, after the calibration research in
+`docs/research/2026-10-12-stage5a-ocr-trim-research.md`). The ported classifier stays exactly
+Scout's (its parity fixture is unchanged); a post-classification step in Python corrects four
+behaviors that real videos showed:
+
+1. **Trim boundary.** When the classifier trims an intro headline, the gap between the last
+   sample that holds it and the first that does not is decoded at 10 frames per second and the
+   headline region compared (Canny edge correlation against the region at the last present
+   sample, threshold 0.5). `trim_start` becomes the first frame where the headline is gone; a
+   caption window that began at the old trim starts at the new one. If the comparison cannot
+   run, the classifier's midpoint stays and a warning is logged. Measured: detikjatim 12.07 to
+   6.5 s, officialinews 10.70 to 9.6 s.
+2. **Trim scope.** A trim applies only to a main that may be a repost: `main.source` is
+   `input` and the attribution verdict is `unresolved` or `none`. An original (verdict
+   `original`) or a found original (`replaced`) keeps its intro: `trim_start` is 0 and a
+   `cover` verdict becomes `clean`.
+3. **Persistent overlays.** A blur window whose text is the same in every frame it covers, and
+   which covers at least 80% of the usable samples, is an overlay (an added headline band): it
+   is blurred and the audio is kept. New outcome `overlay` (`mute_audio` false, at least one
+   blur region). Constant text covering less than that is scene text and is not blurred.
+4. **Scene text.** A blur window where at least a third of the boxes touch the frame edge
+   (x0 at most 0.005 or x1 at least 0.995) is scene text and is dropped. If caption windows
+   remain, one vision call (`THOTH_SOURCE_VISION_MODEL` over OpenRouter, three frames from those
+   windows) asks whether the frames carry burned-in speech captions; "no" drops them. Without a
+   key or on a provider error the rule-based result stands and a warning is logged.
+
+`MainOcr` gains `outcome = "overlay"` and `trim_refined: bool`. New failure code
+`opencv_missing` (the region comparison needs OpenCV); the worker refuses to start without it
+when assembly is on. Calibration fixtures record the refined trim and the vision answer so the
+suite replays them offline.
+
 ## 1. Goal
 
 Produce a validated, typed Content Set for an acquired post without Scout: the main entry with
