@@ -193,3 +193,36 @@ def test_figures_use_title_description_and_the_cover_headline(tmp_path: Path) ->
 )
 def test_figure_failures_never_fail_the_set(tmp_path: Path, answer: Any, status: str) -> None:
     assert build(tmp_path, report(), figures=Figures(answer)).figures_status == status
+
+
+class Headline:
+    """A headline for two seconds, then nothing: a cover verdict."""
+
+    async def read(self, frame: Frame) -> list[TextBox]:
+        if frame.second <= 2:
+            return [TextBox("BANJIR BESAR JAKARTA", 0.3, 0.36, 0.08, 0.92)]
+        return []
+
+
+@pytest.mark.parametrize(
+    ("verdict", "trimmed"),
+    [(None, True), ("unresolved", True), ("original", False)],
+)
+def test_only_a_possible_repost_is_trimmed(
+    tmp_path: Path, verdict: str | None, trimmed: bool
+) -> None:
+    main = report()
+    touch(tmp_path, main)
+    assembler = ContentAssembler(
+        AssemblyPorts(frames=Frames(), probe=Probe(), text=Headline()), clock=lambda: NOW
+    )
+
+    content = asyncio.run(
+        assembler.build(
+            AssemblyInputs("wf_a", main, attribution(verdict) if verdict else None, None, tmp_path)
+        )
+    )
+
+    ocr = content.main.ocr
+    assert ocr is not None
+    assert (ocr.outcome, ocr.trim_start > 0) == (("cover", True) if trimmed else ("clean", False))

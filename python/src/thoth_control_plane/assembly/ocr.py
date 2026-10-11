@@ -1,7 +1,10 @@
 """Final OCR of a video main: Scout's sampling and coverage rule over local RapidOCR boxes.
 
 Only complete coverage may produce a verdict: a frame that cannot be read is unknown, never
-clean. A missing ffmpeg or ffprobe keeps its own code (operator, 2026-10-11).
+clean. A missing ffmpeg or ffprobe keeps its own code (operator, 2026-10-11). After Scout's
+verdict, `refine.py` corrects it (spec amendment, 2026-10-12): a trim only for a possible
+repost, measured by the region tracker; overlays keep the audio; scene text is dropped; the
+caption judge confirms captions before the audio is muted.
 """
 
 from __future__ import annotations
@@ -13,13 +16,24 @@ from pathlib import Path
 from thoth_control_plane.assembly.models import BlurRegion, MainOcr
 from thoth_control_plane.assembly.ports import (
     AssemblyError,
+    CaptionJudge,
     DurationProbe,
     FrameSampler,
+    RegionTracker,
     TextReader,
+)
+from thoth_control_plane.assembly.refine import (
+    Windows,
+    headline_span,
+    retrim,
+    settle,
+    sort_windows,
+    without_trim,
 )
 from thoth_control_plane.assembly.subtitles import (
     OcrBox,
     OcrFrame,
+    Verdict,
     build_sample_times,
     classify_ocr_frames,
 )
@@ -66,6 +80,9 @@ async def analyze_main_ocr(
     text: TextReader,
     max_frames: int,
     now: datetime,
+    trim_allowed: bool = True,
+    tracker: RegionTracker | None = None,
+    judge: CaptionJudge | None = None,
 ) -> MainOcr:
     if not duration or duration <= 0:
         try:
@@ -77,6 +94,7 @@ async def analyze_main_ocr(
 
     requested = build_sample_times(duration, max_frames)
     read: list[OcrFrame] = []
+    images: dict[float, Frame] = {}
     for second in requested:
         previous = read[-1].t if read else None
         frame = await _frame(frames, video, second, previous)
@@ -90,6 +108,7 @@ async def analyze_main_ocr(
         except Exception:
             read.append(OcrFrame(frame.second, error="ocr_failed"))
             continue
+        images[frame.second] = frame
         read.append(
             OcrFrame(
                 frame.second,
@@ -103,6 +122,14 @@ async def analyze_main_ocr(
         raise AssemblyError("incomplete_frame_coverage")
 
     verdict = classify_ocr_frames(read, duration)
+    refined = False
+    if not trim_allowed:
+        verdict = without_trim(verdict)
+    elif tracker is not None:
+        verdict, refined = await _measure_trim(video, read, verdict, tracker)
+    windows = sort_windows(read, verdict)
+    confirmed = await _confirm(windows, images, judge) if windows.captions else None
+    verdict = settle(verdict, windows, confirmed)
     return MainOcr(
         analyzed_at=now,
         requested_frames=len(requested),
@@ -110,8 +137,54 @@ async def analyze_main_ocr(
         outcome=verdict.outcome,
         trim_start=verdict.trim_start,
         mute_audio=verdict.mute_audio,
+        trim_refined=refined,
         subtitle_blur=[
             BlurRegion(x=r.x, y=r.y, w=r.w, h=r.h, start=r.start, end=r.end)
             for r in verdict.subtitle_blur
         ],
     )
+
+
+async def _measure_trim(
+    video: Path, read: list[OcrFrame], verdict: Verdict, tracker: RegionTracker
+) -> tuple[Verdict, bool]:
+    span = headline_span(read, verdict)
+    if span is None:
+        return verdict, False
+    region, present, absent = span
+    try:
+        gone = await tracker.first_absent(video, region, present, absent)
+    except ToolMissing as missing:
+        raise AssemblyError(missing.code) from None
+    except Exception:
+        gone = None
+    if gone is None:
+        logger.warning("headline boundary not measured; the sample midpoint stays")
+        return verdict, False
+    return retrim(verdict, gone), True
+
+
+async def _confirm(
+    windows: Windows, images: dict[float, Frame], judge: CaptionJudge | None
+) -> bool | None:
+    if judge is None:
+        return None
+    seconds = sorted(
+        {
+            t
+            for t in images
+            for region in windows.captions
+            if region.start - 1e-6 <= t <= region.end + 1e-6
+        }
+    )
+    if not seconds:
+        return None
+    # Three frames spread over the caption windows: first, middle, last.
+    picks = sorted({seconds[0], seconds[len(seconds) // 2], seconds[-1]})
+    try:
+        answer = await judge.speech_captions([images[t] for t in picks])
+    except Exception:
+        answer = None
+    if answer is None:
+        logger.warning("caption check unavailable; the rule-based verdict stands")
+    return answer

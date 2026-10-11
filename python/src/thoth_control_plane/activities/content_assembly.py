@@ -188,7 +188,9 @@ async def _run(
 
 
 def build_production_assembler(settings: Settings) -> Assembler:
+    from thoth_control_plane.assembly.adapters.captions import AgnoCaptionJudge
     from thoth_control_plane.assembly.adapters.figures import AgnoFigureModel
+    from thoth_control_plane.assembly.adapters.region import FfmpegRegionTracker
     from thoth_control_plane.assembly.service import AssemblyPorts, ContentAssembler
     from thoth_control_plane.attribution.adapters.frames import FfmpegFrameSource, FfprobeDuration
     from thoth_control_plane.attribution.adapters.ocr import RapidOcrReader
@@ -200,6 +202,10 @@ def build_production_assembler(settings: Settings) -> Assembler:
             probe=FfprobeDuration(settings.THOTH_FFPROBE),
             text=RapidOcrReader(angle=False),
             figures=AgnoFigureModel(openrouter, settings.THOTH_FIGURES_MODEL)
+            if openrouter
+            else None,
+            tracker=FfmpegRegionTracker(settings.THOTH_FFMPEG),
+            judge=AgnoCaptionJudge(openrouter, settings.THOTH_SOURCE_VISION_MODEL)
             if openrouter
             else None,
         ),

@@ -160,3 +160,79 @@ def test_a_missing_ocr_engine_is_its_own_code() -> None:
             )
         )
     assert raised.value.code == "rapidocr_missing"
+
+
+class Tracker:
+    def __init__(self, answer: float | Exception | None) -> None:
+        self.answer, self.calls = answer, []
+
+    async def first_absent(self, video, region, start, end):  # type: ignore[no-untyped-def]
+        self.calls.append((region.text, start, end))
+        if isinstance(self.answer, Exception):
+            raise self.answer
+        return self.answer
+
+
+class Judge:
+    def __init__(self, answer: bool | None) -> None:
+        self.answer, self.seen = answer, []
+
+    async def speech_captions(self, frames):  # type: ignore[no-untyped-def]
+        self.seen.append([frame.second for frame in frames])
+        return self.answer
+
+
+def corrected(**kwargs):  # type: ignore[no-untyped-def]
+    return asyncio.run(
+        analyze_main_ocr(
+            VIDEO,
+            30.0,
+            frames=Frames(),
+            probe=Probe(30.0),
+            text=Text(),
+            max_frames=12,
+            now=NOW,
+            **kwargs,
+        )
+    )
+
+
+def test_an_original_keeps_its_intro() -> None:
+    ocr = corrected(trim_allowed=False)
+
+    assert ocr.trim_start == 0.0 and ocr.outcome == "subtitle"
+
+
+def test_the_tracker_moves_the_trim_and_the_first_caption_window() -> None:
+    tracker = Tracker(2.2)
+
+    ocr = corrected(tracker=tracker)
+
+    assert tracker.calls == [("BANJIR BESAR JAKARTA", 2.0, 3.0)]
+    assert (ocr.trim_start, ocr.trim_refined) == (2.2, True)
+    assert ocr.subtitle_blur[0].start == 2.2
+
+
+def test_an_unmeasured_boundary_keeps_the_midpoint() -> None:
+    for answer in (None, RuntimeError("decode")):
+        ocr = corrected(tracker=Tracker(answer))
+        assert (ocr.trim_start, ocr.trim_refined) == (2.5, False)
+
+
+def test_missing_opencv_is_its_own_code() -> None:
+    from thoth_control_plane.attribution.adapters.frames import ToolMissing
+
+    with pytest.raises(AssemblyError) as raised:
+        corrected(tracker=Tracker(ToolMissing("opencv_missing")))
+    assert raised.value.code == "opencv_missing"
+
+
+def test_the_judge_decides_whether_captions_mute() -> None:
+    judge = Judge(False)
+
+    rejected = corrected(judge=judge)
+
+    assert (rejected.outcome, rejected.mute_audio, rejected.subtitle_blur) == ("cover", False, [])
+    assert len(judge.seen[0]) == 3 and all(second > 2.5 for second in judge.seen[0])
+    assert corrected(judge=Judge(True)).outcome == "subtitle"
+    assert corrected(judge=Judge(None)).outcome == "subtitle"  # no answer: the rules stand

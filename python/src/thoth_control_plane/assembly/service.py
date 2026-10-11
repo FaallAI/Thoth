@@ -25,9 +25,11 @@ from thoth_control_plane.assembly.models import ContentSet, Figure, Main, MainOc
 from thoth_control_plane.assembly.ocr import analyze_main_ocr
 from thoth_control_plane.assembly.ports import (
     AssemblyError,
+    CaptionJudge,
     DurationProbe,
     FigureModel,
     FrameSampler,
+    RegionTracker,
     TextReader,
 )
 from thoth_control_plane.attribution.models import SourceAttribution
@@ -43,6 +45,8 @@ class AssemblyPorts:
     probe: DurationProbe
     text: TextReader
     figures: FigureModel | None = None
+    tracker: RegionTracker | None = None
+    judge: CaptionJudge | None = None
 
 
 @dataclass(frozen=True)
@@ -146,6 +150,10 @@ class ContentAssembler:
                     text=self._ports.text,
                     max_frames=self._max_frames,
                     now=self._clock(),
+                    # A trim is for a main that may be a repost (amendment, 2026-10-12).
+                    trim_allowed=source == "input" and verdict in ("unresolved", "none"),
+                    tracker=self._ports.tracker,
+                    judge=self._ports.judge,
                 )
         except BaseException:
             figures_task.cancel()
