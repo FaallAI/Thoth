@@ -88,6 +88,24 @@ def test_matcher_finds_the_original_shrunk_into_a_reaction_panel() -> None:
     assert max(other) < 25, other
 
 
+def test_matcher_finds_a_zoomed_repost_over_a_busy_background() -> None:
+    # Real frames, 2026-10-11: instagram DeRDs6DCX07 zooms into DeLTY7YtLl4 under a headline
+    # band. The crowd and stage lights took every keypoint of a 600-feature budget (0 inliers).
+    pytest.importorskip("cv2")
+    from thoth_control_plane.attribution.adapters.visual import OrbMatcher
+
+    frames = Path(__file__).parents[1] / "fixtures" / "attribution" / "frames"
+    repost = [Frame(4.0, (frames / "plank_repost.jpg").read_bytes())]
+    original = [Frame(14.0, (frames / "plank_original.jpg").read_bytes())]
+    matcher = OrbMatcher(step=1)
+
+    async def run() -> list[int]:
+        return await matcher.compare(await matcher.prepare(repost), await matcher.prepare(original))
+
+    found = asyncio.run(run())
+    assert found and found[0] >= 40, found
+
+
 @needs_ffmpeg
 @pytest.mark.asyncio
 async def test_ffmpeg_samples_frames_by_second(tmp_path: Path) -> None:

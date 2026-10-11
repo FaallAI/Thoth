@@ -1,0 +1,810 @@
+{
+  "case": "instagram_deO6A2MSoAt",
+  "synthetic": false,
+  "report": {
+    "schema_version": 3,
+    "workflow_id": "wf_golden",
+    "source": {
+      "platform": "instagram",
+      "canonical_url": "https://www.instagram.com/p/DeO6A2MSoAt/"
+    },
+    "post": {
+      "post_id": "DeO6A2MSoAt",
+      "owner_handle": "sadampermana.w",
+      "text": "Kita bisa mutus mata rantai “bercanda” kayak gini di tongkrongan",
+      "published_at": "2026-10-08T12:14:11Z",
+      "engagement": {
+        "like": 60490,
+        "comment": 1324
+      }
+    },
+    "media": [
+      {
+        "media_id": "media_1",
+        "kind": "video",
+        "index": 1,
+        "location": "reports/wf_golden/media/instagram-DeO6A2MSoAt-1.mp4",
+        "media_type": "video/mp4",
+        "bytes": 4709390,
+        "checksum": "sha256:d92cd3e5c92b55ddcb25e4c98ce80fb915904adc5aa85956c8b0957deb4539c3",
+        "acquisition_strategy": "scrapling_request",
+        "width": null,
+        "height": null,
+        "duration_seconds": null
+      }
+    ],
+    "outcome": {
+      "status": "resolved",
+      "attempts": [
+        {
+          "strategy": "scrapling_request",
+          "status": "succeeded",
+          "reason": null,
+          "attempt_count": 1,
+          "elapsed_ms": 1589
+        }
+      ]
+    },
+    "comments": [],
+    "post_card": null,
+    "profile_card": null
+  },
+  "repost_frames": "instagram-DeO6A2MSoAt-1",
+  "frames": {
+    "instagram-DeO6A2MSoAt-1": [
+      {
+        "second": 0.0,
+        "boxes": [
+          [
+            "Bravybravyson.vconk- 3 hari",
+            0.0906,
+            0.1125
+          ],
+          [
+            "6",
+            0.0906,
+            0.1141
+          ],
+          [
+            "90% mood gue seharian tuh biasanya ditentukan",
+            0.1172,
+            0.1422
+          ],
+          [
+            "ama apa yg gue baca, liat dan dgr pas pertama",
+            0.1453,
+            0.1688
+          ],
+          [
+            "kali bgn tidur.",
+            0.1688,
+            0.1938
+          ],
+          [
+            "Jd tolong PAP tt aja ya kalo mau chat gue pagi2.",
+            0.2062,
+            0.2328
+          ],
+          [
+            "Thx 人",
+            0.2313,
+            0.2641
+          ],
+          [
+            "9,4rb",
+            0.2719,
+            0.2969
+          ],
+          [
+            "Q1,3rb",
+            0.2703,
+            0.2969
+          ],
+          [
+            "G148",
+            0.2719,
+            0.2984
+          ],
+          [
+            "1,1rb",
+            0.2703,
+            0.2984
+          ]
+        ]
+      },
+      {
+        "second": 1.0,
+        "boxes": [
+          [
+            "Bravybravyson.vconk- 3 hari",
+            0.0906,
+            0.1125
+          ],
+          [
+            "90% mood gue seharian tuh biasanya ditentukan",
+            0.1172,
+            0.1422
+          ],
+          [
+            "ama apa yg gue baca, liat dan dgr pas pertama",
+            0.1453,
+            0.1688
+          ],
+          [
+            "kali bgn tidur.",
+            0.1688,
+            0.1938
+          ],
+          [
+            "Jd tolong PAP tt aja ya kalo mau chat gue pagi2.",
+            0.2047,
+            0.2344
+          ],
+          [
+            "Thx人",
+            0.2313,
+            0.2641
+          ],
+          [
+            "9,4rb",
+            0.2719,
+            0.2969
+          ],
+          [
+            "Q1,3rb",
+            0.2719,
+            0.2984
+          ],
+          [
+            "G148",
+            0.2719,
+            0.2984
+          ],
+          [
+            "1,1rb",
+            0.2703,
+            0.2984
+          ],
+          [
+            "IN",
+            0.3031,
+            0.3312
+          ]
+        ]
+      },
+      {
+        "second": 2.0,
+        "boxes": [
+          [
+            "Bravybravyson.vconk- 3 hari",
+            0.0906,
+            0.1125
+          ],
+          [
+            "90% mood gue seharian tuh biasanya ditentukan",
+            0.1172,
+            0.1422
+          ],
+          [
+            "ama apa yg gue baca, liat dan dgr pas pertama",
+            0.1453,
+            0.1688
+          ],
+          [
+            "kali bgn tidur.",
+            0.1688,
+            0.1938
+          ],
+          [
+            "Jd tolong PAP tt aja ya kalo mau chat gue pagi2.",
+            0.2062,
+            0.2328
+          ],
+          [
+            "Thx人",
+            0.2313,
+            0.2641
+          ],
+          [
+            "9,4rb",
+            0.2719,
+            0.2969
+          ],
+          [
+            "Q1,3rb",
+            0.2719,
+            0.2984
+          ],
+          [
+            "G148",
+            0.2719,
+            0.2969
+          ],
+          [
+            "1,1rb",
+            0.2703,
+            0.2984
+          ]
+        ]
+      },
+      {
+        "second": 3.0,
+        "boxes": [
+          [
+            "Bravybravyson.vconk- 3 hari",
+            0.0906,
+            0.1125
+          ],
+          [
+            "90% mood gue seharian tuh biasanya ditentukan",
+            0.1172,
+            0.1422
+          ],
+          [
+            "ama apa yg gue baca, liat dan dgr pas pertama",
+            0.1453,
+            0.1688
+          ],
+          [
+            "kali bgn tidur.",
+            0.1688,
+            0.1938
+          ],
+          [
+            "Jd tolong PAP tt aja ya kalo mau chat gue pagi2.",
+            0.2062,
+            0.2328
+          ],
+          [
+            "Thx人",
+            0.2313,
+            0.2641
+          ],
+          [
+            "9,4rb",
+            0.2719,
+            0.2969
+          ],
+          [
+            "Q1,3rb148",
+            0.2687,
+            0.2984
+          ],
+          [
+            "1,1rb",
+            0.2703,
+            0.2984
+          ]
+        ]
+      },
+      {
+        "second": 4.0,
+        "boxes": [
+          [
+            "Bravybravyson.vconk- 3 hari",
+            0.0906,
+            0.1125
+          ],
+          [
+            "90% mood gue seharian tuh biasanya ditentukan",
+            0.1172,
+            0.1422
+          ],
+          [
+            "ama apa yg gue baca, liat dan dgr pas pertama",
+            0.1453,
+            0.1688
+          ],
+          [
+            "kali bgn tidur.",
+            0.1688,
+            0.1938
+          ],
+          [
+            "Jd tolong PAP tt aja ya kalo mau chat gue pagi2.",
+            0.2062,
+            0.2328
+          ],
+          [
+            "Thx人",
+            0.2313,
+            0.2641
+          ],
+          [
+            "9,4rb",
+            0.2719,
+            0.2969
+          ],
+          [
+            "A1,3rb",
+            0.2719,
+            0.2984
+          ],
+          [
+            "G148",
+            0.2719,
+            0.2984
+          ],
+          [
+            "1,1rb",
+            0.2703,
+            0.2984
+          ]
+        ]
+      },
+      {
+        "second": 5.0,
+        "boxes": [
+          [
+            "Bravybravyson.vconk- 3 hari",
+            0.0906,
+            0.1125
+          ],
+          [
+            "90% mood gue seharian tuh biasanya ditentukan",
+            0.1172,
+            0.1422
+          ],
+          [
+            "ama apa yg gue baca, liat dan dgr pas pertama",
+            0.1453,
+            0.1688
+          ],
+          [
+            "kali bgn tidur.",
+            0.1672,
+            0.1953
+          ],
+          [
+            "Jd tolong PAP tt aja ya kalo mau chat gue pagi2.",
+            0.2062,
+            0.2328
+          ],
+          [
+            "Thx 人",
+            0.2313,
+            0.2641
+          ],
+          [
+            "9,4rb",
+            0.2703,
+            0.2984
+          ],
+          [
+            "A1,3rb",
+            0.2719,
+            0.2984
+          ],
+          [
+            "G148",
+            0.2719,
+            0.2969
+          ],
+          [
+            "1,1rb",
+            0.2703,
+            0.2984
+          ]
+        ]
+      },
+      {
+        "second": 6.0,
+        "boxes": [
+          [
+            "Bravybravyson.vconk- 3 hari",
+            0.0906,
+            0.1125
+          ],
+          [
+            "90% mood gue seharian tuh biasanya ditentukan",
+            0.1172,
+            0.1422
+          ],
+          [
+            "ama apa yg gue baca, liat dan dgr pas pertama",
+            0.1453,
+            0.1688
+          ],
+          [
+            "kali bgn tidur.",
+            0.1672,
+            0.1953
+          ],
+          [
+            "Jd tolong PAP tt aja ya kalo mau chat gue pagi2.",
+            0.2062,
+            0.2328
+          ],
+          [
+            "Thx人",
+            0.2313,
+            0.2641
+          ],
+          [
+            "9,4rb",
+            0.2719,
+            0.2969
+          ],
+          [
+            "1,3rb 148",
+            0.2687,
+            0.2984
+          ],
+          [
+            "1,1rb",
+            0.2703,
+            0.2984
+          ]
+        ]
+      },
+      {
+        "second": 7.0,
+        "boxes": [
+          [
+            "Bravybravyson.vconk- 3 hari",
+            0.0906,
+            0.1125
+          ],
+          [
+            "90% mood gue seharian tuh biasanya ditentukan",
+            0.1172,
+            0.1422
+          ],
+          [
+            "ama apa yg gue baca, liat dan dgr pas pertama",
+            0.1453,
+            0.1688
+          ],
+          [
+            "kali bgn tidur.",
+            0.1672,
+            0.1953
+          ],
+          [
+            "Jd tolong PAP tt aja ya kalo mau chat gue pagi2.",
+            0.2062,
+            0.2328
+          ],
+          [
+            "Thx 人",
+            0.2313,
+            0.2641
+          ],
+          [
+            "9,4rb",
+            0.2719,
+            0.2969
+          ],
+          [
+            "1,3rb",
+            0.2703,
+            0.2969
+          ],
+          [
+            "G148",
+            0.2719,
+            0.2984
+          ],
+          [
+            "1,1rb",
+            0.2703,
+            0.2984
+          ]
+        ]
+      },
+      {
+        "second": 8.0,
+        "boxes": [
+          [
+            "Bravybravyson.vconk- 3 hari",
+            0.0906,
+            0.1125
+          ],
+          [
+            "90% mood gue seharian tuh biasanya ditentukan",
+            0.1172,
+            0.1422
+          ],
+          [
+            "ama apa yg gue baca, liat dan dgr pas pertama",
+            0.1453,
+            0.1688
+          ],
+          [
+            "kali bgn tidur.",
+            0.1672,
+            0.1953
+          ],
+          [
+            "Jd tolong PAP tt aja ya kalo mau chat gue pagi2.",
+            0.2062,
+            0.2328
+          ],
+          [
+            "Thx 人",
+            0.2313,
+            0.2641
+          ],
+          [
+            "9,4rb",
+            0.2703,
+            0.2984
+          ],
+          [
+            "1,3rb",
+            0.2703,
+            0.2969
+          ],
+          [
+            "G148",
+            0.2719,
+            0.2984
+          ],
+          [
+            "1,1rb",
+            0.2703,
+            0.2984
+          ]
+        ]
+      },
+      {
+        "second": 9.0,
+        "boxes": [
+          [
+            "Bravybravyson.vconk- 3 hari",
+            0.0906,
+            0.1125
+          ],
+          [
+            "90% mood gue seharian tuh biasanya ditentukan",
+            0.1172,
+            0.1422
+          ],
+          [
+            "ama apa yg gue baca, liat dan dgr pas pertama",
+            0.1453,
+            0.1688
+          ],
+          [
+            "kali bgn tidur.",
+            0.1672,
+            0.1953
+          ],
+          [
+            "Jd tolong PAP tt aja ya kalo mau chat gue pagi2.",
+            0.2062,
+            0.2328
+          ],
+          [
+            "Thx 人",
+            0.2313,
+            0.2641
+          ],
+          [
+            "9,4rb",
+            0.2719,
+            0.2969
+          ],
+          [
+            "a1,3rb",
+            0.2719,
+            0.2984
+          ],
+          [
+            "G148",
+            0.2719,
+            0.2969
+          ],
+          [
+            "1,1rb",
+            0.2703,
+            0.2984
+          ]
+        ]
+      },
+      {
+        "second": 10.0,
+        "boxes": []
+      },
+      {
+        "second": 11.0,
+        "boxes": []
+      },
+      {
+        "second": 12.0,
+        "boxes": []
+      },
+      {
+        "second": 13.0,
+        "boxes": []
+      },
+      {
+        "second": 14.0,
+        "boxes": []
+      },
+      {
+        "second": 15.0,
+        "boxes": []
+      },
+      {
+        "second": 16.0,
+        "boxes": []
+      },
+      {
+        "second": 17.0,
+        "boxes": []
+      },
+      {
+        "second": 18.0,
+        "boxes": []
+      },
+      {
+        "second": 19.0,
+        "boxes": [
+          [
+            "1",
+            0.0078,
+            0.2766
+          ]
+        ]
+      },
+      {
+        "second": 20.0,
+        "boxes": []
+      },
+      {
+        "second": 21.0,
+        "boxes": []
+      },
+      {
+        "second": 22.0,
+        "boxes": [
+          [
+            "N",
+            0.1625,
+            0.5359
+          ]
+        ]
+      },
+      {
+        "second": 23.0,
+        "boxes": [
+          [
+            "食",
+            0.1922,
+            0.9516
+          ]
+        ]
+      },
+      {
+        "second": 24.0,
+        "boxes": []
+      },
+      {
+        "second": 25.0,
+        "boxes": []
+      },
+      {
+        "second": 26.0,
+        "boxes": [
+          [
+            "1",
+            0.0,
+            0.3187
+          ]
+        ]
+      },
+      {
+        "second": 27.0,
+        "boxes": []
+      },
+      {
+        "second": 28.0,
+        "boxes": []
+      },
+      {
+        "second": 29.0,
+        "boxes": []
+      },
+      {
+        "second": 30.0,
+        "boxes": []
+      },
+      {
+        "second": 31.0,
+        "boxes": []
+      },
+      {
+        "second": 32.0,
+        "boxes": []
+      },
+      {
+        "second": 33.0,
+        "boxes": []
+      },
+      {
+        "second": 34.0,
+        "boxes": []
+      },
+      {
+        "second": 35.0,
+        "boxes": []
+      },
+      {
+        "second": 36.0,
+        "boxes": []
+      },
+      {
+        "second": 37.0,
+        "boxes": []
+      },
+      {
+        "second": 38.0,
+        "boxes": []
+      },
+      {
+        "second": 39.0,
+        "boxes": []
+      },
+      {
+        "second": 40.0,
+        "boxes": []
+      },
+      {
+        "second": 41.0,
+        "boxes": []
+      },
+      {
+        "second": 42.0,
+        "boxes": []
+      },
+      {
+        "second": 43.0,
+        "boxes": [
+          [
+            "C",
+            0.0,
+            0.9984
+          ]
+        ]
+      },
+      {
+        "second": 44.0,
+        "boxes": []
+      }
+    ]
+  },
+  "matches": {},
+  "unmatchable": [],
+  "cover": {
+    "headline": "90% mood gue seharian tuh biasanya ditentukan ama apa yg gue baca, liat dan dgr pas pertama kali bgn tidur. Jd tolong PAP tt aja ya kalo mau chat gue pagi2. Thx 🙏",
+    "scene": "A man wearing a cap is speaking to the camera in a room.",
+    "icon": "Twitter logo in the top right corner of the tweet overlay",
+    "handles": [
+      "@bravyson.vconk"
+    ]
+  },
+  "classify": {},
+  "decisions": {
+    "is_repost": 0.66,
+    "handle": "bravyson.vconk",
+    "handle_probability": 0.97,
+    "platform": "x",
+    "platform_probability": 0.99
+  },
+  "discovery": {
+    "by_handle": {
+      "bravyson.vconk": []
+    }
+  },
+  "acquired": {},
+  "expected": {
+    "verdict": "unresolved",
+    "source_url": null
+  },
+  "scout": {
+    "main_url": null,
+    "note": "Operator-supplied 2026-10-11: the poster talks over a screenshot of an X post by @bravyson.vconk, which the operator believes was taken down; discovery finds nothing, so the attribution is unresolved. Whether a reaction counts as an original (it starts a new discussion) or as a repost of the post it discusses needs its own research (spec section 12)."
+  },
+  "departure": "scout_not_run"
+}

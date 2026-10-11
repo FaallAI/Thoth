@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-11 - Stage 4: ORB finds zoomed reposts; golden recapture
+
+- The operator confirmed that Instagram DeRDs6DCX07 reposts @worldseniorgames DeLTY7YtLl4.
+  The original was already a finalist but scored 7 inliers. Root cause: ORB kept the 600
+  strongest corners of the whole frame, which the crowd and stage lights held, so the
+  repost's zoom on its subject shared none with the original.
+- `OrbMatcher` keeps 3000 features; `Tuning.min_matched_frames` is 2. On the saved real
+  pairs: the plank pair went from 0/20 frames to 18/20 at up to 313 inliers; the other true
+  pairs grew; unrelated pairs stayed below 40 except one text-label frame (45), which the
+  two-frame rule rejects. Cost: about 9 ms per frame pair instead of 0.7.
+- A real frame pair from that case is a matcher regression test
+  (`tests/fixtures/attribution/frames/`, unignored in `.gitignore`).
+- Live recapture with the new matcher: `instagram_deRDs6DCX07` is now `replaced` by
+  DeLTY7YtLl4 (17 frames, up to 311); `tiktok_officialinews` 33 frames; `instagram_deHz54GT4ea`
+  5 frames; `instagram_deOUJ60SHeI` 2 frames. Strongest wrong candidate: 30 inliers, 0 frames.
+- New golden case `instagram_deO6A2MSoAt`: the poster talks over a screenshot of an X post
+  the operator believes was taken down; `unresolved` (discovery finds nothing).
+- Python suite: 2958 passed, 14 skipped (Playwright, ffmpeg, disposable Postgres, live), 0
+  failed. Ruff check and format clean.
+
+Next steps:
+
+- Deploy the matcher change: push and deploy each need operator authorization.
+- Parked by the operator: research on when a reaction counts as an original; golden cases for
+  section 9 cases 4 and 5; the DeVlbTORhmq acquisition (`request_incomplete`).
+
 ## 2026-10-11 - Stage 4 deployed on `6b654027`; CI config test fix
 
 - The push of `5b67648` (the Stage 4 merge) failed "Offline quality gates" on one test: the

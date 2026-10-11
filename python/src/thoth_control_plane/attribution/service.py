@@ -51,7 +51,7 @@ T = TypeVar("T")
 
 @dataclass(frozen=True)
 class Tuning:
-    """Calibrated on the live golden captures of 2026-10-10."""
+    """Calibrated on the live golden captures of 2026-10-10 and 2026-10-11."""
 
     frame_fps: float = 1.0
     # A candidate is sampled up to here: a long upload would cost minutes of ffmpeg and ORB.
@@ -62,7 +62,9 @@ class Tuning:
     # (2026-10-10): true originals 124 to 418, unrelated videos at most 16; 40 also stays
     # above a logo or an end card the account stamps on every video.
     min_inliers: int = 40
-    min_matched_frames: int = 1
+    # At 3000 ORB features a text label can line up with another label in one frame
+    # (2026-10-11: 45 inliers, unrelated pair); every true original held at least 5 frames.
+    min_matched_frames: int = 2
     repost_threshold: float = 0.5
     handle_threshold: float = 0.5
     max_finalists: int = 3

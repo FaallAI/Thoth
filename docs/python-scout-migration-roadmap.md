@@ -448,4 +448,6 @@ repost, finds the original by ORB+RANSAC frame matching over the credited accoun
 videos. Four live golden cases and the synthetic reference replay offline. Details, rulings,
 and verification: the 2026-10-10 section of `CHANGELOG.md`.
 
-Next steps: golden cases for spec section 9 cases 2 and 5 are still open; the live smoke joins the final acceptance (ADR 0001).
+On 2026-10-11 ORB moved to 3000 features and two matched frames after a zoomed repost was
+missed (not deployed yet). Next steps: golden cases for spec section 9 cases 4 and 5 and the
+reaction-as-original research are parked by the operator; the live smoke joins the final acceptance (ADR 0001).

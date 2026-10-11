@@ -49,6 +49,16 @@ sampled is counted `frames_failed`; candidates are sampled up to `Tuning.candida
 (600 s); handles read by the cover vision call are `cover_vision` evidence; attribution is
 skipped when legacy Scout produced the report (no v3 report to attribute).
 
+Amendment (operator-confirmed miss, 2026-10-11): ORB keeps 3000 features per frame instead of
+600, and a candidate needs at least 2 repost frames at 40 inliers (`Tuning.min_matched_frames`)
+instead of 1. Instagram DeRDs6DCX07 zooms into the operator-confirmed original DeLTY7YtLl4
+under a headline band; at 600 features the crowd and stage lights took every keypoint and the
+pair scored 0 to 8 inliers. At 3000 it holds 17 frames at up to 311 inliers, and every other
+recorded original keeps at least 2 frames. The larger budget lets one text label line up with
+another in a single frame (45 inliers on an unrelated pair), which the second frame rejects.
+A frame pair costs about 9 ms instead of 0.7; a 600 s candidate stays well inside the
+activity's 15 minutes.
+
 - Roadmap: Stage 4, "Move Source Intelligence", in `docs/python-scout-migration-roadmap.md`.
 - Inputs to this design:
   - `docs/research/2026-10-08-stage4-source-intelligence-ideas.md` (flow map S1 to S8,
@@ -365,4 +375,11 @@ New fields use defaults, so later versions stay readable.
 - Cover-hash ordering of candidates (idea 1, first pass): discovery gains an optional,
   never-serialized cover reference where its listing already carries one.
 - Threads profile discovery, so a Threads credit can resolve.
+- When a reaction counts as an original (operator, 2026-10-11, needs research): a reaction
+  that raises a new viewpoint or issue and gets people talking is an original in its own
+  context; one that only discusses the post is a repost whose source must be found.
+- A credit naming several accounts searches only the one the decision picks; search the
+  others when it finds no match.
+- Golden cases still owed: section 9 case 5 (a credited account whose nearest candidate is a
+  commentary upload) and case 4 (DeRDs6DCX07 turned out to be case 2).
 - Upgrade the `agno` lock from 3.0.1 within `>=3,<4` when the plan first uses it.

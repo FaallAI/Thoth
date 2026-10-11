@@ -14,8 +14,8 @@
       "text": "Umur 61 tahun nggak menghalangi @DonnaJeanWilde buat mencetak prestasi luar biasa. Nenek asal Kanada ini sukses memecahkan rekor dunia plank kategori perempuan setelah mampu bertahan dalam posisi tersebut selama 5 jam penuh. \n\nMomen ini dibagikan langsung oleh akun @worldseniorgames saat DonnaJean mengikuti ajang Huntsman World Senior Games di Utah, Amerika Serikat, pada 6 Oktober 2026. Ia memulai plank pukul 15.03 dan baru menyelesaikannya pukul 20.03 waktu setempat.\n\nMelansir situs resmi Guinness World Records, Donna berhasil melampaui rekor sebelumnya yang ternyata udah ia pegang sendiri dengan catatan waktu 4 jam 30 menit 11 detik. Kali ini, ia berhasil melewati catatan tersebut hampir 30 menit lebih lama, meski tantangan terbesarnya justru datang di jam-jam terakhir saat ia harus tetap fokus dan menjaga posisi tubuhnya, ujarnya.\n\nDonnaJean mengaku dua jam pertama terasa berlalu dengan cepat, tetapi tantangan terberat justru datang pada jam-jam terakhir ketika ia harus tetap fokus dan menjaga posisi tubuhnya. FYI, ia juga merupakan seorang nenek dari 12 cucu yang masih aktif berolahraga dan mengikuti kompetisi.\n\nJadi, ada yang berani adu plank sama doi? 👀🤠\n\n[📹via @worldseniorgames, @donnajeanwilde] \n\n#USSFeed",
       "published_at": "2026-10-09T08:15:57Z",
       "engagement": {
-        "like": 52372,
-        "comment": 517
+        "like": 53142,
+        "comment": 523
       }
     },
     "media": [
@@ -54,7 +54,7 @@
           "status": "succeeded",
           "reason": null,
           "attempt_count": 1,
-          "elapsed_ms": 2094
+          "elapsed_ms": 2357
         }
       ]
     },
@@ -4773,57 +4773,58 @@
   },
   "matches": {
     "instagram-DeNRbC7yGGu-1": [
-      5,
-      0,
-      0,
-      0,
-      4,
-      0,
-      0,
-      4,
-      4,
-      3,
-      0,
-      4,
-      4,
-      5,
-      5,
-      0,
-      0,
       7,
-      0,
-      4
+      7,
+      7,
+      8,
+      10,
+      7,
+      6,
+      6,
+      7,
+      7,
+      7,
+      7,
+      7,
+      8,
+      8,
+      8,
+      8,
+      6,
+      8,
+      7
     ],
     "instagram-DeLTY7YtLl4-1": [
-      6,
-      6,
-      5,
-      5,
-      7,
-      5,
-      4,
-      6,
-      5,
-      7,
-      5,
-      6,
-      5,
-      7,
-      6,
-      7,
-      7,
-      6,
-      6,
-      6
+      303,
+      311,
+      304,
+      51,
+      25,
+      57,
+      53,
+      37,
+      165,
+      47,
+      117,
+      52,
+      88,
+      104,
+      34,
+      62,
+      97,
+      58,
+      70,
+      114
     ]
   },
   "unmatchable": [],
   "cover": {
     "headline": "DETIK-DETIK NENEK 61 TAHUN ASAL KANADA PECAHKAN REKOR DUNIA, PLANK SELAMA 5 JAM NON-STOP",
-    "scene": "A 61-year-old woman in a blue and yellow outfit holds a plank position on a mat in front of a crowd, with a timer counting up and a banner reading \"OFFICIAL ATTEMPT\".",
+    "scene": "A 61-year-old woman in a blue and yellow outfit holds a plank position on a mat in front of a crowd, with a timer displaying 4:59:56.",
     "icon": "Instagram logo in the top left corner",
     "handles": [
-      "@instagramworldsgames"
+      "@instagramworldsgames",
+      "USS-FEED"
     ]
   },
   "classify": {
@@ -4833,7 +4834,7 @@
   "decisions": {
     "is_repost": 0.95,
     "handle": "worldseniorgames",
-    "handle_probability": 0.95,
+    "handle_probability": 0.94,
     "platform": "instagram",
     "platform_probability": 1.0
   },
@@ -4848,8 +4849,8 @@
           "published_at": "2026-10-10T20:30:18Z",
           "duration_seconds": null,
           "engagement": {
-            "like": 17243,
-            "comment": 17
+            "like": 23903,
+            "comment": 25
           },
           "hashtags": []
         },
@@ -4861,21 +4862,8 @@
           "published_at": "2026-10-10T16:13:29Z",
           "duration_seconds": null,
           "engagement": {
-            "like": 505,
+            "like": 570,
             "comment": 4
-          },
-          "hashtags": []
-        },
-        {
-          "post_id": "4004240843000262885",
-          "owner_handle": "worldseniorgames",
-          "canonical_url": "https://www.instagram.com/p/DeR69TSJDDl/",
-          "caption": "60 years old and diving for the ball like her life depends on it 😭🏐\n\nThe flip, the recovery, the immediate return to play. These athletes are BUILT DIFFERENT 🤯\n\n#HuntsmanWorldSeniorGames #Volleyball #AgeIsJustANumber #SeniorAthletes #NeverStopPlaying",
-          "published_at": "2026-10-09T16:19:49Z",
-          "duration_seconds": null,
-          "engagement": {
-            "like": 19211,
-            "comment": 18
           },
           "hashtags": []
         },
@@ -4887,8 +4875,8 @@
           "published_at": "2026-10-07T02:38:27Z",
           "duration_seconds": null,
           "engagement": {
-            "like": 10099865,
-            "comment": 80261
+            "like": 10112212,
+            "comment": 80363
           },
           "hashtags": []
         },
@@ -4900,7 +4888,7 @@
           "published_at": "2026-10-07T20:59:28Z",
           "duration_seconds": null,
           "engagement": {
-            "like": 320025,
+            "like": 320124,
             "comment": 901
           },
           "hashtags": []
@@ -4913,8 +4901,21 @@
           "published_at": "2026-10-11T01:21:51Z",
           "duration_seconds": null,
           "engagement": {
-            "like": 56,
+            "like": 60,
             "comment": 1
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4004240843000262885",
+          "owner_handle": "worldseniorgames",
+          "canonical_url": "https://www.instagram.com/p/DeR69TSJDDl/",
+          "caption": "60 years old and diving for the ball like her life depends on it 😭🏐\n\nThe flip, the recovery, the immediate return to play. These athletes are BUILT DIFFERENT 🤯\n\n#HuntsmanWorldSeniorGames #Volleyball #AgeIsJustANumber #SeniorAthletes #NeverStopPlaying",
+          "published_at": "2026-10-09T16:19:49Z",
+          "duration_seconds": null,
+          "engagement": {
+            "like": 19329,
+            "comment": 18
           },
           "hashtags": []
         },
@@ -4926,7 +4927,7 @@
           "published_at": "2026-10-09T22:47:04Z",
           "duration_seconds": null,
           "engagement": {
-            "like": 222,
+            "like": 226,
             "comment": 0
           },
           "hashtags": []
@@ -4939,7 +4940,7 @@
           "published_at": "2026-10-09T15:49:04Z",
           "duration_seconds": null,
           "engagement": {
-            "like": 296,
+            "like": 297,
             "comment": 1
           },
           "hashtags": []
@@ -4962,7 +4963,7 @@
           "text": "Alta Pierson made her track meet debut at 100 years old💪\n\n400M with a time of 11:12:93👏\n\nAn inspiration to everyone and the embodiment of “it’s never too late!”❤️\n\n#HuntsmanWorldSeniorGames #SeniorAthletes #TrackAndField #Inspiration #NeverTooLate",
           "published_at": "2026-10-07T20:59:28Z",
           "engagement": {
-            "like": 320025,
+            "like": 320125,
             "comment": 901
           }
         },
@@ -4989,7 +4990,7 @@
               "status": "succeeded",
               "reason": null,
               "attempt_count": 1,
-              "elapsed_ms": 1154
+              "elapsed_ms": 1616
             }
           ]
         },
@@ -5013,8 +5014,8 @@
           "text": "At age 61, DonnaJean Wilde breaks the WORLD RECORD for the longest female abdominal plank with the time of 5-Hours💪💪💪\n\n#huntsmanworldseniorgames #activeaging #seniorathletes #stgeorge",
           "published_at": "2026-10-07T02:38:27Z",
           "engagement": {
-            "like": 10099894,
-            "comment": 80261
+            "like": 10112255,
+            "comment": 80364
           }
         },
         "media": [
@@ -5040,7 +5041,7 @@
               "status": "succeeded",
               "reason": null,
               "attempt_count": 1,
-              "elapsed_ms": 4870
+              "elapsed_ms": 4675
             }
           ]
         },
@@ -5052,12 +5053,12 @@
     }
   },
   "expected": {
-    "verdict": "unresolved",
-    "source_url": null
+    "verdict": "replaced",
+    "source_url": "https://www.instagram.com/p/DeLTY7YtLl4/"
   },
   "scout": {
     "main_url": null,
-    "note": "Spec section 9 case 4 (operator-supplied 2026-10-11): the caption credits @worldseniorgames, but the source is not among that profile's recent posts published before the repost, so the attribution stays unresolved."
+    "note": "Spec section 9 case 2 (operator-supplied 2026-10-11): the caption credits [📹via @worldseniorgames, @donnajeanwilde]; the operator confirmed the original is @worldseniorgames DeLTY7YtLl4, a zoomed crop under a headline band."
   },
   "departure": "scout_not_run"
 }

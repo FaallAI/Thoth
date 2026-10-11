@@ -4,6 +4,11 @@ A repost may cut, zoom, overlay, or shrink the original into a panel of a reacti
 whole-frame hash misses it. Feature matching does not care where or how large the footage sits:
 a candidate frame that a repost frame contains yields many geometrically consistent matches
 (spike on real reposts, 2026-10-10: true pairs 124 to 418 inliers, unrelated pairs at most 12).
+
+ORB keeps the strongest corners of the whole frame, and a crowd or stage lights hold most of
+them: at 600 features a repost zoomed into its subject shared none with the original
+(2026-10-11, 0 to 8 inliers). At 3000 the same pair holds 18 of 20 frames at up to 313; the
+cost is about 9 ms per frame pair instead of 0.7.
 """
 
 from __future__ import annotations
@@ -14,7 +19,7 @@ from typing import Any
 
 from thoth_control_plane.attribution.ports import Frame
 
-FEATURES = 600
+FEATURES = 3000
 RATIO = 0.75  # Lowe's ratio test
 RANSAC_PIXELS = 5.0
 MIN_MATCHES = 8

@@ -107,6 +107,9 @@ api_key.txt
 # parity gate renders. Must survive the *.mp4 / *.wav rules above.
 !packages/remotion-composition/releases/**
 
+# Committed attribution frames: real repost/original frames the ORB matcher test reads.
+!python/tests/fixtures/attribution/frames/**
+
 # ── TikTok Stage 1 soak: never commit observation data or partial writes ────
 tiktok-stage1-soak-observations*.jsonl
 tiktok-stage1-soak-report.json.part

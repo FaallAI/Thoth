@@ -14,8 +14,8 @@
       "text": "Rusa makan plastik di Jepang?",
       "published_at": "2026-10-08T06:43:37Z",
       "engagement": {
-        "like": 20071,
-        "comment": 243
+        "like": 20966,
+        "comment": 261
       }
     },
     "media": [
@@ -41,7 +41,7 @@
           "status": "succeeded",
           "reason": null,
           "attempt_count": 1,
-          "elapsed_ms": 2738
+          "elapsed_ms": 2223
         }
       ]
     },
@@ -1327,614 +1327,63 @@
         "second": 13.0,
         "boxes": []
       }
-    ],
-    "instagram-DeMK8CTJKFz-1": [
-      {
-        "second": 0.0,
-        "boxes": [
-          [
-            "居眠り議員",
-            0.1594,
-            0.2141
-          ],
-          [
-            "共産党に起こされる",
-            0.225,
-            0.2766
-          ],
-          [
-            "小松市議会",
-            0.3484,
-            0.375
-          ],
-          [
-            "第4口定列",
-            0.3688,
-            0.3953
-          ]
-        ]
-      },
-      {
-        "second": 1.0,
-        "boxes": [
-          [
-            "居眠り議員",
-            0.1594,
-            0.2141
-          ],
-          [
-            "共産党に起こされる",
-            0.2219,
-            0.2781
-          ],
-          [
-            "小松市議会",
-            0.3484,
-            0.375
-          ],
-          [
-            "第4回定例",
-            0.3688,
-            0.3937
-          ]
-        ]
-      },
-      {
-        "second": 2.0,
-        "boxes": [
-          [
-            "居眠り議員",
-            0.1594,
-            0.2141
-          ],
-          [
-            "共産党に起こされる",
-            0.2219,
-            0.2781
-          ],
-          [
-            "小松市議会",
-            0.3469,
-            0.3766
-          ],
-          [
-            "第4口定例",
-            0.3688,
-            0.3953
-          ]
-        ]
-      },
-      {
-        "second": 3.0,
-        "boxes": [
-          [
-            "居眠り議員",
-            0.1594,
-            0.2141
-          ],
-          [
-            "共産党に起こされる",
-            0.2219,
-            0.2781
-          ],
-          [
-            "小松市議会",
-            0.3469,
-            0.375
-          ],
-          [
-            "第4日定例会",
-            0.3688,
-            0.3969
-          ]
-        ]
-      },
-      {
-        "second": 4.0,
-        "boxes": [
-          [
-            "居眠り議員",
-            0.1594,
-            0.2141
-          ],
-          [
-            "共産党に起こされる",
-            0.225,
-            0.2766
-          ],
-          [
-            "小松市議会",
-            0.3469,
-            0.375
-          ],
-          [
-            "第4日定例会",
-            0.3688,
-            0.3969
-          ]
-        ]
-      },
-      {
-        "second": 5.0,
-        "boxes": [
-          [
-            "居眠り議員",
-            0.1594,
-            0.2141
-          ],
-          [
-            "共産党に起こされる",
-            0.2219,
-            0.2781
-          ],
-          [
-            "小松市議会",
-            0.3469,
-            0.3766
-          ],
-          [
-            "第4回定例会",
-            0.3688,
-            0.3969
-          ]
-        ]
-      },
-      {
-        "second": 6.0,
-        "boxes": [
-          [
-            "居眠り議員",
-            0.1594,
-            0.2141
-          ],
-          [
-            "共産党に起こされる",
-            0.2219,
-            0.2781
-          ],
-          [
-            "小松市議会",
-            0.3469,
-            0.3766
-          ],
-          [
-            "第4回定例会",
-            0.3672,
-            0.3969
-          ]
-        ]
-      },
-      {
-        "second": 7.0,
-        "boxes": [
-          [
-            "居眠り議員",
-            0.1594,
-            0.2141
-          ],
-          [
-            "共産党に起こされる",
-            0.2219,
-            0.2781
-          ],
-          [
-            "小松市議会",
-            0.3469,
-            0.3766
-          ],
-          [
-            "第4回定例会",
-            0.3672,
-            0.3969
-          ]
-        ]
-      },
-      {
-        "second": 8.0,
-        "boxes": [
-          [
-            "居眠り議員",
-            0.1594,
-            0.2141
-          ],
-          [
-            "共産党に起こされる",
-            0.2219,
-            0.2781
-          ],
-          [
-            "小松市議会",
-            0.3469,
-            0.375
-          ],
-          [
-            "第4回定例会",
-            0.3703,
-            0.3953
-          ]
-        ]
-      },
-      {
-        "second": 9.0,
-        "boxes": [
-          [
-            "居眠り議員",
-            0.1594,
-            0.2141
-          ],
-          [
-            "共産党に起こされる",
-            0.2219,
-            0.2781
-          ],
-          [
-            "小松市議会",
-            0.3469,
-            0.3766
-          ],
-          [
-            "第4日定例会",
-            0.3688,
-            0.3969
-          ]
-        ]
-      },
-      {
-        "second": 10.0,
-        "boxes": [
-          [
-            "居眠り議員",
-            0.1594,
-            0.2141
-          ],
-          [
-            "共産党に起こされる",
-            0.2219,
-            0.2781
-          ],
-          [
-            "小松市議会",
-            0.3469,
-            0.3766
-          ],
-          [
-            "第4日定例会",
-            0.3688,
-            0.3953
-          ]
-        ]
-      },
-      {
-        "second": 11.0,
-        "boxes": [
-          [
-            "居眠り議員",
-            0.1594,
-            0.2141
-          ],
-          [
-            "共産党に起こされる",
-            0.2219,
-            0.2781
-          ],
-          [
-            "小松市議会",
-            0.3469,
-            0.3766
-          ],
-          [
-            "第4百定例",
-            0.3688,
-            0.3953
-          ]
-        ]
-      },
-      {
-        "second": 12.0,
-        "boxes": [
-          [
-            "居眠り議員",
-            0.1594,
-            0.2141
-          ],
-          [
-            "共産党に起こされる",
-            0.2234,
-            0.275
-          ],
-          [
-            "小松市議会",
-            0.3469,
-            0.3766
-          ],
-          [
-            "第4回定例会",
-            0.3688,
-            0.3969
-          ],
-          [
-            "議長",
-            0.6031,
-            0.6266
-          ],
-          [
-            "南藤陽一",
-            0.6203,
-            0.6484
-          ]
-        ]
-      },
-      {
-        "second": 13.0,
-        "boxes": [
-          [
-            "居眠り議員",
-            0.1594,
-            0.2141
-          ],
-          [
-            "共産党に起こされる",
-            0.2234,
-            0.275
-          ],
-          [
-            "小松市議会",
-            0.3469,
-            0.3766
-          ],
-          [
-            "第4回定例会",
-            0.3688,
-            0.3969
-          ],
-          [
-            "議長",
-            0.6031,
-            0.6266
-          ],
-          [
-            "南藤陽一",
-            0.6203,
-            0.6484
-          ]
-        ]
-      }
-    ],
-    "instagram-DeG-QvNyYwI-1": [
-      {
-        "second": 0.0,
-        "boxes": [
-          [
-            "子",
-            0.2391,
-            0.3391
-          ]
-        ]
-      },
-      {
-        "second": 1.0,
-        "boxes": [
-          [
-            "子",
-            0.2516,
-            0.3375
-          ],
-          [
-            "ShOt",
-            0.9391,
-            0.9891
-          ]
-        ]
-      },
-      {
-        "second": 2.0,
-        "boxes": [
-          [
-            "ShOt",
-            0.9437,
-            0.9891
-          ]
-        ]
-      },
-      {
-        "second": 3.0,
-        "boxes": [
-          [
-            "文开",
-            0.2219,
-            0.3234
-          ]
-        ]
-      },
-      {
-        "second": 4.0,
-        "boxes": [
-          [
-            "Inshoa",
-            0.9391,
-            0.9922
-          ]
-        ]
-      },
-      {
-        "second": 5.0,
-        "boxes": [
-          [
-            "云寺",
-            0.2141,
-            0.2953
-          ],
-          [
-            "InshOt",
-            0.9359,
-            0.9938
-          ]
-        ]
-      },
-      {
-        "second": 6.0,
-        "boxes": [
-          [
-            "工",
-            0.1656,
-            0.2562
-          ],
-          [
-            "inshOt",
-            0.9266,
-            0.9984
-          ]
-        ]
-      },
-      {
-        "second": 7.0,
-        "boxes": [
-          [
-            "诚",
-            0.1109,
-            0.2906
-          ],
-          [
-            "工卖",
-            0.1484,
-            0.2406
-          ],
-          [
-            "InShOt",
-            0.9266,
-            0.9938
-          ]
-        ]
-      }
     ]
   },
   "matches": {
     "instagram-DeMU05JpXCY-1": [
-      124,
-      24,
-      0,
-      8,
-      8,
+      938,
+      85,
+      6,
+      9,
+      11,
+      11,
+      6,
       7,
-      5,
+      11,
       7,
-      5,
-      6,
-      0,
-      6,
-      0,
-      0,
-      0,
-      0,
-      5,
-      5,
-      0,
-      7,
-      0,
-      0,
-      0,
-      4,
-      6,
-      6,
-      0,
-      4,
-      6,
-      0,
       8,
       7,
-      5
-    ],
-    "instagram-DeMK8CTJKFz-1": [
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0
-    ],
-    "instagram-DeG-QvNyYwI-1": [
-      2,
-      0,
       5,
-      0,
-      5,
-      0,
       6,
-      4,
-      0,
-      4,
-      4,
-      0,
-      0,
-      0,
-      0,
-      0,
-      5,
-      4,
       6,
-      0,
-      0,
-      0,
-      0,
-      6,
-      0,
       5,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      5
+      6,
+      6,
+      10,
+      10,
+      7,
+      6,
+      8,
+      7,
+      7,
+      7,
+      6,
+      6,
+      7,
+      7,
+      7,
+      6,
+      7
     ]
   },
   "unmatchable": [],
   "cover": {
     "headline": "",
-    "scene": "A woman in a hijab and a man are feeding deer in a crowded area with traditional buildings in the background.",
-    "icon": "Instagram logo in the bottom right corner",
+    "scene": "A man and a woman are interacting with deer in an outdoor area with traditional Japanese-style buildings in the background, while other people walk around.",
+    "icon": "",
     "handles": [
       "@hezumaryuaaa"
     ]
   },
   "classify": {
-    "instagram-DeMU05JpXCY-1": "footage",
-    "instagram-DeMK8CTJKFz-1": "commentary",
-    "instagram-DeG-QvNyYwI-1": "footage"
+    "instagram-DeMU05JpXCY-1": "footage"
   },
   "decisions": {
-    "is_repost": 0.89,
+    "is_repost": 0.85,
     "handle": "hezumaryuaaa",
-    "handle_probability": 1.0,
+    "handle_probability": 0.99,
     "platform": "instagram",
-    "platform_probability": 1.0
+    "platform_probability": 0.5700000000000001
   },
   "discovery": {
     "by_handle": {
@@ -1947,8 +1396,21 @@
           "published_at": "2026-10-07T12:10:20Z",
           "duration_seconds": null,
           "engagement": {
-            "like": 246645,
-            "comment": 14453
+            "like": 279753,
+            "comment": 15070
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4004799968312918841",
+          "owner_handle": "hezumaryuaaa",
+          "canonical_url": "https://www.instagram.com/p/DeT6FpTyYM5/",
+          "caption": "川越の違法モスクについて。\nこれが現地の声だ。",
+          "published_at": "2026-10-10T10:50:16Z",
+          "duration_seconds": null,
+          "engagement": {
+            "like": 5214,
+            "comment": 174
           },
           "hashtags": []
         },
@@ -1960,34 +1422,8 @@
           "published_at": "2026-09-12T03:41:54Z",
           "duration_seconds": null,
           "engagement": {
-            "like": 184503,
-            "comment": 6164
-          },
-          "hashtags": []
-        },
-        {
-          "post_id": "4002622274927894899",
-          "owner_handle": "hezumaryuaaa",
-          "canonical_url": "https://www.instagram.com/p/DeMK8CTJKFz/",
-          "caption": "【拡散希望】\n話題の小松市議会の居眠り議員を発見！\n画面右側を見て下さい。\n共産党に起こされて情けない。",
-          "published_at": "2026-10-07T10:43:31Z",
-          "duration_seconds": null,
-          "engagement": {
-            "like": 5604,
-            "comment": 222
-          },
-          "hashtags": []
-        },
-        {
-          "post_id": "4001159148057758728",
-          "owner_handle": "hezumaryuaaa",
-          "canonical_url": "https://www.instagram.com/p/DeG-QvNyYwI/",
-          "caption": "本日、中国人が鹿さんを蹴っていると動画が送られてきました。(10月5日)",
-          "published_at": "2026-10-05T10:17:18Z",
-          "duration_seconds": null,
-          "engagement": {
-            "like": 6520,
-            "comment": 417
+            "like": 186137,
+            "comment": 6188
           },
           "hashtags": []
         }
@@ -2009,8 +1445,8 @@
           "text": "これは酷すぎる。\nヒジャヴの仲間がわざと鹿さんにゴミを食べさせた。\nすぐに謝罪するもカメラを止めた瞬間に逆ギレとか日本から出て行け。\nフォロー拡散で応援よろしくお願いします。",
           "published_at": "2026-10-07T12:10:20Z",
           "engagement": {
-            "like": 246646,
-            "comment": 14454
+            "like": 279753,
+            "comment": 15070
           }
         },
         "media": [
@@ -2036,7 +1472,7 @@
               "status": "succeeded",
               "reason": null,
               "attempt_count": 1,
-              "elapsed_ms": 1760
+              "elapsed_ms": 2028
             }
           ]
         },
@@ -2045,108 +1481,6 @@
         "profile_card": null
       },
       "frames": "instagram-DeMU05JpXCY-1"
-    },
-    "https://www.instagram.com/p/DeMK8CTJKFz/": {
-      "report": {
-        "schema_version": 3,
-        "workflow_id": "wf_golden-c2",
-        "source": {
-          "platform": "instagram",
-          "canonical_url": "https://www.instagram.com/p/DeMK8CTJKFz/"
-        },
-        "post": {
-          "post_id": "DeMK8CTJKFz",
-          "owner_handle": "hezumaryuaaa",
-          "text": "【拡散希望】\n話題の小松市議会の居眠り議員を発見！\n画面右側を見て下さい。\n共産党に起こされて情けない。",
-          "published_at": "2026-10-07T10:43:31Z",
-          "engagement": {
-            "like": 5604,
-            "comment": 222
-          }
-        },
-        "media": [
-          {
-            "media_id": "media_1",
-            "kind": "video",
-            "index": 1,
-            "location": "reports/wf_golden-c2/media/instagram-DeMK8CTJKFz-1.mp4",
-            "media_type": "video/mp4",
-            "bytes": 716618,
-            "checksum": "sha256:0cc3932c564bf33ff07683ca408507edbefeb324fac59bf643f1eb46b0cfc2bb",
-            "acquisition_strategy": "scrapling_request",
-            "width": null,
-            "height": null,
-            "duration_seconds": null
-          }
-        ],
-        "outcome": {
-          "status": "resolved",
-          "attempts": [
-            {
-              "strategy": "scrapling_request",
-              "status": "succeeded",
-              "reason": null,
-              "attempt_count": 1,
-              "elapsed_ms": 1190
-            }
-          ]
-        },
-        "comments": [],
-        "post_card": null,
-        "profile_card": null
-      },
-      "frames": "instagram-DeMK8CTJKFz-1"
-    },
-    "https://www.instagram.com/p/DeG-QvNyYwI/": {
-      "report": {
-        "schema_version": 3,
-        "workflow_id": "wf_golden-c3",
-        "source": {
-          "platform": "instagram",
-          "canonical_url": "https://www.instagram.com/p/DeG-QvNyYwI/"
-        },
-        "post": {
-          "post_id": "DeG-QvNyYwI",
-          "owner_handle": "hezumaryuaaa",
-          "text": "本日、中国人が鹿さんを蹴っていると動画が送られてきました。(10月5日)",
-          "published_at": "2026-10-05T10:17:18Z",
-          "engagement": {
-            "like": 6520,
-            "comment": 417
-          }
-        },
-        "media": [
-          {
-            "media_id": "media_1",
-            "kind": "video",
-            "index": 1,
-            "location": "reports/wf_golden-c3/media/instagram-DeG-QvNyYwI-1.mp4",
-            "media_type": "video/mp4",
-            "bytes": 4369485,
-            "checksum": "sha256:3185c1c54b90b406a7700a132eaa277e2ef21dcfe025a30c2b87598284c04f7a",
-            "acquisition_strategy": "scrapling_request",
-            "width": null,
-            "height": null,
-            "duration_seconds": null
-          }
-        ],
-        "outcome": {
-          "status": "resolved",
-          "attempts": [
-            {
-              "strategy": "scrapling_request",
-              "status": "succeeded",
-              "reason": null,
-              "attempt_count": 1,
-              "elapsed_ms": 1710
-            }
-          ]
-        },
-        "comments": [],
-        "post_card": null,
-        "profile_card": null
-      },
-      "frames": "instagram-DeG-QvNyYwI-1"
     }
   },
   "expected": {
