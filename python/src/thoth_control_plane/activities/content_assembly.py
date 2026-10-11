@@ -36,13 +36,18 @@ logger = logging.getLogger(__name__)
 HEARTBEAT_SECONDS = 30.0
 CONTENT_SET_FILE = "content-set.json"
 REPORT_FILE = "source-report.json"
-ATTRIBUTION_FILE = "source-attribution.json"
 ORIGINAL_LOCATION = re.compile(r"^reports/[A-Za-z][A-Za-z0-9_-]{0,127}/source-report\.json$")
+ATTRIBUTION_LOCATION = re.compile(
+    r"^reports/[A-Za-z][A-Za-z0-9_-]{0,127}/source-attribution\.json$"
+)
 ReasonCode = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")]
 
 
 class ContentAssemblyActivityInput(StrictModel):
     workflow_id: OpaqueId
+    # What attribute_source reported to the workflow. A file left on disk by a crashed attempt
+    # is never read: assembly follows the verdict the workflow received (review, 2026-10-12).
+    attribution: str | None = None
     # Where attribute_source wrote the original's report; set only when it found one.
     original_report: str | None = None
 
@@ -82,9 +87,11 @@ def _original(root: Path, location: str | None) -> SourceReport | None:
         return None
 
 
-def _attribution(path: Path) -> SourceAttribution | None:
+def _attribution(root: Path, location: str | None) -> SourceAttribution | None:
+    if location is None or not ATTRIBUTION_LOCATION.fullmatch(location):
+        return None
     try:
-        return SourceAttribution.model_validate_json(path.read_bytes())
+        return SourceAttribution.model_validate_json((root / location).read_bytes())
     except (OSError, ValueError):
         return None
 
@@ -130,7 +137,7 @@ async def _run(
     inputs = AssemblyInputs(
         workflow_id=input_.workflow_id,
         report=report,
-        attribution=_attribution(artifact_root / folder / ATTRIBUTION_FILE),
+        attribution=_attribution(artifact_root, input_.attribution),
         original=_original(artifact_root, input_.original_report),
         artifact_root=artifact_root,
     )

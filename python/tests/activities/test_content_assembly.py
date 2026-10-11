@@ -126,7 +126,12 @@ def test_replaced_reads_the_original_report_it_is_given(tmp_path: Path) -> None:
     )
     assembler = FakeAssembler()
 
-    run(tmp_path, assembler, original_report="reports/wf_a-c1/source-report.json")
+    run(
+        tmp_path,
+        assembler,
+        attribution="reports/wf_a/source-attribution.json",
+        original_report="reports/wf_a-c1/source-report.json",
+    )
 
     assert assembler.inputs[0].original is not None
     assert assembler.inputs[0].original.post.owner_handle == "source"
@@ -159,3 +164,66 @@ def test_results_carry_no_text(tmp_path: Path) -> None:
     result = run(tmp_path, FakeAssembler())
 
     assert "rahasia" not in result.model_dump_json()
+
+
+def test_a_stale_attribution_on_disk_is_not_read(tmp_path: Path) -> None:
+    # Review 2026-10-12: a crashed first attempt can leave `replaced` on disk while the
+    # workflow received `unresolved`; assembly must follow what the workflow received.
+    persist(tmp_path)
+    (tmp_path / "reports" / "wf_a" / "source-attribution.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "workflow_id": "wf_a",
+                "input": {
+                    "platform": "tiktok",
+                    "canonical_url": "https://www.tiktok.com/@creator/video/1234567890",
+                    "owner_handle": "creator",
+                },
+                "verdict": "replaced",
+                "source": {
+                    "platform": "tiktok",
+                    "canonical_url": "https://www.tiktok.com/@source/video/1",
+                    "owner_handle": "source",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    assembler = FakeAssembler()
+
+    run(tmp_path, assembler)
+
+    assert assembler.inputs[0].attribution is None
+
+
+def test_a_retry_with_the_real_assembler_never_duplicates_comments(tmp_path: Path) -> None:
+    # Review 2026-10-12: the FakeAssembler returns a fixed set, so it cannot catch an append.
+    from thoth_control_plane.assembly.service import AssemblyPorts, ContentAssembler
+
+    class Unused:
+        async def frame_at(self, *args, **kwargs):  # pragma: no cover - a card main has no OCR
+            raise AssertionError("no frames for a card main")
+
+        async def duration(self, *args, **kwargs):  # pragma: no cover
+            raise AssertionError("no probe for a card main")
+
+        async def read(self, *args, **kwargs):  # pragma: no cover
+            raise AssertionError("no OCR for a card main")
+
+    persist(
+        tmp_path,
+        media="none",
+        post_card=True,
+        comments=[comment("a", "satu", 3), comment("b", "dua", 2)],
+    )
+    real = ContentAssembler(AssemblyPorts(frames=Unused(), probe=Unused(), text=Unused()))
+
+    first = run(tmp_path, real)
+    second = run(tmp_path, real)
+
+    stored = ContentSet.model_validate_json(
+        (tmp_path / "reports" / "wf_a" / "content-set.json").read_bytes()
+    )
+    assert [c.text for c in stored.comments] == ["satu", "dua"]
+    assert first.content_set == second.content_set

@@ -1769,6 +1769,7 @@ async def test_assembly_appends_the_content_set_after_attribution(
         "content_set",
     ]
     assert ASSEMBLY_INPUTS[-1].original_report == "reports/wf_test_assembly-c1/source-report.json"
+    assert ASSEMBLY_INPUTS[-1].attribution == "reports/wf_test_assembly/source-attribution.json"
 
 
 @pytest.mark.asyncio
@@ -1789,6 +1790,7 @@ async def test_assembly_runs_without_attribution(workflow_env: WorkflowEnvironme
 
     assert [a.kind for a in result.artifacts] == ["source_report", "content_set"]
     assert ASSEMBLY_INPUTS[-1].original_report is None
+    assert ASSEMBLY_INPUTS[-1].attribution is None
 
 
 @pytest.mark.asyncio

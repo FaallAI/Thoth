@@ -79,6 +79,7 @@ class SourceInvestigationWorkflow:
         self._approval_decision: str | None = None
         self._cancel_requested = False
         self._report_from_legacy = False
+        self._attribution_location: str | None = None
         self._original_report: str | None = None
         self._failure: WorkflowFailure | None = None
         self._source_events: list[LegacyScoutProgressEvent] = []
@@ -346,6 +347,8 @@ class SourceInvestigationWorkflow:
                 self._artifacts.append(artifact)
                 self._record_event(EventKind.ARTIFACT_CREATED, artifact=artifact)
                 self._event_sequence += 1
+        if result.attribution is not None:
+            self._attribution_location = result.attribution.location
         if result.original_report is not None:
             self._original_report = result.original_report.location
         self._updated_at = workflow.now()
@@ -362,7 +365,9 @@ class SourceInvestigationWorkflow:
             workflow.execute_activity(
                 assemble_content,
                 ContentAssemblyActivityInput(
-                    workflow_id=self._workflow_id, original_report=self._original_report
+                    workflow_id=self._workflow_id,
+                    attribution=self._attribution_location,
+                    original_report=self._original_report,
                 ),
                 start_to_close_timeout=timedelta(minutes=10),
                 heartbeat_timeout=timedelta(minutes=2),
