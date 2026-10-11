@@ -24,7 +24,7 @@ STABLE_SMALL_AREA = 0.02
 EDITORIAL_LABEL = re.compile(
     r"^(breaking news|live(?: news)?|exclusive|news(?: update)?|sports|weather|headlines?)$"
 )
-Outcome = Literal["clean", "cover", "subtitle"]
+Outcome = Literal["clean", "cover", "subtitle", "overlay"]  # overlay: refine.py only
 
 
 @dataclass(frozen=True)
