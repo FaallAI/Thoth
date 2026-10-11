@@ -3931,3 +3931,68 @@ git commit -m "docs: record Stage 5a content assembly"
 Report to the operator in Indonesian: what was built, evidence, departures, and a **Next steps**
 section (Stage 5b; push, merge, and deploy as separate gates; deploy also means setting
 `THOTH_CONTENT_ASSEMBLY_ENABLED=true`; the parked items from memory).
+
+
+---
+
+## Addendum (2026-10-12): post-classification corrections
+
+Spec amendment of 2026-10-12. The operator chose: region-diff trim refinement, trim only for a
+main that may be a repost, persistent overlays blurred without mute, scene text guarded by rules
+plus one vision confirmation. `classify_ocr_frames` and its parity fixture do not change.
+Task 10's capture resumes after Task 16 with the new fields; verdicts are confirmed then.
+
+### Task 12: Schema, reason code, and worker check
+
+- `MainOcr.outcome` gains `"overlay"`: `mute_audio` false, at least one blur region, any trim.
+- `MainOcr.trim_refined: bool = False`.
+- `ASSEMBLY_REASONS` gains `opencv_missing`; `check_media_tools` refuses to start without
+  `cv2` when assembly is on.
+- Tests: an overlay verdict is valid; overlay with mute or without blur is rejected; the worker
+  check names `opencv_missing`.
+
+### Task 13: `assembly/refine.py`, pure corrections
+
+- `region_boxes(frames, region) -> list[tuple[OcrFrame, list[OcrBox]]]`: frames inside the
+  window, boxes inside the region (tolerance 0.01).
+- `sort_windows(frames, verdict) -> Windows(captions, overlays, dropped)`: edge-cut share at
+  least a third → dropped; text constant across the window (joined, normalized, similarity at
+  least 0.6 to the first frame) → overlay if the window covers at least 80% of the usable
+  frames, else dropped; otherwise caption.
+- `without_trim(verdict)`, `retrim(verdict, trim)`: move `trim_start`; a window that began at
+  the old trim begins at the new one; `cover` without trim becomes `clean`.
+- `settle(verdict, windows, confirmed) -> Verdict`: captions kept only if `confirmed` is not
+  False; outcome `subtitle` if captions remain (mute, blur captions and overlays), `overlay` if
+  only overlays, `cover` if trim, else `clean`.
+- Tests: synthetic frames for each rule, plus the captured shapes (deRDs6DCX07 band → overlay;
+  kabinetketiduran LED → dropped; detikjatim captions → caption).
+
+### Task 14: Adapters
+
+- `assembly/adapters/region.py` `FfmpegRegionTracker(ffmpeg).first_absent(video, region,
+  start, end) -> float | None`: one ffmpeg process decodes `[start, end]` at 10 fps, scaled to
+  720 px, cropped to the region, grey; Canny edges; first frame whose correlation with the first
+  frame is below 0.5. `ToolMissing("opencv_missing")` without `cv2`.
+- `assembly/adapters/captions.py` `AgnoCaptionJudge(key, model).speech_captions(frames) ->
+  bool | None` (structured `{"speech_captions": bool}`, None on any failure).
+- Ports `RegionTracker`, `CaptionJudge` in `assembly/ports.py`.
+- Tests: ffmpeg test clip with a drawn box that vanishes at a known second (no skip without
+  ffmpeg); respx-mocked judge yes, no, and 500.
+
+### Task 15: Wiring
+
+- `analyze_main_ocr(..., trim_allowed: bool, tracker: RegionTracker | None, judge:
+  CaptionJudge | None)`: classify, then `without_trim` or refine with the tracker, then
+  `sort_windows`, the judge on up to three caption frames (kept JPEGs), `settle`.
+- `ContentAssembler` passes `trim_allowed = source == "input" and verdict in {"unresolved",
+  "none"}` and the two new ports; production wires them.
+- Tests: trim not allowed for verdict original; refinement moves the trim; judge "no" drops
+  captions; judge unavailable keeps them.
+
+### Task 16: Calibration replay with the new fields
+
+- `capture_ocr.py` records `refined_trim` (the tracker's answer) and `vision` (the judge's) and
+  the settled verdict; `test_ocr_golden.py` replays frames through the classifier and
+  `refine.py` with recorded tracker and judge answers.
+- Recapture the seven cases, show the operator each settled verdict, write `expected` after
+  confirmation.
