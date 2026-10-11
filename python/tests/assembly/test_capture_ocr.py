@@ -44,3 +44,39 @@ def test_capture_recovers_frames_and_keeps_exact_geometry() -> None:
     ]
     assert case["duration"] == 39.077
     assert case["captured"]["outcome"] == case["ocr"].outcome
+
+
+class Tracker:
+    async def first_absent(self, video, region, start, end):  # type: ignore[no-untyped-def]
+        return 9.6
+
+
+class Judge:
+    async def speech_captions(self, frames):  # type: ignore[no-untyped-def]
+        return False
+
+
+def test_capture_records_the_tracker_and_judge_answers() -> None:
+    class Headline(Text):
+        async def read(self, frame: Frame) -> list[TextBox]:
+            if frame.second <= 5:
+                return [TextBox("HEADLINE BESAR", 0.2, 0.26, 0.09, 0.91)]
+            return [TextBox(f"kalimat {frame.second}", 0.7, 0.75, 0.2, 0.8)]
+
+    case = asyncio.run(
+        record_ocr(
+            Path("v.mp4"),
+            39.077,
+            frames=Frames(),
+            probe=Probe(),
+            text=Headline(),
+            max_frames=12,
+            trim_allowed=True,
+            tracker=Tracker(),
+            judge=Judge(),
+        )
+    )
+
+    assert (case["trim_allowed"], case["tracker"], case["vision"]) == (True, 9.6, False)
+    assert case["captured"]["outcome"] == "cover"
+    assert case["captured"]["trim_start"] == 9.6 and case["captured"]["trim_refined"] is True

@@ -1,4 +1,8 @@
-"""Live RapidOCR boxes of real videos replay through the classifier to the confirmed verdict."""
+"""Live calibration cases replay offline through the production OCR path to their verdicts.
+
+Each fixture holds the RapidOCR boxes production read, the region tracker's and the caption
+judge's answers, and the verdict the operator confirmed against the video (`expected`).
+"""
 
 from __future__ import annotations
 
@@ -8,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from thoth_control_plane.assembly.subtitles import OcrBox, OcrFrame, classify_ocr_frames
+from tests.assembly.ocr_replay import replay
 
 CASES = sorted((Path(__file__).parents[1] / "fixtures" / "assembly" / "ocr").glob("*.json"))
 
@@ -21,14 +25,10 @@ def _case(path: Path) -> dict[str, Any]:
 def test_golden_ocr_verdict(path: Path) -> None:
     case = _case(path)
     assert case["expected"] is not None, "the operator has not confirmed this verdict yet"
-    frames = [
-        OcrFrame(frame["t"], tuple(OcrBox(*box) for box in frame["boxes"]))
-        for frame in case["frames"]
-    ]
 
-    verdict = classify_ocr_frames(frames, case["duration"])
+    ocr = replay(case)
 
     expected = case["expected"]
-    assert verdict.outcome == expected["outcome"]
-    assert verdict.trim_start == pytest.approx(expected["trim_start"], abs=0.01)
-    assert len(verdict.subtitle_blur) == expected["blur_count"]
+    assert ocr.outcome == expected["outcome"]
+    assert ocr.trim_start == pytest.approx(expected["trim_start"], abs=0.01)
+    assert len(ocr.subtitle_blur) == expected["blur_count"]
