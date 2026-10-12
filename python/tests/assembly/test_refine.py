@@ -166,3 +166,21 @@ def test_headline_span_ignores_boxes_that_were_not_part_of_the_headline() -> Non
 
     assert span is not None
     assert (span[0].y0, span[0].y1) == (0.19, 0.26)
+
+
+def test_a_band_after_the_trim_is_an_overlay() -> None:
+    # Review 2026-10-13: coverage counted the trimmed intro, so no trimmed repost had an overlay.
+    after = Region(0.03, 0.58, 0.93, 0.15, 7.85, 39.1)
+
+    windows = sort_windows(frames(*[BAND] * 12), verdict(after, trim=7.85))
+
+    assert windows.overlays == (after,)
+
+
+def test_without_trim_starts_the_windows_at_zero() -> None:
+    # Review 2026-10-13: the trim went to 0 but the captions of the kept intro stayed unblurred.
+    caption = Region(0.2, 0.7, 0.6, 0.1, 10.44, 70.38)
+
+    kept = without_trim(verdict(caption, trim=10.44))
+
+    assert kept.subtitle_blur == (Region(0.2, 0.7, 0.6, 0.1, 0.0, 70.38),)

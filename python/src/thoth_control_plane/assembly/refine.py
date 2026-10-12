@@ -71,7 +71,8 @@ def _joined(boxes: list[OcrBox]) -> str:
 
 
 def sort_windows(frames: Sequence[OcrFrame], verdict: Verdict) -> Windows:
-    usable = sum(1 for frame in frames if not frame.error) or 1
+    # Coverage counts only the rendered samples: the trimmed intro is never shown.
+    usable = sum(1 for f in frames if not f.error and f.t >= verdict.trim_start - SLACK) or 1
     captions, overlays, dropped = [], [], []
     for region in verdict.subtitle_blur:
         rows = [(frame, boxes) for frame, boxes in region_boxes(frames, region) if boxes]
@@ -138,9 +139,9 @@ def headline_span(
 
 
 def without_trim(verdict: Verdict) -> Verdict:
-    """An original keeps its intro: no trim, and a cover verdict becomes clean."""
+    """An original keeps its intro: no trim, windows begin at 0, a cover verdict becomes clean."""
     outcome = "clean" if verdict.outcome == "cover" else verdict.outcome
-    return replace(verdict, outcome=outcome, trim_start=0.0)
+    return replace(retrim(verdict, 0.0), outcome=outcome)
 
 
 def retrim(verdict: Verdict, trim: float) -> Verdict:
