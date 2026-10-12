@@ -2,6 +2,50 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-13 - Stage 5a: OCR corrections, calibration goldens, reaction research
+
+Branch `feat/stage5a-content-assembly` (not pushed). Spec amendment of 2026-10-12, plan
+addendum Tasks 12-16, research `docs/research/2026-10-12-stage5a-ocr-trim-research.md`.
+
+- Corrections after Scout's verdict (the classifier port is unchanged), each the operator's
+  choice of 2026-10-12:
+  - the intro trim is measured: the gap around the headline is decoded at 10 fps and the
+    headline region compared by edge correlation (OpenCV), instead of the midpoint of two
+    samples; it agrees with OCR bisection within 0.1 s;
+  - the trim applies only to a main that may be a repost (`source == "input"`, verdict
+    `unresolved` or `none`); an original keeps its intro;
+  - a band constant in at least 80% of the rendered samples is outcome `overlay`: blurred,
+    audio kept;
+  - scene text (edge-cut boxes, constant text over part of the video) is dropped, and the
+    remaining captions are confirmed by one vision call before the audio is muted.
+- OpenCV is required with assembly on: the worker refuses to start without it and the activity
+  reports `opencv_missing`.
+- Seven calibration cases, captured live with operator authorization, were confirmed by the
+  operator on 2026-10-13 and locked as goldens in `python/tests/fixtures/assembly/ocr/`:
+  two TikTok news reposts (`subtitle`, trims 9.5 s and 6.5 s), two originals (`clean`), an
+  Instagram repost with a persistent band (`overlay`), and two commentary posts (`cover`,
+  trims 9.9 s and 8.8 s). Instagram has no scrub timeline, so the operator checked the trim
+  seconds on TikTok only.
+- Fresh review of the addendum: no Critical; two Important fixed (`81926ed`): overlay coverage
+  now counts only the rendered samples, and an original's caption windows start at 0 when its
+  trim is removed. Three minors deferred (ledger).
+- Research `docs/research/2026-10-13-reaction-as-original-research.md`: platform originality
+  policies and fair-use case law agree with the operator's first criterion (a reaction must
+  add its own purpose); a reaction to a text or image post has no video to find; a speech
+  transcript is the decisive missing signal. Five questions await the operator.
+- Python suite: 3460 passed, 12 skipped, 0 failed. Ruff check and format clean.
+
+Next steps:
+
+- Operator gates, each with its own authorization: push, merge, and deploy (deploy also sets
+  `THOTH_CONTENT_ASSEMBLY_ENABLED=true`).
+- Operator answers to the reaction research (option, text-post rule, discussion signal, kept
+  opening, golden URLs), then its spec.
+- Stage 5b: footage. Later: forced main, Content Set page and Studio import on this artifact,
+  an OCR verdict cache.
+- Still parked: Stage 4 golden cases 4 and 5, DeVlbTORhmq, and the backlog (interactive login,
+  login-only capabilities, vault key rotation, Creator Studio backlog).
+
 ## 2026-10-12 - Stage 4 ORB fix deployed on `7dbab996`
 
 - Deployed with operator authorization: commit `f9d4bb2` (3000 ORB features, two matched

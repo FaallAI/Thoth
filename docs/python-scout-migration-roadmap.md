@@ -459,5 +459,6 @@ figures), 5b adds footage, and forced main comes later. Stage 5a is implemented 
 `feat/stage5a-content-assembly`: `ContentAssembler` writes a typed, checksummed
 `content-set.json` artifact after attribution, behind `THOTH_CONTENT_ASSEMBLY_ENABLED`. Scout's
 subtitle classifier is ported with a parity fixture generated from Scout itself; OCR boxes come
-from local RapidOCR. Details: the 2026-10-12 section of `CHANGELOG.md`. Next: the RapidOCR
-calibration capture, push and deploy (operator gates), then Stage 5b.
+from local RapidOCR. Details: the 2026-10-12 section of `CHANGELOG.md`. Since then (2026-10-13): the OCR corrections of the spec
+amendment landed, seven calibration cases are operator-confirmed goldens, and the addendum
+passed a fresh review. Next: push, merge, and deploy (operator gates), then Stage 5b.
