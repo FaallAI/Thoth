@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from tests.attribution.replay import parse_report, replay_ports
+from tests.attribution.replay import parse_report, replay_clock, replay_ports
 from thoth_control_plane.attribution.service import SourceAttributor
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "attribution"
@@ -36,7 +36,8 @@ async def test_a_golden_case_replays_to_its_expected_attribution(path: Path) -> 
     case = json.loads(path.read_text(encoding="utf-8"))
     report = parse_report(case["report"])
 
-    outcome = await SourceAttributor(replay_ports(case)).identify("wf_golden", report, _video(case))
+    attributor = SourceAttributor(replay_ports(case), clock=replay_clock(case))
+    outcome = await attributor.identify("wf_golden", report, _video(case))
 
     attribution = outcome.attribution
     expected = case["expected"]

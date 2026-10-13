@@ -605,3 +605,22 @@ async def test_an_instagram_reaction_is_not_its_own_baseline() -> None:
 
     details = [e.detail for e in outcome.attribution.evidence if e.kind == "reaction"]
     assert "engagement_unknown" in details[0]
+
+
+@pytest.mark.asyncio
+async def test_a_reaction_too_young_to_measure_is_judged_without_engagement() -> None:
+    # Spec 5.7: three hours after posting, views say nothing yet.
+    from datetime import UTC, datetime
+
+    report = _reaction_report(play=10)
+    published = datetime(2026, 8, 24, 7, 26, 32, tzinfo=UTC)
+    attributor = SourceAttributor(
+        replay_ports(_reaction_case()),
+        clock=lambda: published.replace(hour=10),
+    )
+
+    outcome = await attributor.identify("wf_ref", parse_report(report), VIDEO)
+
+    assert outcome.attribution.verdict == "original"
+    details = [e.detail for e in outcome.attribution.evidence if e.kind == "reaction"]
+    assert "engagement too early" in details[0] and "original_reaction_early" in details[0]

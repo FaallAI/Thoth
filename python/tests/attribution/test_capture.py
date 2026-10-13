@@ -92,3 +92,32 @@ async def test_a_reaction_case_records_its_speech_and_answers() -> None:
         "wf_golden", parse_report(recorded["report"]), Path(f"{recorded['repost_frames']}.mp4")
     )
     assert replayed.attribution.verdict == "original"
+
+
+@pytest.mark.asyncio
+async def test_a_capture_records_its_clock_and_replay_uses_it() -> None:
+    # Spec 5.7: engagement depends on age, so a replay must see the capture's "now".
+    from datetime import UTC, datetime
+
+    from tests.attribution.replay import replay_clock
+    from tests.attribution.test_service import VIDEO, _reaction_case, _reaction_report
+
+    report = _reaction_report(play=10)
+    now = datetime(2026, 8, 24, 10, 0, tzinfo=UTC)  # three hours after posting
+    recorded = await record_case(
+        replay_ports(_reaction_case()),
+        parse_report(report),
+        VIDEO,
+        case="young",
+        expected={"verdict": "original", "source_url": None},
+        scout={"main_url": None, "note": ""},
+        now=now,
+    )
+
+    assert recorded["captured_at"] == "2026-08-24T10:00:00Z"
+    replayed = await SourceAttributor(
+        replay_ports(recorded), clock=replay_clock(recorded)
+    ).identify("wf_golden", parse_report(recorded["report"]), VIDEO)
+    assert replayed.attribution.verdict == "original"
+    details = [e.detail for e in replayed.attribution.evidence if e.kind == "reaction"]
+    assert "too early" in details[0]

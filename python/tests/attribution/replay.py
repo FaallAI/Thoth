@@ -9,11 +9,13 @@ in `unmatchable` has no features to match (flat frames).
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from thoth_control_plane.acquisition.models import DiscoveredVideo, SourceReport
+from thoth_control_plane.attribution.candidates import parse_time
 from thoth_control_plane.attribution.matching import TextBox
 from thoth_control_plane.attribution.models import Platform
 from thoth_control_plane.attribution.ports import (
@@ -216,3 +218,9 @@ def replay_ports(case: dict[str, Any]) -> AttributionPorts:
         transcriber=ReplayTranscriber(case.get("transcript")),
         diarizer=ReplayDiarizer(case.get("turns")),
     )
+
+
+def replay_clock(case: dict[str, Any]) -> Callable[[], datetime]:
+    """The capture's clock (spec 5.7); a hand-written case without one uses the real clock."""
+    captured = parse_time(case.get("captured_at"))
+    return (lambda: captured) if captured is not None else (lambda: datetime.now(UTC))

@@ -191,7 +191,9 @@ async def record_case(
     expected: dict[str, Any],
     scout: dict[str, Any],
     departure: str | None = None,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
+    captured = now or datetime.now(UTC)
     store = _Store()
     recording = replace(
         ports,
@@ -204,7 +206,9 @@ async def record_case(
         transcriber=_Transcriber(ports.transcriber, store),
         diarizer=_Diarizer(ports.diarizer, store),
     )
-    await SourceAttributor(recording, CAPTURE_TUNING).identify(WORKFLOW, report, video)
+    await SourceAttributor(recording, CAPTURE_TUNING, clock=lambda: captured).identify(
+        WORKFLOW, report, video
+    )
 
     frames: dict[str, list[dict[str, Any]]] = {}
     for key, recorded in store.frames.items():
@@ -238,6 +242,8 @@ async def record_case(
     return {
         "case": case,
         "synthetic": False,
+        # Engagement depends on the post's age, so a replay uses the capture's clock.
+        "captured_at": captured.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "report": _plain(report, keep_comments=True),
         "repost_frames": video.stem if video is not None else None,
         "frames": frames,

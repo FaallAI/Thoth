@@ -12,8 +12,9 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import Counter
-from collections.abc import Awaitable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal, TypeVar
 
@@ -83,6 +84,8 @@ class Tuning:
     reaction_contribution: float = 0.5
     reaction_discussion: float = 0.5
     reaction_engagement: float = 1.0
+    # Spec 5.7: younger than this, views say nothing yet and engagement is not judged.
+    min_engagement_age_hours: float = 6.0
 
 
 DEFAULT_TUNING = Tuning()
@@ -133,10 +136,12 @@ class SourceAttributor:
         ports: AttributionPorts,
         tuning: Tuning = DEFAULT_TUNING,
         curated: frozenset[str] = frozenset(),
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._ports = ports
         self._tuning = tuning
         self._curated = curated
+        self._clock = clock
 
     @property
     def ports(self) -> AttributionPorts:
@@ -365,30 +370,40 @@ class SourceAttributor:
             if self._ports.discoverer.supports(platform)
             else None
         )
-        ratio = engagement_ratio(
+        engagement = engagement_ratio(
             report.post.post_id,
             report.post.engagement,
             videos or [],
             url=str(report.source.canonical_url),
+            platform=platform,
+            published_at=report.post.published_at,
+            now=self._clock(),
+            min_age_hours=self._tuning.min_engagement_age_hours,
         )
-        if ratio is None:
+        if engagement.ratio is None and not engagement.too_early:
             logger.warning("reaction baseline unavailable platform=%s", platform)
         call = judge(
             assessment,
-            ratio,
+            engagement,
             contribution=self._tuning.reaction_contribution,
             discussion=self._tuning.reaction_discussion,
-            engagement=self._tuning.reaction_engagement,
+            engagement_threshold=self._tuning.reaction_engagement,
         )
         discussion = "-" if assessment.discussion is None else f"{assessment.discussion:.2f}"
-        engagement = "-" if ratio is None else f"{ratio:.1f}x"
+        shown = (
+            "too early"
+            if engagement.too_early
+            else "-"
+            if engagement.ratio is None
+            else f"{engagement.ratio:.1f}x"
+        )
         evidence.append(
             AttributionEvidence(
                 kind="reaction",
                 detail=(
                     f"{shape}, {cover.subject_media} subject, contribution "
                     f"{assessment.contribution:.2f}, discussion {discussion}, engagement "
-                    f"{engagement}: {call.reason}"
+                    f"{shown}: {call.reason}"
                 )[:300],
                 confidence=assessment.contribution,
             )

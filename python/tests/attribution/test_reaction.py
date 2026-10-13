@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -9,9 +10,11 @@ import pytest
 from thoth_control_plane.acquisition.models import DiscoveredVideo
 from thoth_control_plane.attribution.ports import Assessment, Segment, Transcript, Turn
 from thoth_control_plane.attribution.reaction import (
+    Engagement,
     ReactionCall,
     engagement_ratio,
     judge,
+    lifetime_share,
     split_speech,
 )
 from thoth_control_plane.attribution.scenes import Shot
@@ -52,59 +55,139 @@ def test_no_speech_is_empty_on_both_sides() -> None:
     assert split_speech(Transcript(""), TURNS, [CLIP, TALK]) == split_speech(Transcript(""), [], [])
 
 
-def _video(post_id: str, **engagement: int) -> DiscoveredVideo:
+NOW = datetime(2026, 10, 13, 12, 0, tzinfo=UTC)
+MATURE = "2026-09-01T00:00:00Z"
+
+
+def _video(post_id: str, published: str | None = MATURE, **engagement: int) -> DiscoveredVideo:
     return DiscoveredVideo.model_validate(
         {
             "post_id": post_id,
             "owner_handle": "kreator",
             "canonical_url": f"https://www.tiktok.com/@kreator/video/{post_id}",
+            "published_at": published,
             "engagement": engagement,
         }
+    )
+
+
+def _ratio(
+    engagement: dict[str, int],
+    videos: list[DiscoveredVideo],
+    *,
+    published: str | None = MATURE,
+    post_id: str = "99999",
+    url: str | None = None,
+) -> Engagement:
+    return engagement_ratio(
+        post_id,
+        engagement,
+        videos,
+        url=url,
+        platform="tiktok",
+        published_at=published,
+        now=NOW,
+        min_age_hours=6.0,
     )
 
 
 def test_the_ratio_compares_plays_with_the_median_of_other_videos() -> None:
     videos = [_video("11111", play=100), _video("22222", play=300), _video("33333", play=200)]
 
-    assert engagement_ratio("99999", {"play": 400}, videos) == pytest.approx(2.0)
+    assert _ratio({"play": 400}, videos).ratio == pytest.approx(2.0, rel=1e-3)
 
 
 def test_the_post_itself_is_not_its_own_baseline() -> None:
     videos = [_video("99999", play=400), _video("11111", play=100), _video("22222", play=300)]
 
-    assert engagement_ratio("99999", {"play": 400}, videos) is None  # two others: too few
+    assert _ratio({"play": 400}, videos) == Engagement(None)  # two others: too few
 
 
 def test_likes_stand_in_when_plays_are_hidden() -> None:
     videos = [_video(str(n) * 5, like=10) for n in range(1, 4)]
 
-    assert engagement_ratio("99999", {"like": 5}, videos) == pytest.approx(0.5)
+    assert _ratio({"like": 5}, videos).ratio == pytest.approx(0.5, rel=1e-3)
 
 
 def test_a_zero_baseline_is_unmeasured() -> None:
     videos = [_video(str(n) * 5, play=0) for n in range(1, 4)]
 
-    assert engagement_ratio("99999", {"play": 5}, videos) is None
+    assert _ratio({"play": 5}, videos) == Engagement(None)
 
 
-THRESHOLDS: dict[str, Any] = {"contribution": 0.5, "discussion": 0.5, "engagement": 1.0}
+def test_a_young_reaction_is_measured_against_the_baseline_at_its_age() -> None:
+    # Spec 5.7: 400 plays at 9 h lose to a 1,000 lifetime median, but not to the share of it
+    # the account's videos had at 9 h.
+    videos = [_video(str(n) * 5, play=1000) for n in range(1, 4)]
+
+    result = _ratio({"play": 400}, videos, published="2026-10-13T03:00:00Z")
+
+    assert result.ratio == pytest.approx(400 / (1000 * lifetime_share("tiktok", 9.0)))
+    assert result.ratio > 1.0
+
+
+def test_a_reaction_younger_than_six_hours_is_too_early() -> None:
+    videos = [_video(str(n) * 5, play=1000) for n in range(1, 4)]
+
+    assert _ratio({"play": 40}, videos, published="2026-10-13T09:00:00Z") == Engagement(
+        None, too_early=True
+    )
+
+
+def test_a_baseline_video_without_a_date_counts_as_mature() -> None:
+    videos = [_video(str(n) * 5, published=None, play=200) for n in range(1, 4)]
+
+    assert _ratio({"play": 400}, videos).ratio == pytest.approx(2.0, rel=1e-3)
+
+
+def test_a_reaction_without_a_date_is_unmeasured() -> None:
+    videos = [_video(str(n) * 5, play=200) for n in range(1, 4)]
+
+    assert _ratio({"play": 400}, videos, published=None) == Engagement(None)
+
+
+def test_the_lifetime_share_rises_from_zero_towards_one() -> None:
+    assert lifetime_share("tiktok", 0.0) == 0.0
+    assert lifetime_share("instagram", 24.0) == pytest.approx(0.30, abs=0.01)
+    assert lifetime_share("tiktok", 10_000.0) == pytest.approx(1.0)
+
+
+THRESHOLDS: dict[str, Any] = {"contribution": 0.5, "discussion": 0.5, "engagement_threshold": 1.0}
 
 
 @pytest.mark.parametrize(
-    ("assessment", "ratio", "expected"),
+    ("assessment", "engagement", "expected"),
     [
-        (Assessment(0.8, 0.7), 2.0, ReactionCall(True, "original_reaction")),
-        (Assessment(0.3, 0.7), 2.0, ReactionCall(False, "no_new_contribution")),
-        (Assessment(0.8, None), 2.0, ReactionCall(False, "no_comments")),
-        (Assessment(0.8, 0.2), 2.0, ReactionCall(False, "comments_not_about_creator")),
-        (Assessment(0.8, 0.7), None, ReactionCall(False, "engagement_unknown")),
-        (Assessment(0.8, 0.7), 0.6, ReactionCall(False, "engagement_below_baseline")),
+        (Assessment(0.8, 0.7), Engagement(2.0), ReactionCall(True, "original_reaction")),
+        (Assessment(0.3, 0.7), Engagement(2.0), ReactionCall(False, "no_new_contribution")),
+        (Assessment(0.8, None), Engagement(2.0), ReactionCall(False, "no_comments")),
+        (
+            Assessment(0.8, 0.2),
+            Engagement(2.0),
+            ReactionCall(False, "comments_not_about_creator"),
+        ),
+        (Assessment(0.8, 0.7), Engagement(None), ReactionCall(False, "engagement_unknown")),
+        (
+            Assessment(0.8, 0.7),
+            Engagement(0.6),
+            ReactionCall(False, "engagement_below_baseline"),
+        ),
+        (
+            Assessment(0.8, 0.7),
+            Engagement(None, too_early=True),
+            ReactionCall(True, "original_reaction_early"),
+        ),
+        (
+            Assessment(0.3, 0.7),
+            Engagement(None, too_early=True),
+            ReactionCall(False, "no_new_contribution"),
+        ),
     ],
 )
 def test_each_condition_alone_keeps_a_reaction_a_repost(
-    assessment: Assessment, ratio: float | None, expected: ReactionCall
+    assessment: Assessment, engagement: Engagement, expected: ReactionCall
 ) -> None:
-    assert judge(assessment, ratio, **THRESHOLDS) == expected
+    assert judge(assessment, engagement, **THRESHOLDS) == expected
 
 
 def test_the_post_is_excluded_by_its_url_when_the_ids_differ() -> None:
@@ -115,4 +198,4 @@ def test_the_post_is_excluded_by_its_url_when_the_ids_differ() -> None:
         _video("33333", play=200),
     ]
 
-    assert engagement_ratio("DeHz54GT4ea", {"play": 400}, videos, url=url) is None
+    assert _ratio({"play": 400}, videos, post_id="DeHz54GT4ea", url=url) == Engagement(None)
