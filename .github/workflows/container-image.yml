@@ -61,8 +61,15 @@ jobs:
 
       # Run from python/ so pytest reads python/pyproject.toml (asyncio_mode, markers);
       # from the repository root it finds no config and unmarked async tests fail.
+      - name: Fetch speech test models
+        working-directory: python
+        run: uv run python ../docker/fetch_speech_models.py --whisper tiny --out "$RUNNER_TEMP/models"
+
       - name: Run Python non-live tests
         working-directory: python
+        env:
+          THOTH_TEST_WHISPER_MODEL_DIR: ${{ runner.temp }}/models/whisper-tiny
+          THOTH_TEST_DIARIZATION_MODEL_DIR: ${{ runner.temp }}/models/diarization
         run: uv run pytest -m "not live" -q
 
       - name: Run Ruff checks

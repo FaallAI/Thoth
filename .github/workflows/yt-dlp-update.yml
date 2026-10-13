@@ -90,7 +90,10 @@ jobs:
         working-directory: python
         run: |
           uv sync --frozen --all-groups --extra acquisition
-          uv run pytest -m "not live" -q
+          uv run python ../docker/fetch_speech_models.py --whisper tiny --out "$RUNNER_TEMP/models"
+          THOTH_TEST_WHISPER_MODEL_DIR="$RUNNER_TEMP/models/whisper-tiny" \
+          THOTH_TEST_DIARIZATION_MODEL_DIR="$RUNNER_TEMP/models/diarization" \
+            uv run pytest -m "not live" -q
 
       - name: Open and merge the pull request
         if: steps.versions.outputs.newer == 'true'
