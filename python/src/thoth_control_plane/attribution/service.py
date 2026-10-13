@@ -54,7 +54,9 @@ from thoth_control_plane.attribution.ports import (
 )
 from thoth_control_plane.attribution.reaction import (
     engagement_ratio,
+    has_subject_shot,
     judge,
+    reaction_age_hours,
     split_speech,
     subject_heard,
     subject_moves,
@@ -354,7 +356,7 @@ class SourceAttributor:
         turns = await self._ports.diarizer.turns(video, seconds=seconds)
         if cover.subject_media in ("text", "image"):
             # Spec 5.8: a still subject neither moves nor talks; either signal sends it on.
-            changes = await self._ports.motion.changes(frames)
+            changes = await self._guard_tool(self._ports.motion.changes(frames))
             contradiction = (
                 "subject moves"
                 if subject_moves(
@@ -368,9 +370,13 @@ class SourceAttributor:
                 else None
             )
             if contradiction is None:
+                checked = (
+                    "" if has_subject_shot(labelled) else " (no subject shot: motion not checked)"
+                )
                 evidence.append(
                     AttributionEvidence(
-                        kind="reaction", detail=f"{shape} reaction to a {cover.subject_media} post"
+                        kind="reaction",
+                        detail=f"{shape} reaction to a {cover.subject_media} post{checked}",
                     )
                 )
                 return True
@@ -397,11 +403,14 @@ class SourceAttributor:
             with_comments=bool(comments),
         )
         platform = report.source.platform
+        now = self._clock()
+        age = reaction_age_hours(report.post.published_at, now)
+        measurable = age is not None and age >= self._tuning.min_engagement_age_hours
         videos = (
             await self._guard(
                 self._ports.discoverer.discover(platform, report.post.owner_handle), "baseline"
             )
-            if self._ports.discoverer.supports(platform)
+            if measurable and self._ports.discoverer.supports(platform)
             else None
         )
         engagement = engagement_ratio(
@@ -411,7 +420,7 @@ class SourceAttributor:
             url=str(report.source.canonical_url),
             platform=platform,
             published_at=report.post.published_at,
-            now=self._clock(),
+            now=now,
             min_age_hours=self._tuning.min_engagement_age_hours,
         )
         if engagement.ratio is None and not engagement.too_early:

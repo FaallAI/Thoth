@@ -209,7 +209,7 @@ signed in.
 ### 5.6 Output contract
 
 - `EvidenceKind` gains `reaction`. A reaction step always adds one evidence item whatever its
-  outcome, for example `reaction: picture_in_picture, subject video, contribution 0.81,
+  outcome (two when a text or image label is not confirmed, spec 5.8), for example `reaction: picture_in_picture, subject video, contribution 0.81,
   discussion 0.74, engagement 2.3x`, or `reaction to a text post`. The detail stays at most 300
   characters and holds no transcript text.
 - `SourceAttribution` keeps schema version 1. Only the evidence kind literal widens.

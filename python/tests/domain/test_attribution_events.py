@@ -23,6 +23,8 @@ CODES = {
     "ffprobe_missing",
     "rapidocr_missing",
     "opencv_missing",
+    "pillow_missing",
+    "motion_failed",
 }
 
 

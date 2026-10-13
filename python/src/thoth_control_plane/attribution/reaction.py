@@ -72,7 +72,9 @@ def subject_moves(
     seconds: Sequence[float], changes: Sequence[float], cut: Sequence[Shot], *, threshold: float
 ) -> bool:
     """Spec 5.8: two consecutive frames inside one `subject` shot differ: not a still image."""
-    for (before, after), change in zip(pairwise(seconds), changes, strict=False):
+    if len(changes) != max(0, len(seconds) - 1):
+        raise ValueError("one change per pair of consecutive frames")
+    for (before, after), change in zip(pairwise(seconds), changes, strict=True):
         if change <= threshold:
             continue
         for shot in cut:
@@ -82,19 +84,30 @@ def subject_moves(
 
 
 def subject_heard(turns: Sequence[Turn], cut: Sequence[Shot], *, minimum: float = 1.0) -> bool:
-    """Spec 5.8: someone other than the creator talks inside a `subject` shot: not silent."""
+    """Spec 5.8: someone other than the creator talks inside a `subject` shot: not silent.
+
+    Without any `subject` shot (the creator stays in frame over a screenshot), the whole video
+    is listened to: a still subject never talks.
+    """
     creator = creator_speaker(turns, cut)
+    spans = [(shot.start, shot.end) for shot in cut if shot.shows == "subject"]
+    if not spans:
+        spans = [(float("-inf"), float("inf"))]
     for turn in turns:
         if turn.speaker == creator:
             continue
-        heard = sum(
-            _overlap(turn.start, turn.end, shot.start, shot.end)
-            for shot in cut
-            if shot.shows == "subject"
-        )
+        heard = sum(_overlap(turn.start, turn.end, start, end) for start, end in spans)
         if heard >= minimum:
             return True
     return False
+
+
+def has_subject_shot(cut: Sequence[Shot]) -> bool:
+    return any(shot.shows == "subject" for shot in cut)
+
+
+def reaction_age_hours(published_at: str | None, now: datetime) -> float | None:
+    return _age_hours(published_at, now)
 
 
 def split_speech(transcript: Transcript, turns: Sequence[Turn], cut: Sequence[Shot]) -> Speech:
@@ -145,7 +158,7 @@ def engagement_ratio(
     its profile listing uses the numeric id.
     """
     age = _age_hours(published_at, now)
-    if age is None:
+    if age is None or age < 0:  # a post dated in the future is bad data, not a young post
         return Engagement(None)
     if age < min_age_hours:
         return Engagement(None, too_early=True)
@@ -163,6 +176,8 @@ def engagement_ratio(
             if key not in video.engagement:
                 continue
             video_age = _age_hours(video.published_at, now)
+            if video_age is not None and video_age < min_age_hours:
+                continue  # too young to scale: its share of lifetime views is noise
             video_share = 1.0 if video_age is None else lifetime_share(platform, video_age)
             if video_share > 0:
                 scaled.append(video.engagement[key] * share / video_share)

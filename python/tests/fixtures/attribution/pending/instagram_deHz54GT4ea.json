@@ -12231,5 +12231,6 @@
     "main_url": null,
     "note": ""
   },
-  "departure": "reaction_original"
+  "departure": "reaction_original",
+  "pending": "Known miss (2026-10-13): an original reaction (operator); contribution 0.96 and discussion 0.77 pass, but Instagram's profile listing gave 3 videos, one of them 3.5 h old and too young to scale, so the baseline is unknown. Revisit with the signed-in reels listing (plan Task 16)."
 }

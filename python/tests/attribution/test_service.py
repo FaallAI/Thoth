@@ -456,6 +456,7 @@ def _reaction_case(**overrides: Any) -> dict[str, Any]:
         },
         turns=[[0.0, 3.0, 0], [4.0, 35.0, 1]],
         assessment={"contribution": 0.8, "discussion": 0.7},
+        motion=[0.0] * 39,
     )
     case["frames"]["repost"] = _frames(40, {0: case["frames"]["repost"][0]["boxes"]})
     case["discovery"] = {
@@ -491,7 +492,8 @@ async def test_a_reaction_that_adds_and_is_discussed_is_an_original() -> None:
 
 @pytest.mark.asyncio
 async def test_a_reaction_to_a_text_post_is_an_original_without_transcription() -> None:
-    case = _reaction_case(cover={**REACTION_COVER, "subject_media": "text"})
+    # Only the creator talks: a text subject is silent (spec 5.8).
+    case = _reaction_case(cover={**REACTION_COVER, "subject_media": "text"}, turns=[[4.0, 35.0, 1]])
 
     outcome, ports = await _identify(case, _reaction_report())
 
@@ -668,3 +670,40 @@ async def test_an_image_subject_with_another_voice_takes_the_video_path() -> Non
     details = [e.detail for e in outcome.attribution.evidence if e.kind == "reaction"]
     assert any("another voice" in detail for detail in details)
     assert ports.transcriber.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_a_text_subject_without_a_subject_shot_says_motion_was_not_checked() -> None:
+    # Review I2: the evidence must not claim a check that could not run.
+    cover = {**IMAGE_COVER, "subject_media": "text", "shows": ["creator"] * 3}
+    case = _reaction_case(cover=cover, turns=[[4.0, 35.0, 1]])
+
+    outcome, _ = await _identify(case, _reaction_report())
+
+    assert outcome.attribution.verdict == "original"
+    details = [e.detail for e in outcome.attribution.evidence if e.kind == "reaction"]
+    assert any("motion not checked" in detail for detail in details)
+
+
+@pytest.mark.asyncio
+async def test_a_reaction_too_young_skips_the_baseline_discovery() -> None:
+    # Review M4: the baseline is not used, so its discovery is not paid for.
+    from datetime import UTC, datetime
+
+    published = datetime(2026, 8, 24, 7, 26, 32, tzinfo=UTC)
+    ports = replay_ports(_reaction_case())
+    attributor = SourceAttributor(ports, clock=lambda: published.replace(hour=10))
+
+    await attributor.identify("wf_ref", parse_report(_reaction_report()), VIDEO)
+
+    assert ("tiktok", "detikjatim") not in ports.discoverer.calls
+
+
+@pytest.mark.asyncio
+async def test_a_reaction_case_without_a_motion_recording_fails_loudly() -> None:
+    # Review M1: a golden recorded before motion existed must not replay as "still".
+    case = _reaction_case(cover=IMAGE_COVER)
+    del case["motion"]
+
+    with pytest.raises(AssertionError, match="motion"):
+        await _identify(case, _reaction_report())

@@ -25,7 +25,9 @@ def missing(directory: Path, names: Sequence[str]) -> bool:
     return not all((directory / name).is_file() for name in names)
 
 
-def load_audio(video: Path, seconds: float, failure: str) -> Any:
+def load_audio(
+    video: Path, seconds: float, failure: str, missing_code: str = "whisper_missing"
+) -> Any:
     """Mono 16 kHz float32 samples of the first `seconds`; empty without an audio stream.
 
     The transcriber and the diarizer read the same video, so one decode serves both; it stops
@@ -34,7 +36,7 @@ def load_audio(video: Path, seconds: float, failure: str) -> Any:
     try:
         return _decode(str(video), video.stat().st_mtime_ns, seconds)
     except ImportError:
-        raise AttributionError("whisper_missing") from None
+        raise AttributionError(missing_code) from None
     except Exception as error:
         raise AttributionError(failure) from error
 
@@ -58,9 +60,13 @@ def _decode(path: str, modified_ns: int, seconds: float) -> Any:
                 total += samples.size
             if total >= limit:
                 break
-    if not chunks:
-        return np.zeros(0, dtype=np.float32)
-    return np.concatenate(chunks)[:limit].astype(np.float32) / 32768.0
+    audio = (
+        np.concatenate(chunks)[:limit].astype(np.float32) / 32768.0
+        if chunks
+        else np.zeros(0, dtype=np.float32)
+    )
+    audio.flags.writeable = False  # shared by the transcriber and the diarizer
+    return audio
 
 
 class WhisperTranscriber:
@@ -150,7 +156,7 @@ class SherpaDiarizer:
 
     def _turns(self, video: Path, seconds: float) -> list[Turn]:
         engine = self._load()
-        audio = load_audio(video, seconds, "diarization_failed")
+        audio = load_audio(video, seconds, "diarization_failed", "diarization_missing")
         if audio.size == 0:
             return []
         try:

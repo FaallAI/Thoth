@@ -91,6 +91,8 @@ def check_media_tools(settings: Settings) -> None:
             raise SettingsValidationError("whisper_missing")
         if missing(settings.THOTH_WHISPER_MODEL_DIR, WHISPER_FILES):
             raise SettingsValidationError("whisper_model_missing")
+        if find_spec("PIL") is None:
+            raise SettingsValidationError("pillow_missing")
         if find_spec("sherpa_onnx") is None:
             raise SettingsValidationError("diarization_missing")
         if missing(settings.THOTH_DIARIZATION_MODEL_DIR, DIARIZATION_FILES):

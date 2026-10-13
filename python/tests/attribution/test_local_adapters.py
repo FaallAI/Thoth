@@ -312,3 +312,27 @@ async def test_motion_is_near_zero_for_a_still_and_high_for_a_cut() -> None:
     )
 
     assert changes[0] < STILL_THRESHOLD < changes[1]
+
+
+@pytest.mark.asyncio
+async def test_motion_without_pillow_is_tool_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sys
+
+    from thoth_control_plane.attribution.adapters.frames import ToolMissing
+    from thoth_control_plane.attribution.adapters.motion import PillowMotion
+
+    monkeypatch.setitem(sys.modules, "PIL", None)
+
+    with pytest.raises(ToolMissing) as raised:
+        await PillowMotion().changes([Frame(0.0, b"x"), Frame(1.0, b"y")])
+    assert raised.value.code == "pillow_missing"
+
+
+@pytest.mark.asyncio
+async def test_an_undecodable_frame_is_a_motion_failure() -> None:
+    from thoth_control_plane.attribution.adapters.motion import PillowMotion
+    from thoth_control_plane.attribution.ports import AttributionError
+
+    with pytest.raises(AttributionError) as raised:
+        await PillowMotion().changes([Frame(0.0, b"not a jpeg"), Frame(1.0, b"x")])
+    assert raised.value.code == "motion_failed"

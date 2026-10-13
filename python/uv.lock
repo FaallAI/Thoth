@@ -1969,10 +1969,12 @@ dependencies = [
 
 [package.optional-dependencies]
 acquisition = [
+    { name = "av" },
     { name = "faster-whisper" },
     { name = "onnxruntime" },
     { name = "openai" },
     { name = "opencv-python" },
+    { name = "pillow" },
     { name = "rapidocr" },
     { name = "scrapling", extra = ["fetchers"] },
     { name = "sherpa-onnx" },
@@ -1996,6 +1998,7 @@ dev = [
 requires-dist = [
     { name = "agno", specifier = ">=3,<4" },
     { name = "alembic", specifier = ">=1.13,<2" },
+    { name = "av", marker = "extra == 'acquisition'", specifier = ">=11" },
     { name = "cryptography", specifier = ">=44,<48" },
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "faster-whisper", marker = "extra == 'acquisition'", specifier = ">=1.2,<2" },
@@ -2004,6 +2007,7 @@ requires-dist = [
     { name = "onnxruntime", marker = "extra == 'acquisition'", specifier = ">=1.30,<2" },
     { name = "openai", marker = "extra == 'acquisition'", specifier = ">=2,<3" },
     { name = "opencv-python", marker = "extra == 'acquisition'", specifier = ">=4.10,<6" },
+    { name = "pillow", marker = "extra == 'acquisition'", specifier = ">=10" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
     { name = "pydantic-settings", specifier = ">=2.6,<3" },
     { name = "rapidocr", marker = "extra == 'acquisition'", specifier = ">=3.9,<4" },

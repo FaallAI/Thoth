@@ -80,15 +80,15 @@ class ReplayScenes:
 
 
 class ReplayMotion:
-    """Recorded frame changes; a case without them is still (all zeros)."""
+    """Recorded frame changes; a case without a recording fails loudly (review M1)."""
 
     def __init__(self, recorded: list[float] | None) -> None:
         self._recorded = recorded
 
     async def changes(self, frames: Sequence[Frame]) -> list[float]:
-        if self._recorded is not None:
-            return list(self._recorded)
-        return [0.0] * max(0, len(frames) - 1)
+        if self._recorded is None:
+            raise AssertionError("this case recorded no motion")
+        return list(self._recorded)
 
 
 class ReplayText:

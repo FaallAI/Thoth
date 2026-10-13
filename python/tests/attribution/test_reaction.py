@@ -221,3 +221,34 @@ def test_another_voice_inside_a_subject_shot_contradicts_a_still_label() -> None
     assert not subject_heard([Turn(0.0, 10.0, 0), Turn(11.0, 15.0, 0)], cut)
     assert not subject_heard([Turn(0.0, 10.0, 0), Turn(11.0, 11.5, 1)], cut)  # under 1 s
     assert not subject_heard([], cut)
+
+
+def test_a_baseline_video_younger_than_the_guard_is_left_out() -> None:
+    # Review I1: a 1 h old video's plays would be scaled up ~30x.
+    videos = [_video("11111", play=100), _video("22222", play=200), _video("33333", play=300)]
+    videos += [_video(n, published="2026-10-13T11:00:00Z", play=500) for n in ("44444", "55555")]
+
+    assert _ratio({"play": 400}, videos).ratio == pytest.approx(2.0, rel=1e-3)
+
+
+def test_a_post_dated_in_the_future_is_unmeasured_not_too_early() -> None:
+    # Review M3: clock skew must not skip the engagement gate.
+    videos = [_video(str(n) * 5, play=200) for n in range(1, 4)]
+
+    assert _ratio({"play": 400}, videos, published="2026-10-14T12:00:00Z") == Engagement(None)
+
+
+def test_without_a_subject_shot_any_other_voice_contradicts_a_still_label() -> None:
+    # Review I2: a creator always in frame leaves no subject shot to check; an image is silent.
+    cut = [Shot(0.0, 20.0, "creator")]
+
+    assert subject_heard([Turn(0.0, 10.0, 0), Turn(11.0, 15.0, 1)], cut)
+    assert not subject_heard([Turn(0.0, 10.0, 0), Turn(11.0, 15.0, 0)], cut)
+
+
+def test_a_motion_recording_of_the_wrong_length_is_an_error() -> None:
+    # Review M1: a truncated recording must not read as "still".
+    cut = [Shot(0.0, 5.0, "subject")]
+
+    with pytest.raises(ValueError):
+        subject_moves([0.0, 1.0, 2.0], [0.0], cut, threshold=0.02)

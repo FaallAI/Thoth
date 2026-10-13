@@ -11,7 +11,8 @@ import io
 from collections.abc import Sequence
 from itertools import pairwise
 
-from thoth_control_plane.attribution.ports import Frame
+from thoth_control_plane.attribution.adapters.frames import ToolMissing
+from thoth_control_plane.attribution.ports import AttributionError, Frame
 
 STILL_THRESHOLD = 0.02  # JPEG noise between identical frames stays well below this
 SIZE = (64, 64)
@@ -22,12 +23,18 @@ class PillowMotion:
         return await asyncio.to_thread(self._changes, list(frames))
 
     def _changes(self, frames: list[Frame]) -> list[float]:
-        import numpy as np
-        from PIL import Image
-
+        try:
+            import numpy as np
+            from PIL import Image
+        except ImportError:
+            # Operator, 2026-10-11: a missing tool is an explicit error.
+            raise ToolMissing("pillow_missing") from None
         grey = []
-        for frame in frames:
-            with Image.open(io.BytesIO(frame.jpeg)) as image:
-                small = image.convert("L").resize(SIZE)
-                grey.append(np.asarray(small, dtype=np.float32) / 255.0)
+        try:
+            for frame in frames:
+                with Image.open(io.BytesIO(frame.jpeg)) as image:
+                    small = image.convert("L").resize(SIZE)
+                    grey.append(np.asarray(small, dtype=np.float32) / 255.0)
+        except Exception as error:
+            raise AttributionError("motion_failed") from error
         return [float(np.abs(after - before).mean()) for before, after in pairwise(grey)]

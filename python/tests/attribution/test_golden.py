@@ -52,3 +52,16 @@ async def test_a_golden_case_replays_to_its_expected_attribution(path: Path) -> 
 
 def test_there_is_at_least_the_synthetic_case() -> None:
     assert any(path.stem == "synthetic_reference" for path in CASES)
+
+
+PENDING = sorted((FIXTURES / "pending").glob("*.json"))
+
+
+@pytest.mark.parametrize("path", PENDING, ids=lambda path: path.stem)
+def test_a_pending_case_still_parses(path: Path) -> None:
+    # Review M8: pending cases are not replayed for a verdict, but must not rot.
+    case = json.loads(path.read_text(encoding="utf-8"))
+
+    assert case["pending"]
+    parse_report(case["report"])
+    replay_ports(case)
