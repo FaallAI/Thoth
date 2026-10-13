@@ -45,5 +45,5 @@ def test_model_directories_default_to_the_image_paths() -> None:
     from thoth_control_plane.config import Settings
 
     settings = Settings(THOTH_CONTROL_PLANE_API_KEY="test-only")  # type: ignore[call-arg]
-    assert settings.THOTH_WHISPER_MODEL_DIR == Path("/opt/thoth/models/whisper-large-v3-turbo")
-    assert settings.THOTH_DIARIZATION_MODEL_DIR == Path("/opt/thoth/models/diarization")
+    assert Path("/opt/thoth/models/whisper-large-v3-turbo") == settings.THOTH_WHISPER_MODEL_DIR
+    assert Path("/opt/thoth/models/diarization") == settings.THOTH_DIARIZATION_MODEL_DIR
