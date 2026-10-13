@@ -469,6 +469,6 @@ on (2026-10-13). Next: Stage 5b.
 Attribution now calls a reaction an original when it adds a new viewpoint or issue, is
 discussed, and beats its account's engagement, and always when it reacts to a text or image
 post. Speech is transcribed and split by speaker locally; vision and Jev became required for all
-of Stage 4. Implemented offline on branch `feat/stage4-reaction-attribution`; the live golden
-capture, push, merge, and deploy are operator gates. Details: the 2026-10-13 section of
-`CHANGELOG.md`.
+of Stage 4. Implemented on branch `feat/stage4-reaction-attribution` and calibrated on a live
+recapture (engagement scaled by age; thresholds 0.8 engagement, 0.6 repost). Details: the
+2026-10-13 section of `CHANGELOG.md`.

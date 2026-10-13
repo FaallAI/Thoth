@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## 2026-10-13 - Stage 4: reactions that count as originals (offline; capture pending)
+## 2026-10-13 - Stage 4: reactions that count as originals
 
 Branch `feat/stage4-reaction-attribution` (not pushed), from the Stage 5a tip. Spec
 `docs/superpowers/specs/2026-10-13-stage4-reaction-attribution-design.md`, plan
@@ -41,18 +41,38 @@ Branch `feat/stage4-reaction-attribution` (not pushed), from the Stage 5a tip. S
   failing signed-in listing keeps the thin anonymous one. Also fixed: scene detection reads
   only the first 600 s at 360 px, and tests fail rather than skip without OpenCV or RapidOCR.
   Five minors deferred (ledger).
-- Python suite: 3530 passed, 12 skipped (Playwright, disposable Postgres, live), 0 failed.
+- The deferred minors were fixed too (operator): RapidOCR and OpenCV missing at run time are
+  their own codes in both stages; a corrupt model is a model code; audio is decoded once, only
+  the first 180 s; the model checksum streams; no adapter test skips for a missing package.
+- Engagement is age-scaled (operator, after research `2026-10-13-engagement-age-research.md`):
+  each baseline video's views are scaled to the reaction's age with a per-platform accrual curve
+  (`1 − exp(−t/τ)`, τ TikTok 36 h, Instagram 67 h, YouTube 96 h, X 12 h); a reaction younger
+  than 6 hours is judged on contribution and discussion alone.
+- Live capture (operator-authorized): 10 cases with the branch source in the deployed image,
+  speech packages at their locked versions, pinned models mounted.
+  - In the suite: DeO6A2MSoAt (text subject) and DeOUJ60SHeI are `original`; DeHz54GT4ea is
+    `original` at engagement 0.9x; DeRDs6DCX07 and officialinews stay `replaced`;
+    kabinetketiduran stays `original`.
+  - Calibration (operator): reaction engagement 0.8 (from 1.0); repost threshold 0.6 (from
+    0.5; the recapture put kabinetketiduran at 0.56, every true repost is at 0.80 or more).
+  - Pending, outside the suite (`tests/fixtures/attribution/pending/`): DeWlWJmyKxP, a known
+    miss (comments at 0.42; Instagram's profile listing gave 3 videos, so no baseline); and three
+    uncredited reposts (koranjakarta x2, detikcom) that need Stage 8 story search.
+  - Stage 5a OCR goldens of DeHz54GT4ea and DeO6A2MSoAt are now `clean` (originals keep their
+    opening).
+- CPU speed (28-core host): faster-whisper large-v3-turbo int8 transcribed 61.7 s of audio in
+  11.9 s (5.2x realtime) after a 3.8 s model load; diarization took 7.5 s. The tiny model reads
+  Indonesian as Thai with no words, so turbo stays; the sherpa-onnx whisper comparison was not
+  needed.
+- Python suite: 3544 passed, 12 skipped (Playwright, disposable Postgres, live), 0 failed.
   Ruff check and format clean. actionlint: no new findings.
 
 Next steps:
 
-- Operator gate: live capture of the seven reaction goldens plus a recapture of every live
-  Stage 4 golden, the CPU speed measurement of faster-whisper against sherpa-onnx whisper, and
-  threshold calibration (plan Task 12, steps 5-8); then the Stage 5a fixtures of DeHz54GT4ea and
-  DeO6A2MSoAt move to `clean`.
-- Deploy precondition: TikTok, Instagram, and X source accounts with proxies imported, with
-  policy `fallback` or `always`.
-- Operator gates after that, each separately: push, merge, deploy.
+- Operator gates (authorized 2026-10-13): push, merge, deploy. Deploy precondition: TikTok,
+  Instagram, and X source accounts with proxies imported, with policy `fallback` or `always`.
+- Follow-ups: deeper Instagram profile listing (3 videos is too thin for a baseline), negative
+  reaction examples to calibrate against, recalibrating τ from Thoth's own snapshots.
 - Stage 5b: footage. Still parked: Stage 4 golden cases 2 and 5, DeVlbTORhmq, and the backlog
   (interactive login, login-only capabilities, vault key rotation, Creator Studio backlog).
 
