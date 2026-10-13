@@ -91,3 +91,21 @@ exactly what tells a still image from a paused video.
 - [Scraping Instagram in 2026 (anonymous throttling)](https://apiserpent.com/blog/scrape-instagram-for-free)
 - [GUIWatcher: static frames by SSIM](https://arxiv.org/html/2502.04202v1)
 - [VLM frame retrieval accuracy on UI elements](https://arxiv.org/html/2508.04895v1)
+
+## 3. Probe of the signed-in listing (2026-10-13, fresh session)
+
+The operator provided a new Instagram session. With it:
+
+- `/accounts/edit/` opens without a redirect: the session is signed in.
+- `www.instagram.com/api/v1/...` (`accounts/current_user`, `clips/user`) answers 302 to the home
+  page for this web session. That holds with XHR headers, without Scrapling's stealth headers,
+  and with plain httpx. The web app moved these calls to GraphQL.
+- `i.instagram.com/api/v1/clips/user/` (the mobile private API, instagrapi's route) recognises
+  the session but answers `feedback_required`, `is_spam: true`, "Try Again Later". About eight
+  probe runs in a short window flagged the account. Probing stopped there.
+
+Decision (operator): list reels through a real browser session. Scrapling's browser, with the
+account's cookies and proxy, opens `/<handle>/reels/` and reads the GraphQL responses the page
+loads. Testing waits until the account recovers (24–48 h). It is one careful probe that
+records the response shape, then the implementation under TDD from that recording. Never the
+mobile private API.
