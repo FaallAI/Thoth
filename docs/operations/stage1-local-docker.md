@@ -38,9 +38,11 @@ Place the data root inside the WSL filesystem rather than under `/mnt/c`, becaus
 ownership is not reliable on the Windows drive mount.
 
 ```bash
-mkdir -p "$THOTH_STAGE1_DATA_ROOT"/{postgres,editor-postgres,artifacts,browser-profile,observations,reports}
+mkdir -p "$THOTH_STAGE1_DATA_ROOT"/{postgres,editor-postgres,artifacts,browser-profile,account-profiles,observations,reports}
 sudo chown -R 10001:10001 "$THOTH_STAGE1_DATA_ROOT"/artifacts "$THOTH_STAGE1_DATA_ROOT"/browser-profile
+sudo chown -R 10001:10001 "$THOTH_STAGE1_DATA_ROOT"/account-profiles
 sudo chmod 750 "$THOTH_STAGE1_DATA_ROOT"/artifacts "$THOTH_STAGE1_DATA_ROOT"/browser-profile
+sudo chmod 700 "$THOTH_STAGE1_DATA_ROOT"/account-profiles
 ```
 
 Root is used only for this bounded ownership initialization. API, worker, and browser processes stay

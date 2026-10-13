@@ -1133,3 +1133,13 @@ def test_the_yt_dlp_update_workflow_trusts_no_unchecked_input() -> None:
     assert "gh auth setup-git" in workflow
     # A newer bump supersedes an older pull request left open.
     assert 'gh pr close "$old" --delete-branch' in workflow
+
+
+def test_dockerfile_prepares_account_profiles_camoufox_and_timezones() -> None:
+    dockerfile = _repo_text("Dockerfile")
+    assert "/var/lib/thoth/browser-profile /var/lib/thoth/account-profiles" in dockerfile
+    assert "test -w /var/lib/thoth/account-profiles" in dockerfile
+    assert "python -m camoufox fetch" in dockerfile
+    assert "test -d /home/thoth/.cache/camoufox" in dockerfile
+    # Account timezones are validated with zoneinfo; tzdata in the lock is Windows-only.
+    assert "test -f /usr/share/zoneinfo/Asia/Jakarta" in dockerfile

@@ -137,6 +137,10 @@ services:
       - type: bind
         source: ${THOTH_STAGE1_DATA_ROOT:?set THOTH_STAGE1_DATA_ROOT}/artifacts
         target: /var/lib/thoth/artifacts
+      # Sealed per-account browser profiles: the worker writes them, the api deletes them.
+      - type: bind
+        source: ${THOTH_STAGE1_DATA_ROOT:?set THOTH_STAGE1_DATA_ROOT}/account-profiles
+        target: /var/lib/thoth/account-profiles
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:
@@ -181,6 +185,10 @@ services:
       - type: bind
         source: ${THOTH_STAGE1_DATA_ROOT:?set THOTH_STAGE1_DATA_ROOT}/artifacts
         target: /var/lib/thoth/artifacts
+      # Sealed per-account browser profiles: the worker writes them, the api deletes them.
+      - type: bind
+        source: ${THOTH_STAGE1_DATA_ROOT:?set THOTH_STAGE1_DATA_ROOT}/account-profiles
+        target: /var/lib/thoth/account-profiles
     restart: unless-stopped
     networks: [stage1-private]
 

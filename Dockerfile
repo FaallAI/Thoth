@@ -31,7 +31,7 @@ RUN apt-get update \
     && useradd --uid 10001 --gid 10001 --create-home \
         --home-dir /home/thoth --shell /usr/sbin/nologin thoth \
     && mkdir -p /opt/thoth/bin /opt/thoth/python /opt/thoth/scout \
-        /var/lib/thoth/artifacts /var/lib/thoth/browser-profile \
+        /var/lib/thoth/artifacts /var/lib/thoth/browser-profile /var/lib/thoth/account-profiles \
         /var/lib/thoth/parity-profile /ms-playwright \
     && chown -R thoth:thoth /opt/thoth /var/lib/thoth /home/thoth /ms-playwright
 
@@ -81,6 +81,8 @@ USER thoth
 
 RUN test -w /var/lib/thoth/artifacts \
     && test -w /var/lib/thoth/browser-profile \
+    && test -w /var/lib/thoth/account-profiles \
+    && test -f /usr/share/zoneinfo/Asia/Jakarta \
     && test -r /opt/thoth/scout/cli.ts \
     && test -x /opt/thoth/python/.venv/bin/python \
     && test -x /usr/bin/ffmpeg \

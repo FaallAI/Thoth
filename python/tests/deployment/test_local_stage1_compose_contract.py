@@ -577,3 +577,18 @@ def test_renderer_inputs_are_placeholders_in_the_example_environment() -> None:
         in env_example
     )
     assert "THOTH_RENDERER_INTERNAL_CREDENTIAL=replace-with-local-secret" in env_example
+
+
+def test_api_and_worker_share_the_account_profiles_directory() -> None:
+    # Spec 2026-10-13, 3.2: the worker seals profiles, the api deletes them with the account.
+    compose = _repo_text("compose.stage1.local.yml")
+    for service in ("api", "worker"):
+        block = _service_block(compose, service)
+        assert (
+            "source: ${THOTH_STAGE1_DATA_ROOT:?set THOTH_STAGE1_DATA_ROOT}/account-profiles"
+            in block
+        )
+        assert "target: /var/lib/thoth/account-profiles" in block
+    setup = _repo_text("docs/operations/stage1-local-docker.md")
+    assert "artifacts,browser-profile,account-profiles," in setup
+    assert 'sudo chown -R 10001:10001 "$THOTH_STAGE1_DATA_ROOT"/account-profiles' in setup
