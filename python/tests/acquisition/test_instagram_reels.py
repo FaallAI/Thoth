@@ -20,7 +20,7 @@ from thoth_control_plane.acquisition.instagram_reels import (
 from thoth_control_plane.acquisition.models import DiscoveryReason, ProfileDiscovery
 
 FIXTURE = json.loads(
-    (Path(__file__).resolve().parents[1] / "fixtures" / "instagram" / "reels_tab.json").read_text(
+    (Path(__file__).resolve().parents[1] / "fixtures" / "instagram_reels" / "reels_tab.json").read_text(
         encoding="utf-8"
     )
 )
