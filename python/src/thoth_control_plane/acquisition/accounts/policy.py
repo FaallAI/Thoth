@@ -12,6 +12,10 @@ Outcome = Literal["success", "blocked", "challenge", "rate_limited", "login_wall
 MODES: tuple[Mode, ...] = ("anonymous", "fallback", "always")
 DEFAULT_MODE: Mode = "fallback"
 DEFAULT_SPACING_SECONDS = 60
+# Spec 2026-10-13 (account safety): leases per account per UTC day, and Instagram's spacing.
+DEFAULT_DAILY_BUDGETS = {"instagram": 20, "tiktok": 40, "x": 30, "youtube": 60, "threads": 30}
+DEFAULT_SPACING_SECONDS_BY_PLATFORM = {"instagram": 600}
+ENGINES = ("patchright", "camoufox")
 MAX_SPACING_SECONDS = 86_400
 # Longer than the 5-minute acquisition activity, so only a dead holder's lease ever expires.
 LEASE = timedelta(minutes=10)

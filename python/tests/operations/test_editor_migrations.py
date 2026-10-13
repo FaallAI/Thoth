@@ -39,6 +39,7 @@ def test_editor_migrations_stay_explicit_forward_only_sql_files() -> None:
         "0006_studio_review_events.sql",
         "0007_studio_import_sources.sql",
         "0008_source_accounts.sql",
+        "0009_source_account_safety.sql",
     ]
     for name in MIGRATION_FILES:
         sql = migration(name).lower()
@@ -415,4 +416,19 @@ def test_source_accounts_keep_secrets_sealed_and_proxies_dedicated() -> None:
     assert "UNIQUE (platform, label)" in sql
     assert "CHECK (mode IN ('anonymous', 'fallback', 'always'))" in sql
     for clear in ("cookie_value", "password", "proxy_url"):
+        assert clear not in sql.lower()
+
+
+def test_source_account_safety_adds_budget_engine_profile_fields() -> None:
+    sql = " ".join(migration("0009_source_account_safety.sql").split())
+
+    assert "ADD COLUMN daily_budget INTEGER" in sql
+    assert "CHECK (engine IN ('patchright', 'camoufox'))" in sql
+    assert "ADD COLUMN locale TEXT NOT NULL DEFAULT 'id-ID'" in sql
+    assert "ADD COLUMN timezone TEXT NOT NULL DEFAULT 'Asia/Jakarta'" in sql
+    assert "fingerprint_ciphertext BYTEA" in sql
+    assert "CREATE TABLE source_account_usage" in sql
+    assert "REFERENCES source_accounts (id) ON DELETE CASCADE" in sql
+    assert "GREATEST(min_spacing_seconds, 600)" in sql
+    for clear in ("fingerprint_json", "user_agent", "cookie_value"):
         assert clear not in sql.lower()

@@ -66,8 +66,9 @@ def _proxies(store: SourceAccountStore, *lines: str) -> list[str]:
 
 
 def test_policies_default_to_fallback_and_can_be_set(store: SourceAccountStore) -> None:
+    # Instagram spaces leases at least 10 minutes (spec 2026-10-13, account safety).
     assert {(p.platform, p.mode, p.min_spacing_seconds) for p in store.policies()} == {
-        (platform, "fallback", 60)
+        (platform, "fallback", 600 if platform == "instagram" else 60)
         for platform in ("tiktok", "threads", "instagram", "x", "youtube")
     }
     store.set_policy("instagram", "always", 120)
@@ -263,3 +264,24 @@ def test_a_stale_report_after_a_re_import_leaves_the_fresh_session_alone(
     store.report(lease.account_id, "login_wall", leased_until=lease.leased_until)
     assert store.account(account.id).status == "healthy"
     assert store.lease("instagram") is not None
+
+
+def test_policies_default_to_the_platform_budgets_and_patchright(
+    store: SourceAccountStore,
+) -> None:
+    views = {view.platform: view for view in store.policies()}
+
+    assert (views["instagram"].daily_budget, views["instagram"].min_spacing_seconds) == (20, 600)
+    assert (views["tiktok"].daily_budget, views["x"].daily_budget) == (40, 30)
+    assert (views["youtube"].daily_budget, views["threads"].daily_budget) == (60, 30)
+    assert {view.engine for view in views.values()} == {"patchright"}
+
+
+def test_a_policy_stores_budget_and_engine(store: SourceAccountStore) -> None:
+    view = store.set_policy("instagram", "fallback", 900, daily_budget=5, engine="camoufox")
+
+    assert (view.daily_budget, view.engine, view.min_spacing_seconds) == (5, "camoufox", 900)
+    assert store.policy("instagram").engine == "camoufox"
+    assert store.set_policy("instagram", "fallback", 900, daily_budget=None).daily_budget == 20
+    with pytest.raises(ValueError):
+        store.set_policy("instagram", "fallback", 900, engine="chromium")

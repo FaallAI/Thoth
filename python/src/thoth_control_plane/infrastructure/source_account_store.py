@@ -20,8 +20,11 @@ from sqlalchemy.orm import Session, sessionmaker
 from thoth_control_plane.acquisition.accounts.access import SessionAccess
 from thoth_control_plane.acquisition.accounts.cookies import PLATFORMS, CookieSet, Platform
 from thoth_control_plane.acquisition.accounts.policy import (
+    DEFAULT_DAILY_BUDGETS,
     DEFAULT_MODE,
     DEFAULT_SPACING_SECONDS,
+    DEFAULT_SPACING_SECONDS_BY_PLATFORM,
+    ENGINES,
     LEASE,
     Health,
     Mode,
@@ -52,6 +55,8 @@ class PolicyView:
     platform: Platform
     mode: Mode
     min_spacing_seconds: int
+    daily_budget: int = 0  # effective: the platform default when the row leaves it unset
+    engine: str = "patchright"
 
 
 @dataclass(frozen=True)
@@ -132,21 +137,39 @@ class SourceAccountStore:
         with self._sessions() as session:
             return self._policy_view(platform, session.get(SourceAccountPolicyRow, platform))
 
-    def set_policy(self, platform: Platform, mode: Mode, min_spacing_seconds: int) -> PolicyView:
+    def set_policy(
+        self,
+        platform: Platform,
+        mode: Mode,
+        min_spacing_seconds: int,
+        daily_budget: int | None = None,
+        engine: str = "patchright",
+    ) -> PolicyView:
+        if engine not in ENGINES:
+            raise ValueError(f"unknown engine {engine!r}")
         with self._sessions.begin() as session:
             row = session.get(SourceAccountPolicyRow, platform)
             if row is None:
                 row = SourceAccountPolicyRow(platform=platform)
                 session.add(row)
             row.mode, row.min_spacing_seconds = mode, min_spacing_seconds
+            row.daily_budget, row.engine = daily_budget, engine
             row.updated_at = self._clock()
         return self._policy_view(platform, row)
 
     @staticmethod
     def _policy_view(platform: Platform, row: SourceAccountPolicyRow | None) -> PolicyView:
+        budget = DEFAULT_DAILY_BUDGETS.get(platform, 0)
         if row is None:
-            return PolicyView(platform, DEFAULT_MODE, DEFAULT_SPACING_SECONDS)
-        return PolicyView(platform, row.mode, row.min_spacing_seconds)  # type: ignore[arg-type]
+            spacing = DEFAULT_SPACING_SECONDS_BY_PLATFORM.get(platform, DEFAULT_SPACING_SECONDS)
+            return PolicyView(platform, DEFAULT_MODE, spacing, budget)
+        return PolicyView(
+            platform,
+            row.mode,  # type: ignore[arg-type]
+            row.min_spacing_seconds,
+            budget if row.daily_budget is None else row.daily_budget,
+            row.engine or "patchright",
+        )
 
     # Accounts
 

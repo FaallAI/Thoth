@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy import (
     JSON,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -48,6 +49,9 @@ class SourceAccountPolicyRow(Base):
     platform: Mapped[str] = mapped_column(String, primary_key=True)
     mode: Mapped[str] = mapped_column(String)
     min_spacing_seconds: Mapped[int] = mapped_column(Integer, default=60)
+    # NULL means the platform default; 0 means unlimited (editor migration 0009).
+    daily_budget: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    engine: Mapped[str] = mapped_column(String, default="patchright")
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime)
 
 
@@ -82,5 +86,20 @@ class SourceAccountRow(Base):
     proxy_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("source_proxies.id", ondelete="RESTRICT"), unique=True, nullable=True
     )
+    locale: Mapped[str] = mapped_column(String, default="id-ID")
+    timezone: Mapped[str] = mapped_column(String, default="Asia/Jakarta")
+    fingerprint_ciphertext: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime)
+
+
+class SourceAccountUsageRow(Base):
+    """Leases per account per UTC day, for the daily budget (editor migration 0009)."""
+
+    __tablename__ = "source_account_usage"
+
+    account_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("source_accounts.id", ondelete="CASCADE"), primary_key=True
+    )
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    uses: Mapped[int] = mapped_column(Integer, default=0)
