@@ -4,7 +4,7 @@
 
 **Goal:** Signed-in sessions stop getting accounts flagged. Concretely:
 - platform warnings cool the account;
-- each account keeps one encrypted browser profile and one fingerprint;
+- each account keeps one encrypted browser profile per engine, and one Firefox fingerprint for Camoufox;
 - each account has a daily budget per platform;
 - Camoufox is available as a second engine, chosen per platform.
 
@@ -17,7 +17,7 @@
 
 **Tech Stack:**
 - Python 3.12, SQLAlchemy ORM over SQLite (tests) and Postgres, editor SQL migrations through Alembic.
-- Fernet (the existing vault), Scrapling/Patchright, `camoufox` 0.5.8 (MIT; browser MPL-2.0), `browserforge` 1.2.4 (Apache-2.0).
+- Fernet (the existing vault), Scrapling/Patchright, `camoufox` 0.5.8 (MIT; browser MPL-2.0; fingerprints from its bundled fpgen). BrowserForge is not a direct dependency (amendment 2026-10-14).
 - FastAPI; React and TypeScript dashboard (bun test).
 
 **Spec:** `docs/superpowers/specs/2026-10-13-source-account-safety-design.md`. Research: `docs/research/2026-10-13-account-safety-research.md`.
@@ -30,7 +30,7 @@
 - Engine: `patchright` (default) or `camoufox`, per platform.
 - Account `locale` defaults to `id-ID`, `timezone` to `Asia/Jakarta`.
 - Profiles:
-  - stored at `THOTH_ACCOUNT_PROFILE_DIR/<account_id>.profile` (default `/var/lib/thoth/account-profiles`), Fernet-encrypted with the vault key;
+  - stored per engine at `THOTH_ACCOUNT_PROFILE_DIR/<account_id>.<engine>.profile` (default `/var/lib/thoth/account-profiles`), Fernet-encrypted with the vault key;
   - unpacked into a private mode-0700 temporary directory only during a lease, and removed on release, including on failure;
   - the cache directories `Cache`, `Code Cache`, `GPUCache`, and `Service Worker/CacheStorage` are never archived;
   - an archive over 64 MB drops the remaining large files first.
@@ -39,7 +39,8 @@
 - Cookies are injected from the vault on every use; the vault stays the source of truth. An undecryptable profile is discarded with a warning, and a fresh one starts.
 - A missing `camoufox` package or browser is an explicit error, `camoufox_missing`, never a skip or a silent fallback (operator rule, 2026-10-11).
 - Budget or cooldown exhaustion is "no account", never an error.
-- The fingerprint ciphertext never reaches logs, events, artifacts, or the dashboard; the dashboard shows only `fingerprint_set` and a reset. A reset also deletes the profile.
+- The fingerprint ciphertext never reaches logs, events, artifacts, or the dashboard; the dashboard shows only `fingerprint_set` and a reset. A reset also deletes the profiles of both engines.
+- A fingerprint matches its engine (amendment 2026-10-14): Patchright gets no injected fingerprint and no `useragent` override; Camoufox gets the account's fpgen Firefox fingerprint, created on its first Camoufox lease.
 - Logs carry enums only: never an account label, a cookie, a proxy, or a fingerprint value.
 
 **Repository rules:**
@@ -77,7 +78,7 @@
 | `python/src/thoth_control_plane/acquisition/accounts/policy.py` | modify | `DEFAULT_DAILY_BUDGETS`, `DEFAULT_SPACING`, `ENGINES` |
 | `python/src/thoth_control_plane/acquisition/accounts/access.py` | modify | `SessionAccess` gains `profile_dir`, `locale`, `timezone`, `fingerprint`, `engine`; `browser_kwargs()` |
 | `python/src/thoth_control_plane/acquisition/accounts/profiles.py` | create | `AccountProfiles` (seal/unseal/delete), `leased_access` |
-| `python/src/thoth_control_plane/acquisition/accounts/fingerprints.py` | create | `new_fingerprint(locale)` via BrowserForge |
+| `python/src/thoth_control_plane/acquisition/accounts/fingerprints.py` | create | `new_fingerprint()` via `camoufox.fingerprints.generate_fingerprint` (Firefox, fpgen) |
 | `python/src/thoth_control_plane/acquisition/camoufox_session.py` | create | `CamoufoxSession` |
 | `python/src/thoth_control_plane/acquisition/instagram_reels.py` | modify | warnings → `CHALLENGE`; engine-aware session factory |
 | `python/src/thoth_control_plane/acquisition/models.py` | modify | `DiscoveryReason.CHALLENGE` |
@@ -383,10 +384,10 @@ elif result.reason in RETRY_REASONS:
 **Interfaces:**
 - Produces:
   - `AccountProfiles(vault: Vault, root: Path, *, max_bytes: int = 64 * 2**20)`;
-  - `.unseal(account_id: str) -> Path`: a new private temporary directory, filled from the archive when one exists and opens;
-  - `.seal(account_id: str, directory: Path) -> None`: archives the directory without caches, encrypts it, writes it atomically, then removes the directory;
+  - `.unseal(account_id: str, engine: str = "patchright") -> Path`: a new private temporary directory, filled from that engine's archive when one exists and opens;
+  - `.seal(account_id: str, directory: Path, engine: str = "patchright") -> None`: archives the directory without caches, encrypts it, writes `<account_id>.<engine>.profile` atomically, then removes the directory;
   - `.discard(directory: Path) -> None`: removes a directory without saving;
-  - `.delete(account_id: str) -> None`: removes the archive;
+  - `.delete(account_id: str) -> None`: removes the archives of every engine;
   - `PRUNED = ("Cache", "Code Cache", "GPUCache", "Service Worker/CacheStorage")`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -562,6 +563,8 @@ Read `infrastructure/vault.py` first: if it exposes only `seal(str)` and `open(b
 
 ### Task 5: Leased access carries the profile, locale, timezone, fingerprint, and engine
 
+> Amended 2026-10-14 (spec 3.4): no `useragent` from a stored fingerprint; the fingerprint is Camoufox's (fpgen, Firefox) and exists only once an account was leased with `engine == "camoufox"`; the profile is unsealed for the lease's engine.
+
 **Files:**
 - Create: `acquisition/accounts/fingerprints.py`
 - Modify: `acquisition/accounts/access.py`, `source_account_store.py` (`_open`, fingerprint generation, `update_account`), `acquisition/accounts/profiles.py` (`leased_access`), `acquisition/accounts/runner.py`, `attribution/adapters/discovery.py` (`StoreLeases`)
@@ -573,32 +576,42 @@ Read `infrastructure/vault.py` first: if it exposes only `seal(str)` and `open(b
   - `SessionAccess.browser_kwargs()` adds:
     - `user_data_dir=str(profile_dir)` when set;
     - `locale=locale`, `timezone_id=timezone`;
-    - `useragent=fingerprint["navigator"]["userAgent"]` when a fingerprint exists;
-  - `fingerprints.new_fingerprint(locale: str) -> dict`: BrowserForge `FingerprintGenerator(browser="chrome", os=("windows", "macos"), locale=locale)`, serialized to plain JSON-safe types;
-  - the store's `_open()` builds `SessionAccess` with the row's locale and timezone, the platform policy's engine, and the fingerprint. When `fingerprint_ciphertext` is NULL, it generates one with `new_fingerprint(row.locale)` and stores it sealed in the same transaction;
+    - `fingerprint=fingerprint` only when `engine == "camoufox"` (Scrapling's session would reject the keyword); never `useragent`;
+  - `fingerprints.new_fingerprint() -> dict`: `camoufox.fingerprints.generate_fingerprint()` (Firefox, fpgen), checked to round-trip through JSON; a missing package raises `ToolMissing("camoufox_missing")`;
+  - the store's `_open()` builds `SessionAccess` with the row's locale and timezone, the platform policy's engine, and, for `camoufox` only, the fingerprint. When the engine is `camoufox` and `fingerprint_ciphertext` is NULL, it generates one with `new_fingerprint()` and stores it sealed in the same transaction. A `patchright` lease never generates or loads one;
   - `store.update_account(..., locale=None, timezone=None, reset_fingerprint=False)`. A reset sets `fingerprint_ciphertext = None`, and the route also deletes the profile;
-  - `profiles.leased_access(profiles: AccountProfiles | None, lease: AccountLease)`: an async context manager yielding the lease's `SessionAccess` with `profile_dir` set. It unseals before and seals after, including on exceptions. With `profiles is None` it yields `lease.access` unchanged;
+  - `profiles.leased_access(profiles: AccountProfiles | None, lease: AccountLease)`: an async context manager yielding the lease's `SessionAccess` with `profile_dir` set. It unseals the profile of `lease.access.engine` before and seals it after, including on exceptions. With `profiles is None` it yields `lease.access` unchanged;
   - `account_runner(store, acquire, profiles: AccountProfiles | None = None)` and `StoreLeases(store, profiles: AccountProfiles | None = None)`: both lease through `leased_access`. `StoreLeases.lease()` returns an `AccountLease` whose `access` already has `profile_dir`; `release()` seals it.
 
 - [ ] **Step 1: Write the failing tests**
 
 ```python
-def test_browser_kwargs_carry_profile_locale_timezone_and_agent(tmp_path: Path) -> None:
+def test_browser_kwargs_carry_profile_locale_and_timezone(tmp_path: Path) -> None:
     access = SessionAccess(
         COOKIES,  # the access tests' cookie fixture
         None,
         profile_dir=tmp_path,
         locale="id-ID",
         timezone="Asia/Jakarta",
-        fingerprint={"navigator": {"userAgent": "Mozilla/5.0 test"}},
     )
 
     kwargs = access.browser_kwargs()
 
     assert kwargs["user_data_dir"] == str(tmp_path)
     assert (kwargs["locale"], kwargs["timezone_id"]) == ("id-ID", "Asia/Jakarta")
-    assert kwargs["useragent"] == "Mozilla/5.0 test"
-    assert "Mozilla" not in repr(access) and str(tmp_path) not in repr(access)
+    # Patchright keeps Scrapling's user agent: it matches the real Chromium and host OS.
+    assert "useragent" not in kwargs and "fingerprint" not in kwargs
+    assert str(tmp_path) not in repr(access)
+
+
+def test_only_camoufox_gets_the_fingerprint() -> None:
+    firefox = {"navigator": {"userAgent": "Mozilla/5.0 (X11; Linux x86_64; rv:150.0) Firefox/150.0"}}
+    camoufox = SessionAccess(COOKIES, None, fingerprint=firefox, engine="camoufox")
+    patchright = SessionAccess(COOKIES, None, fingerprint=firefox, engine="patchright")
+
+    assert camoufox.browser_kwargs()["fingerprint"] == firefox
+    assert "fingerprint" not in patchright.browser_kwargs()
+    assert "Firefox" not in repr(camoufox)
 
 
 @pytest.mark.asyncio
@@ -631,14 +644,28 @@ async def test_a_deleted_account_does_not_get_its_profile_back(tmp_path: Path) -
     assert not (tmp_path / "profiles" / f"{ACCOUNT}.profile").exists()
 
 
-def test_a_leased_account_gets_one_lasting_fingerprint(store) -> None:
+def test_a_camoufox_account_gets_one_lasting_firefox_fingerprint(store, monkeypatch) -> None:
+    # The real generator installs fpgen's model; the store test pins only the lifecycle.
+    made = iter([{"navigator": {"userAgent": "Firefox/150.0"}, "n": 1}, {"n": 2}])
+    monkeypatch.setattr(fingerprints, "new_fingerprint", lambda: next(made))
+    store.set_policy("instagram", "fallback", 0, engine="camoufox")
     account = _add(store, "instagram")
     first = store.lease("instagram")
     store.report(first.account_id, "success", first.leased_until)
     second = store.lease("instagram")
 
     assert first.access.fingerprint and first.access.fingerprint == second.access.fingerprint
-    assert store.account(account.id).fingerprint_set
+    assert first.access.engine == "camoufox" and store.account(account.id).fingerprint_set
+
+
+def test_a_patchright_lease_never_makes_a_fingerprint(store, monkeypatch) -> None:
+    monkeypatch.setattr(fingerprints, "new_fingerprint", lambda: pytest.fail("generated"))
+    account = _add(store, "instagram")
+
+    lease = store.lease("instagram")
+
+    assert lease.access.fingerprint is None and lease.access.engine == "patchright"
+    assert not store.account(account.id).fingerprint_set
 ```
 
 The deleted-account test requires `AccountProfiles.mark_deleted(account_id)`. It records the id in a small in-process set, and `seal()` then discards the directory instead of writing the archive. Add it to the Task 4 class in this task, and record a ruling: the spec's "deleting an account deletes its profile" needs it whenever the delete happens while a lease is open.
@@ -666,7 +693,7 @@ async def leased_access(
 
 The runner wraps `attempt(lease.access)` as `async with leased_access(profiles, lease) as access: result = await attempt(access)`. `StoreLeases` keeps a dict from account id to the open directory: `lease()` unseals and returns the lease with the profile set, and `release()` seals.
 
-`fingerprints.py` serializes BrowserForge's `Fingerprint` with `dataclasses.asdict`, keeping JSON-safe values only. The store seals it with the vault as JSON text.
+`fingerprints.py` calls `camoufox.fingerprints.generate_fingerprint()` and returns `json.loads(json.dumps(fingerprint))`, so a value that does not round-trip fails here and not at the next lease. The store seals it with the vault as JSON text. Its unit test monkeypatches the generator (the real one installs fpgen's model on first use, which the offline suite must not do); the Dockerfile build and the live comparison check the real generation.
 
 `worker.py`, `activities/source_investigation.py`, and `activities/source_attribution.py` build `AccountProfiles(vault, settings.THOTH_ACCOUNT_PROFILE_DIR)` wherever they build the store (`_account_store`), and pass it to `account_runner` and `StoreLeases`.
 
@@ -678,7 +705,7 @@ The runner wraps `attempt(lease.access)` as `async with leased_access(profiles, 
 
 **Files:**
 - Create: `acquisition/camoufox_session.py`
-- Modify: `acquisition/instagram_reels.py` (engine-aware default factory), `worker.py` (start check), `domain/models.py` (`camoufox_missing` in `ATTRIBUTION_REASONS`), `python/pyproject.toml` and `uv.lock` (`camoufox==0.5.8`, `browserforge>=1.2,<2`), `Dockerfile`, `D:/thoth-tmp/bu/pt.sh` (adds `--with camoufox==0.5.8 --with browserforge`)
+- Modify: `acquisition/instagram_reels.py` (engine-aware default factory), `worker.py` (start check), `domain/models.py` (`camoufox_missing` in `ATTRIBUTION_REASONS`), `python/pyproject.toml` and `uv.lock` (`camoufox==0.5.8`; it needs `playwright<1.63`, and the lock holds 1.62.0), `Dockerfile`, `D:/thoth-tmp/bu/pt.sh` (adds `--with camoufox==0.5.8`)
 - Test: `tests/acquisition/test_camoufox_session.py`, `tests/acquisition/test_instagram_reels.py`, `tests/test_worker.py`, `tests/domain/test_attribution_events.py`
 
 **Interfaces:**
@@ -810,8 +837,8 @@ Also:
 """Camoufox (Firefox patched at the C level) shaped like the Scrapling sessions we use.
 
 Spec 2026-10-13, section 3.4: only the sessions that need `url`, `status`, and `body` use
-it (signed-in Instagram reels discovery). The account's BrowserForge fingerprint, profile,
-locale, and timezone stay the same on every visit.
+it (signed-in Instagram reels discovery). The account's Firefox fingerprint (fpgen), its
+Camoufox profile, locale, and timezone stay the same on every visit.
 """
 
 from __future__ import annotations
@@ -884,7 +911,7 @@ RUN /opt/thoth/python/.venv/bin/python -m camoufox fetch \
     && chown -R thoth:thoth /home/thoth
 ```
 
-Run it as the `thoth` user (or set `HOME` so the browser lands in `/home/thoth/.cache/camoufox`). Add `camoufox, browserforge` to the import check, and `test -d /home/thoth/.cache/camoufox` to the `USER thoth` block.
+Run it as the `thoth` user (or set `HOME` so the browser lands in `/home/thoth/.cache/camoufox`). `camoufox fetch` also installs fpgen's model, so run it as the owner of the venv's `fpgen` package directory. Add `camoufox` to the import check, and `test -d /home/thoth/.cache/camoufox` to the `USER thoth` block.
 
 The worker start check: with attribution on, `find_spec("camoufox") is None` → `SettingsValidationError("camoufox_missing")`.
 

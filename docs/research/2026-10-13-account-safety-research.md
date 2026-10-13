@@ -96,3 +96,25 @@ No new framework. Harden what exists, in this order:
 - [What is Camoufox](https://www.centinelanalytica.com/blog/what-is-camoufox)
 - [Scrapling stealthy fetcher docs](https://huggingface.co/spaces/lenson78/Scrapling/blob/main/docs/fetching/stealthy.md)
 - [ZenRows: stealth browser tools](https://www.zenrows.com/blog/top-stealth-browser-tools)
+
+## Amendment, 2026-10-14: one fingerprint per engine
+
+Read from the camoufox 0.5.8 and Scrapling 0.4.15 package sources:
+
+- camoufox 0.5.8 replaced BrowserForge with fpgen. `launch_options(fingerprint=...)` checks
+  the user agent and raises `NonFirefoxFingerprint` for any browser but Firefox
+  (`utils.check_custom_fingerprint`). A stored Chrome fingerprint would fail every Camoufox
+  lease, and with `i_know_what_im_doing=True` it would present Chrome on a Firefox engine.
+- Passing the same fpgen fingerprint on every launch is the supported way to pin an identity:
+  `fingerprints.identity_salt(fingerprint)` makes fonts, voices, and noise seeds stable for it
+  (daijro/camoufox#442, #765).
+- Scrapling's headless default user agent is generated for the host OS and rewritten to the
+  driven Chromium's major version (`toolbelt.fingerprints.generate_headers(browser_mode=True)`).
+  Overriding it with a stored BrowserForge Chrome user agent would disagree with `sec-ch-ua`
+  after a Chromium upgrade, or with `navigator.platform` when the stored OS is not the
+  worker's.
+- A Chromium user data directory and a Firefox profile are different formats, so profiles
+  are archived per engine.
+
+Decision: Patchright gets no injected fingerprint; Camoufox gets one fpgen Firefox fingerprint
+per account; profiles are kept per engine; BrowserForge is not a direct dependency.
