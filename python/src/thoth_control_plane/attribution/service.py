@@ -142,7 +142,7 @@ class SourceAttributor:
         for frame in frames:
             if frame.second < self._tuning.credit_seconds:
                 lines += [box.text for box in await self._read(frame)]
-        cover, labelled = await self._cover(frames, video)
+        cover, _labelled = await self._cover(frames, video)  # the reaction step reads it
         owner = report.post.owner_handle
         caption_handles = credit.text_handles(report.post.text)
         found_in_frames = credit.frame_handles(lines)
