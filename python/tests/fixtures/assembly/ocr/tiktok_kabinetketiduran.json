@@ -282,7 +282,7 @@
    ]
   }
  ],
- "trim_allowed": false,
+ "trim_allowed": true,
  "tracker": null,
  "vision": false,
  "captured": {

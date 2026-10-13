@@ -83,8 +83,10 @@ class Tuning:
     # At 3000 ORB features a text label can line up with another label in one frame
     # (2026-10-11: 45 inliers, unrelated pair); every true original held at least 5 frames.
     min_matched_frames: int = 2
-    # Recalibrated on the 2026-10-13 recapture: originals up to 0.56, reposts from 0.80.
-    repost_threshold: float = 0.6
+    # Operator, 2026-10-13 (research 2026-10-13-repost-threshold-research.md): a false original
+    # keeps a reposter's headline and skips the source search, a false unresolved renders the
+    # same; uncredited reposts scored as low as 0.40.
+    repost_threshold: float = 0.35
     handle_threshold: float = 0.5
     max_finalists: int = 3
     finalist_concurrency: int = 2

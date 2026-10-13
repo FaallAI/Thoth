@@ -51,9 +51,12 @@ Branch `feat/stage4-reaction-attribution` (not pushed), from the Stage 5a tip. S
 - Live capture (operator-authorized): 10 cases with the branch source in the deployed image,
   speech packages at their locked versions, pinned models mounted.
   - In the suite: DeO6A2MSoAt (text subject) is `original`; DeRDs6DCX07 and officialinews stay
-    `replaced`; kabinetketiduran stays `original`.
-  - Calibration (operator): reaction engagement 0.8 (from 1.0); repost threshold 0.6 (from
-    0.5; the recapture put kabinetketiduran at 0.56, every true repost is at 0.80 or more).
+    `replaced`; kabinetketiduran is `unresolved` (see the threshold below).
+  - Calibration (operator): reaction engagement 0.8 (from 1.0); repost threshold 0.35 (from
+    0.5). A false `original` keeps a reposter's headline and skips the source search, while a
+    false `unresolved` renders the same (research `2026-10-13-repost-threshold-research.md`);
+    an uncredited repost scored 0.40. kabinetketiduran, an original at 0.49-0.56, is now
+    `unresolved` with its render still `clean`.
   - Pending, outside the suite (`tests/fixtures/attribution/pending/`, parse-checked only):
     - three original reactions that Instagram's thin profile listing defeats: DeWlWJmyKxP
       (comments 0.42, no baseline), DeOUJ60SHeI (engagement 0.2x), and DeHz54GT4ea (one of

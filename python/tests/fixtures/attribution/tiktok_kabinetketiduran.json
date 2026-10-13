@@ -1272,12 +1272,12 @@
   "discovery": null,
   "acquired": {},
   "expected": {
-    "verdict": "original",
+    "verdict": "unresolved",
     "source_url": null
   },
   "scout": {
     "main_url": null,
-    "note": "The operator confirmed on 2026-10-11 that this is the account's own video: no credit anywhere, and Jev's is_repost sits at the 0.50 threshold (0.50 on 2026-10-09, 0.49 on this capture)."
+    "note": "The operator confirmed on 2026-10-11 that this is the account's own video: no credit anywhere, and Jev's is_repost sits at the 0.50 threshold (0.50 on 2026-10-09, 0.49 on this capture). | 2026-10-13: an operator-confirmed original, but its repost probability (0.49-0.56 across captures) sits above the 0.35 threshold, so the verdict is unresolved: a coin flip, not a repost claim. Its Stage 5a render is clean either way."
   },
   "departure": "scout_not_run"
 }
