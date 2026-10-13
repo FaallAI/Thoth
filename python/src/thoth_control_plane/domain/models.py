@@ -397,6 +397,24 @@ ASSEMBLY_REASONS = frozenset(
         "artifact_write_failed",
     }
 )
+ATTRIBUTION_REASONS = frozenset(
+    {
+        "openrouter_key_missing",
+        "vision_unavailable",
+        "decision_unavailable",
+        "scene_detection_failed",
+        "transcription_failed",
+        "diarization_failed",
+        "whisper_missing",
+        "whisper_model_missing",
+        "diarization_missing",
+        "diarization_model_missing",
+        "ffmpeg_missing",
+        "ffprobe_missing",
+        "rapidocr_missing",
+        "opencv_missing",
+    }
+)
 OCR_OUTCOMES = frozenset({"clean", "cover", "subtitle", "overlay", "none"})
 SOURCE_EVENT_REASONS = (
     frozenset(
@@ -414,6 +432,7 @@ SOURCE_EVENT_REASONS = (
         }
     )
     | ASSEMBLY_REASONS
+    | ATTRIBUTION_REASONS
 )
 
 

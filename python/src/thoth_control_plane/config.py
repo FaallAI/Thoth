@@ -85,6 +85,9 @@ class Settings(BaseSettings):
     THOTH_OPENROUTER_API_KEY: SecretStr | None = None
     # Read by the API when it starts an identify_original workflow; a kill switch.
     THOTH_SOURCE_ATTRIBUTION_ENABLED: bool = True
+    # Speech models baked into the image (spec 2026-10-13); never downloaded at run time.
+    THOTH_WHISPER_MODEL_DIR: Path = Path("/opt/thoth/models/whisper-large-v3-turbo")
+    THOTH_DIARIZATION_MODEL_DIR: Path = Path("/opt/thoth/models/diarization")
     # Stage 5a content assembly. Off by default; the worker refuses to start with it on and
     # no ffmpeg or ffprobe (operator, 2026-10-11).
     THOTH_CONTENT_ASSEMBLY_ENABLED: bool = False
