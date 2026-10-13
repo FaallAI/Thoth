@@ -145,7 +145,16 @@ evidence holds one, is cited in the evidence for Stage 5b.
 - One extra call to the existing `Discoverer` for the post's own platform and owner handle,
   the same profile discovery Stage 4 uses for credited accounts. A discovery failure, an
   unsupported platform, or too few videos makes the ratio `None`, so engagement is not shown.
-  This is external content, not a tool error.
+  This is external content, not a tool error. A `None` ratio logs a warning, so production
+  never loses the baseline silently.
+- Operator, 2026-10-13: where signed-out access is weaker, use a signed-in account with its
+  proxy. Profile discovery in `fallback` mode therefore leases an account in two cases:
+  - when the anonymous listing is blocked (today's rule);
+  - when the listing is thin: fewer than 10 videos, as X shows about 5 posts signed out.
+
+  It keeps the longer of the two listings. Without an account, a thin anonymous listing is
+  still returned. Deploying this feature requires TikTok, Instagram, and X source accounts,
+  each with its proxy, imported, and their platform policy in `fallback` or `always`.
 
 ### 5.5 Decision rule
 
