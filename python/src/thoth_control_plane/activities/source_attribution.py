@@ -49,7 +49,7 @@ from thoth_control_plane.attribution.service import (
     AttributionPorts,
     SourceAttributor,
 )
-from thoth_control_plane.config import Settings
+from thoth_control_plane.config import Settings, SettingsValidationError
 from thoth_control_plane.domain import ArtifactRef
 from thoth_control_plane.domain.models import (
     OPAQUE_ID_PATTERN,
@@ -116,6 +116,9 @@ class RunnerAcquirer:
 
 def build_production_ports(settings: Settings, artifact_root: Path) -> AttributionPorts:
     openrouter = settings.openrouter_api_key
+    if openrouter is None:
+        # Operator, 2026-10-13: vision and Jev are required; there is no rules-only path.
+        raise SettingsValidationError("openrouter_key_missing")
     store = _account_store(settings)
     return AttributionPorts(
         frames=FfmpegFrameSource(settings.THOTH_FFMPEG),
@@ -123,10 +126,8 @@ def build_production_ports(settings: Settings, artifact_root: Path) -> Attributi
         text=RapidOcrReader(),
         discoverer=ProfileDiscoverer(leases=StoreLeases(store) if store is not None else None),
         acquirer=RunnerAcquirer(build_production_acquisition_runner(settings), artifact_root),
-        vision=AgnoVisionReader(openrouter, settings.THOTH_SOURCE_VISION_MODEL)
-        if openrouter
-        else None,
-        decisions=JevDecisionModel(openrouter) if openrouter else None,
+        vision=AgnoVisionReader(openrouter, settings.THOTH_SOURCE_VISION_MODEL),
+        decisions=JevDecisionModel(openrouter),
         scenes=FfmpegSceneDetector(settings.THOTH_FFMPEG),
         transcriber=WhisperTranscriber(settings.THOTH_WHISPER_MODEL_DIR),
         diarizer=SherpaDiarizer(settings.THOTH_DIARIZATION_MODEL_DIR),

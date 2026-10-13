@@ -58,13 +58,7 @@ def build_source_investigation_worker(
     )
 
 
-def check_media_tools(settings: Settings) -> None:
-    """Content assembly needs ffmpeg, ffprobe, RapidOCR, and OpenCV; refuse to start without them.
-
-    Operator, 2026-10-11: a missing tool is an explicit error, never a silent degradation.
-    """
-    if not settings.THOTH_CONTENT_ASSEMBLY_ENABLED:
-        return
+def _require_media(settings: Settings) -> None:
     for code, binary in (
         ("ffmpeg_missing", settings.THOTH_FFMPEG),
         ("ffprobe_missing", settings.THOTH_FFPROBE),
@@ -75,6 +69,34 @@ def check_media_tools(settings: Settings) -> None:
         raise SettingsValidationError("rapidocr_missing")
     if find_spec("cv2") is None:
         raise SettingsValidationError("opencv_missing")
+
+
+def check_media_tools(settings: Settings) -> None:
+    """Refuse to start without a tool, key, or model a stage on this worker needs.
+
+    Operator, 2026-10-11 and 2026-10-13: a missing tool is an explicit error, never a silent
+    degradation; vision and Jev are required for attribution.
+    """
+    from thoth_control_plane.attribution.adapters.speech import (
+        DIARIZATION_FILES,
+        WHISPER_FILES,
+        missing,
+    )
+
+    if settings.THOTH_SOURCE_ATTRIBUTION_ENABLED:
+        if settings.openrouter_api_key is None:
+            raise SettingsValidationError("openrouter_key_missing")
+        _require_media(settings)
+        if find_spec("faster_whisper") is None:
+            raise SettingsValidationError("whisper_missing")
+        if missing(settings.THOTH_WHISPER_MODEL_DIR, WHISPER_FILES):
+            raise SettingsValidationError("whisper_model_missing")
+        if find_spec("sherpa_onnx") is None:
+            raise SettingsValidationError("diarization_missing")
+        if missing(settings.THOTH_DIARIZATION_MODEL_DIR, DIARIZATION_FILES):
+            raise SettingsValidationError("diarization_model_missing")
+    if settings.THOTH_CONTENT_ASSEMBLY_ENABLED:
+        _require_media(settings)
 
 
 def build_prompt_proposal_worker(client: Client, settings: Settings) -> Worker:

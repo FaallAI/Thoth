@@ -670,6 +670,8 @@ async def test_production_worker_registration_binds_source_activity_to_configure
             THOTH_CONTROL_PLANE_API_KEY="test-key",
             THOTH_CONTROL_PLANE_ARTIFACT_ROOT=configured_root,
             THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE="python",
+            # Attribution's ports are built with the worker and need their key (2026-10-13).
+            THOTH_OPENROUTER_API_KEY="synthetic-key",
         ),
         runner=_offline_successful_runner(),
     )

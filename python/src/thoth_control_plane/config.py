@@ -154,7 +154,7 @@ class Settings(BaseSettings):
 
     @property
     def openrouter_api_key(self) -> str | None:
-        """The OpenRouter key for vision and Jev, or None when attribution uses rules alone."""
+        """The OpenRouter key for vision and Jev; attribution refuses to start without it."""
         return _secret(self.THOTH_OPENROUTER_API_KEY)
 
     @property

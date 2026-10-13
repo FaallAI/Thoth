@@ -204,17 +204,24 @@ def test_production_ports_follow_the_configured_keys(tmp_path: Path) -> None:
         "THOTH_CONTROL_PLANE_API_KEY": "k",
         "THOTH_CONTROL_PLANE_ARTIFACT_ROOT": tmp_path,
     }
-    without = build_production_ports(Settings(**common, THOTH_OPENROUTER_API_KEY=None), tmp_path)
-    with_keys = build_production_ports(
-        Settings(
-            **common,
-            THOTH_OPENROUTER_API_KEY="or-synthetic-key",
-        ),
-        tmp_path,
+    from thoth_control_plane.attribution.adapters.frames import FfmpegSceneDetector
+    from thoth_control_plane.attribution.adapters.jev import JevDecisionModel
+    from thoth_control_plane.attribution.adapters.speech import SherpaDiarizer, WhisperTranscriber
+    from thoth_control_plane.attribution.adapters.vision import AgnoVisionReader
+    from thoth_control_plane.config import SettingsValidationError
+
+    # Operator, 2026-10-13: vision and Jev are required; no key is an error, not a rules path.
+    with pytest.raises(SettingsValidationError, match="openrouter_key_missing"):
+        build_production_ports(Settings(**common, THOTH_OPENROUTER_API_KEY=None), tmp_path)
+    ports = build_production_ports(
+        Settings(**common, THOTH_OPENROUTER_API_KEY="or-synthetic-key"), tmp_path
     )
 
-    assert (without.vision, without.decisions) == (None, None)
-    assert with_keys.vision is not None and with_keys.decisions is not None
+    assert isinstance(ports.vision, AgnoVisionReader)
+    assert isinstance(ports.decisions, JevDecisionModel)
+    assert isinstance(ports.scenes, FfmpegSceneDetector)
+    assert isinstance(ports.transcriber, WhisperTranscriber)
+    assert isinstance(ports.diarizer, SherpaDiarizer)
 
 
 def test_provider_keys_never_reach_an_adapter_repr_or_the_ports(tmp_path: Path) -> None:
@@ -254,6 +261,7 @@ def test_production_discovery_leases_from_the_account_store_when_configured(
     common: dict[str, Any] = {
         "THOTH_CONTROL_PLANE_API_KEY": "k",
         "THOTH_CONTROL_PLANE_ARTIFACT_ROOT": tmp_path,
+        "THOTH_OPENROUTER_API_KEY": "or-synthetic-key",
     }
     anonymous = build_production_ports(Settings(**common), tmp_path)
     signed_in = build_production_ports(
