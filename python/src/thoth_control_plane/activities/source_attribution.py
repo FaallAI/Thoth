@@ -2,8 +2,10 @@
 
 It reads `reports/<workflow_id>/source-report.json` (only a Stage 3 report, schema v3, is
 accepted), runs the attributor, and writes the attribution and, when found, the original's
-report. A failure anywhere is verdict `unresolved` with a failed event: the repost acquisition
-always stands. Only IDs, the verdict, and elapsed milliseconds reach Temporal history.
+report. A required tool, model, or provider that cannot work is a typed failure carrying its
+code, and the workflow fails (operator, 2026-10-13); any other failure is verdict `unresolved`
+with a failed event, and the repost acquisition stands. Only IDs, the verdict, codes, and
+elapsed milliseconds reach Temporal history.
 """
 
 from __future__ import annotations
@@ -40,7 +42,8 @@ from thoth_control_plane.attribution.adapters.speech import SherpaDiarizer, Whis
 from thoth_control_plane.attribution.adapters.vision import AgnoVisionReader
 from thoth_control_plane.attribution.adapters.visual import OrbMatcher
 from thoth_control_plane.attribution.candidates import load_curated
-from thoth_control_plane.attribution.ports import AcquiredCandidate
+from thoth_control_plane.attribution.models import ReasonCode
+from thoth_control_plane.attribution.ports import AcquiredCandidate, AttributionError
 from thoth_control_plane.attribution.service import (
     AttributionOutcome,
     AttributionPorts,
@@ -70,6 +73,7 @@ class SourceAttributionActivityResult(StrictModel):
     verdict: Verdict
     attribution: ArtifactRef | None = None
     original_report: ArtifactRef | None = None
+    failure: ReasonCode | None = None
     events: list[SourceProgressEvent] = Field(default_factory=list)
 
 
@@ -154,16 +158,21 @@ def _artifact(kind: str, label: str, location: PurePosixPath, content: bytes) ->
 
 
 def _event(
-    verdict: Verdict, elapsed_ms: int, status: Literal["succeeded", "failed"]
+    verdict: Verdict,
+    elapsed_ms: int,
+    status: Literal["succeeded", "failed"],
+    reason: str | None = None,
 ) -> SourceProgressEvent:
+    payload: dict[str, str | int | float | bool | None] = {
+        "stage": "attribution",
+        "status": status,
+        "elapsed_ms": elapsed_ms,
+        "verdict": verdict,
+    }
+    if reason is not None:
+        payload["reason"] = reason
     return SourceProgressEvent(
-        kind="stage.completed" if status == "succeeded" else "stage.failed",
-        payload={
-            "stage": "attribution",
-            "status": status,
-            "elapsed_ms": elapsed_ms,
-            "verdict": verdict,
-        },
+        kind="stage.completed" if status == "succeeded" else "stage.failed", payload=payload
     )
 
 
@@ -201,6 +210,14 @@ async def _run(
         )
     except asyncio.CancelledError:
         raise
+    except AttributionError as error:
+        logger.warning("source attribution stopped: %s", error.code)
+        elapsed = int((time.monotonic() - started) * 1000)
+        return SourceAttributionActivityResult(
+            verdict="unresolved",
+            failure=error.code,
+            events=[_event("unresolved", elapsed, "failed", error.code)],
+        )
     except Exception:
         logger.warning("source attribution failed; the repost report stands")
         return failed()

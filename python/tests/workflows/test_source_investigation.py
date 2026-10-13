@@ -1678,6 +1678,32 @@ async def test_the_gateway_requests_attribution_when_enabled(
 
 
 ASSEMBLY_RELEASE: asyncio.Event | None = None
+
+
+@activity.defn(name="attribute_source")
+async def failing_attribute(
+    input_: SourceAttributionActivityInput,
+) -> SourceAttributionActivityResult:
+    return SourceAttributionActivityResult.model_validate(
+        {
+            "verdict": "unresolved",
+            "failure": "vision_unavailable",
+            "events": [
+                {
+                    "kind": "stage.failed",
+                    "payload": {
+                        "stage": "attribution",
+                        "status": "failed",
+                        "elapsed_ms": 5,
+                        "verdict": "unresolved",
+                        "reason": "vision_unavailable",
+                    },
+                }
+            ],
+        }
+    )
+
+
 ASSEMBLY_INPUTS: list[ContentAssemblyActivityInput] = []
 
 
@@ -1908,3 +1934,33 @@ async def test_the_gateway_requests_assembly_when_enabled(
         ).result()
 
     assert [a.kind for a in result.artifacts][-1] == "content_set"
+
+
+@pytest.mark.asyncio
+async def test_a_failed_attribution_fails_the_workflow_with_its_reason(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    ASSEMBLY_INPUTS.clear()
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[fake_inspect, failing_attribute, fake_assemble],
+    ):
+        handle = await workflow_env.client.start_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_assembled()],
+            id="wf_test_attribution_failed",
+            task_queue="test",
+        )
+        result = await handle.result()
+        events = await handle.query(SourceInvestigationWorkflow.source_events)
+
+    assert result.status == "failed" and result.failure is not None
+    assert (result.failure.code, result.failure.failed_stage, result.failure.retryable) == (
+        "source_attribution_failed",
+        "attribution",
+        True,
+    )
+    assert any(e.payload.get("reason") == "vision_unavailable" for e in events)
+    assert ASSEMBLY_INPUTS == []  # assembly never runs after a failed attribution

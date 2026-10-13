@@ -176,10 +176,20 @@ class SourceInvestigationWorkflow:
             # Legacy Scout writes no v3 report, so there is nothing to attribute or assemble.
             if not self._report_from_legacy:
                 if input_.attribute_source:
-                    await self._attribute()
+                    attributed = await self._attribute()
                     if self._cancel_requested:
                         self._transition(WorkflowStatus.CANCELLED)
                         self._record_event(EventKind.WORKFLOW_CANCELLED)
+                        return self._summary()
+                    if not attributed:
+                        self._failure = WorkflowFailure(
+                            code="source_attribution_failed",
+                            message="Source attribution failed",
+                            failed_stage="attribution",
+                            retryable=True,
+                        )
+                        self._transition(WorkflowStatus.FAILED)
+                        self._record_event(EventKind.WORKFLOW_FAILED)
                         return self._summary()
                 if input_.assemble_content:
                     assembled = await self._assemble()
@@ -313,8 +323,11 @@ class SourceInvestigationWorkflow:
             task_queue=LEGACY_ADAPTER_TASK_QUEUE,
         )
 
-    async def _attribute(self) -> None:
-        """Attribute the acquired post; a failed attribution never fails the workflow."""
+    async def _attribute(self) -> bool:
+        """Attribute the acquired post; False when a required tool, model, or provider failed.
+
+        That fails the workflow (operator, 2026-10-13); external content never does.
+        """
         self._record_event(
             EventKind.STAGE_STARTED, stage=StageProgress(name="attribution", progress=0.0)
         )
@@ -332,16 +345,22 @@ class SourceInvestigationWorkflow:
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError, ActivityError):
                 await task
-            return
+            return True
         try:
             result = await task
         except ActivityError:
             self._record_event(
                 EventKind.STAGE_COMPLETED, stage=StageProgress(name="attribution", progress=1.0)
             )
-            return
+            return True
         self._source_events.extend(result.events)
         self._event_sequence += len(result.events)
+        if result.failure is not None:
+            self._updated_at = workflow.now()
+            self._record_event(
+                EventKind.STAGE_COMPLETED, stage=StageProgress(name="attribution", progress=1.0)
+            )
+            return False
         for artifact in (result.attribution, result.original_report):
             if artifact is not None:
                 self._artifacts.append(artifact)
@@ -355,6 +374,7 @@ class SourceInvestigationWorkflow:
         self._record_event(
             EventKind.STAGE_COMPLETED, stage=StageProgress(name="attribution", progress=1.0)
         )
+        return True
 
     async def _assemble(self) -> bool:
         """Build the content set; False when a required part failed (the workflow fails)."""

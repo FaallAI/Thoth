@@ -131,6 +131,25 @@ async def test_an_unreadable_report_is_unresolved_without_artifacts(tmp_path: Pa
 
 
 @pytest.mark.asyncio
+async def test_a_required_tool_failure_is_a_typed_failure(tmp_path: Path) -> None:
+    from thoth_control_plane.attribution.ports import AttributionError
+
+    _persist(tmp_path, _report())
+
+    result = await _run(
+        SourceAttributionActivityInput(workflow_id=WORKFLOW),
+        tmp_path,
+        FakeAttributor(error=AttributionError("decision_unavailable")),
+    )
+
+    assert (result.verdict, result.failure) == ("unresolved", "decision_unavailable")
+    assert result.attribution is None and result.original_report is None
+    assert result.events[0].payload["reason"] == "decision_unavailable"
+    assert result.events[0].kind == "stage.failed"
+    assert not (tmp_path / "reports" / WORKFLOW / "source-attribution.json").exists()
+
+
+@pytest.mark.asyncio
 async def test_an_attributor_error_is_unresolved(tmp_path: Path) -> None:
     _persist(tmp_path, _report())
 
