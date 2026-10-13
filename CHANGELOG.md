@@ -2,6 +2,61 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-14 - Source account safety
+
+Branch `feat/source-account-safety` (not pushed), on top of the Stage 4 reaction branch. Spec
+`docs/superpowers/specs/2026-10-13-source-account-safety-design.md` (amended 2026-10-14), plan
+`docs/superpowers/plans/2026-10-13-source-account-safety.md`, research
+`docs/research/2026-10-13-account-safety-research.md`. Executed natively, with one review of the
+whole branch by a fresh reviewer at the end.
+
+- Platform warnings cool the account. Instagram's `/challenge/`, `/accounts/suspended/`,
+  `feedback_required`, `checkpoint_required`, and `"spam":true` make discovery report
+  `challenge`, and a signed-in captcha does too; the store's cooldown ladder (15 min, 1 h, 6 h,
+  24 h) then rests the account.
+- A daily lease budget per account per UTC day (Instagram 20, TikTok 40, X 30, YouTube 60,
+  Threads 30; 0 means unlimited), counted in the lease's own row-locked transaction. Instagram
+  leases are spaced at least 10 minutes. Migration 0009 adds the policy fields, the account's
+  locale, timezone, and sealed fingerprint, and `source_account_usage`.
+- Each account keeps an encrypted browser profile per engine
+  (`THOTH_ACCOUNT_PROFILE_DIR/<account_id>.<engine>.profile`, Fernet with the vault key, caches
+  pruned, 64 MB cap). It is unpacked into a private directory only during a lease and sealed
+  back on any exit. An unreadable archive starts a fresh profile with a warning. Deleting an
+  account leaves a tombstone, so a lease still open in the worker cannot write it back.
+- Camoufox 0.5.8 is a second engine, for Instagram's signed-in reels discovery only; every
+  other session stays on Scrapling and Patchright, and the API refuses Camoufox elsewhere
+  (`engine_unsupported`). Amendment (2026-10-14, after research into the package sources): a
+  fingerprint must match its browser. Patchright gets no injected fingerprint or user agent;
+  Camoufox gets one fpgen Firefox fingerprint per account, made on its first Camoufox lease;
+  BrowserForge is not a direct dependency. A missing Camoufox is `camoufox_missing`, never
+  "no account" or an anonymous fallback.
+- The API and dashboard show and edit the budget, the engine (Instagram), today's uses, the
+  account's locale and timezone (validated with zoneinfo), and a device-fingerprint reset that
+  also deletes the account's profiles. The fingerprint itself never leaves the vault.
+- Deployment: `account-profiles` is bind-mounted from the data root into `api` and `worker`;
+  the image fetches the Camoufox browser and fpgen's model, and checks the profile directory
+  and `/usr/share/zoneinfo`. CI prepares the new directory.
+- Review: 0 Critical; 3 Important fixed (Camoufox scope, credential-less proxies, CI bind
+  source), 1 Minor re-graded and fixed (Firefox caches, a warning when the cap drops files);
+  7 Minors deferred in the checkpoint.
+- Verification: Python suite 3629 passed, 21 skipped (environment skips: no Chromium build, no
+  disposable Postgres, no live URL); dashboard 694 passed, build green; contract tests 365
+  passed; actionlint findings unchanged.
+
+**Next steps**
+- Next stage: Stage 5b footage, after this branch and the reaction branch ship.
+- Operator gates, each needing its own authorization:
+  1. Live fingerprint comparison: one Instagram account through the capture container on
+     CreepJS and BrowserScan, Patchright then Camoufox, with its profile and proxy; record the
+     scores; the operator decides whether Instagram moves to Camoufox.
+  2. Live recapture of `instagram_deWlWJmyKxP`, `instagram_deOUJ60SHeI`, and
+     `instagram_deHz54GT4ea`, 10 minutes apart, with the reels listing.
+  3. Push, merge, CI, pinning `THOTH_IMAGE`, and deploy (migration 0009). Before deploy, create
+     `$THOTH_STAGE1_DATA_ROOT/account-profiles` owned by 10001 with mode 700.
+  4. Importing source accounts with their proxies.
+- Follow-ups: the deferred review minors in the checkpoint; TikTok and X warning patterns;
+  Camoufox for acquisition's card crops.
+
 ## 2026-10-13 - Stage 4: reactions that count as originals
 
 Branch `feat/stage4-reaction-attribution` (not pushed), from the Stage 5a tip. Spec
