@@ -366,6 +366,8 @@ class SourceAttributor:
             else None
         )
         ratio = engagement_ratio(report.post.post_id, report.post.engagement, videos or [])
+        if ratio is None:
+            logger.warning("reaction baseline unavailable platform=%s", platform)
         call = judge(
             assessment,
             ratio,

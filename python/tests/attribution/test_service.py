@@ -518,16 +518,20 @@ async def test_a_reaction_judged_a_repost_goes_on_to_find_its_video(
 
 
 @pytest.mark.asyncio
-async def test_no_comments_or_no_baseline_keeps_it_a_repost() -> None:
+async def test_no_comments_or_no_baseline_keeps_it_a_repost(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     quiet = _reaction_report()
     quiet["comments"] = []
     unknown = _reaction_case()
     unknown["discovery"]["by_handle"]["detikjatim"] = []
 
     first, _ = await _identify(_reaction_case(), quiet)
-    second, _ = await _identify(unknown, _reaction_report())
+    with caplog.at_level("WARNING"):
+        second, _ = await _identify(unknown, _reaction_report())
 
     assert first.attribution.verdict == second.attribution.verdict == "replaced"
+    assert "reaction baseline unavailable" in caplog.text
 
 
 @pytest.mark.asyncio

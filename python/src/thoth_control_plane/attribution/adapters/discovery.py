@@ -34,6 +34,9 @@ logger = logging.getLogger(__name__)
 
 PROFILE_LIMIT = 30
 RETRY_REASONS = frozenset({DiscoveryReason.CAPTCHA, DiscoveryReason.BLOCKED})
+# X shows about 5 posts signed out; a signed-in listing is fuller. Operator, 2026-10-13: where
+# signed out is weaker, use the login with its proxy.
+THIN_LISTING = 10
 DiscoveryFactory = Callable[[SessionAccess | None, Path], Any]
 
 
@@ -139,14 +142,19 @@ class ProfileDiscoverer:
 
     async def discover(self, platform: Platform, handle: str) -> list[DiscoveredVideo]:
         mode: Mode = await self._leases.mode(platform) if self._leases else "anonymous"
+        anonymous: DiscoveryResult | None = None
         if mode != "always":
             anonymous = await self._run(platform, handle, None)
-            if mode == "anonymous" or anonymous.videos or anonymous.reason not in RETRY_REASONS:
+            thin = 0 < len(anonymous.videos) < THIN_LISTING
+            blocked = not anonymous.videos and anonymous.reason in RETRY_REASONS
+            if mode == "anonymous" or not (thin or blocked):
                 return _videos(anonymous)
         assert self._leases is not None  # a leasing mode implies a lease source
         lease = await self._leases.lease(platform)
         if lease is None:
             logger.info("no source account for discovery platform=%s mode=%s", platform, mode)
+            if anonymous is not None and anonymous.videos:
+                return _videos(anonymous)
             if mode == "always":
                 return _videos(await self._run(platform, handle, None))
             raise DiscoveryBlocked(f"{platform} discovery blocked and no source account to lease")
@@ -160,6 +168,8 @@ class ProfileDiscoverer:
         finally:
             await self._leases.release(lease, outcome)
         logger.info("discovery used a source account platform=%s outcome=%s", platform, outcome)
+        if anonymous is not None and len(anonymous.videos) > len(result.videos):
+            return _videos(anonymous)
         return _videos(result)
 
     async def _run(

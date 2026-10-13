@@ -104,13 +104,51 @@ async def test_fallback_leases_an_account_after_a_captcha() -> None:
     assert leases.released == ["success"]
 
 
+def _videos(count: int) -> list[DiscoveredVideo]:
+    return [
+        VIDEO.model_copy(
+            update={
+                "post_id": str(7677137235434687000 + n),
+                "canonical_url": f"https://www.tiktok.com/@{SOURCE}/video/{7677137235434687000 + n}",
+            }
+        )
+        for n in range(count)
+    ]
+
+
 @pytest.mark.asyncio
 async def test_fallback_keeps_an_anonymous_success_without_an_account() -> None:
-    fake = FakeDiscovery(_result([VIDEO]), _result([]))
+    fake = FakeDiscovery(_result(_videos(10)), _result([]))
     leases = FakeLeases("fallback")
 
-    assert await _discover(fake, leases) == [VIDEO]
+    assert len(await _discover(fake, leases)) == 10
     assert (fake.built_with, leases.released) == ([None], [])
+
+
+@pytest.mark.asyncio
+async def test_fallback_leases_an_account_when_the_anonymous_listing_is_thin() -> None:
+    # Operator, 2026-10-13: where signed out is weaker, use the login with its proxy.
+    fake = FakeDiscovery(_result(_videos(5)), _result(_videos(30)))  # X signed out: ~5 posts
+    leases = FakeLeases("fallback")
+
+    assert len(await _discover(fake, leases)) == 30
+    assert (fake.built_with, leases.released) == ([None, ACCESS], ["success"])
+
+
+@pytest.mark.asyncio
+async def test_a_thin_listing_without_an_account_is_still_returned() -> None:
+    fake = FakeDiscovery(_result(_videos(5)), _result([]))
+
+    assert len(await _discover(fake, FakeLeases("fallback", available=False))) == 5
+
+
+@pytest.mark.asyncio
+async def test_the_longer_listing_wins() -> None:
+    fake = FakeDiscovery(_result(_videos(6)), _result(_videos(2)))
+    leases = FakeLeases("fallback")
+
+    assert len(await _discover(fake, leases)) == 6
+    assert leases.released == ["success"]
 
 
 @pytest.mark.asyncio
