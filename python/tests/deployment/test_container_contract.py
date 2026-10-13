@@ -142,7 +142,15 @@ def test_container_workflow_pins_gates_tags_platform_and_digest_summary() -> Non
     workflow = _repo_text(".github/workflows/container-image.yml")
     assert "REGISTRY_IMAGE: ghcr.io/muhfalihr/thoth" in workflow
     # From python/, so pytest reads python/pyproject.toml (asyncio_mode and markers).
-    assert 'working-directory: python\n        run: uv run pytest -m "not live" -q' in workflow
+    assert (
+        "working-directory: python\n"
+        "        env:\n"
+        "          THOTH_TEST_WHISPER_MODEL_DIR: ${{ runner.temp }}/models/whisper-tiny\n"
+        "          THOTH_TEST_DIARIZATION_MODEL_DIR: ${{ runner.temp }}/models/diarization\n"
+        '        run: uv run pytest -m "not live" -q'
+    ) in workflow
+    # The speech adapter tests fail without models (operator, 2026-10-13), so CI fetches them.
+    assert "fetch_speech_models.py --whisper tiny" in workflow
     assert "bun --cwd=scout run test:acquisition" in workflow
     assert "bun --cwd scout" not in workflow
     assert "platforms: linux/amd64" in workflow
