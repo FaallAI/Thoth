@@ -1,0 +1,321 @@
+{
+ "note": "Minimized from a signed-in browser load of instagram.com/sadampermana.w/reels/ (2026-10-13): GraphQL fetch__XDTUserDict.clips_connection responses, public post fields only.",
+ "handle": "sadampermana.w",
+ "bodies": [
+  {
+   "data": {
+    "fetch__XDTUserDict": {
+     "clips_connection": {
+      "edges": [
+       {
+        "node": {
+         "media": {
+          "pk": "3355461501674186293",
+          "code": "C6Q_nUwyeY1",
+          "play_count": 2371655,
+          "like_count": 186774,
+          "comment_count": 618,
+          "media_type": 2,
+          "product_type": "clips",
+          "like_and_view_counts_disabled": false,
+          "user": {
+           "username": "sadampermana.w"
+          }
+         }
+        }
+       },
+       {
+        "node": {
+         "media": {
+          "pk": "4006950201864163109",
+          "code": "Debi_qWyw8l",
+          "play_count": 605160,
+          "like_count": 38838,
+          "comment_count": 150,
+          "media_type": 2,
+          "product_type": "clips",
+          "like_and_view_counts_disabled": false,
+          "user": {
+           "username": "sadampermana.w"
+          }
+         }
+        }
+       },
+       {
+        "node": {
+         "media": {
+          "pk": "4006306149002980569",
+          "code": "DeZQjdYySzZ",
+          "play_count": 312109,
+          "like_count": 36439,
+          "comment_count": 257,
+          "media_type": 2,
+          "product_type": "clips",
+          "like_and_view_counts_disabled": false,
+          "user": {
+           "username": "sadampermana.w"
+          }
+         }
+        }
+       },
+       {
+        "node": {
+         "media": {
+          "pk": "4005553168456395855",
+          "code": "DeWlWJmyKxP",
+          "play_count": 591173,
+          "like_count": 30602,
+          "comment_count": 316,
+          "media_type": 2,
+          "product_type": "clips",
+          "like_and_view_counts_disabled": false,
+          "user": {
+           "username": "sadampermana.w"
+          }
+         }
+        }
+       },
+       {
+        "node": {
+         "media": {
+          "pk": "4004864294365307875",
+          "code": "DeUIttnSiPj",
+          "play_count": 183227,
+          "like_count": 7875,
+          "comment_count": 72,
+          "media_type": 2,
+          "product_type": "clips",
+          "like_and_view_counts_disabled": false,
+          "user": {
+           "username": "sadampermana.w"
+          }
+         }
+        }
+       },
+       {
+        "node": {
+         "media": {
+          "pk": "4004690760347308565",
+          "code": "DeThQddylIV",
+          "play_count": 199594,
+          "like_count": 16822,
+          "comment_count": 828,
+          "media_type": 2,
+          "product_type": "clips",
+          "like_and_view_counts_disabled": false,
+          "user": {
+           "username": "sadampermana.w"
+          }
+         }
+        }
+       },
+       {
+        "node": {
+         "media": {
+          "pk": "4003392263664861229",
+          "code": "DeO6A2MSoAt",
+          "play_count": 1229873,
+          "like_count": 62982,
+          "comment_count": 1350,
+          "media_type": 2,
+          "product_type": "clips",
+          "like_and_view_counts_disabled": false,
+          "user": {
+           "username": "sadampermana.w"
+          }
+         }
+        }
+       },
+       {
+        "node": {
+         "media": {
+          "pk": "4003225761338652552",
+          "code": "DeOUJ60SHeI",
+          "play_count": 323469,
+          "like_count": 21375,
+          "comment_count": 264,
+          "media_type": 2,
+          "product_type": "clips",
+          "like_and_view_counts_disabled": false,
+          "user": {
+           "username": "sadampermana.w"
+          }
+         }
+        }
+       },
+       {
+        "node": {
+         "media": {
+          "pk": "4002065558115194714",
+          "code": "DeKMWvXSBda",
+          "play_count": 1837163,
+          "like_count": 83866,
+          "comment_count": 4348,
+          "media_type": 2,
+          "product_type": "clips",
+          "like_and_view_counts_disabled": false,
+          "user": {
+           "username": "sadampermana.w"
+          }
+         }
+        }
+       },
+       {
+        "node": {
+         "media": {
+          "pk": "4002008628265002421",
+          "code": "DeJ_aTTyKW1",
+          "play_count": 2318056,
+          "like_count": 150572,
+          "comment_count": 567,
+          "media_type": 2,
+          "product_type": "clips",
+          "like_and_view_counts_disabled": false,
+          "user": {
+           "username": "sadampermana.w"
+          }
+         }
+        }
+       },
+       {
+        "node": {
+         "media": {
+          "pk": "4001694538564982137",
+          "code": "DeI3_seyVV5",
+          "play_count": 412981,
+          "like_count": 26822,
+          "comment_count": 149,
+          "media_type": 2,
+          "product_type": "clips",
+          "like_and_view_counts_disabled": false,
+          "user": {
+           "username": "sadampermana.w"
+          }
+         }
+        }
+       },
+       {
+        "node": {
+         "media": {
+          "pk": "4001395071559632794",
+          "code": "DeHz54GT4ea",
+          "play_count": 1253593,
+          "like_count": 94233,
+          "comment_count": 1699,
+          "media_type": 2,
+          "product_type": "clips",
+          "like_and_view_counts_disabled": false,
+          "user": {
+           "username": "sadampermana.w"
+          }
+         }
+        }
+       }
+      ],
+      "page_info": {
+       "has_next_page": true
+      }
+     }
+    }
+   }
+  },
+  {
+   "data": {
+    "fetch__XDTUserDict": {
+     "clips_connection": {
+      "edges": [
+       {
+        "node": {
+         "media": {
+          "pk": "4001144637879904448",
+          "code": "DeG69ljymjA",
+          "play_count": 352104,
+          "like_count": 24826,
+          "comment_count": 349,
+          "media_type": 2,
+          "product_type": "clips",
+          "like_and_view_counts_disabled": false,
+          "user": {
+           "username": "sadampermana.w"
+          }
+         }
+        }
+       },
+       {
+        "node": {
+         "media": {
+          "pk": "4001088348394782877",
+          "code": "DeGuKd5BoCd",
+          "play_count": 350581,
+          "like_count": 3504,
+          "comment_count": 38,
+          "media_type": 2,
+          "product_type": "clips",
+          "like_and_view_counts_disabled": false,
+          "user": {
+           "username": "sharinghappinessorg"
+          }
+         }
+        }
+       },
+       {
+        "node": {
+         "media": {
+          "pk": "4000917509481639154",
+          "code": "DeGHUbwSyzy",
+          "play_count": 383865,
+          "like_count": 36949,
+          "comment_count": 690,
+          "media_type": 2,
+          "product_type": "clips",
+          "like_and_view_counts_disabled": false,
+          "user": {
+           "username": "sadampermana.w"
+          }
+         }
+        }
+       },
+       {
+        "node": {
+         "media": {
+          "pk": "4000658726696062962",
+          "code": "DeFMepgSQ_y",
+          "play_count": 1118351,
+          "like_count": 76037,
+          "comment_count": 976,
+          "media_type": 2,
+          "product_type": "clips",
+          "like_and_view_counts_disabled": false,
+          "user": {
+           "username": "sadampermana.w"
+          }
+         }
+        }
+       },
+       {
+        "node": {
+         "media": {
+          "pk": "4000509466902218889",
+          "code": "DeEqiofS0iJ",
+          "play_count": 157060,
+          "like_count": 12641,
+          "comment_count": 147,
+          "media_type": 2,
+          "product_type": "clips",
+          "like_and_view_counts_disabled": false,
+          "user": {
+           "username": "sadampermana.w"
+          }
+         }
+        }
+       }
+      ],
+      "page_info": {
+       "has_next_page": true
+      }
+     }
+    }
+   }
+  }
+ ]
+}

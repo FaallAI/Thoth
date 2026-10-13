@@ -89,6 +89,11 @@ def _instagram(access: SessionAccess | None, scratch: Path) -> Any:
     from thoth_control_plane.acquisition.instagram_service import InstagramRequestFetcher
     from thoth_control_plane.acquisition.registry import _request_get
 
+    if access is not None:
+        # Signed in, the reels tab lists far more than the anonymous 12-post grid (Task 16).
+        from thoth_control_plane.acquisition.instagram_reels import InstagramReelsDiscovery
+
+        return InstagramReelsDiscovery(access)
     return InstagramProfileDiscovery(InstagramRequestFetcher(_request_get(access)))
 
 
