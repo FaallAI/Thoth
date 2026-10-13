@@ -17,8 +17,19 @@ from thoth_control_plane.acquisition.models import (
     ProfileDiscovery,
 )
 from thoth_control_plane.attribution.adapters.discovery import ProfileDiscoverer
-from thoth_control_plane.attribution.adapters.jev import JEV_MODEL, JEV_URL, JevDecisionModel
-from thoth_control_plane.attribution.ports import AttributionError, CoverReading, Decisions, Frame
+from thoth_control_plane.attribution.adapters.jev import (
+    CONTRIBUTION_LEVELS,
+    JEV_MODEL,
+    JEV_URL,
+    JevDecisionModel,
+)
+from thoth_control_plane.attribution.ports import (
+    Assessment,
+    AttributionError,
+    CoverReading,
+    Decisions,
+    Frame,
+)
 
 SOURCE = "vincentius.christ76"
 
@@ -98,6 +109,57 @@ async def test_jev_failures_raise_after_one_retry(response: httpx.Response) -> N
 
     with pytest.raises(AttributionError) as raised:
         await JevDecisionModel("synthetic-jev-key").decide({}, [SOURCE])
+    assert raised.value.code == "decision_unavailable"
+    assert route.call_count == 2
+
+
+CONTRIBUTION = {
+    "type": "score",
+    "score": 3.4,
+    "confidence": 0.8,
+    "probabilities": {"0": 0.0, "1": 0.05, "2": 0.15, "3": 0.5, "4": 0.3},
+}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_jev_assesses_contribution_and_discussion() -> None:
+    route = respx.post(JEV_URL).mock(
+        return_value=_answers(
+            contribution=CONTRIBUTION,
+            comments_discuss_creator={"type": "noul", "noul": 0.7},
+        )
+    )
+
+    assessment = await JevDecisionModel("synthetic-jev-key").assess(
+        {"creator_speech": "x"}, with_comments=True
+    )
+
+    assert assessment == Assessment(contribution=pytest.approx(0.8), discussion=0.7)
+    questions = json.loads(route.calls.last.request.content)["questions"]
+    assert questions["contribution"]["type"] == "score"
+    assert questions["contribution"]["criteria"] == list(CONTRIBUTION_LEVELS)
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_without_comments_jev_is_not_asked_about_them() -> None:
+    route = respx.post(JEV_URL).mock(return_value=_answers(contribution=CONTRIBUTION))
+
+    assessment = await JevDecisionModel("synthetic-jev-key").assess({}, with_comments=False)
+
+    assert assessment.discussion is None
+    questions = json.loads(route.calls.last.request.content)["questions"]
+    assert "comments_discuss_creator" not in questions
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_a_malformed_score_is_decision_unavailable_after_a_retry() -> None:
+    route = respx.post(JEV_URL).mock(return_value=_answers(contribution={"type": "score"}))
+
+    with pytest.raises(AttributionError) as raised:
+        await JevDecisionModel("synthetic-jev-key").assess({}, with_comments=False)
     assert raised.value.code == "decision_unavailable"
     assert route.call_count == 2
 

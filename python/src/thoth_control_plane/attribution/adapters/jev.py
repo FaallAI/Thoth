@@ -15,7 +15,7 @@ from typing import Any, TypeVar, get_args
 import httpx
 
 from thoth_control_plane.attribution.models import Platform
-from thoth_control_plane.attribution.ports import AttributionError, Decisions
+from thoth_control_plane.attribution.ports import Assessment, AttributionError, Decisions
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,23 @@ PLATFORM_OPTIONS = {
     "threads": "Threads: an @-shaped Threads logo",
     "unknown": "the evidence does not show the platform",
 }
+CONTRIBUTION = (
+    "This post reacts to another post. Judge only what the creator adds in their own speech "
+    "and text (creator_speech, caption), not what the other post says (subject_speech). "
+    "Where does the creator's contribution fall?"
+)
+CONTRIBUTION_LEVELS = (
+    "replays the other post with no comment of their own",
+    "summarizes or retells the other post",
+    "gives a plain opinion or feeling about it",
+    "argues a new viewpoint on it",
+    "raises a new issue or new information beyond it",
+)
+NEW_VIEWPOINT = 3
+DISCUSSES_CREATOR = (
+    "Do these comments discuss the creator's own take (agree, disagree, argue with or quote "
+    "the creator), rather than only the event shown in the other post?"
+)
 PLATFORMS: frozenset[str] = frozenset(get_args(Platform))
 T = TypeVar("T")
 
@@ -76,6 +93,23 @@ class JevDecisionModel:
             }
         body = {"model": JEV_MODEL, "state": evidence, "questions": questions}
         return await self._ask(body, lambda answers: _parse(answers, handles))
+
+    async def assess(self, state: dict[str, object], *, with_comments: bool) -> Assessment:
+        """Spec 2026-10-13: how much a reaction adds, and whether its comments discuss it."""
+        questions: dict[str, Any] = {
+            "contribution": {
+                "type": "score",
+                "instructions": CONTRIBUTION,
+                "criteria": list(CONTRIBUTION_LEVELS),
+            }
+        }
+        if with_comments:
+            questions["comments_discuss_creator"] = {
+                "type": "noul",
+                "instructions": DISCUSSES_CREATOR,
+            }
+        body = {"model": JEV_MODEL, "state": state, "questions": questions}
+        return await self._ask(body, lambda answers: _assessment(answers, with_comments))
 
     async def _ask(self, body: dict[str, Any], parse: Callable[[dict[str, Any]], T]) -> T:
         """One Decisions call, parsed, retried once on a transport or malformed answer;
@@ -125,3 +159,12 @@ def _parse(answers: dict[str, Any], handles: Sequence[str]) -> Decisions:
         platform=platform if platform in PLATFORMS else None,  # type: ignore[arg-type]
         platform_probability=platform_probability,
     )
+
+
+def _assessment(answers: dict[str, Any], with_comments: bool) -> Assessment:
+    levels = answers["contribution"]["probabilities"]
+    contribution = sum(
+        float(levels[str(index)]) for index in range(NEW_VIEWPOINT, len(CONTRIBUTION_LEVELS))
+    )
+    discussion = float(answers["comments_discuss_creator"]["noul"]) if with_comments else None
+    return Assessment(min(1.0, max(0.0, contribution)), discussion)
