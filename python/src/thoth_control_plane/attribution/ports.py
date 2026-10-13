@@ -151,6 +151,34 @@ class VisualMatcher(Protocol):
         ...
 
 
+@dataclass(frozen=True)
+class Segment:
+    start: float
+    end: float
+    text: str
+
+
+@dataclass(frozen=True)
+class Transcript:
+    language: str
+    segments: tuple[Segment, ...] = ()
+
+
+@dataclass(frozen=True)
+class Turn:
+    start: float
+    end: float
+    speaker: int
+
+
+class Transcriber(Protocol):
+    async def transcribe(self, video: Path, *, seconds: float) -> Transcript: ...
+
+
+class Diarizer(Protocol):
+    async def turns(self, video: Path, *, seconds: float) -> list[Turn]: ...
+
+
 class SceneDetector(Protocol):
     async def cuts(self, video: Path) -> list[float]: ...
 

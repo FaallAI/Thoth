@@ -18,7 +18,8 @@ dependencies = [
 
 [project.optional-dependencies]
 # yt-dlp is pinned in both extras; the yt-dlp update workflow bumps both.
-acquisition = ["scrapling[fetchers]>=0.4.15,<0.5", "yt-dlp==2026.8.19", "opencv-python>=4.10,<6", "rapidocr>=3.9,<4", "onnxruntime>=1.30,<2", "openai>=2,<3", "faster-whisper>=1.2,<2", "sherpa-onnx>=1.13,<2"]
+# av < 19: faster-whisper 1.2.1 decode_audio passes metadata_errors, which av 19 removed.
+acquisition = ["scrapling[fetchers]>=0.4.15,<0.5", "yt-dlp==2026.8.19", "opencv-python>=4.10,<6", "rapidocr>=3.9,<4", "onnxruntime>=1.30,<2", "openai>=2,<3", "faster-whisper>=1.2,<2", "sherpa-onnx>=1.13,<2", "av>=11,<19"]
 # Legacy Scout shells out to both executables; the compatibility image must ship them.
 scout-runtime = ["gallery-dl==1.32.11", "yt-dlp==2026.8.19"]
 
