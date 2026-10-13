@@ -40,3 +40,12 @@ def test_fingerprints_are_stable_keyed_and_opaque() -> None:
     assert vault.fingerprint(SECRET) != vault.fingerprint(SECRET + "x")
     assert vault.fingerprint(SECRET) != Vault(Fernet.generate_key().decode()).fingerprint(SECRET)
     assert "secret" not in vault.fingerprint(SECRET)
+
+
+def test_bytes_seal_and_open_for_profile_archives() -> None:
+    vault = Vault(KEY)
+    token = vault.seal_bytes(b"\x00tar archive")
+
+    assert b"tar archive" not in token and vault.open_bytes(token) == b"\x00tar archive"
+    with pytest.raises(VaultError):
+        Vault(Fernet.generate_key().decode()).open_bytes(token)

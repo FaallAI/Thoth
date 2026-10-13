@@ -43,6 +43,15 @@ class Vault:
         except (InvalidToken, UnicodeDecodeError, TypeError, ValueError):
             raise VaultError() from None
 
+    def seal_bytes(self, plaintext: bytes) -> bytes:
+        return self._fernet.encrypt(plaintext)
+
+    def open_bytes(self, token: bytes) -> bytes:
+        try:
+            return self._fernet.decrypt(bytes(token))
+        except (InvalidToken, TypeError, ValueError):
+            raise VaultError() from None
+
     def fingerprint(self, text: str) -> str:
         """A keyed digest that detects duplicates without keeping `text` in clear."""
         return hmac.new(self._mac_key, text.encode("utf-8"), hashlib.sha256).hexdigest()
