@@ -275,3 +275,26 @@ def test_production_discovery_leases_from_the_account_store_when_configured(
 
     assert anonymous.discoverer._leases is None  # type: ignore[attr-defined]
     assert isinstance(signed_in.discoverer._leases, StoreLeases)  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_the_activity_builds_without_a_key_and_fails_typed_when_called(
+    tmp_path: Path,
+) -> None:
+    # Review 2026-10-13: the worker builds this activity even with attribution switched off.
+    from thoth_control_plane.activities.source_attribution import (
+        build_source_attribution_activity,
+    )
+
+    settings = Settings(
+        THOTH_CONTROL_PLANE_API_KEY="k",
+        THOTH_CONTROL_PLANE_ARTIFACT_ROOT=tmp_path,
+        THOTH_OPENROUTER_API_KEY=None,
+        THOTH_SOURCE_ATTRIBUTION_ENABLED=False,
+    )
+    configured = build_source_attribution_activity(settings)
+    _persist(tmp_path, _report())
+
+    result = await configured(SourceAttributionActivityInput(workflow_id=WORKFLOW))
+
+    assert result.failure == "openrouter_key_missing"

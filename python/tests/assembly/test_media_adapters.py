@@ -15,6 +15,14 @@ FFMPEG = shutil.which("ffmpeg")
 FFPROBE = shutil.which("ffprobe")
 
 
+def _require_module(name: str) -> None:
+    # Operator, 2026-10-11/13: a required tool missing is a failure, never a skip.
+    import importlib.util
+
+    if importlib.util.find_spec(name) is None:
+        pytest.fail(f"{name} is required for this test and is not installed")
+
+
 def _require(binary: str | None, name: str) -> str:
     # Operator, 2026-10-11: a missing ffmpeg is an error, never a skip.
     if binary is None:
@@ -99,7 +107,7 @@ async def test_ffprobe_failures_are_told_apart(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_rapidocr_boxes_carry_left_and_right() -> None:
-    pytest.importorskip("rapidocr")
+    _require_module("rapidocr")
     from PIL import Image, ImageDraw, ImageFont
 
     from thoth_control_plane.attribution.adapters.ocr import RapidOcrReader

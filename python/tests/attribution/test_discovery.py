@@ -212,3 +212,26 @@ async def test_the_lease_is_released_when_discovery_raises() -> None:
     with pytest.raises(RuntimeError):
         await discoverer.discover("tiktok", SOURCE)
     assert leases.released == [None]
+
+
+class _FailingSignedIn(FakeDiscovery):
+    def factory(self, access: SessionAccess | None, scratch: Path) -> Any:
+        if access is None:
+            return super().factory(access, scratch)
+        self.built_with.append(access)
+
+        class _Discovery:
+            async def discover(self, request: ProfileDiscovery) -> DiscoveryResult:
+                raise RuntimeError("proxy down")
+
+        return _Discovery()
+
+
+@pytest.mark.asyncio
+async def test_a_failing_signed_in_run_keeps_the_thin_anonymous_listing() -> None:
+    # Review 2026-10-13: before the thin-listing rule these five videos were returned.
+    fake = _FailingSignedIn(_result(_videos(5)), _result([]))
+    leases = FakeLeases("fallback")
+
+    assert len(await _discover(fake, leases)) == 5
+    assert leases.released == [None]

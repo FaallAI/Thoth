@@ -64,11 +64,24 @@ def split_speech(transcript: Transcript, turns: Sequence[Turn], cut: Sequence[Sh
 
 
 def engagement_ratio(
-    post_id: str, engagement: Mapping[str, int], videos: Sequence[DiscoveredVideo]
+    post_id: str,
+    engagement: Mapping[str, int],
+    videos: Sequence[DiscoveredVideo],
+    *,
+    url: str | None = None,
 ) -> float | None:
     """The post's plays over the median of the owner's other videos; likes when plays are
-    hidden; None below `MIN_BASELINE` other videos or with a zero baseline."""
-    others = [video for video in videos if video.post_id != post_id]
+    hidden; None below `MIN_BASELINE` other videos or with a zero baseline.
+
+    The post is left out by id or by URL: an Instagram report's id is the shortcode while its
+    profile listing uses the numeric id.
+    """
+    own_url = url.rstrip("/") if url else None
+    others = [
+        video
+        for video in videos
+        if video.post_id != post_id and str(video.canonical_url).rstrip("/") != own_url
+    ]
     for key in ("play", "like"):
         own = engagement.get(key)
         baseline = [video.engagement[key] for video in others if key in video.engagement]

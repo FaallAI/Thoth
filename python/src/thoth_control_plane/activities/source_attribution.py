@@ -268,13 +268,35 @@ async def attribute_source(
     return await configured(input_)
 
 
+class _OnFirstUse:
+    """The production attributor, built when an attribution first runs.
+
+    The worker registers this activity even with attribution switched off (the kill switch),
+    so a missing key must not stop it from starting; it fails the attribution instead.
+    """
+
+    def __init__(self, settings: Settings, artifact_root: Path) -> None:
+        self._settings = settings
+        self._root = artifact_root
+        self._inner: SourceAttributor | None = None
+
+    async def identify(
+        self, workflow_id: str, report: SourceReport, video: Path | None
+    ) -> AttributionOutcome:
+        if self._inner is None:
+            try:
+                ports = build_production_ports(self._settings, self._root)
+            except SettingsValidationError as error:
+                raise AttributionError(str(error)) from None
+            self._inner = SourceAttributor(ports, curated=load_curated())
+        return await self._inner.identify(workflow_id, report, video)
+
+
 def build_source_attribution_activity(
     settings: Settings, *, attributor: Attributor | None = None
 ) -> Callable[[SourceAttributionActivityInput], Awaitable[SourceAttributionActivityResult]]:
     artifact_root = settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT.resolve()
-    selected = attributor or SourceAttributor(
-        build_production_ports(settings, artifact_root), curated=load_curated()
-    )
+    selected = attributor or _OnFirstUse(settings, artifact_root)
 
     @activity.defn(name="attribute_source")
     async def configured_source_attribution_activity(

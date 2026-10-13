@@ -17,6 +17,14 @@ from thoth_control_plane.attribution.ports import Frame
 FFMPEG = shutil.which("ffmpeg")
 
 
+def _require_module(name: str) -> None:
+    # Operator, 2026-10-11/13: a required tool missing is a failure, never a skip.
+    import importlib.util
+
+    if importlib.util.find_spec(name) is None:
+        pytest.fail(f"{name} is required for this test and is not installed")
+
+
 @pytest.fixture
 def ffmpeg() -> str:
     # Operator, 2026-10-11: a missing ffmpeg is an error, never a skip.
@@ -57,7 +65,7 @@ def _reaction(original: object, seed: int) -> object:
 
 
 def test_matcher_finds_nothing_in_flat_frames() -> None:
-    pytest.importorskip("cv2")
+    _require_module("cv2")
     from PIL import Image
 
     from thoth_control_plane.attribution.adapters.visual import OrbMatcher
@@ -72,7 +80,7 @@ def test_matcher_finds_nothing_in_flat_frames() -> None:
 
 
 def test_matcher_finds_the_original_shrunk_into_a_reaction_panel() -> None:
-    pytest.importorskip("cv2")
+    _require_module("cv2")
     from thoth_control_plane.attribution.adapters.visual import OrbMatcher
 
     original = [_scene(seed) for seed in (1, 2, 3)]
@@ -98,7 +106,7 @@ def test_matcher_finds_the_original_shrunk_into_a_reaction_panel() -> None:
 def test_matcher_finds_a_zoomed_repost_over_a_busy_background() -> None:
     # Real frames, 2026-10-11: instagram DeRDs6DCX07 zooms into DeLTY7YtLl4 under a headline
     # band. The crowd and stage lights took every keypoint of a 600-feature budget (0 inliers).
-    pytest.importorskip("cv2")
+    _require_module("cv2")
     from thoth_control_plane.attribution.adapters.visual import OrbMatcher
 
     frames = Path(__file__).parents[1] / "fixtures" / "attribution" / "frames"
@@ -152,7 +160,7 @@ async def test_ffmpeg_failure_raises_a_frame_error(tmp_path: Path, ffmpeg: str) 
 
 @pytest.mark.asyncio
 async def test_rapidocr_reads_a_handle_with_its_vertical_position() -> None:
-    pytest.importorskip("rapidocr")
+    _require_module("rapidocr")
     from PIL import Image, ImageDraw, ImageFont
 
     from thoth_control_plane.attribution.adapters.ocr import RapidOcrReader
@@ -210,3 +218,47 @@ async def test_scene_detector_without_ffmpeg_is_tool_missing(tmp_path: Path) -> 
     with pytest.raises(ToolMissing) as raised:
         await FfmpegSceneDetector("/nonexistent/ffmpeg").cuts(tmp_path / "x.mp4")
     assert raised.value.code == "ffmpeg_missing"
+
+
+@pytest.mark.asyncio
+async def test_frames_without_ffmpeg_is_tool_missing(tmp_path: Path) -> None:
+    from thoth_control_plane.attribution.adapters.frames import FfmpegFrameSource, ToolMissing
+
+    with pytest.raises(ToolMissing) as raised:
+        await FfmpegFrameSource("/nonexistent/ffmpeg").frames(tmp_path / "x.mp4", fps=1.0)
+    assert raised.value.code == "ffmpeg_missing"
+
+
+@pytest.mark.asyncio
+async def test_scene_detection_reads_only_the_opening_span(
+    ffmpeg: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Review 2026-10-13: a full-length scan of a long video timed out and failed the workflow.
+    from thoth_control_plane.attribution.adapters import frames
+    from thoth_control_plane.attribution.adapters.frames import FfmpegSceneDetector
+
+    video = tmp_path / "two.mp4"
+    subprocess.run(
+        [
+            ffmpeg,
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=s=320x240:d=2:r=25",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=blue:s=320x240:d=2:r=25",
+            "-filter_complex",
+            "[0:v][1:v]concat=n=2:v=1:a=0",
+            "-pix_fmt",
+            "yuv420p",
+            str(video),
+        ],
+        check=True,
+    )
+    monkeypatch.setattr(frames, "SCENE_SECONDS", 1.5)
+
+    assert await FfmpegSceneDetector(ffmpeg).cuts(video) == []

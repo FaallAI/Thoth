@@ -165,6 +165,11 @@ class ProfileDiscoverer:
                 outcome = "success"
             elif result.reason in RETRY_REASONS:
                 outcome = "blocked"
+        except Exception:
+            if anonymous is None or not anonymous.videos:
+                raise
+            logger.warning("signed-in discovery failed; keeping the anonymous listing")
+            return _videos(anonymous)
         finally:
             await self._leases.release(lease, outcome)
         logger.info("discovery used a source account platform=%s outcome=%s", platform, outcome)

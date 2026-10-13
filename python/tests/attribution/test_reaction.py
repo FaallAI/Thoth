@@ -105,3 +105,14 @@ def test_each_condition_alone_keeps_a_reaction_a_repost(
     assessment: Assessment, ratio: float | None, expected: ReactionCall
 ) -> None:
     assert judge(assessment, ratio, **THRESHOLDS) == expected
+
+
+def test_the_post_is_excluded_by_its_url_when_the_ids_differ() -> None:
+    url = "https://www.instagram.com/p/DeHz54GT4ea/"
+    videos = [
+        _video("11111", play=100).model_copy(update={"canonical_url": url}),
+        _video("22222", play=300),
+        _video("33333", play=200),
+    ]
+
+    assert engagement_ratio("DeHz54GT4ea", {"play": 400}, videos, url=url) is None

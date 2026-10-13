@@ -365,7 +365,12 @@ class SourceAttributor:
             if self._ports.discoverer.supports(platform)
             else None
         )
-        ratio = engagement_ratio(report.post.post_id, report.post.engagement, videos or [])
+        ratio = engagement_ratio(
+            report.post.post_id,
+            report.post.engagement,
+            videos or [],
+            url=str(report.source.canonical_url),
+        )
         if ratio is None:
             logger.warning("reaction baseline unavailable platform=%s", platform)
         call = judge(
@@ -394,7 +399,14 @@ class SourceAttributor:
         step = max(1, self._tuning.finalist_concurrency)
         for start in range(0, len(finalists), step):
             batch = finalists[start : start + step]
-            await asyncio.gather(*(self._check(finalist, repost) for finalist in batch))
+            # Every finalist settles before an error leaves, so the `finally` in `identify`
+            # sees (and discards) each one it acquired.
+            results = await asyncio.gather(
+                *(self._check(finalist, repost) for finalist in batch), return_exceptions=True
+            )
+            for result in results:
+                if isinstance(result, BaseException):
+                    raise result
             if any(f.rejected is None and f.inliers is not None for f in batch):
                 break
         accepted = [f for f in finalists if f.checked and f.rejected is None]

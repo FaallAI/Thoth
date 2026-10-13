@@ -11,6 +11,8 @@ from thoth_control_plane.attribution.ports import Frame
 
 TIMEOUT_SECONDS = 120.0
 SCENE_THRESHOLD = 0.3
+# Shots past this span never reach the cover call; a full scan of a long video timed out.
+SCENE_SECONDS = 600.0
 PTS_TIME = re.compile(rb"pts_time:(\d+(?:\.\d+)?)")
 
 
@@ -73,9 +75,12 @@ class FfmpegFrameSource:
                 "4",
                 str(pattern),
             ]
-            process = await asyncio.create_subprocess_exec(
-                *argv, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
-            )
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    *argv, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+                )
+            except FileNotFoundError:
+                raise ToolMissing("ffmpeg_missing") from None
             try:
                 code = await asyncio.wait_for(process.wait(), TIMEOUT_SECONDS)
             except TimeoutError:
@@ -159,11 +164,13 @@ class FfmpegSceneDetector:
             self._ffmpeg,
             "-v",
             "error",
+            "-t",
+            f"{SCENE_SECONDS:g}",
             "-i",
             str(video),
             "-an",
             "-vf",
-            f"select='gt(scene,{SCENE_THRESHOLD})',metadata=print:file=-",
+            f"scale=360:-2,select='gt(scene,{SCENE_THRESHOLD})',metadata=print:file=-",
             "-f",
             "null",
             "-",

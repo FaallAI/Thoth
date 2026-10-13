@@ -558,3 +558,50 @@ async def test_a_failing_transcription_stops_attribution() -> None:
     with pytest.raises(AttributionError) as raised:
         await _identify(case, _reaction_report())
     assert raised.value.code == "transcription_failed"
+
+
+@pytest.mark.asyncio
+async def test_a_failing_finalist_waits_for_its_sibling_and_discards_it() -> None:
+    # Review 2026-10-13: gather let the error out while the sibling was still downloading.
+    case = _case(matches={}, unmatchable=["repost"])
+    ports = replay_ports(case)
+    vision = _RaisingVision()
+    object.__setattr__(vision, "read_cover", ReplayVisionCover(case))
+    object.__setattr__(ports, "vision", vision)
+    inner = ports.acquirer
+
+    class _SlowSecond:
+        async def acquire(self, candidate_id: str, url: str) -> Any:
+            if candidate_id.endswith("-c2"):
+                await asyncio.sleep(0.2)
+            return await inner.acquire(candidate_id, url)
+
+        async def discard(self, candidate_id: str) -> None:
+            await inner.discard(candidate_id)
+
+    object.__setattr__(ports, "acquirer", _SlowSecond())
+
+    with pytest.raises(AttributionError):
+        await SourceAttributor(ports, Tuning(finalist_concurrency=2)).identify(
+            "wf_ref", parse_report(_report()), VIDEO
+        )
+    assert sorted(inner.acquired) == ["wf_ref-c1", "wf_ref-c2"]
+    assert sorted(inner.discarded) == sorted(inner.acquired)
+
+
+@pytest.mark.asyncio
+async def test_an_instagram_reaction_is_not_its_own_baseline() -> None:
+    # Review 2026-10-13: an Instagram report id is the shortcode, discovery's is the numeric pk.
+    case = _reaction_case()
+    own = {
+        "post_id": "3700000000000000001",
+        "owner_handle": "detikjatim",
+        "canonical_url": REPOST_URL,
+        "engagement": {"play": 5000},
+    }
+    case["discovery"]["by_handle"]["detikjatim"] = [own, *OWNER_VIDEOS[:2]]
+
+    outcome, _ = await _identify(case, _reaction_report())
+
+    details = [e.detail for e in outcome.attribution.evidence if e.kind == "reaction"]
+    assert "engagement_unknown" in details[0]
