@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
+from itertools import pairwise
 
 from thoth_control_plane.attribution.ports import Frame
 
@@ -28,7 +29,7 @@ def shots(cuts: Sequence[float], end: float) -> list[Shot]:
     """The shots between cuts; one shorter than `MIN_SHOT` joins the shot before it."""
     bounds = [0.0, *sorted(cut for cut in cuts if 0.0 < cut < end), end]
     merged: list[Shot] = []
-    for start, stop in zip(bounds, bounds[1:], strict=False):
+    for start, stop in pairwise(bounds):
         if merged and stop - start < MIN_SHOT:
             merged[-1] = Shot(merged[-1].start, stop)
         else:
