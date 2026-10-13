@@ -49,9 +49,8 @@ class WhisperTranscriber:
         self._lock = asyncio.Lock()
 
     async def transcribe(self, video: Path, *, seconds: float) -> Transcript:
-        async with (
-            self._lock
-        ):  # ponytail: one transcription per worker; a pool if throughput matters
+        # ponytail: one transcription per worker; a pool if throughput matters
+        async with self._lock:
             return await asyncio.to_thread(self._transcribe, video, seconds)
 
     def _load(self) -> Any:
