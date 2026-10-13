@@ -425,3 +425,132 @@ async def test_vision_sees_frames_from_every_long_shot() -> None:
 
     seconds = ports.vision.cover_seconds
     assert seconds[:2] == [0.0, 1.0] and any(s > 10 for s in seconds) and len(seconds) <= 6
+
+
+REACTION_COVER = {
+    "headline": "",
+    "scene": "a woman talks to the camera after a news clip",
+    "icon": "",
+    "reaction_shape": "clip_then_talk",
+    "subject_media": "video",
+    "shows": ["subject", "subject", "creator", "creator"],
+}
+OWNER_VIDEOS = [
+    {
+        "post_id": str(7677000000000000500 + n),
+        "owner_handle": "detikjatim",
+        "canonical_url": f"https://www.tiktok.com/@detikjatim/video/{7677000000000000500 + n}",
+        "engagement": {"play": 1000},
+    }
+    for n in range(5)
+]
+
+
+def _reaction_case(**overrides: Any) -> dict[str, Any]:
+    case = _case(
+        cover=REACTION_COVER,
+        cuts=[3.0],
+        transcript={
+            "language": "id",
+            "segments": [[0.5, 2.5, "klip aslinya"], [5.0, 30.0, "ini isu baru"]],
+        },
+        turns=[[0.0, 3.0, 0], [4.0, 35.0, 1]],
+        assessment={"contribution": 0.8, "discussion": 0.7},
+    )
+    case["frames"]["repost"] = _frames(40, {0: case["frames"]["repost"][0]["boxes"]})
+    case["discovery"] = {
+        "by_handle": {SOURCE: case["discovery"]["videos"], "detikjatim": OWNER_VIDEOS}
+    }
+    case.update(overrides)
+    return case
+
+
+def _reaction_report(**engagement: int) -> dict[str, Any]:
+    report = _report()
+    report["post"]["engagement"] = engagement or {"play": 5000}
+    report["comments"] = [
+        {"comment_id": "c0001", "author": "a.b", "text": "setuju sama kakaknya", "likes": 3}
+    ]
+    return report
+
+
+@pytest.mark.asyncio
+async def test_a_reaction_that_adds_and_is_discussed_is_an_original() -> None:
+    outcome, ports = await _identify(_reaction_case(), _reaction_report())
+
+    assert outcome.attribution.verdict == "original"
+    assert outcome.original is None and ports.acquirer.acquired == []
+    reaction = [e.detail for e in outcome.attribution.evidence if e.kind == "reaction"]
+    assert len(reaction) == 1 and "original_reaction" in reaction[0]
+    assert "isu baru" not in reaction[0]  # no speech in the artifact
+    state = ports.decisions.assessed[0]
+    assert state["creator_speech"] == "ini isu baru"
+    assert state["subject_speech"] == "klip aslinya"
+    assert ports.discoverer.calls == [("tiktok", "detikjatim")]
+
+
+@pytest.mark.asyncio
+async def test_a_reaction_to_a_text_post_is_an_original_without_transcription() -> None:
+    case = _reaction_case(cover={**REACTION_COVER, "subject_media": "text"})
+
+    outcome, ports = await _identify(case, _reaction_report())
+
+    assert outcome.attribution.verdict == "original"
+    assert ports.transcriber.calls == 0 and ports.decisions.assessed == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("change", "reason"),
+    [
+        ({"assessment": {"contribution": 0.2, "discussion": 0.9}}, "no_new_contribution"),
+        ({"assessment": {"contribution": 0.9, "discussion": 0.1}}, "comments_not_about_creator"),
+    ],
+)
+async def test_a_reaction_judged_a_repost_goes_on_to_find_its_video(
+    change: dict[str, Any], reason: str
+) -> None:
+    outcome, _ = await _identify(_reaction_case(**change), _reaction_report())
+
+    assert outcome.attribution.verdict == "replaced"
+    details = [e.detail for e in outcome.attribution.evidence if e.kind == "reaction"]
+    assert reason in details[0]
+
+
+@pytest.mark.asyncio
+async def test_no_comments_or_no_baseline_keeps_it_a_repost() -> None:
+    quiet = _reaction_report()
+    quiet["comments"] = []
+    unknown = _reaction_case()
+    unknown["discovery"]["by_handle"]["detikjatim"] = []
+
+    first, _ = await _identify(_reaction_case(), quiet)
+    second, _ = await _identify(unknown, _reaction_report())
+
+    assert first.attribution.verdict == second.attribution.verdict == "replaced"
+
+
+@pytest.mark.asyncio
+async def test_a_silent_reaction_is_judged_on_text_alone() -> None:
+    case = _reaction_case(transcript={"language": "", "segments": []}, turns=[])
+
+    outcome, ports = await _identify(case, _reaction_report())
+
+    assert ports.decisions.assessed[0]["creator_speech"] == ""
+    assert outcome.attribution.verdict == "original"  # the recorded assessment decides
+
+
+@pytest.mark.asyncio
+async def test_a_non_reaction_never_transcribes() -> None:
+    _, ports = await _identify(_case())
+
+    assert ports.transcriber.calls == 0 and ports.decisions.assessed == []
+
+
+@pytest.mark.asyncio
+async def test_a_failing_transcription_stops_attribution() -> None:
+    case = _reaction_case(transcript="raise:transcription_failed")
+
+    with pytest.raises(AttributionError) as raised:
+        await _identify(case, _reaction_report())
+    assert raised.value.code == "transcription_failed"

@@ -36,6 +36,7 @@ from thoth_control_plane.attribution.adapters.frames import (
 )
 from thoth_control_plane.attribution.adapters.jev import JevDecisionModel
 from thoth_control_plane.attribution.adapters.ocr import RapidOcrReader
+from thoth_control_plane.attribution.adapters.speech import SherpaDiarizer, WhisperTranscriber
 from thoth_control_plane.attribution.adapters.vision import AgnoVisionReader
 from thoth_control_plane.attribution.adapters.visual import OrbMatcher
 from thoth_control_plane.attribution.candidates import load_curated
@@ -123,6 +124,8 @@ def build_production_ports(settings: Settings, artifact_root: Path) -> Attributi
         else None,
         decisions=JevDecisionModel(openrouter) if openrouter else None,
         scenes=FfmpegSceneDetector(settings.THOTH_FFMPEG),
+        transcriber=WhisperTranscriber(settings.THOTH_WHISPER_MODEL_DIR),
+        diarizer=SherpaDiarizer(settings.THOTH_DIARIZATION_MODEL_DIR),
     )
 
 

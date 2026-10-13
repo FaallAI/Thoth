@@ -18,9 +18,14 @@ from thoth_control_plane.attribution.matching import TextBox
 from thoth_control_plane.attribution.models import Platform
 from thoth_control_plane.attribution.ports import (
     AcquiredCandidate,
+    Assessment,
+    AttributionError,
     CoverReading,
     Decisions,
     Frame,
+    Segment,
+    Transcript,
+    Turn,
     VisualKind,
 )
 from thoth_control_plane.attribution.service import AttributionPorts
@@ -116,13 +121,49 @@ def ReplayVisionCover(case: dict[str, Any]) -> Any:
 
 
 class ReplayDecisions:
-    def __init__(self, decisions: dict[str, Any]) -> None:
+    def __init__(self, decisions: dict[str, Any], assessment: dict[str, Any] | None = None) -> None:
         self._decisions = decisions
+        self._assessment = assessment
         self.calls: list[tuple[dict[str, object], list[str]]] = []
+        self.assessed: list[dict[str, object]] = []
 
     async def decide(self, evidence: dict[str, object], handles: Sequence[str]) -> Decisions:
         self.calls.append((evidence, list(handles)))
         return Decisions(**self._decisions)
+
+    async def assess(self, state: dict[str, object], *, with_comments: bool) -> Assessment:
+        self.assessed.append(state)
+        recorded = self._assessment or {"contribution": 0.0, "discussion": None}
+        return Assessment(
+            recorded["contribution"], recorded["discussion"] if with_comments else None
+        )
+
+
+class ReplayTranscriber:
+    def __init__(self, recorded: Any) -> None:
+        self._recorded = recorded
+        self.calls = 0
+
+    async def transcribe(self, video: Path, *, seconds: float) -> Transcript:
+        self.calls += 1
+        if isinstance(self._recorded, str) and self._recorded.startswith("raise:"):
+            raise AttributionError(self._recorded.removeprefix("raise:"))
+        if self._recorded is None:
+            raise AssertionError("this case recorded no transcript")
+        return Transcript(
+            self._recorded["language"],
+            tuple(Segment(*segment) for segment in self._recorded["segments"]),
+        )
+
+
+class ReplayDiarizer:
+    def __init__(self, recorded: list[list[Any]] | None) -> None:
+        self._recorded = recorded
+
+    async def turns(self, video: Path, *, seconds: float) -> list[Turn]:
+        if self._recorded is None:
+            raise AssertionError("this case recorded no turns")
+        return [Turn(start, end, int(speaker)) for start, end, speaker in self._recorded]
 
 
 class ReplayDiscoverer:
@@ -170,6 +211,8 @@ def replay_ports(case: dict[str, Any]) -> AttributionPorts:
         discoverer=ReplayDiscoverer(case.get("discovery")),
         acquirer=ReplayAcquirer(case.get("acquired", {})),
         vision=ReplayVision(case["cover"], case.get("classify", {})),
-        decisions=ReplayDecisions(case["decisions"]),
+        decisions=ReplayDecisions(case["decisions"], case.get("assessment")),
         scenes=ReplayScenes(case.get("cuts", [])),
+        transcriber=ReplayTranscriber(case.get("transcript")),
+        diarizer=ReplayDiarizer(case.get("turns")),
     )

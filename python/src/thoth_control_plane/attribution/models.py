@@ -15,7 +15,7 @@ from thoth_control_plane.domain.models import OpaqueId, StrictModel
 Platform = Literal["tiktok", "threads", "instagram", "x", "youtube"]
 Verdict = Literal["original", "replaced", "unresolved"]
 EvidenceKind = Literal[
-    "caption", "frame_text", "cover_vision", "text_rule", "decision", "visual_match"
+    "caption", "frame_text", "cover_vision", "text_rule", "decision", "visual_match", "reaction"
 ]
 Handle = Annotated[str, Field(pattern=r"^[A-Za-z0-9._-]{1,64}$")]
 ReasonCode = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")]

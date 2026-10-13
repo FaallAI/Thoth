@@ -40,14 +40,17 @@ from thoth_control_plane.attribution.ports import (
     CandidateAcquirer,
     CoverReading,
     DecisionModel,
+    Diarizer,
     Discoverer,
     Frame,
     FrameSource,
     SceneDetector,
     TextReader,
+    Transcriber,
     VisionReader,
     VisualMatcher,
 )
+from thoth_control_plane.attribution.reaction import engagement_ratio, judge, split_speech
 from thoth_control_plane.attribution.scenes import Shot, label, shots, vision_frames
 
 logger = logging.getLogger(__name__)
@@ -74,6 +77,12 @@ class Tuning:
     handle_threshold: float = 0.5
     max_finalists: int = 3
     finalist_concurrency: int = 2
+    # Reactions (spec 2026-10-13): only the first minutes are transcribed; the thresholds are
+    # calibrated on the reaction goldens.
+    transcript_seconds: float = 180.0
+    reaction_contribution: float = 0.5
+    reaction_discussion: float = 0.5
+    reaction_engagement: float = 1.0
 
 
 DEFAULT_TUNING = Tuning()
@@ -89,6 +98,8 @@ class AttributionPorts:
     vision: VisionReader
     decisions: DecisionModel
     scenes: SceneDetector
+    transcriber: Transcriber
+    diarizer: Diarizer
 
 
 @dataclass(frozen=True)
@@ -142,13 +153,20 @@ class SourceAttributor:
         for frame in frames:
             if frame.second < self._tuning.credit_seconds:
                 lines += [box.text for box in await self._read(frame)]
-        cover, _labelled = await self._cover(frames, video)  # the reaction step reads it
+        cover, labelled = await self._cover(frames, video)
         owner = report.post.owner_handle
         caption_handles = credit.text_handles(report.post.text)
         found_in_frames = credit.frame_handles(lines)
         read_by_vision = credit.vision_handles(cover.handles) if cover is not None else []
         options = credit.credit_options(caption_handles, [*found_in_frames, *read_by_vision], owner)
         evidence = _text_evidence(caption_handles, found_in_frames, read_by_vision, owner, cover)
+        if (
+            cover is not None
+            and video is not None
+            and cover.reaction_shape != "none"
+            and await self._reaction(report, video, cover, labelled, lines, evidence)
+        ):
+            return self._finish(workflow_id, report, "original", evidence, confidence="high")
         decided = await self._credit(report, options, lines, cover, evidence)
 
         if decided.handle is None:
@@ -302,6 +320,73 @@ class SourceAttributor:
                 )
             )
         return _Credit(handle, decided.platform, decided.is_repost, by_model=True)
+
+    async def _reaction(
+        self,
+        report: SourceReport,
+        video: Path,
+        cover: CoverReading,
+        labelled: list[Shot],
+        lines: list[str],
+        evidence: list[AttributionEvidence],
+    ) -> bool:
+        """Spec 2026-10-13: is this reaction an original? Unmeasured parts keep it a repost."""
+        shape = cover.reaction_shape
+        if cover.subject_media in ("text", "image"):
+            evidence.append(
+                AttributionEvidence(
+                    kind="reaction", detail=f"{shape} reaction to a {cover.subject_media} post"
+                )
+            )
+            return True
+        seconds = self._tuning.transcript_seconds
+        transcript = await self._ports.transcriber.transcribe(video, seconds=seconds)
+        turns = await self._ports.diarizer.turns(video, seconds=seconds)
+        speech = split_speech(transcript, turns, labelled)
+        comments = [comment.text for comment in report.comments][:12]
+        assessment = await self._ports.decisions.assess(
+            {
+                "caption": report.post.text[:2000],
+                "frame_text": " | ".join(lines)[:2000],
+                "headline": cover.headline,
+                "scene": cover.scene,
+                "reaction_shape": shape,
+                "creator_speech": speech.creator[:6000],
+                "subject_speech": speech.subject[:6000],
+                "comments": comments,
+            },
+            with_comments=bool(comments),
+        )
+        platform = report.source.platform
+        videos = (
+            await self._guard(
+                self._ports.discoverer.discover(platform, report.post.owner_handle), "baseline"
+            )
+            if self._ports.discoverer.supports(platform)
+            else None
+        )
+        ratio = engagement_ratio(report.post.post_id, report.post.engagement, videos or [])
+        call = judge(
+            assessment,
+            ratio,
+            contribution=self._tuning.reaction_contribution,
+            discussion=self._tuning.reaction_discussion,
+            engagement=self._tuning.reaction_engagement,
+        )
+        discussion = "-" if assessment.discussion is None else f"{assessment.discussion:.2f}"
+        engagement = "-" if ratio is None else f"{ratio:.1f}x"
+        evidence.append(
+            AttributionEvidence(
+                kind="reaction",
+                detail=(
+                    f"{shape}, {cover.subject_media} subject, contribution "
+                    f"{assessment.contribution:.2f}, discussion {discussion}, engagement "
+                    f"{engagement}: {call.reason}"
+                )[:300],
+                confidence=assessment.contribution,
+            )
+        )
+        return call.original
 
     async def _evaluate(self, finalists: list[_Finalist], repost: object) -> _Finalist | None:
         step = max(1, self._tuning.finalist_concurrency)
