@@ -1,0 +1,2123 @@
+{
+  "case": "tiktok_detikcom_7696092881475423509",
+  "synthetic": false,
+  "captured_at": "2026-10-13T13:21:24Z",
+  "report": {
+    "schema_version": 3,
+    "workflow_id": "wf_golden",
+    "source": {
+      "platform": "tiktok",
+      "canonical_url": "https://www.tiktok.com/@detikcom/video/7696092881475423509"
+    },
+    "post": {
+      "post_id": "7696092881475423509",
+      "owner_handle": "detikcom",
+      "text": "Video keributan antara penyewa mobil rental dan debt collector (DC) viral di media sosial. Peristiwa itu terjadi di area Pekan Raya Jatim (PRJ) di Grand City Mall, Surabaya, pada Senin (12/10/2026).  Namun, kedua belah pihak akhirnya memberikan klarifikasi melalui video yang diunggah pada Selasa (13/10/2026).  Mereka menyebut keributan tersebut terjadi karena kesalahpahaman. Penyewa mobil juga menegaskan tidak ada kekerasan maupun pemukulan dalam insiden itu. Keduanya pun telah menyelesaikan permasalahan tersebut dan meminta masyarakat tidak memperbesar persoalan. Baca berita selengkapnya hanya di detik.com! Creator: Risa #detikcom #viral #penyewamobilrental #debtcollector ",
+      "published_at": "2026-10-13T10:11:07Z",
+      "engagement": {
+        "play": 35100,
+        "like": 572,
+        "comment": 33,
+        "share": 12,
+        "collect": 35
+      }
+    },
+    "media": [
+      {
+        "media_id": "media_1",
+        "kind": "video",
+        "index": 1,
+        "location": "reports/wf_golden/media/tiktok-7696092881475423509.mp4",
+        "media_type": "video/mp4",
+        "bytes": 3202574,
+        "checksum": "sha256:ed8b33de780dfbc5aa9ac71628d064c0965f9b7aa50355c565e6938cf5c4304a",
+        "acquisition_strategy": "scrapling_headless",
+        "width": null,
+        "height": null,
+        "duration_seconds": null
+      }
+    ],
+    "outcome": {
+      "status": "resolved",
+      "attempts": [
+        {
+          "strategy": "scrapling_headless",
+          "status": "succeeded",
+          "reason": null,
+          "attempt_count": 1,
+          "elapsed_ms": 47960
+        }
+      ]
+    },
+    "comments": [
+      {
+        "comment_id": "7696103375804646151",
+        "author": "vystronom911",
+        "text": "emang DC bisa ngambil mobil di jalan ges?",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696094781483959092",
+        "author": "nyumlikk",
+        "text": "salah yang punya mobil ga sih? bukan yang rental",
+        "likes": 19,
+        "card": null
+      },
+      {
+        "comment_id": "7696098376475591432",
+        "author": "termul.vs.anak.ab",
+        "text": "dc sampek masuk ke mall😂😂😂😂 ngeri kali",
+        "likes": 15,
+        "card": null
+      },
+      {
+        "comment_id": "7696094843936293652",
+        "author": "ayuninasir7",
+        "text": "ntah siapa yg salah ku tak tau...",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7696093602439725845",
+        "author": "j.a.c.k_969",
+        "text": "sebelum rame ah",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7696093790855742215",
+        "author": "reyuuu3426",
+        "text": "kedua ommm",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7696136662318236423",
+        "author": "nunuyy097",
+        "text": "yg sewa mempertahankan haknya karena dia sudah bayar sewa , DC harusnya berkomunikasi sama yg punya mobil juga gabisa dipaksa ambil di jalan . jaman skrg banyak DC abal2",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696134592383025927",
+        "author": "seasheep88",
+        "text": "Loh Kok yg punya rental minta maaf? itu Debt collectot juga salah seperti itu,",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696129709424395014",
+        "author": "hahalucuaja",
+        "text": "surabaya ini,ada polisi ngga sih",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696127090875171591",
+        "author": "frans_vrata17",
+        "text": "polisi gaa ada yg dateng apa ya ?",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696126880131023636",
+        "author": "anggijayamulyadi",
+        "text": "Matel dc tidak hak dan wewenang tarik sita paksa kemdaraan dijalan",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696123960207966983",
+        "author": "mesintempur336",
+        "text": "blokir aplikasi matel bikin gaduh di jalan",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696122774335030023",
+        "author": "stevencaesars",
+        "text": "keamanan mallnya kek mana gt bisa”nya DC dibolehin cek” di tempatnya",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696122269018719028",
+        "author": "lunaluvna5",
+        "text": "dc kok arogan gt bs dilaporin",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696119185777378069",
+        "author": "samewithyu",
+        "text": "tidak perlu minta maaf kak",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696113238240658182",
+        "author": "atimo_chris",
+        "text": "pecat satpam karena tidak lindungi korbannya.. Harus tegas, harus usir DC ilegal!! pecat satpam, ga usah minta ampun!!",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696110925573047061",
+        "author": "ludludhth27",
+        "text": "debt collector sangat berbahaya",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696094867953844998",
+        "author": "r.s112008",
+        "text": "Ke 3",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696094743147430657",
+        "author": "imuzd13",
+        "text": "Hoak kek nya sunyi pun",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696094359889199892",
+        "author": "nev.aja0",
+        "text": "hihi",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696093883391738644",
+        "author": "arsenstore4",
+        "text": "ke 2",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696098148565648135",
+        "author": "saburonataka",
+        "text": "makanya kalo ga ada duit gausah maksa nyicil mobil",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696095180150063892",
+        "author": "adiswand",
+        "text": "yg dibahas Amerika : wisata ke planet mars\nyg dibahas Konoha : debt collect rampas mobil sewaan, ijasah palsu ga kunjung kelar",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696103597550912277",
+        "author": ".salehkurt84",
+        "text": "😂",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696097858168767250",
+        "author": "papandayan27",
+        "text": "[Tertawa sampai menangis][Tertawa sampai menangis][Tertawa sampai menangis]",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696100836506731270",
+        "author": "llikosmeski",
+        "text": "😳",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696097323952259858",
+        "author": "zannnskie",
+        "text": "😳😳😳",
+        "likes": 0,
+        "card": null
+      }
+    ],
+    "post_card": null,
+    "profile_card": null
+  },
+  "repost_frames": "tiktok-7696092881475423509",
+  "frames": {
+    "tiktok-7696092881475423509": [
+      {
+        "second": 0.0,
+        "boxes": [
+          [
+            "ownersiapotw",
+            0.1406,
+            0.1609
+          ],
+          [
+            "detikcom",
+            0.1281,
+            0.1656
+          ],
+          [
+            "Viral Penyewa Mobil",
+            0.5641,
+            0.5984
+          ],
+          [
+            "Rental Disergap Debt",
+            0.5969,
+            0.6328
+          ],
+          [
+            "Collector di PRJ Surabaya",
+            0.6281,
+            0.6641
+          ]
+        ]
+      },
+      {
+        "second": 1.0,
+        "boxes": [
+          [
+            "S",
+            0.1391,
+            0.1641
+          ],
+          [
+            "ownersiapotw",
+            0.1391,
+            0.1625
+          ],
+          [
+            "detikcom",
+            0.1297,
+            0.1656
+          ],
+          [
+            "Viral Penyewa Mobil",
+            0.5641,
+            0.5984
+          ],
+          [
+            "Rental Disergap Debt",
+            0.5969,
+            0.6328
+          ],
+          [
+            "Collector di PRJ Surabaya",
+            0.6281,
+            0.6656
+          ]
+        ]
+      },
+      {
+        "second": 2.0,
+        "boxes": [
+          [
+            "S",
+            0.1406,
+            0.1625
+          ],
+          [
+            "ownersiapotw",
+            0.1406,
+            0.1609
+          ],
+          [
+            "detikcom",
+            0.1297,
+            0.1656
+          ],
+          [
+            "Viral Penyewa Mobil",
+            0.5641,
+            0.5984
+          ],
+          [
+            "Rental Disergap Debt",
+            0.5969,
+            0.6328
+          ],
+          [
+            "Collector di PRJ Surabaya",
+            0.6281,
+            0.6641
+          ]
+        ]
+      },
+      {
+        "second": 3.0,
+        "boxes": [
+          [
+            "ownersiapotw",
+            0.1422,
+            0.1594
+          ],
+          [
+            "detikcom",
+            0.1297,
+            0.1656
+          ]
+        ]
+      },
+      {
+        "second": 4.0,
+        "boxes": [
+          [
+            "ownersiapotw",
+            0.1422,
+            0.1594
+          ],
+          [
+            "detikcom",
+            0.1297,
+            0.1656
+          ]
+        ]
+      },
+      {
+        "second": 5.0,
+        "boxes": [
+          [
+            "S",
+            0.1422,
+            0.1625
+          ],
+          [
+            "ownersiapotw",
+            0.1391,
+            0.1609
+          ],
+          [
+            "detikcom",
+            0.1281,
+            0.1672
+          ],
+          [
+            "Keributan antara penyewa",
+            0.575,
+            0.6125
+          ],
+          [
+            "mobil rental dan debt collector",
+            0.6078,
+            0.6406
+          ],
+          [
+            "terjadi di acara Pekan Raya Jatim,",
+            0.6375,
+            0.6734
+          ],
+          [
+            "Surabaya, pada Senin (12/10/2026)",
+            0.6672,
+            0.7063
+          ]
+        ]
+      },
+      {
+        "second": 6.0,
+        "boxes": [
+          [
+            "S",
+            0.1422,
+            0.1625
+          ],
+          [
+            "ownersiapotw",
+            0.1406,
+            0.1609
+          ],
+          [
+            "detikcom",
+            0.1297,
+            0.1656
+          ],
+          [
+            "Keributan antara penyewa",
+            0.575,
+            0.6109
+          ],
+          [
+            "mobil rental dan debt collector",
+            0.6078,
+            0.6406
+          ],
+          [
+            "terjadi di acara Pekan Raya Jatim,",
+            0.6375,
+            0.675
+          ],
+          [
+            "Surabaya, pada Senin (12/10/2026)",
+            0.6687,
+            0.7063
+          ]
+        ]
+      },
+      {
+        "second": 7.0,
+        "boxes": [
+          [
+            "ownersiapotw",
+            0.1391,
+            0.1625
+          ],
+          [
+            "detikcom",
+            0.1297,
+            0.1656
+          ],
+          [
+            "Keributan antara penyewa",
+            0.575,
+            0.6125
+          ],
+          [
+            "mobil rental dan debt collector",
+            0.6062,
+            0.6422
+          ],
+          [
+            "terjadi di acara Pekan Raya Jatim,",
+            0.6375,
+            0.675
+          ],
+          [
+            "Surabaya, pada Senin (12/10/2026)",
+            0.6687,
+            0.7063
+          ]
+        ]
+      },
+      {
+        "second": 8.0,
+        "boxes": [
+          [
+            "ownersiapotw",
+            0.1391,
+            0.1609
+          ],
+          [
+            "detikcom",
+            0.1266,
+            0.1656
+          ],
+          [
+            "Keributan antara penyewa",
+            0.575,
+            0.6109
+          ],
+          [
+            "mobil rental dan debt collector",
+            0.6094,
+            0.6391
+          ],
+          [
+            "terjadi di acara Pekan Raya Jatim,",
+            0.6375,
+            0.6734
+          ],
+          [
+            "Surabaya, pada Senin (12/10/2026)",
+            0.6687,
+            0.7063
+          ]
+        ]
+      },
+      {
+        "second": 9.0,
+        "boxes": [
+          [
+            "P",
+            0.1422,
+            0.1625
+          ],
+          [
+            "ownersiapotw",
+            0.1391,
+            0.1625
+          ],
+          [
+            "detikcom",
+            0.1281,
+            0.1672
+          ],
+          [
+            "Videoinsiden penyergapan",
+            0.5766,
+            0.6125
+          ],
+          [
+            "mobil rental itu viral di media",
+            0.6078,
+            0.6422
+          ],
+          [
+            "sosial diunggah akun TikTok",
+            0.6406,
+            0.675
+          ],
+          [
+            "ownersiapotw",
+            0.6703,
+            0.7094
+          ]
+        ]
+      },
+      {
+        "second": 10.0,
+        "boxes": [
+          [
+            "ownersiapotw",
+            0.1391,
+            0.1625
+          ],
+          [
+            "detikcom",
+            0.1297,
+            0.1656
+          ],
+          [
+            "Video insiden penyergapan",
+            0.575,
+            0.6141
+          ],
+          [
+            "mobil rental itu viral di media",
+            0.6094,
+            0.6422
+          ],
+          [
+            "sosial diunggah akun TikTok",
+            0.6391,
+            0.6766
+          ],
+          [
+            "ownersiapotw",
+            0.6703,
+            0.7078
+          ]
+        ]
+      },
+      {
+        "second": 11.0,
+        "boxes": [
+          [
+            "P",
+            0.1422,
+            0.1625
+          ],
+          [
+            "ownersiapotw",
+            0.1391,
+            0.1625
+          ],
+          [
+            "detikcom",
+            0.1281,
+            0.1672
+          ],
+          [
+            "Video insiden penyergapan",
+            0.575,
+            0.6141
+          ],
+          [
+            "mobil rental itu viral di media",
+            0.6094,
+            0.6422
+          ],
+          [
+            "sosial diunggah akun TikTok",
+            0.6375,
+            0.6781
+          ],
+          [
+            "ownersiapotw",
+            0.6703,
+            0.7078
+          ]
+        ]
+      },
+      {
+        "second": 12.0,
+        "boxes": [
+          [
+            "ownersiapotw",
+            0.1422,
+            0.1594
+          ],
+          [
+            "detikcom",
+            0.1281,
+            0.1672
+          ],
+          [
+            "Video insiden penyergapan",
+            0.575,
+            0.6141
+          ],
+          [
+            "mobil rental itu viral di media",
+            0.6094,
+            0.6422
+          ],
+          [
+            "sosial diunggah akun TikTok",
+            0.6406,
+            0.675
+          ],
+          [
+            "ownersiapotw",
+            0.6734,
+            0.7063
+          ]
+        ]
+      },
+      {
+        "second": 13.0,
+        "boxes": [
+          [
+            "S",
+            0.1406,
+            0.1625
+          ],
+          [
+            "ownersiapotw",
+            0.1422,
+            0.1594
+          ],
+          [
+            "detikcom",
+            0.1281,
+            0.1672
+          ],
+          [
+            "Dalam keterangan",
+            0.5938,
+            0.6281
+          ],
+          [
+            "unggahannya menyebut",
+            0.6266,
+            0.6578
+          ],
+          [
+            "adanya dugaan pemukulan...",
+            0.6562,
+            0.6906
+          ]
+        ]
+      },
+      {
+        "second": 14.0,
+        "boxes": [
+          [
+            "P",
+            0.1422,
+            0.1625
+          ],
+          [
+            "ownersiapotw",
+            0.1422,
+            0.1594
+          ],
+          [
+            "detikcom",
+            0.1281,
+            0.1672
+          ],
+          [
+            "Dalam keterangan",
+            0.5906,
+            0.6297
+          ],
+          [
+            "unggahannya menyebut",
+            0.625,
+            0.6609
+          ],
+          [
+            "adanya dugaan pemukulan...",
+            0.6578,
+            0.6906
+          ]
+        ]
+      },
+      {
+        "second": 15.0,
+        "boxes": [
+          [
+            "S",
+            0.1406,
+            0.1625
+          ],
+          [
+            "ownersiapotw",
+            0.1391,
+            0.1625
+          ],
+          [
+            "detikcom",
+            0.1297,
+            0.1656
+          ],
+          [
+            "Dalam keterangan",
+            0.5922,
+            0.6281
+          ],
+          [
+            "unggahannya menyebut",
+            0.625,
+            0.6594
+          ],
+          [
+            "adanya dugaan pemukulan...",
+            0.6547,
+            0.6922
+          ]
+        ]
+      },
+      {
+        "second": 16.0,
+        "boxes": [
+          [
+            "S",
+            0.1406,
+            0.1625
+          ],
+          [
+            "ownersiapotw",
+            0.1391,
+            0.1625
+          ],
+          [
+            "detikcom",
+            0.1281,
+            0.1656
+          ],
+          [
+            "SUNG DEADETY",
+            0.2875,
+            0.3156
+          ],
+          [
+            "aal",
+            0.3812,
+            0.4547
+          ],
+          [
+            "terhadap ibu dari penyewa",
+            0.6109,
+            0.6438
+          ],
+          [
+            "yang berada di dalam mobil",
+            0.6375,
+            0.6766
+          ]
+        ]
+      },
+      {
+        "second": 17.0,
+        "boxes": [
+          [
+            "P",
+            0.1422,
+            0.1625
+          ],
+          [
+            "ownersiapotw",
+            0.1406,
+            0.1609
+          ],
+          [
+            "detikcom",
+            0.1297,
+            0.1656
+          ],
+          [
+            "terhadap ibu dari penyewa",
+            0.6094,
+            0.6438
+          ],
+          [
+            "yang berada di dalam mobil",
+            0.6375,
+            0.6766
+          ]
+        ]
+      },
+      {
+        "second": 18.0,
+        "boxes": [
+          [
+            "S",
+            0.1406,
+            0.1625
+          ],
+          [
+            "ownersiapotw",
+            0.1406,
+            0.1609
+          ],
+          [
+            "detikcom",
+            0.1281,
+            0.1656
+          ],
+          [
+            "terhadap ibu dari penyewa.",
+            0.6094,
+            0.6438
+          ],
+          [
+            "yang berada di dalam mobil",
+            0.6391,
+            0.6766
+          ]
+        ]
+      },
+      {
+        "second": 19.0,
+        "boxes": [
+          [
+            "ownersiapotw",
+            0.1422,
+            0.1594
+          ],
+          [
+            "detikcom",
+            0.1297,
+            0.1656
+          ],
+          [
+            "PRJ",
+            0.1953,
+            0.2359
+          ]
+        ]
+      },
+      {
+        "second": 20.0,
+        "boxes": [
+          [
+            "S",
+            0.1406,
+            0.1625
+          ],
+          [
+            "ownerslapotw",
+            0.1422,
+            0.1594
+          ],
+          [
+            "detikcom",
+            0.1281,
+            0.1672
+          ],
+          [
+            "Dalam video yang beredar,",
+            0.5687,
+            0.6047
+          ],
+          [
+            "penyewa mobil itu mengaku",
+            0.6016,
+            0.6359
+          ],
+          [
+            "tidak kenal pihak debt collector",
+            0.6344,
+            0.6656
+          ],
+          [
+            "yang tiba-tiba menyergap",
+            0.6641,
+            0.7016
+          ],
+          [
+            "kendaraan yang disewa",
+            0.6969,
+            0.7312
+          ]
+        ]
+      },
+      {
+        "second": 21.0,
+        "boxes": [
+          [
+            "ownersiapotw",
+            0.1406,
+            0.1609
+          ],
+          [
+            "detikcom",
+            0.1281,
+            0.1672
+          ],
+          [
+            "Dalam video yang beredar,",
+            0.5687,
+            0.6062
+          ],
+          [
+            "penyewa mobil itu mengaku",
+            0.6,
+            0.6375
+          ],
+          [
+            "tidak kenal pihak debt collector",
+            0.6344,
+            0.6672
+          ],
+          [
+            "yang tiba-tiba menyergap",
+            0.6641,
+            0.7016
+          ],
+          [
+            "kendaraan yang disewa",
+            0.6969,
+            0.7312
+          ]
+        ]
+      },
+      {
+        "second": 22.0,
+        "boxes": [
+          [
+            "S",
+            0.1406,
+            0.1641
+          ],
+          [
+            "ownersiapotw",
+            0.1391,
+            0.1594
+          ],
+          [
+            "detikcom",
+            0.1297,
+            0.1656
+          ],
+          [
+            "Dalam video yang beredar,",
+            0.5687,
+            0.6062
+          ],
+          [
+            "penyewa mobil itu mengaku",
+            0.6,
+            0.6375
+          ],
+          [
+            "tidak kenal pihak debt collector",
+            0.6344,
+            0.6672
+          ],
+          [
+            "yang tiba-tiba menyergap",
+            0.6641,
+            0.7016
+          ],
+          [
+            "kendaraan yang disewa",
+            0.6953,
+            0.7328
+          ]
+        ]
+      },
+      {
+        "second": 23.0,
+        "boxes": [
+          [
+            "J",
+            0.1391,
+            0.1625
+          ],
+          [
+            "ownersiapotw",
+            0.1391,
+            0.1625
+          ],
+          [
+            "detikcom",
+            0.1297,
+            0.1656
+          ],
+          [
+            "Dalam video yang beredar,",
+            0.5687,
+            0.6062
+          ],
+          [
+            "penyewa mobil itu mengaku",
+            0.6031,
+            0.6359
+          ],
+          [
+            "tidak kenal pihak debt collector",
+            0.6312,
+            0.6687
+          ],
+          [
+            "yang tiba-tiba menyergap",
+            0.6641,
+            0.7016
+          ],
+          [
+            "kendaraan yang disewa",
+            0.6969,
+            0.7328
+          ]
+        ]
+      },
+      {
+        "second": 24.0,
+        "boxes": [
+          [
+            "S",
+            0.1422,
+            0.1625
+          ],
+          [
+            "ownersiapotw",
+            0.1422,
+            0.1594
+          ],
+          [
+            "detikcom",
+            0.1281,
+            0.1672
+          ]
+        ]
+      },
+      {
+        "second": 25.0,
+        "boxes": [
+          [
+            "ownersiapotw",
+            0.1391,
+            0.1625
+          ],
+          [
+            "detikcom",
+            0.1281,
+            0.1672
+          ],
+          [
+            "Sedangkan DC menyebut",
+            0.5953,
+            0.6297
+          ],
+          [
+            "bahwa mobil itu telah",
+            0.6266,
+            0.6594
+          ],
+          [
+            "hilang selama 4 tahun",
+            0.6594,
+            0.6922
+          ]
+        ]
+      },
+      {
+        "second": 26.0,
+        "boxes": [
+          [
+            "ownersiapotw",
+            0.1422,
+            0.1594
+          ],
+          [
+            "detikcom",
+            0.1281,
+            0.1672
+          ],
+          [
+            "Sedangkan DC menyebut",
+            0.5938,
+            0.6312
+          ],
+          [
+            "bahwa mobil itu telah",
+            0.6266,
+            0.6594
+          ],
+          [
+            "hilang selama 4 tahun",
+            0.6578,
+            0.6937
+          ]
+        ]
+      },
+      {
+        "second": 27.0,
+        "boxes": [
+          [
+            "ownersiapotw",
+            0.1406,
+            0.1609
+          ],
+          [
+            "detikcom",
+            0.1281,
+            0.1672
+          ]
+        ]
+      },
+      {
+        "second": 28.0,
+        "boxes": [
+          [
+            "P",
+            0.1422,
+            0.1625
+          ],
+          [
+            "ownersiapotw",
+            0.1406,
+            0.1609
+          ],
+          [
+            "detikcom",
+            0.1281,
+            0.1672
+          ]
+        ]
+      },
+      {
+        "second": 29.0,
+        "boxes": [
+          [
+            "ownersiapotw",
+            0.1422,
+            0.1594
+          ],
+          [
+            "detikcom",
+            0.1281,
+            0.1672
+          ],
+          [
+            "Menanggapi kejadian itu, kedua",
+            0.5797,
+            0.6172
+          ],
+          [
+            "belah pihak muncul dalam video",
+            0.6141,
+            0.6469
+          ],
+          [
+            "klarifikasi dan meminta maaf",
+            0.6453,
+            0.6781
+          ],
+          [
+            "terkait insiden itu",
+            0.6766,
+            0.7094
+          ]
+        ]
+      },
+      {
+        "second": 30.0,
+        "boxes": [
+          [
+            "ownersiapotw",
+            0.1391,
+            0.1625
+          ],
+          [
+            "detikcom",
+            0.1281,
+            0.1656
+          ],
+          [
+            "Menanggapi kejadian itu, kedua",
+            0.5813,
+            0.6172
+          ],
+          [
+            "belah pihak muncul dalam video",
+            0.6125,
+            0.6484
+          ],
+          [
+            "klarifikasi dan meminta maaf",
+            0.6438,
+            0.6781
+          ],
+          [
+            "terkait insiden itu",
+            0.6781,
+            0.7078
+          ]
+        ]
+      },
+      {
+        "second": 31.0,
+        "boxes": [
+          [
+            "P",
+            0.1422,
+            0.1625
+          ],
+          [
+            "ownersiapotw",
+            0.1391,
+            0.1625
+          ],
+          [
+            "detikcom",
+            0.1281,
+            0.1672
+          ],
+          [
+            "Menanggapi kejadian itu, kedua",
+            0.5813,
+            0.6172
+          ],
+          [
+            "belah pihak muncul dalam video",
+            0.6125,
+            0.6484
+          ],
+          [
+            "klarifikasi dan meminta maaf",
+            0.6438,
+            0.6781
+          ],
+          [
+            "terkait insiden itu",
+            0.6766,
+            0.7094
+          ]
+        ]
+      },
+      {
+        "second": 32.0,
+        "boxes": [
+          [
+            "S",
+            0.1422,
+            0.1625
+          ],
+          [
+            "ownerslapotw",
+            0.1406,
+            0.1609
+          ],
+          [
+            "detikcom",
+            0.1281,
+            0.1672
+          ]
+        ]
+      },
+      {
+        "second": 33.0,
+        "boxes": [
+          [
+            "viralforjusticesub",
+            0.1375,
+            0.1594
+          ],
+          [
+            "detikcom",
+            0.1297,
+            0.1656
+          ],
+          [
+            "\"Assalamualaikum warahma-",
+            0.2406,
+            0.2719
+          ],
+          [
+            "tullahi wabarakatuh saya",
+            0.2687,
+            0.3016
+          ],
+          [
+            "mohon maaf atas terjadinya",
+            0.2984,
+            0.3312
+          ],
+          [
+            "kegaduhan tadi di Grand",
+            0.3266,
+            0.3594
+          ],
+          [
+            "City Mall. Jadi kegaduhan",
+            0.3563,
+            0.3875
+          ],
+          [
+            "yang terjadi tadi itu hanya",
+            0.3844,
+            0.4172
+          ],
+          [
+            "kesalapahaman. Tidak ada",
+            0.4156,
+            0.4422
+          ],
+          [
+            "kekerasan dan pemukulan.",
+            0.4422,
+            0.4734
+          ],
+          [
+            "Jadi kami memohon untuk",
+            0.4734,
+            0.5
+          ],
+          [
+            "video yang sudah disebar",
+            0.5016,
+            0.5312
+          ],
+          [
+            "atau permasalahan ini",
+            0.5297,
+            0.5594
+          ],
+          [
+            "jangan dibesar-besarkan",
+            0.5594,
+            0.5906
+          ],
+          [
+            "karena kami kedua belah",
+            0.5891,
+            0.6172
+          ],
+          [
+            "pihak sudah selesai,\"",
+            0.6141,
+            0.65
+          ],
+          [
+            "Penyewa Rental",
+            0.6766,
+            0.7031
+          ]
+        ]
+      },
+      {
+        "second": 34.0,
+        "boxes": [
+          [
+            "P",
+            0.1422,
+            0.1625
+          ],
+          [
+            "viralforjusticesub",
+            0.1391,
+            0.1594
+          ],
+          [
+            "detikcom",
+            0.1297,
+            0.1672
+          ],
+          [
+            "\"Assalamualaikum warahma-",
+            0.2406,
+            0.2719
+          ],
+          [
+            "tullahi wabarakatuh saya",
+            0.2687,
+            0.3016
+          ],
+          [
+            "mohon maaf atas terjadinya",
+            0.2984,
+            0.3312
+          ],
+          [
+            "kegaduhan tadi di Grand",
+            0.3266,
+            0.3594
+          ],
+          [
+            "City Mall. Jadi kegaduhan",
+            0.3563,
+            0.3875
+          ],
+          [
+            "yang terjadi tadi itu hanya",
+            0.3859,
+            0.4172
+          ],
+          [
+            "kesalapahaman. Tidak ada",
+            0.4156,
+            0.4453
+          ],
+          [
+            "kekerasan dan pemukulan.",
+            0.4422,
+            0.475
+          ],
+          [
+            "Jadi kami memohon untuk",
+            0.4719,
+            0.5016
+          ],
+          [
+            "video yang sudah disebar",
+            0.5016,
+            0.5312
+          ],
+          [
+            "atau permasalahan ini",
+            0.5281,
+            0.5625
+          ],
+          [
+            "jangan dibesar-besarkan",
+            0.5578,
+            0.5906
+          ],
+          [
+            "karena kami kedua belah",
+            0.5891,
+            0.6172
+          ],
+          [
+            "pihak sudah selesai,\"",
+            0.6156,
+            0.65
+          ],
+          [
+            "Penyewa Rental",
+            0.675,
+            0.7047
+          ]
+        ]
+      },
+      {
+        "second": 35.0,
+        "boxes": [
+          [
+            "P",
+            0.1422,
+            0.1625
+          ],
+          [
+            "viralforjusticesub",
+            0.1391,
+            0.1594
+          ],
+          [
+            "detikcom",
+            0.1297,
+            0.1672
+          ],
+          [
+            "\"Assalamualaikum warahma-",
+            0.2406,
+            0.2719
+          ],
+          [
+            "tullahi wabarakatuh saya",
+            0.2687,
+            0.3016
+          ],
+          [
+            "mohon maaf atas terjadinya",
+            0.2984,
+            0.3312
+          ],
+          [
+            "kegaduhan tadi di Grand",
+            0.3266,
+            0.3594
+          ],
+          [
+            "City Mall. Jadi kegaduhan",
+            0.3563,
+            0.3875
+          ],
+          [
+            "yang terjadi tadi itu hanya",
+            0.3859,
+            0.4172
+          ],
+          [
+            "kesalapahaman. Tidak ada",
+            0.4156,
+            0.4453
+          ],
+          [
+            "kekerasan dan pemukulan.",
+            0.4422,
+            0.475
+          ],
+          [
+            "Jadi kami memohon untuk",
+            0.4719,
+            0.5016
+          ],
+          [
+            "video yang sudah disebar",
+            0.5016,
+            0.5312
+          ],
+          [
+            "atau permasalahan ini",
+            0.5297,
+            0.5609
+          ],
+          [
+            "jangan dibesar-besarkan",
+            0.5578,
+            0.5906
+          ],
+          [
+            "karena kami kedua belah",
+            0.5891,
+            0.6172
+          ],
+          [
+            "pihak sudah selesai,\"",
+            0.6156,
+            0.65
+          ],
+          [
+            "Penyewa Rental",
+            0.675,
+            0.7047
+          ]
+        ]
+      },
+      {
+        "second": 36.0,
+        "boxes": [
+          [
+            "P",
+            0.1422,
+            0.1625
+          ],
+          [
+            "viralforjusticesub",
+            0.1391,
+            0.1594
+          ],
+          [
+            "detikcom",
+            0.1297,
+            0.1672
+          ],
+          [
+            "\"Assalamualaikum warahma-",
+            0.2406,
+            0.2719
+          ],
+          [
+            "tullahi wabarakatuh saya",
+            0.2687,
+            0.3016
+          ],
+          [
+            "mohon maaf atas terjadinya",
+            0.2984,
+            0.3312
+          ],
+          [
+            "kegaduhan tadi di Grand",
+            0.3266,
+            0.3594
+          ],
+          [
+            "City Mall. Jadi kegaduhan",
+            0.3563,
+            0.3875
+          ],
+          [
+            "yang terjadi tadi itu hanya",
+            0.3844,
+            0.4172
+          ],
+          [
+            "kesalapahaman. Tidak ada",
+            0.4156,
+            0.4453
+          ],
+          [
+            "kekerasan dan pemukulan.",
+            0.4422,
+            0.475
+          ],
+          [
+            "Jadi kami memohon untuk",
+            0.4719,
+            0.5016
+          ],
+          [
+            "video yang sudah disebar",
+            0.5016,
+            0.5312
+          ],
+          [
+            "atau permasalahan ini",
+            0.5297,
+            0.5609
+          ],
+          [
+            "jangan dibesar-besarkan",
+            0.5578,
+            0.5906
+          ],
+          [
+            "karena kami kedua belah",
+            0.5891,
+            0.6172
+          ],
+          [
+            "pihak sudah selesai,\"",
+            0.6156,
+            0.65
+          ],
+          [
+            "Penyewa Rental",
+            0.675,
+            0.7047
+          ]
+        ]
+      },
+      {
+        "second": 37.0,
+        "boxes": [
+          [
+            "P",
+            0.1422,
+            0.1625
+          ],
+          [
+            "viralforjusticesub",
+            0.1391,
+            0.1594
+          ],
+          [
+            "detikcom",
+            0.1297,
+            0.1672
+          ],
+          [
+            "\"Assalamualaikum warahma-",
+            0.2406,
+            0.2719
+          ],
+          [
+            "tullahi wabarakatuh saya",
+            0.2687,
+            0.3016
+          ],
+          [
+            "mohon maaf atas terjadinya",
+            0.2984,
+            0.3312
+          ],
+          [
+            "kegaduhan tadi di Grand",
+            0.3266,
+            0.3594
+          ],
+          [
+            "City Mall. Jadi kegaduhan",
+            0.3563,
+            0.3875
+          ],
+          [
+            "yang terjadi tadi itu hanya",
+            0.3844,
+            0.4172
+          ],
+          [
+            "kesalapahaman. Tidak ada",
+            0.4156,
+            0.4453
+          ],
+          [
+            "kekerasan dan pemukulan.",
+            0.4422,
+            0.475
+          ],
+          [
+            "Jadi kami memohon untuk",
+            0.4719,
+            0.5016
+          ],
+          [
+            "video yang sudah disebar",
+            0.5016,
+            0.5312
+          ],
+          [
+            "atau permasalahan ini",
+            0.5297,
+            0.5609
+          ],
+          [
+            "jangan dibesar-besarkan",
+            0.5578,
+            0.5906
+          ],
+          [
+            "karena kami kedua belah",
+            0.5891,
+            0.6172
+          ],
+          [
+            "pihak sudah selesai,\"",
+            0.6141,
+            0.65
+          ],
+          [
+            "Penyewa Rental",
+            0.675,
+            0.7047
+          ]
+        ]
+      },
+      {
+        "second": 38.0,
+        "boxes": [
+          [
+            "P",
+            0.1422,
+            0.1625
+          ],
+          [
+            "viralforjusticesub",
+            0.1391,
+            0.1594
+          ],
+          [
+            "detikcom",
+            0.1297,
+            0.1672
+          ],
+          [
+            "\"Assalamualaikum warahma-",
+            0.2406,
+            0.2719
+          ],
+          [
+            "tullahi wabarakatuh saya",
+            0.2687,
+            0.3016
+          ],
+          [
+            "mohon maaf atas terjadinya",
+            0.2984,
+            0.3312
+          ],
+          [
+            "kegaduhan tadi di Grand",
+            0.3266,
+            0.3594
+          ],
+          [
+            "City Mall. Jadi kegaduhan",
+            0.3563,
+            0.3875
+          ],
+          [
+            "yang terjadi tadi itu hanya",
+            0.3844,
+            0.4172
+          ],
+          [
+            "kesalapahaman. Tidak ada",
+            0.4156,
+            0.4453
+          ],
+          [
+            "kekerasan dan pemukulan.",
+            0.4422,
+            0.475
+          ],
+          [
+            "Jadi kami memohon untuk",
+            0.4719,
+            0.5016
+          ],
+          [
+            "video yang sudah disebar",
+            0.5016,
+            0.5312
+          ],
+          [
+            "atau permasalahan ini",
+            0.5297,
+            0.5609
+          ],
+          [
+            "jangan dibesar-besarkan",
+            0.5578,
+            0.5906
+          ],
+          [
+            "karena kami kedua belah",
+            0.5891,
+            0.6172
+          ],
+          [
+            "pihak sudah selesai,\"",
+            0.6156,
+            0.65
+          ],
+          [
+            "Penyewa Rental",
+            0.675,
+            0.7047
+          ]
+        ]
+      },
+      {
+        "second": 39.0,
+        "boxes": [
+          [
+            "P",
+            0.1422,
+            0.1625
+          ],
+          [
+            "viralforjusticesub",
+            0.1391,
+            0.1594
+          ],
+          [
+            "detikcom",
+            0.1297,
+            0.1672
+          ],
+          [
+            "99",
+            0.2062,
+            0.2609
+          ],
+          [
+            "\"Assalamualaikum warahma-",
+            0.2406,
+            0.2719
+          ],
+          [
+            "tullahi wabarakatuh saya",
+            0.2687,
+            0.3016
+          ],
+          [
+            "mohon maaf atas terjadinya",
+            0.2984,
+            0.3312
+          ],
+          [
+            "kegaduhan tadi di Grand",
+            0.3266,
+            0.3594
+          ],
+          [
+            "City Mall. Jadi kegaduhan",
+            0.3563,
+            0.3875
+          ],
+          [
+            "yang terjadi tadi itu hanya",
+            0.3844,
+            0.4172
+          ],
+          [
+            "kesalapahaman. Tidak ada",
+            0.4156,
+            0.4453
+          ],
+          [
+            "kekerasan dan pemukulan.",
+            0.4422,
+            0.475
+          ],
+          [
+            "Jadi kami memohon untuk",
+            0.4719,
+            0.5016
+          ],
+          [
+            "video yang sudah disebar",
+            0.5,
+            0.5312
+          ],
+          [
+            "atau permasalahan ini",
+            0.5297,
+            0.5609
+          ],
+          [
+            "jangan dibesar-besarkan",
+            0.5578,
+            0.5906
+          ],
+          [
+            "karena kami kedua belah",
+            0.5891,
+            0.6172
+          ],
+          [
+            "pihak sudah selesai,\"",
+            0.6156,
+            0.65
+          ],
+          [
+            "Penyewa Rental",
+            0.675,
+            0.7047
+          ]
+        ]
+      },
+      {
+        "second": 40.0,
+        "boxes": [
+          [
+            "P",
+            0.1422,
+            0.1625
+          ],
+          [
+            "viralforjusticesub",
+            0.1375,
+            0.1609
+          ],
+          [
+            "detikcom",
+            0.1266,
+            0.1672
+          ]
+        ]
+      },
+      {
+        "second": 41.0,
+        "boxes": [
+          [
+            "P",
+            0.1422,
+            0.1625
+          ],
+          [
+            "viralforjusticesub",
+            0.1391,
+            0.1594
+          ],
+          [
+            "detikcom",
+            0.1281,
+            0.1672
+          ],
+          [
+            "ppaghe",
+            0.4219,
+            0.4547
+          ]
+        ]
+      },
+      {
+        "second": 42.0,
+        "boxes": []
+      },
+      {
+        "second": 43.0,
+        "boxes": [
+          [
+            "detio",
+            0.4109,
+            0.6391
+          ]
+        ]
+      },
+      {
+        "second": 44.0,
+        "boxes": [
+          [
+            "detikcom",
+            0.4594,
+            0.5437
+          ]
+        ]
+      },
+      {
+        "second": 45.0,
+        "boxes": [
+          [
+            "detikcom",
+            0.4594,
+            0.5437
+          ]
+        ]
+      },
+      {
+        "second": 46.0,
+        "boxes": [
+          [
+            "detikcom",
+            0.4594,
+            0.5437
+          ]
+        ]
+      }
+    ]
+  },
+  "matches": {},
+  "unmatchable": [],
+  "cover": {
+    "headline": "Viral Penyewa Mobil Rental Disergap Debt Collector di PRJ Surabaya",
+    "scene": "A woman is seen confronting a man next to a car in a public area at night, with a crowd gathered around them.",
+    "icon": "detikcom in the top right corner, ownersiapotw in the top left corner",
+    "handles": [
+      "@ownersiapotw"
+    ],
+    "reaction_shape": "none",
+    "subject_media": "none",
+    "shows": [
+      "creator",
+      "creator",
+      "creator"
+    ]
+  },
+  "classify": {},
+  "decisions": {
+    "is_repost": 0.8,
+    "handle": null,
+    "handle_probability": 0.0,
+    "platform": "tiktok",
+    "platform_probability": 0.64
+  },
+  "cuts": [
+    42.4667
+  ],
+  "transcript": null,
+  "turns": null,
+  "assessment": null,
+  "discovery": null,
+  "acquired": {},
+  "expected": {
+    "verdict": "replaced",
+    "source_url": "https://www.tiktok.com/@ownersiapotw/video/7695774167072918792"
+  },
+  "scout": {
+    "main_url": null,
+    "note": ""
+  },
+  "departure": "scout_not_run",
+  "pending": "Stage 8 (story search): an uncredited repost of a TikTok video; no handle on screen."
+}

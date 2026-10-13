@@ -1,0 +1,2067 @@
+{
+  "case": "tiktok_koranjakarta_7696054153478425857",
+  "synthetic": false,
+  "captured_at": "2026-10-13T13:18:50Z",
+  "report": {
+    "schema_version": 3,
+    "workflow_id": "wf_golden",
+    "source": {
+      "platform": "tiktok",
+      "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7696054153478425857"
+    },
+    "post": {
+      "post_id": "7696054153478425857",
+      "owner_handle": "koranjakarta",
+      "text": "Kasus pria yang diduga kecanduan judi slot online hingga mengamuk di rumah kembali menjadi sorotan setelah muncul kabar lanjutan dari unggahan sang istri. Peristiwa yang terjadi di Kecamatan Margaasih, Kabupaten Bandung, pada Minggu (11/10/2026) itu berujung pada pecahnya cermin setelah sang suami meluapkan emosi dengan memukul pintu lemari. Nahas, pecahan cermin tersebut mengenai wajah anak mereka yang masih balita hingga mengalami luka. Kejadian ini sebelumnya viral setelah rekaman amukan sang pria beredar di media sosial. Berdasarkan pemberitaan, sang istri mengaku sempat mengingatkan suaminya agar tidak terus bermain judi online. Namun, situasi justru memanas hingga berujung pada insiden yang membahayakan anak mereka. Polisi telah mendatangi lokasi untuk menindaklanjuti kejadian tersebut dan masih menunggu laporan resmi korban saat berita diterbitkan. Peristiwa ini kembali memperlihatkan dampak serius konflik akibat dugaan kecanduan judi online, yang tidak hanya berisiko merusak kondisi ekonomi keluarga, tetapi juga mengancam keselamatan orang-orang terdekat. #KoranJakarta #JudiOnline #JudiSlot #KekerasanDalamRumahTangga [DS]",
+      "published_at": "2026-10-13T07:41:43Z",
+      "engagement": {
+        "play": 407800,
+        "like": 5331,
+        "comment": 789,
+        "share": 554,
+        "collect": 531
+      }
+    },
+    "media": [
+      {
+        "media_id": "media_1",
+        "kind": "video",
+        "index": 1,
+        "location": "reports/wf_golden/media/tiktok-7696054153478425857.mp4",
+        "media_type": "video/mp4",
+        "bytes": 8112675,
+        "checksum": "sha256:43e0c116ff59fd66e439a607ec0b0b2b8ae2db684c12a1f5d347e6d05101f3c0",
+        "acquisition_strategy": "scrapling_headless",
+        "width": null,
+        "height": null,
+        "duration_seconds": null
+      }
+    ],
+    "outcome": {
+      "status": "resolved",
+      "attempts": [
+        {
+          "strategy": "scrapling_headless",
+          "status": "succeeded",
+          "reason": null,
+          "attempt_count": 1,
+          "elapsed_ms": 85375
+        }
+      ]
+    },
+    "comments": [
+      {
+        "comment_id": "7696074812544664326",
+        "author": "ceomasbe",
+        "text": "GK punya suami pon GK rugi\"buat aku\"",
+        "likes": 278,
+        "card": null
+      },
+      {
+        "comment_id": "7696093169364747028",
+        "author": "rdshop83",
+        "text": "tinggalin laki modelan begitu mbak 😭",
+        "likes": 47,
+        "card": null
+      },
+      {
+        "comment_id": "7696071212066276117",
+        "author": "citra.dewi1686",
+        "text": "lebih baik masukin aja ke penjara di pertahan kan pun cuma bikin sakit jantung",
+        "likes": 125,
+        "card": null
+      },
+      {
+        "comment_id": "7696087348123173652",
+        "author": "raditsarro",
+        "text": "lagian suaminya ngamuk mash tinggal di s2 ama anaknya lagi, bukannya keluar minta tolong, astaga",
+        "likes": 24,
+        "card": null
+      },
+      {
+        "comment_id": "7696084428590547720",
+        "author": "reni.herlina15",
+        "text": "lagian c ibu nyah fusmi lagi ngamuk malah diem,bukan nyah bawa keluar anak",
+        "likes": 12,
+        "card": null
+      },
+      {
+        "comment_id": "7696096055989568277",
+        "author": "aslikpgo",
+        "text": "cerai jln terbaik,jgn bertahan demi anak dgn lelaki modelan kayak gini",
+        "likes": 2,
+        "card": null
+      },
+      {
+        "comment_id": "7696095294954586900",
+        "author": "bagus.bagas311",
+        "text": "kasihan anaknya... untung gk kena mata",
+        "likes": 18,
+        "card": null
+      },
+      {
+        "comment_id": "7696080619805197076",
+        "author": "user9774977293813",
+        "text": "knp ga di BLK yh akunnya knp pemerintah diyem ajah arusnya jngn di Adain",
+        "likes": 3,
+        "card": null
+      },
+      {
+        "comment_id": "7696132575059985159",
+        "author": "wina.gemoy32",
+        "text": "pemerintah apa ngga bisa tutup situs judol,,ini contoh korbannya tukang judi dah kecanduan",
+        "likes": 2,
+        "card": null
+      },
+      {
+        "comment_id": "7696078042413728520",
+        "author": "aryasiti23",
+        "text": "kaya tetangga sy,suami sampe ke canduan slot..di obatin percuma..kalo ud penyakit susah...istrinya cuma diksh 50rb ..anak2nya sampe kurus",
+        "likes": 4,
+        "card": null
+      },
+      {
+        "comment_id": "7696080903261078278",
+        "author": "mijasmi",
+        "text": "klau suami suka judi apa jenis judi yh akan tetap sampai tua karna udh melekat di otaknya",
+        "likes": 16,
+        "card": null
+      },
+      {
+        "comment_id": "7696089068266603272",
+        "author": "syakilaalmahira81",
+        "text": "kalo udh soal anak gak bakal aku maafin teh gapp jadi janda mahh dari pada punya suami begitu",
+        "likes": 25,
+        "card": null
+      },
+      {
+        "comment_id": "7696129124603380488",
+        "author": "bundamiainayah1",
+        "text": "skrng bnyk bngt yang korban slot dan pinjol tetengga sy jg smle hutang 50jt karna pinjol kurut main sloot",
+        "likes": 7,
+        "card": null
+      },
+      {
+        "comment_id": "7696119313874436884",
+        "author": "konveksioner",
+        "text": "tolong di tutup situs judol pak pra Bowo sangat meresahkan dan merusak rumah tangga",
+        "likes": 29,
+        "card": null
+      },
+      {
+        "comment_id": "7696081651655328530",
+        "author": "khula.sotik.suwai",
+        "text": "Suami ku pun sedang mulai kecanduan slot,,, jadi malas kerja begadang samapi pagi, tidur, bangun siang makan mandi ngopi tidur lagi dan malam kembali slot lagi dg hasil kerja sehari atau dua hari buat slot, anak istri tak di perduli kan,,",
+        "likes": 5,
+        "card": null
+      },
+      {
+        "comment_id": "7696096989054567189",
+        "author": "liaresi2",
+        "text": "barusan lewat aku sempet nnya itu kena apa gak k Dede serpihan kaca nya ternyata beneran kena y Allah udh teh Jangn d lanjut tinggalin suami seperti itu kasian mental tth dan anak nya",
+        "likes": 11,
+        "card": null
+      },
+      {
+        "comment_id": "7696103484286059316",
+        "author": "thiya_azahra",
+        "text": "aku juga dulu pernah kaya gini tapi klw aku pke gelas d lempar ke tembok dan untungnya serpihan gelasnya GK kena anak bayiku😭dan s kejap air mata ku pun mnetes.",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7696058145705739029",
+        "author": "tii__fahh",
+        "text": "ih salaki Kitu mah tong di terus keun iiih menta pisah we teh sampe kapan Oge teu bener teh",
+        "likes": 7,
+        "card": null
+      },
+      {
+        "comment_id": "7696114125717422869",
+        "author": "agung.legowo4",
+        "text": "bubarkan slot tangkap judi online",
+        "likes": 3,
+        "card": null
+      },
+      {
+        "comment_id": "7696078111109333812",
+        "author": "eris.kristin",
+        "text": "untung ga kena mata ya beling nyah",
+        "likes": 13,
+        "card": null
+      },
+      {
+        "comment_id": "7696127893773222708",
+        "author": "wanwan84141",
+        "text": "ank istri jdi korban kasihan.. tutup aja pak yg namanya judol.",
+        "likes": 2,
+        "card": null
+      },
+      {
+        "comment_id": "7696113336068735762",
+        "author": "aisah.kharisma",
+        "text": "untung ngk kenak mata anaknya",
+        "likes": 2,
+        "card": null
+      },
+      {
+        "comment_id": "7696102907296580372",
+        "author": "ida.royani780",
+        "text": "usir ajh punya suami Kitu MH teh",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7696090982748111634",
+        "author": "bossempang007",
+        "text": "cerai aja mbk takutnya knpa2",
+        "likes": 3,
+        "card": null
+      },
+      {
+        "comment_id": "7696109579873534738",
+        "author": "pandu.41_",
+        "text": "itu berbahaya prilaku begitu bisa mengakibatkan anak istri jdi sasaran..",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7696110218639852340",
+        "author": "ekaharyani_",
+        "text": "suami kaya gitu tinģgalin aj",
+        "likes": 2,
+        "card": null
+      },
+      {
+        "comment_id": "7696126468082238228",
+        "author": "elvina_pc_19",
+        "text": "tolong lah untuk pemerintah kita itu punya alat alat canggih , masalah bantuan aja bisa terdeteksi pemain judi atau bukan , walau pun itu bank tapi pemerintah kita bisa tau , sedang kan bank itu privasi , setidak nya coba jangan telusuri orang mana yang suka main judi tapi , masyarakat lebih butuh pemerintah untuk telurusuri siapa bandar judi 🙏 karna jujur percuma tangkap orng yang suka berjudi , tidak akan ada dampak nya juga untuk ke depan nya , karna yang harus kalian telusuri itu bandar judi nya 🙏",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7696140817622188821",
+        "author": "lieswidangsh",
+        "text": "ya Allah Astagfirullah",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696107704229790516",
+        "author": "kasnirraa",
+        "text": "stres . untung ga kena mata",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7696130638394540821",
+        "author": "suheri.yantigmail",
+        "text": "padahal mah kalau berantem jangan dimasukin ke Tik tok jangan di depan mata anak maaf kalau bicara saya begini",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7696086650297008917",
+        "author": "hsjssbjdbd",
+        "text": "tinggalin mbak suami kaya gitu mah",
+        "likes": 7,
+        "card": null
+      },
+      {
+        "comment_id": "7696113264653157121",
+        "author": "cimpluk85",
+        "text": "tinggalin",
+        "likes": 2,
+        "card": null
+      },
+      {
+        "comment_id": "7696110732497650453",
+        "author": "usera7415vjvfs",
+        "text": "judi slot meracuni otak org,,knp pemerintah gk menutupnya",
+        "likes": 2,
+        "card": null
+      },
+      {
+        "comment_id": "7696113275960804116",
+        "author": "supartitinn",
+        "text": "ya Alloh...\nkasihan anaknya jadi korban slot bapaknya",
+        "likes": 2,
+        "card": null
+      },
+      {
+        "comment_id": "7696102620989719304",
+        "author": "l_m011",
+        "text": "lalaki kitu patut mah tinggalkeun",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7696140749192659732",
+        "author": "mah.ulan3",
+        "text": "euweuh nu beunghar judi nu aya anak pamajikan jadi korban ngaruksak kitu mah matak cilaka eta budak garetihan kitu",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696108326195282696",
+        "author": "ilyas.gambir",
+        "text": "tinggalin ba suami gitu",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7696087072034063111",
+        "author": "anawaanta",
+        "text": "pulang mbk klo kamu punya kluarga. tinggalin laki2 yg kyak gitu .",
+        "likes": 8,
+        "card": null
+      },
+      {
+        "comment_id": "7696092194089091860",
+        "author": "afika.dhede",
+        "text": "ya Allah tung ga kena mata",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7696141008284205831",
+        "author": "bunda.gingsul",
+        "text": "KLO AQ hri it pun langsung pergi",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696103846473171719",
+        "author": "cahya_0111",
+        "text": "udah teteh tinggalin suami nya,sdh membahayakan nyawa itu teh...🥺",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7696096951234151188",
+        "author": "yasmine37523",
+        "text": "semakin yakin untuk g menikah lagi 💃💃💃",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7696114969322701574",
+        "author": "purwi23",
+        "text": "tinggalin aja mbak udah,,cari kerja percantik diri",
+        "likes": 2,
+        "card": null
+      },
+      {
+        "comment_id": "7696094558090969877",
+        "author": "reniimelda.putri",
+        "text": "ak mending janda gk punyak suami gpp",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7696091473904894727",
+        "author": "adelindaffi",
+        "text": "ap yg dhrpkn dr laki2 spt itu..mnding cerai..",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7696110337141408513",
+        "author": "faizah.izah79",
+        "text": "Alhamdulillah anakku sudah cerai dari suaminya yang judi online 👍",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7696103383551836936",
+        "author": "youlia_maharani",
+        "text": "apa yg bisa di harepin dari laki laki kayak gt",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7696111417074320135",
+        "author": "lutfia_318",
+        "text": "GK mngkin bisa berubah yakin",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7696100942248248070",
+        "author": "zulijengyi",
+        "text": "Untung gak kenak mata nya dedek",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7696139854045250322",
+        "author": "mujiharti437",
+        "text": "Mohon bapak prabowo tutup situs judol",
+        "likes": 0,
+        "card": null
+      }
+    ],
+    "post_card": null,
+    "profile_card": null
+  },
+  "repost_frames": "tiktok-7696054153478425857",
+  "frames": {
+    "tiktok-7696054153478425857": [
+      {
+        "second": 0.0,
+        "boxes": [
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3703,
+            0.5297
+          ],
+          [
+            "Video Viral Suami Ngamuk",
+            0.6422,
+            0.6844
+          ],
+          [
+            "Gegara Judi Slot, Serpihan",
+            0.6859,
+            0.7266
+          ],
+          [
+            "Kaca Ternyata Lukai Sang",
+            0.7266,
+            0.7688
+          ],
+          [
+            "Anak",
+            0.7703,
+            0.8047
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 1.0,
+        "boxes": [
+          [
+            "LIORANEA",
+            0.0703,
+            0.1047
+          ],
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Video Viral Suami Ngamuk",
+            0.6406,
+            0.6844
+          ],
+          [
+            "Gegara Judi Slot, Serpihan",
+            0.6859,
+            0.7266
+          ],
+          [
+            "Kaca Ternyata Lukai Sang",
+            0.725,
+            0.7703
+          ],
+          [
+            "Anak",
+            0.7703,
+            0.8063
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 2.0,
+        "boxes": [
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Video Viral Suami Ngamuk",
+            0.6422,
+            0.6844
+          ],
+          [
+            "Gegara Judi Slot, Serpihan",
+            0.6859,
+            0.7266
+          ],
+          [
+            "Kaca Ternyata Lukai Sang",
+            0.725,
+            0.7703
+          ],
+          [
+            "Anak",
+            0.7703,
+            0.8063
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 3.0,
+        "boxes": [
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Video Viral Suami Ngamuk",
+            0.6406,
+            0.6844
+          ],
+          [
+            "Gegara Judi Slot, Serpihan",
+            0.6859,
+            0.7266
+          ],
+          [
+            "Kaca Ternyata Lukai Sang",
+            0.725,
+            0.7703
+          ],
+          [
+            "Anak",
+            0.7703,
+            0.8063
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 4.0,
+        "boxes": [
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Video Viral Suami Ngamuk",
+            0.6422,
+            0.6844
+          ],
+          [
+            "Gegara Judi Slot, Serpihan",
+            0.6859,
+            0.7266
+          ],
+          [
+            "Kaca Ternyata Lukai Sang",
+            0.725,
+            0.7703
+          ],
+          [
+            "Anak",
+            0.7703,
+            0.8063
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 5.0,
+        "boxes": [
+          [
+            "MORARKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Kasus pria yang diduga kecanduan judi slot",
+            0.6875,
+            0.7109
+          ],
+          [
+            "online hingga mengamuk di rumah kembali",
+            0.7125,
+            0.7359
+          ],
+          [
+            "menjadi sorotan setelah muncul kabar",
+            0.7359,
+            0.7578
+          ],
+          [
+            "lanjutan dari unggahan sang istri.",
+            0.7594,
+            0.7828
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 6.0,
+        "boxes": [
+          [
+            "LIORAKIA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Kasus pria yang diduga kecanduan judi slot",
+            0.6875,
+            0.7109
+          ],
+          [
+            "online hingga mengamuk di rumah kembali",
+            0.7125,
+            0.7359
+          ],
+          [
+            "menjadi sorotan setelah muncul kabar",
+            0.7359,
+            0.7578
+          ],
+          [
+            "lanjutan dari unggahan sang istri.",
+            0.7594,
+            0.7828
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 7.0,
+        "boxes": [
+          [
+            "MORARIA",
+            0.0734,
+            0.1016
+          ],
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Kasus pria yang diduga kecanduan judi slot",
+            0.6875,
+            0.7109
+          ],
+          [
+            "online hingga mengamuk di rumah kembali",
+            0.7125,
+            0.7359
+          ],
+          [
+            "menjadi sorotan setelah muncul kabar",
+            0.7359,
+            0.7578
+          ],
+          [
+            "lanjutan dari unggahan sang istri.",
+            0.7594,
+            0.7828
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9391
+          ]
+        ]
+      },
+      {
+        "second": 8.0,
+        "boxes": [
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Kasus pria yang diduga kecanduan judi slot",
+            0.6875,
+            0.7109
+          ],
+          [
+            "online hingga mengamuk di rumah kembali",
+            0.7125,
+            0.7359
+          ],
+          [
+            "menjadi sorotan setelah muncul kabar",
+            0.7359,
+            0.7578
+          ],
+          [
+            "lanjutan dari unggahan sang istri.",
+            0.7594,
+            0.7828
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9391
+          ]
+        ]
+      },
+      {
+        "second": 9.0,
+        "boxes": [
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3688,
+            0.5281
+          ],
+          [
+            "Kasus pria yang diduga kecanduan judi slot",
+            0.6875,
+            0.7109
+          ],
+          [
+            "online hingga mengamuk di rumah kembali",
+            0.7125,
+            0.7359
+          ],
+          [
+            "menjadi sorotan setelah muncul kabar",
+            0.7359,
+            0.7594
+          ],
+          [
+            "lanjutan dari unggahan sang istri.",
+            0.7578,
+            0.7844
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 10.0,
+        "boxes": [
+          [
+            "VIDEO:X/BGRETAAMELIA7",
+            0.3688,
+            0.5281
+          ],
+          [
+            "Peristiwa yang terjadi di Kecamatan",
+            0.6875,
+            0.7141
+          ],
+          [
+            "Margaasih, Kabupaten Bandung, pada",
+            0.7156,
+            0.7406
+          ],
+          [
+            "Minggu (11/10/2026) itu berujung pada",
+            0.7422,
+            0.7688
+          ],
+          [
+            "pecahnya cermin setelah sang suami",
+            0.7672,
+            0.7969
+          ],
+          [
+            "meluapkan emosi dengan memukul",
+            0.7953,
+            0.8234
+          ],
+          [
+            "pintu lemari.",
+            0.8203,
+            0.85
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 11.0,
+        "boxes": [
+          [
+            "HARAN",
+            0.0719,
+            0.1016
+          ],
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "FAS",
+            0.5828,
+            0.6078
+          ],
+          [
+            "Peristiwa yang terjadi di Kecamatan",
+            0.6875,
+            0.7141
+          ],
+          [
+            "Margaasih, Kabupaten Bandung, pada",
+            0.7156,
+            0.7406
+          ],
+          [
+            "Minggu (11/10/2026) itu berujung pada",
+            0.7422,
+            0.7688
+          ],
+          [
+            "pecahnya cermin setelah sang suami",
+            0.7672,
+            0.7969
+          ],
+          [
+            "meluapkan emosi dengan memukul",
+            0.7953,
+            0.8234
+          ],
+          [
+            "pintu lemari.",
+            0.8219,
+            0.85
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 12.0,
+        "boxes": [
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Peristiwa yang terjadi di Kecamatan",
+            0.6875,
+            0.7141
+          ],
+          [
+            "Margaasih, Kabupaten Bandung, pada",
+            0.7156,
+            0.7406
+          ],
+          [
+            "Minggu (11/10/2026) itu berujung pada",
+            0.7422,
+            0.7688
+          ],
+          [
+            "pecahnya cermin setelah sang suami",
+            0.7672,
+            0.7969
+          ],
+          [
+            "meluapkan emosi dengan memukul",
+            0.7953,
+            0.8234
+          ],
+          [
+            "pintu lemari.",
+            0.8234,
+            0.8484
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 13.0,
+        "boxes": [
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Peristiwa yang terjadi di Kecamatan",
+            0.6875,
+            0.7141
+          ],
+          [
+            "Margaasih, Kabupaten Bandung, pada",
+            0.7156,
+            0.7406
+          ],
+          [
+            "Minggu (11/10/2026) itu berujung pada",
+            0.7422,
+            0.7688
+          ],
+          [
+            "pecahnya cermin setelah sang suami",
+            0.7688,
+            0.7953
+          ],
+          [
+            "meluapkan emosi dengan memukul",
+            0.7953,
+            0.8234
+          ],
+          [
+            "pintu lemari.",
+            0.8234,
+            0.8484
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 14.0,
+        "boxes": [
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Peristiwa yang terjadi di Kecamatan",
+            0.6875,
+            0.7141
+          ],
+          [
+            "Margaasih, Kabupaten Bandung, pada",
+            0.7156,
+            0.7406
+          ],
+          [
+            "Minggu (11/10/2026) itu berujung pada",
+            0.7422,
+            0.7688
+          ],
+          [
+            "pecahnya cermin setelah sang suami",
+            0.7672,
+            0.7969
+          ],
+          [
+            "meluapkan emosi dengan memukul",
+            0.7953,
+            0.8234
+          ],
+          [
+            "pintu lemari.",
+            0.8234,
+            0.8484
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 15.0,
+        "boxes": [
+          [
+            "LIORANEA",
+            0.0703,
+            0.1047
+          ],
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Nahas, pecahan cermin tersebut",
+            0.6875,
+            0.7141
+          ],
+          [
+            "mengenai wajah anak mereka yang",
+            0.7156,
+            0.7453
+          ],
+          [
+            "masih balita hingga mengalami luka.",
+            0.7438,
+            0.7719
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 16.0,
+        "boxes": [
+          [
+            "NORAREA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Nahas, pecahan cermin tersebut",
+            0.6859,
+            0.7156
+          ],
+          [
+            "mengenai wajah anak mereka yang",
+            0.7156,
+            0.7453
+          ],
+          [
+            "masih balita hingga mengalami luka.",
+            0.7422,
+            0.7734
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 17.0,
+        "boxes": [
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Nahas, pecahan cermin tersebut",
+            0.6859,
+            0.7156
+          ],
+          [
+            "mengenai wajah anak mereka yang",
+            0.7156,
+            0.7453
+          ],
+          [
+            "masih balita hingga mengalami luka.",
+            0.7422,
+            0.7734
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 18.0,
+        "boxes": [
+          [
+            "LORAKEA",
+            0.0703,
+            0.1031
+          ],
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Kejadian ini sebelumnya viral setelah rekaman",
+            0.6875,
+            0.7109
+          ],
+          [
+            "amukan sang pria beredar di media sosial.",
+            0.7109,
+            0.7344
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 19.0,
+        "boxes": [
+          [
+            "MORAK",
+            0.0719,
+            0.1016
+          ],
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Kejadian ini sebelumnya viral setelah rekaman",
+            0.6875,
+            0.7109
+          ],
+          [
+            "amukan sang pria beredar di media sosial.",
+            0.7109,
+            0.7359
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 20.0,
+        "boxes": [
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Kejadian ini sebelumnya viral setelah rekaman",
+            0.6875,
+            0.7109
+          ],
+          [
+            "amukan sang pria beredar di media sosial.",
+            0.7109,
+            0.7344
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9187,
+            0.9391
+          ]
+        ]
+      },
+      {
+        "second": 21.0,
+        "boxes": [
+          [
+            "LRRAKIA",
+            0.0703,
+            0.1031
+          ],
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Kejadian ini sebelumnya viral setelah rekaman",
+            0.6875,
+            0.7109
+          ],
+          [
+            "amukan sang pria beredar di media sosial.",
+            0.7109,
+            0.7344
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9187,
+            0.9391
+          ]
+        ]
+      },
+      {
+        "second": 22.0,
+        "boxes": [
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Berdasarkan pemberitaan, sang istri",
+            0.6875,
+            0.7141
+          ],
+          [
+            "mengaku sempat mengingatkan suaminya",
+            0.7156,
+            0.7406
+          ],
+          [
+            "agar tidak terus bermain judi online.",
+            0.7422,
+            0.7641
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 23.0,
+        "boxes": [
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Berdasarkan pemberitaan, sang istri",
+            0.6875,
+            0.7141
+          ],
+          [
+            "mengaku sempat mengingatkan suaminya",
+            0.7156,
+            0.7406
+          ],
+          [
+            "agar tidak terus bermain judi online.",
+            0.7406,
+            0.7656
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 24.0,
+        "boxes": [
+          [
+            "LIORAKEA",
+            0.0703,
+            0.1031
+          ],
+          [
+            "VIDEO:X/SCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Berdasarkan pemberitaan, sang istri",
+            0.6875,
+            0.7141
+          ],
+          [
+            "mengaku sempat mengingatkan suaminya",
+            0.7156,
+            0.7406
+          ],
+          [
+            "agar tidak terus bermain judi online.",
+            0.7406,
+            0.7656
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 25.0,
+        "boxes": [
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Berdasarkan pemberitaan, sang istri",
+            0.6875,
+            0.7141
+          ],
+          [
+            "mengaku sempat mengingatkan suaminya",
+            0.7156,
+            0.7406
+          ],
+          [
+            "agar tidak terus bermain judi online.",
+            0.7406,
+            0.7656
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 26.0,
+        "boxes": [
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Namun, situasi justru memanas hingga berujung",
+            0.6859,
+            0.7109
+          ],
+          [
+            "pada insiden yang membahayakan anak mereka.",
+            0.7094,
+            0.7312
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 27.0,
+        "boxes": [
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Namun, situasi justru memanas hingga berujung",
+            0.6859,
+            0.7109
+          ],
+          [
+            "pada insiden yang membahayakan anak mereka.",
+            0.7094,
+            0.7312
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 28.0,
+        "boxes": [
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Namun, situasi justru memanas hingga berujung",
+            0.6859,
+            0.7109
+          ],
+          [
+            "pada insiden yang membahayakan anak mereka.",
+            0.7094,
+            0.7328
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 29.0,
+        "boxes": [
+          [
+            "HORARKEAN",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "Namun, situasi justru memanas hingga berujung",
+            0.6859,
+            0.7109
+          ],
+          [
+            "pada insiden yang membahayakan anak mereka.",
+            0.7094,
+            0.7312
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 30.0,
+        "boxes": [
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 31.0,
+        "boxes": [
+          [
+            "MORAK",
+            0.0719,
+            0.1016
+          ],
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5297
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 32.0,
+        "boxes": [
+          [
+            "ORANTA",
+            0.0734,
+            0.1016
+          ],
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3688,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9187,
+            0.9422
+          ]
+        ]
+      },
+      {
+        "second": 33.0,
+        "boxes": [
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 34.0,
+        "boxes": [
+          [
+            "MORAN",
+            0.0719,
+            0.1016
+          ],
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 35.0,
+        "boxes": [
+          [
+            "MORAKIA",
+            0.0719,
+            0.1016
+          ],
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 36.0,
+        "boxes": [
+          [
+            "HORAKIA",
+            0.0734,
+            0.1016
+          ],
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 37.0,
+        "boxes": [
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 38.0,
+        "boxes": [
+          [
+            "HORAKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 39.0,
+        "boxes": [
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3688,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 40.0,
+        "boxes": [
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 41.0,
+        "boxes": [
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 42.0,
+        "boxes": [
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 43.0,
+        "boxes": [
+          [
+            "LIORAKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 44.0,
+        "boxes": [
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3688,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 45.0,
+        "boxes": [
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 46.0,
+        "boxes": [
+          [
+            "HORAKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 47.0,
+        "boxes": [
+          [
+            "HORAKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3688,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 48.0,
+        "boxes": [
+          [
+            "HORAKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3688,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 49.0,
+        "boxes": [
+          [
+            "VIDEO:X/BCRETAAMELIA7",
+            0.3688,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 50.0,
+        "boxes": [
+          [
+            "LIORAKEA",
+            0.0703,
+            0.1047
+          ],
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 51.0,
+        "boxes": [
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 52.0,
+        "boxes": [
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 53.0,
+        "boxes": [
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 54.0,
+        "boxes": [
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 55.0,
+        "boxes": [
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 56.0,
+        "boxes": [
+          [
+            "HORAKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 57.0,
+        "boxes": [
+          [
+            "VIDEO: X/BGRETAAMELIA7",
+            0.3688,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 58.0,
+        "boxes": [
+          [
+            "LIORARTEA",
+            0.0703,
+            0.1031
+          ],
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 59.0,
+        "boxes": [
+          [
+            "HORAKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO: X/BGRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 60.0,
+        "boxes": [
+          [
+            "LIORARTEA",
+            0.0703,
+            0.1031
+          ],
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 61.0,
+        "boxes": [
+          [
+            "LIORAKEA",
+            0.0703,
+            0.1047
+          ],
+          [
+            "VIDEO: X/BCRETAAMELIA7",
+            0.3703,
+            0.5281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      }
+    ]
+  },
+  "matches": {},
+  "unmatchable": [],
+  "cover": {
+    "headline": "Video Viral Suami Ngamuk Gegara Judi Slot, Serpihan Kaca Ternyata Lukai Sang Anak",
+    "scene": "A close-up of a baby's head with a cut on the forehead, followed by text describing a man's anger over online gambling leading to a glass shard injuring his child.",
+    "icon": "Koran Jakarta logo in the top left corner",
+    "handles": [],
+    "reaction_shape": "none",
+    "subject_media": "none",
+    "shows": [
+      "creator",
+      "creator",
+      "creator",
+      "creator",
+      "creator"
+    ]
+  },
+  "classify": {},
+  "decisions": {
+    "is_repost": 0.95,
+    "handle": null,
+    "handle_probability": 0.0,
+    "platform": "x",
+    "platform_probability": 0.96
+  },
+  "cuts": [
+    0.0666667,
+    9.26667,
+    22.2
+  ],
+  "transcript": null,
+  "turns": null,
+  "assessment": null,
+  "discovery": null,
+  "acquired": {},
+  "expected": {
+    "verdict": "replaced",
+    "source_url": "https://x.com/gretaamelia7/status/2109671629206990893"
+  },
+  "scout": {
+    "main_url": null,
+    "note": ""
+  },
+  "departure": "scout_not_run",
+  "pending": "Stage 8 (story search): an uncredited news repost of an X video; no handle on screen."
+}

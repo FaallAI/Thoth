@@ -1,6 +1,7 @@
 {
   "case": "instagram_deRDs6DCX07",
   "synthetic": false,
+  "captured_at": "2026-10-13T13:45:24Z",
   "report": {
     "schema_version": 3,
     "workflow_id": "wf_golden",
@@ -14,8 +15,8 @@
       "text": "Umur 61 tahun nggak menghalangi @DonnaJeanWilde buat mencetak prestasi luar biasa. Nenek asal Kanada ini sukses memecahkan rekor dunia plank kategori perempuan setelah mampu bertahan dalam posisi tersebut selama 5 jam penuh. \n\nMomen ini dibagikan langsung oleh akun @worldseniorgames saat DonnaJean mengikuti ajang Huntsman World Senior Games di Utah, Amerika Serikat, pada 6 Oktober 2026. Ia memulai plank pukul 15.03 dan baru menyelesaikannya pukul 20.03 waktu setempat.\n\nMelansir situs resmi Guinness World Records, Donna berhasil melampaui rekor sebelumnya yang ternyata udah ia pegang sendiri dengan catatan waktu 4 jam 30 menit 11 detik. Kali ini, ia berhasil melewati catatan tersebut hampir 30 menit lebih lama, meski tantangan terbesarnya justru datang di jam-jam terakhir saat ia harus tetap fokus dan menjaga posisi tubuhnya, ujarnya.\n\nDonnaJean mengaku dua jam pertama terasa berlalu dengan cepat, tetapi tantangan terberat justru datang pada jam-jam terakhir ketika ia harus tetap fokus dan menjaga posisi tubuhnya. FYI, ia juga merupakan seorang nenek dari 12 cucu yang masih aktif berolahraga dan mengikuti kompetisi.\n\nJadi, ada yang berani adu plank sama doi? 👀🤠\n\n[📹via @worldseniorgames, @donnajeanwilde] \n\n#USSFeed",
       "published_at": "2026-10-09T08:15:57Z",
       "engagement": {
-        "like": 53142,
-        "comment": 523
+        "like": 55534,
+        "comment": 539
       }
     },
     "media": [
@@ -54,11 +55,110 @@
           "status": "succeeded",
           "reason": null,
           "attempt_count": 1,
-          "elapsed_ms": 2357
+          "elapsed_ms": 2914
         }
       ]
     },
-    "comments": [],
+    "comments": [
+      {
+        "comment_id": "17991904689056735",
+        "author": "tamiidpn",
+        "text": "5jam?😭😭😭😭😭",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17948397795314997",
+        "author": "dillafz_",
+        "text": "😮",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18027096893879187",
+        "author": "cibelsa",
+        "text": "Gokill😭🔥🙌",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17903377671361667",
+        "author": "yannwolfff",
+        "text": "🖐️🔥",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18371744926209560",
+        "author": "febybeefeby",
+        "text": "Ci @ciiciii_cc",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18338980840260242",
+        "author": "ernawaluyo",
+        "text": "Gue 50 detik awal udah pedes banget paha",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18113620649615313",
+        "author": "alsanextdoor",
+        "text": "sy 1 menit udah geter",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18111983831132555",
+        "author": "starvirgoo",
+        "text": "@choosealive",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18132864199776830",
+        "author": "a.leefia",
+        "text": "Menyala nekk🔥🔥🔥🔥",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18126114379932116",
+        "author": "kkrsta24",
+        "text": "30 detik aja udh ngos2 an nek😭👏🙌",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17952273963282571",
+        "author": "cesselez.rasyid",
+        "text": "Gacorrr🔥🔥🔥",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18351309910264164",
+        "author": "tiyamulia",
+        "text": "Ini baru lansia 👏👏 Sudah lansia tapi masih energik masih mau mikirin kesehatan dirinya supaya bs umur panjang. Tau kalo sehat itu mahal. Daripada jadi lansia yg agak sempit jalan pikirannya. Orang mau sehat & niat olahraga ya dibatasi ya dikomentari. Herannn gw. Pick me !!",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18099925184387270",
+        "author": "fallinfailin",
+        "text": "YA ALLAHHHH 30 detik aja gw DAH MENGESSSSS",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18058138379797696",
+        "author": "aulfasr",
+        "text": "Buset🤯🤯🤯",
+        "likes": 0,
+        "card": null
+      }
+    ],
     "post_card": null,
     "profile_card": null
   },
@@ -4819,12 +4919,21 @@
   },
   "unmatchable": [],
   "cover": {
-    "headline": "DETIK-DETIK NENEK 61 TAHUN ASAL KANADA PECAHKAN REKOR DUNIA, PLANK SELAMA 5 JAM NON-STOP",
-    "scene": "A 61-year-old woman in a blue and yellow outfit holds a plank position on a mat in front of a crowd, with a timer displaying 4:59:56.",
+    "headline": "DETIK-DETIK NENEK 61 TAHUN, ASAL KANADA PECAHKAN REKOR DUNIA, PLANK SELAMA 5 JAM NON-STOP",
+    "scene": "A 61-year-old woman from Canada performs a plank for 5 hours straight on a stage in front of a crowd, breaking a world record.",
     "icon": "Instagram logo in the top left corner",
     "handles": [
-      "@instagramworldsgames",
-      "USS-FEED"
+      "@instagram@worldsgames"
+    ],
+    "reaction_shape": "none",
+    "subject_media": "none",
+    "shows": [
+      "creator",
+      "creator",
+      "creator",
+      "creator",
+      "creator",
+      "creator"
     ]
   },
   "classify": {
@@ -4834,36 +4943,102 @@
   "decisions": {
     "is_repost": 0.95,
     "handle": "worldseniorgames",
-    "handle_probability": 0.94,
+    "handle_probability": 0.96,
     "platform": "instagram",
     "platform_probability": 1.0
   },
+  "cuts": [
+    5.76667,
+    5.83333,
+    5.93333,
+    6.26667,
+    6.33333,
+    6.43333,
+    6.76667,
+    6.86667,
+    7.06667,
+    7.13333,
+    7.26667,
+    7.4,
+    7.5,
+    7.76667,
+    7.86667,
+    8.13333,
+    8.26667,
+    8.33333,
+    8.43333,
+    8.53333,
+    8.63333,
+    8.83333,
+    8.93333,
+    9.03333,
+    9.13333,
+    9.26667,
+    9.33333,
+    9.66667,
+    9.76667,
+    9.83333,
+    9.93333,
+    10.0333,
+    19.6333,
+    20.1667,
+    20.9667,
+    22.2,
+    22.6,
+    22.6333,
+    22.8,
+    23.7,
+    24.5333,
+    25.2,
+    26.1333,
+    26.3,
+    27.6,
+    27.7,
+    27.9,
+    27.9667,
+    28.3,
+    28.5333,
+    28.7333,
+    28.9667,
+    29.2,
+    29.4667,
+    29.6333,
+    29.8333,
+    30.2,
+    30.4667,
+    31.7,
+    31.9,
+    31.9667,
+    32.1667,
+    32.6,
+    32.7,
+    32.9,
+    32.9667,
+    33.1,
+    33.5333,
+    33.9,
+    34.4,
+    34.4667,
+    34.6,
+    35.1333,
+    35.4
+  ],
+  "transcript": null,
+  "turns": null,
+  "assessment": null,
   "discovery": {
     "by_handle": {
       "worldseniorgames": [
         {
-          "post_id": "4005091799409746812",
+          "post_id": "4006370697845932492",
           "owner_handle": "worldseniorgames",
-          "canonical_url": "https://www.instagram.com/p/DeU8cWMpeN8/",
-          "caption": "Friendly reminder that 60+ athletes are STILL athletes. And they came to play🏐🔥\n\n#HuntsmanWorldSeniorGames #SeniorVolleyball #Volleyball #AgeIsJustANumber #SeniorAthlete",
-          "published_at": "2026-10-10T20:30:18Z",
+          "canonical_url": "https://www.instagram.com/p/DeZfOxLpAHM/",
+          "caption": "Just going to leave this here😳\n\n#HuntsmanWorldSeniorGames #SeniorAthlete #Volleyball #AgelessAthletes #VolleyballLife",
+          "published_at": "2026-10-12T14:51:32Z",
           "duration_seconds": null,
           "engagement": {
-            "like": 23903,
-            "comment": 25
-          },
-          "hashtags": []
-        },
-        {
-          "post_id": "4004962338509138234",
-          "owner_handle": "worldseniorgames",
-          "canonical_url": "https://www.instagram.com/p/DeUfAcVp6k6/",
-          "caption": "We can’t get over Sterling’s start this morning🥹🤍\n\n#HuntsmanWorldSeniorGames #Triathlon #AgeIsJustANumber #SeniorAthlete #NeverStopMoving",
-          "published_at": "2026-10-10T16:13:29Z",
-          "duration_seconds": null,
-          "engagement": {
-            "like": 570,
-            "comment": 4
+            "like": 1902,
+            "comment": 11
           },
           "hashtags": []
         },
@@ -4875,8 +5050,8 @@
           "published_at": "2026-10-07T02:38:27Z",
           "duration_seconds": null,
           "engagement": {
-            "like": 10112212,
-            "comment": 80363
+            "like": 10363810,
+            "comment": 81823
           },
           "hashtags": []
         },
@@ -4888,8 +5063,34 @@
           "published_at": "2026-10-07T20:59:28Z",
           "duration_seconds": null,
           "engagement": {
-            "like": 320124,
-            "comment": 901
+            "like": 321444,
+            "comment": 908
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4006680716430987151",
+          "owner_handle": "worldseniorgames",
+          "canonical_url": "https://www.instagram.com/p/DealuIfRs-P/",
+          "caption": "They came to bowl!🎳👏\n\n#HuntsmanWorldSeniorGames #SeniorAthletes #Bowling #Strike #NeverTooOld",
+          "published_at": "2026-10-13T01:07:03Z",
+          "duration_seconds": null,
+          "engagement": {
+            "like": 30,
+            "comment": 1
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4005091799409746812",
+          "owner_handle": "worldseniorgames",
+          "canonical_url": "https://www.instagram.com/p/DeU8cWMpeN8/",
+          "caption": "Friendly reminder that 60+ athletes are STILL athletes. And they came to play🏐🔥\n\n#HuntsmanWorldSeniorGames #SeniorVolleyball #Volleyball #AgeIsJustANumber #SeniorAthlete",
+          "published_at": "2026-10-10T20:30:18Z",
+          "duration_seconds": null,
+          "engagement": {
+            "like": 53734,
+            "comment": 77
           },
           "hashtags": []
         },
@@ -4901,46 +5102,7 @@
           "published_at": "2026-10-11T01:21:51Z",
           "duration_seconds": null,
           "engagement": {
-            "like": 60,
-            "comment": 1
-          },
-          "hashtags": []
-        },
-        {
-          "post_id": "4004240843000262885",
-          "owner_handle": "worldseniorgames",
-          "canonical_url": "https://www.instagram.com/p/DeR69TSJDDl/",
-          "caption": "60 years old and diving for the ball like her life depends on it 😭🏐\n\nThe flip, the recovery, the immediate return to play. These athletes are BUILT DIFFERENT 🤯\n\n#HuntsmanWorldSeniorGames #Volleyball #AgeIsJustANumber #SeniorAthletes #NeverStopPlaying",
-          "published_at": "2026-10-09T16:19:49Z",
-          "duration_seconds": null,
-          "engagement": {
-            "like": 19329,
-            "comment": 18
-          },
-          "hashtags": []
-        },
-        {
-          "post_id": "4004435468965306818",
-          "owner_handle": "worldseniorgames",
-          "canonical_url": "https://www.instagram.com/p/DeSnNe1puHC/",
-          "caption": "The basket may not have counted in the game, but it DEFINITELY counted to us!🥹🫶🏀\n\n#huntsmanworldseniorgames #theseniorworldchampionships #basketball #seniorathlete",
-          "published_at": "2026-10-09T22:47:04Z",
-          "duration_seconds": null,
-          "engagement": {
-            "like": 226,
-            "comment": 0
-          },
-          "hashtags": []
-        },
-        {
-          "post_id": "4004224426452676672",
-          "owner_handle": "worldseniorgames",
-          "canonical_url": "https://www.instagram.com/p/DeR3OaLp3BA/",
-          "caption": "Meet Sokly Vann, first year cornhole competitor at the Huntsman World Senior Games! 🎯\n\nWith four years of experience, Sokly has already competed at the professional level, earning his pro status and qualifying again this year. While he chose not to take his pro card this season due to his work schedule, he’s bringing his skills to the Games!\n\nThink you could keep up? 👀\n\n#HuntsmanWorldSeniorGames #Cornhole #activeaging #seniorathlete",
-          "published_at": "2026-10-09T15:49:04Z",
-          "duration_seconds": null,
-          "engagement": {
-            "like": 297,
+            "like": 125,
             "comment": 1
           },
           "hashtags": []
@@ -4963,8 +5125,8 @@
           "text": "Alta Pierson made her track meet debut at 100 years old💪\n\n400M with a time of 11:12:93👏\n\nAn inspiration to everyone and the embodiment of “it’s never too late!”❤️\n\n#HuntsmanWorldSeniorGames #SeniorAthletes #TrackAndField #Inspiration #NeverTooLate",
           "published_at": "2026-10-07T20:59:28Z",
           "engagement": {
-            "like": 320125,
-            "comment": 901
+            "like": 321444,
+            "comment": 908
           }
         },
         "media": [
@@ -4990,7 +5152,7 @@
               "status": "succeeded",
               "reason": null,
               "attempt_count": 1,
-              "elapsed_ms": 1616
+              "elapsed_ms": 1969
             }
           ]
         },
@@ -5014,8 +5176,8 @@
           "text": "At age 61, DonnaJean Wilde breaks the WORLD RECORD for the longest female abdominal plank with the time of 5-Hours💪💪💪\n\n#huntsmanworldseniorgames #activeaging #seniorathletes #stgeorge",
           "published_at": "2026-10-07T02:38:27Z",
           "engagement": {
-            "like": 10112255,
-            "comment": 80364
+            "like": 10364014,
+            "comment": 81823
           }
         },
         "media": [
@@ -5041,7 +5203,7 @@
               "status": "succeeded",
               "reason": null,
               "attempt_count": 1,
-              "elapsed_ms": 4675
+              "elapsed_ms": 2710
             }
           ]
         },

@@ -1,0 +1,441 @@
+{
+  "case": "tiktok_koranjakarta_7696090174798843137",
+  "synthetic": false,
+  "captured_at": "2026-10-13T13:16:20Z",
+  "report": {
+    "schema_version": 3,
+    "workflow_id": "wf_golden",
+    "source": {
+      "platform": "tiktok",
+      "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7696090174798843137"
+    },
+    "post": {
+      "post_id": "7696090174798843137",
+      "owner_handle": "koranjakarta",
+      "text": "Kebakaran hutan dan lahan terjadi di Desa Sampurna, Kecamatan Jejangkit, Kabupaten Barito Kuala, Kalimantan Selatan, Selasa (13/10/2026). Api dilaporkan telah memasuki kawasan permukiman warga sehingga keselamatan masyarakat menjadi perhatian utama. Penanganan darurat dan pemantauan di lokasi diperlukan untuk mencegah api meluas serta memastikan warga di sekitar titik kebakaran mendapat perlindungan. #KoranJakarta #Karhutla #KalimantanSelatan #KebakaranHutan [SS]",
+      "published_at": "2026-10-13T10:01:26Z",
+      "engagement": {
+        "play": 13100,
+        "like": 99,
+        "comment": 5,
+        "share": 4,
+        "collect": 4
+      }
+    },
+    "media": [
+      {
+        "media_id": "media_1",
+        "kind": "video",
+        "index": 1,
+        "location": "reports/wf_golden/media/tiktok-7696090174798843137.mp4",
+        "media_type": "video/mp4",
+        "bytes": 2218640,
+        "checksum": "sha256:533904c9310d36683ad0f67156cf2ebc49b4afb2462316dd7f02f40deeecdf36",
+        "acquisition_strategy": "scrapling_headless",
+        "width": null,
+        "height": null,
+        "duration_seconds": null
+      }
+    ],
+    "outcome": {
+      "status": "resolved",
+      "attempts": [
+        {
+          "strategy": "scrapling_headless",
+          "status": "succeeded",
+          "reason": null,
+          "attempt_count": 1,
+          "elapsed_ms": 48678
+        }
+      ]
+    },
+    "comments": [
+      {
+        "comment_id": "7696112112003990280",
+        "author": "vi2_baby1",
+        "text": "itu bisa nafas kah",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696092052589052679",
+        "author": "m.rafiyansah1",
+        "text": "ke dua",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696130005135704853",
+        "author": "antumaraga0708",
+        "text": "lagi nunggu jepang baru bisa padam",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7696091127790994183",
+        "author": "amutkara",
+        "text": "😩😩😩",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7696118469984846612",
+        "author": "hallo.salsaa122",
+        "text": "😭",
+        "likes": 0,
+        "card": null
+      }
+    ],
+    "post_card": null,
+    "profile_card": null
+  },
+  "repost_frames": "tiktok-7696090174798843137",
+  "frames": {
+    "tiktok-7696090174798843137": [
+      {
+        "second": 0.0,
+        "boxes": [
+          [
+            "Api Terus Menjalar!",
+            0.5969,
+            0.6375
+          ],
+          [
+            "Karhutla di Barito Kuala",
+            0.6422,
+            0.6781
+          ],
+          [
+            "Kini Ancam Permukiman",
+            0.6844,
+            0.7219
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 1.0,
+        "boxes": [
+          [
+            "Api Terus Menjalar!",
+            0.5969,
+            0.6375
+          ],
+          [
+            "Karhutla di Barito Kuala",
+            0.6422,
+            0.6781
+          ],
+          [
+            "Kini Ancam Permukiman",
+            0.6828,
+            0.7219
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9187,
+            0.9391
+          ]
+        ]
+      },
+      {
+        "second": 2.0,
+        "boxes": [
+          [
+            "HORAKEAN",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO:X/NARASENYAP",
+            0.3797,
+            0.5172
+          ],
+          [
+            "Api Terus Menjalar!",
+            0.5969,
+            0.6375
+          ],
+          [
+            "Karhutla di Barito Kuala",
+            0.6422,
+            0.6797
+          ],
+          [
+            "Kini Ancam Permukiman",
+            0.6828,
+            0.7219
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 3.0,
+        "boxes": [
+          [
+            "Api Terus Menjalar!",
+            0.5969,
+            0.6375
+          ],
+          [
+            "Karhutla di Barito Kuala",
+            0.6422,
+            0.6781
+          ],
+          [
+            "Kini Ancam Permukiman",
+            0.6828,
+            0.7219
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9187,
+            0.9391
+          ]
+        ]
+      },
+      {
+        "second": 4.0,
+        "boxes": [
+          [
+            "LIORAKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "Api Terus Menjalar!",
+            0.5969,
+            0.6375
+          ],
+          [
+            "Karhutla di Barito Kuala",
+            0.6422,
+            0.6781
+          ],
+          [
+            "Kini Ancam Permukiman",
+            0.6844,
+            0.7219
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9187,
+            0.9391
+          ]
+        ]
+      },
+      {
+        "second": 5.0,
+        "boxes": [
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 6.0,
+        "boxes": [
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 7.0,
+        "boxes": [
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 8.0,
+        "boxes": [
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 9.0,
+        "boxes": [
+          [
+            "HORANTA",
+            0.0734,
+            0.1016
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 10.0,
+        "boxes": [
+          [
+            "VIDXA",
+            0.4609,
+            0.5172
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 11.0,
+        "boxes": [
+          [
+            "VIDEO:X/NARAS",
+            0.425,
+            0.5188
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 12.0,
+        "boxes": [
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 13.0,
+        "boxes": [
+          [
+            "VIEO",
+            0.4781,
+            0.5156
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 14.0,
+        "boxes": [
+          [
+            "HORARKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO",
+            0.4781,
+            0.5156
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 15.0,
+        "boxes": [
+          [
+            "VIDEO",
+            0.4781,
+            0.5141
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 16.0,
+        "boxes": [
+          [
+            "HORAREA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIEO",
+            0.4781,
+            0.5156
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      }
+    ]
+  },
+  "matches": {},
+  "unmatchable": [],
+  "cover": {
+    "headline": "Api Terus Menjalar! Karhutla di Barito Kuala Kini Ancam Permukiman",
+    "scene": "A smoky, yellow-hazed landscape with a person's silhouette and a railing, indicating a fire or haze situation.",
+    "icon": "Koran Jakarta logo in the top left corner",
+    "handles": [],
+    "reaction_shape": "none",
+    "subject_media": "none",
+    "shows": [
+      "other",
+      "other",
+      "other"
+    ]
+  },
+  "classify": {},
+  "decisions": {
+    "is_repost": 0.4,
+    "handle": null,
+    "handle_probability": 0.0,
+    "platform": "tiktok",
+    "platform_probability": 0.39
+  },
+  "cuts": [],
+  "transcript": null,
+  "turns": null,
+  "assessment": null,
+  "discovery": null,
+  "acquired": {},
+  "expected": {
+    "verdict": "replaced",
+    "source_url": "https://x.com/NaraSenyap/status/2109917400854634989"
+  },
+  "scout": {
+    "main_url": null,
+    "note": ""
+  },
+  "departure": "scout_not_run",
+  "pending": "Stage 8 (story search): an uncredited news repost of an X video; no handle on screen."
+}

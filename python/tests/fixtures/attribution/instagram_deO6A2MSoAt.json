@@ -1,6 +1,7 @@
 {
   "case": "instagram_deO6A2MSoAt",
   "synthetic": false,
+  "captured_at": "2026-10-13T13:43:40Z",
   "report": {
     "schema_version": 3,
     "workflow_id": "wf_golden",
@@ -14,8 +15,8 @@
       "text": "Kita bisa mutus mata rantai “bercanda” kayak gini di tongkrongan",
       "published_at": "2026-10-08T12:14:11Z",
       "engagement": {
-        "like": 60490,
-        "comment": 1324
+        "like": 62887,
+        "comment": 1348
       }
     },
     "media": [
@@ -41,11 +42,110 @@
           "status": "succeeded",
           "reason": null,
           "attempt_count": 1,
-          "elapsed_ms": 1589
+          "elapsed_ms": 8209
         }
       ]
     },
-    "comments": [],
+    "comments": [
+      {
+        "comment_id": "18103613588197976",
+        "author": "ulfaadwidp",
+        "text": "Kasep. Dek ingi nyapo ae",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17904753225348497",
+        "author": "nvrd1anana111",
+        "text": "Orang dewasa tp childish dan ga ngotak becandaannya.",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18168459283478014",
+        "author": "puspitawln_28",
+        "text": "🔥SETUJU 🔥",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17957981790014727",
+        "author": "faridadanur",
+        "text": "Malah banyak cewe yg belain di komen lol 😂",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17873915496638164",
+        "author": "nyaimah0102",
+        "text": "Whopppppp😂😂",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18093114170449145",
+        "author": "amandazee_",
+        "text": "Iya bahas veveq trs dia😂😂",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18087156845307787",
+        "author": "michelledivam",
+        "text": "Mohon maaf gue gak pernah ikutin youtube nya marapthon atau geng\" Nya si reza arap apalagi gara² kasus si Tepe itu viral yang ada video potongan dia di podcastnya bang radit bareng reza arap sama dia sendiri bareng bang radit yang makan sushi wkwkwk itu dari potongan itu aja gue liatnya kek gimana gitu wkwwk kayak obrolan serius tapi lu jawab nya bercanda kayak kalo gak salah waktu itu dia ditanya ama bang radit nanyain kabar istrinya dia terus dia jawabnya apa gitu lupa gue kayak candaan dan ngomongnya lebar kemana\" Sampe bang radit jawab \" Ya lo tinggal jawab aja sehat gitu gak usah ngomong ke yang lainn-lainn \" Dan dia yang gue baca komenan video itu katanya dia manggil chef itu dengan manggil nama \" mas agus \" Itu dia jokes tongkrongan kali ya tapi itu menurut gue gak bisa di normalisasi apalagi yg gue liat si bang radit di resto sushi itu dia nungguin si Tepe loh lama , dan sebelumnya itu dia podcast sama bang Raditya dika dan Temen-temennya itu udah ada ditempat sedangkan dia belum ada di sana dan dia ngasih alasannya gitu",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18156972838507951",
+        "author": "aat_panglima",
+        "text": "Idola para esempeh, udah tua bukannya bijak malah kyk bocah",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18244959250314392",
+        "author": "xavier.jr05",
+        "text": "😂😂😂",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17982861453093095",
+        "author": "ini_tradiqta_bukan_pradikta",
+        "text": "apapun yang menyangkut soal circle marapthon, kardus😂",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17978227683125146",
+        "author": "imelda.darakay",
+        "text": "Padahal candaan, udh lewat jg msh aja lo bahas,, krn yg buat koh bravy aja klo lo kan ga bakal rame,, org\" Bnyk yg bikin story parah\" tpi biasa aja,, krn apa krn ga terkenal",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18114275384044806",
+        "author": "gallerysonya12",
+        "text": "Setujuuuuu",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18094927973656716",
+        "author": "melvidafadly",
+        "text": "mereka2 tu sok keren sok asik padahal blo'on",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18235502299318386",
+        "author": "fitriapriangsh",
+        "text": "Dih orang stress",
+        "likes": 0,
+        "card": null
+      }
+    ],
     "post_card": null,
     "profile_card": null
   },
@@ -777,34 +877,40 @@
   "matches": {},
   "unmatchable": [],
   "cover": {
-    "headline": "90% mood gue seharian tuh biasanya ditentukan ama apa yg gue baca, liat dan dgr pas pertama kali bgn tidur. Jd tolong PAP tt aja ya kalo mau chat gue pagi2. Thx 🙏",
-    "scene": "A man wearing a cap is speaking to the camera in a room.",
-    "icon": "Twitter logo in the top right corner of the tweet overlay",
+    "headline": "",
+    "scene": "A man in a cap speaks to the camera while a tweet is displayed at the top of the screen.",
+    "icon": "Twitter logo in the top right of the tweet",
     "handles": [
       "@bravyson.vconk"
+    ],
+    "reaction_shape": "green_screen",
+    "subject_media": "text",
+    "shows": [
+      "creator",
+      "creator",
+      "creator",
+      "creator",
+      "creator"
     ]
   },
   "classify": {},
-  "decisions": {
-    "is_repost": 0.66,
-    "handle": "bravyson.vconk",
-    "handle_probability": 0.97,
-    "platform": "x",
-    "platform_probability": 0.99
-  },
-  "discovery": {
-    "by_handle": {
-      "bravyson.vconk": []
-    }
-  },
+  "decisions": null,
+  "cuts": [
+    9.86667,
+    35.7667
+  ],
+  "transcript": null,
+  "turns": null,
+  "assessment": null,
+  "discovery": null,
   "acquired": {},
   "expected": {
-    "verdict": "unresolved",
+    "verdict": "original",
     "source_url": null
   },
   "scout": {
     "main_url": null,
     "note": "Operator-supplied 2026-10-11: the poster talks over a screenshot of an X post by @bravyson.vconk, which the operator believes was taken down; discovery finds nothing, so the attribution is unresolved. Whether a reaction counts as an original (it starts a new discussion) or as a repost of the post it discusses needs its own research (spec section 12)."
   },
-  "departure": "scout_not_run"
+  "departure": "reaction_original"
 }

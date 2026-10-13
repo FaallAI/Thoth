@@ -1,6 +1,7 @@
 {
   "case": "instagram_deHz54GT4ea",
   "synthetic": false,
+  "captured_at": "2026-10-13T13:33:10Z",
   "report": {
     "schema_version": 3,
     "workflow_id": "wf_golden",
@@ -14,8 +15,8 @@
       "text": "AKU AKAN TEMPUH JALUR HUKUM UNTUK STREAMER INI",
       "published_at": "2026-10-05T18:06:40Z",
       "engagement": {
-        "like": 92523,
-        "comment": 1690
+        "like": 94134,
+        "comment": 1698
       }
     },
     "media": [
@@ -41,11 +42,103 @@
           "status": "succeeded",
           "reason": null,
           "attempt_count": 1,
-          "elapsed_ms": 1824
+          "elapsed_ms": 3644
         }
       ]
     },
-    "comments": [],
+    "comments": [
+      {
+        "comment_id": "17973794460148741",
+        "author": "betria_rizqi",
+        "text": "SAY IT LOUDER KAAKKKKK🔥",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17984602314094241",
+        "author": "lindabelin40",
+        "text": "Aku dukung ka 💪🏻💪🏻💪🏻",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17903049867656899",
+        "author": "zhaf.irazafran",
+        "text": "Mabok sama celeng ga sih?",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17872663890602171",
+        "author": "n4th.zikr_",
+        "text": "Duh streamer pansos hadehhh",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17897276472608092",
+        "author": "yo1da",
+        "text": "aku dukung kakaaak",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18128812306865289",
+        "author": "arpdyo",
+        "text": "Kayanya mereka itu penjilat pki. Karena Saddam selalu bicara fakta",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17981006964004567",
+        "author": "bebynastarsyank",
+        "text": "Semangat ka sadam! aku dukung kakak❤️🙌🔥",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17971554081170897",
+        "author": "lastry11091",
+        "text": "saya dukung sadam",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18009691940976442",
+        "author": "astrophile_wave",
+        "text": "panggil sadammmmmmmmm",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17973632193140799",
+        "author": "warz_067",
+        "text": "jangan main main dengan my pren ya😈😏",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18129623420491903",
+        "author": "prastiwi095",
+        "text": "Lanjutkan bang. Tuntut sampai diblacklist selamanya.",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17875941633634154",
+        "author": "mirwkhtlj",
+        "text": "https://www.instagram.com/p/DeT_97Tyxpg/?exln=MTZ2NmtkaDVhenNxag==",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18122538991929192",
+        "author": "sffaa_xx444",
+        "text": "MAJU BANG AKU DUKUNG",
+        "likes": 0,
+        "card": null
+      }
+    ],
     "post_card": null,
     "profile_card": null
   },
@@ -11063,12 +11156,22 @@
   "unmatchable": [],
   "cover": {
     "headline": "Manics 1 - 0 Sadam",
-    "scene": "A split screen video call with three people, two in smaller windows and one in a larger window at the bottom, with text overlays and a TikTok logo.",
+    "scene": "A person reacts to a video on TikTok, showing a split screen with the original video and the reactor's face, followed by a screenshot of a social media post and a close-up of the reactor.",
     "icon": "TikTok logo in the bottom right corner",
     "handles": [
       "@manicsofficials",
-      "MANICSNEWS",
-      "bagaimana cara"
+      "@mejapsa",
+      "@sadampemman",
+      "@J0Y1M3A"
+    ],
+    "reaction_shape": "picture_in_picture",
+    "subject_media": "video",
+    "shows": [
+      "creator",
+      "creator",
+      "creator",
+      "subject",
+      "creator"
     ]
   },
   "classify": {
@@ -11081,13 +11184,405 @@
   "decisions": {
     "is_repost": 0.81,
     "handle": "manicsofficials",
-    "handle_probability": 0.98,
+    "handle_probability": 0.95,
     "platform": "tiktok",
     "platform_probability": 1.0
   },
+  "cuts": [
+    2.93333,
+    8.8,
+    13.9
+  ],
+  "transcript": {
+    "language": "id",
+    "segments": [
+      [
+        0.0,
+        2.06,
+        "Sampai ujung-ujungnya ada endorsean"
+      ],
+      [
+        2.06,
+        4.14,
+        "Sadam selalu"
+      ],
+      [
+        4.14,
+        5.2,
+        "Ditolak cewek nih"
+      ],
+      [
+        5.2,
+        7.6,
+        "Berprestasi tapi gak atraktif"
+      ],
+      [
+        7.6,
+        9.42,
+        "Kalau mau ketemuan"
+      ],
+      [
+        9.42,
+        11.04,
+        "Kita ketemu di jalur"
+      ],
+      [
+        11.04,
+        13.74,
+        "Siapa yang matam disitu"
+      ],
+      [
+        13.74,
+        15.36,
+        "Aku akan proses hukum"
+      ],
+      [
+        15.36,
+        16.8,
+        "Untuk streamer ini"
+      ],
+      [
+        16.8,
+        18.18,
+        "Sekali lagi aku ulangi"
+      ],
+      [
+        18.18,
+        20.64,
+        "Aku akan proses hukum"
+      ],
+      [
+        20.64,
+        22.1,
+        "Untuk streamer ini"
+      ],
+      [
+        22.1,
+        24.62,
+        "Dia udah ngebikin"
+      ],
+      [
+        24.62,
+        26.0,
+        "Banyak sekali"
+      ],
+      [
+        26.0,
+        28.12,
+        "Pembahasan tentang aku di live streamnya"
+      ],
+      [
+        28.12,
+        29.98,
+        "Dengan berbagai macam"
+      ],
+      [
+        29.98,
+        31.82,
+        "Kata-kata kasar"
+      ],
+      [
+        31.82,
+        32.8,
+        "Bahkan ancaman"
+      ],
+      [
+        32.8,
+        36.08,
+        "Yang bikin aku pada akhirnya mau speak up"
+      ],
+      [
+        36.08,
+        37.78,
+        "Awalnya aku tidak mau"
+      ],
+      [
+        37.78,
+        39.1,
+        "Ngomong apapun"
+      ],
+      [
+        39.1,
+        42.08,
+        "Karena kasian ini orang memang berkali-kali"
+      ],
+      [
+        42.08,
+        43.52,
+        "Berusaha untuk menyinggul aku supaya"
+      ],
+      [
+        43.52,
+        45.0,
+        "Aku notice dan bahas"
+      ],
+      [
+        45.0,
+        48.1,
+        "Tapi yang pada akhirnya kenapa aku berani"
+      ],
+      [
+        48.1,
+        49.18,
+        "Untuk ngomong sekarang"
+      ],
+      [
+        49.18,
+        51.9,
+        "Adalah karena ada korban"
+      ],
+      [
+        51.9,
+        52.96,
+        "Perempuan"
+      ],
+      [
+        52.96,
+        56.16,
+        "Yang kemudian menjadi pembahasan juga"
+      ],
+      [
+        56.16,
+        57.16,
+        "Di live streamnya"
+      ],
+      [
+        57.16,
+        58.98,
+        "Yang mana kemudian"
+      ],
+      [
+        58.98,
+        60.32,
+        "Diobjektifikasi"
+      ],
+      [
+        60.32,
+        62.18,
+        "Oleh audiens-audiensnya"
+      ],
+      [
+        62.18,
+        63.78,
+        "Dan ini tidak bisa dibiarkan"
+      ],
+      [
+        63.78,
+        64.96,
+        "Karena dia sudah"
+      ],
+      [
+        64.96,
+        65.44,
+        "Menyinggung"
+      ],
+      [
+        65.44,
+        67.06,
+        "Aku pribadi"
+      ],
+      [
+        67.06,
+        68.7,
+        "Aku akan proses hukum"
+      ],
+      [
+        68.7,
+        70.06,
+        "Jadi kita tunggu"
+      ],
+      [
+        70.06,
+        71.88,
+        "Terima kasih telah menonton!"
+      ]
+    ]
+  },
+  "turns": [
+    [
+      0.03096874989569187,
+      2.6465938091278076,
+      0
+    ],
+    [
+      3.3384687900543213,
+      7.692218780517578,
+      1
+    ],
+    [
+      7.692218780517578,
+      13.885344505310059,
+      0
+    ],
+    [
+      14.155344009399414,
+      20.702844619750977,
+      2
+    ],
+    [
+      21.209095001220703,
+      22.154094696044922,
+      2
+    ],
+    [
+      22.98097038269043,
+      28.161596298217773,
+      2
+    ],
+    [
+      28.819721221923828,
+      30.03472137451172,
+      2
+    ],
+    [
+      30.62534523010254,
+      32.869720458984375,
+      2
+    ],
+    [
+      33.662845611572266,
+      36.0590934753418,
+      2
+    ],
+    [
+      36.734092712402344,
+      53.069095611572266,
+      2
+    ],
+    [
+      53.592220306396484,
+      57.22034454345703,
+      2
+    ],
+    [
+      57.861595153808594,
+      63.9028434753418,
+      2
+    ],
+    [
+      64.42597198486328,
+      68.69534301757812,
+      2
+    ],
+    [
+      69.31971740722656,
+      70.04534912109375,
+      2
+    ]
+  ],
+  "assessment": {
+    "contribution": 0.9600000000000001,
+    "discussion": 0.77
+  },
   "discovery": {
     "by_handle": {
+      "sadampermana.w": [
+        {
+          "post_id": "4006306149002980569",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DeZQjdYySzZ/",
+          "caption": "• Lebih dari 200.000 hektare hutan terbakar\n• Lebih dari 100.000 kasus ISPA akibat karhutla\n• Hewan-hewan kehilangan tempat tinggal, bahkan hangus terbakar\n• Ada orangutan yang meninggal akibat ISPA\n• Ada guru yang meninggal akibat asap kebakaran hutan\n• Ada anak kecil yang meninggal akibat kecelakaan karena asap kebakaran\n• Ada relawan pemadam kebakaran yang meninggal\n\nJANGAN BERCANDA DI SAAT KRISIS DAN GENTING SEPERTI INI! KITA BUTUH SOLUSI, KITA BUTUH JAWABAN!",
+          "published_at": "2026-10-12T12:43:31Z",
+          "duration_seconds": null,
+          "engagement": {
+            "like": 34195,
+            "comment": 247
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4006950201864163109",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/Debi_qWyw8l/",
+          "caption": "Aku punya tic disorder",
+          "published_at": "2026-10-13T10:02:39Z",
+          "duration_seconds": null,
+          "engagement": {
+            "like": 28295,
+            "comment": 121
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4005553168456395855",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DeWlWJmyKxP/",
+          "caption": "Kasus Telkom University",
+          "published_at": "2026-10-11T11:47:13Z",
+          "duration_seconds": null,
+          "engagement": {
+            "like": 30396,
+            "comment": 315
+          },
+          "hashtags": []
+        }
+      ],
       "manicsofficials": [
+        {
+          "post_id": "7695721872851258642",
+          "owner_handle": "manicsofficials",
+          "canonical_url": "https://www.tiktok.com/@manicsofficials/video/7695721872851258642",
+          "caption": "#6star #manics #rubenonsu #sarwendah #onsufamily ",
+          "published_at": "2026-10-12T10:11:24Z",
+          "duration_seconds": 35.0,
+          "engagement": {
+            "play": 4142,
+            "like": 35,
+            "comment": 3,
+            "share": 3,
+            "collect": 5
+          },
+          "hashtags": [
+            "6star",
+            "manics",
+            "rubenonsu",
+            "sarwendah",
+            "onsufamily"
+          ]
+        },
+        {
+          "post_id": "7695721729288637703",
+          "owner_handle": "manicsofficials",
+          "canonical_url": "https://www.tiktok.com/@manicsofficials/video/7695721729288637703",
+          "caption": "Hahaha #6star #manics #miskin #umingle ",
+          "published_at": "2026-10-12T10:10:54Z",
+          "duration_seconds": 39.0,
+          "engagement": {
+            "play": 6017,
+            "like": 170,
+            "comment": 2,
+            "share": 9,
+            "collect": 4
+          },
+          "hashtags": [
+            "6star",
+            "manics",
+            "miskin",
+            "umingle"
+          ]
+        },
+        {
+          "post_id": "7695721538133200136",
+          "owner_handle": "manicsofficials",
+          "canonical_url": "https://www.tiktok.com/@manicsofficials/video/7695721538133200136",
+          "caption": "#manics #6star #rubenonsu #sarwendah #onsufamily ",
+          "published_at": "2026-10-12T10:10:06Z",
+          "duration_seconds": 29.0,
+          "engagement": {
+            "play": 1406,
+            "like": 36,
+            "comment": 4,
+            "share": 1,
+            "collect": 2
+          },
+          "hashtags": [
+            "manics",
+            "6star",
+            "rubenonsu",
+            "sarwendah",
+            "onsufamily"
+          ]
+        },
         {
           "post_id": "7694218735174896904",
           "owner_handle": "manicsofficials",
@@ -11096,7 +11591,7 @@
           "published_at": "2026-10-08T08:58:30Z",
           "duration_seconds": 55.0,
           "engagement": {
-            "play": 913,
+            "play": 999,
             "like": 20,
             "comment": 0,
             "share": 0,
@@ -11118,7 +11613,7 @@
           "published_at": "2026-10-08T08:51:49Z",
           "duration_seconds": 25.0,
           "engagement": {
-            "play": 1276,
+            "play": 1362,
             "like": 44,
             "comment": 1,
             "share": 0,
@@ -11140,7 +11635,7 @@
           "published_at": "2026-10-08T08:26:06Z",
           "duration_seconds": 47.0,
           "engagement": {
-            "play": 732,
+            "play": 796,
             "like": 19,
             "comment": 1,
             "share": 0,
@@ -11161,8 +11656,8 @@
           "published_at": "2026-10-07T09:41:18Z",
           "duration_seconds": 39.0,
           "engagement": {
-            "play": 3736,
-            "like": 116,
+            "play": 3888,
+            "like": 117,
             "comment": 6,
             "share": 2,
             "collect": 2
@@ -11182,8 +11677,8 @@
           "published_at": "2026-10-06T11:30:33Z",
           "duration_seconds": 43.0,
           "engagement": {
-            "play": 7612,
-            "like": 126,
+            "play": 7793,
+            "like": 127,
             "comment": 10,
             "share": 8,
             "collect": 3
@@ -11203,11 +11698,11 @@
           "published_at": "2026-10-05T05:34:52Z",
           "duration_seconds": 38.0,
           "engagement": {
-            "play": 23500,
-            "like": 322,
+            "play": 23700,
+            "like": 327,
             "comment": 11,
             "share": 26,
-            "collect": 7
+            "collect": 8
           },
           "hashtags": [
             "manics",
@@ -11224,11 +11719,11 @@
           "published_at": "2026-10-05T05:34:41Z",
           "duration_seconds": 29.0,
           "engagement": {
-            "play": 118600,
-            "like": 4115,
-            "comment": 88,
+            "play": 119800,
+            "like": 4143,
+            "comment": 86,
             "share": 318,
-            "collect": 116
+            "collect": 115
           },
           "hashtags": [
             "manics",
@@ -11245,11 +11740,11 @@
           "published_at": "2026-10-04T05:18:27Z",
           "duration_seconds": 70.0,
           "engagement": {
-            "play": 214000,
-            "like": 6689,
-            "comment": 299,
-            "share": 699,
-            "collect": 349
+            "play": 222100,
+            "like": 6846,
+            "comment": 293,
+            "share": 714,
+            "collect": 352
           },
           "hashtags": [
             "manics",
@@ -11266,7 +11761,7 @@
           "published_at": "2026-10-03T10:07:10Z",
           "duration_seconds": 44.0,
           "engagement": {
-            "play": 2580,
+            "play": 2606,
             "like": 40,
             "comment": 1,
             "share": 7,
@@ -11287,7 +11782,7 @@
           "published_at": "2026-10-02T18:55:55Z",
           "duration_seconds": 36.0,
           "engagement": {
-            "play": 3412,
+            "play": 3450,
             "like": 58,
             "comment": 2,
             "share": 1,
@@ -11309,8 +11804,8 @@
           "published_at": "2026-10-02T06:36:00Z",
           "duration_seconds": 20.0,
           "engagement": {
-            "play": 3719,
-            "like": 27,
+            "play": 3768,
+            "like": 28,
             "comment": 1,
             "share": 0,
             "collect": 2
@@ -11331,7 +11826,7 @@
           "published_at": "2026-10-01T07:08:28Z",
           "duration_seconds": 30.0,
           "engagement": {
-            "play": 1385,
+            "play": 1398,
             "like": 19,
             "comment": 0,
             "share": 0,
@@ -11352,7 +11847,7 @@
           "published_at": "2026-09-30T11:53:42Z",
           "duration_seconds": 44.0,
           "engagement": {
-            "play": 1191,
+            "play": 1230,
             "like": 7,
             "comment": 0,
             "share": 0,
@@ -11374,7 +11869,7 @@
           "published_at": "2026-09-30T11:53:30Z",
           "duration_seconds": 24.0,
           "engagement": {
-            "play": 2195,
+            "play": 2239,
             "like": 75,
             "comment": 1,
             "share": 29,
@@ -11396,7 +11891,7 @@
           "published_at": "2026-09-29T06:27:22Z",
           "duration_seconds": 26.0,
           "engagement": {
-            "play": 1596,
+            "play": 1611,
             "like": 16,
             "comment": 0,
             "share": 0,
@@ -11418,7 +11913,7 @@
           "published_at": "2026-09-29T06:26:47Z",
           "duration_seconds": 11.0,
           "engagement": {
-            "play": 2827,
+            "play": 2886,
             "like": 5,
             "comment": 0,
             "share": 0,
@@ -11439,7 +11934,7 @@
           "published_at": "2026-09-29T03:50:13Z",
           "duration_seconds": 33.0,
           "engagement": {
-            "play": 2191,
+            "play": 2203,
             "like": 22,
             "comment": 0,
             "share": 1,
@@ -11471,11 +11966,11 @@
           "text": "Gila sih #manics #6star #SADAM #team #sadam ",
           "published_at": "2026-10-05T05:34:52Z",
           "engagement": {
-            "play": 23500,
-            "like": 322,
+            "play": 23700,
+            "like": 327,
             "comment": 11,
             "share": 26,
-            "collect": 7
+            "collect": 8
           }
         },
         "media": [
@@ -11501,7 +11996,7 @@
               "status": "succeeded",
               "reason": null,
               "attempt_count": 1,
-              "elapsed_ms": 28154
+              "elapsed_ms": 48991
             }
           ]
         },
@@ -11525,11 +12020,11 @@
           "text": "POLDA?? 😭 #manics #6star #SADAM #polda #sadam ",
           "published_at": "2026-10-05T05:34:41Z",
           "engagement": {
-            "play": 118600,
-            "like": 4115,
-            "comment": 88,
+            "play": 119800,
+            "like": 4143,
+            "comment": 86,
             "share": 318,
-            "collect": 116
+            "collect": 115
           }
         },
         "media": [
@@ -11555,7 +12050,7 @@
               "status": "succeeded",
               "reason": null,
               "attempt_count": 1,
-              "elapsed_ms": 31774
+              "elapsed_ms": 48067
             }
           ]
         },
@@ -11579,11 +12074,11 @@
           "text": "Iya ga sih? #manics #6star #SADAM #sadam #diasbilitas ",
           "published_at": "2026-10-04T05:18:27Z",
           "engagement": {
-            "play": 214000,
-            "like": 6689,
-            "comment": 299,
-            "share": 699,
-            "collect": 349
+            "play": 222100,
+            "like": 6847,
+            "comment": 293,
+            "share": 714,
+            "collect": 352
           }
         },
         "media": [
@@ -11609,7 +12104,7 @@
               "status": "succeeded",
               "reason": null,
               "attempt_count": 1,
-              "elapsed_ms": 31721
+              "elapsed_ms": 35688
             }
           ]
         },
@@ -11633,7 +12128,7 @@
           "text": "Sadam buka dm segera!! #manics #manics18 #6star #sadam #SADAM ",
           "published_at": "2026-10-03T10:07:10Z",
           "engagement": {
-            "play": 2580,
+            "play": 2606,
             "like": 40,
             "comment": 1,
             "share": 7,
@@ -11663,7 +12158,7 @@
               "status": "succeeded",
               "reason": null,
               "attempt_count": 1,
-              "elapsed_ms": 25813
+              "elapsed_ms": 41860
             }
           ]
         },
@@ -11687,7 +12182,7 @@
           "text": "Gila ni orng #manics #manics18 #6star #trading #azizraul ",
           "published_at": "2026-10-02T18:55:55Z",
           "engagement": {
-            "play": 3412,
+            "play": 3450,
             "like": 58,
             "comment": 2,
             "share": 1,
@@ -11717,7 +12212,7 @@
               "status": "succeeded",
               "reason": null,
               "attempt_count": 1,
-              "elapsed_ms": 29305
+              "elapsed_ms": 44324
             }
           ]
         },
@@ -11729,12 +12224,12 @@
     }
   },
   "expected": {
-    "verdict": "replaced",
-    "source_url": "https://www.tiktok.com/@manicsofficials/video/7692677690154962183"
+    "verdict": "original",
+    "source_url": null
   },
   "scout": {
     "main_url": null,
     "note": ""
   },
-  "departure": "scout_not_run"
+  "departure": "reaction_original"
 }

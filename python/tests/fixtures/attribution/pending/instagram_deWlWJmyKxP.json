@@ -1,0 +1,6933 @@
+{
+  "case": "instagram_deWlWJmyKxP",
+  "synthetic": false,
+  "captured_at": "2026-10-13T13:23:21Z",
+  "report": {
+    "schema_version": 3,
+    "workflow_id": "wf_golden",
+    "source": {
+      "platform": "instagram",
+      "canonical_url": "https://www.instagram.com/p/DeWlWJmyKxP/"
+    },
+    "post": {
+      "post_id": "DeWlWJmyKxP",
+      "owner_handle": "sadampermana.w",
+      "text": "Kasus Telkom University",
+      "published_at": "2026-10-11T11:47:13Z",
+      "engagement": {
+        "like": 30379,
+        "comment": 314
+      }
+    },
+    "media": [
+      {
+        "media_id": "media_1",
+        "kind": "video",
+        "index": 1,
+        "location": "reports/wf_golden/media/instagram-DeWlWJmyKxP-1.mp4",
+        "media_type": "video/mp4",
+        "bytes": 5443504,
+        "checksum": "sha256:1b6f4d480c3c66c2aa839112d46006ab89590db217cd414b74bb1d96e2d44b5f",
+        "acquisition_strategy": "scrapling_request",
+        "width": null,
+        "height": null,
+        "duration_seconds": null
+      }
+    ],
+    "outcome": {
+      "status": "resolved",
+      "attempts": [
+        {
+          "strategy": "scrapling_request",
+          "status": "succeeded",
+          "reason": null,
+          "attempt_count": 1,
+          "elapsed_ms": 7566
+        }
+      ]
+    },
+    "comments": [
+      {
+        "comment_id": "17970926046174407",
+        "author": "nurkamalianunung",
+        "text": "Songong banget itu bocah yaaa . Udh jelek lagi . Gak ada Ahlakn😢😢😢",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18101007302278881",
+        "author": "irma_dahe_",
+        "text": "Hukum pelaku",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18346072204250572",
+        "author": "mygssr",
+        "text": "Astagfirullah",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18096315128638898",
+        "author": "palind_studyabroad",
+        "text": "Tolong pihak kampus, dibantu 😢",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18011865869991141",
+        "author": "fy_l38",
+        "text": "Aku tadi nemu ada ss an chat tuh anak pembully sama yang di bully Itu yang bully bilang dia gak bully bully dan suruh nanya temennya yang lain. Padahal jelas jelas di posting dia sendiri.😂",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17880081093549174",
+        "author": "swethoneyqueen_",
+        "text": "kak aku mau nanya deh.aku butuh saran kakak kakak semua. kalo semisalnya maap banget ya, kalo misalnya nih temen temen smua pada normalisasi in bercanda dengan menyentuh area privasi itu sesuatu candaan yang paling sering. dan kita udah lakuin berbagai cara buat sadarin mereka. tapi malah kita yg dikatai baperan, alay lebay dll. mksd aku apa harus diviralin biar sadar?",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18106178576201368",
+        "author": "asroelt",
+        "text": "Naluri binatang",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18133848202671472",
+        "author": "brusli_pnc",
+        "text": "Udh di DO belum?",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18465361378136390",
+        "author": "muadzmuadz",
+        "text": "ada ignya ngga? mau silahturahmii🔥",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18047087492816869",
+        "author": "rzky.dxs",
+        "text": "@arli_cuy SSSSAAAADDDDAAAAMMMMMM",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "18119058784897477",
+        "author": "corneliavina_",
+        "text": "UP @telkomuniversity",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18356993764217173",
+        "author": "waitingstars_",
+        "text": "@telkomuniversity mohon untuk ditindaklanjuti boycott dan cancel juga streamer @bigmoskyy anak problematik ini karena telah memberikan pengaruh negatif terhadap banyak mahasiswa di telkom dan hapuskan budaya buruk yang diciptakan agar menjadi mahasiswa generasi penerus bangsa yang bermoral",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "17907281640567671",
+        "author": "muh_ferdansyh1102",
+        "text": "Bg kok vt yg baru kena hapus?",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18111220331175176",
+        "author": "diraelmunawar_oh06",
+        "text": "Jahat",
+        "likes": 0,
+        "card": null
+      }
+    ],
+    "post_card": null,
+    "profile_card": null
+  },
+  "repost_frames": "instagram-DeWlWJmyKxP-1",
+  "frames": {
+    "instagram-DeWlWJmyKxP-1": [
+      {
+        "second": 0.0,
+        "boxes": [
+          [
+            "Hiburan asrama",
+            0.0922,
+            0.1406
+          ],
+          [
+            "SIL MIDIA",
+            0.3844,
+            0.4672
+          ],
+          [
+            "TikTOk",
+            0.5,
+            0.5281
+          ],
+          [
+            "@ koranjakarta",
+            0.5234,
+            0.5453
+          ],
+          [
+            "Dic",
+            0.6641,
+            0.7016
+          ],
+          [
+            "ahasi",
+            0.6641,
+            0.7016
+          ],
+          [
+            "Bal",
+            0.7063,
+            0.7438
+          ],
+          [
+            "prota",
+            0.7109,
+            0.7453
+          ],
+          [
+            "Asra",
+            0.7484,
+            0.7859
+          ],
+          [
+            "n Univ",
+            0.7484,
+            0.7844
+          ],
+          [
+            "Diso",
+            0.7859,
+            0.8281
+          ]
+        ]
+      },
+      {
+        "second": 1.0,
+        "boxes": [
+          [
+            "Hiburan asrama",
+            0.0922,
+            0.1422
+          ],
+          [
+            "SOSIL MIDIA",
+            0.3844,
+            0.4703
+          ],
+          [
+            "TikTOk",
+            0.5,
+            0.5281
+          ],
+          [
+            "@ koranjakarta",
+            0.5234,
+            0.5453
+          ],
+          [
+            "Dic",
+            0.6641,
+            0.7016
+          ],
+          [
+            "ahasiswa",
+            0.6641,
+            0.7016
+          ],
+          [
+            "Bai",
+            0.7063,
+            0.7438
+          ],
+          [
+            "protan Api di",
+            0.7063,
+            0.7469
+          ],
+          [
+            "Asra",
+            0.75,
+            0.7859
+          ],
+          [
+            "n University",
+            0.75,
+            0.7859
+          ],
+          [
+            "Disol",
+            0.7859,
+            0.8281
+          ]
+        ]
+      },
+      {
+        "second": 2.0,
+        "boxes": [
+          [
+            "Hiburan asrama",
+            0.0922,
+            0.1422
+          ],
+          [
+            "MEIA",
+            0.3859,
+            0.4281
+          ],
+          [
+            "TikTok",
+            0.5,
+            0.5281
+          ],
+          [
+            "@ koranjakarta",
+            0.5234,
+            0.5453
+          ],
+          [
+            "Did",
+            0.6641,
+            0.7016
+          ],
+          [
+            "ahasiswa",
+            0.6641,
+            0.7016
+          ],
+          [
+            "Bai",
+            0.7078,
+            0.7453
+          ],
+          [
+            "protan Api di",
+            0.7063,
+            0.7469
+          ],
+          [
+            "Asra",
+            0.75,
+            0.7859
+          ],
+          [
+            "n University",
+            0.75,
+            0.7859
+          ],
+          [
+            "Disol",
+            0.7859,
+            0.8266
+          ]
+        ]
+      },
+      {
+        "second": 3.0,
+        "boxes": [
+          [
+            "Hiburan asrama",
+            0.0922,
+            0.1422
+          ],
+          [
+            "SOSIL MIDIA",
+            0.3844,
+            0.4672
+          ],
+          [
+            "TikTok",
+            0.5,
+            0.5281
+          ],
+          [
+            "@ koranjakarta",
+            0.5234,
+            0.5437
+          ],
+          [
+            "Did",
+            0.6641,
+            0.7016
+          ],
+          [
+            "ahasiswa",
+            0.6641,
+            0.7
+          ],
+          [
+            "Bai",
+            0.7078,
+            0.7453
+          ],
+          [
+            "protan Api di",
+            0.7063,
+            0.7469
+          ],
+          [
+            "Asra",
+            0.7484,
+            0.7859
+          ],
+          [
+            "n University",
+            0.7484,
+            0.7875
+          ],
+          [
+            "Disol",
+            0.7875,
+            0.8281
+          ]
+        ]
+      },
+      {
+        "second": 4.0,
+        "boxes": [
+          [
+            "ran asrama",
+            0.1,
+            0.1422
+          ],
+          [
+            "SOSIL MIIDIA",
+            0.3844,
+            0.4703
+          ],
+          [
+            "TikTok",
+            0.5,
+            0.5281
+          ],
+          [
+            "@ koranjakarta",
+            0.5234,
+            0.5453
+          ],
+          [
+            "Did",
+            0.6641,
+            0.7016
+          ],
+          [
+            "ahasiswa",
+            0.6656,
+            0.7016
+          ],
+          [
+            "Bai",
+            0.7063,
+            0.7453
+          ],
+          [
+            "protan Api di",
+            0.7063,
+            0.7469
+          ],
+          [
+            "Asra",
+            0.75,
+            0.7859
+          ],
+          [
+            "n University",
+            0.75,
+            0.7859
+          ],
+          [
+            "Disol",
+            0.7859,
+            0.8281
+          ]
+        ]
+      },
+      {
+        "second": 5.0,
+        "boxes": [
+          [
+            "Hibur n asrama",
+            0.0922,
+            0.1453
+          ],
+          [
+            "VIDEO: SOSIAL MEDIA",
+            0.3844,
+            0.5141
+          ],
+          [
+            "nemperlihatkan",
+            0.6875,
+            0.7172
+          ],
+          [
+            ",an terhadap",
+            0.7188,
+            0.7469
+          ],
+          [
+            "ma",
+            0.75,
+            0.7734
+          ],
+          [
+            "elkom University",
+            0.7438,
+            0.7766
+          ],
+          [
+            "nedia sosial.",
+            0.7766,
+            0.8016
+          ],
+          [
+            "TikTok",
+            0.7984,
+            0.8266
+          ],
+          [
+            "@koranjakarta",
+            0.825,
+            0.8453
+          ]
+        ]
+      },
+      {
+        "second": 6.0,
+        "boxes": [
+          [
+            "Hiburan as ama",
+            0.0969,
+            0.1437
+          ],
+          [
+            "VIDEO: SOSIAL MEDIA",
+            0.3844,
+            0.5141
+          ],
+          [
+            "nemperlihatkan",
+            0.6875,
+            0.7156
+          ],
+          [
+            ",an terhadap",
+            0.7141,
+            0.7484
+          ],
+          [
+            "ma",
+            0.75,
+            0.7734
+          ],
+          [
+            "elkom University",
+            0.7438,
+            0.7766
+          ],
+          [
+            "nedia sosial.",
+            0.7766,
+            0.8016
+          ],
+          [
+            "TikTok",
+            0.7984,
+            0.8266
+          ],
+          [
+            "@ koranjakarta",
+            0.825,
+            0.8453
+          ]
+        ]
+      },
+      {
+        "second": 7.0,
+        "boxes": [
+          [
+            "Hiburan arama",
+            0.0922,
+            0.1469
+          ],
+          [
+            "VIDEO: SOSIAL MEDIA",
+            0.3844,
+            0.5141
+          ],
+          [
+            "Video yang",
+            0.6844,
+            0.7203
+          ],
+          [
+            "lihatkan",
+            0.6844,
+            0.7172
+          ],
+          [
+            "aksi pei",
+            0.7156,
+            0.7469
+          ],
+          [
+            "adap",
+            0.7156,
+            0.7484
+          ],
+          [
+            "mahasiswa",
+            0.7453,
+            0.775
+          ],
+          [
+            "University",
+            0.7422,
+            0.7766
+          ],
+          [
+            "beredai",
+            0.7734,
+            0.8047
+          ],
+          [
+            "osial.",
+            0.7719,
+            0.8047
+          ],
+          [
+            "TikTok",
+            0.7984,
+            0.8266
+          ],
+          [
+            "@ koranjakarta",
+            0.8234,
+            0.8469
+          ]
+        ]
+      },
+      {
+        "second": 8.0,
+        "boxes": [
+          [
+            "Hiburan asrama",
+            0.0922,
+            0.1453
+          ],
+          [
+            "VIDEO: SOSIAL MEDIA",
+            0.3844,
+            0.5141
+          ],
+          [
+            "Video yang",
+            0.6859,
+            0.7188
+          ],
+          [
+            "lihatkan",
+            0.6859,
+            0.7172
+          ],
+          [
+            "aksi per",
+            0.7156,
+            0.7484
+          ],
+          [
+            "adap",
+            0.7141,
+            0.7484
+          ],
+          [
+            "mahasiswa L",
+            0.7453,
+            0.775
+          ],
+          [
+            "University",
+            0.7422,
+            0.7766
+          ],
+          [
+            "beredar",
+            0.7766,
+            0.8031
+          ],
+          [
+            ",osial.",
+            0.775,
+            0.8047
+          ],
+          [
+            "TikTok",
+            0.7984,
+            0.8266
+          ],
+          [
+            "@ koranjakarta",
+            0.8234,
+            0.8469
+          ]
+        ]
+      },
+      {
+        "second": 9.0,
+        "boxes": [
+          [
+            "Hiburan asrama",
+            0.0922,
+            0.1437
+          ],
+          [
+            "VIDEO: SOSIAL MEDIA",
+            0.3844,
+            0.5141
+          ],
+          [
+            "Video yang",
+            0.6859,
+            0.7188
+          ],
+          [
+            "rlihatkan",
+            0.6859,
+            0.7172
+          ],
+          [
+            "aksi pe",
+            0.7172,
+            0.7453
+          ],
+          [
+            "iadap",
+            0.7156,
+            0.7484
+          ],
+          [
+            "maha",
+            0.7469,
+            0.7734
+          ],
+          [
+            "University",
+            0.7422,
+            0.7766
+          ],
+          [
+            "osial.",
+            0.7719,
+            0.8047
+          ],
+          [
+            "TikTok",
+            0.7984,
+            0.8281
+          ],
+          [
+            "@ koranjakarta",
+            0.8234,
+            0.8469
+          ]
+        ]
+      },
+      {
+        "second": 10.0,
+        "boxes": [
+          [
+            "Hiburan asrama",
+            0.0922,
+            0.1437
+          ],
+          [
+            "VIDEO: SOSIAL MEDIA",
+            0.3844,
+            0.5141
+          ],
+          [
+            "Dalam",
+            0.6875,
+            0.7156
+          ],
+          [
+            "seorang",
+            0.6891,
+            0.7172
+          ],
+          [
+            "mal",
+            0.7188,
+            0.7438
+          ],
+          [
+            "gancam",
+            0.7188,
+            0.7469
+          ],
+          [
+            "meny",
+            0.7484,
+            0.775
+          ],
+          [
+            "engharum",
+            0.7484,
+            0.775
+          ],
+          [
+            "ruan",
+            0.7781,
+            0.8016
+          ],
+          [
+            "api ke arah",
+            0.7766,
+            0.8031
+          ],
+          [
+            "/ajal",
+            0.8031,
+            0.8359
+          ],
+          [
+            "TikTok",
+            0.7984,
+            0.8266
+          ],
+          [
+            "@ koranjakarta",
+            0.8219,
+            0.8469
+          ]
+        ]
+      },
+      {
+        "second": 11.0,
+        "boxes": [
+          [
+            "Hiburan asrama",
+            0.0891,
+            0.1437
+          ],
+          [
+            "VIDEO: SOSIAL MEDI",
+            0.3969,
+            0.5125
+          ],
+          [
+            "Dala",
+            0.6875,
+            0.7156
+          ],
+          [
+            "seorang",
+            0.6891,
+            0.7172
+          ],
+          [
+            "mal",
+            0.7172,
+            0.7453
+          ],
+          [
+            "gancam",
+            0.7188,
+            0.7469
+          ],
+          [
+            "meny",
+            0.7469,
+            0.7766
+          ],
+          [
+            "engharum",
+            0.7469,
+            0.775
+          ],
+          [
+            "ruan",
+            0.7781,
+            0.8016
+          ],
+          [
+            "pi ke arah",
+            0.775,
+            0.8031
+          ],
+          [
+            "sajab",
+            0.8047,
+            0.8359
+          ],
+          [
+            "TikTok",
+            0.7984,
+            0.8266
+          ],
+          [
+            " koranjakarta",
+            0.8219,
+            0.8484
+          ]
+        ]
+      },
+      {
+        "second": 12.0,
+        "boxes": [
+          [
+            "Hiburan asrama",
+            0.0922,
+            0.1437
+          ],
+          [
+            "VIDEO: SOSIAL MEDIA",
+            0.3844,
+            0.5141
+          ],
+          [
+            "Dalam re",
+            0.6875,
+            0.7156
+          ],
+          [
+            "seorang",
+            0.6891,
+            0.7172
+          ],
+          [
+            "mahasisi",
+            0.7172,
+            0.7453
+          ],
+          [
+            "gancam",
+            0.7188,
+            0.7469
+          ],
+          [
+            "menyempro",
+            0.75,
+            0.775
+          ],
+          [
+            "engharum",
+            0.7484,
+            0.7766
+          ],
+          [
+            "ruangan yan",
+            0.7797,
+            0.8047
+          ],
+          [
+            "oi ke arah",
+            0.7766,
+            0.8016
+          ],
+          [
+            "TikTok",
+            0.7984,
+            0.8266
+          ],
+          [
+            " koranjakarta",
+            0.8219,
+            0.8484
+          ]
+        ]
+      },
+      {
+        "second": 13.0,
+        "boxes": [
+          [
+            "Hiburan asrama",
+            0.0906,
+            0.1437
+          ],
+          [
+            "VIDEO: SOSIAL MEDIA",
+            0.3844,
+            0.5141
+          ],
+          [
+            "Dalam rek",
+            0.6875,
+            0.7156
+          ],
+          [
+            "seorang",
+            0.6891,
+            0.7172
+          ],
+          [
+            "mahasisw",
+            0.7172,
+            0.7453
+          ],
+          [
+            "gancam",
+            0.7188,
+            0.7469
+          ],
+          [
+            "menyemprot",
+            0.7484,
+            0.7766
+          ],
+          [
+            "engharum",
+            0.7484,
+            0.7766
+          ],
+          [
+            "ruangan yang",
+            0.7797,
+            0.8047
+          ],
+          [
+            "pi ke arah",
+            0.7766,
+            0.8016
+          ],
+          [
+            "wajak",
+            0.8016,
+            0.8344
+          ],
+          [
+            "TikTok",
+            0.8,
+            0.8266
+          ],
+          [
+            "@ koranjakarta",
+            0.8234,
+            0.8469
+          ]
+        ]
+      },
+      {
+        "second": 14.0,
+        "boxes": [
+          [
+            "Hiburan asrama",
+            0.0922,
+            0.1437
+          ],
+          [
+            "VIDEO: SOSIAL MEDIA",
+            0.3844,
+            0.5141
+          ],
+          [
+            "Dalam re",
+            0.6875,
+            0.7156
+          ],
+          [
+            ", seorang",
+            0.6906,
+            0.7172
+          ],
+          [
+            "mahasis",
+            0.7172,
+            0.7453
+          ],
+          [
+            "igancam",
+            0.7188,
+            0.7469
+          ],
+          [
+            "menyempro",
+            0.7484,
+            0.7766
+          ],
+          [
+            "bengharum",
+            0.7484,
+            0.7766
+          ],
+          [
+            "ruangan yan",
+            0.7781,
+            0.8063
+          ],
+          [
+            "api ke arah",
+            0.7734,
+            0.8031
+          ],
+          [
+            "wai",
+            0.8078,
+            0.8328
+          ],
+          [
+            "TikTok",
+            0.7984,
+            0.8266
+          ],
+          [
+            "@ koranjakarta",
+            0.8234,
+            0.8469
+          ]
+        ]
+      },
+      {
+        "second": 15.0,
+        "boxes": [
+          [
+            "Hiburan asrama",
+            0.0953,
+            0.1422
+          ],
+          [
+            "VIDEO: SOSIAL MEDIA",
+            0.3844,
+            0.5141
+          ],
+          [
+            "Dalam",
+            0.6859,
+            0.7156
+          ],
+          [
+            "ke",
+            0.6906,
+            0.7141
+          ],
+          [
+            "eorang",
+            0.6891,
+            0.7172
+          ],
+          [
+            "mahaswa",
+            0.7156,
+            0.7469
+          ],
+          [
+            "ancam",
+            0.7219,
+            0.7438
+          ],
+          [
+            "meny",
+            0.7469,
+            0.775
+          ],
+          [
+            "oroti",
+            0.7484,
+            0.7734
+          ],
+          [
+            "ngharum",
+            0.7453,
+            0.7766
+          ],
+          [
+            "ruan",
+            0.7781,
+            0.8031
+          ],
+          [
+            "ng",
+            0.7766,
+            0.8063
+          ],
+          [
+            "i ke arah",
+            0.775,
+            0.8016
+          ],
+          [
+            "ia",
+            0.8031,
+            0.8297
+          ],
+          [
+            "TikTok",
+            0.7984,
+            0.8266
+          ],
+          [
+            "@ koranjakarta",
+            0.8234,
+            0.8469
+          ]
+        ]
+      },
+      {
+        "second": 16.0,
+        "boxes": [
+          [
+            "Hiburan asrama",
+            0.0906,
+            0.1437
+          ],
+          [
+            "VIDEO: SOSIAL MEDIA",
+            0.3844,
+            0.5141
+          ],
+          [
+            "Peristiwa",
+            0.6844,
+            0.7156
+          ],
+          [
+            "di asrama",
+            0.6859,
+            0.7141
+          ],
+          [
+            "TikTok",
+            0.8,
+            0.8266
+          ],
+          [
+            "@ koranjakarta",
+            0.8234,
+            0.8469
+          ]
+        ]
+      },
+      {
+        "second": 17.0,
+        "boxes": []
+      },
+      {
+        "second": 18.0,
+        "boxes": [
+          [
+            "C",
+            0.0,
+            0.9984
+          ]
+        ]
+      },
+      {
+        "second": 19.0,
+        "boxes": []
+      },
+      {
+        "second": 20.0,
+        "boxes": [
+          [
+            "C",
+            0.0,
+            0.9984
+          ]
+        ]
+      },
+      {
+        "second": 21.0,
+        "boxes": []
+      },
+      {
+        "second": 22.0,
+        "boxes": []
+      },
+      {
+        "second": 23.0,
+        "boxes": []
+      },
+      {
+        "second": 24.0,
+        "boxes": []
+      },
+      {
+        "second": 25.0,
+        "boxes": []
+      },
+      {
+        "second": 26.0,
+        "boxes": []
+      },
+      {
+        "second": 27.0,
+        "boxes": []
+      },
+      {
+        "second": 28.0,
+        "boxes": []
+      },
+      {
+        "second": 29.0,
+        "boxes": []
+      },
+      {
+        "second": 30.0,
+        "boxes": [
+          [
+            "C",
+            0.0,
+            0.9984
+          ]
+        ]
+      },
+      {
+        "second": 31.0,
+        "boxes": [
+          [
+            "O",
+            0.0,
+            0.9984
+          ]
+        ]
+      }
+    ],
+    "tiktok-7695374501911088436": [
+      {
+        "second": 0.0,
+        "boxes": [
+          [
+            "INDON",
+            0.5125,
+            0.5687
+          ],
+          [
+            "TSIA",
+            0.5109,
+            0.5641
+          ],
+          [
+            "ERTAMINA",
+            0.5328,
+            0.5672
+          ],
+          [
+            "Agnez Mo Tampil di MotoGP",
+            0.6859,
+            0.7266
+          ],
+          [
+            "Mandalika,Anthem",
+            0.7312,
+            0.7656
+          ],
+          [
+            "Kebangsaan Buka Ajang",
+            0.7719,
+            0.8109
+          ],
+          [
+            "Balapan Internasional",
+            0.8125,
+            0.8516
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 1.0,
+        "boxes": [
+          [
+            "INDON",
+            0.5047,
+            0.5609
+          ],
+          [
+            "SSIA",
+            0.5031,
+            0.5594
+          ],
+          [
+            "ERTAMINA",
+            0.5266,
+            0.5594
+          ],
+          [
+            "Agnez Mo Tampil di MotoGP",
+            0.6875,
+            0.7266
+          ],
+          [
+            "Mandalika, Anthem",
+            0.7297,
+            0.7656
+          ],
+          [
+            "Kebangsaan Buka Ajang",
+            0.7719,
+            0.8109
+          ],
+          [
+            "Balapan Internasional",
+            0.8125,
+            0.8516
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 2.0,
+        "boxes": [
+          [
+            "VIDEO:X/BRKMNOSFILM",
+            0.3766,
+            0.5203
+          ],
+          [
+            "INDOI",
+            0.4969,
+            0.5594
+          ],
+          [
+            "SIA",
+            0.5,
+            0.5563
+          ],
+          [
+            "ERTAMINA",
+            0.525,
+            0.5563
+          ],
+          [
+            "Agnez Mo Tampil di MotoGP",
+            0.6875,
+            0.7266
+          ],
+          [
+            "Mandalika,Anthem",
+            0.7297,
+            0.7656
+          ],
+          [
+            "Kebangsaan Buka Ajang",
+            0.7719,
+            0.8109
+          ],
+          [
+            "Balapan Internasional",
+            0.8125,
+            0.8516
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 3.0,
+        "boxes": [
+          [
+            "VIDEO:X/BRKMNDSFI",
+            0.3906,
+            0.5203
+          ],
+          [
+            "NDOR",
+            0.4984,
+            0.5531
+          ],
+          [
+            "SSIA",
+            0.4984,
+            0.5531
+          ],
+          [
+            "ERTAMINA",
+            0.5203,
+            0.5547
+          ],
+          [
+            "Agnez Mo Tampil di MotoGP",
+            0.6875,
+            0.7266
+          ],
+          [
+            "Mandalika,Anthem",
+            0.7312,
+            0.7656
+          ],
+          [
+            "Kebangsaan Buka Ajang",
+            0.7719,
+            0.8109
+          ],
+          [
+            "Balapan Internasional",
+            0.8125,
+            0.8516
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 4.0,
+        "boxes": [
+          [
+            "INDON",
+            0.4969,
+            0.5563
+          ],
+          [
+            "SSIA",
+            0.4953,
+            0.5531
+          ],
+          [
+            "ERTAMINA",
+            0.5188,
+            0.5531
+          ],
+          [
+            "Agnez Mo Tampil di MotoGP",
+            0.6875,
+            0.7266
+          ],
+          [
+            "Mandalika,Anthem",
+            0.7312,
+            0.7672
+          ],
+          [
+            "Kebangsaan Buka Ajang",
+            0.7719,
+            0.8109
+          ],
+          [
+            "Balapan Internasional",
+            0.8125,
+            0.8516
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 5.0,
+        "boxes": [
+          [
+            "INDON",
+            0.4891,
+            0.5547
+          ],
+          [
+            "ISIA",
+            0.4938,
+            0.55
+          ],
+          [
+            "ERTAMINA",
+            0.5172,
+            0.55
+          ],
+          [
+            "Agnez Mo tampil membawakan lagu",
+            0.6891,
+            0.7125
+          ],
+          [
+            "\"Indonesia Raya\" dalam seremoni",
+            0.7141,
+            0.7359
+          ],
+          [
+            "pembukaan MotoGP Mandalika 2026 di",
+            0.7359,
+            0.7625
+          ],
+          [
+            "Sirkuit Internasional Pertamina Mandalika,",
+            0.7609,
+            0.7875
+          ],
+          [
+            "Lombok Tengah, Nusa Tenggara Barat,",
+            0.7875,
+            0.8141
+          ],
+          [
+            "Minggu (11/10/2026).",
+            0.8109,
+            0.8391
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 6.0,
+        "boxes": [
+          [
+            "INDOIGSIA",
+            0.4875,
+            0.5547
+          ],
+          [
+            "ERTAMINA",
+            0.5156,
+            0.5484
+          ],
+          [
+            "Agnez Mo tampil membawakan lagu",
+            0.6875,
+            0.7141
+          ],
+          [
+            "\"Indonesia Raya\" dalam seremoni",
+            0.7141,
+            0.7359
+          ],
+          [
+            "pembukaan MotoGP Mandalika 2026 di",
+            0.7359,
+            0.7625
+          ],
+          [
+            "Sirkuit Internasional Pertamina Mandalika,",
+            0.7641,
+            0.7859
+          ],
+          [
+            "Lombok Tengah, Nusa Tenggara Barat,",
+            0.7875,
+            0.8125
+          ],
+          [
+            "Minggu (11/10/2026).",
+            0.8109,
+            0.8391
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 7.0,
+        "boxes": [
+          [
+            "VIDEO:X/BRKMNOSFILM",
+            0.375,
+            0.5203
+          ],
+          [
+            "INDOIGSIA",
+            0.4859,
+            0.55
+          ],
+          [
+            "ERTAMINA",
+            0.5141,
+            0.5437
+          ],
+          [
+            "Agnez Mo tampil membawakan lagu",
+            0.6875,
+            0.7141
+          ],
+          [
+            "\"Indonesia Raya\" dalam seremoni",
+            0.7141,
+            0.7359
+          ],
+          [
+            "pembukaan MotoGP Mandalika 2026 di",
+            0.7359,
+            0.7625
+          ],
+          [
+            "Sirkuit Internasional Pertamina Mandalika,",
+            0.7641,
+            0.7859
+          ],
+          [
+            "Lombok Tengah, Nusa Tenggara Barat,",
+            0.7875,
+            0.8125
+          ],
+          [
+            "Minggu (11/10/2026).",
+            0.8109,
+            0.8391
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 8.0,
+        "boxes": [
+          [
+            "IDEO:X/BRKMNDSFILM",
+            0.375,
+            0.5172
+          ],
+          [
+            "INDOISSIA",
+            0.4844,
+            0.5484
+          ],
+          [
+            "RTAMINA",
+            0.5094,
+            0.5422
+          ],
+          [
+            "Agnez Mo tampil membawakan lagu",
+            0.6875,
+            0.7141
+          ],
+          [
+            "\"Indonesia Raya\" dalam seremoni",
+            0.7141,
+            0.7359
+          ],
+          [
+            "pembukaan MotoGP Mandalika 2026 di",
+            0.7359,
+            0.7625
+          ],
+          [
+            "Sirkuit Internasional Pertamina Mandalika,",
+            0.7641,
+            0.7859
+          ],
+          [
+            "Lombok Tengah, Nusa Tenggara Barat,",
+            0.7875,
+            0.8141
+          ],
+          [
+            "Minggu (11/10/2026).",
+            0.8109,
+            0.8391
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 9.0,
+        "boxes": [
+          [
+            "IDEOX/8RKMNDSFILM",
+            0.3766,
+            0.5156
+          ],
+          [
+            "INDOIGSIA",
+            0.4828,
+            0.5469
+          ],
+          [
+            "ERTAMINA",
+            0.5094,
+            0.5406
+          ],
+          [
+            "Agnez Mo tampil membawakan lagu",
+            0.6875,
+            0.7141
+          ],
+          [
+            "\"Indonesia Raya\" dalam seremoni",
+            0.7141,
+            0.7359
+          ],
+          [
+            "pembukaan MotoGP Mandalika 2026 di",
+            0.7359,
+            0.7625
+          ],
+          [
+            "Sirkuit Internasional Pertamina Mandalika,",
+            0.7641,
+            0.7859
+          ],
+          [
+            "Lombok Tengah, Nusa Tenggara Barat,",
+            0.7891,
+            0.8125
+          ],
+          [
+            "Minggu (11/10/2026).",
+            0.8109,
+            0.8391
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 10.0,
+        "boxes": [
+          [
+            "DEO X/BRKMNOSFIL",
+            0.3891,
+            0.5109
+          ],
+          [
+            "INDON",
+            0.4844,
+            0.5406
+          ],
+          [
+            "CSIA",
+            0.4813,
+            0.5359
+          ],
+          [
+            "ERTAMINA",
+            0.5047,
+            0.5375
+          ],
+          [
+            "Penampilannya menjadi bagian dari",
+            0.6875,
+            0.7172
+          ],
+          [
+            "rangkaian acara sebelum balapan",
+            0.7172,
+            0.7453
+          ],
+          [
+            "utama dimulai.",
+            0.7469,
+            0.7734
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 11.0,
+        "boxes": [
+          [
+            "INDON",
+            0.4797,
+            0.5344
+          ],
+          [
+            "SIA",
+            0.4781,
+            0.5312
+          ],
+          [
+            "ERTAMINA",
+            0.5,
+            0.5344
+          ],
+          [
+            "Penampilannya menjadi bagian dari",
+            0.6875,
+            0.7156
+          ],
+          [
+            "rangkaian acara sebelum balapan",
+            0.7172,
+            0.7453
+          ],
+          [
+            "utama dimulai.",
+            0.7469,
+            0.7734
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 12.0,
+        "boxes": [
+          [
+            "INDON",
+            0.4781,
+            0.5344
+          ],
+          [
+            "SIA",
+            0.4766,
+            0.5312
+          ],
+          [
+            "ERTAMINA",
+            0.5,
+            0.5328
+          ],
+          [
+            "Penampilannya menjadi bagian dari",
+            0.6875,
+            0.7172
+          ],
+          [
+            "rangkaian acara sebelum balapan",
+            0.7188,
+            0.7453
+          ],
+          [
+            "utama dimulai.",
+            0.7469,
+            0.7734
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 13.0,
+        "boxes": [
+          [
+            "X/IU",
+            0.3859,
+            0.4797
+          ],
+          [
+            "INDON",
+            0.4766,
+            0.5344
+          ],
+          [
+            "SIA",
+            0.475,
+            0.5312
+          ],
+          [
+            "ERTAMINA",
+            0.4984,
+            0.5312
+          ],
+          [
+            "Penampilannya menjadi bagian dari",
+            0.6875,
+            0.7172
+          ],
+          [
+            "rangkaian acara sebelum balapan",
+            0.7188,
+            0.7453
+          ],
+          [
+            "utama dimulai.",
+            0.7469,
+            0.7734
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 14.0,
+        "boxes": [
+          [
+            "INDON",
+            0.4766,
+            0.5359
+          ],
+          [
+            "SIA",
+            0.475,
+            0.5312
+          ],
+          [
+            "ERTAMINA",
+            0.4984,
+            0.5312
+          ],
+          [
+            "Penampilannya menjadi bagian dari",
+            0.6875,
+            0.7172
+          ],
+          [
+            "rangkaian acara sebelum balapan",
+            0.7188,
+            0.7453
+          ],
+          [
+            "utama dimulai.",
+            0.7453,
+            0.7734
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 15.0,
+        "boxes": [
+          [
+            "INDON",
+            0.4766,
+            0.5344
+          ],
+          [
+            "SSIA",
+            0.475,
+            0.5312
+          ],
+          [
+            "ERTAMINA",
+            0.5,
+            0.5328
+          ],
+          [
+            "Mengenakan gaun putih, Agnez juga",
+            0.6875,
+            0.7172
+          ],
+          [
+            "membawakan lagu \"Kebyar-Kebyar\"",
+            0.7172,
+            0.7453
+          ],
+          [
+            "yang disambut antusias oleh",
+            0.7453,
+            0.775
+          ],
+          [
+            "penonton di tribun.",
+            0.775,
+            0.8031
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 16.0,
+        "boxes": [
+          [
+            "NDON",
+            0.4844,
+            0.5375
+          ],
+          [
+            "SIA",
+            0.4813,
+            0.5359
+          ],
+          [
+            "ERTAMINA",
+            0.5047,
+            0.5359
+          ],
+          [
+            "Mengenakan gaun putih, Agnez juga",
+            0.6875,
+            0.7172
+          ],
+          [
+            "membawakan lagu \"Kebyar-Kebyar\"",
+            0.7172,
+            0.7453
+          ],
+          [
+            "yang disambut antusias oleh",
+            0.7453,
+            0.775
+          ],
+          [
+            "penonton di tribun.",
+            0.775,
+            0.8031
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 17.0,
+        "boxes": [
+          [
+            "INDON",
+            0.4859,
+            0.5406
+          ],
+          [
+            "SIA",
+            0.4844,
+            0.5375
+          ],
+          [
+            "ERTAMINA",
+            0.5047,
+            0.5375
+          ],
+          [
+            "Mengenakan gaun putih, Agnez juga",
+            0.6875,
+            0.7172
+          ],
+          [
+            "membawakan lagu \"Kebyar-Kebyar\"",
+            0.7172,
+            0.7453
+          ],
+          [
+            "yang disambut antusias oleh",
+            0.7438,
+            0.7766
+          ],
+          [
+            "penonton di tribun.",
+            0.775,
+            0.8031
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 18.0,
+        "boxes": [
+          [
+            "INDON",
+            0.4797,
+            0.5406
+          ],
+          [
+            "SIA",
+            0.4813,
+            0.5359
+          ],
+          [
+            "ERTAMINA",
+            0.5031,
+            0.5359
+          ],
+          [
+            "Suasana semakin khidmat saat Agnez",
+            0.6875,
+            0.7141
+          ],
+          [
+            "menyanyikan lagu kebangsaan Indonesia",
+            0.7156,
+            0.7406
+          ],
+          [
+            "di hadapan para pembalap dan penonton",
+            0.7406,
+            0.7688
+          ],
+          [
+            "yang memadati sirkuit.",
+            0.7688,
+            0.7953
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 19.0,
+        "boxes": [
+          [
+            "INDON",
+            0.4797,
+            0.5359
+          ],
+          [
+            "SIA",
+            0.4766,
+            0.5328
+          ],
+          [
+            "ERTAMINA",
+            0.5016,
+            0.5328
+          ],
+          [
+            "Suasana semakin khidmat saat Agnez",
+            0.6875,
+            0.7141
+          ],
+          [
+            "menyanyikan lagu kebangsaan Indonesia",
+            0.7156,
+            0.7406
+          ],
+          [
+            "di hadapan para pembalap dan penonton",
+            0.7406,
+            0.7688
+          ],
+          [
+            "yang memadati sirkuit.",
+            0.7672,
+            0.7969
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 20.0,
+        "boxes": [
+          [
+            "INDON",
+            0.4781,
+            0.5312
+          ],
+          [
+            "SIA",
+            0.4766,
+            0.5297
+          ],
+          [
+            "ERTAMINA",
+            0.5,
+            0.5297
+          ],
+          [
+            "Suasana semakin khidmat saat Agnez",
+            0.6875,
+            0.7141
+          ],
+          [
+            "menyanyikan lagu kebangsaan Indonesia",
+            0.7156,
+            0.7406
+          ],
+          [
+            "di hadapan para pembalap dan penonton",
+            0.7406,
+            0.7703
+          ],
+          [
+            "yang memadati sirkuit.",
+            0.7672,
+            0.7969
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 21.0,
+        "boxes": [
+          [
+            "INDON",
+            0.4797,
+            0.5406
+          ],
+          [
+            "SIA",
+            0.4797,
+            0.5344
+          ],
+          [
+            "ERTAMINA",
+            0.5031,
+            0.5359
+          ],
+          [
+            "Momen tersebut menjadi bagian dari",
+            0.6875,
+            0.7141
+          ],
+          [
+            "upaya menghadirkan unsur nasionalisme",
+            0.7141,
+            0.7422
+          ],
+          [
+            "dalam ajang balap motor internasional.",
+            0.7422,
+            0.7672
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 22.0,
+        "boxes": [
+          [
+            "INDON",
+            0.4891,
+            0.5453
+          ],
+          [
+            "SIA",
+            0.4891,
+            0.5422
+          ],
+          [
+            "ERTAMINA",
+            0.5094,
+            0.5422
+          ],
+          [
+            "Momen tersebut menjadi bagian dari",
+            0.6875,
+            0.7141
+          ],
+          [
+            "upaya menghadirkan unsur nasionalisme",
+            0.7141,
+            0.7422
+          ],
+          [
+            "dalam ajang balap motor internasional.",
+            0.7422,
+            0.7672
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 23.0,
+        "boxes": [
+          [
+            "XLLM",
+            0.3766,
+            0.4813
+          ],
+          [
+            "INDON",
+            0.4875,
+            0.5469
+          ],
+          [
+            "SIA",
+            0.4906,
+            0.5437
+          ],
+          [
+            "ERTAMINA",
+            0.5109,
+            0.5437
+          ],
+          [
+            "Momen tersebut menjadi bagian dari",
+            0.6875,
+            0.7141
+          ],
+          [
+            "upaya menghadirkan unsur nasionalisme",
+            0.7141,
+            0.7422
+          ],
+          [
+            "dalam ajang balap motor internasional.",
+            0.7422,
+            0.7672
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 24.0,
+        "boxes": [
+          [
+            "NDOIESIA",
+            0.4859,
+            0.5453
+          ],
+          [
+            "ERTAMINA",
+            0.5078,
+            0.5406
+          ],
+          [
+            "Momen tersebut menjadi bagian dari",
+            0.6875,
+            0.7141
+          ],
+          [
+            "upaya menghadirkan unsur nasionalisme",
+            0.7141,
+            0.7422
+          ],
+          [
+            "dalam ajang balap motor internasional.",
+            0.7406,
+            0.7688
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 25.0,
+        "boxes": [
+          [
+            "INDOISSIA",
+            0.4797,
+            0.5406
+          ],
+          [
+            "ERTAMINA",
+            0.5031,
+            0.5359
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 26.0,
+        "boxes": [
+          [
+            "INDOISSIA",
+            0.475,
+            0.5375
+          ],
+          [
+            "ERTAMINA",
+            0.5016,
+            0.5344
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9187,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 27.0,
+        "boxes": [
+          [
+            "INDOISSIA",
+            0.4734,
+            0.5422
+          ],
+          [
+            "ERTAMINA",
+            0.5,
+            0.5328
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9187,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 28.0,
+        "boxes": [
+          [
+            "INDOIESIA",
+            0.4734,
+            0.5375
+          ],
+          [
+            "ERTAMINA",
+            0.5,
+            0.5328
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9187,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 29.0,
+        "boxes": [
+          [
+            "NIDOIESIA",
+            0.4797,
+            0.5437
+          ],
+          [
+            "ERTAMINA",
+            0.5062,
+            0.5375
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 30.0,
+        "boxes": [
+          [
+            "EOLL",
+            0.3766,
+            0.4984
+          ],
+          [
+            "INDON",
+            0.4844,
+            0.5422
+          ],
+          [
+            "IESIA",
+            0.4828,
+            0.5375
+          ],
+          [
+            "ERTAMINA",
+            0.5078,
+            0.5406
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9422
+          ]
+        ]
+      },
+      {
+        "second": 31.0,
+        "boxes": [
+          [
+            "LORARTA",
+            0.0672,
+            0.1047
+          ],
+          [
+            "INDONSSIA",
+            0.4984,
+            0.5656
+          ],
+          [
+            "ERTAMINA",
+            0.5281,
+            0.5625
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9187,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 32.0,
+        "boxes": [
+          [
+            "INDOISESIA",
+            0.5,
+            0.5687
+          ],
+          [
+            "ERTAMINA",
+            0.5312,
+            0.5656
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 33.0,
+        "boxes": [
+          [
+            "WDILM",
+            0.3766,
+            0.5188
+          ],
+          [
+            "INDOISSIA",
+            0.4984,
+            0.5625
+          ],
+          [
+            "ERTAMINA",
+            0.525,
+            0.5594
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9187,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 34.0,
+        "boxes": [
+          [
+            "IDEO:X/BRKMNDSFILM",
+            0.3781,
+            0.5141
+          ],
+          [
+            "INDOIESIA",
+            0.4938,
+            0.5578
+          ],
+          [
+            "ERTAMINA",
+            0.5234,
+            0.5547
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 35.0,
+        "boxes": [
+          [
+            "EO:X/BRKMNDSFILM",
+            0.3781,
+            0.4984
+          ],
+          [
+            "INDON",
+            0.4922,
+            0.5531
+          ],
+          [
+            "NASIA",
+            0.4906,
+            0.55
+          ],
+          [
+            "ERTAMINA",
+            0.5188,
+            0.5516
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9187,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 36.0,
+        "boxes": [
+          [
+            "EO:X/BRKMNDSFIU",
+            0.3875,
+            0.4984
+          ],
+          [
+            "INDONESIA",
+            0.4906,
+            0.5547
+          ],
+          [
+            "ERTAMINA",
+            0.5172,
+            0.5516
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9187,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 37.0,
+        "boxes": [
+          [
+            "X/IIM",
+            0.3766,
+            0.4859
+          ],
+          [
+            "INDON",
+            0.4922,
+            0.5516
+          ],
+          [
+            "NSSIA",
+            0.4906,
+            0.5484
+          ],
+          [
+            "ERTAMINA",
+            0.5156,
+            0.5484
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9187,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 38.0,
+        "boxes": [
+          [
+            "RKILM",
+            0.375,
+            0.4578
+          ],
+          [
+            "Enduro",
+            0.4672,
+            0.4906
+          ],
+          [
+            "PERTAMINA",
+            0.4547,
+            0.4688
+          ],
+          [
+            "Enduro",
+            0.4625,
+            0.4859
+          ],
+          [
+            "PEITAMINA",
+            0.45,
+            0.4656
+          ],
+          [
+            "Enduro",
+            0.4578,
+            0.4813
+          ],
+          [
+            "PERTAMINA",
+            0.4453,
+            0.4609
+          ],
+          [
+            "En",
+            0.5062,
+            0.5188
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 39.0,
+        "boxes": [
+          [
+            "RILM",
+            0.375,
+            0.4531
+          ],
+          [
+            "Enduro",
+            0.4641,
+            0.4891
+          ],
+          [
+            "PERTAMINA",
+            0.4531,
+            0.4703
+          ],
+          [
+            "Enduro",
+            0.4594,
+            0.4859
+          ],
+          [
+            "PERTAMINA",
+            0.4516,
+            0.4641
+          ],
+          [
+            "Enduro",
+            0.4547,
+            0.4813
+          ],
+          [
+            "PERTAMINA",
+            0.4453,
+            0.4609
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 40.0,
+        "boxes": [
+          [
+            "RKILM",
+            0.375,
+            0.4578
+          ],
+          [
+            "Enduro",
+            0.4656,
+            0.4906
+          ],
+          [
+            "PERTAMINA",
+            0.4547,
+            0.4703
+          ],
+          [
+            "Enduro",
+            0.4625,
+            0.4859
+          ],
+          [
+            "PERTAMINA",
+            0.4516,
+            0.4656
+          ],
+          [
+            "Enduro",
+            0.4562,
+            0.4813
+          ],
+          [
+            "PERTAMINA",
+            0.4453,
+            0.4609
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 41.0,
+        "boxes": [
+          [
+            "Enduro",
+            0.4688,
+            0.4906
+          ],
+          [
+            "PERTAMINA",
+            0.4562,
+            0.4703
+          ],
+          [
+            "Enduro",
+            0.4641,
+            0.4875
+          ],
+          [
+            "PERTAMINA",
+            0.4531,
+            0.4656
+          ],
+          [
+            "Enduro",
+            0.4562,
+            0.4813
+          ],
+          [
+            "PERTAMINA",
+            0.4484,
+            0.4609
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 42.0,
+        "boxes": [
+          [
+            "HORAKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "KMMILM",
+            0.3766,
+            0.45
+          ],
+          [
+            "Enduro",
+            0.4688,
+            0.4906
+          ],
+          [
+            "PERTAMINA",
+            0.4547,
+            0.4719
+          ],
+          [
+            "Enduro",
+            0.4641,
+            0.4875
+          ],
+          [
+            "PERTAMINA",
+            0.4531,
+            0.4672
+          ],
+          [
+            "Enduro",
+            0.4562,
+            0.4844
+          ],
+          [
+            "PERTAMINA",
+            0.4484,
+            0.4625
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 43.0,
+        "boxes": [
+          [
+            "RKKILM",
+            0.3766,
+            0.4578
+          ],
+          [
+            "Enduro",
+            0.4688,
+            0.4891
+          ],
+          [
+            "PERTAMINA",
+            0.4562,
+            0.4719
+          ],
+          [
+            "Enduro",
+            0.4641,
+            0.4875
+          ],
+          [
+            "PERTAMINA",
+            0.4547,
+            0.4672
+          ],
+          [
+            "Enduro",
+            0.4594,
+            0.4844
+          ],
+          [
+            "PERTAMINA",
+            0.45,
+            0.4625
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 44.0,
+        "boxes": [
+          [
+            "LHORANEA",
+            0.0703,
+            0.1047
+          ],
+          [
+            "RKILM",
+            0.3766,
+            0.4578
+          ],
+          [
+            "Enduro",
+            0.4688,
+            0.4922
+          ],
+          [
+            "PERTAMINA",
+            0.4562,
+            0.4734
+          ],
+          [
+            "Enduro",
+            0.4641,
+            0.4875
+          ],
+          [
+            "PERTAMINA",
+            0.4547,
+            0.4672
+          ],
+          [
+            "Enduro",
+            0.4578,
+            0.4859
+          ],
+          [
+            "PERTAMINA",
+            0.45,
+            0.4625
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 45.0,
+        "boxes": [
+          [
+            "LHORAKEA",
+            0.0703,
+            0.1047
+          ],
+          [
+            "RKILM",
+            0.3766,
+            0.4594
+          ],
+          [
+            "Enduro",
+            0.4688,
+            0.4906
+          ],
+          [
+            "PERTAMINA",
+            0.4578,
+            0.4703
+          ],
+          [
+            "Enduro",
+            0.4641,
+            0.4875
+          ],
+          [
+            "PERTAMINA",
+            0.4531,
+            0.4672
+          ],
+          [
+            "Enduro",
+            0.4578,
+            0.4859
+          ],
+          [
+            "PERTAMINA",
+            0.45,
+            0.4625
+          ],
+          [
+            "D",
+            0.5,
+            0.5094
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 46.0,
+        "boxes": [
+          [
+            "RILM",
+            0.375,
+            0.4594
+          ],
+          [
+            "Enduro",
+            0.4656,
+            0.4906
+          ],
+          [
+            "PERTAMINA",
+            0.4531,
+            0.4719
+          ],
+          [
+            "Enduro",
+            0.4641,
+            0.4859
+          ],
+          [
+            "PERTAMINA",
+            0.4531,
+            0.4656
+          ],
+          [
+            "Enduro",
+            0.4594,
+            0.4828
+          ],
+          [
+            "PERTAMINA",
+            0.4484,
+            0.4625
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 47.0,
+        "boxes": [
+          [
+            "HORAKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "Enduro",
+            0.4672,
+            0.4891
+          ],
+          [
+            "PERTAMINA",
+            0.4547,
+            0.4688
+          ],
+          [
+            "Enduro",
+            0.4609,
+            0.4844
+          ],
+          [
+            "PERTAMINA",
+            0.4516,
+            0.4656
+          ],
+          [
+            "Enduro",
+            0.4578,
+            0.4813
+          ],
+          [
+            "PERTAMINA",
+            0.4469,
+            0.4609
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 48.0,
+        "boxes": [
+          [
+            "MORAKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "NOSLM",
+            0.375,
+            0.4391
+          ],
+          [
+            "NDOIESIA",
+            0.4203,
+            0.4875
+          ],
+          [
+            "ERTAMINA",
+            0.45,
+            0.4828
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9422
+          ]
+        ]
+      },
+      {
+        "second": 49.0,
+        "boxes": [
+          [
+            "INDON",
+            0.4188,
+            0.4781
+          ],
+          [
+            "NSIA",
+            0.4156,
+            0.4734
+          ],
+          [
+            "ERTAMINA",
+            0.4422,
+            0.475
+          ],
+          [
+            "VIDO",
+            0.4734,
+            0.5203
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 50.0,
+        "boxes": [
+          [
+            "INDONESIA",
+            0.4406,
+            0.4906
+          ],
+          [
+            "PERTAMINA",
+            0.4594,
+            0.4891
+          ],
+          [
+            "VIDEC",
+            0.4859,
+            0.5219
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9422
+          ]
+        ]
+      },
+      {
+        "second": 51.0,
+        "boxes": [
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 52.0,
+        "boxes": [
+          [
+            "XIILLM",
+            0.3781,
+            0.4766
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 53.0,
+        "boxes": [
+          [
+            "VIDEO:X/@RKMNDS",
+            0.4016,
+            0.5219
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 54.0,
+        "boxes": [
+          [
+            "VIDEO:X/BRKMNDSFILM",
+            0.375,
+            0.5219
+          ],
+          [
+            "PERTAMINA",
+            0.5328,
+            0.5516
+          ],
+          [
+            "INDONESIA",
+            0.5312,
+            0.5563
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9422
+          ]
+        ]
+      },
+      {
+        "second": 55.0,
+        "boxes": [
+          [
+            "XILM",
+            0.375,
+            0.4797
+          ],
+          [
+            "/IDEO:",
+            0.4797,
+            0.5172
+          ],
+          [
+            "INA",
+            0.5156,
+            0.5281
+          ],
+          [
+            "INDON",
+            0.5109,
+            0.5359
+          ],
+          [
+            "SIA",
+            0.5188,
+            0.5359
+          ],
+          [
+            "Roets",
+            0.5281,
+            0.5359
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 56.0,
+        "boxes": [
+          [
+            "VIDEO:X/BRKMN",
+            0.4234,
+            0.5219
+          ],
+          [
+            "PERTAMINA",
+            0.5563,
+            0.5781
+          ],
+          [
+            "INDONESIA",
+            0.5547,
+            0.5875
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 57.0,
+        "boxes": [
+          [
+            "LORAKEA",
+            0.0703,
+            0.1047
+          ],
+          [
+            "VIIIM",
+            0.3766,
+            0.5219
+          ],
+          [
+            "PERTAMINA",
+            0.5797,
+            0.6016
+          ],
+          [
+            "INDONESIA",
+            0.5781,
+            0.6094
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 58.0,
+        "boxes": [
+          [
+            "LIORAKEA",
+            0.0703,
+            0.1047
+          ],
+          [
+            "PERTAMINA",
+            0.5969,
+            0.6188
+          ],
+          [
+            "INDONESIA",
+            0.5953,
+            0.6266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 59.0,
+        "boxes": [
+          [
+            "VIDEO:X/BRKMNDSFILM",
+            0.3766,
+            0.5219
+          ],
+          [
+            "PERTAMINA",
+            0.6016,
+            0.6219
+          ],
+          [
+            "INDONESIA",
+            0.5984,
+            0.6281
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      }
+    ],
+    "tiktok-7695369417563131188": [
+      {
+        "second": 0.0,
+        "boxes": [
+          [
+            "VIDEO: X/BSOSMEDKERAS",
+            0.3719,
+            0.5266
+          ],
+          [
+            "Karhutla Kepung Tanjung",
+            0.6859,
+            0.7281
+          ],
+          [
+            "Puting, Relawan Minta",
+            0.7297,
+            0.7672
+          ],
+          [
+            "Tambahan Bantuan",
+            0.7719,
+            0.8078
+          ],
+          [
+            "Pemadaman",
+            0.8141,
+            0.8484
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 1.0,
+        "boxes": [
+          [
+            "VIDEO:X/BSOSMEDKERAS",
+            0.3719,
+            0.5266
+          ],
+          [
+            "Karhutla Kepung Tanjung",
+            0.6859,
+            0.7281
+          ],
+          [
+            "Puting, Relawan Minta",
+            0.7297,
+            0.7672
+          ],
+          [
+            "Tambahan Bantuan",
+            0.7719,
+            0.8078
+          ],
+          [
+            "Pemadaman",
+            0.8141,
+            0.8484
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 2.0,
+        "boxes": [
+          [
+            "VIDEO:X/BSOSMEDKERAS",
+            0.3703,
+            0.5266
+          ],
+          [
+            "Karhutla Kepung Tanjung",
+            0.6859,
+            0.7281
+          ],
+          [
+            "Puting,Relawan Minta",
+            0.7297,
+            0.7672
+          ],
+          [
+            "Tambahan Bantuan",
+            0.7719,
+            0.8078
+          ],
+          [
+            "Pemadaman",
+            0.8141,
+            0.8484
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 3.0,
+        "boxes": [
+          [
+            "VIDEO.X/",
+            0.4703,
+            0.5266
+          ],
+          [
+            "Karhutla Kepung Tanjung",
+            0.6859,
+            0.7281
+          ],
+          [
+            "Puting,Relawan Minta",
+            0.7297,
+            0.7672
+          ],
+          [
+            "Tambahan Bantuan",
+            0.7719,
+            0.8078
+          ],
+          [
+            "Pemadaman",
+            0.8141,
+            0.8484
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 4.0,
+        "boxes": [
+          [
+            "VIDEO:X/",
+            0.4719,
+            0.525
+          ],
+          [
+            "Karhutla Kepung Tanjung",
+            0.6859,
+            0.7281
+          ],
+          [
+            "Puting,Relawan Minta",
+            0.7297,
+            0.7672
+          ],
+          [
+            "Tambahan Bantuan",
+            0.7719,
+            0.8078
+          ],
+          [
+            "Pemadaman",
+            0.8141,
+            0.8484
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 5.0,
+        "boxes": [
+          [
+            "VXA",
+            0.4703,
+            0.525
+          ],
+          [
+            "Kebakaran hutan dan lahan di Taman",
+            0.6875,
+            0.7125
+          ],
+          [
+            "Nasional Tanjung Puting, Kalimantan",
+            0.7141,
+            0.7422
+          ],
+          [
+            "Tengah, dilaporkan semakin",
+            0.7406,
+            0.7703
+          ],
+          [
+            "mengkhawatirkan.",
+            0.7688,
+            0.7953
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 6.0,
+        "boxes": [
+          [
+            "ERAS",
+            0.3734,
+            0.4062
+          ],
+          [
+            "VIEO",
+            0.4828,
+            0.5266
+          ],
+          [
+            "Kebakaran hutan dan lahan di Taman",
+            0.6875,
+            0.7125
+          ],
+          [
+            "Nasional Tanjung Puting, Kalimantan",
+            0.7141,
+            0.7422
+          ],
+          [
+            "Tengah, dilaporkan semakin",
+            0.7406,
+            0.7703
+          ],
+          [
+            "mengkhawatirkan.",
+            0.7688,
+            0.7953
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 7.0,
+        "boxes": [
+          [
+            "VIDEO:X/BSOSMEDKERAS",
+            0.3734,
+            0.5266
+          ],
+          [
+            "Kebakaran hutan dan lahan di Taman",
+            0.6875,
+            0.7125
+          ],
+          [
+            "Nasional Tanjung Puting, Kalimantan",
+            0.7141,
+            0.7422
+          ],
+          [
+            "Tengah, dilaporkan semakin",
+            0.7406,
+            0.7703
+          ],
+          [
+            "mengkhawatirkan.",
+            0.7688,
+            0.7953
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 8.0,
+        "boxes": [
+          [
+            "Kebakaran hutan dan lahan di Taman",
+            0.6875,
+            0.7125
+          ],
+          [
+            "Nasional Tanjung Puting, Kalimantan",
+            0.7141,
+            0.7422
+          ],
+          [
+            "Tengah, dilaporkan semakin",
+            0.7406,
+            0.7703
+          ],
+          [
+            "mengkhawatirkan.",
+            0.7688,
+            0.7953
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 9.0,
+        "boxes": [
+          [
+            "VIDEO:X/BSOSMEDKERAS",
+            0.3734,
+            0.5266
+          ],
+          [
+            "Kebakaran hutan dan lahan di Taman",
+            0.6875,
+            0.7125
+          ],
+          [
+            "Nasional Tanjung Puting, Kalimantan",
+            0.7141,
+            0.7422
+          ],
+          [
+            "Tengah, dilaporkan semakin",
+            0.7406,
+            0.7703
+          ],
+          [
+            "mengkhawatirkan.",
+            0.7688,
+            0.7953
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 10.0,
+        "boxes": [
+          [
+            "VIDEO:X/BSOSMEDKERAS",
+            0.375,
+            0.5266
+          ],
+          [
+            "Api yang terus meluas membuat relawan",
+            0.6875,
+            0.7141
+          ],
+          [
+            "kewalahan melakukan pemadaman di",
+            0.7156,
+            0.7406
+          ],
+          [
+            "kawasan konservasi tersebut.",
+            0.7422,
+            0.7672
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 11.0,
+        "boxes": [
+          [
+            "Api yang terus meluas membuat relawan",
+            0.6875,
+            0.7141
+          ],
+          [
+            "kewalahan melakukan pemadaman di",
+            0.7156,
+            0.7406
+          ],
+          [
+            "kawasan konservasi tersebut.",
+            0.7422,
+            0.7672
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 12.0,
+        "boxes": [
+          [
+            "Api yang terus meluas membuat relawan",
+            0.6875,
+            0.7141
+          ],
+          [
+            "kewalahan melakukan pemadaman di",
+            0.7156,
+            0.7406
+          ],
+          [
+            "kawasan konservasi tersebut.",
+            0.7422,
+            0.7672
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 13.0,
+        "boxes": [
+          [
+            "MORARKIA",
+            0.0734,
+            0.1016
+          ],
+          [
+            "Api yang terus meluas membuat relawan",
+            0.6875,
+            0.7141
+          ],
+          [
+            "kewalahan melakukan pemadaman di",
+            0.7156,
+            0.7406
+          ],
+          [
+            "kawasan konservasi tersebut.",
+            0.7422,
+            0.7672
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 14.0,
+        "boxes": [
+          [
+            "HORARKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "XA",
+            0.4703,
+            0.525
+          ],
+          [
+            "Api yang terus meluas membuat relawan",
+            0.6875,
+            0.7141
+          ],
+          [
+            "kewalahan melakukan pemadaman di",
+            0.7156,
+            0.7406
+          ],
+          [
+            "kawasan konservasi tersebut.",
+            0.7422,
+            0.7672
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 15.0,
+        "boxes": [
+          [
+            "HORARKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "Kondisi ini memicu kekhawatiran",
+            0.6875,
+            0.7141
+          ],
+          [
+            "terhadap kerusakan ekosistem hutan",
+            0.7188,
+            0.7438
+          ],
+          [
+            "dan ancaman bagi habitat orangutan.",
+            0.7469,
+            0.775
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 16.0,
+        "boxes": [
+          [
+            "VIDEO:X/BSOSMEDKERAS",
+            0.375,
+            0.5266
+          ],
+          [
+            "Kondisi ini memicu kekhawatiran",
+            0.6875,
+            0.7141
+          ],
+          [
+            "terhadap kerusakan ekosistem hutan",
+            0.7188,
+            0.7438
+          ],
+          [
+            "dan ancaman bagi habitat orangutan.",
+            0.7453,
+            0.775
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 17.0,
+        "boxes": [
+          [
+            "LIORAKEA",
+            0.0688,
+            0.1047
+          ],
+          [
+            "Kondisi ini memicu kekhawatiran",
+            0.6875,
+            0.7141
+          ],
+          [
+            "terhadap kerusakan ekosistem hutan",
+            0.7188,
+            0.7438
+          ],
+          [
+            "dan ancaman bagi habitat orangutan.",
+            0.7469,
+            0.775
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 18.0,
+        "boxes": [
+          [
+            "VIDEO:X/BSOSMEDKERAS",
+            0.3734,
+            0.5266
+          ],
+          [
+            "Hingga Sabtu (10/10/2026), operasi water",
+            0.6875,
+            0.7141
+          ],
+          [
+            "bombing di wilayah Kotawaringin Barat",
+            0.7141,
+            0.7391
+          ],
+          [
+            "dan kawasan Tanjung Puting dilaporkan",
+            0.7391,
+            0.7656
+          ],
+          [
+            "telah menjatuhkan sekitar 574.000 liter air",
+            0.7656,
+            0.7906
+          ],
+          [
+            "untuk membantu memadamkan api.",
+            0.7906,
+            0.8172
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 19.0,
+        "boxes": [
+          [
+            "LIORAKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO:X/BSOSMEDKERAS",
+            0.3734,
+            0.5266
+          ],
+          [
+            "Hingga Sabtu (10/10/2026), operasi water",
+            0.6875,
+            0.7141
+          ],
+          [
+            "bombing di wilayah Kotawaringin Barat",
+            0.7141,
+            0.7391
+          ],
+          [
+            "dan kawasan Tanjung Puting dilaporkan",
+            0.7422,
+            0.7641
+          ],
+          [
+            "telah menjatuhkan sekitar 574.000 liter air",
+            0.7656,
+            0.7906
+          ],
+          [
+            "untuk membantu memadamkan api.",
+            0.7906,
+            0.8172
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 20.0,
+        "boxes": [
+          [
+            "LIORARTA",
+            0.0703,
+            0.1047
+          ],
+          [
+            "VIDEO:X/BSOSMEDKERAS",
+            0.3719,
+            0.5266
+          ],
+          [
+            "Hingga Sabtu (10/10/2026), operasi water",
+            0.6875,
+            0.7141
+          ],
+          [
+            "bombing di wilayah Kotawaringin Barat",
+            0.7141,
+            0.7391
+          ],
+          [
+            "dan kawasan Tanjung Puting dilaporkan",
+            0.7406,
+            0.7656
+          ],
+          [
+            "telah menjatuhkan sekitar 574.000 liter air",
+            0.7656,
+            0.7906
+          ],
+          [
+            "untuk membantu memadamkan api.",
+            0.7906,
+            0.8172
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 21.0,
+        "boxes": [
+          [
+            "VIDEO:X/BSOSMEDKERAS",
+            0.3734,
+            0.5266
+          ],
+          [
+            "Di tengah kondisi tersebut, relawan",
+            0.6875,
+            0.7156
+          ],
+          [
+            "mendesak pemerintah segera turun",
+            0.7188,
+            0.7453
+          ],
+          [
+            "tangan dengan menambah dukungan",
+            0.7469,
+            0.775
+          ],
+          [
+            "personel, logistik, anggaran, serta",
+            0.7766,
+            0.8031
+          ],
+          [
+            "pengerahan helikopter water",
+            0.8047,
+            0.8344
+          ],
+          [
+            "bombing.",
+            0.8344,
+            0.8625
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 22.0,
+        "boxes": [
+          [
+            "VIDEO:X/BSOSMEDKERAS",
+            0.3734,
+            0.5266
+          ],
+          [
+            "Di tengah kondisi tersebut, relawan",
+            0.6875,
+            0.7156
+          ],
+          [
+            "mendesak pemerintah segera turun",
+            0.7188,
+            0.7453
+          ],
+          [
+            "tangan dengan menambah dukungan",
+            0.7469,
+            0.7766
+          ],
+          [
+            "personel, logistik, anggaran, serta",
+            0.7766,
+            0.8047
+          ],
+          [
+            "pengerahan helikopter water",
+            0.8047,
+            0.8344
+          ],
+          [
+            "bombing.",
+            0.8344,
+            0.8625
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 23.0,
+        "boxes": [
+          [
+            "VID RAS",
+            0.3703,
+            0.5266
+          ],
+          [
+            "Di tengah kondisi tersebut, relawan",
+            0.6875,
+            0.7156
+          ],
+          [
+            "mendesak pemerintah segera turun",
+            0.7188,
+            0.7453
+          ],
+          [
+            "tangan dengan menambah dukungan",
+            0.7453,
+            0.7766
+          ],
+          [
+            "personel, logistik, anggaran, serta",
+            0.7766,
+            0.8047
+          ],
+          [
+            "pengerahan helikopter water",
+            0.8047,
+            0.8344
+          ],
+          [
+            "bombing.",
+            0.8344,
+            0.8625
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 24.0,
+        "boxes": [
+          [
+            "RORAKEN",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO:X/BSOSMEDKERAS",
+            0.3719,
+            0.5266
+          ],
+          [
+            "Di tengah kondisi tersebut, relawan",
+            0.6875,
+            0.7156
+          ],
+          [
+            "mendesak pemerintah segera turun",
+            0.7188,
+            0.7453
+          ],
+          [
+            "tangan dengan menambah dukungan",
+            0.7453,
+            0.7766
+          ],
+          [
+            "personel, logistik, anggaran, serta",
+            0.7766,
+            0.8047
+          ],
+          [
+            "pengerahan helikopter water",
+            0.8047,
+            0.8344
+          ],
+          [
+            "bombing.",
+            0.8344,
+            0.8625
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 25.0,
+        "boxes": [
+          [
+            "LIORARKEA",
+            0.0703,
+            0.1047
+          ],
+          [
+            "VIDEO: X/BSOSMEDKERAS",
+            0.3719,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 26.0,
+        "boxes": [
+          [
+            "VIDEO:X/BSOSMEDKERAS",
+            0.3719,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 27.0,
+        "boxes": [
+          [
+            "HORARKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO:X/BSOSMEDKERAS",
+            0.3719,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 28.0,
+        "boxes": [
+          [
+            "VIDEO:X/SSOSMEDKERAS",
+            0.3719,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 29.0,
+        "boxes": [
+          [
+            "VIDEO:X/BSOSMEDKERAS",
+            0.3719,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9391
+          ]
+        ]
+      },
+      {
+        "second": 30.0,
+        "boxes": [
+          [
+            "HORAKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO: X/BSOSMEDKERAS",
+            0.375,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 31.0,
+        "boxes": [
+          [
+            "LIORARKEA",
+            0.0703,
+            0.1047
+          ],
+          [
+            "VIDEO: X/BSOSMEDKERAS",
+            0.3703,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 32.0,
+        "boxes": [
+          [
+            "LIORAKEA",
+            0.0703,
+            0.1047
+          ],
+          [
+            "VIDEO: X/BSOSMEDKERAS",
+            0.3703,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 33.0,
+        "boxes": [
+          [
+            "LIORAKEA",
+            0.0703,
+            0.1031
+          ],
+          [
+            "VIDEO:X/SSOSMEDKERAS",
+            0.3734,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 34.0,
+        "boxes": [
+          [
+            "VIDEO: X/BSOSMEDKERAS",
+            0.3719,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9187,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 35.0,
+        "boxes": [
+          [
+            "HORAKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO:X/SSOSMEDKERA",
+            0.3766,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 36.0,
+        "boxes": [
+          [
+            "VIDEO: X/BSOSMEDKERA",
+            0.3766,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 37.0,
+        "boxes": [
+          [
+            "VID ERA",
+            0.3812,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 38.0,
+        "boxes": [
+          [
+            "LORAKEA",
+            0.0703,
+            0.1047
+          ],
+          [
+            "VIDEO:X/BSOSMEDKERA",
+            0.3766,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 39.0,
+        "boxes": [
+          [
+            "LORANEA",
+            0.0703,
+            0.1031
+          ],
+          [
+            "VIDEO:X/BSOSMEDKERAS",
+            0.375,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 40.0,
+        "boxes": [
+          [
+            "VIDEO:X/BSOSMEDKERAS",
+            0.3766,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 41.0,
+        "boxes": [
+          [
+            "LIORAKEA",
+            0.0703,
+            0.1031
+          ],
+          [
+            "VIDEO:X/SSOSMEDKERA",
+            0.3781,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 42.0,
+        "boxes": [
+          [
+            "HORAKE",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO:X/SSOSMEDKERAS",
+            0.375,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 43.0,
+        "boxes": [
+          [
+            "VIDEO:X/BSOSMEDKERA",
+            0.3766,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 44.0,
+        "boxes": [
+          [
+            "HORAKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO: X/BSOSMEDKERAS",
+            0.375,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9187,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 45.0,
+        "boxes": [
+          [
+            "VIDEO: X/BSOSMEDKERAS",
+            0.3734,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 46.0,
+        "boxes": [
+          [
+            "HORAREA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO:X/&SOSMEDKERAS",
+            0.3734,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9187,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 47.0,
+        "boxes": [
+          [
+            "HORAKEAN",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO:X/BSOSMEDKERAS",
+            0.3734,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9187,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 48.0,
+        "boxes": [
+          [
+            "RORAKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO:X/BSOSMEDKERAS",
+            0.3734,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9422
+          ]
+        ]
+      },
+      {
+        "second": 49.0,
+        "boxes": [
+          [
+            "LORAKEA",
+            0.0703,
+            0.1047
+          ],
+          [
+            "VIDEO:X/BSOSMEDKERA",
+            0.3766,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9422
+          ]
+        ]
+      },
+      {
+        "second": 50.0,
+        "boxes": [
+          [
+            "VIDEO:X/BSOSMEDKERA",
+            0.3766,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 51.0,
+        "boxes": [
+          [
+            "HORAKEA",
+            0.0719,
+            0.1031
+          ],
+          [
+            "VIDEO: X/BSOSMEDKERA",
+            0.3781,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 52.0,
+        "boxes": [
+          [
+            "VIDEO:X/BSOSMEDKERA",
+            0.3781,
+            0.5266
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9422
+          ]
+        ]
+      },
+      {
+        "second": 53.0,
+        "boxes": [
+          [
+            "LHORAKEA",
+            0.0703,
+            0.1047
+          ],
+          [
+            "VIDEO:X/BSOSMEDKERA:",
+            0.3766,
+            0.525
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9422
+          ]
+        ]
+      }
+    ],
+    "tiktok-7695348309413612808": [
+      {
+        "second": 0.0,
+        "boxes": [
+          [
+            "paña",
+            0.1625,
+            0.1812
+          ],
+          [
+            "VIDDEOI",
+            0.4688,
+            0.5141
+          ],
+          [
+            "Juara Bareng Timna:",
+            0.6906,
+            0.7297
+          ],
+          [
+            "Indonesia, Emil Aude",
+            0.7312,
+            0.7688
+          ],
+          [
+            "Dapat Penghormata",
+            0.775,
+            0.8141
+          ],
+          [
+            "Spesial di Spanyol",
+            0.8156,
+            0.8562
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 1.0,
+        "boxes": [
+          [
+            "a",
+            0.0891,
+            0.1109
+          ],
+          [
+            "Juara Bareng Timnas",
+            0.6922,
+            0.7297
+          ],
+          [
+            "Indonesia, Emil Audero",
+            0.7328,
+            0.7688
+          ],
+          [
+            "Dapat Penghormatan",
+            0.775,
+            0.8156
+          ],
+          [
+            "Spesial di Spanyol",
+            0.8156,
+            0.8562
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 2.0,
+        "boxes": [
+          [
+            "弘",
+            0.0,
+            0.0312
+          ],
+          [
+            "VIDEO:IG/UNIONRAYO",
+            0.3844,
+            0.5156
+          ],
+          [
+            "Juara Bareng Timnas",
+            0.6922,
+            0.7297
+          ],
+          [
+            "Indonesia, Emil Audero",
+            0.7328,
+            0.7688
+          ],
+          [
+            "Dapat Penghormatan",
+            0.775,
+            0.8141
+          ],
+          [
+            "Spesial di Spanyol",
+            0.8172,
+            0.8547
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 3.0,
+        "boxes": [
+          [
+            "VIDEO:IC/UNIONRA",
+            0.4062,
+            0.5141
+          ],
+          [
+            "Juara Bareng Timnas",
+            0.6922,
+            0.7297
+          ],
+          [
+            "Indonesia, Emil Audero",
+            0.7328,
+            0.7688
+          ],
+          [
+            "Dapat Penghormatan",
+            0.775,
+            0.8141
+          ],
+          [
+            "Spesial di Spanyol",
+            0.8156,
+            0.8562
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 4.0,
+        "boxes": [
+          [
+            "DIFFINCORE",
+            0.0063,
+            0.0531
+          ],
+          [
+            "Juara Bareng Timnas",
+            0.6922,
+            0.7297
+          ],
+          [
+            "Indonesia, Emil Audero",
+            0.7328,
+            0.7688
+          ],
+          [
+            "Dapat Penghormatan",
+            0.775,
+            0.8141
+          ],
+          [
+            "Spesial di Spanyol",
+            0.8172,
+            0.8547
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 5.0,
+        "boxes": [
+          [
+            "DIFFINCORE",
+            0.0016,
+            0.05
+          ],
+          [
+            "LORAKE",
+            0.0703,
+            0.1047
+          ],
+          [
+            "VIDEO:IG/UNIONRAYO",
+            0.3812,
+            0.5156
+          ],
+          [
+            "Kiper Timnas Indonesia Emil Audero",
+            0.6875,
+            0.7109
+          ],
+          [
+            "mendapat penghormatan khusus dari rekan-",
+            0.7125,
+            0.7359
+          ],
+          [
+            "rekan setimnya di Rayo Vallecano setelah",
+            0.7359,
+            0.7594
+          ],
+          [
+            "sukses mengantarkan skuad Garuda",
+            0.7594,
+            0.7828
+          ],
+          [
+            "menjuarai FIFA ASEAN Cup 2026.",
+            0.7844,
+            0.8078
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 6.0,
+        "boxes": [
+          [
+            "VIDEO:IG/UNIONRAY",
+            0.3984,
+            0.5125
+          ],
+          [
+            "Kiper Timnas Indonesia Emil Audero",
+            0.6875,
+            0.7109
+          ],
+          [
+            "mendapat penghormatan khusus dari rekan-",
+            0.7125,
+            0.7359
+          ],
+          [
+            "rekan setimnya di Rayo Vallecano setelah",
+            0.7375,
+            0.7594
+          ],
+          [
+            "sukses mengantarkan skuad Garuda",
+            0.7609,
+            0.7828
+          ],
+          [
+            "menjuarai FIFA ASEAN Cup 2026.",
+            0.7844,
+            0.8078
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 7.0,
+        "boxes": [
+          [
+            "VIDEO:",
+            0.4703,
+            0.5141
+          ],
+          [
+            "Kiper Timnas Indonesia Emil Audero",
+            0.6875,
+            0.7109
+          ],
+          [
+            "mendapat penghormatan khusus dari rekan-",
+            0.7125,
+            0.7359
+          ],
+          [
+            "rekan setimnya di Rayo Vallecano setelah",
+            0.7375,
+            0.7594
+          ],
+          [
+            "sukses mengantarkan skuad Garuda",
+            0.7594,
+            0.7828
+          ],
+          [
+            "menjuarai FIFA ASEAN Cup 2026.",
+            0.7844,
+            0.8078
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 8.0,
+        "boxes": [
+          [
+            "Kiper Timnas Indonesia Emil Audero",
+            0.6875,
+            0.7109
+          ],
+          [
+            "mendapat penghormatan khusus dari rekan-",
+            0.7125,
+            0.7359
+          ],
+          [
+            "rekan setimnya di Rayo Vallecano setelah",
+            0.7359,
+            0.7594
+          ],
+          [
+            "sukses mengantarkan skuad Garuda",
+            0.7609,
+            0.7828
+          ],
+          [
+            "menjuarai FIFA ASEAN Cup 2026.",
+            0.7844,
+            0.8078
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 9.0,
+        "boxes": [
+          [
+            "GRIFFINCORE",
+            0.1391,
+            0.175
+          ],
+          [
+            "VIDEO:IG/UNIONRAY",
+            0.3984,
+            0.5156
+          ],
+          [
+            "Kiper Timnas Indonesia Emil Audero",
+            0.6875,
+            0.7109
+          ],
+          [
+            "mendapat penghormatan khusus dari rekan-",
+            0.7125,
+            0.7359
+          ],
+          [
+            "rekan setimnya di Rayo Vallecano setelah",
+            0.7375,
+            0.7594
+          ],
+          [
+            "sukses mengantarkan skuad Garuda",
+            0.7609,
+            0.7828
+          ],
+          [
+            "menjuarai FIFA ASEAN Cup 2026.",
+            0.7844,
+            0.8078
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 10.0,
+        "boxes": [
+          [
+            "IFFINCORE",
+            0.0,
+            0.0516
+          ],
+          [
+            "IVAYO",
+            0.3844,
+            0.475
+          ],
+          [
+            "VIDEO:",
+            0.4703,
+            0.5141
+          ],
+          [
+            "Momen guard of honour atau pasillo",
+            0.6875,
+            0.7141
+          ],
+          [
+            "tersebut berlangsung pada Sabtu",
+            0.7156,
+            0.7406
+          ],
+          [
+            "(10/10/2026), menjelang pertandingan",
+            0.7406,
+            0.7703
+          ],
+          [
+            "Rayo Vallecano melawan Athletic Bilbao",
+            0.7703,
+            0.7937
+          ],
+          [
+            "di Estadio de Vallecas, Spanyol.",
+            0.7937,
+            0.8234
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 11.0,
+        "boxes": [
+          [
+            "15",
+            0.4609,
+            0.4828
+          ],
+          [
+            "Momen guard of honour atau pasillo",
+            0.6875,
+            0.7141
+          ],
+          [
+            "tersebut berlangsung pada Sabtu",
+            0.7156,
+            0.7406
+          ],
+          [
+            "(10/10/2026), menjelang pertandingan",
+            0.7406,
+            0.7703
+          ],
+          [
+            "Rayo Vallecano melawan Athletic Bilbao",
+            0.7688,
+            0.7953
+          ],
+          [
+            "di Estadio de Vallecas, Spanyol.",
+            0.7937,
+            0.8234
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 12.0,
+        "boxes": [
+          [
+            "VIDEO:IG/UNIONRAYO",
+            0.3828,
+            0.5266
+          ],
+          [
+            "Momen guard of honour atau pasillo",
+            0.6875,
+            0.7141
+          ],
+          [
+            "tersebut berlangsung pada Sabtu",
+            0.7156,
+            0.7406
+          ],
+          [
+            "(10/10/2026), menjelang pertandingan",
+            0.7406,
+            0.7703
+          ],
+          [
+            "Rayo Vallecano melawan Athletic Bilbao",
+            0.7703,
+            0.7953
+          ],
+          [
+            "di Estadio de Vallecas, Spanyol.",
+            0.7937,
+            0.8234
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9422
+          ]
+        ]
+      },
+      {
+        "second": 13.0,
+        "boxes": [
+          [
+            "ICVAO",
+            0.3797,
+            0.475
+          ],
+          [
+            "VIDEO:",
+            0.4703,
+            0.5141
+          ],
+          [
+            "Momen guard of honour atau pasillo",
+            0.6875,
+            0.7156
+          ],
+          [
+            "tersebut berlangsung pada Sabtu",
+            0.7156,
+            0.7406
+          ],
+          [
+            "(10/10/2026), menjelang pertandingan",
+            0.7406,
+            0.7703
+          ],
+          [
+            "Rayo Vallecano melawan Athletic Bilbao",
+            0.7688,
+            0.7953
+          ],
+          [
+            "di Estadio de Vallecas, Spanyol.",
+            0.7937,
+            0.8234
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 14.0,
+        "boxes": [
+          [
+            "WUNIONRAYO",
+            0.3797,
+            0.4625
+          ],
+          [
+            "Momen guard of honour atau pasillo",
+            0.6875,
+            0.7156
+          ],
+          [
+            "tersebut berlangsung pada Sabtu",
+            0.7156,
+            0.7406
+          ],
+          [
+            "(10/10/2026), menjelang pertandingan",
+            0.7406,
+            0.7703
+          ],
+          [
+            "Rayo Vallecano melawan Athletic Bilbao",
+            0.7688,
+            0.7953
+          ],
+          [
+            "di Estadio de Vallecas, Spanyol.",
+            0.7937,
+            0.8234
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 15.0,
+        "boxes": [
+          [
+            "VIDEO:IG/UNIONRAYO",
+            0.3812,
+            0.5156
+          ],
+          [
+            "Para pemain Rayo berbaris untuk memberikan",
+            0.6875,
+            0.7109
+          ],
+          [
+            "apresiasi kepada Audero atas pencapaiannya",
+            0.7125,
+            0.7359
+          ],
+          [
+            "bersama tim nasional Indonesia.",
+            0.7359,
+            0.7578
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 16.0,
+        "boxes": [
+          [
+            "VIDEO:IG/UNIONRAYO",
+            0.3812,
+            0.5156
+          ],
+          [
+            "Para pemain Rayo berbaris untuk memberikan",
+            0.6875,
+            0.7109
+          ],
+          [
+            "apresiasi kepada Audero atas pencapaiannya",
+            0.7109,
+            0.7359
+          ],
+          [
+            "bersama tim nasional Indonesia.",
+            0.7359,
+            0.7578
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 17.0,
+        "boxes": [
+          [
+            "VIDEO:IC/UNIONRA",
+            0.4,
+            0.5156
+          ],
+          [
+            "Para pemain Rayo berbaris untuk memberikan",
+            0.6875,
+            0.7109
+          ],
+          [
+            "apresiasi kepada Audero atas pencapaiannya",
+            0.7125,
+            0.7359
+          ],
+          [
+            "bersama tim nasional Indonesia.",
+            0.7359,
+            0.7578
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 18.0,
+        "boxes": [
+          [
+            "FINCORE",
+            0.0094,
+            0.0625
+          ],
+          [
+            "LIORAKEA",
+            0.0688,
+            0.1047
+          ],
+          [
+            "VIDEO",
+            0.475,
+            0.5156
+          ],
+          [
+            "Audero menjadi salah satu sosok penting",
+            0.6875,
+            0.7125
+          ],
+          [
+            "dalam keberhasilan Indonesia menaklukkan",
+            0.7125,
+            0.7359
+          ],
+          [
+            "Thailand pada partai final melalui adu",
+            0.7375,
+            0.7625
+          ],
+          [
+            "penalti setelah pertandingan berakhir",
+            0.7609,
+            0.7875
+          ],
+          [
+            "imbang 2-2 selama 120 menit.",
+            0.7859,
+            0.8125
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 19.0,
+        "boxes": [
+          [
+            "RIF",
+            0.0547,
+            0.0953
+          ],
+          [
+            "NCORE",
+            0.0563,
+            0.1016
+          ],
+          [
+            "VIDEO:IG/UNIONRAYO",
+            0.3828,
+            0.5156
+          ],
+          [
+            "Audero menjadi salah satu sosok penting",
+            0.6859,
+            0.7141
+          ],
+          [
+            "dalam keberhasilan Indonesia menaklukkan",
+            0.7141,
+            0.7359
+          ],
+          [
+            "Thailand pada partai final melalui adu",
+            0.7391,
+            0.7609
+          ],
+          [
+            "penalti setelah pertandingan berakhir",
+            0.7609,
+            0.7875
+          ],
+          [
+            "imbang 2-2 selama 120 menit.",
+            0.7875,
+            0.8109
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 20.0,
+        "boxes": [
+          [
+            "GRIFFINCORE",
+            0.1062,
+            0.1516
+          ],
+          [
+            "VIDEO:IGAUNIONRAYO",
+            0.3828,
+            0.5172
+          ],
+          [
+            "Audero menjadi salah satu sosok penting",
+            0.6859,
+            0.7141
+          ],
+          [
+            "dalam keberhasilan Indonesia menaklukkan",
+            0.7141,
+            0.7359
+          ],
+          [
+            "Thailand pada partai final melalui adu",
+            0.7391,
+            0.7609
+          ],
+          [
+            "penalti setelah pertandingan berakhir",
+            0.7609,
+            0.7875
+          ],
+          [
+            "imbang 2-2 selama 120 menit.",
+            0.7875,
+            0.8109
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 21.0,
+        "boxes": [
+          [
+            "VIDEO:IC/UNIONRAYO",
+            0.3844,
+            0.5141
+          ],
+          [
+            "2026",
+            0.4625,
+            0.5281
+          ],
+          [
+            "Kiper tersebut menggagalkan salah",
+            0.6875,
+            0.7172
+          ],
+          [
+            "satu tendangan penalti lawan",
+            0.7172,
+            0.7453
+          ],
+          [
+            "sebelum Indonesia memastikan",
+            0.7453,
+            0.7734
+          ],
+          [
+            "kemenangan 4-2.",
+            0.7766,
+            0.8031
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 22.0,
+        "boxes": [
+          [
+            "VIDEO:IG/UNIONRA",
+            0.4,
+            0.5141
+          ],
+          [
+            "Kiper tersebut menggagalkan salah",
+            0.6875,
+            0.7156
+          ],
+          [
+            "satu tendangan penalti lawan",
+            0.7172,
+            0.7453
+          ],
+          [
+            "sebelum Indonesia memastikan",
+            0.7453,
+            0.7734
+          ],
+          [
+            "kemenangan 4-2.",
+            0.7766,
+            0.8031
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 23.0,
+        "boxes": [
+          [
+            "RIFFINCORE",
+            0.0312,
+            0.0844
+          ],
+          [
+            "VIDEO:IG/UNIONRAYO",
+            0.3812,
+            0.5141
+          ],
+          [
+            "Kiper tersebut menggagalkan salah",
+            0.6875,
+            0.7172
+          ],
+          [
+            "satu tendangan penalti lawan",
+            0.7172,
+            0.7469
+          ],
+          [
+            "sebelum Indonesia memastikan",
+            0.7453,
+            0.7734
+          ],
+          [
+            "kemenangan 4-2.",
+            0.7766,
+            0.8031
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 24.0,
+        "boxes": [
+          [
+            "Kiper tersebut menggagalkan salah",
+            0.6875,
+            0.7172
+          ],
+          [
+            "satu tendangan penalti lawan",
+            0.7188,
+            0.7453
+          ],
+          [
+            "sebelum Indonesia memastikan",
+            0.7453,
+            0.7734
+          ],
+          [
+            "kemenangan 4-2.",
+            0.7766,
+            0.8031
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 25.0,
+        "boxes": [
+          [
+            "VIDEO:IG/UNIONRAY",
+            0.3937,
+            0.5125
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 26.0,
+        "boxes": [
+          [
+            "ALIGA",
+            0.2234,
+            0.2609
+          ],
+          [
+            "VIDEO:IC/UNIONRAYO",
+            0.3859,
+            0.5141
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9422
+          ]
+        ]
+      },
+      {
+        "second": 27.0,
+        "boxes": [
+          [
+            "VIDEO:IC/UNIONRA",
+            0.4,
+            0.5141
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 28.0,
+        "boxes": [
+          [
+            "713",
+            0.7188,
+            0.7406
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 29.0,
+        "boxes": [
+          [
+            "VOO",
+            0.4672,
+            0.5141
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9406
+          ]
+        ]
+      },
+      {
+        "second": 30.0,
+        "boxes": [
+          [
+            "CURA",
+            0.3984,
+            0.4703
+          ],
+          [
+            "713",
+            0.725,
+            0.7531
+          ],
+          [
+            "04",
+            0.7297,
+            0.7547
+          ],
+          [
+            "111",
+            0.7453,
+            0.7656
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9422
+          ]
+        ]
+      },
+      {
+        "second": 31.0,
+        "boxes": [
+          [
+            "DIGI",
+            0.5391,
+            0.5578
+          ],
+          [
+            "713",
+            0.7266,
+            0.7547
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9422
+          ]
+        ]
+      },
+      {
+        "second": 32.0,
+        "boxes": [
+          [
+            "713",
+            0.7234,
+            0.7469
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9422
+          ]
+        ]
+      },
+      {
+        "second": 33.0,
+        "boxes": [
+          [
+            "VIDEO:IG/UNIONRAYO",
+            0.3828,
+            0.5141
+          ],
+          [
+            "m",
+            0.7156,
+            0.7422
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9203,
+            0.9422
+          ]
+        ]
+      },
+      {
+        "second": 34.0,
+        "boxes": [
+          [
+            "VIDEO: IG/UNIONRAYO",
+            0.3828,
+            0.5156
+          ],
+          [
+            "16",
+            0.675,
+            0.7
+          ],
+          [
+            "713",
+            0.6875,
+            0.7156
+          ],
+          [
+            "www.koran-jakarta.com",
+            0.9219,
+            0.9422
+          ]
+        ]
+      }
+    ]
+  },
+  "matches": {
+    "tiktok-7695374501911088436": [
+      21,
+      18,
+      10,
+      68,
+      36,
+      12,
+      13,
+      14,
+      15,
+      8,
+      8,
+      7,
+      11,
+      6,
+      13,
+      9
+    ],
+    "tiktok-7695369417563131188": [
+      24,
+      17,
+      16,
+      52,
+      40,
+      14,
+      10,
+      14,
+      18,
+      7,
+      9,
+      6,
+      8,
+      5,
+      13,
+      9
+    ],
+    "tiktok-7695348309413612808": [
+      19,
+      13,
+      12,
+      50,
+      30,
+      10,
+      12,
+      12,
+      11,
+      6,
+      9,
+      8,
+      10,
+      6,
+      14,
+      8
+    ]
+  },
+  "unmatchable": [],
+  "cover": {
+    "headline": "Hiburan asrama",
+    "scene": "A man in a white sweater talks to the camera while a video plays in the background showing other people in a room.",
+    "icon": "TikTok @koranjakarta",
+    "handles": [
+      "@koranjakarta"
+    ],
+    "reaction_shape": "picture_in_picture",
+    "subject_media": "video",
+    "shows": [
+      "creator",
+      "subject",
+      "subject",
+      "subject",
+      "creator",
+      "creator"
+    ]
+  },
+  "classify": {
+    "tiktok-7695374501911088436": "footage",
+    "tiktok-7695369417563131188": "footage",
+    "tiktok-7695348309413612808": "footage"
+  },
+  "decisions": {
+    "is_repost": 0.9,
+    "handle": "koranjakarta",
+    "handle_probability": 1.0,
+    "platform": "tiktok",
+    "platform_probability": 1.0
+  },
+  "cuts": [
+    4.93333,
+    17.0333,
+    26.4333,
+    27.8
+  ],
+  "transcript": {
+    "language": "id",
+    "segments": [
+      [
+        6.42,
+        10.28,
+        "Dugaan kasus bully yang ada di Telkom University, lihat teman-teman story-nya."
+      ],
+      [
+        10.64,
+        13.2,
+        "Dia bikin hiburan asrama katanya."
+      ],
+      [
+        13.66,
+        21.12,
+        "Jadi terduga pelaku ini menyemprotkan semprotan untuk memancing api diarahkan ke korban, teman-teman."
+      ],
+      [
+        21.32,
+        22.16,
+        "Sakit banget."
+      ],
+      [
+        22.4,
+        27.54,
+        "Kita semua berharap Telkom University itu bisa mengambil langkah tegas untuk memproses kasus ini."
+      ],
+      [
+        27.8,
+        30.5,
+        "Aku masih gak habis pikir maksud hiburan asrama."
+      ],
+      [
+        30.68,
+        31.4,
+        "Hiburan apa?"
+      ]
+    ]
+  },
+  "turns": [
+    [
+      6.595344066619873,
+      31.502845764160156,
+      0
+    ]
+  ],
+  "assessment": {
+    "contribution": 0.53,
+    "discussion": 0.42
+  },
+  "discovery": {
+    "by_handle": {
+      "sadampermana.w": [
+        {
+          "post_id": "4006306149002980569",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DeZQjdYySzZ/",
+          "caption": "• Lebih dari 200.000 hektare hutan terbakar\n• Lebih dari 100.000 kasus ISPA akibat karhutla\n• Hewan-hewan kehilangan tempat tinggal, bahkan hangus terbakar\n• Ada orangutan yang meninggal akibat ISPA\n• Ada guru yang meninggal akibat asap kebakaran hutan\n• Ada anak kecil yang meninggal akibat kecelakaan karena asap kebakaran\n• Ada relawan pemadam kebakaran yang meninggal\n\nJANGAN BERCANDA DI SAAT KRISIS DAN GENTING SEPERTI INI! KITA BUTUH SOLUSI, KITA BUTUH JAWABAN!",
+          "published_at": "2026-10-12T12:43:31Z",
+          "duration_seconds": null,
+          "engagement": {
+            "like": 34034,
+            "comment": 245
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4006950201864163109",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/Debi_qWyw8l/",
+          "caption": "Aku punya tic disorder",
+          "published_at": "2026-10-13T10:02:39Z",
+          "duration_seconds": null,
+          "engagement": {
+            "like": 27307,
+            "comment": 117
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4005553168456395855",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DeWlWJmyKxP/",
+          "caption": "Kasus Telkom University",
+          "published_at": "2026-10-11T11:47:13Z",
+          "duration_seconds": null,
+          "engagement": {
+            "like": 30379,
+            "comment": 314
+          },
+          "hashtags": []
+        }
+      ],
+      "koranjakarta": [
+        {
+          "post_id": "7577448374090222855",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7577448374090222855",
+          "caption": "Longsor terjadi pada pagi hari, pukul 08.00 WIB tanggal 25 November 2025, di Sibolga, tepatnya di Aek Parombunan, GG Perjuangan, belakang SMPN 5. Warga setempat segera turun tangan membantu evakuasi seorang ibu dan anak yang tertimbun tanah longsor, berupaya menyelamatkan mereka meski kondisi medan sangat berbahaya. Kejadian ini memicu kekhawatiran masyarakat sekitar karena korban dan penyelamat sama-sama menghadapi risiko tinggi. Di akhir video yang beredar, terlihat longsor susulan datang secara tiba-tiba, menimpa beberapa warga yang tengah membantu evakuasi. Situasi ini menambah tekanan dan risiko bagi proses penyelamatan korban yang masih tertimbun, sehingga warga meminta doa dan bantuan agar ibu dan anak tersebut dapat segera ditemukan dengan selamat. #KoranJakarta #LongsorSibolga #EvakuasiKorban #DoaUntukSelamat [DS]",
+          "published_at": "2025-11-27T16:49:47Z",
+          "duration_seconds": 91.0,
+          "engagement": {
+            "play": 51200000,
+            "like": 1600000,
+            "comment": 29000,
+            "share": 79400,
+            "collect": 72969
+          },
+          "hashtags": [
+            "koranjakarta",
+            "longsorsibolga",
+            "evakuasikorban",
+            "doauntukselamat"
+          ]
+        },
+        {
+          "post_id": "7574821294802242824",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7574821294802242824",
+          "caption": "Sebuah video viral memperlihatkan seorang wanita memarahi seorang babysitter karena suara tangisan bayi di depan rumahnya, memicu perdebatan publik terkait toleransi dalam lingkungan permukiman. Dalam rekaman yang beredar luas di media sosial, wanita tersebut terdengar meluapkan kemarahannya dan meminta sang babysitter menjauh sambil berkata, “Jangan bawa anak itu ke depan komplek kita.” Insiden ini terjadi ketika bayi yang digendong sang pengasuh terus menangis cukup keras, sehingga memicu reaksi emosional dari penghuni rumah tersebut. Ungkapan ketidaknyamanan wanita itu, yang kemudian dijuluki sebagian warganet sebagai “Babyzilla”, turut menyulut berbagai diskusi mengenai batas kenyamanan pribadi serta bagaimana seharusnya interaksi sosial berlangsung di kawasan permukiman padat. Peristiwa tersebut kini ramai dibicarakan karena menyentuh isu yang lebih luas, yaitu toleransi, privasi, serta kesehatan mental dalam kehidupan bertetangga. Banyak warganet menilai bahwa lingkungan sosial tidak dapat sepenuhnya steril dari suara-suara alami, termasuk tangisan bayi, sementara sebagian lainnya menyebut reaksi berlebihan dapat dipicu oleh stres atau tekanan psikologis. Perdebatan ini pun menyoroti perlunya kesadaran bersama dalam menjaga kenyamanan lingkungan tanpa mengabaikan dinamika kehidupan warga lainnya, serta mendorong pentingnya komunikasi yang lebih humanis untuk menjaga keharmonisan di tengah masyarakat modern. #KoranJakarta #ViralVideo #TetanggaRibut #IsuToleransi [DS]",
+          "published_at": "2025-11-20T14:55:22Z",
+          "duration_seconds": 39.0,
+          "engagement": {
+            "play": 41900000,
+            "like": 1400000,
+            "comment": 31900,
+            "share": 80900,
+            "collect": 76394
+          },
+          "hashtags": [
+            "koranjakarta",
+            "viralvideo",
+            "tetanggaribut",
+            "isutoleransi"
+          ]
+        },
+        {
+          "post_id": "7573343756372561159",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7573343756372561159",
+          "caption": "Petugas PPSU yang sedang melaksanakan kerja bakti di Jl Kramat Oyar RT 006 RW 04, Setu, Cipayung, pada Minggu pagi (15/11/2025) menemukan seorang bayi perempuan yang dibuang di tempat pembuangan sampah. Bayi tersebut masih hidup dan dibungkus dalam kantong belanja, memicu kepanikan dan keprihatinan warga sekitar. Penemuan ini menjadi perhatian serius karena menunjukkan kasus pembuangan bayi yang membahayakan keselamatan anak. Petugas langsung memberikan pertolongan pertama sebelum membawa bayi tersebut ke Puskesmas terdekat untuk mendapatkan pemeriksaan medis, memastikan kondisi kesehatannya stabil. Pihak kepolisian, termasuk unit Perlindungan Perempuan dan Anak (PPA), telah turun tangan untuk menyelidiki kasus ini. Langkah awal penyelidikan difokuskan pada identifikasi orang tua atau pihak yang membuang bayi, serta memastikan keamanan dan perlindungan jangka panjang bagi anak tersebut. Kasus ini juga menjadi sorotan bagi masyarakat setempat terkait pentingnya kesadaran akan hak anak dan perlindungan terhadap bayi baru lahir, sekaligus mendorong upaya preventif agar kejadian serupa tidak terulang. #KoranJakarta #BayiDibuang  #PPSUCipayung  #PenyelamatanAnak  [DS]",
+          "published_at": "2025-11-16T15:21:46Z",
+          "duration_seconds": 26.0,
+          "engagement": {
+            "play": 29100000,
+            "like": 726900,
+            "comment": 8103,
+            "share": 55400,
+            "collect": 23650
+          },
+          "hashtags": [
+            "koranjakarta",
+            "bayidibuang",
+            "ppsucipayung",
+            "penyelamatananak"
+          ]
+        },
+        {
+          "post_id": "7696090174798843137",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7696090174798843137",
+          "caption": "Kebakaran hutan dan lahan terjadi di Desa Sampurna, Kecamatan Jejangkit, Kabupaten Barito Kuala, Kalimantan Selatan, Selasa (13/10/2026). Api dilaporkan telah memasuki kawasan permukiman warga sehingga keselamatan masyarakat menjadi perhatian utama. Penanganan darurat dan pemantauan di lokasi diperlukan untuk mencegah api meluas serta memastikan warga di sekitar titik kebakaran mendapat perlindungan. #KoranJakarta #Karhutla #KalimantanSelatan #KebakaranHutan [SS]",
+          "published_at": "2026-10-13T10:01:26Z",
+          "duration_seconds": 17.0,
+          "engagement": {
+            "play": 13400,
+            "like": 101,
+            "comment": 5,
+            "share": 4,
+            "collect": 4
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "7696049949603056902",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7696049949603056902",
+          "caption": "Sebuah unggahan di media sosial Threads menjadi sorotan setelah seorang perempuan membagikan kebiasaan suaminya yang tidur bersama seekor ular piton berukuran besar. Dalam unggahan akun @raniavania__, perempuan tersebut mengungkapkan kekhawatirannya melihat sang suami menjadikan ular sebagai teman tidur pada malam hari. Foto yang dibagikan memperlihatkan seekor piton melingkar di tubuh pria yang tengah berbaring di atas kasur. Melalui unggahannya, perempuan itu mengaku kerap merasa waswas setiap malam karena takut terjadi hal yang tidak diinginkan, termasuk kemungkinan dirinya atau sang suami terkena gigitan ular. Ia juga mempertanyakan bagaimana orang lain akan menyikapi situasi serupa jika berada di posisinya. Unggahan tersebut mengundang perhatian warganet, tetapi belum terdapat informasi terverifikasi mengenai jenis dan ukuran pasti ular, alasan sang suami memeliharanya, maupun tingkat keamanannya saat berada di tempat tidur. #KoranJakarta #UlarPiton #ViralMediaSosial #ThreadsIndonesia [DS]",
+          "published_at": "2026-10-13T07:25:51Z",
+          "duration_seconds": 26.0,
+          "engagement": {
+            "play": 774000,
+            "like": 13400,
+            "comment": 1738,
+            "share": 7134,
+            "collect": 1167
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "7696048224259345716",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7696048224259345716",
+          "caption": "Kondisi Faisal, pria yang dilaporkan tidur di dalam got selama sekitar satu bulan di kawasan Pasar Serpong, Tangerang Selatan, menjadi perhatian. Selain memastikan keselamatan dan kondisi kesehatannya, penanganan perlu mencakup pendampingan sosial serta upaya mencari keluarga jika memungkinkan. Dinas Sosial diharapkan segera melakukan penanganan sesuai kebutuhan agar Faisal tidak sekadar dipindahkan dari lokasi, tetapi juga memperoleh bantuan yang berkelanjutan. #KoranJakarta#TangerangSelatan#KesejahteraanSosial#Kemanusiaan [SS]",
+          "published_at": "2026-10-13T07:18:37Z",
+          "duration_seconds": 56.0,
+          "engagement": {
+            "play": 972300,
+            "like": 22700,
+            "comment": 1047,
+            "share": 19100,
+            "collect": 1581
+          },
+          "hashtags": [
+            "koranjakarta",
+            "tangerangselatan",
+            "kesejahteraansosial",
+            "kemanusiaan"
+          ]
+        },
+        {
+          "post_id": "7696045230587497729",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7696045230587497729",
+          "caption": "Seorang remaja perempuan berusia 15 tahun di Guatemala dilaporkan bangun di dalam peti setelah keluarganya mengira ia meninggal selama hampir delapan jam. Sang ayah mengambil kesimpulan tersebut setelah putrinya kehilangan kesadaran, tanpa adanya pernyataan kematian dari dokter. Peristiwa ini menjadi pengingat penting bahwa kondisi seseorang yang tidak sadarkan diri tidak boleh langsung dianggap meninggal. Pemeriksaan oleh tenaga medis diperlukan untuk memastikan kondisi pasien secara tepat. #KoranJakarta #Guatemala #BeritaViral #Kesehatan [SS]",
+          "published_at": "2026-10-13T07:06:59Z",
+          "duration_seconds": 59.0,
+          "engagement": {
+            "play": 200800,
+            "like": 692,
+            "comment": 9,
+            "share": 28,
+            "collect": 94
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "7696040934466800948",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7696040934466800948",
+          "caption": "Kepala Kesatuan Bangsa dan Politik (Kesbangpol) Provinsi Jambi, Ismed Wijaya, terlibat adu argumen dengan massa demonstrasi yang menuntut penanganan serius kebakaran hutan dan lahan (karhutla) serta kabut asap di Jambi, Senin (12/10/2026). Ketegangan terjadi di depan Kantor Gubernur Jambi ketika Ismed meminta demonstran menyudahi aksi. Namun, massa tetap bertahan dan mendesak pemerintah memberikan solusi konkret atas bencana asap yang berdampak terhadap masyarakat. Dalam aksi tersebut, Ismed menyebut pemerintah masih kekurangan personel untuk menangani kebakaran di lapangan dan meminta demonstran turut membantu pemadaman. Sementara itu, massa juga menyoroti penanganan karhutla dan transparansi anggaran yang disebut mencapai Rp30 miliar. Insiden ini menambah sorotan terhadap respons pemerintah daerah dalam menghadapi karhutla, terutama ketika masyarakat menuntut langkah nyata untuk mengatasi kabut asap dan melindungi kesehatan warga. #KoranJakarta #Karhutla #KabutAsap #Jambi [DS]",
+          "published_at": "2026-10-13T06:50:39Z",
+          "duration_seconds": 53.0,
+          "engagement": {
+            "play": 5630,
+            "like": 31,
+            "comment": 1,
+            "share": 3,
+            "collect": 0
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "7696033209108286772",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7696033209108286772",
+          "caption": "Pria berinisial Y akhirnya buka suara terkait video panggilan video dirinya dengan presenter Ruben Onsu yang beredar di media sosial dan memicu polemik. Y menegaskan rekaman tersebut merupakan video asli tanpa rekayasa. Klarifikasi itu disampaikan di tengah ramainya perbincangan publik yang turut menyeret nama Ruben Onsu dan mantan istrinya, Sarwendah. Selain memastikan keaslian rekaman, Y juga mengungkapkan awal mula perkenalannya dengan Ruben Onsu. Menurut keterangannya, keduanya pertama kali bertemu dalam sebuah acara ulang tahun sahabat Ruben, ketika Y dan Artos bertugas sebagai pembawa acara. Y menyebut komunikasi mereka berlanjut setelah pertemuan tersebut. Pernyataan Y menjadi bagian dari klarifikasi atas video yang beredar, sementara polemik terkait rekaman itu terus menjadi perhatian publik. #KoranJakarta #RubenOnsu #Sarwendah #VideoViral [DS]",
+          "published_at": "2026-10-13T06:20:52Z",
+          "duration_seconds": 68.0,
+          "engagement": {
+            "play": 229100,
+            "like": 2863,
+            "comment": 123,
+            "share": 264,
+            "collect": 229
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "7696030825766227252",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7696030825766227252",
+          "caption": "Kisah haru datang dari Firdaus, bocah berusia 9 tahun asal Padang Tiji, Kabupaten Pidie, Aceh, yang rela mengayuh sepeda sejauh belasan kilometer untuk mengantar ayahnya berobat ke RSUD Tgk. Chik Ditiro, Sigli. Berdasarkan pemberitaan media, perjalanan tersebut diperkirakan mencapai 14,5 hingga 20 kilometer. Firdaus terpaksa menempuh perjalanan itu karena keterbatasan biaya transportasi. Kisah perjuangannya menjadi perhatian publik setelah video perjalanannya beredar di media sosial pada awal Oktober 2026. Di usia yang seharusnya diisi dengan bermain dan belajar, Firdaus justru menunjukkan kepedulian besar terhadap kondisi ayahnya yang sedang sakit. Kisah tersebut mengundang simpati masyarakat hingga bantuan mulai berdatangan untuk keluarganya. Salah satu bantuan yang diberitakan adalah pemberian sepeda listrik dari istri Wakil Bupati Pidie pada 8 Oktober 2026. Peristiwa ini sekaligus menyoroti pentingnya akses transportasi dan layanan kesehatan bagi keluarga yang menghadapi keterbatasan ekonomi. #KoranJakarta #KisahHaru #PidieAceh #PerjuanganAnak [DS]",
+          "published_at": "2026-10-13T06:10:50Z",
+          "duration_seconds": 58.0,
+          "engagement": {
+            "play": 1498,
+            "like": 16,
+            "comment": 1,
+            "share": 1,
+            "collect": 2
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "7696022007619554612",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7696022007619554612",
+          "caption": "Antrean panjang kendaraan untuk mendapatkan bahan bakar minyak (BBM) masih menjadi sorotan di sejumlah wilayah Bali. Dalam sebuah video yang beredar, antrean kendaraan di salah satu SPBU di kawasan Kuta terlihat mengular hingga pukul 03.00 WITA dini hari. Kondisi tersebut menunjukkan masyarakat harus mengantre sejak dini hari demi mendapatkan BBM, meski sebagian di antaranya harus kembali bekerja pada pagi harinya. Panjangnya antrean BBM berpotensi mengganggu waktu istirahat, aktivitas kerja, hingga produktivitas masyarakat, terutama pekerja yang bergantung pada kendaraan untuk mencari nafkah. Di tengah kondisi tersebut, Pertamina dan pemerintah diharapkan memberikan penjelasan terbuka mengenai ketersediaan stok, distribusi, serta langkah konkret untuk menormalkan pasokan BBM di Bali. Masyarakat membutuhkan kepastian agar dapat memperoleh BBM secara wajar tanpa harus mengorbankan waktu istirahat dan pekerjaan. #KoranJakarta #AntreanBBM #BBMBali #BaliHariIni [DS]",
+          "published_at": "2026-10-13T05:36:32Z",
+          "duration_seconds": 50.0,
+          "engagement": {
+            "play": 1868,
+            "like": 12,
+            "comment": 1,
+            "share": 2,
+            "collect": 2
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "7696008364978933044",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7696008364978933044",
+          "caption": "Nobel Ekonomi 2026 disebut diberikan kepada Robert Hall dan Michael Woodford atas penelitian tentang bagaimana kebijakan moneter dan fiskal dapat membantu menjaga stabilitas ekonomi. Pendekatan mereka menyoroti perilaku rumah tangga dan perusahaan dalam memengaruhi kondisi ekonomi secara keseluruhan. Model ekonomi semacam ini menjadi salah satu landasan untuk menganalisis respons pemerintah dan bank sentral ketika menghadapi krisis. #KoranJakarta #NobelEkonomi #EkonomiGlobal #KebijakanMoneter [SS]",
+          "published_at": "2026-10-13T04:43:57Z",
+          "duration_seconds": 31.0,
+          "engagement": {
+            "play": 735,
+            "like": 5,
+            "comment": 0,
+            "share": 1,
+            "collect": 0
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "7696000216301882630",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7696000216301882630",
+          "caption": "Reforma agraria bukan sekadar membagikan tanah kepada petani. Tanpa modal, teknologi, pendampingan, dan akses pasar, kepemilikan lahan belum tentu meningkatkan kesejahteraan. Penguatan koperasi tani dan kemitraan yang adil dengan dunia usaha menjadi kunci agar petani memiliki posisi tawar lebih kuat dan menikmati hasil produksinya secara layak. #KoranJakarta #ReformaAgraria #PetaniSejahtera #KetahananPangan [SS]",
+          "published_at": "2026-10-13T04:12:50Z",
+          "duration_seconds": 30.0,
+          "engagement": {
+            "play": 1292,
+            "like": 4,
+            "comment": 0,
+            "share": 0,
+            "collect": 0
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "7695730137618238772",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7695730137618238772",
+          "caption": "Dugaan pencopetan ponsel terjadi di toko OH!SOME, Mall Kelapa Gading, Jakarta Utara, pada Minggu (11/10/2026) sekitar pukul 14.00 WIB. Seorang pengunjung berinisial NNW (20) dilaporkan kehilangan iPhone 16 Pro Max saat sedang melihat produk kecantikan. Berdasarkan informasi yang beredar dan pemberitaan media, seorang perempuan bermasker diduga mengambil ponsel dari dalam tas korban. Rekaman kamera pengawas (CCTV) yang berkaitan dengan kejadian tersebut kemudian menjadi perhatian publik di media sosial. Polsek Kelapa Gading telah mengecek lokasi kejadian serta memeriksa saksi dan rekaman CCTV untuk menelusuri dugaan pencopetan tersebut. Polisi juga mendalami kemungkinan adanya pelaku lain yang terlibat. Berdasarkan pemberitaan pada 12 Oktober 2026, korban disebut belum membuat laporan polisi secara resmi saat informasi tersebut diterbitkan. Masyarakat diimbau tetap waspada saat berada di tempat umum dan memastikan barang berharga tersimpan dengan aman. Dugaan keterlibatan seseorang dalam kejadian ini masih menunggu hasil penyelidikan kepolisian. #KoranJakarta #MallKelapaGading #DugaanPencopetan #KeamananPublik [DS]",
+          "published_at": "2026-10-12T10:44:05Z",
+          "duration_seconds": 31.0,
+          "engagement": {
+            "play": 103800,
+            "like": 1070,
+            "comment": 108,
+            "share": 676,
+            "collect": 160
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "7695726130996776244",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7695726130996776244",
+          "caption": "Kecelakaan maut yang melibatkan truk Hino pengangkut pasir terjadi di Desa Sumberwuluh, Kecamatan Candipuro, Kabupaten Lumajang, Jawa Timur, Kamis (8/10/2026). Insiden tersebut menewaskan pasangan suami istri, Martha Afrilia Fradka (28) dan Eka Yuliasasi Nabila (25). Berdasarkan laporan sejumlah media, truk Hino yang melaju dari arah Malang menuju Lumajang diduga mengalami gangguan rem saat melintasi jalan menurun. Kendaraan itu kemudian menabrak bagian belakang truk Mitsubishi yang baru keluar dari area pertambangan. Setelah benturan, truk Hino dilaporkan oleng dan terbalik sebelum menghantam Toyota Avanza dari arah berlawanan. Pasangan suami istri yang berada di dalam truk Hino mengalami luka berat dan dinyatakan meninggal dunia dalam perjalanan menuju rumah sakit. Kecelakaan tersebut juga melibatkan sejumlah kendaraan lain. Dugaan rem blong menjadi salah satu faktor yang disorot dalam pemberitaan, sementara penyebab pasti kecelakaan tetap mengacu pada hasil penyelidikan pihak berwenang. #KoranJakarta #KecelakaanMaut #Lumajang #KecelakaanTruk [DS]",
+          "published_at": "2026-10-12T10:28:25Z",
+          "duration_seconds": 26.0,
+          "engagement": {
+            "play": 6974,
+            "like": 45,
+            "comment": 3,
+            "share": 2,
+            "collect": 7
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "7695721812029721862",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7695721812029721862",
+          "caption": "Seorang perempuan asal Vietnam bernama Nguyễn Thị Định menjadi sorotan karena mempertahankan rambutnya hingga lebih dari 6 meter setelah puluhan tahun tidak memotongnya. Dalam laporan media Vietnam pada 2020, Định saat itu berusia 83 tahun dan mengaku berhenti memotong rambut sejak usia 19 tahun. Keputusan tersebut berawal dari pengalaman sakit kepala hebat setelah memotong rambut. Ia meyakini kondisinya membaik ketika rambutnya kembali tumbuh, sehingga memilih membiarkannya panjang dan berhenti keramas karena merasa aktivitas tersebut dapat memicu keluhan serupa. Rambut Định yang sangat panjang dan tebal membuatnya harus menggulung serta menyimpannya dalam kantong kain, bahkan membatasi keleluasaan bergeraknya. Meski kisahnya menarik perhatian publik, keyakinan bahwa rambut panjang dapat mencegah atau menyembuhkan sakit kepala belum terbukti secara medis. Pengalamannya menjadi pengingat bahwa keputusan pribadi terkadang dibentuk oleh pengalaman masa lalu dan keyakinan yang dipegang selama bertahun-tahun. Kisah ini pun mengundang perhatian bukan hanya karena panjang rambutnya yang tidak biasa, tetapi juga karena pengaruh keyakinan tersebut terhadap kehidupan sehari-harinya. #KoranJakarta #KisahUnik #NguyenThiDinh #Vietnam [DS]",
+          "published_at": "2026-10-12T10:12:01Z",
+          "duration_seconds": 123.0,
+          "engagement": {
+            "play": 150100,
+            "like": 663,
+            "comment": 13,
+            "share": 501,
+            "collect": 42
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "7695716580663168308",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7695716580663168308",
+          "caption": "Keberhasilan Tiongkok mendorong pertumbuhan ekonomi dan mengentaskan kemiskinan menjadi sorotan di tengah tantangan pencapaian Sustainable Development Goals (SDGs) pada 2030. Pengalaman pembangunan Tiongkok, termasuk melalui infrastruktur dan konektivitas ekonomi, dinilai dapat menjadi referensi bagi negara berkembang. Pengamat ekonomi Universitas Wijaya Kusuma Surabaya, Ermatry Hariani, mengingatkan bahwa pertumbuhan ekonomi harus berdampak langsung pada kehidupan masyarakat. Penciptaan lapangan kerja, peningkatan pendapatan, pemerataan pembangunan, dan akses pendidikan menjadi faktor penting agar kemajuan ekonomi benar-benar dirasakan masyarakat Indonesia. #KoranJakarta#EkonomiIndonesia#Tiongkok#SDGs2030 [SS]",
+          "published_at": "2026-10-12T09:51:33Z",
+          "duration_seconds": 38.0,
+          "engagement": {
+            "play": 984,
+            "like": 10,
+            "comment": 1,
+            "share": 0,
+            "collect": 0
+          },
+          "hashtags": [
+            "koranjakarta",
+            "ekonomiindonesia",
+            "tiongkok",
+            "sdgs2030"
+          ]
+        },
+        {
+          "post_id": "7695691176795557172",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7695691176795557172",
+          "caption": "Pelaku industri menghadapi tekanan dari berbagai arah, mulai dari pajak dan biaya logistik hingga gangguan pasokan solar. Di tengah kenaikan biaya operasional, daya beli masyarakat yang melemah membuat perusahaan kesulitan menaikkan harga jual tanpa berisiko kehilangan konsumen. Pengamat ekonomi UMY Achmad Ma’ruf menekankan pentingnya kelancaran pasokan energi dan efisiensi logistik. Sementara itu, Direktur Eksekutif Celios Nailul Huda menilai pemerintah perlu menjaga distribusi solar sekaligus mendorong konsumsi masyarakat agar aktivitas usaha kembali bergerak. #KoranJakarta #IndustriNasional #EkonomiIndonesia #BBMSolar [SS]",
+          "published_at": "2026-10-12T08:13:07Z",
+          "duration_seconds": 30.0,
+          "engagement": {
+            "play": 2617,
+            "like": 18,
+            "comment": 2,
+            "share": 1,
+            "collect": 4
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "7695685676917935366",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7695685676917935366",
+          "caption": "Rombongan EPA Persib Bandung mengalami insiden penyerangan di Rest Area Batang KM 360, Jawa Tengah, saat perjalanan pulang menuju Bandung, Minggu (11/10/2026) malam. Bus rombongan dilaporkan rusak, sejumlah koper ofisial dan pemain EPA U-18 hilang, serta seorang personel mengalami kekerasan fisik. Persib menyebut rombongan diduga berpapasan dengan kelompok suporter Persija Jakarta yang pulang dari Yogyakarta. Klub meminta insiden tersebut diusut secara objektif melalui jalur hukum dan mengimbau seluruh pihak menahan diri agar tidak terjadi aksi balasan. #KoranJakarta #PersibBandung #SuporterSepakBola #SepakBolaIndonesia [SS]",
+          "published_at": "2026-10-12T07:51:39Z",
+          "duration_seconds": 73.0,
+          "engagement": {
+            "play": 144300,
+            "like": 2394,
+            "comment": 156,
+            "share": 309,
+            "collect": 118
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "7695660633705975046",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7695660633705975046",
+          "caption": "Kebakaran lahan gambut tidak selalu benar-benar padam meski api di permukaan telah hilang. Bara dapat bertahan di bawah tanah dan kembali memicu kebakaran, terutama ketika gambut mengering akibat turunnya muka air tanah. Pengendalian kebakaran perlu dilakukan dengan membasahi lapisan gambut yang kering, menjaga tinggi muka air tanah, serta menyediakan sumber air melalui sumur bor di lokasi yang sulit dijangkau. Di sisi lain, masyarakat juga perlu mewaspadai kabut asap yang dapat mengganggu pernapasan dan mengiritasi mata, terutama pada anak-anak, ibu hamil, serta penderita penyakit pernapasan. #KoranJakarta #KebakaranGambut #Karhutla #KabutAsap [SS]",
+          "published_at": "2026-10-12T06:14:40Z",
+          "duration_seconds": 35.0,
+          "engagement": {
+            "play": 5533,
+            "like": 34,
+            "comment": 0,
+            "share": 0,
+            "collect": 3
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "7695631689376075060",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7695631689376075060",
+          "caption": "Unggahan seorang pengguna media sosial bernama Satria Rafisky menjadi sorotan setelah ia mengaku mengalami dugaan pelecehan saat berada di toilet Mall Mega Bekasi. Dalam unggahannya, Satria menceritakan bahwa dirinya sedang menggunakan toilet sambil bermain ponsel ketika melihat pantulan kepala seseorang muncul berulang kali dari atas sekat toilet di sebelahnya. Ia awalnya memilih tidak menegur karena belum memiliki bukti untuk memastikan kejadian tersebut. Satria kemudian keluar dari toilet dan kembali masuk sekitar lima menit kemudian untuk memastikan situasi. Dalam kronologi yang dibagikan, ia mengaku kembali melihat tindakan mencurigakan dari pria yang diduga mengintip tersebut. Peristiwa ini memicu perhatian warganet dan menyoroti pentingnya keamanan serta perlindungan privasi pengunjung di fasilitas umum. Hingga informasi ini disusun, dugaan tersebut masih perlu dikonfirmasi melalui keterangan pihak pengelola Mall Mega Bekasi maupun aparat berwenang. #KoranJakarta #MallMegaBekasi #DugaanPelecehan #KeamananPublik [DS]",
+          "published_at": "2026-10-12T04:22:00Z",
+          "duration_seconds": 76.0,
+          "engagement": {
+            "play": 94300,
+            "like": 630,
+            "comment": 35,
+            "share": 131,
+            "collect": 72
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "7695628149408681222",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7695628149408681222",
+          "caption": "Seorang pria diduga kecanduan judi slot online hingga emosinya meluap dan membuat suasana rumah menjadi tegang. Dalam video yang beredar, pria berbaju hitam itu terlihat marah-marah dan melakukan gerakan kasar di dalam rumah, sementara seorang anak kecil berada tak jauh dari lokasi kejadian. Situasi semakin mengkhawatirkan ketika rekaman memperlihatkan kondisi kaca yang pecah di dalam rumah. Kamera kemudian merekam sejumlah sudut ruangan saat pria tersebut masih berada di lokasi. Peristiwa ini kembali menyoroti dampak buruk kecanduan judi online, yang bukan hanya berpotensi menghancurkan kondisi finansial, tetapi juga memicu konflik dan membuat anggota keluarga ikut terdampak. #KoranJakarta #JudiOnline #KecanduanSlot #KDRT [DS]",
+          "published_at": "2026-10-12T04:08:55Z",
+          "duration_seconds": 64.0,
+          "engagement": {
+            "play": 3900000,
+            "like": 152200,
+            "comment": 13100,
+            "share": 50500,
+            "collect": 13104
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "7695605633789201685",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7695605633789201685",
+          "caption": "Rekaman eksklusif Al Arabiya English memperlihatkan suasana menegangkan di Bandara Internasional King Khalid, Riyadh, Arab Saudi. Saat sejumlah jemaah umrah bersiap naik ke pesawat, serangan yang dikaitkan dengan kelompok Houthi dilaporkan menghantam bandara tersebut. Insiden ini kembali menyoroti ancaman keamanan di kawasan Timur Tengah, termasuk potensi dampaknya terhadap penerbangan dan perjalanan ibadah. Bagaimana perkembangan situasi setelah serangan tersebut? Informasi lebih lanjut perlu menunggu konfirmasi dari otoritas terkait. #KoranJakarta #ArabSaudi #Houthi #JemaahUmrah [SS]",
+          "published_at": "2026-10-12T02:40:26Z",
+          "duration_seconds": 37.0,
+          "engagement": {
+            "play": 244300,
+            "like": 4046,
+            "comment": 27,
+            "share": 762,
+            "collect": 204
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "7695374501911088436",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7695374501911088436",
+          "caption": "Agnez Mo tampil membawakan lagu “Indonesia Raya” dalam seremoni pembukaan MotoGP Mandalika 2026 di Sirkuit Internasional Pertamina Mandalika, Lombok Tengah, Nusa Tenggara Barat, Minggu (11/10/2026). Penampilannya menjadi bagian dari rangkaian acara sebelum balapan utama dimulai. Mengenakan gaun putih, Agnez juga membawakan lagu “Kebyar-Kebyar” yang disambut antusias oleh penonton di tribun. Suasana semakin khidmat saat Agnez menyanyikan lagu kebangsaan Indonesia di hadapan para pembalap dan penonton yang memadati sirkuit. Momen tersebut menjadi bagian dari upaya menghadirkan unsur nasionalisme dalam ajang balap motor internasional. Kehadiran Agnez Mo sekaligus menambah kemeriahan penyelenggaraan MotoGP Mandalika 2026 yang kembali menjadi sorotan publik. #KoranJakarta #AgnezMo #MotoGPMandalika #indonesiaRaya [DS]",
+          "published_at": "2026-10-11T11:43:23Z",
+          "duration_seconds": 60.0,
+          "engagement": {
+            "play": 6659,
+            "like": 91,
+            "comment": 3,
+            "share": 0,
+            "collect": 3
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "7695369417563131188",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7695369417563131188",
+          "caption": "Kebakaran hutan dan lahan di Taman Nasional Tanjung Puting, Kalimantan Tengah, dilaporkan semakin mengkhawatirkan. Api yang terus meluas membuat relawan kewalahan melakukan pemadaman di kawasan konservasi tersebut. Kondisi ini memicu kekhawatiran terhadap kerusakan ekosistem hutan dan ancaman bagi habitat orangutan. Hingga Sabtu (10/10/2026), operasi water bombing di wilayah Kotawaringin Barat dan kawasan Tanjung Puting dilaporkan telah menjatuhkan sekitar 574.000 liter air untuk membantu memadamkan api. Di tengah kondisi tersebut, relawan mendesak pemerintah segera turun tangan dengan menambah dukungan personel, logistik, anggaran, serta pengerahan helikopter water bombing. Mereka menilai penanganan di lapangan membutuhkan bantuan yang lebih besar agar kebakaran dapat segera dikendalikan. Kabut asap dan keterbatasan jarak pandang juga menjadi kendala dalam operasi udara. Situasi ini membuat bantuan cepat sangat dibutuhkan untuk mencegah dampak kebakaran semakin meluas. #KoranJakarta #Karhutla #TanjungPuting #FireNesia [DS]",
+          "published_at": "2026-10-11T11:23:42Z",
+          "duration_seconds": 54.0,
+          "engagement": {
+            "play": 8275,
+            "like": 71,
+            "comment": 4,
+            "share": 2,
+            "collect": 4
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "7695348309413612808",
+          "owner_handle": "koranjakarta",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7695348309413612808",
+          "caption": "Kiper Timnas Indonesia Emil Audero mendapat penghormatan khusus dari rekan-rekan setimnya di Rayo Vallecano setelah sukses mengantarkan skuad Garuda menjuarai FIFA ASEAN Cup 2026. Momen guard of honour atau pasillo tersebut berlangsung pada Sabtu (10/10/2026), menjelang pertandingan Rayo Vallecano melawan Athletic Bilbao di Estadio de Vallecas, Spanyol. Para pemain Rayo berbaris untuk memberikan apresiasi kepada Audero atas pencapaiannya bersama tim nasional Indonesia. Audero menjadi salah satu sosok penting dalam keberhasilan Indonesia menaklukkan Thailand pada partai final melalui adu penalti setelah pertandingan berakhir imbang 2-2 selama 120 menit. Kiper tersebut menggagalkan salah satu tendangan penalti lawan sebelum Indonesia memastikan kemenangan 4-2. Penghormatan dari Rayo Vallecano menjadi bentuk apresiasi atas pencapaian Audero di level internasional sekaligus momen membanggakan bagi sepak bola Indonesia. #KoranJakarta #EmilAudero #TimnasIndonesia #RayoVallecano [DS]",
+          "published_at": "2026-10-11T10:01:48Z",
+          "duration_seconds": 35.0,
+          "engagement": {
+            "play": 77300,
+            "like": 2134,
+            "comment": 13,
+            "share": 12,
+            "collect": 26
+          },
+          "hashtags": []
+        }
+      ]
+    }
+  },
+  "acquired": {
+    "https://www.tiktok.com/@koranjakarta/video/7695374501911088436": {
+      "report": {
+        "schema_version": 3,
+        "workflow_id": "wf_golden-c1",
+        "source": {
+          "platform": "tiktok",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7695374501911088436"
+        },
+        "post": {
+          "post_id": "7695374501911088436",
+          "owner_handle": "koranjakarta",
+          "text": "Agnez Mo tampil membawakan lagu “Indonesia Raya” dalam seremoni pembukaan MotoGP Mandalika 2026 di Sirkuit Internasional Pertamina Mandalika, Lombok Tengah, Nusa Tenggara Barat, Minggu (11/10/2026). Penampilannya menjadi bagian dari rangkaian acara sebelum balapan utama dimulai. Mengenakan gaun putih, Agnez juga membawakan lagu “Kebyar-Kebyar” yang disambut antusias oleh penonton di tribun. Suasana semakin khidmat saat Agnez menyanyikan lagu kebangsaan Indonesia di hadapan para pembalap dan penonton yang memadati sirkuit. Momen tersebut menjadi bagian dari upaya menghadirkan unsur nasionalisme dalam ajang balap motor internasional. Kehadiran Agnez Mo sekaligus menambah kemeriahan penyelenggaraan MotoGP Mandalika 2026 yang kembali menjadi sorotan publik. #KoranJakarta #AgnezMo #MotoGPMandalika #indonesiaRaya [DS]",
+          "published_at": "2026-10-11T11:43:23Z",
+          "engagement": {
+            "play": 6660,
+            "like": 91,
+            "comment": 3,
+            "share": 0,
+            "collect": 3
+          }
+        },
+        "media": [
+          {
+            "media_id": "media_1",
+            "kind": "video",
+            "index": 1,
+            "location": "reports/wf_golden-c1/media/tiktok-7695374501911088436.mp4",
+            "media_type": "video/mp4",
+            "bytes": 10826569,
+            "checksum": "sha256:4a6103ee09d7c9d7582ae1533b6ee88047b3b953368dd1339a59899440bcce14",
+            "acquisition_strategy": "scrapling_headless",
+            "width": null,
+            "height": null,
+            "duration_seconds": null
+          }
+        ],
+        "outcome": {
+          "status": "resolved",
+          "attempts": [
+            {
+              "strategy": "scrapling_headless",
+              "status": "succeeded",
+              "reason": null,
+              "attempt_count": 1,
+              "elapsed_ms": 41118
+            }
+          ]
+        },
+        "comments": [],
+        "post_card": null,
+        "profile_card": null
+      },
+      "frames": "tiktok-7695374501911088436"
+    },
+    "https://www.tiktok.com/@koranjakarta/video/7695369417563131188": {
+      "report": {
+        "schema_version": 3,
+        "workflow_id": "wf_golden-c2",
+        "source": {
+          "platform": "tiktok",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7695369417563131188"
+        },
+        "post": {
+          "post_id": "7695369417563131188",
+          "owner_handle": "koranjakarta",
+          "text": "Kebakaran hutan dan lahan di Taman Nasional Tanjung Puting, Kalimantan Tengah, dilaporkan semakin mengkhawatirkan. Api yang terus meluas membuat relawan kewalahan melakukan pemadaman di kawasan konservasi tersebut. Kondisi ini memicu kekhawatiran terhadap kerusakan ekosistem hutan dan ancaman bagi habitat orangutan. Hingga Sabtu (10/10/2026), operasi water bombing di wilayah Kotawaringin Barat dan kawasan Tanjung Puting dilaporkan telah menjatuhkan sekitar 574.000 liter air untuk membantu memadamkan api. Di tengah kondisi tersebut, relawan mendesak pemerintah segera turun tangan dengan menambah dukungan personel, logistik, anggaran, serta pengerahan helikopter water bombing. Mereka menilai penanganan di lapangan membutuhkan bantuan yang lebih besar agar kebakaran dapat segera dikendalikan. Kabut asap dan keterbatasan jarak pandang juga menjadi kendala dalam operasi udara. Situasi ini membuat bantuan cepat sangat dibutuhkan untuk mencegah dampak kebakaran semakin meluas. #KoranJakarta #Karhutla #TanjungPuting #FireNesia [DS]",
+          "published_at": "2026-10-11T11:23:42Z",
+          "engagement": {
+            "play": 8277,
+            "like": 71,
+            "comment": 4,
+            "share": 2,
+            "collect": 4
+          }
+        },
+        "media": [
+          {
+            "media_id": "media_1",
+            "kind": "video",
+            "index": 1,
+            "location": "reports/wf_golden-c2/media/tiktok-7695369417563131188.mp4",
+            "media_type": "video/mp4",
+            "bytes": 4724113,
+            "checksum": "sha256:4f8a3302b8b14ca40fcad4ed1a35cda0f14996dc7956b765f1a63e24d0124ae7",
+            "acquisition_strategy": "scrapling_headless",
+            "width": null,
+            "height": null,
+            "duration_seconds": null
+          }
+        ],
+        "outcome": {
+          "status": "resolved",
+          "attempts": [
+            {
+              "strategy": "scrapling_headless",
+              "status": "succeeded",
+              "reason": null,
+              "attempt_count": 1,
+              "elapsed_ms": 57267
+            }
+          ]
+        },
+        "comments": [],
+        "post_card": null,
+        "profile_card": null
+      },
+      "frames": "tiktok-7695369417563131188"
+    },
+    "https://www.tiktok.com/@koranjakarta/video/7695348309413612808": {
+      "report": {
+        "schema_version": 3,
+        "workflow_id": "wf_golden-c3",
+        "source": {
+          "platform": "tiktok",
+          "canonical_url": "https://www.tiktok.com/@koranjakarta/video/7695348309413612808"
+        },
+        "post": {
+          "post_id": "7695348309413612808",
+          "owner_handle": "koranjakarta",
+          "text": "Kiper Timnas Indonesia Emil Audero mendapat penghormatan khusus dari rekan-rekan setimnya di Rayo Vallecano setelah sukses mengantarkan skuad Garuda menjuarai FIFA ASEAN Cup 2026. Momen guard of honour atau pasillo tersebut berlangsung pada Sabtu (10/10/2026), menjelang pertandingan Rayo Vallecano melawan Athletic Bilbao di Estadio de Vallecas, Spanyol. Para pemain Rayo berbaris untuk memberikan apresiasi kepada Audero atas pencapaiannya bersama tim nasional Indonesia. Audero menjadi salah satu sosok penting dalam keberhasilan Indonesia menaklukkan Thailand pada partai final melalui adu penalti setelah pertandingan berakhir imbang 2-2 selama 120 menit. Kiper tersebut menggagalkan salah satu tendangan penalti lawan sebelum Indonesia memastikan kemenangan 4-2. Penghormatan dari Rayo Vallecano menjadi bentuk apresiasi atas pencapaian Audero di level internasional sekaligus momen membanggakan bagi sepak bola Indonesia. #KoranJakarta #EmilAudero #TimnasIndonesia #RayoVallecano [DS]",
+          "published_at": "2026-10-11T10:01:48Z",
+          "engagement": {
+            "play": 77300,
+            "like": 2134,
+            "comment": 13,
+            "share": 12,
+            "collect": 26
+          }
+        },
+        "media": [
+          {
+            "media_id": "media_1",
+            "kind": "video",
+            "index": 1,
+            "location": "reports/wf_golden-c3/media/tiktok-7695348309413612808.mp4",
+            "media_type": "video/mp4",
+            "bytes": 9892103,
+            "checksum": "sha256:1e8f2062b09f9fac9dc2b7acce2d0ffc4c619f70a2a1e4a72aee9045993e65b9",
+            "acquisition_strategy": "scrapling_headless",
+            "width": null,
+            "height": null,
+            "duration_seconds": null
+          }
+        ],
+        "outcome": {
+          "status": "resolved",
+          "attempts": [
+            {
+              "strategy": "scrapling_headless",
+              "status": "succeeded",
+              "reason": null,
+              "attempt_count": 1,
+              "elapsed_ms": 44664
+            }
+          ]
+        },
+        "comments": [],
+        "post_card": null,
+        "profile_card": null
+      },
+      "frames": "tiktok-7695348309413612808"
+    }
+  },
+  "expected": {
+    "verdict": "original",
+    "source_url": null
+  },
+  "scout": {
+    "main_url": null,
+    "note": ""
+  },
+  "departure": "reaction_original",
+  "pending": "Known miss (operator, 2026-10-13): an original reaction, but comments discuss the creator at only 0.42 and Instagram's profile listing returned 3 videos, the reaction among them, so the engagement baseline is unknown. Revisit with a deeper Instagram listing or negative reaction examples."
+}

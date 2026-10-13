@@ -1,6 +1,7 @@
 {
   "case": "instagram_deOUJ60SHeI",
   "synthetic": false,
+  "captured_at": "2026-10-13T13:31:25Z",
   "report": {
     "schema_version": 3,
     "workflow_id": "wf_golden",
@@ -14,8 +15,8 @@
       "text": "Rusa makan plastik di Jepang?",
       "published_at": "2026-10-08T06:43:37Z",
       "engagement": {
-        "like": 20966,
-        "comment": 261
+        "like": 21349,
+        "comment": 264
       }
     },
     "media": [
@@ -41,11 +42,103 @@
           "status": "succeeded",
           "reason": null,
           "attempt_count": 1,
-          "elapsed_ms": 2223
+          "elapsed_ms": 5706
         }
       ]
     },
-    "comments": [],
+    "comments": [
+      {
+        "comment_id": "18128637526698462",
+        "author": "ktcheah59",
+        "text": "🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18084668588705806",
+        "author": "luluuu02",
+        "text": "Itu orang Malaysia",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18085370240677851",
+        "author": "damiro161",
+        "text": "Even harrass budak sekolah",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17900860593599846",
+        "author": "damiro161",
+        "text": "Tiba tiba harrass influencer suruh and paksa diorang buat mentos challenge",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17924089044433188",
+        "author": "damiro161",
+        "text": "Hezuma ni dulunya prank youtuber",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18120663239058851",
+        "author": "damiro161",
+        "text": "Even kalau korg buat the slightest thing (eg. Patting the deer intensely sebab geram) dia akan tuduh kau pukul dia",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18411755668093083",
+        "author": "damiro161",
+        "text": "Dia tu politician kot tak silap",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18341944441252009",
+        "author": "damiro161",
+        "text": "Hezumaryuaa ni memang sial sikit orangnya",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17888317212476558",
+        "author": "tomz_bm1",
+        "text": "Org sana sndiri ada yg ngasi makan krtas brosur malah.tapi plstik nya di buang kan sma rusa nya.",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18083260595702047",
+        "author": "joyulyulri",
+        "text": "Ga mungkin tiba2 banget si orang jepang itu ngerekam. Pasti daritadi mantau!!!",
+        "likes": 2,
+        "card": null
+      },
+      {
+        "comment_id": "18108376601580574",
+        "author": "zali72327",
+        "text": "Itu cewek goblok ya, dia udh liyat ayah nya salah malah diam aja",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18105691841195460",
+        "author": "nanmee007",
+        "text": "Orang Indo sudah terbiasa hidup seenaknya, aturan tidak dianggap, Moto orang Indo : Cuek aja, Emang gue pikirin ???? 🤡🕌🇲🇨",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18047219402817323",
+        "author": "harmzah_osman",
+        "text": "Di Singapore aku lihat Mbak pembantu indonesia memberi makan sisa ayam KFC pada ayam ayam liar diTaman Marina Bay ketika waktu Singapore Garden Festival..untung aku tidak videokan dan viralkan",
+        "likes": 0,
+        "card": null
+      }
+    ],
     "post_card": null,
     "profile_card": null
   },
@@ -1218,278 +1311,52 @@
         "second": 64.0,
         "boxes": []
       }
-    ],
-    "instagram-DeMU05JpXCY-1": [
-      {
-        "second": 0.0,
-        "boxes": []
-      },
-      {
-        "second": 1.0,
-        "boxes": []
-      },
-      {
-        "second": 2.0,
-        "boxes": []
-      },
-      {
-        "second": 3.0,
-        "boxes": []
-      },
-      {
-        "second": 4.0,
-        "boxes": [
-          [
-            "BA",
-            0.6391,
-            0.7797
-          ]
-        ]
-      },
-      {
-        "second": 5.0,
-        "boxes": [
-          [
-            "T",
-            0.3453,
-            0.5344
-          ]
-        ]
-      },
-      {
-        "second": 6.0,
-        "boxes": []
-      },
-      {
-        "second": 7.0,
-        "boxes": [
-          [
-            "トーキ",
-            0.1391,
-            0.1672
-          ],
-          [
-            "TOKYO",
-            0.1578,
-            0.1781
-          ]
-        ]
-      },
-      {
-        "second": 8.0,
-        "boxes": [
-          [
-            "トーキヨー",
-            0.1047,
-            0.1406
-          ],
-          [
-            "TOKYO",
-            0.1297,
-            0.1547
-          ]
-        ]
-      },
-      {
-        "second": 9.0,
-        "boxes": [
-          [
-            "トーキョ",
-            0.0,
-            0.0375
-          ],
-          [
-            "TOKYO",
-            0.0187,
-            0.0563
-          ]
-        ]
-      },
-      {
-        "second": 10.0,
-        "boxes": []
-      },
-      {
-        "second": 11.0,
-        "boxes": [
-          [
-            "68",
-            0.0,
-            0.5656
-          ]
-        ]
-      },
-      {
-        "second": 12.0,
-        "boxes": []
-      },
-      {
-        "second": 13.0,
-        "boxes": []
-      }
     ]
   },
-  "matches": {
-    "instagram-DeMU05JpXCY-1": [
-      938,
-      85,
-      6,
-      9,
-      11,
-      11,
-      6,
-      7,
-      11,
-      7,
-      8,
-      7,
-      5,
-      6,
-      6,
-      5,
-      6,
-      6,
-      10,
-      10,
-      7,
-      6,
-      8,
-      7,
-      7,
-      7,
-      6,
-      6,
-      7,
-      7,
-      7,
-      6,
-      7
-    ]
-  },
+  "matches": {},
   "unmatchable": [],
   "cover": {
     "headline": "",
-    "scene": "A man and a woman are interacting with deer in an outdoor area with traditional Japanese-style buildings in the background, while other people walk around.",
+    "scene": "A woman and a man are feeding deer in a park, then a man speaks to the camera while showing a sign about deer in Nara Park.",
     "icon": "",
     "handles": [
       "@hezumaryuaaa"
+    ],
+    "reaction_shape": "clip_then_talk",
+    "subject_media": "image",
+    "shows": [
+      "creator",
+      "creator",
+      "creator",
+      "creator",
+      "subject",
+      "creator"
     ]
   },
-  "classify": {
-    "instagram-DeMU05JpXCY-1": "footage"
-  },
-  "decisions": {
-    "is_repost": 0.85,
-    "handle": "hezumaryuaaa",
-    "handle_probability": 0.99,
-    "platform": "instagram",
-    "platform_probability": 0.5700000000000001
-  },
-  "discovery": {
-    "by_handle": {
-      "hezumaryuaaa": [
-        {
-          "post_id": "4002665764533661848",
-          "owner_handle": "hezumaryuaaa",
-          "canonical_url": "https://www.instagram.com/p/DeMU05JpXCY/",
-          "caption": "これは酷すぎる。\nヒジャヴの仲間がわざと鹿さんにゴミを食べさせた。\nすぐに謝罪するもカメラを止めた瞬間に逆ギレとか日本から出て行け。\nフォロー拡散で応援よろしくお願いします。",
-          "published_at": "2026-10-07T12:10:20Z",
-          "duration_seconds": null,
-          "engagement": {
-            "like": 279753,
-            "comment": 15070
-          },
-          "hashtags": []
-        },
-        {
-          "post_id": "4004799968312918841",
-          "owner_handle": "hezumaryuaaa",
-          "canonical_url": "https://www.instagram.com/p/DeT6FpTyYM5/",
-          "caption": "川越の違法モスクについて。\nこれが現地の声だ。",
-          "published_at": "2026-10-10T10:50:16Z",
-          "duration_seconds": null,
-          "engagement": {
-            "like": 5214,
-            "comment": 174
-          },
-          "hashtags": []
-        },
-        {
-          "post_id": "3984290388495654510",
-          "owner_handle": "hezumaryuaaa",
-          "canonical_url": "https://www.instagram.com/p/DdLCv-oSV5u/",
-          "caption": "居眠り議員を起こしました。\n奈良市議会の内藤さとし議員。\n税金の無駄なので辞職されて下さい。\n追加で情報を公開していきますので引き続きフォロー拡散で応援よろしくお願いします。",
-          "published_at": "2026-09-12T03:41:54Z",
-          "duration_seconds": null,
-          "engagement": {
-            "like": 186137,
-            "comment": 6188
-          },
-          "hashtags": []
-        }
-      ]
-    }
-  },
-  "acquired": {
-    "https://www.instagram.com/p/DeMU05JpXCY/": {
-      "report": {
-        "schema_version": 3,
-        "workflow_id": "wf_golden-c1",
-        "source": {
-          "platform": "instagram",
-          "canonical_url": "https://www.instagram.com/p/DeMU05JpXCY/"
-        },
-        "post": {
-          "post_id": "DeMU05JpXCY",
-          "owner_handle": "hezumaryuaaa",
-          "text": "これは酷すぎる。\nヒジャヴの仲間がわざと鹿さんにゴミを食べさせた。\nすぐに謝罪するもカメラを止めた瞬間に逆ギレとか日本から出て行け。\nフォロー拡散で応援よろしくお願いします。",
-          "published_at": "2026-10-07T12:10:20Z",
-          "engagement": {
-            "like": 279753,
-            "comment": 15070
-          }
-        },
-        "media": [
-          {
-            "media_id": "media_1",
-            "kind": "video",
-            "index": 1,
-            "location": "reports/wf_golden-c1/media/instagram-DeMU05JpXCY-1.mp4",
-            "media_type": "video/mp4",
-            "bytes": 5730171,
-            "checksum": "sha256:5dac9c6cc2f9e14fd2659f04baaab738309c22eece25ec996aa0f23cd5b5dfc2",
-            "acquisition_strategy": "scrapling_request",
-            "width": null,
-            "height": null,
-            "duration_seconds": null
-          }
-        ],
-        "outcome": {
-          "status": "resolved",
-          "attempts": [
-            {
-              "strategy": "scrapling_request",
-              "status": "succeeded",
-              "reason": null,
-              "attempt_count": 1,
-              "elapsed_ms": 2028
-            }
-          ]
-        },
-        "comments": [],
-        "post_card": null,
-        "profile_card": null
-      },
-      "frames": "instagram-DeMU05JpXCY-1"
-    }
-  },
+  "classify": {},
+  "decisions": null,
+  "cuts": [
+    4.2,
+    4.7,
+    5.2,
+    8.2,
+    8.7,
+    12.1,
+    22.6333,
+    31.1667
+  ],
+  "transcript": null,
+  "turns": null,
+  "assessment": null,
+  "discovery": null,
+  "acquired": {},
   "expected": {
-    "verdict": "replaced",
-    "source_url": "https://www.instagram.com/p/DeMU05JpXCY/"
+    "verdict": "original",
+    "source_url": null
   },
   "scout": {
     "main_url": null,
     "note": ""
   },
-  "departure": "scout_not_run"
+  "departure": "reaction_original"
 }

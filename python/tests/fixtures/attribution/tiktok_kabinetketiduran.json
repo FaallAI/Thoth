@@ -1,6 +1,7 @@
 {
   "case": "tiktok_kabinetketiduran",
   "synthetic": false,
+  "captured_at": "2026-10-13T13:57:30Z",
   "report": {
     "schema_version": 3,
     "workflow_id": "wf_golden",
@@ -14,11 +15,11 @@
       "text": "Gol menit akhir Mitchell Baker Vs Bangladesh #fifaaseancup  #timnasindonesia  #mitcchellbaker  #oleromeny ",
       "published_at": "2026-10-01T15:06:59Z",
       "engagement": {
-        "play": 151100,
-        "like": 3018,
+        "play": 156100,
+        "like": 3159,
         "comment": 138,
-        "share": 1916,
-        "collect": 269
+        "share": 2045,
+        "collect": 289
       }
     },
     "media": [
@@ -44,11 +45,362 @@
           "status": "succeeded",
           "reason": null,
           "attempt_count": 1,
-          "elapsed_ms": 39284
+          "elapsed_ms": 53748
         }
       ]
     },
-    "comments": [],
+    "comments": [
+      {
+        "comment_id": "7691949517956432648",
+        "author": "desyiryanti85",
+        "text": "inilahhh the real Burung Garuda ngamuk... sampe bisa ngegoalin kan tuhh burung🥰🥰",
+        "likes": 205,
+        "card": null
+      },
+      {
+        "comment_id": "7691884552495825685",
+        "author": "chandrakurniawan10",
+        "text": "baker rela mengorbankan depanya demi Indonesia lolos.",
+        "likes": 250,
+        "card": null
+      },
+      {
+        "comment_id": "7692032721057661717",
+        "author": "syurlierrr",
+        "text": "Baru kali ini nonton merasa terharu liat burung garuda di selamatkan oleh burungnya baker",
+        "likes": 61,
+        "card": null
+      },
+      {
+        "comment_id": "7691873244031795989",
+        "author": "reezall46",
+        "text": "paes ngambek nyuruh balik",
+        "likes": 30,
+        "card": null
+      },
+      {
+        "comment_id": "7692397555821626119",
+        "author": "ceo_mbg9713",
+        "text": "salfok sama hubner yang matahin tiang korner😹",
+        "likes": 5,
+        "card": null
+      },
+      {
+        "comment_id": "7693694242807563028",
+        "author": "owner_burastumbu84",
+        "text": "kok dia dpeluk bukan yang golkan 🤣🤣",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7691934478977598229",
+        "author": "sxyaetqdzeze2",
+        "text": "gawang nya ga sebesar biasanya yaa?",
+        "likes": 9,
+        "card": null
+      },
+      {
+        "comment_id": "7691906315416797960",
+        "author": "onalz01",
+        "text": "haru melihat perjuangan burung Garuda...🔥",
+        "likes": 3,
+        "card": null
+      },
+      {
+        "comment_id": "7691893130262119174",
+        "author": "llip_004",
+        "text": "mana buktinya?",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7691983195122746119",
+        "author": "tigerboy8159",
+        "text": "penempatan posisi beker bagus sekali.",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7691828879392260916",
+        "author": "kreasitangan",
+        "text": "Mitch bikin ngakak",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7693001581570900744",
+        "author": "endangkurniati12",
+        "text": "rodokan penghancur mimpi😭",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7691987521471808263",
+        "author": "nhattung25051990",
+        "text": "Đánh đầu vào",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7693105557687517972",
+        "author": "rizzsukamacha11",
+        "text": "⚽:aku hamil",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7691731610380337972",
+        "author": "asnanmolinga",
+        "text": "Malaysia main mata sama Singapur akhirnya di bayar kontan dengan permainan luar biasa timnas Indonesia 🇮🇩 👍👍👍",
+        "likes": 6,
+        "card": null
+      },
+      {
+        "comment_id": "7691898466172551956",
+        "author": "lobombsr88",
+        "text": "kata paes.woi turun..turun woi..laga belum usai..",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7694498589683712789",
+        "author": "trieexotix",
+        "text": "izin ambil Vido buat dubing bang",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7692004226180580116",
+        "author": "diananuraini30",
+        "text": "Alhamdulilah ikut bahagia",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7691971675345175348",
+        "author": "fahri.fernando71",
+        "text": "gol seperti goat Ronaldo",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7692243821896483605",
+        "author": "nawong_001",
+        "text": "bang izin ambil video nya ya",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7692221317873222407",
+        "author": "adamaryasathya",
+        "text": "sakit gak ya ?",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7692073457148609332",
+        "author": "hanz.hanz.25",
+        "text": "⚽:ᴀᴋᴜ ʜᴀᴍɪʟ",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7692015442248827666",
+        "author": "cm84ia",
+        "text": "makasih bang mit 😍",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7691975970609742613",
+        "author": "fr1zxco",
+        "text": "bule lagi happy funny jiga yaa🤭🤭🥰",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7691954965746025236",
+        "author": "akunke2randi28",
+        "text": "alhamdu",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7691950009118409493",
+        "author": "alldo.mission",
+        "text": "coba masih ada waktu ya, mungkin bisa nambah gol lagi, menang mutlak tuh klo indo nyetak 10 gol",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7691938962970411794",
+        "author": "tika_chu4",
+        "text": "naon nu dirasa eta si hubner😂",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7691929912173986567",
+        "author": "dhanil_05",
+        "text": "utamakan fungsi bukan gengsi wak😂",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7692599156804551445",
+        "author": "fatih.jr35",
+        "text": "mirip siapa ya🤔 #r",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7691854954079732501",
+        "author": "daffxx747",
+        "text": "pake apa itu gol nya 🫣",
+        "likes": 2,
+        "card": null
+      },
+      {
+        "comment_id": "7691893513989964565",
+        "author": "dixki2",
+        "text": "Ini yang namanya tehnik mengontol bola [LOL Besar]",
+        "likes": 2,
+        "card": null
+      },
+      {
+        "comment_id": "7691875060755907334",
+        "author": "damnzbolt",
+        "text": "untuk ada gue",
+        "likes": 2,
+        "card": null
+      },
+      {
+        "comment_id": "7691911540464141057",
+        "author": "alifadityo._",
+        "text": "Mitchell: \"kaki udh lemes,kepala udah pegel, badan udah capek, jonny waktunya kamu tampil🗿\"",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7691898296088707846",
+        "author": "aku_zaski",
+        "text": "burung ku adalah pahlawan ku😂😂😂",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7691885946031604488",
+        "author": "jondrokpeler",
+        "text": "titi pengantar ke final",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7693945806017676040",
+        "author": "abimamyu_31gg",
+        "text": "bolanya hamil kayaknya[Tawa oke][Tawa oke][Tawa oke]",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7692802274715812616",
+        "author": "barkie.berzex",
+        "text": "🐦: sebagai lambang negara, akupun harus ikut andil🥰",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7692085516758860545",
+        "author": "rinakhalid5",
+        "text": "ternyata kepala bawah Beker juga tajam menjebol gawang😂😂😂😂",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7692007026700894984",
+        "author": "althof.muhammad.t",
+        "text": "Marteen paes lawak jir",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7691959320787305236",
+        "author": "sahidin.papah",
+        "text": "anjay pakai palak burung buat golin gawang. bukan kaleng2",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7691959230152753941",
+        "author": "permana.suji",
+        "text": "burung bukan sembarang burung...sekali berkicau lngsung mmngsa harimau malaya😁",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7691955818405397254",
+        "author": "jekmen.pro",
+        "text": "itu dia gunanya punya icibos yang berotot",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7691951216733717268",
+        "author": "okto17__",
+        "text": "https://vt.toktiktok.com/ZSbPLbQ6o/",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7691940140373902087",
+        "author": "dalamahati",
+        "text": "Hanya pemain timnas Indonesia di dunia ini yg mencetak 5 gol lewat sundulan kepala, kaki kiri, kaki kanan dan terakhir lewat kepala burung dalam 1 pertandingan...",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7691932126497489671",
+        "author": "rujuemama04",
+        "text": "kanjut na badag uy😂",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7691924626384880405",
+        "author": "manusia_hina71",
+        "text": "Sang Preman,HUBNER🤣🤣 ngambek",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7691916827072561928",
+        "author": "resi.duai217",
+        "text": "burung Garuda sesungguh nya 🤣🤣🤣.rela sakit demi nama baik indonesia",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7691915276719325958",
+        "author": "namakuenda",
+        "text": "perjuangan burung garuda sesungguhnya, walaupun burung garudanya masih bayi dan belum bisa terbang tp sangat membantu timnas Indonesia",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7691913221418009364",
+        "author": "melgaayuelisya",
+        "text": "gol dramatis dsundul burung garuda di menit akhir",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7692328055917822741",
+        "author": "intanfdap",
+        "text": "@nitavoir @ndlsv1",
+        "likes": 0,
+        "card": null
+      }
+    ],
     "post_card": null,
     "profile_card": null
   },
@@ -893,21 +1245,30 @@
   "matches": {},
   "unmatchable": [],
   "cover": {
-    "headline": "Danantara Indonesia",
-    "scene": "A soccer player in a red jersey with the number 10 is dribbling the ball while being pursued by opponents on a field.",
-    "icon": "Danantara Indonesia logo on the advertising board",
-    "handles": [
-      "Danantara Indonesia"
+    "headline": "",
+    "scene": "A soccer player in a red uniform takes a shot on goal during a match, with other players running on the field.",
+    "icon": "Danantara Indonesia in the top left corner of the screen",
+    "handles": [],
+    "reaction_shape": "none",
+    "subject_media": "none",
+    "shows": [
+      "creator",
+      "creator",
+      "creator"
     ]
   },
   "classify": {},
   "decisions": {
-    "is_repost": 0.49,
+    "is_repost": 0.56,
     "handle": null,
     "handle_probability": 0.0,
-    "platform": null,
-    "platform_probability": 0.52
+    "platform": "tiktok",
+    "platform_probability": 0.55
   },
+  "cuts": [],
+  "transcript": null,
+  "turns": null,
+  "assessment": null,
   "discovery": null,
   "acquired": {},
   "expected": {

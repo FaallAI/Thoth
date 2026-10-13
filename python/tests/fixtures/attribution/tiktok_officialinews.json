@@ -1,6 +1,7 @@
 {
   "case": "tiktok_officialinews",
   "synthetic": false,
+  "captured_at": "2026-10-13T13:49:55Z",
   "report": {
     "schema_version": 3,
     "workflow_id": "wf_golden",
@@ -14,11 +15,11 @@
       "text": "Anggota Komisi XIII DPR RI, Tonny Tesar, melakukan kunjungan kerja ke Lapas Kelas IIA Cibinong. Dalam kunjungan tersebut, Tonny turut mengikuti kegiatan di Gereja Oikumene Terang Dunia bersama Ferdy Sambo.  Dia juga meninjau langsung sebuah bangunan di samping gereja, yang belakangan ramai disebut sebagai kamar mewah milik Ferdy Sambo. Berdasarkan hasil pengecekan di lokasi, bangunan tersebut ternyata bukan kamar pribadi Ferdy Sambo, melainkan kantor pastor yang digunakan untuk beristirahat.  #FerdySambo #LaspasCibinong #SelSultan #SelMewah #iNews  Creator: AMR/VHS  VIdeo: IG/ferdysambo_official",
       "published_at": "2026-10-08T12:23:59Z",
       "engagement": {
-        "play": 1800000,
-        "like": 45300,
-        "comment": 3662,
-        "share": 1567,
-        "collect": 1932
+        "play": 1900000,
+        "like": 45400,
+        "comment": 3685,
+        "share": 1574,
+        "collect": 1928
       }
     },
     "media": [
@@ -44,11 +45,362 @@
           "status": "succeeded",
           "reason": null,
           "attempt_count": 1,
-          "elapsed_ms": 39872
+          "elapsed_ms": 44484
         }
       ]
     },
-    "comments": [],
+    "comments": [
+      {
+        "comment_id": "7694278686220223252",
+        "author": "madavakaa",
+        "text": "padahal sudah bukan jendral tapi masih diberi hormat 😆😅😂",
+        "likes": 4485,
+        "card": null
+      },
+      {
+        "comment_id": "7694279084662244104",
+        "author": "azid.ddzz",
+        "text": "lu percaya?",
+        "likes": 4858,
+        "card": null
+      },
+      {
+        "comment_id": "7694305493201453831",
+        "author": "sersanjonojhandoyo",
+        "text": "dia tdk.korupsi dan tdk merugikan orang banyak..perkara hanya menjaga harga diri..kasihan jg lihat pak sambo terlalu dipojokan..",
+        "likes": 165,
+        "card": null
+      },
+      {
+        "comment_id": "7694279483231011590",
+        "author": "mirrolesxeos0",
+        "text": "meskipun off, dia masih punya power.",
+        "likes": 1627,
+        "card": null
+      },
+      {
+        "comment_id": "7694274522133005057",
+        "author": "gabutid65",
+        "text": "itu udah termasuk mewah\ncoba itu penjara untuk rakyat udah beda lagi",
+        "likes": 662,
+        "card": null
+      },
+      {
+        "comment_id": "7694287560608056084",
+        "author": "amirul_186",
+        "text": "dipenjara seumur hidup dia masih bisa tertawa loh😁",
+        "likes": 146,
+        "card": null
+      },
+      {
+        "comment_id": "7694280919038067477",
+        "author": "0ddai_",
+        "text": "Pada masih hormat semua 🤣 pdhal udah PTDH dan dlm penjara 😅 Drama korea apa ini judul nya?",
+        "likes": 254,
+        "card": null
+      },
+      {
+        "comment_id": "7694278934283961095",
+        "author": "user59812772805887",
+        "text": "kalian percaya?",
+        "likes": 260,
+        "card": null
+      },
+      {
+        "comment_id": "7694280447584600852",
+        "author": "snowflameee",
+        "text": "“Yang dibilang ada kamar kamar itu…”",
+        "likes": 173,
+        "card": null
+      },
+      {
+        "comment_id": "7694277326733656850",
+        "author": "adinst9",
+        "text": "PENCITRAAN",
+        "likes": 1368,
+        "card": null
+      },
+      {
+        "comment_id": "7694279204293542677",
+        "author": "mhmdaqbr23",
+        "text": "wajar sih dia mantan jenderal pernah berjasa untuk negara..jgn sama kan dgn napi warga biasa...kasian dong",
+        "likes": 35,
+        "card": null
+      },
+      {
+        "comment_id": "7694273311844451080",
+        "author": "antono123456789",
+        "text": "judul Filmnya apa",
+        "likes": 513,
+        "card": null
+      },
+      {
+        "comment_id": "7694293258772873991",
+        "author": "littleboys2409",
+        "text": "dari sini keliatan bgt hukum Indonesia gimana, coba kalo orang yg biasa² aja ga segitunya",
+        "likes": 91,
+        "card": null
+      },
+      {
+        "comment_id": "7694280132026319634",
+        "author": "ladyalisha7777",
+        "text": "ahallllllah bacot klo udh ketemu pasti nunjuk ruangan yg lain... dpr dn sambo kan prnh sejalan bisnisnya,, kami ttp gk percya ap lg dpr",
+        "likes": 15,
+        "card": null
+      },
+      {
+        "comment_id": "7694280410755384071",
+        "author": "savicshirazi",
+        "text": "Ternyata kita salah selalu menyalahkan Habib habib di indonesia",
+        "likes": 18,
+        "card": null
+      },
+      {
+        "comment_id": "7694293416875918100",
+        "author": "rendyaji325",
+        "text": "kalian percaya guys ?",
+        "likes": 44,
+        "card": null
+      },
+      {
+        "comment_id": "7694281133513343752",
+        "author": "jubirjanda",
+        "text": "sambo kasus korupsi apa sih kok bisa di tangkap",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7694278894694941461",
+        "author": "official_trailermovie",
+        "text": "ada yang percaya",
+        "likes": 49,
+        "card": null
+      },
+      {
+        "comment_id": "7694279413958476545",
+        "author": "irmanto_01",
+        "text": "judul film nya apa",
+        "likes": 12,
+        "card": null
+      },
+      {
+        "comment_id": "7694291098302186246",
+        "author": "irwaneka46",
+        "text": "kalian percaya kah..?",
+        "likes": 46,
+        "card": null
+      },
+      {
+        "comment_id": "7694278209345913601",
+        "author": "gaadanama450",
+        "text": "klo beliau gaada kasus pasti ud bintanf 3😭",
+        "likes": 16,
+        "card": null
+      },
+      {
+        "comment_id": "7694949242640728852",
+        "author": "muhammadha690",
+        "text": "pak sambo debat sama bang zuma KLO berani",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7694283158502327061",
+        "author": "akuufadilll",
+        "text": "walau sudah dicopot tapi beliau ini masih sangat dihormati knp begitu??\nbro dia itu pimpinan propam berpangkat Irjen (polisinya polisi)",
+        "likes": 4,
+        "card": null
+      },
+      {
+        "comment_id": "7694278212100408071",
+        "author": "yuki_yudzuru_rzr",
+        "text": "kalian prcaya?",
+        "likes": 22,
+        "card": null
+      },
+      {
+        "comment_id": "7694278337585349394",
+        "author": "yohanah.ziran",
+        "text": "SALING MELINDUNGI",
+        "likes": 153,
+        "card": null
+      },
+      {
+        "comment_id": "7694963233140130580",
+        "author": "_anomali.ts",
+        "text": "katanya sih indra kenz dapet ruangan mewah di lapas...masa iya jendral gak dapat",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7694299076775871252",
+        "author": "olaff.ptk",
+        "text": "Kami percaya kok pak, ngga perlu ragu lagi. semoga cepat bebas dan berkumpul lagi dengan keluarga dan teman sejawat 😇😇",
+        "likes": 6,
+        "card": null
+      },
+      {
+        "comment_id": "7694286718199972609",
+        "author": "alisusan06",
+        "text": "kalian percaya??",
+        "likes": 11,
+        "card": null
+      },
+      {
+        "comment_id": "7694281562112852757",
+        "author": "robiadytia080",
+        "text": "masih ada yg percaya kah",
+        "likes": 2,
+        "card": null
+      },
+      {
+        "comment_id": "7694280049226449685",
+        "author": "mhmdaqbr23",
+        "text": "bagih gw sih ga masalah dia pernah berjasa bagi negara dia mantan jenderal..ga masalah kalo fasilitas dia layak di huni..",
+        "likes": 10,
+        "card": null
+      },
+      {
+        "comment_id": "7694277509991514898",
+        "author": "ribiy7",
+        "text": "ada yang masih Percaya?",
+        "likes": 28,
+        "card": null
+      },
+      {
+        "comment_id": "7694280610131477268",
+        "author": "abm_tangerang",
+        "text": "adakah yang Percaya?????",
+        "likes": 11,
+        "card": null
+      },
+      {
+        "comment_id": "7694273002939269909",
+        "author": "fafatiya1",
+        "text": "lah kenapa masih pake hormat ,,",
+        "likes": 48,
+        "card": null
+      },
+      {
+        "comment_id": "7694332140755370759",
+        "author": "billy_saputra11",
+        "text": "Urang lah tau",
+        "likes": 2,
+        "card": null
+      },
+      {
+        "comment_id": "7694277210690405141",
+        "author": "tombo.teko.lunggo",
+        "text": "tentu beres sudah Kong kali kong",
+        "likes": 16,
+        "card": null
+      },
+      {
+        "comment_id": "7694285730550432520",
+        "author": "aquarius.12684",
+        "text": "ada yg percaya",
+        "likes": 8,
+        "card": null
+      },
+      {
+        "comment_id": "7694281334131049236",
+        "author": "snackgila",
+        "text": "tuhan pasti bekerja dalam tiap perkara....perkara orang kaya kah yang di bela?",
+        "likes": 4,
+        "card": null
+      },
+      {
+        "comment_id": "7694300675442082567",
+        "author": "kikyjaynti",
+        "text": "Kalian percaya?",
+        "likes": 4,
+        "card": null
+      },
+      {
+        "comment_id": "7694288755851363093",
+        "author": "_bibbb14",
+        "text": "film apa ini?",
+        "likes": 11,
+        "card": null
+      },
+      {
+        "comment_id": "7694285527356949268",
+        "author": "sapujagat2027",
+        "text": "apakah kalian percaya",
+        "likes": 9,
+        "card": null
+      },
+      {
+        "comment_id": "7695071303451034386",
+        "author": "anak_ayah_dan_1ibu",
+        "text": "bagusan penjara Sambo ada AC sama kulkas, kontrakan gw cuma kipas angin doang 1, padahal gw rutin bayar pajak buat ngegaji pemerintah Konoha, biar pun gaji kecil🤣🤣",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "7694274829902824244",
+        "author": "yuripandega8",
+        "text": "film ini saling berbagi rezeki",
+        "likes": 70,
+        "card": null
+      },
+      {
+        "comment_id": "7694288635985986305",
+        "author": "belajar_yuk10",
+        "text": "rakyat sudah tidak b0d0h lagi.capek kali di giniin terus😂",
+        "likes": 6,
+        "card": null
+      },
+      {
+        "comment_id": "7694969378302968594",
+        "author": "langithitam025",
+        "text": "judul film?",
+        "likes": 1,
+        "card": null
+      },
+      {
+        "comment_id": "7694281333769913094",
+        "author": "ddeeusshy",
+        "text": "pencitraan",
+        "likes": 2,
+        "card": null
+      },
+      {
+        "comment_id": "7694273909235680021",
+        "author": "haji.beni.heryant",
+        "text": "permainan sandiwara Sambo.judul nya.",
+        "likes": 8,
+        "card": null
+      },
+      {
+        "comment_id": "7694281577304376084",
+        "author": "alfarisqi208",
+        "text": "kalian percaya.",
+        "likes": 9,
+        "card": null
+      },
+      {
+        "comment_id": "7694278977149485845",
+        "author": "devii_amanda06",
+        "text": "buat syuting doang 😁",
+        "likes": 22,
+        "card": null
+      },
+      {
+        "comment_id": "7694287245138264853",
+        "author": "temukan.aq.dalam.diam",
+        "text": "bebas berkeliaran ada loker g buat kita bisa ikutan😂",
+        "likes": 3,
+        "card": null
+      },
+      {
+        "comment_id": "7694272730167313173",
+        "author": "fadillxbbx",
+        "text": "gilakk bengettt",
+        "likes": 13,
+        "card": null
+      }
+    ],
     "post_card": null,
     "profile_card": null
   },
@@ -7182,25 +7534,58 @@
   },
   "unmatchable": [],
   "cover": {
-    "headline": "Ferdy Sambo Tunjukkan Ruangan yang Dituding Kamar Mewah Miliknya di Lapas Cibinong",
-    "scene": "A man in a blue polo shirt is talking to another man in a white shirt outside a building.",
+    "headline": "Ferdysambo Tunjukkan Ruangan yang Dituding Kamar Mewah Miliknya di Lapas Cibinong",
+    "scene": "A man in a blue and white shirt walks through a building, showing various rooms and interacting with others.",
     "icon": "iNews in the top left corner",
     "handles": [
-      "@ferdysambo_official",
-      "ig/ferdysambo_official"
+      "@ferdysambo_official"
+    ],
+    "reaction_shape": "none",
+    "subject_media": "none",
+    "shows": [
+      "creator",
+      "creator",
+      "creator",
+      "creator",
+      "creator",
+      "creator"
     ]
   },
   "classify": {
-    "instagram-DeJK7OEg1D8-1": "footage",
+    "instagram-DeJK7OEg1D8-1": "commentary",
     "instagram-DeBclcDg2Ge-1": "commentary"
   },
   "decisions": {
     "is_repost": 0.87,
     "handle": "ferdysambo_official",
-    "handle_probability": 0.88,
+    "handle_probability": 0.9,
     "platform": "instagram",
-    "platform_probability": 0.96
+    "platform_probability": 0.94
   },
+  "cuts": [
+    11.8,
+    16.3333,
+    16.4667,
+    22.0667,
+    22.2667,
+    22.4667,
+    22.6667,
+    24.0667,
+    24.2667,
+    25.6667,
+    29.8667,
+    30.0667,
+    30.4667,
+    30.6667,
+    31.0667,
+    31.2667,
+    31.4667,
+    31.6667,
+    68.6667
+  ],
+  "transcript": null,
+  "turns": null,
+  "assessment": null,
   "discovery": {
     "by_handle": {
       "ferdysambo_official": [
@@ -7212,8 +7597,8 @@
           "published_at": "2026-10-06T06:53:52Z",
           "duration_seconds": null,
           "engagement": {
-            "like": 17557,
-            "comment": 205
+            "like": 17731,
+            "comment": 208
           },
           "hashtags": []
         },
@@ -7225,8 +7610,8 @@
           "published_at": "2023-07-07T07:32:44Z",
           "duration_seconds": null,
           "engagement": {
-            "like": 2672,
-            "comment": 138
+            "like": 2680,
+            "comment": 139
           },
           "hashtags": []
         },
@@ -7238,7 +7623,7 @@
           "published_at": "2023-01-31T07:16:03Z",
           "duration_seconds": null,
           "engagement": {
-            "like": 8791,
+            "like": 8800,
             "comment": 182
           },
           "hashtags": []
@@ -7251,7 +7636,7 @@
           "published_at": "2026-10-03T06:46:13Z",
           "duration_seconds": null,
           "engagement": {
-            "like": 1811,
+            "like": 1841,
             "comment": 28
           },
           "hashtags": []
@@ -7274,8 +7659,8 @@
           "text": "KUNJUNGAN KERJA KOMISI XIII DPR RI KE LAPAS KELAS IIA CIBINONG\n\nAnggota Komisi XIII DPR RI, Bapak Tonny Tesar, melakukan kunjungan kerja sekaligus pengecekan langsung ke Lapas Kelas IIA Cibinong pada Rabu, 30 September 2026.\n\nDalam kunjungan tersebut, beliau turut mengikuti kegiatan di Gereja Oikumene Terang Dunia Lapas Kelas IIA Cibinong bersama Bapak Ferdy Sambo.\n\nSetelah mengikuti kegiatan di gereja, Bapak Tonny Tesar juga mengecek secara langsung bangunan yang berada di samping gereja, yang selama ini ramai diperbincangkan dan disebut-sebut sebagai kamar Bapak Ferdy Sambo.\n\nDari hasil pengecekan tersebut, bangunan yang dimaksud bukan merupakan kamar Bapak Ferdy Sambo, melainkan kantor pastor yang digunakan sebagai tempat berganti pakaian dan beristirahat.\n\nDengan demikian, informasi mengenai bangunan tersebut perlu dilihat berdasarkan kondisi dan fakta di lapangan, bukan hanya berdasarkan pemberitaan atau spekulasi yang beredar.",
           "published_at": "2026-10-06T06:53:52Z",
           "engagement": {
-            "like": 17558,
-            "comment": 205
+            "like": 17731,
+            "comment": 208
           }
         },
         "media": [
@@ -7301,7 +7686,7 @@
               "status": "succeeded",
               "reason": null,
               "attempt_count": 1,
-              "elapsed_ms": 4195
+              "elapsed_ms": 3138
             }
           ]
         },
@@ -7325,7 +7710,7 @@
           "text": "Oma Ridha 2x datang ke istana, pertama pada saat Prsetya Perwira anaknya Ferdy sambo tahun 1994, yang kedua pada saat Prasetya perwira cucunya tahun 2026, 2x datang ke istana merupakan kebanggaan untuk nya yang selalu ia ceritakan kepada keluarganya.",
           "published_at": "2026-10-03T06:46:13Z",
           "engagement": {
-            "like": 1811,
+            "like": 1841,
             "comment": 28
           }
         },
@@ -7352,7 +7737,7 @@
               "status": "succeeded",
               "reason": null,
               "attempt_count": 1,
-              "elapsed_ms": 2132
+              "elapsed_ms": 2299
             }
           ]
         },

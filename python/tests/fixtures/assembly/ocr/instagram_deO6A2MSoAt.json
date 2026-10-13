@@ -521,7 +521,7 @@
    "boxes": []
   }
  ],
- "trim_allowed": true,
+ "trim_allowed": false,
  "tracker": 9.9,
  "vision": null,
  "captured": {
@@ -532,8 +532,8 @@
   "blur": []
  },
  "expected": {
-  "outcome": "cover",
-  "trim_start": 9.9,
+  "outcome": "clean",
+  "trim_start": 0.0,
   "blur_count": 0
  }
 }

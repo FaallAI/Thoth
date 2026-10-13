@@ -74,7 +74,8 @@ class Tuning:
     # At 3000 ORB features a text label can line up with another label in one frame
     # (2026-10-11: 45 inliers, unrelated pair); every true original held at least 5 frames.
     min_matched_frames: int = 2
-    repost_threshold: float = 0.5
+    # Recalibrated on the 2026-10-13 recapture: originals up to 0.56, reposts from 0.80.
+    repost_threshold: float = 0.6
     handle_threshold: float = 0.5
     max_finalists: int = 3
     finalist_concurrency: int = 2
@@ -83,7 +84,8 @@ class Tuning:
     transcript_seconds: float = 180.0
     reaction_contribution: float = 0.5
     reaction_discussion: float = 0.5
-    reaction_engagement: float = 1.0
+    # Operator, 2026-10-13: 0.8 (DeHz54GT4ea, an original reaction, measured 0.9x).
+    reaction_engagement: float = 0.8
     # Spec 5.7: younger than this, views say nothing yet and engagement is not judged.
     min_engagement_age_hours: float = 6.0
 
