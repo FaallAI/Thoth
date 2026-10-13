@@ -259,16 +259,19 @@ test("arrow keys move the access mode like a radio group", async () => {
 test("the access card saves the daily budget and the engine", async () => {
   const client = fakeClient();
   render(<SourceAccounts client={client} onManageProxies={() => {}} />);
+  await screen.findByLabelText("Daily budget");
+  expect(screen.queryByRole("radiogroup", { name: "Browser engine" }) === null).toBe(true);
+  await userEvent.click(await screen.findByRole("tab", { name: "Instagram" }));
   const budget = await screen.findByLabelText("Daily budget");
   expect((budget as HTMLInputElement).value).toBe("40");
   expect(screen.getByText(/0 means unlimited/)).toBeDefined();
   await userEvent.clear(budget);
   await userEvent.type(budget, "15{Enter}");
-  expect(client.setPolicy).toHaveBeenCalledWith("tiktok",
+  expect(client.setPolicy).toHaveBeenCalledWith("instagram",
     { mode: "fallback", min_spacing_seconds: 60, daily_budget: 15, engine: "patchright" });
   expect(screen.getByRole("radio", { name: "patchright", checked: true })).toBeDefined();
   await userEvent.click(screen.getByRole("radio", { name: "camoufox" }));
-  expect(client.setPolicy).toHaveBeenCalledWith("tiktok",
+  expect(client.setPolicy).toHaveBeenCalledWith("instagram",
     { mode: "fallback", min_spacing_seconds: 60, daily_budget: 40, engine: "camoufox" });
 });
 

@@ -419,3 +419,35 @@ def test_a_lease_for_another_engine_skips_the_fingerprint(
 
     assert lease is not None
     assert (lease.access.engine, lease.access.fingerprint) == ("patchright", None)
+
+
+def test_camoufox_is_refused_where_no_session_runs_it(store: SourceAccountStore) -> None:
+    # Only Instagram's signed-in reels discovery runs Camoufox (spec 3.4); elsewhere a Firefox
+    # profile would reach Chromium.
+    for platform in ("tiktok", "x", "youtube", "threads"):
+        with pytest.raises(SourceAccountError) as raised:
+            store.set_policy(platform, "fallback", 0, engine="camoufox")  # type: ignore[arg-type]
+        assert raised.value.code == "engine_unsupported"
+
+
+def test_a_stray_camoufox_policy_still_leases_patchright(
+    store: SourceAccountStore, engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from thoth_control_plane.infrastructure.source_account_models import SourceAccountPolicyRow
+
+    monkeypatch.setattr(fingerprints, "new_fingerprint", lambda: pytest.fail("generated"))
+    with Session(engine) as session, session.begin():
+        session.add(
+            SourceAccountPolicyRow(
+                platform="tiktok",
+                mode="fallback",
+                min_spacing_seconds=0,
+                engine="camoufox",
+                updated_at=NOW,
+            )
+        )
+    store.add_account("tiktok", "a", _cookies("tiktok"))
+
+    lease = store.lease("tiktok")
+
+    assert lease is not None and lease.access.engine == "patchright"

@@ -16,6 +16,9 @@ DEFAULT_SPACING_SECONDS = 60
 DEFAULT_DAILY_BUDGETS = {"instagram": 20, "tiktok": 40, "x": 30, "youtube": 60, "threads": 30}
 DEFAULT_SPACING_SECONDS_BY_PLATFORM = {"instagram": 600}
 ENGINES = ("patchright", "camoufox")
+# Only Instagram's signed-in reels discovery runs Camoufox (spec 3.4); every other session is
+# Scrapling and Patchright, where a Firefox profile and fingerprint would not belong.
+CAMOUFOX_PLATFORMS = frozenset({"instagram"})
 MAX_SPACING_SECONDS = 86_400
 # Longer than the 5-minute acquisition activity, so only a dead holder's lease ever expires.
 LEASE = timedelta(minutes=10)

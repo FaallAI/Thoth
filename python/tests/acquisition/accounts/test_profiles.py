@@ -167,3 +167,30 @@ async def test_without_profiles_the_lease_access_is_unchanged() -> None:
 
     async with leased_access(None, lease) as access:
         assert access is lease.access
+
+
+def test_firefox_and_service_worker_caches_are_never_archived(tmp_path: Path) -> None:
+    profiles = _profiles(tmp_path)
+    directory = profiles.unseal(ACCOUNT, "camoufox")
+    for cache in ("cache2", "startupCache", "shader-cache", "Default/Service Worker/ScriptCache"):
+        (directory / cache).mkdir(parents=True)
+        (directory / cache / "entry").write_bytes(b"x")
+    (directory / "cookies.sqlite").write_bytes(b"state")
+
+    profiles.seal(ACCOUNT, directory, "camoufox")
+
+    again = profiles.unseal(ACCOUNT, "camoufox")
+    assert sorted(path.name for path in again.rglob("*")) == ["cookies.sqlite"]
+
+
+def test_the_cap_warns_when_it_drops_files(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    profiles = _profiles(tmp_path, max_bytes=10_000)
+    directory = profiles.unseal(ACCOUNT)
+    (directory / "huge.bin").write_bytes(b"x" * 50_000)
+
+    with caplog.at_level("WARNING"):
+        profiles.seal(ACCOUNT, directory)
+
+    assert "dropped 1" in caplog.text and "huge.bin" not in caplog.text

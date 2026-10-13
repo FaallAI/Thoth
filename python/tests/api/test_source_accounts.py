@@ -455,3 +455,14 @@ async def test_a_fingerprint_reset_and_a_delete_remove_the_profiles(
         assert (await api.delete(path, headers=AUTH)).status_code == 204
         assert list(root.glob("*.profile")) == []
         assert (root / f"{account['id']}.deleted").exists()  # an open lease cannot write back
+
+
+@pytest.mark.asyncio
+async def test_camoufox_outside_instagram_is_refused() -> None:
+    async with client(_store()) as api:
+        answer = await api.put(
+            "/source-accounts/policies/tiktok",
+            headers=AUTH,
+            json={"mode": "fallback", "min_spacing_seconds": 60, "engine": "camoufox"},
+        )
+        assert (answer.status_code, answer.json()["detail"]["code"]) == (422, "engine_unsupported")

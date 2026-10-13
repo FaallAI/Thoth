@@ -22,6 +22,7 @@ from thoth_control_plane.acquisition.accounts import fingerprints
 from thoth_control_plane.acquisition.accounts.access import SessionAccess
 from thoth_control_plane.acquisition.accounts.cookies import PLATFORMS, CookieSet, Platform
 from thoth_control_plane.acquisition.accounts.policy import (
+    CAMOUFOX_PLATFORMS,
     DEFAULT_DAILY_BUDGETS,
     DEFAULT_MODE,
     DEFAULT_SPACING_SECONDS,
@@ -45,6 +46,11 @@ from thoth_control_plane.infrastructure.source_account_models import (
 UNSET: Final = object()
 # A lease skips at most this many undecryptable accounts before giving up for this call.
 MAX_LEASE_ATTEMPTS = 5
+
+
+def _engine(platform: str, policy: PolicyView) -> str:
+    """The policy's engine where a session runs it; Patchright everywhere else."""
+    return policy.engine if platform in CAMOUFOX_PLATFORMS else "patchright"
 
 
 class SourceAccountError(Exception):
@@ -154,6 +160,8 @@ class SourceAccountStore:
     ) -> PolicyView:
         if engine not in ENGINES:
             raise ValueError(f"unknown engine {engine!r}")
+        if engine == "camoufox" and platform not in CAMOUFOX_PLATFORMS:
+            raise SourceAccountError("engine_unsupported")
         with self._sessions.begin() as session:
             row = session.get(SourceAccountPolicyRow, platform)
             if row is None:
@@ -338,7 +346,7 @@ class SourceAccountStore:
                 if row is None:
                     return None
                 try:
-                    access = self._open(session, row, engine or policy.engine)
+                    access = self._open(session, row, engine or _engine(platform, policy))
                 except VaultError:
                     row.status, row.last_outcome, row.updated_at = "expired", "undecryptable", now
                     continue

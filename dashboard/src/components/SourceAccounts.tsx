@@ -28,6 +28,8 @@ const ENGINES: { id: BrowserEngine; hint: string }[] = [
   { id: "patchright", hint: "Chromium, the default" },
   { id: "camoufox", hint: "Firefox; switch after the fingerprint comparison" },
 ];
+// The server refuses Camoufox elsewhere (engine_unsupported): only Instagram's reels run it.
+const CAMOUFOX_PLATFORMS = ["instagram"];
 const MAX_BUDGET = 100_000;
 const STATUS_LABEL = { healthy: "healthy", cooldown: "cooling down", expired: "expired", disabled: "disabled" };
 const DAY_MS = 86_400_000;
@@ -112,14 +114,14 @@ function AccessCard({ group, available, onSave }: {
           <span>seconds</span>
         </div>
       </div>
-      <div>
+      {CAMOUFOX_PLATFORMS.includes(group.platform) && <div>
         <p className="sa-field-label" id="sa-engine-label">Browser engine</p>
         <div className="sa-segmented" role="radiogroup" aria-labelledby="sa-engine-label"
           onKeyDown={stepper(ENGINES, group.engine, pickEngine)}>
           {radios(ENGINES, group.engine, pickEngine)}
         </div>
         <p className="sa-mode-hints">{ENGINES.map((engine) => `${engine.id}: ${engine.hint}`).join("   ·   ")}</p>
-      </div>
+      </div>}
       <div>
         <label className="sa-field-label" htmlFor="sa-budget">Daily budget</label>
         <div className="sa-spacing">

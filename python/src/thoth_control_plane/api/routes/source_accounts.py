@@ -65,6 +65,7 @@ _ERROR_STATUS = {
     "proxy_in_use": status.HTTP_409_CONFLICT,
     "undecryptable": status.HTTP_409_CONFLICT,
     "platform_mismatch": status.HTTP_422_UNPROCESSABLE_CONTENT,
+    "engine_unsupported": status.HTTP_422_UNPROCESSABLE_CONTENT,
 }
 # A write that raced past the store's check meets a unique constraint; its name picks the code.
 _UNIQUE_CODES = (("proxy_id", "proxy_in_use"), ("label", "label_taken"))

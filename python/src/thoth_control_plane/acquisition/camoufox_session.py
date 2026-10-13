@@ -30,12 +30,15 @@ class CamoufoxSession:
 
     async def __aenter__(self) -> CamoufoxSession:
         get = self._kwargs.get
+        proxy = get("proxy")
+        if isinstance(proxy, str):  # no credentials: Playwright takes only a dict
+            proxy = {"server": proxy}
         options: dict[str, Any] = {
             "headless": get("headless", True),
             "persistent_context": True,
             "user_data_dir": get("user_data_dir"),
             "locale": get("locale"),
-            "proxy": get("proxy"),
+            "proxy": proxy,
             "fingerprint": get("fingerprint"),
             "config": {"timezone": get("timezone_id")} if get("timezone_id") else None,
             "geoip": False,

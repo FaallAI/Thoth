@@ -315,9 +315,11 @@ jobs:
           set -euo pipefail
           root="${RUNNER_TEMP}/thoth-stage1"
           mkdir -p "${root}"/postgres "${root}"/artifacts "${root}"/browser-profile
-          mkdir -p "${root}"/observations "${root}"/reports
+          mkdir -p "${root}"/observations "${root}"/reports "${root}"/account-profiles
           sudo chown -R 10001:10001 "${root}/artifacts" "${root}/browser-profile"
+          sudo chown -R 10001:10001 "${root}/account-profiles"
           sudo chmod 750 "${root}/artifacts" "${root}/browser-profile"
+          sudo chmod 700 "${root}/account-profiles"
 
       - name: Write a throwaway local environment
         run: |

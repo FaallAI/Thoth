@@ -133,6 +133,7 @@ const ERROR_TEXT: Record<string, string> = {
   invalid_proxy_file: "The proxy list is too large. Import at most 500 lines.",
   undecryptable: "This account can no longer be read. Re-import its cookies.",
   invalid_request: "Some fields are not valid.",
+  engine_unsupported: "Camoufox runs only for Instagram.",
 };
 
 /** Fixed, safe copy for an error; never the server's own words. */

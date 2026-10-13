@@ -110,3 +110,17 @@ async def test_without_camoufox_the_session_is_tool_missing(
         async with CamoufoxSession(headless=True):
             pass
     assert raised.value.code == "camoufox_missing"
+
+
+@pytest.mark.asyncio
+async def test_a_proxy_without_credentials_reaches_camoufox_as_a_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import thoth_control_plane.acquisition.camoufox_session as module
+
+    monkeypatch.setattr(module, "_camoufox", lambda: _Camoufox)
+
+    async with CamoufoxSession(headless=True, proxy="socks5://10.0.0.1:1080"):
+        pass
+
+    assert _Camoufox.seen["proxy"] == {"server": "socks5://10.0.0.1:1080"}

@@ -1143,3 +1143,10 @@ def test_dockerfile_prepares_account_profiles_camoufox_and_timezones() -> None:
     assert "test -d /home/thoth/.cache/camoufox" in dockerfile
     # Account timezones are validated with zoneinfo; tzdata in the lock is Windows-only.
     assert "test -f /usr/share/zoneinfo/Asia/Jakarta" in dockerfile
+
+
+def test_container_workflow_prepares_the_account_profiles_bind_source() -> None:
+    # Compose long-syntax binds never create a missing host path.
+    workflow = _repo_text(".github/workflows/container-image.yml")
+    assert '"${root}"/account-profiles' in workflow
+    assert 'sudo chmod 700 "${root}/account-profiles"' in workflow

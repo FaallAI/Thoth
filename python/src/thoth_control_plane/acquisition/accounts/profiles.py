@@ -32,7 +32,17 @@ if TYPE_CHECKING:
     from thoth_control_plane.infrastructure.source_account_store import AccountLease
 
 logger = logging.getLogger(__name__)
-PRUNED = ("Cache", "Code Cache", "GPUCache", "Service Worker/CacheStorage")
+# Chromium's and Firefox's caches: rebuilt by the browser, never part of the device.
+PRUNED = (
+    "Cache",
+    "Code Cache",
+    "GPUCache",
+    "Service Worker/CacheStorage",
+    "Service Worker/ScriptCache",
+    "cache2",
+    "startupCache",
+    "shader-cache",
+)
 MAX_BYTES = 64 * 2**20
 
 
@@ -82,6 +92,10 @@ class AccountProfiles:
                     continue
                 total += size
                 kept.append(path)
+            if len(kept) < len(files):
+                logger.warning(
+                    "account profile over its cap; dropped %d files", len(files) - len(kept)
+                )
             buffer = io.BytesIO()
             with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
                 for path in kept:
