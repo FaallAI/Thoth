@@ -50,29 +50,49 @@ Branch `feat/stage4-reaction-attribution` (not pushed), from the Stage 5a tip. S
   than 6 hours is judged on contribution and discussion alone.
 - Live capture (operator-authorized): 10 cases with the branch source in the deployed image,
   speech packages at their locked versions, pinned models mounted.
-  - In the suite: DeO6A2MSoAt (text subject) and DeOUJ60SHeI are `original`; DeHz54GT4ea is
-    `original` at engagement 0.9x; DeRDs6DCX07 and officialinews stay `replaced`;
-    kabinetketiduran stays `original`.
+  - In the suite: DeO6A2MSoAt (text subject) is `original`; DeRDs6DCX07 and officialinews stay
+    `replaced`; kabinetketiduran stays `original`.
   - Calibration (operator): reaction engagement 0.8 (from 1.0); repost threshold 0.6 (from
     0.5; the recapture put kabinetketiduran at 0.56, every true repost is at 0.80 or more).
-  - Pending, outside the suite (`tests/fixtures/attribution/pending/`): DeWlWJmyKxP, a known
-    miss (comments at 0.42; Instagram's profile listing gave 3 videos, so no baseline); and three
-    uncredited reposts (koranjakarta x2, detikcom) that need Stage 8 story search.
+  - Pending, outside the suite (`tests/fixtures/attribution/pending/`, parse-checked only):
+    - three original reactions that Instagram's thin profile listing defeats: DeWlWJmyKxP
+      (comments 0.42, no baseline), DeOUJ60SHeI (engagement 0.2x), and DeHz54GT4ea (one of
+      its 3 baseline videos is too young, so no baseline);
+    - three uncredited reposts (koranjakarta x2, detikcom) that need Stage 8 story search.
+- Instagram profile discovery reads one anonymous 12-post grid and keeps its videos: for
+  @sadampermana.w that is 3 videos and 9 photos, one page, not exhausted. The signed-in reels
+  listing that would fix it (plan Task 16) is blocked: the Instagram session on file is no
+  longer signed in (research `2026-10-13-reaction-calibration-gaps-research.md`).
+- A text or image subject is confirmed before the shortcut (spec 5.8). Motion inside a
+  `subject` shot or another voice contradicts the label and sends the post down the video
+  path; without any subject shot, the whole video is listened to. DeOUJ60SHeI, which vision
+  called an image, now fails the motion check as it should.
+- A second fresh review of the follow-up work found no Critical and two Important issues, both
+  fixed: young baseline videos are no longer extrapolated, and a vacuous confirmation now
+  listens to the whole video and says so. The nine minors were fixed too: new codes
+  `pillow_missing` and `motion_failed`, a future `published_at` is unmeasured, no baseline
+  discovery for a too-young reaction, `av` and `pillow` declared, read-only shared audio, and a
+  parse test for the pending fixtures.
+- The build lock now carries `sherpa-onnx-core` (uv had locked sherpa-onnx without it, so CI's
+  frozen sync could not import it). CI run `38422576976` is green, including the image build
+  with the baked models and the non-live stack smoke.
   - Stage 5a OCR goldens of DeHz54GT4ea and DeO6A2MSoAt are now `clean` (originals keep their
     opening).
 - CPU speed (28-core host): faster-whisper large-v3-turbo int8 transcribed 61.7 s of audio in
   11.9 s (5.2x realtime) after a 3.8 s model load; diarization took 7.5 s. The tiny model reads
   Indonesian as Thai with no words, so turbo stays; the sherpa-onnx whisper comparison was not
   needed.
-- Python suite: 3544 passed, 12 skipped (Playwright, disposable Postgres, live), 0 failed.
+- Python suite: 3565 passed, 12 skipped (Playwright, disposable Postgres, live), 0 failed.
   Ruff check and format clean. actionlint: no new findings.
 
 Next steps:
 
-- Operator gates (authorized 2026-10-13): push, merge, deploy. Deploy precondition: TikTok,
-  Instagram, and X source accounts with proxies imported, with policy `fallback` or `always`.
-- Follow-ups: deeper Instagram profile listing (3 videos is too thin for a baseline), negative
-  reaction examples to calibrate against, recalibrating τ from Thoth's own snapshots.
+- Operator: a fresh Instagram session for plan Task 16 (signed-in reels listing), then the
+  recapture of the three pending Instagram reactions; source accounts with proxies imported
+  for TikTok, Instagram, and X (none are imported yet).
+- Deploy waits for Task 16 (operator, 2026-10-13: fix first). Push and merge are authorized.
+- Follow-ups: negative reaction examples to calibrate against; recalibrating τ from Thoth's
+  own snapshots.
 - Stage 5b: footage. Still parked: Stage 4 golden cases 2 and 5, DeVlbTORhmq, and the backlog
   (interactive login, login-only capabilities, vault key rotation, Creator Studio backlog).
 
