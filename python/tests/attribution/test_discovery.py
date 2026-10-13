@@ -105,14 +105,15 @@ async def test_fallback_leases_an_account_after_a_captcha() -> None:
 
 
 def _videos(count: int) -> list[DiscoveredVideo]:
+    ids = [str(7677137235434687000 + n) for n in range(count)]
     return [
         VIDEO.model_copy(
             update={
-                "post_id": str(7677137235434687000 + n),
-                "canonical_url": f"https://www.tiktok.com/@{SOURCE}/video/{7677137235434687000 + n}",
+                "post_id": post_id,
+                "canonical_url": f"https://www.tiktok.com/@{SOURCE}/video/{post_id}",
             }
         )
-        for n in range(count)
+        for post_id in ids
     ]
 
 
