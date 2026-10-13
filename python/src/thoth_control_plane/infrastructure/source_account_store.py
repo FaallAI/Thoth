@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Final
 
-from sqlalchemy import and_, create_engine, or_, select
+from sqlalchemy import and_, create_engine, or_, select, true
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -36,6 +36,7 @@ from thoth_control_plane.acquisition.accounts.vault import Vault, VaultError
 from thoth_control_plane.infrastructure.source_account_models import (
     SourceAccountPolicyRow,
     SourceAccountRow,
+    SourceAccountUsageRow,
     SourceProxyRow,
 )
 
@@ -76,6 +77,10 @@ class AccountView:
     proxy_display: str | None
     created_at: datetime
     updated_at: datetime
+    locale: str = "id-ID"
+    timezone: str = "Asia/Jakarta"
+    fingerprint_set: bool = False
+    uses_today: int = 0
 
 
 @dataclass(frozen=True)
@@ -276,12 +281,26 @@ class SourceAccountStore:
         """The least recently used eligible account, held for `LEASE`; None when none is."""
         for _ in range(MAX_LEASE_ATTEMPTS):
             now = self._clock()
-            spacing = timedelta(seconds=self.policy(platform).min_spacing_seconds)
+            policy = self.policy(platform)
+            spacing = timedelta(seconds=policy.min_spacing_seconds)
+            today = now.date()
+            # Spec 2026-10-13, 3.3: an account that used its daily budget waits for tomorrow.
+            within_budget = (
+                ~SourceAccountRow.id.in_(
+                    select(SourceAccountUsageRow.account_id).where(
+                        SourceAccountUsageRow.day == today,
+                        SourceAccountUsageRow.uses >= policy.daily_budget,
+                    )
+                )
+                if policy.daily_budget > 0
+                else true()
+            )
             with self._sessions.begin() as session:
                 row = session.scalars(
                     select(SourceAccountRow)
                     .where(
                         SourceAccountRow.platform == platform,
+                        within_budget,
                         or_(
                             SourceAccountRow.status == "healthy",
                             and_(
@@ -310,6 +329,11 @@ class SourceAccountStore:
                     row.status, row.last_outcome, row.updated_at = "expired", "undecryptable", now
                     continue
                 row.leased_until, row.last_used_at = now + LEASE, now
+                usage = session.get(SourceAccountUsageRow, (row.id, today))
+                if usage is None:
+                    session.add(SourceAccountUsageRow(account_id=row.id, day=today, uses=1))
+                else:
+                    usage.uses += 1
                 return AccountLease(str(row.id), platform, access, row.leased_until)
         return None
 
@@ -455,9 +479,9 @@ class SourceAccountStore:
             proxy = self._vault.open(proxy_row.proxy_ciphertext) if proxy_row else None
         return SessionAccess(cookies, proxy)
 
-    @staticmethod
-    def _account_view(session: Session, row: SourceAccountRow) -> AccountView:
+    def _account_view(self, session: Session, row: SourceAccountRow) -> AccountView:
         proxy = session.get(SourceProxyRow, row.proxy_id) if row.proxy_id else None
+        usage = session.get(SourceAccountUsageRow, (row.id, self._clock().date()))
         return AccountView(
             id=str(row.id),
             platform=row.platform,  # type: ignore[arg-type]
@@ -474,4 +498,8 @@ class SourceAccountStore:
             proxy_display=proxy.display if proxy else None,
             created_at=row.created_at,
             updated_at=row.updated_at,
+            locale=row.locale or "id-ID",
+            timezone=row.timezone or "Asia/Jakarta",
+            fingerprint_set=row.fingerprint_ciphertext is not None,
+            uses_today=usage.uses if usage is not None else 0,
         )

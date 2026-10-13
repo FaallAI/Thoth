@@ -285,3 +285,67 @@ def test_a_policy_stores_budget_and_engine(store: SourceAccountStore) -> None:
     assert store.set_policy("instagram", "fallback", 900, daily_budget=None).daily_budget == 20
     with pytest.raises(ValueError):
         store.set_policy("instagram", "fallback", 900, engine="chromium")
+
+
+def test_an_account_over_its_daily_budget_is_not_leased(store: SourceAccountStore) -> None:
+    # Spec 2026-10-13, 3.3: a busy day must not turn into a burst on one account.
+    store.set_policy("instagram", "fallback", 0, daily_budget=2)
+    account = store.add_account("instagram", "a", _cookies())
+
+    for _ in range(2):
+        lease = store.lease("instagram")
+        assert lease is not None
+        store.report(lease.account_id, "success", lease.leased_until)
+
+    assert store.lease("instagram") is None
+    assert store.account(account.id).uses_today == 2
+
+
+def test_the_budget_resets_on_the_next_utc_day(store: SourceAccountStore, clock: Clock) -> None:
+    store.set_policy("instagram", "fallback", 0, daily_budget=1)
+    store.add_account("instagram", "a", _cookies())
+    first = store.lease("instagram")
+    store.report(first.account_id, "success", first.leased_until)
+    assert store.lease("instagram") is None
+
+    clock.now += timedelta(days=1)
+
+    assert store.lease("instagram") is not None
+
+
+def test_a_zero_budget_is_unlimited(store: SourceAccountStore) -> None:
+    store.set_policy("instagram", "fallback", 0, daily_budget=0)
+    store.add_account("instagram", "a", _cookies())
+
+    for _ in range(30):
+        lease = store.lease("instagram")
+        assert lease is not None
+        store.report(lease.account_id, "success", lease.leased_until)
+
+
+def test_the_budget_counts_in_the_lease_transaction(store: SourceAccountStore) -> None:
+    # Review focus 2: two leases in the same instant each take one account's last slot.
+    store.set_policy("instagram", "fallback", 0, daily_budget=1)
+    store.add_account("instagram", "a", _cookies(value="a-cookie"))
+    store.add_account("instagram", "b", _cookies(value="b-cookie"))
+
+    first, second = store.lease("instagram"), store.lease("instagram")
+
+    assert first is not None and second is not None
+    assert first.account_id != second.account_id
+    store.report(first.account_id, "success", first.leased_until)
+    store.report(second.account_id, "success", second.leased_until)
+    assert store.lease("instagram") is None
+
+
+def test_an_account_view_shows_locale_timezone_and_no_fingerprint_yet(
+    store: SourceAccountStore,
+) -> None:
+    view = store.add_account("instagram", "a", _cookies())
+
+    assert (view.locale, view.timezone, view.fingerprint_set, view.uses_today) == (
+        "id-ID",
+        "Asia/Jakarta",
+        False,
+        0,
+    )
