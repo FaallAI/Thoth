@@ -78,6 +78,8 @@ class Settings(BaseSettings):
     THOTH_RENDER_PRESET_ID: Literal["standard_vertical_mp4_v1"] = "standard_vertical_mp4_v1"
     # A Fernet key; source accounts need it and the editor database, else they stay off.
     THOTH_ACCOUNT_VAULT_KEY: SecretStr | None = None
+    # Spec 2026-10-13, 3.2: sealed per-account browser profiles, a volume of their own.
+    THOTH_ACCOUNT_PROFILE_DIR: Path = Path("/var/lib/thoth/account-profiles")
     # Stage 4 source attribution. Without a key, that half of the evidence is skipped.
     THOTH_FFMPEG: str = "ffmpeg"
     THOTH_SOURCE_VISION_MODEL: str = "qwen/qwen3-vl-30b-a3b-instruct"

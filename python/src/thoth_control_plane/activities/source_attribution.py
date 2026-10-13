@@ -28,6 +28,7 @@ from temporalio import activity
 from thoth_control_plane.acquisition.models import SourceReport
 from thoth_control_plane.activities.source_investigation import (
     AcquisitionRunner,
+    _account_profiles,
     _account_store,
     build_production_acquisition_runner,
 )
@@ -125,7 +126,9 @@ def build_production_ports(settings: Settings, artifact_root: Path) -> Attributi
         frames=FfmpegFrameSource(settings.THOTH_FFMPEG),
         matcher=OrbMatcher(),
         text=RapidOcrReader(),
-        discoverer=ProfileDiscoverer(leases=StoreLeases(store) if store is not None else None),
+        discoverer=ProfileDiscoverer(
+            leases=StoreLeases(store, _account_profiles(settings)) if store is not None else None
+        ),
         acquirer=RunnerAcquirer(build_production_acquisition_runner(settings), artifact_root),
         vision=AgnoVisionReader(openrouter, settings.THOTH_SOURCE_VISION_MODEL),
         decisions=JevDecisionModel(openrouter),

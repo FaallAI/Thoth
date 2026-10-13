@@ -4,20 +4,32 @@ A profile keeps an account looking like one returning device: local storage and 
 survive between leases. At rest it is a tar archive sealed with the vault key, one per engine
 (a Chromium user data directory and a Firefox profile are different formats); it is unpacked
 into a private directory only while the account is leased. Cookies still come from the vault.
+
+An account deleted while its profile is unpacked must not get it back: the api deletes, the
+worker seals, so `mark_deleted` leaves a tombstone on the shared volume that `seal` honours.
 """
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import dataclasses
 import io
 import logging
 import os
 import shutil
 import tarfile
 import tempfile
+from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import TYPE_CHECKING
 
+from thoth_control_plane.acquisition.accounts.access import SessionAccess
 from thoth_control_plane.acquisition.accounts.policy import ENGINES
 from thoth_control_plane.acquisition.accounts.vault import Vault, VaultError
+
+if TYPE_CHECKING:
+    from thoth_control_plane.infrastructure.source_account_store import AccountLease
 
 logger = logging.getLogger(__name__)
 PRUNED = ("Cache", "Code Cache", "GPUCache", "Service Worker/CacheStorage")
@@ -47,9 +59,14 @@ class AccountProfiles:
                 directory = _private_directory()
         return directory
 
+    def _tombstone(self, account_id: str) -> Path:
+        return self._root / f"{account_id}.deleted"
+
     def seal(self, account_id: str, directory: Path, engine: str = "patchright") -> None:
         try:
             target = self._archive(account_id, engine)
+            if self._tombstone(account_id).exists():
+                return
             files = sorted(
                 (
                     path
@@ -73,6 +90,8 @@ class AccountProfiles:
             partial = target.with_suffix(".part")
             partial.write_bytes(self._vault.seal_bytes(buffer.getvalue()))
             os.replace(partial, target)
+            if self._tombstone(account_id).exists():  # deleted while this archive was written
+                target.unlink(missing_ok=True)
         except OSError:
             logger.warning("account profile could not be saved; the next lease starts fresh")
         finally:
@@ -85,6 +104,28 @@ class AccountProfiles:
     def delete(self, account_id: str) -> None:
         for engine in ENGINES:
             self._archive(account_id, engine).unlink(missing_ok=True)
+
+    def mark_deleted(self, account_id: str) -> None:
+        """The account is gone: no lease still open may write its profile back."""
+        self._root.mkdir(parents=True, exist_ok=True)
+        self._tombstone(account_id).touch()
+        self.delete(account_id)
+
+
+@contextlib.asynccontextmanager
+async def leased_access(
+    profiles: AccountProfiles | None, lease: AccountLease, *, engine: str | None = None
+) -> AsyncIterator[SessionAccess]:
+    """The lease's access with its engine's profile unpacked; sealed back on any exit."""
+    access = lease.access if engine is None else dataclasses.replace(lease.access, engine=engine)
+    if profiles is None:
+        yield access
+        return
+    directory = await asyncio.to_thread(profiles.unseal, lease.account_id, access.engine)
+    try:
+        yield dataclasses.replace(access, profile_dir=directory)
+    finally:
+        await asyncio.to_thread(profiles.seal, lease.account_id, directory, access.engine)
 
 
 def _private_directory() -> Path:

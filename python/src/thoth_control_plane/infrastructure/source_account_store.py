@@ -7,6 +7,7 @@ by the vault before they reach a row and opened only to build a `SessionAccess`.
 
 from __future__ import annotations
 
+import json
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -17,6 +18,7 @@ from sqlalchemy import and_, create_engine, or_, select, true
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session, sessionmaker
 
+from thoth_control_plane.acquisition.accounts import fingerprints
 from thoth_control_plane.acquisition.accounts.access import SessionAccess
 from thoth_control_plane.acquisition.accounts.cookies import PLATFORMS, CookieSet, Platform
 from thoth_control_plane.acquisition.accounts.policy import (
@@ -233,6 +235,9 @@ class SourceAccountStore:
         label: Any = UNSET,
         proxy_id: Any = UNSET,
         disabled: bool | None = None,
+        locale: str | None = None,
+        timezone: str | None = None,
+        reset_fingerprint: bool = False,
     ) -> AccountView:
         with self._sessions.begin() as session:
             row = self._row(session, account_id)
@@ -245,6 +250,12 @@ class SourceAccountStore:
                 row.status = "disabled"
             elif disabled is False and row.status == "disabled":
                 row.status, row.cooldown_level, row.cooldown_until = "healthy", 0, None
+            if locale is not None:
+                row.locale = locale
+            if timezone is not None:
+                row.timezone = timezone
+            if reset_fingerprint:  # the route also deletes the profiles: a new device
+                row.fingerprint_ciphertext = None
             row.updated_at = self._clock()
             session.flush()
             return self._account_view(session, row)
@@ -324,7 +335,7 @@ class SourceAccountStore:
                 if row is None:
                     return None
                 try:
-                    access = self._open(session, row)
+                    access = self._open(session, row, policy.engine)
                 except VaultError:
                     row.status, row.last_outcome, row.updated_at = "expired", "undecryptable", now
                     continue
@@ -468,7 +479,9 @@ class SourceAccountStore:
         row.cookie_names = cookies.names()
         row.cookies_earliest_expiry = cookies.earliest_expiry()
 
-    def _open(self, session: Session, row: SourceAccountRow) -> SessionAccess:
+    def _open(
+        self, session: Session, row: SourceAccountRow, engine: str = "patchright"
+    ) -> SessionAccess:
         cookies = CookieSet.from_json(
             row.platform,  # type: ignore[arg-type]
             self._vault.open(row.cookies_ciphertext),
@@ -477,7 +490,22 @@ class SourceAccountStore:
         if row.proxy_id is not None:
             proxy_row = session.get(SourceProxyRow, row.proxy_id)
             proxy = self._vault.open(proxy_row.proxy_ciphertext) if proxy_row else None
-        return SessionAccess(cookies, proxy)
+        # Spec 3.4 (amended 2026-10-14): only Camoufox gets a fingerprint, made on first use.
+        fingerprint = None
+        if engine == "camoufox":
+            if row.fingerprint_ciphertext is None:
+                fingerprint = fingerprints.new_fingerprint()
+                row.fingerprint_ciphertext = self._vault.seal(json.dumps(fingerprint))
+            else:
+                fingerprint = json.loads(self._vault.open(row.fingerprint_ciphertext))
+        return SessionAccess(
+            cookies,
+            proxy,
+            locale=row.locale or "id-ID",
+            timezone=row.timezone or "Asia/Jakarta",
+            fingerprint=fingerprint,
+            engine=engine,
+        )
 
     def _account_view(self, session: Session, row: SourceAccountRow) -> AccountView:
         proxy = session.get(SourceProxyRow, row.proxy_id) if row.proxy_id else None

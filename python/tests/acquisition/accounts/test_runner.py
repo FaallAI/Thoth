@@ -235,3 +235,25 @@ async def test_a_failing_store_never_fails_acquisition(
     assert (script.sessions, result.report is not None) == ([None], True)
     assert "acquisition runs anonymously" in caplog.text
     assert SECRET not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_a_leased_acquisition_runs_in_the_accounts_patchright_profile(
+    store: SourceAccountStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from thoth_control_plane.acquisition.accounts import fingerprints
+    from thoth_control_plane.acquisition.accounts.profiles import AccountProfiles
+
+    monkeypatch.setattr(fingerprints, "new_fingerprint", lambda: {"n": 1})
+    store.set_policy("instagram", "always", 0, engine="camoufox")
+    store.add_account("instagram", "a", COOKIES)
+    profiles = AccountProfiles(Vault(Fernet.generate_key().decode()), tmp_path / "profiles")
+    script = Script(SUCCESS)
+
+    await account_runner(store, script, profiles)("wf_1", URL, Path("."))
+
+    (session,) = script.sessions
+    assert session is not None and session.profile_dir is not None
+    assert session.engine == "patchright"  # card crops stay on Scrapling (spec 3.4)
+    assert not session.profile_dir.exists()
+    assert [path.name.split(".")[1] for path in (tmp_path / "profiles").iterdir()] == ["patchright"]

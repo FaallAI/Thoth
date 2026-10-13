@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlsplit
@@ -31,16 +31,35 @@ def _browser_proxy(proxy: str) -> str | dict[str, str]:
 class SessionAccess:
     cookies: CookieSet
     proxy: str | None = None
+    _: KW_ONLY
+    # Spec 2026-10-13, 3.2 and 3.4: the account's own device, kept between leases.
+    profile_dir: Path | None = None
+    locale: str = "id-ID"
+    timezone: str = "Asia/Jakarta"
+    fingerprint: dict[str, Any] | None = field(default=None, hash=False)  # Camoufox's only
+    engine: str = "patchright"
 
     def __repr__(self) -> str:
-        # The cookies and the proxy are secrets; a repr must never print them.
+        # The cookies, proxy, profile, and fingerprint are secrets; a repr never prints them.
         return f"SessionAccess(platform={self.cookies.platform!r})"
 
     def browser_kwargs(self) -> dict[str, Any]:
-        """Extra `AsyncStealthySession` arguments: the cookies, and the proxy if any."""
-        kwargs: dict[str, Any] = {"cookies": self.cookies.to_playwright()}
+        """Extra browser-session arguments: cookies, proxy, profile, locale, and timezone.
+
+        Only Camoufox gets the fingerprint, a Firefox one. Patchright keeps Scrapling's user
+        agent, which already matches the driven Chromium and the host OS (amendment 2026-10-14).
+        """
+        kwargs: dict[str, Any] = {
+            "cookies": self.cookies.to_playwright(),
+            "locale": self.locale,
+            "timezone_id": self.timezone,
+        }
         if self.proxy:
             kwargs["proxy"] = _browser_proxy(self.proxy)
+        if self.profile_dir is not None:
+            kwargs["user_data_dir"] = str(self.profile_dir)
+        if self.engine == "camoufox" and self.fingerprint is not None:
+            kwargs["fingerprint"] = self.fingerprint
         return kwargs
 
     def request_kwargs(self) -> dict[str, Any]:

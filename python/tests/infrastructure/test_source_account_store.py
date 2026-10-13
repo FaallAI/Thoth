@@ -10,6 +10,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from thoth_control_plane.acquisition.accounts import fingerprints
 from thoth_control_plane.acquisition.accounts.cookies import parse_cookies
 from thoth_control_plane.acquisition.accounts.proxies import parse_proxy_list
 from thoth_control_plane.acquisition.accounts.vault import Vault
@@ -349,3 +350,58 @@ def test_an_account_view_shows_locale_timezone_and_no_fingerprint_yet(
         False,
         0,
     )
+
+
+def test_a_camoufox_account_gets_one_lasting_firefox_fingerprint(
+    store: SourceAccountStore, clock: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The real generator installs fpgen's model; the store test pins only the lifecycle.
+    made = iter([{"navigator": {"userAgent": "Firefox/150.0"}, "n": 1}, {"n": 2}])
+    monkeypatch.setattr(fingerprints, "new_fingerprint", lambda: next(made))
+    store.set_policy("instagram", "fallback", 0, engine="camoufox")
+    account = store.add_account("instagram", "a", _cookies())
+    first = store.lease("instagram")
+    assert first is not None
+    store.report(first.account_id, "success", first.leased_until)
+    clock.now += timedelta(minutes=1)
+    second = store.lease("instagram")
+    assert second is not None
+
+    assert first.access.fingerprint and first.access.fingerprint == second.access.fingerprint
+    assert first.access.engine == "camoufox" and store.account(account.id).fingerprint_set
+
+
+def test_a_patchright_lease_never_makes_a_fingerprint(
+    store: SourceAccountStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(fingerprints, "new_fingerprint", lambda: pytest.fail("generated"))
+    account = store.add_account("instagram", "a", _cookies())
+
+    lease = store.lease("instagram")
+
+    assert lease is not None
+    assert lease.access.fingerprint is None and lease.access.engine == "patchright"
+    assert not store.account(account.id).fingerprint_set
+
+
+def test_a_lease_carries_the_accounts_locale_and_timezone(store: SourceAccountStore) -> None:
+    account = store.add_account("instagram", "a", _cookies())
+    store.update_account(account.id, locale="en-US", timezone="Asia/Makassar")
+
+    lease = store.lease("instagram")
+
+    assert lease is not None
+    assert (lease.access.locale, lease.access.timezone) == ("en-US", "Asia/Makassar")
+    view = store.account(account.id)
+    assert (view.locale, view.timezone) == ("en-US", "Asia/Makassar")
+
+
+def test_a_fingerprint_reset_clears_it(
+    store: SourceAccountStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(fingerprints, "new_fingerprint", lambda: {"n": 1})
+    store.set_policy("instagram", "fallback", 0, engine="camoufox")
+    account = store.add_account("instagram", "a", _cookies())
+    assert store.lease("instagram") is not None
+
+    assert not store.update_account(account.id, reset_fingerprint=True).fingerprint_set

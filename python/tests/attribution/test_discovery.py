@@ -246,3 +246,33 @@ async def test_a_challenge_cools_the_account(reason: DiscoveryReason) -> None:
     with pytest.raises(DiscoveryBlocked):
         await _discover(fake, leases)
     assert leases.released == ["challenge"]
+
+
+@pytest.mark.asyncio
+async def test_store_leases_open_the_profile_and_seal_it_on_release(tmp_path: Path) -> None:
+    from cryptography.fernet import Fernet
+    from sqlalchemy import create_engine
+    from sqlalchemy.pool import StaticPool
+
+    from thoth_control_plane.acquisition.accounts.profiles import AccountProfiles
+    from thoth_control_plane.acquisition.accounts.vault import Vault
+    from thoth_control_plane.attribution.adapters.discovery import StoreLeases
+    from thoth_control_plane.infrastructure.source_account_models import Base
+    from thoth_control_plane.infrastructure.source_account_store import SourceAccountStore
+
+    engine = create_engine(
+        "sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False}
+    )
+    Base.metadata.create_all(engine)
+    vault = Vault(Fernet.generate_key().decode())
+    store = SourceAccountStore(engine, vault)
+    store.add_account("tiktok", "a", ACCESS.cookies)
+    leases = StoreLeases(store, AccountProfiles(vault, tmp_path / "profiles"))
+
+    lease = await leases.lease("tiktok")
+    assert lease is not None and lease.access.profile_dir is not None
+    directory = lease.access.profile_dir
+    await leases.release(lease, "success")
+
+    assert not directory.exists()
+    assert len(list((tmp_path / "profiles").iterdir())) == 1

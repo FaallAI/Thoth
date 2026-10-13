@@ -19,6 +19,7 @@ from pathlib import Path
 
 from thoth_control_plane.acquisition.accounts.access import SessionAccess
 from thoth_control_plane.acquisition.accounts.policy import Outcome
+from thoth_control_plane.acquisition.accounts.profiles import AccountProfiles, leased_access
 from thoth_control_plane.acquisition.models import AccountUse, AcquisitionReason, AcquisitionResult
 from thoth_control_plane.acquisition.platforms import platform_of
 from thoth_control_plane.infrastructure.source_account_store import (
@@ -61,7 +62,9 @@ async def _release(store: SourceAccountStore, lease: AccountLease, outcome: Outc
         logger.warning("source account release failed; its lease expires on its own")
 
 
-def account_runner(store: SourceAccountStore | None, acquire: Acquire) -> Runner:
+def account_runner(
+    store: SourceAccountStore | None, acquire: Acquire, profiles: AccountProfiles | None = None
+) -> Runner:
     async def run(workflow_id: str, source_url: str, artifact_root: Path) -> AcquisitionResult:
         async def attempt(access: SessionAccess | None) -> AcquisitionResult:
             return await acquire(workflow_id, source_url, artifact_root, access)
@@ -90,7 +93,9 @@ def account_runner(store: SourceAccountStore | None, acquire: Acquire) -> Runner
             )
         outcome: Outcome | None = None
         try:
-            result = await attempt(lease.access)
+            # Card crops stay on Scrapling and Patchright whatever the platform's engine (3.4).
+            async with leased_access(profiles, lease, engine="patchright") as access:
+                result = await attempt(access)
             outcome = account_outcome(result)
         finally:
             await _release(store, lease, outcome)

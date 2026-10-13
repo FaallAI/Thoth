@@ -16,6 +16,7 @@ from pydantic import HttpUrl, TypeAdapter
 from temporalio import activity
 
 from thoth_control_plane.acquisition.accounts.access import SessionAccess
+from thoth_control_plane.acquisition.accounts.profiles import AccountProfiles
 from thoth_control_plane.acquisition.accounts.runner import account_runner
 from thoth_control_plane.acquisition.accounts.vault import Vault
 from thoth_control_plane.acquisition.browser import (
@@ -86,6 +87,11 @@ def _account_store(settings: Settings) -> SourceAccountStore | None:
     return SourceAccountStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value(), vault)
 
 
+def _account_profiles(settings: Settings) -> AccountProfiles | None:
+    vault = Vault.from_key(settings.account_vault_key)
+    return None if vault is None else AccountProfiles(vault, settings.THOTH_ACCOUNT_PROFILE_DIR)
+
+
 def build_production_acquisition_runner(settings: Settings) -> AcquisitionRunner:
     """Build a fresh HTTP client and materializer per acquisition; the acquirer owns its browser.
 
@@ -116,7 +122,7 @@ def build_production_acquisition_runner(settings: Settings) -> AcquisitionRunner
                     workflow_id=workflow_id, source_url=source_url, artifact_root=artifact_root
                 )
 
-    return account_runner(_account_store(settings), acquire)
+    return account_runner(_account_store(settings), acquire, _account_profiles(settings))
 
 
 def _attempt_events(attempts: list[AcquisitionAttempt], platform: str) -> list[SourceProgressEvent]:

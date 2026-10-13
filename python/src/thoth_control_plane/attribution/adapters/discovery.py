@@ -10,6 +10,7 @@ Threads has no profile discovery yet.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
 import tempfile
 from collections.abc import Callable, Mapping
@@ -18,6 +19,7 @@ from typing import Any, Protocol
 
 from thoth_control_plane.acquisition.accounts.access import SessionAccess
 from thoth_control_plane.acquisition.accounts.policy import Mode, Outcome
+from thoth_control_plane.acquisition.accounts.profiles import AccountProfiles
 from thoth_control_plane.acquisition.models import (
     DiscoveredVideo,
     DiscoveryReason,
@@ -53,10 +55,15 @@ class AccountLeases(Protocol):
 
 
 class StoreLeases:
-    """Leases from the source-account store; a store failure means "no account"."""
+    """Leases from the source-account store; a store failure means "no account".
 
-    def __init__(self, store: SourceAccountStore) -> None:
+    With profiles, a lease carries its engine's profile unpacked, and the release seals it.
+    """
+
+    def __init__(self, store: SourceAccountStore, profiles: AccountProfiles | None = None) -> None:
         self._store = store
+        self._profiles = profiles
+        self._open: dict[str, Path] = {}
 
     async def mode(self, platform: Platform) -> Mode:
         try:
@@ -67,12 +74,25 @@ class StoreLeases:
 
     async def lease(self, platform: Platform) -> AccountLease | None:
         try:
-            return await asyncio.to_thread(self._store.lease, platform)
+            lease = await asyncio.to_thread(self._store.lease, platform)
         except Exception:
             logger.warning("source account lease unavailable; discovery runs anonymously")
             return None
+        if lease is None or self._profiles is None:
+            return lease
+        directory = await asyncio.to_thread(
+            self._profiles.unseal, lease.account_id, lease.access.engine
+        )
+        self._open[lease.account_id] = directory
+        access = dataclasses.replace(lease.access, profile_dir=directory)
+        return dataclasses.replace(lease, access=access)
 
     async def release(self, lease: AccountLease, outcome: Outcome | None) -> None:
+        directory = self._open.pop(lease.account_id, None)
+        if directory is not None and self._profiles is not None:
+            await asyncio.to_thread(
+                self._profiles.seal, lease.account_id, directory, lease.access.engine
+            )
         try:
             await asyncio.to_thread(
                 self._store.report, lease.account_id, outcome, lease.leased_until

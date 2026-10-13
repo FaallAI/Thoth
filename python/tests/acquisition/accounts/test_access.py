@@ -62,3 +62,29 @@ def test_the_browser_gets_decoded_credentials_while_curl_and_yt_dlp_keep_the_url
     assert SessionAccess(COOKIES, "socks5://10.0.0.1:1080").browser_kwargs()["proxy"] == (
         "socks5://10.0.0.1:1080"
     )
+
+
+def test_browser_kwargs_carry_profile_locale_and_timezone(tmp_path: Path) -> None:
+    access = SessionAccess(
+        COOKIES, None, profile_dir=tmp_path, locale="id-ID", timezone="Asia/Jakarta"
+    )
+
+    kwargs = access.browser_kwargs()
+
+    assert kwargs["user_data_dir"] == str(tmp_path)
+    assert (kwargs["locale"], kwargs["timezone_id"]) == ("id-ID", "Asia/Jakarta")
+    # Patchright keeps Scrapling's user agent: it matches the real Chromium and host OS.
+    assert "useragent" not in kwargs and "fingerprint" not in kwargs
+    assert str(tmp_path) not in repr(access)
+
+
+def test_only_camoufox_gets_the_fingerprint() -> None:
+    firefox = {
+        "navigator": {"userAgent": "Mozilla/5.0 (X11; Linux x86_64; rv:150.0) Firefox/150.0"}
+    }
+    camoufox = SessionAccess(COOKIES, None, fingerprint=firefox, engine="camoufox")
+    patchright = SessionAccess(COOKIES, None, fingerprint=firefox, engine="patchright")
+
+    assert camoufox.browser_kwargs()["fingerprint"] == firefox
+    assert "fingerprint" not in patchright.browser_kwargs()
+    assert "Firefox" not in repr(camoufox)
