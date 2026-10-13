@@ -3,7 +3,30 @@
     "schemas": {
       "AccessPolicyUpdate": {
         "additionalProperties": false,
+        "description": "`daily_budget: null` means the platform default; the response shows the effective one.",
         "properties": {
+          "daily_budget": {
+            "anyOf": [
+              {
+                "maximum": 100000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Budget"
+          },
+          "engine": {
+            "default": "patchright",
+            "enum": [
+              "patchright",
+              "camoufox"
+            ],
+            "title": "Engine",
+            "type": "string"
+          },
           "min_spacing_seconds": {
             "maximum": 86400.0,
             "minimum": 0.0,
@@ -1694,6 +1717,18 @@
           "counts": {
             "$ref": "#/components/schemas/StatusCounts"
           },
+          "daily_budget": {
+            "title": "Daily Budget",
+            "type": "integer"
+          },
+          "engine": {
+            "enum": [
+              "patchright",
+              "camoufox"
+            ],
+            "title": "Engine",
+            "type": "string"
+          },
           "min_spacing_seconds": {
             "title": "Min Spacing Seconds",
             "type": "integer"
@@ -1723,6 +1758,8 @@
           "platform",
           "mode",
           "min_spacing_seconds",
+          "daily_budget",
+          "engine",
           "counts",
           "accounts"
         ],
@@ -4030,6 +4067,10 @@
             "title": "Failure Count",
             "type": "integer"
           },
+          "fingerprint_set": {
+            "title": "Fingerprint Set",
+            "type": "boolean"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -4068,6 +4109,10 @@
               }
             ],
             "title": "Last Used At"
+          },
+          "locale": {
+            "title": "Locale",
+            "type": "string"
           },
           "platform": {
             "enum": [
@@ -4116,10 +4161,18 @@
             "title": "Success Count",
             "type": "integer"
           },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
             "type": "string"
+          },
+          "uses_today": {
+            "title": "Uses Today",
+            "type": "integer"
           }
         },
         "required": [
@@ -4137,7 +4190,11 @@
           "proxy_id",
           "proxy_display",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "locale",
+          "timezone",
+          "fingerprint_set",
+          "uses_today"
         ],
         "title": "SourceAccount",
         "type": "object"
@@ -4217,6 +4274,18 @@
             ],
             "title": "Label"
           },
+          "locale": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z]{2,3}-[A-Z]{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locale"
+          },
           "proxy_id": {
             "anyOf": [
               {
@@ -4228,6 +4297,24 @@
               }
             ],
             "title": "Proxy Id"
+          },
+          "reset_fingerprint": {
+            "default": false,
+            "title": "Reset Fingerprint",
+            "type": "boolean"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
           }
         },
         "title": "SourceAccountUpdate",

@@ -21,6 +21,12 @@ from thoth_control_plane.acquisition.accounts.cookies import (
     parse_cookies,
     summarize,
 )
+from thoth_control_plane.acquisition.accounts.policy import (
+    DEFAULT_DAILY_BUDGETS,
+    DEFAULT_SPACING_SECONDS,
+    DEFAULT_SPACING_SECONDS_BY_PLATFORM,
+)
+from thoth_control_plane.acquisition.accounts.profiles import AccountProfiles
 from thoth_control_plane.acquisition.accounts.proxies import ProxyImportError, parse_proxy_list
 from thoth_control_plane.acquisition.accounts.session_check import check_session
 from thoth_control_plane.api.dependencies import current_actor
@@ -72,7 +78,12 @@ def get_session_checker(request: Request) -> Callable[..., Any]:
     return getattr(request.app.state, "session_checker", check_session)
 
 
+def get_account_profiles(request: Request) -> AccountProfiles | None:
+    return getattr(request.app.state, "account_profiles", None)
+
+
 Store = Annotated[SourceAccountStore | None, Depends(get_source_account_store)]
+Profiles = Annotated[AccountProfiles | None, Depends(get_account_profiles)]
 Authorized = Annotated[Actor, Depends(current_actor)]
 
 
@@ -114,6 +125,10 @@ def _account(view: AccountView) -> SourceAccount:
         proxy_display=view.proxy_display,
         created_at=view.created_at,
         updated_at=view.updated_at,
+        locale=view.locale,
+        timezone=view.timezone,
+        fingerprint_set=view.fingerprint_set,
+        uses_today=view.uses_today,
     )
 
 
@@ -135,7 +150,11 @@ async def list_source_accounts(_: Authorized, store: Store) -> SourceAccountsOve
                 PlatformAccounts(
                     platform=platform,
                     mode="fallback",
-                    min_spacing_seconds=60,
+                    min_spacing_seconds=DEFAULT_SPACING_SECONDS_BY_PLATFORM.get(
+                        platform, DEFAULT_SPACING_SECONDS
+                    ),
+                    daily_budget=DEFAULT_DAILY_BUDGETS.get(platform, 0),
+                    engine="patchright",
                     counts=StatusCounts(),
                     accounts=[],
                 )
@@ -155,6 +174,8 @@ async def list_source_accounts(_: Authorized, store: Store) -> SourceAccountsOve
                 platform=policy.platform,
                 mode=policy.mode,
                 min_spacing_seconds=policy.min_spacing_seconds,
+                daily_budget=policy.daily_budget,
+                engine=policy.engine,  # type: ignore[arg-type]
                 counts=counts,
                 accounts=mine,
             )
@@ -167,9 +188,19 @@ async def update_access_policy(
     platform: SourcePlatform, payload: AccessPolicyUpdate, _: Authorized, store: Store
 ) -> AccessPolicyUpdate:
     view = await _call(
-        _require(store).set_policy, platform, payload.mode, payload.min_spacing_seconds
+        _require(store).set_policy,
+        platform,
+        payload.mode,
+        payload.min_spacing_seconds,
+        payload.daily_budget,
+        payload.engine,
     )
-    return AccessPolicyUpdate(mode=view.mode, min_spacing_seconds=view.min_spacing_seconds)
+    return AccessPolicyUpdate(
+        mode=view.mode,
+        min_spacing_seconds=view.min_spacing_seconds,
+        daily_budget=view.daily_budget,
+        engine=view.engine,  # type: ignore[arg-type]
+    )
 
 
 @router.post("/source-accounts/validate", response_model=CookieValidation)
@@ -210,7 +241,7 @@ async def reimport_cookies(
 
 @router.patch("/source-accounts/{account_id}", response_model=SourceAccount)
 async def update_source_account(
-    account_id: str, payload: SourceAccountUpdate, _: Authorized, store: Store
+    account_id: str, payload: SourceAccountUpdate, _: Authorized, store: Store, profiles: Profiles
 ) -> SourceAccount:
     store = _require(store)
     given = payload.model_fields_set
@@ -220,13 +251,22 @@ async def update_source_account(
         label=payload.label if "label" in given and payload.label is not None else UNSET,
         proxy_id=payload.proxy_id if "proxy_id" in given else UNSET,
         disabled=payload.disabled,
+        locale=payload.locale,
+        timezone=payload.timezone,
+        reset_fingerprint=payload.reset_fingerprint,
     )
+    if payload.reset_fingerprint and profiles is not None:
+        await asyncio.to_thread(profiles.delete, account_id)
     return _account(view)
 
 
 @router.delete("/source-accounts/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_source_account(account_id: str, _: Authorized, store: Store) -> Response:
+async def delete_source_account(
+    account_id: str, _: Authorized, store: Store, profiles: Profiles
+) -> Response:
     await _call(_require(store).delete_account, account_id)
+    if profiles is not None:
+        await asyncio.to_thread(profiles.mark_deleted, account_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

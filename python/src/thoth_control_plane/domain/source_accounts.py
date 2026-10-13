@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Annotated, Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import Field, StringConstraints
+from pydantic import AfterValidator, Field, StringConstraints
 
 from thoth_control_plane.acquisition.accounts.cookies import MAX_IMPORT_BYTES
 from thoth_control_plane.acquisition.accounts.policy import MAX_SPACING_SECONDS
@@ -22,6 +23,20 @@ AccountLabel = Annotated[str, StringConstraints(strip_whitespace=True, min_lengt
 CookieText = Annotated[str, Field(min_length=1, max_length=MAX_IMPORT_BYTES)]
 ProxyText = Annotated[str, Field(min_length=1, max_length=MAX_PROXY_BYTES)]
 OpaqueUuid = Annotated[str, Field(pattern=r"^[0-9a-f-]{36}$")]
+BrowserEngine = Literal["patchright", "camoufox"]
+DailyBudget = Annotated[int, Field(ge=0, le=100_000)]  # 0 means unlimited
+AccountLocale = Annotated[str, Field(pattern=r"^[a-z]{2,3}-[A-Z]{2}$")]
+
+
+def _known_zone(name: str) -> str:
+    try:
+        ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError):
+        raise ValueError("unknown timezone") from None
+    return name
+
+
+AccountTimezone = Annotated[str, Field(min_length=3, max_length=64), AfterValidator(_known_zone)]
 
 
 class SourceAccount(StrictModel):
@@ -40,6 +55,10 @@ class SourceAccount(StrictModel):
     proxy_display: str | None
     created_at: datetime
     updated_at: datetime
+    locale: str
+    timezone: str
+    fingerprint_set: bool  # never the fingerprint itself
+    uses_today: int
 
 
 class StatusCounts(StrictModel):
@@ -53,6 +72,8 @@ class PlatformAccounts(StrictModel):
     platform: SourcePlatform
     mode: AccessMode
     min_spacing_seconds: int
+    daily_budget: int
+    engine: BrowserEngine
     counts: StatusCounts
     accounts: list[SourceAccount]
 
@@ -63,8 +84,12 @@ class SourceAccountsOverview(StrictModel):
 
 
 class AccessPolicyUpdate(StrictModel):
+    """`daily_budget: null` means the platform default; the response shows the effective one."""
+
     mode: AccessMode
     min_spacing_seconds: Annotated[int, Field(ge=0, le=MAX_SPACING_SECONDS)]
+    daily_budget: DailyBudget | None = None
+    engine: BrowserEngine = "patchright"
 
 
 class CookieValidationRequest(StrictModel):
@@ -98,6 +123,9 @@ class SourceAccountUpdate(StrictModel):
     label: AccountLabel | None = None
     proxy_id: OpaqueUuid | None = None
     disabled: bool | None = None
+    locale: AccountLocale | None = None
+    timezone: AccountTimezone | None = None
+    reset_fingerprint: bool = False  # also deletes the profiles: a new device
 
 
 class SourceProxy(StrictModel):

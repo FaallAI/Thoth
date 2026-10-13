@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from temporalio.service import RPCError
 
+from thoth_control_plane.acquisition.accounts.profiles import AccountProfiles
 from thoth_control_plane.acquisition.accounts.vault import Vault
 from thoth_control_plane.api.routes.edit_documents import router as edit_document_router
 from thoth_control_plane.api.routes.editor_assets import router as editor_asset_router
@@ -168,6 +169,12 @@ def _source_account_store(settings: Settings) -> SourceAccountStore | None:
     return SourceAccountStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value(), vault)
 
 
+def _account_profiles(settings: Settings) -> AccountProfiles | None:
+    """Sealed browser profiles, removed with their account (spec 2026-10-13, 3.2)."""
+    vault = Vault.from_key(settings.account_vault_key)
+    return None if vault is None else AccountProfiles(vault, settings.THOTH_ACCOUNT_PROFILE_DIR)
+
+
 def create_app(
     settings: Settings | None = None,
     gateway: WorkflowGateway | None = None,
@@ -181,6 +188,7 @@ def create_app(
     studio_review_repository: StudioReviewRepository | None = None,
     studio_import_repository: StudioImportRepository | None = None,
     source_account_store: SourceAccountStore | None = None,
+    account_profiles: AccountProfiles | None = None,
 ) -> FastAPI:
     """Create an isolated v1 API application for the supplied workflow gateway."""
     settings = settings or Settings()  # type: ignore[call-arg]
@@ -289,6 +297,7 @@ def create_app(
     app.state.studio_review_service = StudioReviewService(studio_review_repository)
     app.state.studio_import_service = StudioImportService(studio_import_repository)
     app.state.source_account_store = source_account_store or _source_account_store(settings)
+    app.state.account_profiles = account_profiles or _account_profiles(settings)
 
     app.add_middleware(
         CORSMiddleware,

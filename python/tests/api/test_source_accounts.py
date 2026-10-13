@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 import httpx
 import pytest
@@ -174,7 +175,12 @@ async def test_the_policy_is_set_per_platform() -> None:
             headers=AUTH,
             json={"mode": "always", "min_spacing_seconds": 120},
         )
-        assert updated.json() == {"mode": "always", "min_spacing_seconds": 120}
+        assert updated.json() == {
+            "mode": "always",
+            "min_spacing_seconds": 120,
+            "daily_budget": 20,
+            "engine": "patchright",
+        }
         overview = (await api.get("/source-accounts", headers=AUTH)).json()
         modes = {p["platform"]: p["mode"] for p in overview["platforms"]}
         assert (modes["instagram"], modes["x"]) == ("always", "fallback")
@@ -350,3 +356,102 @@ async def test_an_oversized_import_names_the_file_problem() -> None:
             422,
             "invalid_proxy_file",
         )
+
+
+def _profiled_client(store: SourceAccountStore, root: Path) -> httpx.AsyncClient:
+    from thoth_control_plane.acquisition.accounts.profiles import AccountProfiles
+
+    profiles = AccountProfiles(store._vault, root)  # the store's own vault, as the app builds it
+    app = create_app(
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"),
+        source_account_store=store,
+        account_profiles=profiles,
+    )
+    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test/api/v1")
+
+
+@pytest.mark.asyncio
+async def test_the_policy_carries_budget_and_engine() -> None:
+    async with client(_store()) as api:
+        path = "/source-accounts/policies/instagram"
+        body = {"mode": "fallback", "min_spacing_seconds": 900}
+        updated = await api.put(
+            path, headers=AUTH, json={**body, "daily_budget": 5, "engine": "camoufox"}
+        )
+        assert (updated.json()["daily_budget"], updated.json()["engine"]) == (5, "camoufox")
+        overview = (await api.get("/source-accounts", headers=AUTH)).json()
+        instagram = next(p for p in overview["platforms"] if p["platform"] == "instagram")
+        assert (instagram["daily_budget"], instagram["engine"]) == (5, "camoufox")
+        tiktok = next(p for p in overview["platforms"] if p["platform"] == "tiktok")
+        assert (tiktok["daily_budget"], tiktok["engine"]) == (40, "patchright")
+        for refused in ({"engine": "chromium"}, {"daily_budget": -1}, {"daily_budget": 100_001}):
+            answer = await api.put(path, headers=AUTH, json={**body, **refused})
+            assert answer.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_unavailable_lists_default_budgets_and_engines() -> None:
+    async with client(None) as api:
+        overview = (await api.get("/source-accounts", headers=AUTH)).json()
+        budgets = {p["platform"]: (p["daily_budget"], p["engine"]) for p in overview["platforms"]}
+        assert budgets["instagram"] == (20, "patchright")
+
+
+@pytest.mark.asyncio
+async def test_an_account_takes_a_locale_and_a_valid_timezone() -> None:
+    async with client(_store()) as api:
+        account = (
+            await api.post(
+                "/source-accounts",
+                headers=AUTH,
+                json={"platform": "instagram", "label": "a", "cookies": COOKIES},
+            )
+        ).json()
+        assert (account["locale"], account["timezone"]) == ("id-ID", "Asia/Jakarta")
+        assert (account["fingerprint_set"], account["uses_today"]) == (False, 0)
+        path = f"/source-accounts/{account['id']}"
+        changed = await api.patch(
+            path, headers=AUTH, json={"locale": "en-US", "timezone": "Asia/Makassar"}
+        )
+        assert (changed.json()["locale"], changed.json()["timezone"]) == ("en-US", "Asia/Makassar")
+        for refused in ({"timezone": "Mars/Olympus"}, {"locale": "indonesian"}):
+            answer = await api.patch(path, headers=AUTH, json=refused)
+            assert answer.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_a_fingerprint_reset_and_a_delete_remove_the_profiles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from thoth_control_plane.acquisition.accounts import fingerprints
+
+    monkeypatch.setattr(
+        fingerprints, "new_fingerprint", lambda: {"navigator": {"userAgent": "Firefox/150.0"}}
+    )
+    store = _store()
+    store.set_policy("instagram", "fallback", 0, engine="camoufox")
+    root = tmp_path / "profiles"
+    async with _profiled_client(store, root) as api:
+        account = (
+            await api.post(
+                "/source-accounts",
+                headers=AUTH,
+                json={"platform": "instagram", "label": "a", "cookies": COOKIES},
+            )
+        ).json()
+        assert store.lease("instagram") is not None  # makes the fingerprint
+        root.mkdir()
+        for engine in ("patchright", "camoufox"):
+            (root / f"{account['id']}.{engine}.profile").write_bytes(b"sealed")
+        path = f"/source-accounts/{account['id']}"
+        listed = await api.get("/source-accounts", headers=AUTH)
+        assert "userAgent" not in listed.text and "Firefox" not in listed.text
+
+        reset = await api.patch(path, headers=AUTH, json={"reset_fingerprint": True})
+
+        assert reset.json()["fingerprint_set"] is False
+        assert list(root.glob("*.profile")) == []
+        (root / f"{account['id']}.patchright.profile").write_bytes(b"sealed")
+        assert (await api.delete(path, headers=AUTH)).status_code == 204
+        assert list(root.glob("*.profile")) == []
+        assert (root / f"{account['id']}.deleted").exists()  # an open lease cannot write back
