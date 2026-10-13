@@ -8,6 +8,7 @@ import logging
 import threading
 from typing import Any
 
+from thoth_control_plane.attribution.adapters.frames import ToolMissing
 from thoth_control_plane.attribution.matching import TextBox
 from thoth_control_plane.attribution.ports import Frame
 
@@ -51,7 +52,11 @@ class RapidOcrReader:
     def _get(self) -> Any:
         with self._lock:
             if self._engine is None:
-                from rapidocr import RapidOCR
+                try:
+                    from rapidocr import RapidOCR
+                except ImportError:
+                    # Operator, 2026-10-11: a missing tool is an explicit error.
+                    raise ToolMissing("rapidocr_missing") from None
 
                 self._engine = RapidOCR()
                 # RapidOCR resets its logger to INFO while it builds, then logs every model

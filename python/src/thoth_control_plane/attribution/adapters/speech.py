@@ -8,6 +8,7 @@ faster-whisper ships with; a video without an audio stream yields no speech.
 from __future__ import annotations
 
 import asyncio
+import functools
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -24,22 +25,42 @@ def missing(directory: Path, names: Sequence[str]) -> bool:
     return not all((directory / name).is_file() for name in names)
 
 
-def _audio(video: Path, seconds: float, failure: str) -> Any:
-    """Mono 16 kHz float32 samples of the first `seconds`; empty without an audio stream."""
+def load_audio(video: Path, seconds: float, failure: str) -> Any:
+    """Mono 16 kHz float32 samples of the first `seconds`; empty without an audio stream.
+
+    The transcriber and the diarizer read the same video, so one decode serves both; it stops
+    at `seconds` instead of decoding the whole track. Callers must not modify the array.
+    """
     try:
-        import av
-        import numpy as np
-        from faster_whisper import decode_audio
+        return _decode(str(video), video.stat().st_mtime_ns, seconds)
     except ImportError:
         raise AttributionError("whisper_missing") from None
-    try:
-        with av.open(str(video)) as container:
-            if not container.streams.audio:
-                return np.zeros(0, dtype=np.float32)
-        audio = decode_audio(str(video), sampling_rate=SAMPLE_RATE)
     except Exception as error:
         raise AttributionError(failure) from error
-    return audio[: int(seconds * SAMPLE_RATE)]
+
+
+@functools.lru_cache(maxsize=2)
+def _decode(path: str, modified_ns: int, seconds: float) -> Any:
+    import av
+    import numpy as np
+
+    limit = int(seconds * SAMPLE_RATE)
+    chunks: list[Any] = []
+    total = 0
+    with av.open(path) as container:
+        if not container.streams.audio:
+            return np.zeros(0, dtype=np.float32)
+        resampler = av.AudioResampler(format="s16", layout="mono", rate=SAMPLE_RATE)
+        for frame in container.decode(audio=0):
+            for resampled in resampler.resample(frame):
+                samples = resampled.to_ndarray().reshape(-1)
+                chunks.append(samples)
+                total += samples.size
+            if total >= limit:
+                break
+    if not chunks:
+        return np.zeros(0, dtype=np.float32)
+    return np.concatenate(chunks)[:limit].astype(np.float32) / 32768.0
 
 
 class WhisperTranscriber:
@@ -61,14 +82,17 @@ class WhisperTranscriber:
         if missing(self._dir, WHISPER_FILES):
             raise AttributionError("whisper_model_missing")
         if self._model is None:
-            self._model = WhisperModel(
-                str(self._dir), device="cpu", compute_type="int8", local_files_only=True
-            )
+            try:
+                self._model = WhisperModel(
+                    str(self._dir), device="cpu", compute_type="int8", local_files_only=True
+                )
+            except Exception as error:
+                raise AttributionError("whisper_model_missing") from error
         return self._model
 
     def _transcribe(self, video: Path, seconds: float) -> Transcript:
         model = self._load()
-        audio = _audio(video, seconds, "transcription_failed")
+        audio = load_audio(video, seconds, "transcription_failed")
         if audio.size == 0:
             return Transcript("")
         try:
@@ -118,12 +142,15 @@ class SherpaDiarizer:
             )
             if not config.validate():
                 raise AttributionError("diarization_model_missing")
-            self._engine = sherpa_onnx.OfflineSpeakerDiarization(config)
+            try:
+                self._engine = sherpa_onnx.OfflineSpeakerDiarization(config)
+            except Exception as error:
+                raise AttributionError("diarization_model_missing") from error
         return self._engine
 
     def _turns(self, video: Path, seconds: float) -> list[Turn]:
         engine = self._load()
-        audio = _audio(video, seconds, "diarization_failed")
+        audio = load_audio(video, seconds, "diarization_failed")
         if audio.size == 0:
             return []
         try:

@@ -15,6 +15,14 @@ from thoth_control_plane.assembly.figures import (
 )
 
 
+def _require_module(name: str) -> None:
+    # Operator, 2026-10-11/13: a required tool missing is a failure, never a skip.
+    import importlib.util
+
+    if importlib.util.find_spec(name) is None:
+        pytest.fail(f"{name} is required for this test and is not installed")
+
+
 def test_no_text_means_no_prompt() -> None:
     assert figure_prompt("", "  ", "") is None
 
@@ -51,7 +59,7 @@ def test_normalization_trims_defaults_and_caps() -> None:
 @pytest.mark.asyncio
 @respx.mock
 async def test_adapter_reads_structured_figures_and_degrades_to_none() -> None:
-    pytest.importorskip("openai")
+    _require_module("openai")
     from thoth_control_plane.assembly.adapters.figures import (
         OPENROUTER_BASE_URL,
         AgnoFigureModel,

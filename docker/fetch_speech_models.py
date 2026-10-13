@@ -45,7 +45,8 @@ DIARIZATION = {
 
 
 def verify(path: Path, expected: str) -> None:
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    with path.open("rb") as handle:  # streamed: the turbo model is 1.6 GB
+        digest = hashlib.file_digest(handle, "sha256").hexdigest()
     if digest != expected:
         sys.exit(f"checksum mismatch for {path.name}")
 

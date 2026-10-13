@@ -103,6 +103,8 @@ async def analyze_main_ocr(
             continue
         try:
             boxes = await text.read(frame)
+        except ToolMissing as missing:
+            raise AssemblyError(missing.code) from None
         except ImportError:
             raise AssemblyError("rapidocr_missing") from None
         except Exception:

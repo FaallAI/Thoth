@@ -17,6 +17,7 @@ import asyncio
 from collections.abc import Sequence
 from typing import Any
 
+from thoth_control_plane.attribution.adapters.frames import ToolMissing
 from thoth_control_plane.attribution.ports import Frame
 
 FEATURES = 3000
@@ -37,7 +38,7 @@ class OrbMatcher:
         return await asyncio.to_thread(self._compare, repost, candidate)
 
     def _prepare(self, frames: list[Frame]) -> list[Any]:
-        import cv2
+        cv2 = _cv2()
         import numpy as np
 
         orb = cv2.ORB_create(nfeatures=FEATURES)
@@ -54,7 +55,7 @@ class OrbMatcher:
         return prepared
 
     def _compare(self, repost: list[Any], candidate: list[Any]) -> list[int]:
-        import cv2
+        cv2 = _cv2()
 
         if not repost or not candidate:
             return []
@@ -76,3 +77,12 @@ def _inliers(cv2: Any, matcher: Any, a: Any, b: Any) -> int:
     target = points_b[[m.trainIdx for m in good]].reshape(-1, 1, 2)
     _, mask = cv2.findHomography(source, target, cv2.RANSAC, RANSAC_PIXELS)
     return int(mask.sum()) if mask is not None else 0
+
+
+def _cv2() -> Any:
+    """OpenCV, or the explicit error a missing required tool is (operator, 2026-10-11)."""
+    try:
+        import cv2
+    except ImportError:
+        raise ToolMissing("opencv_missing") from None
+    return cv2

@@ -236,3 +236,24 @@ def test_the_judge_decides_whether_captions_mute() -> None:
     assert len(judge.seen[0]) == 3 and all(second > 2.5 for second in judge.seen[0])
     assert corrected(judge=Judge(True)).outcome == "subtitle"
     assert corrected(judge=Judge(None)).outcome == "subtitle"  # no answer: the rules stand
+
+
+def test_a_reader_reporting_a_missing_engine_keeps_its_code() -> None:
+    # The shared RapidOCR adapter reports a missing engine as ToolMissing (review 2026-10-13).
+    class Missing(Text):
+        async def read(self, frame: Frame) -> list[TextBox]:
+            raise ToolMissing("rapidocr_missing")
+
+    with pytest.raises(AssemblyError) as raised:
+        asyncio.run(
+            analyze_main_ocr(
+                VIDEO,
+                30.0,
+                frames=Frames(),
+                probe=Probe(30.0),
+                text=Missing(),
+                max_frames=12,
+                now=NOW,
+            )
+        )
+    assert raised.value.code == "rapidocr_missing"

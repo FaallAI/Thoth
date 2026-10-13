@@ -34,6 +34,14 @@ from thoth_control_plane.attribution.ports import (
 SOURCE = "vincentius.christ76"
 
 
+def _require_module(name: str) -> None:
+    # Operator, 2026-10-11/13: a required tool missing is a failure, never a skip.
+    import importlib.util
+
+    if importlib.util.find_spec(name) is None:
+        pytest.fail(f"{name} is required for this test and is not installed")
+
+
 def _answers(**answers: Any) -> httpx.Response:
     return httpx.Response(200, json={"model": "jev-1.13.0", "answers": answers})
 
@@ -195,7 +203,7 @@ def _completion(content: str) -> httpx.Response:
 @pytest.mark.asyncio
 @respx.mock
 async def test_vision_reads_the_cover_from_jpeg_frames() -> None:
-    pytest.importorskip("openai")
+    _require_module("openai")
     from thoth_control_plane.attribution.adapters.vision import (
         OPENROUTER_BASE_URL,
         AgnoVisionReader,
@@ -217,7 +225,7 @@ async def test_vision_reads_the_cover_from_jpeg_frames() -> None:
 @pytest.mark.asyncio
 @respx.mock
 async def test_vision_reads_the_reaction_fields_from_six_frames() -> None:
-    pytest.importorskip("openai")
+    _require_module("openai")
     from thoth_control_plane.attribution.adapters.vision import (
         OPENROUTER_BASE_URL,
         AgnoVisionReader,
@@ -274,7 +282,7 @@ def test_a_long_cover_reading_is_clipped_not_rejected() -> None:
 @pytest.mark.asyncio
 @respx.mock
 async def test_vision_classifies_and_raises_when_down() -> None:
-    pytest.importorskip("openai")
+    _require_module("openai")
     from thoth_control_plane.attribution.adapters.vision import (
         OPENROUTER_BASE_URL,
         AgnoVisionReader,

@@ -262,3 +262,39 @@ async def test_scene_detection_reads_only_the_opening_span(
     monkeypatch.setattr(frames, "SCENE_SECONDS", 1.5)
 
     assert await FfmpegSceneDetector(ffmpeg).cuts(video) == []
+
+
+@pytest.mark.asyncio
+async def test_rapidocr_missing_at_run_time_is_tool_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sys
+
+    from PIL import Image
+
+    from thoth_control_plane.attribution.adapters.frames import ToolMissing
+    from thoth_control_plane.attribution.adapters.ocr import RapidOcrReader
+
+    monkeypatch.setitem(sys.modules, "rapidocr", None)
+    frame = Frame(0.0, _jpeg(Image.new("RGB", (64, 64), "white")))
+
+    with pytest.raises(ToolMissing) as raised:
+        await RapidOcrReader().read(frame)
+    assert raised.value.code == "rapidocr_missing"
+
+
+@pytest.mark.asyncio
+async def test_opencv_missing_at_run_time_is_tool_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sys
+
+    from PIL import Image
+
+    from thoth_control_plane.attribution.adapters.frames import ToolMissing
+    from thoth_control_plane.attribution.adapters.visual import OrbMatcher
+
+    monkeypatch.setitem(sys.modules, "cv2", None)
+    frame = Frame(0.0, _jpeg(Image.new("RGB", (64, 64), "white")))
+
+    with pytest.raises(ToolMissing) as raised:
+        await OrbMatcher().prepare([frame])
+    assert raised.value.code == "opencv_missing"

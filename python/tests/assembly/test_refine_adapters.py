@@ -23,6 +23,14 @@ BARS = ",".join(
 HEADLINE = OcrBox("headline", 0.08, 0.19, 0.92, 0.31)
 
 
+def _require_module(name: str) -> None:
+    # Operator, 2026-10-11/13: a required tool missing is a failure, never a skip.
+    import importlib.util
+
+    if importlib.util.find_spec(name) is None:
+        pytest.fail(f"{name} is required for this test and is not installed")
+
+
 def _require_cv2() -> None:
     # OpenCV is required for assembly now: missing it is an error, never a skip.
     try:
@@ -117,7 +125,7 @@ def _jpeg() -> bytes:
 @pytest.mark.asyncio
 @respx.mock
 async def test_judge_answers_yes_no_and_none() -> None:
-    pytest.importorskip("openai")
+    _require_module("openai")
     from thoth_control_plane.assembly.adapters.captions import (
         OPENROUTER_BASE_URL,
         AgnoCaptionJudge,

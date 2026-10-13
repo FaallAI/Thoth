@@ -1949,7 +1949,6 @@ dependencies = [
 
 [package.optional-dependencies]
 acquisition = [
-    { name = "av" },
     { name = "faster-whisper" },
     { name = "onnxruntime" },
     { name = "openai" },
@@ -1976,7 +1975,6 @@ dev = [
 requires-dist = [
     { name = "agno", specifier = ">=3,<4" },
     { name = "alembic", specifier = ">=1.13,<2" },
-    { name = "av", marker = "extra == 'acquisition'", specifier = ">=11,<19" },
     { name = "cryptography", specifier = ">=44,<48" },
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "faster-whisper", marker = "extra == 'acquisition'", specifier = ">=1.2,<2" },
