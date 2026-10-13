@@ -461,4 +461,14 @@ figures), 5b adds footage, and forced main comes later. Stage 5a is implemented 
 subtitle classifier is ported with a parity fixture generated from Scout itself; OCR boxes come
 from local RapidOCR. Details: the 2026-10-12 section of `CHANGELOG.md`. Since then (2026-10-13): the OCR corrections of the spec
 amendment landed, seven calibration cases are operator-confirmed goldens, and the addendum
-passed a fresh review. Next: push, merge, and deploy (operator gates), then Stage 5b.
+passed a fresh review. Stage 5a was merged, pushed, and deployed on `ba03620f` with assembly
+on (2026-10-13). Next: Stage 5b.
+
+## Stage 4 reactions status (2026-10-13)
+
+Attribution now calls a reaction an original when it adds a new viewpoint or issue, is
+discussed, and beats its account's engagement, and always when it reacts to a text or image
+post. Speech is transcribed and split by speaker locally; vision and Jev became required for all
+of Stage 4. Implemented offline on branch `feat/stage4-reaction-attribution`; the live golden
+capture, push, merge, and deploy are operator gates. Details: the 2026-10-13 section of
+`CHANGELOG.md`.

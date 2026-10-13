@@ -2,6 +2,53 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-13 - Stage 4: reactions that count as originals (offline; capture pending)
+
+Branch `feat/stage4-reaction-attribution` (not pushed), from the Stage 5a tip. Spec
+`docs/superpowers/specs/2026-10-13-stage4-reaction-attribution-design.md`, plan
+`docs/superpowers/plans/2026-10-13-stage4-reaction-attribution.md`, research
+`docs/research/2026-10-13-reaction-as-original-research.md`.
+
+- A reaction is an original when it adds a new viewpoint or issue, its comments discuss the
+  creator's take, and its engagement beats the account's median (operator, 2026-10-11 and
+  2026-10-13); a reaction to a text or image post is always an original. Anything unmeasured
+  keeps it a repost, and attribution goes on to look for the video it shows. An original
+  reaction keeps its opening in Stage 5a (no trim).
+- Vision frames come from ffmpeg scene cuts (the cover, then the middle of the longest shots, at
+  most 6) instead of the first 3 seconds; the cover reading gains `reaction_shape`,
+  `subject_media`, and a per-frame `shows` label.
+- Speech is local: faster-whisper large-v3-turbo int8 transcribes the first 180 s, sherpa-onnx
+  (pyannote 3.0 segmentation + WeSpeaker ResNet34-LM) splits speakers, and the creator's speech
+  is separated from the subject's audio playing inside the reaction. Jev scores the creator's
+  contribution on a five-level scale and whether the comments discuss the creator.
+- Vision and Jev are required for all of Stage 4: the rules-only path without a key is gone. A
+  required tool, model, or provider that fails raises `AttributionError`; the activity returns a
+  typed failure and the workflow fails `source_attribution_failed` with the code in the stage
+  event. External content (discovery, candidates, the engagement baseline) still degrades. The
+  worker refuses to start without the OpenRouter key, ffmpeg, ffprobe, RapidOCR, OpenCV,
+  faster-whisper, sherpa-onnx, or either model directory.
+- Profile discovery in `fallback` mode now also leases a signed-in account when the anonymous
+  listing is thin (fewer than 10 videos; X shows about 5 signed out), keeping the longer listing
+  (operator, 2026-10-13: where signed out is weaker, use the login with its proxy).
+- Models are pinned by revision and SHA-256 and baked into the image by
+  `docker/fetch_speech_models.py` (the turbo `model.bin` is 1.6 GB, so the image grows about
+  1.7 GB); CI fetches the tiny model and the diarization models for the adapter tests.
+  `av` is pinned below 19: faster-whisper 1.2.1 passes an argument av 19 removed.
+- Python suite: 3522 passed, 12 skipped (Playwright, disposable Postgres, live), 0 failed.
+  Ruff check and format clean. actionlint: no new findings.
+
+Next steps:
+
+- Operator gate: live capture of the seven reaction goldens plus a recapture of every live
+  Stage 4 golden, the CPU speed measurement of faster-whisper against sherpa-onnx whisper, and
+  threshold calibration (plan Task 12, steps 5-8); then the Stage 5a fixtures of DeHz54GT4ea and
+  DeO6A2MSoAt move to `clean`.
+- Deploy precondition: TikTok, Instagram, and X source accounts with proxies imported, with
+  policy `fallback` or `always`.
+- Operator gates after that, each separately: push, merge, deploy.
+- Stage 5b: footage. Still parked: Stage 4 golden cases 2 and 5, DeVlbTORhmq, and the backlog
+  (interactive login, login-only capabilities, vault key rotation, Creator Studio backlog).
+
 ## 2026-10-13 - Stage 5a deployed on `ba03620f`
 
 - With operator authorization: master fast-forwarded to `4c9102f` and pushed; CI run

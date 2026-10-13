@@ -302,6 +302,9 @@ New fields use defaults, so later versions stay readable.
 
 ## 7. Configuration and degradation
 
+Superseded for vision and Jev on 2026-10-13: both are required and their failure fails the
+workflow. See section 7 of `2026-10-13-stage4-reaction-attribution-design.md`.
+
 | Variable | Used by | Missing means |
 |---|---|---|
 | `THOTH_NOVITA_API_KEY` | vision | no cover vision, no finalist classification; logo prose absent |
