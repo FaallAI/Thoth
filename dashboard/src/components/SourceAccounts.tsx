@@ -9,6 +9,7 @@ import {
   errorText,
   platformLabel,
   type AccessMode,
+  type BrowserEngine,
   type PlatformAccounts,
   type SourceAccount,
   type SourceAccountsClient,
@@ -22,6 +23,12 @@ const MODES: { id: AccessMode; hint: string }[] = [
   { id: "fallback", hint: "when anonymous access is blocked" },
   { id: "always", hint: "whenever a healthy account exists" },
 ];
+// Spec 2026-10-13, 3.4: Camoufox is switched to only after the fingerprint comparison.
+const ENGINES: { id: BrowserEngine; hint: string }[] = [
+  { id: "patchright", hint: "Chromium, the default" },
+  { id: "camoufox", hint: "Firefox; switch after the fingerprint comparison" },
+];
+const MAX_BUDGET = 100_000;
 const STATUS_LABEL = { healthy: "healthy", cooldown: "cooling down", expired: "expired", disabled: "disabled" };
 const DAY_MS = 86_400_000;
 
@@ -43,48 +50,83 @@ function StatusCell({ account }: { account: SourceAccount }) {
   </div>;
 }
 
+type Policy = { mode: AccessMode; min_spacing_seconds: number; daily_budget: number; engine: BrowserEngine };
+
+/** A whole number typed into the card, committed on blur or Enter when it is in range. */
+function useNumberField(saved: number, max: number, commit: (value: number) => void) {
+  const [text, setText] = useState(String(saved));
+  useEffect(() => setText(String(saved)), [saved]);
+  const parsed = Number(text);
+  const valid = text !== "" && Number.isInteger(parsed) && parsed >= 0 && parsed <= max;
+  const done = () => { if (valid && parsed !== saved) commit(parsed); };
+  return {
+    value: text,
+    "aria-invalid": !valid,
+    onChange: (event: { target: { value: string } }) => setText(event.target.value.trim()),
+    onBlur: done,
+    onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => { if (event.key === "Enter") done(); },
+  };
+}
+
 function AccessCard({ group, available, onSave }: {
   group: PlatformAccounts;
   available: boolean;
-  onSave: (mode: AccessMode, spacing: number) => Promise<void>;
+  onSave: (policy: Policy) => Promise<void>;
 }) {
-  const [spacing, setSpacing] = useState(String(group.min_spacing_seconds));
-  useEffect(() => setSpacing(String(group.min_spacing_seconds)), [group.min_spacing_seconds]);
-  const parsed = Number(spacing);
-  const spacingValid = spacing !== "" && Number.isInteger(parsed) && parsed >= 0 && parsed <= 86_400;
-  const commitSpacing = () => {
-    if (spacingValid && parsed !== group.min_spacing_seconds) void onSave(group.mode, parsed);
-  };
+  const save = (change: Partial<Policy>) => void onSave({ mode: group.mode,
+    min_spacing_seconds: group.min_spacing_seconds, daily_budget: group.daily_budget, engine: group.engine, ...change });
+  const spacing = useNumberField(group.min_spacing_seconds, 86_400, (value) => save({ min_spacing_seconds: value }));
+  const budget = useNumberField(group.daily_budget, MAX_BUDGET, (value) => save({ daily_budget: value }));
   // Arrow keys move the choice like a native radio group; only the checked radio is tabbable.
-  const step = (event: KeyboardEvent<HTMLDivElement>) => {
-    const delta = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
-    if (!delta || !available) return;
-    event.preventDefault();
-    const index = (MODES.findIndex((mode) => mode.id === group.mode) + delta + MODES.length) % MODES.length;
-    event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[index]?.focus();
-    void onSave(MODES[index].id, group.min_spacing_seconds);
-  };
+  const stepper = <T extends string>(options: { id: T }[], current: T, pick: (id: T) => void) =>
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      const delta = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+      if (!delta || !available) return;
+      event.preventDefault();
+      const index = (options.findIndex((option) => option.id === current) + delta + options.length) % options.length;
+      event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[index]?.focus();
+      pick(options[index].id);
+    };
+  const radios = <T extends string>(options: { id: T }[], current: T, pick: (id: T) => void) =>
+    options.map((option) => <button key={option.id} type="button" role="radio" aria-checked={current === option.id}
+      tabIndex={current === option.id ? 0 : -1}
+      disabled={!available} onClick={() => option.id !== current && pick(option.id)}>
+      {option.id}</button>);
+  const pickMode = (mode: AccessMode) => save({ mode });
+  const pickEngine = (engine: BrowserEngine) => save({ engine });
   return <section className="sa-card sa-access" aria-label={`${platformLabel(group.platform)} access`}>
     <header><h2><KeyRound aria-hidden="true" />{platformLabel(group.platform)} access</h2><span>Accounts rotate when used</span></header>
     <div className="sa-access-grid">
       <div>
         <p className="sa-field-label" id="sa-mode-label">Access mode</p>
-        <div className="sa-segmented" role="radiogroup" aria-labelledby="sa-mode-label" onKeyDown={step}>
-          {MODES.map((mode) => <button key={mode.id} type="button" role="radio" aria-checked={group.mode === mode.id}
-            tabIndex={group.mode === mode.id ? 0 : -1}
-            disabled={!available} onClick={() => mode.id !== group.mode && void onSave(mode.id, group.min_spacing_seconds)}>
-            {mode.id}</button>)}
+        <div className="sa-segmented" role="radiogroup" aria-labelledby="sa-mode-label"
+          onKeyDown={stepper(MODES, group.mode, pickMode)}>
+          {radios(MODES, group.mode, pickMode)}
         </div>
         <p className="sa-mode-hints">{MODES.map((mode) => `${mode.id}: ${mode.hint}`).join("   ·   ")}</p>
       </div>
       <div>
         <label className="sa-field-label" htmlFor="sa-spacing">Minimum spacing</label>
         <div className="sa-spacing">
-          <Input id="sa-spacing" inputMode="numeric" value={spacing} disabled={!available} aria-invalid={!spacingValid}
-            onChange={(event) => setSpacing(event.target.value.trim())} onBlur={commitSpacing}
-            onKeyDown={(event) => event.key === "Enter" && commitSpacing()} />
+          <Input id="sa-spacing" inputMode="numeric" disabled={!available} {...spacing} />
           <span>seconds</span>
         </div>
+      </div>
+      <div>
+        <p className="sa-field-label" id="sa-engine-label">Browser engine</p>
+        <div className="sa-segmented" role="radiogroup" aria-labelledby="sa-engine-label"
+          onKeyDown={stepper(ENGINES, group.engine, pickEngine)}>
+          {radios(ENGINES, group.engine, pickEngine)}
+        </div>
+        <p className="sa-mode-hints">{ENGINES.map((engine) => `${engine.id}: ${engine.hint}`).join("   ·   ")}</p>
+      </div>
+      <div>
+        <label className="sa-field-label" htmlFor="sa-budget">Daily budget</label>
+        <div className="sa-spacing">
+          <Input id="sa-budget" inputMode="numeric" disabled={!available} {...budget} />
+          <span>leases</span>
+        </div>
+        <p className="sa-field-hint">Per account, per UTC day. 0 means unlimited.</p>
       </div>
     </div>
   </section>;
@@ -124,9 +166,9 @@ export function SourceAccounts({ client, onManageProxies }: {
   const usable = group?.accounts.some((entry) => entry.status === "healthy"
     || (entry.status === "cooldown" && entry.cooldown_until !== null && Date.parse(entry.cooldown_until) <= now));
 
-  async function savePolicy(mode: AccessMode, spacing: number) {
+  async function savePolicy(policy: Policy) {
     try {
-      await client.setPolicy(platform, { mode, min_spacing_seconds: spacing });
+      await client.setPolicy(platform, policy);
       await load();
     } catch (failure) {
       setNotice({ tone: "error", text: errorText(failure) });
@@ -175,10 +217,11 @@ export function SourceAccounts({ client, onManageProxies }: {
       <section className="sa-card sa-table" aria-label="Accounts in rotation">
         <header><h2>Accounts in rotation</h2><span>{String(group.accounts.length).padStart(2, "0")} accounts</span></header>
         {group.accounts.length ? <table className="sa-accounts-table">
-          <thead><tr>{["Label", "Status", "Proxy", "Cookies", "Earliest expiry", "Actions"].map((name) => <th key={name}>{name}</th>)}</tr></thead>
+          <thead><tr>{["Label", "Status", "Today", "Proxy", "Cookies", "Earliest expiry", "Actions"].map((name) => <th key={name}>{name}</th>)}</tr></thead>
           <tbody>{group.accounts.map((account) => <tr key={account.id}>
             <td className="sa-label">{account.label}</td>
             <td><StatusCell account={account} /></td>
+            <td>{group.daily_budget ? `${account.uses_today} / ${group.daily_budget}` : String(account.uses_today)}</td>
             <td>{account.proxy_display ?? "Direct"}</td>
             <td><div className="sa-chips">{account.cookie_names.map((name) => <span key={name}>{name}</span>)}</div></td>
             <td>{expiryText(account.cookies_earliest_expiry, now)}</td>

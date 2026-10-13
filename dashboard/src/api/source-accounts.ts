@@ -2,6 +2,7 @@ import type { components } from "@/api/generated/control-plane";
 
 export type SourcePlatform = components["schemas"]["SourceAccountCreate"]["platform"];
 export type AccessMode = components["schemas"]["AccessPolicyUpdate"]["mode"];
+export type BrowserEngine = components["schemas"]["PlatformAccounts"]["engine"];
 export type SourceAccount = components["schemas"]["SourceAccount"];
 export type PlatformAccounts = components["schemas"]["PlatformAccounts"];
 export type SourceAccountsOverview = components["schemas"]["SourceAccountsOverview"];
@@ -10,7 +11,8 @@ export type CookieValidation = components["schemas"]["CookieValidation"];
 export type SourceProxy = components["schemas"]["SourceProxy"];
 export type ProxyImportSummary = components["schemas"]["ProxyImportSummary"];
 export type SessionCheckResult = components["schemas"]["SessionCheckResult"];
-export type SourceAccountUpdate = components["schemas"]["SourceAccountUpdate"];
+// Every field may be omitted ("omit a field to keep it"); the schema marks defaults required.
+export type SourceAccountUpdate = Partial<components["schemas"]["SourceAccountUpdate"]>;
 
 export const PLATFORMS: { id: SourcePlatform; label: string }[] = [
   { id: "tiktok", label: "TikTok" },

@@ -275,14 +275,20 @@ export function EditAccountDialog({ account, onOpenChange, client, proxies, onSa
 }) {
   const [label, setLabel] = useState(account?.label ?? "");
   const [proxyId, setProxyId] = useState<string | null>(account?.proxy_id ?? null);
+  const [locale, setLocale] = useState(account?.locale ?? "");
+  const [timezone, setTimezone] = useState(account?.timezone ?? "");
   const [confirming, setConfirming] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setLabel(account?.label ?? "");
     setProxyId(account?.proxy_id ?? null);
+    setLocale(account?.locale ?? "");
+    setTimezone(account?.timezone ?? "");
     setConfirming(false);
+    setResetting(false);
     setError("");
   }, [account]);
 
@@ -303,7 +309,17 @@ export function EditAccountDialog({ account, onOpenChange, client, proxies, onSa
 
   const save = () => run(async () => {
     if (!account) return;
-    onSaved(await client.update(account.id, { label: label.trim(), proxy_id: proxyId }));
+    onSaved(await client.update(account.id, {
+      label: label.trim(),
+      proxy_id: proxyId,
+      ...(locale.trim() !== account.locale ? { locale: locale.trim() } : {}),
+      ...(timezone.trim() !== account.timezone ? { timezone: timezone.trim() } : {}),
+    }));
+    onOpenChange(false);
+  });
+  const resetFingerprint = () => run(async () => {
+    if (!account) return;
+    onSaved(await client.update(account.id, { reset_fingerprint: true }));
     onOpenChange(false);
   });
   const toggle = () => run(async () => {
@@ -330,6 +346,21 @@ export function EditAccountDialog({ account, onOpenChange, client, proxies, onSa
       <ProxySelect proxies={proxies} value={proxyId} onChange={setProxyId} currentProxyId={account.proxy_id}
         currentDisplay={account.proxy_display} onImportProxies={onImportProxies} />
       <p className="sa-field-hint">A proxy can serve one account at a time.</p>
+      <div className="sa-field">
+        <label htmlFor="sa-edit-locale">Locale</label>
+        <Input id="sa-edit-locale" maxLength={6} value={locale} onChange={(event) => setLocale(event.target.value)} />
+      </div>
+      <div className="sa-field">
+        <label htmlFor="sa-edit-timezone">Timezone</label>
+        <Input id="sa-edit-timezone" maxLength={64} value={timezone} onChange={(event) => setTimezone(event.target.value)} />
+      </div>
+      <p className="sa-field-hint">Match the proxy's country, for example id-ID and Asia/Jakarta.</p>
+      <div className="sa-field"><span className="sa-field-label">Device fingerprint</span>
+        <p className="sa-readonly">{account.fingerprint_set ? "Set (Camoufox)" : "Not set"}</p></div>
+      {resetting
+        ? <><p role="alert" className="sa-validation sa-validation--error">Reset the device of {account.label}? Its browser profiles are deleted, and the platform sees it once as it appears as a new device.</p>
+          <Button variant="destructive" disabled={saving} onClick={resetFingerprint}>Confirm reset</Button></>
+        : <Button variant="ghost" disabled={saving} onClick={() => setResetting(true)}>Reset device fingerprint</Button>}
       {confirming && <p role="alert" className="sa-validation sa-validation--error">Delete {account.label}? Its cookies are removed and its proxy returns to the pool.</p>}
       {error && <p role="alert" className="sa-validation sa-validation--error">{error}</p>}
     </div>

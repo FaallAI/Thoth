@@ -997,8 +997,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** AccessPolicyUpdate */
+        /**
+         * AccessPolicyUpdate
+         * @description `daily_budget: null` means the platform default; the response shows the effective one.
+         */
         AccessPolicyUpdate: {
+            /** Daily Budget */
+            daily_budget?: number | null;
+            /**
+             * Engine
+             * @default patchright
+             * @enum {string}
+             */
+            engine: "patchright" | "camoufox";
             /** Min Spacing Seconds */
             min_spacing_seconds: number;
             /**
@@ -1560,6 +1571,13 @@ export interface components {
             /** Accounts */
             accounts: components["schemas"]["SourceAccount"][];
             counts: components["schemas"]["StatusCounts"];
+            /** Daily Budget */
+            daily_budget: number;
+            /**
+             * Engine
+             * @enum {string}
+             */
+            engine: "patchright" | "camoufox";
             /** Min Spacing Seconds */
             min_spacing_seconds: number;
             /**
@@ -2437,6 +2455,8 @@ export interface components {
             created_at: string;
             /** Failure Count */
             failure_count: number;
+            /** Fingerprint Set */
+            fingerprint_set: boolean;
             /** Id */
             id: string;
             /** Label */
@@ -2445,6 +2465,8 @@ export interface components {
             last_outcome: ("success" | "blocked" | "challenge" | "rate_limited" | "login_wall" | "undecryptable") | null;
             /** Last Used At */
             last_used_at: string | null;
+            /** Locale */
+            locale: string;
             /**
              * Platform
              * @enum {string}
@@ -2461,11 +2483,15 @@ export interface components {
             status: "healthy" | "cooldown" | "expired" | "disabled";
             /** Success Count */
             success_count: number;
+            /** Timezone */
+            timezone: string;
             /**
              * Updated At
              * Format: date-time
              */
             updated_at: string;
+            /** Uses Today */
+            uses_today: number;
         };
         /** SourceAccountCreate */
         SourceAccountCreate: {
@@ -2490,8 +2516,17 @@ export interface components {
             disabled?: boolean | null;
             /** Label */
             label?: string | null;
+            /** Locale */
+            locale?: string | null;
             /** Proxy Id */
             proxy_id?: string | null;
+            /**
+             * Reset Fingerprint
+             * @default false
+             */
+            reset_fingerprint: boolean;
+            /** Timezone */
+            timezone?: string | null;
         };
         /** SourceAccountsOverview */
         SourceAccountsOverview: {

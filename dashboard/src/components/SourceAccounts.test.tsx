@@ -31,6 +31,10 @@ function account(overrides: Partial<SourceAccount>): SourceAccount {
     proxy_display: null,
     created_at: new Date(NOW).toISOString(),
     updated_at: new Date(NOW).toISOString(),
+    locale: "id-ID",
+    timezone: "Asia/Jakarta",
+    fingerprint_set: false,
+    uses_today: 3,
     ...overrides,
   };
 }
@@ -52,6 +56,8 @@ function overview(available = true, accounts = ROWS, mode: "anonymous" | "fallba
         platform: platform as SourceAccount["platform"],
         mode,
         min_spacing_seconds: 60,
+        daily_budget: 40,
+        engine: "patchright" as const,
         counts: { healthy: count("healthy"), cooldown: count("cooldown"), expired: count("expired"), disabled: count("disabled") },
         accounts: mine,
       };
@@ -98,7 +104,7 @@ test("changing the access mode saves the platform's policy", async () => {
   const client = fakeClient();
   render(<SourceAccounts client={client} onManageProxies={() => {}} />);
   await userEvent.click(await screen.findByRole("radio", { name: "always" }));
-  expect(client.setPolicy).toHaveBeenCalledWith("tiktok", { mode: "always", min_spacing_seconds: 60 });
+  expect(client.setPolicy).toHaveBeenCalledWith("tiktok", { mode: "always", min_spacing_seconds: 60, daily_budget: 40, engine: "patchright" });
 });
 
 test("an unavailable server explains itself and disables adding", async () => {
@@ -241,10 +247,75 @@ test("arrow keys move the access mode like a radio group", async () => {
   const client = fakeClient();
   render(<SourceAccounts client={client} onManageProxies={() => {}} />);
   const checked = await screen.findByRole("radio", { name: "fallback", checked: true });
-  expect(screen.getAllByRole("radio").map((radio) => (radio as HTMLElement).tabIndex)).toEqual([-1, 0, -1]);
+  const modes = screen.getByRole("radiogroup", { name: "Access mode" });
+  expect(within(modes).getAllByRole("radio").map((radio) => (radio as HTMLElement).tabIndex)).toEqual([-1, 0, -1]);
   checked.focus();
   await userEvent.keyboard("{ArrowRight}");
-  expect(client.setPolicy).toHaveBeenCalledWith("tiktok", { mode: "always", min_spacing_seconds: 60 });
+  expect(client.setPolicy).toHaveBeenCalledWith("tiktok", { mode: "always", min_spacing_seconds: 60, daily_budget: 40, engine: "patchright" });
   await userEvent.keyboard("{ArrowLeft}");
-  expect(client.setPolicy).toHaveBeenCalledWith("tiktok", { mode: "anonymous", min_spacing_seconds: 60 });
+  expect(client.setPolicy).toHaveBeenCalledWith("tiktok", { mode: "anonymous", min_spacing_seconds: 60, daily_budget: 40, engine: "patchright" });
+});
+
+test("the access card saves the daily budget and the engine", async () => {
+  const client = fakeClient();
+  render(<SourceAccounts client={client} onManageProxies={() => {}} />);
+  const budget = await screen.findByLabelText("Daily budget");
+  expect((budget as HTMLInputElement).value).toBe("40");
+  expect(screen.getByText(/0 means unlimited/)).toBeDefined();
+  await userEvent.clear(budget);
+  await userEvent.type(budget, "15{Enter}");
+  expect(client.setPolicy).toHaveBeenCalledWith("tiktok",
+    { mode: "fallback", min_spacing_seconds: 60, daily_budget: 15, engine: "patchright" });
+  expect(screen.getByRole("radio", { name: "patchright", checked: true })).toBeDefined();
+  await userEvent.click(screen.getByRole("radio", { name: "camoufox" }));
+  expect(client.setPolicy).toHaveBeenCalledWith("tiktok",
+    { mode: "fallback", min_spacing_seconds: 60, daily_budget: 40, engine: "camoufox" });
+});
+
+test("an out-of-range budget is never sent", async () => {
+  const client = fakeClient();
+  render(<SourceAccounts client={client} onManageProxies={() => {}} />);
+  const budget = await screen.findByLabelText("Daily budget");
+  await userEvent.clear(budget);
+  await userEvent.type(budget, "100001{Enter}");
+  expect(budget.getAttribute("aria-invalid")).toBe("true");
+  expect(client.setPolicy).not.toHaveBeenCalled();
+});
+
+test("the table shows today's uses against the budget", async () => {
+  render(<SourceAccounts client={fakeClient()} onManageProxies={() => {}} />);
+  const table = await screen.findByRole("table");
+  expect(within(table).getByRole("columnheader", { name: "Today" })).toBeDefined();
+  expect(within(table).getAllByText("3 / 40").length).toBe(3);
+});
+
+test("editing sends a changed locale and timezone", async () => {
+  const client = fakeClient();
+  render(<SourceAccounts client={client} onManageProxies={() => {}} />);
+  await screen.findByText("Cedar · primary");
+  await userEvent.click(screen.getByRole("button", { name: "Edit Cedar · primary" }));
+  const dialog = await screen.findByRole("dialog");
+  const locale = within(dialog).getByLabelText("Locale");
+  const timezone = within(dialog).getByLabelText("Timezone");
+  expect([(locale as HTMLInputElement).value, (timezone as HTMLInputElement).value]).toEqual(["id-ID", "Asia/Jakarta"]);
+  await userEvent.clear(locale);
+  await userEvent.type(locale, "en-US");
+  await userEvent.clear(timezone);
+  await userEvent.type(timezone, "Asia/Makassar");
+  await userEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
+  expect(client.update).toHaveBeenCalledWith(ROWS[0].id,
+    { label: "Cedar · primary", proxy_id: null, locale: "en-US", timezone: "Asia/Makassar" });
+});
+
+test("resetting the device fingerprint asks first", async () => {
+  const client = fakeClient();
+  render(<SourceAccounts client={client} onManageProxies={() => {}} />);
+  await screen.findByText("Cedar · primary");
+  await userEvent.click(screen.getByRole("button", { name: "Edit Cedar · primary" }));
+  const dialog = await screen.findByRole("dialog");
+  await userEvent.click(within(dialog).getByRole("button", { name: "Reset device fingerprint" }));
+  expect(client.update).not.toHaveBeenCalled();
+  expect(within(dialog).getByText(/appears as a new device/)).toBeDefined();
+  await userEvent.click(within(dialog).getByRole("button", { name: "Confirm reset" }));
+  expect(client.update).toHaveBeenCalledWith(ROWS[0].id, { reset_fingerprint: true });
 });
