@@ -1,7 +1,7 @@
 """What the attribution service needs from the outside world; adapters implement it.
 
-Every port may fail. The service treats a raised exception as "this piece of evidence or this
-candidate is unavailable" and never lets it fail the attribution.
+A port that cannot do its job raises `AttributionError`; a port about external content may raise
+anything else, and the service degrades that evidence or candidate.
 """
 
 from __future__ import annotations
@@ -18,6 +18,18 @@ from thoth_control_plane.attribution.matching import TextBox
 from thoth_control_plane.attribution.models import Platform
 
 VisualKind = Literal["footage", "commentary", "unknown"]
+
+
+class AttributionError(Exception):
+    """A required tool, model, or provider could not do its job: never a degraded verdict.
+
+    Operator, 2026-10-13: vision and Jev are required, and a failure is an explicit error that
+    fails the workflow. External content (discovery, candidates) still degrades.
+    """
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
 
 
 @dataclass(frozen=True)
@@ -105,15 +117,13 @@ class TextReader(Protocol):
 
 
 class VisionReader(Protocol):
-    async def read_cover(self, frames: Sequence[Frame]) -> CoverReading | None: ...
+    async def read_cover(self, frames: Sequence[Frame]) -> CoverReading: ...
 
-    async def classify(self, frames: Sequence[Frame]) -> VisualKind | None: ...
+    async def classify(self, frames: Sequence[Frame]) -> VisualKind: ...
 
 
 class DecisionModel(Protocol):
-    async def decide(
-        self, evidence: dict[str, object], handles: Sequence[str]
-    ) -> Decisions | None: ...
+    async def decide(self, evidence: dict[str, object], handles: Sequence[str]) -> Decisions: ...
 
 
 class Discoverer(Protocol):

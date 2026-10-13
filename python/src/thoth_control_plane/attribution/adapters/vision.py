@@ -13,7 +13,13 @@ from typing import TypeVar
 
 from pydantic import BaseModel
 
-from thoth_control_plane.attribution.ports import CoverReading, Frame, VisualClass, VisualKind
+from thoth_control_plane.attribution.ports import (
+    AttributionError,
+    CoverReading,
+    Frame,
+    VisualClass,
+    VisualKind,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,16 +46,13 @@ class AgnoVisionReader:
         self._model = model
         self._base_url = base_url
 
-    async def read_cover(self, frames: Sequence[Frame]) -> CoverReading | None:
+    async def read_cover(self, frames: Sequence[Frame]) -> CoverReading:
         return await self._run(CoverReading, COVER_PROMPT, frames)
 
-    async def classify(self, frames: Sequence[Frame]) -> VisualKind | None:
-        result = await self._run(VisualClass, CLASSIFY_PROMPT, frames)
-        return result.kind if result is not None else None
+    async def classify(self, frames: Sequence[Frame]) -> VisualKind:
+        return (await self._run(VisualClass, CLASSIFY_PROMPT, frames)).kind
 
-    async def _run(
-        self, schema: type[Schema], prompt: str, frames: Sequence[Frame]
-    ) -> Schema | None:
+    async def _run(self, schema: type[Schema], prompt: str, frames: Sequence[Frame]) -> Schema:
         from agno.agent import Agent
         from agno.media import Image
         from agno.models.openai.like import OpenAILike
@@ -71,7 +74,10 @@ class AgnoVisionReader:
         ]
         try:
             run = await agent.arun(input=prompt, images=images)
-        except Exception:
-            logger.warning("vision read unavailable; attribution continues without it")
-            return None
-        return run.content if isinstance(run.content, schema) else None
+        except Exception as error:
+            logger.warning("vision read unavailable; attribution stops")
+            raise AttributionError("vision_unavailable") from error
+        if not isinstance(run.content, schema):
+            logger.warning("vision read unusable; attribution stops")
+            raise AttributionError("vision_unavailable")
+        return run.content

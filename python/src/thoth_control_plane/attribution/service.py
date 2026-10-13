@@ -2,8 +2,9 @@
 
 `SourceAttributor.identify` reads evidence from the repost, decides the credit, discovers the
 credited account's videos, filters them by free metadata, matches frames, and acquires at most a
-few finalists, stopping at the first measured match. Every port failure degrades one piece of
-evidence or one candidate; `identify` raises only on cancellation.
+few finalists, stopping at the first measured match. A failure about external content degrades
+one piece of evidence or one candidate; a required tool, model, or provider that cannot work
+raises `AttributionError` (operator, 2026-10-13).
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from typing import Literal, TypeVar
 
 from thoth_control_plane.acquisition.models import DiscoveredVideo, SourceReport
 from thoth_control_plane.attribution import credit
+from thoth_control_plane.attribution.adapters.frames import ToolMissing
 from thoth_control_plane.attribution.candidates import parse_time, shortlist
 from thoth_control_plane.attribution.matching import (
     TextBox,
@@ -34,6 +36,7 @@ from thoth_control_plane.attribution.models import (
 )
 from thoth_control_plane.attribution.ports import (
     AcquiredCandidate,
+    AttributionError,
     CandidateAcquirer,
     CoverReading,
     DecisionModel,
@@ -81,8 +84,8 @@ class AttributionPorts:
     text: TextReader
     discoverer: Discoverer
     acquirer: CandidateAcquirer
-    vision: VisionReader | None = None
-    decisions: DecisionModel | None = None
+    vision: VisionReader
+    decisions: DecisionModel
 
 
 @dataclass(frozen=True)
@@ -97,7 +100,6 @@ class _Credit:
     platform: Platform | None
     repost_probability: float
     by_model: bool
-    ambiguous: bool = False
 
 
 @dataclass
@@ -144,14 +146,9 @@ class SourceAttributor:
         read_by_vision = credit.vision_handles(cover.handles) if cover is not None else []
         options = credit.credit_options(caption_handles, [*found_in_frames, *read_by_vision], owner)
         evidence = _text_evidence(caption_handles, found_in_frames, read_by_vision, owner, cover)
-        on_screen = credit.credit_options([], [*found_in_frames, *read_by_vision], owner)
-        decided = await self._credit(report, options, on_screen, lines, cover, evidence)
+        decided = await self._credit(report, options, lines, cover, evidence)
 
         if decided.handle is None:
-            if decided.ambiguous:
-                return self._finish(
-                    workflow_id, report, "unresolved", evidence, reason="ambiguous_credit"
-                )
             repost = decided.repost_probability >= self._tuning.repost_threshold
             return self._finish(
                 workflow_id,
@@ -260,7 +257,6 @@ class SourceAttributor:
         self,
         report: SourceReport,
         options: list[str],
-        on_screen: list[str],
         lines: list[str],
         cover: CoverReading | None,
         evidence: list[AttributionEvidence],
@@ -273,47 +269,36 @@ class SourceAttributor:
                 AttributionEvidence(kind="text_rule", detail=f"@{handle} on {platform}")
             )
             return _Credit(handle, platform, 1.0, by_model=False)
-        if self._ports.decisions is not None:
-            state: dict[str, object] = {
-                "caption": report.post.text[:2000],
-                "frame_text": " | ".join(lines)[:2000],
-                "headline": cover.headline if cover else "",
-                "scene": cover.scene if cover else "",
-                "platform_icon": cover.icon if cover else "",
-                "reposting_account": report.post.owner_handle,
-                "reposting_platform": report.source.platform,
-                "handles_found": list(options),
-            }
-            decided = await self._guard(self._ports.decisions.decide(state, options), "decision")
-            if decided is not None:
-                evidence.append(
-                    AttributionEvidence(
-                        kind="decision",
-                        detail=f"repost probability {decided.is_repost:.2f}",
-                        confidence=decided.is_repost,
-                    )
-                )
-                handle = (
-                    decided.handle
-                    if decided.handle_probability >= self._tuning.handle_threshold
-                    else None
-                )
-                if handle is not None:
-                    evidence.append(
-                        AttributionEvidence(
-                            kind="decision",
-                            detail=f"credit @{handle}",
-                            confidence=decided.handle_probability,
-                        )
-                    )
-                return _Credit(handle, decided.platform, decided.is_repost, by_model=True)
-        # Without the model only an on-screen handle with no competitor is a credit (spec S3);
-        # a caption mention alone may be a tag or a reply.
-        if len(options) == 1 and options[0] in on_screen:
-            return _Credit(options[0], None, 1.0, by_model=False)
-        return _Credit(
-            None, None, 1.0 if options else 0.0, by_model=False, ambiguous=len(options) > 1
+        state: dict[str, object] = {
+            "caption": report.post.text[:2000],
+            "frame_text": " | ".join(lines)[:2000],
+            "headline": cover.headline if cover else "",
+            "scene": cover.scene if cover else "",
+            "platform_icon": cover.icon if cover else "",
+            "reposting_account": report.post.owner_handle,
+            "reposting_platform": report.source.platform,
+            "handles_found": list(options),
+        }
+        decided = await self._ports.decisions.decide(state, options)
+        evidence.append(
+            AttributionEvidence(
+                kind="decision",
+                detail=f"repost probability {decided.is_repost:.2f}",
+                confidence=decided.is_repost,
+            )
         )
+        handle = (
+            decided.handle if decided.handle_probability >= self._tuning.handle_threshold else None
+        )
+        if handle is not None:
+            evidence.append(
+                AttributionEvidence(
+                    kind="decision",
+                    detail=f"credit @{handle}",
+                    confidence=decided.handle_probability,
+                )
+            )
+        return _Credit(handle, decided.platform, decided.is_repost, by_model=True)
 
     async def _evaluate(self, finalists: list[_Finalist], repost: object) -> _Finalist | None:
         step = max(1, self._tuning.finalist_concurrency)
@@ -359,8 +344,8 @@ class SourceAttributor:
             # Matched footage is the source whatever its genre: vision calls talking-head
             # originals "commentary", so the genre checks below run only when unmeasured.
             return
-        if self._ports.vision is not None and frames:
-            kind = await self._guard(self._ports.vision.classify(frames[:3]), "vision")
+        if frames:
+            kind = await self._ports.vision.classify(frames[:3])
             if kind == "commentary":
                 finalist.rejected = "commentary"
                 return
@@ -382,9 +367,9 @@ class SourceAttributor:
         return await self._guard(self._ports.text.read(frame), "ocr") or []
 
     async def _cover(self, frames: list[Frame]) -> CoverReading | None:
-        if self._ports.vision is None or not frames:
+        if not frames:
             return None
-        return await self._guard(self._ports.vision.read_cover(frames[:3]), "vision")
+        return await self._ports.vision.read_cover(frames[:3])
 
     async def _prepare(self, frames: list[Frame]) -> object:
         """Matcher features for a video's frames; falsy when nothing can be matched."""
@@ -395,8 +380,10 @@ class SourceAttributor:
     async def _guard(self, awaitable: Awaitable[T], what: str) -> T | None:
         try:
             return await awaitable
-        except asyncio.CancelledError:
+        except (asyncio.CancelledError, AttributionError):
             raise
+        except ToolMissing as missing:
+            raise AttributionError(missing.code) from missing
         except Exception:
             logger.warning("source attribution %s unavailable; continuing without it", what)
             return None

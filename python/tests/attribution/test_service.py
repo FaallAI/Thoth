@@ -10,7 +10,8 @@ from typing import Any
 
 import pytest
 
-from tests.attribution.replay import ReplayDecisions, parse_report, replay_ports
+from tests.attribution.replay import ReplayVisionCover, parse_report, replay_ports
+from thoth_control_plane.attribution.ports import AttributionError
 from thoth_control_plane.attribution.service import SourceAttributor, Tuning
 
 FIXTURE = json.loads(
@@ -137,20 +138,6 @@ async def test_with_concurrency_two_the_extra_finalist_is_discarded() -> None:
     assert ports.acquirer.acquired == ["wf_ref-c1", "wf_ref-c2"]
     assert ports.acquirer.discarded == ["wf_ref-c2"]
     assert outcome.attribution.candidates["no_match"] == 1
-
-
-@pytest.mark.asyncio
-async def test_without_a_decision_key_one_found_handle_is_the_credit() -> None:
-    outcome, _ = await _identify(_case(decisions=None))
-    assert (outcome.attribution.verdict, outcome.attribution.confidence) == ("replaced", "high")
-
-    two = _case(decisions=None)
-    two["frames"]["repost"][0]["boxes"] = [["@vincentius.christ76 @other.acc1", 0.88, 0.93]]
-    ambiguous, _ = await _identify(two)
-    assert (ambiguous.attribution.verdict, ambiguous.attribution.reason) == (
-        "unresolved",
-        "ambiguous_credit",
-    )
 
 
 @pytest.mark.asyncio
@@ -304,20 +291,6 @@ async def test_candidate_sampling_stops_at_the_candidate_limit() -> None:
 
 
 @pytest.mark.asyncio
-async def test_without_a_decision_key_a_caption_mention_alone_is_no_credit() -> None:
-    case = _case(decisions=None)
-    case["frames"]["repost"][0]["boxes"] = []
-
-    outcome, ports = await _identify(case, _report(text="lucu banget @kreator.asli"))
-
-    assert (outcome.attribution.verdict, outcome.attribution.reason) == (
-        "unresolved",
-        "no_credit",
-    )
-    assert ports.discoverer.calls == []
-
-
-@pytest.mark.asyncio
 async def test_a_repost_without_video_replaces_with_low_confidence() -> None:
     outcome, ports = await _identify(_case(), _report(video=False, text="via @vincentius.christ76"))
 
@@ -348,17 +321,11 @@ async def test_self_credit_is_never_a_credit() -> None:
     assert outcome.attribution.verdict == "original"
 
 
-class _Raising(ReplayDecisions):
-    async def decide(self, evidence: dict[str, object], handles: Any) -> Any:
-        raise RuntimeError("jev down")
-
-
 @pytest.mark.asyncio
-async def test_port_failures_degrade_instead_of_failing() -> None:
+async def test_external_content_failures_degrade_instead_of_failing() -> None:
     case = _case()
     case["acquired"] = {_url(2): case["acquired"][_url(2)]}  # the original cannot be acquired
     ports = replay_ports(case)
-    object.__setattr__(ports, "decisions", _Raising(case["decisions"]))
 
     outcome = await SourceAttributor(ports).identify("wf_ref", parse_report(_report()), VIDEO)
 
@@ -389,3 +356,60 @@ async def test_a_misread_handle_is_corrected_from_a_near_variant_in_the_evidence
     assert "credit corrected to @vincentius.christ76" in {
         e.detail for e in outcome.attribution.evidence
     }
+
+
+class _RaisingVision:
+    async def read_cover(self, frames: Any) -> Any:
+        raise AttributionError("vision_unavailable")
+
+    async def classify(self, frames: Any) -> Any:
+        raise AttributionError("vision_unavailable")
+
+
+class _RaisingDecisions:
+    async def decide(self, evidence: Any, handles: Any) -> Any:
+        raise AttributionError("decision_unavailable")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("port", "code"), [("vision", "vision_unavailable"), ("decisions", "decision_unavailable")]
+)
+async def test_a_failing_vision_or_decision_stops_attribution(port: str, code: str) -> None:
+    ports = replay_ports(_case())
+    object.__setattr__(ports, port, _RaisingVision() if port == "vision" else _RaisingDecisions())
+
+    with pytest.raises(AttributionError) as raised:
+        await SourceAttributor(ports).identify("wf_ref", parse_report(_report()), VIDEO)
+    assert raised.value.code == code
+
+
+@pytest.mark.asyncio
+async def test_a_failing_classification_still_discards_finalists() -> None:
+    case = _case(matches={}, unmatchable=["repost"])  # unmeasured: the genre check runs
+    ports = replay_ports(case)
+    vision = _RaisingVision()
+    object.__setattr__(vision, "read_cover", ReplayVisionCover(case))
+    object.__setattr__(ports, "vision", vision)
+
+    with pytest.raises(AttributionError):
+        await SourceAttributor(ports, Tuning(finalist_concurrency=1)).identify(
+            "wf_ref", parse_report(_report()), VIDEO
+        )
+    assert ports.acquirer.acquired and ports.acquirer.discarded == ports.acquirer.acquired
+
+
+@pytest.mark.asyncio
+async def test_a_missing_ffmpeg_stops_attribution() -> None:
+    from thoth_control_plane.attribution.adapters.frames import ToolMissing
+
+    class _NoFfmpeg:
+        async def frames(self, video: Path, *, fps: float, seconds: float | None = None) -> Any:
+            raise ToolMissing("ffmpeg_missing")
+
+    ports = replay_ports(_case())
+    object.__setattr__(ports, "frames", _NoFfmpeg())
+
+    with pytest.raises(AttributionError) as raised:
+        await SourceAttributor(ports).identify("wf_ref", parse_report(_report()), VIDEO)
+    assert raised.value.code == "ffmpeg_missing"

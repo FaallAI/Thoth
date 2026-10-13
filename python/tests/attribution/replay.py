@@ -82,18 +82,27 @@ class ReplayText:
 
 
 class ReplayVision:
-    def __init__(self, cover: dict[str, str] | None, classify: dict[str, str]) -> None:
+    def __init__(self, cover: dict[str, Any], classify: dict[str, str]) -> None:
         self._cover = cover
         self._classify = classify
         self.calls = 0
 
-    async def read_cover(self, frames: Sequence[Frame]) -> CoverReading | None:
+    async def read_cover(self, frames: Sequence[Frame]) -> CoverReading:
         self.calls += 1
-        return CoverReading(**self._cover) if self._cover is not None else None
+        return CoverReading(**self._cover)
 
-    async def classify(self, frames: Sequence[Frame]) -> VisualKind | None:
+    async def classify(self, frames: Sequence[Frame]) -> VisualKind:
         self.calls += 1
         return self._classify.get(frame_key(frames[0])[0], "footage")  # type: ignore[return-value]
+
+
+def ReplayVisionCover(case: dict[str, Any]) -> Any:
+    """The case's cover reading as a bound coroutine, for fakes that fail only elsewhere."""
+
+    async def read_cover(frames: Sequence[Frame]) -> CoverReading:
+        return CoverReading(**case["cover"])
+
+    return read_cover
 
 
 class ReplayDecisions:
@@ -101,7 +110,7 @@ class ReplayDecisions:
         self._decisions = decisions
         self.calls: list[tuple[dict[str, object], list[str]]] = []
 
-    async def decide(self, evidence: dict[str, object], handles: Sequence[str]) -> Decisions | None:
+    async def decide(self, evidence: dict[str, object], handles: Sequence[str]) -> Decisions:
         self.calls.append((evidence, list(handles)))
         return Decisions(**self._decisions)
 
@@ -150,8 +159,6 @@ def replay_ports(case: dict[str, Any]) -> AttributionPorts:
         text=ReplayText(frames),
         discoverer=ReplayDiscoverer(case.get("discovery")),
         acquirer=ReplayAcquirer(case.get("acquired", {})),
-        vision=ReplayVision(case.get("cover"), case.get("classify", {}))
-        if case.get("vision", True)
-        else None,
-        decisions=ReplayDecisions(case["decisions"]) if case.get("decisions") else None,
+        vision=ReplayVision(case["cover"], case.get("classify", {})),
+        decisions=ReplayDecisions(case["decisions"]),
     )

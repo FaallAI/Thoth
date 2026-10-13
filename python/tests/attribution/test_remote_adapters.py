@@ -18,7 +18,7 @@ from thoth_control_plane.acquisition.models import (
 )
 from thoth_control_plane.attribution.adapters.discovery import ProfileDiscoverer
 from thoth_control_plane.attribution.adapters.jev import JEV_MODEL, JEV_URL, JevDecisionModel
-from thoth_control_plane.attribution.ports import CoverReading, Decisions, Frame
+from thoth_control_plane.attribution.ports import AttributionError, CoverReading, Decisions, Frame
 
 SOURCE = "vincentius.christ76"
 
@@ -93,10 +93,13 @@ async def test_jev_without_handles_asks_no_handle_question() -> None:
         httpx.Response(200, json={"answers": {}}),
     ],
 )
-async def test_jev_failures_return_none(response: httpx.Response) -> None:
-    respx.post(JEV_URL).mock(return_value=response)
+async def test_jev_failures_raise_after_one_retry(response: httpx.Response) -> None:
+    route = respx.post(JEV_URL).mock(return_value=response)
 
-    assert await JevDecisionModel("synthetic-jev-key").decide({}, [SOURCE]) is None
+    with pytest.raises(AttributionError) as raised:
+        await JevDecisionModel("synthetic-jev-key").decide({}, [SOURCE])
+    assert raised.value.code == "decision_unavailable"
+    assert route.call_count == 2
 
 
 def _tiny_jpeg() -> bytes:
@@ -159,7 +162,7 @@ def test_a_long_cover_reading_is_clipped_not_rejected() -> None:
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_vision_classifies_and_degrades_to_none() -> None:
+async def test_vision_classifies_and_raises_when_down() -> None:
     pytest.importorskip("openai")
     from thoth_control_plane.attribution.adapters.vision import (
         OPENROUTER_BASE_URL,
@@ -173,7 +176,9 @@ async def test_vision_classifies_and_degrades_to_none() -> None:
     route.mock(return_value=_completion(json.dumps({"kind": "commentary"})))
     assert await reader.classify(frames) == "commentary"
     route.mock(return_value=httpx.Response(500, json={"error": "down"}))
-    assert await reader.classify(frames) is None
+    with pytest.raises(AttributionError) as raised:
+        await reader.classify(frames)
+    assert raised.value.code == "vision_unavailable"
 
 
 class _FakeDiscovery:
