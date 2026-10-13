@@ -34,7 +34,14 @@ Branch `feat/stage4-reaction-attribution` (not pushed), from the Stage 5a tip. S
   `docker/fetch_speech_models.py` (the turbo `model.bin` is 1.6 GB, so the image grows about
   1.7 GB); CI fetches the tiny model and the diarization models for the adapter tests.
   `av` is pinned below 19: faster-whisper 1.2.1 passes an argument av 19 removed.
-- Python suite: 3522 passed, 12 skipped (Playwright, disposable Postgres, live), 0 failed.
+- Fresh review: one Critical and four Important findings fixed (`6d24317`): a failing finalist
+  now waits for its sibling so both are discarded; a missing ffmpeg in frame sampling is
+  `ffmpeg_missing`; the attributor is built on first use, so the worker starts with attribution
+  switched off and no key; an Instagram reaction is left out of its own baseline by URL; a
+  failing signed-in listing keeps the thin anonymous one. Also fixed: scene detection reads
+  only the first 600 s at 360 px, and tests fail rather than skip without OpenCV or RapidOCR.
+  Five minors deferred (ledger).
+- Python suite: 3530 passed, 12 skipped (Playwright, disposable Postgres, live), 0 failed.
   Ruff check and format clean. actionlint: no new findings.
 
 Next steps:
