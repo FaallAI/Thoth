@@ -184,6 +184,28 @@ reaction measured hours after posting lost against its account's lifetime totals
   it, so a replay is deterministic.
 - Follow-up: recalibrate `τ` from Thoth's own snapshots (the same videos seen at two ages).
 
+### 5.8 Amendment (operator, 2026-10-13): a text or image subject is confirmed
+
+Research: `docs/research/2026-10-13-reaction-calibration-gaps-research.md`. Vision read
+DeOUJ60SHeI's video subject as an image, and the shortcut skipped every other check.
+
+- A text or image subject is an original only when no local signal contradicts the label:
+  - **motion**: no pair of consecutive 1 fps frames inside a shot labelled `subject` differs by
+    more than `STILL_THRESHOLD`, the mean absolute grey difference at 64×64;
+  - **speech**: no speaker other than the creator talks for at least 1 s inside those shots.
+- When a signal contradicts the label, the post takes the video path: transcript, contribution,
+  discussion, engagement, then the search for the original. The evidence names the signal.
+- The motion probe is a port, so captures record it and replays use it. Diarization therefore
+  also runs for text and image subjects.
+
+### 5.9 Amendment (operator, 2026-10-13): Instagram lists reels signed in
+
+Instagram profile discovery reads one anonymous 12-post grid and keeps its videos (3 for
+@sadampermana.w). With an account leased, discovery lists the user's reels through Instagram's
+signed-in reels endpoint, paged by `max_id` up to 30, with play counts. This is blocked until
+the operator provides a valid Instagram session: on 2026-10-13 the session on file was no longer
+signed in.
+
 ### 5.6 Output contract
 
 - `EvidenceKind` gains `reaction`. A reaction step always adds one evidence item whatever its

@@ -2647,3 +2647,34 @@ engagement. Spec section 5.7.
 3. Implement them as specified in the spec, section 5.7.
 4. Run `tests/attribution`; all green, every golden unchanged.
 5. Capture tool: record `captured_at`, and replay passes `clock=lambda: captured_at`. Commit.
+
+
+### Task 15: Confirm a text or image subject by motion and speech
+
+**Files:**
+- Modify: `python/src/thoth_control_plane/attribution/ports.py` (`MotionProbe`)
+- Create: `python/src/thoth_control_plane/attribution/adapters/motion.py` (`PillowMotion`)
+- Modify: `python/src/thoth_control_plane/attribution/reaction.py` (`creator_speaker`, `subject_moves`, `subject_heard`)
+- Modify: `python/src/thoth_control_plane/attribution/service.py` (the shortcut is confirmed; the motion port is wired in)
+- Modify: `python/src/thoth_control_plane/activities/source_attribution.py` (production motion probe)
+- Modify: `python/tests/attribution/replay.py`, `capture_golden.py` (`motion` recorded and replayed)
+- Test: `tests/attribution/test_reaction.py`, `test_service.py`, `test_local_adapters.py`, `test_capture.py`
+
+**Steps (TDD):**
+1. Write the failing tests:
+   - pure:
+     - motion inside a subject shot contradicts the label, motion elsewhere does not;
+     - another speaker inside a subject shot contradicts it, the creator alone does not;
+   - adapter: `PillowMotion` gives ~0 for identical JPEGs and above `STILL_THRESHOLD` for different scenes;
+   - service:
+     - a confirmed image subject is an original without a transcript;
+     - an image subject with motion takes the video path, and the evidence says `subject moves`;
+   - capture: `motion` is recorded and replayed.
+2. Watch them fail. 3. Implement as in spec section 5.8. 4. Run `tests/attribution`. 5. Commit.
+6. Recapture the text and image goldens (DeO6A2MSoAt, DeOUJ60SHeI) under the existing capture
+   authorization, and replay them.
+
+### Task 16: Instagram reels listing signed in (blocked: needs a valid Instagram session)
+
+Spec section 5.9. Probe the reels endpoint with a valid session, then implement it under TDD
+from the recorded response shape. Recapture DeWlWJmyKxP and DeHz54GT4ea.
