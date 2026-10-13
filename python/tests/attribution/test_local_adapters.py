@@ -298,3 +298,17 @@ async def test_opencv_missing_at_run_time_is_tool_missing(monkeypatch: pytest.Mo
     with pytest.raises(ToolMissing) as raised:
         await OrbMatcher().prepare([frame])
     assert raised.value.code == "opencv_missing"
+
+
+@pytest.mark.asyncio
+async def test_motion_is_near_zero_for_a_still_and_high_for_a_cut() -> None:
+    from thoth_control_plane.attribution.adapters.motion import STILL_THRESHOLD, PillowMotion
+
+    still = _jpeg(_scene(1))
+    other = _jpeg(_scene(2))
+
+    changes = await PillowMotion().changes(
+        [Frame(0.0, still), Frame(1.0, still), Frame(2.0, other)]
+    )
+
+    assert changes[0] < STILL_THRESHOLD < changes[1]

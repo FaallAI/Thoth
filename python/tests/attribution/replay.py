@@ -79,6 +79,18 @@ class ReplayScenes:
         return list(self._cuts)
 
 
+class ReplayMotion:
+    """Recorded frame changes; a case without them is still (all zeros)."""
+
+    def __init__(self, recorded: list[float] | None) -> None:
+        self._recorded = recorded
+
+    async def changes(self, frames: Sequence[Frame]) -> list[float]:
+        if self._recorded is not None:
+            return list(self._recorded)
+        return [0.0] * max(0, len(frames) - 1)
+
+
 class ReplayText:
     def __init__(self, frames: dict[str, list[dict[str, Any]]]) -> None:
         self._boxes = {
@@ -217,6 +229,7 @@ def replay_ports(case: dict[str, Any]) -> AttributionPorts:
         scenes=ReplayScenes(case.get("cuts", [])),
         transcriber=ReplayTranscriber(case.get("transcript")),
         diarizer=ReplayDiarizer(case.get("turns")),
+        motion=ReplayMotion(case.get("motion")),
     )
 
 

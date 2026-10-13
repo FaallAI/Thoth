@@ -121,3 +121,21 @@ async def test_a_capture_records_its_clock_and_replay_uses_it() -> None:
     assert replayed.attribution.verdict == "original"
     details = [e.detail for e in replayed.attribution.evidence if e.kind == "reaction"]
     assert "too early" in details[0]
+
+
+@pytest.mark.asyncio
+async def test_a_capture_records_frame_motion() -> None:
+    from tests.attribution.test_service import IMAGE_COVER, VIDEO, _reaction_case, _reaction_report
+
+    motion = [0.0] * 39
+    motion[0] = 0.3
+    recorded = await record_case(
+        replay_ports(_reaction_case(cover=IMAGE_COVER, motion=motion)),
+        parse_report(_reaction_report()),
+        VIDEO,
+        case="motion",
+        expected={"verdict": "original", "source_url": None},
+        scout={"main_url": None, "note": ""},
+    )
+
+    assert recorded["motion"] == motion

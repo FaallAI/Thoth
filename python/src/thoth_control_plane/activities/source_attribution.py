@@ -37,6 +37,7 @@ from thoth_control_plane.attribution.adapters.frames import (
     FfmpegSceneDetector,
 )
 from thoth_control_plane.attribution.adapters.jev import JevDecisionModel
+from thoth_control_plane.attribution.adapters.motion import PillowMotion
 from thoth_control_plane.attribution.adapters.ocr import RapidOcrReader
 from thoth_control_plane.attribution.adapters.speech import SherpaDiarizer, WhisperTranscriber
 from thoth_control_plane.attribution.adapters.vision import AgnoVisionReader
@@ -131,6 +132,7 @@ def build_production_ports(settings: Settings, artifact_root: Path) -> Attributi
         scenes=FfmpegSceneDetector(settings.THOTH_FFMPEG),
         transcriber=WhisperTranscriber(settings.THOTH_WHISPER_MODEL_DIR),
         diarizer=SherpaDiarizer(settings.THOTH_DIARIZATION_MODEL_DIR),
+        motion=PillowMotion(),
     )
 
 

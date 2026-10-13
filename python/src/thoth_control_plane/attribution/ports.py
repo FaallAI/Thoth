@@ -187,6 +187,12 @@ class Diarizer(Protocol):
     async def turns(self, video: Path, *, seconds: float) -> list[Turn]: ...
 
 
+class MotionProbe(Protocol):
+    async def changes(self, frames: Sequence[Frame]) -> list[float]:
+        """Change between each pair of consecutive frames, 0 (identical) to 1."""
+        ...
+
+
 class SceneDetector(Protocol):
     async def cuts(self, video: Path) -> list[float]: ...
 

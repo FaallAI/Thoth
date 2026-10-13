@@ -624,3 +624,47 @@ async def test_a_reaction_too_young_to_measure_is_judged_without_engagement() ->
     assert outcome.attribution.verdict == "original"
     details = [e.detail for e in outcome.attribution.evidence if e.kind == "reaction"]
     assert "engagement too early" in details[0] and "original_reaction_early" in details[0]
+
+
+# One label per frame sent: with a cut at 3 s, vision sees seconds 0, 1, and 21.
+IMAGE_COVER = {
+    **REACTION_COVER,
+    "subject_media": "image",
+    "shows": ["subject", "subject", "creator"],
+}
+
+
+@pytest.mark.asyncio
+async def test_a_confirmed_image_subject_is_an_original_without_a_transcript() -> None:
+    # Spec 5.8: still subject frames and only the creator's voice confirm the label.
+    case = _reaction_case(cover=IMAGE_COVER, turns=[[4.0, 35.0, 1]])
+
+    outcome, ports = await _identify(case, _reaction_report())
+
+    assert outcome.attribution.verdict == "original"
+    assert ports.transcriber.calls == 0 and ports.decisions.assessed == []
+
+
+@pytest.mark.asyncio
+async def test_an_image_subject_that_moves_takes_the_video_path() -> None:
+    # DeOUJ60SHeI, 2026-10-13: vision called a video subject an image.
+    motion = [0.0] * 39
+    motion[0] = 0.3  # seconds 0 to 1, inside the subject's opening shot
+    case = _reaction_case(cover=IMAGE_COVER, motion=motion)
+
+    outcome, ports = await _identify(case, _reaction_report())
+
+    details = [e.detail for e in outcome.attribution.evidence if e.kind == "reaction"]
+    assert any("subject moves" in detail for detail in details)
+    assert ports.transcriber.calls == 1 and len(ports.decisions.assessed) == 1
+
+
+@pytest.mark.asyncio
+async def test_an_image_subject_with_another_voice_takes_the_video_path() -> None:
+    case = _reaction_case(cover=IMAGE_COVER)  # speaker 0 talks over the subject's opening
+
+    outcome, ports = await _identify(case, _reaction_report())
+
+    details = [e.detail for e in outcome.attribution.evidence if e.kind == "reaction"]
+    assert any("another voice" in detail for detail in details)
+    assert ports.transcriber.calls == 1

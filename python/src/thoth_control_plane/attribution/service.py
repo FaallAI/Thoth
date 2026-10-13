@@ -45,13 +45,20 @@ from thoth_control_plane.attribution.ports import (
     Discoverer,
     Frame,
     FrameSource,
+    MotionProbe,
     SceneDetector,
     TextReader,
     Transcriber,
     VisionReader,
     VisualMatcher,
 )
-from thoth_control_plane.attribution.reaction import engagement_ratio, judge, split_speech
+from thoth_control_plane.attribution.reaction import (
+    engagement_ratio,
+    judge,
+    split_speech,
+    subject_heard,
+    subject_moves,
+)
 from thoth_control_plane.attribution.scenes import Shot, label, shots, vision_frames
 
 logger = logging.getLogger(__name__)
@@ -88,6 +95,8 @@ class Tuning:
     reaction_engagement: float = 0.8
     # Spec 5.7: younger than this, views say nothing yet and engagement is not judged.
     min_engagement_age_hours: float = 6.0
+    # Spec 5.8: frame change above this inside a subject shot means it is not a still image.
+    still_threshold: float = 0.02
 
 
 DEFAULT_TUNING = Tuning()
@@ -105,6 +114,7 @@ class AttributionPorts:
     scenes: SceneDetector
     transcriber: Transcriber
     diarizer: Diarizer
+    motion: MotionProbe
 
 
 @dataclass(frozen=True)
@@ -171,7 +181,7 @@ class SourceAttributor:
             cover is not None
             and video is not None
             and cover.reaction_shape != "none"
-            and await self._reaction(report, video, cover, labelled, lines, evidence)
+            and await self._reaction(report, video, frames, cover, labelled, lines, evidence)
         ):
             return self._finish(workflow_id, report, "original", evidence, confidence="high")
         decided = await self._credit(report, options, lines, cover, evidence)
@@ -332,6 +342,7 @@ class SourceAttributor:
         self,
         report: SourceReport,
         video: Path,
+        frames: list[Frame],
         cover: CoverReading,
         labelled: list[Shot],
         lines: list[str],
@@ -339,16 +350,37 @@ class SourceAttributor:
     ) -> bool:
         """Spec 2026-10-13: is this reaction an original? Unmeasured parts keep it a repost."""
         shape = cover.reaction_shape
+        seconds = self._tuning.transcript_seconds
+        turns = await self._ports.diarizer.turns(video, seconds=seconds)
         if cover.subject_media in ("text", "image"):
+            # Spec 5.8: a still subject neither moves nor talks; either signal sends it on.
+            changes = await self._ports.motion.changes(frames)
+            contradiction = (
+                "subject moves"
+                if subject_moves(
+                    [frame.second for frame in frames],
+                    changes,
+                    labelled,
+                    threshold=self._tuning.still_threshold,
+                )
+                else "another voice"
+                if subject_heard(turns, labelled)
+                else None
+            )
+            if contradiction is None:
+                evidence.append(
+                    AttributionEvidence(
+                        kind="reaction", detail=f"{shape} reaction to a {cover.subject_media} post"
+                    )
+                )
+                return True
             evidence.append(
                 AttributionEvidence(
-                    kind="reaction", detail=f"{shape} reaction to a {cover.subject_media} post"
+                    kind="reaction",
+                    detail=f"{cover.subject_media} subject not confirmed: {contradiction}",
                 )
             )
-            return True
-        seconds = self._tuning.transcript_seconds
         transcript = await self._ports.transcriber.transcribe(video, seconds=seconds)
-        turns = await self._ports.diarizer.turns(video, seconds=seconds)
         speech = split_speech(transcript, turns, labelled)
         comments = [comment.text for comment in report.comments][:12]
         assessment = await self._ports.decisions.assess(

@@ -14,6 +14,7 @@ from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from itertools import pairwise
 
 from thoth_control_plane.acquisition.models import DiscoveredVideo
 from thoth_control_plane.attribution.candidates import parse_time
@@ -51,15 +52,11 @@ def _overlap(a_start: float, a_end: float, b_start: float, b_end: float) -> floa
     return max(0.0, min(a_end, b_end) - max(a_start, b_start))
 
 
-def split_speech(transcript: Transcript, turns: Sequence[Turn], cut: Sequence[Shot]) -> Speech:
-    """Creator speech against the subject's own audio playing inside the reaction.
-
-    The creator is the speaker heard most while the creator is on screen; in a voice-over,
-    where no frame shows the creator, the speaker heard most overall. Speech no turn covers
-    is the creator's.
-    """
+def creator_speaker(turns: Sequence[Turn], cut: Sequence[Shot]) -> int | None:
+    """The speaker heard most while the creator is on screen; in a voice-over, where no
+    frame shows the creator, the speaker heard most overall."""
     if not turns:
-        return Speech(" ".join(segment.text for segment in transcript.segments), "")
+        return None
     on_camera: Counter[int] = Counter()
     total: Counter[int] = Counter()
     for turn in turns:
@@ -68,7 +65,46 @@ def split_speech(transcript: Transcript, turns: Sequence[Turn], cut: Sequence[Sh
             if shot.shows in CREATOR_LABELS:
                 on_camera[turn.speaker] += _overlap(turn.start, turn.end, shot.start, shot.end)
     ranked = on_camera if any(value > 0 for value in on_camera.values()) else total
-    creator = ranked.most_common(1)[0][0]
+    return ranked.most_common(1)[0][0]
+
+
+def subject_moves(
+    seconds: Sequence[float], changes: Sequence[float], cut: Sequence[Shot], *, threshold: float
+) -> bool:
+    """Spec 5.8: two consecutive frames inside one `subject` shot differ: not a still image."""
+    for (before, after), change in zip(pairwise(seconds), changes, strict=False):
+        if change <= threshold:
+            continue
+        for shot in cut:
+            if shot.shows == "subject" and shot.start <= before and after < shot.end:
+                return True
+    return False
+
+
+def subject_heard(turns: Sequence[Turn], cut: Sequence[Shot], *, minimum: float = 1.0) -> bool:
+    """Spec 5.8: someone other than the creator talks inside a `subject` shot: not silent."""
+    creator = creator_speaker(turns, cut)
+    for turn in turns:
+        if turn.speaker == creator:
+            continue
+        heard = sum(
+            _overlap(turn.start, turn.end, shot.start, shot.end)
+            for shot in cut
+            if shot.shows == "subject"
+        )
+        if heard >= minimum:
+            return True
+    return False
+
+
+def split_speech(transcript: Transcript, turns: Sequence[Turn], cut: Sequence[Shot]) -> Speech:
+    """Creator speech against the subject's own audio playing inside the reaction.
+
+    Speech no turn covers is the creator's.
+    """
+    if not turns:
+        return Speech(" ".join(segment.text for segment in transcript.segments), "")
+    creator = creator_speaker(turns, cut)
     mine: list[str] = []
     theirs: list[str] = []
     for segment in transcript.segments:

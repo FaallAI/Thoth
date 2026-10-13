@@ -1,7 +1,7 @@
 {
   "case": "instagram_deO6A2MSoAt",
   "synthetic": false,
-  "captured_at": "2026-10-13T13:43:40Z",
+  "captured_at": "2026-10-13T15:41:28Z",
   "report": {
     "schema_version": 3,
     "workflow_id": "wf_golden",
@@ -15,8 +15,8 @@
       "text": "Kita bisa mutus mata rantai “bercanda” kayak gini di tongkrongan",
       "published_at": "2026-10-08T12:14:11Z",
       "engagement": {
-        "like": 62887,
-        "comment": 1348
+        "like": 62961,
+        "comment": 1350
       }
     },
     "media": [
@@ -42,7 +42,7 @@
           "status": "succeeded",
           "reason": null,
           "attempt_count": 1,
-          "elapsed_ms": 8209
+          "elapsed_ms": 1483
         }
       ]
     },
@@ -878,12 +878,12 @@
   "unmatchable": [],
   "cover": {
     "headline": "",
-    "scene": "A man in a cap speaks to the camera while a tweet is displayed at the top of the screen.",
-    "icon": "Twitter logo in the top right of the tweet",
+    "scene": "A man in a cap speaks to the camera while a screenshot of a tweet is displayed above his head.",
+    "icon": "Twitter logo in the top right of the tweet screenshot",
     "handles": [
       "@bravyson.vconk"
     ],
-    "reaction_shape": "green_screen",
+    "reaction_shape": "screenshot",
     "subject_media": "text",
     "shows": [
       "creator",
@@ -900,8 +900,60 @@
     35.7667
   ],
   "transcript": null,
-  "turns": null,
+  "turns": [
+    [
+      0.03096874989569187,
+      45.424720764160156,
+      0
+    ]
+  ],
   "assessment": null,
+  "motion": [
+    0.053852640092372894,
+    0.04964767396450043,
+    0.0281977616250515,
+    0.037226177752017975,
+    0.03828316554427147,
+    0.024626608937978745,
+    0.036672793328762054,
+    0.037083521485328674,
+    0.057012103497982025,
+    0.16309456527233124,
+    0.05361519753932953,
+    0.037258733063936234,
+    0.047325946390628815,
+    0.08985045552253723,
+    0.11864469200372696,
+    0.04588694870471954,
+    0.055144187062978745,
+    0.07034218311309814,
+    0.08880016952753067,
+    0.08235006779432297,
+    0.03376704454421997,
+    0.06026826798915863,
+    0.038115616887807846,
+    0.05109049379825592,
+    0.035694316029548645,
+    0.06259287148714066,
+    0.07196786999702454,
+    0.05293543264269829,
+    0.0516764335334301,
+    0.0929783284664154,
+    0.07866306602954865,
+    0.06729377806186676,
+    0.08318206667900085,
+    0.07353419810533524,
+    0.09919098019599915,
+    0.151899516582489,
+    0.04807368293404579,
+    0.036846086382865906,
+    0.06366134434938431,
+    0.035281673073768616,
+    0.040170229971408844,
+    0.039855241775512695,
+    0.028599878773093224,
+    0.05418677628040314
+  ],
   "discovery": null,
   "acquired": {},
   "expected": {

@@ -16,6 +16,8 @@ from thoth_control_plane.attribution.reaction import (
     judge,
     lifetime_share,
     split_speech,
+    subject_heard,
+    subject_moves,
 )
 from thoth_control_plane.attribution.scenes import Shot
 
@@ -199,3 +201,23 @@ def test_the_post_is_excluded_by_its_url_when_the_ids_differ() -> None:
     ]
 
     assert _ratio({"play": 400}, videos, post_id="DeHz54GT4ea", url=url) == Engagement(None)
+
+
+def test_motion_inside_a_subject_shot_contradicts_a_still_label() -> None:
+    # Spec 5.8: an image does not move; motion in the creator's own shots says nothing.
+    seconds = [0.0, 1.0, 2.0, 3.0, 4.0]
+    cut = [Shot(0.0, 2.0, "creator"), Shot(2.0, 5.0, "subject")]
+
+    assert subject_moves(seconds, [0.0, 0.0, 0.3, 0.0], cut, threshold=0.02)
+    assert not subject_moves(seconds, [0.3, 0.0, 0.0, 0.0], cut, threshold=0.02)
+    assert not subject_moves(seconds, [0.0, 0.0, 0.01, 0.0], cut, threshold=0.02)
+
+
+def test_another_voice_inside_a_subject_shot_contradicts_a_still_label() -> None:
+    # Spec 5.8: an image is silent; the creator talking over it is not a contradiction.
+    cut = [Shot(0.0, 10.0, "creator"), Shot(10.0, 20.0, "subject")]
+
+    assert subject_heard([Turn(0.0, 10.0, 0), Turn(11.0, 15.0, 1)], cut)
+    assert not subject_heard([Turn(0.0, 10.0, 0), Turn(11.0, 15.0, 0)], cut)
+    assert not subject_heard([Turn(0.0, 10.0, 0), Turn(11.0, 11.5, 1)], cut)  # under 1 s
+    assert not subject_heard([], cut)

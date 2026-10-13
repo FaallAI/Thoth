@@ -90,6 +90,7 @@ class _Store:
         self.transcript: Transcript | None = None
         self.turns: list[Turn] | None = None
         self.assessment: Assessment | None = None
+        self.motion: list[float] | None = None
 
 
 class _Frames:
@@ -127,6 +128,15 @@ class _Diarizer:
     async def turns(self, video: Path, *, seconds: float) -> list[Turn]:
         self._store.turns = await self._inner.turns(video, seconds=seconds)
         return self._store.turns
+
+
+class _Motion:
+    def __init__(self, inner: Any, store: _Store) -> None:
+        self._inner, self._store = inner, store
+
+    async def changes(self, frames: Sequence[Frame]) -> list[float]:
+        self._store.motion = await self._inner.changes(frames)
+        return self._store.motion
 
 
 class _Vision:
@@ -205,6 +215,7 @@ async def record_case(
         scenes=_Scenes(ports.scenes, store),
         transcriber=_Transcriber(ports.transcriber, store),
         diarizer=_Diarizer(ports.diarizer, store),
+        motion=_Motion(ports.motion, store),
     )
     await SourceAttributor(recording, CAPTURE_TUNING, clock=lambda: captured).identify(
         WORKFLOW, report, video
@@ -265,6 +276,7 @@ async def record_case(
             [[t.start, t.end, t.speaker] for t in store.turns] if store.turns is not None else None
         ),
         "assessment": vars(store.assessment) if store.assessment is not None else None,
+        "motion": store.motion,
         "discovery": (
             {
                 "by_handle": {
