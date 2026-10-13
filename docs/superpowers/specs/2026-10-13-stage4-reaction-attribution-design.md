@@ -167,6 +167,23 @@ original ⇔ P(contribution ≥ new_viewpoint) ≥ contribution_threshold
 The tuning starts at 0.5, 0.5, and 1.0 and is calibrated on the goldens of section 10. The
 calibrated values are recorded in the plan.
 
+### 5.7 Amendment (operator, 2026-10-13): the baseline accounts for age
+
+Research: `docs/research/2026-10-13-engagement-age-research.md`. Views accrue over days, so a
+reaction measured hours after posting lost against its account's lifetime totals.
+
+- **Age-scaled baseline.** Each baseline video's views are scaled to the reaction's age:
+  `views_b × F(age) / F(age_b)`. `F(t) = 1 − exp(−t / τ)` is the expected share of lifetime
+  views at age `t`, with `τ` per platform: TikTok 36 h, Instagram 67 h, YouTube 96 h, X 12 h.
+  The ratio is the reaction's views over the median of the scaled baseline. A baseline video
+  without `published_at` counts as mature (`F = 1`). A reaction without `published_at` has an
+  unknown ratio.
+- **Too young to measure.** Below 6 hours of age, engagement is not judged. The rule decides on
+  contribution and discussion alone, and the evidence says `engagement too early`.
+- The clock is an attributor dependency. Golden captures record `captured_at`, and replay uses
+  it, so a replay is deterministic.
+- Follow-up: recalibrate `τ` from Thoth's own snapshots (the same videos seen at two ages).
+
 ### 5.6 Output contract
 
 - `EvidenceKind` gains `reaction`. A reaction step always adds one evidence item whatever its

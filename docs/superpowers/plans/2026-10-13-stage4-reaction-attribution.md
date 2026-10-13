@@ -2607,3 +2607,43 @@ Expected: still `with CRLF line terminators`.
 git add CHANGELOG.md docs/python-scout-migration-roadmap.md docs/superpowers/specs/2026-10-08-stage4-source-attribution-design.md .env.stage1.local.example
 git commit -m "docs: record Stage 4 reaction attribution"
 ```
+
+
+---
+
+## Addendum (2026-10-13): age-scaled engagement baseline
+
+Operator decisions after the research `docs/research/2026-10-13-engagement-age-research.md`:
+the baseline is scaled by age, and a reaction younger than 6 hours is judged without
+engagement. Spec section 5.7.
+
+### Task 14: Age-scaled baseline and the too-young rule
+
+**Files:**
+- Modify: `python/src/thoth_control_plane/attribution/reaction.py` (`Engagement`, `lifetime_share`, `engagement_ratio`, `judge`)
+- Modify: `python/src/thoth_control_plane/attribution/service.py` (a `clock` dependency, `Tuning.min_engagement_age_hours = 6.0`)
+- Modify: `python/tests/attribution/replay.py`, `capture_golden.py`, `test_golden.py` (`captured_at` recorded and replayed)
+- Test: `python/tests/attribution/test_reaction.py`, `python/tests/attribution/test_service.py`
+
+**Interfaces:**
+- Produces:
+  - `reaction.TAU_HOURS: dict[Platform, float]`.
+  - `reaction.lifetime_share(platform, hours) -> float`.
+  - `reaction.Engagement(ratio: float | None, too_early: bool = False)`.
+  - `engagement_ratio(post_id, engagement, videos, *, url, platform, published_at, now, min_age_hours) -> Engagement`.
+  - `judge(assessment, engagement: Engagement, *, contribution, discussion, engagement_threshold) -> ReactionCall`.
+  - New reason `original_reaction_early`.
+  - `SourceAttributor(..., clock: Callable[[], datetime] = utc_now)`.
+
+**Steps (TDD):**
+1. Write the failing tests:
+   - a reaction 3 h old whose raw views lose to lifetime totals wins once the baseline is scaled;
+   - a reaction younger than 6 h is `too_early`, and `judge` makes it an original on contribution and discussion alone (`original_reaction_early`);
+   - a baseline video without `published_at` counts as mature;
+   - a reaction without `published_at` has an unknown ratio;
+   - `lifetime_share` is 0 at age 0 and tends to 1;
+   - service: the evidence says `engagement too early` for a young reaction, and the clock comes from the attributor.
+2. Run them; see them fail.
+3. Implement them as specified in the spec, section 5.7.
+4. Run `tests/attribution`; all green, every golden unchanged.
+5. Capture tool: record `captured_at`, and replay passes `clock=lambda: captured_at`. Commit.
