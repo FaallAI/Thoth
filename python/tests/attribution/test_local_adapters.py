@@ -169,3 +169,44 @@ async def test_rapidocr_reads_a_handle_with_its_vertical_position() -> None:
     assert 0.7 < found[0].top < found[0].bottom < 0.9
     # RapidOCR logs model loads at INFO and every empty frame at WARNING: worker noise.
     assert logging.getLogger("RapidOCR").level >= logging.ERROR
+
+
+@pytest.mark.asyncio
+async def test_scene_detector_finds_the_cut_between_two_shots(ffmpeg: str, tmp_path: Path) -> None:
+    from thoth_control_plane.attribution.adapters.frames import FfmpegSceneDetector
+
+    video = tmp_path / "two.mp4"
+    subprocess.run(
+        [
+            ffmpeg,
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=s=320x240:d=2:r=25",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=blue:s=320x240:d=2:r=25",
+            "-filter_complex",
+            "[0:v][1:v]concat=n=2:v=1:a=0",
+            "-pix_fmt",
+            "yuv420p",
+            str(video),
+        ],
+        check=True,
+    )
+
+    cuts = await FfmpegSceneDetector(ffmpeg).cuts(video)
+
+    assert len(cuts) == 1 and 1.9 <= cuts[0] <= 2.1, cuts
+
+
+@pytest.mark.asyncio
+async def test_scene_detector_without_ffmpeg_is_tool_missing(tmp_path: Path) -> None:
+    from thoth_control_plane.attribution.adapters.frames import FfmpegSceneDetector, ToolMissing
+
+    with pytest.raises(ToolMissing) as raised:
+        await FfmpegSceneDetector("/nonexistent/ffmpeg").cuts(tmp_path / "x.mp4")
+    assert raised.value.code == "ffmpeg_missing"

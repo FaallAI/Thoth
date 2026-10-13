@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import tempfile
 from pathlib import Path
 
 from thoth_control_plane.attribution.ports import Frame
 
 TIMEOUT_SECONDS = 120.0
+SCENE_THRESHOLD = 0.3
+PTS_TIME = re.compile(rb"pts_time:(\d+(?:\.\d+)?)")
 
 
 class FrameError(Exception):
@@ -141,3 +144,34 @@ class FfprobeDuration:
         if code != 0 or not value > 0:
             raise DurationError("duration_probe_failed")
         return value
+
+
+class FfmpegSceneDetector:
+    """Shot cuts from ffmpeg's scene score, printed to stdout by the metadata filter."""
+
+    def __init__(self, ffmpeg: str = "ffmpeg") -> None:
+        self._ffmpeg = ffmpeg
+
+    async def cuts(self, video: Path) -> list[float]:
+        from thoth_control_plane.attribution.ports import AttributionError
+
+        argv = [
+            self._ffmpeg,
+            "-v",
+            "error",
+            "-i",
+            str(video),
+            "-an",
+            "-vf",
+            f"select='gt(scene,{SCENE_THRESHOLD})',metadata=print:file=-",
+            "-f",
+            "null",
+            "-",
+        ]
+        try:
+            code, output = await _run(argv, "ffmpeg_missing", capture=True)
+        except FrameError:
+            raise AttributionError("scene_detection_failed") from None
+        if code != 0:
+            raise AttributionError("scene_detection_failed")
+        return [float(match.group(1)) for match in PTS_TIME.finditer(output)]

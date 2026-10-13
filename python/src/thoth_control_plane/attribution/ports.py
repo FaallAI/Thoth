@@ -112,6 +112,10 @@ class VisualMatcher(Protocol):
         ...
 
 
+class SceneDetector(Protocol):
+    async def cuts(self, video: Path) -> list[float]: ...
+
+
 class TextReader(Protocol):
     async def read(self, frame: Frame) -> list[TextBox]: ...
 
