@@ -178,3 +178,24 @@ def test_a_leased_session_lists_reels_and_anonymous_reads_the_grid(tmp_path: Pat
 
     assert isinstance(DEFAULT_FACTORIES["instagram"](ACCESS, tmp_path), InstagramReelsDiscovery)
     assert isinstance(DEFAULT_FACTORIES["instagram"](None, tmp_path), InstagramProfileDiscovery)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("final_url", "body"),
+    [
+        (f"https://www.instagram.com/challenge/?next=/{HANDLE}/reels/", None),
+        ("https://www.instagram.com/accounts/suspended/", None),
+        (None, b'{"message":"feedback_required","spam":true,"status":"fail"}'),
+        (None, b'{"message":"checkpoint_required"}'),
+    ],
+)
+async def test_an_instagram_warning_is_a_challenge(
+    final_url: str | None, body: bytes | None
+) -> None:
+    bodies = [body] if body is not None else BODIES
+    session = _Session(bodies, final_url=final_url or f"https://www.instagram.com/{HANDLE}/reels/")
+
+    result = await _discovery(session).discover(ProfileDiscovery(handle=HANDLE, limit=30))
+
+    assert (result.videos, result.reason) == ([], DiscoveryReason.CHALLENGE)

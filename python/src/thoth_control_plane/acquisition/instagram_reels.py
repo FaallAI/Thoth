@@ -15,6 +15,7 @@ import random
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import urlsplit
 
 from thoth_control_plane.acquisition.accounts.access import SessionAccess
 from thoth_control_plane.acquisition.adapters.instagram import CANONICAL_BASE, CODE, HANDLE
@@ -33,13 +34,16 @@ from thoth_control_plane.acquisition.normalize import numeric_id
 logger = logging.getLogger(__name__)
 INSTAGRAM_EPOCH_MS = 1_314_220_021_721  # media ids carry their creation time above bit 23
 REELS_KEY = "clips_connection"
-GRAPHQL_PATH = "/graphql/query"
 FIRST_WAIT_MS = 5_000
 # Operator account safety (2026-10-13): a few scrolls, each after a human pause.
 MAX_SCROLLS = 4
 PAUSE_MS = (5_000, 7_000)
 TIMEOUT_MS = 90_000
 LOGIN_PATH = "/accounts/login"
+# Spec 2026-10-13 (account safety): Instagram's warnings; the account must rest, not retry.
+WARNING_PATHS = ("/challenge/", "/accounts/suspended/")
+WARNING_MARKERS = (b"feedback_required", b"checkpoint_required", b'"spam":true')
+CAPTURED_PATHS = ("/api/", "/graphql")
 
 
 def published_from_pk(pk: object) -> str | None:
@@ -137,7 +141,9 @@ class InstagramReelsDiscovery:
             page.on(
                 "response",
                 lambda response: (
-                    responses.append(response) if GRAPHQL_PATH in response.url else None
+                    responses.append(response)
+                    if any(part in response.url for part in CAPTURED_PATHS)
+                    else None
                 ),
             )
 
@@ -170,6 +176,12 @@ class InstagramReelsDiscovery:
             )
         finally:
             await session.__aexit__(None, None, None)
+        path = urlsplit(str(getattr(page, "url", ""))).path
+        if any(path.startswith(marker) for marker in WARNING_PATHS) or any(
+            marker in body for body in bodies for marker in WARNING_MARKERS
+        ):
+            logger.warning("instagram warned the session; the account cools down")
+            return _empty("profile", DiscoveryReason.CHALLENGE)
         if LOGIN_PATH in str(getattr(page, "url", "")):
             return _empty("profile", DiscoveryReason.BLOCKED)
         videos = parse_reels(bodies, request.handle)

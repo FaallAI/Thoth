@@ -188,7 +188,7 @@ async def test_always_leases_first_and_runs_anonymously_without_an_account() -> 
 
 @pytest.mark.asyncio
 async def test_a_blocked_account_is_released_as_blocked() -> None:
-    fake = FakeDiscovery(CAPTCHA, CAPTCHA)
+    fake = FakeDiscovery(CAPTCHA, _result([], DiscoveryReason.BLOCKED))
     leases = FakeLeases("fallback")
 
     with pytest.raises(DiscoveryBlocked):
@@ -235,3 +235,14 @@ async def test_a_failing_signed_in_run_keeps_the_thin_anonymous_listing() -> Non
 
     assert len(await _discover(fake, leases)) == 5
     assert leases.released == [None]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reason", [DiscoveryReason.CHALLENGE, DiscoveryReason.CAPTCHA])
+async def test_a_challenge_cools_the_account(reason: DiscoveryReason) -> None:
+    fake = FakeDiscovery(CAPTCHA, _result([], reason))
+    leases = FakeLeases("fallback")
+
+    with pytest.raises(DiscoveryBlocked):
+        await _discover(fake, leases)
+    assert leases.released == ["challenge"]

@@ -33,7 +33,11 @@ from thoth_control_plane.infrastructure.source_account_store import (
 logger = logging.getLogger(__name__)
 
 PROFILE_LIMIT = 30
-RETRY_REASONS = frozenset({DiscoveryReason.CAPTCHA, DiscoveryReason.BLOCKED})
+RETRY_REASONS = frozenset(
+    {DiscoveryReason.CAPTCHA, DiscoveryReason.BLOCKED, DiscoveryReason.CHALLENGE}
+)
+# Spec 2026-10-13 (account safety): a warning or captcha to a signed-in session cools it down.
+CHALLENGE_REASONS = frozenset({DiscoveryReason.CHALLENGE, DiscoveryReason.CAPTCHA})
 # X shows about 5 posts signed out; a signed-in listing is fuller. Operator, 2026-10-13: where
 # signed out is weaker, use the login with its proxy.
 THIN_LISTING = 10
@@ -168,6 +172,8 @@ class ProfileDiscoverer:
             result = await self._run(platform, handle, lease.access)
             if result.videos:
                 outcome = "success"
+            elif result.reason in CHALLENGE_REASONS:
+                outcome = "challenge"
             elif result.reason in RETRY_REASONS:
                 outcome = "blocked"
         except Exception:

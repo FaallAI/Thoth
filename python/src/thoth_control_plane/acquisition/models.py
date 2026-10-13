@@ -312,6 +312,7 @@ class DiscoveryReason(StrEnum):
     NO_DATA = "no_data"  # no matching API response was captured
     TIMEOUT = "timeout"  # navigation or the scroll deadline expired
     BROWSER_UNAVAILABLE = "browser_unavailable"  # the Scrapling stack could not start
+    CHALLENGE = "challenge"  # the platform warned the signed-in account; it cools down
 
 
 class ProfileDiscovery(StrictModel):
