@@ -199,3 +199,15 @@ async def test_an_instagram_warning_is_a_challenge(
     result = await _discovery(session).discover(ProfileDiscovery(handle=HANDLE, limit=30))
 
     assert (result.videos, result.reason) == ([], DiscoveryReason.CHALLENGE)
+
+
+def test_the_camoufox_engine_picks_the_camoufox_session() -> None:
+    from dataclasses import replace
+
+    from thoth_control_plane.acquisition.camoufox_session import CamoufoxSession
+
+    camoufox = InstagramReelsDiscovery(replace(ACCESS, engine="camoufox"))
+    patchright = InstagramReelsDiscovery(ACCESS)
+
+    assert camoufox._session_factory is CamoufoxSession
+    assert patchright._session_factory is not CamoufoxSession

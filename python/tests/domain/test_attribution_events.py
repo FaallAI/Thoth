@@ -25,6 +25,7 @@ CODES = {
     "opencv_missing",
     "pillow_missing",
     "motion_failed",
+    "camoufox_missing",
 }
 
 

@@ -129,6 +129,10 @@ class InstagramReelsDiscovery:
         pause: Callable[[], int] = lambda: random.randint(*PAUSE_MS),
     ) -> None:
         self._access = access
+        if session_factory is None and access.engine == "camoufox":
+            from thoth_control_plane.acquisition.camoufox_session import CamoufoxSession
+
+            session_factory = CamoufoxSession
         self._session_factory = session_factory or _default_session_factory
         self._pause = pause
 

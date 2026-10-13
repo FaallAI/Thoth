@@ -244,7 +244,7 @@ async def test_a_leased_acquisition_runs_in_the_accounts_patchright_profile(
     from thoth_control_plane.acquisition.accounts import fingerprints
     from thoth_control_plane.acquisition.accounts.profiles import AccountProfiles
 
-    monkeypatch.setattr(fingerprints, "new_fingerprint", lambda: {"n": 1})
+    monkeypatch.setattr(fingerprints, "new_fingerprint", lambda: pytest.fail("generated"))
     store.set_policy("instagram", "always", 0, engine="camoufox")
     store.add_account("instagram", "a", COOKIES)
     profiles = AccountProfiles(Vault(Fernet.generate_key().decode()), tmp_path / "profiles")

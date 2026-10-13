@@ -415,6 +415,7 @@ ATTRIBUTION_REASONS = frozenset(
         "opencv_missing",
         "pillow_missing",
         "motion_failed",
+        "camoufox_missing",
     }
 )
 OCR_OUTCOMES = frozenset({"clean", "cover", "subtitle", "overlay", "none"})

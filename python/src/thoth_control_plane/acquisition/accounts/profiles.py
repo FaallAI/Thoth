@@ -114,10 +114,10 @@ class AccountProfiles:
 
 @contextlib.asynccontextmanager
 async def leased_access(
-    profiles: AccountProfiles | None, lease: AccountLease, *, engine: str | None = None
+    profiles: AccountProfiles | None, lease: AccountLease
 ) -> AsyncIterator[SessionAccess]:
     """The lease's access with its engine's profile unpacked; sealed back on any exit."""
-    access = lease.access if engine is None else dataclasses.replace(lease.access, engine=engine)
+    access = lease.access
     if profiles is None:
         yield access
         return

@@ -49,7 +49,8 @@ def account_outcome(result: AcquisitionResult) -> Outcome | None:
 
 async def _lease(store: SourceAccountStore, platform: str) -> AccountLease | None:
     try:
-        return await asyncio.to_thread(store.lease, platform)  # type: ignore[arg-type]
+        # Card crops stay on Scrapling and Patchright whatever the platform's engine (3.4).
+        return await asyncio.to_thread(store.lease, platform, "patchright")  # type: ignore[arg-type]
     except Exception:
         logger.warning("source account lease unavailable; acquisition runs anonymously")
         return None
@@ -93,8 +94,7 @@ def account_runner(
             )
         outcome: Outcome | None = None
         try:
-            # Card crops stay on Scrapling and Patchright whatever the platform's engine (3.4).
-            async with leased_access(profiles, lease, engine="patchright") as access:
+            async with leased_access(profiles, lease) as access:
                 result = await attempt(access)
             outcome = account_outcome(result)
         finally:

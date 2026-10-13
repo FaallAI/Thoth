@@ -276,3 +276,33 @@ async def test_store_leases_open_the_profile_and_seal_it_on_release(tmp_path: Pa
 
     assert not directory.exists()
     assert len(list((tmp_path / "profiles").iterdir())) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_missing_tool_in_the_signed_in_run_is_never_swallowed() -> None:
+    from thoth_control_plane.attribution.adapters.frames import ToolMissing
+
+    leases = FakeLeases("fallback")
+
+    def factory(access: SessionAccess | None, scratch: Path) -> Any:
+        if access is None:
+            return FakeDiscovery(_result(_videos(3)), _result([])).factory(None, scratch)
+        raise ToolMissing("camoufox_missing")
+
+    discoverer = ProfileDiscoverer({"tiktok": factory}, leases=leases)  # type: ignore[arg-type]
+    with pytest.raises(ToolMissing):
+        await discoverer.discover("tiktok", SOURCE)
+    assert leases.released == [None]
+
+
+@pytest.mark.asyncio
+async def test_store_leases_never_hide_a_missing_tool() -> None:
+    from thoth_control_plane.attribution.adapters.discovery import StoreLeases
+    from thoth_control_plane.attribution.adapters.frames import ToolMissing
+
+    class _Store:
+        def lease(self, platform: str) -> None:
+            raise ToolMissing("camoufox_missing")
+
+    with pytest.raises(ToolMissing):
+        await StoreLeases(_Store()).lease("tiktok")  # type: ignore[arg-type]

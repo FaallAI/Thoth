@@ -26,6 +26,7 @@ from thoth_control_plane.acquisition.models import (
     DiscoveryResult,
     ProfileDiscovery,
 )
+from thoth_control_plane.attribution.adapters.frames import ToolMissing
 from thoth_control_plane.attribution.models import Platform
 from thoth_control_plane.infrastructure.source_account_store import (
     AccountLease,
@@ -75,6 +76,8 @@ class StoreLeases:
     async def lease(self, platform: Platform) -> AccountLease | None:
         try:
             lease = await asyncio.to_thread(self._store.lease, platform)
+        except ToolMissing:
+            raise  # a required tool is an explicit error, never "no account"
         except Exception:
             logger.warning("source account lease unavailable; discovery runs anonymously")
             return None
@@ -196,6 +199,8 @@ class ProfileDiscoverer:
                 outcome = "challenge"
             elif result.reason in RETRY_REASONS:
                 outcome = "blocked"
+        except ToolMissing:
+            raise
         except Exception:
             if anonymous is None or not anonymous.videos:
                 raise

@@ -167,6 +167,7 @@ def test_attribution_refuses_to_start_without_a_tool(
         ("rapidocr", "rapidocr_missing"),
         ("cv2", "opencv_missing"),
         ("PIL", "pillow_missing"),
+        ("camoufox", "camoufox_missing"),
     ],
 )
 def test_attribution_refuses_to_start_without_a_package(

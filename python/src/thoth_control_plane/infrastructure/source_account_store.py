@@ -288,8 +288,11 @@ class SourceAccountStore:
 
     # Rotation
 
-    def lease(self, platform: Platform) -> AccountLease | None:
-        """The least recently used eligible account, held for `LEASE`; None when none is."""
+    def lease(self, platform: Platform, engine: str | None = None) -> AccountLease | None:
+        """The least recently used eligible account, held for `LEASE`; None when none is.
+
+        `engine` defaults to the platform's; acquisition asks for Patchright (spec 3.4).
+        """
         for _ in range(MAX_LEASE_ATTEMPTS):
             now = self._clock()
             policy = self.policy(platform)
@@ -335,7 +338,7 @@ class SourceAccountStore:
                 if row is None:
                     return None
                 try:
-                    access = self._open(session, row, policy.engine)
+                    access = self._open(session, row, engine or policy.engine)
                 except VaultError:
                     row.status, row.last_outcome, row.updated_at = "expired", "undecryptable", now
                     continue

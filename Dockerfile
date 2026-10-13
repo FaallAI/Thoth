@@ -60,11 +60,14 @@ COPY --chown=thoth:thoth scout/package.json scout/bun.lock /opt/thoth/scout/
 RUN bun --cwd=/opt/thoth/scout install --frozen-lockfile --production
 COPY --chown=thoth:thoth scout/ /opt/thoth/scout/
 
+# Camoufox (spec 2026-10-13, 3.4): the pinned browser lands in thoth's cache; `fetch` also
+# installs fpgen's fingerprint model into the venv, so the chown below covers both.
 RUN /opt/thoth/python/.venv/bin/scrapling install \
+    && HOME=/home/thoth /opt/thoth/python/.venv/bin/python -m camoufox fetch \
     && chown -R thoth:thoth /home/thoth /ms-playwright /opt/thoth/python/.venv
 
 RUN /opt/thoth/python/.venv/bin/python -c \
-        "import scrapling, thoth_control_plane, cv2, rapidocr, openai, faster_whisper, sherpa_onnx" \
+        "import scrapling, thoth_control_plane, cv2, rapidocr, openai, faster_whisper, sherpa_onnx, camoufox" \
     && /opt/thoth/python/.venv/bin/python -c \
         "import sys; assert sys.version_info[:2] == (3, 12), sys.version" \
     && /opt/thoth/python/.venv/bin/python -c \
@@ -85,6 +88,7 @@ RUN test -w /var/lib/thoth/artifacts \
     && test -r /opt/thoth/models/whisper-large-v3-turbo/model.bin \
     && test -r /opt/thoth/models/diarization/segmentation.onnx \
     && test -r /opt/thoth/models/diarization/embedding.onnx \
+    && test -d /home/thoth/.cache/camoufox \
     && test -x "$GALLERY_DL" \
     && test -x "$YTDLP" \
     && test "$("$GALLERY_DL" --version)" = "1.32.11" \

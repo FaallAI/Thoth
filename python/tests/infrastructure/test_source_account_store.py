@@ -405,3 +405,17 @@ def test_a_fingerprint_reset_clears_it(
     assert store.lease("instagram") is not None
 
     assert not store.update_account(account.id, reset_fingerprint=True).fingerprint_set
+
+
+def test_a_lease_for_another_engine_skips_the_fingerprint(
+    store: SourceAccountStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Acquisition leases for Patchright even where discovery runs Camoufox (spec 3.4).
+    monkeypatch.setattr(fingerprints, "new_fingerprint", lambda: pytest.fail("generated"))
+    store.set_policy("instagram", "fallback", 0, engine="camoufox")
+    store.add_account("instagram", "a", _cookies())
+
+    lease = store.lease("instagram", engine="patchright")
+
+    assert lease is not None
+    assert (lease.access.engine, lease.access.fingerprint) == ("patchright", None)

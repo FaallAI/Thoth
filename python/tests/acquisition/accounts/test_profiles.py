@@ -150,15 +150,12 @@ async def test_a_deleted_account_does_not_get_its_profile_back(tmp_path: Path) -
 
 
 @pytest.mark.asyncio
-async def test_the_lease_engine_picks_the_profile_and_can_be_overridden(tmp_path: Path) -> None:
+async def test_the_lease_engine_picks_the_profile(tmp_path: Path) -> None:
     profiles = _profiles(tmp_path)
-    lease = AccountLease(ACCOUNT, "instagram", SessionAccess(COOKIES, engine="camoufox"), NOW)
-
-    async with leased_access(profiles, lease) as access:
-        assert access.engine == "camoufox"
-    # Acquisition's card crops stay on Patchright (spec 3.4), whatever the platform's engine.
-    async with leased_access(profiles, lease, engine="patchright") as access:
-        assert access.engine == "patchright"
+    for engine in ("camoufox", "patchright"):
+        lease = AccountLease(ACCOUNT, "instagram", SessionAccess(COOKIES, engine=engine), NOW)
+        async with leased_access(profiles, lease) as access:
+            assert access.engine == engine
 
     names = sorted(path.name for path in (tmp_path / "profiles").iterdir())
     assert names == [f"{ACCOUNT}.camoufox.profile", f"{ACCOUNT}.patchright.profile"]

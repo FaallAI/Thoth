@@ -97,6 +97,9 @@ def check_media_tools(settings: Settings) -> None:
             raise SettingsValidationError("diarization_missing")
         if missing(settings.THOTH_DIARIZATION_MODEL_DIR, DIARIZATION_FILES):
             raise SettingsValidationError("diarization_model_missing")
+        # Spec 2026-10-13, 3.4: a platform switched to Camoufox must find it installed.
+        if find_spec("camoufox") is None:
+            raise SettingsValidationError("camoufox_missing")
     if settings.THOTH_CONTENT_ASSEMBLY_ENABLED:
         _require_media(settings)
 
