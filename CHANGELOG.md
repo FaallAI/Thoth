@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-13 - Stage 5a deployed on `ba03620f`
+
+- With operator authorization: master fast-forwarded to `4c9102f` and pushed; CI run
+  `38388034702` green (offline gates, template parity, publish, non-live stack smoke); index
+  digest `sha256:ba03620fcc4ecb1c1a048644a0f3abaea0e3f5f2e1f23c58b3c0bcae8e7909bc`. The operator
+  pinned `THOTH_IMAGE` and set `THOTH_CONTENT_ASSEMBLY_ENABLED=true` (auto mode blocks the agent
+  from editing `.env.stage1.local`).
+- Preflight and `config --quiet` passed; `pull` and `up -d --wait` brought every service healthy.
+  `api`, `worker`, and `legacy-cdp` run `ba03620f` at revision `4c9102f`, user `10001:10001`,
+  0 restarts; `/healthz` and `/readyz` 200. The worker passes `check_media_tools` with assembly on
+  (ffmpeg, ffprobe, RapidOCR, OpenCV), reads 12 OCR frames and the figures model, and holds the
+  OpenRouter key; the api does not hold it and reads the assembly flag as on.
+
 ## 2026-10-13 - Stage 5a: OCR corrections, calibration goldens, reaction research
 
 Branch `feat/stage5a-content-assembly` (not pushed). Spec amendment of 2026-10-12, plan
