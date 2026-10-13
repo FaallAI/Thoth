@@ -26,9 +26,12 @@ from thoth_control_plane.acquisition.models import DiscoveredVideo, SourceReport
 from thoth_control_plane.attribution.models import Platform
 from thoth_control_plane.attribution.ports import (
     AcquiredCandidate,
+    Assessment,
     CoverReading,
     Decisions,
     Frame,
+    Transcript,
+    Turn,
     VisualKind,
 )
 from thoth_control_plane.attribution.service import AttributionPorts, SourceAttributor, Tuning
@@ -39,8 +42,17 @@ CAPTURE_TUNING = Tuning(max_finalists=5, finalist_concurrency=1, min_matched_fra
 WORKFLOW = "wf_golden"
 
 
-def _plain(report: SourceReport) -> dict[str, Any]:
-    trimmed = report.model_copy(update={"comments": [], "post_card": None, "profile_card": None})
+def _plain(report: SourceReport, *, keep_comments: bool = False) -> dict[str, Any]:
+    """The report without card images; the repost keeps its comment text for the reaction
+    judge (spec 2026-10-13)."""
+    comments = (
+        [comment.model_copy(update={"card": None}) for comment in report.comments]
+        if keep_comments
+        else []
+    )
+    trimmed = report.model_copy(
+        update={"comments": comments, "post_card": None, "profile_card": None}
+    )
     return json.loads(trimmed.model_dump_json())
 
 
@@ -74,6 +86,10 @@ class _Store:
         self.decisions: Decisions | None = None
         self.discovery: dict[str, list[DiscoveredVideo]] = {}
         self.acquired: dict[str, tuple[SourceReport, str | None]] = {}
+        self.cuts: list[float] = []
+        self.transcript: Transcript | None = None
+        self.turns: list[Turn] | None = None
+        self.assessment: Assessment | None = None
 
 
 class _Frames:
@@ -84,6 +100,33 @@ class _Frames:
         frames = await self._inner.frames(video, fps=fps, seconds=seconds)
         self._store.frames[video.stem] = frames
         return frames
+
+
+class _Scenes:
+    def __init__(self, inner: Any, store: _Store) -> None:
+        self._inner, self._store = inner, store
+
+    async def cuts(self, video: Path) -> list[float]:
+        self._store.cuts = await self._inner.cuts(video)
+        return self._store.cuts
+
+
+class _Transcriber:
+    def __init__(self, inner: Any, store: _Store) -> None:
+        self._inner, self._store = inner, store
+
+    async def transcribe(self, video: Path, *, seconds: float) -> Transcript:
+        self._store.transcript = await self._inner.transcribe(video, seconds=seconds)
+        return self._store.transcript
+
+
+class _Diarizer:
+    def __init__(self, inner: Any, store: _Store) -> None:
+        self._inner, self._store = inner, store
+
+    async def turns(self, video: Path, *, seconds: float) -> list[Turn]:
+        self._store.turns = await self._inner.turns(video, seconds=seconds)
+        return self._store.turns
 
 
 class _Vision:
@@ -102,9 +145,13 @@ class _Decisions:
     def __init__(self, inner: Any, store: _Store) -> None:
         self._inner, self._store = inner, store
 
-    async def decide(self, evidence: dict[str, object], handles: Sequence[str]) -> Decisions | None:
+    async def decide(self, evidence: dict[str, object], handles: Sequence[str]) -> Decisions:
         self._store.decisions = await self._inner.decide(evidence, handles)
         return self._store.decisions
+
+    async def assess(self, state: dict[str, object], *, with_comments: bool) -> Assessment:
+        self._store.assessment = await self._inner.assess(state, with_comments=with_comments)
+        return self._store.assessment
 
 
 class _Discoverer:
@@ -151,8 +198,11 @@ async def record_case(
         frames=_Frames(ports.frames, store),
         discoverer=_Discoverer(ports.discoverer, store),
         acquirer=_Acquirer(ports.acquirer, store),
-        vision=_Vision(ports.vision, store) if ports.vision is not None else None,
-        decisions=_Decisions(ports.decisions, store) if ports.decisions is not None else None,
+        vision=_Vision(ports.vision, store),
+        decisions=_Decisions(ports.decisions, store),
+        scenes=_Scenes(ports.scenes, store),
+        transcriber=_Transcriber(ports.transcriber, store),
+        diarizer=_Diarizer(ports.diarizer, store),
     )
     await SourceAttributor(recording, CAPTURE_TUNING).identify(WORKFLOW, report, video)
 
@@ -181,14 +231,14 @@ async def record_case(
         if repost and value and key != repost_key
     }
     classify: dict[str, str] = {}
-    if ports.vision is not None:
-        for _, key in store.acquired.values():
-            if key is not None and store.frames.get(key):
-                classify[key] = await ports.vision.classify(store.frames[key][:3]) or "unknown"
+    for _, key in store.acquired.values():
+        if key is not None and store.frames.get(key):
+            classify[key] = await ports.vision.classify(store.frames[key][:3])
+    transcript = store.transcript
     return {
         "case": case,
         "synthetic": False,
-        "report": _plain(report),
+        "report": _plain(report, keep_comments=True),
         "repost_frames": video.stem if video is not None else None,
         "frames": frames,
         "matches": matches,
@@ -196,6 +246,19 @@ async def record_case(
         "cover": store.cover.model_dump() if store.cover is not None else None,
         "classify": classify,
         "decisions": vars(store.decisions) if store.decisions is not None else None,
+        "cuts": store.cuts,
+        "transcript": (
+            {
+                "language": transcript.language,
+                "segments": [[s.start, s.end, s.text] for s in transcript.segments],
+            }
+            if transcript is not None
+            else None
+        ),
+        "turns": (
+            [[t.start, t.end, t.speaker] for t in store.turns] if store.turns is not None else None
+        ),
+        "assessment": vars(store.assessment) if store.assessment is not None else None,
         "discovery": (
             {
                 "by_handle": {

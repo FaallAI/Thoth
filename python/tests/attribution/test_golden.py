@@ -20,6 +20,8 @@ DEPARTURES = {
     "constrained_credit",
     "logo_by_decision",
     "scout_not_run",
+    # Spec 2026-10-13: Scout replaced an original reaction with its subject.
+    "reaction_original",
 }
 
 
