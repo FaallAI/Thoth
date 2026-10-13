@@ -127,6 +127,14 @@ class Decisions:
 
 
 @dataclass(frozen=True)
+class Assessment:
+    """Jev's answer: P(contribution >= new viewpoint), and P(comments discuss the creator)."""
+
+    contribution: float
+    discussion: float | None
+
+
+@dataclass(frozen=True)
 class AcquiredCandidate:
     candidate_id: str
     report: SourceReport
