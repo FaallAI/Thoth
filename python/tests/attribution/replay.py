@@ -64,6 +64,14 @@ class ReplayMatcher:
         return list(self._matches.get(candidate, []))
 
 
+class ReplayScenes:
+    def __init__(self, cuts: list[float]) -> None:
+        self._cuts = cuts
+
+    async def cuts(self, video: Path) -> list[float]:
+        return list(self._cuts)
+
+
 class ReplayText:
     def __init__(self, frames: dict[str, list[dict[str, Any]]]) -> None:
         self._boxes = {
@@ -86,9 +94,11 @@ class ReplayVision:
         self._cover = cover
         self._classify = classify
         self.calls = 0
+        self.cover_seconds: list[float] = []
 
     async def read_cover(self, frames: Sequence[Frame]) -> CoverReading:
         self.calls += 1
+        self.cover_seconds = [frame_key(frame)[1] for frame in frames]
         return CoverReading(**self._cover)
 
     async def classify(self, frames: Sequence[Frame]) -> VisualKind:
@@ -161,4 +171,5 @@ def replay_ports(case: dict[str, Any]) -> AttributionPorts:
         acquirer=ReplayAcquirer(case.get("acquired", {})),
         vision=ReplayVision(case["cover"], case.get("classify", {})),
         decisions=ReplayDecisions(case["decisions"]),
+        scenes=ReplayScenes(case.get("cuts", [])),
     )

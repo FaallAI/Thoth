@@ -43,10 +43,12 @@ from thoth_control_plane.attribution.ports import (
     Discoverer,
     Frame,
     FrameSource,
+    SceneDetector,
     TextReader,
     VisionReader,
     VisualMatcher,
 )
+from thoth_control_plane.attribution.scenes import Shot, label, shots, vision_frames
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
@@ -86,6 +88,7 @@ class AttributionPorts:
     acquirer: CandidateAcquirer
     vision: VisionReader
     decisions: DecisionModel
+    scenes: SceneDetector
 
 
 @dataclass(frozen=True)
@@ -139,7 +142,7 @@ class SourceAttributor:
         for frame in frames:
             if frame.second < self._tuning.credit_seconds:
                 lines += [box.text for box in await self._read(frame)]
-        cover = await self._cover(frames)
+        cover, labelled = await self._cover(frames, video)
         owner = report.post.owner_handle
         caption_handles = credit.text_handles(report.post.text)
         found_in_frames = credit.frame_handles(lines)
@@ -366,10 +369,24 @@ class SourceAttributor:
     async def _read(self, frame: Frame) -> list[TextBox]:
         return await self._guard(self._ports.text.read(frame), "ocr") or []
 
-    async def _cover(self, frames: list[Frame]) -> CoverReading | None:
-        if not frames:
-            return None
-        return await self._ports.vision.read_cover(frames[:3])
+    async def _cover(
+        self, frames: list[Frame], video: Path | None
+    ) -> tuple[CoverReading | None, list[Shot]]:
+        """The cover reading from the cover and the longest shots, and each shot's label."""
+        if not frames or video is None:
+            return None, []
+        end = frames[-1].second + 1.0 / self._tuning.frame_fps
+        cut = shots(await self._guard_tool(self._ports.scenes.cuts(video)), end)
+        sent = vision_frames(frames, cut)
+        cover = await self._ports.vision.read_cover(sent)
+        return cover, label(cut, sent, cover.shows)
+
+    async def _guard_tool(self, awaitable: Awaitable[T]) -> T:
+        """A required local tool: a missing binary is its own code, never a degraded verdict."""
+        try:
+            return await awaitable
+        except ToolMissing as missing:
+            raise AttributionError(missing.code) from missing
 
     async def _prepare(self, frames: list[Frame]) -> object:
         """Matcher features for a video's frames; falsy when nothing can be matched."""

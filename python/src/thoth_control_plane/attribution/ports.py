@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, get_args
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -18,6 +18,15 @@ from thoth_control_plane.attribution.matching import TextBox
 from thoth_control_plane.attribution.models import Platform
 
 VisualKind = Literal["footage", "commentary", "unknown"]
+ReactionShape = Literal[
+    "none", "screenshot", "picture_in_picture", "green_screen", "split_screen", "clip_then_talk"
+]
+SubjectMedia = Literal["video", "text", "image", "none", "unknown"]
+ShotLabel = Literal["creator", "subject", "both", "other"]
+REACTION_SHAPES = frozenset(get_args(ReactionShape))
+SUBJECT_MEDIA = frozenset(get_args(SubjectMedia))
+SHOT_LABELS = frozenset(get_args(ShotLabel))
+MAX_SHOWS = 6
 
 
 class AttributionError(Exception):
@@ -55,6 +64,27 @@ class CoverReading(BaseModel):
         max_length=10,
         description="Every @username or account name printed on the image, exactly as written",
     )
+    reaction_shape: ReactionShape = Field(
+        default="none",
+        description=(
+            "none: an ordinary video; screenshot: a screenshot of another post fills the frame; "
+            "picture_in_picture: a person in a small window over another video; green_screen: a "
+            "person in front of another post or video; split_screen: two videos side by side or "
+            "stacked; clip_then_talk: another video plays, then a person talks about it"
+        ),
+    )
+    subject_media: SubjectMedia = Field(
+        default="none",
+        description="What the reacted-to post is: video, text, image; none when not a reaction",
+    )
+    shows: list[ShotLabel] = Field(
+        default_factory=list,
+        max_length=MAX_SHOWS,
+        description=(
+            "For each image in order: creator (the person making this video), subject (the "
+            "other post or video), both, or other"
+        ),
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -66,6 +96,15 @@ class CoverReading(BaseModel):
         for name, limit in (("headline", 300), ("scene", 300), ("icon", 200), ("handles", 10)):
             if isinstance(clipped.get(name), str | list):
                 clipped[name] = clipped[name][:limit]
+        # An unknown value is coerced, never a rejected reading (models invent labels).
+        if "reaction_shape" in clipped and clipped["reaction_shape"] not in REACTION_SHAPES:
+            clipped["reaction_shape"] = "none"
+        if "subject_media" in clipped and clipped["subject_media"] not in SUBJECT_MEDIA:
+            clipped["subject_media"] = "unknown"
+        if isinstance(clipped.get("shows"), list):
+            clipped["shows"] = [
+                label if label in SHOT_LABELS else "other" for label in clipped["shows"]
+            ][:MAX_SHOWS]
         return clipped
 
 

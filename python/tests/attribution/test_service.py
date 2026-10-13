@@ -413,3 +413,15 @@ async def test_a_missing_ffmpeg_stops_attribution() -> None:
     with pytest.raises(AttributionError) as raised:
         await SourceAttributor(ports).identify("wf_ref", parse_report(_report()), VIDEO)
     assert raised.value.code == "ffmpeg_missing"
+
+
+@pytest.mark.asyncio
+async def test_vision_sees_frames_from_every_long_shot() -> None:
+    case = _case(cuts=[1.5])
+    case["frames"]["repost"] = _frames(40, {0: case["frames"]["repost"][0]["boxes"]})
+    ports = replay_ports(case)
+
+    await SourceAttributor(ports).identify("wf_ref", parse_report(_report()), VIDEO)
+
+    seconds = ports.vision.cover_seconds
+    assert seconds[:2] == [0.0, 1.0] and any(s > 10 for s in seconds) and len(seconds) <= 6

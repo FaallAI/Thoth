@@ -152,6 +152,55 @@ async def test_vision_reads_the_cover_from_jpeg_frames() -> None:
     assert "qwen/qwen3-vl-30b-a3b-instruct" in body
 
 
+@pytest.mark.asyncio
+@respx.mock
+async def test_vision_reads_the_reaction_fields_from_six_frames() -> None:
+    pytest.importorskip("openai")
+    from thoth_control_plane.attribution.adapters.vision import (
+        OPENROUTER_BASE_URL,
+        AgnoVisionReader,
+    )
+
+    reading = {
+        "headline": "",
+        "scene": "a woman talks after a clip",
+        "icon": "",
+        "reaction_shape": "clip_then_talk",
+        "subject_media": "video",
+        "shows": ["subject", "subject", "creator", "creator", "creator", "creator"],
+    }
+    route = respx.post(f"{OPENROUTER_BASE_URL}/chat/completions").mock(
+        return_value=_completion(json.dumps(reading))
+    )
+    reader = AgnoVisionReader("synthetic-key", "qwen/qwen3-vl-30b-a3b-instruct")
+    frames = [Frame(float(n), _tiny_jpeg()) for n in range(8)]
+
+    result = await reader.read_cover(frames)
+
+    assert (result.reaction_shape, result.subject_media) == ("clip_then_talk", "video")
+    assert result.shows == reading["shows"]
+    assert route.calls.last.request.content.decode().count("data:image/jpeg;base64") == 6
+
+
+def test_unknown_reaction_values_are_coerced_not_rejected() -> None:
+    reading = CoverReading.model_validate(
+        {
+            "reaction_shape": "duet",
+            "subject_media": "meme",
+            "shows": ["creator", "host"] + ["x"] * 6,
+        }
+    )
+
+    assert (reading.reaction_shape, reading.subject_media) == ("none", "unknown")
+    assert reading.shows == ["creator", "other", "other", "other", "other", "other"]
+
+
+def test_a_cover_reading_without_reaction_fields_is_not_a_reaction() -> None:
+    reading = CoverReading(headline="x")
+
+    assert (reading.reaction_shape, reading.subject_media, reading.shows) == ("none", "none", [])
+
+
 def test_a_long_cover_reading_is_clipped_not_rejected() -> None:
     reading = CoverReading.model_validate(
         {"headline": "x" * 400, "icon": "y" * 250, "handles": [f"akun{n}" for n in range(12)]}

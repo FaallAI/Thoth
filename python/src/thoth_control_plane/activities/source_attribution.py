@@ -30,7 +30,10 @@ from thoth_control_plane.activities.source_investigation import (
     build_production_acquisition_runner,
 )
 from thoth_control_plane.attribution.adapters.discovery import ProfileDiscoverer, StoreLeases
-from thoth_control_plane.attribution.adapters.frames import FfmpegFrameSource
+from thoth_control_plane.attribution.adapters.frames import (
+    FfmpegFrameSource,
+    FfmpegSceneDetector,
+)
 from thoth_control_plane.attribution.adapters.jev import JevDecisionModel
 from thoth_control_plane.attribution.adapters.ocr import RapidOcrReader
 from thoth_control_plane.attribution.adapters.vision import AgnoVisionReader
@@ -119,6 +122,7 @@ def build_production_ports(settings: Settings, artifact_root: Path) -> Attributi
         if openrouter
         else None,
         decisions=JevDecisionModel(openrouter) if openrouter else None,
+        scenes=FfmpegSceneDetector(settings.THOTH_FFMPEG),
     )
 
 

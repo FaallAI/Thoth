@@ -27,11 +27,15 @@ logger = logging.getLogger(__name__)
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 TIMEOUT_SECONDS = 60.0
 MAX_FRAMES = 3
+COVER_FRAMES = 6
 COVER_PROMPT = (
-    "These are the cover and the first frames of a short video. Copy the text printed on the "
+    "These are the cover and frames from across a short video. Copy the text printed on the "
     "image, describe the scene in one sentence, describe any app or platform logo you see "
     "and where it is, and list every @username or account name printed on the image exactly "
-    "as written. Answer in JSON."
+    "as written. Also say whether this video reacts to another post: a screenshot of it, the "
+    "other video inside this one, or a person talking about it. Say what that other post is "
+    "(video, text, image) and, for each image in order, whether it shows the creator of this "
+    "video, the other post, both, or neither. Answer in JSON."
 )
 CLASSIFY_PROMPT = (
     "These are frames of a short video. Is it raw footage of an event, or commentary (a person "
@@ -47,10 +51,10 @@ class AgnoVisionReader:
         self._base_url = base_url
 
     async def read_cover(self, frames: Sequence[Frame]) -> CoverReading:
-        return await self._run(CoverReading, COVER_PROMPT, frames)
+        return await self._run(CoverReading, COVER_PROMPT, frames[:COVER_FRAMES])
 
     async def classify(self, frames: Sequence[Frame]) -> VisualKind:
-        return (await self._run(VisualClass, CLASSIFY_PROMPT, frames)).kind
+        return (await self._run(VisualClass, CLASSIFY_PROMPT, frames[:MAX_FRAMES])).kind
 
     async def _run(self, schema: type[Schema], prompt: str, frames: Sequence[Frame]) -> Schema:
         from agno.agent import Agent
@@ -69,9 +73,7 @@ class AgnoVisionReader:
             use_json_mode=True,
             telemetry=False,
         )
-        images = [
-            Image(content=frame.jpeg, mime_type="image/jpeg") for frame in frames[:MAX_FRAMES]
-        ]
+        images = [Image(content=frame.jpeg, mime_type="image/jpeg") for frame in frames]
         try:
             run = await agent.arun(input=prompt, images=images)
         except Exception as error:
