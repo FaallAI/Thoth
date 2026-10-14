@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
@@ -306,3 +306,36 @@ async def test_store_leases_never_hide_a_missing_tool() -> None:
 
     with pytest.raises(ToolMissing):
         await StoreLeases(_Store()).lease("tiktok")  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_a_failed_seal_still_reports_the_outcome(tmp_path: Path) -> None:
+    from datetime import UTC, datetime
+
+    from thoth_control_plane.attribution.adapters.discovery import StoreLeases
+    from thoth_control_plane.infrastructure.source_account_store import AccountLease
+
+    class _Profiles:
+        def unseal(self, account_id: str, engine: str) -> Path:
+            return tmp_path
+
+        def seal(self, account_id: str, directory: Path, engine: str) -> None:
+            raise RuntimeError("tar failed")
+
+    class _Store:
+        reported: ClassVar[list[str | None]] = []
+
+        def lease(self, platform: str) -> AccountLease:
+            return AccountLease("a", "tiktok", ACCESS, datetime(2026, 10, 14, tzinfo=UTC))
+
+        def report(self, account_id: str, outcome: str | None, leased_until: object) -> None:
+            self.reported.append(outcome)
+
+    leases = StoreLeases(_Store(), _Profiles())  # type: ignore[arg-type]
+    lease = await leases.lease("tiktok")
+    assert lease is not None
+
+    with pytest.raises(RuntimeError):
+        await leases.release(lease, "success")
+
+    assert _Store.reported == ["success"]

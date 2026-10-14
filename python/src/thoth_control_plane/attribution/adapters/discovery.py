@@ -92,10 +92,15 @@ class StoreLeases:
 
     async def release(self, lease: AccountLease, outcome: Outcome | None) -> None:
         directory = self._open.pop(lease.account_id, None)
-        if directory is not None and self._profiles is not None:
-            await asyncio.to_thread(
-                self._profiles.seal, lease.account_id, directory, lease.access.engine
-            )
+        try:
+            if directory is not None and self._profiles is not None:
+                await asyncio.to_thread(
+                    self._profiles.seal, lease.account_id, directory, lease.access.engine
+                )
+        finally:  # the outcome is reported even when sealing fails
+            await self._report(lease, outcome)
+
+    async def _report(self, lease: AccountLease, outcome: Outcome | None) -> None:
         try:
             await asyncio.to_thread(
                 self._store.report, lease.account_id, outcome, lease.leased_until
