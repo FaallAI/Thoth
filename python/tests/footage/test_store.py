@@ -6,7 +6,6 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import create_engine
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.pool import StaticPool
 
 from thoth_control_plane.acquisition.models import DiscoveredVideo
@@ -157,5 +156,22 @@ def test_an_unknown_reason_is_refused(store: FootageStore) -> None:
 
 
 def test_a_candidate_needs_its_run(store: FootageStore) -> None:
-    with pytest.raises((IntegrityError, ValueError)):
+    with pytest.raises(ValueError):
         store.add_candidates("wf_missing", [_candidate()])
+
+
+@pytest.mark.parametrize(
+    ("status", "reason"),
+    [("admitted", None), ("bogus", None), ("rejected", None), ("pending", "spam")],
+)
+def test_a_candidate_pair_postgres_would_refuse_is_refused(
+    store: FootageStore, status: str, reason: str | None
+) -> None:
+    store.start_run("wf_a", OBJECTS)
+    items = [
+        _candidate("https://x.com/a/status/1"),
+        _candidate("https://x.com/a/status/2", status=status, reason=reason),
+    ]
+    with pytest.raises(ValueError):
+        store.add_candidates("wf_a", items)
+    assert store.candidates("wf_a") == []

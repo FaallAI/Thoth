@@ -173,6 +173,10 @@ class FootageStore:
             for item in items:
                 if item.url in known:
                     continue
+                if item.status not in ("pending", "rejected"):
+                    raise ValueError(f"cannot add a candidate as {item.status}")
+                if (item.status == "rejected") != (item.reason is not None):
+                    raise ValueError("a candidate has a reason exactly when it is rejected")
                 if item.reason is not None and item.reason not in REJECT_REASONS:
                     raise ValueError(f"unknown footage reason {item.reason}")
                 known.add(item.url)
