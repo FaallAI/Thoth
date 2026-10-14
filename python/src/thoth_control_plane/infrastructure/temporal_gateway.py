@@ -49,11 +49,13 @@ class TemporalWorkflowGateway:
         activity_mode: SourceActivityMode = "python",
         attribute_source: bool = False,
         assemble_content: bool = False,
+        build_footage: bool = False,
     ) -> None:
         self._client = client
         self._activity_mode = activity_mode
         self._attribute_source = attribute_source
         self._assemble_content = assemble_content
+        self._build_footage = build_footage
 
     @property
     def client(self) -> Client:
@@ -72,6 +74,7 @@ class TemporalWorkflowGateway:
             activity_mode=settings.source_investigation_activity_mode,
             attribute_source=settings.THOTH_SOURCE_ATTRIBUTION_ENABLED,
             assemble_content=settings.THOTH_CONTENT_ASSEMBLY_ENABLED,
+            build_footage=settings.THOTH_FOOTAGE_ENABLED,
         )
 
     async def check_connection(self) -> bool:
@@ -111,6 +114,7 @@ class TemporalWorkflowGateway:
                         activity_mode=self._activity_mode,
                         attribute_source=self._attribute_source,
                         assemble_content=self._assemble_content,
+                        build_footage=self._build_footage,
                     )
                 ],
                 id=workflow_id,

@@ -374,6 +374,8 @@ SOURCE_EVENT_PAYLOAD_KEYS = frozenset(
         "ocr_outcome",
         "comment_count",
         "figure_count",
+        "footage_count",
+        "footage_status",
     }
 )
 SOURCE_EVENT_STAGE_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
@@ -530,6 +532,8 @@ class SourceInvestigationWorkflowInput(StrictModel):
     attribute_source: bool = False
     # Absent from histories started before Stage 5a, so those replay without the new stage.
     assemble_content: bool = False
+    # Absent from histories started before Stage 5b, so those replay without the new stage.
+    build_footage: bool = False
 
 
 def request_snapshot_id(request: WorkflowRequest) -> str:
