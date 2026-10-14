@@ -218,3 +218,24 @@ uses recorded answers on real candidates, replayed offline as golden fixtures, a
 This drops the CLIP and YuNet models from section 5 (about 0.6 GB less in the image). The local
 multilingual text embedding stays: it runs the story gate on captions before any media is
 touched, which keeps vision calls to the candidates worth looking at.
+
+## 10. Addendum: X search verified live (2026-10-15, operator-authorized probe)
+
+Two runs inside the deployed worker, one lease of the X account each (DataImpulse mobile proxy),
+query "banjir jakarta", URL `x.com/search?q=…&f=video&src=typed_query`. Only counts and key
+names were printed.
+
+- **Signed-in page request (the profile-discovery route): no data.** HTTP 200, 308 KB of HTML,
+  zero seroval values: the search page renders in the browser.
+- **Browser visit capturing the page's own `SearchTimeline` response: works.** One captured
+  response, HTTP 200; 24 tweets with 7 videos on the first run, 31 tweets with 10 videos on the
+  second, no retweets. The page asked for `product: Top`, so non-video tweets come back too and
+  are filtered.
+- **Shape (GraphQL, not the profile page's `media_entities2`):** `rest_id`;
+  `core.user_results.result.core.screen_name`; `legacy.full_text`, `legacy.created_at` (string),
+  `legacy.favorite_count`, `legacy.reply_count`, `legacy.retweet_count`, `legacy.lang`;
+  `views.count` (string); `legacy.extended_entities.media[].type` and
+  `.video_info.{duration_millis, aspect_ratio, variants}`.
+
+So X footage search uses a signed-in browser with XHR capture (the TikTok discovery pattern), and
+its parser reads the GraphQL `legacy` fields.
