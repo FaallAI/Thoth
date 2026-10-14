@@ -6,6 +6,8 @@ The model proposes names and types; code trims, drops empty names, maps an unkno
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from pydantic import BaseModel, Field, field_validator
 
 from thoth_control_plane.assembly.models import MAX_FIGURES, Figure
@@ -27,6 +29,7 @@ TEXT:
 [TITLE]: {title}
 [DESCRIPTION]: {description}
 [HEADLINE]: {headline}
+[FOOTAGE]: {footage}
 
 Answer in JSON: {{"figures": [{{"name": "", "type": "", "role": "short title or role",
 "description": "one sentence of context"}}]}}"""
@@ -49,14 +52,18 @@ class FigureAnswer(BaseModel):
     figures: list[FigureItem] = Field(default_factory=list)
 
 
-def figure_prompt(title: str, description: str, headline: str) -> str | None:
+def figure_prompt(
+    title: str, description: str, headline: str, footage: Sequence[str] = ()
+) -> str | None:
     title, description, headline = title.strip(), description.strip(), headline.strip()
     if not (title or description or headline):
         return None
+    shown = " ".join(item.strip() for item in footage if item.strip())
     return PROMPT.format(
         title=title[:200] or "(empty)",
         description=description[:600] or "(empty)",
         headline=headline[:200] or "(empty)",
+        footage=shown[:600] or "(empty)",
     )
 
 

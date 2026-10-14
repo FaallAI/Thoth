@@ -111,3 +111,10 @@ def test_null_fields_from_the_model_are_tolerated() -> None:
     assert [(f.name, f.type, f.role) for f in normalize_figures(answer)] == [
         ("Najwa Shihab", "person", "")
     ]
+
+
+def test_footage_descriptions_reach_the_figures_prompt() -> None:
+    prompt = figure_prompt("Judul", "desc", "", ["Jensen Huang on stage.", "A server room."])
+    assert prompt is not None
+    assert "Jensen Huang on stage." in prompt and "A server room." in prompt
+    assert "(empty)" in (figure_prompt("Judul", "desc", "") or "")
