@@ -7,6 +7,8 @@ into a private directory only while the account is leased. Cookies still come fr
 
 An account deleted while its profile is unpacked must not get it back: the api deletes, the
 worker seals, so `mark_deleted` leaves a tombstone on the shared volume that `seal` honours.
+A device reset works the same way with a generation marker: a lease unpacked before the reset
+never seals the old device back.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ import os
 import shutil
 import tarfile
 import tempfile
+import uuid
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -49,6 +52,7 @@ MAX_BYTES = 64 * 2**20
 class AccountProfiles:
     def __init__(self, vault: Vault, root: Path, *, max_bytes: int = MAX_BYTES) -> None:
         self._vault, self._root, self._max = vault, root, max_bytes
+        self._generations: dict[Path, str | None] = {}  # reset generation at unseal
 
     def _archive(self, account_id: str, engine: str) -> Path:
         if engine not in ENGINES:
@@ -64,18 +68,32 @@ class AccountProfiles:
                 with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
                     tar.extractall(directory, filter="data")
             except (VaultError, tarfile.TarError, OSError, ValueError, EOFError):
-                logger.warning("account profile unreadable; a fresh profile starts")
+                logger.warning(
+                    "account profile unreadable; a fresh profile starts account=%s", account_id
+                )
                 self.discard(directory)
                 directory = _private_directory()
+        self._generations[directory] = self._generation(account_id)
         return directory
 
     def _tombstone(self, account_id: str) -> Path:
         return self._root / f"{account_id}.deleted"
 
+    def _generation(self, account_id: str) -> str | None:
+        try:
+            return (self._root / f"{account_id}.reset").read_text()
+        except OSError:
+            return None
+
+    def _stale(self, account_id: str, opened: str | None) -> bool:
+        """Deleted, or reset since this directory was unpacked."""
+        return self._tombstone(account_id).exists() or self._generation(account_id) != opened
+
     def seal(self, account_id: str, directory: Path, engine: str = "patchright") -> None:
+        opened = self._generations.pop(directory, self._generation(account_id))
         try:
             target = self._archive(account_id, engine)
-            if self._tombstone(account_id).exists():
+            if self._stale(account_id, opened):
                 return
             files = sorted(
                 (
@@ -104,7 +122,7 @@ class AccountProfiles:
             partial = target.with_suffix(".part")
             partial.write_bytes(self._vault.seal_bytes(buffer.getvalue()))
             os.replace(partial, target)
-            if self._tombstone(account_id).exists():  # deleted while this archive was written
+            if self._stale(account_id, opened):  # deleted or reset while this was written
                 target.unlink(missing_ok=True)
         except OSError:
             logger.warning("account profile could not be saved; the next lease starts fresh")
@@ -118,6 +136,12 @@ class AccountProfiles:
     def delete(self, account_id: str) -> None:
         for engine in ENGINES:
             self._archive(account_id, engine).unlink(missing_ok=True)
+
+    def reset(self, account_id: str) -> None:
+        """A new device: the profiles go, and no lease still open may write the old one back."""
+        self._root.mkdir(parents=True, exist_ok=True)
+        (self._root / f"{account_id}.reset").write_text(uuid.uuid4().hex)
+        self.delete(account_id)
 
     def mark_deleted(self, account_id: str) -> None:
         """The account is gone: no lease still open may write its profile back."""
@@ -140,6 +164,12 @@ async def leased_access(
         yield dataclasses.replace(access, profile_dir=directory)
     finally:
         await asyncio.to_thread(profiles.seal, lease.account_id, directory, access.engine)
+
+
+def sweep_unsealed(root: Path | None = None) -> None:
+    """Remove profiles a killed worker left decrypted; run before any lease opens."""
+    for directory in Path(root or tempfile.gettempdir()).glob("thoth-profile-*"):
+        shutil.rmtree(directory, ignore_errors=True)
 
 
 def _private_directory() -> Path:

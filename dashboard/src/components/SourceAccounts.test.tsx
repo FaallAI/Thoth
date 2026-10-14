@@ -318,7 +318,7 @@ test("resetting the device fingerprint asks first", async () => {
   const dialog = await screen.findByRole("dialog");
   await userEvent.click(within(dialog).getByRole("button", { name: "Reset device fingerprint" }));
   expect(client.update).not.toHaveBeenCalled();
-  expect(within(dialog).getByText(/appears as a new device/)).toBeDefined();
+  expect(within(dialog).getByText(/its next lease shows the platform a new device/)).toBeDefined();
   await userEvent.click(within(dialog).getByRole("button", { name: "Confirm reset" }));
   expect(client.update).toHaveBeenCalledWith(ROWS[0].id, { reset_fingerprint: true });
 });

@@ -188,13 +188,14 @@ async def list_source_accounts(_: Authorized, store: Store) -> SourceAccountsOve
 async def update_access_policy(
     platform: SourcePlatform, payload: AccessPolicyUpdate, _: Authorized, store: Store
 ) -> AccessPolicyUpdate:
+    given = payload.model_fields_set  # an omitted budget or engine keeps the stored one
     view = await _call(
         _require(store).set_policy,
         platform,
         payload.mode,
         payload.min_spacing_seconds,
-        payload.daily_budget,
-        payload.engine,
+        payload.daily_budget if "daily_budget" in given else UNSET,
+        payload.engine if "engine" in given else UNSET,
     )
     return AccessPolicyUpdate(
         mode=view.mode,
@@ -257,7 +258,7 @@ async def update_source_account(
         reset_fingerprint=payload.reset_fingerprint,
     )
     if payload.reset_fingerprint and profiles is not None:
-        await asyncio.to_thread(profiles.delete, account_id)
+        await asyncio.to_thread(profiles.reset, account_id)
     return _account(view)
 
 

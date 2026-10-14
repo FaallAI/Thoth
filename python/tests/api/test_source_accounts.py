@@ -466,3 +466,16 @@ async def test_camoufox_outside_instagram_is_refused() -> None:
             json={"mode": "fallback", "min_spacing_seconds": 60, "engine": "camoufox"},
         )
         assert (answer.status_code, answer.json()["detail"]["code"]) == (422, "engine_unsupported")
+
+
+@pytest.mark.asyncio
+async def test_a_policy_put_without_budget_or_engine_keeps_them() -> None:
+    store = _store()
+    store.set_policy("instagram", "fallback", 600, daily_budget=7, engine="camoufox")
+    async with client(store) as api:
+        answer = await api.put(
+            "/source-accounts/policies/instagram",
+            headers=AUTH,
+            json={"mode": "always", "min_spacing_seconds": 600},
+        )
+        assert (answer.json()["daily_budget"], answer.json()["engine"]) == (7, "camoufox")

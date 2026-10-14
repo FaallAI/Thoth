@@ -180,3 +180,23 @@ def test_attribution_refuses_to_start_without_a_package(
 
     with pytest.raises(SettingsValidationError, match=code):
         worker.check_media_tools(_attribution_settings(tmp_path))
+
+
+@pytest.mark.asyncio
+async def test_the_worker_sweeps_profiles_a_killed_worker_left_before_any_lease(
+    monkeypatch,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(worker, "configure_provider_logging", lambda: None)
+    monkeypatch.setattr(worker, "sweep_unsealed", lambda: calls.append("sweep"))
+
+    async def capability():
+        calls.append("capability")
+        raise _StopWorker
+
+    monkeypatch.setattr(worker, "check_scrapling_capability", capability)
+    with pytest.raises(_StopWorker):
+        await worker.run_worker(
+            Settings(THOTH_CONTROL_PLANE_API_KEY="test-key", THOTH_SOURCE_ATTRIBUTION_ENABLED=False)
+        )
+    assert calls == ["sweep", "capability"]

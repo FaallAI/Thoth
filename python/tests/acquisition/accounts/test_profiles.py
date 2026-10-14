@@ -194,3 +194,44 @@ def test_the_cap_warns_when_it_drops_files(
         profiles.seal(ACCOUNT, directory)
 
     assert "dropped 1" in caplog.text and "huge.bin" not in caplog.text
+
+
+def test_a_reset_during_an_open_lease_never_seals_the_old_device(tmp_path: Path) -> None:
+    profiles = _profiles(tmp_path)
+    archive = tmp_path / "profiles" / f"{ACCOUNT}.camoufox.profile"
+    directory = profiles.unseal(ACCOUNT, "camoufox")
+    (directory / "old-device").write_text("x")
+
+    profiles.reset(ACCOUNT)
+    profiles.seal(ACCOUNT, directory, "camoufox")
+
+    assert not archive.exists()
+    again = profiles.unseal(ACCOUNT, "camoufox")  # a lease opened after the reset keeps its own
+    (again / "new-device").write_text("y")
+    profiles.seal(ACCOUNT, again, "camoufox")
+    assert archive.exists()
+
+
+def test_profiles_left_by_a_killed_worker_are_swept(tmp_path: Path) -> None:
+    from thoth_control_plane.acquisition.accounts.profiles import sweep_unsealed
+
+    (tmp_path / "thoth-profile-abc" / "Default").mkdir(parents=True)
+    (tmp_path / "thoth-profile-abc" / "Default" / "Cookies").write_bytes(b"decrypted")
+    (tmp_path / "other").mkdir()
+
+    sweep_unsealed(tmp_path)
+
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["other"]
+
+
+def test_an_unreadable_profile_warning_names_the_account(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    profiles = _profiles(tmp_path)
+    (tmp_path / "profiles").mkdir()
+    (tmp_path / "profiles" / f"{ACCOUNT}.patchright.profile").write_bytes(b"not sealed")
+
+    with caplog.at_level("WARNING"):
+        profiles.discard(profiles.unseal(ACCOUNT))
+
+    assert ACCOUNT in caplog.text

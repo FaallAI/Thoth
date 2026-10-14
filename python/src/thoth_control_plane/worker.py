@@ -11,6 +11,7 @@ from temporalio.client import Client
 from temporalio.contrib.pydantic import pydantic_data_converter
 from temporalio.worker import Worker
 
+from thoth_control_plane.acquisition.accounts.profiles import sweep_unsealed
 from thoth_control_plane.acquisition.browser import ScraplingCapability, check_scrapling_capability
 from thoth_control_plane.activities import (
     LEGACY_ADAPTER_MAX_CONCURRENT_ACTIVITIES,
@@ -138,6 +139,7 @@ async def run_worker(settings: Settings | None = None) -> None:
     """Run normal activities and the isolated single-concurrency legacy adapter."""
     runtime_settings = settings or Settings()  # type: ignore[call-arg]
     check_media_tools(runtime_settings)
+    sweep_unsealed()  # a killed worker may have left account profiles decrypted
     configure_provider_logging()
     capability = await check_scrapling_capability()
     # A stale yt-dlp fails YouTube extraction; warn once, in the background, never block.

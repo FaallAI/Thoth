@@ -358,7 +358,7 @@ export function EditAccountDialog({ account, onOpenChange, client, proxies, onSa
       <div className="sa-field"><span className="sa-field-label">Device fingerprint</span>
         <p className="sa-readonly">{account.fingerprint_set ? "Set (Camoufox)" : "Not set"}</p></div>
       {resetting
-        ? <><p role="alert" className="sa-validation sa-validation--error">Reset the device of {account.label}? Its browser profiles are deleted, and the platform sees it once as it appears as a new device.</p>
+        ? <><p role="alert" className="sa-validation sa-validation--error">Reset the device of {account.label}? Its browser profiles and fingerprint are deleted, and its next lease shows the platform a new device.</p>
           <Button variant="destructive" disabled={saving} onClick={resetFingerprint}>Confirm reset</Button></>
         : <Button variant="ghost" disabled={saving} onClick={() => setResetting(true)}>Reset device fingerprint</Button>}
       {confirming && <p role="alert" className="sa-validation sa-validation--error">Delete {account.label}? Its cookies are removed and its proxy returns to the pool.</p>}
