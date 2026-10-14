@@ -60,9 +60,12 @@ COPY --chown=thoth:thoth scout/package.json scout/bun.lock /opt/thoth/scout/
 RUN bun --cwd=/opt/thoth/scout install --frozen-lockfile --production
 COPY --chown=thoth:thoth scout/ /opt/thoth/scout/
 
-# Camoufox (spec 2026-10-13, 3.4): the pinned browser lands in thoth's cache; `fetch` also
-# installs fpgen's fingerprint model into the venv, so the chown below covers both.
+# Camoufox (spec 2026-10-13, 3.4): Firefox's system libraries, then the pinned browser in
+# thoth's cache; `fetch` also installs fpgen's fingerprint model into the venv, so the chown
+# below covers both. Without `set`, `fetch` takes whatever the stable channel holds that day.
 RUN /opt/thoth/python/.venv/bin/scrapling install \
+    && /opt/thoth/python/.venv/bin/python -m playwright install-deps firefox \
+    && HOME=/home/thoth /opt/thoth/python/.venv/bin/python -m camoufox set official/stable/156.0.1-beta.36 \
     && HOME=/home/thoth /opt/thoth/python/.venv/bin/python -m camoufox fetch \
     && chown -R thoth:thoth /home/thoth /ms-playwright /opt/thoth/python/.venv
 
@@ -78,6 +81,10 @@ RUN /opt/thoth/python/.venv/bin/python -c \
 EXPOSE 8000 18800
 
 USER thoth
+
+# The browser must start, not only exist: a missing system library fails here, not in a lease.
+RUN /opt/thoth/python/.venv/bin/python -c \
+        "from camoufox.sync_api import Camoufox; c = Camoufox(headless=True); b = c.__enter__(); b.new_page().goto('about:blank'); c.__exit__(None, None, None)"
 
 RUN test -w /var/lib/thoth/artifacts \
     && test -w /var/lib/thoth/browser-profile \

@@ -1150,3 +1150,12 @@ def test_container_workflow_prepares_the_account_profiles_bind_source() -> None:
     workflow = _repo_text(".github/workflows/container-image.yml")
     assert '"${root}"/account-profiles' in workflow
     assert 'sudo chmod 700 "${root}/account-profiles"' in workflow
+
+
+def test_dockerfile_pins_camoufox_and_proves_it_launches() -> None:
+    # Task 10 live gate 2026-10-14: the fetched browser could not start (no libgtk-3), and
+    # `fetch` alone installs whatever the stable channel holds that day.
+    dockerfile = _repo_text("Dockerfile")
+    assert "python -m playwright install-deps firefox" in dockerfile
+    assert "python -m camoufox set official/stable/156.0.1-beta.36" in dockerfile
+    assert "Camoufox(headless=True)" in dockerfile
