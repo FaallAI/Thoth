@@ -11,6 +11,8 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from thoth_control_plane.acquisition.youtube_service import STOP_GRACE_SECONDS
+
 FORMAT = "bv*[height<=720][ext=mp4]+ba[ext=m4a]/b[height<=720][ext=mp4]/b[ext=mp4]/b"
 TIMEOUT_SECONDS = 75.0
 
@@ -72,9 +74,10 @@ class YtDlpClipDownloader:
             except BaseException as error:
                 # yt-dlp cannot be cancelled: stop it at its next progress or postprocessor
                 # hook and wait for the thread, so nothing writes while the scratch is removed.
-                # ponytail: a stalled socket delays the stop by up to socket_timeout (20 s).
+                # ponytail: the stop lands at the next hook, bounded by the grace; a thread that
+                # outlives it is abandoned, its scratch directory removed best-effort.
                 stop.set()
-                await asyncio.wait({work})
+                await asyncio.wait({work}, timeout=STOP_GRACE_SECONDS)
                 if isinstance(error, Exception):
                     raise ClipError(type(error).__name__) from None
                 raise

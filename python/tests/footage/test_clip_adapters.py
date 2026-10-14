@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -119,3 +121,25 @@ async def test_only_the_merged_clip_counts(tmp_path: Path, monkeypatch: pytest.M
     with pytest.raises(ClipError):
         await YtDlpClipDownloader("ffmpeg").download("https://youtu.be/x", None, tmp_path / "c.mp4")
     assert list(tmp_path.iterdir()) == []
+
+
+async def test_a_download_that_ignores_the_stop_is_abandoned(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    release = threading.Event()
+
+    def stuck(url: str, options: dict[str, Any]) -> None:
+        release.wait(30)
+
+    monkeypatch.setattr(downloader_module, "_run_yt_dlp", stuck)
+    monkeypatch.setattr(downloader_module, "STOP_GRACE_SECONDS", 0.05)
+    try:
+        with pytest.raises(ClipError):
+            await asyncio.wait_for(
+                YtDlpClipDownloader("ffmpeg", timeout=0.05).download(
+                    "https://youtu.be/x", None, tmp_path / "c.mp4"
+                ),
+                5,
+            )
+    finally:
+        release.set()
