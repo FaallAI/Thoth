@@ -147,6 +147,7 @@ def test_container_workflow_pins_gates_tags_platform_and_digest_summary() -> Non
         "        env:\n"
         "          THOTH_TEST_WHISPER_MODEL_DIR: ${{ runner.temp }}/models/whisper-tiny\n"
         "          THOTH_TEST_DIARIZATION_MODEL_DIR: ${{ runner.temp }}/models/diarization\n"
+        "          THOTH_TEST_EMBEDDING_MODEL_DIR: ${{ runner.temp }}/models/embedding\n"
         '        run: uv run pytest -m "not live" -q'
     ) in workflow
     # The speech adapter tests fail without models (operator, 2026-10-13), so CI fetches them.
@@ -1182,3 +1183,14 @@ def test_heavy_layers_come_before_the_source_so_a_code_change_reuses_them() -> N
     source = dockerfile.index("COPY --chown=thoth:thoth python/src/")
     assert dockerfile.index("fetch_speech_models.py \\") < source
     assert dockerfile.index("python -m camoufox fetch") < source
+
+
+def test_the_embedding_model_is_pinned_and_fetched_with_the_speech_models() -> None:
+    script = _repo_text("docker/fetch_speech_models.py")
+    assert "paraphrase-multilingual-MiniLM-L12-v2" in script
+    assert "e8f8c211226b894fcb81acc59f3b34ba3efd5f42" in script
+    assert "fetch_embedding(arguments.out)" in script
+    dockerfile = _repo_text("Dockerfile")
+    assert dockerfile.index("fetch_speech_models.py \\") < dockerfile.index(
+        "COPY --chown=thoth:thoth python/src/"
+    )

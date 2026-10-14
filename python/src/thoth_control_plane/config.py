@@ -90,6 +90,7 @@ class Settings(BaseSettings):
     # Speech models baked into the image (spec 2026-10-13); never downloaded at run time.
     THOTH_WHISPER_MODEL_DIR: Path = Path("/opt/thoth/models/whisper-large-v3-turbo")
     THOTH_DIARIZATION_MODEL_DIR: Path = Path("/opt/thoth/models/diarization")
+    THOTH_EMBEDDING_MODEL_DIR: Path = Path("/opt/thoth/models/embedding")
     # Stage 5a content assembly. Off by default; the worker refuses to start with it on and
     # no ffmpeg or ffprobe (operator, 2026-10-11).
     THOTH_CONTENT_ASSEMBLY_ENABLED: bool = False

@@ -70,6 +70,7 @@ jobs:
         env:
           THOTH_TEST_WHISPER_MODEL_DIR: ${{ runner.temp }}/models/whisper-tiny
           THOTH_TEST_DIARIZATION_MODEL_DIR: ${{ runner.temp }}/models/diarization
+          THOTH_TEST_EMBEDDING_MODEL_DIR: ${{ runner.temp }}/models/embedding
         run: uv run pytest -m "not live" -q
 
       - name: Run Ruff checks
