@@ -144,8 +144,8 @@ Platforms run concurrently; queries within one platform run in order. Each query
 
 | Platform | Access | Route |
 |---|---|---|
-| TikTok | the platform's policy (anonymous first, a lease when thin) | `discovery.py`, `kind="keyword"` |
-| YouTube | anonymous, no proxy | `yt-dlp` `ytsearch8:<query>`, flat extraction |
+| TikTok | anonymous; a lease only when the anonymous search hit a captcha or block (`fallback`) | `discovery.py`, `kind="keyword"` |
+| YouTube | anonymous, no proxy; a lease only on a block (`fallback`) | `yt-dlp` `ytsearch8:<query>`, flat extraction |
 | X | a signed-in lease with its proxy, spacing, and budget | `x.com/search?q=<query>&f=video&src=typed_query` in a signed-in browser; the page's own `SearchTimeline` response is captured and its GraphQL `legacy` fields parsed (verified live 2026-10-15, research section 10) |
 
 X (operator, 2026-10-15, option A): the X account has 60 s spacing and a budget of 30 a day,
@@ -153,6 +153,10 @@ so a lease per query would leave queries 2-4 without an account. X takes one lea
 run and searches every query in that one signed-in browser session, 5-10 s apart, using one
 unit of the budget; a refusal stops the remaining queries; with no free account X contributes
 nothing (a signed-out X search returns nothing).
+
+A short search answer is complete: the "thin listing" rule that leases an account for a profile
+with fewer than 10 videos does not apply to keyword searches, which ask for 8 results (operator
+review, 2026-10-15).
 
 Results are cached in `footage_searches` for 24 hours, keyed by platform and normalized query
 (lowercased, whitespace collapsed). A cached entry is used without touching the platform.

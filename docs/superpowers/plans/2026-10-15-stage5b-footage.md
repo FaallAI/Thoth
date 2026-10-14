@@ -2226,6 +2226,36 @@ async def test_youtube_search_details_the_five_most_viewed() -> None:
     assert result.kind == "keyword"
 
 
+@pytest.mark.parametrize(
+    ("videos", "reason", "leased"),
+    [
+        (3, None, []),  # a short search answer is complete: no lease (ruling P5)
+        (0, DiscoveryReason.CAPTCHA, ["tiktok"]),  # a captcha still leases once under fallback
+    ],
+)
+async def test_a_keyword_search_leases_only_on_a_block(
+    videos: int, reason: DiscoveryReason | None, leased: list[str]
+) -> None:
+    class Discovery:
+        async def discover(self, request: KeywordDiscovery) -> DiscoveryResult:
+            return DiscoveryResult(
+                kind="keyword",
+                videos=[_video(n) for n in range(videos)],
+                pages=1,
+                exhausted=True,
+                drops=DiscoveryDrops(),
+                reason=reason,
+            )
+
+    leases = _Leases(free=False)
+    search = PlatformSearch(
+        ProfileDiscoverer({"tiktok": lambda access, scratch: Discovery()}, leases=leases),  # type: ignore[arg-type]
+        leases,  # type: ignore[arg-type]
+    )
+    await search.search("tiktok", ["banjir"], 8)
+    assert leases.leased == leased
+
+
 def test_keyword_discovery_refuses_control_characters() -> None:
     # Task 8 relies on this: a query KeywordDiscovery refuses is skipped, not sent.
     with pytest.raises(ValueError):
@@ -2258,7 +2288,9 @@ Replace `ProfileDiscoverer.discover` and `_run` with:
         anonymous: DiscoveryResult | None = None
         if mode != "always":
             anonymous = await self._run(platform, request, None)
-            thin = 0 < len(anonymous.videos) < THIN_LISTING
+            # A thin listing only means something for a profile, which a login lengthens. A
+            # keyword search is capped by its own limit, so it leases only on a block (ruling P5).
+            thin = isinstance(request, ProfileDiscovery) and 0 < len(anonymous.videos) < THIN_LISTING
             blocked = not anonymous.videos and anonymous.reason in RETRY_REASONS
             if mode == "anonymous" or not (thin or blocked):
                 return _videos(anonymous)
@@ -2306,9 +2338,12 @@ Replace `ProfileDiscoverer.discover` and `_run` with:
             return await discovery.discover(request)
 ```
 
-This is today's code with the request passed through: the outcome rule is unchanged (videos
-report `success`, a captcha or challenge `challenge`, a block `blocked`, anything else no
-outcome). Import `KeywordDiscovery` from `acquisition.models`.
+This is today's code with the request passed through, with one change for keyword requests: a
+thin anonymous search does not lease (ruling P5: footage searches ask for 8 results, so every
+non-empty answer would count as thin and spend a TikTok or YouTube lease on every query); a
+captcha or block still leases once under `fallback`. The outcome rule is unchanged (videos report
+`success`, a captcha or challenge `challenge`, a block `blocked`, anything else no outcome).
+Import `KeywordDiscovery` from `acquisition.models`.
 
 Add to `footage/models.py`:
 
