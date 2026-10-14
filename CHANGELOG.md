@@ -2,6 +2,52 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-14 - Source account safety deployed on `a76268f1`; minor fixes
+
+- With operator authorization: master pushed through `e80e4a0`. Two CI failures were fixed on
+  the way, each under TDD:
+  - the publish runner ran out of disk once the image carried Camoufox; the image jobs now free
+    the runner's preinstalled SDKs first (`6326fe1`, actionlint findings unchanged);
+  - a fresh editor database crashed on revision 0009 (`KeyError` in the pre-Alembic adoption
+    map); revisions without a legacy marker are skipped (`e80e4a0`), proven on a disposable
+    Postgres (9 revisions, then 0).
+- CI run `38531781613` green; digest
+  `sha256:a76268f108fcf9de1aad84433cf672eb4f83acdcee1bab8e648c7a9fbb1eeb2c`, pinned by the
+  operator. Preflight passed, `config --quiet` passed, `editor migrate` printed `1` (0009), and
+  `up -d --wait` brought every service healthy. `api`, `worker`, and `legacy-cdp` run
+  `a76268f1` at revision `e80e4a0`, user `10001:10001`, 0 restarts; `/healthz` and `/readyz`
+  200; `account-profiles` is writable (mode 700) in `api` and `worker`; the worker generates a
+  Firefox fingerprint offline.
+- Source accounts imported: 8 proxies (the operator changed their lines to `http://`). Their
+  exits (ipinfo.io): 4 Singapore, 2 United States, 1 United Kingdom, 1 not answering. Instagram,
+  TikTok, X, and Threads use Singapore proxies, YouTube a Los Angeles one; each account's
+  timezone matches its proxy's exit, locale stays `id-ID`. All five session checks: `valid`.
+  Instagram's engine is Camoufox (operator decision); mode `fallback`, 600 s, budget 20.
+- Unused Thoth images removed (87 GB to 27.6 GB in Docker); the previous release `ba03620f`
+  stays for rollback.
+- Deferred review minors fixed (`ca17be4`..`851bf22`): a device reset during an open lease no
+  longer reseals the old profile (generation marker); the worker sweeps decrypted profiles a
+  killed worker left in `/tmp`; a lease reports its outcome even when sealing fails; a policy
+  PUT keeps the budget and engine it omits; usage rows older than 30 days are pruned on lease;
+  the unseal warning names the account; the reset confirmation reads clearly; spec 3.2 says a
+  cookie re-import keeps the profile. Settled without code: the worker's Camoufox check (the
+  image build now launches Camoufox) and a real `generate_fingerprint` unit test (needs the
+  model download; the live gate and the deployed worker ran it).
+- The image is 15 GB locally (layers: Camoufox 2.2 GB and speech models 1.5 GB compressed), and
+  both heavy layers were rebuilt after every source change, so each deploy re-downloaded them
+  (about an hour on this link). They now come before the source in the Dockerfile.
+- Python suite 3641 passed, 21 skipped; dashboard 694 passed, build green; contract tests 368
+  passed.
+
+**Next steps**
+- Next stage: Stage 5b footage.
+- Operator gate: pin the image built from the layer reorder and deploy it (the first pull
+  downloads the heavy layers once more; later code-only deploys reuse them).
+- Follow-ups: the venv `chown` in the Camoufox layer copies the whole venv into that layer;
+  Patchright's `HeadlessChrome` worker user agent; no Indonesian proxy, and proxy 3 does not
+  answer; `instagram_deWlWJmyKxP` and the discussion threshold; TikTok and X warning patterns;
+  Camoufox for acquisition's card crops.
+
 ## 2026-10-14 - Source account safety
 
 Branch `feat/source-account-safety`, on top of the Stage 4 reaction work on master. Spec
