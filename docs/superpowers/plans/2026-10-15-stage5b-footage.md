@@ -34,7 +34,9 @@ amendment). Research: `docs/research/2026-10-14-stage5b-footage-research.md` (se
 - At most 3 candidates checked at once, 90 s each; the stage stops at 720 s with what it admitted.
 - Activity: `start_to_close` 20 minutes, heartbeat 2 minutes, 3 attempts; a footage failure never
   fails the workflow.
-- Downloads go direct, never through an account proxy. X search leases the X account.
+- Downloads go direct, never through an account proxy. X search takes one lease of the X
+  account per footage run and searches every query in that one signed-in browser session,
+  5-10 s apart (operator, 2026-10-15, option A); no free account means X contributes nothing.
 - Never stored or logged: CDN URLs, cookies, proxies, prompts, raw model output, captions in logs.
 - A missing required tool or model is an explicit error, never a skip (tests included).
 - No new Python dependency; no new compose service.
@@ -1879,30 +1881,41 @@ git commit -m "feat(footage): query extraction with visual descriptions"
 
 **Files:**
 - Modify: `python/src/thoth_control_plane/attribution/adapters/discovery.py`
+- Modify: `python/src/thoth_control_plane/footage/models.py` (add `SearchBatch`)
 - Create: `python/src/thoth_control_plane/footage/adapters/youtube.py`
 - Create: `python/src/thoth_control_plane/footage/adapters/x_search.py`
 - Create: `python/src/thoth_control_plane/footage/adapters/search.py`
 - Test: `python/tests/footage/test_search.py`
 
 **Interfaces:**
-- Produces: `ProfileDiscoverer.list(platform, request, *, require_account=False) -> list[DiscoveredVideo]`
-  (the access-mode logic, now shared; `discover(platform, handle)` delegates to it).
-- Produces: `YouTubeSearchDiscovery(client)` and `XSearchDiscovery(session_factory)`, each with
-  `async discover(request: KeywordDiscovery) -> DiscoveryResult`; `parse_search(roots, limit) -> DiscoveryResult`.
-- Produces: `PlatformSearch(discoverer)` with
-  `async search(platform, query, limit) -> list[DiscoveredVideo]`; `build_platform_search(leases) -> PlatformSearch`;
-  `SEARCH_FACTORIES`; `REQUIRES_ACCOUNT = frozenset({"x"})`.
+- Produces: `ProfileDiscoverer.list(platform, request) -> list[DiscoveredVideo]` (the access-mode
+  logic, now shared; `discover(platform, handle)` delegates to it; behavior unchanged).
+- Produces (`footage/models.py`): `SearchBatch` (frozen dataclass:
+  `found: dict[str, list[DiscoveredVideo]]`, `failed: bool`).
+- Produces: `YouTubeSearchDiscovery(client, sleep)` with `async discover(request: KeywordDiscovery) -> DiscoveryResult`.
+- Produces: `parse_search(roots, limit) -> DiscoveryResult`, `XSearchBatch` (frozen dataclass:
+  `found`, `refused: bool`, `unavailable: bool`), `XSearchDiscovery(session_factory, *, sleep, pause)`
+  with `async search_many(queries, limit) -> XSearchBatch`.
+- Produces: `PlatformSearch(discoverer, leases, x_search=...)` with
+  `async search(platform, queries: Sequence[str], limit) -> SearchBatch`;
+  `build_platform_search(leases) -> PlatformSearch`; `SEARCH_FACTORIES` (tiktok, youtube);
+  `X_PAUSE_SECONDS = (5.0, 10.0)`.
 - Evidence for X: research section 10 (the page renders in the browser; the page's own
   `SearchTimeline` response carries GraphQL tweets; fields listed there).
+- Operator decision (2026-10-15, option A): X has one account with 60 s spacing and a budget of
+  30 a day, so a lease per query would leave queries 2-4 without an account. X takes **one lease
+  per footage run** and searches every query in that one signed-in browser session, 5-10 s
+  apart; a refusal stops the remaining queries. No free account: X contributes nothing (never a
+  signed-out search, which returns nothing). Ruling P3 still holds: only a refusal reports
+  `blocked`; videos report `success`; empty answers report no outcome.
 
 - [ ] **Step 1: Write the failing tests** `tests/footage/test_search.py`
 
 ```python
-"""Keyword search for footage: YouTube via yt-dlp, X via the captured SearchTimeline."""
+"""Keyword search for footage: TikTok and YouTube per query, X in one signed-in session."""
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import pytest
@@ -1914,7 +1927,7 @@ from thoth_control_plane.acquisition.models import (
     DiscoveryResult,
     KeywordDiscovery,
 )
-from thoth_control_plane.attribution.adapters.discovery import DiscoveryBlocked, ProfileDiscoverer
+from thoth_control_plane.attribution.adapters.discovery import ProfileDiscoverer
 from thoth_control_plane.footage.adapters.search import PlatformSearch
 from thoth_control_plane.footage.adapters.x_search import XSearchDiscovery, parse_search
 from thoth_control_plane.footage.adapters.youtube import YouTubeSearchDiscovery
@@ -1965,7 +1978,12 @@ def _timeline(*tweets: dict[str, Any]) -> dict[str, Any]:
 
 def test_parse_search_keeps_video_tweets_in_order() -> None:
     result = parse_search(
-        [_timeline(_tweet("1001"), _tweet("1002", video=False), _tweet("1003", retweet=True), _tweet("1004"))],
+        [
+            _timeline(
+                _tweet("1001"), _tweet("1002", video=False), _tweet("1003", retweet=True),
+                _tweet("1004"),
+            )
+        ],
         limit=8,
     )
     assert [v.post_id for v in result.videos] == ["1001", "1004"]
@@ -1999,57 +2017,185 @@ class _Response:
 
 
 class _Session:
-    def __init__(self, captured: list[Any], seen: list[str]) -> None:
-        self._captured = captured
+    """One browser session; each fetch answers with the next page's captured responses."""
+
+    def __init__(self, pages: list[list[Any]], seen: list[str]) -> None:
+        self._pages = list(pages)
         self._seen = seen
+        self.closed = False
 
     async def __aenter__(self) -> _Session:
         return self
 
     async def __aexit__(self, *args: object) -> None:
-        return None
+        self.closed = True
 
     async def fetch(self, url: str, **kwargs: object) -> _Response:
         self._seen.append(url)
-        return _Response(self._captured)
+        return _Response(self._pages.pop(0) if self._pages else [])
 
 
-async def test_x_search_reads_the_captured_timeline() -> None:
-    seen: list[str] = []
-    patterns: list[str] = []
-
+def _x(pages: list[list[Any]], seen: list[str], sessions: list[_Session]) -> XSearchDiscovery:
     def factory(**kwargs: Any) -> _Session:
-        patterns.append(kwargs["capture_xhr"])
-        return _Session([_Entry(_timeline(_tweet("1001")))], seen)
+        assert kwargs["capture_xhr"] == r"/SearchTimeline"
+        session = _Session(pages, seen)
+        sessions.append(session)
+        return session
 
-    result = await XSearchDiscovery(factory).discover(KeywordDiscovery(query="banjir kemang", limit=8))
-    assert [v.post_id for v in result.videos] == ["1001"]
-    assert seen == ["https://x.com/search?q=banjir%20kemang&f=video&src=typed_query"]
-    assert patterns == [r"/SearchTimeline"]
+    pauses: list[float] = []
+
+    async def sleep(seconds: float) -> None:
+        pauses.append(seconds)
+
+    discovery = XSearchDiscovery(factory, sleep=sleep, pause=lambda: 7.0)
+    discovery.pauses = pauses  # type: ignore[attr-defined]
+    return discovery
 
 
-async def test_x_search_without_a_captured_response_is_no_data() -> None:
-    result = await XSearchDiscovery(lambda **kwargs: _Session([], [])).discover(
-        KeywordDiscovery(query="banjir", limit=8)
+async def test_one_session_searches_every_query_with_a_pause_between() -> None:
+    seen: list[str] = []
+    sessions: list[_Session] = []
+    discovery = _x(
+        [[_Entry(_timeline(_tweet("1001")))], [_Entry(_timeline())], []], seen, sessions
     )
-    assert result.videos == [] and result.reason is DiscoveryReason.NO_DATA
+    batch = await discovery.search_many(["banjir kemang", "topik sepi", "tanpa respons"], 8)
+    assert len(sessions) == 1 and sessions[0].closed
+    assert seen == [
+        "https://x.com/search?q=banjir%20kemang&f=video&src=typed_query",
+        "https://x.com/search?q=topik%20sepi&f=video&src=typed_query",
+        "https://x.com/search?q=tanpa%20respons&f=video&src=typed_query",
+    ]
+    assert discovery.pauses == [7.0, 7.0]  # type: ignore[attr-defined]
+    assert [v.post_id for v in batch.found["banjir kemang"]] == ["1001"]
+    assert batch.found["topik sepi"] == []  # an empty answer is cached as empty
+    assert "tanpa respons" not in batch.found  # nothing captured: unknown, never cached
+    assert not batch.refused and not batch.unavailable
 
 
 @pytest.mark.parametrize(
-    "entry", [_Entry({}, status=429), _Entry({"errors": [{"code": 88, "message": "Rate limit"}]})]
+    "refusal", [_Entry({}, status=429), _Entry({"errors": [{"code": 88, "message": "Rate limit"}]})]
 )
-async def test_x_refusing_the_search_is_blocked(entry: _Entry) -> None:
-    result = await XSearchDiscovery(lambda **kwargs: _Session([entry], [])).discover(
-        KeywordDiscovery(query="banjir", limit=8)
+async def test_a_refusal_stops_the_remaining_queries(refusal: _Entry) -> None:
+    seen: list[str] = []
+    batch = await _x([[refusal], [_Entry(_timeline(_tweet("1001")))]], seen, []).search_many(
+        ["pertama", "kedua"], 8
     )
-    assert result.videos == [] and result.reason is DiscoveryReason.BLOCKED
+    assert batch.refused and batch.found == {} and len(seen) == 1
 
 
-async def test_an_empty_captured_timeline_is_an_empty_answer() -> None:
-    result = await XSearchDiscovery(lambda **kwargs: _Session([_Entry(_timeline())], [])).discover(
-        KeywordDiscovery(query="topik sepi", limit=8)
+async def test_a_browser_that_cannot_start_is_unavailable() -> None:
+    def broken(**kwargs: Any) -> Any:
+        raise RuntimeError("no browser")
+
+    batch = await XSearchDiscovery(broken).search_many(["banjir"], 8)
+    assert batch.unavailable and not batch.refused and batch.found == {}
+
+
+class _Lease:
+    account_id = "account-1"
+    access = None
+    leased_until = None
+
+
+class _Leases:
+    def __init__(self, free: bool = True) -> None:
+        self.free = free
+        self.leased: list[str] = []
+        self.outcomes: list[object] = []
+
+    async def mode(self, platform: str) -> str:
+        return "fallback"
+
+    async def lease(self, platform: str) -> _Lease | None:
+        self.leased.append(platform)
+        return _Lease() if self.free else None
+
+    async def release(self, lease: object, outcome: object) -> None:
+        self.outcomes.append(outcome)
+
+
+class _XStub:
+    def __init__(self, batch: Any) -> None:
+        self.batch = batch
+        self.calls: list[list[str]] = []
+
+    async def search_many(self, queries: list[str], limit: int) -> Any:
+        self.calls.append(list(queries))
+        return self.batch
+
+
+def _video(n: int) -> DiscoveredVideo:
+    return DiscoveredVideo(
+        post_id=f"100{n}", owner_handle="warga", canonical_url=f"https://x.com/warga/status/100{n}"
     )
-    assert result.videos == [] and result.reason is None
+
+
+def _platform_search(leases: _Leases, stub: _XStub) -> PlatformSearch:
+    return PlatformSearch(
+        ProfileDiscoverer({}, leases=leases),  # type: ignore[arg-type]
+        leases,  # type: ignore[arg-type]
+        x_search=lambda access: stub,
+    )
+
+
+async def test_x_takes_one_lease_for_every_query() -> None:
+    from thoth_control_plane.footage.adapters.x_search import XSearchBatch
+
+    leases = _Leases()
+    stub = _XStub(XSearchBatch(found={"a": [_video(1)], "b": []}, refused=False, unavailable=False))
+    batch = await _platform_search(leases, stub).search("x", ["a", "b", "bad\x00query"], 8)
+    assert leases.leased == ["x"] and stub.calls == [["a", "b"]]  # the refused query never runs
+    assert batch.found == {"a": [_video(1)], "b": []} and not batch.failed
+
+
+@pytest.mark.parametrize(
+    ("found", "refused", "outcome", "failed"),
+    [
+        ({"a": [_video(1)]}, False, "success", False),
+        ({"a": []}, False, None, False),  # an empty search is an answer (ruling P3)
+        ({}, True, "blocked", True),  # only a refusal cools the account down
+    ],
+)
+async def test_only_a_refusal_cools_the_x_account_down(
+    found: dict[str, list[DiscoveredVideo]], refused: bool, outcome: str | None, failed: bool
+) -> None:
+    from thoth_control_plane.footage.adapters.x_search import XSearchBatch
+
+    leases = _Leases()
+    stub = _XStub(XSearchBatch(found=found, refused=refused, unavailable=False))
+    batch = await _platform_search(leases, stub).search("x", ["a"], 8)
+    assert leases.outcomes == [outcome] and batch.failed is failed
+
+
+async def test_no_free_x_account_means_no_signed_out_search() -> None:
+    from thoth_control_plane.footage.adapters.x_search import XSearchBatch
+
+    leases = _Leases(free=False)
+    stub = _XStub(XSearchBatch(found={}, refused=False, unavailable=False))
+    batch = await _platform_search(leases, stub).search("x", ["a"], 8)
+    assert stub.calls == [] and batch.failed and batch.found == {}
+
+
+async def test_tiktok_searches_each_query_and_keeps_what_it_found() -> None:
+    calls: list[str] = []
+
+    class Discovery:
+        async def discover(self, request: KeywordDiscovery) -> DiscoveryResult:
+            calls.append(request.query)
+            if request.query == "boom":
+                raise RuntimeError("browser died")
+            return DiscoveryResult(
+                kind="keyword", videos=[], pages=1, exhausted=True, drops=DiscoveryDrops()
+            )
+
+    leases = _Leases()
+    search = PlatformSearch(
+        ProfileDiscoverer({"tiktok": lambda access, scratch: Discovery()}, leases=None),
+        leases,  # type: ignore[arg-type]
+    )
+    batch = await search.search("tiktok", ["a", "bad\x00query", "boom", "never"], 8)
+    assert calls == ["a", "boom"]
+    assert batch.found == {"a": []} and batch.failed
 
 
 class _YtClient:
@@ -2058,11 +2204,7 @@ class _YtClient:
 
     async def listing(self, url: str, limit: int) -> dict[str, Any]:
         assert url == "ytsearch8:banjir kemang" and limit == 8
-        return {
-            "entries": [
-                {"id": f"vid{n:08d}", "view_count": n * 100} for n in range(1, 9)
-            ]
-        }
+        return {"entries": [{"id": f"vid{n:08d}", "view_count": n * 100} for n in range(1, 9)]}
 
     async def extract(self, url: str, *, comments: bool) -> dict[str, Any]:
         self.extracted.append(url)
@@ -2084,86 +2226,8 @@ async def test_youtube_search_details_the_five_most_viewed() -> None:
     assert result.kind == "keyword"
 
 
-class _Leases:
-    def __init__(self, mode: str) -> None:
-        self._mode = mode
-        self.leased: list[str] = []
-
-    async def mode(self, platform: str) -> str:
-        return self._mode
-
-    async def lease(self, platform: str) -> None:
-        self.leased.append(platform)
-        return None
-
-    async def release(self, lease: object, outcome: object) -> None:
-        return None
-
-
-class _Lease:
-    account_id = "account-1"
-    access = None
-    leased_until = None
-
-
-class _RecordingLeases(_Leases):
-    def __init__(self) -> None:
-        super().__init__("anonymous")
-        self.outcomes: list[object] = []
-
-    async def lease(self, platform: str) -> _Lease:  # type: ignore[override]
-        self.leased.append(platform)
-        return _Lease()
-
-    async def release(self, lease: object, outcome: object) -> None:
-        self.outcomes.append(outcome)
-
-
-@pytest.mark.parametrize(
-    ("reason", "outcome"),
-    [(None, None), (DiscoveryReason.NO_DATA, None), (DiscoveryReason.BLOCKED, "blocked")],
-)
-async def test_only_a_refusal_cools_the_x_account_down(
-    reason: DiscoveryReason | None, outcome: str | None
-) -> None:
-    class Discovery:
-        async def discover(self, request: KeywordDiscovery) -> DiscoveryResult:
-            return DiscoveryResult(
-                kind="keyword", videos=[], pages=1, exhausted=True, drops=DiscoveryDrops(),
-                reason=reason,
-            )
-
-    leases = _RecordingLeases()
-    search = PlatformSearch(
-        ProfileDiscoverer({"x": lambda access, scratch: Discovery()}, leases=leases)  # type: ignore[arg-type]
-    )
-    if reason is DiscoveryReason.BLOCKED:
-        with pytest.raises(DiscoveryBlocked):
-            await search.search("x", "banjir", 8)
-    else:
-        assert await search.search("x", "banjir", 8) == []
-    assert leases.leased == ["x"] and leases.outcomes == [outcome]
-
-
-async def test_x_search_always_asks_for_an_account() -> None:
-    calls: list[object] = []
-
-    class Discovery:
-        async def discover(self, request: KeywordDiscovery) -> DiscoveryResult:
-            calls.append(request)
-            return DiscoveryResult(kind="keyword", videos=[], pages=1, exhausted=True, drops=DiscoveryDrops())
-
-    leases = _Leases("anonymous")
-    search = PlatformSearch(
-        ProfileDiscoverer({"x": lambda access, scratch: Discovery()}, leases=leases)  # type: ignore[arg-type]
-    )
-    assert await search.search("x", "banjir", 8) == []
-    assert leases.leased == ["x"]  # even with the platform's mode set to anonymous
-    assert isinstance(calls[0], KeywordDiscovery)
-
-
-def test_youtube_discovery_module_still_imports(tmp_path: Path) -> None:
-    assert DiscoveredVideo  # the shared model the adapters return
+def test_keyword_discovery_refuses_control_characters() -> None:
+    # Task 8 relies on this: a query KeywordDiscovery refuses is skipped, not sent.
     with pytest.raises(ValueError):
         KeywordDiscovery(query="\x00", limit=8)
 ```
@@ -2187,19 +2251,10 @@ Replace `ProfileDiscoverer.discover` and `_run` with:
         return await self.list(platform, ProfileDiscovery(handle=handle, limit=PROFILE_LIMIT))
 
     async def list(
-        self,
-        platform: str,
-        request: ProfileDiscovery | KeywordDiscovery,
-        *,
-        require_account: bool = False,
+        self, platform: str, request: ProfileDiscovery | KeywordDiscovery
     ) -> list[DiscoveredVideo]:
-        """One listing under the platform's access mode; `require_account` acts as `always`.
-
-        Footage search on X needs a signed-in page (research 2026-10-14, section 10).
-        """
+        """One listing under the platform's access mode (profile or keyword)."""
         mode: Mode = await self._leases.mode(platform) if self._leases else "anonymous"
-        if require_account and self._leases is not None:
-            mode = "always"
         anonymous: DiscoveryResult | None = None
         if mode != "always":
             anonymous = await self._run(platform, request, None)
@@ -2251,10 +2306,23 @@ Replace `ProfileDiscoverer.discover` and `_run` with:
             return await discovery.discover(request)
 ```
 
-The outcome rule is exactly today's: videos report `success`; a captcha or challenge reports
-`challenge`; a block reports `blocked`; anything else (an empty listing, `NO_DATA`, a timeout)
-reports no outcome, so the account's health is untouched. An empty search is an answer, not a
-refusal (ruling P3). Import `KeywordDiscovery` from `acquisition.models`.
+This is today's code with the request passed through: the outcome rule is unchanged (videos
+report `success`, a captcha or challenge `challenge`, a block `blocked`, anything else no
+outcome). Import `KeywordDiscovery` from `acquisition.models`.
+
+Add to `footage/models.py`:
+
+```python
+@dataclass(frozen=True)
+class SearchBatch:
+    """One platform's answers for a run's queries. `found` holds only queries the platform
+    answered (an empty list is an answer); `failed` means it stopped or refused."""
+
+    found: dict[str, list[DiscoveredVideo]]
+    failed: bool
+```
+
+(import `DiscoveredVideo` from `acquisition.models`).
 
 Run: `cd python && uv run pytest tests/attribution -q` — Expected: PASS (behavior unchanged for
 profiles).
@@ -2338,14 +2406,23 @@ class YouTubeSearchDiscovery:
 - [ ] **Step 5: Implement `footage/adapters/x_search.py`**
 
 ```python
-"""X keyword search for footage: a signed-in browser opens the search page and the page's own
-`SearchTimeline` response is captured (verified live 2026-10-15, research section 10). Only
-video tweets of their own author are kept; retweets are dropped. Never raises."""
+"""X keyword search for footage: one signed-in browser session opens the search page for each
+query and captures the page's own `SearchTimeline` response (verified live 2026-10-15, research
+section 10). Only video tweets of their own author are kept; retweets are dropped.
+
+Operator decision 2026-10-15 (option A): one session, so one lease and one unit of the X budget,
+serves every query of a footage run, 5-10 s apart. A refusal (HTTP 400 or above, or a GraphQL
+error body) stops the remaining queries; an empty timeline is an answer (ruling P3). Never
+raises.
+"""
 
 from __future__ import annotations
 
+import asyncio
 import html
-from collections.abc import Callable, Iterable
+import random
+from collections.abc import Awaitable, Callable, Iterable, Sequence
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 from urllib.parse import quote
@@ -2361,7 +2438,6 @@ from thoth_control_plane.acquisition.browser import (
     _decrement_active_sessions,
     _default_session_factory,
     _increment_active_sessions,
-    _is_timeout,
 )
 from thoth_control_plane.acquisition.discovery import MAX_CAPTION, _empty
 from thoth_control_plane.acquisition.models import (
@@ -2369,7 +2445,6 @@ from thoth_control_plane.acquisition.models import (
     DiscoveryDrops,
     DiscoveryReason,
     DiscoveryResult,
-    KeywordDiscovery,
 )
 from thoth_control_plane.acquisition.normalize import numeric_id, published_at_from_epoch
 
@@ -2377,6 +2452,7 @@ XHR_PATTERN = r"/SearchTimeline"
 VIDEO_TYPES = frozenset({"video", "animated_gif"})
 CREATED_AT = "%a %b %d %H:%M:%S %z %Y"
 FETCH_TIMEOUT_MS = 60_000
+X_PAUSE_SECONDS = (5.0, 10.0)
 
 
 def _count(value: object) -> int | None:
@@ -2409,6 +2485,8 @@ def _published(tweet: dict[str, Any]) -> str | None:
 
 def _video(tweet: dict[str, Any], owner: str, media: dict[str, Any]) -> DiscoveredVideo | None:
     rest_id = numeric_id(tweet.get("rest_id"))
+    if rest_id is None:
+        return None
     text = _get(tweet, "note_tweet", "note_tweet_results", "result", "text")
     if not isinstance(text, str):
         text = _get(tweet, "legacy", "full_text")
@@ -2423,8 +2501,6 @@ def _video(tweet: dict[str, Any], owner: str, media: dict[str, Any]) -> Discover
         )
         if count is not None
     }
-    if rest_id is None:
-        return None
     try:
         return DiscoveredVideo(
             post_id=rest_id,
@@ -2470,23 +2546,81 @@ def parse_search(roots: Iterable[object], limit: int) -> DiscoveryResult:
     )
 
 
-class XSearchDiscovery:
-    def __init__(self, session_factory: Callable[..., Any] = _default_session_factory) -> None:
-        self._session_factory = session_factory
+def _answer(response: Any, limit: int) -> DiscoveryResult:
+    """One search page's captured responses: an answer, a refusal (BLOCKED), or unknown
+    (NO_DATA: nothing captured — a slow load, a changed page, a logged-out session)."""
+    captured = getattr(response, "captured_xhr", None) or []
+    if not captured:
+        return _empty("keyword", DiscoveryReason.NO_DATA)
+    roots: list[object] = []
+    refused = False
+    for entry in captured:
+        status = getattr(entry, "status", None)
+        if not isinstance(status, int) or status >= 400:
+            refused = True
+            continue
+        try:
+            body = entry.json()
+        except Exception:
+            continue
+        if isinstance(body, dict) and body.get("errors") and not body.get("data"):
+            refused = True  # GraphQL refusals (a rate limit) arrive with HTTP 200
+            continue
+        roots.append(body)
+    if not roots:
+        return _empty("keyword", DiscoveryReason.BLOCKED if refused else DiscoveryReason.NO_DATA)
+    return parse_search(roots, limit)
 
-    async def discover(self, request: KeywordDiscovery) -> DiscoveryResult:
-        url = f"{CANONICAL_BASE}/search?q={quote(request.query, safe='')}&f=video&src=typed_query"
+
+def search_url(query: str) -> str:
+    return f"{CANONICAL_BASE}/search?q={quote(query, safe='')}&f=video&src=typed_query"
+
+
+@dataclass(frozen=True)
+class XSearchBatch:
+    found: dict[str, list[DiscoveredVideo]] = field(default_factory=dict)
+    refused: bool = False
+    unavailable: bool = False
+
+
+class XSearchDiscovery:
+    def __init__(
+        self,
+        session_factory: Callable[..., Any] = _default_session_factory,
+        *,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        pause: Callable[[], float] = lambda: random.uniform(*X_PAUSE_SECONDS),
+    ) -> None:
+        self._session_factory = session_factory
+        self._sleep = sleep
+        self._pause = pause
+
+    async def search_many(self, queries: Sequence[str], limit: int) -> XSearchBatch:
         try:
             session = self._session_factory(headless=True, max_pages=1, capture_xhr=XHR_PATTERN)
             active = await session.__aenter__()
         except Exception:
-            return _empty("keyword", DiscoveryReason.BROWSER_UNAVAILABLE)
+            return XSearchBatch(unavailable=True)
         _increment_active_sessions()
+        found: dict[str, list[DiscoveredVideo]] = {}
+        refused = unavailable = False
         try:
-            response = await active.fetch(url, network_idle=True, timeout=FETCH_TIMEOUT_MS)
-        except Exception as error:
-            reason = DiscoveryReason.TIMEOUT if _is_timeout(error) else DiscoveryReason.BLOCKED
-            return _empty("keyword", reason)
+            for index, query in enumerate(queries):
+                if index:
+                    await self._sleep(self._pause())
+                try:
+                    response = await active.fetch(
+                        search_url(query), network_idle=True, timeout=FETCH_TIMEOUT_MS
+                    )
+                except Exception:
+                    unavailable = True  # a timeout or a dead browser: stop, keep what we have
+                    break
+                result = _answer(response, limit)
+                if result.reason is DiscoveryReason.BLOCKED:
+                    refused = True
+                    break
+                if result.reason is None:
+                    found[query] = list(result.videos)
         finally:
             try:
                 await session.__aexit__(None, None, None)
@@ -2494,51 +2628,28 @@ class XSearchDiscovery:
                 pass
             finally:
                 _decrement_active_sessions()
-        captured = getattr(response, "captured_xhr", None) or []
-        if not captured:
-            # No SearchTimeline at all (a slow load, a changed page, a logged-out session):
-            # unknown, so the account's health is left alone.
-            return _empty("keyword", DiscoveryReason.NO_DATA)
-        roots: list[object] = []
-        refused = False
-        for entry in captured:
-            status = getattr(entry, "status", None)
-            if not isinstance(status, int) or status >= 400:
-                refused = True
-                continue
-            try:
-                body = entry.json()
-            except Exception:
-                continue
-            if isinstance(body, dict) and body.get("errors") and not body.get("data"):
-                refused = True  # GraphQL refusals (a rate limit) arrive with HTTP 200
-                continue
-            roots.append(body)
-        if not roots:
-            # X answered and refused: a block, which cools the account down.
-            return _empty(
-                "keyword", DiscoveryReason.BLOCKED if refused else DiscoveryReason.NO_DATA
-            )
-        return parse_search(roots, request.limit)
+        return XSearchBatch(found=found, refused=refused, unavailable=unavailable)
 ```
 
-Confirm `CANONICAL_BASE` in `acquisition/adapters/x.py` is `https://x.com` (the test expects
-`https://x.com/search?...`); if it differs, build the URL from `https://x.com` literally.
-Confirm `page_tweets` walks plain dicts (it does for the profile page's decoded values) and
-returns the timeline's `Tweet` nodes; if it needs other roots, pass `[body]` per response.
+Confirm `CANONICAL_BASE` in `acquisition/adapters/x.py` is `https://x.com` (the tests expect
+`https://x.com/search?...`). Confirm `page_tweets` walks plain dicts and returns the timeline's
+`Tweet` nodes.
 
 - [ ] **Step 6: Implement `footage/adapters/search.py`**
 
 ```python
-"""Footage search per platform, under each platform's access mode (spec 2026-10-14, F4)."""
+"""Footage search per platform (spec 2026-10-14, F4): TikTok and YouTube per query under the
+platform's access mode; X in one signed-in session per run (operator, 2026-10-15, option A)."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import logging
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 from thoth_control_plane.acquisition.accounts.access import SessionAccess
+from thoth_control_plane.acquisition.accounts.policy import Outcome
 from thoth_control_plane.acquisition.models import DiscoveredVideo, KeywordDiscovery
 from thoth_control_plane.attribution.adapters.discovery import (
     AccountLeases,
@@ -2546,8 +2657,10 @@ from thoth_control_plane.attribution.adapters.discovery import (
     ProfileDiscoverer,
     _tiktok,
 )
+from thoth_control_plane.attribution.adapters.frames import ToolMissing
+from thoth_control_plane.footage.models import SearchBatch
 
-REQUIRES_ACCOUNT = frozenset({"x"})
+logger = logging.getLogger(__name__)
 
 
 def _youtube(access: SessionAccess | None, scratch: Path) -> Any:
@@ -2559,35 +2672,82 @@ def _youtube(access: SessionAccess | None, scratch: Path) -> Any:
     return YouTubeSearchDiscovery(YtDlpClient(factory, signed_in=access is not None))
 
 
-def _x(access: SessionAccess | None, scratch: Path) -> Any:
+def _x_search(access: SessionAccess | None) -> Any:
     from thoth_control_plane.acquisition.registry import _browser_factory
     from thoth_control_plane.footage.adapters.x_search import XSearchDiscovery
 
     return XSearchDiscovery(_browser_factory(access))
 
 
-SEARCH_FACTORIES: Mapping[str, DiscoveryFactory] = {
-    "tiktok": _tiktok,
-    "youtube": _youtube,
-    "x": _x,
-}
+SEARCH_FACTORIES: Mapping[str, DiscoveryFactory] = {"tiktok": _tiktok, "youtube": _youtube}
+
+
+def _valid(query: str) -> bool:
+    try:
+        KeywordDiscovery(query=query, limit=1)
+    except ValueError:
+        logger.warning("footage query refused by the search contract")
+        return False
+    return True
 
 
 class PlatformSearch:
-    def __init__(self, discoverer: ProfileDiscoverer) -> None:
+    def __init__(
+        self,
+        discoverer: ProfileDiscoverer,
+        leases: AccountLeases | None,
+        *,
+        x_search: Callable[[SessionAccess | None], Any] = _x_search,
+    ) -> None:
         self._discoverer = discoverer
+        self._leases = leases
+        self._x_search = x_search
 
-    async def search(self, platform: str, query: str, limit: int) -> list[DiscoveredVideo]:
-        """Raises `ValueError` for a query KeywordDiscovery refuses, `DiscoveryBlocked` when the
-        platform blocked and no account could help."""
-        request = KeywordDiscovery(query=query, limit=limit)
-        return await self._discoverer.list(
-            platform, request, require_account=platform in REQUIRES_ACCOUNT
+    async def search(self, platform: str, queries: Sequence[str], limit: int) -> SearchBatch:
+        valid = [query for query in queries if _valid(query)]
+        if platform == "x":
+            return await self._x(valid, limit)
+        found: dict[str, list[DiscoveredVideo]] = {}
+        for query in valid:
+            try:
+                found[query] = await self._discoverer.list(
+                    platform, KeywordDiscovery(query=query, limit=limit)
+                )
+            except ToolMissing:
+                raise
+            except Exception:
+                logger.warning("footage search stopped platform=%s", platform)
+                return SearchBatch(found=found, failed=True)
+        return SearchBatch(found=found, failed=False)
+
+    async def _x(self, queries: Sequence[str], limit: int) -> SearchBatch:
+        if not queries:
+            return SearchBatch(found={}, failed=False)
+        lease = await self._leases.lease("x") if self._leases is not None else None
+        if lease is None:
+            # Signed out, X search returns nothing; never spend a browser on it.
+            logger.info("no X account free for footage search")
+            return SearchBatch(found={}, failed=True)
+        outcome: Outcome | None = None
+        try:
+            batch = await self._x_search(lease.access).search_many(queries, limit)
+            if batch.refused:
+                outcome = "blocked"
+            elif any(batch.found.values()):
+                outcome = "success"
+        finally:
+            assert self._leases is not None
+            await self._leases.release(lease, outcome)
+        logger.info(
+            "x footage search queries=%d answered=%d outcome=%s",
+            len(queries), len(batch.found), outcome,
         )
+        failed = batch.refused or (batch.unavailable and not batch.found)
+        return SearchBatch(found=batch.found, failed=failed)
 
 
 def build_platform_search(leases: AccountLeases | None) -> PlatformSearch:
-    return PlatformSearch(ProfileDiscoverer(SEARCH_FACTORIES, leases=leases))
+    return PlatformSearch(ProfileDiscoverer(SEARCH_FACTORIES, leases=leases), leases)
 ```
 
 - [ ] **Step 7: Run the tests**
@@ -2598,7 +2758,7 @@ Expected: PASS.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add python/src/thoth_control_plane/attribution/adapters/discovery.py python/src/thoth_control_plane/footage/adapters/youtube.py python/src/thoth_control_plane/footage/adapters/x_search.py python/src/thoth_control_plane/footage/adapters/search.py python/tests/footage/test_search.py
+git add python/src/thoth_control_plane/attribution/adapters/discovery.py python/src/thoth_control_plane/footage/models.py python/src/thoth_control_plane/footage/adapters/youtube.py python/src/thoth_control_plane/footage/adapters/x_search.py python/src/thoth_control_plane/footage/adapters/search.py python/tests/footage/test_search.py
 git commit -m "feat(footage): keyword search on TikTok, YouTube, and X"
 ```
 
@@ -2948,7 +3108,7 @@ git commit -m "feat(footage): clip window, vision judge, dHash, downloader"
 - Test: `python/tests/footage/test_service.py`
 
 **Interfaces:**
-- Consumes: everything from Tasks 2–7; `analyze_main_ocr` (5a); `AssemblyError`;
+- Consumes: everything from Tasks 2–7 (`SearchPort.search(platform, queries, limit) -> SearchBatch`, one call per platform per run); `analyze_main_ocr` (5a); `AssemblyError`;
   `FrameSampler`, `DurationProbe`, `TextReader`, `RegionTracker`, `CaptionJudge` (assembly ports);
   `SourceReport`, `SourceAttribution`.
 - Produces: `FootagePorts` (dataclass), `FootageInputs` (dataclass: `workflow_id`, `report`,
@@ -2976,6 +3136,7 @@ from thoth_control_plane.footage.models import (
     FootageObject,
     NewCandidate,
     RunView,
+    SearchBatch,
 )
 from thoth_control_plane.footage.queries import FootageQueryAnswer
 
@@ -2985,7 +3146,7 @@ class QueryModel(Protocol):
 
 
 class SearchPort(Protocol):
-    async def search(self, platform: str, query: str, limit: int) -> list[DiscoveredVideo]: ...
+    async def search(self, platform: str, queries: Sequence[str], limit: int) -> SearchBatch: ...
 
 
 class Embedder(Protocol):
@@ -3048,6 +3209,7 @@ from thoth_control_plane.assembly.ports import AssemblyError
 from thoth_control_plane.attribution.ports import AttributionError, Frame
 from thoth_control_plane.footage.adapters.downloader import ClipError
 from thoth_control_plane.footage.adapters.vision import FootageAnswer
+from thoth_control_plane.footage.models import SearchBatch
 from thoth_control_plane.footage.queries import FootageQueryAnswer
 from thoth_control_plane.footage.service import (
     FootageBuilder,
@@ -3116,18 +3278,23 @@ TWO_OBJECTS = FootageQueryAnswer.model_validate(
 
 
 class Search:
+    """PlatformSearch's contract: one call per platform with the run's uncached queries."""
+
     def __init__(self, results: dict[tuple[str, str], list[DiscoveredVideo]] | None = None, fail: set[str] | None = None) -> None:
         self.results = results or {}
         self.fail = fail or set()
         self.calls: list[tuple[str, str]] = []
 
-    async def search(self, platform: str, query: str, limit: int) -> list[DiscoveredVideo]:
-        self.calls.append((platform, query))
+    async def search(self, platform: str, queries: Sequence[str], limit: int) -> SearchBatch:
+        self.calls.extend((platform, query) for query in queries)
         if platform in self.fail:
-            raise RuntimeError("blocked")
-        if "\x00" in query:
-            raise ValueError("bad query")
-        return self.results.get((platform, query), [])
+            return SearchBatch(found={}, failed=True)
+        found = {
+            query: self.results.get((platform, query), [])
+            for query in queries
+            if "\x00" not in query  # PlatformSearch skips a query KeywordDiscovery refuses
+        }
+        return SearchBatch(found=found, failed=False)
 
 
 class Embedder:
@@ -3483,6 +3650,7 @@ from thoth_control_plane.footage.models import (
     FootageResult,
     FootageStatus,
     NewCandidate,
+    SearchBatch,
 )
 from thoth_control_plane.footage.ports import (
     ClipDownloader,
@@ -3684,23 +3852,30 @@ class FootageBuilder:
     ) -> tuple[dict[str, list[tuple[str, DiscoveredVideo]]], bool]:
         async def platform(name: str) -> dict[str, list[DiscoveredVideo]] | None:
             found: dict[str, list[DiscoveredVideo]] = {}
+            missing: list[str] = []
             for obj in objects:
                 cached = await asyncio.to_thread(self._store.cached_search, name, obj.query)
                 if cached is None:
-                    try:
-                        cached = await self._ports.search.search(
-                            name, obj.query, RESULTS_PER_QUERY
-                        )
-                    except ToolMissing:
-                        raise
-                    except ValueError:  # a query KeywordDiscovery refuses
-                        logger.warning("footage query refused platform=%s", name)
-                        continue
-                    except Exception:
-                        logger.warning("footage search failed platform=%s", name)
-                        return None
-                    await asyncio.to_thread(self._store.save_search, name, obj.query, cached)
-                found[obj.query] = list(cached)
+                    missing.append(obj.query)
+                else:
+                    found[obj.query] = list(cached)
+            if not missing:
+                return found
+            # One call per platform: X serves every query from one lease (option A).
+            try:
+                batch = await self._ports.search.search(name, missing, RESULTS_PER_QUERY)
+            except ToolMissing:
+                raise
+            except Exception:
+                logger.warning("footage search failed platform=%s", name)
+                batch = SearchBatch(found={}, failed=True)
+            for query, videos in batch.found.items():
+                await asyncio.to_thread(self._store.save_search, name, query, videos)
+                found[query] = list(videos)
+            if batch.failed and not found:
+                return None
+            if batch.failed:
+                logger.warning("footage search partial platform=%s", name)
             return found
 
         results = await asyncio.gather(*(platform(name) for name in SEARCH_PLATFORMS))
