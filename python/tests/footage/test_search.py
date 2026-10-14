@@ -7,15 +7,17 @@ from typing import Any
 import pytest
 
 from thoth_control_plane.acquisition.models import (
+    AcquisitionReason,
     DiscoveredVideo,
     DiscoveryDrops,
     DiscoveryReason,
     DiscoveryResult,
     KeywordDiscovery,
 )
+from thoth_control_plane.acquisition.youtube_service import YtDlpError
 from thoth_control_plane.attribution.adapters.discovery import ProfileDiscoverer
 from thoth_control_plane.footage.adapters.search import PlatformSearch
-from thoth_control_plane.footage.adapters.x_search import XSearchDiscovery, parse_search
+from thoth_control_plane.footage.adapters.x_search import XSearchDiscovery, _answer, parse_search
 from thoth_control_plane.footage.adapters.youtube import YouTubeSearchDiscovery
 
 
@@ -359,3 +361,74 @@ def test_keyword_discovery_refuses_control_characters() -> None:
     # Task 8 relies on this: a query KeywordDiscovery refuses is skipped, not sent.
     with pytest.raises(ValueError):
         KeywordDiscovery(query="\x00", limit=8)
+
+
+class _FailingYtClient(_YtClient):
+    def __init__(self, failing: set[int] | None = None, reason: AcquisitionReason | None = None):
+        super().__init__()
+        self._failing = failing
+        self._reason = reason or AcquisitionReason.REQUEST_INCOMPLETE
+
+    async def extract(self, url: str, *, comments: bool) -> dict[str, Any]:
+        index = len(self.extracted)
+        if self._failing is None or index in self._failing:
+            self.extracted.append(url)
+            raise YtDlpError(self._reason)
+        return await super().extract(url, comments=comments)
+
+
+async def _no_sleep(seconds: float) -> None:
+    return None
+
+
+async def test_one_bad_video_does_not_stop_or_block_a_youtube_search() -> None:
+    client = _FailingYtClient({0})
+    result = await YouTubeSearchDiscovery(client, sleep=_no_sleep).discover(  # type: ignore[arg-type]
+        KeywordDiscovery(query="banjir kemang", limit=8)
+    )
+    assert len(client.extracted) == 5 and len(result.videos) == 4
+    assert result.reason is None and result.drops.invalid == 1
+
+
+async def test_a_youtube_search_where_every_detail_fails_reports_the_reason() -> None:
+    client = _FailingYtClient(None, AcquisitionReason.REQUEST_BLOCKED)
+    result = await YouTubeSearchDiscovery(client, sleep=_no_sleep).discover(  # type: ignore[arg-type]
+        KeywordDiscovery(query="banjir kemang", limit=8)
+    )
+    assert result.videos == [] and result.reason is DiscoveryReason.BLOCKED
+
+
+def test_a_capture_with_an_unknown_status_is_not_a_refusal() -> None:
+    class Odd:
+        status = None
+
+        def json(self) -> dict[str, Any]:
+            return {}
+
+    result = _answer(_Response([Odd()]), 8)
+    assert result.reason is DiscoveryReason.NO_DATA
+
+
+async def test_a_fetch_that_times_out_keeps_the_earlier_answer() -> None:
+    sessions: list[_Session] = []
+
+    class Timing(_Session):
+        async def fetch(self, url: str, **kwargs: object) -> _Response:
+            if self._seen:
+                self._seen.append(url)
+                raise TimeoutError
+            return await super().fetch(url, **kwargs)
+
+    def factory(**kwargs: Any) -> _Session:
+        session = Timing([[_Entry(_timeline(_tweet("1000000001")))]], [])
+        sessions.append(session)
+        return session
+
+    async def sleep(seconds: float) -> None:
+        return None
+
+    batch = await XSearchDiscovery(factory, sleep=sleep, pause=lambda: 1.0).search_many(
+        ["a", "b"], 8
+    )
+    assert [v.post_id for v in batch.found["a"]] == ["1000000001"]
+    assert batch.unavailable and not batch.refused and sessions[0].closed

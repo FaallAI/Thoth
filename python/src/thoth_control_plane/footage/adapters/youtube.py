@@ -47,15 +47,17 @@ class YouTubeSearchDiscovery:
             return _empty("keyword", DiscoveryReason.NO_DATA)
         videos: list[DiscoveredVideo] = []
         invalid = 0
-        stopped: DiscoveryReason | None = None
+        last_error: YtDlpError | None = None
         for index, video_id in enumerate(candidates):
             if index:
                 await self._sleep(DETAIL_SPACING_SECONDS)
             try:
                 info = await self._client.extract(video_url(video_id), comments=False)
             except YtDlpError as error:
-                stopped = _reason(error)
-                break
+                # One private or age-gated video says nothing about the search itself.
+                last_error = error
+                invalid += 1
+                continue
             video = _video(info, video_id)
             if video is None:
                 invalid += 1
@@ -67,5 +69,5 @@ class YouTubeSearchDiscovery:
             pages=1,
             exhausted=False,
             drops=DiscoveryDrops(invalid=invalid),
-            reason=stopped,
+            reason=_reason(last_error) if last_error is not None and not videos else None,
         )

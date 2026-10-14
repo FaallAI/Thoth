@@ -150,7 +150,9 @@ def _answer(response: Any, limit: int) -> DiscoveryResult:
     refused = False
     for entry in captured:
         status = getattr(entry, "status", None)
-        if not isinstance(status, int) or status >= 400:
+        if not isinstance(status, int):
+            continue  # an unknown shape is neither a refusal nor an answer (ruling P3)
+        if status >= 400:
             refused = True
             continue
         try:
