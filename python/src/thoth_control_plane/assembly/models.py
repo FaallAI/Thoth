@@ -23,6 +23,8 @@ from thoth_control_plane.domain.models import Checksum, OpaqueId, StrictModel
 
 MAX_COMMENTS = 12
 MAX_FIGURES = 5
+MAX_FOOTAGE = 6
+FootageStatus = Literal["ok", "none", "disabled", "unavailable"]
 OCR_ANALYZER_VERSION = "subtitle-classifier-v1"
 EDGE = 1e-9  # envelope clamping can land a hair past 1.0
 Platform = Literal["tiktok", "threads", "instagram", "x", "youtube"]
@@ -140,6 +142,34 @@ class Figure(StrictModel):
     description: Annotated[str, Field(max_length=300)] = ""
 
 
+class Footage(StrictModel):
+    """One b-roll clip (spec 2026-10-14, section 6): a window file and its checks."""
+
+    source: Literal["search", "carousel"]
+    url: HttpUrl
+    platform: Literal["tiktok", "youtube", "x", "instagram"]
+    owner_handle: TikTokHandle
+    published_at: PublishedAt | None = None
+    engagement: dict[str, Annotated[int, Field(ge=0)]] = Field(default_factory=dict)
+    query: Annotated[str, Field(min_length=1, max_length=100)]
+    visual: Annotated[str, Field(max_length=300)] = ""
+    caption: Annotated[str, Field(max_length=2_000)] = ""
+    description: Annotated[str, Field(max_length=300)] = ""
+    video: MediaRef
+    clip_start: Seconds = 0.0
+    ocr: MainOcr
+    story_score: Fraction
+    shows_object: Literal["yes", "partly"]
+
+    @model_validator(mode="after")
+    def renderable(self) -> Footage:
+        if self.video.media_type != "video/mp4":
+            raise ValueError("footage must be video/mp4")
+        if self.ocr.outcome == "subtitle":
+            raise ValueError("the renderer refuses subtitle-classified footage")
+        return self
+
+
 class ContentSet(StrictModel):
     schema_version: Literal[1] = 1
     workflow_id: OpaqueId
@@ -148,11 +178,16 @@ class ContentSet(StrictModel):
     comments: list[Comment] = Field(default_factory=list, max_length=MAX_COMMENTS)
     figures: list[Figure] = Field(default_factory=list, max_length=MAX_FIGURES)
     figures_status: Literal["ok", "none", "unavailable"]
-    # Always empty in 5a; 5b defines footage items.
-    footage: tuple[()] = ()
+    footage: list[Footage] = Field(default_factory=list, max_length=MAX_FOOTAGE)
+    footage_status: FootageStatus = "disabled"
 
     @model_validator(mode="after")
-    def figures_match_status(self) -> ContentSet:
+    def consistent(self) -> ContentSet:
         if (self.figures_status == "ok") != bool(self.figures):
             raise ValueError("figures_status is ok exactly when figures are present")
+        if (self.footage_status == "ok") != bool(self.footage):
+            raise ValueError("footage_status is ok exactly when footage is present")
+        urls = [str(item.url) for item in self.footage]
+        if len(set(urls)) != len(urls) or str(self.main.url) in urls:
+            raise ValueError("footage URLs are unique and never the main's")
         return self
