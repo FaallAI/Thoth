@@ -1159,3 +1159,17 @@ def test_dockerfile_pins_camoufox_and_proves_it_launches() -> None:
     assert "python -m playwright install-deps firefox" in dockerfile
     assert "python -m camoufox set official/stable/156.0.1-beta.36" in dockerfile
     assert "Camoufox(headless=True)" in dockerfile
+
+
+def test_image_jobs_free_runner_disk_before_docker() -> None:
+    # CI run 38526701258: the publish runner ran out of disk once the image carried
+    # Camoufox's browser (about 2.4 GB unpacked).
+    workflow = _repo_text(".github/workflows/container-image.yml")
+    for job, docker_step in (
+        ("validate-image", "name: Set up Docker Buildx"),
+        ("publish-image", "name: Set up Docker Buildx"),
+        ("stack-smoke", "name: Log in to GHCR"),
+    ):
+        section = workflow.split(f"\n  {job}:", 1)[1].split("\n  stack-smoke:", 1)[0]
+        assert "name: Free runner disk" in section, job
+        assert section.index("name: Free runner disk") < section.index(docker_step), job
