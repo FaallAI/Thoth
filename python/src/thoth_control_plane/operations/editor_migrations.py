@@ -65,7 +65,8 @@ def apply_editor_migrations(database_url: str, migrations_root: Path) -> int:
 def _legacy_revision(tables: set[str], chain: list[str]) -> str | None:
     """Return the last revision a pre-Alembic schema already holds, or None when empty."""
 
-    applied = [revision for revision in chain if _LEGACY_MARKERS[revision] in tables]
+    # Revisions after the Alembic adoption have no marker: no pre-Alembic schema holds them.
+    applied = [revision for revision in chain if _LEGACY_MARKERS.get(revision) in tables]
     if applied != chain[: len(applied)]:
         raise RuntimeError("editor schema is not a prefix of the migration chain")
     return applied[-1] if applied else None

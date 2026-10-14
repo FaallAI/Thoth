@@ -432,3 +432,18 @@ def test_source_account_safety_adds_budget_engine_profile_fields() -> None:
     assert "GREATEST(min_spacing_seconds, 600)" in sql
     for clear in ("fingerprint_json", "user_agent", "cookie_value"):
         assert clear not in sql.lower()
+
+
+def test_a_fresh_database_adopts_no_legacy_revision_across_the_whole_chain() -> None:
+    # CI run 38528116831: a fresh database (no Alembic version) crashed on 0009 with KeyError,
+    # since only the pre-Alembic revisions have a marker table.
+    from thoth_control_plane.operations.editor_migrations import _legacy_revision
+
+    config = Config()
+    config.set_main_option("script_location", str(MIGRATIONS / "alembic"))
+    chain = [
+        r.revision for r in reversed(list(ScriptDirectory.from_config(config).walk_revisions()))
+    ]
+
+    assert _legacy_revision(set(), chain) is None
+    assert _legacy_revision({"edit_document_revisions"}, chain) == "0001"
