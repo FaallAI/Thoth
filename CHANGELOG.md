@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-14 - Layer-reorder image deployed on `5a1d3376`; accounts on Indonesian mobile proxies
+
+- With operator authorization: the image built from `05e7ec7` (layer reorder `278a7da`), digest
+  `sha256:5a1d3376b432ba10dec03b12b2a6674d4e855790f5e2b30ac0bbead30de4b5b1`, deployed. Preflight
+  passed, `config --quiet` passed, `editor migrate` printed `0`, and `up -d --wait` brought every
+  service healthy. `api`, `worker`, and `legacy-cdp` run `5a1d3376` at revision `05e7ec7`, user
+  `10001:10001`, 0 restarts; `/healthz` and `/readyz` 200; `account-profiles` keeps mode 700.
+- The operator first pinned the tag `sha-05e7ec7...`. Two CI runs (branch and `master`) pushed that
+  commit, so the tag ended on a different build (`e01f9f21`) and the deploy began a full pull; it
+  was stopped at preflight, before any change, and the operator pinned the digest. Pin by digest.
+- Proxy check (ip-api.com, one line at a time): all eight imported proxies exit through
+  DigitalOcean (AS14061) datacenters, and #5, used by TikTok, is flagged as a proxy. The operator
+  bought DataImpulse mobile proxies targeted at Indonesia. Their gateway port rotates the exit on
+  every request, so each account gets its own sticky port: Instagram 10000, TikTok 10001, X 10002,
+  Threads 10003, YouTube 10004. The exits are Indosat mobile, not flagged; every account's
+  timezone is now `Asia/Jakarta`, locale `id-ID`, fingerprints kept (same device, new network).
+  All five session checks: `valid`.
+
+**Next steps**
+- Next stage: Stage 5b footage.
+- Operator decisions: remove the unused DigitalOcean proxies; watch DataImpulse traffic for the
+  first days (it bills per GB, and Instagram leases load full pages in Camoufox).
+- Follow-ups: the venv `chown` in the Camoufox layer copies the whole venv into that layer;
+  Patchright's `HeadlessChrome` worker user agent; `instagram_deWlWJmyKxP` and the discussion
+  threshold; TikTok and X warning patterns; Camoufox for acquisition's card crops.
+
 ## 2026-10-14 - Source account safety deployed on `a76268f1`; minor fixes
 
 - With operator authorization: master pushed through `e80e4a0`. Two CI failures were fixed on
