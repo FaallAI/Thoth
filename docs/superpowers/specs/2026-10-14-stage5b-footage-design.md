@@ -152,7 +152,11 @@ Results are cached in `footage_searches` for 24 hours, keyed by platform and nor
 (lowercased, whitespace collapsed). A cached entry is used without touching the platform.
 
 A platform that fails (captcha, cooldown, exhausted budget, no account, timeout) contributes no
-candidates; one warning with the platform and a reason enum. All platforms failing:
+candidates; one warning with the platform and a reason enum. A search that simply finds nothing is an
+answer, not a failure, and never cools the leased account down: only a refusal (HTTP 400 or
+above, or a GraphQL error body) reports `blocked`, which cools the account for 15 min, 1 h, 6 h,
+then 24 h for every job on that platform; an empty timeline or no captured response reports no
+outcome. All platforms failing:
 `footage_status = "unavailable"`.
 
 ### F5 Text gates

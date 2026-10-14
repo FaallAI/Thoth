@@ -58,9 +58,10 @@ amendment). Research: `docs/research/2026-10-14-stage5b-footage-research.md` (se
    the others still search (Task 8, `test_an_invalid_query_is_skipped`).
 4. **A main without a video (images or a card)** — the duplicate check runs without main hashes
    instead of failing (Task 8, `test_a_main_without_video_still_gets_footage`).
-5. **X answering with no `SearchTimeline` response (logged out, rate limit)** — X contributes
-   nothing, TikTok and YouTube still do, and the lease reports `blocked`
-   (Task 6, `test_x_search_without_a_captured_response_is_no_data`).
+5. **An X search that simply finds nothing** — the X account must stay healthy: `blocked`
+   cools an account down for 15 min, then 1 h, 6 h, 24 h, for every X job. Only a refusal (HTTP
+   400 or above, or a GraphQL error body) reports `blocked`; an empty timeline or no captured
+   response reports no outcome (Task 6, `test_only_a_refusal_cools_the_x_account_down`).
 
 ---
 
@@ -1913,7 +1914,7 @@ from thoth_control_plane.acquisition.models import (
     DiscoveryResult,
     KeywordDiscovery,
 )
-from thoth_control_plane.attribution.adapters.discovery import ProfileDiscoverer
+from thoth_control_plane.attribution.adapters.discovery import DiscoveryBlocked, ProfileDiscoverer
 from thoth_control_plane.footage.adapters.search import PlatformSearch
 from thoth_control_plane.footage.adapters.x_search import XSearchDiscovery, parse_search
 from thoth_control_plane.footage.adapters.youtube import YouTubeSearchDiscovery
@@ -1977,13 +1978,14 @@ def test_parse_search_keeps_video_tweets_in_order() -> None:
     assert result.drops == DiscoveryDrops(photo_posts=1, invalid=1)
 
 
-def test_parse_search_without_tweets_is_no_data() -> None:
-    assert parse_search([], limit=8).reason is DiscoveryReason.NO_DATA
+def test_an_empty_timeline_is_an_answer_not_a_failure() -> None:
+    result = parse_search([_timeline()], limit=8)
+    assert result.videos == [] and result.reason is None and result.exhausted
 
 
 class _Entry:
-    def __init__(self, body: dict[str, Any]) -> None:
-        self.status = 200
+    def __init__(self, body: dict[str, Any], status: int = 200) -> None:
+        self.status = status
         self._body = body
 
     def json(self) -> dict[str, Any]:
@@ -2033,6 +2035,23 @@ async def test_x_search_without_a_captured_response_is_no_data() -> None:
     assert result.videos == [] and result.reason is DiscoveryReason.NO_DATA
 
 
+@pytest.mark.parametrize(
+    "entry", [_Entry({}, status=429), _Entry({"errors": [{"code": 88, "message": "Rate limit"}]})]
+)
+async def test_x_refusing_the_search_is_blocked(entry: _Entry) -> None:
+    result = await XSearchDiscovery(lambda **kwargs: _Session([entry], [])).discover(
+        KeywordDiscovery(query="banjir", limit=8)
+    )
+    assert result.videos == [] and result.reason is DiscoveryReason.BLOCKED
+
+
+async def test_an_empty_captured_timeline_is_an_empty_answer() -> None:
+    result = await XSearchDiscovery(lambda **kwargs: _Session([_Entry(_timeline())], [])).discover(
+        KeywordDiscovery(query="topik sepi", limit=8)
+    )
+    assert result.videos == [] and result.reason is None
+
+
 class _YtClient:
     def __init__(self) -> None:
         self.extracted: list[str] = []
@@ -2079,6 +2098,51 @@ class _Leases:
 
     async def release(self, lease: object, outcome: object) -> None:
         return None
+
+
+class _Lease:
+    account_id = "account-1"
+    access = None
+    leased_until = None
+
+
+class _RecordingLeases(_Leases):
+    def __init__(self) -> None:
+        super().__init__("anonymous")
+        self.outcomes: list[object] = []
+
+    async def lease(self, platform: str) -> _Lease:  # type: ignore[override]
+        self.leased.append(platform)
+        return _Lease()
+
+    async def release(self, lease: object, outcome: object) -> None:
+        self.outcomes.append(outcome)
+
+
+@pytest.mark.parametrize(
+    ("reason", "outcome"),
+    [(None, None), (DiscoveryReason.NO_DATA, None), (DiscoveryReason.BLOCKED, "blocked")],
+)
+async def test_only_a_refusal_cools_the_x_account_down(
+    reason: DiscoveryReason | None, outcome: str | None
+) -> None:
+    class Discovery:
+        async def discover(self, request: KeywordDiscovery) -> DiscoveryResult:
+            return DiscoveryResult(
+                kind="keyword", videos=[], pages=1, exhausted=True, drops=DiscoveryDrops(),
+                reason=reason,
+            )
+
+    leases = _RecordingLeases()
+    search = PlatformSearch(
+        ProfileDiscoverer({"x": lambda access, scratch: Discovery()}, leases=leases)  # type: ignore[arg-type]
+    )
+    if reason is DiscoveryReason.BLOCKED:
+        with pytest.raises(DiscoveryBlocked):
+            await search.search("x", "banjir", 8)
+    else:
+        assert await search.search("x", "banjir", 8) == []
+    assert leases.leased == ["x"] and leases.outcomes == [outcome]
 
 
 async def test_x_search_always_asks_for_an_account() -> None:
@@ -2159,8 +2223,8 @@ Replace `ProfileDiscoverer.discover` and `_run` with:
                 outcome = "success"
             elif result.reason in CHALLENGE_REASONS:
                 outcome = "challenge"
-            elif result.reason in RETRY_REASONS or result.reason is DiscoveryReason.NO_DATA:
-                outcome = "blocked" if require_account else None
+            elif result.reason in RETRY_REASONS:
+                outcome = "blocked"
         except ToolMissing:
             raise
         except Exception:
@@ -2187,9 +2251,10 @@ Replace `ProfileDiscoverer.discover` and `_run` with:
             return await discovery.discover(request)
 ```
 
-Keep the original `outcome` rule for the profile path: only add the `NO_DATA` branch through
-`require_account` as written (a profile listing with no data keeps `outcome = None`). Import
-`KeywordDiscovery` from `acquisition.models`.
+The outcome rule is exactly today's: videos report `success`; a captcha or challenge reports
+`challenge`; a block reports `blocked`; anything else (an empty listing, `NO_DATA`, a timeout)
+reports no outcome, so the account's health is untouched. An empty search is an answer, not a
+refusal (ruling P3). Import `KeywordDiscovery` from `acquisition.models`.
 
 Run: `cd python && uv run pytest tests/attribution -q` — Expected: PASS (behavior unchanged for
 profiles).
@@ -2375,9 +2440,9 @@ def _video(tweet: dict[str, Any], owner: str, media: dict[str, Any]) -> Discover
 
 
 def parse_search(roots: Iterable[object], limit: int) -> DiscoveryResult:
+    """X's answer to one search. Zero tweets is a valid empty answer, never a failure: an empty
+    search must not cool the account down (ruling P3)."""
     tweets = page_tweets(roots)
-    if not tweets:
-        return _empty("keyword", DiscoveryReason.NO_DATA)
     videos: list[DiscoveredVideo] = []
     photo_posts = invalid = 0
     for tweet in tweets:
@@ -2400,7 +2465,7 @@ def parse_search(roots: Iterable[object], limit: int) -> DiscoveryResult:
         kind="keyword",
         videos=videos[:limit],
         pages=1,
-        exhausted=False,
+        exhausted=not tweets,
         drops=DiscoveryDrops(photo_posts=photo_posts, invalid=invalid),
     )
 
@@ -2429,12 +2494,31 @@ class XSearchDiscovery:
                 pass
             finally:
                 _decrement_active_sessions()
+        captured = getattr(response, "captured_xhr", None) or []
+        if not captured:
+            # No SearchTimeline at all (a slow load, a changed page, a logged-out session):
+            # unknown, so the account's health is left alone.
+            return _empty("keyword", DiscoveryReason.NO_DATA)
         roots: list[object] = []
-        for entry in getattr(response, "captured_xhr", None) or []:
+        refused = False
+        for entry in captured:
+            status = getattr(entry, "status", None)
+            if not isinstance(status, int) or status >= 400:
+                refused = True
+                continue
             try:
-                roots.append(entry.json())
+                body = entry.json()
             except Exception:
                 continue
+            if isinstance(body, dict) and body.get("errors") and not body.get("data"):
+                refused = True  # GraphQL refusals (a rate limit) arrive with HTTP 200
+                continue
+            roots.append(body)
+        if not roots:
+            # X answered and refused: a block, which cools the account down.
+            return _empty(
+                "keyword", DiscoveryReason.BLOCKED if refused else DiscoveryReason.NO_DATA
+            )
         return parse_search(roots, request.limit)
 ```
 
