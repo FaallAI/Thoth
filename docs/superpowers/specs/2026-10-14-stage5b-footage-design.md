@@ -6,6 +6,24 @@ awaits the operator's review.
 Research: `docs/research/2026-10-14-stage5b-footage-research.md` (tools, optimizations, and the
 revised frame checks in its section 9).
 
+Amendment (2026-10-14, while planning; reading the code showed simpler paths):
+
+1. **Frames come from a downloaded window, not stream seeks.** The 5a OCR (`analyze_main_ocr`)
+   and the frame sampler read a local file. Each candidate that passed F5 is downloaded as a
+   window of at most 20 seconds (the whole clip when it is 30 seconds or shorter), and F7 runs on
+   that file unchanged. The window starts at 10% of the clip (at least 3 s, so a cover intro is
+   skipped), or at 0 when the duration is unknown, which then takes 30 seconds. A rejected
+   window is deleted. F8 therefore precedes F7, the stored OCR describes the window file, and
+   `clip_start` is where the window begins in the source. Cost: a few MB per checked candidate,
+   downloaded directly, never through an account proxy.
+2. **No fastembed.** `onnxruntime` and `tokenizers` are already installed; the embedder loads
+   the official ONNX export of `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`
+   (revision `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`, `onnx/model_quint8_avx2.onnx`, 118 MB,
+   with `tokenizer.json`) and mean-pools, as the model's pooling config says. Both files are
+   pinned by SHA-256 in `docker/fetch_speech_models.py`. No new Python dependency.
+3. **No person query.** Scout added one query with a known person; queries here are the (at most
+   four) objects only, each composed with the primary subject.
+
 ## 1. Goal
 
 Add footage (cutaway b-roll) to the Content Set without Scout: up to six short video clips that
@@ -64,9 +82,9 @@ footage/
   adapters/
     tiktok.py       wraps acquisition/discovery.py keyword discovery
     youtube.py      yt-dlp ytsearch
-    x_search.py     signed-in search page, video filter (x_discovery.py pattern)
+    x_search.py     signed-in browser, captured SearchTimeline (TikTok discovery pattern)
     vision.py       footage prompt through the Stage 4 vision reader
-    embedder.py     fastembed, paraphrase-multilingual-MiniLM-L12-v2
+    embedder.py     onnxruntime + tokenizers, paraphrase-multilingual-MiniLM-L12-v2
     downloader.py   yt-dlp with --download-sections
 infrastructure/
   footage_models.py ORM rows
@@ -128,7 +146,7 @@ Platforms run concurrently; queries within one platform run in order. Each query
 |---|---|---|
 | TikTok | the platform's policy (anonymous first, a lease when thin) | `discovery.py`, `kind="keyword"` |
 | YouTube | anonymous, no proxy | `yt-dlp` `ytsearch8:<query>`, flat extraction |
-| X | a signed-in lease with its proxy, spacing, and budget | `x.com/search?q=<query>&f=video`, list responses read in page |
+| X | a signed-in lease with its proxy, spacing, and budget | `x.com/search?q=<query>&f=video&src=typed_query` in a signed-in browser; the page's own `SearchTimeline` response is captured and its GraphQL `legacy` fields parsed (verified live 2026-10-15, research section 10) |
 
 Results are cached in `footage_searches` for 24 hours, keyed by platform and normalized query
 (lowercased, whitespace collapsed). A cached entry is used without touching the platform.
@@ -305,7 +323,7 @@ output.
 | `THOTH_FOOTAGE_ENABLED` | `false` | off: the stage is skipped, `footage_status = "disabled"` |
 | `THOTH_FOOTAGE_QUERY_MODEL` | `deepseek/deepseek-v4-flash-0731` | F3 |
 | `THOTH_FOOTAGE_STORY_MIN` | `0.33` | F5 step 7, calibrated |
-| `THOTH_EMBEDDING_MODEL_DIR` | `/opt/thoth/models/embedding` | fastembed cache, baked in the image |
+| `THOTH_EMBEDDING_MODEL_DIR` | `/opt/thoth/models/embedding` | ONNX model and tokenizer, baked in the image |
 
 The vision model is `THOTH_SOURCE_VISION_MODEL`; the key is `THOTH_OPENROUTER_API_KEY`.
 
