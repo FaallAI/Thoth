@@ -177,3 +177,44 @@ Ranked by value for the effort.
 3. Visual gates: CLIP relevance and talking-head detection as hard gates, or scores only.
 4. Download policy: windowed downloads, and whether media downloads bypass the account proxies.
 5. Query source until Stage 6 exists: the LLM extraction only.
+
+## 9. Addendum: frame checks, revised (2026-10-14)
+
+The operator asked for a closer look at the CLIP and face-detection gates of section 6.2. The
+result changes the recommendation.
+
+**CLIP has no usable absolute threshold.** Its cosine scores depend on the model's training
+temperature; a "relevant" score for one object is an "irrelevant" score for another. It can only
+rank candidates against each other, or against hand-written negative prompts. ViT-B/32 also
+knows brands and named entities poorly (about 85% zero-shot on logo crops in published work),
+and its text side is English-only. A hard CLIP gate would need per-object calibration we cannot
+do offline.
+
+**A face detector cannot tell a reaction from valid footage.** A large face across the frames
+is a reaction when a creator talks to the camera, but it is also the footage we want when the
+object is a person (a minister at a press conference, a CEO on stage). Telling the two apart
+needs context the detector does not have.
+
+**Python already has the right classifier.** Stage 4's vision reader
+(`attribution/adapters/vision.py`, `CLASSIFY_PROMPT`) answers "raw footage of an event, or
+commentary (a person talking to the camera, a news anchor, a slideshow, or a reaction)" from
+three frames, and Stage 4 calibrated it on live cases. Its model, `qwen/qwen3-vl-30b-a3b-instruct`
+through OpenRouter, costs $0.15 per million input tokens and $0.60 per million output tokens
+(OpenRouter model list, 2026-10-14): a three-frame call is well under a tenth of a cent, so 30
+candidates per run cost about two cents.
+
+**Revised recommendation.** One structured vision call per candidate that passed the text gates
+and the subtitle OCR, on three frames, answering three things:
+
+- `kind`: `footage` or `commentary` (the Stage 4 classes; commentary is rejected);
+- `shows_object`: whether the frames show the object's visual description (`yes`, `partly`,
+  `no`; `no` is rejected);
+- `description`: one sentence on what the clip shows, written into the footage entry for the
+  renderer's narration placement.
+
+A provider error or timeout drops that candidate (it is optional), never the stage. Calibration
+uses recorded answers on real candidates, replayed offline as golden fixtures, as in 5a.
+
+This drops the CLIP and YuNet models from section 5 (about 0.6 GB less in the image). The local
+multilingual text embedding stays: it runs the story gate on captions before any media is
+touched, which keeps vision calls to the candidates worth looking at.
