@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Final
 
-from sqlalchemy import and_, create_engine, or_, select, true
+from sqlalchemy import and_, create_engine, delete, or_, select, true
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -44,6 +44,8 @@ from thoth_control_plane.infrastructure.source_account_models import (
 )
 
 UNSET: Final = object()
+# Daily usage only gates today's budget; a month stays for the operator to read.
+USAGE_KEPT = timedelta(days=30)
 # A lease skips at most this many undecryptable accounts before giving up for this call.
 MAX_LEASE_ATTEMPTS = 5
 
@@ -155,20 +157,24 @@ class SourceAccountStore:
         platform: Platform,
         mode: Mode,
         min_spacing_seconds: int,
-        daily_budget: int | None = None,
-        engine: str = "patchright",
+        daily_budget: Any = UNSET,
+        engine: Any = UNSET,
     ) -> PolicyView:
-        if engine not in ENGINES:
-            raise ValueError(f"unknown engine {engine!r}")
-        if engine == "camoufox" and platform not in CAMOUFOX_PLATFORMS:
-            raise SourceAccountError("engine_unsupported")
+        """Omit `daily_budget` or `engine` to keep it; `daily_budget=None` is the default."""
         with self._sessions.begin() as session:
             row = session.get(SourceAccountPolicyRow, platform)
             if row is None:
-                row = SourceAccountPolicyRow(platform=platform)
+                row = SourceAccountPolicyRow(platform=platform, engine="patchright")
                 session.add(row)
+            if engine is not UNSET:
+                if engine not in ENGINES:
+                    raise ValueError(f"unknown engine {engine!r}")
+                if engine == "camoufox" and platform not in CAMOUFOX_PLATFORMS:
+                    raise SourceAccountError("engine_unsupported")
+                row.engine = engine
+            if daily_budget is not UNSET:
+                row.daily_budget = daily_budget
             row.mode, row.min_spacing_seconds = mode, min_spacing_seconds
-            row.daily_budget, row.engine = daily_budget, engine
             row.updated_at = self._clock()
         return self._policy_view(platform, row)
 
@@ -351,6 +357,11 @@ class SourceAccountStore:
                     row.status, row.last_outcome, row.updated_at = "expired", "undecryptable", now
                     continue
                 row.leased_until, row.last_used_at = now + LEASE, now
+                session.execute(
+                    delete(SourceAccountUsageRow).where(
+                        SourceAccountUsageRow.day < today - USAGE_KEPT
+                    )
+                )
                 usage = session.get(SourceAccountUsageRow, (row.id, today))
                 if usage is None:
                     session.add(SourceAccountUsageRow(account_id=row.id, day=today, uses=1))

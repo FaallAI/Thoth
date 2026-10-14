@@ -451,3 +451,37 @@ def test_a_stray_camoufox_policy_still_leases_patchright(
     lease = store.lease("tiktok")
 
     assert lease is not None and lease.access.engine == "patchright"
+
+
+def test_a_policy_update_keeps_the_budget_and_engine_it_omits(store: SourceAccountStore) -> None:
+    store.set_policy("instagram", "fallback", 900, daily_budget=5, engine="camoufox")
+
+    view = store.set_policy("instagram", "always", 600)
+
+    assert (view.mode, view.daily_budget, view.engine) == ("always", 5, "camoufox")
+
+
+def test_a_lease_prunes_usage_older_than_a_month(
+    store: SourceAccountStore, engine, clock: Clock
+) -> None:
+    import uuid
+
+    from thoth_control_plane.infrastructure.source_account_models import SourceAccountUsageRow
+
+    account = store.add_account("instagram", "a", _cookies())
+    with Session(engine) as session, session.begin():
+        for days in (31, 30):
+            session.add(
+                SourceAccountUsageRow(
+                    account_id=uuid.UUID(account.id),
+                    day=(NOW - timedelta(days=days)).date(),
+                    uses=3,
+                )
+            )
+    store.set_policy("instagram", "fallback", 0)
+
+    assert store.lease("instagram") is not None
+
+    with Session(engine) as session:
+        days = sorted(row.day for row in session.scalars(select(SourceAccountUsageRow)))
+    assert days == [(NOW - timedelta(days=30)).date(), NOW.date()]
