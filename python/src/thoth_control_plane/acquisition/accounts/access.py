@@ -56,6 +56,8 @@ class SessionAccess:
         }
         if self.proxy:
             kwargs["proxy"] = _browser_proxy(self.proxy)
+            # Chromium's WebRTC otherwise reaches STUN around the proxy with the host's own IP.
+            kwargs["block_webrtc"] = True
         if self.profile_dir is not None:
             kwargs["user_data_dir"] = str(self.profile_dir)
         if self.engine == "camoufox" and self.fingerprint is not None:

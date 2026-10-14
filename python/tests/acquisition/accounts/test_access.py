@@ -88,3 +88,10 @@ def test_only_camoufox_gets_the_fingerprint() -> None:
     assert camoufox.browser_kwargs()["fingerprint"] == firefox
     assert "fingerprint" not in patchright.browser_kwargs()
     assert "Firefox" not in repr(camoufox)
+
+
+def test_a_proxied_browser_never_leaks_the_host_ip_over_webrtc() -> None:
+    # Task 10 live gate 2026-10-14: BrowserScan saw the host's own IP over WebRTC STUN behind
+    # the account's proxy (Patchright); Camoufox already disables WebRTC.
+    assert SessionAccess(COOKIES, "http://10.0.0.1:8080").browser_kwargs()["block_webrtc"]
+    assert "block_webrtc" not in SessionAccess(COOKIES, None).browser_kwargs()
