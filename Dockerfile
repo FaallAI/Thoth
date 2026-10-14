@@ -45,20 +45,12 @@ COPY --chown=thoth:thoth python/pyproject.toml python/uv.lock /opt/thoth/python/
 RUN cd /opt/thoth/python \
     && uv sync --frozen --no-dev --extra acquisition --extra scout-runtime --no-install-project
 
-COPY --chown=thoth:thoth python/src/ /opt/thoth/python/src/
-COPY --chown=thoth:thoth python/migrations/ /opt/thoth/python/migrations/
-RUN cd /opt/thoth/python \
-    && uv sync --frozen --no-dev --extra acquisition --extra scout-runtime
-
+# Heavy, source-independent layers first: a code change reuses them from the build cache.
 # Speech models for Stage 4 reactions, pinned and checksummed; never fetched at run time.
 COPY --chown=thoth:thoth docker/fetch_speech_models.py /opt/thoth/bin/fetch_speech_models.py
 RUN /opt/thoth/python/.venv/bin/python /opt/thoth/bin/fetch_speech_models.py \
         --whisper large-v3-turbo --out /opt/thoth/models \
     && chown -R thoth:thoth /opt/thoth/models
-
-COPY --chown=thoth:thoth scout/package.json scout/bun.lock /opt/thoth/scout/
-RUN bun --cwd=/opt/thoth/scout install --frozen-lockfile --production
-COPY --chown=thoth:thoth scout/ /opt/thoth/scout/
 
 # Camoufox (spec 2026-10-13, 3.4): Firefox's system libraries, then the pinned browser in
 # thoth's cache; `fetch` also installs fpgen's fingerprint model into the venv, so the chown
@@ -68,6 +60,15 @@ RUN /opt/thoth/python/.venv/bin/scrapling install \
     && HOME=/home/thoth /opt/thoth/python/.venv/bin/python -m camoufox set official/stable/156.0.1-beta.36 \
     && HOME=/home/thoth /opt/thoth/python/.venv/bin/python -m camoufox fetch \
     && chown -R thoth:thoth /home/thoth /ms-playwright /opt/thoth/python/.venv
+
+COPY --chown=thoth:thoth python/src/ /opt/thoth/python/src/
+COPY --chown=thoth:thoth python/migrations/ /opt/thoth/python/migrations/
+RUN cd /opt/thoth/python \
+    && uv sync --frozen --no-dev --extra acquisition --extra scout-runtime
+
+COPY --chown=thoth:thoth scout/package.json scout/bun.lock /opt/thoth/scout/
+RUN bun --cwd=/opt/thoth/scout install --frozen-lockfile --production
+COPY --chown=thoth:thoth scout/ /opt/thoth/scout/
 
 RUN /opt/thoth/python/.venv/bin/python -c \
         "import scrapling, thoth_control_plane, cv2, rapidocr, openai, faster_whisper, sherpa_onnx, camoufox" \

@@ -1173,3 +1173,12 @@ def test_image_jobs_free_runner_disk_before_docker() -> None:
         section = workflow.split(f"\n  {job}:", 1)[1].split("\n  stack-smoke:", 1)[0]
         assert "name: Free runner disk" in section, job
         assert section.index("name: Free runner disk") < section.index(docker_step), job
+
+
+def test_heavy_layers_come_before_the_source_so_a_code_change_reuses_them() -> None:
+    # Deploy 2026-10-14: speech models and Camoufox (3.7 GB compressed) were rebuilt after
+    # every source change, so each deploy re-downloaded them.
+    dockerfile = _repo_text("Dockerfile")
+    source = dockerfile.index("COPY --chown=thoth:thoth python/src/")
+    assert dockerfile.index("fetch_speech_models.py \\") < source
+    assert dockerfile.index("python -m camoufox fetch") < source
