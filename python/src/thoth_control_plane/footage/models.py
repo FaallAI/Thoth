@@ -7,6 +7,7 @@ from typing import Annotated, Any, Literal, get_args
 
 from pydantic import Field
 
+from thoth_control_plane.acquisition.models import DiscoveredVideo
 from thoth_control_plane.domain.models import StrictModel
 
 FootagePlatform = Literal["tiktok", "youtube", "x"]
@@ -106,3 +107,12 @@ class FootageResult:
     status: FootageStatus
     admitted: int = 0
     rejected: dict[str, int] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class SearchBatch:
+    """One platform's answers for a run's queries. `found` holds only queries the platform
+    answered (an empty list is an answer); `failed` means it stopped or refused."""
+
+    found: dict[str, list[DiscoveredVideo]]
+    failed: bool
