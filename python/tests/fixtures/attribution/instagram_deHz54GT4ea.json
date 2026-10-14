@@ -1,0 +1,1981 @@
+{
+  "case": "instagram_deHz54GT4ea",
+  "synthetic": false,
+  "captured_at": "2026-10-14T07:04:51Z",
+  "report": {
+    "schema_version": 3,
+    "workflow_id": "wf_golden",
+    "source": {
+      "platform": "instagram",
+      "canonical_url": "https://www.instagram.com/p/DeHz54GT4ea/"
+    },
+    "post": {
+      "post_id": "DeHz54GT4ea",
+      "owner_handle": "sadampermana.w",
+      "text": "AKU AKAN TEMPUH JALUR HUKUM UNTUK STREAMER INI",
+      "published_at": "2026-10-05T18:06:40Z",
+      "engagement": {
+        "like": 94471,
+        "comment": 1703
+      }
+    },
+    "media": [
+      {
+        "media_id": "media_1",
+        "kind": "video",
+        "index": 1,
+        "location": "reports/wf_golden/media/instagram-DeHz54GT4ea-1.mp4",
+        "media_type": "video/mp4",
+        "bytes": 6106792,
+        "checksum": "sha256:4d70c37f52835a0ef4a86286ba971a53121e1e1e8a17cf29dd9e948f22396419",
+        "acquisition_strategy": "scrapling_request",
+        "width": null,
+        "height": null,
+        "duration_seconds": null
+      }
+    ],
+    "outcome": {
+      "status": "resolved",
+      "attempts": [
+        {
+          "strategy": "scrapling_request",
+          "status": "succeeded",
+          "reason": null,
+          "attempt_count": 1,
+          "elapsed_ms": 1376
+        }
+      ]
+    },
+    "comments": [
+      {
+        "comment_id": "18034815680732419",
+        "author": "hereisimah",
+        "text": "langkah yang tepat! 👏",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17983809114094628",
+        "author": "fikricakke",
+        "text": "Streamer rese modelan bigmo gini kaga ada abisnyaaa",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18149994394546533",
+        "author": "____nuurulll",
+        "text": "ga bawa sadam ga makan😹",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18156139738515532",
+        "author": "sweetie.myllpie",
+        "text": "Jangan kasih kendorrrrr🔥🔥🔥",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18093444962175780",
+        "author": "jexx_st",
+        "text": "streamer yg harus disearch lagi",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17973794460148741",
+        "author": "betria_rizqi",
+        "text": "SAY IT LOUDER KAAKKKKK🔥",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17984602314094241",
+        "author": "lindabelin40",
+        "text": "Aku dukung ka 💪🏻💪🏻💪🏻",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17903049867656899",
+        "author": "zhaf.irazafran",
+        "text": "Mabok sama celeng ga sih?",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17872663890602171",
+        "author": "n4th.zikr_",
+        "text": "Duh streamer pansos hadehhh",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17897276472608092",
+        "author": "yo1da",
+        "text": "aku dukung kakaaak",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "18128812306865289",
+        "author": "arpdyo",
+        "text": "Kayanya mereka itu penjilat pki. Karena Saddam selalu bicara fakta",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17981006964004567",
+        "author": "bebynastarsyank",
+        "text": "Semangat ka sadam! aku dukung kakak❤️🙌🔥",
+        "likes": 0,
+        "card": null
+      },
+      {
+        "comment_id": "17971554081170897",
+        "author": "lastry11091",
+        "text": "saya dukung sadam",
+        "likes": 0,
+        "card": null
+      }
+    ],
+    "post_card": null,
+    "profile_card": null
+  },
+  "repost_frames": "instagram-DeHz54GT4ea-1",
+  "frames": {
+    "instagram-DeHz54GT4ea-1": [
+      {
+        "second": 0.0,
+        "boxes": [
+          [
+            "Manics 1 - 0 Sadam",
+            0.2078,
+            0.2687
+          ],
+          [
+            "bagaimana cara",
+            0.6234,
+            0.6406
+          ],
+          [
+            "MANICSN",
+            0.7031,
+            0.7391
+          ],
+          [
+            "TikTok",
+            0.7984,
+            0.8266
+          ],
+          [
+            "@ manicsofficials",
+            0.825,
+            0.8453
+          ]
+        ]
+      },
+      {
+        "second": 1.0,
+        "boxes": [
+          [
+            "Manics 1 - 0 Sadam",
+            0.2078,
+            0.2687
+          ],
+          [
+            "bagaimana cara",
+            0.6234,
+            0.6406
+          ],
+          [
+            "MANICSN",
+            0.7031,
+            0.7391
+          ],
+          [
+            "TikTok",
+            0.7984,
+            0.8266
+          ],
+          [
+            "@ manicsofficials",
+            0.825,
+            0.8453
+          ]
+        ]
+      },
+      {
+        "second": 2.0,
+        "boxes": [
+          [
+            "Manics 1 - 0 Sadam",
+            0.2078,
+            0.2687
+          ],
+          [
+            "bagaimana cara",
+            0.6234,
+            0.6406
+          ],
+          [
+            "MANICSN",
+            0.7031,
+            0.7391
+          ],
+          [
+            "TikTok",
+            0.7984,
+            0.8266
+          ],
+          [
+            "@ manicsofficials",
+            0.825,
+            0.8453
+          ]
+        ]
+      },
+      {
+        "second": 3.0,
+        "boxes": [
+          [
+            "Sadam masih perjaka?",
+            0.1141,
+            0.1844
+          ],
+          [
+            "ciki",
+            0.2141,
+            0.2406
+          ],
+          [
+            "ci",
+            0.2391,
+            0.2672
+          ],
+          [
+            "att",
+            0.2672,
+            0.2938
+          ],
+          [
+            "reno baru saja memberikan Rp5.000",
+            0.2234,
+            0.2516
+          ],
+          [
+            "berprestasi tapi ga attractive",
+            0.2812,
+            0.3047
+          ],
+          [
+            "sadam selalu ditolak cewek nic.",
+            0.2531,
+            0.2766
+          ],
+          [
+            "TikTok",
+            0.4609,
+            0.4984
+          ],
+          [
+            "@mejapsa",
+            0.5062,
+            0.5281
+          ],
+          [
+            "NICS",
+            0.7422,
+            0.7984
+          ]
+        ]
+      },
+      {
+        "second": 4.0,
+        "boxes": [
+          [
+            "Sadam masih perjaka?",
+            0.1141,
+            0.1844
+          ],
+          [
+            "ciki",
+            0.2141,
+            0.2406
+          ],
+          [
+            "c",
+            0.2359,
+            0.2687
+          ],
+          [
+            "reno baru saja memberikan Rp5.000",
+            0.2234,
+            0.2516
+          ],
+          [
+            "att",
+            0.2656,
+            0.2938
+          ],
+          [
+            "sadam selalu ditolak cewek nic.",
+            0.2531,
+            0.2766
+          ],
+          [
+            "berprestasi tapi ga attractive",
+            0.2812,
+            0.3063
+          ],
+          [
+            "DTkioKk",
+            0.4469,
+            0.5047
+          ],
+          [
+            "@mejapsa",
+            0.5062,
+            0.5281
+          ],
+          [
+            "NICS",
+            0.7422,
+            0.7984
+          ]
+        ]
+      },
+      {
+        "second": 5.0,
+        "boxes": [
+          [
+            "Sadam masih perjaka?",
+            0.1141,
+            0.1844
+          ],
+          [
+            "ciki",
+            0.2141,
+            0.2406
+          ],
+          [
+            "ci",
+            0.2391,
+            0.2672
+          ],
+          [
+            "att",
+            0.2656,
+            0.2938
+          ],
+          [
+            "reno baru saja memberikan Rp5.000",
+            0.2234,
+            0.2516
+          ],
+          [
+            "sadam selalu ditolak cewek nic.",
+            0.2531,
+            0.2766
+          ],
+          [
+            "berprestasi tapi ga attractive",
+            0.2812,
+            0.3063
+          ],
+          [
+            "TikTok",
+            0.4594,
+            0.4984
+          ],
+          [
+            "@mejapsa",
+            0.5062,
+            0.5297
+          ],
+          [
+            "NICS",
+            0.7422,
+            0.7984
+          ]
+        ]
+      },
+      {
+        "second": 6.0,
+        "boxes": [
+          [
+            "Sadam masih perjaka?",
+            0.1141,
+            0.1844
+          ],
+          [
+            "ciki",
+            0.2141,
+            0.2406
+          ],
+          [
+            "ci",
+            0.2391,
+            0.2672
+          ],
+          [
+            "att",
+            0.2656,
+            0.2953
+          ],
+          [
+            "reno baru saja memberikan Rp5.000",
+            0.2234,
+            0.2516
+          ],
+          [
+            "berprestasi tapi ga attractive",
+            0.2797,
+            0.3047
+          ],
+          [
+            "sadam selalu ditolak cewek nic.",
+            0.2531,
+            0.2766
+          ],
+          [
+            "TikTok",
+            0.4578,
+            0.4984
+          ],
+          [
+            "@mejapsa",
+            0.5062,
+            0.5297
+          ],
+          [
+            "NICS",
+            0.7422,
+            0.7984
+          ]
+        ]
+      },
+      {
+        "second": 7.0,
+        "boxes": [
+          [
+            "Sadam masih perjaka?",
+            0.1141,
+            0.1844
+          ],
+          [
+            "ciki",
+            0.2141,
+            0.2406
+          ],
+          [
+            "c",
+            0.2391,
+            0.2672
+          ],
+          [
+            "att",
+            0.2656,
+            0.2953
+          ],
+          [
+            "reno baru saja memberikan Rp5.000",
+            0.2234,
+            0.2516
+          ],
+          [
+            "sadam selalu ditolak cewek nic.",
+            0.2531,
+            0.2766
+          ],
+          [
+            "berprestasi tapi ga attractive",
+            0.2812,
+            0.3063
+          ],
+          [
+            "TikTok",
+            0.4609,
+            0.4984
+          ],
+          [
+            "@mejapsa",
+            0.5062,
+            0.5281
+          ],
+          [
+            "NICS",
+            0.7422,
+            0.7984
+          ]
+        ]
+      },
+      {
+        "second": 8.0,
+        "boxes": [
+          [
+            "Sadam masih perjaka?",
+            0.1141,
+            0.1844
+          ],
+          [
+            "ciki",
+            0.2141,
+            0.2406
+          ],
+          [
+            "reno baru saja memberikan Rp5.000",
+            0.2234,
+            0.2516
+          ],
+          [
+            "at",
+            0.2672,
+            0.2938
+          ],
+          [
+            "berprestasi tapi ga attractive",
+            0.2812,
+            0.3047
+          ],
+          [
+            "sadam selalu ditolak cewek nic.",
+            0.2531,
+            0.2766
+          ],
+          [
+            "Pikiok",
+            0.6937,
+            0.7391
+          ],
+          [
+            "NICS",
+            0.7453,
+            0.7984
+          ],
+          [
+            "@mejapsa",
+            0.7422,
+            0.7688
+          ]
+        ]
+      },
+      {
+        "second": 9.0,
+        "boxes": [
+          [
+            "17.23 Sun 4 Oct",
+            0.1703,
+            0.1875
+          ],
+          [
+            "phartsssw99",
+            0.2437,
+            0.2547
+          ],
+          [
+            "04758",
+            0.2562,
+            0.2672
+          ],
+          [
+            "a-",
+            0.3219,
+            0.3328
+          ],
+          [
+            "a",
+            0.3828,
+            0.4016
+          ],
+          [
+            "BRO SADAM KETINGGALAN SATU NAMA BTW (MANICS)",
+            0.5719,
+            0.5922
+          ],
+          [
+            "4,918 views 3d ago ...more",
+            0.5938,
+            0.6094
+          ],
+          [
+            "nico chandra 18 3.09k",
+            0.625,
+            0.6438
+          ],
+          [
+            "79",
+            0.6641,
+            0.6828
+          ],
+          [
+            "Share",
+            0.6641,
+            0.6844
+          ],
+          [
+            "J Report",
+            0.6625,
+            0.6844
+          ],
+          [
+            "Comments 11",
+            0.7078,
+            0.7234
+          ],
+          [
+            "se n ns en su eek",
+            0.7344,
+            0.75
+          ]
+        ]
+      },
+      {
+        "second": 10.0,
+        "boxes": [
+          [
+            "17.23 Sun 4 Oct",
+            0.1703,
+            0.1875
+          ],
+          [
+            "1.M1m",
+            0.2594,
+            0.2687
+          ],
+          [
+            "ghatsssi9",
+            0.2422,
+            0.2562
+          ],
+          [
+            "suma4758",
+            0.2562,
+            0.2672
+          ],
+          [
+            "a",
+            0.3828,
+            0.4016
+          ],
+          [
+            "BRO SADAM KETINGGALAN SATU NAMA BTW (MANICS)",
+            0.5719,
+            0.5922
+          ],
+          [
+            "4,918 views 3d ago ...more",
+            0.5938,
+            0.6094
+          ],
+          [
+            "nico chandra 18 3.09k",
+            0.625,
+            0.6438
+          ],
+          [
+            "79",
+            0.6641,
+            0.6828
+          ],
+          [
+            "Share",
+            0.6641,
+            0.6844
+          ],
+          [
+            "J Report",
+            0.6625,
+            0.6844
+          ],
+          [
+            "Comments 11",
+            0.7078,
+            0.7234
+          ],
+          [
+            "semangaat niic gua tau lu baka",
+            0.7344,
+            0.75
+          ]
+        ]
+      },
+      {
+        "second": 11.0,
+        "boxes": [
+          [
+            "17.23 Sun 4 Oct",
+            0.1703,
+            0.1875
+          ],
+          [
+            "SJIYIMAA",
+            0.2031,
+            0.2188
+          ],
+          [
+            "a4758",
+            0.2437,
+            0.2547
+          ],
+          [
+            "m.M1m",
+            0.2594,
+            0.2687
+          ],
+          [
+            "a",
+            0.3828,
+            0.4016
+          ],
+          [
+            "BRO SADAM KETINGGALAN SATU NAMA BTW (MANICS)",
+            0.5719,
+            0.5922
+          ],
+          [
+            "4,918 views 3d ago ...more",
+            0.5938,
+            0.6094
+          ],
+          [
+            "nico chandra 18 3.09k",
+            0.625,
+            0.6438
+          ],
+          [
+            "79",
+            0.6641,
+            0.6828
+          ],
+          [
+            "Share",
+            0.6641,
+            0.6844
+          ],
+          [
+            "7 Report",
+            0.6625,
+            0.6844
+          ],
+          [
+            "Comments 11",
+            0.7078,
+            0.7234
+          ],
+          [
+            "semangaat niic gua tau lu bakal",
+            0.7344,
+            0.75
+          ]
+        ]
+      },
+      {
+        "second": 12.0,
+        "boxes": [
+          [
+            "17.23 Sun 4 Oct",
+            0.1703,
+            0.1875
+          ],
+          [
+            "H08H",
+            0.2734,
+            0.2812
+          ],
+          [
+            "a",
+            0.3828,
+            0.4016
+          ],
+          [
+            "BRO SADAM KETINGGALAN SATU NAMA BTW (MANICS)",
+            0.5719,
+            0.5922
+          ],
+          [
+            "4,918 views 3d ago ...more",
+            0.5938,
+            0.6094
+          ],
+          [
+            "nico chandra 18 3.09k",
+            0.625,
+            0.6438
+          ],
+          [
+            "79",
+            0.6641,
+            0.6828
+          ],
+          [
+            "Share",
+            0.6641,
+            0.6844
+          ],
+          [
+            "Report",
+            0.6656,
+            0.6828
+          ],
+          [
+            "Comments 11",
+            0.7078,
+            0.7234
+          ],
+          [
+            "se i ns en su eeksl",
+            0.7344,
+            0.75
+          ]
+        ]
+      },
+      {
+        "second": 13.0,
+        "boxes": [
+          [
+            "17.23 Sun 4 Oct",
+            0.1703,
+            0.1875
+          ],
+          [
+            "a",
+            0.3828,
+            0.4016
+          ],
+          [
+            "BRO SADAM KETINGGALAN SATU NAMA BTW (MANICS)",
+            0.5719,
+            0.5922
+          ],
+          [
+            "4,918 views 3d ago ...more",
+            0.5938,
+            0.6094
+          ],
+          [
+            "nico chandra 18 3.09k",
+            0.625,
+            0.6438
+          ],
+          [
+            "79",
+            0.6641,
+            0.6828
+          ],
+          [
+            "Share",
+            0.6641,
+            0.6844
+          ],
+          [
+            "Report",
+            0.6656,
+            0.6828
+          ],
+          [
+            "Comments 11",
+            0.7078,
+            0.7234
+          ],
+          [
+            "se i ns en du eekl",
+            0.7344,
+            0.75
+          ]
+        ]
+      },
+      {
+        "second": 14.0,
+        "boxes": [
+          [
+            "C",
+            0.0,
+            0.9734
+          ]
+        ]
+      },
+      {
+        "second": 15.0,
+        "boxes": [
+          [
+            "C",
+            0.0,
+            0.9547
+          ]
+        ]
+      },
+      {
+        "second": 16.0,
+        "boxes": []
+      },
+      {
+        "second": 17.0,
+        "boxes": [
+          [
+            "C",
+            0.0,
+            0.9984
+          ]
+        ]
+      },
+      {
+        "second": 18.0,
+        "boxes": []
+      },
+      {
+        "second": 19.0,
+        "boxes": []
+      },
+      {
+        "second": 20.0,
+        "boxes": [
+          [
+            "e",
+            0.0,
+            0.9984
+          ]
+        ]
+      },
+      {
+        "second": 21.0,
+        "boxes": []
+      },
+      {
+        "second": 22.0,
+        "boxes": []
+      },
+      {
+        "second": 23.0,
+        "boxes": []
+      },
+      {
+        "second": 24.0,
+        "boxes": [
+          [
+            "G",
+            0.0,
+            0.9266
+          ]
+        ]
+      },
+      {
+        "second": 25.0,
+        "boxes": [
+          [
+            "G",
+            0.0,
+            0.9984
+          ]
+        ]
+      },
+      {
+        "second": 26.0,
+        "boxes": [
+          [
+            "G",
+            0.0,
+            0.9812
+          ]
+        ]
+      },
+      {
+        "second": 27.0,
+        "boxes": []
+      },
+      {
+        "second": 28.0,
+        "boxes": []
+      },
+      {
+        "second": 29.0,
+        "boxes": [
+          [
+            "G",
+            0.0,
+            0.9984
+          ]
+        ]
+      },
+      {
+        "second": 30.0,
+        "boxes": [
+          [
+            "U",
+            0.3281,
+            0.7359
+          ]
+        ]
+      },
+      {
+        "second": 31.0,
+        "boxes": [
+          [
+            "C",
+            0.0,
+            0.9984
+          ]
+        ]
+      },
+      {
+        "second": 32.0,
+        "boxes": [
+          [
+            "C",
+            0.0,
+            0.9984
+          ]
+        ]
+      },
+      {
+        "second": 33.0,
+        "boxes": []
+      },
+      {
+        "second": 34.0,
+        "boxes": [
+          [
+            "福",
+            0.2766,
+            0.8141
+          ]
+        ]
+      },
+      {
+        "second": 35.0,
+        "boxes": [
+          [
+            "G",
+            0.0,
+            0.9984
+          ]
+        ]
+      },
+      {
+        "second": 36.0,
+        "boxes": []
+      },
+      {
+        "second": 37.0,
+        "boxes": []
+      },
+      {
+        "second": 38.0,
+        "boxes": []
+      },
+      {
+        "second": 39.0,
+        "boxes": [
+          [
+            "C",
+            0.0,
+            0.9266
+          ]
+        ]
+      },
+      {
+        "second": 40.0,
+        "boxes": []
+      },
+      {
+        "second": 41.0,
+        "boxes": []
+      },
+      {
+        "second": 42.0,
+        "boxes": []
+      },
+      {
+        "second": 43.0,
+        "boxes": [
+          [
+            "O",
+            0.3844,
+            0.7688
+          ]
+        ]
+      },
+      {
+        "second": 44.0,
+        "boxes": [
+          [
+            "C",
+            0.3109,
+            0.8531
+          ]
+        ]
+      },
+      {
+        "second": 45.0,
+        "boxes": []
+      },
+      {
+        "second": 46.0,
+        "boxes": []
+      },
+      {
+        "second": 47.0,
+        "boxes": [
+          [
+            "G",
+            0.0,
+            0.9
+          ]
+        ]
+      },
+      {
+        "second": 48.0,
+        "boxes": []
+      },
+      {
+        "second": 49.0,
+        "boxes": []
+      },
+      {
+        "second": 50.0,
+        "boxes": []
+      },
+      {
+        "second": 51.0,
+        "boxes": []
+      },
+      {
+        "second": 52.0,
+        "boxes": []
+      },
+      {
+        "second": 53.0,
+        "boxes": []
+      },
+      {
+        "second": 54.0,
+        "boxes": [
+          [
+            "C",
+            0.0,
+            0.9688
+          ]
+        ]
+      },
+      {
+        "second": 55.0,
+        "boxes": []
+      },
+      {
+        "second": 56.0,
+        "boxes": []
+      },
+      {
+        "second": 57.0,
+        "boxes": []
+      },
+      {
+        "second": 58.0,
+        "boxes": []
+      },
+      {
+        "second": 59.0,
+        "boxes": []
+      },
+      {
+        "second": 60.0,
+        "boxes": []
+      },
+      {
+        "second": 61.0,
+        "boxes": []
+      },
+      {
+        "second": 62.0,
+        "boxes": []
+      },
+      {
+        "second": 63.0,
+        "boxes": []
+      },
+      {
+        "second": 64.0,
+        "boxes": []
+      },
+      {
+        "second": 65.0,
+        "boxes": []
+      },
+      {
+        "second": 66.0,
+        "boxes": []
+      },
+      {
+        "second": 67.0,
+        "boxes": []
+      },
+      {
+        "second": 68.0,
+        "boxes": [
+          [
+            "小",
+            0.6562,
+            0.9984
+          ]
+        ]
+      },
+      {
+        "second": 69.0,
+        "boxes": [
+          [
+            "C",
+            0.0,
+            0.9984
+          ]
+        ]
+      }
+    ]
+  },
+  "matches": {},
+  "unmatchable": [],
+  "cover": {
+    "headline": "Manics 1 - 0 Sadam",
+    "scene": "A person reacts to a video, showing a split screen with the original video and the reactor, followed by a screenshot of a social media post.",
+    "icon": "TikTok logo in the bottom right corner",
+    "handles": [
+      "@manicsofficials",
+      "@mejapsa",
+      "@sadampemman",
+      "@joymama"
+    ],
+    "reaction_shape": "picture_in_picture",
+    "subject_media": "video",
+    "shows": [
+      "creator",
+      "creator",
+      "creator",
+      "creator",
+      "creator"
+    ]
+  },
+  "classify": {},
+  "decisions": null,
+  "cuts": [
+    2.93333,
+    8.8,
+    13.9
+  ],
+  "transcript": {
+    "language": "id",
+    "segments": [
+      [
+        0.0,
+        2.06,
+        "Sampai ujung-ujungnya ada endorsean"
+      ],
+      [
+        2.06,
+        4.14,
+        "Sadam selalu"
+      ],
+      [
+        4.14,
+        5.2,
+        "Ditolak cewek nih"
+      ],
+      [
+        5.2,
+        7.6,
+        "Berprestasi tapi gak atraktif"
+      ],
+      [
+        7.6,
+        9.42,
+        "Kalau mau ketemuan"
+      ],
+      [
+        9.42,
+        11.04,
+        "Kita ketemu di jalur"
+      ],
+      [
+        11.04,
+        13.74,
+        "Siapa yang matam disitu"
+      ],
+      [
+        13.74,
+        15.36,
+        "Aku akan proses hukum"
+      ],
+      [
+        15.36,
+        16.8,
+        "Untuk streamer ini"
+      ],
+      [
+        16.8,
+        18.18,
+        "Sekali lagi aku ulangi"
+      ],
+      [
+        18.18,
+        20.64,
+        "Aku akan proses hukum"
+      ],
+      [
+        20.64,
+        22.1,
+        "Untuk streamer ini"
+      ],
+      [
+        22.1,
+        24.62,
+        "Dia udah ngebikin"
+      ],
+      [
+        24.62,
+        26.0,
+        "Banyak sekali"
+      ],
+      [
+        26.0,
+        28.12,
+        "Pembahasan tentang aku di live streamnya"
+      ],
+      [
+        28.12,
+        29.98,
+        "Dengan berbagai macam"
+      ],
+      [
+        29.98,
+        31.82,
+        "Kata-kata kasar"
+      ],
+      [
+        31.82,
+        32.8,
+        "Bahkan ancaman"
+      ],
+      [
+        32.8,
+        36.08,
+        "Yang bikin aku pada akhirnya mau speak up"
+      ],
+      [
+        36.08,
+        37.78,
+        "Awalnya aku tidak mau"
+      ],
+      [
+        37.78,
+        39.1,
+        "Ngomong apapun"
+      ],
+      [
+        39.1,
+        42.08,
+        "Karena kasian ini orang memang berkali-kali"
+      ],
+      [
+        42.08,
+        43.52,
+        "Berusaha untuk menyinggul aku supaya"
+      ],
+      [
+        43.52,
+        45.0,
+        "Aku notice dan bahas"
+      ],
+      [
+        45.0,
+        48.1,
+        "Tapi yang pada akhirnya kenapa aku berani"
+      ],
+      [
+        48.1,
+        49.18,
+        "Untuk ngomong sekarang"
+      ],
+      [
+        49.18,
+        51.9,
+        "Adalah karena ada korban"
+      ],
+      [
+        51.9,
+        52.96,
+        "Perempuan"
+      ],
+      [
+        52.96,
+        56.16,
+        "Yang kemudian menjadi pembahasan juga"
+      ],
+      [
+        56.16,
+        57.16,
+        "Di live streamnya"
+      ],
+      [
+        57.16,
+        58.98,
+        "Yang mana kemudian"
+      ],
+      [
+        58.98,
+        60.32,
+        "Diobjektifikasi"
+      ],
+      [
+        60.32,
+        62.18,
+        "Oleh audiens-audiensnya"
+      ],
+      [
+        62.18,
+        63.78,
+        "Dan ini tidak bisa dibiarkan"
+      ],
+      [
+        63.78,
+        64.96,
+        "Karena dia sudah"
+      ],
+      [
+        64.96,
+        65.44,
+        "Menyinggung"
+      ],
+      [
+        65.44,
+        67.06,
+        "Aku pribadi"
+      ],
+      [
+        67.06,
+        68.7,
+        "Aku akan proses hukum"
+      ],
+      [
+        68.7,
+        70.06,
+        "Jadi kita tunggu"
+      ],
+      [
+        70.06,
+        71.88,
+        "Terima kasih telah menonton!"
+      ]
+    ]
+  },
+  "turns": [
+    [
+      0.03096874989569187,
+      2.6465938091278076,
+      0
+    ],
+    [
+      3.3384687900543213,
+      7.692218780517578,
+      1
+    ],
+    [
+      7.692218780517578,
+      13.885344505310059,
+      0
+    ],
+    [
+      14.155344009399414,
+      20.702844619750977,
+      2
+    ],
+    [
+      21.209095001220703,
+      22.154094696044922,
+      2
+    ],
+    [
+      22.98097038269043,
+      28.161596298217773,
+      2
+    ],
+    [
+      28.819721221923828,
+      30.03472137451172,
+      2
+    ],
+    [
+      30.62534523010254,
+      32.869720458984375,
+      2
+    ],
+    [
+      33.662845611572266,
+      36.0590934753418,
+      2
+    ],
+    [
+      36.734092712402344,
+      53.069095611572266,
+      2
+    ],
+    [
+      53.592220306396484,
+      57.22034454345703,
+      2
+    ],
+    [
+      57.861595153808594,
+      63.9028434753418,
+      2
+    ],
+    [
+      64.42597198486328,
+      68.69534301757812,
+      2
+    ],
+    [
+      69.31971740722656,
+      70.04534912109375,
+      2
+    ]
+  ],
+  "assessment": {
+    "contribution": 0.96,
+    "discussion": 0.81
+  },
+  "motion": null,
+  "discovery": {
+    "by_handle": {
+      "sadampermana.w": [
+        {
+          "post_id": "4002008628265002421",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DeJ_aTTyKW1/",
+          "caption": "",
+          "published_at": "2026-10-06T14:23:47Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 568,
+            "play": 2324204,
+            "like": 150919
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4002065558115194714",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DeKMWvXSBda/",
+          "caption": "",
+          "published_at": "2026-10-06T16:16:53Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 4363,
+            "play": 1844856,
+            "like": 84275
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4006950201864163109",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/Debi_qWyw8l/",
+          "caption": "",
+          "published_at": "2026-10-13T10:01:48Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 212,
+            "play": 852325,
+            "like": 52161
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4001395071559632794",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DeHz54GT4ea/",
+          "caption": "",
+          "published_at": "2026-10-05T18:04:45Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 1703,
+            "play": 1256895,
+            "like": 94472
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4003392263664861229",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DeO6A2MSoAt/",
+          "caption": "",
+          "published_at": "2026-10-08T12:12:49Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 1359,
+            "play": 1237035,
+            "like": 63361
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "3998987811738434057",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/Dd_QjoryToJ/",
+          "caption": "",
+          "published_at": "2026-10-02T10:21:57Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 331,
+            "play": 1747861,
+            "like": 211848
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "3999505971172352336",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DeBGX2QyCFQ/",
+          "caption": "",
+          "published_at": "2026-10-03T03:31:27Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 1969,
+            "play": 957185,
+            "like": 105569
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4000658726696062962",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DeFMepgSQ_y/",
+          "caption": "",
+          "published_at": "2026-10-04T17:41:46Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 976,
+            "play": 1121103,
+            "like": 76233
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "3355461501674186293",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/C6Q_nUwyeY1/",
+          "caption": "",
+          "published_at": "2024-04-27T12:50:03Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 618,
+            "play": 2372228,
+            "like": 186795
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4006306149002980569",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DeZQjdYySzZ/",
+          "caption": "",
+          "published_at": "2026-10-12T12:42:11Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 284,
+            "play": 379890,
+            "like": 44691
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4005553168456395855",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DeWlWJmyKxP/",
+          "caption": "",
+          "published_at": "2026-10-11T11:46:09Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 320,
+            "play": 604704,
+            "like": 31224
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "3998366260387291240",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/Dd9DO34SqBo/",
+          "caption": "",
+          "published_at": "2026-10-01T13:47:02Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 393,
+            "play": 746104,
+            "like": 51344
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "3996818225970627106",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/Dd3jQAeyUIi/",
+          "caption": "",
+          "published_at": "2026-09-29T10:31:22Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 348,
+            "play": 634383,
+            "like": 65413
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "3990106329666151816",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DdftJD7yeWI/",
+          "caption": "",
+          "published_at": "2026-09-20T04:16:02Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 1548,
+            "play": 729139,
+            "like": 87239
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4001694538564982137",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DeI3_seyVV5/",
+          "caption": "",
+          "published_at": "2026-10-06T03:59:44Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 149,
+            "play": 414693,
+            "like": 26913
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4000917509481639154",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DeGHUbwSyzy/",
+          "caption": "",
+          "published_at": "2026-10-05T02:15:55Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 693,
+            "play": 385528,
+            "like": 37107
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4003225761338652552",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DeOUJ60SHeI/",
+          "caption": "",
+          "published_at": "2026-10-08T06:42:00Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 263,
+            "play": 324909,
+            "like": 21436
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4001144637879904448",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DeG69ljymjA/",
+          "caption": "",
+          "published_at": "2026-10-05T09:47:11Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 349,
+            "play": 353244,
+            "like": 24884
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "3991855980652055853",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/Ddl691ZSM0t/",
+          "caption": "",
+          "published_at": "2026-09-22T14:12:17Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 316,
+            "play": 738595,
+            "like": 33495
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4004690760347308565",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DeThQddylIV/",
+          "caption": "",
+          "published_at": "2026-10-10T07:12:42Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 829,
+            "play": 201055,
+            "like": 16865
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "3989628288137671141",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DdeAcpES7Hl/",
+          "caption": "",
+          "published_at": "2026-09-19T12:26:15Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 545,
+            "play": 717638,
+            "like": 37701
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "3994729291669135254",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DdwISAzyV-W/",
+          "caption": "",
+          "published_at": "2026-09-26T13:21:02Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 641,
+            "play": 477367,
+            "like": 23692
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "3993259619694296006",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/Ddq6HeHyjvG/",
+          "caption": "",
+          "published_at": "2026-09-24T12:41:03Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 572,
+            "play": 420158,
+            "like": 31186
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4004864294365307875",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DeUIttnSiPj/",
+          "caption": "",
+          "published_at": "2026-10-10T12:57:28Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 72,
+            "play": 186255,
+            "like": 7983
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "3997534960684365446",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/Dd6GN3sy_aG/",
+          "caption": "",
+          "published_at": "2026-09-30T10:15:24Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 200,
+            "play": 327203,
+            "like": 18376
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "4000509466902218889",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DeEqiofS0iJ/",
+          "caption": "",
+          "published_at": "2026-10-04T12:45:13Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 147,
+            "play": 157730,
+            "like": 12695
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "3996094128718588295",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/Dd0-nAXS6mH/",
+          "caption": "",
+          "published_at": "2026-09-28T10:32:43Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 48,
+            "play": 203603,
+            "like": 14298
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "3993995329187360903",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DdthZc-yDCH/",
+          "caption": "",
+          "published_at": "2026-09-25T13:02:47Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 135,
+            "play": 206499,
+            "like": 16480
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "3995377679435771026",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DdybtS-SyyS/",
+          "caption": "",
+          "published_at": "2026-09-27T10:49:16Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 139,
+            "play": 203028,
+            "like": 15330
+          },
+          "hashtags": []
+        },
+        {
+          "post_id": "3990266507711624521",
+          "owner_handle": "sadampermana.w",
+          "canonical_url": "https://www.instagram.com/p/DdgRj9XSjVJ/",
+          "caption": "",
+          "published_at": "2026-09-20T09:34:17Z",
+          "duration_seconds": null,
+          "engagement": {
+            "comment": 24,
+            "play": 169358,
+            "like": 6023
+          },
+          "hashtags": []
+        }
+      ]
+    }
+  },
+  "acquired": {},
+  "expected": {
+    "verdict": "original",
+    "source_url": null
+  },
+  "scout": {
+    "main_url": null,
+    "note": ""
+  },
+  "departure": "reaction_original"
+}

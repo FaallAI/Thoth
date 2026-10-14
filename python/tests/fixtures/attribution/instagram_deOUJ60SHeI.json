@@ -1,7 +1,7 @@
 {
   "case": "instagram_deOUJ60SHeI",
   "synthetic": false,
-  "captured_at": "2026-10-13T15:42:56Z",
+  "captured_at": "2026-10-14T06:53:02Z",
   "report": {
     "schema_version": 3,
     "workflow_id": "wf_golden",
@@ -15,8 +15,8 @@
       "text": "Rusa makan plastik di Jepang?",
       "published_at": "2026-10-08T06:43:37Z",
       "engagement": {
-        "like": 21369,
-        "comment": 264
+        "like": 21434,
+        "comment": 263
       }
     },
     "media": [
@@ -42,7 +42,7 @@
           "status": "succeeded",
           "reason": null,
           "attempt_count": 1,
-          "elapsed_ms": 9712
+          "elapsed_ms": 1906
         }
       ]
     },
@@ -1317,7 +1317,7 @@
   "unmatchable": [],
   "cover": {
     "headline": "@hezumaryuaaa",
-    "scene": "A person is feeding deer in a park, then a man talks about the experience while showing a sign about the rules in Nara Park.",
+    "scene": "A person is talking to the camera while showing a picture of a sign about deer in Nara Park.",
     "icon": "",
     "handles": [
       "@hezumaryuaaa"
@@ -1326,21 +1326,12 @@
     "subject_media": "image",
     "shows": [
       "creator",
-      "creator",
-      "creator",
-      "creator",
       "subject",
       "creator"
     ]
   },
   "classify": {},
-  "decisions": {
-    "is_repost": 0.85,
-    "handle": "hezumaryuaaa",
-    "handle_probability": 1.0,
-    "platform": null,
-    "platform_probability": 0.53
-  },
+  "decisions": null,
   "cuts": [
     4.2,
     4.7,
@@ -1351,171 +1342,7 @@
     22.6333,
     31.1667
   ],
-  "transcript": {
-    "language": "id",
-    "segments": [
-      [
-        0.3,
-        7.14,
-        "Ini video udah viral banget ya"
-      ],
-      [
-        7.14,
-        8.02,
-        "Dan dugaannya"
-      ],
-      [
-        8.02,
-        11.56,
-        "Bapak dan kakak ini adalah orang Indonesia"
-      ],
-      [
-        11.56,
-        13.82,
-        "Ketika rusak di Narapark Jepang"
-      ],
-      [
-        13.82,
-        15.96,
-        "Itu makan plastik yang ada di tangan bapak ini"
-      ],
-      [
-        15.96,
-        17.22,
-        "Tentu ini sangat salah"
-      ],
-      [
-        17.22,
-        18.7,
-        "Ada aturan teman-teman di Narapark"
-      ],
-      [
-        18.7,
-        20.72,
-        "Bahwa kita tidak boleh memberikan makan"
-      ],
-      [
-        20.72,
-        22.6,
-        "Dari luar kepada rusak-rusak ini"
-      ],
-      [
-        22.6,
-        24.64,
-        "Karena rusak-rusak ini itu ada makanan khusus teman-teman"
-      ],
-      [
-        24.64,
-        25.78,
-        "Nah si kakak ini"
-      ],
-      [
-        25.78,
-        28.12,
-        "Itu kabarnya atau dugaannya itu udah membuat klarifikasi"
-      ],
-      [
-        28.12,
-        29.0,
-        "Bahwa dia bilang"
-      ],
-      [
-        29.0,
-        30.48,
-        "Bapaknya itu memberikan makan kacang"
-      ],
-      [
-        30.48,
-        33.64,
-        "Tapi kemudian dia itu gak ngeh rusaknya itu makan"
-      ],
-      [
-        33.64,
-        34.7,
-        "Dan dia itu shock"
-      ],
-      [
-        34.7,
-        37.18,
-        "Jadi sebenarnya dia itu katanya lagi ngobrol sama bapaknya"
-      ],
-      [
-        37.18,
-        39.66,
-        "Dan sebenarnya itu adalah sesuatu yang tidak disengaja"
-      ],
-      [
-        39.66,
-        40.68,
-        "Dan dia juga gak tau"
-      ],
-      [
-        40.68,
-        43.82,
-        "Kalau tidak boleh untuk memberikan makan rusak di Narapark Jepang"
-      ],
-      [
-        43.82,
-        44.7,
-        "Itu dengan makanan lain"
-      ],
-      [
-        44.7,
-        46.64,
-        "Ini yang menjadi fokus teman-teman"
-      ],
-      [
-        46.64,
-        48.9,
-        "Bahwa pertama ketika kita lagi ada di suatu tempat baru"
-      ],
-      [
-        48.9,
-        50.06,
-        "Mau itu di negara kita sendiri"
-      ],
-      [
-        50.06,
-        51.42,
-        "Terutama di negara orang lain"
-      ],
-      [
-        51.42,
-        55.58,
-        "Kita harus mengerti adat, istiadat, aturan dari negara tersebut"
-      ],
-      [
-        55.58,
-        56.0,
-        "Itu yang pertama"
-      ],
-      [
-        56.0,
-        57.7,
-        "Yang kedua, jaga sikap teman-teman"
-      ],
-      [
-        57.7,
-        59.28,
-        "Karena ketika kita berbuat salah"
-      ],
-      [
-        59.28,
-        61.56,
-        "Fokusnya bukan hanya kepada diri kita personal"
-      ],
-      [
-        61.56,
-        64.86,
-        "Tapi juga kepada asal dari negara yang kita miliki"
-      ],
-      [
-        64.86,
-        66.44,
-        "Terima kasih telah menonton!"
-      ]
-    ]
-  },
+  "transcript": null,
   "turns": [
     [
       2.174093723297119,
@@ -1528,10 +1355,7 @@
       0
     ]
   ],
-  "assessment": {
-    "contribution": 0.79,
-    "discussion": 0.77
-  },
+  "assessment": null,
   "motion": [
     0.10710114240646362,
     0.16778206825256348,
@@ -1598,79 +1422,7 @@
     0.08875900506973267,
     0.06918754428625107
   ],
-  "discovery": {
-    "by_handle": {
-      "sadampermana.w": [
-        {
-          "post_id": "4006950201864163109",
-          "owner_handle": "sadampermana.w",
-          "canonical_url": "https://www.instagram.com/p/Debi_qWyw8l/",
-          "caption": "Aku punya tic disorder",
-          "published_at": "2026-10-13T10:02:39Z",
-          "duration_seconds": null,
-          "engagement": {
-            "like": 37048,
-            "comment": 146
-          },
-          "hashtags": []
-        },
-        {
-          "post_id": "4006306149002980569",
-          "owner_handle": "sadampermana.w",
-          "canonical_url": "https://www.instagram.com/p/DeZQjdYySzZ/",
-          "caption": "• Lebih dari 200.000 hektare hutan terbakar\n• Lebih dari 100.000 kasus ISPA akibat karhutla\n• Hewan-hewan kehilangan tempat tinggal, bahkan hangus terbakar\n• Ada orangutan yang meninggal akibat ISPA\n• Ada guru yang meninggal akibat asap kebakaran hutan\n• Ada anak kecil yang meninggal akibat kecelakaan karena asap kebakaran\n• Ada relawan pemadam kebakaran yang meninggal\n\nJANGAN BERCANDA DI SAAT KRISIS DAN GENTING SEPERTI INI! KITA BUTUH SOLUSI, KITA BUTUH JAWABAN!",
-          "published_at": "2026-10-12T12:43:31Z",
-          "duration_seconds": null,
-          "engagement": {
-            "like": 35792,
-            "comment": 254
-          },
-          "hashtags": []
-        },
-        {
-          "post_id": "4005553168456395855",
-          "owner_handle": "sadampermana.w",
-          "canonical_url": "https://www.instagram.com/p/DeWlWJmyKxP/",
-          "caption": "Kasus Telkom University",
-          "published_at": "2026-10-11T11:47:13Z",
-          "duration_seconds": null,
-          "engagement": {
-            "like": 30560,
-            "comment": 316
-          },
-          "hashtags": []
-        }
-      ],
-      "hezumaryuaaa": [
-        {
-          "post_id": "3984290388495654510",
-          "owner_handle": "hezumaryuaaa",
-          "canonical_url": "https://www.instagram.com/p/DdLCv-oSV5u/",
-          "caption": "居眠り議員を起こしました。\n奈良市議会の内藤さとし議員。\n税金の無駄なので辞職されて下さい。\n追加で情報を公開していきますので引き続きフォロー拡散で応援よろしくお願いします。",
-          "published_at": "2026-09-12T03:41:54Z",
-          "duration_seconds": null,
-          "engagement": {
-            "like": 187883,
-            "comment": 6222
-          },
-          "hashtags": []
-        },
-        {
-          "post_id": "4006892326810586610",
-          "owner_handle": "hezumaryuaaa",
-          "canonical_url": "https://www.instagram.com/p/DebV1eAyI3y/",
-          "caption": "日本のルールが守れないベトナム人。\nこいつはその場で逮捕されるべき。\n移民反対！移民が増えるとこうなるぞ。",
-          "published_at": "2026-10-13T08:07:27Z",
-          "duration_seconds": null,
-          "engagement": {
-            "like": 4938,
-            "comment": 356
-          },
-          "hashtags": []
-        }
-      ]
-    }
-  },
+  "discovery": null,
   "acquired": {},
   "expected": {
     "verdict": "original",
@@ -1680,6 +1432,5 @@
     "main_url": null,
     "note": ""
   },
-  "departure": "reaction_original",
-  "pending": "Known miss (2026-10-13): an original reaction (operator). Vision read its video subject as an image; motion now sends it down the video path (spec 5.8), where contribution 0.79 and discussion 0.77 pass but engagement is 0.2x against an Instagram listing of 3 videos. Revisit with the signed-in reels listing (plan Task 16)."
+  "departure": "reaction_original"
 }
