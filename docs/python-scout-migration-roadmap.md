@@ -472,3 +472,12 @@ post. Speech is transcribed and split by speaker locally; vision and Jev became 
 of Stage 4. Implemented on branch `feat/stage4-reaction-attribution` and calibrated on a live
 recapture (engagement scaled by age; thresholds 0.8 engagement, 0.6 repost). Details: the
 2026-10-13 section of `CHANGELOG.md`.
+
+## Source account safety status (2026-10-14)
+
+Source accounts now cool down on a platform warning, keep a daily lease budget, and keep an
+encrypted browser profile per account and engine. Camoufox is a second engine for Instagram's
+signed-in reels discovery, with one Firefox fingerprint per account. The live fingerprint
+comparison scored Camoufox 90% and Patchright 80% on BrowserScan (after a WebRTC leak fix), and
+the signed-in reels listing turned two of the three pending Instagram reactions into goldens.
+Details: the 2026-10-14 section of `CHANGELOG.md`. Next: Stage 5b.

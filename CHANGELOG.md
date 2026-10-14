@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## 2026-10-14 - Source account safety
 
-Branch `feat/source-account-safety` (not pushed), on top of the Stage 4 reaction branch. Spec
+Branch `feat/source-account-safety`, on top of the Stage 4 reaction work on master. Spec
 `docs/superpowers/specs/2026-10-13-source-account-safety-design.md` (amended 2026-10-14), plan
 `docs/superpowers/plans/2026-10-13-source-account-safety.md`, research
 `docs/research/2026-10-13-account-safety-research.md`. Executed natively, with one review of the
@@ -39,23 +39,49 @@ whole branch by a fresh reviewer at the end.
 - Review: 0 Critical; 3 Important fixed (Camoufox scope, credential-less proxies, CI bind
   source), 1 Minor re-graded and fixed (Firefox caches, a warning when the cap drops files);
   7 Minors deferred in the checkpoint.
-- Verification: Python suite 3629 passed, 21 skipped (environment skips: no Chromium build, no
-  disposable Postgres, no live URL); dashboard 694 passed, build green; contract tests 365
+- Live fingerprint comparison (operator-authorized 2026-10-14): an image built from the branch,
+  a fresh profile, the operator's first proxy (a DigitalOcean address in Singapore), no cookies,
+  no Instagram traffic.
+
+  | | Patchright (before fix) | Patchright (after fix) | Camoufox |
+  |---|---|---|---|
+  | BrowserScan authenticity | 70% | 80% | 90% |
+  | BrowserScan proxy detected | yes | no | no |
+  | BrowserScan WebRTC | the host's own IP | disabled | disabled |
+  | CreepJS headless | 33% headless, 50% like headless | same | 0% headless, 6% like headless |
+  | CreepJS worker user agent | `HeadlessChrome` | same | Firefox 156, Windows 10 |
+  | Deductions left | timezone, language | timezone, language | timezone |
+
+  CreepJS no longer shows a trust score or lie count; its headless and stealth ratings stand in.
+  The timezone deduction is the account's `Asia/Jakarta` against a Singapore proxy: an
+  operational choice (an Indonesian proxy, or the account's timezone set to the proxy's).
+  Recommendation: Instagram's policy moves to Camoufox; the operator decides on the dashboard.
+- The comparison found two defects, fixed under TDD:
+  - Camoufox could not start in the image (no `libgtk-3`), and `camoufox fetch` installs
+    whatever the stable channel holds that day. The Dockerfile now installs Firefox's system
+    libraries (`playwright install-deps firefox`), pins `official/stable/156.0.1-beta.36`, and
+    launches Camoufox once at build time (`129b259`).
+  - Chromium sessions leaked the host's IP over WebRTC around the account's proxy. A proxied
+    session now passes Scrapling's `block_webrtc` (`b2938f3`).
+- Live recapture (operator-authorized 2026-10-14) of the three pending Instagram reactions,
+  10 minutes apart, with the signed-in reels listing: @sadampermana.w now lists 30 videos
+  instead of 3. `instagram_deHz54GT4ea` (contribution 0.96, discussion 0.81, baseline
+  measurable) and `instagram_deOUJ60SHeI` replay to `original` and joined the suite.
+  `instagram_deWlWJmyKxP` stays pending: comments discuss the creator at 0.44 against the 0.5
+  threshold (`comments_not_about_creator`).
+- Verification: Python suite 3631 passed, 21 skipped (environment skips: no Chromium build, no
+  disposable Postgres, no live URL); dashboard 694 passed, build green; contract tests 366
   passed; actionlint findings unchanged.
 
 **Next steps**
-- Next stage: Stage 5b footage, after this branch and the reaction branch ship.
-- Operator gates, each needing its own authorization:
-  1. Live fingerprint comparison: one Instagram account through the capture container on
-     CreepJS and BrowserScan, Patchright then Camoufox, with its profile and proxy; record the
-     scores; the operator decides whether Instagram moves to Camoufox.
-  2. Live recapture of `instagram_deWlWJmyKxP`, `instagram_deOUJ60SHeI`, and
-     `instagram_deHz54GT4ea`, 10 minutes apart, with the reels listing.
-  3. Push, merge, CI, pinning `THOTH_IMAGE`, and deploy (migration 0009). Before deploy, create
-     `$THOTH_STAGE1_DATA_ROOT/account-profiles` owned by 10001 with mode 700.
-  4. Importing source accounts with their proxies.
+- Next stage: Stage 5b footage.
+- Operator gates, authorized 2026-10-14: push, merge, CI, pinning `THOTH_IMAGE`, and deploy
+  (migration 0009; `$THOTH_STAGE1_DATA_ROOT/account-profiles` is prepared, 10001, mode 700);
+  then importing the source accounts with their proxies.
+- Operator decision: Instagram's engine (recommended: Camoufox).
 - Follow-ups: the deferred review minors in the checkpoint; TikTok and X warning patterns;
-  Camoufox for acquisition's card crops.
+  Camoufox for acquisition's card crops; Patchright's `HeadlessChrome` worker user agent;
+  `instagram_deWlWJmyKxP` and the discussion threshold.
 
 ## 2026-10-13 - Stage 4: reactions that count as originals
 
