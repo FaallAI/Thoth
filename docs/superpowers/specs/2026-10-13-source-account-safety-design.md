@@ -70,7 +70,9 @@ engine switch.
   - `timezone`, default `Asia/Jakarta`.
 
   Both are editable in the dashboard.
-- Deleting or replacing an account deletes its profile.
+- Deleting an account, or resetting its device fingerprint, deletes its profiles; a lease
+  still open cannot write them back. Re-importing cookies keeps the profile: it is the same
+  account on the same device (amended 2026-10-14).
 
 ### 3.3 A daily budget per account
 
