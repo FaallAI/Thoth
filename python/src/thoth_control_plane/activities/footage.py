@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
+import re
 import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path, PurePosixPath
@@ -17,6 +19,7 @@ from typing import Annotated, Literal, Protocol
 
 from pydantic import Field
 from temporalio import activity
+from temporalio.exceptions import ApplicationError
 
 from thoth_control_plane.acquisition.models import SourceReport
 from thoth_control_plane.activities.content_assembly import (
@@ -30,6 +33,9 @@ from thoth_control_plane.domain.models import OpaqueId, SourceProgressEvent, Str
 from thoth_control_plane.footage.models import FootageResult
 from thoth_control_plane.footage.service import FootageBuilder, FootageInputs
 
+logger = logging.getLogger(__name__)
+_CODE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+
 
 class FootageActivityInput(StrictModel):
     workflow_id: OpaqueId
@@ -39,7 +45,7 @@ class FootageActivityInput(StrictModel):
 
 class FootageActivityResult(StrictModel):
     footage_status: Literal["ok", "none", "disabled", "unavailable"]
-    footage_count: Annotated[int, Field(ge=0, le=6)] = 0
+    footage_count: Annotated[int, Field(ge=0, le=MAX_FOOTAGE)] = 0
     events: list[SourceProgressEvent] = Field(default_factory=list)
 
 
@@ -47,7 +53,13 @@ class Builder(Protocol):
     async def build(self, inputs: FootageInputs) -> FootageResult: ...
 
 
+MAX_FOOTAGE = 6
+
+
 def _done(status: str, count: int, started: float) -> FootageActivityResult:
+    if count > MAX_FOOTAGE:
+        logger.warning("footage count above the cap; clamped")
+        count = MAX_FOOTAGE
     return FootageActivityResult(
         footage_status=status,  # type: ignore[arg-type]
         footage_count=count,
@@ -77,6 +89,7 @@ async def _run(
         raw = (artifact_root / folder / REPORT_FILE).read_bytes()
         report = SourceReport.model_validate_json(raw)
     except (OSError, ValueError):
+        logger.warning("footage skipped; no stage 3 report for this workflow")
         return _done("unavailable", 0, started)
     heartbeat = asyncio.create_task(_heartbeat())
     try:
@@ -89,6 +102,15 @@ async def _run(
                 artifact_root=artifact_root,
             )
         )
+    except asyncio.CancelledError:
+        raise
+    except Exception as error:
+        # Only a code reaches Temporal history: errors may carry URLs, captions or SQL parameters.
+        code = getattr(error, "code", None)
+        if not isinstance(code, str) or not _CODE.fullmatch(code):
+            code = "footage_failed"
+        logger.warning("footage failed: %s", code)
+        raise ApplicationError(code, type="FootageFailed") from None
     finally:
         heartbeat.cancel()
         with contextlib.suppress(asyncio.CancelledError):

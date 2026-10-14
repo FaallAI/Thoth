@@ -478,12 +478,19 @@ class SourceProgressEvent(StrictModel):
             raise ValueError("source event fallback code is unsupported")
         if "ocr_outcome" in payload and payload["ocr_outcome"] not in OCR_OUTCOMES:
             raise ValueError("source event OCR outcome is unsupported")
-        for count in ("comment_count", "figure_count"):
+        for count in ("comment_count", "figure_count", "footage_count"):
             value = payload.get(count)
             if count in payload and (
                 isinstance(value, bool) or not isinstance(value, int) or value < 0
             ):
                 raise ValueError("source event counts must be non-negative integers")
+        if "footage_status" in payload and payload["footage_status"] not in (
+            "ok",
+            "none",
+            "disabled",
+            "unavailable",
+        ):
+            raise ValueError("source event footage status is unsupported")
         progress = payload.get("progress")
         if progress is not None and (
             isinstance(progress, bool)

@@ -32,6 +32,8 @@ def test_assembly_events_carry_counts_and_a_known_reason() -> None:
         {"stage": "assembly", "comment_count": -1},
         {"stage": "assembly", "figure_count": True},
         {"stage": "assembly", "reason": "something_else"},
+        {"stage": "footage", "footage_count": -1},
+        {"stage": "footage", "footage_status": "great"},
     ],
 )
 def test_assembly_event_values_are_checked(payload: dict[str, object]) -> None:

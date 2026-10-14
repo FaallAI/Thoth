@@ -115,6 +115,8 @@ def check_media_tools(settings: Settings) -> None:
         _require_media(settings)
         if missing(settings.THOTH_EMBEDDING_MODEL_DIR, EMBEDDING_FILES):
             raise SettingsValidationError("embedding_model_missing")
+        if find_spec("onnxruntime") is None or find_spec("tokenizers") is None:
+            raise SettingsValidationError("embedding_runtime_missing")
 
 
 def build_prompt_proposal_worker(client: Client, settings: Settings) -> Worker:

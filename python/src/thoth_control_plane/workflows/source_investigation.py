@@ -410,7 +410,19 @@ class SourceInvestigationWorkflow:
         try:
             result = await task
         except ActivityError:
+            # Spec section 4: a failure after all attempts warns, and the workflow goes on.
             result = None
+            self._source_events.append(
+                SourceProgressEvent(
+                    kind="stage.failed",
+                    payload={
+                        "stage": "footage",
+                        "status": "failed",
+                        "footage_status": "unavailable",
+                    },
+                )
+            )
+            self._event_sequence += 1
         if result is not None:
             self._source_events.extend(result.events)
             self._event_sequence += len(result.events)

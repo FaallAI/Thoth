@@ -229,10 +229,17 @@ def test_footage_starts_with_every_tool_present(tmp_path: Path) -> None:
         ({"THOTH_EDITOR_DATABASE_URL": None}, "footage_database_missing"),
         ({"THOTH_FFMPEG": "/nonexistent/ffmpeg"}, "ffmpeg_missing"),
         ({"THOTH_EMBEDDING_MODEL_DIR": Path("/nonexistent")}, "embedding_model_missing"),
+        ({"_no_module": "onnxruntime"}, "embedding_runtime_missing"),
+        ({"_no_module": "tokenizers"}, "embedding_runtime_missing"),
     ],
 )
 def test_footage_refuses_to_start_without_a_tool(
-    tmp_path: Path, change: dict[str, Any], code: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: dict[str, Any], code: str
 ) -> None:
+    change = dict(change)
+    absent = change.pop("_no_module", None)
+    if absent is not None:
+        real = worker.find_spec
+        monkeypatch.setattr(worker, "find_spec", lambda n: None if n == absent else real(n))
     with pytest.raises(SettingsValidationError, match=code):
         worker.check_media_tools(_footage_settings(tmp_path, **change))

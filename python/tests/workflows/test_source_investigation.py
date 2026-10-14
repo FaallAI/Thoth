@@ -2026,13 +2026,20 @@ async def test_a_crashing_footage_stage_never_fails_the_workflow(
         workflows=[SourceInvestigationWorkflow],
         activities=[fake_inspect, fake_attribute, crashing_footage, fake_assemble],
     ):
-        result = await workflow_env.client.execute_workflow(
+        handle = await workflow_env.client.start_workflow(
             SourceInvestigationWorkflow.run,
             args=[_with_footage()],
             id="wf_test_footage_crash",
             task_queue="test",
         )
+        result = await handle.result()
+        events = await handle.query(SourceInvestigationWorkflow.source_events)
     assert result.status == "succeeded"
+    assert any(
+        e.kind == "stage.failed"
+        and e.payload == {"stage": "footage", "status": "failed", "footage_status": "unavailable"}
+        for e in events
+    )
     assert [a.kind for a in result.artifacts][-1] == "content_set"
 
 
