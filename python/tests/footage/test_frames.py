@@ -36,3 +36,24 @@ def test_dhash_matches_itself_and_not_noise() -> None:
     assert not is_duplicate([a, a, a], [[b]])
     assert not is_duplicate([], [[a]])
     assert not is_duplicate([a], [])
+
+
+def test_the_distance_is_inclusive_at_ten_bits() -> None:
+    assert is_duplicate([0], [[(1 << 10) - 1]])
+    assert not is_duplicate([0], [[(1 << 11) - 1]])
+
+
+def test_half_the_frames_must_be_close() -> None:
+    far = (1 << 20) - 1
+    assert is_duplicate([0, 0, far], [[0]])
+    assert not is_duplicate([0, far, far], [[0]])
+
+
+def test_a_frame_is_close_to_any_frame_of_the_other_clip() -> None:
+    far = (1 << 20) - 1
+    assert is_duplicate([0], [[far, 0, far]])
+
+
+def test_a_match_against_a_later_clip_counts() -> None:
+    far = (1 << 20) - 1
+    assert is_duplicate([0], [[far], [0]])

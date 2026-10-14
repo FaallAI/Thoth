@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Any
 
@@ -65,6 +66,7 @@ async def test_a_window_reaches_yt_dlp_and_the_file_lands(
         == target
     )
     assert target.read_bytes() == b"\x00" * 64
+    assert seen["proxy"] == ""
     assert seen["force_keyframes_at_cuts"] is True and "download_ranges" in seen
     assert not any(p.name.endswith(".part") for p in tmp_path.iterdir())
 
@@ -73,5 +75,47 @@ async def test_a_window_reaches_yt_dlp_and_the_file_lands(
     assert "download_ranges" not in seen
 
 
-def test_attribution_error_is_the_judge_failure() -> None:
-    assert AttributionError("vision_unavailable").code == "vision_unavailable"
+async def test_a_judge_failure_propagates(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def failing(self: Any, schema: Any, prompt: str, frames: Any) -> FootageAnswer:
+        raise AttributionError("vision_unavailable")
+
+    monkeypatch.setattr(AgnoFootageJudge, "_run", failing)
+    with pytest.raises(AttributionError) as raised:
+        await AgnoFootageJudge("k", "m").judge([Frame(second=1.0, jpeg=b"x")], "a street")
+    assert raised.value.code == "vision_unavailable"
+
+
+async def test_a_timed_out_download_stops_before_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state = {"stopped": False}
+
+    def fake(url: str, options: dict[str, Any]) -> None:
+        scratch = Path(options["outtmpl"]).parent
+        try:
+            while True:
+                (scratch / "clip.f137.mp4").write_bytes(b"\x00")
+                for hook in options["progress_hooks"]:
+                    hook({})
+                time.sleep(0.01)
+        except BaseException:
+            state["stopped"] = True
+            raise
+
+    monkeypatch.setattr(downloader_module, "_run_yt_dlp", fake)
+    with pytest.raises(ClipError):
+        await YtDlpClipDownloader("ffmpeg", timeout=0.05).download(
+            "https://youtu.be/x", (4.0, 24.0), tmp_path / "c.mp4"
+        )
+    assert state["stopped"] is True
+    assert list(tmp_path.iterdir()) == []
+
+
+async def test_only_the_merged_clip_counts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake(url: str, options: dict[str, Any]) -> None:
+        Path(options["outtmpl"].replace("%(ext)s", "f137.mp4")).write_bytes(b"\x00" * 64)
+
+    monkeypatch.setattr(downloader_module, "_run_yt_dlp", fake)
+    with pytest.raises(ClipError):
+        await YtDlpClipDownloader("ffmpeg").download("https://youtu.be/x", None, tmp_path / "c.mp4")
+    assert list(tmp_path.iterdir()) == []
