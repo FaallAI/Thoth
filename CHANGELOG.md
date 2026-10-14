@@ -2,6 +2,88 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-15 - Stage 5b: footage
+
+Implemented on branch `feat/stage5b-footage` (11 tasks, each reviewed). Nothing is pushed,
+merged, or deployed, and `THOTH_FOOTAGE_ENABLED` stays off.
+
+**What was built**
+- **Content Set contract:** `Footage` items and a `footage_status` on `ContentSet`, at most six
+  clips; assembly reads them from the new footage stage instead of leaving the list empty.
+- **Persistence:** Alembic revision 0010 (footage runs, searches, candidates), a store with
+  write-time validation of the status and reason pairing; the DDL was applied on a disposable
+  Postgres (10, then 0).
+- **Gates and queries:** a text gate (main-identity and curated-account exclusion, same rules as
+  Scout), an LLM that turns the story into at most four concrete objects, each composed with the
+  primary subject into a keyword query.
+- **Search:** TikTok and YouTube keyword discovery, and X search through a signed-in browser
+  capturing the page's own `SearchTimeline` response. Search is one call per platform per run.
+- **Checking:** a local multilingual embedder (ONNX, no new dependency), a clip window download
+  (direct, never through an account proxy), dHash duplicate removal, frame sampling, local OCR,
+  and a vision judge; rejected windows are deleted.
+- **Builder and stage:** `FootageBuilder` with a per-platform quota, fair query rotation,
+  sibling-check cancellation, and resume; a footage stage before assembly and the worker wiring
+  behind `THOTH_FOOTAGE_ENABLED`. The stage reports a sanitized failure code and keeps detail out
+  of history.
+- **Image:** `docker/fetch_speech_models.py` now fetches the embedding model and verifies both
+  SHA-256 values.
+
+**Spec amendment (2026-10-14, three points)**
+1. Frames come from a downloaded window of at most 20 s (whole clip when 30 s or shorter), not
+   stream seeks; the download precedes the frame check and the stored OCR describes that file.
+2. No fastembed: the official ONNX export of the paraphrase-multilingual-MiniLM-L12-v2 model,
+   pinned by revision and SHA-256.
+3. No person query: only the (at most four) objects are searched.
+
+**X evidence (research section 10, probed live with operator authorization)**
+Two runs in the deployed worker, one lease each, query "banjir jakarta". The signed-in page
+request returned HTML with no data. A browser visit capturing the page's own `SearchTimeline`
+response worked: 24 tweets with 7 videos, then 31 tweets with 10 videos, no retweets. The shape
+is GraphQL (`legacy` fields), not the profile page's `media_entities2`, so X search uses a
+signed-in browser with XHR capture.
+
+**Operator decisions this session**
+- Option A for X: one lease per footage run, every uncached query searched in one signed-in
+  browser session 5-10 s apart; no free X account means X contributes nothing (no signed-out
+  search).
+- Ruling P3: an X search that finds nothing never cools the account down; only an HTTP status of
+  400 or more, or a GraphQL error body, counts as a block.
+- Ruling P4: option A above, as `search_many` and a batch search port.
+- Ruling P5: a keyword search leases an account only when the anonymous search was blocked; the
+  thin-listing rule applies to profile discovery only, so footage does not burn TikTok or
+  YouTube lease budget per query.
+
+**Other rulings (ledger)**
+- P1: a test that asserted nothing became a control-character refusal test. P2: all test
+  commands run through the WSL runner and `uvx ruff`.
+- Store: validation stays in code and in the migration SQL, not duplicated as ORM constraints.
+- X fixtures use realistic 10-digit ids; YouTube detail failures count as invalid and only an
+  all-failed run reports a block; a non-integer captured status is skipped, not a refusal.
+- Attribution test replaced by a judge-propagation test; clip.mp4 picked explicitly; downloads
+  stay direct (empty proxy).
+- Objects with a control character are dropped (Postgres jsonb refuses NUL); builder tests use
+  a file-backed SQLite because the builder calls the store from several threads.
+- Builder: TaskGroup with cancellation cleanup and fewest-taken-first rounds (spec F6 binds over
+  the plan), plus resume at the stored trim start and per-platform info counts.
+- Stage: `stage.failed` event and `ApplicationError(code)` sanitization, payload validation,
+  footage count clamped to 6, onnxruntime and tokenizers checked at worker start.
+- Reader: stored clips are rebuilt with a `PurePosixPath` location and a lax OCR validation, since
+  strict models rejected them and every clip was silently dropped.
+
+**Verification**
+- Full suite (`-m "not live"`, WSL runner): 3758 passed, 18 skipped, 3 deselected, 0 failed
+  (152 s). `ruff check` clean, `ruff format --check` 381 files already formatted.
+- Image build (`docker build -t thoth:5b-local .`): passed (exit 0, 250 s); `/opt/thoth/models/embedding` lists `model.onnx` (118,453,870 bytes) and `tokenizer.json` (9,081,518 bytes). Nothing pushed or tagged.
+
+**Next steps**
+- Next stage: the calibration capture (operator gate: about five stories the operator picks;
+  live searches and vision calls), then Stage 5c (post cards, carousel photos, creator-profile
+  footage).
+- Operator gates: push, merge, CI, image pin, deploy, and turning `THOTH_FOOTAGE_ENABLED` on;
+  each needs its own authorization.
+- Follow-ups: the JSON reports to PostgreSQL; the dashboard and Studio reading the new artifact;
+  dossier-driven queries after Stage 6. Deferred minors are listed in the final review.
+
 ## 2026-10-14 - Layer-reorder image deployed on `5a1d3376`; accounts on Indonesian mobile proxies
 
 - With operator authorization: the image built from `05e7ec7` (layer reorder `278a7da`), digest
