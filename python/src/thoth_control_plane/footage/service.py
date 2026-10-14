@@ -9,14 +9,17 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import itertools
 import logging
+import shutil
 import time
 import unicodedata
 from collections import Counter
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Coroutine, Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
+from typing import Any, TypeVar
 
 from thoth_control_plane.acquisition.models import DiscoveredVideo, SourceReport
 from thoth_control_plane.assembly.ocr import analyze_main_ocr
@@ -31,6 +34,7 @@ from thoth_control_plane.assembly.ports import (
 from thoth_control_plane.attribution.adapters.frames import DurationError, FrameError, ToolMissing
 from thoth_control_plane.attribution.models import SourceAttribution
 from thoth_control_plane.attribution.ports import AttributionError
+from thoth_control_plane.footage.adapters.downloader import ClipError
 from thoth_control_plane.footage.adapters.embedder import cosine
 from thoth_control_plane.footage.frames import clip_window, dhash, is_duplicate, vision_seconds
 from thoth_control_plane.footage.gates import MainIdentity, text_gate
@@ -66,6 +70,19 @@ MEDIA_FAILURES = frozenset(
 )
 HEADLINE_PREFIX = "headline: "
 DEFAULT_VISUAL = "the scene the post is about"
+SCRATCH_GLOB = "thoth-footage-*"  # the clip downloader's scratch directories
+
+T = TypeVar("T")
+
+
+async def _together(work: Iterable[Coroutine[Any, Any, T]]) -> list[T]:
+    """Run concurrently; the first failure cancels the others and is raised as itself."""
+    try:
+        async with asyncio.TaskGroup() as group:
+            tasks = [group.create_task(item) for item in work]
+    except BaseExceptionGroup as failed:
+        raise failed.exceptions[0] from None
+    return [task.result() for task in tasks]
 
 
 @dataclass(frozen=True)
@@ -129,19 +146,22 @@ def select_batch(
     size: int,
     per_query: int = PER_QUERY,
 ) -> list[CandidateView]:
-    """Up to `size` candidates in rounds across queries, within the per-query and total caps."""
+    """Up to `size` candidates within the per-query and total caps (spec F6): each pick goes to
+    the least-served query (admitted plus taken; ties in object order), so every query gets its
+    first turn before any gets a second, across batches too."""
     batch: list[CandidateView] = []
     taken: Counter[str] = Counter()
-    progress = True
-    while progress and len(batch) < size and total + len(batch) < MAX_FOOTAGE:
-        progress = False
-        for query, queue in queues.items():
-            if len(batch) >= size or total + len(batch) >= MAX_FOOTAGE:
-                break
-            if queue and admitted[query] + taken[query] < per_query:
-                batch.append(queue.pop(0))
-                taken[query] += 1
-                progress = True
+    while len(batch) < size and total + len(batch) < MAX_FOOTAGE:
+        open_queries = [
+            query
+            for query, queue in queues.items()
+            if queue and admitted[query] + taken[query] < per_query
+        ]
+        if not open_queries:
+            break
+        query = min(open_queries, key=lambda q: admitted[q] + taken[q])
+        batch.append(queues[query].pop(0))
+        taken[query] += 1
     return batch
 
 
@@ -172,7 +192,6 @@ class FootageBuilder:
         self._deadline = deadline_seconds
         self._per_candidate = per_candidate_seconds
         self._concurrency = concurrency
-        self._position = 0
 
     async def build(self, inputs: FootageInputs) -> FootageResult:
         started = time.monotonic()
@@ -254,26 +273,33 @@ class FootageBuilder:
                     missing.append(obj.query)
                 else:
                     found[obj.query] = list(cached)
-            if not missing:
-                return found
-            # One call per platform: X serves every query from one lease (option A).
-            try:
-                batch = await self._ports.search.search(name, missing, RESULTS_PER_QUERY)
-            except ToolMissing:
-                raise
-            except Exception:
-                logger.warning("footage search failed platform=%s", name)
-                batch = SearchBatch(found={}, failed=True)
-            for query, videos in batch.found.items():
-                await asyncio.to_thread(self._store.save_search, name, query, videos)
-                found[query] = list(videos)
-            if batch.failed and not found:
+            failed = False
+            if missing:
+                # One call per platform: X serves every query from one lease (option A).
+                try:
+                    batch = await self._ports.search.search(name, missing, RESULTS_PER_QUERY)
+                except ToolMissing:
+                    raise
+                except Exception as error:
+                    logger.warning(
+                        "footage search failed platform=%s error=%s", name, type(error).__name__
+                    )
+                    batch = SearchBatch(found={}, failed=True)
+                for query, videos in batch.found.items():
+                    await asyncio.to_thread(self._store.save_search, name, query, videos)
+                    found[query] = list(videos)
+                failed = batch.failed
+            logger.info(
+                "footage search platform=%s hits=%d failed=%s",
+                name,
+                sum(len(videos) for videos in found.values()),
+                failed,
+            )
+            if failed and not found:
                 return None
-            if batch.failed:
-                logger.warning("footage search partial platform=%s", name)
             return found
 
-        results = await asyncio.gather(*(platform(name) for name in SEARCH_PLATFORMS))
+        results = await _together(platform(name) for name in SEARCH_PLATFORMS)
         merged: dict[str, list[tuple[str, DiscoveredVideo]]] = {obj.query: [] for obj in objects}
         for name, result in zip(SEARCH_PLATFORMS, results, strict=True):
             for query, videos in (result or {}).items():
@@ -352,8 +378,8 @@ class FootageBuilder:
         candidates = await asyncio.to_thread(self._store.candidates, workflow)
         pending = [c for c in candidates if c.status == "pending"]
         admitted = Counter(c.query for c in candidates if c.status == "admitted")
-        positions = [c.position for c in candidates if c.position is not None]
-        self._position = max(positions, default=-1) + 1
+        used = [c.position for c in candidates if c.position is not None]
+        positions = itertools.count(max(used, default=-1) + 1)  # per build: a shared builder
         queues = {
             query: sorted(
                 (c for c in pending if c.query == query), key=lambda c: -(c.story_score or 0.0)
@@ -366,13 +392,18 @@ class FootageBuilder:
             batch = select_batch(queues, admitted, total, self._concurrency, per_query)
             if not batch:
                 break
-            outcomes = await asyncio.gather(
-                *(
-                    self._timed(
-                        workflow, root, c, carousel.get(c.url), main_hashes, admitted_hashes
-                    )
-                    for c in batch
+            # A failure (a missing tool) cancels the siblings, so none decides during a retry.
+            outcomes = await _together(
+                self._timed(
+                    workflow,
+                    root,
+                    c,
+                    carousel.get(c.url),
+                    main_hashes,
+                    admitted_hashes,
+                    positions,
                 )
+                for c in batch
             )
             for candidate, ok in zip(batch, outcomes, strict=True):
                 if ok:
@@ -390,6 +421,7 @@ class FootageBuilder:
         existing: PurePosixPath | None,
         main_hashes: list[int],
         admitted_hashes: list[list[int]],
+        positions: Iterator[int],
     ) -> bool:
         owned = existing is None
         name = hashlib.sha256(candidate.url.encode()).hexdigest()[:20] + ".mp4"
@@ -397,12 +429,25 @@ class FootageBuilder:
         try:
             return await asyncio.wait_for(
                 self._check(
-                    workflow, root, candidate, location, owned, main_hashes, admitted_hashes
+                    workflow,
+                    root,
+                    candidate,
+                    location,
+                    owned,
+                    main_hashes,
+                    admitted_hashes,
+                    positions,
                 ),
                 self._per_candidate,
             )
         except TimeoutError:
             return await self._reject(workflow, root, candidate, location, owned, "media_failed")
+        except asyncio.CancelledError:
+            # Cancelled before a decision: drop the window; the candidate stays pending, so a
+            # retry redoes it. (After an admit landed, a retry finds no file and reopens it.)
+            if owned:
+                (root / location).unlink(missing_ok=True)
+            raise
 
     async def _check(
         self,
@@ -413,15 +458,14 @@ class FootageBuilder:
         owned: bool,
         main_hashes: list[int],
         admitted_hashes: list[list[int]],
+        positions: Iterator[int],
     ) -> bool:
         path = root / location
         window = clip_window(candidate.source_duration) if owned else None
         if owned:
             try:
                 await self._ports.downloader.download(candidate.url, window, path)
-            except ToolMissing:
-                raise
-            except Exception:
+            except ClipError:
                 return await self._reject(
                     workflow, root, candidate, location, owned, "media_failed"
                 )
@@ -478,7 +522,7 @@ class FootageBuilder:
                 workflow, root, candidate, location, owned, "duplicate", **seen
             )
         admitted_hashes.append(hashes)
-        position, self._position = self._position, self._position + 1
+        position = next(positions)
         clip = AdmittedClip(
             kind=answer.kind,
             shows_object=answer.shows_object,
@@ -491,9 +535,9 @@ class FootageBuilder:
             ocr=ocr.model_dump(mode="json"),
             position=position,
         )
-        await asyncio.to_thread(self._store.admit, workflow, candidate.url, clip)
-        if candidate.source == "carousel":
+        if candidate.source == "carousel":  # scored first: an admitted slide always has its 1.0
             await asyncio.to_thread(self._store.score, workflow, candidate.url, 1.0)
+        await asyncio.to_thread(self._store.admit, workflow, candidate.url, clip)
         return True
 
     async def _reject(
@@ -518,7 +562,9 @@ class FootageBuilder:
             if not path.is_file() or _sha256(path) != candidate.media_checksum:
                 await asyncio.to_thread(self._store.reopen, workflow, candidate.url)
                 continue
-            hashes.append(await self._hashes(path, candidate.clip_duration or 0.0))
+            # The frames admission hashed: after the stored OCR's trim (spec F7 step 4).
+            trim = float((candidate.ocr or {}).get("trim_start") or 0.0)
+            hashes.append(await self._hashes(path, trim, candidate.clip_duration or 0.0))
         return hashes
 
     async def _main_hashes(self, main: SourceReport, root: Path) -> list[int]:
@@ -532,13 +578,13 @@ class FootageBuilder:
             duration = videos[0].duration_seconds or await self._ports.probe.duration(path)
         except DurationError:
             return []
-        return await self._hashes(path, duration)
+        return await self._hashes(path, 0.0, duration)
 
-    async def _hashes(self, path: Path, duration: float) -> list[int]:
+    async def _hashes(self, path: Path, start: float, duration: float) -> list[int]:
         try:
             frames = [
                 await self._ports.frames.frame_at(path, second, width=VISION_WIDTH)
-                for second in vision_seconds(0.0, duration)
+                for second in vision_seconds(start, duration)
             ]
         except FrameError:
             return []
@@ -555,5 +601,10 @@ class FootageBuilder:
 
     @staticmethod
     def _clean_parts(root: Path, workflow: str) -> None:
-        for part in (root / "reports" / workflow / "footage").glob("*.part"):
+        """What a killed worker leaves: `.part` files and the downloader's scratch folders."""
+        folder = root / "reports" / workflow / "footage"
+        for part in folder.glob("*.part"):
             part.unlink(missing_ok=True)
+        for scratch in folder.glob(SCRATCH_GLOB):
+            if scratch.is_dir():
+                shutil.rmtree(scratch, ignore_errors=True)

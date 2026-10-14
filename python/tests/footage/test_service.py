@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import copy
+import hashlib
 import json
+import logging
 import zlib
 from collections.abc import Sequence
 from datetime import UTC, datetime
@@ -193,7 +196,13 @@ def store(tmp_path: Path) -> FootageStore:
     return FootageStore(engine, clock=lambda: NOW)
 
 
-def _builder(store: FootageStore, **ports: Any) -> FootageBuilder:
+def _builder(
+    store: FootageStore,
+    *,
+    deadline_seconds: float = 720.0,
+    per_candidate_seconds: float = 90.0,
+    **ports: Any,
+) -> FootageBuilder:
     values: dict[str, Any] = {
         "queries": Queries(TWO_OBJECTS),
         "search": Search(),
@@ -212,6 +221,8 @@ def _builder(store: FootageStore, **ports: Any) -> FootageBuilder:
         story_min=0.33,
         max_frames=4,
         clock=lambda: NOW,
+        deadline_seconds=deadline_seconds,
+        per_candidate_seconds=per_candidate_seconds,
     )
 
 
@@ -265,8 +276,13 @@ def test_select_batch_rounds_across_queries_and_respects_the_caps() -> None:
 
     queues = {"a": [view("a1", "a"), view("a2", "a"), view("a3", "a")], "b": [view("b1", "b")]}
     batch = select_batch(queues, Counter({"a": 1}), total=1, size=3)
-    assert [c.url for c in batch] == ["a1", "b1"]  # a holds one admitted: one more slot only
+    # The least-served query goes first; a holds one admitted, so it has one more slot only.
+    assert [c.url for c in batch] == ["b1", "a1"]
     assert [c.url for c in queues["a"]] == ["a2", "a3"]
+    # Spec F6: every query gets its first turn before any gets a second, across batches too.
+    four = {q: [view(f"{q}1", q), view(f"{q}2", q)] for q in "abcd"}
+    served = Counter({"a": 1, "b": 1, "c": 1})
+    assert [c.url for c in select_batch(four, served, total=3, size=3)] == ["d1", "a1", "b1"]
     assert select_batch({"a": [view("x", "a")]}, Counter(), total=6, size=3) == []
 
 
@@ -317,6 +333,7 @@ async def test_quota_two_per_query_six_in_total(store: FootageStore, tmp_path: P
     for c in admitted:
         per_query[c.query] = per_query.get(c.query, 0) + 1
     assert max(per_query.values()) <= 2
+    assert set(per_query) == {f"objek{n} kemang" for n in range(4)}  # no query starved
     assert [c.position for c in admitted] == list(range(6))
     assert len(downloader.calls) == 6  # stopped once six were admitted
 
@@ -503,6 +520,9 @@ async def test_a_retry_redoes_pending_and_keeps_admitted(
     (tmp_path / first[0].media_location).unlink()
     stale = tmp_path / "reports" / "wf_a" / "footage" / "stale.mp4.part"
     stale.write_bytes(b"x")
+    scratch = tmp_path / "reports" / "wf_a" / "footage" / "thoth-footage-abc123"
+    scratch.mkdir()
+    (scratch / "clip.mp4.part").write_bytes(b"x")
 
     search.calls.clear()
     judge = Judge()
@@ -513,7 +533,7 @@ async def test_a_retry_redoes_pending_and_keeps_admitted(
     assert search.calls == []  # the cache answered
     assert result.status == "ok"
     assert len(judge.calls) == 1  # only the reopened candidate was checked again
-    assert not stale.exists()
+    assert not stale.exists() and not scratch.exists()
 
 
 async def test_a_done_run_is_not_redone(store: FootageStore, tmp_path: Path) -> None:
@@ -547,3 +567,179 @@ async def test_a_carousel_main_uses_its_own_video_slides(
     assert {c.source for c in admitted} == {"carousel"}
     assert all(c.url.startswith("https://www.instagram.com/p/MAIN1/#slide") for c in admitted)
     assert all(c.story_score == 1.0 for c in admitted)
+
+
+def _window(tmp_path: Path, video: DiscoveredVideo) -> Path:
+    name = hashlib.sha256(str(video.canonical_url).encode()).hexdigest()[:20] + ".mp4"
+    return tmp_path / "reports" / "wf_a" / "footage" / name
+
+
+THREE_OBJECTS = FootageQueryAnswer.model_validate(
+    {
+        "subjects": ["kemang"],
+        "objects": [
+            {"name": "a", "visual": "fine"},
+            {"name": "b", "visual": "blocked"},
+            {"name": "c", "visual": "broken tool"},
+        ],
+    }
+)
+THREE_HITS = {
+    ("tiktok", "a kemang"): [_video(1)],
+    ("tiktok", "b kemang"): [_video(2)],
+    ("tiktok", "c kemang"): [_video(3)],
+}
+
+
+async def test_a_missing_tool_cancels_the_sibling_checks(
+    store: FootageStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from thoth_control_plane.footage import service
+
+    entered, never = asyncio.Event(), asyncio.Event()
+    cancelled: list[str] = []
+    real_ocr = service.analyze_main_ocr
+
+    async def ocr(video: Path, *args: Any, **kwargs: Any) -> Any:
+        if str(_video(3).canonical_url).encode() in video.read_bytes():
+            await entered.wait()  # fail only once the blocked sibling holds its window
+            raise AssemblyError("ffmpeg_missing")
+        return await real_ocr(video, *args, **kwargs)
+
+    class Blocking(Judge):
+        async def judge(self, frames: Sequence[Frame], visual: str) -> FootageAnswer:
+            if visual != "blocked":
+                return await super().judge(frames, visual)
+            entered.set()
+            try:
+                await never.wait()
+            except asyncio.CancelledError:
+                cancelled.append(visual)
+                raise
+            raise AssertionError("unreachable")
+
+    monkeypatch.setattr(service, "analyze_main_ocr", ocr)
+    builder = _builder(
+        store, queries=Queries(THREE_OBJECTS), search=Search(THREE_HITS), judge=Blocking()
+    )
+    with pytest.raises(AssemblyError, match="ffmpeg_missing"):
+        await builder.build(_inputs(tmp_path))
+    assert cancelled == ["blocked"]
+    blocked = next(c for c in store.candidates("wf_a") if c.url == str(_video(2).canonical_url))
+    assert blocked.status == "pending" and blocked.reason is None  # never admitted or rejected
+    assert not _window(tmp_path, _video(2)).exists()
+
+
+async def test_a_candidate_past_its_time_is_media_failed_and_deleted(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    class Slow(Judge):
+        async def judge(self, frames: Sequence[Frame], visual: str) -> FootageAnswer:
+            await asyncio.sleep(10)
+            return await super().judge(frames, visual)
+
+    result = await _builder(
+        store, search=Search(_hits(_video(1))), judge=Slow(), per_candidate_seconds=0.5
+    ).build(_inputs(tmp_path))
+    assert result.status == "none" and result.rejected == {"media_failed": 1}
+    assert not _window(tmp_path, _video(1)).exists()
+
+
+async def test_the_deadline_stops_after_the_running_batch(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    answer = FootageQueryAnswer.model_validate(
+        {
+            "subjects": ["kemang"],
+            "objects": [{"name": f"objek{n}", "visual": f"visual {n}"} for n in range(4)],
+        }
+    )
+    results = {("tiktok", f"objek{n} kemang"): [_video(n)] for n in range(4)}
+
+    class Slow(Judge):
+        async def judge(self, frames: Sequence[Frame], visual: str) -> FootageAnswer:
+            await asyncio.sleep(1.2)  # the first batch outlasts the deadline
+            return await super().judge(frames, visual)
+
+    downloader = Downloader()
+    result = await _builder(
+        store,
+        queries=Queries(answer),
+        search=Search(results),
+        judge=Slow(),
+        downloader=downloader,
+        deadline_seconds=1.0,
+    ).build(_inputs(tmp_path))
+    assert result.status == "ok" and result.admitted == 3
+    assert len(downloader.calls) == 3  # the fourth query's candidate was never started
+    assert [c.status for c in store.candidates("wf_a")].count("pending") == 1
+
+
+async def test_a_carousel_slide_is_scored_before_it_is_admitted(
+    store: FootageStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for index in (1, 2):
+        location = tmp_path / f"reports/wf_a/media/slide-{index}.mp4"
+        location.parent.mkdir(parents=True, exist_ok=True)
+        location.write_bytes(bytes([index]) * 20_000)
+
+    def crash(*args: Any, **kwargs: Any) -> None:
+        raise RuntimeError("worker died")
+
+    monkeypatch.setattr(store, "admit", crash)
+    with pytest.raises(RuntimeError):
+        await _builder(store).build(_inputs(tmp_path, _report(slides=2)))
+    assert [c.story_score for c in store.candidates("wf_a")] == [1.0]
+
+
+async def test_resume_hashes_an_admitted_clip_at_its_stored_trim(
+    store: FootageStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from thoth_control_plane.assembly.models import MainOcr
+    from thoth_control_plane.footage import service
+    from thoth_control_plane.infrastructure.footage_models import FootageRunRow
+
+    async def trimmed(*args: Any, **kwargs: Any) -> Any:
+        return MainOcr(
+            analyzed_at=NOW,
+            requested_frames=4,
+            valid_frames=4,
+            outcome="cover",
+            trim_start=5.0,
+            mute_audio=False,
+        )
+
+    monkeypatch.setattr(service, "analyze_main_ocr", trimmed)
+    await _builder(store, search=Search(_hits(_video(1)))).build(_inputs(tmp_path))
+    with store._sessions.begin() as session:  # test-only rewind
+        session.get(FootageRunRow, "wf_a").status = "running"
+
+    class Recording(Frames):
+        def __init__(self) -> None:
+            self.seconds: list[float] = []
+
+        async def frame_at(self, video: Path, second: float, *, width: int) -> Frame:
+            self.seconds.append(second)
+            return await super().frame_at(video, second, width=width)
+
+    frames = Recording()
+    await _builder(store, frames=frames).build(_inputs(tmp_path))
+    assert frames.seconds == [8.0, 12.5, 17.0]  # vision_seconds(5.0, 20.0), as at admission
+
+
+async def test_a_raising_platform_logs_its_error_class_only(
+    store: FootageStore, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    class Raising(Search):
+        async def search(self, platform: str, queries: Sequence[str], limit: int) -> SearchBatch:
+            if platform == "x":
+                raise RuntimeError("banjir kemang secret detail")
+            return await super().search(platform, queries, limit)
+
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.footage.service"):
+        result = await _builder(store, search=Raising(_hits(_video(1)))).build(_inputs(tmp_path))
+    assert result.status == "ok"
+    text = caplog.text
+    assert "platform=x error=RuntimeError" in text and "secret" not in text
+    for name, hits in (("tiktok", 1), ("youtube", 0), ("x", 0)):
+        assert f"footage search platform={name} hits={hits}" in text
