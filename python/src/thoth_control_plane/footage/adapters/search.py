@@ -75,8 +75,10 @@ class PlatformSearch:
                 )
             except ToolMissing:
                 raise
-            except Exception:
-                logger.warning("footage search stopped platform=%s", platform)
+            except Exception as error:
+                logger.warning(
+                    "footage search stopped platform=%s reason=%s", platform, type(error).__name__
+                )
                 return SearchBatch(found=found, failed=True)
         return SearchBatch(found=found, failed=False)
 
@@ -86,7 +88,7 @@ class PlatformSearch:
         lease = await self._leases.lease("x") if self._leases is not None else None
         if lease is None:
             # Signed out, X search returns nothing; never spend a browser on it.
-            logger.info("no X account free for footage search")
+            logger.warning("footage search stopped platform=x reason=no_free_account")
             return SearchBatch(found={}, failed=True)
         outcome: Outcome | None = None
         try:

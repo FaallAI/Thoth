@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+from thoth_control_plane.acquisition.youtube_service import _Silent
 from thoth_control_plane.attribution.ports import AttributionError, Frame
 from thoth_control_plane.footage.adapters import downloader as downloader_module
 from thoth_control_plane.footage.adapters.downloader import ClipError, YtDlpClipDownloader
@@ -68,7 +69,8 @@ async def test_a_window_reaches_yt_dlp_and_the_file_lands(
         == target
     )
     assert target.read_bytes() == b"\x00" * 64
-    assert seen["proxy"] == ""
+    assert seen["proxy"] == "" and seen["noprogress"] is True
+    assert isinstance(seen["logger"], _Silent)
     assert seen["force_keyframes_at_cuts"] is True and "download_ranges" in seen
     assert not any(p.name.endswith(".part") for p in tmp_path.iterdir())
 

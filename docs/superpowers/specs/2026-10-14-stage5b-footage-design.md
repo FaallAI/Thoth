@@ -218,7 +218,7 @@ vision error or timeout as `vision_unavailable`. Neither stops the stage.
 ### F8 Download
 
 - A clip of 30 seconds or less is downloaded whole.
-- A longer clip is downloaded from `trim_start` for 15 seconds with
+- A longer clip is downloaded from `trim_start` for a window of at most 20 seconds (amendment 1) with
   `yt-dlp --download-sections`; `clip_start` records where the window begins in the source, and
   the stored OCR is shifted to the window.
 - Direct, without an account proxy. Written to

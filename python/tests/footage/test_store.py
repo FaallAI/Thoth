@@ -92,6 +92,18 @@ def test_a_search_is_cached_for_a_day_and_pruned_after(store: FootageStore, cloc
     assert store.cached_search("tiktok", "banjir jakarta") is None
 
 
+def test_nul_characters_never_reach_the_database(store: FootageStore) -> None:
+    dirty = _video().model_copy(update={"caption": "ban\x00jir"})
+    store.save_search("tiktok", "banjir", [dirty])
+    cached = store.cached_search("tiktok", "banjir")
+    assert cached is not None and cached[0].caption == "banjir"
+
+    store.start_run("wf_a", OBJECTS)
+    store.add_candidates("wf_a", [_candidate(caption="ban\x00jir", owner_handle="a\x00")])
+    row = store.candidates("wf_a")[0]
+    assert row.caption == "banjir" and row.owner_handle == "a"
+
+
 def test_saving_a_search_again_replaces_it(store: FootageStore) -> None:
     store.save_search("tiktok", "banjir jakarta", [_video(1)])
     store.save_search("tiktok", "banjir jakarta", [_video(2)])

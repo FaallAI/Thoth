@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -326,6 +327,22 @@ def test_admitted_clips_become_footage_and_feed_figures(tmp_path: Path) -> None:
         and item.shows_object == "yes"
     )
     assert "A flooded street." in figures.prompts[0]
+
+
+def test_more_than_six_stored_clips_are_capped(tmp_path: Path) -> None:
+    reader = FootageReader(
+        _run(),
+        [
+            replace(
+                _clip_view(_clean_ocr()),
+                url=f"https://www.tiktok.com/@broll/video/74000000000000000{n}",
+                media_location=f"reports/wf_a/footage/clip{n}.mp4",
+            )
+            for n in range(7)
+        ],
+    )
+    content = _footage_build(tmp_path, reader)
+    assert content.footage_status == "ok" and len(content.footage) == 6
 
 
 def test_a_broken_stored_clip_is_left_out(tmp_path: Path) -> None:

@@ -39,6 +39,7 @@ from thoth_control_plane.acquisition.models import (
     DiscoveryResult,
 )
 from thoth_control_plane.acquisition.normalize import numeric_id, published_at_from_epoch
+from thoth_control_plane.attribution.adapters.frames import ToolMissing
 
 XHR_PATTERN = r"/SearchTimeline"
 VIDEO_TYPES = frozenset({"video", "animated_gif"})
@@ -195,6 +196,8 @@ class XSearchDiscovery:
         try:
             session = self._session_factory(headless=True, max_pages=1, capture_xhr=XHR_PATTERN)
             active = await session.__aenter__()
+        except ToolMissing:
+            raise  # a missing tool is an explicit error, not an unavailable platform
         except Exception:
             return XSearchBatch(unavailable=True)
         _increment_active_sessions()

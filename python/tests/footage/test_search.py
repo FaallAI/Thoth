@@ -16,6 +16,7 @@ from thoth_control_plane.acquisition.models import (
 )
 from thoth_control_plane.acquisition.youtube_service import YtDlpError
 from thoth_control_plane.attribution.adapters.discovery import ProfileDiscoverer
+from thoth_control_plane.attribution.adapters.frames import ToolMissing
 from thoth_control_plane.footage.adapters.search import PlatformSearch
 from thoth_control_plane.footage.adapters.x_search import XSearchDiscovery, _answer, parse_search
 from thoth_control_plane.footage.adapters.youtube import YouTubeSearchDiscovery
@@ -175,6 +176,14 @@ async def test_a_refusal_stops_the_remaining_queries(refusal: _Entry) -> None:
     assert batch.refused and batch.found == {} and len(seen) == 1
 
 
+async def test_a_missing_tool_is_an_error_not_unavailable() -> None:
+    def missing(**kwargs: Any) -> Any:
+        raise ToolMissing("camoufox_missing")
+
+    with pytest.raises(ToolMissing, match="camoufox_missing"):
+        await XSearchDiscovery(missing).search_many(["banjir"], 8)
+
+
 async def test_a_browser_that_cannot_start_is_unavailable() -> None:
     def broken(**kwargs: Any) -> Any:
         raise RuntimeError("no browser")
@@ -259,16 +268,22 @@ async def test_only_a_refusal_cools_the_x_account_down(
     assert leases.outcomes == [outcome] and batch.failed is failed
 
 
-async def test_no_free_x_account_means_no_signed_out_search() -> None:
+async def test_no_free_x_account_means_no_signed_out_search(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     from thoth_control_plane.footage.adapters.x_search import XSearchBatch
 
     leases = _Leases(free=False)
     stub = _XStub(XSearchBatch(found={}, refused=False, unavailable=False))
     batch = await _platform_search(leases, stub).search("x", ["a"], 8)
     assert stub.calls == [] and batch.failed and batch.found == {}
+    record = next(r for r in caplog.records if "no_free_account" in r.getMessage())
+    assert record.levelname == "WARNING" and "platform=x" in record.getMessage()
 
 
-async def test_tiktok_searches_each_query_and_keeps_what_it_found() -> None:
+async def test_tiktok_searches_each_query_and_keeps_what_it_found(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     calls: list[str] = []
 
     class Discovery:
@@ -288,6 +303,8 @@ async def test_tiktok_searches_each_query_and_keeps_what_it_found() -> None:
     batch = await search.search("tiktok", ["a", "bad\x00query", "boom", "never"], 8)
     assert calls == ["a", "boom"]
     assert batch.found == {"a": []} and batch.failed
+    text = caplog.text
+    assert "platform=tiktok reason=RuntimeError" in text and "browser died" not in text
 
 
 class _YtClient:

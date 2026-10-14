@@ -5,6 +5,7 @@ Synchronous like the source-account store; callers wrap calls in `asyncio.to_thr
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
 
@@ -32,6 +33,11 @@ SEARCH_KEPT = timedelta(hours=24)
 
 def normalize_query(query: str) -> str:
     return " ".join(query.lower().split())
+
+
+def _text(value: str | None) -> str | None:
+    """PostgreSQL TEXT refuses NUL, so scraped text loses it before it is stored."""
+    return None if value is None else value.replace("\x00", "")
 
 
 def _view(row: FootageCandidateRow) -> CandidateView:
@@ -112,7 +118,12 @@ class FootageStore:
                 FootageSearchRow(
                     platform=platform,
                     query=key,
-                    results=[video.model_dump(mode="json") for video in videos],
+                    # jsonb refuses a NUL escape as well
+                    results=json.loads(
+                        json.dumps([video.model_dump(mode="json") for video in videos]).replace(
+                            "\\u0000", ""
+                        )
+                    ),
                     fetched_at=now,
                     expires_at=now + SEARCH_KEPT,
                 )
@@ -186,10 +197,10 @@ class FootageStore:
                         url=item.url,
                         platform=item.platform,
                         source=item.source,
-                        query=item.query,
-                        visual=item.visual,
-                        owner_handle=item.owner_handle,
-                        caption=item.caption,
+                        query=_text(item.query),
+                        visual=_text(item.visual),
+                        owner_handle=_text(item.owner_handle),
+                        caption=_text(item.caption),
                         published_at=item.published_at,
                         engagement=dict(item.engagement),
                         source_duration=item.source_duration,
@@ -227,7 +238,7 @@ class FootageStore:
                 row.story_score = story_score
             row.kind = kind
             row.shows_object = shows_object
-            row.description = description
+            row.description = _text(description)
             row.updated_at = self._clock()
 
     def admit(self, workflow_id: str, url: str, clip: AdmittedClip) -> None:
@@ -237,7 +248,7 @@ class FootageStore:
             row.reason = None
             row.kind = clip.kind
             row.shows_object = clip.shows_object
-            row.description = clip.description
+            row.description = _text(clip.description)
             row.media_location = clip.media_location
             row.media_checksum = clip.media_checksum
             row.media_bytes = clip.media_bytes

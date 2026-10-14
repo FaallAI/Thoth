@@ -22,6 +22,7 @@ from thoth_control_plane.acquisition.models import MaterializedMedia, SourceRepo
 from thoth_control_plane.assembly.comments import card_ref, merge_comments
 from thoth_control_plane.assembly.figures import figure_prompt, normalize_figures
 from thoth_control_plane.assembly.models import (
+    MAX_FOOTAGE,
     ContentSet,
     Figure,
     Footage,
@@ -240,6 +241,9 @@ class ContentAssembler:
         if run is None or run.status != "done":
             return [], "unavailable"
         items = [item for item in (_footage_item(view) for view in views) if item is not None]
+        if len(items) > MAX_FOOTAGE:
+            logger.warning("footage over the cap: %d stored, keeping %d", len(items), MAX_FOOTAGE)
+            items = items[:MAX_FOOTAGE]
         if run.footage_status == "ok":
             return items, "ok" if items else "none"
         return [], run.footage_status or "unavailable"

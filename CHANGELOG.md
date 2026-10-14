@@ -21,7 +21,7 @@ merged, or deployed, and `THOTH_FOOTAGE_ENABLED` stays off.
 - **Checking:** a local multilingual embedder (ONNX, no new dependency), a clip window download
   (direct, never through an account proxy), dHash duplicate removal, frame sampling, local OCR,
   and a vision judge; rejected windows are deleted.
-- **Builder and stage:** `FootageBuilder` with a per-platform quota, fair query rotation,
+- **Builder and stage:** `FootageBuilder` with a per-query quota (at most 2 per query, 6 in all), fair query rotation,
   sibling-check cancellation, and resume; a footage stage before assembly and the worker wiring
   behind `THOTH_FOOTAGE_ENABLED`. The stage reports a sanitized failure code and keeps detail out
   of history.

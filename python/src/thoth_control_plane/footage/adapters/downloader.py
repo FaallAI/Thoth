@@ -11,7 +11,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from thoth_control_plane.acquisition.youtube_service import STOP_GRACE_SECONDS
+from thoth_control_plane.acquisition.youtube_service import STOP_GRACE_SECONDS, _Silent
 
 FORMAT = "bv*[height<=720][ext=mp4]+ba[ext=m4a]/b[height<=720][ext=mp4]/b[ext=mp4]/b"
 TIMEOUT_SECONDS = 75.0
@@ -54,6 +54,8 @@ class YtDlpClipDownloader:
                 "outtmpl": str(Path(scratch) / "clip.%(ext)s"),
                 "noplaylist": True,
                 "quiet": True,
+                "noprogress": True,
+                "logger": _Silent(),
                 "no_warnings": True,
                 "socket_timeout": 20,
                 "proxy": "",  # direct, even when the environment sets HTTP(S)_PROXY
