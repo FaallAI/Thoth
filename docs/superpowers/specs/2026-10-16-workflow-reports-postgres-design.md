@@ -128,9 +128,12 @@ artifact is served from disk as today.
 
 ## Configuration
 
-`THOTH_EDITOR_DATABASE_URL` becomes required for the worker and the API. When it is missing,
-startup fails with a clear error naming the variable (required dependencies fail loud; no
-silent degradation). Both compose stacks already set it; the CI non-live smoke already starts
+`THOTH_EDITOR_DATABASE_URL` becomes required for the worker: when it is missing, the worker
+refuses to start with `editor_database_missing` (required dependencies fail loud; no silent
+degradation). The API keeps its existing rule that a missing database makes the
+database-backed features unavailable while the rest still serves: a report artifact download
+then answers `503 report_store_unavailable`, never a file and never an empty 200 (plan ruling
+R1, 2026-10-16). Both compose stacks already set it; the CI non-live smoke already starts
 `editor-postgresql`. The worker's activities share one `ReportStore` built at startup.
 
 ## Import of existing reports
