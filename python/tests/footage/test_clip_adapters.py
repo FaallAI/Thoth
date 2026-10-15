@@ -164,3 +164,56 @@ async def test_the_person_prompt_adds_the_exception_only_for_a_person(
     assert prompts[0] == FOOTAGE_PROMPT.format(visual="a speaker")
     assert prompts[1] != prompts[0] and "a speaker" in prompts[1]
     assert "that person themself" in prompts[1]
+
+
+async def test_a_tiktok_url_is_resolved_and_the_direct_url_downloaded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict[str, Any] = {}
+    asked: list[str] = []
+
+    def fake(url: str, options: dict[str, Any]) -> None:
+        seen.update(options, url=url)
+        Path(options["outtmpl"].replace("%(ext)s", "mp4")).write_bytes(b"\x00" * 64)
+
+    async def resolve(url: str) -> str:
+        asked.append(url)
+        return "https://cdn.example/direct.mp4"
+
+    monkeypatch.setattr(downloader_module, "_run_yt_dlp", fake)
+    page = "https://www.tiktok.com/@a/video/7400000000000000001"
+    await YtDlpClipDownloader("ffmpeg", resolve_tiktok=resolve).download(
+        page, (4.0, 24.0), tmp_path / "c.mp4"
+    )
+    assert asked == [page] and seen["url"] == "https://cdn.example/direct.mp4"
+    assert "download_ranges" in seen and seen["proxy"] == ""
+
+
+async def test_a_failing_tiktok_resolver_is_a_clip_error(tmp_path: Path) -> None:
+    async def resolve(url: str) -> str:
+        raise RuntimeError("cdn_unavailable")
+
+    with pytest.raises(ClipError):
+        await YtDlpClipDownloader("ffmpeg", resolve_tiktok=resolve).download(
+            "https://vm.tiktok.com/abc/", None, tmp_path / "c.mp4"
+        )
+    assert list(tmp_path.iterdir()) == []
+
+
+async def test_a_youtube_url_skips_the_tiktok_resolver(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict[str, Any] = {}
+
+    def fake(url: str, options: dict[str, Any]) -> None:
+        seen["url"] = url
+        Path(options["outtmpl"].replace("%(ext)s", "mp4")).write_bytes(b"\x00" * 8)
+
+    async def resolve(url: str) -> str:
+        raise AssertionError("not for youtube")
+
+    monkeypatch.setattr(downloader_module, "_run_yt_dlp", fake)
+    await YtDlpClipDownloader("ffmpeg", resolve_tiktok=resolve).download(
+        "https://youtu.be/x", None, tmp_path / "c.mp4"
+    )
+    assert seen["url"] == "https://youtu.be/x"

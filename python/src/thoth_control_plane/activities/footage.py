@@ -118,6 +118,15 @@ async def _run(
     return _done(result.status, result.admitted, started)
 
 
+async def _tiktok_direct_url(url: str) -> str:
+    import httpx
+
+    from thoth_control_plane.acquisition.adapters.tikwm import TikWmResolver
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        return (await TikWmResolver(client).resolve(url)).media.ephemeral_url.get_secret_value()
+
+
 def build_production_footage(settings: Settings) -> FootageBuilder:
     from thoth_control_plane.activities.source_investigation import (
         _account_profiles,
@@ -148,7 +157,9 @@ def build_production_footage(settings: Settings) -> FootageBuilder:
             queries=AgnoQueryModel(key, settings.THOTH_FOOTAGE_QUERY_MODEL),
             search=build_platform_search(leases),
             embedder=OnnxEmbedder(settings.THOTH_EMBEDDING_MODEL_DIR),
-            downloader=YtDlpClipDownloader(settings.THOTH_FFMPEG),
+            downloader=YtDlpClipDownloader(
+                settings.THOTH_FFMPEG, resolve_tiktok=_tiktok_direct_url
+            ),
             frames=FfmpegFrameSource(settings.THOTH_FFMPEG),
             probe=FfprobeDuration(settings.THOTH_FFPROBE),
             text=RapidOcrReader(angle=False),
