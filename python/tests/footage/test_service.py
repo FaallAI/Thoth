@@ -7,6 +7,7 @@ import copy
 import hashlib
 import json
 import logging
+import time
 import zlib
 from collections.abc import Sequence
 from datetime import UTC, datetime
@@ -205,6 +206,8 @@ def _builder(
     *,
     deadline_seconds: float = 720.0,
     per_candidate_seconds: float = 90.0,
+    grace_seconds: float = 10.0,
+    overrun_seconds: float = 120.0,
     **ports: Any,
 ) -> FootageBuilder:
     values: dict[str, Any] = {
@@ -227,6 +230,8 @@ def _builder(
         clock=lambda: NOW,
         deadline_seconds=deadline_seconds,
         per_candidate_seconds=per_candidate_seconds,
+        grace_seconds=grace_seconds,
+        overrun_seconds=overrun_seconds,
     )
 
 
@@ -803,3 +808,85 @@ async def test_an_overlay_band_is_rejected_as_subtitle(
     )
     assert result.rejected == {"subtitle": 1} and judge.calls == []
     assert list((tmp_path / "reports" / "wf_a" / "footage").glob("*.mp4")) == []
+
+
+async def _settle(release: asyncio.Event) -> None:
+    """Let the deaf stragglers finish so no test leaves a pending task behind."""
+    release.set()
+    others = [task for task in asyncio.all_tasks() if task is not asyncio.current_task()]
+    await asyncio.gather(*others, return_exceptions=True)
+
+
+async def _deaf(release: asyncio.Event) -> None:
+    """The calibration's stuck call: cancellation is caught and the wait goes on."""
+    while not release.is_set():
+        try:
+            await release.wait()
+        except asyncio.CancelledError:
+            continue
+
+
+async def test_a_check_that_ignores_cancellation_is_abandoned(
+    store: FootageStore, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    release = asyncio.Event()
+    stuck: list[asyncio.Task[Any]] = []
+
+    class Deaf(Judge):
+        async def judge(
+            self, frames: Sequence[Frame], visual: str, *, person: bool = False
+        ) -> FootageAnswer:
+            task = asyncio.current_task()
+            assert task is not None
+            stuck.append(task)
+            await _deaf(release)
+            return await super().judge(frames, visual, person=person)
+
+    builder = _builder(
+        store,
+        search=Search(_hits(_video(1))),
+        judge=Deaf(),
+        per_candidate_seconds=0.2,
+        grace_seconds=0.1,
+    )
+    try:
+        with caplog.at_level(logging.WARNING, logger="thoth_control_plane.footage.service"):
+            started = time.monotonic()
+            result = await builder.build(_inputs(tmp_path))
+        assert time.monotonic() - started < 1.5
+        assert result.status == "none" and result.rejected == {"media_failed": 1}
+        assert "platform=tiktok step=vision" in caplog.text
+        assert "tiktok.com" not in caplog.text  # no URL in the log
+    finally:
+        await _settle(release)
+    # Released, the abandoned check reached its admit; the closed candidate ignored it.
+    assert [task.result() for task in stuck] == [False]
+    [candidate] = store.candidates("wf_a")
+    assert candidate.status == "rejected" and candidate.reason == "media_failed"
+    assert not _window(tmp_path, _video(1)).exists()
+
+
+async def test_a_search_that_never_returns_ends_at_the_hard_deadline(
+    store: FootageStore, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    release = asyncio.Event()
+
+    class Hanging(Search):
+        async def search(self, platform: str, queries: Sequence[str], limit: int) -> SearchBatch:
+            await _deaf(release)
+            return SearchBatch(found={}, failed=True)
+
+    builder = _builder(
+        store, search=Hanging(), deadline_seconds=0.1, overrun_seconds=0.2, grace_seconds=0.1
+    )
+    try:
+        with caplog.at_level(logging.WARNING, logger="thoth_control_plane.footage.service"):
+            started = time.monotonic()
+            result = await builder.build(_inputs(tmp_path))
+        assert time.monotonic() - started < 1.5
+        assert result.status == "unavailable"
+        assert "phase=search" in caplog.text
+        run = store.run("wf_a")
+        assert run is not None and run.status == "done" and run.footage_status == "unavailable"
+    finally:
+        await _settle(release)

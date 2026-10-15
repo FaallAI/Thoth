@@ -16,7 +16,7 @@ import time
 import unicodedata
 from collections import Counter
 from collections.abc import Callable, Coroutine, Iterable, Iterator, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, TypeVar
@@ -73,6 +73,26 @@ DEFAULT_VISUAL = "the scene the post is about"
 SCRATCH_GLOB = "thoth-footage-*"  # the clip downloader's scratch directories
 
 T = TypeVar("T")
+
+# Tasks that ignored their cancellation: held so they are not collected mid-flight.
+_ABANDONED: set[asyncio.Task[Any]] = set()
+
+
+def _abandon(task: asyncio.Task[Any]) -> None:
+    _ABANDONED.add(task)
+    task.add_done_callback(_ABANDONED.discard)
+    task.add_done_callback(lambda done: done.cancelled() or done.exception())  # never re-raised
+
+
+@dataclass
+class _Build:
+    """One build's check state; a builder may serve several builds at once."""
+
+    positions: Iterator[int] = field(default_factory=itertools.count)
+    steps: dict[str, str] = field(default_factory=dict)  # candidate URL -> current step
+    closed: set[str] = field(default_factory=set)  # decided elsewhere: the check writes nothing
+    phase: str = "search"
+    over: bool = False
 
 
 async def _together(work: Iterable[Coroutine[Any, Any, T]]) -> list[T]:
@@ -182,6 +202,8 @@ class FootageBuilder:
         deadline_seconds: float = 720.0,
         per_candidate_seconds: float = 90.0,
         concurrency: int = 3,
+        grace_seconds: float = 10.0,
+        overrun_seconds: float = 120.0,
     ) -> None:
         self._ports = ports
         self._store = ports.store
@@ -192,8 +214,47 @@ class FootageBuilder:
         self._deadline = deadline_seconds
         self._per_candidate = per_candidate_seconds
         self._concurrency = concurrency
+        self._grace = grace_seconds
+        self._overrun = overrun_seconds
 
     async def build(self, inputs: FootageInputs) -> FootageResult:
+        """The body under a hard deadline: a step that ignores cancellation cannot hold the
+        activity past it; the run finishes with what was admitted."""
+        state = _Build()
+        body = asyncio.create_task(self._build(inputs, state))
+        if await self._bounded(body, self._deadline + self._overrun) and not body.cancelled():
+            return body.result()
+        state.over = True
+        state.closed.update(state.steps)  # stragglers write nothing more
+        workflow = inputs.workflow_id
+        logger.warning("footage deadline reached phase=%s", state.phase)
+        status: FootageStatus = "unavailable"
+        if state.phase == "checks":
+            admitted = await asyncio.to_thread(self._store.admitted, workflow)
+            status = "ok" if admitted else "none"
+        await asyncio.to_thread(self._store.start_run, workflow, [])  # no-op once it exists
+        await asyncio.to_thread(self._store.finish_run, workflow, status)
+        return await self._result(workflow, status)
+
+    async def _bounded(self, task: asyncio.Task[Any], seconds: float) -> bool:
+        """Wait up to `seconds`, then cancel and allow the grace. False: the task ignored its
+        cancellation and is abandoned. Cancelled itself, it cancels the task the same way."""
+        try:
+            await asyncio.wait({task}, timeout=seconds)
+            if not task.done():
+                task.cancel()
+                await asyncio.wait({task}, timeout=self._grace)
+        except asyncio.CancelledError:
+            task.cancel()
+            await asyncio.wait({task}, timeout=self._grace)
+            if not task.done():
+                _abandon(task)
+            raise
+        if not task.done():
+            _abandon(task)
+        return task.done()
+
+    async def _build(self, inputs: FootageInputs, state: _Build) -> FootageResult:
         started = time.monotonic()
         workflow = inputs.workflow_id
         main = _main(inputs)
@@ -221,10 +282,12 @@ class FootageBuilder:
                     for url in slides
                 ],
             )
-            return await self._check_all(inputs, main, started, [CAROUSEL], slides)
+            return await self._check_all(inputs, main, started, state, [CAROUSEL], slides)
 
         if run is None:
             found = await self._objects(main, inputs.attribution)
+            if state.over:  # a query model that ignored its cancellation came back late
+                raise asyncio.CancelledError
             if found is None:
                 await asyncio.to_thread(self._store.start_run, workflow, [])
                 await asyncio.to_thread(self._store.finish_run, workflow, "unavailable")
@@ -246,9 +309,11 @@ class FootageBuilder:
         )
         await self._gate(workflow, identity, objects, hits)
         await self._story(workflow, main)
+        if state.over:  # likewise an embedder
+            raise asyncio.CancelledError
         people = frozenset(obj.query for obj in objects if obj.person)
         return await self._check_all(
-            inputs, main, started, [obj.query for obj in objects], {}, people
+            inputs, main, started, state, [obj.query for obj in objects], {}, people
         )
 
     async def _objects(
@@ -372,10 +437,12 @@ class FootageBuilder:
         inputs: FootageInputs,
         main: SourceReport,
         started: float,
+        state: _Build,
         queries: list[str],
         carousel: dict[str, PurePosixPath],
         people: frozenset[str] = frozenset(),
     ) -> FootageResult:
+        state.phase = "checks"
         workflow, root = inputs.workflow_id, inputs.artifact_root
         admitted_hashes = await self._verify_admitted(workflow, root)
         main_hashes = await self._main_hashes(main, root)
@@ -383,7 +450,7 @@ class FootageBuilder:
         pending = [c for c in candidates if c.status == "pending"]
         admitted = Counter(c.query for c in candidates if c.status == "admitted")
         used = [c.position for c in candidates if c.position is not None]
-        positions = itertools.count(max(used, default=-1) + 1)  # per build: a shared builder
+        state.positions = itertools.count(max(used, default=-1) + 1)
         queues = {
             query: sorted(
                 (c for c in pending if c.query == query), key=lambda c: -(c.story_score or 0.0)
@@ -405,7 +472,7 @@ class FootageBuilder:
                     carousel.get(c.url),
                     main_hashes,
                     admitted_hashes,
-                    positions,
+                    state,
                     c.query in people,
                 )
                 for c in batch
@@ -426,35 +493,48 @@ class FootageBuilder:
         existing: PurePosixPath | None,
         main_hashes: list[int],
         admitted_hashes: list[list[int]],
-        positions: Iterator[int],
+        state: _Build,
         person: bool,
     ) -> bool:
         owned = existing is None
         name = hashlib.sha256(candidate.url.encode()).hexdigest()[:20] + ".mp4"
         location = existing or PurePosixPath("reports") / workflow / "footage" / name
-        try:
-            return await asyncio.wait_for(
-                self._check(
-                    workflow,
-                    root,
-                    candidate,
-                    location,
-                    owned,
-                    main_hashes,
-                    admitted_hashes,
-                    positions,
-                    person,
-                ),
-                self._per_candidate,
+        state.steps[candidate.url] = "download" if owned else "ocr"
+        check = asyncio.create_task(
+            self._check(
+                workflow,
+                root,
+                candidate,
+                location,
+                owned,
+                main_hashes,
+                admitted_hashes,
+                state,
+                person,
             )
-        except TimeoutError:
-            return await self._reject(workflow, root, candidate, location, owned, "media_failed")
+        )
+        try:
+            finished = await self._bounded(check, self._per_candidate)
         except asyncio.CancelledError:
             # Cancelled before a decision: drop the window; the candidate stays pending, so a
             # retry redoes it. (After an admit landed, a retry finds no file and reopens it.)
+            state.closed.add(candidate.url)
             if owned:
                 (root / location).unlink(missing_ok=True)
             raise
+        if finished and not check.cancelled():
+            return check.result()  # a decision, or a missing tool raised
+        state.closed.add(candidate.url)  # before the reject: a straggler can no longer write
+        logger.warning(
+            "footage check timed out platform=%s step=%s abandoned=%s",
+            candidate.platform,
+            state.steps[candidate.url],
+            not finished,
+        )
+        if owned:
+            (root / location).unlink(missing_ok=True)
+        await asyncio.to_thread(self._store.reject, workflow, candidate.url, "media_failed")
+        return False
 
     async def _check(
         self,
@@ -465,9 +545,10 @@ class FootageBuilder:
         owned: bool,
         main_hashes: list[int],
         admitted_hashes: list[list[int]],
-        positions: Iterator[int],
+        state: _Build,
         person: bool,
     ) -> bool:
+        steps = state.steps
         path = root / location
         window = clip_window(candidate.source_duration) if owned else None
         if owned:
@@ -475,9 +556,10 @@ class FootageBuilder:
                 await self._ports.downloader.download(candidate.url, window, path)
             except ClipError:
                 return await self._reject(
-                    workflow, root, candidate, location, owned, "media_failed"
+                    workflow, root, candidate, location, owned, "media_failed", state
                 )
         try:
+            steps[candidate.url] = "ocr"
             ocr = await analyze_main_ocr(
                 path,
                 None,
@@ -492,7 +574,10 @@ class FootageBuilder:
             )
             # An overlay band is rejected too: the renderer blurs bands on the main only.
             if ocr.outcome in ("subtitle", "overlay"):
-                return await self._reject(workflow, root, candidate, location, owned, "subtitle")
+                return await self._reject(
+                    workflow, root, candidate, location, owned, "subtitle", state
+                )
+            steps[candidate.url] = "frames"
             duration = await self._ports.probe.duration(path)
             frames = [
                 await self._ports.frames.frame_at(path, second, width=VISION_WIDTH)
@@ -501,18 +586,21 @@ class FootageBuilder:
         except AssemblyError as error:
             if error.code in MEDIA_FAILURES:
                 return await self._reject(
-                    workflow, root, candidate, location, owned, "media_failed"
+                    workflow, root, candidate, location, owned, "media_failed", state
                 )
             raise  # a missing tool is an explicit error
         except (FrameError, DurationError):
-            return await self._reject(workflow, root, candidate, location, owned, "media_failed")
+            return await self._reject(
+                workflow, root, candidate, location, owned, "media_failed", state
+            )
+        steps[candidate.url] = "vision"
         try:
             answer = await self._ports.judge.judge(
                 frames, candidate.visual or DEFAULT_VISUAL, person=person
             )
         except AttributionError:
             return await self._reject(
-                workflow, root, candidate, location, owned, "vision_unavailable"
+                workflow, root, candidate, location, owned, "vision_unavailable", state
             )
         seen = {
             "kind": answer.kind,
@@ -521,19 +609,23 @@ class FootageBuilder:
         }
         if answer.kind == "commentary":
             return await self._reject(
-                workflow, root, candidate, location, owned, "commentary", **seen
+                workflow, root, candidate, location, owned, "commentary", state, **seen
             )
         if answer.shows_object == "no":
             return await self._reject(
-                workflow, root, candidate, location, owned, "object_absent", **seen
+                workflow, root, candidate, location, owned, "object_absent", state, **seen
             )
+        steps[candidate.url] = "hash"
         hashes = [dhash(frame.jpeg) for frame in frames]
         if is_duplicate(hashes, [main_hashes, *admitted_hashes]):
             return await self._reject(
-                workflow, root, candidate, location, owned, "duplicate", **seen
+                workflow, root, candidate, location, owned, "duplicate", state, **seen
             )
+        steps[candidate.url] = "store"
+        if candidate.url in state.closed:  # abandoned: its media_failed is recorded
+            return False
         admitted_hashes.append(hashes)
-        position = next(positions)
+        position = next(state.positions)
         clip = AdmittedClip(
             kind=answer.kind,
             shows_object=answer.shows_object,
@@ -548,6 +640,8 @@ class FootageBuilder:
         )
         if candidate.source == "carousel":  # scored first: an admitted slide always has its 1.0
             await asyncio.to_thread(self._store.score, workflow, candidate.url, 1.0)
+        if candidate.url in state.closed:
+            return False
         await asyncio.to_thread(self._store.admit, workflow, candidate.url, clip)
         return True
 
@@ -559,8 +653,12 @@ class FootageBuilder:
         location: PurePosixPath,
         owned: bool,
         reason: str,
+        state: _Build,
         **seen: str,
     ) -> bool:
+        state.steps[candidate.url] = "store"
+        if candidate.url in state.closed:  # abandoned: its media_failed is recorded
+            return False
         if owned:  # a carousel slide is the acquisition's file, never deleted here
             (root / location).unlink(missing_ok=True)
         await asyncio.to_thread(self._store.reject, workflow, candidate.url, reason, **seen)
