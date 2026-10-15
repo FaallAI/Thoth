@@ -42,12 +42,17 @@ class OnnxEmbedder:
             )
 
     def embed_sync(self, texts: Sequence[str]) -> list[list[float]]:
+        # One text per run: the model is dynamically quantized, so its activation scales span
+        # the whole input tensor and a batch would make a vector depend on its neighbours.
+        return [self._embed_one(text or " ") for text in texts]
+
+    def _embed_one(self, text: str) -> list[float]:
         import numpy as np
 
         self._load()
-        encodings = self._tokenizer.encode_batch([text or " " for text in texts])
-        ids = np.array([e.ids for e in encodings], dtype=np.int64)
-        mask = np.array([e.attention_mask for e in encodings], dtype=np.int64)
+        encoding = self._tokenizer.encode(text)
+        ids = np.array([encoding.ids], dtype=np.int64)
+        mask = np.array([encoding.attention_mask], dtype=np.int64)
         feeds = {"input_ids": ids, "attention_mask": mask}
         names = {item.name for item in self._session.get_inputs()}
         if "token_type_ids" in names:
@@ -55,9 +60,8 @@ class OnnxEmbedder:
         hidden = self._session.run(None, feeds)[0]
         weights = mask[..., None].astype(hidden.dtype)
         pooled = (hidden * weights).sum(axis=1) / np.clip(weights.sum(axis=1), 1e-9, None)
-        norms = np.linalg.norm(pooled, axis=1, keepdims=True)
-        vectors = pooled / np.clip(norms, 1e-12, None)
-        return [[float(x) for x in row] for row in vectors]
+        vector = pooled[0] / max(float(np.linalg.norm(pooled[0])), 1e-12)
+        return [float(x) for x in vector]
 
     async def embed(self, texts: Sequence[str]) -> list[list[float]]:
         if not texts:
