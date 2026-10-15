@@ -162,8 +162,15 @@ async def test_the_person_prompt_adds_the_exception_only_for_a_person(
     await judge.judge(frames, "a speaker")
     await judge.judge(frames, "a speaker", person=True)
     assert prompts[0] == FOOTAGE_PROMPT.format(visual="a speaker")
+    assert "talking to the camera" in prompts[0] and "commentary" in prompts[0]
     assert prompts[1] != prompts[0] and "a speaker" in prompts[1]
-    assert "that person themself" in prompts[1]
+    assert "themself" in prompts[1]
+    assert "talking to the camera" not in prompts[1]  # the person rule replaces that sentence
+
+
+def test_the_kind_field_description_does_not_define_commentary() -> None:
+    description = FootageAnswer.model_json_schema()["properties"]["kind"]["description"]
+    assert "talking" not in description and "head" not in description
 
 
 async def test_a_tiktok_url_is_resolved_and_the_direct_url_downloaded(
