@@ -35,3 +35,13 @@ async def test_a_paraphrase_scores_above_an_unrelated_text() -> None:
 async def test_a_missing_model_is_an_explicit_error(tmp_path: Path) -> None:
     with pytest.raises(ToolMissing, match="embedding_model_missing"):
         await OnnxEmbedder(tmp_path).embed(["x"])
+
+
+async def test_a_vector_does_not_depend_on_its_batch() -> None:
+    embedder = OnnxEmbedder(_required("THOTH_TEST_EMBEDDING_MODEL_DIR"))
+    text = "banjir besar melanda jakarta, mobil terendam di jalan"
+    (alone,) = await embedder.embed([text])
+    batch = await embedder.embed(
+        ["resep nasi goreng kampung yang enak dan murah " * 8, text, "halo", "gempa di bandung"]
+    )
+    assert max(abs(x - y) for x, y in zip(alone, batch[1], strict=True)) < 1e-5

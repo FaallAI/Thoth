@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import gc
 import hashlib
 import json
 import logging
+import time
 import zlib
 from collections.abc import Sequence
 from datetime import UTC, datetime
@@ -175,10 +177,14 @@ class Judge:
     def __init__(self, answers: dict[str, FootageAnswer | Exception] | None = None) -> None:
         self.answers = answers or {}
         self.calls: list[str] = []
+        self.people: list[bool] = []
 
-    async def judge(self, frames: Sequence[Frame], visual: str) -> FootageAnswer:
+    async def judge(
+        self, frames: Sequence[Frame], visual: str, *, person: bool = False
+    ) -> FootageAnswer:
         key = visual
         self.calls.append(key)
+        self.people.append(person)
         answer = self.answers.get(
             key, FootageAnswer(kind="footage", shows_object="yes", description="A flooded street.")
         )
@@ -201,6 +207,8 @@ def _builder(
     *,
     deadline_seconds: float = 720.0,
     per_candidate_seconds: float = 90.0,
+    grace_seconds: float = 10.0,
+    overrun_seconds: float = 120.0,
     **ports: Any,
 ) -> FootageBuilder:
     values: dict[str, Any] = {
@@ -223,6 +231,8 @@ def _builder(
         clock=lambda: NOW,
         deadline_seconds=deadline_seconds,
         per_candidate_seconds=per_candidate_seconds,
+        grace_seconds=grace_seconds,
+        overrun_seconds=overrun_seconds,
     )
 
 
@@ -607,9 +617,11 @@ async def test_a_missing_tool_cancels_the_sibling_checks(
         return await real_ocr(video, *args, **kwargs)
 
     class Blocking(Judge):
-        async def judge(self, frames: Sequence[Frame], visual: str) -> FootageAnswer:
+        async def judge(
+            self, frames: Sequence[Frame], visual: str, *, person: bool = False
+        ) -> FootageAnswer:
             if visual != "blocked":
-                return await super().judge(frames, visual)
+                return await super().judge(frames, visual, person=person)
             entered.set()
             try:
                 await never.wait()
@@ -634,9 +646,11 @@ async def test_a_candidate_past_its_time_is_media_failed_and_deleted(
     store: FootageStore, tmp_path: Path
 ) -> None:
     class Slow(Judge):
-        async def judge(self, frames: Sequence[Frame], visual: str) -> FootageAnswer:
+        async def judge(
+            self, frames: Sequence[Frame], visual: str, *, person: bool = False
+        ) -> FootageAnswer:
             await asyncio.sleep(10)
-            return await super().judge(frames, visual)
+            return await super().judge(frames, visual, person=person)
 
     result = await _builder(
         store, search=Search(_hits(_video(1))), judge=Slow(), per_candidate_seconds=0.5
@@ -657,9 +671,11 @@ async def test_the_deadline_stops_after_the_running_batch(
     results = {("tiktok", f"objek{n} kemang"): [_video(n)] for n in range(4)}
 
     class Slow(Judge):
-        async def judge(self, frames: Sequence[Frame], visual: str) -> FootageAnswer:
+        async def judge(
+            self, frames: Sequence[Frame], visual: str, *, person: bool = False
+        ) -> FootageAnswer:
             await asyncio.sleep(1.2)  # the first batch outlasts the deadline
-            return await super().judge(frames, visual)
+            return await super().judge(frames, visual, person=person)
 
     downloader = Downloader()
     result = await _builder(
@@ -743,3 +759,162 @@ async def test_a_raising_platform_logs_its_error_class_only(
     assert "platform=x error=RuntimeError" in text and "secret" not in text
     for name, hits in (("tiktok", 1), ("youtube", 0), ("x", 0)):
         assert f"footage search platform={name} hits={hits}" in text
+
+
+async def test_a_person_query_is_judged_as_a_person(store: FootageStore, tmp_path: Path) -> None:
+    answer = FootageQueryAnswer.model_validate(
+        {
+            "subjects": ["kemang"],
+            "objects": [{"name": "banjir", "visual": "a flooded street"}],
+            "people": ["Budi Santoso"],
+        }
+    )
+    judge = Judge()
+    search = Search(
+        {
+            ("tiktok", "banjir kemang"): [_video(1)],
+            ("tiktok", "budi santoso pidato kemang"): [_video(2)],
+        }
+    )
+    await _builder(store, queries=Queries(answer), search=search, judge=judge).build(
+        _inputs(tmp_path)
+    )
+    by_visual = dict(zip(judge.calls, judge.people, strict=True))
+    assert by_visual["a flooded street"] is False
+    assert [v for v, p in by_visual.items() if p and "budi santoso" in v]
+
+
+async def test_an_overlay_band_is_rejected_as_subtitle(
+    store: FootageStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from thoth_control_plane.footage import service
+
+    async def overlay(*args: Any, **kwargs: Any) -> Any:
+        from thoth_control_plane.assembly.models import MainOcr
+
+        return MainOcr(
+            analyzed_at=NOW,
+            requested_frames=4,
+            valid_frames=4,
+            outcome="overlay",
+            trim_start=0.0,
+            mute_audio=False,
+            subtitle_blur=[{"x": 0.1, "y": 0.8, "w": 0.8, "h": 0.1}],
+        )
+
+    monkeypatch.setattr(service, "analyze_main_ocr", overlay)
+    judge = Judge()
+    result = await _builder(store, search=Search(_hits(_video(1))), judge=judge).build(
+        _inputs(tmp_path)
+    )
+    assert result.rejected == {"subtitle": 1} and judge.calls == []
+    assert list((tmp_path / "reports" / "wf_a" / "footage").glob("*.mp4")) == []
+
+
+async def _settle(release: asyncio.Event) -> None:
+    """Let the deaf stragglers finish so no test leaves a pending task behind."""
+    release.set()
+    others = [task for task in asyncio.all_tasks() if task is not asyncio.current_task()]
+    await asyncio.gather(*others, return_exceptions=True)
+
+
+async def _deaf(release: asyncio.Event) -> None:
+    """The calibration's stuck call: cancellation is caught and the wait goes on."""
+    while not release.is_set():
+        try:
+            await release.wait()
+        except asyncio.CancelledError:
+            continue
+
+
+async def test_a_check_that_ignores_cancellation_is_abandoned(
+    store: FootageStore, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    release = asyncio.Event()
+    stuck: list[asyncio.Task[Any]] = []
+
+    class Deaf(Judge):
+        async def judge(
+            self, frames: Sequence[Frame], visual: str, *, person: bool = False
+        ) -> FootageAnswer:
+            task = asyncio.current_task()
+            assert task is not None
+            stuck.append(task)
+            await _deaf(release)
+            return await super().judge(frames, visual, person=person)
+
+    builder = _builder(
+        store,
+        search=Search(_hits(_video(1))),
+        judge=Deaf(),
+        per_candidate_seconds=0.2,
+        grace_seconds=0.1,
+    )
+    try:
+        with caplog.at_level(logging.WARNING, logger="thoth_control_plane.footage.service"):
+            started = time.monotonic()
+            result = await builder.build(_inputs(tmp_path))
+        assert time.monotonic() - started < 1.5
+        assert result.status == "none" and result.rejected == {"media_failed": 1}
+        assert "platform=tiktok step=vision" in caplog.text
+        assert "tiktok.com" not in caplog.text  # no URL in the log
+    finally:
+        await _settle(release)
+    # Released, the abandoned check reached its admit; the closed candidate ignored it.
+    assert [task.result() for task in stuck] == [False]
+    [candidate] = store.candidates("wf_a")
+    assert candidate.status == "rejected" and candidate.reason == "media_failed"
+    assert not _window(tmp_path, _video(1)).exists()
+
+
+async def test_a_search_that_never_returns_ends_at_the_hard_deadline(
+    store: FootageStore, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    release = asyncio.Event()
+
+    class Hanging(Search):
+        async def search(self, platform: str, queries: Sequence[str], limit: int) -> SearchBatch:
+            await _deaf(release)
+            return SearchBatch(found={}, failed=True)
+
+    builder = _builder(
+        store, search=Hanging(), deadline_seconds=0.1, overrun_seconds=0.2, grace_seconds=0.1
+    )
+    try:
+        with caplog.at_level(logging.WARNING, logger="thoth_control_plane.footage.service"):
+            started = time.monotonic()
+            result = await builder.build(_inputs(tmp_path))
+        assert time.monotonic() - started < 1.5
+        assert result.status == "unavailable"
+        assert "phase=search" in caplog.text
+        run = store.run("wf_a")
+        assert run is not None and run.status == "done" and run.footage_status == "unavailable"
+    finally:
+        await _settle(release)
+
+
+async def test_a_cancelled_waiter_still_reads_the_exception_of_a_failed_check(
+    store: FootageStore,
+) -> None:
+    loop = asyncio.get_running_loop()
+    reported: list[str] = []
+    loop.set_exception_handler(lambda _loop, context: reported.append(context["message"]))
+
+    async def fails_when_cancelled() -> None:
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            raise RuntimeError("store failed") from None
+
+    builder = _builder(store, grace_seconds=1.0)
+    task = asyncio.create_task(fails_when_cancelled())
+    waiter = asyncio.create_task(builder._bounded(task, 10))
+    await asyncio.sleep(0.05)
+    waiter.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await waiter
+    assert task.done()
+    del task, waiter
+    gc.collect()
+    await asyncio.sleep(0)
+    assert reported == []

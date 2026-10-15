@@ -403,3 +403,35 @@ goldens replayed offline. The end-to-end live smoke waits for the final acceptan
 - The dashboard Content Set page and Studio import read the new artifact; a converter to the
   renderer's `ContentResult`.
 - Footage queries from the Stage 6 dossier once it exists.
+
+## Addendum 5b.1 (operator-approved 2026-10-15, after the live calibration)
+
+The calibration ran the six operator-chosen posts (D:/thoth-tmp/bu/s8): 412 candidates, 18
+admitted, all six workflows succeeded. Operator labels: the admitted clips are good except one
+(a product story got a concert clip); in the 0.27-0.33 band 6 candidates were relevant and
+about 23 were not, so the story threshold **stays 0.33**. Changes:
+
+1. **Figures get real footage of the figure.** Stories about a person found only commentary and
+   context clips, never the person. The query extraction again names the main figure (Scout's
+   PEOPLE rule), and one of the four queries becomes that person; for that query the vision
+   check counts the person themself on camera (a speech, a press conference, a visit) as
+   footage, while someone else talking about them stays commentary. This reverses amendment 3
+   ("no person query") for runs whose post names a figure.
+   The person query carries the word "pidato" to steer the search to raw speech and
+   press-conference uploads, which usually have no burned-in subtitles (operator decision D).
+   Until the renderer blurs footage, an `overlay` clip (a persistent burned-in band) is
+   rejected as `subtitle`: the renderer blurs bands on the main only. Blurring or cropping
+   subtitles on footage in the renderer is not planned now (operator, 2026-10-15).
+2. **TikTok clips download through the TikWm resolver.** yt-dlp gets HTTP 403 on TikTok pages
+   from this host with or without impersonation (43 of 87 TikTok checks failed). The footage
+   downloader resolves a TikTok URL to its direct video URL with the existing TikWm resolver
+   and rate gate, then downloads the window as before.
+3. **A stuck check can no longer stall the stage.** One check outlived its 90 s timeout by 12
+   minutes (cancellation not honored inside), so the 720 s deadline never applied and the
+   activity hit its 20-minute limit. A check that does not end shortly after its timeout is
+   abandoned (`media_failed`, its later writes ignored, a warning naming the stuck step), and
+   the whole build runs under a hard deadline (search included).
+4. **The labels are locked as goldens** replayed offline with the real embedding model.
+
+Out of scope, recorded as follow-ups: attribution for a repost that credits no source (the
+"tokoh" post was `unresolved: no_credit`), and structured INFO logging for footage.

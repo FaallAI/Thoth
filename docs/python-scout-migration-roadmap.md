@@ -489,3 +489,7 @@ search on TikTok and YouTube, a signed-in browser search on X (verified live), l
 and OCR checks, and a vision judge, behind `THOTH_FOOTAGE_ENABLED` (off). Implemented on branch
 `feat/stage5b-footage`; not pushed or deployed. Details: the 2026-10-15 section of
 `CHANGELOG.md`. Next: the calibration capture, then Stage 5c.
+
+Stage 5b.1 (2026-10-15, branch `feat/stage5b1-footage-fixes`, not pushed) fixes the calibration
+findings: person footage, TikWm downloads, stuck-check hardening, and locked label goldens.
+Next: re-run the six calibration stories, then Stage 5c.

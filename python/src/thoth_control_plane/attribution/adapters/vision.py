@@ -77,9 +77,9 @@ class AgnoVisionReader:
         try:
             run = await agent.arun(input=prompt, images=images)
         except Exception as error:
-            logger.warning("vision read unavailable; attribution stops")
+            logger.warning("vision read unavailable")
             raise AttributionError("vision_unavailable") from error
         if not isinstance(run.content, schema):
-            logger.warning("vision read unusable; attribution stops")
+            logger.warning("vision read unusable")
             raise AttributionError("vision_unavailable")
         return run.content

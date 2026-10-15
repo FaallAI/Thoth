@@ -2,6 +2,58 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-15 - Stage 5b.1: footage fixes from calibration
+
+Implemented on branch `feat/stage5b1-footage-fixes` (from master d91b031 plus the plan commit
+0ff61d6; 4 tasks, each reviewed). Nothing is pushed, merged, or deployed. Footage stays enabled
+in production.
+
+**Calibration that drove it:** six operator-chosen posts, 412 candidates, 18 admitted, all six
+workflows succeeded. The admitted clips were good except one (a product story got a concert
+clip). 43 of 87 TikTok checks failed on yt-dlp HTTP 403, one check outlived its 90 s timeout by
+12 minutes, and person stories found only commentary, never the person.
+
+**Label analysis (47 labeled):** 17 admitted relevant, 1 admitted irrelevant (#16), 6 relevant
+and 23 irrelevant near the threshold. The story threshold stays 0.33. On the fixed-embedder
+scores 0.33 keeps 16 relevant and 2 irrelevant of the 23 relevant and 24 irrelevant labels;
+0.32 keeps 16 and 4; 0.31 keeps 19 and 8. Lowering the threshold buys 3 relevant clips for 6
+irrelevant ones.
+
+**What changed**
+- **Person footage:** the query extraction names the main figure again and one of the four
+  queries is that person, carrying the word "pidato" (operator decision D). For that query the
+  vision check counts the person on camera as footage; someone else talking about them stays
+  commentary.
+- **Overlay rejection:** a clip with a persistent burned-in band is rejected as `subtitle` until
+  the renderer blurs footage. Renderer blur or crop is not planned now.
+- **TikWm downloads:** TikTok clips resolve to the direct video URL through the existing TikWm
+  resolver and rate gate, then download as before.
+- **Stuck-check hardening:** a check that does not end shortly after its timeout is abandoned
+  (`media_failed`, later writes ignored, a warning naming the step), and the whole build,
+  search included, runs under a hard deadline.
+- **Embedder finding:** ONNX dynamic quantization made embeddings batch-dependent (the same text
+  scored 0.5906 in the full batch, 0.6618 in a pair, 0.6316 alone), so recorded calibration
+  scores did not reproduce. The embedder now runs one text per session run. Under it #18
+  (relevant) moved 0.345 to 0.317 (now rejected) and B9 (irrelevant) 0.326 to 0.332 (now
+  admitted).
+- **Goldens:** the operator labels are locked as an offline golden replayed with the real
+  embedding model.
+
+**Verification:** full Python suite through the WSL runner: 3779 passed, 21 skipped, 0 failed
+(147 s). `ruff check` passes and `ruff format --check` reports 382 files already formatted
+(ruff 0.16.5).
+
+**Next steps**
+- Next stage: re-run the six calibration stories to compare with the 412 / 18 baseline, then
+  Stage 5c (post cards, carousel photos, creator profile).
+- Pending operator gates, each needing its own authorization: push and PR, CI, merge, image
+  digest; the operator pins the digest and deploys.
+- Open follow-ups: attribution for a repost that credits no source (the "tokoh" post was
+  `unresolved: no_credit`); structured INFO logging for footage; renderer blur or crop for
+  subtitled footage (deferred by the operator); JSON reports to PostgreSQL; dashboard and Studio
+  reading the footage artifact; the story threshold may be revisited by the operator; the
+  deferred minors in the SDD ledger.
+
 ## 2026-10-15 - X footage search reports an expired session
 
 Implemented on branch `feat/x-login-wall` (from master 8acf07e). Nothing is pushed, merged, or

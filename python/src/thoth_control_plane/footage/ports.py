@@ -39,7 +39,9 @@ class ClipDownloader(Protocol):
 
 
 class FootageJudge(Protocol):
-    async def judge(self, frames: Sequence[Frame], visual: str) -> FootageAnswer: ...
+    async def judge(
+        self, frames: Sequence[Frame], visual: str, *, person: bool = False
+    ) -> FootageAnswer: ...
 
 
 class FootageState(Protocol):
