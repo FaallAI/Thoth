@@ -38,6 +38,7 @@ Write the same next steps into that work's `CHANGELOG.md` entry and its active c
 ## Technical stack and build verification
 
 - **Stack:** Rust 2024 edition (async Tokio), Windows (CUDA 13.2, LLVM), local `ffmpeg.exe` at root, NVIDIA NVENC for encoding, CUDA for Whisper, `config.toml` (no secrets) + `.env` (API keys).
+- **Task runner:** the root `Makefile`, run from WSL (`make help`): Python tests (`make test T=<path>`), ruff (`make lint`), dashboard tests and build, offline smokes, and the Stage 1 deploy (`make deploy`). The Windows CUDA build stays on `build_cuda.bat`.
 - **Mandatory verification sequence after every feature update:**
   1. **Full CUDA build:** Run `build_cuda.bat` (never rely on `cargo check` alone; zero errors and zero critical warnings required):
      ```cmd
