@@ -20,6 +20,7 @@ from thoth_control_plane.activities.content_assembly import (
     ContentAssemblyActivityInput,
     ContentAssemblyActivityResult,
 )
+from thoth_control_plane.activities.footage import FootageActivityInput, FootageActivityResult
 from thoth_control_plane.activities.legacy_scout import LEGACY_ADAPTER_TASK_QUEUE, LegacyScoutInput
 from thoth_control_plane.activities.source_attribution import (
     SourceAttributionActivityInput,
@@ -1964,3 +1965,123 @@ async def test_a_failed_attribution_fails_the_workflow_with_its_reason(
     )
     assert any(e.payload.get("reason") == "vision_unavailable" for e in events)
     assert ASSEMBLY_INPUTS == []  # assembly never runs after a failed attribution
+
+
+FOOTAGE_INPUTS: list[FootageActivityInput] = []
+ORDER: list[str] = []
+
+
+@activity.defn(name="build_footage")
+async def fake_footage(input_: FootageActivityInput) -> FootageActivityResult:
+    FOOTAGE_INPUTS.append(input_)
+    ORDER.append("footage")
+    return FootageActivityResult(footage_status="ok", footage_count=2)
+
+
+@activity.defn(name="build_footage")
+async def crashing_footage(input_: FootageActivityInput) -> FootageActivityResult:
+    raise RuntimeError("footage detail must not enter history")
+
+
+@activity.defn(name="assemble_content")
+async def ordered_assemble(input_: ContentAssemblyActivityInput) -> ContentAssemblyActivityResult:
+    ORDER.append("assembly")
+    return await fake_assemble(input_)
+
+
+def _with_footage(enabled: bool = True) -> SourceInvestigationWorkflowInput:
+    return _assembled().model_copy(update={"build_footage": enabled})
+
+
+@pytest.mark.asyncio
+async def test_footage_runs_after_attribution_and_before_assembly(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    FOOTAGE_INPUTS.clear()
+    ORDER.clear()
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[fake_inspect, fake_attribute, fake_footage, ordered_assemble],
+    ):
+        result = await workflow_env.client.execute_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_with_footage()],
+            id="wf_test_footage",
+            task_queue="test",
+        )
+    assert result.status == "succeeded"
+    assert ORDER == ["footage", "assembly"]
+    assert FOOTAGE_INPUTS[-1].attribution == "reports/wf_test_footage/source-attribution.json"
+
+
+@pytest.mark.asyncio
+async def test_a_crashing_footage_stage_never_fails_the_workflow(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[fake_inspect, fake_attribute, crashing_footage, fake_assemble],
+    ):
+        handle = await workflow_env.client.start_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_with_footage()],
+            id="wf_test_footage_crash",
+            task_queue="test",
+        )
+        result = await handle.result()
+        events = await handle.query(SourceInvestigationWorkflow.source_events)
+    assert result.status == "succeeded"
+    assert any(
+        e.kind == "stage.failed"
+        and e.payload == {"stage": "footage", "status": "failed", "footage_status": "unavailable"}
+        for e in events
+    )
+    assert [a.kind for a in result.artifacts][-1] == "content_set"
+
+
+@pytest.mark.asyncio
+async def test_footage_off_runs_no_footage_activity(workflow_env: WorkflowEnvironment) -> None:
+    FOOTAGE_INPUTS.clear()
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[fake_inspect, fake_attribute, fake_footage, fake_assemble],
+    ):
+        await workflow_env.client.execute_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_with_footage(False)],
+            id="wf_test_footage_off",
+            task_queue="test",
+        )
+    assert FOOTAGE_INPUTS == []
+
+
+@pytest.mark.asyncio
+async def test_the_gateway_requests_footage_when_enabled(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    FOOTAGE_INPUTS.clear()
+    async with Worker(
+        workflow_env.client,
+        task_queue=TASK_QUEUE,
+        workflows=[SourceInvestigationWorkflow],
+        activities=[fake_inspect, fake_footage, fake_assemble],
+    ):
+        gateway = TemporalWorkflowGateway(
+            workflow_env.client, assemble_content=True, build_footage=True
+        )
+        summary = await gateway.start(
+            VALID_IDENTIFY_REQUEST,
+            actor=Actor(actor_id="owner", actor_type="user"),
+            idempotency_key="footage-001",
+        )
+        await workflow_env.client.get_workflow_handle_for(
+            SourceInvestigationWorkflow.run, summary.workflow_id
+        ).result()
+
+    assert len(FOOTAGE_INPUTS) == 1

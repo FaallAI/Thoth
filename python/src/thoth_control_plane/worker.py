@@ -22,6 +22,7 @@ from thoth_control_plane.activities import (
     build_source_attribution_activity,
     build_source_investigation_activity,
 )
+from thoth_control_plane.activities.footage import build_footage_activity
 from thoth_control_plane.activities.prompt_proposal import (
     PROMPT_PROPOSAL_TASK_QUEUE,
     build_prompt_proposal_activity,
@@ -54,6 +55,7 @@ def build_source_investigation_worker(
             build_source_investigation_activity(settings, runner=runner, capability=capability),
             build_source_attribution_activity(settings),
             build_content_assembly_activity(settings),
+            build_footage_activity(settings),
         ],
         max_concurrent_activities=1,
     )
@@ -103,6 +105,18 @@ def check_media_tools(settings: Settings) -> None:
             raise SettingsValidationError("camoufox_missing")
     if settings.THOTH_CONTENT_ASSEMBLY_ENABLED:
         _require_media(settings)
+    if settings.THOTH_FOOTAGE_ENABLED:
+        from thoth_control_plane.footage.adapters.embedder import EMBEDDING_FILES
+
+        if settings.openrouter_api_key is None:
+            raise SettingsValidationError("openrouter_key_missing")
+        if settings.THOTH_EDITOR_DATABASE_URL is None:
+            raise SettingsValidationError("footage_database_missing")
+        _require_media(settings)
+        if missing(settings.THOTH_EMBEDDING_MODEL_DIR, EMBEDDING_FILES):
+            raise SettingsValidationError("embedding_model_missing")
+        if find_spec("onnxruntime") is None or find_spec("tokenizers") is None:
+            raise SettingsValidationError("embedding_runtime_missing")
 
 
 def build_prompt_proposal_worker(client: Client, settings: Settings) -> Worker:

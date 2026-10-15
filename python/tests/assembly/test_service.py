@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -13,11 +14,13 @@ import pytest
 from tests.assembly.support import comment, report
 from thoth_control_plane.acquisition.models import SourceReport
 from thoth_control_plane.assembly.figures import FigureAnswer
+from thoth_control_plane.assembly.models import MainOcr
 from thoth_control_plane.assembly.ports import AssemblyError
 from thoth_control_plane.assembly.service import AssemblyInputs, AssemblyPorts, ContentAssembler
 from thoth_control_plane.attribution.matching import TextBox
 from thoth_control_plane.attribution.models import SourceAttribution
 from thoth_control_plane.attribution.ports import Frame
+from thoth_control_plane.footage.models import CandidateView, RunView
 
 NOW = datetime(2026, 10, 11, 12, 0, tzinfo=UTC)
 ORIGINAL_URL = "https://www.tiktok.com/@source/video/9999999999"
@@ -226,3 +229,123 @@ def test_only_a_possible_repost_is_trimmed(
     ocr = content.main.ocr
     assert ocr is not None
     assert (ocr.outcome, ocr.trim_start > 0) == (("cover", True) if trimmed else ("clean", False))
+
+
+class FootageReader:
+    def __init__(self, run: object, admitted: list[object]) -> None:
+        self._run = run
+        self._admitted = admitted
+
+    def run(self, workflow_id: str) -> object:
+        return self._run
+
+    def admitted(self, workflow_id: str) -> list[object]:
+        return self._admitted
+
+
+def _clip_view(ocr: dict[str, Any]) -> CandidateView:
+    return CandidateView(
+        url="https://www.tiktok.com/@broll/video/7400000000000000002",
+        platform="tiktok",
+        source="search",
+        query="banjir jakarta",
+        visual="a flooded street",
+        owner_handle="broll",
+        caption="Banjir di jalan",
+        published_at=None,
+        engagement={"likes": 10},
+        source_duration=40.0,
+        status="admitted",
+        reason=None,
+        story_score=0.8,
+        kind="footage",
+        shows_object="yes",
+        description="A flooded street.",
+        media_location="reports/wf_a/footage/abc.mp4",
+        media_checksum="sha256:" + "a" * 64,
+        media_bytes=2048,
+        clip_duration=20.0,
+        clip_start=4.2,
+        ocr=ocr,
+        position=0,
+    )
+
+
+def _footage_build(tmp_path: Path, reader: FootageReader | None, figures: Figures | None = None):
+    main = report()
+    touch(tmp_path, main)
+    assembler = ContentAssembler(
+        AssemblyPorts(
+            frames=Frames(), probe=Probe(), text=Clean(), figures=figures, footage=reader
+        ),
+        clock=lambda: NOW,
+    )
+    return asyncio.run(assembler.build(AssemblyInputs("wf_a", main, None, None, tmp_path)))
+
+
+def _run(status: str = "done", footage_status: str | None = "ok") -> RunView:
+    return RunView(workflow_id="wf_a", status=status, footage_status=footage_status, objects=[])
+
+
+def _clean_ocr() -> dict[str, Any]:
+    return MainOcr(
+        analyzed_at=NOW,
+        requested_frames=4,
+        valid_frames=4,
+        outcome="clean",
+        trim_start=0.0,
+        mute_audio=False,
+    ).model_dump(mode="json")
+
+
+def test_without_a_footage_reader_footage_is_disabled(tmp_path: Path) -> None:
+    content = _footage_build(tmp_path, None)
+    assert (content.footage, content.footage_status) == ([], "disabled")
+
+
+def test_no_footage_run_is_unavailable(tmp_path: Path) -> None:
+    content = _footage_build(tmp_path, FootageReader(None, []))
+    assert (content.footage, content.footage_status) == ([], "unavailable")
+
+
+def test_a_run_still_running_is_unavailable(tmp_path: Path) -> None:
+    reader = FootageReader(_run(status="running", footage_status=None), [])
+    assert _footage_build(tmp_path, reader).footage_status == "unavailable"
+
+
+def test_admitted_clips_become_footage_and_feed_figures(tmp_path: Path) -> None:
+    figures = Figures(FigureAnswer())
+    reader = FootageReader(_run(), [_clip_view(_clean_ocr())])
+
+    content = _footage_build(tmp_path, reader, figures)
+
+    assert content.footage_status == "ok" and len(content.footage) == 1
+    item = content.footage[0]
+    assert item.description == "A flooded street." and item.clip_start == 4.2
+    assert (
+        item.video.location.as_posix() == "reports/wf_a/footage/abc.mp4"
+        and item.shows_object == "yes"
+    )
+    assert "A flooded street." in figures.prompts[0]
+
+
+def test_more_than_six_stored_clips_are_capped(tmp_path: Path) -> None:
+    reader = FootageReader(
+        _run(),
+        [
+            replace(
+                _clip_view(_clean_ocr()),
+                url=f"https://www.tiktok.com/@broll/video/74000000000000000{n}",
+                media_location=f"reports/wf_a/footage/clip{n}.mp4",
+            )
+            for n in range(7)
+        ],
+    )
+    content = _footage_build(tmp_path, reader)
+    assert content.footage_status == "ok" and len(content.footage) == 6
+
+
+def test_a_broken_stored_clip_is_left_out(tmp_path: Path) -> None:
+    reader = FootageReader(_run(), [_clip_view({})])
+    content = _footage_build(tmp_path, reader)
+    assert (content.footage, content.footage_status) == ([], "none")

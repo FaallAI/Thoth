@@ -21,6 +21,7 @@ with workflow.unsafe.imports_passed_through():
         ContentAssemblyActivityInput,
         assemble_content,
     )
+    from thoth_control_plane.activities.footage import FootageActivityInput, build_footage
     from thoth_control_plane.activities.legacy_scout import (
         LEGACY_ADAPTER_TASK_QUEUE,
         LegacyScoutInput,
@@ -190,6 +191,12 @@ class SourceInvestigationWorkflow:
                         )
                         self._transition(WorkflowStatus.FAILED)
                         self._record_event(EventKind.WORKFLOW_FAILED)
+                        return self._summary()
+                if input_.assemble_content and input_.build_footage:
+                    await self._footage()
+                    if self._cancel_requested:
+                        self._transition(WorkflowStatus.CANCELLED)
+                        self._record_event(EventKind.WORKFLOW_CANCELLED)
                         return self._summary()
                 if input_.assemble_content:
                     assembled = await self._assemble()
@@ -375,6 +382,54 @@ class SourceInvestigationWorkflow:
             EventKind.STAGE_COMPLETED, stage=StageProgress(name="attribution", progress=1.0)
         )
         return True
+
+    async def _footage(self) -> None:
+        """Footage is optional (spec 2026-10-14): a failure never fails the workflow."""
+        self._record_event(
+            EventKind.STAGE_STARTED, stage=StageProgress(name="footage", progress=0.0)
+        )
+        task = asyncio.create_task(
+            workflow.execute_activity(
+                build_footage,
+                FootageActivityInput(
+                    workflow_id=self._workflow_id,
+                    attribution=self._attribution_location,
+                    original_report=self._original_report,
+                ),
+                start_to_close_timeout=timedelta(minutes=20),
+                heartbeat_timeout=timedelta(minutes=2),
+                retry_policy=RetryPolicy(maximum_attempts=3),
+            )
+        )
+        await workflow.wait_condition(lambda: self._cancel_requested or task.done())
+        if self._cancel_requested and not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, ActivityError):
+                await task
+            return
+        try:
+            result = await task
+        except ActivityError:
+            # Spec section 4: a failure after all attempts warns, and the workflow goes on.
+            result = None
+            self._source_events.append(
+                SourceProgressEvent(
+                    kind="stage.failed",
+                    payload={
+                        "stage": "footage",
+                        "status": "failed",
+                        "footage_status": "unavailable",
+                    },
+                )
+            )
+            self._event_sequence += 1
+        if result is not None:
+            self._source_events.extend(result.events)
+            self._event_sequence += len(result.events)
+        self._updated_at = workflow.now()
+        self._record_event(
+            EventKind.STAGE_COMPLETED, stage=StageProgress(name="footage", progress=1.0)
+        )
 
     async def _assemble(self) -> bool:
         """Build the content set; False when a required part failed (the workflow fails)."""

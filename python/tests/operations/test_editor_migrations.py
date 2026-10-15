@@ -40,6 +40,7 @@ def test_editor_migrations_stay_explicit_forward_only_sql_files() -> None:
         "0007_studio_import_sources.sql",
         "0008_source_accounts.sql",
         "0009_source_account_safety.sql",
+        "0010_footage.sql",
     ]
     for name in MIGRATION_FILES:
         sql = migration(name).lower()

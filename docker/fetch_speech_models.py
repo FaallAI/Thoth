@@ -1,4 +1,4 @@
-"""Fetch the pinned speech models: whisper (CTranslate2) and the two diarization ONNX files.
+"""Fetch the pinned models: whisper, the two diarization ONNX files, and the footage embedding model.
 
 Run by the Docker build (large-v3-turbo) and by CI (tiny, for tests). Every file is pinned by
 revision or URL and verified by SHA-256; a mismatch exits non-zero (operator, 2026-10-13:
@@ -42,6 +42,21 @@ DIARIZATION = {
         "sha256": "e9848563da86f263117134dfd7ad63c92355b37de492b55e325400c9d9c39012",
     },
 }
+# Stage 5b story gate (spec 2026-10-14, amendment 2): the official ONNX export, quantized.
+EMBEDDING = {
+    "repo": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    "revision": "e8f8c211226b894fcb81acc59f3b34ba3efd5f42",
+    "files": {
+        "model.onnx": (
+            "onnx/model_quint8_avx2.onnx",
+            "98a01d88b7de996cdea58c32ca71208c09968d143798814b2ea09d3439dc334f",
+        ),
+        "tokenizer.json": (
+            "tokenizer.json",
+            "2c3387be76557bd40970cec13153b3bbf80407865484b209e655e5e4729076b8",
+        ),
+    },
+}
 
 
 def verify(path: Path, expected: str) -> None:
@@ -79,6 +94,20 @@ def fetch_diarization(out: Path) -> None:
         verify(target / name, asset["sha256"])
 
 
+def fetch_embedding(out: Path) -> None:
+    from huggingface_hub import hf_hub_download
+
+    target = out / "embedding"
+    target.mkdir(parents=True, exist_ok=True)
+    for name, (remote, digest) in EMBEDDING["files"].items():
+        with tempfile.TemporaryDirectory() as scratch:
+            path = hf_hub_download(
+                EMBEDDING["repo"], remote, revision=EMBEDDING["revision"], local_dir=scratch
+            )
+            shutil.copyfile(path, target / name)
+        verify(target / name, digest)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--whisper", choices=sorted(WHISPER), required=True)
@@ -86,3 +115,4 @@ if __name__ == "__main__":
     arguments = parser.parse_args()
     fetch_whisper(arguments.whisper, arguments.out)
     fetch_diarization(arguments.out)
+    fetch_embedding(arguments.out)

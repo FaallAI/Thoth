@@ -24,6 +24,7 @@ from thoth_control_plane.acquisition.models import (
     DiscoveredVideo,
     DiscoveryReason,
     DiscoveryResult,
+    KeywordDiscovery,
     ProfileDiscovery,
 )
 from thoth_control_plane.attribution.adapters.frames import ToolMissing
@@ -178,26 +179,36 @@ class ProfileDiscoverer:
         return platform in self._factories
 
     async def discover(self, platform: Platform, handle: str) -> list[DiscoveredVideo]:
+        return await self.list(platform, ProfileDiscovery(handle=handle, limit=PROFILE_LIMIT))
+
+    async def list(
+        self, platform: str, request: ProfileDiscovery | KeywordDiscovery
+    ) -> list[DiscoveredVideo]:
+        """One listing under the platform's access mode (profile or keyword)."""
         mode: Mode = await self._leases.mode(platform) if self._leases else "anonymous"
         anonymous: DiscoveryResult | None = None
         if mode != "always":
-            anonymous = await self._run(platform, handle, None)
-            thin = 0 < len(anonymous.videos) < THIN_LISTING
+            anonymous = await self._run(platform, request, None)
+            # A thin listing only means something for a profile, which a login lengthens. A
+            # keyword search is capped by its own limit, so it leases only on a block (ruling P5).
+            thin = (
+                isinstance(request, ProfileDiscovery) and 0 < len(anonymous.videos) < THIN_LISTING
+            )
             blocked = not anonymous.videos and anonymous.reason in RETRY_REASONS
             if mode == "anonymous" or not (thin or blocked):
                 return _videos(anonymous)
         assert self._leases is not None  # a leasing mode implies a lease source
-        lease = await self._leases.lease(platform)
+        lease = await self._leases.lease(platform)  # type: ignore[arg-type]
         if lease is None:
             logger.info("no source account for discovery platform=%s mode=%s", platform, mode)
             if anonymous is not None and anonymous.videos:
                 return _videos(anonymous)
             if mode == "always":
-                return _videos(await self._run(platform, handle, None))
+                return _videos(await self._run(platform, request, None))
             raise DiscoveryBlocked(f"{platform} discovery blocked and no source account to lease")
         outcome: Outcome | None = None
         try:
-            result = await self._run(platform, handle, lease.access)
+            result = await self._run(platform, request, lease.access)
             if result.videos:
                 outcome = "success"
             elif result.reason in CHALLENGE_REASONS:
@@ -219,9 +230,12 @@ class ProfileDiscoverer:
         return _videos(result)
 
     async def _run(
-        self, platform: Platform, handle: str, access: SessionAccess | None
+        self,
+        platform: str,
+        request: ProfileDiscovery | KeywordDiscovery,
+        access: SessionAccess | None,
     ) -> DiscoveryResult:
         # A private directory for yt-dlp's cookie file, removed with everything in it.
         with tempfile.TemporaryDirectory(prefix="thoth-discovery-") as scratch:
             discovery = self._factories[platform](access, Path(scratch))
-            return await discovery.discover(ProfileDiscovery(handle=handle, limit=PROFILE_LIMIT))
+            return await discovery.discover(request)

@@ -10,18 +10,27 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
-from typing import Any, Literal
+from pathlib import Path, PurePosixPath
+from typing import Any, Literal, Protocol
 
 from pydantic import ValidationError
 
 from thoth_control_plane.acquisition.models import MaterializedMedia, SourceReport
 from thoth_control_plane.assembly.comments import card_ref, merge_comments
 from thoth_control_plane.assembly.figures import figure_prompt, normalize_figures
-from thoth_control_plane.assembly.models import ContentSet, Figure, Main, MainOcr, MediaRef
+from thoth_control_plane.assembly.models import (
+    MAX_FOOTAGE,
+    ContentSet,
+    Figure,
+    Footage,
+    FootageStatus,
+    Main,
+    MainOcr,
+    MediaRef,
+)
 from thoth_control_plane.assembly.ocr import analyze_main_ocr
 from thoth_control_plane.assembly.ports import (
     AssemblyError,
@@ -39,6 +48,11 @@ HEADLINE_PREFIX = "headline: "
 FiguresStatus = Literal["ok", "none", "unavailable"]
 
 
+class FootageReader(Protocol):
+    def run(self, workflow_id: str) -> Any: ...
+    def admitted(self, workflow_id: str) -> list[Any]: ...
+
+
 @dataclass(frozen=True)
 class AssemblyPorts:
     frames: FrameSampler
@@ -47,6 +61,7 @@ class AssemblyPorts:
     figures: FigureModel | None = None
     tracker: RegionTracker | None = None
     judge: CaptionJudge | None = None
+    footage: FootageReader | None = None
 
 
 @dataclass(frozen=True)
@@ -103,6 +118,36 @@ def _headline(attribution: SourceAttribution | None) -> str:
     return ""
 
 
+def _footage_item(view: Any) -> Footage | None:
+    try:
+        return Footage(
+            source=view.source,
+            url=view.url,
+            platform=view.platform,
+            owner_handle=view.owner_handle,
+            published_at=view.published_at,
+            engagement=view.engagement,
+            query=view.query,
+            visual=view.visual,
+            caption=view.caption[:2000],
+            description=(view.description or "")[:300],
+            video=MediaRef(
+                location=PurePosixPath(view.media_location),
+                media_type="video/mp4",
+                checksum=view.media_checksum,
+                bytes=view.media_bytes,
+                duration_seconds=view.clip_duration,
+            ),
+            clip_start=view.clip_start or 0.0,
+            ocr=MainOcr.model_validate(view.ocr or {}, strict=False),  # jsonb holds a JSON dump
+            story_score=min(1.0, max(0.0, view.story_score or 0.0)),
+            shows_object=view.shows_object,
+        )
+    except (ValidationError, TypeError, ValueError):
+        logger.warning("a stored footage clip failed validation; it is left out")
+        return None
+
+
 def _video_path(root: Path, video: MediaRef) -> Path:
     base = root.resolve()
     path = (root / video.location).resolve()
@@ -135,8 +180,14 @@ class ContentAssembler:
             sources = [("input", inputs.report)]
 
         fields = _main_fields(main_report, source)  # type: ignore[arg-type]
+        footage, footage_status = await self._footage(inputs.workflow_id)
         figures_task = asyncio.create_task(
-            self._figures(fields["title"], fields["description"], _headline(inputs.attribution))
+            self._figures(
+                fields["title"],
+                fields["description"],
+                _headline(inputs.attribution),
+                [item.description for item in footage],
+            )
         )
         try:
             ocr: MainOcr | None = None
@@ -170,15 +221,37 @@ class ContentAssembler:
                 comments=merge_comments(sources),  # type: ignore[arg-type]
                 figures=figures,
                 figures_status=status,
+                footage=footage,
+                footage_status=footage_status,
             )
         except ValidationError:
             logger.warning("content set rejected by its validators")
             raise AssemblyError("content_set_invalid") from None
 
+    async def _footage(self, workflow_id: str) -> tuple[list[Footage], FootageStatus]:
+        reader = self._ports.footage
+        if reader is None:
+            return [], "disabled"
+        try:
+            run = await asyncio.to_thread(reader.run, workflow_id)
+            views = await asyncio.to_thread(reader.admitted, workflow_id) if run else []
+        except Exception:
+            logger.warning("footage state unavailable; the content set continues without it")
+            return [], "unavailable"
+        if run is None or run.status != "done":
+            return [], "unavailable"
+        items = [item for item in (_footage_item(view) for view in views) if item is not None]
+        if len(items) > MAX_FOOTAGE:
+            logger.warning("footage over the cap: %d stored, keeping %d", len(items), MAX_FOOTAGE)
+            items = items[:MAX_FOOTAGE]
+        if run.footage_status == "ok":
+            return items, "ok" if items else "none"
+        return [], run.footage_status or "unavailable"
+
     async def _figures(
-        self, title: str, description: str, headline: str
+        self, title: str, description: str, headline: str, footage: Sequence[str] = ()
     ) -> tuple[list[Figure], FiguresStatus]:
-        prompt = figure_prompt(title, description, headline)
+        prompt = figure_prompt(title, description, headline, footage)
         if prompt is None:
             return [], "none"
         if self._ports.figures is None:

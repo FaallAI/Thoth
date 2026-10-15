@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 from thoth_control_plane import worker
-from thoth_control_plane.config import Settings
+from thoth_control_plane.config import Settings, SettingsValidationError
 
 
 class _StopWorker(Exception):
@@ -200,3 +200,46 @@ async def test_the_worker_sweeps_profiles_a_killed_worker_left_before_any_lease(
             Settings(THOTH_CONTROL_PLANE_API_KEY="test-key", THOTH_SOURCE_ATTRIBUTION_ENABLED=False)
         )
     assert calls == ["sweep", "capability"]
+
+
+def _footage_settings(tmp_path: Path, **overrides: Any) -> Settings:
+    embedding = tmp_path / "embedding"
+    embedding.mkdir(exist_ok=True)
+    for name in ("model.onnx", "tokenizer.json"):
+        (embedding / name).write_bytes(b"x")
+    values: dict[str, Any] = {
+        "THOTH_CONTROL_PLANE_API_KEY": "test-only",
+        "THOTH_SOURCE_ATTRIBUTION_ENABLED": False,
+        "THOTH_FOOTAGE_ENABLED": True,
+        "THOTH_OPENROUTER_API_KEY": "synthetic-key",
+        "THOTH_EDITOR_DATABASE_URL": "postgresql://u:p@127.0.0.1:5432/db",
+        "THOTH_EMBEDDING_MODEL_DIR": embedding,
+    }
+    return Settings(**{**values, **overrides})
+
+
+def test_footage_starts_with_every_tool_present(tmp_path: Path) -> None:
+    worker.check_media_tools(_footage_settings(tmp_path))
+
+
+@pytest.mark.parametrize(
+    ("change", "code"),
+    [
+        ({"THOTH_OPENROUTER_API_KEY": None}, "openrouter_key_missing"),
+        ({"THOTH_EDITOR_DATABASE_URL": None}, "footage_database_missing"),
+        ({"THOTH_FFMPEG": "/nonexistent/ffmpeg"}, "ffmpeg_missing"),
+        ({"THOTH_EMBEDDING_MODEL_DIR": Path("/nonexistent")}, "embedding_model_missing"),
+        ({"_no_module": "onnxruntime"}, "embedding_runtime_missing"),
+        ({"_no_module": "tokenizers"}, "embedding_runtime_missing"),
+    ],
+)
+def test_footage_refuses_to_start_without_a_tool(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: dict[str, Any], code: str
+) -> None:
+    change = dict(change)
+    absent = change.pop("_no_module", None)
+    if absent is not None:
+        real = worker.find_spec
+        monkeypatch.setattr(worker, "find_spec", lambda n: None if n == absent else real(n))
+    with pytest.raises(SettingsValidationError, match=code):
+        worker.check_media_tools(_footage_settings(tmp_path, **change))

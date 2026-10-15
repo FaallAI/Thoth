@@ -481,3 +481,11 @@ signed-in reels discovery, with one Firefox fingerprint per account. The live fi
 comparison scored Camoufox 90% and Patchright 80% on BrowserScan (after a WebRTC leak fix), and
 the signed-in reels listing turned two of the three pending Instagram reactions into goldens.
 Details: the 2026-10-14 section of `CHANGELOG.md`. Next: Stage 5b.
+
+## Stage 5b status (2026-10-15)
+
+Footage (up to six cutaway clips) is now found, checked, and stored without Scout: keyword
+search on TikTok and YouTube, a signed-in browser search on X (verified live), local embedding
+and OCR checks, and a vision judge, behind `THOTH_FOOTAGE_ENABLED` (off). Implemented on branch
+`feat/stage5b-footage`; not pushed or deployed. Details: the 2026-10-15 section of
+`CHANGELOG.md`. Next: the calibration capture, then Stage 5c.

@@ -181,6 +181,7 @@ async def _run(
                     "ocr_outcome": ocr.outcome if ocr is not None else "none",
                     "comment_count": len(content_set.comments),
                     "figure_count": len(content_set.figures),
+                    "footage_count": len(content_set.footage),
                 },
             )
         ],
@@ -194,6 +195,7 @@ def build_production_assembler(settings: Settings) -> Assembler:
     from thoth_control_plane.assembly.service import AssemblyPorts, ContentAssembler
     from thoth_control_plane.attribution.adapters.frames import FfmpegFrameSource, FfprobeDuration
     from thoth_control_plane.attribution.adapters.ocr import RapidOcrReader
+    from thoth_control_plane.infrastructure.footage_store import FootageStore
 
     openrouter = settings.openrouter_api_key
     return ContentAssembler(
@@ -207,6 +209,9 @@ def build_production_assembler(settings: Settings) -> Assembler:
             tracker=FfmpegRegionTracker(settings.THOTH_FFMPEG),
             judge=AgnoCaptionJudge(openrouter, settings.THOTH_SOURCE_VISION_MODEL)
             if openrouter
+            else None,
+            footage=FootageStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
+            if settings.THOTH_FOOTAGE_ENABLED and settings.THOTH_EDITOR_DATABASE_URL is not None
             else None,
         ),
         max_frames=settings.THOTH_SUBTITLE_OCR_MAX_FRAMES,

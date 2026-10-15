@@ -374,6 +374,8 @@ SOURCE_EVENT_PAYLOAD_KEYS = frozenset(
         "ocr_outcome",
         "comment_count",
         "figure_count",
+        "footage_count",
+        "footage_status",
     }
 )
 SOURCE_EVENT_STAGE_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
@@ -476,12 +478,19 @@ class SourceProgressEvent(StrictModel):
             raise ValueError("source event fallback code is unsupported")
         if "ocr_outcome" in payload and payload["ocr_outcome"] not in OCR_OUTCOMES:
             raise ValueError("source event OCR outcome is unsupported")
-        for count in ("comment_count", "figure_count"):
+        for count in ("comment_count", "figure_count", "footage_count"):
             value = payload.get(count)
             if count in payload and (
                 isinstance(value, bool) or not isinstance(value, int) or value < 0
             ):
                 raise ValueError("source event counts must be non-negative integers")
+        if "footage_status" in payload and payload["footage_status"] not in (
+            "ok",
+            "none",
+            "disabled",
+            "unavailable",
+        ):
+            raise ValueError("source event footage status is unsupported")
         progress = payload.get("progress")
         if progress is not None and (
             isinstance(progress, bool)
@@ -530,6 +539,8 @@ class SourceInvestigationWorkflowInput(StrictModel):
     attribute_source: bool = False
     # Absent from histories started before Stage 5a, so those replay without the new stage.
     assemble_content: bool = False
+    # Absent from histories started before Stage 5b, so those replay without the new stage.
+    build_footage: bool = False
 
 
 def request_snapshot_id(request: WorkflowRequest) -> str:
