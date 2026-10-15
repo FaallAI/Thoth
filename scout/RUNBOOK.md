@@ -8,9 +8,6 @@ pelajaran dari bugfix 2026-06-17 (lihat `../BUGFIX_PLAN_2026-06-17.md`).
 - **Thoth:** `target\release\thoth.exe` di repo ini.
 - **Content-set hasil:** `scout/output/thoth_content_set.json`.
 
-> ⚡ **Cara tercepat:** pakai runner `..\run_full.ps1` (lihat bagian akhir). Bagian di bawah
-> menjelaskan tiap langkah manualnya kalau mau jalan satu-satu / debug.
-
 ---
 
 ## 0. Preflight (sekali per sesi)
@@ -82,36 +79,6 @@ cd C:\Users\mfr\Documents\MyTools\CLIPPER
 - TANPA `WARN Narration failed`.
 
 Output: `output\.thoth\<job-id>\clips\clip_000_narration.mp4`.
-
----
-
-## Runner sekali jalan — `run_full.ps1`
-
-Menyatukan semua langkah di atas. Ada di **root repo** (`C:\Users\mfr\Documents\MyTools\CLIPPER\run_full.ps1`).
-
-```powershell
-# 1) Discovery dulu (tanpa -Url) → cetak daftar kandidat + URL-nya:
-.\run_full.ps1
-
-# 2) Pilih satu URL dari daftar, lalu jalankan full pipeline → render:
-.\run_full.ps1 -Url "https://www.instagram.com/<acct>/reel/<code>/"
-
-# Dengan sumber komentar tambahan + knob:
-.\run_full.ps1 -Url "<URL>" -Extra "https://www.tiktok.com/@kumparan/video/123" -Per 2 -Max 4 -Cap 12
-
-# Berhenti sebelum render (cuma rakit + validate content-set):
-.\run_full.ps1 -Url "<URL>" -SkipRender
-```
-
-Parameter: `-Url` (reel/post; kosong = discovery-only), `-Hours 48`, `-MaxPer 4`, `-Per 2`,
-`-Max 4`, `-Cap 12`, `-Extra <url>[,<url>]`, `-Provider novita`, `-SkipRender`,
-`-Discover` (paksa discovery saja), `-Workspace <path>`.
-
-Yang otomatis ditangani runner: preflight CDP, discovery + cetak kandidat, run_pipeline,
-**fallback build_footage/extract_figures kalau footage kosong**, collect_comments (kalau `-Extra`),
-enrich_image_paths, validate (**abort kalau FAIL**), lalu render Thoth + cetak lokasi output.
-Karena runner jalan **foreground/sinkron**, tidak ada masalah "premature kill" dari poll timeout —
-biarkan saja build_footage berjalan walau diam beberapa menit.
 
 ---
 

@@ -1,5 +1,5 @@
 // Shared C2 control-plane test fixtures/builder, extracted out of GuidedStudio.test.tsx and
-// GuidedStudio.final-fix.test.tsx to stop the two files drifting out of sync with each other.
+// GuidedStudio.regressions.test.tsx to stop the two files drifting out of sync with each other.
 import { mock } from "bun:test";
 import type {
   ProjectPromptBinding,
