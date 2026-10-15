@@ -246,7 +246,10 @@ class FootageBuilder:
         )
         await self._gate(workflow, identity, objects, hits)
         await self._story(workflow, main)
-        return await self._check_all(inputs, main, started, [obj.query for obj in objects], {})
+        people = frozenset(obj.query for obj in objects if obj.person)
+        return await self._check_all(
+            inputs, main, started, [obj.query for obj in objects], {}, people
+        )
 
     async def _objects(
         self, main: SourceReport, attribution: SourceAttribution | None
@@ -371,6 +374,7 @@ class FootageBuilder:
         started: float,
         queries: list[str],
         carousel: dict[str, PurePosixPath],
+        people: frozenset[str] = frozenset(),
     ) -> FootageResult:
         workflow, root = inputs.workflow_id, inputs.artifact_root
         admitted_hashes = await self._verify_admitted(workflow, root)
@@ -402,6 +406,7 @@ class FootageBuilder:
                     main_hashes,
                     admitted_hashes,
                     positions,
+                    c.query in people,
                 )
                 for c in batch
             )
@@ -422,6 +427,7 @@ class FootageBuilder:
         main_hashes: list[int],
         admitted_hashes: list[list[int]],
         positions: Iterator[int],
+        person: bool,
     ) -> bool:
         owned = existing is None
         name = hashlib.sha256(candidate.url.encode()).hexdigest()[:20] + ".mp4"
@@ -437,6 +443,7 @@ class FootageBuilder:
                     main_hashes,
                     admitted_hashes,
                     positions,
+                    person,
                 ),
                 self._per_candidate,
             )
@@ -459,6 +466,7 @@ class FootageBuilder:
         main_hashes: list[int],
         admitted_hashes: list[list[int]],
         positions: Iterator[int],
+        person: bool,
     ) -> bool:
         path = root / location
         window = clip_window(candidate.source_duration) if owned else None
@@ -482,7 +490,8 @@ class FootageBuilder:
                 tracker=self._ports.tracker,
                 judge=self._ports.captions,
             )
-            if ocr.outcome == "subtitle":
+            # An overlay band is rejected too: the renderer blurs bands on the main only.
+            if ocr.outcome in ("subtitle", "overlay"):
                 return await self._reject(workflow, root, candidate, location, owned, "subtitle")
             duration = await self._ports.probe.duration(path)
             frames = [
@@ -498,7 +507,9 @@ class FootageBuilder:
         except (FrameError, DurationError):
             return await self._reject(workflow, root, candidate, location, owned, "media_failed")
         try:
-            answer = await self._ports.judge.judge(frames, candidate.visual or DEFAULT_VISUAL)
+            answer = await self._ports.judge.judge(
+                frames, candidate.visual or DEFAULT_VISUAL, person=person
+            )
         except AttributionError:
             return await self._reject(
                 workflow, root, candidate, location, owned, "vision_unavailable"

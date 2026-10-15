@@ -35,6 +35,7 @@ class FootageObject(StrictModel):
 
     query: Annotated[str, Field(min_length=1, max_length=100)]
     visual: Annotated[str, Field(min_length=1, max_length=300)]
+    person: bool = False
 
 
 @dataclass(frozen=True)

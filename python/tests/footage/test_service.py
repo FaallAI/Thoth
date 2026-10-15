@@ -175,10 +175,14 @@ class Judge:
     def __init__(self, answers: dict[str, FootageAnswer | Exception] | None = None) -> None:
         self.answers = answers or {}
         self.calls: list[str] = []
+        self.people: list[bool] = []
 
-    async def judge(self, frames: Sequence[Frame], visual: str) -> FootageAnswer:
+    async def judge(
+        self, frames: Sequence[Frame], visual: str, *, person: bool = False
+    ) -> FootageAnswer:
         key = visual
         self.calls.append(key)
+        self.people.append(person)
         answer = self.answers.get(
             key, FootageAnswer(kind="footage", shows_object="yes", description="A flooded street.")
         )
@@ -607,9 +611,11 @@ async def test_a_missing_tool_cancels_the_sibling_checks(
         return await real_ocr(video, *args, **kwargs)
 
     class Blocking(Judge):
-        async def judge(self, frames: Sequence[Frame], visual: str) -> FootageAnswer:
+        async def judge(
+            self, frames: Sequence[Frame], visual: str, *, person: bool = False
+        ) -> FootageAnswer:
             if visual != "blocked":
-                return await super().judge(frames, visual)
+                return await super().judge(frames, visual, person=person)
             entered.set()
             try:
                 await never.wait()
@@ -634,9 +640,11 @@ async def test_a_candidate_past_its_time_is_media_failed_and_deleted(
     store: FootageStore, tmp_path: Path
 ) -> None:
     class Slow(Judge):
-        async def judge(self, frames: Sequence[Frame], visual: str) -> FootageAnswer:
+        async def judge(
+            self, frames: Sequence[Frame], visual: str, *, person: bool = False
+        ) -> FootageAnswer:
             await asyncio.sleep(10)
-            return await super().judge(frames, visual)
+            return await super().judge(frames, visual, person=person)
 
     result = await _builder(
         store, search=Search(_hits(_video(1))), judge=Slow(), per_candidate_seconds=0.5
@@ -657,9 +665,11 @@ async def test_the_deadline_stops_after_the_running_batch(
     results = {("tiktok", f"objek{n} kemang"): [_video(n)] for n in range(4)}
 
     class Slow(Judge):
-        async def judge(self, frames: Sequence[Frame], visual: str) -> FootageAnswer:
+        async def judge(
+            self, frames: Sequence[Frame], visual: str, *, person: bool = False
+        ) -> FootageAnswer:
             await asyncio.sleep(1.2)  # the first batch outlasts the deadline
-            return await super().judge(frames, visual)
+            return await super().judge(frames, visual, person=person)
 
     downloader = Downloader()
     result = await _builder(
@@ -743,3 +753,53 @@ async def test_a_raising_platform_logs_its_error_class_only(
     assert "platform=x error=RuntimeError" in text and "secret" not in text
     for name, hits in (("tiktok", 1), ("youtube", 0), ("x", 0)):
         assert f"footage search platform={name} hits={hits}" in text
+
+
+async def test_a_person_query_is_judged_as_a_person(store: FootageStore, tmp_path: Path) -> None:
+    answer = FootageQueryAnswer.model_validate(
+        {
+            "subjects": ["kemang"],
+            "objects": [{"name": "banjir", "visual": "a flooded street"}],
+            "people": ["Budi Santoso"],
+        }
+    )
+    judge = Judge()
+    search = Search(
+        {
+            ("tiktok", "banjir kemang"): [_video(1)],
+            ("tiktok", "budi santoso pidato kemang"): [_video(2)],
+        }
+    )
+    await _builder(store, queries=Queries(answer), search=search, judge=judge).build(
+        _inputs(tmp_path)
+    )
+    by_visual = dict(zip(judge.calls, judge.people, strict=True))
+    assert by_visual["a flooded street"] is False
+    assert [v for v, p in by_visual.items() if p and "budi santoso" in v]
+
+
+async def test_an_overlay_band_is_rejected_as_subtitle(
+    store: FootageStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from thoth_control_plane.footage import service
+
+    async def overlay(*args: Any, **kwargs: Any) -> Any:
+        from thoth_control_plane.assembly.models import MainOcr
+
+        return MainOcr(
+            analyzed_at=NOW,
+            requested_frames=4,
+            valid_frames=4,
+            outcome="overlay",
+            trim_start=0.0,
+            mute_audio=False,
+            subtitle_blur=[{"x": 0.1, "y": 0.8, "w": 0.8, "h": 0.1}],
+        )
+
+    monkeypatch.setattr(service, "analyze_main_ocr", overlay)
+    judge = Judge()
+    result = await _builder(store, search=Search(_hits(_video(1))), judge=judge).build(
+        _inputs(tmp_path)
+    )
+    assert result.rejected == {"subtitle": 1} and judge.calls == []
+    assert list((tmp_path / "reports" / "wf_a" / "footage").glob("*.mp4")) == []

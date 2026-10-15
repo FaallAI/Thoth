@@ -145,3 +145,22 @@ async def test_a_download_that_ignores_the_stop_is_abandoned(
             )
     finally:
         release.set()
+
+
+async def test_the_person_prompt_adds_the_exception_only_for_a_person(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prompts: list[str] = []
+
+    async def fake_run(self: Any, schema: Any, prompt: str, frames: Any) -> FootageAnswer:
+        prompts.append(prompt)
+        return FootageAnswer(kind="footage", shows_object="yes", description="")
+
+    monkeypatch.setattr(AgnoFootageJudge, "_run", fake_run)
+    frames = [Frame(second=1.0, jpeg=b"x")]
+    judge = AgnoFootageJudge("k", "m")
+    await judge.judge(frames, "a speaker")
+    await judge.judge(frames, "a speaker", person=True)
+    assert prompts[0] == FOOTAGE_PROMPT.format(visual="a speaker")
+    assert prompts[1] != prompts[0] and "a speaker" in prompts[1]
+    assert "that person themself" in prompts[1]

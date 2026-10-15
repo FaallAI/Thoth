@@ -19,6 +19,14 @@ FOOTAGE_PROMPT = (
 )
 
 
+PERSON_EXCEPTION = (
+    " The visual names a person: kind is footage when the video shows that person themself "
+    "(speaking at an event, a press conference, a visit, or an interview they give); "
+    "commentary only when someone else talks about them, or it is a news anchor, a slideshow, "
+    "or a reaction."
+)
+
+
 class FootageAnswer(BaseModel):
     kind: Literal["footage", "commentary"] = Field(
         description="footage: raw footage; commentary: talking head, anchor, slideshow, reaction"
@@ -33,7 +41,11 @@ class FootageAnswer(BaseModel):
 
 
 class AgnoFootageJudge(AgnoVisionReader):
-    async def judge(self, frames: Sequence[Frame], visual: str) -> FootageAnswer:
+    async def judge(
+        self, frames: Sequence[Frame], visual: str, *, person: bool = False
+    ) -> FootageAnswer:
         """Raises `AttributionError("vision_unavailable")` on a provider error or a bad answer."""
         prompt = FOOTAGE_PROMPT.format(visual=" ".join(visual.split())[:300])
+        if person:
+            prompt += PERSON_EXCEPTION
         return await self._run(FootageAnswer, prompt, frames[:MAX_FRAMES])

@@ -11,6 +11,7 @@ from thoth_control_plane.footage.gates import compose_query
 from thoth_control_plane.footage.models import FootageObject
 
 MAX_OBJECTS = 4
+MAX_PEOPLE_OBJECTS = 3  # with a person named, the person's query takes the fourth slot
 MAX_NAME = 40
 PROMPT = """From the post text below, extract entities for FOOTAGE (b-roll) search queries:
 clips that could be SHOWN in a video. Split them into SUBJECTS (anchors) and OBJECTS (concrete
@@ -29,7 +30,10 @@ RULES:
    duplicates.
 3. For each object, "visual": one English sentence describing what it looks like on screen
    (for example "a green-jacketed motorbike taxi driver on a city street").
-4. AVOID abstract things (payments, prices, policies, numbers) and the uploading or curating
+4. PEOPLE = well-known figures closely tied to the subject (a CEO, founder, or public figure),
+   from your knowledge when not named explicitly, for example nvidia: "jensen huang", tesla:
+   "elon musk". 0-2 only. Leave empty when unsure.
+5. AVOID abstract things (payments, prices, policies, numbers) and the uploading or curating
    account.
 
 TEXT:
@@ -37,7 +41,7 @@ TEXT:
 [HEADLINE/HOOK]: {headline}
 [AUDIENCE COMMENTS]: {comments}
 
-Answer in JSON: {{"subjects": [""], "objects": [{{"name": "", "visual": ""}}]}}"""
+Answer in JSON: {{"subjects": [""], "objects": [{{"name": "", "visual": ""}}], "people": []}}"""
 
 
 class ObjectItem(BaseModel):
@@ -53,13 +57,14 @@ class ObjectItem(BaseModel):
 class FootageQueryAnswer(BaseModel):
     subjects: list[str] = Field(default_factory=list)
     objects: list[ObjectItem | None] = Field(default_factory=list)
+    people: list[str] = Field(default_factory=list)
 
-    @field_validator("subjects", "objects", mode="before")
+    @field_validator("subjects", "objects", "people", mode="before")
     @classmethod
     def _null_is_empty_list(cls, value: object) -> object:
         return [] if value is None else value
 
-    @field_validator("subjects", mode="before")
+    @field_validator("subjects", "people", mode="before")
     @classmethod
     def _strings(cls, value: object) -> object:
         if not isinstance(value, list):
@@ -86,6 +91,8 @@ def footage_objects(answer: FootageQueryAnswer) -> list[FootageObject]:
     """Scout's clean(): lowercase, trim, at most 40 characters, no duplicates; then compose."""
     subjects = [s for s in (_clean(item) for item in answer.subjects) if s and len(s) <= MAX_NAME]
     subject = subjects[0] if subjects else ""
+    people = [p for p in (_clean(item) for item in answer.people) if p and len(p) <= MAX_NAME]
+    limit = MAX_PEOPLE_OBJECTS if people else MAX_OBJECTS
     seen: set[str] = set()
     objects: list[FootageObject] = []
     for item in answer.objects:
@@ -96,8 +103,20 @@ def footage_objects(answer: FootageQueryAnswer) -> list[FootageObject]:
             continue
         seen.add(name)
         objects.append(FootageObject(query=compose_query(name, subject)[:100], visual=visual[:300]))
-        if len(objects) == MAX_OBJECTS:
+        if len(objects) == limit:
             break
+    if people:
+        # "pidato" steers the search to raw speeches and press conferences, which official
+        # channels usually post without burned-in subtitles.
+        objects.append(
+            FootageObject(
+                query=compose_query(f"{people[0]} pidato", subject)[:100],
+                visual=(
+                    f"{people[0]} in person: speaking at an event, a press conference, or a visit"
+                ),
+                person=True,
+            )
+        )
     return objects
 
 
