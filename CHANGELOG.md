@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-15 - X footage search reports an expired session
+
+Implemented on branch `feat/x-login-wall` (from master 8acf07e). Nothing is pushed, merged, or
+deployed.
+
+**What changed**
+- `XSearchDiscovery.search_many` now checks each response's final URL against the X signed-out
+  paths (`/i/flow/login`, `/login`, `/i/jf/onboarding`, reused from the session check). On a
+  redirect it stops the remaining queries, keeps the answers found, and sets
+  `XSearchBatch.login_wall`.
+- `PlatformSearch._x` releases the lease with `login_wall` (it wins over `success` and
+  `blocked`), fails the batch, and logs `platform=x reason=login_wall`. The account policy marks
+  the account expired, so later runs skip X until the cookies are re-imported. An empty timeline
+  without a redirect still reports no outcome (ruling P3).
+- Spec F4 records the rule.
+
+**Tests:** `tests/footage` and `tests/acquisition/accounts` pass (210); ruff check and format are
+clean.
+
+**Next steps**
+- Next stage: the calibration capture gate, then Stage 5c.
+- Pending operator gates, each needing its own authorization: push, merge, CI, image pin, deploy.
+- Open follow-ups: re-import the X cookies once an account shows `expired`.
+
 ## 2026-10-15 - Stage 5b: footage
 
 Implemented on branch `feat/stage5b-footage` (11 tasks, each reviewed). Nothing is pushed,

@@ -166,7 +166,8 @@ candidates; one warning with the platform and a reason enum. A search that simpl
 answer, not a failure, and never cools the leased account down: only a refusal (HTTP 400 or
 above, or a GraphQL error body) reports `blocked`, which cools the account for 15 min, 1 h, 6 h,
 then 24 h for every job on that platform; an empty timeline or no captured response reports no
-outcome. All platforms failing:
+outcome. A redirect of the X search page to a signed-out path reports `login_wall`, which marks
+the account expired until its cookies are re-imported (operator, 2026-10-15). All platforms failing:
 `footage_status = "unavailable"`.
 
 ### F5 Text gates
