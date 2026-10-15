@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import gc
 import hashlib
 import json
 import logging
@@ -890,3 +891,30 @@ async def test_a_search_that_never_returns_ends_at_the_hard_deadline(
         assert run is not None and run.status == "done" and run.footage_status == "unavailable"
     finally:
         await _settle(release)
+
+
+async def test_a_cancelled_waiter_still_reads_the_exception_of_a_failed_check(
+    store: FootageStore,
+) -> None:
+    loop = asyncio.get_running_loop()
+    reported: list[str] = []
+    loop.set_exception_handler(lambda _loop, context: reported.append(context["message"]))
+
+    async def fails_when_cancelled() -> None:
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            raise RuntimeError("store failed") from None
+
+    builder = _builder(store, grace_seconds=1.0)
+    task = asyncio.create_task(fails_when_cancelled())
+    waiter = asyncio.create_task(builder._bounded(task, 10))
+    await asyncio.sleep(0.05)
+    waiter.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await waiter
+    assert task.done()
+    del task, waiter
+    gc.collect()
+    await asyncio.sleep(0)
+    assert reported == []

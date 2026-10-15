@@ -239,6 +239,8 @@ class FootageBuilder:
     async def _bounded(self, task: asyncio.Task[Any], seconds: float) -> bool:
         """Wait up to `seconds`, then cancel and allow the grace. False: the task ignored its
         cancellation and is abandoned. Cancelled itself, it cancels the task the same way."""
+        # An errored task nobody awaits must not log a traceback (it can carry a URL).
+        task.add_done_callback(lambda done: done.cancelled() or done.exception())
         try:
             await asyncio.wait({task}, timeout=seconds)
             if not task.done():
