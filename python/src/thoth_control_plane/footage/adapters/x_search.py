@@ -19,6 +19,7 @@ from datetime import datetime
 from typing import Any
 from urllib.parse import quote
 
+from thoth_control_plane.acquisition.accounts.session_check import CHECKS
 from thoth_control_plane.acquisition.adapters.x import (
     CANONICAL_BASE,
     _get,
@@ -31,6 +32,7 @@ from thoth_control_plane.acquisition.browser import (
     _default_session_factory,
     _increment_active_sessions,
 )
+from thoth_control_plane.acquisition.card_browser import is_login_path
 from thoth_control_plane.acquisition.discovery import MAX_CAPTION, _empty
 from thoth_control_plane.acquisition.models import (
     DiscoveredVideo,
@@ -178,6 +180,7 @@ class XSearchBatch:
     found: dict[str, list[DiscoveredVideo]] = field(default_factory=dict)
     refused: bool = False
     unavailable: bool = False
+    login_wall: bool = False  # the search page was redirected to a signed-out path
 
 
 class XSearchDiscovery:
@@ -202,7 +205,7 @@ class XSearchDiscovery:
             return XSearchBatch(unavailable=True)
         _increment_active_sessions()
         found: dict[str, list[DiscoveredVideo]] = {}
-        refused = unavailable = False
+        refused = unavailable = login_wall = False
         try:
             for index, query in enumerate(queries):
                 if index:
@@ -213,6 +216,9 @@ class XSearchDiscovery:
                     )
                 except Exception:
                     unavailable = True  # a timeout or a dead browser: stop, keep what we have
+                    break
+                if is_login_path(getattr(response, "url", ""), CHECKS["x"].signed_out_paths):
+                    login_wall = True  # expired cookies: stop, keep what we have
                     break
                 result = _answer(response, limit)
                 if result.reason is DiscoveryReason.BLOCKED:
@@ -227,4 +233,6 @@ class XSearchDiscovery:
                 pass
             finally:
                 _decrement_active_sessions()
-        return XSearchBatch(found=found, refused=refused, unavailable=unavailable)
+        return XSearchBatch(
+            found=found, refused=refused, unavailable=unavailable, login_wall=login_wall
+        )

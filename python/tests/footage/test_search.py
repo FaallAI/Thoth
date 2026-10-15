@@ -104,17 +104,21 @@ class _Entry:
 
 
 class _Response:
-    def __init__(self, captured: list[Any]) -> None:
+    def __init__(self, captured: list[Any], url: str = "") -> None:
         self.captured_xhr = captured
         self.status = 200
+        self.url = url
 
 
 class _Session:
     """One browser session; each fetch answers with the next page's captured responses."""
 
-    def __init__(self, pages: list[list[Any]], seen: list[str]) -> None:
+    def __init__(
+        self, pages: list[list[Any]], seen: list[str], urls: dict[int, str] | None = None
+    ) -> None:
         self._pages = list(pages)
         self._seen = seen
+        self._urls = urls or {}
         self.closed = False
 
     async def __aenter__(self) -> _Session:
@@ -124,14 +128,20 @@ class _Session:
         self.closed = True
 
     async def fetch(self, url: str, **kwargs: object) -> _Response:
+        final = self._urls.get(len(self._seen), url)  # a JavaScript redirect changes the final URL
         self._seen.append(url)
-        return _Response(self._pages.pop(0) if self._pages else [])
+        return _Response(self._pages.pop(0) if self._pages else [], final)
 
 
-def _x(pages: list[list[Any]], seen: list[str], sessions: list[_Session]) -> XSearchDiscovery:
+def _x(
+    pages: list[list[Any]],
+    seen: list[str],
+    sessions: list[_Session],
+    urls: dict[int, str] | None = None,
+) -> XSearchDiscovery:
     def factory(**kwargs: Any) -> _Session:
         assert kwargs["capture_xhr"] == r"/SearchTimeline"
-        session = _Session(pages, seen)
+        session = _Session(pages, seen, urls)
         sessions.append(session)
         return session
 
@@ -174,6 +184,27 @@ async def test_a_refusal_stops_the_remaining_queries(refusal: _Entry) -> None:
         ["pertama", "kedua"], 8
     )
     assert batch.refused and batch.found == {} and len(seen) == 1
+
+
+@pytest.mark.parametrize(
+    "wall",
+    [
+        "https://x.com/i/flow/login?redirect_after_login=%2Fsearch",
+        "https://x.com/i/jf/onboarding",
+    ],
+)
+async def test_a_redirect_to_a_signed_out_path_is_a_login_wall(wall: str) -> None:
+    seen: list[str] = []
+    batch = await _x(
+        [[_Entry(_timeline(_tweet("1000000001")))], [], []], seen, [], {1: wall}
+    ).search_many(["pertama", "kedua", "ketiga"], 8)
+    assert batch.login_wall and not batch.refused and len(seen) == 2
+    assert [v.post_id for v in batch.found["pertama"]] == ["1000000001"]
+
+
+async def test_an_empty_timeline_without_a_redirect_is_not_a_login_wall() -> None:
+    batch = await _x([[_Entry(_timeline())]], [], []).search_many(["sepi"], 8)
+    assert not batch.login_wall and batch.found == {"sepi": []}
 
 
 async def test_a_missing_tool_is_an_error_not_unavailable() -> None:
@@ -250,20 +281,25 @@ async def test_x_takes_one_lease_for_every_query() -> None:
 
 
 @pytest.mark.parametrize(
-    ("found", "refused", "outcome", "failed"),
+    ("found", "refused", "outcome", "failed", "wall"),
     [
-        ({"a": [_video(1)]}, False, "success", False),
-        ({"a": []}, False, None, False),  # an empty search is an answer (ruling P3)
-        ({}, True, "blocked", True),  # only a refusal cools the account down
+        ({"a": [_video(1)]}, False, "success", False, False),
+        ({"a": []}, False, None, False, False),  # an empty search is an answer (ruling P3)
+        ({}, True, "blocked", True, False),  # only a refusal cools the account down
+        ({"a": [_video(1)]}, False, "login_wall", True, True),  # an expired session wins
     ],
 )
 async def test_only_a_refusal_cools_the_x_account_down(
-    found: dict[str, list[DiscoveredVideo]], refused: bool, outcome: str | None, failed: bool
+    found: dict[str, list[DiscoveredVideo]],
+    refused: bool,
+    outcome: str | None,
+    failed: bool,
+    wall: bool,
 ) -> None:
     from thoth_control_plane.footage.adapters.x_search import XSearchBatch
 
     leases = _Leases()
-    stub = _XStub(XSearchBatch(found=found, refused=refused, unavailable=False))
+    stub = _XStub(XSearchBatch(found=found, refused=refused, unavailable=False, login_wall=wall))
     batch = await _platform_search(leases, stub).search("x", ["a"], 8)
     assert leases.outcomes == [outcome] and batch.failed is failed
 
