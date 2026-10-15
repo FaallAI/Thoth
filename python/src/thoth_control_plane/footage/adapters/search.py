@@ -93,7 +93,9 @@ class PlatformSearch:
         outcome: Outcome | None = None
         try:
             batch = await self._x_search(lease.access).search_many(queries, limit)
-            if batch.refused:
+            if batch.login_wall:
+                outcome = "login_wall"  # the account's cookies expired
+            elif batch.refused:
                 outcome = "blocked"
             elif any(batch.found.values()):
                 outcome = "success"
@@ -106,7 +108,9 @@ class PlatformSearch:
             len(batch.found),
             outcome,
         )
-        failed = batch.refused or (batch.unavailable and not batch.found)
+        if batch.login_wall:
+            logger.warning("footage search stopped platform=x reason=login_wall")
+        failed = batch.login_wall or batch.refused or (batch.unavailable and not batch.found)
         return SearchBatch(found=batch.found, failed=failed)
 
 
