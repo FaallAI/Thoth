@@ -42,8 +42,7 @@ class OnnxEmbedder:
             )
 
     def embed_sync(self, texts: Sequence[str]) -> list[list[float]]:
-        # One text per run: the model is dynamically quantized, so its activation scales span
-        # the whole input tensor and a batch would make a vector depend on its neighbours.
+        # One text per run: no padding, so a vector never depends on its neighbours in a batch.
         return [self._embed_one(text or " ") for text in texts]
 
     def _embed_one(self, text: str) -> list[float]:
