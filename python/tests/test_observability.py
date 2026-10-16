@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import logging
 import sys
+import time
 
 import pytest
 
@@ -14,6 +16,7 @@ from thoth_control_plane.observability import (
     ScraplingRedactionFilter,
     configure_logging,
     configure_provider_logging,
+    watch_event_loop,
 )
 
 
@@ -361,3 +364,18 @@ def test_worker_logging_is_one_json_line_per_record(capsys: pytest.CaptureFixtur
         ("ERROR", "scrapling.fetchers", REDACTED_PROVIDER_MESSAGE),
     ]
     assert all(line["ts"].endswith("+00:00") for line in lines)
+
+
+async def test_a_blocked_event_loop_dumps_every_stack_and_logs_the_stall(
+    capfd: pytest.CaptureFixture[str], caplog: pytest.LogCaptureFixture
+) -> None:
+    watch = asyncio.create_task(watch_event_loop(stall=0.3))
+    await asyncio.sleep(0.1)
+    time.sleep(0.8)  # a synchronous call on the loop: what starves a Temporal activation
+    await asyncio.sleep(0.1)
+    watch.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await watch
+
+    assert "test_a_blocked_event_loop_dumps_every_stack" in capfd.readouterr().err
+    assert any(r.getMessage().startswith("event loop stalled seconds=") for r in caplog.records)

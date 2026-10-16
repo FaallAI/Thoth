@@ -14,12 +14,19 @@ call more than once.
 
 from __future__ import annotations
 
+import asyncio
+import faulthandler
 import json
 import logging
 import sys
+import time
 from datetime import UTC, datetime
 
 REDACTED_PROVIDER_MESSAGE = "scrapling provider event redacted"
+# Temporal fails an activation that does not finish within 2 s of event-loop time (TMPRL1101).
+STALL_SECONDS = 1.0
+
+logger = logging.getLogger(__name__)
 
 _GUARD_MARKER = "_scrapling_redaction_guard"
 
@@ -70,6 +77,28 @@ def configure_logging() -> None:
         logging.getLogger("thoth_control_plane").setLevel(logging.INFO)
     except Exception:
         return
+
+
+async def watch_event_loop(stall: float = STALL_SECONDS) -> None:
+    """Catch what blocks the event loop or holds the GIL, while it still does.
+
+    A synchronous call on the loop, or a thread that keeps the GIL, delays every Temporal
+    activation; past 2 s the SDK reports a deadlock and a query answers 500. This coroutine
+    re-arms faulthandler's watchdog every quarter `stall`; the watchdog is a C thread that needs
+    neither the loop nor the GIL, so a missed beat dumps every thread's stack to stderr during
+    the stall. The stall's length is logged once the loop runs again.
+    """
+    beat = stall / 4
+    try:
+        while True:
+            faulthandler.dump_traceback_later(stall)
+            before = time.monotonic()
+            await asyncio.sleep(beat)
+            late = time.monotonic() - before - beat
+            if late > stall:
+                logger.warning("event loop stalled seconds=%.1f", late + beat)
+    finally:
+        faulthandler.cancel_dump_traceback_later()
 
 
 def _add_filter_once(target: logging.Filterer) -> None:
