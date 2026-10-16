@@ -2,6 +2,52 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-17 - A retried workflow start reuses its idempotency key; PR #15 deployed
+
+**PR #15 deployed.** Master `d17b689`, image `thoth@sha256:3ed92093...eee2` (renderer pin
+unchanged). `make deploy`: every service healthy, import `imported=0 present=277 invalid=0`.
+
+- Fresh-worker footage smoke `wf_75b0d101102e6052a856c76a` succeeded in 840 s with all three
+  reports served 200, and acquisition showed no stall. One 1.3 s `event loop stalled` dump came
+  from the footage embedder's first `onnxruntime.InferenceSession` creation, in an executor thread.
+  The worker's loop and the browser loop were both idle in `select()`, so the session creation held
+  the GIL. The builder and its session live for the worker's lifetime, so this happens once per
+  worker start. It stayed under Temporal's 2 s limit.
+- Warm-worker smoke `wf_7e28b87d3a083d43975870a8` succeeded in 861 s with zero `event loop stalled`
+  and zero `TMPRL1101`.
+- The WSL distro powered itself off during the first smoke (06:20 +07, "The system will power off
+  now!", a normal shutdown after no `wsl` client was attached) and came back on the next `wsl`
+  command. The operator chose to leave this WSL behaviour as it is.
+
+**The duplicate-start risk.** The first smoke's POST `/workflows` answered 503, yet the workflow had
+started. The gateway starts the workflow and then queries it, and the worker had not polled yet.
+The server already maps one key to one workflow, but the dashboard and the CLI minted a fresh
+`Idempotency-Key` on every call. A retry after that 503 would therefore have started a second
+workflow, processed the footage twice, and spent account quota twice.
+
+**What changed:**
+- `createWorkflow(request, idempotencyKey)` takes its key from the caller, as `createRenderJob`
+  does.
+- `WorkflowWizard` keeps `{body, key}` for the last attempt. A retry of the same request reuses
+  the key, a changed request gets a new key (so it never meets a 409), and success clears it.
+- The CLI's `workflow start` takes `--idempotency-key`. When a start fails, the CLI prints the key
+  it used so a rerun reaches the same workflow.
+
+**Verification:**
+- Dashboard `bun test`: 695 passed, 0 failed. `tsc --noEmit` is clean. The new wizard test failed
+  before the change, because the key was missing.
+- `make lint` is clean.
+- `make test`: 3847 passed, 29 skipped, 0 failed. The new CLI test failed before the change, because
+  no key was named.
+
+**Next steps**
+1. Push, PR, CI, merge. These are operator gates.
+2. Optional: warm the embedder session at worker start, before polling, to remove the one-time
+   1.3 s stall. Optional: pass an explicit build ID so temporalio skips hashing module sources at
+   start.
+- Follow-ups: S3 media spec; attribution for reposts with no credit; Studio reading the footage
+  artifact; Stage 5c; label the newly admitted calibration clips.
+
 ## 2026-10-16 - Browser sessions run on their own event loop; a failed query answers 503
 
 Branch `fix/browser-own-event-loop`. The second TMPRL1101 blocker: a footage smoke on a warm worker
