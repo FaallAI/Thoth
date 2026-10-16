@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+import logging
+from collections.abc import AsyncIterator, Callable
 from contextlib import suppress
 from datetime import UTC, datetime
 from hashlib import sha256
+from typing import Any, TypeVar
 
-from temporalio.client import Client, WorkflowHandle
+from temporalio.client import Client, WorkflowHandle, WorkflowQueryFailedError
 from temporalio.common import WorkflowIDConflictPolicy, WorkflowIDReusePolicy
 from temporalio.contrib.pydantic import pydantic_data_converter
 from temporalio.exceptions import WorkflowAlreadyStartedError
@@ -35,6 +37,9 @@ from thoth_control_plane.domain import (
     safe_workflow_source,
 )
 from thoth_control_plane.workflows.source_investigation import SourceInvestigationWorkflow
+
+logger = logging.getLogger(__name__)
+T = TypeVar("T")
 
 TASK_QUEUE = "thoth-control-plane"
 
@@ -128,29 +133,23 @@ class TemporalWorkflowGateway:
             )
 
         handle = await self._authorized_handle(workflow_id, actor)
-        existing_snapshot_id = await handle.query(SourceInvestigationWorkflow.request_snapshot_id)
+        existing_snapshot_id = await _query(handle, SourceInvestigationWorkflow.request_snapshot_id)
         if existing_snapshot_id != requested_snapshot_id:
             from thoth_control_plane.application import IdempotencyConflict
 
             raise IdempotencyConflict
-        return await handle.query(SourceInvestigationWorkflow.summary)
+        return await _query(handle, SourceInvestigationWorkflow.summary)
 
     async def get(self, workflow_id: str, *, actor: Actor) -> WorkflowSummary:
         handle = await self._authorized_handle(workflow_id, actor)
-        try:
-            return await handle.query(SourceInvestigationWorkflow.summary)
-        except RPCError as error:
-            raise _mapped_rpc_error(error) from error
+        return await _query(handle, SourceInvestigationWorkflow.summary)
 
     async def stream_events(
         self, workflow_id: str, *, actor: Actor, after_sequence: int
     ) -> AsyncIterator[WorkflowEvent]:
         """Replay durable lifecycle events only after the caller's cursor."""
         handle = await self._authorized_handle(workflow_id, actor)
-        try:
-            events = await handle.query(SourceInvestigationWorkflow.workflow_events)
-        except RPCError as error:
-            raise _mapped_rpc_error(error) from error
+        events = await _query(handle, SourceInvestigationWorkflow.workflow_events)
         for event in events:
             if event.sequence > after_sequence:
                 yield event
@@ -158,7 +157,7 @@ class TemporalWorkflowGateway:
     async def cancel(self, workflow_id: str, *, actor: Actor) -> WorkflowSummary:
         handle = await self._authorized_handle(workflow_id, actor)
         await handle.signal(SourceInvestigationWorkflow.request_cancel)
-        return await handle.query(SourceInvestigationWorkflow.summary)
+        return await _query(handle, SourceInvestigationWorkflow.summary)
 
     async def retry(
         self,
@@ -178,7 +177,7 @@ class TemporalWorkflowGateway:
         actor: Actor,
     ) -> WorkflowSummary:
         handle = await self._authorized_handle(workflow_id, actor)
-        current = await handle.query(SourceInvestigationWorkflow.summary)
+        current = await _query(handle, SourceInvestigationWorkflow.summary)
         if (
             current.approval is None
             or current.approval.approval_id != approval.approval_id
@@ -194,16 +193,13 @@ class TemporalWorkflowGateway:
                 decided_at=datetime.now(UTC),
             ),
         )
-        return await handle.query(SourceInvestigationWorkflow.summary)
+        return await _query(handle, SourceInvestigationWorkflow.summary)
 
     async def _authorized_handle(
         self, workflow_id: str, actor: Actor
     ) -> WorkflowHandle[WorkflowSummary]:
         handle: WorkflowHandle[WorkflowSummary] = self._client.get_workflow_handle(workflow_id)
-        try:
-            owner_actor = await handle.query(SourceInvestigationWorkflow.owner_actor)
-        except RPCError as error:
-            raise _mapped_rpc_error(error) from error
+        owner_actor = await _query(handle, SourceInvestigationWorkflow.owner_actor)
         if owner_actor.actor_id != actor.actor_id or owner_actor.actor_type != actor.actor_type:
             raise WorkflowNotFound
         return handle
@@ -212,6 +208,17 @@ class TemporalWorkflowGateway:
 def _workflow_id(actor_type: str, actor_id: str, idempotency_key: str) -> str:
     digest = sha256(f"{actor_type}\0{actor_id}\0{idempotency_key}".encode()).hexdigest()
     return f"wf_{digest[:24]}"
+
+
+async def _query(handle: WorkflowHandle[Any], query: Callable[..., T]) -> T:
+    """A query the worker could not answer (a TMPRL1101 stall, say) is "not ready, retry"."""
+    try:
+        return await handle.query(query)
+    except RPCError as error:
+        raise _mapped_rpc_error(error) from error
+    except WorkflowQueryFailedError as error:
+        logger.warning("workflow query failed workflow_id=%s reason=%s", handle.id, error)
+        raise WorkflowNotReady() from error
 
 
 def _mapped_rpc_error(error: RPCError) -> Exception:

@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-16 - Browser sessions run on their own event loop; a failed query answers 503
+
+Branch `fix/browser-own-event-loop`. The second TMPRL1101 blocker: a footage smoke on a warm worker
+(`wf_49e925513a4388e1b34c0d90`, agno already imported) stalled the event loop 1.9 s during
+acquisition, inside patchright's protocol dispatch (`_connection.dispatch` ->
+`_browser_context._on_response` -> pyee handlers). Scrapling drove Playwright on the worker's own
+loop, so every burst of browser events ran as Python on the loop Temporal times. Footage search
+(TikTok keyword discovery, X search) takes the same path.
+
+**What changed:** `acquisition/browser_loop.py` holds one event loop in a daemon thread.
+`LoopBoundSession(factory, **kwargs)` builds the session there and forwards `__aenter__`, `fetch`,
+and `__aexit__` (the only three methods any caller uses); `page_setup` and `page_action` callbacks
+run there too, and they touch only the page. Cancelling the caller cancels the work on the browser
+loop. `_default_session_factory` in `browser.py` returns a `LoopBoundSession`; `instagram_reels.py`
+imports it instead of keeping its own copy, and the Camoufox engine is bound the same way. The
+browser still shares the GIL, but the worker's loop gets it back every switch interval.
+
+**A failed query answers 503, not 500.** A query the worker cannot answer raises
+`WorkflowQueryFailedError`, which is not an `RPCError`, so it escaped the gateway's mapping and
+the status poll answered 500 while the workflow ran on. Every gateway query now goes through
+`_query`: an `RPCError` maps as before (404 or 503), a failed query becomes `WorkflowNotReady`
+(503, retry) and is logged as a WARNING with its reason, so a real query-handler bug still shows.
+A cached "last known status" was left out: the stalls last seconds and the clients already retry.
+
+**Verification (WSL):** `make lint` clean; `make test` 3846 passed, 29 skipped, 0 failed. The new heartbeat test
+fails on a same-loop session (a 0.51 s gap) and passes on the browser loop.
+
+**Next steps**
+1. PR + CI, merge, new image digest, pin, `make deploy`. Operator gates.
+2. Several footage smokes: no `event loop stalled` and no `TMPRL1101` in `make logs`.
+- Follow-ups: S3 media spec; attribution for reposts with no credit; Studio reading the footage
+  artifact; Stage 5c; label the newly admitted calibration clips.
+
 ## 2026-10-16 - The worker imports heavy modules at startup, not on the event loop
 
 Branch `fix/worker-preload-heavy-modules`. Found by the stall watchdog from PR #13.

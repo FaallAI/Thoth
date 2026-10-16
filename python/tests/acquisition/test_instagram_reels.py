@@ -209,5 +209,5 @@ def test_the_camoufox_engine_picks_the_camoufox_session() -> None:
     camoufox = InstagramReelsDiscovery(replace(ACCESS, engine="camoufox"))
     patchright = InstagramReelsDiscovery(ACCESS)
 
-    assert camoufox._session_factory is CamoufoxSession
-    assert patchright._session_factory is not CamoufoxSession
+    assert camoufox._session_factory(headless=True)._factory is CamoufoxSession
+    assert patchright._session_factory(headless=True)._factory is not CamoufoxSession
