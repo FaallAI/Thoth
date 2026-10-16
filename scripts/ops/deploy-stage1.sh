@@ -26,6 +26,24 @@ step config
 "${compose[@]}" config --images
 step migrate
 "${compose[@]}" run --rm --no-deps api thoth-control editor migrate 2>&1 | tail -3
+step stop-worker
+"${compose[@]}" stop worker
+step import-reports
+# The importer exits 1 on invalid files or an unavailable store; capture that so the message
+# below prints instead of set -e ending the script silently.
+import_rc=0
+import_line=$("${compose[@]}" run --rm --no-deps api thoth-control reports import \
+    --artifact-root /var/lib/thoth/artifacts 2>&1 | tail -1) || import_rc=$?
+echo "$import_line"
+if [ "$import_rc" -ne 0 ]; then
+    echo "report import failed (exit $import_rc); the old worker stays stopped — decide, then re-run" >&2
+    exit 1
+fi
+case "$import_line" in
+    *" invalid=0") ;;
+    *) echo "report import not clean; the old worker stays stopped — decide, then re-run" >&2
+       exit 1 ;;
+esac
 step up
 "${compose[@]}" up -d --wait 2>&1 | tail -12
 step status

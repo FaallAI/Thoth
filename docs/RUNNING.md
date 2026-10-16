@@ -36,6 +36,20 @@ Never print or commit the API keys while configuring these processes. The existi
 uses the SQLite queue below; the Temporal Python worker uses `thoth-control-plane` and its isolated
 legacy-adapter queue. They are independent processes and queues.
 
+### Deploy with reports in PostgreSQL
+
+Workflow reports (source investigation, attribution, assembly, footage, legacy Scout) live in
+the `workflow_reports` table of the editor PostgreSQL, not in report files. `make deploy` runs, in
+this order: `editor migrate` -> stop the old worker -> `thoth-control reports import` (imports the
+existing report files once) -> check the import printed `invalid=0` -> `up -d --wait`. If the
+import is not clean the script exits with the old worker still stopped; decide, then re-run.
+
+- Back up PostgreSQL and the artifact volume together; media stays on the volume.
+- Every workflow depends on the editor PostgreSQL. Without it the worker does not start and the
+  API answers `503 report_store_unavailable` for report artifacts.
+- Never roll the image back while workflows are in flight: an older image does not read the
+  stored reports.
+
 ---
 
 ## A. Single-command CLI

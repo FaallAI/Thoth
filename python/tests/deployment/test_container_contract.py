@@ -1198,3 +1198,15 @@ def test_the_embedding_model_is_pinned_and_fetched_with_the_speech_models() -> N
     assert dockerfile.index("fetch_speech_models.py \\") < dockerfile.index(
         "COPY --chown=thoth:thoth python/src/"
     )
+
+
+def test_the_deploy_imports_reports_with_the_old_worker_stopped() -> None:
+    script = _repo_text("scripts/ops/deploy-stage1.sh")
+    order = [
+        script.index("editor migrate"),
+        script.index("stop worker"),
+        script.index("reports import"),
+        script.index('" invalid=0"'),
+        script.index("up -d --wait"),
+    ]
+    assert order == sorted(order)
