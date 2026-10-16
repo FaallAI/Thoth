@@ -125,3 +125,22 @@ async def test_rapidocr_boxes_carry_left_and_right() -> None:
     assert found, [box.text for box in boxes]
     assert 0.5 < found[0].left < found[0].right <= 1.0
     assert 0.4 < found[0].top < found[0].bottom < 0.55
+
+
+def test_rapidocr_runs_on_two_threads(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Default ONNX Runtime threads take every core; four parallel reads cost 4x the CPU for the
+    # same wall time and starved the Temporal workflow thread (2026-10-16).
+    _require_module("rapidocr")
+    import rapidocr
+
+    from thoth_control_plane.attribution.adapters.ocr import RapidOcrReader
+
+    built: list[dict[str, object]] = []
+    monkeypatch.setattr(rapidocr, "RapidOCR", lambda params=None: built.append(params or {}))
+    RapidOcrReader()._get()
+    assert built == [
+        {
+            "EngineConfig.onnxruntime.intra_op_num_threads": 2,
+            "EngineConfig.onnxruntime.inter_op_num_threads": 1,
+        }
+    ]

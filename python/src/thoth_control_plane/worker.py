@@ -34,7 +34,11 @@ from thoth_control_plane.infrastructure.prompt_proposal_repository import (
 from thoth_control_plane.infrastructure.prompt_provider import OpenAICompatiblePromptProvider
 from thoth_control_plane.infrastructure.report_store import Reports, connect_reports
 from thoth_control_plane.infrastructure.temporal_gateway import TASK_QUEUE
-from thoth_control_plane.observability import configure_provider_logging
+from thoth_control_plane.observability import (
+    configure_logging,
+    configure_provider_logging,
+    watch_event_loop,
+)
 from thoth_control_plane.operations.yt_dlp_version import check_freshness
 from thoth_control_plane.workflows import SourceInvestigationWorkflow
 from thoth_control_plane.workflows.prompt_proposal import PromptProposalWorkflow
@@ -159,11 +163,13 @@ async def run_worker(settings: Settings | None = None) -> None:
     """Run normal activities and the isolated single-concurrency legacy adapter."""
     runtime_settings = settings or Settings()  # type: ignore[call-arg]
     check_media_tools(runtime_settings)
+    configure_logging()
     sweep_unsealed()  # a killed worker may have left account profiles decrypted
     configure_provider_logging()
     capability = await check_scrapling_capability()
     # A stale yt-dlp fails YouTube extraction; warn once, in the background, never block.
     freshness = asyncio.create_task(check_freshness())
+    watch = asyncio.create_task(watch_event_loop())
     try:
         client = await Client.connect(
             runtime_settings.THOTH_TEMPORAL_TARGET,
@@ -189,6 +195,7 @@ async def run_worker(settings: Settings | None = None) -> None:
             await asyncio.Future()
     finally:
         freshness.cancel()
+        watch.cancel()
 
 
 def main() -> None:

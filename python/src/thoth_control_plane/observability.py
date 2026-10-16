@@ -1,4 +1,4 @@
-"""Worker-startup logging safety for the optional Scrapling provider stack.
+"""Worker-startup logging: one JSON line per record, and safety for the Scrapling provider stack.
 
 Scrapling (and the Patchright browser it drives) logs signed CDN URLs, cookies,
 and other provider-identifying detail at INFO level via the standard library
@@ -14,9 +14,19 @@ call more than once.
 
 from __future__ import annotations
 
+import asyncio
+import faulthandler
+import json
 import logging
+import sys
+import time
+from datetime import UTC, datetime
 
 REDACTED_PROVIDER_MESSAGE = "scrapling provider event redacted"
+# Temporal fails an activation that does not finish within 2 s of event-loop time (TMPRL1101).
+STALL_SECONDS = 1.0
+
+logger = logging.getLogger(__name__)
 
 _GUARD_MARKER = "_scrapling_redaction_guard"
 
@@ -35,6 +45,60 @@ class ScraplingRedactionFilter(logging.Filter):
         record.exc_text = None
         record.stack_info = None
         return True
+
+
+class JsonFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        entry = {
+            "ts": datetime.fromtimestamp(record.created, UTC).isoformat(timespec="milliseconds"),
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        if record.exc_info:
+            entry["exc"] = self.formatException(record.exc_info)
+        return json.dumps(entry, ensure_ascii=False)
+
+
+def configure_logging() -> None:
+    """Write records to stdout as JSON: the control plane's INFO and up, others' WARNING and up.
+
+    Third-party INFO stays out because it carries request URLs (httpx) and content. Without a
+    root handler the worker printed only WARNING and up, through `logging.lastResort`. Never
+    raises, and is idempotent, like `configure_provider_logging`.
+    """
+    try:
+        root = logging.getLogger()
+        if not any(isinstance(handler.formatter, JsonFormatter) for handler in root.handlers):
+            handler = logging.StreamHandler(sys.stdout)
+            handler.setFormatter(JsonFormatter())
+            root.addHandler(handler)
+        root.setLevel(logging.WARNING)
+        logging.getLogger("thoth_control_plane").setLevel(logging.INFO)
+    except Exception:
+        return
+
+
+async def watch_event_loop(stall: float = STALL_SECONDS) -> None:
+    """Catch what blocks the event loop or holds the GIL, while it still does.
+
+    A synchronous call on the loop, or a thread that keeps the GIL, delays every Temporal
+    activation; past 2 s the SDK reports a deadlock and a query answers 500. This coroutine
+    re-arms faulthandler's watchdog every quarter `stall`; the watchdog is a C thread that needs
+    neither the loop nor the GIL, so a missed beat dumps every thread's stack to stderr during
+    the stall. The stall's length is logged once the loop runs again.
+    """
+    beat = stall / 4
+    try:
+        while True:
+            faulthandler.dump_traceback_later(stall)
+            before = time.monotonic()
+            await asyncio.sleep(beat)
+            late = time.monotonic() - before - beat
+            if late > stall:
+                logger.warning("event loop stalled seconds=%.1f", late + beat)
+    finally:
+        faulthandler.cancel_dump_traceback_later()
 
 
 def _add_filter_once(target: logging.Filterer) -> None:

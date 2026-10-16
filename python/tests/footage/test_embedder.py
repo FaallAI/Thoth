@@ -45,3 +45,14 @@ async def test_a_vector_does_not_depend_on_its_batch() -> None:
         ["resep nasi goreng kampung yang enak dan murah " * 8, text, "halo", "gempa di bandung"]
     )
     assert max(abs(x - y) for x, y in zip(alone, batch[1], strict=True)) < 1e-5
+
+
+async def test_the_session_uses_two_threads_without_spinning() -> None:
+    # Default ONNX Runtime threads take every core per session; four parallel sessions kept
+    # 22 cores busy for 3x the wall time and starved the Temporal workflow thread (2026-10-16).
+    embedder = OnnxEmbedder(_required("THOTH_TEST_EMBEDDING_MODEL_DIR"))
+    await embedder.embed(["x"])
+    options = embedder._session.get_session_options()
+    assert options.intra_op_num_threads == 2
+    assert options.inter_op_num_threads == 1
+    assert options.get_session_config_entry("session.intra_op.allow_spinning") == "0"

@@ -18,6 +18,10 @@ def _editor_database(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("THOTH_EDITOR_DATABASE_URL", "postgresql://u:p@127.0.0.1:5432/db")
 
 
+async def _no_watch() -> None:
+    return None
+
+
 class _StopWorker(Exception):
     """Sentinel raised to stop `run_worker` right after the capability check."""
 
@@ -25,6 +29,8 @@ class _StopWorker(Exception):
 @pytest.mark.asyncio
 async def test_worker_configures_provider_logging_before_capability_check(monkeypatch) -> None:
     calls: list[str] = []
+    monkeypatch.setattr(worker, "configure_logging", lambda: calls.append("json"))
+    monkeypatch.setattr(worker, "watch_event_loop", _no_watch)
     monkeypatch.setattr(worker, "configure_provider_logging", lambda: calls.append("logging"))
 
     async def capability():
@@ -36,7 +42,7 @@ async def test_worker_configures_provider_logging_before_capability_check(monkey
         await worker.run_worker(
             Settings(THOTH_CONTROL_PLANE_API_KEY="test-key", THOTH_SOURCE_ATTRIBUTION_ENABLED=False)
         )
-    assert calls == ["logging", "capability"]
+    assert calls == ["json", "logging", "capability"]
 
 
 @pytest.mark.asyncio
@@ -61,6 +67,8 @@ async def test_the_yt_dlp_check_runs_in_the_background_and_stops_with_the_worker
         await started.wait()
         raise _StopWorker
 
+    monkeypatch.setattr(worker, "configure_logging", lambda: None)
+    monkeypatch.setattr(worker, "watch_event_loop", _no_watch)
     monkeypatch.setattr(worker, "configure_provider_logging", lambda: None)
     monkeypatch.setattr(worker, "check_scrapling_capability", capability)
     monkeypatch.setattr(worker, "check_freshness", freshness)
@@ -193,6 +201,8 @@ async def test_the_worker_sweeps_profiles_a_killed_worker_left_before_any_lease(
     monkeypatch,
 ) -> None:
     calls: list[str] = []
+    monkeypatch.setattr(worker, "configure_logging", lambda: None)
+    monkeypatch.setattr(worker, "watch_event_loop", _no_watch)
     monkeypatch.setattr(worker, "configure_provider_logging", lambda: None)
     monkeypatch.setattr(worker, "sweep_unsealed", lambda: calls.append("sweep"))
 
