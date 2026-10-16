@@ -4,19 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## 2026-10-16 - Workflow reports in PostgreSQL
 
-Implemented on branch `feat/workflow-reports-postgres` (spec 8a643d7, plan 7fc83af; 7 tasks).
-Nothing is pushed, merged, or deployed. The Python control plane's JSON reports
+Implemented on branch `feat/workflow-reports-postgres` (spec 57209cf, plan 06501fa; 7 tasks).
+Rebased onto the fp32 embedder merge (ee801e0). The Python control plane's JSON reports
 (`source-report.json`, `source-attribution.json`, `content-set.json`, the legacy Scout report) now
 live in the editor PostgreSQL instead of report files; media stays on the artifact volume.
 
 **What changed**
-- Table `workflow_reports` (migration 0011) and a `ReportStore` (37bf8ed, 0e37ddf).
+- Table `workflow_reports` (migration 0011) and a `ReportStore` (77d45c6, 72ef3e4).
 - Source investigation, attribution, assembly, footage, and legacy Scout write and read reports
-  through the store (5887c2e, 890f254, c30335d, f4366b5, 1bef61e).
+  through the store (46beb34, 5dba259, d360b7e, 0583dfa, d780637).
 - The API serves report artifacts from the store; without a database it answers 503
-  `report_store_unavailable` (f4e6971).
+  `report_store_unavailable` (28b69fe).
 - `thoth-control reports import --artifact-root PATH` imports existing report files once and
-  prints `imported=<n> present=<n> invalid=<n>` (5453121, 5867d43).
+  prints `imported=<n> present=<n> invalid=<n>` (01140a6, cfc53f9).
 - `scripts/ops/deploy-stage1.sh` runs migrate, stops the old worker, imports, requires
   `invalid=0`, then `up`; a failed or unclean import exits with the worker still stopped.
   `docs/RUNNING.md` has the runbook.
@@ -26,12 +26,13 @@ live in the editor PostgreSQL instead of report files; media stays on the artifa
 - R2: a store error in attribution, assembly, and footage propagates as the activity error.
 - R3: the import exits 1 when `invalid > 0` or the store is unavailable, so the deploy can stop.
 - The migration strips only an unescaped `\u0000`, not an escaped backslash before `u0000`.
-- Content jsonb rejects (NaN, Infinity, lone surrogates) is `ReportInvalid`, not an outage.
+- Content jsonb rejects (NaN, Infinity) is `ReportInvalid`, not an outage. A lone surrogate is
+  stored as is; only its query `body` is NULL (final review, b359791).
 - A bare legacy Scout wrapper fails typed (`legacy_scout_report_persistence_failed`).
 - The import marks `original_source_report` only for candidate folders matching `^.+-c\d+$`.
 
-**Verification (WSL):** `make lint` clean; `make test` with the quint8 embedding model 3834
-passed, 28 skipped, 0 failed; `make test-postgres` 10 passed, 0 skipped; `make dashboard-test`
+**Verification (WSL, after the rebase):** `make lint` clean; `make test` with the fp32 embedding
+model 3837 passed, 29 skipped, 0 failed; `make test-postgres` 11 passed, 0 skipped; `make dashboard-test`
 694 pass, 0 fail; the report-file grep over `python/src` leaves only location strings,
 docstrings, import patterns, and the standalone controlled-fallback runner's own output file.
 
