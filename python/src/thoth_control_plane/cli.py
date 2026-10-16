@@ -80,6 +80,9 @@ def reports_import(
     database_url = Settings().THOTH_EDITOR_DATABASE_URL
     if database_url is None:
         raise typer.BadParameter("THOTH_EDITOR_DATABASE_URL must be configured")
+    if not artifact_root.is_dir():
+        typer.echo("artifact root not found")
+        raise typer.Exit(1)
     try:
         counts = import_reports(artifact_root, ReportStore.connect(database_url.get_secret_value()))
     except ReportStoreUnavailable:

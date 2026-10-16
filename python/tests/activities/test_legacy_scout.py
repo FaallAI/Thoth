@@ -471,6 +471,7 @@ async def test_a_database_outage_is_a_persistence_failure(tmp_path: Path) -> Non
 
     assert result.failure is not None
     assert result.failure.code == "legacy_scout_report_persistence_failed"
+    assert result.failure.retryable is True
     assert not (tmp_path / "temp" / "legacy-scout" / "wf_legacy_scout_001").exists()
 
 

@@ -65,8 +65,6 @@ def test_insert_missing_never_overwrites(report_store: ReportStore) -> None:
         (LOCATION, "source_report", b'{"x": NaN}'),
         (LOCATION, "source_report", b'{"x": Infinity}'),
         (LOCATION, "source_report", b'{"x": -Infinity}'),
-        (LOCATION, "source_report", b'{"x": "\\ud800"}'),
-        (LOCATION, "source_report", b'{"\\udc00": 1}'),
         (LOCATION, "media", CONTENT),
         ("/etc/passwd", "source_report", CONTENT),
         ("reports/../x/source-report.json", "source_report", CONTENT),
@@ -98,3 +96,52 @@ def test_read_report_validates_and_treats_a_bad_document_as_absent(
     assert asyncio.run(read_report(report_store, LOCATION, Doc)) == Doc(schema_version=3)
     assert asyncio.run(read_report(report_store, "reports/wf_bad/source-report.json", Doc)) is None
     assert asyncio.run(read_report(report_store, "reports/wf_no/source-report.json", Doc)) is None
+
+
+def test_a_lone_surrogate_escape_is_stored_as_it_is(report_store: ReportStore) -> None:
+    content = b'{"t": "\ud83d"}'
+    report_store.put(LOCATION, "source_report", content)
+    assert report_store.get(LOCATION) == content
+
+
+def test_store_errors_carry_no_cause_and_log_no_message(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from sqlalchemy.exc import OperationalError
+
+    marker = "REPORT-BODY-MARKER"
+
+    class Boom:
+        def begin(self):
+            raise OperationalError("INSERT", {"content": marker}, Exception(marker))
+
+        def __call__(self):
+            return self.begin()
+
+    store = ReportStore(None)  # type: ignore[arg-type]
+    store._sessions = Boom()  # type: ignore[assignment]
+    for call in (
+        lambda: store.get(LOCATION),
+        lambda: store.put(LOCATION, "source_report", CONTENT),
+        lambda: store.insert_missing(LOCATION, "source_report", CONTENT),
+    ):
+        with caplog.at_level("DEBUG"), pytest.raises(ReportStoreUnavailable) as raised:
+            call()
+        assert raised.value.__cause__ is None
+        assert marker not in str(raised.value)
+    assert marker not in caplog.text
+    assert "OperationalError" in caplog.text
+
+
+def test_connect_hides_parameters_and_bounds_the_connect_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from thoth_control_plane.infrastructure import report_store
+
+    seen: dict = {}
+    monkeypatch.setattr(
+        report_store, "create_engine", lambda url, **kwargs: seen.update(kwargs) or None
+    )
+    ReportStore.connect("postgresql://u:p@localhost/db")
+    assert seen["hide_parameters"] is True
+    assert seen["connect_args"] == {"connect_timeout": 10}

@@ -48,6 +48,7 @@ from thoth_control_plane.domain.models import (
     StrictModel,
 )
 from thoth_control_plane.infrastructure.report_store import (
+    ReportInvalid,
     Reports,
     ReportStoreUnavailable,
     connect_reports,
@@ -320,7 +321,7 @@ async def _run(
     except asyncio.CancelledError:
         _cleanup_after_persistence_failure(report, artifact_root)
         raise
-    except ReportStoreUnavailable:
+    except (ReportStoreUnavailable, ReportInvalid):
         _cleanup_after_persistence_failure(report, artifact_root)
         return SourceInvestigationActivityResult(
             failure=SafeActivityError(code="artifact_persistence_failed", retryable=True),

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -35,6 +36,8 @@ _LOCATION = re.compile(
 
 M = TypeVar("M", bound=BaseModel)
 
+logger = logging.getLogger(__name__)
+
 
 class ReportInvalid(ValueError):
     """The location, kind, or content cannot be a stored report."""
@@ -57,12 +60,15 @@ def _checked(location: str, kind: str, content: bytes) -> tuple[str, str]:
         raise ReportInvalid("report_location_or_kind_invalid")
     try:
         text = content.decode("utf-8")
-        value = json.loads(text, parse_constant=_refuse_constant)
-        # PostgreSQL jsonb refuses lone surrogates; encoding the parsed value surfaces them.
-        json.dumps(value, ensure_ascii=False).encode("utf-8")
-    except (UnicodeError, ValueError) as error:
-        raise ReportInvalid("report_content_invalid") from error
+        json.loads(text, parse_constant=_refuse_constant)
+    except (UnicodeError, ValueError):
+        raise ReportInvalid("report_content_invalid") from None
     return match.group(2), text
+
+
+def _log_failure(error: Exception) -> None:
+    """The type only: a SQLAlchemy message carries the statement and the report's text."""
+    logger.warning("report store failure: %s", type(error).__name__)
 
 
 def _refuse_constant(name: str) -> None:
@@ -80,7 +86,16 @@ class ReportStore:
     @classmethod
     def connect(cls, database_url: str) -> ReportStore:
         url = make_url(database_url).set(drivername="postgresql+psycopg")
-        return cls(create_engine(url, pool_pre_ping=True, pool_size=2, max_overflow=2))
+        return cls(
+            create_engine(
+                url,
+                pool_pre_ping=True,
+                pool_size=2,
+                max_overflow=2,
+                hide_parameters=True,
+                connect_args={"connect_timeout": 10},
+            )
+        )
 
     def put(self, location: str, kind: str, content: bytes) -> None:
         """Store or replace one report (a Temporal retry rewrites the same row)."""
@@ -98,16 +113,19 @@ class ReportStore:
                 row.size_bytes = len(content)
                 row.updated_at = now
         except DataError as error:
-            raise ReportInvalid("report_content_invalid") from error
+            _log_failure(error)
+            raise ReportInvalid("report_content_invalid") from None
         except SQLAlchemyError as error:
-            raise ReportStoreUnavailable("report_store_unavailable") from error
+            _log_failure(error)
+            raise ReportStoreUnavailable("report_store_unavailable") from None
 
     def get(self, location: str) -> bytes | None:
         try:
             with self._sessions() as session:
                 row = session.get(WorkflowReportRow, location)
         except SQLAlchemyError as error:
-            raise ReportStoreUnavailable("report_store_unavailable") from error
+            _log_failure(error)
+            raise ReportStoreUnavailable("report_store_unavailable") from None
         return None if row is None else row.content.encode("utf-8")
 
     def insert_missing(self, location: str, kind: str, content: bytes) -> bool:
@@ -121,9 +139,11 @@ class ReportStore:
                 session.add(self._row(location, folder, kind, text, content, now))
                 return True
         except DataError as error:
-            raise ReportInvalid("report_content_invalid") from error
+            _log_failure(error)
+            raise ReportInvalid("report_content_invalid") from None
         except SQLAlchemyError as error:
-            raise ReportStoreUnavailable("report_store_unavailable") from error
+            _log_failure(error)
+            raise ReportStoreUnavailable("report_store_unavailable") from None
 
     @staticmethod
     def _row(

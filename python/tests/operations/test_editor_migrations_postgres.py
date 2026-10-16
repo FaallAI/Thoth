@@ -117,7 +117,31 @@ def test_an_escaped_backslash_before_u0000_is_kept_and_adjacent_nuls_are_dropped
     assert _body("reports/wf_mix/source-report.json") == {"c": "\\x"}
 
 
-@pytest.mark.parametrize("content", [b'{"x": NaN}', rb'{"x": "\ud800"}'])
+def test_a_lone_surrogate_is_stored_exactly_with_no_body_while_a_pair_has_one() -> None:
+    from thoth_control_plane.infrastructure.report_store import ReportStore
+
+    apply_editor_migrations(DATABASE_URL, MIGRATIONS)
+    store = ReportStore.connect(DATABASE_URL)
+    lone = rb'{"t": "\ud83d"}'
+    store.put("reports/wf_lone/source-report.json", "source_report", lone)
+    store.put("reports/wf_pair/source-report.json", "source_report", rb'{"t": "a\ud83d\ude00b"}')
+
+    assert store.get("reports/wf_lone/source-report.json") == lone
+    assert _body("reports/wf_lone/source-report.json") is None
+    assert _body("reports/wf_pair/source-report.json") == {"t": "a\U0001f600b"}
+
+
+def test_timestamps_default_to_now() -> None:
+    apply_editor_migrations(DATABASE_URL, MIGRATIONS)
+    with psycopg.connect(DATABASE_URL) as connection:
+        connection.execute(
+            "INSERT INTO workflow_reports (location, workflow_id, kind, content, sha256, "
+            "size_bytes) VALUES ('reports/wf_d/a.json', 'wf_d', 'source_report', '{}', "
+            "repeat('0', 64), 2)"
+        )
+
+
+@pytest.mark.parametrize("content", [b'{"x": NaN}'])
 def test_content_jsonb_would_refuse_is_invalid_never_unavailable(content: bytes) -> None:
     from thoth_control_plane.infrastructure.report_store import ReportInvalid, ReportStore
 

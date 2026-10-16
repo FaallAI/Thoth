@@ -195,6 +195,7 @@ class LegacyScoutActivity:
                 input_,
                 code="legacy_scout_report_persistence_failed",
                 diagnostic="legacy report could not be stored",
+                retryable=True,
             )
         return self._success_result(input_, "legacy process completed", report_content)
 
@@ -314,9 +315,10 @@ class LegacyScoutActivity:
         *,
         code: str,
         diagnostic: str,
+        retryable: bool = False,
     ) -> SourceInvestigationResult:
         return SourceInvestigationResult(
-            failure=SafeActivityError(code=code, retryable=False),
+            failure=SafeActivityError(code=code, retryable=retryable),
             events=[
                 LegacyScoutProgressEvent(kind="stage.started", payload={"stage": "source"}),
                 *[

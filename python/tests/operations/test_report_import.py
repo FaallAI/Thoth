@@ -120,6 +120,15 @@ def test_cli_exits_one_when_a_report_is_invalid(tmp_path, report_store, monkeypa
     assert "wf_a" not in result.output
 
 
+def test_cli_refuses_a_root_that_is_not_a_directory(tmp_path, report_store, monkeypatch) -> None:
+    missing = tmp_path / "typo-secret"
+    result = _cli(monkeypatch, report_store, missing)
+    assert result.exit_code == 1
+    assert "artifact root not found" in result.output
+    assert "typo-secret" not in result.output
+    assert "imported=" not in result.output
+
+
 def test_cli_stops_when_the_store_is_unavailable(tmp_path, monkeypatch) -> None:
     class Down:
         def insert_missing(self, *args) -> bool:

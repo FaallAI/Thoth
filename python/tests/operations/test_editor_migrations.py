@@ -457,10 +457,13 @@ def test_workflow_reports_keep_exact_content_and_a_queryable_body() -> None:
     assert "CREATE TABLE workflow_reports" in sql
     assert "location TEXT PRIMARY KEY" in sql
     assert "content TEXT NOT NULL" in sql
-    assert (
-        "body JSONB GENERATED ALWAYS AS ( "
-        "regexp_replace(content, '(?<!\\\\)((?:\\\\\\\\)*)\\\\u0000', '\\1', 'g')::jsonb ) STORED"
-    ) in sql
+    assert "CREATE FUNCTION workflow_report_body(content TEXT) RETURNS JSONB" in sql
+    assert "LANGUAGE plpgsql IMMUTABLE" in sql
+    assert "EXCEPTION WHEN others THEN RETURN NULL" in sql
+    assert r"RETURN regexp_replace(content, '(?<!\\)((?:\\\\)*)\\u0000', '\1', 'g')::jsonb;" in sql
+    assert "body JSONB GENERATED ALWAYS AS (workflow_report_body(content)) STORED" in sql
+    assert "created_at TIMESTAMPTZ NOT NULL DEFAULT now()" in sql
+    assert "updated_at TIMESTAMPTZ NOT NULL DEFAULT now()" in sql
     assert (
         "kind IN ('source_report', 'original_source_report', 'source_attribution', 'content_set')"
         in sql

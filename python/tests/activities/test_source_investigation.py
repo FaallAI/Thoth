@@ -31,6 +31,7 @@ from thoth_control_plane.activities.source_investigation import (
 )
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain.models import SafeActivityError
+from thoth_control_plane.infrastructure.report_store import ReportInvalid
 
 FIXTURE_PATH = (
     Path(__file__).resolve().parent.parent / "fixtures" / "tiktok" / "source_report_v3.json"
@@ -772,6 +773,25 @@ async def test_a_retry_rewrites_the_same_row(
     first = await activity(INPUT)
     second = await activity(INPUT)
     assert first.report == second.report
+
+
+@pytest.mark.asyncio
+async def test_a_refused_report_is_a_persistence_failure_with_cleanup(
+    tmp_path: Path, successful_runner
+) -> None:
+    class InvalidReports:
+        def put(self, location: str, kind: str, content: bytes) -> None:
+            raise ReportInvalid("report_content_invalid")
+
+        def get(self, location: str) -> bytes | None:
+            return None
+
+    activity = build_source_investigation_activity(
+        _settings(tmp_path), runner=successful_runner, reports=InvalidReports()
+    )
+    result = await activity(INPUT)
+    assert result.failure == SafeActivityError(code="artifact_persistence_failed", retryable=True)
+    assert list(tmp_path.rglob("*.part")) == []
 
 
 @pytest.mark.asyncio
