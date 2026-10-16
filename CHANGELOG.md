@@ -21,8 +21,18 @@ from `AgnoVisionReader._run` (`attribution/adapters/vision.py`) in the attributi
 Adapters import their heavy libraries on first use inside async activities, so the first use after
 a worker start imports on the event loop. Measured in the worker container on an idle CPU:
 `agno.agent` 0.61 s, `agno.models.openai.like` 0.67 s, `numpy` 0.27 s, `faster_whisper` 0.21 s,
-`yt_dlp` 0.17 s. Under footage load the agno import alone passed 2 s. That explains why both smokes
-stalled once, early after a deploy, and never again in the same worker.
+`yt_dlp` 0.17 s. Under footage load the agno import alone passed 2 s. This explains the 14:27
+stall only. It does not explain the first smoke's 500 at 12:19: that came mid `build_footage`, six
+minutes after attribution had already imported agno (`identify` always calls `read_cover`).
+
+**Not fixed: a second blocker, Playwright on the event loop.** A footage smoke on the warm PR #13
+worker (`wf_49e925513a4388e1b34c0d90`, agno already imported) succeeded, but the watchdog fired once
+more, `event loop stalled seconds=1.9`, 15 s in, during acquisition. The event-loop thread was
+inside patchright's protocol dispatch (`_connection.dispatch` → `_browser_context._on_response` →
+pyee handlers); every other thread was idle. Scrapling drives the browser on the worker's own event
+loop, so a burst of browser events runs as Python on the loop that Temporal times. Footage search
+(TikTok keyword discovery and X search) uses the same browser path, which makes it the likeliest
+cause of the 12:19 stall, though no dump of that one exists.
 
 **What changed:** `run_worker` calls `preload_heavy_modules()` right after `configure_logging()`,
 before any activity runs. It imports `HEAVY_MODULES` and skips one whose optional extra is missing
@@ -32,8 +42,10 @@ before any activity runs. It imports `HEAVY_MODULES` and skips one whose optiona
 
 **Next steps**
 1. PR + CI, merge, new image digest, pin, `make deploy`. Operator gates.
-2. Re-run a footage smoke on the fresh worker: no `event loop stalled` and no `TMPRL1101` in
-   `make logs`.
+2. Re-run a footage smoke on the fresh worker: no stall dump inside an import.
+3. Move browser work off the Temporal event loop (its own loop in a thread, or its own worker
+   process); needs its own design. Until then a status poll can still answer 500 during
+   acquisition or footage search, and the watchdog stays on.
 - Follow-ups: S3 media spec; attribution for reposts with no credit; Studio reading the footage
   artifact; Stage 5c; label the newly admitted calibration clips.
 
