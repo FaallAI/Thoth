@@ -2,6 +2,50 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-16 - Worker JSON logging and two ONNX Runtime threads per session
+
+Branch `fix/worker-logging-and-ort-threads`. During the post-deploy smoke the worker ran at about
+2100% CPU in the footage phase, and Temporal reported `TMPRL1101 Potential deadlock detected:
+workflow didn't yield within 2 second(s)`: a status poll answered 500, though the workflow
+succeeded. Separately, the worker had no root log handler, so every control-plane INFO line
+(footage search, footage finished) was dropped; only WARNING and up reached stdout.
+
+**Cause, measured offline (WSL, 28 logical CPUs):** ONNX Runtime's default gives every session
+a thread per core and spins between runs. Four parallel fp32 embedder sessions took 2.3 s wall
+and 51.5 s CPU (22 cores busy); with two intra-op threads, one inter-op thread, and no spinning
+they took 0.7 s wall and 4.8 s CPU. Four parallel RapidOCR reads took the same wall time either
+way (16.6 s vs 15.4 s) but 361 s vs 90 s of CPU.
+
+**What changed**
+- The footage embedder session uses 2 intra-op threads, 1 inter-op thread, and no spinning.
+- RapidOCR builds its ONNX Runtime sessions with 2 intra-op threads and 1 inter-op thread.
+- `configure_logging()` runs first at worker startup: one JSON line per record on stdout
+  (`ts` UTC, `level`, `logger`, `msg`, `exc`), the `thoth_control_plane` namespace at INFO and
+  everything else at WARNING, so third-party INFO with request URLs (httpx) or content stays
+  out. The Scrapling redaction filter still applies to the new handler.
+
+**Verification (WSL):** `make lint` clean; `make test` 3840 passed, 29 skipped, 0 failed (the
+fp32 calibration goldens unchanged under the thread cap).
+
+**Next steps**
+1. PR + CI, merge, new image digest, pin, `make deploy`. Operator gates.
+2. Re-run the smoke and check that worker CPU stays well under the core count, no
+   `TMPRL1101` appears, and footage INFO lines show as JSON in `make logs`.
+- Follow-ups: S3 media spec; attribution for reposts with no credit; Studio reading the footage
+  artifact; Stage 5c; label the newly admitted calibration clips.
+
+## 2026-10-16 - Deployed: workflow reports in PostgreSQL and the fp32 embedder
+
+Master `0b0210f` (PR #11 merged as `ee801e0`, PR #12 as `0b0210f`), image
+`ghcr.io/muhfalihr/thoth@sha256:0650f25fa3c1dba175040e811182493097f7c6e62cac76060f7c41e5d044b7ea`;
+the renderer pin is unchanged. `make deploy`: preflight passed, migrate, worker stopped, import
+`imported=277 present=0 invalid=0` (253 `source_report`, 12 `source_attribution`, 12
+`content_set`; no `<workflow_id>-c<n>` folders exist on the volume, so no originals), then all
+services healthy. Smoke workflow `wf_46def34c7c41acc194b10b07` (the calibration TikTok URL
+"tempat") succeeded; its three reports are rows with a non-NULL `body`, the API serves each with
+200 JSON, and no report JSON file was written to the volume. One status poll during footage
+answered 500 (`TMPRL1101`); see the entry above.
+
 ## 2026-10-16 - Workflow reports in PostgreSQL
 
 Implemented on branch `feat/workflow-reports-postgres` (spec 57209cf, plan 06501fa; 7 tasks).
