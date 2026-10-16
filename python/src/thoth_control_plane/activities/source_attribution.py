@@ -13,7 +13,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import os
 import re
 import shutil
 import time
@@ -59,6 +58,7 @@ from thoth_control_plane.domain.models import (
     SourceProgressEvent,
     StrictModel,
 )
+from thoth_control_plane.infrastructure.report_store import Reports, connect_reports, read_report
 
 logger = logging.getLogger(__name__)
 HEARTBEAT_SECONDS = 30.0
@@ -139,17 +139,6 @@ def build_production_ports(settings: Settings, artifact_root: Path) -> Attributi
     )
 
 
-def _write(artifact_root: Path, location: PurePosixPath, content: bytes) -> None:
-    path = artifact_root / location
-    part = path.with_name(path.name + ".part")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        part.write_bytes(content)
-        os.replace(part, path)
-    finally:
-        part.unlink(missing_ok=True)
-
-
 def _artifact(kind: str, label: str, location: PurePosixPath, content: bytes) -> ArtifactRef:
     digest = sha256(content).hexdigest()
     return ArtifactRef(
@@ -190,7 +179,10 @@ async def _heartbeat() -> None:
 
 
 async def _run(
-    input_: SourceAttributionActivityInput, artifact_root: Path, attributor: Attributor
+    input_: SourceAttributionActivityInput,
+    artifact_root: Path,
+    attributor: Attributor,
+    reports: Reports,
 ) -> SourceAttributionActivityResult:
     started = time.monotonic()
 
@@ -201,11 +193,8 @@ async def _run(
         )
 
     folder = PurePosixPath("reports") / input_.workflow_id
-    try:
-        report = SourceReport.model_validate_json(
-            (artifact_root / folder / REPORT_FILE).read_bytes()
-        )
-    except (OSError, ValueError):
+    report = await read_report(reports, (folder / REPORT_FILE).as_posix(), SourceReport)
+    if report is None:
         logger.warning("source attribution skipped; no stage 3 report for this workflow")
         return failed()
 
@@ -232,27 +221,20 @@ async def _run(
         with contextlib.suppress(asyncio.CancelledError):
             await heartbeat
 
-    try:
-        content = outcome.attribution.model_dump_json(indent=2).encode("utf-8")
-        location = folder / ATTRIBUTION_FILE
-        _write(artifact_root, location, content)
-        attribution = _artifact("source_attribution", "Source attribution", location, content)
-        original = None
-        if outcome.original is not None:
-            original_location = (
-                PurePosixPath("reports") / outcome.original.candidate_id / REPORT_FILE
-            )
-            original_content = outcome.original.report.model_dump_json(indent=2).encode("utf-8")
-            _write(artifact_root, original_location, original_content)
-            original = _artifact(
-                "original_source_report",
-                "Original source report",
-                original_location,
-                original_content,
-            )
-    except OSError:
-        logger.warning("source attribution artifact could not be written")
-        return failed()
+    content = outcome.attribution.model_dump_json(indent=2).encode("utf-8")
+    location = folder / ATTRIBUTION_FILE
+    await asyncio.to_thread(reports.put, location.as_posix(), "source_attribution", content)
+    attribution = _artifact("source_attribution", "Source attribution", location, content)
+    original = None
+    if outcome.original is not None:
+        original_location = PurePosixPath("reports") / outcome.original.candidate_id / REPORT_FILE
+        original_content = outcome.original.report.model_dump_json(indent=2).encode("utf-8")
+        await asyncio.to_thread(
+            reports.put, original_location.as_posix(), "original_source_report", original_content
+        )
+        original = _artifact(
+            "original_source_report", "Original source report", original_location, original_content
+        )
 
     verdict = outcome.attribution.verdict
     elapsed = int((time.monotonic() - started) * 1000)
@@ -298,15 +280,16 @@ class _OnFirstUse:
 
 
 def build_source_attribution_activity(
-    settings: Settings, *, attributor: Attributor | None = None
+    settings: Settings, *, attributor: Attributor | None = None, reports: Reports | None = None
 ) -> Callable[[SourceAttributionActivityInput], Awaitable[SourceAttributionActivityResult]]:
     artifact_root = settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT.resolve()
     selected = attributor or _OnFirstUse(settings, artifact_root)
+    selected_reports = reports or connect_reports(settings)
 
     @activity.defn(name="attribute_source")
     async def configured_source_attribution_activity(
         input_: SourceAttributionActivityInput,
     ) -> SourceAttributionActivityResult:
-        return await _run(input_, artifact_root, selected)
+        return await _run(input_, artifact_root, selected, selected_reports)
 
     return configured_source_attribution_activity

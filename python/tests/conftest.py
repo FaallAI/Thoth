@@ -38,7 +38,7 @@ from thoth_control_plane.domain import (
     request_snapshot_id,
 )
 from thoth_control_plane.domain.models import SafeActivityError
-from thoth_control_plane.infrastructure.report_store import ReportStore
+from thoth_control_plane.infrastructure.report_store import ReportStore, ReportStoreUnavailable
 from thoth_control_plane.infrastructure.source_account_models import Base
 from thoth_control_plane.infrastructure.temporal_gateway import (
     TASK_QUEUE,
@@ -54,6 +54,16 @@ def report_store() -> ReportStore:
     )
     Base.metadata.create_all(engine)
     return ReportStore(engine)
+
+
+class DownReports:
+    """A report store whose database is unreachable."""
+
+    def put(self, location: str, kind: str, content: bytes) -> None:
+        raise ReportStoreUnavailable("report_store_unavailable")
+
+    def get(self, location: str) -> bytes | None:
+        raise ReportStoreUnavailable("report_store_unavailable")
 
 
 def _is_local(address: Any) -> bool:

@@ -58,9 +58,9 @@ def build_source_investigation_worker(
             build_source_investigation_activity(
                 settings, runner=runner, capability=capability, reports=reports
             ),
-            build_source_attribution_activity(settings),
-            build_content_assembly_activity(settings),
-            build_footage_activity(settings),
+            build_source_attribution_activity(settings, reports=reports),
+            build_content_assembly_activity(settings, reports=reports),
+            build_footage_activity(settings, reports=reports),
         ],
         max_concurrent_activities=1,
     )

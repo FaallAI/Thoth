@@ -10,6 +10,7 @@ from pathlib import Path, PurePosixPath
 import pytest
 from pydantic import ValidationError
 
+from tests.conftest import DownReports
 from thoth_control_plane.acquisition.models import (
     AccountUse,
     AcquisitionAttempt,
@@ -30,7 +31,6 @@ from thoth_control_plane.activities.source_investigation import (
 )
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain.models import SafeActivityError
-from thoth_control_plane.infrastructure.report_store import ReportStoreUnavailable
 
 FIXTURE_PATH = (
     Path(__file__).resolve().parent.parent / "fixtures" / "tiktok" / "source_report_v3.json"
@@ -63,14 +63,6 @@ TERMINAL_FAILURE_WITH_ATTEMPTS = AcquisitionResult(
         attempts=[HEADLESS_FAILED_ATTEMPT, CDN_FAILED_ATTEMPT],
     )
 )
-
-
-class _DownReports:
-    def put(self, location: str, kind: str, content: bytes) -> None:
-        raise ReportStoreUnavailable("report_store_unavailable")
-
-    def get(self, location: str) -> bytes | None:
-        raise ReportStoreUnavailable("report_store_unavailable")
 
 
 @pytest.fixture(autouse=True)
@@ -264,7 +256,7 @@ async def test_report_persistence_failure_removes_materialized_media(
         return AcquisitionResult(report=report)
 
     configured = build_source_investigation_activity(
-        _settings(tmp_path), runner=runner, reports=_DownReports()
+        _settings(tmp_path), runner=runner, reports=DownReports()
     )
     result = await configured(INPUT)
 
@@ -319,7 +311,7 @@ async def test_cleanup_after_persistence_failure_never_touches_outside_artifact_
         return AcquisitionResult(report=report)
 
     configured = build_source_investigation_activity(
-        _settings(tmp_path), runner=runner, reports=_DownReports()
+        _settings(tmp_path), runner=runner, reports=DownReports()
     )
     result = await configured(INPUT)
 
@@ -636,7 +628,7 @@ async def test_report_persistence_failure_removes_recorded_card_files(tmp_path: 
         return AcquisitionResult(report=report)
 
     result = await build_source_investigation_activity(
-        _settings(tmp_path), runner=runner, reports=_DownReports()
+        _settings(tmp_path), runner=runner, reports=DownReports()
     )(INPUT)
 
     assert result.failure is not None
@@ -787,7 +779,7 @@ async def test_a_database_outage_is_a_retryable_persistence_failure(
     tmp_path: Path, successful_runner
 ) -> None:
     activity = build_source_investigation_activity(
-        _settings(tmp_path), runner=successful_runner, reports=_DownReports()
+        _settings(tmp_path), runner=successful_runner, reports=DownReports()
     )
     result = await activity(INPUT)
     assert result.failure == SafeActivityError(code="artifact_persistence_failed", retryable=True)
