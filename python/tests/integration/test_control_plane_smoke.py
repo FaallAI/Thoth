@@ -147,7 +147,9 @@ async def test_production_activity_and_api_share_a_custom_artifact_root(
             activities=[configured_activity],
             max_cached_workflows=0,
         ):
-            app = create_app(settings, TemporalWorkflowGateway(environment.client))
+            app = create_app(
+                settings, TemporalWorkflowGateway(environment.client), report_store=report_store
+            )
             transport = httpx.ASGITransport(app=app)
             async with httpx.AsyncClient(
                 transport=transport, base_url="http://offline-control-plane"
@@ -179,10 +181,16 @@ async def test_production_activity_and_api_share_a_custom_artifact_root(
                     await asyncio.sleep(0.01)
                 assert summary["status"] == "succeeded"
 
-                # The API still serves artifacts from disk until Task 5 reads the store.
+                artifact = next(a for a in summary["artifacts"] if a["kind"] == "source_report")
+                download = await client.get(
+                    f"/api/v1/workflows/{workflow_id}/artifacts/{artifact['artifact_id']}",
+                    headers=headers,
+                )
 
         stored = report_store.get(f"reports/{workflow_id}/source-report.json")
         assert stored is not None
         assert workflow_id in stored.decode("utf-8")
+        assert download.status_code == 200
+        assert download.content == stored
     finally:
         await environment.shutdown()

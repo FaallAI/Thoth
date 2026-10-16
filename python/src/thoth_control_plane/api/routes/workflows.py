@@ -1,12 +1,13 @@
 """Versioned workflow lifecycle routes."""
 
+import asyncio
 import re
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from thoth_control_plane.api.dependencies import current_actor
 from thoth_control_plane.application import (
@@ -26,6 +27,7 @@ from thoth_control_plane.infrastructure.legacy_reader import (
     LegacyJobNotFound,
     LegacyJobReader,
 )
+from thoth_control_plane.infrastructure.report_store import REPORT_KINDS, ReportStoreUnavailable
 
 router = APIRouter()
 
@@ -102,10 +104,28 @@ async def download_workflow_artifact(
     request: Request,
     actor: Annotated[Actor, Depends(current_actor)],
     service: Annotated[WorkflowService, Depends(get_workflow_service)],
-) -> FileResponse:
-    """Authorize through the workflow owner boundary, then stream one safe artifact."""
+) -> Response:
+    """Authorize through the workflow owner boundary, then serve one safe artifact."""
 
     artifact = await service.get_artifact(workflow_id, artifact_id, actor=actor)
+    if artifact.kind in REPORT_KINDS:
+        reports = request.app.state.report_store
+        try:
+            if reports is None:
+                raise ReportStoreUnavailable("report_store_unavailable")
+            content = await asyncio.to_thread(reports.get, artifact.location)
+        except ReportStoreUnavailable as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="report_store_unavailable",
+            ) from error
+        if content is None:
+            raise ArtifactNotFound
+        return Response(
+            content,
+            media_type=artifact.media_type,
+            headers={"Content-Disposition": f'attachment; filename="{artifact.artifact_id}.json"'},
+        )
     artifact_root = Path(request.app.state.settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT).resolve()
     artifact_path = (artifact_root / artifact.location).resolve()
     if artifact_root not in artifact_path.parents or not artifact_path.is_file():
