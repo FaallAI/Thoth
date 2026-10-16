@@ -37,6 +37,24 @@ def _required(variable: str) -> Path:
     return Path(value)
 
 
+def _cpu() -> str:
+    # The int8 kernels differ by instruction set, so a drift report names the CPU it ran on.
+    info = Path("/proc/cpuinfo")
+    if not info.exists():
+        return "cpu unknown"
+    text = info.read_text()
+    model = next(
+        (
+            line.split(":", 1)[1].strip()
+            for line in text.splitlines()
+            if line.startswith("model name")
+        ),
+        "cpu unknown",
+    )
+    flags = sorted({f for f in ("avx512_vnni", "avx_vnni", "avx512f") if f" {f}" in text})
+    return f"{model} {flags}"
+
+
 async def _scores() -> list[tuple[dict, float]]:
     embedder = OnnxEmbedder(_required("THOTH_TEST_EMBEDDING_MODEL_DIR"))
     scored = []
@@ -56,8 +74,9 @@ async def _scores() -> list[tuple[dict, float]]:
 async def test_scores_and_threshold_decisions_reproduce() -> None:
     scored = await _scores()
     assert len(scored) == 47
+    drift = {c["ref"]: round(s - c["score"], 4) for c, s in scored if abs(s - c["score"]) > 1e-4}
+    assert not drift, f"{_cpu()}: {drift}"
     for candidate, score in scored:
-        assert abs(score - candidate["score"]) <= 1e-4, candidate["ref"]
         admitted = score >= THRESHOLD
         assert admitted == (candidate["golden_decision"] == "admitted"), candidate["ref"]
 
