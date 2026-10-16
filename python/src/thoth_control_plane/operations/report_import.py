@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from thoth_control_plane.activities.content_assembly import ORIGINAL_LOCATION
 from thoth_control_plane.infrastructure.report_store import ReportInvalid, ReportStore
 
 _PATTERNS = (
@@ -14,6 +14,9 @@ _PATTERNS = (
     "reports/*/content-set.json",
     "legacy-scout/*/source-report.json",
 )
+# Candidate folders are `<workflow_id>-c<n>` (attribution/service.py); their source report is
+# the original, while a workflow's own folder holds its `source_report`.
+_CANDIDATE_FOLDER = re.compile(r".+-c\d+")
 _KINDS = {"source-attribution.json": "source_attribution", "content-set.json": "content_set"}
 
 
@@ -37,12 +40,12 @@ def import_reports(root: Path, store: ReportStore) -> ImportCounts:
             location = path.relative_to(root).as_posix()
             kind = _KINDS.get(path.name) or (
                 "original_source_report"
-                if ORIGINAL_LOCATION.fullmatch(location)
+                if pattern.startswith("reports/") and _CANDIDATE_FOLDER.fullmatch(path.parent.name)
                 else "source_report"
             )
             try:
                 inserted = store.insert_missing(location, kind, path.read_bytes())
-            except ReportInvalid:
+            except (ReportInvalid, OSError):
                 invalid += 1
                 continue
             if inserted:

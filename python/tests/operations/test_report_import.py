@@ -1,8 +1,10 @@
 from pathlib import Path
 
+from sqlalchemy import select
 from typer.testing import CliRunner
 
 from thoth_control_plane.cli import app
+from thoth_control_plane.infrastructure.report_models import WorkflowReportRow
 from thoth_control_plane.infrastructure.report_store import ReportStore, ReportStoreUnavailable
 from thoth_control_plane.operations.report_import import ImportCounts, import_reports
 
@@ -58,6 +60,42 @@ def test_a_linked_folder_is_skipped(tmp_path, report_store) -> None:
     (tmp_path / "reports" / "wf_dir").symlink_to(elsewhere, target_is_directory=True)
 
     assert import_reports(tmp_path, report_store) == ImportCounts(imported=0, present=0, invalid=0)
+
+
+def test_stored_kinds(tmp_path, report_store) -> None:
+    _write(tmp_path, "reports/wf_a/source-report.json", b"{}")
+    _write(tmp_path, "reports/wf_a-c1/source-report.json", b"{}")
+    _write(tmp_path, "reports/wf_a/source-attribution.json", b"{}")
+    _write(tmp_path, "reports/wf_a/content-set.json", b"{}")
+    _write(tmp_path, "legacy-scout/wf_b/source-report.json", b"{}")
+    import_reports(tmp_path, report_store)
+
+    with report_store._sessions() as session:
+        rows = session.execute(select(WorkflowReportRow.location, WorkflowReportRow.kind)).all()
+    kinds = {location: kind for location, kind in rows}
+    assert kinds == {
+        "reports/wf_a/source-report.json": "source_report",
+        "reports/wf_a-c1/source-report.json": "original_source_report",
+        "reports/wf_a/source-attribution.json": "source_attribution",
+        "reports/wf_a/content-set.json": "content_set",
+        "legacy-scout/wf_b/source-report.json": "source_report",
+    }
+
+
+def test_an_unreadable_file_is_counted_invalid_and_the_rest_imported(
+    tmp_path, report_store, monkeypatch
+) -> None:
+    _write(tmp_path, "reports/wf_a/source-report.json", b'{"a": 1}')
+    _write(tmp_path, "reports/wf_b/source-report.json", b'{"b": 1}')
+    real = Path.read_bytes
+
+    def read_bytes(self: Path) -> bytes:
+        if self.parent.name == "wf_a":
+            raise PermissionError("denied")
+        return real(self)
+
+    monkeypatch.setattr(Path, "read_bytes", read_bytes)
+    assert import_reports(tmp_path, report_store) == ImportCounts(imported=1, present=0, invalid=1)
 
 
 def _cli(monkeypatch, store, root: Path):
