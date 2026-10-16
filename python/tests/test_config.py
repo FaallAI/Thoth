@@ -162,5 +162,5 @@ def test_content_assembly_settings_default_off() -> None:
     assert settings.THOTH_CONTENT_ASSEMBLY_ENABLED is False
     assert settings.THOTH_SUBTITLE_OCR_MAX_FRAMES == 12
     assert settings.THOTH_FOOTAGE_ENABLED is False
-    assert settings.THOTH_FOOTAGE_STORY_MIN == 0.33
+    assert settings.THOTH_FOOTAGE_STORY_MIN == 0.36
     assert settings.THOTH_FIGURES_MODEL == "deepseek/deepseek-v4-flash-0731"

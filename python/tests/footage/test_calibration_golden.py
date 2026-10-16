@@ -1,14 +1,14 @@
 """The operator's 2026-10-15 footage labels, replayed on the real embedding model.
 
 Calibration finding (six stories, 47 labeled candidates): between 0.27 and 0.33 relevant and
-irrelevant clips overlap, so no threshold separates them there; 0.33 stays because it still
-rejects the clear misses without dropping clips the operator labeled relevant above it.
+irrelevant clips overlap, so no threshold separates them there.
 
-The calibration run embedded whole batches through a dynamically quantized model, so its scores
-depended on batch composition (up to 0.047 off). The embedder now runs one text at a time; the
-stored `score` is that batch-independent value and `recorded_story_score` is the calibration
-history. Two candidates cross 0.33 versus the calibration run: #18 (relevant) falls to 0.317 and
-is now rejected, B9 (irrelevant) rises to 0.332 and is now admitted.
+The calibration run used a dynamically quantized model whose scores depended on batch
+composition (up to 0.047 off) and on the CPU's instruction set (AVX-512 machines up to 0.017
+off). The embedder is now the fp32 export, whose scores agree across CPUs within 1e-6
+(2026-10-16). `score` is the fp32 value; `recorded_story_score` is the calibration history.
+On fp32 the irrelevant B5 (0.349) and the relevant #10 (0.381) bound a clean gap; the operator
+chose 0.36, its middle (2026-10-16).
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ import pytest
 
 from thoth_control_plane.footage.adapters.embedder import OnnxEmbedder, cosine
 
-THRESHOLD = 0.33
+THRESHOLD = 0.36
 _STORIES = json.loads(
     (Path(__file__).parent.parent / "fixtures/footage/calibration_2026-10-15.json").read_text(
         encoding="utf-8"

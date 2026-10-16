@@ -1188,6 +1188,9 @@ def test_the_embedding_model_is_pinned_and_fetched_with_the_speech_models() -> N
     script = _repo_text("docker/fetch_speech_models.py")
     assert "paraphrase-multilingual-MiniLM-L12-v2" in script
     assert "e8f8c211226b894fcb81acc59f3b34ba3efd5f42" in script
+    # fp32, not a quantized export: int8 kernels score differently per CPU instruction set.
+    assert '"onnx/model.onnx"' in script
+    assert "10f7a088420252b26caf819236ca2c9d2987afd0fc06fec7553b542a5655a05a" in script
     assert "fetch_embedding(arguments.out)" in script
     dockerfile = _repo_text("Dockerfile")
     assert dockerfile.index("fetch_speech_models.py \\") < dockerfile.index(

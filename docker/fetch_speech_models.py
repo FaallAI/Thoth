@@ -42,14 +42,15 @@ DIARIZATION = {
         "sha256": "e9848563da86f263117134dfd7ad63c92355b37de492b55e325400c9d9c39012",
     },
 }
-# Stage 5b story gate (spec 2026-10-14, amendment 2): the official ONNX export, quantized.
+# Stage 5b story gate (spec 2026-10-14, amendment 2): the official ONNX export in fp32; the
+# quantized exports score differently per CPU instruction set (2026-10-16).
 EMBEDDING = {
     "repo": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
     "revision": "e8f8c211226b894fcb81acc59f3b34ba3efd5f42",
     "files": {
         "model.onnx": (
-            "onnx/model_quint8_avx2.onnx",
-            "98a01d88b7de996cdea58c32ca71208c09968d143798814b2ea09d3439dc334f",
+            "onnx/model.onnx",
+            "10f7a088420252b26caf819236ca2c9d2987afd0fc06fec7553b542a5655a05a",
         ),
         "tokenizer.json": (
             "tokenizer.json",

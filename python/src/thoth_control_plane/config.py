@@ -95,7 +95,7 @@ class Settings(BaseSettings):
     # no ffmpeg or ffprobe (operator, 2026-10-11).
     THOTH_CONTENT_ASSEMBLY_ENABLED: bool = False
     THOTH_FOOTAGE_ENABLED: bool = False
-    THOTH_FOOTAGE_STORY_MIN: Annotated[float, Field(ge=0.0, le=1.0)] = 0.33
+    THOTH_FOOTAGE_STORY_MIN: Annotated[float, Field(ge=0.0, le=1.0)] = 0.36
     THOTH_SUBTITLE_OCR_MAX_FRAMES: Annotated[int, Field(ge=1, le=60)] = 12
     THOTH_FIGURES_MODEL: str = "deepseek/deepseek-v4-flash-0731"
     THOTH_FOOTAGE_QUERY_MODEL: str = "deepseek/deepseek-v4-flash-0731"
