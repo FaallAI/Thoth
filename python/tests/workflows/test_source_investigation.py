@@ -627,7 +627,7 @@ def _offline_successful_runner():
 
 @pytest.mark.asyncio
 async def test_source_investigation_activity_materializes_its_report(
-    tmp_path,
+    tmp_path, report_store
 ) -> None:
     configured_activity = build_source_investigation_activity(
         Settings(
@@ -636,6 +636,7 @@ async def test_source_investigation_activity_materializes_its_report(
             THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE="python",
         ),
         runner=_offline_successful_runner(),
+        reports=report_store,
     )
     result = await configured_activity(
         SourceInvestigationActivityInput(
@@ -646,15 +647,17 @@ async def test_source_investigation_activity_materializes_its_report(
     )
 
     assert result.report is not None
-    report = tmp_path / result.report.location
-    assert report.is_file()
-    assert "wf_materialized" in report.read_text(encoding="utf-8")
+    stored = report_store.get(result.report.location)
+    assert stored is not None
+    assert "wf_materialized" in stored.decode("utf-8")
+    assert not (tmp_path / result.report.location).exists()
 
 
 @pytest.mark.asyncio
 async def test_production_worker_registration_binds_source_activity_to_configured_artifact_root(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
+    report_store,
 ) -> None:
     registered: dict[str, object] = {}
 
@@ -673,6 +676,7 @@ async def test_production_worker_registration_binds_source_activity_to_configure
             THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE="python",
         ),
         runner=_offline_successful_runner(),
+        reports=report_store,
     )
 
     activities = registered["activities"]
@@ -685,7 +689,8 @@ async def test_production_worker_registration_binds_source_activity_to_configure
         )
     )
 
-    assert (configured_root / "reports" / "wf_registered_root" / "source-report.json").is_file()
+    assert report_store.get("reports/wf_registered_root/source-report.json") is not None
+    assert not (configured_root / "reports" / "wf_registered_root" / "source-report.json").exists()
     assert result.report.location == "reports/wf_registered_root/source-report.json"
 
 

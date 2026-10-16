@@ -32,6 +32,7 @@ from thoth_control_plane.infrastructure.prompt_proposal_repository import (
     PostgresPromptProposalRepository,
 )
 from thoth_control_plane.infrastructure.prompt_provider import OpenAICompatiblePromptProvider
+from thoth_control_plane.infrastructure.report_store import Reports, connect_reports
 from thoth_control_plane.infrastructure.temporal_gateway import TASK_QUEUE
 from thoth_control_plane.observability import configure_provider_logging
 from thoth_control_plane.operations.yt_dlp_version import check_freshness
@@ -45,14 +46,18 @@ def build_source_investigation_worker(
     *,
     runner: AcquisitionRunner | None = None,
     capability: ScraplingCapability | Mapping[str, object] | None = None,
+    reports: Reports | None = None,
 ) -> Worker:
     """Register the production source activity with its configured artifact root."""
+    reports = reports or connect_reports(settings)
     return Worker(
         client,
         task_queue=TASK_QUEUE,
         workflows=[SourceInvestigationWorkflow],
         activities=[
-            build_source_investigation_activity(settings, runner=runner, capability=capability),
+            build_source_investigation_activity(
+                settings, runner=runner, capability=capability, reports=reports
+            ),
             build_source_attribution_activity(settings),
             build_content_assembly_activity(settings),
             build_footage_activity(settings),
@@ -86,6 +91,9 @@ def check_media_tools(settings: Settings) -> None:
         missing,
     )
 
+    # Every worker writes reports to the editor database.
+    if settings.THOTH_EDITOR_DATABASE_URL is None:
+        raise SettingsValidationError("editor_database_missing")
     if settings.THOTH_SOURCE_ATTRIBUTION_ENABLED:
         if settings.openrouter_api_key is None:
             raise SettingsValidationError("openrouter_key_missing")
@@ -110,8 +118,6 @@ def check_media_tools(settings: Settings) -> None:
 
         if settings.openrouter_api_key is None:
             raise SettingsValidationError("openrouter_key_missing")
-        if settings.THOTH_EDITOR_DATABASE_URL is None:
-            raise SettingsValidationError("footage_database_missing")
         _require_media(settings)
         if missing(settings.THOTH_EMBEDDING_MODEL_DIR, EMBEDDING_FILES):
             raise SettingsValidationError("embedding_model_missing")

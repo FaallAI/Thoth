@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import os
 import tempfile
 from collections.abc import Awaitable, Callable, Mapping
 from hashlib import sha256
@@ -47,6 +46,11 @@ from thoth_control_plane.domain.models import (
     SafeActivityError,
     SourceProgressEvent,
     StrictModel,
+)
+from thoth_control_plane.infrastructure.report_store import (
+    Reports,
+    ReportStoreUnavailable,
+    connect_reports,
 )
 from thoth_control_plane.infrastructure.source_account_store import SourceAccountStore
 
@@ -211,10 +215,8 @@ def _terminal_events(
     ]
 
 
-def _cleanup_after_persistence_failure(
-    part_path: Path, report: SourceReport, artifact_root: Path
-) -> None:
-    """Remove the partial report and every media and card file the report recorded.
+def _cleanup_after_persistence_failure(report: SourceReport, artifact_root: Path) -> None:
+    """Remove every media and card file the report recorded.
 
     Artifact locations are validated as `PurePosixPath` (POSIX separators only),
     but a Windows-style backslash string can slip past that check as a single
@@ -222,8 +224,6 @@ def _cleanup_after_persistence_failure(
     absolute path or a `..` escape outside `artifact_root`. Only unlink
     candidates that resolve inside the artifact root; skip anything else.
     """
-    with contextlib.suppress(OSError):
-        part_path.unlink(missing_ok=True)
     resolved_root = artifact_root.resolve()
     locations = [media.location for media in report.media]
     locations += [comment.card.location for comment in report.comments if comment.card]
@@ -244,8 +244,9 @@ async def _run(
     artifact_root: Path,
     runner: AcquisitionRunner,
     capability: ScraplingCapability,
+    reports: Reports,
 ) -> SourceInvestigationActivityResult:
-    """Run the injected acquisition runner and persist its report atomically."""
+    """Run the injected acquisition runner and store its report in PostgreSQL."""
     platform = platform_of(str(input_.canonical_source_url))
     if platform is None:
         # The workflow guard routes only Python platforms here; anything else is
@@ -312,26 +313,15 @@ async def _run(
     # Ruling F-4a: the report artifact location is derived solely from the
     # activity input's workflow_id, never from the report body.
     location = PurePosixPath("reports") / input_.workflow_id / "source-report.json"
-    report_path = artifact_root / location
-    part_path = report_path.with_name(report_path.name + ".part")
     content = report.model_dump_json(indent=2, exclude_none=False).encode("utf-8")
 
     try:
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        with part_path.open("wb") as handle:
-            handle.write(content)
-            handle.flush()
-        os.replace(part_path, report_path)
+        await asyncio.to_thread(reports.put, location.as_posix(), "source_report", content)
     except asyncio.CancelledError:
-        # Defensive: none of the calls above are `await`ed, so cancellation
-        # cannot actually land inside this `try` today. Kept as a guard for
-        # if that ever changes (e.g. an async persistence backend) so a
-        # `.part` file is never left behind on cancellation; not covered by
-        # a test since it is currently unreachable.
-        _cleanup_after_persistence_failure(part_path, report, artifact_root)
+        _cleanup_after_persistence_failure(report, artifact_root)
         raise
-    except OSError:
-        _cleanup_after_persistence_failure(part_path, report, artifact_root)
+    except ReportStoreUnavailable:
+        _cleanup_after_persistence_failure(report, artifact_root)
         return SourceInvestigationActivityResult(
             failure=SafeActivityError(code="artifact_persistence_failed", retryable=True),
             events=_terminal_events(
@@ -377,6 +367,7 @@ def build_source_investigation_activity(
     *,
     runner: AcquisitionRunner | None = None,
     capability: ScraplingCapability | Mapping[str, object] | None = None,
+    reports: Reports | None = None,
 ) -> Callable[
     [SourceInvestigationActivityInput],
     Awaitable[SourceInvestigationActivityResult],
@@ -386,11 +377,14 @@ def build_source_investigation_activity(
     artifact_root = settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT.resolve()
     selected_runner = runner or build_production_acquisition_runner(settings)
     selected_capability = _coerce_capability(capability)
+    selected_reports = reports or connect_reports(settings)
 
     @activity.defn(name="inspect_source_candidates")
     async def configured_source_investigation_activity(
         input_: SourceInvestigationActivityInput,
     ) -> SourceInvestigationActivityResult:
-        return await _run(input_, artifact_root, selected_runner, selected_capability)
+        return await _run(
+            input_, artifact_root, selected_runner, selected_capability, selected_reports
+        )
 
     return configured_source_investigation_activity

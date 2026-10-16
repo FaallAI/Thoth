@@ -56,7 +56,7 @@ def _assert_clean(*texts: str) -> None:
 
 @pytest.mark.asyncio
 async def test_secrets_never_leave_the_vault(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, report_store
 ) -> None:
     store = _store()
     app = create_app(Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), source_account_store=store)
@@ -143,7 +143,7 @@ async def test_secrets_never_leave_the_vault(
         )
 
     activity = build_source_investigation_activity(
-        _settings(tmp_path), runner=account_runner(store, acquire)
+        _settings(tmp_path), runner=account_runner(store, acquire), reports=report_store
     )
     result = await activity(INPUT)
 
