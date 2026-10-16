@@ -2,6 +2,53 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-16 - The worker imports heavy modules at startup, not on the event loop
+
+Branch `fix/worker-preload-heavy-modules`. Found by the stall watchdog from PR #13.
+
+**PR #13 deployed:** master `b7ef4a9`, image
+`ghcr.io/muhfalihr/thoth@sha256:7d3f68fd1dd468ed888d48b6e5803b521c8d2bf55a07bb76b479fcd3b5d9a530`
+(renderer pin unchanged). The first `make deploy` stopped in preflight on a network error while
+pulling a layer, before any change; after a `docker pull`, the second run passed: import
+`imported=0 present=277 invalid=0`, all services healthy. Footage smoke `wf_2f3efd875130f8fea8318067`
+(the "tempat" URL again) succeeded in 400 s (595 s before), every status poll answered 200, the
+three reports came back from the store, and footage INFO lines appear as JSON. Worker CPU over 36
+samples: average 268%, peak 990% (about 2100% before).
+
+**Cause of the TMPRL1101 stall:** the watchdog fired once, `event loop stalled seconds=2.3`, and its
+stack dump shows the event-loop thread inside `import agno.models.openai` → `openai/types`, called
+from `AgnoVisionReader._run` (`attribution/adapters/vision.py`) in the attribution activity.
+Adapters import their heavy libraries on first use inside async activities, so the first use after
+a worker start imports on the event loop. Measured in the worker container on an idle CPU:
+`agno.agent` 0.61 s, `agno.models.openai.like` 0.67 s, `numpy` 0.27 s, `faster_whisper` 0.21 s,
+`yt_dlp` 0.17 s. Under footage load the agno import alone passed 2 s. This explains the 14:27
+stall only. It does not explain the first smoke's 500 at 12:19: that came mid `build_footage`, six
+minutes after attribution had already imported agno (`identify` always calls `read_cover`).
+
+**Not fixed: a second blocker, Playwright on the event loop.** A footage smoke on the warm PR #13
+worker (`wf_49e925513a4388e1b34c0d90`, agno already imported) succeeded, but the watchdog fired once
+more, `event loop stalled seconds=1.9`, 15 s in, during acquisition. The event-loop thread was
+inside patchright's protocol dispatch (`_connection.dispatch` → `_browser_context._on_response` →
+pyee handlers); every other thread was idle. Scrapling drives the browser on the worker's own event
+loop, so a burst of browser events runs as Python on the loop that Temporal times. Footage search
+(TikTok keyword discovery and X search) uses the same browser path, which makes it the likeliest
+cause of the 12:19 stall, though no dump of that one exists.
+
+**What changed:** `run_worker` calls `preload_heavy_modules()` right after `configure_logging()`,
+before any activity runs. It imports `HEAVY_MODULES` and skips one whose optional extra is missing
+(its adapter still raises `ToolMissing` when used).
+
+**Verification (WSL):** `make lint` clean; `make test` 3842 passed, 29 skipped, 0 failed.
+
+**Next steps**
+1. PR + CI, merge, new image digest, pin, `make deploy`. Operator gates.
+2. Re-run a footage smoke on the fresh worker: no stall dump inside an import.
+3. Move browser work off the Temporal event loop (its own loop in a thread, or its own worker
+   process); needs its own design. Until then a status poll can still answer 500 during
+   acquisition or footage search, and the watchdog stays on.
+- Follow-ups: S3 media spec; attribution for reposts with no credit; Studio reading the footage
+  artifact; Stage 5c; label the newly admitted calibration clips.
+
 ## 2026-10-16 - Worker JSON logging, ONNX Runtime thread cap, and an event-loop stall watchdog
 
 Branch `fix/worker-logging-and-ort-threads`. During the post-deploy smoke the worker ran at about
