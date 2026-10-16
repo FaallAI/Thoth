@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## 2026-10-16 - Worker JSON logging and two ONNX Runtime threads per session
+## 2026-10-16 - Worker JSON logging, ONNX Runtime thread cap, and an event-loop stall watchdog
 
 Branch `fix/worker-logging-and-ort-threads`. During the post-deploy smoke the worker ran at about
 2100% CPU in the footage phase, and Temporal reported `TMPRL1101 Potential deadlock detected:
@@ -23,14 +23,28 @@ way (16.6 s vs 15.4 s) but 361 s vs 90 s of CPU.
   (`ts` UTC, `level`, `logger`, `msg`, `exc`), the `thoth_control_plane` namespace at INFO and
   everything else at WARNING, so third-party INFO with request URLs (httpx) or content stays
   out. The Scrapling redaction filter still applies to the new handler.
+- `watch_event_loop()` runs beside the worker: a heartbeat on the event loop re-arms
+  `faulthandler`'s C watchdog every 0.25 s, so a loop blocked (or a GIL held) for more than 1 s
+  dumps every thread's stack to stderr during the stall, and a JSON WARNING
+  `event loop stalled seconds=<n>` follows.
 
-**Verification (WSL):** `make lint` clean; `make test` 3840 passed, 29 skipped, 0 failed (the
+**The deadlock is not proven fixed.** The thread cap cuts CPU, but none of the offline probes
+reproduced a 2 s stall: a latency probe under default ORT load waited at most 38 ms; replaying the
+smoke workflow's real history took 0.1 to 0.3 s idle and under 22 busy cores (1 s cold); building
+the fp32 session (1.2 s) and RapidOCR (0.5 s) released the GIL (worst wait 19 to 26 ms). Temporal
+measures the 2 s on the event loop (`asyncio.wait_for` around the activation thread), and the
+failing query arrived as a legacy query, so the worker had also missed its sticky queue: the whole
+Python process stalled for seconds around 12:19, mid `build_footage`. The watchdog names the
+blocker on the next footage run.
+
+**Verification (WSL):** `make lint` clean; `make test` 3841 passed, 29 skipped, 0 failed (the
 fp32 calibration goldens unchanged under the thread cap).
 
 **Next steps**
 1. PR + CI, merge, new image digest, pin, `make deploy`. Operator gates.
-2. Re-run the smoke and check that worker CPU stays well under the core count, no
-   `TMPRL1101` appears, and footage INFO lines show as JSON in `make logs`.
+2. Re-run a footage smoke. Check that worker CPU stays well under the core count and footage
+   INFO lines show as JSON in `make logs`. If `event loop stalled` or `TMPRL1101` appears, the
+   stderr stack dump next to it names the blocking call; fix that as its own change.
 - Follow-ups: S3 media spec; attribution for reposts with no credit; Studio reading the footage
   artifact; Stage 5c; label the newly admitted calibration clips.
 
