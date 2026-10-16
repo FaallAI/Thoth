@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import shutil
 from collections.abc import Mapping
 from importlib.util import find_spec
@@ -42,6 +43,33 @@ from thoth_control_plane.observability import (
 from thoth_control_plane.operations.yt_dlp_version import check_freshness
 from thoth_control_plane.workflows import SourceInvestigationWorkflow
 from thoth_control_plane.workflows.prompt_proposal import PromptProposalWorkflow
+
+# Adapters import these on first use, inside async activities, so the import runs on the event
+# loop. agno with openai alone takes 1.3 s idle and stalled the loop 2.3 s under footage load,
+# past Temporal's 2 s activation limit (TMPRL1101, 2026-10-16); import them before any activity.
+HEAVY_MODULES = (
+    "numpy",
+    "cv2",
+    "PIL.Image",
+    "agno.agent",
+    "agno.media",
+    "agno.models.openai.like",
+    "yt_dlp",
+    "yt_dlp.utils",
+    "onnxruntime",
+    "tokenizers",
+    "rapidocr",
+    "faster_whisper",
+    "sherpa_onnx",
+)
+
+
+def preload_heavy_modules() -> None:
+    for name in HEAVY_MODULES:
+        try:
+            importlib.import_module(name)
+        except ImportError:
+            continue  # an optional extra; its adapter raises ToolMissing when used
 
 
 def build_source_investigation_worker(
@@ -164,6 +192,7 @@ async def run_worker(settings: Settings | None = None) -> None:
     runtime_settings = settings or Settings()  # type: ignore[call-arg]
     check_media_tools(runtime_settings)
     configure_logging()
+    preload_heavy_modules()
     sweep_unsealed()  # a killed worker may have left account profiles decrypted
     configure_provider_logging()
     capability = await check_scrapling_capability()

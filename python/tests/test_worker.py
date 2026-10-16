@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,7 @@ class _StopWorker(Exception):
 async def test_worker_configures_provider_logging_before_capability_check(monkeypatch) -> None:
     calls: list[str] = []
     monkeypatch.setattr(worker, "configure_logging", lambda: calls.append("json"))
+    monkeypatch.setattr(worker, "preload_heavy_modules", lambda: calls.append("preload"))
     monkeypatch.setattr(worker, "watch_event_loop", _no_watch)
     monkeypatch.setattr(worker, "configure_provider_logging", lambda: calls.append("logging"))
 
@@ -42,7 +44,7 @@ async def test_worker_configures_provider_logging_before_capability_check(monkey
         await worker.run_worker(
             Settings(THOTH_CONTROL_PLANE_API_KEY="test-key", THOTH_SOURCE_ATTRIBUTION_ENABLED=False)
         )
-    assert calls == ["json", "logging", "capability"]
+    assert calls == ["json", "preload", "logging", "capability"]
 
 
 @pytest.mark.asyncio
@@ -68,6 +70,7 @@ async def test_the_yt_dlp_check_runs_in_the_background_and_stops_with_the_worker
         raise _StopWorker
 
     monkeypatch.setattr(worker, "configure_logging", lambda: None)
+    monkeypatch.setattr(worker, "preload_heavy_modules", lambda: None)
     monkeypatch.setattr(worker, "watch_event_loop", _no_watch)
     monkeypatch.setattr(worker, "configure_provider_logging", lambda: None)
     monkeypatch.setattr(worker, "check_scrapling_capability", capability)
@@ -202,6 +205,7 @@ async def test_the_worker_sweeps_profiles_a_killed_worker_left_before_any_lease(
 ) -> None:
     calls: list[str] = []
     monkeypatch.setattr(worker, "configure_logging", lambda: None)
+    monkeypatch.setattr(worker, "preload_heavy_modules", lambda: None)
     monkeypatch.setattr(worker, "watch_event_loop", _no_watch)
     monkeypatch.setattr(worker, "configure_provider_logging", lambda: None)
     monkeypatch.setattr(worker, "sweep_unsealed", lambda: calls.append("sweep"))
@@ -270,3 +274,10 @@ def test_the_worker_refuses_to_start_without_the_editor_database() -> None:
     )
     with pytest.raises(SettingsValidationError, match="editor_database_missing"):
         worker.check_media_tools(settings)
+
+
+def test_preloading_skips_a_missing_optional_module(monkeypatch) -> None:
+    monkeypatch.delitem(sys.modules, "colorsys", raising=False)
+    monkeypatch.setattr(worker, "HEAVY_MODULES", ("thoth_no_such_module", "colorsys"))
+    worker.preload_heavy_modules()
+    assert "colorsys" in sys.modules
