@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Protocol, TypeVar
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, make_url
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import DataError, SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 
 from thoth_control_plane.infrastructure.report_models import WorkflowReportRow
@@ -57,10 +57,17 @@ def _checked(location: str, kind: str, content: bytes) -> tuple[str, str]:
         raise ReportInvalid("report_location_or_kind_invalid")
     try:
         text = content.decode("utf-8")
-        json.loads(text)
-    except (UnicodeDecodeError, ValueError) as error:
+        value = json.loads(text, parse_constant=_refuse_constant)
+        # PostgreSQL jsonb refuses lone surrogates; encoding the parsed value surfaces them.
+        json.dumps(value, ensure_ascii=False).encode("utf-8")
+    except (UnicodeError, ValueError) as error:
         raise ReportInvalid("report_content_invalid") from error
     return match.group(2), text
+
+
+def _refuse_constant(name: str) -> None:
+    """NaN and Infinity are Python JSON, not jsonb."""
+    raise ValueError(name)
 
 
 class ReportStore:
@@ -90,6 +97,8 @@ class ReportStore:
                 row.sha256 = sha256(content).hexdigest()
                 row.size_bytes = len(content)
                 row.updated_at = now
+        except DataError as error:
+            raise ReportInvalid("report_content_invalid") from error
         except SQLAlchemyError as error:
             raise ReportStoreUnavailable("report_store_unavailable") from error
 
@@ -111,6 +120,8 @@ class ReportStore:
                     return False
                 session.add(self._row(location, folder, kind, text, content, now))
                 return True
+        except DataError as error:
+            raise ReportInvalid("report_content_invalid") from error
         except SQLAlchemyError as error:
             raise ReportStoreUnavailable("report_store_unavailable") from error
 

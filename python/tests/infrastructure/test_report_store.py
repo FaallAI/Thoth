@@ -62,6 +62,11 @@ def test_insert_missing_never_overwrites(report_store: ReportStore) -> None:
     [
         (LOCATION, "source_report", b"not json"),
         (LOCATION, "source_report", b"\xff\xfe"),
+        (LOCATION, "source_report", b'{"x": NaN}'),
+        (LOCATION, "source_report", b'{"x": Infinity}'),
+        (LOCATION, "source_report", b'{"x": -Infinity}'),
+        (LOCATION, "source_report", b'{"x": "\\ud800"}'),
+        (LOCATION, "source_report", b'{"\\udc00": 1}'),
         (LOCATION, "media", CONTENT),
         ("/etc/passwd", "source_report", CONTENT),
         ("reports/../x/source-report.json", "source_report", CONTENT),

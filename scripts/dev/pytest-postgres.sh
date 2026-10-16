@@ -13,10 +13,10 @@ port=55432
 docker run -d --rm --name "$name" -e POSTGRES_PASSWORD=thoth -p "127.0.0.1:$port:5432" "$image" >/dev/null
 trap 'docker rm -f "$name" >/dev/null 2>&1 || true' EXIT
 for _ in $(seq 1 60); do
-    docker exec "$name" pg_isready -U postgres >/dev/null 2>&1 && break
+    docker exec "$name" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 && break
     sleep 1
 done
-docker exec "$name" pg_isready -U postgres >/dev/null
+docker exec "$name" pg_isready -h 127.0.0.1 -U postgres >/dev/null
 
 [ "$#" -gt 0 ] || set -- tests/operations/test_editor_migrations_postgres.py
 THOTH_TEST_EDITOR_DATABASE_URL="postgresql://postgres:thoth@127.0.0.1:$port/postgres" \
