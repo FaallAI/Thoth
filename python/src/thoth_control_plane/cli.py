@@ -16,7 +16,9 @@ import typer
 from thoth_control_plane.application import ApprovalSubmission, RetryRequest
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain import WorkflowEvent, WorkflowRequest
+from thoth_control_plane.infrastructure.report_store import ReportStore, ReportStoreUnavailable
 from thoth_control_plane.operations.editor_migrations import apply_editor_migrations
+from thoth_control_plane.operations.report_import import import_reports
 from thoth_control_plane.operations.stage1_controlled_fallback import (
     GATE_IDS,
     ControlledFallbackEvidenceError,
@@ -64,6 +66,28 @@ def editor_migrate() -> None:
         raise typer.BadParameter("THOTH_EDITOR_DATABASE_URL must be configured")
     root = Path(__file__).resolve().parents[2] / "migrations" / "editor"
     typer.echo(apply_editor_migrations(database_url.get_secret_value(), root))
+
+
+reports_app = typer.Typer(no_args_is_help=True)
+app.add_typer(reports_app, name="reports")
+
+
+@reports_app.command("import")
+def reports_import(
+    artifact_root: Annotated[Path, typer.Option("--artifact-root")],
+) -> None:
+    """Import existing report files into PostgreSQL once; counts only."""
+    database_url = Settings().THOTH_EDITOR_DATABASE_URL
+    if database_url is None:
+        raise typer.BadParameter("THOTH_EDITOR_DATABASE_URL must be configured")
+    try:
+        counts = import_reports(artifact_root, ReportStore.connect(database_url.get_secret_value()))
+    except ReportStoreUnavailable:
+        typer.echo("report store unavailable")
+        raise typer.Exit(1) from None
+    typer.echo(f"imported={counts.imported} present={counts.present} invalid={counts.invalid}")
+    if counts.invalid:
+        raise typer.Exit(1)
 
 
 def _settings() -> tuple[str, str]:
