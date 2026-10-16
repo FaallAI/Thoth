@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { ControlPlaneClient, StylePreset, WorkflowRequest } from "@/api/control-plane";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { ArrowRight, ArrowUpRight, Link2 } from "lucide-react";
 
 type WizardClient = Pick<ControlPlaneClient, "listStylePresets"> & {
-  createWorkflow: (request: WorkflowRequest) => Promise<{ workflow_id: string }>;
+  createWorkflow: (request: WorkflowRequest, idempotencyKey: string) => Promise<{ workflow_id: string }>;
 };
 
 export function WorkflowWizard({
@@ -26,6 +26,9 @@ export function WorkflowWizard({
   const [review, setReview] = useState(true);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // A failed start may still have started the workflow (a 503 can come after the start), so a
+  // retry of the same request reuses its key; the server then returns that workflow, not a twin.
+  const attempt = useRef<{ body: string; key: string } | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -51,8 +54,13 @@ export function WorkflowWizard({
       output: { format: "mp4", language: "id" },
       review: { require_publish_approval: review },
     };
+    const body = JSON.stringify(request);
+    const key = attempt.current?.body === body ? attempt.current.key : crypto.randomUUID();
+    attempt.current = { body, key };
     try {
-      onStarted((await client.createWorkflow(request)).workflow_id);
+      const { workflow_id } = await client.createWorkflow(request, key);
+      attempt.current = null;
+      onStarted(workflow_id);
     } catch {
       setError("Could not start the workflow. Check the source and try again.");
     } finally {

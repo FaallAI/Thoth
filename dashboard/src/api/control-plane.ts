@@ -193,7 +193,7 @@ export class StudioImportRequestError extends Error {
 
 export type ControlPlaneClient = {
   listStylePresets: () => Promise<StylePreset[]>;
-  createWorkflow: (request: WorkflowRequest) => Promise<WorkflowSummary>;
+  createWorkflow: (request: WorkflowRequest, idempotencyKey: string) => Promise<WorkflowSummary>;
   getWorkflow: (workflowId: string) => Promise<WorkflowSummary>;
   streamWorkflow: (
     workflowId: string,
@@ -493,10 +493,10 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
 
   const client: ControlPlaneClient = {
     listStylePresets: () => request<StylePreset[]>("/api/v1/style-presets"),
-    createWorkflow: (workflow) =>
+    createWorkflow: (workflow, idempotencyKey) =>
       request<WorkflowSummary>("/api/v1/workflows", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
         body: JSON.stringify(workflow),
       }),
     getWorkflow: (workflowId) => request<WorkflowSummary>(`/api/v1/workflows/${workflowId}`),
