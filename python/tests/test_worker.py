@@ -12,6 +12,12 @@ from thoth_control_plane import worker
 from thoth_control_plane.config import Settings, SettingsValidationError
 
 
+@pytest.fixture(autouse=True)
+def _editor_database(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every worker needs the editor database; tests that omit it pass None explicitly."""
+    monkeypatch.setenv("THOTH_EDITOR_DATABASE_URL", "postgresql://u:p@127.0.0.1:5432/db")
+
+
 class _StopWorker(Exception):
     """Sentinel raised to stop `run_worker` right after the capability check."""
 
@@ -226,7 +232,6 @@ def test_footage_starts_with_every_tool_present(tmp_path: Path) -> None:
     ("change", "code"),
     [
         ({"THOTH_OPENROUTER_API_KEY": None}, "openrouter_key_missing"),
-        ({"THOTH_EDITOR_DATABASE_URL": None}, "footage_database_missing"),
         ({"THOTH_FFMPEG": "/nonexistent/ffmpeg"}, "ffmpeg_missing"),
         ({"THOTH_EMBEDDING_MODEL_DIR": Path("/nonexistent")}, "embedding_model_missing"),
         ({"_no_module": "onnxruntime"}, "embedding_runtime_missing"),
@@ -243,3 +248,15 @@ def test_footage_refuses_to_start_without_a_tool(
         monkeypatch.setattr(worker, "find_spec", lambda n: None if n == absent else real(n))
     with pytest.raises(SettingsValidationError, match=code):
         worker.check_media_tools(_footage_settings(tmp_path, **change))
+
+
+def test_the_worker_refuses_to_start_without_the_editor_database() -> None:
+    from thoth_control_plane.config import SettingsValidationError
+
+    settings = Settings(
+        THOTH_CONTROL_PLANE_API_KEY="k",
+        THOTH_SOURCE_ATTRIBUTION_ENABLED=False,
+        THOTH_EDITOR_DATABASE_URL=None,
+    )
+    with pytest.raises(SettingsValidationError, match="editor_database_missing"):
+        worker.check_media_tools(settings)

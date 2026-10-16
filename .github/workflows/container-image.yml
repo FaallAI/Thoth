@@ -25,6 +25,18 @@ jobs:
   quality:
     name: Offline quality gates
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.4-bookworm@sha256:e62fbf9d3e2b49816a32c400ed2dba83e3b361e6833e624024309c35d334b412
+        env:
+          POSTGRES_PASSWORD: thoth
+        ports:
+          - 127.0.0.1:5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
     env:
       THOTH_FFMPEG: /usr/bin/ffmpeg
       THOTH_FFPROBE: /usr/bin/ffprobe
@@ -71,6 +83,8 @@ jobs:
           THOTH_TEST_WHISPER_MODEL_DIR: ${{ runner.temp }}/models/whisper-tiny
           THOTH_TEST_DIARIZATION_MODEL_DIR: ${{ runner.temp }}/models/diarization
           THOTH_TEST_EMBEDDING_MODEL_DIR: ${{ runner.temp }}/models/embedding
+          THOTH_TEST_EDITOR_DATABASE_URL: postgresql://postgres:thoth@127.0.0.1:5432/postgres
+          THOTH_REQUIRE_POSTGRES_TESTS: "1"
         run: uv run pytest -m "not live" -q
 
       - name: Run Ruff checks

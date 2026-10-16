@@ -6,6 +6,7 @@ import pytest
 from temporalio.exceptions import ApplicationError
 
 from tests.assembly.support import report as support_report
+from tests.conftest import DownReports
 from thoth_control_plane.activities.footage import (
     FootageActivityInput,
     build_footage_activity,
@@ -13,6 +14,7 @@ from thoth_control_plane.activities.footage import (
 from thoth_control_plane.assembly.ports import AssemblyError
 from thoth_control_plane.config import Settings
 from thoth_control_plane.footage.models import FootageResult
+from thoth_control_plane.infrastructure.report_store import ReportStoreUnavailable
 
 
 class Builder:
@@ -30,26 +32,23 @@ def _settings(tmp_path: Path, **changes: object) -> Settings:
     )
 
 
-async def test_disabled_footage_reports_disabled(tmp_path: Path) -> None:
-    activity = build_footage_activity(_settings(tmp_path))
+async def test_disabled_footage_reports_disabled(tmp_path: Path, report_store) -> None:
+    activity = build_footage_activity(_settings(tmp_path), reports=report_store)
     result = await activity(FootageActivityInput(workflow_id="wf_a"))
     assert result.footage_status == "disabled" and result.footage_count == 0
 
 
-async def test_a_missing_report_is_unavailable(tmp_path: Path) -> None:
+async def test_a_missing_report_is_unavailable(tmp_path: Path, report_store) -> None:
     builder = Builder()
-    activity = build_footage_activity(_settings(tmp_path), builder=builder)  # type: ignore[arg-type]
+    activity = build_footage_activity(_settings(tmp_path), builder=builder, reports=report_store)  # type: ignore[arg-type]
     result = await activity(FootageActivityInput(workflow_id="wf_a"))
     assert result.footage_status == "unavailable" and builder.inputs == []
 
 
-async def test_the_builder_runs_on_the_stage3_report(tmp_path: Path) -> None:
-    report = support_report(workflow_id="wf_a")
-    folder = tmp_path / "reports" / "wf_a"
-    folder.mkdir(parents=True)
-    (folder / "source-report.json").write_text(report.model_dump_json(), encoding="utf-8")
+async def test_the_builder_runs_on_the_stage3_report(tmp_path: Path, report_store) -> None:
+    _with_report(report_store)
     builder = Builder()
-    activity = build_footage_activity(_settings(tmp_path), builder=builder)  # type: ignore[arg-type]
+    activity = build_footage_activity(_settings(tmp_path), builder=builder, reports=report_store)  # type: ignore[arg-type]
     result = await activity(FootageActivityInput(workflow_id="wf_a"))
     assert result.footage_status == "ok" and result.footage_count == 2
     assert result.events[-1].payload["stage"] == "footage"
@@ -64,11 +63,11 @@ class Raising:
         raise self.error
 
 
-def _with_report(tmp_path: Path) -> None:
-    folder = tmp_path / "reports" / "wf_a"
-    folder.mkdir(parents=True)
+def _with_report(store) -> None:
     report = support_report(workflow_id="wf_a")
-    (folder / "source-report.json").write_text(report.model_dump_json(), encoding="utf-8")
+    store.put(
+        "reports/wf_a/source-report.json", "source_report", report.model_dump_json().encode("utf-8")
+    )
 
 
 @pytest.mark.parametrize(
@@ -79,23 +78,60 @@ def _with_report(tmp_path: Path) -> None:
     ],
 )
 async def test_a_builder_failure_reaches_history_as_a_code_only(
-    tmp_path: Path, error: Exception, code: str
+    tmp_path: Path, report_store, error: Exception, code: str
 ) -> None:
-    _with_report(tmp_path)
-    activity = build_footage_activity(_settings(tmp_path), builder=Raising(error))  # type: ignore[arg-type]
+    _with_report(report_store)
+    activity = build_footage_activity(
+        _settings(tmp_path), builder=Raising(error), reports=report_store
+    )  # type: ignore[arg-type]
     with pytest.raises(ApplicationError) as raised:
         await activity(FootageActivityInput(workflow_id="wf_a"))
     assert raised.value.message == code
     assert "secret" not in str(raised.value) and "x.com" not in str(raised.value)
 
 
-async def test_the_reported_count_is_clamped_to_six(tmp_path: Path) -> None:
-    _with_report(tmp_path)
+async def test_the_reported_count_is_clamped_to_six(tmp_path: Path, report_store) -> None:
+    _with_report(report_store)
 
     class Many:
         async def build(self, inputs: object) -> FootageResult:
             return FootageResult(status="ok", admitted=9)
 
-    activity = build_footage_activity(_settings(tmp_path), builder=Many())  # type: ignore[arg-type]
+    activity = build_footage_activity(_settings(tmp_path), builder=Many(), reports=report_store)  # type: ignore[arg-type]
     result = await activity(FootageActivityInput(workflow_id="wf_a"))
     assert result.footage_count == 6
+
+
+async def test_footage_raises_when_the_database_is_down(tmp_path: Path) -> None:
+    activity = build_footage_activity(
+        _settings(tmp_path),
+        builder=Builder(),
+        reports=DownReports(),  # type: ignore[arg-type]
+    )
+    with pytest.raises(ReportStoreUnavailable):
+        await activity(FootageActivityInput(workflow_id="wf_down"))
+
+
+@pytest.mark.parametrize("field", ["attribution", "original_report"])
+async def test_an_outage_on_an_optional_read_is_not_a_builder_failure(
+    tmp_path: Path, report_store, field: str
+) -> None:
+    _with_report(report_store)
+    location = {
+        "attribution": "reports/wf_a/source-attribution.json",
+        "original_report": "reports/wf_a-c1/source-report.json",
+    }[field]
+
+    class FailsOn(DownReports):
+        def get(self, loc: str) -> bytes | None:
+            if loc == location:
+                return super().get(loc)
+            return report_store.get(loc)
+
+    activity = build_footage_activity(
+        _settings(tmp_path),
+        builder=Builder(),
+        reports=FailsOn(),  # type: ignore[arg-type]
+    )
+    with pytest.raises(ReportStoreUnavailable):
+        await activity(FootageActivityInput(workflow_id="wf_a", **{field: location}))

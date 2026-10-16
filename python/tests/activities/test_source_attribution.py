@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+from tests.conftest import DownReports
 from thoth_control_plane.acquisition.models import AcquisitionResult, SourceReport
 from thoth_control_plane.activities.source_attribution import (
     RunnerAcquirer,
@@ -21,10 +22,17 @@ from thoth_control_plane.attribution.ports import AcquiredCandidate
 from thoth_control_plane.attribution.service import AttributionOutcome
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain.models import SourceProgressEvent
+from thoth_control_plane.infrastructure.report_store import ReportStoreUnavailable
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "tiktok" / "source_report_v3.json"
 WORKFLOW = "wf_attr"
 ORIGINAL = "https://www.tiktok.com/@vincentius.christ76/video/7677137235434687752"
+
+
+def _settings(tmp_path: Path) -> Settings:
+    return Settings(  # type: ignore[arg-type]
+        THOTH_CONTROL_PLANE_API_KEY="k", THOTH_CONTROL_PLANE_ARTIFACT_ROOT=tmp_path
+    )
 
 
 def _report(workflow_id: str = WORKFLOW) -> SourceReport:
@@ -34,10 +42,12 @@ def _report(workflow_id: str = WORKFLOW) -> SourceReport:
     return SourceReport.model_validate_json(json.dumps(data))
 
 
-def _persist(root: Path, report: SourceReport, *, with_video: bool = True) -> None:
-    folder = root / "reports" / WORKFLOW
-    folder.mkdir(parents=True)
-    (folder / "source-report.json").write_text(report.model_dump_json(), encoding="utf-8")
+def _persist(root: Path, store, report: SourceReport, *, with_video: bool = True) -> None:
+    store.put(
+        f"reports/{WORKFLOW}/source-report.json",
+        "source_report",
+        report.model_dump_json().encode("utf-8"),
+    )
     if with_video:
         (root / report.media[0].location).parent.mkdir(parents=True, exist_ok=True)
         (root / report.media[0].location).write_bytes(b"\x00" * 2000)
@@ -74,24 +84,28 @@ def _replaced(original: SourceReport) -> AttributionOutcome:
 
 
 @pytest.mark.asyncio
-async def test_a_replaced_verdict_persists_both_artifacts(tmp_path: Path) -> None:
+async def test_a_replaced_verdict_persists_both_artifacts(tmp_path: Path, report_store) -> None:
     report = _report()
-    _persist(tmp_path, report)
+    _persist(tmp_path, report_store, report)
     attributor = FakeAttributor(_replaced(_report(f"{WORKFLOW}-c1")))
 
-    result = await _run(SourceAttributionActivityInput(workflow_id=WORKFLOW), tmp_path, attributor)
+    result = await _run(
+        SourceAttributionActivityInput(workflow_id=WORKFLOW), tmp_path, attributor, report_store
+    )
 
     assert result.verdict == "replaced"
     assert attributor.calls[0][2] == (tmp_path / report.media[0].location).resolve()
     assert result.attribution is not None and result.original_report is not None
     assert result.attribution.kind == "source_attribution"
     assert result.attribution.location == f"reports/{WORKFLOW}/source-attribution.json"
-    written = (tmp_path / result.attribution.location).read_bytes()
+    written = report_store.get(result.attribution.location)
+    assert written is not None
+    assert not (tmp_path / result.attribution.location).exists()
     assert result.attribution.checksum == f"sha256:{sha256(written).hexdigest()}"
     assert SourceAttribution.model_validate_json(written).verdict == "replaced"
     assert result.original_report.kind == "original_source_report"
     assert result.original_report.location == f"reports/{WORKFLOW}-c1/source-report.json"
-    assert (tmp_path / result.original_report.location).is_file()
+    assert report_store.get(result.original_report.location) is not None
     assert [event.payload for event in result.events] == [
         {
             "stage": "attribution",
@@ -103,23 +117,27 @@ async def test_a_replaced_verdict_persists_both_artifacts(tmp_path: Path) -> Non
 
 
 @pytest.mark.asyncio
-async def test_a_missing_video_file_is_passed_as_none(tmp_path: Path) -> None:
-    _persist(tmp_path, _report(), with_video=False)
+async def test_a_missing_video_file_is_passed_as_none(tmp_path: Path, report_store) -> None:
+    _persist(tmp_path, report_store, _report(), with_video=False)
     attributor = FakeAttributor(_replaced(_report(f"{WORKFLOW}-c1")))
 
-    await _run(SourceAttributionActivityInput(workflow_id=WORKFLOW), tmp_path, attributor)
+    await _run(
+        SourceAttributionActivityInput(workflow_id=WORKFLOW), tmp_path, attributor, report_store
+    )
 
     assert attributor.calls[0][2] is None
 
 
 @pytest.mark.asyncio
-async def test_an_unreadable_report_is_unresolved_without_artifacts(tmp_path: Path) -> None:
-    folder = tmp_path / "reports" / WORKFLOW
-    folder.mkdir(parents=True)
-    (folder / "source-report.json").write_text('{"legacy": true}', encoding="utf-8")
+async def test_an_unreadable_report_is_unresolved_without_artifacts(
+    tmp_path: Path, report_store
+) -> None:
+    report_store.put(f"reports/{WORKFLOW}/source-report.json", "source_report", b'{"legacy": true}')
     attributor = FakeAttributor()
 
-    result = await _run(SourceAttributionActivityInput(workflow_id=WORKFLOW), tmp_path, attributor)
+    result = await _run(
+        SourceAttributionActivityInput(workflow_id=WORKFLOW), tmp_path, attributor, report_store
+    )
 
     assert (result.verdict, result.attribution, result.original_report) == (
         "unresolved",
@@ -131,32 +149,34 @@ async def test_an_unreadable_report_is_unresolved_without_artifacts(tmp_path: Pa
 
 
 @pytest.mark.asyncio
-async def test_a_required_tool_failure_is_a_typed_failure(tmp_path: Path) -> None:
+async def test_a_required_tool_failure_is_a_typed_failure(tmp_path: Path, report_store) -> None:
     from thoth_control_plane.attribution.ports import AttributionError
 
-    _persist(tmp_path, _report())
+    _persist(tmp_path, report_store, _report())
 
     result = await _run(
         SourceAttributionActivityInput(workflow_id=WORKFLOW),
         tmp_path,
         FakeAttributor(error=AttributionError("decision_unavailable")),
+        report_store,
     )
 
     assert (result.verdict, result.failure) == ("unresolved", "decision_unavailable")
     assert result.attribution is None and result.original_report is None
     assert result.events[0].payload["reason"] == "decision_unavailable"
     assert result.events[0].kind == "stage.failed"
-    assert not (tmp_path / "reports" / WORKFLOW / "source-attribution.json").exists()
+    assert report_store.get(f"reports/{WORKFLOW}/source-attribution.json") is None
 
 
 @pytest.mark.asyncio
-async def test_an_attributor_error_is_unresolved(tmp_path: Path) -> None:
-    _persist(tmp_path, _report())
+async def test_an_attributor_error_is_unresolved(tmp_path: Path, report_store) -> None:
+    _persist(tmp_path, report_store, _report())
 
     result = await _run(
         SourceAttributionActivityInput(workflow_id=WORKFLOW),
         tmp_path,
         FakeAttributor(error=RuntimeError("secret detail must not leak")),
+        report_store,
     )
 
     assert result.verdict == "unresolved"
@@ -279,7 +299,7 @@ def test_production_discovery_leases_from_the_account_store_when_configured(
 
 @pytest.mark.asyncio
 async def test_the_activity_builds_without_a_key_and_fails_typed_when_called(
-    tmp_path: Path,
+    tmp_path: Path, report_store
 ) -> None:
     # Review 2026-10-13: the worker builds this activity even with attribution switched off.
     from thoth_control_plane.activities.source_attribution import (
@@ -292,9 +312,80 @@ async def test_the_activity_builds_without_a_key_and_fails_typed_when_called(
         THOTH_OPENROUTER_API_KEY=None,
         THOTH_SOURCE_ATTRIBUTION_ENABLED=False,
     )
-    configured = build_source_attribution_activity(settings)
-    _persist(tmp_path, _report())
+    configured = build_source_attribution_activity(settings, reports=report_store)
+    _persist(tmp_path, report_store, _report())
 
     result = await configured(SourceAttributionActivityInput(workflow_id=WORKFLOW))
 
     assert result.failure == "openrouter_key_missing"
+
+
+@pytest.mark.asyncio
+async def test_attribution_reads_and_stores_through_the_store(tmp_path: Path, report_store) -> None:
+    from thoth_control_plane.activities.source_attribution import (
+        build_source_attribution_activity,
+    )
+
+    _persist(tmp_path, report_store, _report())
+    activity = build_source_attribution_activity(
+        _settings(tmp_path),
+        attributor=FakeAttributor(_replaced(_report(f"{WORKFLOW}-c1"))),
+        reports=report_store,
+    )
+    result = await activity(SourceAttributionActivityInput(workflow_id=WORKFLOW))
+
+    assert result.verdict == "replaced"
+    assert report_store.get(f"reports/{WORKFLOW}/source-attribution.json") is not None
+    assert report_store.get(f"reports/{WORKFLOW}-c1/source-report.json") is not None
+    assert not (tmp_path / "reports" / WORKFLOW / "source-attribution.json").exists()
+
+
+@pytest.mark.asyncio
+async def test_attribution_without_a_stored_report_is_unresolved(
+    tmp_path: Path, report_store
+) -> None:
+    from thoth_control_plane.activities.source_attribution import (
+        build_source_attribution_activity,
+    )
+
+    activity = build_source_attribution_activity(
+        _settings(tmp_path), attributor=FakeAttributor(), reports=report_store
+    )
+    result = await activity(SourceAttributionActivityInput(workflow_id=WORKFLOW))
+    assert result.verdict == "unresolved"
+
+
+@pytest.mark.asyncio
+async def test_attribution_raises_when_the_database_is_down(tmp_path: Path) -> None:
+    from thoth_control_plane.activities.source_attribution import (
+        build_source_attribution_activity,
+    )
+
+    activity = build_source_attribution_activity(
+        _settings(tmp_path), attributor=FakeAttributor(), reports=DownReports()
+    )
+    with pytest.raises(ReportStoreUnavailable):
+        await activity(SourceAttributionActivityInput(workflow_id=WORKFLOW))
+
+
+@pytest.mark.asyncio
+async def test_a_down_store_while_writing_the_attribution_raises(
+    tmp_path: Path, report_store
+) -> None:
+    from thoth_control_plane.activities.source_attribution import (
+        build_source_attribution_activity,
+    )
+
+    _persist(tmp_path, report_store, _report())
+
+    class ReadOnly(DownReports):
+        def get(self, location: str) -> bytes | None:
+            return report_store.get(location)
+
+    activity = build_source_attribution_activity(
+        _settings(tmp_path),
+        attributor=FakeAttributor(_replaced(_report(f"{WORKFLOW}-c1"))),
+        reports=ReadOnly(),
+    )
+    with pytest.raises(ReportStoreUnavailable):
+        await activity(SourceAttributionActivityInput(workflow_id=WORKFLOW))

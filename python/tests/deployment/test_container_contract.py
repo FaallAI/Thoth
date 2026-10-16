@@ -148,6 +148,8 @@ def test_container_workflow_pins_gates_tags_platform_and_digest_summary() -> Non
         "          THOTH_TEST_WHISPER_MODEL_DIR: ${{ runner.temp }}/models/whisper-tiny\n"
         "          THOTH_TEST_DIARIZATION_MODEL_DIR: ${{ runner.temp }}/models/diarization\n"
         "          THOTH_TEST_EMBEDDING_MODEL_DIR: ${{ runner.temp }}/models/embedding\n"
+        "          THOTH_TEST_EDITOR_DATABASE_URL: postgresql://postgres:thoth@127.0.0.1:5432/postgres\n"
+        '          THOTH_REQUIRE_POSTGRES_TESTS: "1"\n'
         '        run: uv run pytest -m "not live" -q'
     ) in workflow
     # The speech adapter tests fail without models (operator, 2026-10-13), so CI fetches them.
@@ -1196,3 +1198,15 @@ def test_the_embedding_model_is_pinned_and_fetched_with_the_speech_models() -> N
     assert dockerfile.index("fetch_speech_models.py \\") < dockerfile.index(
         "COPY --chown=thoth:thoth python/src/"
     )
+
+
+def test_the_deploy_imports_reports_with_the_old_worker_stopped() -> None:
+    script = _repo_text("scripts/ops/deploy-stage1.sh")
+    order = [
+        script.index("editor migrate"),
+        script.index("stop worker"),
+        script.index("reports import"),
+        script.index('" invalid=0"'),
+        script.index("up -d --wait"),
+    ]
+    assert order == sorted(order)

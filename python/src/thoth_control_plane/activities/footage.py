@@ -32,6 +32,7 @@ from thoth_control_plane.config import Settings
 from thoth_control_plane.domain.models import OpaqueId, SourceProgressEvent, StrictModel
 from thoth_control_plane.footage.models import FootageResult
 from thoth_control_plane.footage.service import FootageBuilder, FootageInputs
+from thoth_control_plane.infrastructure.report_store import Reports, connect_reports, read_report
 
 logger = logging.getLogger(__name__)
 _CODE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
@@ -79,29 +80,27 @@ def _done(status: str, count: int, started: float) -> FootageActivityResult:
 
 
 async def _run(
-    input_: FootageActivityInput, artifact_root: Path, builder: Builder | None
+    input_: FootageActivityInput, artifact_root: Path, builder: Builder | None, reports: Reports
 ) -> FootageActivityResult:
     started = time.monotonic()
     if builder is None:
         return _done("disabled", 0, started)
     folder = PurePosixPath("reports") / input_.workflow_id
-    try:
-        raw = (artifact_root / folder / REPORT_FILE).read_bytes()
-        report = SourceReport.model_validate_json(raw)
-    except (OSError, ValueError):
+    report = await read_report(reports, (folder / REPORT_FILE).as_posix(), SourceReport)
+    if report is None:
         logger.warning("footage skipped; no stage 3 report for this workflow")
         return _done("unavailable", 0, started)
+    # Read before the try: a store outage must propagate as itself, not as a builder failure.
+    inputs = FootageInputs(
+        workflow_id=input_.workflow_id,
+        report=report,
+        attribution=await _attribution(reports, input_.attribution),
+        original=await _original(reports, input_.original_report),
+        artifact_root=artifact_root,
+    )
     heartbeat = asyncio.create_task(_heartbeat())
     try:
-        result = await builder.build(
-            FootageInputs(
-                workflow_id=input_.workflow_id,
-                report=report,
-                attribution=_attribution(artifact_root, input_.attribution),
-                original=_original(artifact_root, input_.original_report),
-                artifact_root=artifact_root,
-            )
-        )
+        result = await builder.build(inputs)
     except asyncio.CancelledError:
         raise
     except Exception as error:
@@ -182,15 +181,16 @@ async def build_footage(input_: FootageActivityInput) -> FootageActivityResult:
 
 
 def build_footage_activity(
-    settings: Settings, *, builder: Builder | None = None
+    settings: Settings, *, builder: Builder | None = None, reports: Reports | None = None
 ) -> Callable[[FootageActivityInput], Awaitable[FootageActivityResult]]:
     artifact_root = settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT.resolve()
     selected = builder or (
         build_production_footage(settings) if settings.THOTH_FOOTAGE_ENABLED else None
     )
+    selected_reports = reports or connect_reports(settings)
 
     @activity.defn(name="build_footage")
     async def configured_footage_activity(input_: FootageActivityInput) -> FootageActivityResult:
-        return await _run(input_, artifact_root, selected)
+        return await _run(input_, artifact_root, selected, selected_reports)
 
     return configured_footage_activity

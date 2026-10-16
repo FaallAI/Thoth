@@ -4,11 +4,13 @@ import asyncio
 import json
 import logging
 import os
+from hashlib import sha256
 from pathlib import Path, PurePosixPath
 
 import pytest
 from pydantic import ValidationError
 
+from tests.conftest import DownReports
 from thoth_control_plane.acquisition.models import (
     AccountUse,
     AcquisitionAttempt,
@@ -29,6 +31,7 @@ from thoth_control_plane.activities.source_investigation import (
 )
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain.models import SafeActivityError
+from thoth_control_plane.infrastructure.report_store import ReportInvalid
 
 FIXTURE_PATH = (
     Path(__file__).resolve().parent.parent / "fixtures" / "tiktok" / "source_report_v3.json"
@@ -61,6 +64,14 @@ TERMINAL_FAILURE_WITH_ATTEMPTS = AcquisitionResult(
         attempts=[HEADLESS_FAILED_ATTEMPT, CDN_FAILED_ATTEMPT],
     )
 )
+
+
+@pytest.fixture(autouse=True)
+def _default_reports(monkeypatch: pytest.MonkeyPatch, report_store) -> None:
+    """Tests that do not inject `reports=` get the in-memory store, never a database."""
+    from thoth_control_plane.activities import source_investigation as module
+
+    monkeypatch.setattr(module, "connect_reports", lambda settings: report_store)
 
 
 def _settings(tmp_path: Path) -> Settings:
@@ -106,18 +117,21 @@ def cancelling_runner():
 
 @pytest.mark.asyncio
 async def test_activity_persists_strict_report_and_returns_existing_artifact_shape(
-    tmp_path: Path, successful_runner
+    tmp_path: Path, successful_runner, report_store
 ) -> None:
-    configured = build_source_investigation_activity(_settings(tmp_path), runner=successful_runner)
+    configured = build_source_investigation_activity(
+        _settings(tmp_path), runner=successful_runner, reports=report_store
+    )
     result = await configured(INPUT)
-    report_path = tmp_path / "reports/wf_activity_001/source-report.json"
-    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    stored = report_store.get("reports/wf_activity_001/source-report.json")
+    assert stored is not None
+    payload = json.loads(stored)
     assert result.failure is None
     assert result.report is not None
     assert result.report.location == "reports/wf_activity_001/source-report.json"
     assert result.report.checksum.startswith("sha256:")
     assert payload["source"]["platform"] == "tiktok"
-    raw_report = report_path.read_text(encoding="utf-8")
+    raw_report = stored.decode("utf-8")
     assert "signed" not in raw_report
     assert len(payload["media"]) > 0
     for media in payload["media"]:
@@ -226,8 +240,8 @@ async def test_acquisition_failures_map_to_safe_activity_failure(
 
 
 @pytest.mark.asyncio
-async def test_report_persistence_failure_removes_part_file_and_materialized_media(
-    tmp_path: Path, successful_runner, monkeypatch: pytest.MonkeyPatch
+async def test_report_persistence_failure_removes_materialized_media(
+    tmp_path: Path, successful_runner
 ) -> None:
     # The fixture report records its media under its own internal workflow_id
     # ("wf_contract_001"), deliberately different from the activity input's
@@ -242,17 +256,9 @@ async def test_report_persistence_failure_removes_part_file_and_materialized_med
         del workflow_id, source_url, artifact_root
         return AcquisitionResult(report=report)
 
-    import os
-
-    from thoth_control_plane.activities import source_investigation as module
-
-    def raising_replace(*args, **kwargs):
-        raise OSError("disk full")
-
-    monkeypatch.setattr(module.os, "replace", raising_replace)
-    del os
-
-    configured = build_source_investigation_activity(_settings(tmp_path), runner=runner)
+    configured = build_source_investigation_activity(
+        _settings(tmp_path), runner=runner, reports=DownReports()
+    )
     result = await configured(INPUT)
 
     assert result.failure is not None
@@ -279,7 +285,6 @@ async def test_report_persistence_failure_removes_part_file_and_materialized_med
 async def test_cleanup_after_persistence_failure_never_touches_outside_artifact_root(
     tmp_path: Path,
     tmp_path_factory: pytest.TempPathFactory,
-    monkeypatch: pytest.MonkeyPatch,
     malicious_location_kind: str,
 ) -> None:
     # `MaterializedMedia.location` is a `PurePosixPath` validated with POSIX
@@ -306,14 +311,9 @@ async def test_cleanup_after_persistence_failure_never_touches_outside_artifact_
         del workflow_id, source_url, artifact_root
         return AcquisitionResult(report=report)
 
-    from thoth_control_plane.activities import source_investigation as module
-
-    def raising_replace(*args, **kwargs):
-        raise OSError("disk full")
-
-    monkeypatch.setattr(module.os, "replace", raising_replace)
-
-    configured = build_source_investigation_activity(_settings(tmp_path), runner=runner)
+    configured = build_source_investigation_activity(
+        _settings(tmp_path), runner=runner, reports=DownReports()
+    )
     result = await configured(INPUT)
 
     assert result.failure is not None
@@ -591,9 +591,7 @@ async def test_capability_failure_keeps_its_code_when_cleanup_probe_raises(
     }
 
 
-async def test_report_persistence_failure_removes_recorded_card_files(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+async def test_report_persistence_failure_removes_recorded_card_files(tmp_path: Path) -> None:
     card_dir = PurePosixPath("reports/wf_contract_001/cards")
 
     def card(name: str) -> CardArtifact:
@@ -630,14 +628,9 @@ async def test_report_persistence_failure_removes_recorded_card_files(
         del workflow_id, source_url, artifact_root
         return AcquisitionResult(report=report)
 
-    from thoth_control_plane.activities import source_investigation as module
-
-    def raising_replace(*args, **kwargs):
-        raise OSError("disk full")
-
-    monkeypatch.setattr(module.os, "replace", raising_replace)
-
-    result = await build_source_investigation_activity(_settings(tmp_path), runner=runner)(INPUT)
+    result = await build_source_investigation_activity(
+        _settings(tmp_path), runner=runner, reports=DownReports()
+    )(INPUT)
 
     assert result.failure is not None
     assert result.failure.code == "artifact_persistence_failed"
@@ -750,3 +743,64 @@ def test_without_a_vault_the_production_runner_warns_once_and_stays_anonymous(
     with caplog.at_level(logging.WARNING):
         build_production_acquisition_runner(_settings(tmp_path))
     assert caplog.text.count("source accounts unavailable") == 1
+
+
+@pytest.mark.asyncio
+async def test_the_report_is_stored_not_written(
+    tmp_path: Path, successful_runner, report_store
+) -> None:
+    activity = build_source_investigation_activity(
+        _settings(tmp_path), runner=successful_runner, reports=report_store
+    )
+    result = await activity(INPUT)
+
+    stored = report_store.get("reports/wf_activity_001/source-report.json")
+    assert stored is not None
+    assert result.report is not None
+    assert result.report.location == "reports/wf_activity_001/source-report.json"
+    assert result.report.checksum == f"sha256:{sha256(stored).hexdigest()}"
+    assert result.report.size_bytes == len(stored)
+    assert not (tmp_path / "reports" / "wf_activity_001" / "source-report.json").exists()
+
+
+@pytest.mark.asyncio
+async def test_a_retry_rewrites_the_same_row(
+    tmp_path: Path, successful_runner, report_store
+) -> None:
+    activity = build_source_investigation_activity(
+        _settings(tmp_path), runner=successful_runner, reports=report_store
+    )
+    first = await activity(INPUT)
+    second = await activity(INPUT)
+    assert first.report == second.report
+
+
+@pytest.mark.asyncio
+async def test_a_refused_report_is_a_persistence_failure_with_cleanup(
+    tmp_path: Path, successful_runner
+) -> None:
+    class InvalidReports:
+        def put(self, location: str, kind: str, content: bytes) -> None:
+            raise ReportInvalid("report_content_invalid")
+
+        def get(self, location: str) -> bytes | None:
+            return None
+
+    activity = build_source_investigation_activity(
+        _settings(tmp_path), runner=successful_runner, reports=InvalidReports()
+    )
+    result = await activity(INPUT)
+    assert result.failure == SafeActivityError(code="artifact_persistence_failed", retryable=True)
+    assert list(tmp_path.rglob("*.part")) == []
+
+
+@pytest.mark.asyncio
+async def test_a_database_outage_is_a_retryable_persistence_failure(
+    tmp_path: Path, successful_runner
+) -> None:
+    activity = build_source_investigation_activity(
+        _settings(tmp_path), runner=successful_runner, reports=DownReports()
+    )
+    result = await activity(INPUT)
+    assert result.failure == SafeActivityError(code="artifact_persistence_failed", retryable=True)
+    assert not (tmp_path / "reports/wf_activity_001/source-report.json").exists()

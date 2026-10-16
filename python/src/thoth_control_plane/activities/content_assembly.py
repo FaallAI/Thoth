@@ -1,9 +1,10 @@
 """The `assemble_content` activity: build the Content Set from the persisted reports.
 
 It reads `reports/<workflow_id>/source-report.json`, the attribution beside it when present,
-and the original's report at the location the workflow passes, runs the assembler, and writes
-`reports/<workflow_id>/content-set.json` atomically. A required part that fails returns its
-reason code; nothing is written. Only IDs, codes, counts, and elapsed milliseconds reach
+and the original's report at the location the workflow passes, from the report store, runs the
+assembler, and stores `reports/<workflow_id>/content-set.json` there. A required part that
+fails returns its reason code; nothing is written. An unreachable store raises, so Temporal
+retries. Only IDs, codes, counts, and elapsed milliseconds reach
 Temporal history.
 """
 
@@ -12,7 +13,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import os
 import re
 import time
 from collections.abc import Awaitable, Callable
@@ -31,6 +31,7 @@ from thoth_control_plane.attribution.models import SourceAttribution
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain import ArtifactRef
 from thoth_control_plane.domain.models import OpaqueId, SourceProgressEvent, StrictModel
+from thoth_control_plane.infrastructure.report_store import Reports, connect_reports, read_report
 
 logger = logging.getLogger(__name__)
 HEARTBEAT_SECONDS = 30.0
@@ -68,32 +69,16 @@ class Assembler(Protocol):
     async def build(self, inputs: AssemblyInputs) -> ContentSet: ...
 
 
-def _write(path: Path, content: bytes) -> None:
-    part = path.with_name(path.name + ".part")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        part.write_bytes(content)
-        os.replace(part, path)
-    finally:
-        part.unlink(missing_ok=True)
-
-
-def _original(root: Path, location: str | None) -> SourceReport | None:
+async def _original(reports: Reports, location: str | None) -> SourceReport | None:
     if location is None or not ORIGINAL_LOCATION.fullmatch(location):
         return None
-    try:
-        return SourceReport.model_validate_json((root / location).read_bytes())
-    except (OSError, ValueError):
-        return None
+    return await read_report(reports, location, SourceReport)
 
 
-def _attribution(root: Path, location: str | None) -> SourceAttribution | None:
+async def _attribution(reports: Reports, location: str | None) -> SourceAttribution | None:
     if location is None or not ATTRIBUTION_LOCATION.fullmatch(location):
         return None
-    try:
-        return SourceAttribution.model_validate_json((root / location).read_bytes())
-    except (OSError, ValueError):
-        return None
+    return await read_report(reports, location, SourceAttribution)
 
 
 async def _heartbeat() -> None:
@@ -122,23 +107,23 @@ def _failed(code: str, started: float) -> ContentAssemblyActivityResult:
 
 
 async def _run(
-    input_: ContentAssemblyActivityInput, artifact_root: Path, assembler: Assembler
+    input_: ContentAssemblyActivityInput,
+    artifact_root: Path,
+    assembler: Assembler,
+    reports: Reports,
 ) -> ContentAssemblyActivityResult:
     started = time.monotonic()
     folder = PurePosixPath("reports") / input_.workflow_id
-    try:
-        report = SourceReport.model_validate_json(
-            (artifact_root / folder / REPORT_FILE).read_bytes()
-        )
-    except (OSError, ValueError):
+    report = await read_report(reports, (folder / REPORT_FILE).as_posix(), SourceReport)
+    if report is None:
         logger.warning("content assembly skipped; no stage 3 report for this workflow")
         return _failed("source_report_missing", started)
 
     inputs = AssemblyInputs(
         workflow_id=input_.workflow_id,
         report=report,
-        attribution=_attribution(artifact_root, input_.attribution),
-        original=_original(artifact_root, input_.original_report),
+        attribution=await _attribution(reports, input_.attribution),
+        original=await _original(reports, input_.original_report),
         artifact_root=artifact_root,
     )
     heartbeat = asyncio.create_task(_heartbeat())
@@ -154,11 +139,7 @@ async def _run(
 
     content = content_set.model_dump_json(indent=2).encode("utf-8")
     location = folder / CONTENT_SET_FILE
-    try:
-        _write(artifact_root / location, content)
-    except OSError:
-        logger.warning("content set could not be written")
-        return _failed("artifact_write_failed", started)
+    await asyncio.to_thread(reports.put, location.as_posix(), "content_set", content)
     digest = sha256(content).hexdigest()
     ocr = content_set.main.ocr
     return ContentAssemblyActivityResult(
@@ -226,15 +207,16 @@ async def assemble_content(input_: ContentAssemblyActivityInput) -> ContentAssem
 
 
 def build_content_assembly_activity(
-    settings: Settings, *, assembler: Assembler | None = None
+    settings: Settings, *, assembler: Assembler | None = None, reports: Reports | None = None
 ) -> Callable[[ContentAssemblyActivityInput], Awaitable[ContentAssemblyActivityResult]]:
     artifact_root = settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT.resolve()
     selected = assembler or build_production_assembler(settings)
+    selected_reports = reports or connect_reports(settings)
 
     @activity.defn(name="assemble_content")
     async def configured_content_assembly_activity(
         input_: ContentAssemblyActivityInput,
     ) -> ContentAssemblyActivityResult:
-        return await _run(input_, artifact_root, selected)
+        return await _run(input_, artifact_root, selected, selected_reports)
 
     return configured_content_assembly_activity

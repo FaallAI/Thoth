@@ -297,12 +297,13 @@ async def test_missing_workflow_returns_not_found(client: httpx.AsyncClient) -> 
 async def test_artifact_download_is_workflow_authorized_and_resolves_only_safe_locations(
     gateway,
     tmp_path: Path,
+    report_store,
 ) -> None:
     settings = Settings(
         THOTH_CONTROL_PLANE_API_KEY="test-key",
         THOTH_CONTROL_PLANE_ARTIFACT_ROOT=tmp_path,
     )
-    app = create_app(settings, gateway)
+    app = create_app(settings, gateway, report_store=report_store)
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as test_client:
         created = await test_client.post(
@@ -335,9 +336,8 @@ async def test_artifact_download_is_workflow_authorized_and_resolves_only_safe_l
                 ]
             }
         )
-        report_path = tmp_path / artifact_location
-        report_path.parent.mkdir(parents=True)
-        report_path.write_text('{"safe":true}', encoding="utf-8")
+        report_store.put(artifact_location, "source_report", b'{"safe":true}')
+        (tmp_path / binary_location).parent.mkdir(parents=True)
         (tmp_path / binary_location).write_bytes(b"safe-bytes")
 
         authorized = await test_client.get(
@@ -366,6 +366,101 @@ async def test_artifact_download_is_workflow_authorized_and_resolves_only_safe_l
     assert binary.headers["content-type"] == "application/octet-stream"
     assert forbidden.status_code == 403
     assert missing.status_code == 404
+
+
+async def _download_report(gateway, tmp_path: Path, reports, *, key: str = "test-key"):
+    """Create a workflow owning one source-report artifact, then download it."""
+    settings = Settings(
+        THOTH_CONTROL_PLANE_API_KEY="test-key", THOTH_CONTROL_PLANE_ARTIFACT_ROOT=tmp_path
+    )
+    app = create_app(settings, gateway, report_store=reports)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as test_client:
+        created = await test_client.post(
+            "/api/v1/workflows",
+            headers={**AUTH_HEADERS, "Idempotency-Key": "report-001"},
+            json=VALID_REQUEST,
+        )
+        workflow_id = created.json()["workflow_id"]
+        gateway.workflows[workflow_id] = gateway.workflows[workflow_id].model_copy(
+            update={
+                "artifacts": [
+                    ArtifactRef(
+                        artifact_id="art_report",
+                        kind="source_report",
+                        label="Source investigation report",
+                        media_type="application/json",
+                        location=f"reports/{workflow_id}/source-report.json",
+                        checksum="sha256:" + "a" * 64,
+                    )
+                ]
+            }
+        )
+        response = await test_client.get(
+            f"/api/v1/workflows/{workflow_id}/artifacts/art_report",
+            headers={"Authorization": f"Bearer {key}"},
+        )
+    return workflow_id, response
+
+
+@pytest.mark.asyncio
+async def test_a_report_artifact_is_served_from_the_store(gateway, tmp_path: Path) -> None:
+    content = b'{"schema_version": 3}'
+    asked: list[str] = []
+
+    class Echo:
+        def get(self, location: str) -> bytes | None:
+            asked.append(location)
+            return content
+
+    workflow_id, response = await _download_report(gateway, tmp_path, Echo())
+
+    assert asked == [f"reports/{workflow_id}/source-report.json"]
+    assert response.status_code == 200
+    assert response.content == content
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.headers["content-disposition"] == 'attachment; filename="art_report.json"'
+    assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.asyncio
+async def test_a_missing_report_row_is_404(gateway, tmp_path: Path, report_store) -> None:
+    _, response = await _download_report(gateway, tmp_path, report_store)
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_a_report_without_a_store_is_503(gateway, tmp_path: Path) -> None:
+    _, response = await _download_report(gateway, tmp_path, None)
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "report_store_unavailable"}
+
+
+@pytest.mark.asyncio
+async def test_a_report_store_outage_is_503_not_404(gateway, tmp_path: Path) -> None:
+    from tests.conftest import DownReports
+
+    _, response = await _download_report(gateway, tmp_path, DownReports())
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "report_store_unavailable"}
+
+
+@pytest.mark.asyncio
+async def test_a_report_of_another_owner_is_still_refused(gateway, tmp_path: Path) -> None:
+    class Spy:
+        reads = 0
+
+        def get(self, location: str) -> bytes | None:
+            Spy.reads += 1
+            return b"{}"
+
+    _, response = await _download_report(gateway, tmp_path, Spy(), key="wrong-key")
+
+    assert response.status_code == 403
+    assert Spy.reads == 0
 
 
 @pytest.mark.asyncio

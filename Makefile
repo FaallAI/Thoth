@@ -12,7 +12,7 @@ COMPOSE := docker compose --env-file .env.stage1.local -f compose.stage1.local.y
 T ?= tests
 SERVICE ?= worker
 
-.PHONY: help test lint format check dashboard-test dashboard-build smoke-cdp smoke-parity smoke-fallback smoke-renderer deploy status logs
+.PHONY: help test lint format check test-postgres dashboard-test dashboard-build smoke-cdp smoke-parity smoke-fallback smoke-renderer deploy status logs
 
 help: ## List the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -29,6 +29,9 @@ format: ## ruff format, then ruff check --fix
 	$(RUFF) check --fix $(PY_PATHS)
 
 check: lint test ## lint, then the whole Python suite
+
+test-postgres: ## Postgres-backed tests on a throwaway PostgreSQL 16.4 (a skip is a failure)
+	bash scripts/dev/pytest-postgres.sh
 
 dashboard-test: ## Dashboard tests
 	cd dashboard && $(BUN) test

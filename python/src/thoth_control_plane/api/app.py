@@ -85,6 +85,7 @@ from thoth_control_plane.infrastructure.renderer_gateway import (
     HttpRendererGateway,
     UnavailableRendererGateway,
 )
+from thoth_control_plane.infrastructure.report_store import Reports, ReportStore
 from thoth_control_plane.infrastructure.source_account_store import SourceAccountStore
 from thoth_control_plane.infrastructure.studio_import_repository import (
     PostgresStudioImportRepository,
@@ -189,6 +190,7 @@ def create_app(
     studio_import_repository: StudioImportRepository | None = None,
     source_account_store: SourceAccountStore | None = None,
     account_profiles: AccountProfiles | None = None,
+    report_store: Reports | None = None,
 ) -> FastAPI:
     """Create an isolated v1 API application for the supplied workflow gateway."""
     settings = settings or Settings()  # type: ignore[call-arg]
@@ -298,6 +300,10 @@ def create_app(
     app.state.studio_import_service = StudioImportService(studio_import_repository)
     app.state.source_account_store = source_account_store or _source_account_store(settings)
     app.state.account_profiles = account_profiles or _account_profiles(settings)
+    # A missing database only makes report downloads answer 503; the rest still serves.
+    if report_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
+        report_store = ReportStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
+    app.state.report_store = report_store
 
     app.add_middleware(
         CORSMiddleware,

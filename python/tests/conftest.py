@@ -11,6 +11,8 @@ from typing import Any
 import httpx
 import pytest
 import pytest_asyncio
+from sqlalchemy import create_engine
+from sqlalchemy.pool import StaticPool
 from temporalio import activity
 from temporalio.contrib.pydantic import pydantic_data_converter
 from temporalio.testing import WorkflowEnvironment
@@ -36,11 +38,32 @@ from thoth_control_plane.domain import (
     request_snapshot_id,
 )
 from thoth_control_plane.domain.models import SafeActivityError
+from thoth_control_plane.infrastructure.report_store import ReportStore, ReportStoreUnavailable
+from thoth_control_plane.infrastructure.source_account_models import Base
 from thoth_control_plane.infrastructure.temporal_gateway import (
     TASK_QUEUE,
     TemporalWorkflowGateway,
 )
 from thoth_control_plane.workflows.source_investigation import SourceInvestigationWorkflow
+
+
+@pytest.fixture
+def report_store() -> ReportStore:
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(engine)
+    return ReportStore(engine)
+
+
+class DownReports:
+    """A report store whose database is unreachable."""
+
+    def put(self, location: str, kind: str, content: bytes) -> None:
+        raise ReportStoreUnavailable("report_store_unavailable")
+
+    def get(self, location: str) -> bytes | None:
+        raise ReportStoreUnavailable("report_store_unavailable")
 
 
 def _is_local(address: Any) -> bool:
@@ -218,7 +241,9 @@ class OfflineControlPlane:
         artifact_root: Path,
         fixture_modes: dict[str, str],
         inspect_activity,
+        report_store: ReportStore,
     ) -> None:
+        self._report_store = report_store
         self._environment = environment
         self._artifact_root = artifact_root
         self._fixture_modes = fixture_modes
@@ -372,7 +397,7 @@ class OfflineControlPlane:
             THOTH_CONTROL_PLANE_ARTIFACT_ROOT=self._artifact_root,
         )
         gateway = TemporalWorkflowGateway(self._environment.client)
-        app = create_app(settings, gateway)
+        app = create_app(settings, gateway, report_store=self._report_store)
         self._client = httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app),
             base_url="http://offline-control-plane",
@@ -394,7 +419,7 @@ class OfflineControlPlane:
 
 
 @pytest_asyncio.fixture
-async def control_plane(tmp_path: Path) -> AsyncIterator[OfflineControlPlane]:
+async def control_plane(tmp_path: Path, report_store) -> AsyncIterator[OfflineControlPlane]:
     fixture_modes: dict[str, str] = {}
 
     @activity.defn(name="inspect_source_candidates")
@@ -416,9 +441,7 @@ async def control_plane(tmp_path: Path) -> AsyncIterator[OfflineControlPlane]:
         ).encode()
         digest = sha256(content).hexdigest()
         location = f"reports/{input_.workflow_id}/source-report.json"
-        report_path = tmp_path / location
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_bytes(content)
+        report_store.put(location, "source_report", content)
         return SourceInvestigationActivityResult(
             report=ArtifactRef(
                 artifact_id=f"art_source_{digest[:20]}",
@@ -433,7 +456,9 @@ async def control_plane(tmp_path: Path) -> AsyncIterator[OfflineControlPlane]:
     environment = await WorkflowEnvironment.start_time_skipping(
         data_converter=pydantic_data_converter
     )
-    harness = OfflineControlPlane(environment, tmp_path, fixture_modes, inspect_fixture)
+    harness = OfflineControlPlane(
+        environment, tmp_path, fixture_modes, inspect_fixture, report_store
+    )
     await harness.start()
     try:
         yield harness
