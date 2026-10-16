@@ -41,6 +41,7 @@ def test_editor_migrations_stay_explicit_forward_only_sql_files() -> None:
         "0008_source_accounts.sql",
         "0009_source_account_safety.sql",
         "0010_footage.sql",
+        "0011_workflow_reports.sql",
     ]
     for name in MIGRATION_FILES:
         sql = migration(name).lower()
@@ -448,3 +449,17 @@ def test_a_fresh_database_adopts_no_legacy_revision_across_the_whole_chain() -> 
 
     assert _legacy_revision(set(), chain) is None
     assert _legacy_revision({"edit_document_revisions"}, chain) == "0001"
+
+
+def test_workflow_reports_keep_exact_content_and_a_queryable_body() -> None:
+    sql = " ".join(migration("0011_workflow_reports.sql").split())
+
+    assert "CREATE TABLE workflow_reports" in sql
+    assert "location TEXT PRIMARY KEY" in sql
+    assert "content TEXT NOT NULL" in sql
+    assert "body JSONB GENERATED ALWAYS AS (replace(content, '\\u0000', '')::jsonb) STORED" in sql
+    assert (
+        "kind IN ('source_report', 'original_source_report', 'source_attribution', 'content_set')"
+        in sql
+    )
+    assert "CREATE INDEX workflow_reports_workflow ON workflow_reports (workflow_id, kind)" in sql

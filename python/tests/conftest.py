@@ -11,6 +11,8 @@ from typing import Any
 import httpx
 import pytest
 import pytest_asyncio
+from sqlalchemy import create_engine
+from sqlalchemy.pool import StaticPool
 from temporalio import activity
 from temporalio.contrib.pydantic import pydantic_data_converter
 from temporalio.testing import WorkflowEnvironment
@@ -36,11 +38,22 @@ from thoth_control_plane.domain import (
     request_snapshot_id,
 )
 from thoth_control_plane.domain.models import SafeActivityError
+from thoth_control_plane.infrastructure.report_store import ReportStore
+from thoth_control_plane.infrastructure.source_account_models import Base
 from thoth_control_plane.infrastructure.temporal_gateway import (
     TASK_QUEUE,
     TemporalWorkflowGateway,
 )
 from thoth_control_plane.workflows.source_investigation import SourceInvestigationWorkflow
+
+
+@pytest.fixture
+def report_store() -> ReportStore:
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(engine)
+    return ReportStore(engine)
 
 
 def _is_local(address: Any) -> bool:
