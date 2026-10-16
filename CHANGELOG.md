@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## 2026-10-16 - Browser sessions run on their own event loop
+## 2026-10-16 - Browser sessions run on their own event loop; a failed query answers 503
 
 Branch `fix/browser-own-event-loop`. The second TMPRL1101 blocker: a footage smoke on a warm worker
 (`wf_49e925513a4388e1b34c0d90`, agno already imported) stalled the event loop 1.9 s during
@@ -19,7 +19,14 @@ loop. `_default_session_factory` in `browser.py` returns a `LoopBoundSession`; `
 imports it instead of keeping its own copy, and the Camoufox engine is bound the same way. The
 browser still shares the GIL, but the worker's loop gets it back every switch interval.
 
-**Verification (WSL):** `make lint` clean; `make test` 3845 passed, 29 skipped, 0 failed. The new heartbeat test
+**A failed query answers 503, not 500.** A query the worker cannot answer raises
+`WorkflowQueryFailedError`, which is not an `RPCError`, so it escaped the gateway's mapping and
+the status poll answered 500 while the workflow ran on. Every gateway query now goes through
+`_query`: an `RPCError` maps as before (404 or 503), a failed query becomes `WorkflowNotReady`
+(503, retry) and is logged as a WARNING with its reason, so a real query-handler bug still shows.
+A cached "last known status" was left out: the stalls last seconds and the clients already retry.
+
+**Verification (WSL):** `make lint` clean; `make test` 3846 passed, 29 skipped, 0 failed. The new heartbeat test
 fails on a same-loop session (a 0.51 s gap) and passes on the browser loop.
 
 **Next steps**
