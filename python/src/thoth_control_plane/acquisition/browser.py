@@ -25,6 +25,7 @@ from thoth_control_plane.acquisition.adapters.tiktok import (
     TikTokUrlError,
     canonicalize_tiktok_post_url,
 )
+from thoth_control_plane.acquisition.browser_loop import LoopBoundSession
 from thoth_control_plane.acquisition.models import (
     MAX_COMMENTS,
     AcquisitionReason,
@@ -185,10 +186,14 @@ def _decrement_active_sessions() -> None:
     _active_session_count = max(0, _active_session_count - 1)
 
 
-def _default_session_factory(**kwargs: Any) -> Any:
+def _stealthy_session(**kwargs: Any) -> Any:
     from scrapling.fetchers import AsyncStealthySession
 
     return AsyncStealthySession(**kwargs)
+
+
+def _default_session_factory(**kwargs: Any) -> Any:
+    return LoopBoundSession(_stealthy_session, **kwargs)
 
 
 def _item_struct(

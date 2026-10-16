@@ -14,12 +14,15 @@ import logging
 import random
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
+from functools import partial
 from typing import Any
 from urllib.parse import urlsplit
 
 from thoth_control_plane.acquisition.accounts.access import SessionAccess
 from thoth_control_plane.acquisition.adapters.instagram import CANONICAL_BASE, CODE, HANDLE
 from thoth_control_plane.acquisition.adapters.threads import _walk
+from thoth_control_plane.acquisition.browser import _default_session_factory
+from thoth_control_plane.acquisition.browser_loop import LoopBoundSession
 from thoth_control_plane.acquisition.discovery import MAX_CAPTION, _empty
 from thoth_control_plane.acquisition.instagram_discovery import rank_videos
 from thoth_control_plane.acquisition.models import (
@@ -114,12 +117,6 @@ def parse_reels(bodies: Iterable[bytes], handle: str) -> list[DiscoveredVideo]:
     return list(videos.values())
 
 
-def _default_session_factory(**kwargs: Any) -> Any:
-    from scrapling.fetchers import AsyncStealthySession
-
-    return AsyncStealthySession(**kwargs)
-
-
 class InstagramReelsDiscovery:
     def __init__(
         self,
@@ -132,7 +129,7 @@ class InstagramReelsDiscovery:
         if session_factory is None and access.engine == "camoufox":
             from thoth_control_plane.acquisition.camoufox_session import CamoufoxSession
 
-            session_factory = CamoufoxSession
+            session_factory = partial(LoopBoundSession, CamoufoxSession)
         self._session_factory = session_factory or _default_session_factory
         self._pause = pause
 
