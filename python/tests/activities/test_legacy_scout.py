@@ -488,3 +488,19 @@ async def test_a_non_json_scout_report_is_missing_and_its_scratch_removed(
     assert result.failure is not None
     assert result.failure.code == "legacy_scout_report_missing"
     assert not (tmp_path / "temp" / "legacy-scout" / "wf_legacy_scout_001").exists()
+
+
+@pytest.mark.asyncio
+async def test_a_missing_report_database_is_a_persistence_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("THOTH_EDITOR_DATABASE_URL", raising=False)
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_API_KEY", "key")
+    adapter = LegacyScoutActivity(
+        process_factory=_writes_report(b'{"schema_version": 1}'), artifact_root=tmp_path
+    )
+    result = await adapter.inspect(LEGACY_INPUT)
+
+    assert result.failure is not None
+    assert result.failure.code == "legacy_scout_report_persistence_failed"
+    assert not (tmp_path / "temp" / "legacy-scout" / "wf_legacy_scout_001").exists()

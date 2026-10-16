@@ -22,7 +22,7 @@ from typing import Protocol
 from pydantic import Field, HttpUrl
 from temporalio import activity
 
-from thoth_control_plane.config import Settings
+from thoth_control_plane.config import Settings, SettingsValidationError
 from thoth_control_plane.domain import (
     ArtifactRef,
     SourceInvestigationActivityResult,
@@ -178,7 +178,9 @@ class LegacyScoutActivity:
                 diagnostic="legacy process completed without a durable report",
             )
         try:
-            reports = self._reports or connect_reports(Settings())  # type: ignore[call-arg]
+            if self._reports is None:
+                self._reports = await asyncio.to_thread(connect_reports, Settings())  # type: ignore[call-arg]
+            reports = self._reports
             await asyncio.to_thread(
                 reports.put, self._output_destination(input_), "source_report", report_content
             )
@@ -188,7 +190,7 @@ class LegacyScoutActivity:
                 code="legacy_scout_report_missing",
                 diagnostic="legacy process completed without a durable report",
             )
-        except ReportStoreUnavailable:
+        except (ReportStoreUnavailable, SettingsValidationError):
             return self._failure_result(
                 input_,
                 code="legacy_scout_report_persistence_failed",
