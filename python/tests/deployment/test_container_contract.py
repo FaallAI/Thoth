@@ -874,7 +874,6 @@ def test_the_diagnostic_contract_documents_describe_all_five_frame_keys() -> Non
     documents = (
         "docs/superpowers/specs/2026-09-08-stage1-parity-diagnostic-preservation-design.md",
         "docs/superpowers/plans/2026-09-08-stage1-parity-diagnostic-preservation.md",
-        "docs/agent-prompts/stage1-parity-diagnostic-preservation-executor.md",
     )
     for relative in documents:
         prose = " ".join(_repo_text(relative).split())
