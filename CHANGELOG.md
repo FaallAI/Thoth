@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-16 - Footage story gate on the fp32 embedder, threshold 0.36
+
+Branch `fix/footage-fp32-embedder`. The calibration golden test failed about one CI run in
+three. A CI probe across runner CPUs found the cause: the quantized embedder
+(`model_quint8_avx2.onnx`) scores differently per instruction set. AVX2 and AVX-VNNI machines
+(the operator's laptop, AMD EPYC 7763) match the goldens within 5e-5. AVX-512 machines (Intel
+Xeon 6973P-C, AMD EPYC 9V45) agree with each other but drift up to 0.017, which flips B7, B9,
+and B27 at 0.33. Any server with AVX-512 would therefore gate footage differently from the
+calibration.
+
+**What changed**
+- The embedder is the fp32 export of the same model (`onnx/model.onnx`, 470 MB, pinned by
+  SHA-256). Its scores agree within 1e-6 on Intel Xeon 8370C (AVX-512), AMD EPYC 9V45
+  (AVX-512), and the i7-14700HX (AVX-VNNI).
+- `THOTH_FOOTAGE_STORY_MIN` defaults to 0.36 (operator, 2026-10-16). On fp32, 0.33 would admit
+  three irrelevant labels (B5 0.349, B7 0.343, B10 0.339). 0.36 sits in the clean gap between
+  B5 and the relevant #10 (0.381) and drops no relevant label above 0.33. Errors on the 47
+  labels: 8, the same as the best quantized threshold.
+- The golden fixture carries the fp32 scores. One decision changes: B9 (irrelevant) is now
+  rejected. Score drift failures name the CPU they ran on.
+
+**Verification:** `make lint` clean; `make test` 3780 passed, 21 skipped. The one failure
+during a concurrent run (`test_ffmpeg_samples_frames_by_second`) passed on its own.
+
+**Next steps:** PR + CI, merge, new image digest (+350 MB for the model), operator pins and
+deploys. Optional: score the 47 labels with a stronger embedder (for example
+`multilingual-e5-large`) to see whether the 0.27–0.33 overlap shrinks; that needs a live
+provider call and operator authorization.
+
 ## 2026-10-15 - Stage 5b.1: footage fixes from calibration
 
 Implemented on branch `feat/stage5b1-footage-fixes` (from master d91b031 plus the plan commit
