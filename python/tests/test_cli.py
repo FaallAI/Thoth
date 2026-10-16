@@ -52,6 +52,28 @@ def test_cli_posts_the_same_v1_request(respx_mock: respx.MockRouter, monkeypatch
     }
 
 
+def test_a_failed_start_names_its_key_and_a_rerun_can_reuse_it(
+    respx_mock: respx.MockRouter, monkeypatch
+) -> None:
+    _configure(monkeypatch)
+    route = respx_mock.post("http://control-plane.test/api/v1/workflows").mock(
+        side_effect=[
+            respx.MockResponse(503, json={"detail": "not ready"}),
+            respx.MockResponse(202, json=QUEUED_SUMMARY),
+        ]
+    )
+    args = ["workflow", "start", "--url", "https://example.test/post/1", "--style", "news-vertical"]
+
+    failed = runner.invoke(app, args)
+    key = route.calls[0].request.headers["Idempotency-Key"]
+    retried = runner.invoke(app, [*args, "--idempotency-key", key])
+
+    assert failed.exit_code == 1
+    assert f"--idempotency-key {key}" in failed.output
+    assert retried.exit_code == 0
+    assert route.calls[1].request.headers["Idempotency-Key"] == key
+
+
 def test_cli_watch_streams_and_renders_typed_v1_sse_events(
     respx_mock: respx.MockRouter, monkeypatch
 ) -> None:

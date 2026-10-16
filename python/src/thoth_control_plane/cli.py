@@ -101,11 +101,17 @@ def _settings() -> tuple[str, str]:
     return base_url, api_key
 
 
-def _request(method: str, path: str, *, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+def _request(
+    method: str,
+    path: str,
+    *,
+    payload: dict[str, Any] | None = None,
+    idempotency_key: str | None = None,
+) -> dict[str, Any]:
     base_url, api_key = _settings()
     headers = {"Authorization": f"Bearer {api_key}"}
-    if method == "POST" and path == "/api/v1/workflows":
-        headers["Idempotency-Key"] = str(uuid.uuid4())
+    if idempotency_key is not None:
+        headers["Idempotency-Key"] = idempotency_key
     response = httpx.request(method, f"{base_url}{path}", headers=headers, json=payload, timeout=30)
     try:
         response.raise_for_status()
@@ -141,6 +147,7 @@ def start(
     format_: Annotated[str, typer.Option("--format")] = "mp4",
     language: Annotated[str, typer.Option("--language")] = "id",
     require_publish_approval: Annotated[bool, typer.Option("--review/--no-review")] = True,
+    idempotency_key: Annotated[str | None, typer.Option("--idempotency-key")] = None,
 ) -> None:
     """Start one video workflow through the v1 API."""
     request = WorkflowRequest.model_validate(
@@ -151,7 +158,20 @@ def start(
             "review": {"require_publish_approval": require_publish_approval},
         }
     )
-    _render(_request("POST", "/api/v1/workflows", payload=request.model_dump(mode="json")))
+    key = idempotency_key or str(uuid.uuid4())
+    try:
+        summary = _request(
+            "POST",
+            "/api/v1/workflows",
+            payload=request.model_dump(mode="json"),
+            idempotency_key=key,
+        )
+    except typer.Exit:
+        # A failed start may still have started the workflow; the same key reaches it, a new
+        # one would start a second.
+        typer.echo(f"Retry with --idempotency-key {key} to reach the same workflow.", err=True)
+        raise
+    _render(summary)
 
 
 @workflow_app.command("watch")
