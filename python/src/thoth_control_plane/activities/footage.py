@@ -90,17 +90,17 @@ async def _run(
     if report is None:
         logger.warning("footage skipped; no stage 3 report for this workflow")
         return _done("unavailable", 0, started)
+    # Read before the try: a store outage must propagate as itself, not as a builder failure.
+    inputs = FootageInputs(
+        workflow_id=input_.workflow_id,
+        report=report,
+        attribution=await _attribution(reports, input_.attribution),
+        original=await _original(reports, input_.original_report),
+        artifact_root=artifact_root,
+    )
     heartbeat = asyncio.create_task(_heartbeat())
     try:
-        result = await builder.build(
-            FootageInputs(
-                workflow_id=input_.workflow_id,
-                report=report,
-                attribution=await _attribution(reports, input_.attribution),
-                original=await _original(reports, input_.original_report),
-                artifact_root=artifact_root,
-            )
-        )
+        result = await builder.build(inputs)
     except asyncio.CancelledError:
         raise
     except Exception as error:

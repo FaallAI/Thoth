@@ -110,3 +110,28 @@ async def test_footage_raises_when_the_database_is_down(tmp_path: Path) -> None:
     )
     with pytest.raises(ReportStoreUnavailable):
         await activity(FootageActivityInput(workflow_id="wf_down"))
+
+
+@pytest.mark.parametrize("field", ["attribution", "original_report"])
+async def test_an_outage_on_an_optional_read_is_not_a_builder_failure(
+    tmp_path: Path, report_store, field: str
+) -> None:
+    _with_report(report_store)
+    location = {
+        "attribution": "reports/wf_a/source-attribution.json",
+        "original_report": "reports/wf_a-c1/source-report.json",
+    }[field]
+
+    class FailsOn(DownReports):
+        def get(self, loc: str) -> bytes | None:
+            if loc == location:
+                return super().get(loc)
+            return report_store.get(loc)
+
+    activity = build_footage_activity(
+        _settings(tmp_path),
+        builder=Builder(),
+        reports=FailsOn(),  # type: ignore[arg-type]
+    )
+    with pytest.raises(ReportStoreUnavailable):
+        await activity(FootageActivityInput(workflow_id="wf_a", **{field: location}))
