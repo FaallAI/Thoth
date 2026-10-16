@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from thoth_control_plane.attribution.adapters.frames import ToolMissing
+from thoth_control_plane.attribution.adapters.ocr import ORT_THREADS
 from thoth_control_plane.attribution.adapters.speech import missing
 
 EMBEDDING_FILES = ("model.onnx", "tokenizer.json")
@@ -37,8 +38,12 @@ class OnnxEmbedder:
             tokenizer.enable_truncation(MAX_TOKENS)
             tokenizer.enable_padding()
             self._tokenizer = tokenizer
+            options = onnxruntime.SessionOptions()
+            options.intra_op_num_threads = ORT_THREADS
+            options.inter_op_num_threads = 1
+            options.add_session_config_entry("session.intra_op.allow_spinning", "0")
             self._session = onnxruntime.InferenceSession(
-                str(self._dir / "model.onnx"), providers=["CPUExecutionProvider"]
+                str(self._dir / "model.onnx"), options, providers=["CPUExecutionProvider"]
             )
 
     def embed_sync(self, texts: Sequence[str]) -> list[list[float]]:

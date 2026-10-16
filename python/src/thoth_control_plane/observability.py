@@ -1,4 +1,4 @@
-"""Worker-startup logging safety for the optional Scrapling provider stack.
+"""Worker-startup logging: one JSON line per record, and safety for the Scrapling provider stack.
 
 Scrapling (and the Patchright browser it drives) logs signed CDN URLs, cookies,
 and other provider-identifying detail at INFO level via the standard library
@@ -14,7 +14,10 @@ call more than once.
 
 from __future__ import annotations
 
+import json
 import logging
+import sys
+from datetime import UTC, datetime
 
 REDACTED_PROVIDER_MESSAGE = "scrapling provider event redacted"
 
@@ -35,6 +38,38 @@ class ScraplingRedactionFilter(logging.Filter):
         record.exc_text = None
         record.stack_info = None
         return True
+
+
+class JsonFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        entry = {
+            "ts": datetime.fromtimestamp(record.created, UTC).isoformat(timespec="milliseconds"),
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        if record.exc_info:
+            entry["exc"] = self.formatException(record.exc_info)
+        return json.dumps(entry, ensure_ascii=False)
+
+
+def configure_logging() -> None:
+    """Write records to stdout as JSON: the control plane's INFO and up, others' WARNING and up.
+
+    Third-party INFO stays out because it carries request URLs (httpx) and content. Without a
+    root handler the worker printed only WARNING and up, through `logging.lastResort`. Never
+    raises, and is idempotent, like `configure_provider_logging`.
+    """
+    try:
+        root = logging.getLogger()
+        if not any(isinstance(handler.formatter, JsonFormatter) for handler in root.handlers):
+            handler = logging.StreamHandler(sys.stdout)
+            handler.setFormatter(JsonFormatter())
+            root.addHandler(handler)
+        root.setLevel(logging.WARNING)
+        logging.getLogger("thoth_control_plane").setLevel(logging.INFO)
+    except Exception:
+        return
 
 
 def _add_filter_once(target: logging.Filterer) -> None:

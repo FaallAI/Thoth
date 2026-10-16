@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 import logging
 import sys
 
@@ -11,6 +12,7 @@ import pytest
 from thoth_control_plane.observability import (
     REDACTED_PROVIDER_MESSAGE,
     ScraplingRedactionFilter,
+    configure_logging,
     configure_provider_logging,
 )
 
@@ -49,6 +51,8 @@ def _reset_logging_state():
         handler: list(handler.filters) for handler in root_logger.handlers
     }
     original_root_add_handler = root_logger.__dict__.get("addHandler")
+    original_root_level = root_logger.level
+    original_own_level = logging.getLogger("thoth_control_plane").level
     original_last_resort_filters = (
         list(logging.lastResort.filters) if logging.lastResort is not None else []
     )
@@ -76,6 +80,8 @@ def _reset_logging_state():
         root_logger.__dict__.pop("addHandler", None)
     else:
         root_logger.__dict__["addHandler"] = original_root_add_handler
+    root_logger.setLevel(original_root_level)
+    logging.getLogger("thoth_control_plane").setLevel(original_own_level)
     if logging.lastResort is not None:
         logging.lastResort.filters[:] = original_last_resort_filters
 
@@ -336,3 +342,22 @@ def test_root_handler_present_before_configure_receives_redacted_warning() -> No
     assert len(records) == 1
     assert records[0].getMessage() == REDACTED_PROVIDER_MESSAGE
     assert records[0].args == ()
+
+
+def test_worker_logging_is_one_json_line_per_record(capsys: pytest.CaptureFixture[str]) -> None:
+    configure_logging()
+    configure_logging()  # idempotent: still one handler, so one line per record
+    configure_provider_logging()
+
+    logging.getLogger("thoth_control_plane.footage.service").info(
+        "footage finished status=%s admitted=%d", "ok", 3
+    )
+    logging.getLogger("httpx").info("HTTP Request: GET https://cdn.example/signed?token=abc")
+    logging.getLogger("scrapling.fetchers").error("cookie sessionid=abc")
+
+    lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert [(line["level"], line["logger"], line["msg"]) for line in lines] == [
+        ("INFO", "thoth_control_plane.footage.service", "footage finished status=ok admitted=3"),
+        ("ERROR", "scrapling.fetchers", REDACTED_PROVIDER_MESSAGE),
+    ]
+    assert all(line["ts"].endswith("+00:00") for line in lines)

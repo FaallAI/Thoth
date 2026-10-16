@@ -13,6 +13,10 @@ from thoth_control_plane.attribution.matching import TextBox
 from thoth_control_plane.attribution.ports import Frame
 
 MAX_TEXT = 200
+# ONNX Runtime's default takes every core per session and spins between runs. Reads run in
+# parallel threads, so the default kept 22 cores busy for the same wall time and starved the
+# Temporal workflow thread; two threads each use a quarter of the CPU (bench, 2026-10-16).
+ORT_THREADS = 2
 
 
 class RapidOcrReader:
@@ -58,7 +62,12 @@ class RapidOcrReader:
                     # Operator, 2026-10-11: a missing tool is an explicit error.
                     raise ToolMissing("rapidocr_missing") from None
 
-                self._engine = RapidOCR()
+                self._engine = RapidOCR(
+                    params={
+                        "EngineConfig.onnxruntime.intra_op_num_threads": ORT_THREADS,
+                        "EngineConfig.onnxruntime.inter_op_num_threads": 1,
+                    }
+                )
                 # RapidOCR resets its logger to INFO while it builds, then logs every model
                 # load and, at WARNING, every frame without text; keep only its errors.
                 logging.getLogger("RapidOCR").setLevel(logging.ERROR)
