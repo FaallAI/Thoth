@@ -170,13 +170,18 @@ async def run_worker(settings: Settings | None = None) -> None:
             namespace=runtime_settings.THOTH_TEMPORAL_NAMESPACE,
             data_converter=pydantic_data_converter,
         )
+        reports = connect_reports(runtime_settings)
         async with (
-            build_source_investigation_worker(client, runtime_settings, capability=capability),
+            build_source_investigation_worker(
+                client, runtime_settings, capability=capability, reports=reports
+            ),
             Worker(
                 client,
                 task_queue=LEGACY_ADAPTER_TASK_QUEUE,
                 activities=[
-                    build_legacy_scout_activity(runtime_settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT)
+                    build_legacy_scout_activity(
+                        runtime_settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT, reports
+                    )
                 ],
                 max_concurrent_activities=LEGACY_ADAPTER_MAX_CONCURRENT_ACTIVITIES,
             ),

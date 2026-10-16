@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
+import shutil
 import signal
 import subprocess
 from collections.abc import Awaitable, Callable
@@ -21,6 +22,7 @@ from typing import Protocol
 from pydantic import Field, HttpUrl
 from temporalio import activity
 
+from thoth_control_plane.config import Settings
 from thoth_control_plane.domain import (
     ArtifactRef,
     SourceInvestigationActivityResult,
@@ -31,6 +33,12 @@ from thoth_control_plane.domain.models import (
     OpaqueId,
     SafeActivityError,
     StrictModel,
+)
+from thoth_control_plane.infrastructure.report_store import (
+    ReportInvalid,
+    Reports,
+    ReportStoreUnavailable,
+    connect_reports,
 )
 
 LEGACY_ADAPTER_TASK_QUEUE = "thoth-legacy-adapter"
@@ -87,7 +95,9 @@ class LegacyScoutActivity:
         artifact_root: Path | None = None,
         repository_root: Path | None = None,
         shutdown_grace_seconds: float = 5,
+        reports: Reports | None = None,
     ) -> None:
+        self._reports = reports
         self._process_factory = process_factory or asyncio.create_subprocess_exec
         self._platform_name = platform_name or os.name
         self._process_group_killer = process_group_killer
@@ -99,6 +109,16 @@ class LegacyScoutActivity:
     async def inspect(self, input_: LegacyScoutInput) -> SourceInvestigationResult:
         """Run the fixed legacy command without treating stdout as workflow state."""
         report_path = self._artifact_path(input_)
+        try:
+            return await self._inspect(input_, report_path)
+        finally:
+            # The scratch file is only a hand-off from the Bun process; the report lives in
+            # the database. Remove it on every path out, including cancellation.
+            shutil.rmtree(report_path.parent, ignore_errors=True)
+
+    async def _inspect(
+        self, input_: LegacyScoutInput, report_path: Path
+    ) -> SourceInvestigationResult:
         try:
             report_path.parent.mkdir(parents=True, exist_ok=True)
         except OSError:
@@ -156,6 +176,23 @@ class LegacyScoutActivity:
                 input_,
                 code="legacy_scout_report_missing",
                 diagnostic="legacy process completed without a durable report",
+            )
+        try:
+            reports = self._reports or connect_reports(Settings())  # type: ignore[call-arg]
+            await asyncio.to_thread(
+                reports.put, self._output_destination(input_), "source_report", report_content
+            )
+        except ReportInvalid:
+            return self._failure_result(
+                input_,
+                code="legacy_scout_report_missing",
+                diagnostic="legacy process completed without a durable report",
+            )
+        except ReportStoreUnavailable:
+            return self._failure_result(
+                input_,
+                code="legacy_scout_report_persistence_failed",
+                diagnostic="legacy report could not be stored",
             )
         return self._success_result(input_, "legacy process completed", report_content)
 
@@ -221,7 +258,8 @@ class LegacyScoutActivity:
         return f"legacy-scout/{input_.workflow_id}/source-report.json"
 
     def _artifact_path(self, input_: LegacyScoutInput) -> Path:
-        return self._artifact_root / self._output_destination(input_)
+        """Scratch path for the Bun process; the stored report is keyed by the destination."""
+        return self._artifact_root / "temp" / self._output_destination(input_)
 
     @classmethod
     async def _taskkill_tree(cls, pid: int, *, force: bool) -> None:
@@ -306,10 +344,10 @@ async def inspect_legacy_scout(input_: LegacyScoutInput) -> SourceInvestigationA
 
 
 def build_legacy_scout_activity(
-    artifact_root: Path,
+    artifact_root: Path, reports: Reports
 ) -> Callable[[LegacyScoutInput], Awaitable[SourceInvestigationActivityResult]]:
-    """Bind the worker-only legacy adapter to the configured durable artifact root."""
-    adapter = LegacyScoutActivity(artifact_root=artifact_root)
+    """Bind the worker-only legacy adapter to the scratch root and the report store."""
+    adapter = LegacyScoutActivity(artifact_root=artifact_root, reports=reports)
 
     @activity.defn(name="inspect_legacy_scout")
     async def configured_legacy_scout_activity(

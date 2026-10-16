@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from tests.conftest import DownReports
 from thoth_control_plane.activities import legacy_scout
 from thoth_control_plane.activities.legacy_scout import (
     LegacyScoutActivity,
@@ -18,6 +19,7 @@ from thoth_control_plane.activities.legacy_scout import (
 )
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain import SourceInvestigationResult
+from thoth_control_plane.infrastructure.report_store import Reports
 
 LEGACY_INPUT = LegacyScoutInput(
     workflow_id="wf_legacy_scout_001",
@@ -79,6 +81,7 @@ def fake_process_factory(
 @pytest.mark.asyncio
 async def test_adapter_runs_the_registered_scout_command_from_repository_and_materializes_report(
     tmp_path: Path,
+    report_store: Reports,
 ) -> None:
     process = FakeProcess()
     repository_root = Path(__file__).resolve().parents[3]
@@ -96,6 +99,7 @@ async def test_adapter_runs_the_registered_scout_command_from_repository_and_mat
         process_factory=create,
         artifact_root=tmp_path,
         repository_root=repository_root,
+        reports=report_store,
     ).inspect(LEGACY_INPUT)
 
     assert result.events[0].kind == "stage.started"
@@ -110,13 +114,13 @@ async def test_adapter_runs_the_registered_scout_command_from_repository_and_mat
         "--url",
         "https://example.test/source/123",
         "--out",
-        str(tmp_path / "legacy-scout/wf_legacy_scout_001/source-report.json"),
+        str(tmp_path / "temp/legacy-scout/wf_legacy_scout_001/source-report.json"),
     )
     assert process.kwargs is not None
     assert process.kwargs["cwd"] == repository_root
     assert result.report is not None
     assert result.report.location == "legacy-scout/wf_legacy_scout_001/source-report.json"
-    assert (tmp_path / result.report.location).is_file()
+    assert report_store.get(result.report.location) == b'{"schema_version":1}'
     assert "run: [" in (repository_root / "scout/cli.ts").read_text(encoding="utf-8")
 
 
@@ -421,3 +425,66 @@ def test_no_fastapi_request_model_exposes_activity_mode() -> None:
         not in openapi_schema["components"]["schemas"][schema_name].get("properties", {})
         for schema_name in request_schema_names
     )
+
+
+def _writes_report(content: bytes) -> Callable[..., Awaitable[FakeProcess]]:
+    process = FakeProcess()
+
+    async def create(*args: str, **kwargs: object) -> FakeProcess:
+        del kwargs
+        out = Path(args[args.index("--out") + 1])
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(content)
+        process._release.set()
+        return process
+
+    return create
+
+
+@pytest.mark.asyncio
+async def test_the_scout_report_is_stored_and_its_scratch_removed(
+    tmp_path: Path, report_store: Reports
+) -> None:
+    adapter = LegacyScoutActivity(
+        process_factory=_writes_report(b'{"schema_version": 1}'),
+        artifact_root=tmp_path,
+        reports=report_store,
+    )
+    result = await adapter.inspect(LEGACY_INPUT)
+
+    location = "legacy-scout/wf_legacy_scout_001/source-report.json"
+    assert report_store.get(location) == b'{"schema_version": 1}'
+    assert result.report is not None
+    assert result.report.location == location
+    assert not (tmp_path / "temp" / "legacy-scout" / "wf_legacy_scout_001").exists()
+    assert not (tmp_path / "legacy-scout").exists()
+
+
+@pytest.mark.asyncio
+async def test_a_database_outage_is_a_persistence_failure(tmp_path: Path) -> None:
+    adapter = LegacyScoutActivity(
+        process_factory=_writes_report(b'{"schema_version": 1}'),
+        artifact_root=tmp_path,
+        reports=DownReports(),  # type: ignore[arg-type]
+    )
+    result = await adapter.inspect(LEGACY_INPUT)
+
+    assert result.failure is not None
+    assert result.failure.code == "legacy_scout_report_persistence_failed"
+    assert not (tmp_path / "temp" / "legacy-scout" / "wf_legacy_scout_001").exists()
+
+
+@pytest.mark.asyncio
+async def test_a_non_json_scout_report_is_missing_and_its_scratch_removed(
+    tmp_path: Path, report_store: Reports
+) -> None:
+    adapter = LegacyScoutActivity(
+        process_factory=_writes_report(b"not json"),
+        artifact_root=tmp_path,
+        reports=report_store,
+    )
+    result = await adapter.inspect(LEGACY_INPUT)
+
+    assert result.failure is not None
+    assert result.failure.code == "legacy_scout_report_missing"
+    assert not (tmp_path / "temp" / "legacy-scout" / "wf_legacy_scout_001").exists()
