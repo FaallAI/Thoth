@@ -2,6 +2,49 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-17 - Media storage review minors fixed; PR #19 deployed
+
+**PR #19 deployed.**
+- Master `44b503f`, image `thoth@sha256:1abde3ec...6845`. `.env.stage1.local` gained `THOTH_MEDIA_S3_ACCESS_KEY` and `THOTH_MEDIA_S3_SECRET_KEY`; they were generated and never printed.
+- `make deploy`:
+  - `import-reports`: `imported=0 present=277 invalid=0`;
+  - `import-media`: `imported=487 present=0 invalid=0 mismatch=0`;
+  - every service healthy, `minio` included.
+- Footage smoke `wf_868af41531e090b104dc692f` succeeded in 440 s:
+  - the start answered 503 once, because the fresh worker was not polling yet; it was retried with the same idempotency key, and no twin was started;
+  - 10 objects are in MinIO (3 cards, 6 footage clips, 1 source video) and 0 files are on the volume;
+  - zero `event loop stalled`, zero TMPRL1101, restarts=0.
+- `media import --remove-local`: `removed=487 kept=0`.
+  - The artifact volume went from 1.3 GB to 2.3 MB, which is the 275 report JSON files, untouched.
+  - A rerun of the import prints `imported=0 present=0 invalid=0 mismatch=0`.
+
+**Review minors fixed** (branch `fix/media-review-minors`):
+- **Cancellation:** acquisition no longer deletes pushed media when cancelled. The report write may still commit in its thread, and the retry overwrites the media.
+- **Unsafe locator:** `artifact_persistence_failed` with `retryable=False`.
+- **Missing local files:** `MediaScratch.push` logs a count of recorded files with no local copy. It never logs the locators.
+- **Heartbeat:** the new `heartbeating(...)` covers pull, work, and push in attribution, footage, and assembly.
+- **Attribution acquirer:** in production it has no volume fallback. Without a running attribution's scratch root it raises.
+- **Footage publish:** it receives only the admitted clips (from `store.admitted`), so rejected and abandoned downloads stay local, and carousel slides are not re-uploaded.
+- **Compose:** `api` no longer waits for MinIO; only the worker does.
+- **`--remove-local`:** it refuses a local store nested with the volume in either direction.
+- **`media import`:** missing S3 keys and local disk errors print one line and exit 1.
+- **TLS:** the S3 client verifies with the certifi bundle (`CERT_REQUIRED`).
+
+**Not changed:**
+- A missing bucket on an object request: it is already an outage against the real MinIO (`NoSuchBucket`). The new contract test pins it.
+- Scratch in the container's `/tmp`, and attribution continuing after a store outage (spec Corrections 8 and 9).
+
+**Verification (WSL):**
+- `make lint` is clean.
+- `make test`: 3927 passed, 48 skipped, 0 failed.
+- `make test-minio`: 43 passed, 0 skipped.
+- `docker compose config --quiet` passes.
+
+**Next steps**
+1. PR, CI, merge, digest, pin, `make deploy`, one footage smoke. The operator authorized the chain on 2026-10-17.
+2. Sub-project 2: the renderer and `LocalArtifactRoot` move to the store, and the artifact volume leaves compose. It gets its own brainstorm, spec, and plan.
+- Follow-ups: Studio reads the footage artifact; attribution for reposts with no credit; Stage 5c; label the newly admitted calibration clips.
+
 ## 2026-10-17 - Workflow media in object storage (sub-project 1)
 
 Branch `feat/media-object-storage`. Spec `docs/superpowers/specs/2026-10-17-media-object-storage-design.md`, plan `docs/superpowers/plans/2026-10-17-media-object-storage.md`.
