@@ -182,3 +182,40 @@ def test_cli_refuses_without_an_s3_endpoint(tmp_path: Path, monkeypatch) -> None
     result = CliRunner().invoke(app, ["media", "import", "--artifact-root", str(tmp_path)])
     assert result.exit_code == 1
     assert result.output.strip() == "media store is not configured"
+
+
+@pytest.mark.parametrize("store_root", ["artifacts/store", "."])
+def test_remove_local_refuses_a_local_store_nested_with_the_volume(
+    tmp_path: Path, store_root: str
+) -> None:
+    volume = tmp_path / "artifacts"
+    _write(volume, VIDEO, b"video")
+    (tmp_path / store_root).mkdir(parents=True, exist_ok=True)
+    with pytest.raises(ValueError, match="media_store_is_the_volume"):
+        remove_local_media(volume, LocalMediaStore(tmp_path / store_root))
+    assert (volume / VIDEO).exists()
+
+
+def test_cli_refuses_an_endpoint_without_keys_in_one_line(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_API_KEY", "k")
+    monkeypatch.setenv("THOTH_MEDIA_S3_ENDPOINT", "127.0.0.1:9")
+    monkeypatch.delenv("THOTH_MEDIA_S3_ACCESS_KEY", raising=False)
+    monkeypatch.delenv("THOTH_MEDIA_S3_SECRET_KEY", raising=False)
+    result = CliRunner().invoke(app, ["media", "import", "--artifact-root", str(tmp_path)])
+    assert result.exit_code == 1
+    assert result.output.strip() == "media store is not configured"
+    assert result.exception is None or isinstance(result.exception, SystemExit)
+
+
+def test_cli_reports_a_local_disk_failure_in_one_line(tmp_path: Path, monkeypatch) -> None:
+    volume, store = _volume_and_store(tmp_path)
+    _write(volume, VIDEO, b"video")
+
+    def full_disk(root: Path, target) -> None:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(cli, "import_media", full_disk)
+    result = _cli(monkeypatch, _CliStore(store.root), "--artifact-root", str(volume))
+    assert result.exit_code == 1
+    assert result.output.strip() == "media import failed: local disk error"
+    assert isinstance(result.exception, SystemExit)
