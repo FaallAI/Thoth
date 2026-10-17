@@ -44,6 +44,24 @@ case "$import_line" in
     *) echo "report import not clean; the old worker stays stopped — decide, then re-run" >&2
        exit 1 ;;
 esac
+step media-store
+mkdir -p "$data_root/minio"
+"${compose[@]}" up -d --wait minio 2>&1 | tail -3
+step import-media
+# Same guard as the report import: a failed or unclean import leaves the old worker stopped.
+media_rc=0
+media_line=$("${compose[@]}" run --rm --no-deps api thoth-control media import \
+    --artifact-root /var/lib/thoth/artifacts 2>&1 | tail -1) || media_rc=$?
+echo "$media_line"
+if [ "$media_rc" -ne 0 ]; then
+    echo "media import failed (exit $media_rc); the old worker stays stopped — decide, then re-run" >&2
+    exit 1
+fi
+case "$media_line" in
+    *" invalid=0 mismatch=0") ;;
+    *) echo "media import not clean; the old worker stays stopped — decide, then re-run" >&2
+       exit 1 ;;
+esac
 step up
 "${compose[@]}" up -d --wait 2>&1 | tail -12
 step status

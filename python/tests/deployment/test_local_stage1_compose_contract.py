@@ -336,6 +336,7 @@ def test_editor_preview_signing_key_reaches_the_api_only() -> None:
         "temporal",
         "temporal-ui",
         "legacy-cdp",
+        "minio",
         "worker",
     ):
         assert "THOTH_EDITOR_PREVIEW_SIGNING_KEY" not in _service_block(compose, service)
@@ -358,6 +359,7 @@ def test_editor_preview_adds_no_service_port_or_mount() -> None:
         "  temporal:",
         "  temporal-ui:",
         "  legacy-cdp:",
+        "  minio:",
         "  api:",
         "  worker:",
     ]
@@ -592,3 +594,47 @@ def test_api_and_worker_share_the_account_profiles_directory() -> None:
     setup = _repo_text("docs/operations/stage1-local-docker.md")
     assert "artifacts,browser-profile,account-profiles," in setup
     assert 'sudo chown -R 10001:10001 "$THOTH_STAGE1_DATA_ROOT"/account-profiles' in setup
+
+
+MINIO_IMAGE = "pgsty/minio@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372"
+
+
+def test_minio_is_pinned_private_and_on_the_data_root() -> None:
+    compose = _repo_text("compose.stage1.local.yml")
+    minio = _service_block(compose, "minio")
+    assert f"image: {MINIO_IMAGE}" in minio
+    assert "ports:" not in minio
+    assert "source: ${THOTH_STAGE1_DATA_ROOT:?set THOTH_STAGE1_DATA_ROOT}/minio" in minio
+    assert "MINIO_ROOT_USER: ${THOTH_MEDIA_S3_ACCESS_KEY:?set THOTH_MEDIA_S3_ACCESS_KEY}" in minio
+    assert (
+        "MINIO_ROOT_PASSWORD: ${THOTH_MEDIA_S3_SECRET_KEY:?set THOTH_MEDIA_S3_SECRET_KEY}" in minio
+    )
+    assert "/minio/health/live" in minio
+    assert "networks: [stage1-private]" in minio
+
+
+def test_api_and_worker_reach_the_media_store() -> None:
+    compose = _repo_text("compose.stage1.local.yml")
+    for service in ("api", "worker"):
+        block = _service_block(compose, service)
+        assert "THOTH_MEDIA_S3_ENDPOINT: minio:9000" in block
+        assert "THOTH_MEDIA_S3_BUCKET: thoth-media" in block
+        assert "THOTH_MEDIA_S3_SECRET_KEY: ${THOTH_MEDIA_S3_SECRET_KEY:?" in block
+        assert "minio:\n        condition: service_healthy" in block
+    env_example = _env_file()
+    assert "THOTH_MEDIA_S3_ACCESS_KEY=replace-with-local-secret" in env_example
+    assert "THOTH_MEDIA_S3_SECRET_KEY=replace-with-local-secret" in env_example
+
+
+def test_the_deploy_imports_media_before_the_new_worker_starts() -> None:
+    deploy = _repo_text("scripts/ops/deploy-stage1.sh")
+    order = [
+        deploy.index("step import-reports"),
+        deploy.index("step media-store"),
+        deploy.index("step import-media"),
+        deploy.index("step up"),
+    ]
+    assert order == sorted(order)
+    assert "thoth-control media import" in deploy
+    assert '*" invalid=0 mismatch=0"' in deploy
+    assert "--remove-local" not in deploy  # removal is its own operator gate

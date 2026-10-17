@@ -360,7 +360,7 @@ jobs:
         run: |
           set -euo pipefail
           root="${RUNNER_TEMP}/thoth-stage1"
-          mkdir -p "${root}"/postgres "${root}"/artifacts "${root}"/browser-profile
+          mkdir -p "${root}"/postgres "${root}"/artifacts "${root}"/browser-profile "${root}"/minio
           mkdir -p "${root}"/observations "${root}"/reports "${root}"/account-profiles
           sudo chown -R 10001:10001 "${root}/artifacts" "${root}/browser-profile"
           sudo chown -R 10001:10001 "${root}/account-profiles"
@@ -380,6 +380,8 @@ jobs:
             echo "THOTH_POSTGRES_PASSWORD=$(openssl rand -hex 24)"
             echo "THOTH_EDITOR_POSTGRES_PASSWORD=$(openssl rand -hex 24)"
             echo "THOTH_EDITOR_PREVIEW_SIGNING_KEY=$(openssl rand -hex 24)"
+            echo "THOTH_MEDIA_S3_ACCESS_KEY=thoth-ci-$(openssl rand -hex 6)"
+            echo "THOTH_MEDIA_S3_SECRET_KEY=$(openssl rand -hex 24)"
           } > stage1.ci.env
 
       - name: Validate the operator inputs

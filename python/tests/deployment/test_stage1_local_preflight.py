@@ -23,6 +23,8 @@ VALID_ENVIRONMENT = {
     "THOTH_POSTGRES_PASSWORD": "local-database-password",
     "THOTH_EDITOR_POSTGRES_PASSWORD": "local-editor-database-password",
     "THOTH_EDITOR_PREVIEW_SIGNING_KEY": "local-preview-signing-key",
+    "THOTH_MEDIA_S3_ACCESS_KEY": "local-media-access",
+    "THOTH_MEDIA_S3_SECRET_KEY": "local-media-secret-key",
 }
 
 
@@ -102,6 +104,8 @@ def test_rollback_activity_mode_is_accepted() -> None:
         "THOTH_CONTROL_PLANE_API_KEY",
         "THOTH_POSTGRES_PASSWORD",
         "THOTH_EDITOR_POSTGRES_PASSWORD",
+        "THOTH_MEDIA_S3_ACCESS_KEY",
+        "THOTH_MEDIA_S3_SECRET_KEY",
     ],
 )
 @pytest.mark.parametrize("value", ["", "   ", "replace-with-local-secret"])

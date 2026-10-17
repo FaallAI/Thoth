@@ -39,6 +39,8 @@ VALID_LOCAL_ENVIRONMENT = {
     "THOTH_POSTGRES_PASSWORD": "local-database-password",
     "THOTH_EDITOR_POSTGRES_PASSWORD": "local-editor-database-password",
     "THOTH_EDITOR_PREVIEW_SIGNING_KEY": "local-preview-signing-key",
+    "THOTH_MEDIA_S3_ACCESS_KEY": "local-media-access",
+    "THOTH_MEDIA_S3_SECRET_KEY": "local-media-secret-key",
 }
 
 posix_only = pytest.mark.skipif(
