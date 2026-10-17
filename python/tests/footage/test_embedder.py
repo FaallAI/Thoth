@@ -56,3 +56,13 @@ async def test_the_session_uses_two_threads_without_spinning() -> None:
     assert options.intra_op_num_threads == 2
     assert options.inter_op_num_threads == 1
     assert options.get_session_config_entry("session.intra_op.allow_spinning") == "0"
+
+
+async def test_embedders_on_one_model_share_one_session() -> None:
+    # Building the session holds the GIL for about 2 s, past Temporal's deadlock limit, so the
+    # worker builds it once at startup and every embedder after that reuses it.
+    directory = _required("THOTH_TEST_EMBEDDING_MODEL_DIR")
+    first, second = OnnxEmbedder(directory), OnnxEmbedder(directory)
+    await first.embed(["x"])
+    await second.embed(["x"])
+    assert first._session is second._session

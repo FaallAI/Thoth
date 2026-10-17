@@ -11,6 +11,7 @@ from importlib.util import find_spec
 from temporalio.client import Client
 from temporalio.contrib.pydantic import pydantic_data_converter
 from temporalio.worker import Worker
+from temporalio.worker._worker import load_default_build_id
 
 from thoth_control_plane.acquisition.accounts.profiles import sweep_unsealed
 from thoth_control_plane.acquisition.browser import ScraplingCapability, check_scrapling_capability
@@ -29,6 +30,7 @@ from thoth_control_plane.activities.prompt_proposal import (
     build_prompt_proposal_activity,
 )
 from thoth_control_plane.config import Settings, SettingsValidationError
+from thoth_control_plane.footage.adapters.embedder import load_model
 from thoth_control_plane.infrastructure.prompt_proposal_repository import (
     PostgresPromptProposalRepository,
 )
@@ -70,6 +72,13 @@ def preload_heavy_modules() -> None:
             importlib.import_module(name)
         except ImportError:
             continue  # an optional extra; its adapter raises ToolMissing when used
+
+
+def warm_up(settings: Settings) -> None:
+    """Work that holds the GIL for a second or more, done before the loop serves Temporal."""
+    load_default_build_id()  # memoized; `Worker()` would hash every loaded module on the loop
+    if settings.THOTH_FOOTAGE_ENABLED:
+        load_model(settings.THOTH_EMBEDDING_MODEL_DIR)
 
 
 def build_source_investigation_worker(
@@ -193,6 +202,7 @@ async def run_worker(settings: Settings | None = None) -> None:
     check_media_tools(runtime_settings)
     configure_logging()
     preload_heavy_modules()
+    warm_up(runtime_settings)
     sweep_unsealed()  # a killed worker may have left account profiles decrypted
     configure_provider_logging()
     capability = await check_scrapling_capability()
