@@ -6,6 +6,7 @@ stays behind the preview layer.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Annotated
 
@@ -13,6 +14,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Path, Query, Requ
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from thoth_control_plane.api.dependencies import current_actor
+from thoth_control_plane.api.ranged import ranged_response
 from thoth_control_plane.application.editor_asset_ports import (
     EditorAssetMediaInvalid,
     EditorAssetUploadTooLarge,
@@ -39,10 +41,13 @@ from thoth_control_plane.domain.models import PROJECT_ID_PATTERN, StrictModel
 from thoth_control_plane.infrastructure.editor_preview import (
     PREVIEW_COOKIE_NAME,
     EditorPreviewSigner,
-    PreviewArtifactInvalid,
     PreviewCapabilityExpired,
     PreviewCapabilityInvalid,
-    resolve_preview_path,
+)
+from thoth_control_plane.infrastructure.media_store import (
+    MediaLocatorInvalid,
+    MediaStoreUnavailable,
+    MediaUnavailable,
 )
 
 router = APIRouter()
@@ -218,16 +223,26 @@ async def stream_editor_asset_preview(
     except (PreviewCapabilityInvalid, PreviewCapabilityExpired):
         return _capability_refused(request, project_id, asset_id, clear=True)
     record = await _ready_record(service, project_id, asset_id)
+    media = request.app.state.media_store
+    location = record.artifact_location
     try:
-        path = resolve_preview_path(
-            request.app.state.settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT,
-            record.artifact_location,
-        )
-    except PreviewArtifactInvalid as error:
+        size = await asyncio.to_thread(lambda: media.stat(location).size_bytes)
+    except (MediaUnavailable, MediaLocatorInvalid):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail={"code": "asset_not_ready"}
-        ) from error
-    return FileResponse(path, media_type=record.asset.media_type, headers=PREVIEW_HEADERS)
+        ) from None
+    except MediaStoreUnavailable:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"code": "media_store_unavailable"},
+        ) from None
+    return ranged_response(
+        size=size,
+        read=lambda start, end: media.open_range(location, start, end),
+        media_type=record.asset.media_type,
+        range_header=request.headers.get("range"),
+        headers=PREVIEW_HEADERS,
+    )
 
 
 def _capability_refused(

@@ -401,3 +401,27 @@ def test_a_linked_job_directory_is_never_followed(tmp_path: Path) -> None:
     with pytest.raises(ArtifactPathInvalid):
         LocalArtifactRoot(tmp_path).cleanup(JOB)
     assert (outside / "output.mp4").exists()
+
+
+@pytest.mark.asyncio
+async def test_publish_upload_puts_the_file_in_the_store_and_drops_the_local_copy(
+    tmp_path: Path,
+) -> None:
+    from thoth_control_plane.infrastructure.media_store import LocalMediaStore
+
+    store_root = tmp_path / "store"
+    store_root.mkdir()
+    (tmp_path / "local").mkdir()
+    root = LocalArtifactRoot(tmp_path / "local", LocalMediaStore(store_root))
+    received = await root.receive_upload(
+        asset_id="asset_1", chunks=chunks_of(b"clip"), max_bytes=10
+    )
+
+    location = root.publish_upload(received, project_id="proj_1", suffix=".mp4")
+
+    assert location == "uploads/proj_1/asset_1.mp4"
+    assert (store_root / location).read_bytes() == b"clip"
+    assert not received.path.exists()
+    assert not (tmp_path / "local" / location).exists()
+    root.discard(location)
+    assert not (store_root / location).exists()

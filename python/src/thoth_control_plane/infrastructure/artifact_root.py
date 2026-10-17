@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import os
 import re
 import shutil
 import stat
@@ -295,26 +294,33 @@ class LocalArtifactRoot:
         )
 
     def publish_upload(self, received: ReceivedUpload, *, project_id: str, suffix: str) -> str:
-        """Atomically move a received upload to its project-scoped locator."""
+        """Store one received upload at its project-scoped locator, then drop the local copy."""
         if not _LOCATOR_SEGMENT.match(project_id) or not _SUFFIX.match(suffix):
             raise ArtifactPathInvalid()
         source = self._contained(*received.location.split("/"))
         if _is_link(source) or not source.is_file():
             raise ArtifactUnavailable()
         name = f"{source.name.removesuffix('.part')}{suffix}"
-        self._contained("uploads", project_id).mkdir(parents=True, exist_ok=True)
-        os.replace(source, self._contained("uploads", project_id, name))
-        return f"uploads/{project_id}/{name}"
+        location = f"uploads/{project_id}/{name}"
+        self._media.put_file(location, source)
+        source.unlink(missing_ok=True)
+        return location
 
     def discard(self, relative_location: str) -> None:
-        """Remove one contained upload file; an already absent file is fine."""
+        """Remove one upload: a local temporary file, or a stored object; absent is fine."""
         segments = relative_location.split("/")
         if any(not _LOCATOR_SEGMENT.match(segment) for segment in segments):
             raise ArtifactPathInvalid()
-        target = self._contained(*segments)
-        if _is_link(target):
-            raise ArtifactPathInvalid()
-        target.unlink(missing_ok=True)
+        if segments[0] == "temp":
+            target = self._contained(*segments)
+            if _is_link(target):
+                raise ArtifactPathInvalid()
+            target.unlink(missing_ok=True)
+            return
+        try:
+            self._media.delete(relative_location)
+        except MediaLocatorInvalid:
+            raise ArtifactPathInvalid() from None
 
     def _contained(self, *segments: str) -> Path:
         """Join validated segments and prove the result stays below the root."""
