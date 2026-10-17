@@ -804,3 +804,108 @@ async def test_a_database_outage_is_a_retryable_persistence_failure(
     result = await activity(INPUT)
     assert result.failure == SafeActivityError(code="artifact_persistence_failed", retryable=True)
     assert not (tmp_path / "reports/wf_activity_001/source-report.json").exists()
+
+
+class _RecordingStore:
+    """A media store that records calls and can fail like an unreachable MinIO."""
+
+    def __init__(self, root: Path, *, down: bool = False) -> None:
+        from thoth_control_plane.infrastructure.media_store import LocalMediaStore
+
+        self.inner = LocalMediaStore(root)
+        self.down = down
+        self.deleted: list[str] = []
+
+    def put_file(self, location: str, path: Path) -> None:
+        from thoth_control_plane.infrastructure.media_store import MediaStoreUnavailable
+
+        if self.down:
+            raise MediaStoreUnavailable("media_store_unavailable")
+        self.inner.put_file(location, path)
+
+    def fetch(self, location: str, destination: Path) -> None:
+        self.inner.fetch(location, destination)
+
+    def stat(self, location: str):
+        return self.inner.stat(location)
+
+    def delete(self, location: str) -> None:
+        self.deleted.append(location)
+        self.inner.delete(location)
+
+    def list(self, prefix: str) -> list[str]:
+        return self.inner.list(prefix)
+
+    def check(self) -> None:
+        self.inner.check()
+
+
+# The fixture report records its own workflow id in its media locator.
+_FIXTURE_MEDIA = str(_load_fixture_report().media[0].location)
+
+
+def _writing_runner(seen: list[Path]):
+    async def runner(workflow_id: str, source_url: str, artifact_root: Path):
+        del source_url
+        seen.append(artifact_root)
+        del workflow_id
+        media_path = artifact_root / _FIXTURE_MEDIA
+        media_path.parent.mkdir(parents=True, exist_ok=True)
+        media_path.write_bytes(b"0" * 10_100)
+        return AcquisitionResult(report=_load_fixture_report())
+
+    return runner
+
+
+@pytest.mark.asyncio
+async def test_acquired_media_lands_in_the_store_not_the_artifact_root(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    store_root.mkdir()
+    store = _RecordingStore(store_root)
+    seen: list[Path] = []
+    configured = build_source_investigation_activity(
+        _settings(tmp_path), runner=_writing_runner(seen), media=store
+    )
+    result = await configured(INPUT)
+
+    assert result.failure is None
+    location = _FIXTURE_MEDIA
+    assert store.stat(location).size_bytes == 10_100
+    assert seen[0] != tmp_path and not seen[0].exists()  # a scratch root, removed afterwards
+    assert not (tmp_path / location).exists()
+
+
+@pytest.mark.asyncio
+async def test_a_store_outage_while_pushing_media_fails_before_the_report_is_stored(
+    tmp_path: Path, report_store
+) -> None:
+    store_root = tmp_path / "store"
+    store_root.mkdir()
+    configured = build_source_investigation_activity(
+        _settings(tmp_path),
+        runner=_writing_runner([]),
+        reports=report_store,
+        media=_RecordingStore(store_root, down=True),
+    )
+    result = await configured(INPUT)
+
+    assert result.failure is not None
+    assert result.failure.code == "artifact_persistence_failed"
+    assert result.failure.retryable is True
+    assert report_store.get(f"reports/{INPUT.workflow_id}/source-report.json") is None
+
+
+@pytest.mark.asyncio
+async def test_a_report_store_outage_deletes_the_pushed_media(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    store_root.mkdir()
+    store = _RecordingStore(store_root)
+    configured = build_source_investigation_activity(
+        _settings(tmp_path), runner=_writing_runner([]), reports=DownReports(), media=store
+    )
+    result = await configured(INPUT)
+
+    location = _FIXTURE_MEDIA
+    assert result.failure is not None
+    assert location in store.deleted
+    assert not (store_root / location).exists()
