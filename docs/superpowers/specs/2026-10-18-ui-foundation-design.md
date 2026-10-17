@@ -38,7 +38,7 @@ In scope:
    for the import gate.
 7. UI phase 0 clean-up: remove the placeholders and the misleading copy, and point the Vite
    `/api` proxy at port 8787.
-8. The voice adapter (section 9): a port with three providers and a CLI. It has no workflow,
+8. The voice adapter (section 9): a port with two providers and a CLI. It has no workflow,
    API, or UI consumer yet; auto-draft slice 2 is its first consumer.
 
 Out of scope, each in its own later item of `docs/ROADMAP.md`:
@@ -428,26 +428,22 @@ extra_body={"language": ...})`. It returns no word timings.
 - **Configuration:** `THOTH_VOICE_OPENAI_COMPATIBLE_BASE_URL` (`AnyHttpUrl`) and
   `THOTH_VOICE_OPENAI_COMPATIBLE_API_KEY` (`SecretStr`, optional).
 
-**`edge.py`, the free fallback.** It uses
-`edge_tts.Communicate(text, voice, rate=..., boundary="WordBoundary")`. `stream()` yields audio
-chunks (MP3, 24 kHz) and `WordBoundary` events.
-- Each event's `offset` and `duration` (100-ns ticks) become a `WordTiming`.
-- It needs no credential.
-- **New dependency:** `edge-tts` (LGPL-3.0), in the worker's `acquisition` extra. It is
-  rate-limited and has no SLA, so it is for fallback and tests of a script, not volume.
-
 **`factory.py`:** `build_voice(settings, provider) -> VoiceSynthesizer`, where `provider` is one
-of `elevenlabs`, `openai_compatible` or `edge`. It raises `VoiceNotConfigured` for a provider
+of `elevenlabs` or `openai_compatible`. It raises `VoiceNotConfigured` for a provider
 without its settings.
 
 A direct Supertonic-3 adapter is not part of this phase. Supertonic-3 is reachable through
 `openai_compatible` when a VoiceStudio container runs, and a direct adapter is decided after the
 listening test.
 
+**edge-tts is excluded** (operator, 2026-10-18), even as a fallback: it is an unofficial service
+with no SLA that blocks IPs with 403 and can change or close without notice, so narration could
+fail all at once.
+
 ### 9.3 CLI
 
 ```text
-thoth-control voice say --provider {elevenlabs,openai-compatible,edge} --voice VOICE_ID
+thoth-control voice say --provider {elevenlabs,openai-compatible} --voice VOICE_ID
     [--model MODEL] [--speed 1.0] [--language id] (--text TEXT | --file PATH) --out AUDIO_PATH
 ```
 
@@ -465,7 +461,6 @@ All tests are offline; the conftest guard already blocks non-loopback traffic.
   appears in an error.
 - **OpenAI-compatible** through a mocked transport: the request carries `model`, `voice`,
   `speed` and `language`; WAV duration via PyAV; the mapping of 5xx and 4xx.
-- **Edge** with an injected fake `Communicate` stream: tick conversion and audio concatenation.
 - **Factory:** each unconfigured provider raises `VoiceNotConfigured`.
 - **CLI** with a fake adapter: both files are written, and the exit codes are correct.
 
