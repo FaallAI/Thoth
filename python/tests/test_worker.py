@@ -32,6 +32,7 @@ async def test_worker_configures_provider_logging_before_capability_check(monkey
     calls: list[str] = []
     monkeypatch.setattr(worker, "configure_logging", lambda: calls.append("json"))
     monkeypatch.setattr(worker, "preload_heavy_modules", lambda: calls.append("preload"))
+    monkeypatch.setattr(worker, "warm_up", lambda settings: calls.append("warm"))
     monkeypatch.setattr(worker, "watch_event_loop", _no_watch)
     monkeypatch.setattr(worker, "configure_provider_logging", lambda: calls.append("logging"))
 
@@ -44,7 +45,7 @@ async def test_worker_configures_provider_logging_before_capability_check(monkey
         await worker.run_worker(
             Settings(THOTH_CONTROL_PLANE_API_KEY="test-key", THOTH_SOURCE_ATTRIBUTION_ENABLED=False)
         )
-    assert calls == ["json", "preload", "logging", "capability"]
+    assert calls == ["json", "preload", "warm", "logging", "capability"]
 
 
 @pytest.mark.asyncio
@@ -71,6 +72,7 @@ async def test_the_yt_dlp_check_runs_in_the_background_and_stops_with_the_worker
 
     monkeypatch.setattr(worker, "configure_logging", lambda: None)
     monkeypatch.setattr(worker, "preload_heavy_modules", lambda: None)
+    monkeypatch.setattr(worker, "warm_up", lambda settings: None)
     monkeypatch.setattr(worker, "watch_event_loop", _no_watch)
     monkeypatch.setattr(worker, "configure_provider_logging", lambda: None)
     monkeypatch.setattr(worker, "check_scrapling_capability", capability)
@@ -206,6 +208,7 @@ async def test_the_worker_sweeps_profiles_a_killed_worker_left_before_any_lease(
     calls: list[str] = []
     monkeypatch.setattr(worker, "configure_logging", lambda: None)
     monkeypatch.setattr(worker, "preload_heavy_modules", lambda: None)
+    monkeypatch.setattr(worker, "warm_up", lambda settings: None)
     monkeypatch.setattr(worker, "watch_event_loop", _no_watch)
     monkeypatch.setattr(worker, "configure_provider_logging", lambda: None)
     monkeypatch.setattr(worker, "sweep_unsealed", lambda: calls.append("sweep"))
@@ -281,3 +284,16 @@ def test_preloading_skips_a_missing_optional_module(monkeypatch) -> None:
     monkeypatch.setattr(worker, "HEAVY_MODULES", ("thoth_no_such_module", "colorsys"))
     worker.preload_heavy_modules()
     assert "colorsys" in sys.modules
+
+
+def test_warming_up_loads_the_embedder_only_when_footage_is_on(monkeypatch, tmp_path) -> None:
+    # Each holds the GIL for a second or more; before polling, no Temporal deadline is running.
+    calls: list[object] = []
+    monkeypatch.setattr(worker, "load_default_build_id", lambda: calls.append("build_id"))
+    monkeypatch.setattr(worker, "load_model", lambda directory: calls.append(directory))
+    base = {"THOTH_CONTROL_PLANE_API_KEY": "k", "THOTH_SOURCE_ATTRIBUTION_ENABLED": False}
+
+    worker.warm_up(Settings(**base))
+    worker.warm_up(Settings(**base, THOTH_FOOTAGE_ENABLED=True, THOTH_EMBEDDING_MODEL_DIR=tmp_path))
+
+    assert calls == ["build_id", "build_id", tmp_path]

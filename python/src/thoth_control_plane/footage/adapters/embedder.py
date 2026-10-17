@@ -4,6 +4,7 @@ model's `1_Pooling/config.json` says, then unit length. No network at run time."
 from __future__ import annotations
 
 import asyncio
+import functools
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,26 @@ def cosine(a: Sequence[float], b: Sequence[float]) -> float:
     return float(sum(x * y for x, y in zip(a, b, strict=True)))
 
 
+@functools.cache
+def load_model(directory: Path) -> tuple[Any, Any]:
+    """The tokenizer and ONNX session, built once per process: building the session holds the GIL
+    for about 2 s, past Temporal's deadlock limit, so the worker builds it before it polls."""
+    import onnxruntime
+    from tokenizers import Tokenizer
+
+    tokenizer = Tokenizer.from_file(str(directory / "tokenizer.json"))
+    tokenizer.enable_truncation(MAX_TOKENS)
+    tokenizer.enable_padding()
+    options = onnxruntime.SessionOptions()
+    options.intra_op_num_threads = ORT_THREADS
+    options.inter_op_num_threads = 1
+    options.add_session_config_entry("session.intra_op.allow_spinning", "0")
+    session = onnxruntime.InferenceSession(
+        str(directory / "model.onnx"), options, providers=["CPUExecutionProvider"]
+    )
+    return tokenizer, session
+
+
 class OnnxEmbedder:
     def __init__(self, directory: Path) -> None:
         self._dir = directory
@@ -31,20 +52,7 @@ class OnnxEmbedder:
         if missing(self._dir, EMBEDDING_FILES):
             raise ToolMissing("embedding_model_missing")
         if self._session is None:
-            import onnxruntime
-            from tokenizers import Tokenizer
-
-            tokenizer = Tokenizer.from_file(str(self._dir / "tokenizer.json"))
-            tokenizer.enable_truncation(MAX_TOKENS)
-            tokenizer.enable_padding()
-            self._tokenizer = tokenizer
-            options = onnxruntime.SessionOptions()
-            options.intra_op_num_threads = ORT_THREADS
-            options.inter_op_num_threads = 1
-            options.add_session_config_entry("session.intra_op.allow_spinning", "0")
-            self._session = onnxruntime.InferenceSession(
-                str(self._dir / "model.onnx"), options, providers=["CPUExecutionProvider"]
-            )
+            self._tokenizer, self._session = load_model(self._dir)
 
     def embed_sync(self, texts: Sequence[str]) -> list[list[float]]:
         # One text per run: no padding, so a vector never depends on its neighbours in a batch.
