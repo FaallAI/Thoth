@@ -1,6 +1,7 @@
-# UI Foundation (UI phases 0 and 1) Design
+# UI Foundation (UI phases 0 and 1) and Voice Adapter Design
 
-**Status:** design approved by the operator 2026-10-18; this spec awaits review.
+**Status:** approved by the operator 2026-10-18. The operator asked that the voice adapter from
+the auto-video research be added (section 9).
 **Roadmap:** priority 1 in `docs/ROADMAP.md`.
 **Origin:** the 2026-10-18 UI audit (operator copy at `D:/thoth-tmp/ui-audit/LAPORAN-AUDIT-UI.md`).
 
@@ -37,6 +38,8 @@ In scope:
    for the import gate.
 7. UI phase 0 clean-up: remove the placeholders and the misleading copy, and point the Vite
    `/api` proxy at port 8787.
+8. The voice adapter (section 9): a port with three providers and a CLI. It has no workflow,
+   API, or UI consumer yet; auto-draft slice 2 is its first consumer.
 
 Out of scope, each in its own later item of `docs/ROADMAP.md`:
 
@@ -325,6 +328,8 @@ dependency on the artifact root for this route.
 - the import gate's resolve-only mode;
 - each clean-up row is gone.
 
+**Voice adapter:** the tests in section 9.4.
+
 **Stack smoke:** `docker/test-renderer-offline.sh` gains three checks:
 `project_created_and_listed=true`, `project_workflows_listed=true` (an empty page, 200), and
 `edit_documents_listed=true` (the smoke's seeded document appears).
@@ -353,6 +358,9 @@ The deploy then runs:
    `thoth-control projects import -` in the `api` container. Expect `imported=1`.
 4. The dashboard runs through `vite dev` until UI phase 3, with the Rust server on 8787 for
    the legacy pages.
+5. **Voice adapter:** nothing is required at deploy. To use `voice say` in the worker, the
+   operator adds `THOTH_ELEVENLABS_API_KEY` (and optionally the `openai_compatible` settings)
+   to the worker's provider file.
 
 ## 8. Known limits
 
@@ -360,3 +368,104 @@ The deploy then runs:
   status stays `unknown` unless a stored summary exists. Its JSON reports still download.
 - Projects have no rename or delete in this phase.
 - Profiles and the Legacy Console work only for projects that exist in Rust.
+
+## 9. Voice adapter
+
+This section was added at the operator's request on 2026-10-18. The research behind it is
+`docs/research/2026-10-18-auto-video-engine-python-research.md`, sections 4 and 4a.
+
+### 9.1 Port (`thoth_control_plane/voice/ports.py`)
+
+**Models:**
+- **`VoiceRequest`:**
+  - `text` (1–5,000 characters);
+  - `language` (default `"id"`);
+  - `voice_id`;
+  - `model: str | None`;
+  - `speed` (0.7–1.5, default 1.0).
+- **`WordTiming`:** `text`, `start_seconds`, `end_seconds`.
+- **`SynthesizedVoice`:**
+  - `audio: bytes`;
+  - `media_type` (`audio/mpeg` or `audio/wav`);
+  - `duration_seconds`;
+  - `word_timings: list[WordTiming] | None`.
+
+**Interface:** `class VoiceSynthesizer(Protocol)` with
+`async def synthesize(self, request: VoiceRequest) -> SynthesizedVoice`.
+
+**Errors:**
+
+| Error | Raised when | Retryable |
+|---|---|---|
+| `VoiceUnavailable` | timeout, connection failure, HTTP 429 or 5xx | yes |
+| `VoiceRejected` | any other 4xx, such as an unknown voice or quota exhausted; carries the provider's error code, never the key | no |
+| `VoiceNotConfigured` | the provider has no credentials or base URL | no |
+
+A failed provider never falls back silently to another one. The caller, later a preset, chooses
+its fallback.
+
+`duration_seconds` comes from the timings when there are any. Otherwise PyAV, which is already
+installed, probes the audio.
+
+### 9.2 Providers (`thoth_control_plane/voice/adapters/`)
+
+**`elevenlabs.py`, the primary.** It sends
+`POST https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/with-timestamps?output_format=mp3_44100_128`
+with the header `xi-api-key` and a body of `text`, `model_id` (default `eleven_multilingual_v2`,
+the Rust engine's setting) and `voice_settings.speed`. `language_code` is not sent, because the
+v2 multilingual models ignore it.
+- The response's `audio_base64` is decoded.
+- `alignment` (characters with start and end seconds) becomes words. A word is a maximal run of
+  non-whitespace characters: its start is its first character's start, and its end is its last
+  character's end.
+- **Credential:** `THOTH_ELEVENLABS_API_KEY` (`SecretStr`).
+
+**`openai_compatible.py`.** It calls `openai.AsyncOpenAI(base_url=..., api_key=...)` and then
+`.audio.speech.create(model=..., voice=..., input=..., response_format="wav", speed=...,
+extra_body={"language": ...})`. It returns no word timings.
+- This one adapter serves VoiceStudio (`model` selects its engine, for example Supertonic-3),
+  OpenAI, and any other compatible server.
+- **Configuration:** `THOTH_VOICE_OPENAI_COMPATIBLE_BASE_URL` (`AnyHttpUrl`) and
+  `THOTH_VOICE_OPENAI_COMPATIBLE_API_KEY` (`SecretStr`, optional).
+
+**`edge.py`, the free fallback.** It uses
+`edge_tts.Communicate(text, voice, rate=..., boundary="WordBoundary")`. `stream()` yields audio
+chunks (MP3, 24 kHz) and `WordBoundary` events.
+- Each event's `offset` and `duration` (100-ns ticks) become a `WordTiming`.
+- It needs no credential.
+- **New dependency:** `edge-tts` (LGPL-3.0), in the worker's `acquisition` extra. It is
+  rate-limited and has no SLA, so it is for fallback and tests of a script, not volume.
+
+**`factory.py`:** `build_voice(settings, provider) -> VoiceSynthesizer`, where `provider` is one
+of `elevenlabs`, `openai_compatible` or `edge`. It raises `VoiceNotConfigured` for a provider
+without its settings.
+
+A direct Supertonic-3 adapter is not part of this phase. Supertonic-3 is reachable through
+`openai_compatible` when a VoiceStudio container runs, and a direct adapter is decided after the
+listening test.
+
+### 9.3 CLI
+
+```text
+thoth-control voice say --provider {elevenlabs,openai-compatible,edge} --voice VOICE_ID
+    [--model MODEL] [--speed 1.0] [--language id] (--text TEXT | --file PATH) --out AUDIO_PATH
+```
+
+- It writes the audio to `AUDIO_PATH` and the word timings to `AUDIO_PATH.words.json`, an empty
+  list when the provider has none.
+- It prints `provider=... duration_seconds=... words=N`.
+- An error prints its class and the provider's code and exits 1.
+- This is a live call, for the operator only. No test calls a provider.
+
+### 9.4 Tests
+
+All tests are offline; the conftest guard already blocks non-loopback traffic.
+- **ElevenLabs** through `httpx.MockTransport`: alignment to words (including punctuation and
+  repeated spaces), base64 decoding, the 401, 422 and 429 mapping, and that the key never
+  appears in an error.
+- **OpenAI-compatible** through a mocked transport: the request carries `model`, `voice`,
+  `speed` and `language`; WAV duration via PyAV; the mapping of 5xx and 4xx.
+- **Edge** with an injected fake `Communicate` stream: tick conversion and audio concatenation.
+- **Factory:** each unconfigured provider raises `VoiceNotConfigured`.
+- **CLI** with a fake adapter: both files are written, and the exit codes are correct.
+
