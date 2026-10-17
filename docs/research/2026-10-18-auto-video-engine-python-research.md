@@ -95,7 +95,7 @@ How it improves on the Rust flow:
 | Transcription with word timings | [faster-whisper](https://pypi.org/project/faster-whisper/), already installed | MIT | Runs today in the worker on CPU `int8`; `word_timestamps=True`. CTranslate2 is about 4x faster than reference Whisper on CPU, within ~0.5% WER at `int8` | whisper.cpp through Rust (Windows and CUDA) |
 | Alignment, only if faster-whisper's word timings fall short | [WhisperX](https://github.com/m-bain/whisperX) | BSD-2 | wav2vec2 forced alignment on top of faster-whisper. Indonesian alignment support must be verified first | — |
 | Voice, production | ElevenLabs (the current Rust setting), with MiniMax, Fish Audio and OpenAI behind one adapter | commercial APIs | Best Indonesian quality available today. Keeps the operator's voices | — |
-| Voice, free fallback | [edge-tts](https://pypi.org/project/edge-tts/) (`id-ID-ArdiNeural`, `id-ID-GadisNeural`) | open-source client of an unofficial service | No key. Already a Rust option | Not for volume: no SLA, IP rate limits answer 403 |
+| ~~Voice, free fallback~~ | ~~[edge-tts](https://pypi.org/project/edge-tts/)~~ | LGPL-3.0 client of an unofficial service | **Excluded by the operator (2026-10-18)** | No SLA; IP rate limits answer 403; can stop without notice |
 | Voice, self-hosted on CPU (candidate) | [Supertonic-3](https://huggingface.co/Supertone/supertonic-3) (Supertone) | SDK MIT, weights OpenRAIL-M (use restrictions, commercial use allowed) | ~99M-parameter ONNX, CPU-only by design, 31 languages including Indonesian, 44.1 kHz, 7 preset voices. Fits the CPU worker; needs an Indonesian listening test | — |
 | Voice, any OpenAI-compatible server | One `openai_compatible` adapter (`/v1/audio/speech`) | — | Covers [VoiceStudio](https://github.com/debpalash/VoiceStudio) (section 4a) and other self-hosted servers with no new code per engine | — |
 | Voice, self-hosted (later, GPU) | [grandhigh/Chatterbox-TTS-Indonesian](https://huggingface.co/grandhigh/Chatterbox-TTS-Indonesian) | Apache-2.0 | Indonesian fine-tune of Chatterbox with voice cloning. Quality not yet measured | [MMS-TTS ind](https://huggingface.co/facebook/mms-tts-ind): CC-BY-NC 4.0, 16 kHz. [Chatterbox Multilingual v3](https://www.resemble.ai/resources/chatterbox-multilingual-v3-tts-with-embedded-watermarking-for-25-languages): no Indonesian among its 25 languages. CosyVoice 3: no Indonesian. F5-TTS Indonesian fine-tunes: base weights' license to be checked before any use |
@@ -145,14 +145,14 @@ voice design, dubbing, transcription (WhisperX by default), dictation, and audio
   Supertonic-3 can also run directly from its MIT SDK, without the 2+ GB application.
 - **Never select its default OmniVoice weights for published videos** (CC-BY-NC).
 
-**Effect on the plan:** the TTS adapter has three implementations from slice 2 on:
+**Effect on the plan:** the TTS adapter has two implementations from slice 2 on:
 
 1. `elevenlabs`, the primary, with timestamps;
-2. `openai_compatible`, which serves VoiceStudio or any compatible server, chosen per preset;
-3. `edge`, the fallback.
+2. `openai_compatible`, which serves VoiceStudio or any compatible server, chosen per preset.
 
-Before Supertonic-3 or a VoiceStudio engine becomes a default, the operator runs a listening
-test of the same Indonesian script on ElevenLabs, edge-tts, and Supertonic-3.
+**Operator decision (2026-10-18): edge-tts is excluded, even as a fallback.** It is an unofficial
+service with no SLA that blocks IPs with 403, so narration could fail all at once. Before
+Supertonic-3 or a VoiceStudio engine becomes a default, the operator runs a listening test.
 
 ### Listening test, first pass (2026-10-18)
 
@@ -218,7 +218,7 @@ Each slice is its own spec, plan and PR.
 
 1. **Transcript:** a workflow activity transcribes the main video with the existing
    faster-whisper and writes `transcript.json` (words with times) as a report.
-2. **Voice:** a TTS adapter with three implementations (`elevenlabs` with timestamps, `openai_compatible` for VoiceStudio or another self-hosted server, `edge` as the fallback) and a
+2. **Voice:** a TTS adapter with two implementations (`elevenlabs` with timestamps, and `openai_compatible` for VoiceStudio or another self-hosted server; edge-tts is excluded) and a
    `voice` media artifact. Provider keys stay in the worker's provider file.
 3. **Script and presets:** the LLM script from the Content Set, transcript and preset. This
    includes the Rust Profiles → presets item.
