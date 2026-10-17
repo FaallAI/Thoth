@@ -28,40 +28,52 @@ step migrate
 "${compose[@]}" run --rm --no-deps api thoth-control editor migrate 2>&1 | tail -3
 step stop-worker
 "${compose[@]}" stop worker
-step import-reports
-# The importer exits 1 on invalid files or an unavailable store; capture that so the message
-# below prints instead of set -e ending the script silently.
-import_rc=0
-import_line=$("${compose[@]}" run --rm --no-deps api thoth-control reports import \
-    --artifact-root /var/lib/thoth/artifacts 2>&1 | tail -1) || import_rc=$?
-echo "$import_line"
-if [ "$import_rc" -ne 0 ]; then
-    echo "report import failed (exit $import_rc); the old worker stays stopped — decide, then re-run" >&2
-    exit 1
+# The artifact volume is no longer mounted (spec 2026-10-17, render storage). While its host
+# folder still exists, every import below reaches it through a one-off mount; each import is
+# idempotent, so an emptied folder only prints zero counts. The host folder belongs to the
+# container user, so its presence is the test, never a listing of its files.
+on_volume=(run --rm --no-deps -v "$data_root/artifacts:/var/lib/thoth/artifacts" api)
+if [ -d "$data_root/artifacts" ]; then
+    step import-reports
+    # The importer exits 1 on invalid files or an unavailable store; capture that so the
+    # message below prints instead of set -e ending the script silently.
+    import_rc=0
+    import_line=$("${compose[@]}" "${on_volume[@]}" thoth-control reports import \
+        --artifact-root /var/lib/thoth/artifacts 2>&1 | tail -1) || import_rc=$?
+    echo "$import_line"
+    if [ "$import_rc" -ne 0 ]; then
+        echo "report import failed (exit $import_rc); the old worker stays stopped — decide, then re-run" >&2
+        exit 1
+    fi
+    case "$import_line" in
+        *" invalid=0") ;;
+        *) echo "report import not clean; the old worker stays stopped — decide, then re-run" >&2
+           exit 1 ;;
+    esac
 fi
-case "$import_line" in
-    *" invalid=0") ;;
-    *) echo "report import not clean; the old worker stays stopped — decide, then re-run" >&2
-       exit 1 ;;
-esac
 step media-store
 mkdir -p "$data_root/minio"
 "${compose[@]}" up -d --wait minio 2>&1 | tail -3
-step import-media
-# Same guard as the report import: a failed or unclean import leaves the old worker stopped.
-media_rc=0
-media_line=$("${compose[@]}" run --rm --no-deps api thoth-control media import \
-    --artifact-root /var/lib/thoth/artifacts 2>&1 | tail -1) || media_rc=$?
-echo "$media_line"
-if [ "$media_rc" -ne 0 ]; then
-    echo "media import failed (exit $media_rc); the old worker stays stopped — decide, then re-run" >&2
-    exit 1
+if [ -d "$data_root/artifacts" ]; then
+    for mode in "" "--archive"; do
+        step "import-media${mode:+ $mode}"
+        # Same guard as the report import: a failed or unclean import leaves the old worker
+        # stopped. `$mode` is unquoted on purpose: empty means the plain media import.
+        media_rc=0
+        media_line=$("${compose[@]}" "${on_volume[@]}" thoth-control media import $mode \
+            --artifact-root /var/lib/thoth/artifacts 2>&1 | tail -1) || media_rc=$?
+        echo "$media_line"
+        if [ "$media_rc" -ne 0 ]; then
+            echo "media import failed (exit $media_rc); the old worker stays stopped — decide, then re-run" >&2
+            exit 1
+        fi
+        case "$media_line" in
+            *" invalid=0 mismatch=0") ;;
+            *) echo "media import not clean; the old worker stays stopped — decide, then re-run" >&2
+               exit 1 ;;
+        esac
+    done
 fi
-case "$media_line" in
-    *" invalid=0 mismatch=0") ;;
-    *) echo "media import not clean; the old worker stays stopped — decide, then re-run" >&2
-       exit 1 ;;
-esac
 step up
 "${compose[@]}" up -d --wait 2>&1 | tail -12
 step status

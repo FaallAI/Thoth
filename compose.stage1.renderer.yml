@@ -26,13 +26,11 @@ services:
     environment:
       THOTH_RENDERER_CONTROL_PLANE_URL: http://api:8000
       THOTH_RENDERER_INTERNAL_CREDENTIAL: ${THOTH_RENDERER_INTERNAL_CREDENTIAL:?set THOTH_RENDERER_INTERNAL_CREDENTIAL}
-      THOTH_CONTROL_PLANE_ARTIFACT_ROOT: /var/lib/thoth/artifacts
+      # The renderer's own work root, inside the container: it shares no volume and
+      # reaches assets and outputs only through the control plane's internal routes.
+      THOTH_CONTROL_PLANE_ARTIFACT_ROOT: /tmp/thoth-renderer
       THOTH_RENDERER_PORT: "8080"
       THOTH_RENDERER_VERSION: ${THOTH_RENDERER_VERSION:-remotion-4.0.523}
-    volumes:
-      - type: bind
-        source: ${THOTH_STAGE1_DATA_ROOT:?set THOTH_STAGE1_DATA_ROOT}/artifacts
-        target: /var/lib/thoth/artifacts
     # Every renderer route proves the control plane first, health included, so
     # the probe presents the same internal credential a dispatch would.
     healthcheck:
