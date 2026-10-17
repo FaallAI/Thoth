@@ -409,7 +409,7 @@ test("creates workflows with the v1 auth and idempotency headers", async () => {
     style: { preset_id: "news-vertical" },
     output: { format: "mp4", language: "id" },
     review: { require_publish_approval: true },
-  });
+  }, "key-1");
 
   expect(fetchMock).toHaveBeenCalledWith(
     "http://control-plane.test/api/v1/workflows",
@@ -417,7 +417,7 @@ test("creates workflows with the v1 auth and idempotency headers", async () => {
       method: "POST",
       headers: expect.objectContaining({
         Authorization: "Bearer secret",
-        "Idempotency-Key": expect.any(String),
+        "Idempotency-Key": "key-1",
       }),
     }),
   );
