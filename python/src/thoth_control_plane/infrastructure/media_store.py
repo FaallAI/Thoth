@@ -11,6 +11,7 @@ import hashlib
 import os
 import re
 import shutil
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
@@ -20,7 +21,8 @@ if TYPE_CHECKING:
 
 #: The same segment rule as `LocalArtifactRoot`: no dot-segment, separator, or colon.
 _SEGMENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-_PREFIX = "reports"
+#: Workflow media (`reports`), editor uploads, render inputs and outputs, and the volume archive.
+_PREFIXES = frozenset({"reports", "uploads", "renders", "work", "archive"})
 _CHUNK = 1024 * 1024
 
 
@@ -53,6 +55,12 @@ class MediaStore(Protocol):
 
     def list(self, prefix: str) -> list[str]: ...
 
+    def open_range(
+        self, location: str, start: int = 0, end: int | None = None
+    ) -> Iterator[bytes]: ...
+
+    def copy(self, source: str, destination: str) -> None: ...
+
     def check(self) -> None: ...
 
 
@@ -63,7 +71,7 @@ def checked_locator(location: str) -> str:
     segments = location.split("/")
     if (
         len(segments) < 2
-        or segments[0] != _PREFIX
+        or segments[0] not in _PREFIXES
         or not all(_SEGMENT.fullmatch(segment) for segment in segments)
     ):
         raise MediaLocatorInvalid("media_locator_invalid")
@@ -134,6 +142,31 @@ class LocalMediaStore:
             for path in base.rglob("*")
             if path.is_file() and not path.is_symlink() and not path.name.endswith(".part")
         )
+
+    def open_range(self, location: str, start: int = 0, end: int | None = None) -> Iterator[bytes]:
+        path = self._path(location)
+        if not path.is_file():
+            raise MediaUnavailable("media_unavailable")
+        return self._chunks(path, start, end)
+
+    @staticmethod
+    def _chunks(path: Path, start: int, end: int | None) -> Iterator[bytes]:
+        remaining = None if end is None else max(0, end - start + 1)
+        with path.open("rb") as reader:
+            reader.seek(start)
+            while remaining is None or remaining > 0:
+                chunk = reader.read(_CHUNK if remaining is None else min(_CHUNK, remaining))
+                if not chunk:
+                    return
+                if remaining is not None:
+                    remaining -= len(chunk)
+                yield chunk
+
+    def copy(self, source: str, destination: str) -> None:
+        origin = self._path(source)
+        if not origin.is_file():
+            raise MediaUnavailable("media_unavailable")
+        _copy(origin, self._path(destination))
 
     def check(self) -> None:
         if not self._root.is_dir():

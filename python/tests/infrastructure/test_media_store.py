@@ -133,7 +133,7 @@ def test_list_returns_the_locators_below_a_prefix(store, tmp_path: Path) -> None
         "reports/wf_a/c:x.mp4",
         "reports//x.mp4",
         "reports/.hidden/x.mp4",
-        "media/wf_a/x.mp4",
+        "secrets/wf_a/x.mp4",
         "reports",
         "reports/" + "a" * 600,
     ],
@@ -266,3 +266,41 @@ def test_the_production_client_verifies_tls_with_the_certifi_bundle() -> None:
     pool = store._client._http.connection_pool_kw
     assert pool["cert_reqs"] == "CERT_REQUIRED"
     assert pool["ca_certs"] == certifi.where()
+
+
+@pytest.mark.parametrize("prefix", ["uploads", "renders", "work", "archive"])
+def test_the_new_prefixes_are_valid_locators(store, tmp_path: Path, prefix: str) -> None:
+    location = f"{prefix}/job_1/output.mp4"
+    store.put_file(location, _file(tmp_path, "o.mp4", b"out"))
+    assert store.stat(location).size_bytes == 3
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "expected"),
+    [(0, None, b"0123456789"), (3, None, b"3456789"), (2, 5, b"2345"), (8, 99, b"89")],
+)
+def test_open_range_streams_the_requested_bytes(
+    store, tmp_path: Path, start: int, end: int | None, expected: bytes
+) -> None:
+    store.put_file(LOCATION, _file(tmp_path, "d.mp4", b"0123456789"))
+    assert b"".join(store.open_range(LOCATION, start, end)) == expected
+
+
+def test_open_range_of_an_absent_object_is_unavailable(store) -> None:
+    with pytest.raises(MediaUnavailable):
+        b"".join(store.open_range(LOCATION))
+
+
+def test_copy_keeps_the_bytes_and_the_digest(store, tmp_path: Path) -> None:
+    source = _file(tmp_path, "s.mp4", b"render-bytes")
+    store.put_file("work/rj_1/output.mp4", source)
+    store.copy("work/rj_1/output.mp4", "renders/rj_1/output.mp4")
+    copied = store.stat("renders/rj_1/output.mp4")
+    assert copied.size_bytes == len(b"render-bytes")
+    assert copied.sha256 == sha256_file(source)
+    assert store.stat("work/rj_1/output.mp4").size_bytes == len(b"render-bytes")  # source stays
+
+
+def test_copy_of_an_absent_object_is_unavailable(store) -> None:
+    with pytest.raises(MediaUnavailable):
+        store.copy("work/rj_1/output.mp4", "renders/rj_1/output.mp4")
