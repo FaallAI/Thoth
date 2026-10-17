@@ -909,3 +909,60 @@ async def test_a_report_store_outage_deletes_the_pushed_media(tmp_path: Path) ->
     assert result.failure is not None
     assert location in store.deleted
     assert not (store_root / location).exists()
+
+
+@pytest.mark.asyncio
+async def test_a_cancelled_report_write_keeps_the_pushed_media_and_removes_the_scratch(
+    tmp_path: Path,
+) -> None:
+    import threading
+
+    store_root = tmp_path / "store"
+    store_root.mkdir()
+    store = _RecordingStore(store_root)
+
+    class SlowReports:
+        def __init__(self) -> None:
+            self.entered, self.release = threading.Event(), threading.Event()
+
+        def put(self, location: str, kind: str, content: bytes) -> None:
+            self.entered.set()
+            self.release.wait(5)
+
+        def get(self, location: str) -> bytes | None:
+            return None
+
+    reports = SlowReports()
+    seen: list[Path] = []
+    configured = build_source_investigation_activity(
+        _settings(tmp_path), runner=_writing_runner(seen), reports=reports, media=store
+    )
+    task = asyncio.create_task(configured(INPUT))
+    assert await asyncio.to_thread(reports.entered.wait, 5)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    reports.release.set()
+    await asyncio.sleep(0.3)  # a background deleter, if any, has had time to run
+
+    # The report row may still commit in its thread, so its media must stay in the store.
+    assert store.deleted == []
+    assert store.stat(_FIXTURE_MEDIA).size_bytes == 10_100
+    assert not seen[0].exists()
+
+
+@pytest.mark.asyncio
+async def test_an_unsafe_media_locator_fails_without_a_retry(tmp_path: Path) -> None:
+    report = _load_fixture_report()
+    media = report.media[0].model_copy(update={"location": PurePosixPath("..\\outside.mp4")})
+    report = report.model_copy(update={"media": [media]})
+
+    async def runner(workflow_id: str, source_url: str, artifact_root: Path):
+        del workflow_id, source_url, artifact_root
+        return AcquisitionResult(report=report)
+
+    result = await build_source_investigation_activity(_settings(tmp_path), runner=runner)(INPUT)
+
+    assert result.failure is not None
+    assert result.failure.code == "artifact_persistence_failed"
+    assert result.failure.retryable is False

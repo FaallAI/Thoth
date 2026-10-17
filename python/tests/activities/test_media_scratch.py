@@ -74,3 +74,15 @@ def test_report_locations_cover_media_and_every_card() -> None:
     cards = [str(c.card.location) for c in report.comments if c.card]
     assert set(cards) <= set(every)
     assert media_locations(None) == []
+
+
+async def test_push_warns_about_recorded_files_it_cannot_find(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    import logging
+
+    async with MediaScratch(_store(tmp_path)) as scratch:
+        with caplog.at_level(logging.WARNING):
+            await scratch.push(["reports/wf_a/cards/no.png", "reports/wf_a/media/gone.mp4"])
+    assert "2 recorded media files" in caplog.text
+    assert "no.png" not in caplog.text and "wf_a" not in caplog.text

@@ -8,6 +8,7 @@ and the directory is removed when the activity leaves it, whatever the outcome.
 from __future__ import annotations
 
 import asyncio
+import logging
 import shutil
 import tempfile
 from collections.abc import Iterable
@@ -21,6 +22,8 @@ from thoth_control_plane.infrastructure.media_store import (
     MediaUnavailable,
     checked_locator,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def media_locations(report: SourceReport | None) -> list[str]:
@@ -74,12 +77,17 @@ class MediaScratch:
     async def push(self, locations: Iterable[str]) -> list[str]:
         """Upload each file this activity made; a locator with no file here is left out."""
         pushed: list[str] = []
+        missing = 0
         for location in dict.fromkeys(locations):
             path = self._path(location)
             if not path.is_file():
+                missing += 1
                 continue
             await asyncio.to_thread(self._store.put_file, location, path)
             pushed.append(location)
+        if missing:
+            # A count only: a locator carries the workflow id and the post's names.
+            logger.warning("media push skipped %d recorded media files with no local copy", missing)
         return pushed
 
     def _path(self, location: str) -> Path:
