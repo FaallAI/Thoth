@@ -104,6 +104,28 @@ services:
     restart: unless-stopped
     networks: [stage1-private]
 
+  minio:
+    # The official minio/minio image is no longer published; pgsty/minio rebuilds the same
+    # server (operator, 2026-10-17). Workflow media lives here (spec 2026-10-17).
+    image: pgsty/minio@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: ${THOTH_MEDIA_S3_ACCESS_KEY:?set THOTH_MEDIA_S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${THOTH_MEDIA_S3_SECRET_KEY:?set THOTH_MEDIA_S3_SECRET_KEY}
+      MINIO_BROWSER: "off"
+    volumes:
+      - type: bind
+        source: ${THOTH_STAGE1_DATA_ROOT:?set THOTH_STAGE1_DATA_ROOT}/minio
+        target: /data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+    networks: [stage1-private]
+
   api:
     image: ${THOTH_IMAGE:?set digest-qualified THOTH_IMAGE}
     user: "10001:10001"
@@ -120,6 +142,8 @@ services:
         condition: service_healthy
       editor-postgresql:
         condition: service_healthy
+      minio:
+        condition: service_healthy
     environment:
       THOTH_CONTROL_PLANE_API_KEY: ${THOTH_CONTROL_PLANE_API_KEY:?set THOTH_CONTROL_PLANE_API_KEY}
       THOTH_EDITOR_PREVIEW_SIGNING_KEY: ${THOTH_EDITOR_PREVIEW_SIGNING_KEY:?set THOTH_EDITOR_PREVIEW_SIGNING_KEY}
@@ -129,6 +153,10 @@ services:
       THOTH_TEMPORAL_TARGET: temporal:7233
       THOTH_TEMPORAL_NAMESPACE: thoth-stage1
       THOTH_CONTROL_PLANE_ARTIFACT_ROOT: /var/lib/thoth/artifacts
+      THOTH_MEDIA_S3_ENDPOINT: minio:9000
+      THOTH_MEDIA_S3_BUCKET: thoth-media
+      THOTH_MEDIA_S3_ACCESS_KEY: ${THOTH_MEDIA_S3_ACCESS_KEY:?set THOTH_MEDIA_S3_ACCESS_KEY}
+      THOTH_MEDIA_S3_SECRET_KEY: ${THOTH_MEDIA_S3_SECRET_KEY:?set THOTH_MEDIA_S3_SECRET_KEY}
       THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE: python_tiktok_with_legacy_fallback
       THOTH_PROMPT_PROVIDER_CATALOG: ${THOTH_PROMPT_PROVIDER_CATALOG:-[]}
       # Stage 5a content assembly; the worker refuses to start with it on and no ffmpeg.
@@ -166,11 +194,17 @@ services:
         condition: service_healthy
       legacy-cdp:
         condition: service_healthy
+      minio:
+        condition: service_healthy
     environment:
       THOTH_CONTROL_PLANE_API_KEY: ${THOTH_CONTROL_PLANE_API_KEY:?set THOTH_CONTROL_PLANE_API_KEY}
       THOTH_TEMPORAL_TARGET: temporal:7233
       THOTH_TEMPORAL_NAMESPACE: thoth-stage1
       THOTH_CONTROL_PLANE_ARTIFACT_ROOT: /var/lib/thoth/artifacts
+      THOTH_MEDIA_S3_ENDPOINT: minio:9000
+      THOTH_MEDIA_S3_BUCKET: thoth-media
+      THOTH_MEDIA_S3_ACCESS_KEY: ${THOTH_MEDIA_S3_ACCESS_KEY:?set THOTH_MEDIA_S3_ACCESS_KEY}
+      THOTH_MEDIA_S3_SECRET_KEY: ${THOTH_MEDIA_S3_SECRET_KEY:?set THOTH_MEDIA_S3_SECRET_KEY}
       THOTH_FFMPEG: /usr/bin/ffmpeg
       THOTH_FFPROBE: /usr/bin/ffprobe
       THOTH_CDP: http://legacy-cdp:18800

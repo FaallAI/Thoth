@@ -294,3 +294,34 @@ def test_a_down_store_while_writing_the_content_set_raises(tmp_path: Path, repor
     )
     with pytest.raises(ReportStoreUnavailable):
         asyncio.run(activity(ContentAssemblyActivityInput(workflow_id="wf_a")))
+
+
+def test_assembly_reads_the_main_video_from_the_store(tmp_path: Path, report_store) -> None:
+    from thoth_control_plane.infrastructure.media_store import LocalMediaStore
+
+    store_root = tmp_path / "store"
+    store_root.mkdir()
+    media = LocalMediaStore(store_root)
+    persist(report_store)
+    video = str(report(workflow_id="wf_a").media[0].location)
+    (tmp_path / "main.mp4").write_bytes(b"main-video")
+    media.put_file(video, tmp_path / "main.mp4")
+    roots: list[Path] = []
+
+    class Reading(FakeAssembler):
+        async def build(self, inputs: AssemblyInputs) -> ContentSet:
+            roots.append(inputs.artifact_root)
+            assert (inputs.artifact_root / video).read_bytes() == b"main-video"
+            return await super().build(inputs)
+
+    result = asyncio.run(
+        _run(
+            ContentAssemblyActivityInput(workflow_id="wf_a"),
+            tmp_path / "unused-root",
+            Reading(),
+            report_store,
+            media=media,
+        )
+    )
+    assert result.content_set is not None
+    assert roots and not roots[0].exists()

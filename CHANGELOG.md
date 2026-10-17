@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-17 - Workflow media in object storage (sub-project 1)
+
+Branch `feat/media-object-storage`. Spec `docs/superpowers/specs/2026-10-17-media-object-storage-design.md`, plan `docs/superpowers/plans/2026-10-17-media-object-storage.md`.
+
+**What changed:**
+- `infrastructure/media_store.py` holds the `MediaStore` port with `LocalMediaStore` and `build_media_store`; `infrastructure/s3_media_store.py` holds `S3MediaStore` on `minio` 7.2.x, which records each object's sha256 as metadata.
+- `activities/media_scratch.py`: each media activity works in a private directory laid out like the store. Acquisition, attribution (through `ACQUISITION_ROOT`), footage, and assembly pull what they read and push what they made.
+- Acquisition pushes its media before it stores the report; a failure deletes what it pushed.
+- The worker checks the store at startup, and `minio` is preloaded.
+- `thoth-control media import` copies the volume's media into the bucket and verifies it (`imported/present/invalid/mismatch`). `--remove-local` deletes only verified local copies.
+- `compose.stage1.local.yml` runs `minio` (`pgsty/minio`, pinned), and the deploy imports media before the new worker starts.
+- `make test-minio` and the CI quality job run the store contract against a throwaway MinIO.
+- Final review (fresh reviewer): one Important finding fixed. The footage service now publishes the admitted clips before it marks the run done (`FootageInputs.publish`), so a failed upload leaves the run open and the retry reopens the clips it cannot find. 14 Minor findings are deferred (ledger).
+
+**Verification (WSL):** `make lint` is clean; `make test` 3913 passed, 47 skipped, 0 failed (the 18 new skips are the `[s3]` contract cases); `make test-minio` 41 passed, 0 skipped, against `pgsty/minio` on loopback; `docker compose config --quiet` passes for the base stack and the renderer overlay with `.env.stage1.local.example`.
+
+**Next steps**
+1. PR, CI, merge (operator authorized the whole rollout, 2026-10-17).
+2. Add `THOTH_MEDIA_S3_ACCESS_KEY` and `THOTH_MEDIA_S3_SECRET_KEY` to `.env.stage1.local`, and pin the new digest.
+3. Run `make deploy`. Expect `invalid=0 mismatch=0`.
+4. One footage smoke: media in MinIO, none under `reports/<wf>/` on the volume, and zero `event loop stalled`.
+5. `media import --remove-local`.
+- Follow-ups: sub-project 2 (the renderer, `LocalArtifactRoot`, dropping the volume); Studio reads the footage artifact; attribution for reposts with no credit; Stage 5c; label the newly admitted calibration clips.
+
 ## 2026-10-17 - PR #17 deployed: zero event-loop stalls on a fresh worker
 
 **Deployed.** Master `481a364`, image `thoth@sha256:8f8cf9b6...86ca` (renderer pin unchanged).

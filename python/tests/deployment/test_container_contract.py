@@ -150,6 +150,10 @@ def test_container_workflow_pins_gates_tags_platform_and_digest_summary() -> Non
         "          THOTH_TEST_EMBEDDING_MODEL_DIR: ${{ runner.temp }}/models/embedding\n"
         "          THOTH_TEST_EDITOR_DATABASE_URL: postgresql://postgres:thoth@127.0.0.1:5432/postgres\n"
         '          THOTH_REQUIRE_POSTGRES_TESTS: "1"\n'
+        "          THOTH_TEST_MEDIA_S3_ENDPOINT: 127.0.0.1:9000\n"
+        "          THOTH_TEST_MEDIA_S3_ACCESS_KEY: thoth-test\n"
+        "          THOTH_TEST_MEDIA_S3_SECRET_KEY: thoth-test-secret\n"
+        '          THOTH_REQUIRE_MINIO_TESTS: "1"\n'
         '        run: uv run pytest -m "not live" -q'
     ) in workflow
     # The speech adapter tests fail without models (operator, 2026-10-13), so CI fetches them.

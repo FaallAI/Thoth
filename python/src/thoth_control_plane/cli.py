@@ -16,8 +16,11 @@ import typer
 from thoth_control_plane.application import ApprovalSubmission, RetryRequest
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain import WorkflowEvent, WorkflowRequest
+from thoth_control_plane.infrastructure.media_store import MediaStoreUnavailable
 from thoth_control_plane.infrastructure.report_store import ReportStore, ReportStoreUnavailable
+from thoth_control_plane.infrastructure.s3_media_store import S3MediaStore
 from thoth_control_plane.operations.editor_migrations import apply_editor_migrations
+from thoth_control_plane.operations.media_import import import_media, remove_local_media
 from thoth_control_plane.operations.report_import import import_reports
 from thoth_control_plane.operations.stage1_controlled_fallback import (
     GATE_IDS,
@@ -90,6 +93,44 @@ def reports_import(
         raise typer.Exit(1) from None
     typer.echo(f"imported={counts.imported} present={counts.present} invalid={counts.invalid}")
     if counts.invalid:
+        raise typer.Exit(1)
+
+
+media_app = typer.Typer(no_args_is_help=True)
+app.add_typer(media_app, name="media")
+
+
+@media_app.command("import")
+def media_import(
+    artifact_root: Annotated[Path, typer.Option("--artifact-root")],
+    remove_local: Annotated[bool, typer.Option("--remove-local")] = False,
+) -> None:
+    """Copy the volume's media into the S3 store and verify it; counts only."""
+    settings = Settings()
+    if not settings.THOTH_MEDIA_S3_ENDPOINT:
+        typer.echo("media store is not configured")
+        raise typer.Exit(1)
+    if not artifact_root.is_dir():
+        typer.echo("artifact root not found")
+        raise typer.Exit(1)
+    store = S3MediaStore.from_settings(settings)
+    try:
+        store.ensure_bucket()
+        if remove_local:
+            removal = remove_local_media(artifact_root, store)
+            typer.echo(f"removed={removal.removed} kept={removal.kept}")
+            if removal.kept:
+                raise typer.Exit(1)
+            return
+        counts = import_media(artifact_root, store)
+    except MediaStoreUnavailable:
+        typer.echo("media store unavailable")
+        raise typer.Exit(1) from None
+    typer.echo(
+        f"imported={counts.imported} present={counts.present} "
+        f"invalid={counts.invalid} mismatch={counts.mismatch}"
+    )
+    if counts.invalid or counts.mismatch:
         raise typer.Exit(1)
 
 

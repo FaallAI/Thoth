@@ -15,7 +15,7 @@ import shutil
 import time
 import unicodedata
 from collections import Counter
-from collections.abc import Callable, Coroutine, Iterable, Iterator, Sequence
+from collections.abc import Awaitable, Callable, Coroutine, Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -127,6 +127,9 @@ class FootageInputs:
     attribution: SourceAttribution | None
     original: SourceReport | None
     artifact_root: Path
+    # Uploads the admitted clips (spec 2026-10-17). It runs before the run is marked done:
+    # a failed upload leaves the run open, so the retry reopens the clips it cannot find.
+    publish: Callable[[], Awaitable[None]] | None = None
 
 
 def _main(inputs: FootageInputs) -> SourceReport:
@@ -233,6 +236,8 @@ class FootageBuilder:
             admitted = await asyncio.to_thread(self._store.admitted, workflow)
             status = "ok" if admitted else "none"
         await asyncio.to_thread(self._store.start_run, workflow, [])  # no-op once it exists
+        if inputs.publish is not None:
+            await inputs.publish()
         await asyncio.to_thread(self._store.finish_run, workflow, status)
         return await self._result(workflow, status)
 
@@ -484,6 +489,8 @@ class FootageBuilder:
                     admitted[candidate.query] += 1
                     total += 1
         status: FootageStatus = "ok" if total else "none"
+        if inputs.publish is not None:
+            await inputs.publish()
         await asyncio.to_thread(self._store.finish_run, workflow, status)
         return await self._result(workflow, status)
 

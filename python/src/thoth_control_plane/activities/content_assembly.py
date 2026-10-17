@@ -24,6 +24,7 @@ from pydantic import Field, model_validator
 from temporalio import activity
 
 from thoth_control_plane.acquisition.models import SourceReport
+from thoth_control_plane.activities.media_scratch import MediaScratch, media_locations
 from thoth_control_plane.assembly.models import ContentSet
 from thoth_control_plane.assembly.ports import AssemblyError
 from thoth_control_plane.assembly.service import AssemblyInputs
@@ -31,6 +32,11 @@ from thoth_control_plane.attribution.models import SourceAttribution
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain import ArtifactRef
 from thoth_control_plane.domain.models import OpaqueId, SourceProgressEvent, StrictModel
+from thoth_control_plane.infrastructure.media_store import (
+    LocalMediaStore,
+    MediaStore,
+    build_media_store,
+)
 from thoth_control_plane.infrastructure.report_store import Reports, connect_reports, read_report
 
 logger = logging.getLogger(__name__)
@@ -111,6 +117,9 @@ async def _run(
     artifact_root: Path,
     assembler: Assembler,
     reports: Reports,
+    *,
+    media: MediaStore | None = None,
+    scratch_dir: Path | None = None,
 ) -> ContentAssemblyActivityResult:
     started = time.monotonic()
     folder = PurePosixPath("reports") / input_.workflow_id
@@ -119,23 +128,29 @@ async def _run(
         logger.warning("content assembly skipped; no stage 3 report for this workflow")
         return _failed("source_report_missing", started)
 
-    inputs = AssemblyInputs(
-        workflow_id=input_.workflow_id,
-        report=report,
-        attribution=await _attribution(reports, input_.attribution),
-        original=await _original(reports, input_.original_report),
-        artifact_root=artifact_root,
-    )
-    heartbeat = asyncio.create_task(_heartbeat())
-    try:
-        content_set = await assembler.build(inputs)
-    except AssemblyError as error:
-        logger.warning("content assembly failed: %s", error.code)
-        return _failed(error.code, started)
-    finally:
-        heartbeat.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await heartbeat
+    attribution = await _attribution(reports, input_.attribution)
+    original = await _original(reports, input_.original_report)
+    store = media or LocalMediaStore(artifact_root)
+    async with MediaScratch(store, scratch_dir) as scratch:
+        # The main is the post or, when attribution replaced it, the original.
+        await scratch.pull([*media_locations(report), *media_locations(original)])
+        inputs = AssemblyInputs(
+            workflow_id=input_.workflow_id,
+            report=report,
+            attribution=attribution,
+            original=original,
+            artifact_root=scratch.root,
+        )
+        heartbeat = asyncio.create_task(_heartbeat())
+        try:
+            content_set = await assembler.build(inputs)
+        except AssemblyError as error:
+            logger.warning("content assembly failed: %s", error.code)
+            return _failed(error.code, started)
+        finally:
+            heartbeat.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await heartbeat
 
     content = content_set.model_dump_json(indent=2).encode("utf-8")
     location = folder / CONTENT_SET_FILE
@@ -207,16 +222,29 @@ async def assemble_content(input_: ContentAssemblyActivityInput) -> ContentAssem
 
 
 def build_content_assembly_activity(
-    settings: Settings, *, assembler: Assembler | None = None, reports: Reports | None = None
+    settings: Settings,
+    *,
+    assembler: Assembler | None = None,
+    reports: Reports | None = None,
+    media: MediaStore | None = None,
 ) -> Callable[[ContentAssemblyActivityInput], Awaitable[ContentAssemblyActivityResult]]:
     artifact_root = settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT.resolve()
     selected = assembler or build_production_assembler(settings)
     selected_reports = reports or connect_reports(settings)
+    selected_media = media or build_media_store(settings)
+    scratch_dir = settings.THOTH_MEDIA_SCRATCH_DIR
 
     @activity.defn(name="assemble_content")
     async def configured_content_assembly_activity(
         input_: ContentAssemblyActivityInput,
     ) -> ContentAssemblyActivityResult:
-        return await _run(input_, artifact_root, selected, selected_reports)
+        return await _run(
+            input_,
+            artifact_root,
+            selected,
+            selected_reports,
+            media=selected_media,
+            scratch_dir=scratch_dir,
+        )
 
     return configured_content_assembly_activity

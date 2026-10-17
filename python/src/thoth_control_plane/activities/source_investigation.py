@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import logging
 import tempfile
+import threading
 from collections.abc import Awaitable, Callable, Mapping
 from hashlib import sha256
 from pathlib import Path, PurePosixPath
@@ -32,10 +33,10 @@ from thoth_control_plane.acquisition.models import (
     AcquisitionResult,
     AcquisitionStrategy,
     AttemptStatus,
-    SourceReport,
 )
 from thoth_control_plane.acquisition.platforms import platform_of
 from thoth_control_plane.acquisition.registry import acquirer_for
+from thoth_control_plane.activities.media_scratch import MediaScratch, report_media_locations
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain import (
     ArtifactRef,
@@ -46,6 +47,14 @@ from thoth_control_plane.domain.models import (
     SafeActivityError,
     SourceProgressEvent,
     StrictModel,
+)
+from thoth_control_plane.infrastructure.media_store import (
+    LocalMediaStore,
+    MediaLocatorInvalid,
+    MediaStore,
+    MediaStoreUnavailable,
+    MediaUnavailable,
+    build_media_store,
 )
 from thoth_control_plane.infrastructure.report_store import (
     ReportInvalid,
@@ -216,28 +225,17 @@ def _terminal_events(
     ]
 
 
-def _cleanup_after_persistence_failure(report: SourceReport, artifact_root: Path) -> None:
-    """Remove every media and card file the report recorded.
+def _forget_media(media: MediaStore, locations: list[str]) -> None:
+    """Delete every pushed file of a report that was not stored.
 
-    Artifact locations are validated as `PurePosixPath` (POSIX separators only),
-    but a Windows-style backslash string can slip past that check as a single
-    opaque segment and then, once joined with a real `Path`, resolve to an
-    absolute path or a `..` escape outside `artifact_root`. Only unlink
-    candidates that resolve inside the artifact root; skip anything else.
+    An unsafe locator (a backslash or `..` string that slipped past the report's
+    `PurePosixPath` check) was refused before anything was pushed, so it is never
+    turned into a key here either; a store that is down keeps what it has, and the
+    next attempt overwrites it.
     """
-    resolved_root = artifact_root.resolve()
-    locations = [media.location for media in report.media]
-    locations += [comment.card.location for comment in report.comments if comment.card]
-    if report.profile_card is not None:
-        locations.append(report.profile_card.location)
-    if report.post_card is not None:
-        locations.append(report.post_card.location)
     for location in locations:
-        candidate = (artifact_root / location).resolve()
-        if not candidate.is_relative_to(resolved_root):
-            continue
-        with contextlib.suppress(OSError):
-            candidate.unlink(missing_ok=True)
+        with contextlib.suppress(MediaLocatorInvalid, MediaStoreUnavailable):
+            media.delete(location)
 
 
 async def _run(
@@ -246,8 +244,12 @@ async def _run(
     runner: AcquisitionRunner,
     capability: ScraplingCapability,
     reports: Reports,
+    *,
+    media: MediaStore | None = None,
+    scratch_dir: Path | None = None,
 ) -> SourceInvestigationActivityResult:
-    """Run the injected acquisition runner and store its report in PostgreSQL."""
+    """Run the injected acquisition runner in a scratch directory, push its media to the
+    store, and store its report in PostgreSQL."""
     platform = platform_of(str(input_.canonical_source_url))
     if platform is None:
         # The workflow guard routes only Python platforms here; anything else is
@@ -275,83 +277,98 @@ async def _run(
             events=_terminal_events([], artifact_root, input_.workflow_id, platform),
         )
 
-    try:
-        acquisition_result = await runner(
-            input_.workflow_id, str(input_.canonical_source_url), artifact_root
+    store = media or LocalMediaStore(artifact_root)
+    async with MediaScratch(store, scratch_dir) as scratch:
+        # The runner writes below the scratch root; cleanup evidence inspects it
+        # before the scratch directory is removed.
+        root = scratch.root
+        try:
+            acquisition_result = await runner(
+                input_.workflow_id, str(input_.canonical_source_url), root
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # Defense in depth: if the capability gate above is ever bypassed, a
+            # raw exception (e.g. the lazy Scrapling ImportError) must not carry
+            # its message into Temporal history. Nothing derived from the
+            # exception crosses this boundary -- only a fixed, safe code. The
+            # runner boundary was still entered, so cleanup evidence is owed
+            # even though no acquisition attempt ever completed.
+            return SourceInvestigationActivityResult(
+                failure=SafeActivityError(code="acquisition_runner_failed", retryable=False),
+                events=_terminal_events([], root, input_.workflow_id, platform),
+            )
+
+        if acquisition_result.failure is not None:
+            return SourceInvestigationActivityResult(
+                failure=SafeActivityError(
+                    code=acquisition_result.failure.code,
+                    retryable=acquisition_result.failure.retryable,
+                ),
+                events=_terminal_events(
+                    acquisition_result.failure.attempts,
+                    root,
+                    input_.workflow_id,
+                    platform,
+                    acquisition_result.account,
+                ),
+            )
+
+        report = acquisition_result.report
+        assert report is not None  # AcquisitionResult guarantees exactly one outcome
+
+        # Ruling F-4a: the report artifact location is derived solely from the
+        # activity input's workflow_id, never from the report body.
+        location = PurePosixPath("reports") / input_.workflow_id / "source-report.json"
+        content = report.model_dump_json(indent=2, exclude_none=False).encode("utf-8")
+        recorded = report_media_locations(report)
+
+        try:
+            # Media first: a stored report must never point at media the store lacks.
+            await scratch.push(recorded)
+            await asyncio.to_thread(reports.put, location.as_posix(), "source_report", content)
+        except asyncio.CancelledError:
+            # Not awaited: a cancelled activity must not block its loop on the store.
+            threading.Thread(target=_forget_media, args=(store, recorded), daemon=True).start()
+            raise
+        except (
+            MediaStoreUnavailable,
+            MediaUnavailable,
+            MediaLocatorInvalid,
+            ReportStoreUnavailable,
+            ReportInvalid,
+        ):
+            await asyncio.to_thread(_forget_media, store, recorded)
+            return SourceInvestigationActivityResult(
+                failure=SafeActivityError(code="artifact_persistence_failed", retryable=True),
+                events=_terminal_events(
+                    report.outcome.attempts,
+                    root,
+                    input_.workflow_id,
+                    platform,
+                    acquisition_result.account,
+                ),
+            )
+
+        digest = sha256(content).hexdigest()
+        artifact = ArtifactRef(
+            artifact_id=f"art_source_{digest[:20]}",
+            kind="source_report",
+            label="Source investigation report",
+            media_type="application/json",
+            location=location.as_posix(),
+            checksum=f"sha256:{digest}",
+            size_bytes=len(content),
         )
-    except asyncio.CancelledError:
-        raise
-    except Exception:
-        # Defense in depth: if the capability gate above is ever bypassed, a
-        # raw exception (e.g. the lazy Scrapling ImportError) must not carry
-        # its message into Temporal history. Nothing derived from the
-        # exception crosses this boundary -- only a fixed, safe code. The
-        # runner boundary was still entered, so cleanup evidence is owed
-        # even though no acquisition attempt ever completed.
-        return SourceInvestigationActivityResult(
-            failure=SafeActivityError(code="acquisition_runner_failed", retryable=False),
-            events=_terminal_events([], artifact_root, input_.workflow_id, platform),
+        events = _terminal_events(
+            report.outcome.attempts,
+            root,
+            input_.workflow_id,
+            platform,
+            acquisition_result.account,
         )
-
-    if acquisition_result.failure is not None:
-        return SourceInvestigationActivityResult(
-            failure=SafeActivityError(
-                code=acquisition_result.failure.code,
-                retryable=acquisition_result.failure.retryable,
-            ),
-            events=_terminal_events(
-                acquisition_result.failure.attempts,
-                artifact_root,
-                input_.workflow_id,
-                platform,
-                acquisition_result.account,
-            ),
-        )
-
-    report = acquisition_result.report
-    assert report is not None  # AcquisitionResult guarantees exactly one outcome
-
-    # Ruling F-4a: the report artifact location is derived solely from the
-    # activity input's workflow_id, never from the report body.
-    location = PurePosixPath("reports") / input_.workflow_id / "source-report.json"
-    content = report.model_dump_json(indent=2, exclude_none=False).encode("utf-8")
-
-    try:
-        await asyncio.to_thread(reports.put, location.as_posix(), "source_report", content)
-    except asyncio.CancelledError:
-        _cleanup_after_persistence_failure(report, artifact_root)
-        raise
-    except (ReportStoreUnavailable, ReportInvalid):
-        _cleanup_after_persistence_failure(report, artifact_root)
-        return SourceInvestigationActivityResult(
-            failure=SafeActivityError(code="artifact_persistence_failed", retryable=True),
-            events=_terminal_events(
-                report.outcome.attempts,
-                artifact_root,
-                input_.workflow_id,
-                platform,
-                acquisition_result.account,
-            ),
-        )
-
-    digest = sha256(content).hexdigest()
-    artifact = ArtifactRef(
-        artifact_id=f"art_source_{digest[:20]}",
-        kind="source_report",
-        label="Source investigation report",
-        media_type="application/json",
-        location=location.as_posix(),
-        checksum=f"sha256:{digest}",
-        size_bytes=len(content),
-    )
-    events = _terminal_events(
-        report.outcome.attempts,
-        artifact_root,
-        input_.workflow_id,
-        platform,
-        acquisition_result.account,
-    )
-    return SourceInvestigationActivityResult(report=artifact, events=events)
+        return SourceInvestigationActivityResult(report=artifact, events=events)
 
 
 @activity.defn(name="inspect_source_candidates")
@@ -369,6 +386,7 @@ def build_source_investigation_activity(
     runner: AcquisitionRunner | None = None,
     capability: ScraplingCapability | Mapping[str, object] | None = None,
     reports: Reports | None = None,
+    media: MediaStore | None = None,
 ) -> Callable[
     [SourceInvestigationActivityInput],
     Awaitable[SourceInvestigationActivityResult],
@@ -379,13 +397,21 @@ def build_source_investigation_activity(
     selected_runner = runner or build_production_acquisition_runner(settings)
     selected_capability = _coerce_capability(capability)
     selected_reports = reports or connect_reports(settings)
+    selected_media = media or build_media_store(settings)
+    scratch_dir = settings.THOTH_MEDIA_SCRATCH_DIR
 
     @activity.defn(name="inspect_source_candidates")
     async def configured_source_investigation_activity(
         input_: SourceInvestigationActivityInput,
     ) -> SourceInvestigationActivityResult:
         return await _run(
-            input_, artifact_root, selected_runner, selected_capability, selected_reports
+            input_,
+            artifact_root,
+            selected_runner,
+            selected_capability,
+            selected_reports,
+            media=selected_media,
+            scratch_dir=scratch_dir,
         )
 
     return configured_source_investigation_activity
