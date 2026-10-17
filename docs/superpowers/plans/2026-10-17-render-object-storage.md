@@ -564,7 +564,7 @@ async def test_cleanup_deletes_the_output_and_work_objects_only(tmp_path):
     assert not (tmp_path / "renders/rj_1/output.mp4").exists()
     assert (tmp_path / "renders/rj_1/metadata.json").exists()
     assert (tmp_path / "renders/rj_1/diagnostics.json").exists()
-    assert not list((tmp_path / "work").rglob("*"))  or not (tmp_path / "work/rj_1").exists()
+    assert not (tmp_path / "work/rj_1").exists() or not any((tmp_path / "work/rj_1").iterdir())
 
 
 def test_read_bundle_returns_the_stored_bytes(tmp_path):
@@ -1499,7 +1499,7 @@ git commit -m "docs: record render and editor media in object storage"
 1. PR, CI green on every check, merge.
 2. Pin `THOTH_IMAGE` and `THOTH_RENDERER_IMAGE` from the master Publish job (`IMAGE_DIGEST`, `RENDERER_IMAGE_DIGEST`), back up `.env.stage1.local`, and `docker pull` both.
 3. Run `make deploy`. Expected:
-   - `import-media` `0/487/0/0`;
+   - `import-media` `imported=0 present=0 invalid=0 mismatch=0`, since the workflow media already moved;
    - `import-media --archive` `imported=<≈277> present=0 invalid=0 mismatch=0`;
    - every service healthy.
 4. One footage smoke, with zero `event loop stalled`.
