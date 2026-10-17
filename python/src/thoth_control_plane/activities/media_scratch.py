@@ -8,10 +8,11 @@ and the directory is removed when the activity leaves it, whatever the outcome.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import shutil
 import tempfile
-from collections.abc import Iterable
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 from pathlib import Path
 from types import TracebackType
 
@@ -39,6 +40,19 @@ def report_media_locations(report: SourceReport) -> list[str]:
         if card is not None:
             locations.append(str(card.location))
     return locations
+
+
+@contextlib.asynccontextmanager
+async def heartbeating(beat: Callable[[], Awaitable[None]]) -> AsyncIterator[None]:
+    """Keep the activity heartbeat running across everything inside, store I/O included: a
+    slow pull or push must not outlast Temporal's heartbeat timeout."""
+    task = asyncio.ensure_future(beat())
+    try:
+        yield
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
 
 
 class MediaScratch:

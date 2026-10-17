@@ -11,7 +11,6 @@ Temporal history.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 import re
 import time
@@ -24,7 +23,11 @@ from pydantic import Field, model_validator
 from temporalio import activity
 
 from thoth_control_plane.acquisition.models import SourceReport
-from thoth_control_plane.activities.media_scratch import MediaScratch, media_locations
+from thoth_control_plane.activities.media_scratch import (
+    MediaScratch,
+    heartbeating,
+    media_locations,
+)
 from thoth_control_plane.assembly.models import ContentSet
 from thoth_control_plane.assembly.ports import AssemblyError
 from thoth_control_plane.assembly.service import AssemblyInputs
@@ -131,7 +134,7 @@ async def _run(
     attribution = await _attribution(reports, input_.attribution)
     original = await _original(reports, input_.original_report)
     store = media or LocalMediaStore(artifact_root)
-    async with MediaScratch(store, scratch_dir) as scratch:
+    async with heartbeating(_heartbeat), MediaScratch(store, scratch_dir) as scratch:
         # The main is the post or, when attribution replaced it, the original.
         await scratch.pull([*media_locations(report), *media_locations(original)])
         inputs = AssemblyInputs(
@@ -141,16 +144,11 @@ async def _run(
             original=original,
             artifact_root=scratch.root,
         )
-        heartbeat = asyncio.create_task(_heartbeat())
         try:
             content_set = await assembler.build(inputs)
         except AssemblyError as error:
             logger.warning("content assembly failed: %s", error.code)
             return _failed(error.code, started)
-        finally:
-            heartbeat.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await heartbeat
 
     content = content_set.model_dump_json(indent=2).encode("utf-8")
     location = folder / CONTENT_SET_FILE

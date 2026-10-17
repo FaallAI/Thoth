@@ -325,3 +325,32 @@ def test_assembly_reads_the_main_video_from_the_store(tmp_path: Path, report_sto
     )
     assert result.content_set is not None
     assert roots and not roots[0].exists()
+
+
+def test_the_heartbeat_covers_the_assembly_pull(
+    tmp_path: Path, report_store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tests.activities.heartbeat_support import WatchedHeartbeat, WatchingStore
+    from thoth_control_plane.activities import content_assembly
+    from thoth_control_plane.infrastructure.media_store import LocalMediaStore
+
+    heartbeat = WatchedHeartbeat()
+    monkeypatch.setattr(content_assembly, "_heartbeat", heartbeat)
+    store_root = tmp_path / "store"
+    store_root.mkdir()
+    store = WatchingStore(store_root, heartbeat)
+    persist(report_store)
+    video = str(report(workflow_id="wf_a").media[0].location)
+    (tmp_path / "main.mp4").write_bytes(b"main-video")
+    LocalMediaStore(store_root).put_file(video, tmp_path / "main.mp4")
+
+    asyncio.run(
+        _run(
+            ContentAssemblyActivityInput(workflow_id="wf_a"),
+            tmp_path / "unused-root",
+            FakeAssembler(),
+            report_store,
+            media=store,
+        )
+    )
+    assert store.calls == [("fetch", True)]
