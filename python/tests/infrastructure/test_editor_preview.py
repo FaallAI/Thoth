@@ -5,16 +5,13 @@ from __future__ import annotations
 import base64
 import json
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 import pytest
 
 from thoth_control_plane.infrastructure.editor_preview import (
     EditorPreviewSigner,
-    PreviewArtifactInvalid,
     PreviewCapabilityExpired,
     PreviewCapabilityInvalid,
-    resolve_preview_path,
 )
 
 NOW = datetime(2026, 9, 19, 12, 0, 0, tzinfo=UTC)
@@ -130,47 +127,3 @@ def test_preview_capability_failures_never_carry_the_token(signer: EditorPreview
 def test_preview_signer_refuses_an_empty_signing_key() -> None:
     with pytest.raises(ValueError):
         EditorPreviewSigner(key="   ", ttl_seconds=300)
-
-
-def test_resolve_preview_path_returns_a_file_inside_the_artifact_root(tmp_path: Path) -> None:
-    media = tmp_path / "project_001"
-    media.mkdir()
-    (media / "asset_001.mp4").write_bytes(b"0123456789")
-
-    resolved = resolve_preview_path(tmp_path, "project_001/asset_001.mp4")
-
-    assert resolved.read_bytes() == b"0123456789"
-    assert resolved.parent == media
-
-
-@pytest.mark.parametrize(
-    "location",
-    [
-        "../secret.mp4",
-        "project_001/../../secret.mp4",
-        "/etc/passwd",
-        "C:/Windows/system32/config",
-        "\\\\server\\share\\clip.mp4",
-        "https://example.test/clip.mp4",
-        "project_001/asset_001.mp4?token=abc",
-        "",
-    ],
-)
-def test_resolve_preview_path_refuses_a_locator_outside_the_artifact_root(
-    tmp_path: Path, location: str
-) -> None:
-    with pytest.raises(PreviewArtifactInvalid):
-        resolve_preview_path(tmp_path, location)
-
-
-def test_resolve_preview_path_refuses_a_missing_file(tmp_path: Path) -> None:
-    with pytest.raises(PreviewArtifactInvalid):
-        resolve_preview_path(tmp_path, "project_001/absent.mp4")
-
-
-def test_resolve_preview_path_failures_never_carry_the_resolved_path(tmp_path: Path) -> None:
-    with pytest.raises(PreviewArtifactInvalid) as error:
-        resolve_preview_path(tmp_path, "project_001/absent.mp4")
-
-    assert str(tmp_path) not in f"{error.value!r} {error.value}"
-    assert "absent.mp4" not in f"{error.value!r} {error.value}"

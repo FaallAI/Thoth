@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-17 - Render and editor media in object storage (sub-project 2)
+
+Branch `feat/render-object-storage`. Spec `docs/superpowers/specs/2026-10-17-render-object-storage-design.md`, plan `docs/superpowers/plans/2026-10-17-render-object-storage.md`.
+
+**What changed:**
+- The store accepts the `uploads`, `renders`, `work`, and `archive` prefixes, and gains `open_range` and `copy`.
+- `api/ranged.py` serves one byte range for render downloads and editor previews.
+- `LocalArtifactRoot` keeps every persistent render and editor object in the media store:
+  - bundles and received outputs under `work/<job>/`;
+  - published renders and their records under `renders/<job>/`;
+  - uploads under `uploads/<project>/`.
+- New internal routes: `GET …/assets/{asset_id}` streams only an asset the job's bundle lists; `PUT …/output` takes the finished render, capped at 2 GiB, answering 413 above that.
+- The renderer downloads its assets and uploads its output through those routes before it reports `completed`. It keeps a container-local work root and holds no S3 credential.
+- `media import --archive` copies the volume's leftover report JSON and `legacy-scout/` into `archive/`, verified.
+- No service mounts the artifact volume. The deploy reaches it through a one-off mount while it still holds files.
+- Final review (fresh reviewer) fixes, each pinned by a test that failed first:
+  - `api` and `worker` keep `/var/lib/thoth/artifacts` as their local root, which the image creates. The planned `/tmp` root did not exist at start, so every editor upload would have answered 503.
+  - Store I/O runs off the event loop everywhere: upload publish and discard, render publish, bundle read, cleanup, staging, and every ranged or asset read.
+  - The offline smoke uploads its asset through the public route.
+  - The smoke's cancel and deadline checks look only for a leftover output.
+  - 9 of the 11 Minor findings are fixed too, each with a test written first. The fixes cover backwards and empty `Range` requests, a size call that never hashes, a best-effort `work/` cleanup after publish, a private partial file per upload (which also fixed a shared `.part` in `LocalMediaStore`), chunk writes off the loop, renderer transfers that stop with the render, an archive that takes only the report JSON, a smoke that rejects store keys in the renderer, and the preview route's declared response. The other two need no change (ledger).
+
+**Verification:**
+- WSL: `make lint` is clean; `make test` 3921 passed, 59 skipped, 0 failed; `make test-minio` 65 passed, 0 skipped.
+- Renderer: `bun run typecheck` is clean, and the three changed test files pass 77/77. On Windows the full renderer suite has 26 environment failures (no `ffmpeg.exe` in the worktree, the composition package's dependencies not installed), the same count before and after this branch.
+- The offline render smoke (`docker/test-renderer-offline.sh`, now with MinIO and no shared volume) runs in CI's Non-live stack smoke on the branch's published digests.
+
+**Next steps**
+1. PR, CI (its stack smoke runs the new offline render smoke), merge. Operator gate.
+2. Pin the new thoth and renderer digests, then `make deploy`. Operator gate.
+3. One footage smoke. Operator gate.
+4. `media import --archive --remove-local` through the one-off mount. Operator gate.
+- Follow-ups: Studio reads the footage artifact; attribution for reposts with no credit; Stage 5c; label the newly admitted calibration clips.
+
 ## 2026-10-17 - Media storage review minors fixed; PR #19 deployed
 
 **PR #19 deployed.**

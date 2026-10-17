@@ -13,13 +13,13 @@ is already rendering must refuse a new request rather than remember it.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import hashlib
 import json
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
 
@@ -39,6 +39,7 @@ from thoth_control_plane.application.render_bundles import (
 from thoth_control_plane.application.render_job_ports import (
     ArtifactRoot,
     ArtifactUnavailable,
+    ReceivedOutput,
     RenderBusy,
     RendererGateway,
     RendererNotConfigured,
@@ -91,9 +92,9 @@ class ListRenderJobsRequest(StrictModel):
 
 @dataclass(frozen=True)
 class DownloadableRender:
-    """One completed render resolved to a server-side file for streaming."""
+    """One completed render resolved to its stored object for streaming."""
 
-    path: Path
+    location: str
     media_type: str
     filename: str
     size_bytes: int
@@ -294,7 +295,7 @@ class RenderJobService:
             )
         except (RenderBusy, RenderIdempotencyConflict):
             # This request never owned a slot, so its workspace is dead weight.
-            self._discard(render_job_id)
+            await asyncio.to_thread(self._discard, render_job_id)
             raise
         if reserved.render_job_id != render_job_id:
             # An identical earlier request already owns this key and its render.
@@ -480,7 +481,50 @@ class RenderJobService:
             raise RenderJobNotActive()
         if job.artifacts_cleaned_at is not None or self._artifacts is None:
             raise ArtifactUnavailable()
-        return self._artifacts.read_bundle(job.render_job_id)
+        return await asyncio.to_thread(self._artifacts.read_bundle, job.render_job_id)
+
+    async def asset_location(self, render_job_id: str, asset_id: str) -> str:
+        """The stored asset a running job's bundle lists; anything else is not this job's."""
+        jobs = self._require_enabled()
+        job = await jobs.get_internal(render_job_id=render_job_id)
+        if job is None:
+            raise RenderJobNotFound()
+        if job.status not in ACTIVE_RENDER_STATUSES or self._artifacts is None:
+            raise ArtifactUnavailable()
+        bundle = json.loads(await asyncio.to_thread(self._artifacts.read_bundle, render_job_id))
+        if asset_id not in {entry.get("asset_id") for entry in bundle.get("assets", [])}:
+            raise ArtifactUnavailable()
+        assert self._assets is not None  # _require_enabled checked it
+        records = await self._assets.get_ready_records(
+            project_id=job.project_id, asset_ids=(asset_id,)
+        )
+        if len(records) != 1:
+            raise ArtifactUnavailable()
+        return records[0].artifact_location
+
+    async def receive_output(
+        self, render_job_id: str, chunks: AsyncIterator[bytes]
+    ) -> ReceivedOutput:
+        """Take one renderer upload into the store; publish verifies it on `completed`."""
+        jobs = self._require_enabled()
+        job = await jobs.get_internal(render_job_id=render_job_id)
+        if job is None:
+            raise RenderJobNotFound()
+        if job.status not in ACTIVE_RENDER_STATUSES or self._artifacts is None:
+            raise RenderJobNotActive()
+        return await self._artifacts.receive_output(
+            render_job_id, chunks, max_bytes=self._settings.max_output_bytes
+        )
+
+    def object_size(self, location: str) -> int:
+        if self._artifacts is None:
+            raise ArtifactUnavailable()
+        return self._artifacts.object_size(location)
+
+    def read_object(self, location: str, start: int, end: int | None) -> Iterator[bytes]:
+        if self._artifacts is None:
+            raise ArtifactUnavailable()
+        return self._artifacts.read_object(location, start, end)
 
     # --- events -----------------------------------------------------------
 
@@ -491,7 +535,8 @@ class RenderJobService:
         if job is None:
             raise RenderJobNotFound()
         if event.status == "completed" and self._is_applicable(job, event):
-            event = self._publish(job, event)
+            # Publication reads, writes, and copies stored objects: off the event loop.
+            event = await asyncio.to_thread(self._publish, job, event)
         now = self._clock()
         return await jobs.apply_event(render_job_id=render_job_id, event=event, now=now)
 
@@ -577,9 +622,9 @@ class RenderJobService:
             or self._artifacts is None
         ):
             raise ArtifactUnavailable()
-        path = self._artifacts.resolve_download(job.render_job_id, job.output_relative_path)
+        location = self._artifacts.resolve_download(job.render_job_id, job.output_relative_path)
         return DownloadableRender(
-            path=path,
+            location=location,
             media_type=job.output.media_type,
             filename=f"{job.render_job_id}.mp4",
             size_bytes=job.output.size_bytes,
@@ -596,7 +641,7 @@ class RenderJobService:
             return job
         if self._artifacts is None:
             raise ArtifactUnavailable()
-        self._artifacts.cleanup(job.render_job_id)
+        await asyncio.to_thread(self._artifacts.cleanup, job.render_job_id)
         return await jobs.mark_cleaned(
             project_id=project_id, render_job_id=render_job_id, now=self._clock()
         )

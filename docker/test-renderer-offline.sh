@@ -55,11 +55,9 @@ validate_root || {
     echo "refusing to run without a validated temporary root" >&2
     exit 1
 }
-# The container user owns everything it writes below the artifact root, so that
-# one directory is group- and world-traversable while its parent stays private.
-chmod 711 "$work_root"
-mkdir -p "$work_root/artifacts"
-chmod 777 "$work_root/artifacts"
+# No service shares a volume (spec 2026-10-17, render storage): the root holds only the
+# harness's own files, so it stays private.
+chmod 700 "$work_root"
 
 compose() {
     docker compose \
@@ -79,9 +77,6 @@ teardown() {
             ;;
     esac
     if [ -f "$work_root/stack.yml" ]; then
-        # The renderer writes as its own UID, so its own image removes its work.
-        compose run --rm --no-deps --user 0:0 --entrypoint /bin/sh -T api \
-            -c 'find /var/lib/thoth/artifacts -mindepth 1 -delete' >/dev/null 2>&1 || true
         compose down --volumes --remove-orphans --timeout 10 >/dev/null 2>&1 || true
     fi
     if validate_root; then
@@ -105,6 +100,8 @@ db_password=$(openssl rand -hex 24)
 api_key=$(openssl rand -hex 24)
 preview_key=$(openssl rand -hex 24)
 renderer_credential=$(openssl rand -hex 24)
+minio_user="thoth-smoke-$(openssl rand -hex 6)"
+minio_password=$(openssl rand -hex 24)
 project_id="proj_$(openssl rand -hex 8)"
 document_id="doc_$(openssl rand -hex 8)"
 long_document_id="doc_$(openssl rand -hex 8)"
@@ -118,6 +115,8 @@ asset_id="asset_$(openssl rand -hex 8)"
     echo "SMOKE_PREVIEW_KEY=${preview_key}"
     echo "SMOKE_RENDERER_CREDENTIAL=${renderer_credential}"
     echo "SMOKE_RENDER_MAX_SECONDS=${render_timeout}"
+    echo "SMOKE_MINIO_USER=${minio_user}"
+    echo "SMOKE_MINIO_PASSWORD=${minio_password}"
 } > "$work_root/harness.env"
 
 # A private network with no gateway: a render that tried to reach the internet
@@ -174,6 +173,20 @@ services:
       retries: 60
       start_period: 20s
 
+  minio:
+    image: pgsty/minio@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: ${SMOKE_MINIO_USER:?}
+      MINIO_ROOT_PASSWORD: ${SMOKE_MINIO_PASSWORD:?}
+      MINIO_BROWSER: "off"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 5s
+
   api:
     image: ${SMOKE_IMAGE:?}
     user: "10001:10001"
@@ -197,13 +210,13 @@ services:
       THOTH_TEMPORAL_NAMESPACE: thoth-stage1
       THOTH_EDITOR_DATABASE_URL: "postgresql://thoth_editor:${SMOKE_DB_PASSWORD:?}@editor-postgresql:5432/thoth_editor"
       THOTH_CONTROL_PLANE_ARTIFACT_ROOT: /var/lib/thoth/artifacts
+      THOTH_MEDIA_S3_ENDPOINT: minio:9000
+      THOTH_MEDIA_S3_BUCKET: thoth-media
+      THOTH_MEDIA_S3_ACCESS_KEY: ${SMOKE_MINIO_USER:?}
+      THOTH_MEDIA_S3_SECRET_KEY: ${SMOKE_MINIO_PASSWORD:?}
       THOTH_RENDERER_INTERNAL_URL: http://remotion-renderer:8080
       THOTH_RENDERER_INTERNAL_CREDENTIAL: ${SMOKE_RENDERER_CREDENTIAL:?}
       THOTH_RENDER_MAX_SECONDS: "900"
-    volumes:
-      - type: bind
-        source: ${SMOKE_ARTIFACT_ROOT:?}
-        target: /var/lib/thoth/artifacts
     healthcheck:
       test:
         - CMD-SHELL
@@ -222,13 +235,9 @@ services:
     environment:
       THOTH_RENDERER_CONTROL_PLANE_URL: http://api:8000
       THOTH_RENDERER_INTERNAL_CREDENTIAL: ${SMOKE_RENDERER_CREDENTIAL:?}
-      THOTH_CONTROL_PLANE_ARTIFACT_ROOT: /var/lib/thoth/artifacts
+      THOTH_CONTROL_PLANE_ARTIFACT_ROOT: /tmp/thoth-renderer
       THOTH_RENDERER_PORT: "8080"
       THOTH_RENDER_MAX_SECONDS: ${SMOKE_RENDER_MAX_SECONDS:?}
-    volumes:
-      - type: bind
-        source: ${SMOKE_ARTIFACT_ROOT:?}
-        target: /var/lib/thoth/artifacts
     healthcheck:
       test:
         - CMD-SHELL
@@ -246,7 +255,6 @@ networks:
     internal: true
 STACK
 
-echo "SMOKE_ARTIFACT_ROOT=${work_root}/artifacts" >> "$work_root/harness.env"
 
 # The whole control-plane conversation happens inside the API container, so no
 # credential and no payload ever crosses the host boundary.
@@ -272,10 +280,16 @@ from pathlib import Path
 import psycopg
 from psycopg.types.json import Jsonb
 
+from thoth_control_plane.config import Settings
 from thoth_control_plane.domain.edit_document_v2 import EditDocumentV2
+from thoth_control_plane.infrastructure.media_store import MediaUnavailable, build_media_store
 
 BASE = "http://127.0.0.1:8000/api/v1"
-ROOT = Path("/var/lib/thoth/artifacts")
+#: The control plane's own media store: the smoke seeds and reads objects, never a volume.
+STORE = build_media_store(Settings())
+#: The clip the harness generated inside this container, and where a render downloads to.
+ASSET_FILE = Path("/tmp/smoke-asset.mp4")
+OUTPUT_FILE = Path("/tmp/smoke-output.mp4")
 API_KEY = os.environ["THOTH_CONTROL_PLANE_API_KEY"]
 DATABASE_URL = os.environ["THOTH_EDITOR_DATABASE_URL"]
 PROJECT_ID = os.environ["SMOKE_PROJECT_ID"]
@@ -332,7 +346,7 @@ def document(document_id, frames, asset_frames=None):
                 "fps": 30.0,
                 "has_audio": True,
                 "validation_state": "ready",
-                "checksum": checksum_of(ROOT / "media" / f"{ASSET_ID}.mp4"),
+                "checksum": checksum_of(ASSET_FILE),
             }
         ]
     track["clip_ids"] = ["cl_only"]
@@ -373,7 +387,7 @@ def seed(document_id, frames, asset_frames):
     with psycopg.connect(DATABASE_URL) as connection:
         cursor = connection.cursor()
         if asset_frames is not None:
-            source = ROOT / "media" / f"{ASSET_ID}.mp4"
+            source = ASSET_FILE
             cursor.execute(
                 """
                 INSERT INTO editor_assets
@@ -387,7 +401,7 @@ def seed(document_id, frames, asset_frames):
                 (
                     PROJECT_ID,
                     ASSET_ID,
-                    f"media/{ASSET_ID}.mp4",
+                    asset_location(),
                     asset_frames,
                     checksum_of(source),
                 ),
@@ -468,8 +482,48 @@ def history(expected):
     print("ok")
 
 
-def published(render_job_id):
-    return ROOT / "renders" / render_job_id / "output.mp4"
+def asset_location():
+    return f"uploads/{PROJECT_ID}/{ASSET_ID}.mp4"
+
+
+def upload():
+    """Upload the generated clip through the public route, exactly as the Studio does, and
+    print the asset id the control plane assigned."""
+    request = urllib.request.Request(
+        f"{BASE}/projects/{PROJECT_ID}/editor-assets",
+        data=ASSET_FILE.read_bytes(),
+        method="POST",
+    )
+    request.add_header("Authorization", "Bearer " + API_KEY)
+    request.add_header("Content-Type", "video/mp4")
+    with urllib.request.urlopen(request, timeout=120) as response:
+        if response.status != 201:
+            raise SystemExit(f"upload returned {response.status}")
+        asset = json.loads(response.read())
+    if not STORE.stat(f"uploads/{PROJECT_ID}/{asset['asset_id']}.mp4").size_bytes:
+        raise SystemExit("the upload is not in the store")
+    print(asset["asset_id"])
+
+
+def fetch(render_job_id):
+    """Download the published render through the public route, as a browser would."""
+    request = urllib.request.Request(
+        f"{BASE}/projects/{PROJECT_ID}/render-jobs/{render_job_id}/output", method="GET"
+    )
+    request.add_header("Authorization", "Bearer " + API_KEY)
+    with urllib.request.urlopen(request, timeout=120) as response:
+        if response.status != 200:
+            raise SystemExit(f"download returned {response.status}")
+        OUTPUT_FILE.write_bytes(response.read())
+    print("ok")
+
+
+def stored(render_job_id):
+    """The published render is an object in the store, exactly the size the job records."""
+    output = read(render_job_id)["output"]
+    if STORE.stat(f"renders/{render_job_id}/output.mp4").size_bytes != output["size_bytes"]:
+        raise SystemExit("stored render size disagrees")
+    print("ok")
 
 
 def verify(render_job_id, expected_seconds):
@@ -477,10 +531,7 @@ def verify(render_job_id, expected_seconds):
     probe = json.loads(os.environ["SMOKE_PROBE"])
     job = read(render_job_id)
     output = job["output"]
-    path = published(render_job_id)
-    root = ROOT.resolve(strict=True)
-    if not path.resolve(strict=True).is_relative_to(root):
-        raise SystemExit("published output escaped the artifact root")
+    path = OUTPUT_FILE
 
     container = probe["format"]["format_name"]
     if "mp4" not in container.split(","):
@@ -517,10 +568,18 @@ def failure(render_job_id):
 
 def absent(render_job_id):
     """A cancelled or timed-out render publishes nothing and keeps no half-render."""
-    leftovers = [published(render_job_id), ROOT / "temp" / render_job_id / "output.mp4"]
-    present = [path for path in leftovers if path.exists()]
-    if present:
-        raise SystemExit(f"left {len(present)} outputs behind")
+    try:
+        STORE.stat(f"renders/{render_job_id}/output.mp4")
+    except MediaUnavailable:
+        pass
+    else:
+        raise SystemExit("a published output was left behind")
+    try:
+        STORE.stat(f"work/{render_job_id}/output.mp4")
+    except MediaUnavailable:
+        pass
+    else:
+        raise SystemExit("a received output was left behind")
     print("ok")
 
 
@@ -532,6 +591,9 @@ COMMANDS = {
     "cancel": cancel,
     "history": history,
     "verify": verify,
+    "upload": upload,
+    "fetch": fetch,
+    "stored": stored,
     "failure": failure,
     "absent": absent,
 }
@@ -557,11 +619,15 @@ endpoint() {
 }
 
 # --- bring up only what a render needs ---------------------------------------
-compose up --detach --wait --wait-timeout "$start_timeout" editor-postgresql temporal >/dev/null 2>&1 \
+compose up --detach --wait --wait-timeout "$start_timeout" editor-postgresql temporal minio >/dev/null 2>&1 \
     || fail api_healthz_ready
 # The schema exists before the control plane does, exactly as a deployment does it.
 compose run --rm --no-deps -T api thoth-control editor migrate >/dev/null \
     || fail api_healthz_ready
+# The private bucket exists before the control plane does, as the deploy's media import makes it.
+compose run --rm --no-deps -T api /opt/thoth/python/.venv/bin/python -c \
+    "from thoth_control_plane.config import Settings; from thoth_control_plane.infrastructure.s3_media_store import S3MediaStore; S3MediaStore.from_settings(Settings()).ensure_bucket()" \
+    >/dev/null || fail api_healthz_ready
 # The API healthcheck proves both endpoints, so `--wait` already gates readiness.
 compose up --detach --wait --wait-timeout "$start_timeout" api >/dev/null 2>&1 \
     || fail api_readyz_ready
@@ -589,11 +655,13 @@ esac
 echo renderer_host_binding_absent=true
 
 mounts=$(docker inspect --format '{{range .Mounts}}{{.Destination}};{{end}}' "$renderer_container")
-[ "$mounts" = "/var/lib/thoth/artifacts;" ] || fail renderer_holds_no_control_plane_capability
+# The renderer mounts nothing: inputs and outputs travel only over the private routes.
+[ -z "$mounts" ] || fail renderer_holds_no_control_plane_capability
 capabilities=$(compose exec -T remotion-renderer sh -c 'printenv | cut -d= -f1 | sort')
 case "$capabilities" in
     *THOTH_EDITOR_DATABASE_URL* | *THOTH_CONTROL_PLANE_API_KEY* | *THOTH_PROMPT_PROVIDER* \
-        | *THOTH_EDITOR_PREVIEW_SIGNING_KEY* | *DOCKER_HOST* | *THOTH_CDP* | *POSTGRES*)
+        | *THOTH_EDITOR_PREVIEW_SIGNING_KEY* | *DOCKER_HOST* | *THOTH_CDP* | *POSTGRES* \
+        | *THOTH_MEDIA_S3_* | *MINIO_*)
         fail renderer_holds_no_control_plane_capability
         ;;
 esac
@@ -606,13 +674,14 @@ compose exec -T remotion-renderer sh -c '
 echo renderer_holds_no_control_plane_capability=true
 
 # --- one synthetic render, end to end ----------------------------------------
-compose exec -T remotion-renderer sh -c 'mkdir -p /var/lib/thoth/artifacts/media'
-compose exec -T remotion-renderer /usr/bin/ffmpeg -nostdin -loglevel error -y \
+compose exec -T api /usr/bin/ffmpeg -nostdin -loglevel error -y \
     -f lavfi -i "testsrc=size=1080x1920:rate=30:duration=4" \
     -f lavfi -i "sine=frequency=440:duration=4" \
     -c:v libx264 -pix_fmt yuv420p -preset ultrafast -c:a aac -shortest \
-    "/var/lib/thoth/artifacts/media/${asset_id}.mp4" >/dev/null 2>&1 \
+    /tmp/smoke-asset.mp4 >/dev/null 2>&1 \
     || fail render_output_is_h264_mp4
+# The control plane names the asset; every later driver call reads it from $asset_id.
+asset_id=$(driver upload) || fail render_output_is_h264_mp4
 
 driver seed "$document_id" "$main_frames" 120 >/dev/null || fail render_output_is_h264_mp4
 job=$(driver create "$document_id") || fail render_output_is_h264_mp4
@@ -620,25 +689,22 @@ reached=$(driver await "$job" "$render_timeout" completed failed cancelled) \
     || fail render_output_is_h264_mp4
 [ "$reached" = "completed" ] || fail render_output_is_h264_mp4
 
-probe=$(compose exec -T remotion-renderer /usr/bin/ffprobe -v error -of json \
+driver fetch "$job" >/dev/null || fail render_output_is_h264_mp4
+probe=$(compose exec -T api /usr/bin/ffprobe -v error -of json \
     -show_entries "format=format_name,duration,size:stream=codec_type,codec_name,width,height,r_frame_rate" \
-    "/var/lib/thoth/artifacts/renders/${job}/output.mp4") || fail render_output_is_h264_mp4
+    /tmp/smoke-output.mp4) || fail render_output_is_h264_mp4
 driver verify "$job" "$main_seconds" >/dev/null || fail render_output_is_h264_mp4
 # The verdict is an equality test, so the facts it agreed with are printed once
 # for the audit record instead of being inferred from the verdict holding.
 echo "render_output_facts=$(printf '%s' "$probe" | tr -d ' \n')"
-echo "render_output_sha256=$(sha256sum "${work_root}/artifacts/renders/${job}/output.mp4" | cut -d' ' -f1)"
+echo "render_output_sha256=$(compose exec -T api sha256sum /tmp/smoke-output.mp4 | cut -d' ' -f1)"
 probe='{}'
 echo render_output_is_h264_mp4=true
 echo render_output_checksum_matches=true
 
-# The published bytes exist in the one temporary root this harness created, and
-# nothing was written beside it.
-[ -f "${work_root}/artifacts/renders/${job}/output.mp4" ] || fail render_output_inside_artifact_root
-strays=$(find "${work_root}/artifacts" -mindepth 1 -maxdepth 1 -printf '%f\n' \
-    | grep -cvxE 'media|work|temp|renders' || true)
-[ "$strays" -eq 0 ] || fail render_output_inside_artifact_root
-echo render_output_inside_artifact_root=true
+# The published render is an object in the media store, not a file on a shared volume.
+driver stored "$job" >/dev/null || fail render_output_in_the_store
+echo render_output_in_the_store=true
 
 # --- one active render at a time, and cancellation ---------------------------
 driver seed "$long_document_id" "$long_frames" none >/dev/null || fail second_render_is_refused

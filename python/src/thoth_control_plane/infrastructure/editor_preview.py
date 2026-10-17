@@ -14,7 +14,6 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from hashlib import sha256
-from pathlib import Path
 
 #: Bumped only when the canonical claim set changes shape.
 CAPABILITY_VERSION = 2
@@ -38,13 +37,6 @@ class PreviewCapabilityExpired(Exception):
 
     def __init__(self) -> None:
         super().__init__("preview capability expired")
-
-
-class PreviewArtifactInvalid(Exception):
-    """The locator does not resolve to a readable file inside the artifact root."""
-
-    def __init__(self) -> None:
-        super().__init__("preview artifact invalid")
 
 
 @dataclass(frozen=True)
@@ -138,19 +130,3 @@ class EditorPreviewSigner:
 
     def _sign(self, payload: str) -> str:
         return _encode(hmac.new(self._key, payload.encode("ascii"), sha256).digest())
-
-
-def resolve_preview_path(root: Path, location: str) -> Path:
-    """Resolve a repository locator under the artifact root, or refuse it.
-
-    The repository already constrains the stored locator, so this is the second
-    of two independent checks: the resolved file must still be a readable
-    regular file inside the configured root.
-    """
-    if not location or location.startswith(("/", "\\")) or any(ch in location for ch in ":?#\\"):
-        raise PreviewArtifactInvalid()
-    base = root.resolve()
-    candidate = (base / location).resolve()
-    if not candidate.is_relative_to(base) or not candidate.is_file():
-        raise PreviewArtifactInvalid()
-    return candidate

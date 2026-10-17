@@ -7,9 +7,9 @@ public response. Every exception here carries a fixed safe message.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 from typing import Protocol
 
 from thoth_control_plane.domain.render_jobs import (
@@ -143,6 +143,13 @@ class ArtifactUnavailable(Exception):
         super().__init__("render artifact unavailable")
 
 
+class RenderOutputTooLarge(Exception):
+    """Raised when a renderer upload passes the render output cap."""
+
+    def __init__(self) -> None:
+        super().__init__("render output too large")
+
+
 @dataclass(frozen=True)
 class JobWorkspace:
     """One job's staging area, described only by names the caller may use."""
@@ -154,10 +161,18 @@ class JobWorkspace:
 
 @dataclass(frozen=True)
 class StagedAsset:
-    """One asset copied into a workspace and verified against its record."""
+    """One stored asset verified against its record and named for the renderer."""
 
     asset_id: str
     relative_name: str
+    size_bytes: int
+    checksum: str
+
+
+@dataclass(frozen=True)
+class ReceivedOutput:
+    """What the control plane measured of one renderer upload."""
+
     size_bytes: int
     checksum: str
 
@@ -172,24 +187,21 @@ class PublishedArtifact:
 
 
 class ArtifactRoot(Protocol):
-    """The only component allowed to compose or resolve an E1 filesystem path."""
+    """The only component that stores render objects or composes a local path."""
 
     def prepare(self, render_job_id: str) -> JobWorkspace:
-        """Create this job's workspace and temporary directory."""
-
-    def resolve_source(self, relative_location: str) -> Path:
-        """Resolve one stored asset locator, so no caller ever joins a path."""
+        """Create this job's temporary directory."""
 
     def stage_asset(
         self,
         workspace: JobWorkspace,
         *,
         asset_id: str,
-        source: Path,
+        location: str,
         expected_checksum: str,
         max_bytes: int,
     ) -> StagedAsset:
-        """Copy one bounded, checksum-verified asset into the workspace."""
+        """Verify one stored asset against its record and name it for the renderer."""
 
     def write_bundle(self, workspace: JobWorkspace, bundle_json: bytes) -> str:
         """Write the immutable bundle and return its relative name."""
@@ -197,8 +209,13 @@ class ArtifactRoot(Protocol):
     def read_bundle(self, render_job_id: str) -> bytes:
         """Read back one job's staged bundle, the only input the renderer gets."""
 
-    def verify_temporary_output(self, render_job_id: str, expected: RenderOutputFacts) -> Path:
-        """Confirm the temporary render is a regular file matching its facts."""
+    async def receive_output(
+        self, render_job_id: str, chunks: AsyncIterator[bytes], *, max_bytes: int
+    ) -> ReceivedOutput:
+        """Store one renderer upload under the job's work locator."""
+
+    def verify_temporary_output(self, render_job_id: str, expected: RenderOutputFacts) -> str:
+        """The stored output's locator, when it matches the renderer's facts."""
 
     def publish(
         self,
@@ -209,8 +226,14 @@ class ArtifactRoot(Protocol):
     ) -> PublishedArtifact:
         """Atomically publish a verified render with its bounded records."""
 
-    def resolve_download(self, render_job_id: str, relative_path: str) -> Path:
-        """Resolve the one downloadable render this job published."""
+    def resolve_download(self, render_job_id: str, relative_path: str) -> str:
+        """The locator of the one downloadable render this job published."""
+
+    def object_size(self, location: str) -> int:
+        """The size of one stored object."""
+
+    def read_object(self, location: str, start: int, end: int | None) -> Iterator[bytes]:
+        """Stream bytes `start..end` (inclusive) of one stored object."""
 
     def cleanup(self, render_job_id: str) -> None:
         """Delete only this job's files, keeping its bounded safe records."""

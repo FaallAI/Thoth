@@ -103,6 +103,9 @@ class S3MediaStore:
         metadata = found.metadata or {}
         return MediaStat(size_bytes=int(found.size or 0), sha256=metadata.get(_SHA_KEY))
 
+    def size(self, location: str) -> int:
+        return self.stat(location).size_bytes
+
     def delete(self, location: str) -> None:
         key = checked_locator(location)
         with _errors():
@@ -116,6 +119,29 @@ class S3MediaStore:
                 for item in self._client.list_objects(self._bucket, prefix=prefix, recursive=True)
                 if item.object_name and not item.is_dir
             )
+
+    def open_range(self, location: str, start: int = 0, end: int | None = None) -> Iterator[bytes]:
+        key = checked_locator(location)
+        length = None if end is None else max(0, end - start + 1)
+        with _errors():
+            response = self._client.get_object(self._bucket, key, offset=start, length=length or 0)
+        return self._stream(response)
+
+    @staticmethod
+    def _stream(response) -> Iterator[bytes]:
+        try:
+            with _errors():
+                yield from response.stream(1024 * 1024)
+        finally:
+            response.close()
+            response.release_conn()
+
+    def copy(self, source: str, destination: str) -> None:
+        from minio.commonconfig import CopySource
+
+        src, dst = checked_locator(source), checked_locator(destination)
+        with _errors():
+            self._client.copy_object(self._bucket, dst, CopySource(self._bucket, src))
 
     def check(self) -> None:
         with _errors():

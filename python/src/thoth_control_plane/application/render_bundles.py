@@ -9,6 +9,7 @@ credential, or a renderer flag.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Literal, Protocol
 
 from pydantic import Field
@@ -45,6 +46,8 @@ class RenderPresetSettings(StrictModel):
     preset_id: Literal["standard_vertical_mp4_v1"]
     renderer_version: str
     max_asset_bytes: int = Field(gt=0)
+    #: The largest render output a renderer may upload (spec 2026-10-17, render storage).
+    max_output_bytes: int = Field(gt=0, default=2 * 1024 * 1024 * 1024)
 
 
 class BuildRenderBundleRequest(StrictModel):
@@ -148,16 +151,18 @@ async def build_render_bundle(
     if set(by_id) != set(asset_ids):
         raise ArtifactUnavailable()
 
-    workspace = artifacts.prepare(request.render_job_id)
+    # Every artifact call touches the store or the disk: none of it runs on the event loop.
+    workspace = await asyncio.to_thread(artifacts.prepare, request.render_job_id)
     staged: list[RenderBundleAsset] = []
     for asset_id in asset_ids:
         record = by_id[asset_id]
         if record.asset.checksum is None:
             raise ArtifactUnavailable()
-        copied = artifacts.stage_asset(
+        copied = await asyncio.to_thread(
+            artifacts.stage_asset,
             workspace,
             asset_id=asset_id,
-            source=artifacts.resolve_source(record.artifact_location),
+            location=record.artifact_location,
             expected_checksum=record.asset.checksum,
             max_bytes=settings.max_asset_bytes,
         )
@@ -189,5 +194,7 @@ async def build_render_bundle(
         duration_in_frames=document.canvas.duration_in_frames,
         assets=tuple(staged),
     )
-    artifacts.write_bundle(workspace, bundle.model_dump_json().encode("utf-8"))
+    await asyncio.to_thread(
+        artifacts.write_bundle, workspace, bundle.model_dump_json().encode("utf-8")
+    )
     return bundle

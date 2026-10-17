@@ -423,3 +423,96 @@ describe("createTemplateReleaseRun", () => {
     expect(String(failure)).not.toContain(root);
   });
 });
+
+describe("RendererArtifactRoot downloaded assets", () => {
+  const ASSET = {
+    asset_id: "asset_1",
+    relative_name: "assets/asset_1.mp4",
+    size_bytes: 7,
+    checksum: checksum("payload"),
+  };
+
+  test("a received asset lands where the bundle names it and verifies", async () => {
+    const local = artifacts();
+    await local.receiveAsset("rj_001", ASSET, new Response("payload").body!);
+
+    expect(await Bun.file(join(local.assetsDirectory("rj_001"), "asset_1.mp4")).text()).toBe(
+      "payload",
+    );
+    await local.verifyStagedAssets("rj_001", [ASSET]);
+  });
+
+  test("received bytes that differ from the bundle fail verification", async () => {
+    const local = artifacts();
+    await local.receiveAsset("rj_001", ASSET, new Response("tampered").body!);
+    await expect(local.verifyStagedAssets("rj_001", [ASSET])).rejects.toBeInstanceOf(
+      ArtifactUnavailable,
+    );
+  });
+
+  test("a name outside assets/ is refused", async () => {
+    const local = artifacts();
+    await expect(
+      local.receiveAsset(
+        "rj_001",
+        { ...ASSET, relative_name: "bundle/asset_1.mp4" },
+        new Response("payload").body!,
+      ),
+    ).rejects.toBeInstanceOf(ArtifactPathInvalid);
+  });
+
+  test("removeAssets deletes only this job's assets", async () => {
+    const local = artifacts();
+    stageAsset("rj_001", "asset_1.mp4", "one");
+    stageAsset("rj_002", "asset_2.mp4", "two");
+    await local.removeAssets("rj_001");
+
+    expect(await Bun.file(join(local.assetsDirectory("rj_001"), "asset_1.mp4")).exists()).toBe(
+      false,
+    );
+    expect(await Bun.file(join(local.assetsDirectory("rj_002"), "asset_2.mp4")).exists()).toBe(
+      true,
+    );
+  });
+});
+
+describe("RendererArtifactRoot downloads over a real connection", () => {
+  // CI's offline smoke hung in `preparing` (2026-10-17): Bun.write(path, new Response(body))
+  // never settles for a body that comes from fetch. A string body hides that, so this test
+  // serves the asset over HTTP exactly as the control plane does.
+  test("an asset streamed from an HTTP response is written whole", async () => {
+    const payload = new Uint8Array(3 * 1024 * 1024).fill(7);
+    const server = Bun.serve({
+      port: 0,
+      fetch: () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              for (let i = 0; i < payload.length; i += 65536) {
+                controller.enqueue(payload.slice(i, i + 65536));
+              }
+              controller.close();
+            },
+          }),
+          { headers: { "Content-Length": String(payload.length) } },
+        ),
+    });
+    try {
+      const response = await fetch(`http://127.0.0.1:${server.port}/`, {
+        signal: AbortSignal.any([AbortSignal.timeout(60_000), new AbortController().signal]),
+      });
+      const asset = {
+        asset_id: "asset_1",
+        relative_name: "assets/asset_1.mp4",
+        size_bytes: payload.length,
+        checksum: `sha256:${createHash("sha256").update(payload).digest("hex")}`,
+      };
+      const local = artifacts();
+      await local.receiveAsset("rj_001", asset, response.body!);
+      await local.verifyStagedAssets("rj_001", [asset]);
+    } finally {
+      server.stop(true);
+    }
+  }, 15_000);
+});
+

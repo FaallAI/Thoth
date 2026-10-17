@@ -186,7 +186,7 @@ MEDIA_BYTES = b"0123456789abcdef"
 
 
 def record(
-    location: str = "project_001/asset_main.mp4", validation_state: str = "ready"
+    location: str = "uploads/project_001/asset_main.mp4", validation_state: str = "ready"
 ) -> EditorAssetRecord:
     payload = asset().model_dump()
     payload["validation_state"] = validation_state
@@ -198,8 +198,8 @@ def record(
 
 
 def seeded_root(tmp_path: Path) -> Path:
-    media = tmp_path / "project_001"
-    media.mkdir()
+    media = tmp_path / "uploads" / "project_001"
+    media.mkdir(parents=True)
     (media / "asset_main.mp4").write_bytes(MEDIA_BYTES)
     return tmp_path
 
@@ -446,3 +446,36 @@ async def test_preview_contract_never_publishes_the_capability_or_the_signing_ke
         json.dumps(preview_operation["parameters"]), ""
     )
     assert "example" not in json.dumps(preview_operation["parameters"])
+
+
+@pytest.mark.asyncio
+async def test_preview_answers_503_when_the_media_store_is_down(gateway, tmp_path: Path) -> None:
+    from thoth_control_plane.infrastructure.media_store import MediaStoreUnavailable
+
+    class DownStore:
+        def stat(self, location: str):
+            raise MediaStoreUnavailable("media_store_unavailable")
+
+        def size(self, location: str) -> int:
+            raise MediaStoreUnavailable("media_store_unavailable")
+
+        def open_range(self, location: str, start: int = 0, end: int | None = None):
+            raise MediaStoreUnavailable("media_store_unavailable")
+
+    app = preview_app(gateway, tmp_path)
+    app.state.media_store = DownStore()
+    async with client_for(app) as client:
+        await client.post(CAPABILITY_URL, headers=AUTH_HEADERS)
+        served = await client.get(PREVIEW_URL)
+
+    assert served.status_code == 503
+    assert served.json()["detail"]["code"] == "media_store_unavailable"
+
+
+def test_the_preview_route_no_longer_promises_a_file_response() -> None:
+    from pathlib import Path as _Path
+
+    source = (
+        _Path(__file__).resolve().parents[2] / "src/thoth_control_plane/api/routes/editor_assets.py"
+    ).read_text(encoding="utf-8")
+    assert "FileResponse" not in source

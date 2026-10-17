@@ -284,3 +284,38 @@ def test_described_asset_counts_duration_on_the_canvas_clock() -> None:
     assert asset.duration_in_frames == 1
     assert asset.fps == 25.0
     assert asset.has_audio is False
+
+
+@pytest.mark.asyncio
+async def test_store_writes_and_deletes_never_run_on_the_event_loop(tmp_path: Path) -> None:
+    import threading
+
+    from thoth_control_plane.infrastructure.artifact_root import LocalArtifactRoot
+    from thoth_control_plane.infrastructure.media_store import LocalMediaStore
+
+    loop_thread = threading.get_ident()
+    calls: list[tuple[str, int]] = []
+
+    class Watching(LocalMediaStore):
+        def put_file(self, location: str, path: Path) -> None:
+            calls.append(("put", threading.get_ident()))
+            super().put_file(location, path)
+
+        def delete(self, location: str) -> None:
+            calls.append(("delete", threading.get_ident()))
+            super().delete(location)
+
+    class Refusing(MemoryRepository):
+        async def register_ready(self, record) -> None:
+            raise RuntimeError("database down")
+
+    store_root = tmp_path / "store"
+    store_root.mkdir()
+    upload = service(tmp_path, VIDEO_REPORT, Refusing())
+    upload._artifacts = LocalArtifactRoot(tmp_path, Watching(store_root))
+
+    with pytest.raises(EditorAssetsUnavailable):
+        await upload.upload("project_001", "video/mp4", chunks_of(MP4))
+
+    assert [name for name, _ in calls] == ["put", "delete"]
+    assert all(thread != loop_thread for _, thread in calls)

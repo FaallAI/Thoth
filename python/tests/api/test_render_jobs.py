@@ -109,6 +109,8 @@ class StubRenderJobService:
         self.error = error
         self.job = job or render_job()
         self.download: DownloadableRender | None = None
+        #: Stored objects by locator, as the media store would hold them.
+        self.objects: dict[str, bytes] = {}
         self.calls: list[tuple[str, object]] = []
 
     def _answer(self, name: str, arguments: object) -> RenderJob:
@@ -160,6 +162,13 @@ class StubRenderJobService:
             raise self.error
         assert self.download is not None
         return self.download
+
+    def object_size(self, location: str) -> int:
+        return len(self.objects[location])
+
+    def read_object(self, location: str, start: int, end: int | None):
+        data = self.objects[location]
+        yield data[start : None if end is None else end + 1]
 
     async def reconcile_expired(self, now: datetime) -> int:
         self.calls.append(("reconcile_expired", now))
@@ -507,28 +516,35 @@ async def test_retry_refuses_a_job_that_has_not_finished(gateway) -> None:
 async def test_output_streams_the_authenticated_file_with_fixed_media_facts(
     gateway, tmp_path: Path
 ) -> None:
-    media = tmp_path / "output.mp4"
-    media.write_bytes(b"\x00\x00\x00\x18ftypmp42" + b"x" * 24)
+    payload = b"\x00\x00\x00\x18ftypmp42" + b"x" * 24
     service = StubRenderJobService(job=completed_job())
+    service.objects["renders/rj_001/output.mp4"] = payload
     service.download = DownloadableRender(
-        path=media,
+        location="renders/rj_001/output.mp4",
         media_type="video/mp4",
         filename="rj_001.mp4",
-        size_bytes=media.stat().st_size,
+        size_bytes=len(payload),
         checksum=CHECKSUM,
     )
     async with client(gateway, service) as http:
         response = await http.get(f"{JOB_URL}/output", headers=AUTH_HEADERS)
+        ranged = await http.get(
+            f"{JOB_URL}/output", headers={**AUTH_HEADERS, "Range": "bytes=4-11"}
+        )
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "video/mp4"
     assert response.headers["content-disposition"] == 'attachment; filename="rj_001.mp4"'
-    assert response.headers["content-length"] == str(media.stat().st_size)
+    assert response.headers["content-length"] == str(len(payload))
     assert response.headers["x-thoth-render-checksum"] == CHECKSUM
     assert response.headers["cache-control"] == "private, no-store"
     assert "location" not in response.headers
-    assert response.content == media.read_bytes()
-    assert str(tmp_path) not in str(response.headers)
+    assert response.content == payload
+    assert "renders/" not in str(response.headers)
+    # A seeking player gets the one range it asked for.
+    assert ranged.status_code == 206
+    assert ranged.content == payload[4:12]
+    assert ranged.headers["content-range"] == f"bytes 4-11/{len(payload)}"
 
 
 @pytest.mark.asyncio

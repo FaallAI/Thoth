@@ -15,9 +15,12 @@
  */
 
 import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
+import { createReadStream, createWriteStream } from "node:fs";
 import { chmod, lstat, mkdir, open, rename, rm, stat } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 
 import type { RenderBundleAsset } from "./contracts";
 import { removeStagedFile, writeStagedFile } from "./staged-file";
@@ -227,6 +230,40 @@ export class RendererArtifactRoot {
         throw new ArtifactUnavailable();
       }
     }
+  }
+
+  /** Write one downloaded asset where the bundle names it; the checksum is verified after. */
+  async receiveAsset(
+    renderJobId: string,
+    asset: RenderBundleAsset,
+    body: ReadableStream<Uint8Array>,
+  ): Promise<void> {
+    if (!asset.relative_name.startsWith("assets/")) {
+      throw new ArtifactPathInvalid();
+    }
+    const name = asset.relative_name.slice("assets/".length);
+    const directory = this.assetsDirectory(renderJobId);
+    const path = this.#contained("work", this.#identifier(renderJobId), "assets", name);
+    await this.#assertLinkFree(path);
+    try {
+      await mkdir(directory, { recursive: true });
+      // Not Bun.write(path, new Response(body)): on Bun 1.3.14 it never settles for a body
+      // that comes from fetch, which held CI's render in `preparing` (2026-10-17).
+      await pipeline(
+        Readable.fromWeb(body as unknown as NodeReadableStream<Uint8Array>),
+        createWriteStream(path, { flags: "w" }),
+      );
+    } catch {
+      await rm(path, { force: true }).catch(() => {});
+      throw new ArtifactUnavailable();
+    }
+  }
+
+  /** Remove this job's downloaded assets, and only them. */
+  async removeAssets(renderJobId: string): Promise<void> {
+    const directory = this.assetsDirectory(renderJobId);
+    await this.#assertLinkFree(directory);
+    await rm(directory, { recursive: true, force: true });
   }
 
   /** Remove this render's temporary output, whether or not one exists. */

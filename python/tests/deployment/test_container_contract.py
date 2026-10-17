@@ -278,7 +278,7 @@ def test_renderer_smoke_proves_the_properties_a_render_stack_must_hold() -> None
         "renderer_holds_no_control_plane_capability=true",
         "render_output_is_h264_mp4=true",
         "render_output_checksum_matches=true",
-        "render_output_inside_artifact_root=true",
+        "render_output_in_the_store=true",
         "second_render_is_refused=true",
         "no_waiting_row_was_created=true",
         "cancel_leaves_no_published_output=true",

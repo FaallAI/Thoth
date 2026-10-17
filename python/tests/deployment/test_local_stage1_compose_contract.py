@@ -98,8 +98,9 @@ def test_local_stage1_thoth_roles_share_one_digest_and_keep_cdp_private() -> Non
     assert "/json/version" in cdp
     assert "/json" in cdp
     assert "tiktok.com" in cdp
-    assert "/artifacts" in api
-    assert "/artifacts" in worker
+    # No service shares the artifact volume (spec 2026-10-17, render storage).
+    assert "THOTH_STAGE1_DATA_ROOT}/artifacts" not in api
+    assert "THOTH_STAGE1_DATA_ROOT}/artifacts" not in worker
     assert "/browser-profile" in cdp
     assert "/browser-profile" not in api
     assert "/browser-profile" not in worker
@@ -350,7 +351,7 @@ def test_editor_preview_adds_no_service_port_or_mount() -> None:
     compose = _repo_text("compose.stage1.local.yml")
     api = _service_block(compose, "api")
 
-    assert api.count("target: /var/lib/thoth/artifacts") == 1
+    assert "target: /var/lib/thoth/artifacts" not in api
     assert api.count("127.0.0.1:8000:8000") == 1
     services = compose.split("\nnetworks:", 1)[0]
     assert re.findall(r"(?m)^  [a-z][a-z0-9-]*:$", services) == [
@@ -462,7 +463,7 @@ def test_renderer_receives_its_supported_settings_and_nothing_else() -> None:
         "THOTH_RENDERER_INTERNAL_CREDENTIAL: "
         "${THOTH_RENDERER_INTERNAL_CREDENTIAL:?set THOTH_RENDERER_INTERNAL_CREDENTIAL}" in renderer
     )
-    assert "THOTH_CONTROL_PLANE_ARTIFACT_ROOT: /var/lib/thoth/artifacts" in renderer
+    assert "THOTH_CONTROL_PLANE_ARTIFACT_ROOT: /tmp/thoth-renderer" in renderer
     assert _environment_names(renderer) == RENDERER_ENVIRONMENT
 
 
@@ -487,21 +488,12 @@ def test_renderer_holds_no_database_provider_or_creator_capability() -> None:
         assert forbidden not in renderer
 
 
-def test_renderer_shares_the_one_canonical_artifact_root_and_no_second_output() -> None:
-    compose = _repo_text("compose.stage1.local.yml")
+def test_the_renderer_mounts_nothing_and_shares_no_volume_with_the_api() -> None:
     renderer = _service_block(_repo_text(RENDERER_OVERLAY), "remotion-renderer")
-    api = _service_block(compose, "api")
 
-    mount = (
-        "    volumes:\n"
-        "      - type: bind\n"
-        "        source: ${THOTH_STAGE1_DATA_ROOT:?set THOTH_STAGE1_DATA_ROOT}/artifacts\n"
-        "        target: /var/lib/thoth/artifacts\n"
-    )
-    assert mount in api
-    assert mount in renderer
-    assert renderer.count("target:") == 1
-    assert renderer.count("/browser-profile") == 0
+    assert "volumes:" not in renderer
+    assert "target:" not in renderer
+    assert "/browser-profile" not in renderer
 
 
 def test_renderer_health_uses_the_authenticated_health_endpoint_it_already_serves() -> None:
@@ -635,10 +627,32 @@ def test_the_deploy_imports_media_before_the_new_worker_starts() -> None:
     order = [
         deploy.index("step import-reports"),
         deploy.index("step media-store"),
-        deploy.index("step import-media"),
+        deploy.index('step "import-media'),
         deploy.index("step up"),
     ]
     assert order == sorted(order)
     assert "thoth-control media import" in deploy
     assert '*" invalid=0 mismatch=0"' in deploy
     assert "--remove-local" not in deploy  # removal is its own operator gate
+
+
+def test_no_service_shares_the_artifact_volume() -> None:
+    compose = _repo_text("compose.stage1.local.yml").replace("\r\n", "\n")
+    overlay = _repo_text(RENDERER_OVERLAY).replace("\r\n", "\n")
+    assert "THOTH_STAGE1_DATA_ROOT}/artifacts" not in compose
+    assert "THOTH_STAGE1_DATA_ROOT}/artifacts" not in overlay
+    # The root is no longer a mount, but it must still exist when the container starts: an
+    # editor upload refuses a missing root. The image creates this one (Dockerfile `test -w`).
+    assert "RUN test -w /var/lib/thoth/artifacts" in _repo_text("Dockerfile")
+    for service in ("api", "worker"):
+        assert "THOTH_CONTROL_PLANE_ARTIFACT_ROOT: /var/lib/thoth/artifacts" in _service_block(
+            compose, service
+        )
+
+
+def test_the_deploy_reaches_the_old_volume_only_through_a_one_off_mount() -> None:
+    deploy = _repo_text("scripts/ops/deploy-stage1.sh")
+    assert "media import $mode" in deploy
+    assert '"--archive"' in deploy
+    assert '-v "$data_root/artifacts:/var/lib/thoth/artifacts"' in deploy
+    assert "--remove-local" not in deploy

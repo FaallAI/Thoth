@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
-from pathlib import Path
 from typing import Any
 
 import pytest
@@ -99,15 +98,12 @@ class Artifacts:
         self.prepared.append(render_job_id)
         return JobWorkspace(render_job_id=render_job_id)
 
-    def resolve_source(self, relative_location: str) -> Path:
-        return Path("/srv/artifacts") / relative_location
-
     def stage_asset(
         self,
         workspace: JobWorkspace,
         *,
         asset_id: str,
-        source: Path,
+        location: str,
         expected_checksum: str,
         max_bytes: int,
     ) -> StagedAsset:
@@ -115,7 +111,7 @@ class Artifacts:
             {
                 "render_job_id": workspace.render_job_id,
                 "asset_id": asset_id,
-                "source": source,
+                "location": location,
                 "expected_checksum": expected_checksum,
                 "max_bytes": max_bytes,
             }
