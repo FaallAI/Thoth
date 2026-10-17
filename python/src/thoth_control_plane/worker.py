@@ -31,6 +31,7 @@ from thoth_control_plane.activities.prompt_proposal import (
 )
 from thoth_control_plane.config import Settings, SettingsValidationError
 from thoth_control_plane.footage.adapters.embedder import load_model
+from thoth_control_plane.infrastructure.media_store import MediaStore, build_media_store
 from thoth_control_plane.infrastructure.prompt_proposal_repository import (
     PostgresPromptProposalRepository,
 )
@@ -63,6 +64,7 @@ HEAVY_MODULES = (
     "rapidocr",
     "faster_whisper",
     "sherpa_onnx",
+    "minio",
 )
 
 
@@ -81,6 +83,14 @@ def warm_up(settings: Settings) -> None:
         load_model(settings.THOTH_EMBEDDING_MODEL_DIR)
 
 
+def check_media_store(settings: Settings) -> MediaStore:
+    """Every activity reads or writes workflow media: an unreachable store stops the worker at
+    startup, like a missing tool (spec 2026-10-17)."""
+    store = build_media_store(settings)
+    store.check()
+    return store
+
+
 def build_source_investigation_worker(
     client: Client,
     settings: Settings,
@@ -88,20 +98,22 @@ def build_source_investigation_worker(
     runner: AcquisitionRunner | None = None,
     capability: ScraplingCapability | Mapping[str, object] | None = None,
     reports: Reports | None = None,
+    media: MediaStore | None = None,
 ) -> Worker:
     """Register the production source activity with its configured artifact root."""
     reports = reports or connect_reports(settings)
+    media = media or build_media_store(settings)
     return Worker(
         client,
         task_queue=TASK_QUEUE,
         workflows=[SourceInvestigationWorkflow],
         activities=[
             build_source_investigation_activity(
-                settings, runner=runner, capability=capability, reports=reports
+                settings, runner=runner, capability=capability, reports=reports, media=media
             ),
-            build_source_attribution_activity(settings, reports=reports),
-            build_content_assembly_activity(settings, reports=reports),
-            build_footage_activity(settings, reports=reports),
+            build_source_attribution_activity(settings, reports=reports, media=media),
+            build_content_assembly_activity(settings, reports=reports, media=media),
+            build_footage_activity(settings, reports=reports, media=media),
         ],
         max_concurrent_activities=1,
     )
@@ -203,6 +215,7 @@ async def run_worker(settings: Settings | None = None) -> None:
     configure_logging()
     preload_heavy_modules()
     warm_up(runtime_settings)
+    media = check_media_store(runtime_settings)
     sweep_unsealed()  # a killed worker may have left account profiles decrypted
     configure_provider_logging()
     capability = await check_scrapling_capability()
@@ -218,7 +231,7 @@ async def run_worker(settings: Settings | None = None) -> None:
         reports = connect_reports(runtime_settings)
         async with (
             build_source_investigation_worker(
-                client, runtime_settings, capability=capability, reports=reports
+                client, runtime_settings, capability=capability, reports=reports, media=media
             ),
             Worker(
                 client,

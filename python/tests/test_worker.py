@@ -33,6 +33,7 @@ async def test_worker_configures_provider_logging_before_capability_check(monkey
     monkeypatch.setattr(worker, "configure_logging", lambda: calls.append("json"))
     monkeypatch.setattr(worker, "preload_heavy_modules", lambda: calls.append("preload"))
     monkeypatch.setattr(worker, "warm_up", lambda settings: calls.append("warm"))
+    monkeypatch.setattr(worker, "check_media_store", lambda settings: calls.append("media"))
     monkeypatch.setattr(worker, "watch_event_loop", _no_watch)
     monkeypatch.setattr(worker, "configure_provider_logging", lambda: calls.append("logging"))
 
@@ -45,7 +46,7 @@ async def test_worker_configures_provider_logging_before_capability_check(monkey
         await worker.run_worker(
             Settings(THOTH_CONTROL_PLANE_API_KEY="test-key", THOTH_SOURCE_ATTRIBUTION_ENABLED=False)
         )
-    assert calls == ["json", "preload", "warm", "logging", "capability"]
+    assert calls == ["json", "preload", "warm", "media", "logging", "capability"]
 
 
 @pytest.mark.asyncio
@@ -73,6 +74,7 @@ async def test_the_yt_dlp_check_runs_in_the_background_and_stops_with_the_worker
     monkeypatch.setattr(worker, "configure_logging", lambda: None)
     monkeypatch.setattr(worker, "preload_heavy_modules", lambda: None)
     monkeypatch.setattr(worker, "warm_up", lambda settings: None)
+    monkeypatch.setattr(worker, "check_media_store", lambda settings: None)
     monkeypatch.setattr(worker, "watch_event_loop", _no_watch)
     monkeypatch.setattr(worker, "configure_provider_logging", lambda: None)
     monkeypatch.setattr(worker, "check_scrapling_capability", capability)
@@ -209,6 +211,7 @@ async def test_the_worker_sweeps_profiles_a_killed_worker_left_before_any_lease(
     monkeypatch.setattr(worker, "configure_logging", lambda: None)
     monkeypatch.setattr(worker, "preload_heavy_modules", lambda: None)
     monkeypatch.setattr(worker, "warm_up", lambda settings: None)
+    monkeypatch.setattr(worker, "check_media_store", lambda settings: None)
     monkeypatch.setattr(worker, "watch_event_loop", _no_watch)
     monkeypatch.setattr(worker, "configure_provider_logging", lambda: None)
     monkeypatch.setattr(worker, "sweep_unsealed", lambda: calls.append("sweep"))
@@ -297,3 +300,27 @@ def test_warming_up_loads_the_embedder_only_when_footage_is_on(monkeypatch, tmp_
     worker.warm_up(Settings(**base, THOTH_FOOTAGE_ENABLED=True, THOTH_EMBEDDING_MODEL_DIR=tmp_path))
 
     assert calls == ["build_id", "build_id", tmp_path]
+
+
+def test_minio_is_preloaded() -> None:
+    assert "minio" in worker.HEAVY_MODULES
+
+
+def test_the_worker_refuses_to_start_without_its_media_store(tmp_path: Path) -> None:
+    from thoth_control_plane.infrastructure.media_store import MediaStoreUnavailable
+
+    settings = Settings(
+        THOTH_CONTROL_PLANE_API_KEY="test-key",
+        THOTH_CONTROL_PLANE_ARTIFACT_ROOT=tmp_path / "absent",
+    )
+    with pytest.raises(MediaStoreUnavailable):
+        worker.check_media_store(settings)
+
+
+def test_the_media_store_check_returns_the_checked_store(tmp_path: Path) -> None:
+    from thoth_control_plane.infrastructure.media_store import LocalMediaStore
+
+    store = worker.check_media_store(
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key", THOTH_CONTROL_PLANE_ARTIFACT_ROOT=tmp_path)
+    )
+    assert isinstance(store, LocalMediaStore)
