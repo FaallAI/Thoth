@@ -160,7 +160,11 @@ async def test_footage_works_on_pulled_media_and_pushes_its_clips(
             assert (root / "reports/wf_a/footage/earlier.mp4").read_bytes() == b"admitted-before"
             (root / "reports/wf_a/footage/new.mp4").write_bytes(b"new-clip")
             (root / "reports/wf_a/footage/half.mp4.part").write_bytes(b"x")
-            await inputs.publish()  # the service publishes before it marks the run done
+            (root / "reports/wf_a/footage/abandoned.mp4").write_bytes(b"closed")
+            # The service publishes the admitted clips before it marks the run done.
+            await inputs.publish(
+                ["reports/wf_a/footage/earlier.mp4", "reports/wf_a/footage/new.mp4"]
+            )
             return FootageResult(status="ok", admitted=2)
 
     activity = build_footage_activity(

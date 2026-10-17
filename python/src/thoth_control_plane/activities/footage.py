@@ -115,9 +115,9 @@ async def _run(
         stored_clips = await asyncio.to_thread(store.list, clips)
         await scratch.pull([*media_locations(report), *media_locations(original), *stored_clips])
 
-        async def publish() -> None:
-            made = (scratch.root / clips).glob("*.mp4")
-            await scratch.push(f"{clips}{path.name}" for path in sorted(made) if path.is_file())
+        async def publish(admitted: list[str]) -> None:
+            # A carousel slide is the acquisition's own media, already stored.
+            await scratch.push(location for location in admitted if location.startswith(clips))
 
         inputs = FootageInputs(
             workflow_id=input_.workflow_id,

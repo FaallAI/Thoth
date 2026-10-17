@@ -129,7 +129,7 @@ class FootageInputs:
     artifact_root: Path
     # Uploads the admitted clips (spec 2026-10-17). It runs before the run is marked done:
     # a failed upload leaves the run open, so the retry reopens the clips it cannot find.
-    publish: Callable[[], Awaitable[None]] | None = None
+    publish: Callable[[list[str]], Awaitable[None]] | None = None
 
 
 def _main(inputs: FootageInputs) -> SourceReport:
@@ -237,9 +237,16 @@ class FootageBuilder:
             status = "ok" if admitted else "none"
         await asyncio.to_thread(self._store.start_run, workflow, [])  # no-op once it exists
         if inputs.publish is not None:
-            await inputs.publish()
+            await self._publish(workflow, inputs.publish)
         await asyncio.to_thread(self._store.finish_run, workflow, status)
         return await self._result(workflow, status)
+
+    async def _publish(
+        self, workflow: str, publish: Callable[[list[str]], Awaitable[None]]
+    ) -> None:
+        """Hand over the admitted clips only: a rejected or abandoned download stays local."""
+        admitted = await asyncio.to_thread(self._store.admitted, workflow)
+        await publish([str(c.media_location) for c in admitted if c.media_location])
 
     async def _bounded(self, task: asyncio.Task[Any], seconds: float) -> bool:
         """Wait up to `seconds`, then cancel and allow the grace. False: the task ignored its
@@ -490,7 +497,7 @@ class FootageBuilder:
                     total += 1
         status: FootageStatus = "ok" if total else "none"
         if inputs.publish is not None:
-            await inputs.publish()
+            await self._publish(workflow, inputs.publish)
         await asyncio.to_thread(self._store.finish_run, workflow, status)
         return await self._result(workflow, status)
 
