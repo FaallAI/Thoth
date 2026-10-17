@@ -37,29 +37,35 @@ class MediaRemovalCounts:
     kept: int
 
 
-def _candidates(root: Path) -> Iterator[tuple[Path, str | None]]:
-    """Each media file below `<root>/reports/` with its locator, or None when it is invalid.
-    Links are never followed; report JSON is skipped (it lives in PostgreSQL)."""
-    reports = root / "reports"
-    if not reports.is_dir() or reports.is_symlink():
-        return
-    for directory, folders, files in os.walk(reports, followlinks=False):
-        here = Path(directory)
-        for name in sorted(folders):
-            if (here / name).is_symlink():
-                yield here / name, None
-        folders[:] = sorted(name for name in folders if not (here / name).is_symlink())
-        for name in sorted(files):
-            path = here / name
-            if name.endswith(".json") and not path.is_symlink():
-                continue
-            if path.is_symlink() or not path.is_file() or name.endswith(".part"):
-                yield path, None
-                continue
-            try:
-                yield path, checked_locator(path.relative_to(root).as_posix())
-            except MediaLocatorInvalid:
-                yield path, None
+def _candidates(root: Path, *, archive: bool = False) -> Iterator[tuple[Path, str | None]]:
+    """Each file to move with its key, or None when it is invalid. Links are never followed.
+
+    Media mode walks `<root>/reports/` and skips report JSON (it lives in PostgreSQL). Archive
+    mode walks `reports/` and `legacy-scout/`, keeps the JSON, and keys every file under
+    `archive/` (spec 2026-10-17, render storage).
+    """
+    for top in ("reports", "legacy-scout") if archive else ("reports",):
+        base = root / top
+        if not base.is_dir() or base.is_symlink():
+            continue
+        for directory, folders, files in os.walk(base, followlinks=False):
+            here = Path(directory)
+            for name in sorted(folders):
+                if (here / name).is_symlink():
+                    yield here / name, None
+            folders[:] = sorted(name for name in folders if not (here / name).is_symlink())
+            for name in sorted(files):
+                path = here / name
+                if not archive and name.endswith(".json") and not path.is_symlink():
+                    continue
+                if path.is_symlink() or not path.is_file() or name.endswith(".part"):
+                    yield path, None
+                    continue
+                relative = path.relative_to(root).as_posix()
+                try:
+                    yield path, checked_locator(f"archive/{relative}" if archive else relative)
+                except MediaLocatorInvalid:
+                    yield path, None
 
 
 def _matches(store: MediaStore, location: str, size: int, digest: str) -> bool:
@@ -70,10 +76,10 @@ def _matches(store: MediaStore, location: str, size: int, digest: str) -> bool:
         return copy.stat().st_size == size and sha256_file(copy) == digest
 
 
-def import_media(root: Path, store: MediaStore) -> MediaImportCounts:
+def import_media(root: Path, store: MediaStore, *, archive: bool = False) -> MediaImportCounts:
     """Copy each media file that is not stored yet. `MediaStoreUnavailable` propagates."""
     imported = present = invalid = mismatch = 0
-    for path, location in _candidates(root):
+    for path, location in _candidates(root, archive=archive):
         if location is None:
             invalid += 1
             continue
@@ -106,7 +112,9 @@ def import_media(root: Path, store: MediaStore) -> MediaImportCounts:
     return MediaImportCounts(imported, present, invalid, mismatch)
 
 
-def remove_local_media(root: Path, store: MediaStore) -> MediaRemovalCounts:
+def remove_local_media(
+    root: Path, store: MediaStore, *, archive: bool = False
+) -> MediaRemovalCounts:
     """Delete each local media file whose object verifies identical; keep every other file."""
     volume = root.resolve()
     if isinstance(store, LocalMediaStore) and (
@@ -115,7 +123,7 @@ def remove_local_media(root: Path, store: MediaStore) -> MediaRemovalCounts:
         # Verifying a file against itself, or a copy inside the tree being removed, proves nothing.
         raise ValueError("media_store_is_the_volume")
     removed = kept = 0
-    for path, location in _candidates(root):
+    for path, location in _candidates(root, archive=archive):
         if location is None:
             kept += 1
             continue
@@ -129,9 +137,10 @@ def remove_local_media(root: Path, store: MediaStore) -> MediaRemovalCounts:
             continue
         path.unlink()
         removed += 1
-    reports = root / "reports"
-    for directory, _, _ in sorted(os.walk(reports, followlinks=False), reverse=True):
-        if Path(directory) != reports:
-            with contextlib.suppress(OSError):
-                Path(directory).rmdir()  # only an empty folder goes
+    for top in ("reports", "legacy-scout") if archive else ("reports",):
+        base = root / top
+        for directory, _, _ in sorted(os.walk(base, followlinks=False), reverse=True):
+            if Path(directory) != base:
+                with contextlib.suppress(OSError):
+                    Path(directory).rmdir()  # only an empty folder goes
     return MediaRemovalCounts(removed, kept)

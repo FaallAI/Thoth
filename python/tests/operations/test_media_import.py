@@ -211,7 +211,7 @@ def test_cli_reports_a_local_disk_failure_in_one_line(tmp_path: Path, monkeypatc
     volume, store = _volume_and_store(tmp_path)
     _write(volume, VIDEO, b"video")
 
-    def full_disk(root: Path, target) -> None:
+    def full_disk(root: Path, target, **_: object) -> None:
         raise OSError(28, "No space left on device")
 
     monkeypatch.setattr(cli, "import_media", full_disk)
@@ -219,3 +219,30 @@ def test_cli_reports_a_local_disk_failure_in_one_line(tmp_path: Path, monkeypatc
     assert result.exit_code == 1
     assert result.output.strip() == "media import failed: local disk error"
     assert isinstance(result.exception, SystemExit)
+
+
+def test_archive_copies_report_json_and_legacy_scout_under_archive(tmp_path: Path) -> None:
+    volume, store = _volume_and_store(tmp_path)
+    _write(volume, REPORT, b"{}")
+    _write(volume, "legacy-scout/wf_a/source-report.json", b'{"l":1}')
+    assert import_media(volume, store, archive=True) == MediaImportCounts(2, 0, 0, 0)
+    assert store.list("archive/reports/") == ["archive/reports/wf_a/source-report.json"]
+    assert store.list("archive/legacy-scout/") == ["archive/legacy-scout/wf_a/source-report.json"]
+    assert import_media(volume, store, archive=True) == MediaImportCounts(0, 2, 0, 0)
+
+
+def test_archive_remove_local_keeps_nothing_it_verified(tmp_path: Path) -> None:
+    volume, store = _volume_and_store(tmp_path)
+    _write(volume, REPORT, b"{}")
+    _write(volume, "legacy-scout/wf_a/source-report.json", b'{"l":1}')
+    import_media(volume, store, archive=True)
+    assert remove_local_media(volume, store, archive=True) == MediaRemovalCounts(2, 0)
+    assert not (volume / "reports").exists() or not any((volume / "reports").rglob("*"))
+
+
+def test_cli_archive_prints_counts(tmp_path: Path, monkeypatch) -> None:
+    volume, store = _volume_and_store(tmp_path)
+    _write(volume, REPORT, b"{}")
+    result = _cli(monkeypatch, _CliStore(store.root), "--artifact-root", str(volume), "--archive")
+    assert result.exit_code == 0
+    assert result.output.strip() == "imported=1 present=0 invalid=0 mismatch=0"

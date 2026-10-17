@@ -104,6 +104,7 @@ app.add_typer(media_app, name="media")
 def media_import(
     artifact_root: Annotated[Path, typer.Option("--artifact-root")],
     remove_local: Annotated[bool, typer.Option("--remove-local")] = False,
+    archive: Annotated[bool, typer.Option("--archive")] = False,
 ) -> None:
     """Copy the volume's media into the S3 store and verify it; counts only."""
     settings = Settings()
@@ -121,12 +122,12 @@ def media_import(
     try:
         store.ensure_bucket()
         if remove_local:
-            removal = remove_local_media(artifact_root, store)
+            removal = remove_local_media(artifact_root, store, archive=archive)
             typer.echo(f"removed={removal.removed} kept={removal.kept}")
             if removal.kept:
                 raise typer.Exit(1)
             return
-        counts = import_media(artifact_root, store)
+        counts = import_media(artifact_root, store, archive=archive)
     except MediaStoreUnavailable:
         typer.echo("media store unavailable")
         raise typer.Exit(1) from None
