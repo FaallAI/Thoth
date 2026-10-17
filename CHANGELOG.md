@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-17 - PR #17 deployed: zero event-loop stalls on a fresh worker
+
+**Deployed.** Master `481a364`, image `thoth@sha256:8f8cf9b6...86ca` (renderer pin unchanged).
+`make deploy`: every service healthy, import `imported=0 present=277 invalid=0`. The image also
+carries PR #16 (the reused idempotency key).
+
+**Smokes** (TikTok `@officialdominannews/video/7696017980768931080`, footage on):
+- `wf_9ad84023449b89efdf6cd1b0`, on the worker `make deploy` had just started: succeeded in
+  340 s, no 503.
+- `wf_adb77caaf51c2f68e5e42086`: succeeded in 480 s. It was meant as a warm-worker smoke, but the
+  WSL distro had powered off between the two runs, so the worker restarted 2 s before this
+  workflow started. That makes it a fresh worker taking load right away.
+- Both ran all four activities, including `build_footage`. Every workflow task completed: none
+  failed and none timed out. Zero TMPRL1101, and the worker never restarted on its own.
+- The whole worker log, from both starts through both smokes (114 lines), has zero
+  `event loop stalled` dumps. That includes startup, where PR #15's fresh-worker smoke still
+  stalled 1.3 s.
+
+**Next steps**
+- Optional: a true warm-worker smoke, with two back-to-back runs inside one attached `wsl`
+  command. This is an operator gate.
+- Follow-ups: S3 media spec; attribution for reposts with no credit; Studio reading the footage
+  artifact; Stage 5c; label the newly admitted calibration clips.
+
 ## 2026-10-17 - The worker warms its GIL-heavy work before it polls
 
 Branch `fix/worker-warm-startup`. Two kinds of work still held the GIL for a second or more on a
