@@ -154,6 +154,29 @@ voice design, dubbing, transcription (WhisperX by default), dictation, and audio
 Before Supertonic-3 or a VoiceStudio engine becomes a default, the operator runs a listening
 test of the same Indonesian script on ElevenLabs, edge-tts, and Supertonic-3.
 
+### Listening test, first pass (2026-10-18)
+
+**Method:** one Indonesian script of 57 words, with numbers ("30 detik", "2,5 juta"). Each
+sample was transcribed back with faster-whisper `medium` (CPU, `int8`) and scored by word error
+rate (WER) against the script. Every sample also lost one word to a scoring artifact: the
+script's "dua hari" comes back as "2 hari". The adjusted column removes it.
+
+| Sample | Audio | Synthesis time | WER | WER, adjusted | Notes |
+|---|---|---|---|---|---|
+| ElevenLabs `plgKUYgnlZ1DCNh54DwJ`, `eleven_multilingual_v2` | 21.8 s | 6.6 s (API) | 1.8% | 0% | 363 character timings |
+| edge-tts `id-ID-GadisNeural` | 27.9 s | 7.8 s | 1.8% | 0% | 51 word boundaries |
+| edge-tts `id-ID-ArdiNeural` | 21.1 s | 6.4 s | 5.3% | ~3.5% | "trik kamera" heard as "trika merah" |
+| Supertonic-3 `M1` (CPU) | 28.0 s | 13.5 s, RTF 0.48; first load 89 s including a ~400 MB download | 10.5% | ~8.8% | numbers misread: "30" → "32", "2,5" → "2,1" |
+| Supertonic-3 `F3` (CPU) | 28.7 s | 13.8 s, RTF 0.48 | 12.3% | ~10.5% | "heboh" → "hebo"; "kali" dropped |
+
+**Reading:**
+- ElevenLabs and edge-tts Gadis are intelligible word for word.
+- Supertonic-3 runs faster than real time on CPU, but it mispronounces digits. If it is used,
+  the script step must spell numbers out in words.
+- Naturalness and pacing are for the operator's ears.
+
+Samples: `D:/thoth-tmp/voice-samples/` (operator copy, not in the repository).
+
 ## 5. Schema and composition gaps
 
 | Gap | Change |
