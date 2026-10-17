@@ -475,3 +475,44 @@ describe("RendererArtifactRoot downloaded assets", () => {
     );
   });
 });
+
+describe("RendererArtifactRoot downloads over a real connection", () => {
+  // CI's offline smoke hung in `preparing` (2026-10-17): Bun.write(path, new Response(body))
+  // never settles for a body that comes from fetch. A string body hides that, so this test
+  // serves the asset over HTTP exactly as the control plane does.
+  test("an asset streamed from an HTTP response is written whole", async () => {
+    const payload = new Uint8Array(3 * 1024 * 1024).fill(7);
+    const server = Bun.serve({
+      port: 0,
+      fetch: () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              for (let i = 0; i < payload.length; i += 65536) {
+                controller.enqueue(payload.slice(i, i + 65536));
+              }
+              controller.close();
+            },
+          }),
+          { headers: { "Content-Length": String(payload.length) } },
+        ),
+    });
+    try {
+      const response = await fetch(`http://127.0.0.1:${server.port}/`, {
+        signal: AbortSignal.any([AbortSignal.timeout(60_000), new AbortController().signal]),
+      });
+      const asset = {
+        asset_id: "asset_1",
+        relative_name: "assets/asset_1.mp4",
+        size_bytes: payload.length,
+        checksum: `sha256:${createHash("sha256").update(payload).digest("hex")}`,
+      };
+      const local = artifacts();
+      await local.receiveAsset("rj_001", asset, response.body!);
+      await local.verifyStagedAssets("rj_001", [asset]);
+    } finally {
+      server.stop(true);
+    }
+  }, 15_000);
+});
+
