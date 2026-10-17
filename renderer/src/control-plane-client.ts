@@ -12,6 +12,8 @@ const IDENTIFIER = /^[A-Za-z][A-Za-z0-9_-]{0,127}$/;
 /** A bundle is one document revision and its staged names; far below this. */
 const MAX_BUNDLE_BYTES = 8 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 15_000;
+/** An asset download or a render upload moves media, not a small document. */
+const TRANSFER_TIMEOUT_MS = 15 * 60_000;
 
 export class ControlPlaneUnavailable extends Error {
   constructor() {
@@ -53,6 +55,32 @@ export class ControlPlaneClient {
     await this.#bounded(response);
   }
 
+  /** Stream one asset the job's bundle lists. */
+  async fetchAsset(renderJobId: string, assetId: string): Promise<ReadableStream<Uint8Array>> {
+    if (!IDENTIFIER.test(assetId)) {
+      throw new ControlPlaneUnavailable();
+    }
+    const response = await this.#send(this.#url(renderJobId, `assets/${assetId}`), {
+      method: "GET",
+      timeoutMs: TRANSFER_TIMEOUT_MS,
+    });
+    if (response.body === null) {
+      throw new ControlPlaneUnavailable();
+    }
+    return response.body;
+  }
+
+  /** Hand the finished render to the control plane, which stores and later verifies it. */
+  async uploadOutput(renderJobId: string, path: string): Promise<void> {
+    const response = await this.#send(this.#url(renderJobId, "output"), {
+      method: "PUT",
+      body: Bun.file(path),
+      contentType: "video/mp4",
+      timeoutMs: TRANSFER_TIMEOUT_MS,
+    });
+    await this.#bounded(response);
+  }
+
   #jobOf(event: unknown): string {
     const identity = (event as { render_job_id?: unknown }).render_job_id;
     return typeof identity === "string" ? identity : "";
@@ -65,7 +93,10 @@ export class ControlPlaneClient {
     return `${this.#baseUrl}/internal/render-jobs/${renderJobId}/${action}`;
   }
 
-  async #send(url: string, init: { method: string; body?: string }): Promise<Response> {
+  async #send(
+    url: string,
+    init: { method: string; body?: BodyInit; contentType?: string; timeoutMs?: number },
+  ): Promise<Response> {
     let response: Response;
     try {
       response = await this.#fetch(
@@ -74,12 +105,12 @@ export class ControlPlaneClient {
           body: init.body,
           headers: {
             Authorization: `Bearer ${this.#credential}`,
-            "Content-Type": "application/json",
+            "Content-Type": init.contentType ?? "application/json",
           },
           // A private route never moves: following one would send the internal
           // credential to whatever host answered.
           redirect: "error",
-          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+          signal: AbortSignal.timeout(init.timeoutMs ?? REQUEST_TIMEOUT_MS),
         }),
       );
     } catch {

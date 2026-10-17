@@ -86,3 +86,61 @@ describe("ControlPlaneClient", () => {
     }
   });
 });
+
+describe("ControlPlaneClient media transfer", () => {
+  test("streams one listed asset from the private route", async () => {
+    const seen: Request[] = [];
+    const body = await client((request) => {
+      seen.push(request);
+      return new Response("asset-bytes");
+    }).fetchAsset("rj_001", "asset_1");
+
+    expect(await new Response(body).text()).toBe("asset-bytes");
+    expect(seen[0]!.url).toBe("http://api:8000/internal/render-jobs/rj_001/assets/asset_1");
+    expect(seen[0]!.method).toBe("GET");
+    expect(seen[0]!.headers.get("Authorization")).toBe(`Bearer ${CREDENTIAL}`);
+    expect(seen[0]!.redirect).toBe("error");
+  });
+
+  test("an asset that cannot be fetched is one fixed error", async () => {
+    const failing = client(() => new Response("nope", { status: 404 }));
+    await expect(failing.fetchAsset("rj_001", "asset_1")).rejects.toBeInstanceOf(
+      ControlPlaneUnavailable,
+    );
+    await expect(failing.fetchAsset("rj_001", "../escape")).rejects.toBeInstanceOf(
+      ControlPlaneUnavailable,
+    );
+  });
+
+  test("uploads the finished render as video/mp4", async () => {
+    const path = `${process.env.TMPDIR ?? "/tmp"}/thoth-upload-${Date.now()}.mp4`;
+    await Bun.write(path, "render-bytes");
+    const seen: { url: string; method: string; type: string | null; body: string }[] = [];
+    await client(async (request) => {
+      seen.push({
+        url: request.url,
+        method: request.method,
+        type: request.headers.get("Content-Type"),
+        body: await request.text(),
+      });
+      return new Response(JSON.stringify({ size_bytes: 12, checksum: "sha256:x" }));
+    }).uploadOutput("rj_001", path);
+
+    expect(seen).toEqual([
+      {
+        url: "http://api:8000/internal/render-jobs/rj_001/output",
+        method: "PUT",
+        type: "video/mp4",
+        body: "render-bytes",
+      },
+    ]);
+  });
+
+  test("a refused upload is one fixed error", async () => {
+    const path = `${process.env.TMPDIR ?? "/tmp"}/thoth-upload-refused-${Date.now()}.mp4`;
+    await Bun.write(path, "render-bytes");
+    await expect(
+      client(() => new Response("too large", { status: 413 })).uploadOutput("rj_001", path),
+    ).rejects.toBeInstanceOf(ControlPlaneUnavailable);
+  });
+});

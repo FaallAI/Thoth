@@ -51,6 +51,8 @@ function harness(
     outputError?: Error;
     publishError?: Error;
     removeError?: Error;
+    fetchAssetError?: Error;
+    uploadError?: Error;
     render?: (request: EngineRequest) => Promise<void>;
     config?: Partial<RendererConfig>;
   } = {},
@@ -60,6 +62,8 @@ function harness(
   const requests: EngineRequest[] = [];
   const fetches: string[] = [];
   const warnings: string[] = [];
+  /** The media steps in the order the execution took them. */
+  const trace: string[] = [];
   // The artifact root outlives any one renderer process, so the claims a test
   // hands in are the ones already on disk when this execution is created.
   const claims = options.claims ?? new Set<string>();
@@ -99,7 +103,21 @@ function harness(
         // The control plane serves each bundle from the job's own route.
         return options.bundle ?? testBundle({ render_job_id: renderJobId, dispatch_id: bound });
       },
+      fetchAsset: async (_job: string, assetId: string) => {
+        trace.push(`fetch:${assetId}`);
+        if (options.fetchAssetError) {
+          throw options.fetchAssetError;
+        }
+        return new Response("asset").body!;
+      },
+      uploadOutput: async (job: string, path: string) => {
+        trace.push(`upload:${job}:${path}`);
+        if (options.uploadError) {
+          throw options.uploadError;
+        }
+      },
       publishEvent: async (event: RenderEvent) => {
+        trace.push(`event:${event.status}`);
         if (options.publishError) {
           throw options.publishError;
         }
@@ -123,7 +141,14 @@ function harness(
         return "claimed" as const;
       },
       prepare: async () => {},
+      receiveAsset: async (_job: string, asset: { asset_id: string }) => {
+        trace.push(`receive:${asset.asset_id}`);
+      },
+      removeAssets: async (job: string) => {
+        trace.push(`remove-assets:${job}`);
+      },
       verifyStagedAssets: async () => {
+        trace.push("verify");
         if (options.assetError) {
           throw options.assetError;
         }
@@ -158,6 +183,7 @@ function harness(
   return {
     events,
     removed,
+    trace,
     requests,
     fetches,
     warnings,
@@ -752,5 +778,57 @@ describe("the private dispatch surface", () => {
     );
     expect(response.status).toBe(404);
     expect(await response.text()).toBe(JSON.stringify({ code: "renderer_route_unknown" }));
+  });
+});
+
+describe("the renderer's media transfer", () => {
+  test("assets are downloaded before they are verified", async () => {
+    const subject = harness();
+    await run(subject);
+
+    const media = subject.trace.filter((step) => !step.startsWith("event:"));
+    expect(media.slice(0, 3)).toEqual(["fetch:asset_1", "receive:asset_1", "verify"]);
+  });
+
+  test("an asset download failure is render_asset_unavailable", async () => {
+    const subject = harness({ fetchAssetError: new ControlPlaneUnavailable() });
+    await run(subject);
+
+    expect(subject.requests).toHaveLength(0);
+    expect(subject.events.at(-1)).toMatchObject({
+      status: "failed",
+      failure_code: "render_asset_unavailable",
+    });
+  });
+
+  test("the output is uploaded before completed", async () => {
+    const subject = harness();
+    await run(subject);
+
+    const upload = subject.trace.findIndex((step) => step.startsWith("upload:rj_001:"));
+    const completed = subject.trace.indexOf("event:completed");
+    expect(upload).toBeGreaterThan(-1);
+    expect(upload).toBeLessThan(completed);
+    expect(subject.trace[upload]).toBe("upload:rj_001:/srv/artifacts/temp/rj_001/output.mp4");
+  });
+
+  test("an upload failure is render_output_invalid and never completed", async () => {
+    const subject = harness({ uploadError: new ControlPlaneUnavailable() });
+    await run(subject);
+
+    expect(statuses(subject)).not.toContain("completed");
+    expect(subject.events.at(-1)).toMatchObject({
+      status: "failed",
+      failure_code: "render_output_invalid",
+    });
+  });
+
+  test("the local output and assets are removed after a completed render", async () => {
+    const subject = harness();
+    await run(subject);
+
+    expect(statuses(subject).at(-1)).toBe("completed");
+    expect(subject.removed).toContain("rj_001");
+    expect(subject.trace).toContain("remove-assets:rj_001");
   });
 });

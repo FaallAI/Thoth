@@ -229,6 +229,34 @@ export class RendererArtifactRoot {
     }
   }
 
+  /** Write one downloaded asset where the bundle names it; the checksum is verified after. */
+  async receiveAsset(
+    renderJobId: string,
+    asset: RenderBundleAsset,
+    body: ReadableStream<Uint8Array>,
+  ): Promise<void> {
+    if (!asset.relative_name.startsWith("assets/")) {
+      throw new ArtifactPathInvalid();
+    }
+    const name = asset.relative_name.slice("assets/".length);
+    const directory = this.assetsDirectory(renderJobId);
+    const path = this.#contained("work", this.#identifier(renderJobId), "assets", name);
+    await this.#assertLinkFree(path);
+    try {
+      await mkdir(directory, { recursive: true });
+      await Bun.write(path, new Response(body));
+    } catch {
+      throw new ArtifactUnavailable();
+    }
+  }
+
+  /** Remove this job's downloaded assets, and only them. */
+  async removeAssets(renderJobId: string): Promise<void> {
+    const directory = this.assetsDirectory(renderJobId);
+    await this.#assertLinkFree(directory);
+    await rm(directory, { recursive: true, force: true });
+  }
+
   /** Remove this render's temporary output, whether or not one exists. */
   async removeTemporaryOutput(renderJobId: string): Promise<void> {
     const path = this.temporaryOutput(renderJobId);

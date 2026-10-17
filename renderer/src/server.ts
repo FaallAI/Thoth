@@ -65,6 +65,8 @@ export type RenderEngine = {
 
 export type ControlPlanePort = {
   fetchBundle(renderJobId: string): Promise<unknown>;
+  fetchAsset(renderJobId: string, assetId: string): Promise<ReadableStream<Uint8Array>>;
+  uploadOutput(renderJobId: string, path: string): Promise<void>;
   publishEvent(event: RenderEvent): Promise<void>;
 };
 
@@ -72,6 +74,12 @@ export type ArtifactPort = {
   /** Declare this dispatch started, or report that some process already did. */
   claimDispatch(renderJobId: string, dispatchId: string): Promise<DispatchClaim>;
   prepare(renderJobId: string): Promise<void>;
+  receiveAsset(
+    renderJobId: string,
+    asset: RenderBundleAsset,
+    body: ReadableStream<Uint8Array>,
+  ): Promise<void>;
+  removeAssets(renderJobId: string): Promise<void>;
   verifyStagedAssets(renderJobId: string, assets: readonly RenderBundleAsset[]): Promise<void>;
   assetsDirectory(renderJobId: string): string;
   bundleDirectory(renderJobId: string): string;
@@ -171,6 +179,17 @@ export function createExecution(deps: ExecutionDeps): RendererExecution {
         rendererVersion: deps.config.rendererVersion,
       });
       await deps.artifacts.prepare(renderJobId);
+      // The renderer shares no volume with the control plane: every input comes over
+      // the private route and is checked against the bundle before it is used.
+      for (const asset of bundle.assets) {
+        try {
+          const body = await deps.client.fetchAsset(renderJobId, asset.asset_id);
+          await deps.artifacts.receiveAsset(renderJobId, asset, body);
+        } catch {
+          // A missing input is the asset's failure, never the bundle's.
+          throw new ArtifactUnavailable();
+        }
+      }
       await deps.artifacts.verifyStagedAssets(renderJobId, bundle.assets);
 
       const expected = expectedOutputOf(bundle);
@@ -210,6 +229,9 @@ export function createExecution(deps: ExecutionDeps): RendererExecution {
       stage = "finalizing";
       await publish("finalizing");
       const output = await deps.artifacts.verifyTemporaryOutput(renderJobId, expected);
+      // The control plane stores the file and checks it against these facts on publish;
+      // a failed upload stays in this stage, so it closes as render_output_invalid.
+      await deps.client.uploadOutput(renderJobId, deps.artifacts.temporaryOutput(renderJobId));
 
       terminal = true;
       sequence += 1;
@@ -225,12 +247,22 @@ export function createExecution(deps: ExecutionDeps): RendererExecution {
           occurred_at: deps.now().toISOString(),
         }),
       );
+      // The render lives in the store now: the local output and inputs are not kept.
+      await safely(deps, "render_temporary_output_cleanup_failed", () =>
+        deps.artifacts.removeTemporaryOutput(renderJobId),
+      );
+      await safely(deps, "render_temporary_output_cleanup_failed", () =>
+        deps.artifacts.removeAssets(renderJobId),
+      );
     } catch (error) {
       const closing = closingEvent(stage, error, reason);
       terminal = true;
       sequence += 1;
       await safely(deps, "render_temporary_output_cleanup_failed", () =>
         deps.artifacts.removeTemporaryOutput(renderJobId),
+      );
+      await safely(deps, "render_temporary_output_cleanup_failed", () =>
+        deps.artifacts.removeAssets(renderJobId),
       );
       await safely(deps, "render_event_publish_failed", () =>
         deps.client.publishEvent({

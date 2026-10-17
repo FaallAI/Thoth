@@ -423,3 +423,55 @@ describe("createTemplateReleaseRun", () => {
     expect(String(failure)).not.toContain(root);
   });
 });
+
+describe("RendererArtifactRoot downloaded assets", () => {
+  const ASSET = {
+    asset_id: "asset_1",
+    relative_name: "assets/asset_1.mp4",
+    size_bytes: 7,
+    checksum: checksum("payload"),
+  };
+
+  test("a received asset lands where the bundle names it and verifies", async () => {
+    const local = artifacts();
+    await local.receiveAsset("rj_001", ASSET, new Response("payload").body!);
+
+    expect(await Bun.file(join(local.assetsDirectory("rj_001"), "asset_1.mp4")).text()).toBe(
+      "payload",
+    );
+    await local.verifyStagedAssets("rj_001", [ASSET]);
+  });
+
+  test("received bytes that differ from the bundle fail verification", async () => {
+    const local = artifacts();
+    await local.receiveAsset("rj_001", ASSET, new Response("tampered").body!);
+    await expect(local.verifyStagedAssets("rj_001", [ASSET])).rejects.toBeInstanceOf(
+      ArtifactUnavailable,
+    );
+  });
+
+  test("a name outside assets/ is refused", async () => {
+    const local = artifacts();
+    await expect(
+      local.receiveAsset(
+        "rj_001",
+        { ...ASSET, relative_name: "bundle/asset_1.mp4" },
+        new Response("payload").body!,
+      ),
+    ).rejects.toBeInstanceOf(ArtifactPathInvalid);
+  });
+
+  test("removeAssets deletes only this job's assets", async () => {
+    const local = artifacts();
+    stageAsset("rj_001", "asset_1.mp4", "one");
+    stageAsset("rj_002", "asset_2.mp4", "two");
+    await local.removeAssets("rj_001");
+
+    expect(await Bun.file(join(local.assetsDirectory("rj_001"), "asset_1.mp4")).exists()).toBe(
+      false,
+    );
+    expect(await Bun.file(join(local.assetsDirectory("rj_002"), "asset_2.mp4")).exists()).toBe(
+      true,
+    );
+  });
+});
