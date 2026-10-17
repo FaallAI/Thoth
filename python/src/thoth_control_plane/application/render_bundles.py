@@ -45,6 +45,8 @@ class RenderPresetSettings(StrictModel):
     preset_id: Literal["standard_vertical_mp4_v1"]
     renderer_version: str
     max_asset_bytes: int = Field(gt=0)
+    #: The largest render output a renderer may upload (spec 2026-10-17, render storage).
+    max_output_bytes: int = Field(gt=0, default=2 * 1024 * 1024 * 1024)
 
 
 class BuildRenderBundleRequest(StrictModel):
@@ -157,7 +159,7 @@ async def build_render_bundle(
         copied = artifacts.stage_asset(
             workspace,
             asset_id=asset_id,
-            source=artifacts.resolve_source(record.artifact_location),
+            location=record.artifact_location,
             expected_checksum=record.asset.checksum,
             max_bytes=settings.max_asset_bytes,
         )

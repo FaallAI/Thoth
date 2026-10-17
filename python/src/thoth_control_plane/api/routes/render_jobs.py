@@ -9,15 +9,17 @@ into a browser.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 from collections.abc import Iterator
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from pydantic import Field
 
 from thoth_control_plane.api.dependencies import current_actor
+from thoth_control_plane.api.ranged import ranged_response
 from thoth_control_plane.application.render_bundles import RenderBundleInvalid
 from thoth_control_plane.application.render_job_ports import (
     ArtifactPathInvalid,
@@ -57,6 +59,7 @@ from thoth_control_plane.domain.render_jobs import (
     RenderStatus,
     Timestamp,
 )
+from thoth_control_plane.infrastructure.media_store import MediaStoreUnavailable
 
 router = APIRouter()
 
@@ -84,6 +87,7 @@ _ERRORS: tuple[tuple[type[Exception], int, str], ...] = (
     (RendererUnavailable, status.HTTP_503_SERVICE_UNAVAILABLE, "render_dispatch_failed"),
     (RendererRejected, status.HTTP_503_SERVICE_UNAVAILABLE, "render_dispatch_failed"),
     (RenderPersistenceError, status.HTTP_503_SERVICE_UNAVAILABLE, "render_unavailable"),
+    (MediaStoreUnavailable, status.HTTP_503_SERVICE_UNAVAILABLE, "media_store_unavailable"),
 )
 
 
@@ -276,25 +280,28 @@ async def retry_render_job(
 
 @router.get(
     "/projects/{project_id}/render-jobs/{render_job_id}/output",
-    response_class=FileResponse,
+    response_class=Response,
     responses={200: {"content": {"video/mp4": {}}}},
 )
 async def download_render_output(
     project_id: ProjectId,
     render_job_id: OpaqueId,
+    request: Request,
     actor: ActorDependency,
     service: ServiceDependency,
-) -> FileResponse:
-    """Stream the one published render, never a redirect to where it lives."""
+) -> Response:
+    """Stream the one published render from the store, never a redirect to where it lives."""
     with safe_render_errors(unavailable=(status.HTTP_404_NOT_FOUND, "render_output_unavailable")):
         download = await service.output_path(project_id, render_job_id)
-    return FileResponse(
-        download.path,
+        size = await asyncio.to_thread(service.object_size, download.location)
+    return ranged_response(
+        size=size,
+        read=lambda start, end: service.read_object(download.location, start, end),
         media_type=download.media_type,
+        range_header=request.headers.get("range"),
         headers={
             **DOWNLOAD_HEADERS,
             "Content-Disposition": f'attachment; filename="{download.filename}"',
-            "Content-Length": str(download.size_bytes),
             "X-Thoth-Render-Checksum": download.checksum,
         },
     )

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 import pytest
@@ -188,15 +187,12 @@ class Artifacts:
     def prepare(self, render_job_id: str) -> JobWorkspace:
         return JobWorkspace(render_job_id=render_job_id)
 
-    def resolve_source(self, relative_location: str) -> Path:
-        return Path("/srv/artifacts") / relative_location
-
     def stage_asset(
         self,
         workspace: JobWorkspace,
         *,
         asset_id: str,
-        source: Path,
+        location: str,
         expected_checksum: str,
         max_bytes: int,
     ) -> StagedAsset:
@@ -232,9 +228,9 @@ class Artifacts:
             checksum=output.checksum,
         )
 
-    def resolve_download(self, render_job_id: str, relative_path: str) -> Path:
+    def resolve_download(self, render_job_id: str, relative_path: str) -> str:
         self.downloads.append(relative_path)
-        return Path("/srv/artifacts") / relative_path
+        return relative_path
 
     def cleanup(self, render_job_id: str) -> None:
         self.cleaned.append(render_job_id)
@@ -1167,3 +1163,51 @@ async def test_reconciliation_never_touches_a_terminal_job() -> None:
 
     assert await service.reconcile_expired(NOW + timedelta(seconds=3600)) == 0
     assert renderer.cancelled == []
+
+
+# --- the renderer's media routes (spec 2026-10-17, render storage) ----------------------
+
+
+@pytest.mark.asyncio
+async def test_a_running_job_serves_only_the_assets_its_bundle_lists() -> None:
+    # A second ready asset in the same project that the document never plays.
+    main = asset_record()
+    other = main.model_copy(
+        update={
+            "asset": main.asset.model_copy(update={"asset_id": "asset_other"}),
+            "artifact_location": "uploads/project_001/asset_other.mp4",
+        }
+    )
+    service = build_service(assets=Assets((main, other)))
+    job = await create_one(service)
+
+    location = await service.asset_location(job.render_job_id, "asset_main")
+
+    assert location == asset_record().artifact_location
+    with pytest.raises(ArtifactUnavailable):
+        await service.asset_location(job.render_job_id, "asset_other")
+
+
+@pytest.mark.asyncio
+async def test_a_finished_job_serves_no_asset() -> None:
+    service = build_service()
+    job = await create_one(service)
+    await complete(service, job)
+
+    with pytest.raises(ArtifactUnavailable):
+        await service.asset_location(job.render_job_id, "asset_main")
+
+
+@pytest.mark.asyncio
+async def test_an_output_upload_needs_an_active_job() -> None:
+    service = build_service()
+    job = await create_one(service)
+    await complete(service, job)
+
+    async def chunks():
+        yield b"late"
+
+    with pytest.raises(RenderJobNotActive):
+        await service.receive_output(job.render_job_id, chunks())
+    with pytest.raises(RenderJobNotFound):
+        await service.receive_output("rj_unknown", chunks())
