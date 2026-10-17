@@ -96,6 +96,8 @@ How it improves on the Rust flow:
 | Alignment, only if faster-whisper's word timings fall short | [WhisperX](https://github.com/m-bain/whisperX) | BSD-2 | wav2vec2 forced alignment on top of faster-whisper. Indonesian alignment support must be verified first | — |
 | Voice, production | ElevenLabs (the current Rust setting), with MiniMax, Fish Audio and OpenAI behind one adapter | commercial APIs | Best Indonesian quality available today. Keeps the operator's voices | — |
 | Voice, free fallback | [edge-tts](https://pypi.org/project/edge-tts/) (`id-ID-ArdiNeural`, `id-ID-GadisNeural`) | open-source client of an unofficial service | No key. Already a Rust option | Not for volume: no SLA, IP rate limits answer 403 |
+| Voice, self-hosted on CPU (candidate) | [Supertonic-3](https://huggingface.co/Supertone/supertonic-3) (Supertone) | SDK MIT, weights OpenRAIL-M (use restrictions, commercial use allowed) | ~99M-parameter ONNX, CPU-only by design, 31 languages including Indonesian, 44.1 kHz, 7 preset voices. Fits the CPU worker; needs an Indonesian listening test | — |
+| Voice, any OpenAI-compatible server | One `openai_compatible` adapter (`/v1/audio/speech`) | — | Covers [VoiceStudio](https://github.com/debpalash/VoiceStudio) (section 4a) and other self-hosted servers with no new code per engine | — |
 | Voice, self-hosted (later, GPU) | [grandhigh/Chatterbox-TTS-Indonesian](https://huggingface.co/grandhigh/Chatterbox-TTS-Indonesian) | Apache-2.0 | Indonesian fine-tune of Chatterbox with voice cloning. Quality not yet measured | [MMS-TTS ind](https://huggingface.co/facebook/mms-tts-ind): CC-BY-NC 4.0, 16 kHz. [Chatterbox Multilingual v3](https://www.resemble.ai/resources/chatterbox-multilingual-v3-tts-with-embedded-watermarking-for-25-languages): no Indonesian among its 25 languages. CosyVoice 3: no Indonesian. F5-TTS Indonesian fine-tunes: base weights' license to be checked before any use |
 | Caption pages and active-word highlight | `@remotion/captions` `createTikTokStyleCaptions` | Remotion license (already in use) | Pages and word tokens straight from timed words; runs in the renderer | Burned-in ffmpeg subtitles |
 | Ducking | Remotion `volume` as a function of the frame | same | Exact ducking per frame inside the composition | Pre-mixing audio with ffmpeg (no longer editable) |
@@ -112,6 +114,45 @@ How it improves on the Rust flow:
 
 **Not ported:** the wgpu color grading and the 21 GPU transitions. Studio users have not asked
 for them. Remotion CSS filters, or a LUT, can come back later if they are missed.
+
+## 4a. VoiceStudio (debpalash/VoiceStudio), reviewed 2026-10-18
+
+The operator asked for this project to be reviewed. Its code was read from a shallow clone
+(v0.5.6+, commit of 2026-10-17); nothing was run.
+
+**What it is:** a complete voice product, not a library. It is an Electron desktop and web app
+over a FastAPI backend: about 3,300 files and 275k lines of Python. Its features are cloning,
+voice design, dubbing, transcription (WhisperX by default), dictation, and audiobooks, with
+17 TTS engines and 10 ASR engines.
+
+| Aspect | Finding |
+|---|---|
+| Activity | 72.8k stars; release v0.5.6 (2026-09-23); last push 2026-10-17; 208 open issues. One maintainer wrote ~3,375 of ~3,700 commits |
+| Licence | Application **AGPL-3.0-only**, under a CLA to Yupcha Softwares. A paid commercial licence and "Pro" features exist (open core). Modifying it and offering it over a network obliges publishing the modified source |
+| Default model | k2-fsa/OmniVoice: 646 languages, 6,328 h of Indonesian. Its **weights are CC-BY-NC**, so they cannot voice a monetized channel |
+| Indonesian engines with permissive weights | **Supertonic-3**: OpenRAIL-M, CPU ONNX, 99M. **Confucius4-TTS**: Apache-2.0, cloning, CPU ~17x realtime, GPU recommended. **MOSS-TTS-v1.5**: Apache-2.0, 8B, ~16 GB GPU |
+| Licence hygiene | Its own registry (`backend/config/model_licenses.json`) marks no model as commercially cleared |
+| Integration surface | OpenAI-compatible `POST /v1/audio/speech` (the engine is chosen by `model`), and `POST /v1/audio/transcriptions` with word timestamps. Documented "production private API" pattern: a pinned Docker image, `OMNIVOICE_API_KEY` bearer, loopback or internal network only. Images are `linux/amd64`, CUDA or ROCm; ~2.4 GB of weights download on first run; analytics are opt-in (`OMNIVOICE_ANALYTICS_DISABLED=1`) |
+
+**Verdict:**
+
+- **Do not vendor or embed its code.** The AGPL copyleft and a 275k-line surface would come
+  into Thoth for one feature.
+- **Running it unmodified as a separate internal service is acceptable.** Thoth would call it
+  over the OpenAI-compatible endpoint. That is the right way to get GPU engines (Confucius4,
+  MOSS) and voice cloning once a GPU host exists.
+- **On today's CPU-only workers, its only practical Indonesian engine is Supertonic-3.**
+  Supertonic-3 can also run directly from its MIT SDK, without the 2+ GB application.
+- **Never select its default OmniVoice weights for published videos** (CC-BY-NC).
+
+**Effect on the plan:** the TTS adapter has three implementations from slice 2 on:
+
+1. `elevenlabs`, the primary, with timestamps;
+2. `openai_compatible`, which serves VoiceStudio or any compatible server, chosen per preset;
+3. `edge`, the fallback.
+
+Before Supertonic-3 or a VoiceStudio engine becomes a default, the operator runs a listening
+test of the same Indonesian script on ElevenLabs, edge-tts, and Supertonic-3.
 
 ## 5. Schema and composition gaps
 
@@ -154,7 +195,7 @@ Each slice is its own spec, plan and PR.
 
 1. **Transcript:** a workflow activity transcribes the main video with the existing
    faster-whisper and writes `transcript.json` (words with times) as a report.
-2. **Voice:** a TTS adapter (ElevenLabs first, with timestamps; edge-tts as the fallback) and a
+2. **Voice:** a TTS adapter with three implementations (`elevenlabs` with timestamps, `openai_compatible` for VoiceStudio or another self-hosted server, `edge` as the fallback) and a
    `voice` media artifact. Provider keys stay in the worker's provider file.
 3. **Script and presets:** the LLM script from the Content Set, transcript and preset. This
    includes the Rust Profiles → presets item.
@@ -186,6 +227,8 @@ Each slice is its own spec, plan and PR.
 - [edge-tts on PyPI](https://pypi.python.org/pypi/edge-tts)
 - [MoneyPrinterTurbo overview](https://www.sourcepulse.org/projects/1843149)
 - [AutoClip](https://github.com/artbyjazi/autoclip)
+- [VoiceStudio](https://github.com/debpalash/VoiceStudio): README, `LICENSE-NOTICE.md`, `docs/licensing/model-inventory.md`, `backend/config/model_licenses.json`, `docs/engines/*.md`, `docs/install/docker.md`, `docs/production-private-api.md`, `backend/api/routers/openai_compat.py`
+- [Supertonic-3](https://huggingface.co/Supertone/supertonic-3)
 - [PySceneDetect](https://www.pypi.org/project/scenedetect/0.5.6.1/)
 - Remotion docs via Context7: `@remotion/captions` (`createTikTokStyleCaptions`, `Caption`) and
   the audio `volume` callback
