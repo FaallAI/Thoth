@@ -28,10 +28,16 @@ from thoth_control_plane.activities.content_assembly import (
     _heartbeat,
     _original,
 )
+from thoth_control_plane.activities.media_scratch import MediaScratch, media_locations
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain.models import OpaqueId, SourceProgressEvent, StrictModel
 from thoth_control_plane.footage.models import FootageResult
 from thoth_control_plane.footage.service import FootageBuilder, FootageInputs
+from thoth_control_plane.infrastructure.media_store import (
+    LocalMediaStore,
+    MediaStore,
+    build_media_store,
+)
 from thoth_control_plane.infrastructure.report_store import Reports, connect_reports, read_report
 
 logger = logging.getLogger(__name__)
@@ -80,7 +86,13 @@ def _done(status: str, count: int, started: float) -> FootageActivityResult:
 
 
 async def _run(
-    input_: FootageActivityInput, artifact_root: Path, builder: Builder | None, reports: Reports
+    input_: FootageActivityInput,
+    artifact_root: Path,
+    builder: Builder | None,
+    reports: Reports,
+    *,
+    media: MediaStore | None = None,
+    scratch_dir: Path | None = None,
 ) -> FootageActivityResult:
     started = time.monotonic()
     if builder is None:
@@ -91,29 +103,41 @@ async def _run(
         logger.warning("footage skipped; no stage 3 report for this workflow")
         return _done("unavailable", 0, started)
     # Read before the try: a store outage must propagate as itself, not as a builder failure.
-    inputs = FootageInputs(
-        workflow_id=input_.workflow_id,
-        report=report,
-        attribution=await _attribution(reports, input_.attribution),
-        original=await _original(reports, input_.original_report),
-        artifact_root=artifact_root,
-    )
-    heartbeat = asyncio.create_task(_heartbeat())
-    try:
-        result = await builder.build(inputs)
-    except asyncio.CancelledError:
-        raise
-    except Exception as error:
-        # Only a code reaches Temporal history: errors may carry URLs, captions or SQL parameters.
-        code = getattr(error, "code", None)
-        if not isinstance(code, str) or not _CODE.fullmatch(code):
-            code = "footage_failed"
-        logger.warning("footage failed: %s", code)
-        raise ApplicationError(code, type="FootageFailed") from None
-    finally:
-        heartbeat.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await heartbeat
+    attribution = await _attribution(reports, input_.attribution)
+    original = await _original(reports, input_.original_report)
+    store = media or LocalMediaStore(artifact_root)
+    clips = f"reports/{input_.workflow_id}/footage/"
+    async with MediaScratch(store, scratch_dir) as scratch:
+        # The post's and the original's media, and every clip an earlier attempt admitted.
+        stored_clips = await asyncio.to_thread(store.list, clips)
+        await scratch.pull([*media_locations(report), *media_locations(original), *stored_clips])
+        inputs = FootageInputs(
+            workflow_id=input_.workflow_id,
+            report=report,
+            attribution=attribution,
+            original=original,
+            artifact_root=scratch.root,
+        )
+        heartbeat = asyncio.create_task(_heartbeat())
+        try:
+            result = await builder.build(inputs)
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            # Only a code reaches Temporal history: errors may carry URLs, captions or SQL
+            # parameters.
+            code = getattr(error, "code", None)
+            if not isinstance(code, str) or not _CODE.fullmatch(code):
+                code = "footage_failed"
+            logger.warning("footage failed: %s", code)
+            raise ApplicationError(code, type="FootageFailed") from None
+        finally:
+            heartbeat.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await heartbeat
+        # Only after success: a failed attempt's retry reopens admitted clips it cannot find.
+        made = sorted(path.name for path in (scratch.root / clips).glob("*.mp4") if path.is_file())
+        await scratch.push(f"{clips}{name}" for name in made)
     return _done(result.status, result.admitted, started)
 
 
@@ -181,16 +205,29 @@ async def build_footage(input_: FootageActivityInput) -> FootageActivityResult:
 
 
 def build_footage_activity(
-    settings: Settings, *, builder: Builder | None = None, reports: Reports | None = None
+    settings: Settings,
+    *,
+    builder: Builder | None = None,
+    reports: Reports | None = None,
+    media: MediaStore | None = None,
 ) -> Callable[[FootageActivityInput], Awaitable[FootageActivityResult]]:
     artifact_root = settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT.resolve()
     selected = builder or (
         build_production_footage(settings) if settings.THOTH_FOOTAGE_ENABLED else None
     )
     selected_reports = reports or connect_reports(settings)
+    selected_media = media or build_media_store(settings)
+    scratch_dir = settings.THOTH_MEDIA_SCRATCH_DIR
 
     @activity.defn(name="build_footage")
     async def configured_footage_activity(input_: FootageActivityInput) -> FootageActivityResult:
-        return await _run(input_, artifact_root, selected, selected_reports)
+        return await _run(
+            input_,
+            artifact_root,
+            selected,
+            selected_reports,
+            media=selected_media,
+            scratch_dir=scratch_dir,
+        )
 
     return configured_footage_activity

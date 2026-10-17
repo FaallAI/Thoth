@@ -135,3 +135,63 @@ async def test_an_outage_on_an_optional_read_is_not_a_builder_failure(
     )
     with pytest.raises(ReportStoreUnavailable):
         await activity(FootageActivityInput(workflow_id="wf_a", **{field: location}))
+
+
+async def test_footage_works_on_pulled_media_and_pushes_its_clips(
+    tmp_path: Path, report_store
+) -> None:
+    from thoth_control_plane.infrastructure.media_store import LocalMediaStore
+
+    store_root = tmp_path / "store"
+    store_root.mkdir()
+    store = LocalMediaStore(store_root)
+    _with_report(report_store)
+    main = str(support_report(workflow_id="wf_a").media[0].location)
+    (tmp_path / "main.mp4").write_bytes(b"main-video")
+    store.put_file(main, tmp_path / "main.mp4")
+    (tmp_path / "earlier.mp4").write_bytes(b"admitted-before")
+    store.put_file("reports/wf_a/footage/earlier.mp4", tmp_path / "earlier.mp4")
+
+    class Building:
+        async def build(self, inputs) -> FootageResult:
+            root = inputs.artifact_root
+            assert (root / main).read_bytes() == b"main-video"
+            assert (root / "reports/wf_a/footage/earlier.mp4").read_bytes() == b"admitted-before"
+            (root / "reports/wf_a/footage/new.mp4").write_bytes(b"new-clip")
+            (root / "reports/wf_a/footage/half.mp4.part").write_bytes(b"x")
+            return FootageResult(status="ok", admitted=2)
+
+    activity = build_footage_activity(
+        _settings(tmp_path / "unused-root"), builder=Building(), reports=report_store, media=store
+    )  # type: ignore[arg-type]
+    result = await activity(FootageActivityInput(workflow_id="wf_a"))
+
+    assert result.footage_status == "ok"
+    assert store.stat("reports/wf_a/footage/new.mp4").size_bytes == len(b"new-clip")
+    assert store.list("reports/wf_a/footage/") == [
+        "reports/wf_a/footage/earlier.mp4",
+        "reports/wf_a/footage/new.mp4",
+    ]
+
+
+async def test_a_failed_build_pushes_no_clip(tmp_path: Path, report_store) -> None:
+    from thoth_control_plane.infrastructure.media_store import LocalMediaStore
+
+    store_root = tmp_path / "store"
+    store_root.mkdir()
+    store = LocalMediaStore(store_root)
+    _with_report(report_store)
+
+    class HalfDone:
+        async def build(self, inputs) -> FootageResult:
+            clip = inputs.artifact_root / "reports/wf_a/footage/new.mp4"
+            clip.parent.mkdir(parents=True, exist_ok=True)
+            clip.write_bytes(b"new-clip")
+            raise RuntimeError("search failed")
+
+    activity = build_footage_activity(
+        _settings(tmp_path / "unused-root"), builder=HalfDone(), reports=report_store, media=store
+    )  # type: ignore[arg-type]
+    with pytest.raises(ApplicationError):
+        await activity(FootageActivityInput(workflow_id="wf_a"))
+    assert store.list("reports/wf_a/footage/") == []
