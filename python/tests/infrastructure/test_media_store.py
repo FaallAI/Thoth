@@ -304,3 +304,10 @@ def test_copy_keeps_the_bytes_and_the_digest(store, tmp_path: Path) -> None:
 def test_copy_of_an_absent_object_is_unavailable(store) -> None:
     with pytest.raises(MediaUnavailable):
         store.copy("work/rj_1/output.mp4", "renders/rj_1/output.mp4")
+
+
+def test_size_reports_the_object_size_without_reading_it(store, tmp_path: Path) -> None:
+    store.put_file(LOCATION, _file(tmp_path, "s.mp4", b"0123456789"))
+    assert store.size(LOCATION) == 10
+    with pytest.raises(MediaUnavailable):
+        store.size("reports/wf_a/media/absent.mp4")

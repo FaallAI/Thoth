@@ -56,8 +56,11 @@ def _candidates(root: Path, *, archive: bool = False) -> Iterator[tuple[Path, st
             folders[:] = sorted(name for name in folders if not (here / name).is_symlink())
             for name in sorted(files):
                 path = here / name
-                if not archive and name.endswith(".json") and not path.is_symlink():
-                    continue
+                is_json = name.endswith(".json") and not path.is_symlink()
+                if not archive and is_json:
+                    continue  # report JSON lives in PostgreSQL
+                if archive and top == "reports" and not is_json and not path.is_symlink():
+                    continue  # media under reports/ moves through the media import
                 if path.is_symlink() or not path.is_file() or name.endswith(".part"):
                     yield path, None
                     continue

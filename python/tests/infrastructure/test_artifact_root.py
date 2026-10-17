@@ -425,3 +425,62 @@ async def test_publish_upload_puts_the_file_in_the_store_and_drops_the_local_cop
     assert not (tmp_path / "local" / location).exists()
     root.discard(location)
     assert not (store_root / location).exists()
+
+
+def test_object_size_never_hashes_the_object(tmp_path: Path) -> None:
+    from thoth_control_plane.infrastructure.media_store import LocalMediaStore
+
+    class NoHash(LocalMediaStore):
+        def stat(self, location: str):
+            raise AssertionError("a size must not hash the whole object")
+
+    (tmp_path / "renders" / JOB).mkdir(parents=True)
+    (tmp_path / "renders" / JOB / "output.mp4").write_bytes(b"0123456789")
+    root = LocalArtifactRoot(tmp_path, NoHash(tmp_path))
+    assert root.object_size(f"renders/{JOB}/output.mp4") == 10
+
+
+# M3: a failed delete of work/ after a good copy still publishes.
+@pytest.mark.asyncio
+async def test_a_failed_work_cleanup_after_the_copy_still_publishes(tmp_path: Path) -> None:
+    from thoth_control_plane.infrastructure.media_store import (
+        LocalMediaStore,
+        MediaStoreUnavailable,
+    )
+
+    class FlakyDelete(LocalMediaStore):
+        def delete(self, location: str) -> None:
+            raise MediaStoreUnavailable("media_store_unavailable")
+
+    root = LocalArtifactRoot(tmp_path, FlakyDelete(tmp_path))
+    await root.receive_output(JOB, chunks_of(b"render"), max_bytes=100)
+
+    published = root.publish(JOB, facts(b"render"), b"{}", b"{}")
+
+    assert published.relative_path == f"renders/{JOB}/output.mp4"
+    assert (tmp_path / "renders" / JOB / "output.mp4").read_bytes() == b"render"
+
+
+# M4: two uploads in flight for one job never share a partial file.
+@pytest.mark.asyncio
+async def test_concurrent_output_uploads_use_their_own_partial_files(tmp_path: Path) -> None:
+    import asyncio
+
+    root = LocalArtifactRoot(tmp_path)
+    gate = asyncio.Event()
+    names: list[list[str]] = []
+
+    async def held(payload: bytes):
+        yield payload
+        names.append(sorted(p.name for p in (tmp_path / "temp" / JOB).glob("*.part")))
+        await gate.wait()
+
+    first = asyncio.create_task(root.receive_output(JOB, held(b"first"), max_bytes=100))
+    second = asyncio.create_task(root.receive_output(JOB, held(b"second"), max_bytes=100))
+    while len(names) < 2:
+        await asyncio.sleep(0.01)
+    gate.set()
+    await asyncio.gather(first, second)
+
+    assert len(set(names[-1])) == 2  # both partial files existed side by side
+    assert not list((tmp_path / "temp").rglob("*.part"))

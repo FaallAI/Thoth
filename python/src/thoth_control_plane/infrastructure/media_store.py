@@ -15,6 +15,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
+from uuid import uuid4
 
 if TYPE_CHECKING:
     from thoth_control_plane.config import Settings
@@ -50,6 +51,8 @@ class MediaStore(Protocol):
     def fetch(self, location: str, destination: Path) -> None: ...
 
     def stat(self, location: str) -> MediaStat: ...
+
+    def size(self, location: str) -> int: ...
 
     def delete(self, location: str) -> None: ...
 
@@ -96,7 +99,8 @@ def sha256_file(path: Path) -> str:
 
 def _copy(source: Path, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
-    partial = destination.with_name(f"{destination.name}.part")
+    # A private partial: two writers of one locator (a retried upload) never share it.
+    partial = destination.with_name(f"{destination.name}.{uuid4().hex}.part")
     try:
         shutil.copyfile(source, partial)
         os.replace(partial, destination)
@@ -129,6 +133,13 @@ class LocalMediaStore:
         if not path.is_file():
             raise MediaUnavailable("media_unavailable")
         return MediaStat(size_bytes=path.stat().st_size, sha256=sha256_file(path))
+
+    def size(self, location: str) -> int:
+        """The size alone: a request that only streams must not hash the object."""
+        path = self._path(location)
+        if not path.is_file():
+            raise MediaUnavailable("media_unavailable")
+        return path.stat().st_size
 
     def delete(self, location: str) -> None:
         self._path(location).unlink(missing_ok=True)

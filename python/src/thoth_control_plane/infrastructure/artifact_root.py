@@ -20,12 +20,14 @@ chain immediately before it is read, written, moved, or deleted.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import re
 import shutil
 import stat
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path, PurePosixPath
+from uuid import uuid4
 
 from thoth_control_plane.application.editor_asset_ports import (
     EditorAssetUploadTooLarge,
@@ -45,6 +47,7 @@ from thoth_control_plane.infrastructure.media_store import (
     LocalMediaStore,
     MediaLocatorInvalid,
     MediaStore,
+    MediaStoreUnavailable,
     MediaUnavailable,
 )
 
@@ -154,7 +157,8 @@ class LocalArtifactRoot:
         job = _valid_identifier(render_job_id)
         directory = self._contained("temp", job)
         directory.mkdir(parents=True, exist_ok=True)
-        partial = self._contained("temp", job, f"{_OUTPUT_NAME}.part")
+        # One partial per upload: a renderer retry racing its first attempt never shares it.
+        partial = self._contained("temp", job, f"{_OUTPUT_NAME}.{uuid4().hex}.part")
         if _is_link(partial):
             raise ArtifactPathInvalid()
         digest = hashlib.sha256()
@@ -166,7 +170,7 @@ class LocalArtifactRoot:
                     if written > max_bytes:
                         raise RenderOutputTooLarge()
                     digest.update(chunk)
-                    writer.write(chunk)
+                    await asyncio.to_thread(writer.write, chunk)
             await asyncio.to_thread(self._media.put_file, f"work/{job}/{_OUTPUT_NAME}", partial)
         finally:
             partial.unlink(missing_ok=True)
@@ -199,8 +203,10 @@ class LocalArtifactRoot:
         self._put_bytes(job, f"renders/{job}/diagnostics.json", diagnostics_json)
         # Publication is the last step: one copy of the verified object.
         self._media.copy(source, f"renders/{job}/{_OUTPUT_NAME}")
-        for location in self._media.list(f"work/{job}/"):
-            self._media.delete(location)
+        # The render is published; leftover work objects are only clutter, never a failure.
+        with contextlib.suppress(MediaStoreUnavailable, MediaUnavailable):
+            for location in self._media.list(f"work/{job}/"):
+                self._media.delete(location)
         return PublishedArtifact(
             relative_path=f"renders/{job}/{_OUTPUT_NAME}",
             size_bytes=output.size_bytes,
@@ -215,7 +221,7 @@ class LocalArtifactRoot:
 
     def object_size(self, location: str) -> int:
         try:
-            return self._media.stat(location).size_bytes
+            return self._media.size(location)
         except (MediaUnavailable, MediaLocatorInvalid):
             raise ArtifactUnavailable() from None
 
@@ -281,7 +287,7 @@ class LocalArtifactRoot:
                     if len(head) < _HEAD_BYTES:
                         head = (head + chunk)[:_HEAD_BYTES]
                     digest.update(chunk)
-                    writer.write(chunk)
+                    await asyncio.to_thread(writer.write, chunk)
         except BaseException:
             partial.unlink(missing_ok=True)
             raise

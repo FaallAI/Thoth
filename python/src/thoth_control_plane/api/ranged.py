@@ -27,8 +27,8 @@ def _lazily(
 def _bounds(header: str | None, size: int) -> tuple[int, int] | str | None:
     """(start, end inclusive), None for the whole object, or "unsatisfiable"."""
     match = _RANGE.fullmatch((header or "").strip())
-    if match is None or (not match.group(1) and not match.group(2)):
-        return None
+    if size == 0 or match is None or (not match.group(1) and not match.group(2)):
+        return None  # nothing to slice, or not one bytes range: the whole object
     first, last = match.group(1), match.group(2)
     if not first:  # a suffix: the last N bytes
         length = int(last)
@@ -36,6 +36,8 @@ def _bounds(header: str | None, size: int) -> tuple[int, int] | str | None:
             return "unsatisfiable"
         return max(0, size - length), size - 1
     start = int(first)
+    if last and int(last) < start:
+        return None  # a backwards range is invalid, so it is ignored (RFC 9110 section 14.1.1)
     end = size - 1 if not last else min(int(last), size - 1)
     if start >= size or end < start:
         return "unsatisfiable"

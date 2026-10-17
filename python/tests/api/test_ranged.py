@@ -82,3 +82,23 @@ def test_the_object_is_read_off_the_event_loop_thread() -> None:
 
     assert TestClient(app).get("/object").content == DATA
     assert seen["read"] != seen["loop"]
+
+
+def test_a_backwards_range_is_ignored_and_an_empty_object_is_served_whole() -> None:
+    backwards = _client().get("/object", headers={"Range": "bytes=5-2"})
+    assert backwards.status_code == 200 and backwards.content == DATA
+
+    app = FastAPI()
+
+    @app.get("/empty")
+    def empty(request: Request):
+        return ranged_response(
+            size=0,
+            read=lambda start, end: iter([b""]),
+            media_type="video/mp4",
+            range_header=request.headers.get("range"),
+        )
+
+    suffix = TestClient(app).get("/empty", headers={"Range": "bytes=-3"})
+    assert suffix.status_code == 200
+    assert "content-range" not in suffix.headers

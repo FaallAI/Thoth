@@ -103,6 +103,9 @@ class S3MediaStore:
         metadata = found.metadata or {}
         return MediaStat(size_bytes=int(found.size or 0), sha256=metadata.get(_SHA_KEY))
 
+    def size(self, location: str) -> int:
+        return self.stat(location).size_bytes
+
     def delete(self, location: str) -> None:
         key = checked_locator(location)
         with _errors():

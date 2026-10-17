@@ -456,6 +456,9 @@ async def test_preview_answers_503_when_the_media_store_is_down(gateway, tmp_pat
         def stat(self, location: str):
             raise MediaStoreUnavailable("media_store_unavailable")
 
+        def size(self, location: str) -> int:
+            raise MediaStoreUnavailable("media_store_unavailable")
+
         def open_range(self, location: str, start: int = 0, end: int | None = None):
             raise MediaStoreUnavailable("media_store_unavailable")
 
@@ -467,3 +470,12 @@ async def test_preview_answers_503_when_the_media_store_is_down(gateway, tmp_pat
 
     assert served.status_code == 503
     assert served.json()["detail"]["code"] == "media_store_unavailable"
+
+
+def test_the_preview_route_no_longer_promises_a_file_response() -> None:
+    from pathlib import Path as _Path
+
+    source = (
+        _Path(__file__).resolve().parents[2] / "src/thoth_control_plane/api/routes/editor_assets.py"
+    ).read_text(encoding="utf-8")
+    assert "FileResponse" not in source

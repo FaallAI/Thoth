@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Path, Query, Request, status
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import JSONResponse, Response
 
 from thoth_control_plane.api.dependencies import current_actor
 from thoth_control_plane.api.ranged import ranged_response
@@ -202,7 +202,7 @@ async def issue_editor_asset_preview_capability(
 
 @router.get(
     "/projects/{project_id}/editor-assets/{asset_id}/preview",
-    response_class=FileResponse,
+    response_class=Response,
     responses={status.HTTP_200_OK: {"content": {"application/octet-stream": {}}}},
 )
 async def stream_editor_asset_preview(
@@ -226,7 +226,7 @@ async def stream_editor_asset_preview(
     media = request.app.state.media_store
     location = record.artifact_location
     try:
-        size = await asyncio.to_thread(lambda: media.stat(location).size_bytes)
+        size = await asyncio.to_thread(media.size, location)
     except (MediaUnavailable, MediaLocatorInvalid):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail={"code": "asset_not_ready"}

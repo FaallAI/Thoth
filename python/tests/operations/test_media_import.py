@@ -246,3 +246,14 @@ def test_cli_archive_prints_counts(tmp_path: Path, monkeypatch) -> None:
     result = _cli(monkeypatch, _CliStore(store.root), "--artifact-root", str(volume), "--archive")
     assert result.exit_code == 0
     assert result.output.strip() == "imported=1 present=0 invalid=0 mismatch=0"
+
+
+def test_archive_takes_only_report_json_from_reports(tmp_path: Path) -> None:
+    volume, store = _volume_and_store(tmp_path)
+    _write(volume, REPORT, b"{}")
+    _write(volume, VIDEO, b"video")
+    _write(volume, "legacy-scout/wf_a/output.bin", b"legacy")
+
+    assert import_media(volume, store, archive=True) == MediaImportCounts(2, 0, 0, 0)
+    assert store.list("archive/reports/") == ["archive/reports/wf_a/source-report.json"]
+    assert store.list("archive/legacy-scout/") == ["archive/legacy-scout/wf_a/output.bin"]
