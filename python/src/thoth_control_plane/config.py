@@ -99,6 +99,8 @@ class Settings(BaseSettings):
     THOTH_SUBTITLE_OCR_MAX_FRAMES: Annotated[int, Field(ge=1, le=60)] = 12
     THOTH_FIGURES_MODEL: str = "deepseek/deepseek-v4-flash-0731"
     THOTH_FOOTAGE_QUERY_MODEL: str = "deepseek/deepseek-v4-flash-0731"
+    # Where activities stage media for ffmpeg and the models; None is the system temp directory.
+    THOTH_MEDIA_SCRATCH_DIR: Path | None = None
 
     def __init__(self, **values: object) -> None:
         """Load settings, then reject an incomplete gateway pair without retaining inputs."""
