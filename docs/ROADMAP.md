@@ -13,15 +13,15 @@ As of 2026-10-18. Nothing is in flight: every PR through #22 is merged and deplo
 |---|---|---|---|
 | 1 | UI foundation (UI phase 0+1) | Every later UI item needs projects in the control plane, stored workflows, and URL routing | Nothing; the design is approved |
 | 2 | Workflow to Studio with media (UI phase 2) | It opens the only end-to-end path: today a workflow's output cannot reach Studio and the main video must be uploaded by hand | 1 |
-| 3 | Decide the Rust engine's direction | Items 4 and 6 depend on it | Operator decision |
+| 3 | ~~Decide the Rust engine's direction~~ Decided 2026-10-18: port it into the Python control plane | See "Decision: the Rust engine" | Done |
 | 4 | Stage 5c: post cards, carousel photos, creator profile | Completes the Content Set that Studio imports; card overlays were left out of item 2 | 2 |
 | 5 | Dashboard serving and Google/GitHub sign-in (UI phase 3) | The control-plane key ships in the JS bundle today; this must land before the stack is reachable from another host | 1 |
-| 6 | Auto-draft and Rust Profiles as its presets | Restores "source to finished video" (script, voice, subtitles, clip order) on the new path, if item 3 picks porting | 2, 3 |
+| 6 | Auto-draft, in six slices (transcript, voice, script + Rust Profiles as presets, draft, reframe, other modes) | Restores "source to finished video" on the new path; see the research below | 2 |
 | 7 | Stage 6: enrichment | Gives auto-draft narration its context | 6 |
 | 8 | Stage 8: discovery in Python, then UI phase 4 (retire the legacy pages) | Discovery starts workflows; the Content Set page, Scout discovery, Legacy Console and "Send to render" go | 2 |
 | 9 | Stage 7: durable orchestration | Restart-safe, resumable runs before the final acceptance | 8 |
 | 10 | Stage 9: cutover and the final live acceptance | Runs every live smoke deferred under ADR 0001 | 1-9 |
-| 11 | Stage 10: retire Scout TypeScript (and the Rust engine, if item 3 picks porting) | Last | 10 |
+| 11 | Stage 10: retire Scout TypeScript and the Rust engine | Last | 10 |
 
 Items that wait on operator input run in parallel whenever the input arrives; see
 "Waiting on the operator".
@@ -41,18 +41,19 @@ From the 2026-10-18 UI audit.
   `/api/v1` with the bearer injected on the server. Sign-in uses Google and GitHub.
 - **Phase 4, legacy retirement:** together with Stage 8.
 
-## Open decision: the Rust engine
+## Decision: the Rust engine
 
-`thoth-core` (about 48k lines) holds the automatic video engine: ingest, Whisper transcription
-(CUDA), moment selection, cut and reframe with subtitles, narration and TTS, profile cards, and
-NVENC render. The migration roadmap never moves it, and it runs natively on Windows with CUDA,
-outside the containers.
+The operator decided on 2026-10-18 to move the Rust engine's automatic video production
+(`thoth-core`: transcription, script, voice, ducking, cards, render) into the Python control
+plane. It arrives as a new workflow phase, **auto-draft**, that writes a pre-resolved Studio
+draft for Remotion to render. Rust is frozen and retires at Stage 10.
 
-| Option | What happens |
-|---|---|
-| A. Port gradually (recommended) | Auto-draft builds a full Studio document from a Content Set and Remotion renders it. Rust is frozen, then retired at Stage 10. |
-| B. Keep Rust as a render worker | Rust sits behind an adapter. The stack stays tied to Windows and CUDA, with two render engines. |
-| C. Freeze without a replacement | Videos are assembled by hand in Studio. |
+Tool choices, flow and slices:
+[research/2026-10-18-auto-video-engine-python-research.md](research/2026-10-18-auto-video-engine-python-research.md).
+
+**Interim:** after the UI foundation, the Legacy Console and Profiles recognize only projects
+that also exist in Rust (today the imported project "test"). An automatic video needed before
+auto-draft ships is run in "test".
 
 ## Waiting on the operator
 
