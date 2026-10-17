@@ -1211,3 +1211,42 @@ async def test_an_output_upload_needs_an_active_job() -> None:
         await service.receive_output(job.render_job_id, chunks())
     with pytest.raises(RenderJobNotFound):
         await service.receive_output("rj_unknown", chunks())
+
+
+@pytest.mark.asyncio
+async def test_render_storage_calls_never_run_on_the_event_loop() -> None:
+    import threading
+
+    loop_thread = threading.get_ident()
+    threads: list[tuple[str, int]] = []
+
+    class Watching(Artifacts):
+        def prepare(self, render_job_id: str):
+            threads.append(("prepare", threading.get_ident()))
+            return super().prepare(render_job_id)
+
+        def write_bundle(self, workspace, bundle_json: bytes) -> str:
+            threads.append(("write_bundle", threading.get_ident()))
+            return super().write_bundle(workspace, bundle_json)
+
+        def read_bundle(self, render_job_id: str) -> bytes:
+            threads.append(("read_bundle", threading.get_ident()))
+            return super().read_bundle(render_job_id)
+
+        def publish(self, *args, **kwargs):
+            threads.append(("publish", threading.get_ident()))
+            return super().publish(*args, **kwargs)
+
+        def cleanup(self, render_job_id: str) -> None:
+            threads.append(("cleanup", threading.get_ident()))
+            super().cleanup(render_job_id)
+
+    service = build_service(artifacts=Watching())
+    job = await create_one(service)
+    await service.bundle(job.render_job_id)
+    await complete(service, job)
+    await service.cleanup(PROJECT, job.render_job_id)
+
+    names = {name for name, _ in threads}
+    assert {"prepare", "write_bundle", "read_bundle", "publish", "cleanup"} <= names
+    assert all(thread != loop_thread for _, thread in threads)

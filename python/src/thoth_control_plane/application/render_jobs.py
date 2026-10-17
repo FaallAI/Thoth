@@ -295,7 +295,7 @@ class RenderJobService:
             )
         except (RenderBusy, RenderIdempotencyConflict):
             # This request never owned a slot, so its workspace is dead weight.
-            self._discard(render_job_id)
+            await asyncio.to_thread(self._discard, render_job_id)
             raise
         if reserved.render_job_id != render_job_id:
             # An identical earlier request already owns this key and its render.
@@ -481,7 +481,7 @@ class RenderJobService:
             raise RenderJobNotActive()
         if job.artifacts_cleaned_at is not None or self._artifacts is None:
             raise ArtifactUnavailable()
-        return self._artifacts.read_bundle(job.render_job_id)
+        return await asyncio.to_thread(self._artifacts.read_bundle, job.render_job_id)
 
     async def asset_location(self, render_job_id: str, asset_id: str) -> str:
         """The stored asset a running job's bundle lists; anything else is not this job's."""
@@ -535,7 +535,8 @@ class RenderJobService:
         if job is None:
             raise RenderJobNotFound()
         if event.status == "completed" and self._is_applicable(job, event):
-            event = self._publish(job, event)
+            # Publication reads, writes, and copies stored objects: off the event loop.
+            event = await asyncio.to_thread(self._publish, job, event)
         now = self._clock()
         return await jobs.apply_event(render_job_id=render_job_id, event=event, now=now)
 
@@ -640,7 +641,7 @@ class RenderJobService:
             return job
         if self._artifacts is None:
             raise ArtifactUnavailable()
-        self._artifacts.cleanup(job.render_job_id)
+        await asyncio.to_thread(self._artifacts.cleanup, job.render_job_id)
         return await jobs.mark_cleaned(
             project_id=project_id, render_job_id=render_job_id, now=self._clock()
         )

@@ -61,3 +61,24 @@ def test_ranged_response_handles_malformed_and_unsatisfiable_ranges() -> None:
     assert beyond.headers["content-range"] == "bytes */10"
     clamped = _client().get("/object", headers={"Range": "bytes=8-99"})
     assert clamped.status_code == 206 and clamped.content == b"89"
+
+
+def test_the_object_is_read_off_the_event_loop_thread() -> None:
+    import threading
+
+    app = FastAPI()
+    seen: dict[str, int] = {}
+
+    @app.get("/object")
+    async def serve(request: Request):
+        seen["loop"] = threading.get_ident()
+
+        def read(start: int, end: int | None):
+            # An S3 read opens its connection when called, so the call itself must be off-loop.
+            seen["read"] = threading.get_ident()
+            return iter([DATA])
+
+        return ranged_response(size=len(DATA), read=read, media_type="video/mp4", range_header=None)
+
+    assert TestClient(app).get("/object").content == DATA
+    assert seen["read"] != seen["loop"]

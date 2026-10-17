@@ -99,8 +99,8 @@ def test_local_stage1_thoth_roles_share_one_digest_and_keep_cdp_private() -> Non
     assert "/json" in cdp
     assert "tiktok.com" in cdp
     # No service shares the artifact volume (spec 2026-10-17, render storage).
-    assert "/artifacts\n" not in api
-    assert "/artifacts\n" not in worker
+    assert "THOTH_STAGE1_DATA_ROOT}/artifacts" not in api
+    assert "THOTH_STAGE1_DATA_ROOT}/artifacts" not in worker
     assert "/browser-profile" in cdp
     assert "/browser-profile" not in api
     assert "/browser-profile" not in worker
@@ -641,8 +641,11 @@ def test_no_service_shares_the_artifact_volume() -> None:
     overlay = _repo_text(RENDERER_OVERLAY).replace("\r\n", "\n")
     assert "THOTH_STAGE1_DATA_ROOT}/artifacts" not in compose
     assert "THOTH_STAGE1_DATA_ROOT}/artifacts" not in overlay
+    # The root is no longer a mount, but it must still exist when the container starts: an
+    # editor upload refuses a missing root. The image creates this one (Dockerfile `test -w`).
+    assert "RUN test -w /var/lib/thoth/artifacts" in _repo_text("Dockerfile")
     for service in ("api", "worker"):
-        assert "THOTH_CONTROL_PLANE_ARTIFACT_ROOT: /tmp/thoth-artifacts" in _service_block(
+        assert "THOTH_CONTROL_PLANE_ARTIFACT_ROOT: /var/lib/thoth/artifacts" in _service_block(
             compose, service
         )
 

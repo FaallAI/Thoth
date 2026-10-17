@@ -9,6 +9,7 @@ credential, or a renderer flag.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Literal, Protocol
 
 from pydantic import Field
@@ -150,13 +151,15 @@ async def build_render_bundle(
     if set(by_id) != set(asset_ids):
         raise ArtifactUnavailable()
 
-    workspace = artifacts.prepare(request.render_job_id)
+    # Every artifact call touches the store or the disk: none of it runs on the event loop.
+    workspace = await asyncio.to_thread(artifacts.prepare, request.render_job_id)
     staged: list[RenderBundleAsset] = []
     for asset_id in asset_ids:
         record = by_id[asset_id]
         if record.asset.checksum is None:
             raise ArtifactUnavailable()
-        copied = artifacts.stage_asset(
+        copied = await asyncio.to_thread(
+            artifacts.stage_asset,
             workspace,
             asset_id=asset_id,
             location=record.artifact_location,
@@ -191,5 +194,7 @@ async def build_render_bundle(
         duration_in_frames=document.canvas.duration_in_frames,
         assets=tuple(staged),
     )
-    artifacts.write_bundle(workspace, bundle.model_dump_json().encode("utf-8"))
+    await asyncio.to_thread(
+        artifacts.write_bundle, workspace, bundle.model_dump_json().encode("utf-8")
+    )
     return bundle

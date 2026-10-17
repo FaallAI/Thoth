@@ -9,6 +9,7 @@ at any step leaves neither a file nor a row behind.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import math
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -153,8 +154,12 @@ class EditorAssetUploadService:
         published: str | None = None
         try:
             asset = await self._inspect(received, project_id, media_type, upload_type, asset_id)
-            published = self._artifacts.publish_upload(
-                received, project_id=project_id, suffix=upload_type.suffix
+            # Store I/O runs off the event loop: an upload can be hundreds of megabytes.
+            published = await asyncio.to_thread(
+                self._artifacts.publish_upload,
+                received,
+                project_id=project_id,
+                suffix=upload_type.suffix,
             )
             await self._repository.register_ready(
                 EditorAssetRecord(asset=asset, artifact_location=published, provenance=PROVENANCE)
@@ -163,7 +168,7 @@ class EditorAssetUploadService:
             for location in (received.location, published):
                 if location is not None:
                     with contextlib.suppress(Exception):
-                        self._artifacts.discard(location)
+                        await asyncio.to_thread(self._artifacts.discard, location)
             if isinstance(error, EditorAssetMediaInvalid) or not isinstance(error, Exception):
                 raise
             raise EditorAssetsUnavailable() from error

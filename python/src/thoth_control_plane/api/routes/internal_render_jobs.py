@@ -63,8 +63,13 @@ async def read_render_asset(
     with safe_render_errors(unavailable=(status.HTTP_404_NOT_FOUND, "render_asset_unavailable")):
         location = await service.asset_location(render_job_id, asset_id)
         size = await asyncio.to_thread(service.object_size, location)
+
+    def stream():
+        # Iterated in a threadpool: the store read connects when called.
+        yield from service.read_object(location, 0, None)
+
     return StreamingResponse(
-        service.read_object(location, 0, None),
+        stream(),
         media_type="application/octet-stream",
         headers={"Content-Length": str(size)},
     )

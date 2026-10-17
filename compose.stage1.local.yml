@@ -152,7 +152,8 @@ services:
       THOTH_TEMPORAL_NAMESPACE: thoth-stage1
       # Container-local scratch: no service shares the artifact volume any more
       # (spec 2026-10-17, render storage); every persistent object is in the media store.
-      THOTH_CONTROL_PLANE_ARTIFACT_ROOT: /tmp/thoth-artifacts
+      # The image creates this directory, writable by uid 10001; it is no longer a mount.
+      THOTH_CONTROL_PLANE_ARTIFACT_ROOT: /var/lib/thoth/artifacts
       THOTH_MEDIA_S3_ENDPOINT: minio:9000
       THOTH_MEDIA_S3_BUCKET: thoth-media
       THOTH_MEDIA_S3_ACCESS_KEY: ${THOTH_MEDIA_S3_ACCESS_KEY:?set THOTH_MEDIA_S3_ACCESS_KEY}
@@ -199,7 +200,8 @@ services:
       THOTH_TEMPORAL_NAMESPACE: thoth-stage1
       # Container-local scratch: no service shares the artifact volume any more
       # (spec 2026-10-17, render storage); every persistent object is in the media store.
-      THOTH_CONTROL_PLANE_ARTIFACT_ROOT: /tmp/thoth-artifacts
+      # The image creates this directory, writable by uid 10001; it is no longer a mount.
+      THOTH_CONTROL_PLANE_ARTIFACT_ROOT: /var/lib/thoth/artifacts
       THOTH_MEDIA_S3_ENDPOINT: minio:9000
       THOTH_MEDIA_S3_BUCKET: thoth-media
       THOTH_MEDIA_S3_ACCESS_KEY: ${THOTH_MEDIA_S3_ACCESS_KEY:?set THOTH_MEDIA_S3_ACCESS_KEY}

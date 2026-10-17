@@ -158,3 +158,22 @@ async def test_a_store_outage_is_503(gateway, route: str) -> None:
 
     assert response.status_code == 503
     assert response.json()["detail"]["code"] == "media_store_unavailable"
+
+
+@pytest.mark.asyncio
+async def test_the_asset_is_read_off_the_event_loop_thread(gateway) -> None:
+    import threading
+
+    loop_thread = threading.get_ident()
+    threads: list[int] = []
+
+    class Watching(MediaService):
+        def read_object(self, location: str, start: int, end: int | None):
+            threads.append(threading.get_ident())
+            return super().read_object(location, start, end)
+
+    async with client(gateway, Watching()) as http:
+        response = await http.get(ASSET_URL, headers=INTERNAL_HEADERS)
+
+    assert response.content == ASSET
+    assert threads and all(thread != loop_thread for thread in threads)

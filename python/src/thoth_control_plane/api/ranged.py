@@ -16,6 +16,14 @@ from fastapi.responses import StreamingResponse
 _RANGE = re.compile(r"^bytes=(\d*)-(\d*)$")
 
 
+def _lazily(
+    read: Callable[[int, int | None], Iterator[bytes]], start: int, end: int | None
+) -> Iterator[bytes]:
+    """Defer the read itself into the stream: Starlette iterates a sync iterator in a
+    threadpool, so an S3 read that connects when called never runs on the event loop."""
+    yield from read(start, end)
+
+
 def _bounds(header: str | None, size: int) -> tuple[int, int] | str | None:
     """(start, end inclusive), None for the whole object, or "unsatisfiable"."""
     match = _RANGE.fullmatch((header or "").strip())
@@ -48,13 +56,13 @@ def ranged_response(
         return Response(status_code=416, headers={**common, "Content-Range": f"bytes */{size}"})
     if bounds is None:
         return StreamingResponse(
-            read(0, None),
+            _lazily(read, 0, None),
             media_type=media_type,
             headers={**common, "Content-Length": str(size)},
         )
     start, end = bounds
     return StreamingResponse(
-        read(start, end),
+        _lazily(read, start, end),
         status_code=206,
         media_type=media_type,
         headers={

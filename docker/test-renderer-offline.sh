@@ -209,7 +209,7 @@ services:
       THOTH_TEMPORAL_TARGET: temporal:7233
       THOTH_TEMPORAL_NAMESPACE: thoth-stage1
       THOTH_EDITOR_DATABASE_URL: "postgresql://thoth_editor:${SMOKE_DB_PASSWORD:?}@editor-postgresql:5432/thoth_editor"
-      THOTH_CONTROL_PLANE_ARTIFACT_ROOT: /tmp/thoth-artifacts
+      THOTH_CONTROL_PLANE_ARTIFACT_ROOT: /var/lib/thoth/artifacts
       THOTH_MEDIA_S3_ENDPOINT: minio:9000
       THOTH_MEDIA_S3_BUCKET: thoth-media
       THOTH_MEDIA_S3_ACCESS_KEY: ${SMOKE_MINIO_USER:?}
@@ -486,10 +486,23 @@ def asset_location():
     return f"uploads/{PROJECT_ID}/{ASSET_ID}.mp4"
 
 
-def put():
-    """Store the generated clip where a real upload would land."""
-    STORE.put_file(asset_location(), ASSET_FILE)
-    print("ok")
+def upload():
+    """Upload the generated clip through the public route, exactly as the Studio does, and
+    print the asset id the control plane assigned."""
+    request = urllib.request.Request(
+        f"{BASE}/projects/{PROJECT_ID}/editor-assets",
+        data=ASSET_FILE.read_bytes(),
+        method="POST",
+    )
+    request.add_header("Authorization", "Bearer " + API_KEY)
+    request.add_header("Content-Type", "video/mp4")
+    with urllib.request.urlopen(request, timeout=120) as response:
+        if response.status != 201:
+            raise SystemExit(f"upload returned {response.status}")
+        asset = json.loads(response.read())
+    if not STORE.stat(f"uploads/{PROJECT_ID}/{asset['asset_id']}.mp4").size_bytes:
+        raise SystemExit("the upload is not in the store")
+    print(asset["asset_id"])
 
 
 def fetch(render_job_id):
@@ -561,7 +574,11 @@ def absent(render_job_id):
         pass
     else:
         raise SystemExit("a published output was left behind")
-    if STORE.list(f"work/{render_job_id}/"):
+    try:
+        STORE.stat(f"work/{render_job_id}/output.mp4")
+    except MediaUnavailable:
+        pass
+    else:
         raise SystemExit("a received output was left behind")
     print("ok")
 
@@ -574,7 +591,7 @@ COMMANDS = {
     "cancel": cancel,
     "history": history,
     "verify": verify,
-    "put": put,
+    "upload": upload,
     "fetch": fetch,
     "stored": stored,
     "failure": failure,
@@ -662,7 +679,8 @@ compose exec -T api /usr/bin/ffmpeg -nostdin -loglevel error -y \
     -c:v libx264 -pix_fmt yuv420p -preset ultrafast -c:a aac -shortest \
     /tmp/smoke-asset.mp4 >/dev/null 2>&1 \
     || fail render_output_is_h264_mp4
-driver put >/dev/null || fail render_output_is_h264_mp4
+# The control plane names the asset; every later driver call reads it from $asset_id.
+asset_id=$(driver upload) || fail render_output_is_h264_mp4
 
 driver seed "$document_id" "$main_frames" 120 >/dev/null || fail render_output_is_h264_mp4
 job=$(driver create "$document_id") || fail render_output_is_h264_mp4
