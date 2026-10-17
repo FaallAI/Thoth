@@ -142,8 +142,6 @@ services:
         condition: service_healthy
       editor-postgresql:
         condition: service_healthy
-      minio:
-        condition: service_healthy
     environment:
       THOTH_CONTROL_PLANE_API_KEY: ${THOTH_CONTROL_PLANE_API_KEY:?set THOTH_CONTROL_PLANE_API_KEY}
       THOTH_EDITOR_PREVIEW_SIGNING_KEY: ${THOTH_EDITOR_PREVIEW_SIGNING_KEY:?set THOTH_EDITOR_PREVIEW_SIGNING_KEY}
