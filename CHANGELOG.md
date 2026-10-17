@@ -17,9 +17,15 @@ Branch `feat/render-object-storage`. Spec `docs/superpowers/specs/2026-10-17-ren
 - The renderer downloads its assets and uploads its output through those routes before it reports `completed`. It keeps a container-local work root and holds no S3 credential.
 - `media import --archive` copies the volume's leftover report JSON and `legacy-scout/` into `archive/`, verified.
 - No service mounts the artifact volume. The deploy reaches it through a one-off mount while it still holds files.
+- Final review (fresh reviewer) fixes, each pinned by a test that failed first:
+  - `api` and `worker` keep `/var/lib/thoth/artifacts` as their local root, which the image creates. The planned `/tmp` root did not exist at start, so every editor upload would have answered 503.
+  - Store I/O runs off the event loop everywhere: upload publish and discard, render publish, bundle read, cleanup, staging, and every ranged or asset read.
+  - The offline smoke uploads its asset through the public route.
+  - The smoke's cancel and deadline checks look only for a leftover output.
+  - 11 Minor findings are deferred (ledger).
 
 **Verification:**
-- WSL: `make lint` is clean; `make test` 3917 passed, 59 skipped, 0 failed; `make test-minio` 65 passed, 0 skipped.
+- WSL: `make lint` is clean; `make test` 3921 passed, 59 skipped, 0 failed; `make test-minio` 65 passed, 0 skipped.
 - Renderer: `bun run typecheck` is clean, and the three changed test files pass 77/77. On Windows the full renderer suite has 26 environment failures (no `ffmpeg.exe` in the worktree, the composition package's dependencies not installed), the same count before and after this branch.
 - The offline render smoke (`docker/test-renderer-offline.sh`, now with MinIO and no shared volume) runs in CI's Non-live stack smoke on the branch's published digests.
 

@@ -214,4 +214,9 @@ Each step is an operator gate:
      routes.
    - An output upload for a job that is no longer active answers 409 `render_job_not_active`,
      through the existing error table.
+5. **`api` and `worker` keep `/var/lib/thoth/artifacts` as their local root.** It is no longer a
+   mount, but the image creates it, writable by uid 10001. An editor upload refuses a root
+   that does not exist, and the planned `/tmp/thoth-artifacts` did not exist at start (final
+   review, Critical). The renderer's root stays `/tmp/thoth-renderer`, because it creates
+   every folder it writes.
 
