@@ -22,7 +22,7 @@ Branch `feat/render-object-storage`. Spec `docs/superpowers/specs/2026-10-17-ren
   - Store I/O runs off the event loop everywhere: upload publish and discard, render publish, bundle read, cleanup, staging, and every ranged or asset read.
   - The offline smoke uploads its asset through the public route.
   - The smoke's cancel and deadline checks look only for a leftover output.
-  - 11 Minor findings are deferred (ledger).
+  - 9 of the 11 Minor findings are fixed too, each with a test written first. The fixes cover backwards and empty `Range` requests, a size call that never hashes, a best-effort `work/` cleanup after publish, a private partial file per upload (which also fixed a shared `.part` in `LocalMediaStore`), chunk writes off the loop, renderer transfers that stop with the render, an archive that takes only the report JSON, a smoke that rejects store keys in the renderer, and the preview route's declared response. The other two need no change (ledger).
 
 **Verification:**
 - WSL: `make lint` is clean; `make test` 3921 passed, 59 skipped, 0 failed; `make test-minio` 65 passed, 0 skipped.
