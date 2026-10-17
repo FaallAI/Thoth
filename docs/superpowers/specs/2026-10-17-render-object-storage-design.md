@@ -191,3 +191,27 @@ Each step is an operator gate:
 - The source-account profiles volume (`account-profiles`), which is sealed browser state and
   not media.
 - The 14 review minors of sub-project 1, already fixed in PR #20.
+
+## Corrections (planning and execution, 2026-10-17)
+
+1. **Renderer env name.** The renderer keeps the env name `THOTH_CONTROL_PLANE_ARTIFACT_ROOT`
+   for its own work root, set to the container-local `/tmp/thoth-renderer`. The spec's
+   `THOTH_RENDERER_WORK_DIR` would have touched the template-release CLI, its CI job, and its
+   tests for a rename only.
+2. **No new failure codes.**
+   - `render_asset_unavailable` already existed for preparation failures.
+   - A failed output upload happens in the `finalizing` stage, which already maps to
+     `render_output_invalid`.
+   - A new code would ripple into the Python `Literal`, the OpenAPI schema, and the generated
+     dashboard client for no new behaviour.
+3. **The old volume is reached through a one-off mount.** With the service mounts gone, the
+   deploy runs the report import, the media import, and `media import --archive` with
+   `docker compose run -v <host artifacts>:/var/lib/thoth/artifacts`, for as long as the host
+   folder exists. The folder belongs to the container user, so its presence is the test, and
+   every import is idempotent.
+4. **Route answers.**
+   - Credential refusals on the new internal routes are 403, matching the existing private
+     routes.
+   - An output upload for a job that is no longer active answers 409 `render_job_not_active`,
+     through the existing error table.
+
