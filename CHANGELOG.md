@@ -2,6 +2,47 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-17 - PR #20 and PR #21 deployed; the artifact volume is gone
+
+**PR #20 deployed** (review minors of sub-project 1).
+- Master `dea6050`, image `thoth@sha256:4b3f9dbc...9e8f`.
+- `make deploy`: `import-media` `imported=0 present=0 invalid=0 mismatch=0`, every service healthy.
+- Footage smoke `wf_d1ea4c07ba49164768eb8816` succeeded in 380 s:
+  - 10 objects in MinIO, 0 files on the volume;
+  - zero `event loop stalled`, zero TMPRL1101, restarts=0.
+
+**PR #21 merged and deployed** (sub-project 2: render and editor media).
+- Master `5addbc7`, images `thoth@sha256:5a62aaae...baa2` and `thoth-remotion-renderer@sha256:20f1ae36...a10e`. Both are pinned in `.env.stage1.local`, which was backed up first.
+- **CI caught a real defect before the merge.**
+  - The rewritten offline render smoke held its render in `preparing` for about 15 minutes.
+  - Reproduced locally on Bun 1.3.14, the renderer image's version: `Bun.write(path, new Response(body))` never settles for a body that comes from `fetch`.
+  - Fixed in `26f95f3`: assets are now written through a Node stream pipeline.
+  - A test that serves the asset over a real HTTP connection hung before the fix and passes after it. The unit tests had used a string-backed body, which hid the defect.
+  - After the fix, the CI smoke passed on the PR and on master:
+    - the asset is uploaded through the API;
+    - the render is h264 1080x1920 with audio, and its checksum matches;
+    - the output is in the store;
+    - cancel and deadline leave no output.
+  - One unrelated parity-smoke flake passed on rerun.
+- **`make deploy`:**
+  - `import-reports` `present=277`;
+  - `import-media` `0/0/0/0`;
+  - `import-media --archive` `imported=277 present=0 invalid=0 mismatch=0`;
+  - every service healthy.
+- **Footage smoke `wf_2774d50ad4af779e5ff56e64` succeeded:** 10 objects in MinIO, 0 files on the volume.
+- **Live render check** on the deployed stack (synthetic project `proj_rendercheck_fdc13802791c`, job `rj_332be2c01cfb4a769db1c817aa577ed9`):
+  - the clip was uploaded through `POST /editor-assets`;
+  - the render completed and was downloaded through the public route;
+  - h264 and the checksum were verified, and the output is in the store;
+  - the worker log has zero `event loop stalled` and zero TMPRL1101.
+- **`media import --archive --remove-local`:** `removed=277 kept=0`, and a rerun prints `0/0/0/0`. The emptied host folder `<data root>/artifacts` was then removed; it held 0 files and 0 links.
+  - No service mounts the artifact volume any more.
+  - The deploy's one-off import steps now skip, because the folder no longer exists.
+
+**Next steps**
+- Optional: delete the synthetic render-check project from the editor database. It holds one document, one asset, and one render job.
+- Follow-ups: Studio reads the footage artifact; attribution for reposts with no credit; Stage 5c; label the newly admitted calibration clips.
+
 ## 2026-10-17 - Render and editor media in object storage (sub-project 2)
 
 Branch `feat/render-object-storage`. Spec `docs/superpowers/specs/2026-10-17-render-object-storage-design.md`, plan `docs/superpowers/plans/2026-10-17-render-object-storage.md`.
