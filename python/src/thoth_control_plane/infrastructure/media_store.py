@@ -153,5 +153,9 @@ class LocalMediaStore:
 
 
 def build_media_store(settings: Settings) -> MediaStore:
-    """The local store on the artifact root; Task 2 adds the S3 store for a configured endpoint."""
-    return LocalMediaStore(settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT)
+    """S3 when an endpoint is configured; otherwise the artifact root, as before."""
+    if not settings.THOTH_MEDIA_S3_ENDPOINT:
+        return LocalMediaStore(settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT)
+    from thoth_control_plane.infrastructure.s3_media_store import S3MediaStore
+
+    return S3MediaStore.from_settings(settings)

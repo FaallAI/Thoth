@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -17,14 +18,48 @@ from thoth_control_plane.infrastructure.media_store import (
 )
 
 LOCATION = "reports/wf_a/media/tiktok-1.mp4"
-STORES = ["local"]
+S3_ENDPOINT = os.environ.get("THOTH_TEST_MEDIA_S3_ENDPOINT", "")
+REQUIRED = os.environ.get("THOTH_REQUIRE_MINIO_TESTS") == "1"
+if REQUIRED and not S3_ENDPOINT:
+    raise RuntimeError("THOTH_REQUIRE_MINIO_TESTS=1 but THOTH_TEST_MEDIA_S3_ENDPOINT is unset")
+
+STORES = [
+    "local",
+    pytest.param("s3", marks=pytest.mark.skipif(not S3_ENDPOINT, reason="needs a throwaway MinIO")),
+]
+
+
+def _s3_client():
+    from minio import Minio
+
+    return Minio(
+        S3_ENDPOINT,
+        access_key=os.environ["THOTH_TEST_MEDIA_S3_ACCESS_KEY"],
+        secret_key=os.environ["THOTH_TEST_MEDIA_S3_SECRET_KEY"],
+        secure=False,
+    )
 
 
 @pytest.fixture(params=STORES)
 def store(request: pytest.FixtureRequest, tmp_path: Path):
-    root = tmp_path / "store"
-    root.mkdir()
-    return LocalMediaStore(root)
+    if request.param == "local":
+        root = tmp_path / "store"
+        root.mkdir()
+        yield LocalMediaStore(root)
+        return
+    import uuid
+
+    from thoth_control_plane.infrastructure.s3_media_store import S3MediaStore
+
+    client = _s3_client()
+    bucket = f"thoth-test-{uuid.uuid4().hex[:12]}"
+    client.make_bucket(bucket)
+    try:
+        yield S3MediaStore(client, bucket)
+    finally:
+        for item in client.list_objects(bucket, recursive=True):
+            client.remove_object(bucket, item.object_name)
+        client.remove_bucket(bucket)
 
 
 def _file(tmp_path: Path, name: str, content: bytes) -> Path:
@@ -142,3 +177,61 @@ def test_without_an_endpoint_the_store_is_local_on_the_artifact_root(tmp_path: P
     )
     assert isinstance(store, LocalMediaStore)
     assert store.root == tmp_path.resolve()
+
+
+@pytest.mark.skipif(not S3_ENDPOINT, reason="needs a throwaway MinIO")
+def test_the_s3_store_check_refuses_a_missing_bucket() -> None:
+    from thoth_control_plane.infrastructure.s3_media_store import S3MediaStore
+
+    store = S3MediaStore(_s3_client(), "thoth-test-absent-bucket")
+    with pytest.raises(MediaStoreUnavailable):
+        store.check()
+    store.ensure_bucket()
+    try:
+        store.check()
+    finally:
+        _s3_client().remove_bucket("thoth-test-absent-bucket")
+
+
+def test_an_unreachable_s3_store_is_unavailable_not_missing(tmp_path: Path) -> None:
+    import urllib3
+    from minio import Minio
+
+    from thoth_control_plane.infrastructure.s3_media_store import S3MediaStore
+
+    # Port 9 on loopback: nothing listens; no retries, so the request fails at once, offline.
+    client = Minio(
+        "127.0.0.1:9",
+        access_key="a",
+        secret_key="b",
+        secure=False,
+        http_client=urllib3.PoolManager(retries=urllib3.Retry(total=0)),
+    )
+    store = S3MediaStore(client, "thoth-media")
+    with pytest.raises(MediaStoreUnavailable):
+        store.stat(LOCATION)
+    with pytest.raises(MediaStoreUnavailable):
+        store.check()
+
+
+def test_an_endpoint_without_both_keys_is_refused(tmp_path: Path) -> None:
+    from thoth_control_plane.config import SettingsValidationError
+
+    with pytest.raises(SettingsValidationError, match="media_s3_credentials_missing"):
+        build_media_store(
+            Settings(THOTH_CONTROL_PLANE_API_KEY="k", THOTH_MEDIA_S3_ENDPOINT="127.0.0.1:9")
+        )
+
+
+def test_an_endpoint_selects_the_s3_store(tmp_path: Path) -> None:
+    from thoth_control_plane.infrastructure.s3_media_store import S3MediaStore
+
+    store = build_media_store(
+        Settings(
+            THOTH_CONTROL_PLANE_API_KEY="k",
+            THOTH_MEDIA_S3_ENDPOINT="127.0.0.1:9",
+            THOTH_MEDIA_S3_ACCESS_KEY="a",
+            THOTH_MEDIA_S3_SECRET_KEY="b",
+        )
+    )
+    assert isinstance(store, S3MediaStore)
