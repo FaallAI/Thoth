@@ -14,8 +14,9 @@ Branch `feat/media-object-storage`. Spec `docs/superpowers/specs/2026-10-17-medi
 - `thoth-control media import` copies the volume's media into the bucket and verifies it (`imported/present/invalid/mismatch`). `--remove-local` deletes only verified local copies.
 - `compose.stage1.local.yml` runs `minio` (`pgsty/minio`, pinned), and the deploy imports media before the new worker starts.
 - `make test-minio` and the CI quality job run the store contract against a throwaway MinIO.
+- Final review (fresh reviewer): one Important finding fixed. The footage service now publishes the admitted clips before it marks the run done (`FootageInputs.publish`), so a failed upload leaves the run open and the retry reopens the clips it cannot find. 14 Minor findings are deferred (ledger).
 
-**Verification (WSL):** `make lint` is clean; `make test` 3911 passed, 47 skipped, 0 failed (the 18 new skips are the `[s3]` contract cases); `make test-minio` 41 passed, 0 skipped, against `pgsty/minio` on loopback; `docker compose config --quiet` passes for the base stack and the renderer overlay with `.env.stage1.local.example`.
+**Verification (WSL):** `make lint` is clean; `make test` 3913 passed, 47 skipped, 0 failed (the 18 new skips are the `[s3]` contract cases); `make test-minio` 41 passed, 0 skipped, against `pgsty/minio` on loopback; `docker compose config --quiet` passes for the base stack and the renderer overlay with `.env.stage1.local.example`.
 
 **Next steps**
 1. PR, CI, merge (operator authorized the whole rollout, 2026-10-17).
