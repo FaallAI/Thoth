@@ -918,3 +918,44 @@ async def test_a_cancelled_waiter_still_reads_the_exception_of_a_failed_check(
     gc.collect()
     await asyncio.sleep(0)
     assert reported == []
+
+
+def _publishing_inputs(tmp_path: Path, publish) -> FootageInputs:
+    return FootageInputs(
+        workflow_id="wf_a",
+        report=_report(),
+        attribution=None,
+        original=None,
+        artifact_root=tmp_path,
+        publish=publish,
+    )
+
+
+async def test_the_admitted_clips_are_published_before_the_run_is_done(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    seen: list[str | None] = []
+
+    async def publish() -> None:
+        run = store.run("wf_a")
+        seen.append(run.status if run is not None else None)
+
+    result = await _builder(store, search=Search(_hits(_video(1)))).build(
+        _publishing_inputs(tmp_path, publish)
+    )
+    assert result.status == "ok"
+    assert seen and seen[-1] != "done"
+    assert store.run("wf_a").status == "done"
+
+
+async def test_a_failed_publish_leaves_the_run_open_for_the_retry(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    async def publish() -> None:
+        raise RuntimeError("media store unavailable")
+
+    with pytest.raises(RuntimeError):
+        await _builder(store, search=Search(_hits(_video(1)))).build(
+            _publishing_inputs(tmp_path, publish)
+        )
+    assert store.run("wf_a").status != "done"

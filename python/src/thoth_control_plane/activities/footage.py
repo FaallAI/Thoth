@@ -111,12 +111,18 @@ async def _run(
         # The post's and the original's media, and every clip an earlier attempt admitted.
         stored_clips = await asyncio.to_thread(store.list, clips)
         await scratch.pull([*media_locations(report), *media_locations(original), *stored_clips])
+
+        async def publish() -> None:
+            made = (scratch.root / clips).glob("*.mp4")
+            await scratch.push(f"{clips}{path.name}" for path in sorted(made) if path.is_file())
+
         inputs = FootageInputs(
             workflow_id=input_.workflow_id,
             report=report,
             attribution=attribution,
             original=original,
             artifact_root=scratch.root,
+            publish=publish,
         )
         heartbeat = asyncio.create_task(_heartbeat())
         try:
@@ -135,9 +141,6 @@ async def _run(
             heartbeat.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await heartbeat
-        # Only after success: a failed attempt's retry reopens admitted clips it cannot find.
-        made = sorted(path.name for path in (scratch.root / clips).glob("*.mp4") if path.is_file())
-        await scratch.push(f"{clips}{name}" for name in made)
     return _done(result.status, result.admitted, started)
 
 
