@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-17 - The worker warms its GIL-heavy work before it polls
+
+Branch `fix/worker-warm-startup`. Two kinds of work still held the GIL for a second or more on a
+freshly started worker. Measured inside the deployed worker container:
+
+- **The footage embedder's `onnxruntime.InferenceSession` creation took 2.35 s.** In the
+  fresh-worker smoke `wf_75b0d101102e6052a856c76a` it stalled the event loop for 1.3 s from an
+  executor thread, while the loop itself sat idle in `select()`. At 2.35 s it can cross Temporal's
+  2 s deadlock limit whenever a workflow task is waiting.
+- **temporalio's `load_default_build_id()` took 1.13 s.** It hashes the bytecode of every loaded
+  module inside `Worker()`, on the loop, after the watchdog was armed.
+
+**What changed:**
+- `footage/adapters/embedder.py`: `load_model(directory)`, under `functools.cache`, builds the
+  tokenizer and the session once per process. `OnnxEmbedder` takes them from it.
+- `worker.py`: `warm_up(settings)` runs right after `preload_heavy_modules()`, before the watchdog
+  and before any polling. It calls `load_default_build_id()`, which temporalio memoizes, so every
+  later `Worker()` reuses the hash. When `THOTH_FOOTAGE_ENABLED` is on, it also calls `load_model`;
+  `check_media_tools` has already refused a missing model.
+- Skipped: an explicit build ID from the image revision. It would save about 1 s of startup, but
+  needs a Dockerfile ARG, a CI build-arg, and temporalio's deprecated `build_id` parameter.
+
+**Verification:**
+- `make lint` is clean.
+- `make test`: 3849 passed, 29 skipped, 0 failed.
+- The new tests, `test_embedders_on_one_model_share_one_session` and
+  `test_warming_up_loads_the_embedder_only_when_footage_is_on`, and the updated ordering test
+  failed before the change.
+
+**Next steps**
+1. PR, CI, merge. These are operator gates.
+2. New image digest, pin, `make deploy`, then one fresh-worker footage smoke with zero
+   `event loop stalled` anywhere in the worker log, startup included.
+- Follow-ups: S3 media spec; attribution for reposts with no credit; Studio reading the footage
+  artifact; Stage 5c; label the newly admitted calibration clips.
+
 ## 2026-10-17 - A retried workflow start reuses its idempotency key; PR #15 deployed
 
 **PR #15 deployed.** Master `d17b689`, image `thoth@sha256:3ed92093...eee2` (renderer pin
