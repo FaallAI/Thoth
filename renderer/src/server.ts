@@ -65,8 +65,12 @@ export type RenderEngine = {
 
 export type ControlPlanePort = {
   fetchBundle(renderJobId: string): Promise<unknown>;
-  fetchAsset(renderJobId: string, assetId: string): Promise<ReadableStream<Uint8Array>>;
-  uploadOutput(renderJobId: string, path: string): Promise<void>;
+  fetchAsset(
+    renderJobId: string,
+    assetId: string,
+    signal?: AbortSignal,
+  ): Promise<ReadableStream<Uint8Array>>;
+  uploadOutput(renderJobId: string, path: string, signal?: AbortSignal): Promise<void>;
   publishEvent(event: RenderEvent): Promise<void>;
 };
 
@@ -183,7 +187,7 @@ export function createExecution(deps: ExecutionDeps): RendererExecution {
       // the private route and is checked against the bundle before it is used.
       for (const asset of bundle.assets) {
         try {
-          const body = await deps.client.fetchAsset(renderJobId, asset.asset_id);
+          const body = await deps.client.fetchAsset(renderJobId, asset.asset_id, signal);
           await deps.artifacts.receiveAsset(renderJobId, asset, body);
         } catch {
           // A missing input is the asset's failure, never the bundle's.
@@ -231,7 +235,11 @@ export function createExecution(deps: ExecutionDeps): RendererExecution {
       const output = await deps.artifacts.verifyTemporaryOutput(renderJobId, expected);
       // The control plane stores the file and checks it against these facts on publish;
       // a failed upload stays in this stage, so it closes as render_output_invalid.
-      await deps.client.uploadOutput(renderJobId, deps.artifacts.temporaryOutput(renderJobId));
+      await deps.client.uploadOutput(
+        renderJobId,
+        deps.artifacts.temporaryOutput(renderJobId),
+        signal,
+      );
 
       terminal = true;
       sequence += 1;

@@ -144,3 +144,22 @@ describe("ControlPlaneClient media transfer", () => {
     ).rejects.toBeInstanceOf(ControlPlaneUnavailable);
   });
 });
+
+describe("ControlPlaneClient transfers follow the render's cancellation", () => {
+  test("a cancelled render's signal reaches the asset download and the upload", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const aborted: boolean[] = [];
+    const subject = client((request) => {
+      aborted.push(request.signal.aborted);
+      return new Response(JSON.stringify({ size_bytes: 1, checksum: "sha256:x" }));
+    });
+    const path = `${process.env.TMPDIR ?? "/tmp"}/thoth-abort-${Date.now()}.mp4`;
+    await Bun.write(path, "x");
+
+    await subject.fetchAsset("rj_001", "asset_1", controller.signal).catch(() => {});
+    await subject.uploadOutput("rj_001", path, controller.signal).catch(() => {});
+
+    expect(aborted).toEqual([true, true]);
+  });
+});

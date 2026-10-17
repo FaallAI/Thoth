@@ -56,13 +56,18 @@ export class ControlPlaneClient {
   }
 
   /** Stream one asset the job's bundle lists. */
-  async fetchAsset(renderJobId: string, assetId: string): Promise<ReadableStream<Uint8Array>> {
+  async fetchAsset(
+    renderJobId: string,
+    assetId: string,
+    signal?: AbortSignal,
+  ): Promise<ReadableStream<Uint8Array>> {
     if (!IDENTIFIER.test(assetId)) {
       throw new ControlPlaneUnavailable();
     }
     const response = await this.#send(this.#url(renderJobId, `assets/${assetId}`), {
       method: "GET",
       timeoutMs: TRANSFER_TIMEOUT_MS,
+      signal,
     });
     if (response.body === null) {
       throw new ControlPlaneUnavailable();
@@ -71,12 +76,13 @@ export class ControlPlaneClient {
   }
 
   /** Hand the finished render to the control plane, which stores and later verifies it. */
-  async uploadOutput(renderJobId: string, path: string): Promise<void> {
+  async uploadOutput(renderJobId: string, path: string, signal?: AbortSignal): Promise<void> {
     const response = await this.#send(this.#url(renderJobId, "output"), {
       method: "PUT",
       body: Bun.file(path),
       contentType: "video/mp4",
       timeoutMs: TRANSFER_TIMEOUT_MS,
+      signal,
     });
     await this.#bounded(response);
   }
@@ -95,7 +101,14 @@ export class ControlPlaneClient {
 
   async #send(
     url: string,
-    init: { method: string; body?: BodyInit; contentType?: string; timeoutMs?: number },
+    init: {
+      method: string;
+      body?: BodyInit;
+      contentType?: string;
+      timeoutMs?: number;
+      /** A cancelled or timed-out render stops its transfer instead of waiting it out. */
+      signal?: AbortSignal;
+    },
   ): Promise<Response> {
     let response: Response;
     try {
@@ -110,7 +123,9 @@ export class ControlPlaneClient {
           // A private route never moves: following one would send the internal
           // credential to whatever host answered.
           redirect: "error",
-          signal: AbortSignal.timeout(init.timeoutMs ?? REQUEST_TIMEOUT_MS),
+          signal: init.signal
+            ? AbortSignal.any([AbortSignal.timeout(init.timeoutMs ?? REQUEST_TIMEOUT_MS), init.signal])
+            : AbortSignal.timeout(init.timeoutMs ?? REQUEST_TIMEOUT_MS),
         }),
       );
     } catch {

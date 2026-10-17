@@ -103,15 +103,21 @@ function harness(
         // The control plane serves each bundle from the job's own route.
         return options.bundle ?? testBundle({ render_job_id: renderJobId, dispatch_id: bound });
       },
-      fetchAsset: async (_job: string, assetId: string) => {
+      fetchAsset: async (_job: string, assetId: string, signal?: AbortSignal) => {
         trace.push(`fetch:${assetId}`);
+        if (signal) {
+          trace.push("fetch-signal");
+        }
         if (options.fetchAssetError) {
           throw options.fetchAssetError;
         }
         return new Response("asset").body!;
       },
-      uploadOutput: async (job: string, path: string) => {
+      uploadOutput: async (job: string, path: string, signal?: AbortSignal) => {
         trace.push(`upload:${job}:${path}`);
+        if (signal) {
+          trace.push("upload-signal");
+        }
         if (options.uploadError) {
           throw options.uploadError;
         }
@@ -786,7 +792,9 @@ describe("the renderer's media transfer", () => {
     const subject = harness();
     await run(subject);
 
-    const media = subject.trace.filter((step) => !step.startsWith("event:"));
+    const media = subject.trace.filter(
+      (step) => !step.startsWith("event:") && !step.endsWith("-signal"),
+    );
     expect(media.slice(0, 3)).toEqual(["fetch:asset_1", "receive:asset_1", "verify"]);
   });
 
@@ -830,5 +838,15 @@ describe("the renderer's media transfer", () => {
     expect(statuses(subject).at(-1)).toBe("completed");
     expect(subject.removed).toContain("rj_001");
     expect(subject.trace).toContain("remove-assets:rj_001");
+  });
+});
+
+describe("the renderer's transfers stop with the render", () => {
+  test("both transfers carry the render's abort signal", async () => {
+    const subject = harness();
+    await run(subject);
+
+    expect(subject.trace).toContain("fetch-signal");
+    expect(subject.trace).toContain("upload-signal");
   });
 });

@@ -660,7 +660,8 @@ mounts=$(docker inspect --format '{{range .Mounts}}{{.Destination}};{{end}}' "$r
 capabilities=$(compose exec -T remotion-renderer sh -c 'printenv | cut -d= -f1 | sort')
 case "$capabilities" in
     *THOTH_EDITOR_DATABASE_URL* | *THOTH_CONTROL_PLANE_API_KEY* | *THOTH_PROMPT_PROVIDER* \
-        | *THOTH_EDITOR_PREVIEW_SIGNING_KEY* | *DOCKER_HOST* | *THOTH_CDP* | *POSTGRES*)
+        | *THOTH_EDITOR_PREVIEW_SIGNING_KEY* | *DOCKER_HOST* | *THOTH_CDP* | *POSTGRES* \
+        | *THOTH_MEDIA_S3_* | *MINIO_*)
         fail renderer_holds_no_control_plane_capability
         ;;
 esac
