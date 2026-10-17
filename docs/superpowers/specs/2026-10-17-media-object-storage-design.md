@@ -259,3 +259,34 @@ Sub-project 2 gets its own spec:
 - the renderer reads inputs and writes outputs through presigned URLs;
 - `LocalArtifactRoot` moves to the store;
 - the artifact volume and the report JSON files leave the stack.
+
+## Corrections (planning, 2026-10-17)
+
+Found while writing the plan; the operator was told before execution.
+
+1. **No API route serves workflow media today.**
+   - The workflow artifact download serves only report kinds: every `ArtifactRef` the workflow
+     records is a report.
+   - Editor assets come only from uploads (`uploads/<project>/…`), so neither the editor preview
+     nor render-bundle staging reads a `reports/` locator.
+   - The API streaming, `Range`, and 503 parts of "Data flow" and "Testing" are therefore
+     dropped. Serving workflow media to the browser belongs to the follow-up "Studio reads the
+     footage artifact". `open_range` leaves the port, and so does `exists`, since `stat` covers
+     it; `list` joins the port for the footage clips.
+2. **`put_bytes` is not needed.** Cards are written to files in the scratch directory and go up
+   with `put_file`.
+3. **`content_type` is guessed inside `put_file`** from the file name, not passed in.
+4. **`minio-init` is dropped.** `thoth-control media import` creates the private bucket when it
+   is absent, and the deploy runs it before `up`, so the worker's startup `check()` finds it.
+5. **Image `pgsty/minio`** replaces `minio/minio`, which is no longer pullable (operator,
+   2026-10-17).
+6. **Cleanup paths in footage stay local deletes.**
+   - Rejected or timed-out clips were never pushed, because the footage activity pushes only
+     after a successful build, so they need no store delete.
+   - A failed build pushes nothing; its retry reopens admitted clips it cannot find, which is the
+     existing `_verify_admitted` contract.
+7. **Verification.**
+   - Each object records its sha256 as metadata, so the import compares size and sha256 without
+     downloading.
+   - A fresh upload, and every `--remove-local` candidate, is verified by fetching a copy and
+     hashing it.
