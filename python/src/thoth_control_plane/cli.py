@@ -14,7 +14,7 @@ import httpx
 import typer
 
 from thoth_control_plane.application import ApprovalSubmission, RetryRequest
-from thoth_control_plane.config import Settings
+from thoth_control_plane.config import Settings, SettingsValidationError
 from thoth_control_plane.domain import WorkflowEvent, WorkflowRequest
 from thoth_control_plane.infrastructure.media_store import MediaStoreUnavailable
 from thoth_control_plane.infrastructure.report_store import ReportStore, ReportStoreUnavailable
@@ -113,7 +113,11 @@ def media_import(
     if not artifact_root.is_dir():
         typer.echo("artifact root not found")
         raise typer.Exit(1)
-    store = S3MediaStore.from_settings(settings)
+    try:
+        store = S3MediaStore.from_settings(settings)
+    except SettingsValidationError:
+        typer.echo("media store is not configured")
+        raise typer.Exit(1) from None
     try:
         store.ensure_bucket()
         if remove_local:
@@ -125,6 +129,10 @@ def media_import(
         counts = import_media(artifact_root, store)
     except MediaStoreUnavailable:
         typer.echo("media store unavailable")
+        raise typer.Exit(1) from None
+    except OSError:
+        # A full or unwritable local disk while verifying: one line, never a path or traceback.
+        typer.echo("media import failed: local disk error")
         raise typer.Exit(1) from None
     typer.echo(
         f"imported={counts.imported} present={counts.present} "

@@ -620,7 +620,11 @@ def test_api_and_worker_reach_the_media_store() -> None:
         assert "THOTH_MEDIA_S3_ENDPOINT: minio:9000" in block
         assert "THOTH_MEDIA_S3_BUCKET: thoth-media" in block
         assert "THOTH_MEDIA_S3_SECRET_KEY: ${THOTH_MEDIA_S3_SECRET_KEY:?" in block
-        assert "minio:\n        condition: service_healthy" in block
+    # Only the worker waits for MinIO: the API reads no media (spec Correction 1), so a MinIO
+    # outage must not take the API and the dashboard down with it.
+    healthy_minio = "minio:\n        condition: service_healthy"
+    assert healthy_minio in _service_block(compose, "worker")
+    assert healthy_minio not in _service_block(compose, "api")
     env_example = _env_file()
     assert "THOTH_MEDIA_S3_ACCESS_KEY=replace-with-local-secret" in env_example
     assert "THOTH_MEDIA_S3_SECRET_KEY=replace-with-local-secret" in env_example

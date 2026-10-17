@@ -13,6 +13,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import certifi
 import urllib3
 from minio import Minio
 from minio.error import MinioException, S3Error
@@ -57,7 +58,10 @@ class S3MediaStore:
         access, secret = settings.THOTH_MEDIA_S3_ACCESS_KEY, settings.THOTH_MEDIA_S3_SECRET_KEY
         if not settings.THOTH_MEDIA_S3_ENDPOINT or access is None or secret is None:
             raise SettingsValidationError("media_s3_credentials_missing")
+        # A custom pool replaces minio's own, so it carries minio's TLS defaults explicitly.
         http = urllib3.PoolManager(
+            cert_reqs="CERT_REQUIRED",
+            ca_certs=certifi.where(),
             timeout=urllib3.Timeout(connect=5.0, read=120.0),
             retries=urllib3.Retry(
                 total=3, backoff_factor=0.5, status_forcelist=(500, 502, 503, 504)

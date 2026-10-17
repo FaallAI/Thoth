@@ -6,7 +6,6 @@ import asyncio
 import contextlib
 import logging
 import tempfile
-import threading
 from collections.abc import Awaitable, Callable, Mapping
 from hashlib import sha256
 from pathlib import Path, PurePosixPath
@@ -329,8 +328,8 @@ async def _run(
             await scratch.push(recorded)
             await asyncio.to_thread(reports.put, location.as_posix(), "source_report", content)
         except asyncio.CancelledError:
-            # Not awaited: a cancelled activity must not block its loop on the store.
-            threading.Thread(target=_forget_media, args=(store, recorded), daemon=True).start()
+            # The report write may still commit in its thread, so the media stays: the retry
+            # overwrites it, and a stored report never points at media that was deleted.
             raise
         except (
             MediaStoreUnavailable,
@@ -338,10 +337,14 @@ async def _run(
             MediaLocatorInvalid,
             ReportStoreUnavailable,
             ReportInvalid,
-        ):
+        ) as error:
             await asyncio.to_thread(_forget_media, store, recorded)
             return SourceInvestigationActivityResult(
-                failure=SafeActivityError(code="artifact_persistence_failed", retryable=True),
+                failure=SafeActivityError(
+                    code="artifact_persistence_failed",
+                    # An unsafe locator fails the same way on every attempt.
+                    retryable=not isinstance(error, MediaLocatorInvalid),
+                ),
                 events=_terminal_events(
                     report.outcome.attempts,
                     root,

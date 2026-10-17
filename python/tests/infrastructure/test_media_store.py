@@ -235,3 +235,34 @@ def test_an_endpoint_selects_the_s3_store(tmp_path: Path) -> None:
         )
     )
     assert isinstance(store, S3MediaStore)
+
+
+@pytest.mark.skipif(not S3_ENDPOINT, reason="needs a throwaway MinIO")
+def test_a_missing_bucket_on_an_object_request_is_an_outage(tmp_path: Path) -> None:
+    from thoth_control_plane.infrastructure.s3_media_store import S3MediaStore
+
+    # minio reports a missing bucket on an object request as NoSuchKey; that is an outage.
+    store = S3MediaStore(_s3_client(), "thoth-test-never-created")
+    with pytest.raises(MediaStoreUnavailable):
+        store.stat(LOCATION)
+    with pytest.raises(MediaStoreUnavailable):
+        store.fetch(LOCATION, tmp_path / "x.mp4")
+
+
+def test_the_production_client_verifies_tls_with_the_certifi_bundle() -> None:
+    import certifi
+
+    from thoth_control_plane.infrastructure.s3_media_store import S3MediaStore
+
+    store = S3MediaStore.from_settings(
+        Settings(
+            THOTH_CONTROL_PLANE_API_KEY="k",
+            THOTH_MEDIA_S3_ENDPOINT="s3.example.test",
+            THOTH_MEDIA_S3_ACCESS_KEY="a",
+            THOTH_MEDIA_S3_SECRET_KEY="b",
+            THOTH_MEDIA_S3_SECURE=True,
+        )
+    )
+    pool = store._client._http.connection_pool_kw
+    assert pool["cert_reqs"] == "CERT_REQUIRED"
+    assert pool["ca_certs"] == certifi.where()

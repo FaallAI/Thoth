@@ -14,6 +14,7 @@ from thoth_control_plane.activities.footage import (
 from thoth_control_plane.assembly.ports import AssemblyError
 from thoth_control_plane.config import Settings
 from thoth_control_plane.footage.models import FootageResult
+from thoth_control_plane.infrastructure.media_store import LocalMediaStore
 from thoth_control_plane.infrastructure.report_store import ReportStoreUnavailable
 
 
@@ -159,7 +160,11 @@ async def test_footage_works_on_pulled_media_and_pushes_its_clips(
             assert (root / "reports/wf_a/footage/earlier.mp4").read_bytes() == b"admitted-before"
             (root / "reports/wf_a/footage/new.mp4").write_bytes(b"new-clip")
             (root / "reports/wf_a/footage/half.mp4.part").write_bytes(b"x")
-            await inputs.publish()  # the service publishes before it marks the run done
+            (root / "reports/wf_a/footage/abandoned.mp4").write_bytes(b"closed")
+            # The service publishes the admitted clips before it marks the run done.
+            await inputs.publish(
+                ["reports/wf_a/footage/earlier.mp4", "reports/wf_a/footage/new.mp4"]
+            )
             return FootageResult(status="ok", admitted=2)
 
     activity = build_footage_activity(
@@ -196,3 +201,26 @@ async def test_a_failed_build_pushes_no_clip(tmp_path: Path, report_store) -> No
     with pytest.raises(ApplicationError):
         await activity(FootageActivityInput(workflow_id="wf_a"))
     assert store.list("reports/wf_a/footage/") == []
+
+
+async def test_the_heartbeat_covers_the_footage_pull(
+    tmp_path: Path, report_store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tests.activities.heartbeat_support import WatchedHeartbeat, WatchingStore
+    from thoth_control_plane.activities import footage
+
+    heartbeat = WatchedHeartbeat()
+    monkeypatch.setattr(footage, "_heartbeat", heartbeat)
+    store_root = tmp_path / "store"
+    store_root.mkdir()
+    store = WatchingStore(store_root, heartbeat)
+    _with_report(report_store)
+    main = str(support_report(workflow_id="wf_a").media[0].location)
+    (tmp_path / "main.mp4").write_bytes(b"main-video")
+    LocalMediaStore(store_root).put_file(main, tmp_path / "main.mp4")
+
+    activity = build_footage_activity(
+        _settings(tmp_path / "unused-root"), builder=Builder(), reports=report_store, media=store
+    )  # type: ignore[arg-type]
+    await activity(FootageActivityInput(workflow_id="wf_a"))
+    assert store.calls == [("fetch", True)]

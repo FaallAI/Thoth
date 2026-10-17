@@ -935,10 +935,12 @@ async def test_the_admitted_clips_are_published_before_the_run_is_done(
     store: FootageStore, tmp_path: Path
 ) -> None:
     seen: list[str | None] = []
+    published: list[list[str]] = []
 
-    async def publish() -> None:
+    async def publish(locations: list[str]) -> None:
         run = store.run("wf_a")
         seen.append(run.status if run is not None else None)
+        published.append(locations)
 
     result = await _builder(store, search=Search(_hits(_video(1)))).build(
         _publishing_inputs(tmp_path, publish)
@@ -946,12 +948,15 @@ async def test_the_admitted_clips_are_published_before_the_run_is_done(
     assert result.status == "ok"
     assert seen and seen[-1] != "done"
     assert store.run("wf_a").status == "done"
+    # Only the admitted clips go up, never a rejected or abandoned download.
+    admitted = [c.media_location for c in store.admitted("wf_a")]
+    assert admitted and published[-1] == admitted
 
 
 async def test_a_failed_publish_leaves_the_run_open_for_the_retry(
     store: FootageStore, tmp_path: Path
 ) -> None:
-    async def publish() -> None:
+    async def publish(locations: list[str]) -> None:
         raise RuntimeError("media store unavailable")
 
     with pytest.raises(RuntimeError):

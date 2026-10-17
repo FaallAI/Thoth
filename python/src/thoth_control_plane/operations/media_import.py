@@ -108,7 +108,11 @@ def import_media(root: Path, store: MediaStore) -> MediaImportCounts:
 
 def remove_local_media(root: Path, store: MediaStore) -> MediaRemovalCounts:
     """Delete each local media file whose object verifies identical; keep every other file."""
-    if isinstance(store, LocalMediaStore) and store.root == root.resolve():
+    volume = root.resolve()
+    if isinstance(store, LocalMediaStore) and (
+        store.root.is_relative_to(volume) or volume.is_relative_to(store.root)
+    ):
+        # Verifying a file against itself, or a copy inside the tree being removed, proves nothing.
         raise ValueError("media_store_is_the_volume")
     removed = kept = 0
     for path, location in _candidates(root):

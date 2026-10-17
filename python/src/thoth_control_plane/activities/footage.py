@@ -9,7 +9,6 @@ Temporal history.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 import re
 import time
@@ -28,7 +27,11 @@ from thoth_control_plane.activities.content_assembly import (
     _heartbeat,
     _original,
 )
-from thoth_control_plane.activities.media_scratch import MediaScratch, media_locations
+from thoth_control_plane.activities.media_scratch import (
+    MediaScratch,
+    heartbeating,
+    media_locations,
+)
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain.models import OpaqueId, SourceProgressEvent, StrictModel
 from thoth_control_plane.footage.models import FootageResult
@@ -107,14 +110,14 @@ async def _run(
     original = await _original(reports, input_.original_report)
     store = media or LocalMediaStore(artifact_root)
     clips = f"reports/{input_.workflow_id}/footage/"
-    async with MediaScratch(store, scratch_dir) as scratch:
+    async with heartbeating(_heartbeat), MediaScratch(store, scratch_dir) as scratch:
         # The post's and the original's media, and every clip an earlier attempt admitted.
         stored_clips = await asyncio.to_thread(store.list, clips)
         await scratch.pull([*media_locations(report), *media_locations(original), *stored_clips])
 
-        async def publish() -> None:
-            made = (scratch.root / clips).glob("*.mp4")
-            await scratch.push(f"{clips}{path.name}" for path in sorted(made) if path.is_file())
+        async def publish(admitted: list[str]) -> None:
+            # A carousel slide is the acquisition's own media, already stored.
+            await scratch.push(location for location in admitted if location.startswith(clips))
 
         inputs = FootageInputs(
             workflow_id=input_.workflow_id,
@@ -124,7 +127,6 @@ async def _run(
             artifact_root=scratch.root,
             publish=publish,
         )
-        heartbeat = asyncio.create_task(_heartbeat())
         try:
             result = await builder.build(inputs)
         except asyncio.CancelledError:
@@ -137,10 +139,6 @@ async def _run(
                 code = "footage_failed"
             logger.warning("footage failed: %s", code)
             raise ApplicationError(code, type="FootageFailed") from None
-        finally:
-            heartbeat.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await heartbeat
     return _done(result.status, result.admitted, started)
 
 

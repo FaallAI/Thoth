@@ -473,3 +473,90 @@ async def test_the_runner_acquirer_follows_the_running_scratch_root(tmp_path: Pa
         ACQUISITION_ROOT.reset(token)
     await acquirer.acquire(f"{WORKFLOW}-c2", ORIGINAL)
     assert roots == [tmp_path / "scratch", tmp_path / "fallback"]
+
+
+@pytest.mark.asyncio
+async def test_the_heartbeat_covers_the_pull_and_the_original_push(
+    tmp_path: Path, report_store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tests.activities.heartbeat_support import WatchedHeartbeat, WatchingStore
+    from thoth_control_plane.activities import source_attribution
+    from thoth_control_plane.activities.source_attribution import ACQUISITION_ROOT
+
+    heartbeat = WatchedHeartbeat()
+    monkeypatch.setattr(source_attribution, "_heartbeat", heartbeat)
+    store_root = tmp_path / "store"
+    store_root.mkdir()
+    store = WatchingStore(store_root, heartbeat)
+    _persist(store_root, report_store, _report())
+    original = _report(f"{WORKFLOW}-c1")
+
+    class Finding(FakeAttributor):
+        async def identify(self, workflow_id, report, video):
+            path = ACQUISITION_ROOT.get() / str(original.media[0].location)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"original-video")
+            return await super().identify(workflow_id, report, video)
+
+    await _run(
+        SourceAttributionActivityInput(workflow_id=WORKFLOW),
+        tmp_path / "unused-root",
+        Finding(_replaced(original)),
+        report_store,
+        media=store,
+    )
+    assert [call for call, _ in store.calls] == ["fetch", "put"]
+    assert all(running for _, running in store.calls)
+    assert heartbeat.stopped.is_set()
+
+
+@pytest.mark.asyncio
+async def test_a_failed_original_push_stores_no_original_report(
+    tmp_path: Path, report_store
+) -> None:
+    from thoth_control_plane.activities.source_attribution import ACQUISITION_ROOT
+    from thoth_control_plane.infrastructure.media_store import (
+        LocalMediaStore,
+        MediaStoreUnavailable,
+    )
+
+    class Down(LocalMediaStore):
+        def put_file(self, location: str, path: Path) -> None:
+            raise MediaStoreUnavailable("media_store_unavailable")
+
+    store_root = tmp_path / "store"
+    store_root.mkdir()
+    _persist(store_root, report_store, _report())
+    original = _report(f"{WORKFLOW}-c1")
+
+    class Finding(FakeAttributor):
+        async def identify(self, workflow_id, report, video):
+            path = ACQUISITION_ROOT.get() / str(original.media[0].location)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"original-video")
+            return await super().identify(workflow_id, report, video)
+
+    with pytest.raises(MediaStoreUnavailable):
+        await _run(
+            SourceAttributionActivityInput(workflow_id=WORKFLOW),
+            tmp_path / "unused-root",
+            Finding(_replaced(original)),
+            report_store,
+            media=Down(store_root),
+        )
+    assert report_store.get(f"reports/{WORKFLOW}-c1/source-report.json") is None
+
+
+@pytest.mark.asyncio
+async def test_without_a_running_attribution_the_acquirer_has_no_root(tmp_path: Path) -> None:
+    async def runner(*_: Any) -> AcquisitionResult:
+        raise AssertionError("not called")
+
+    with pytest.raises(RuntimeError, match="no acquisition root"):
+        await RunnerAcquirer(runner).acquire(f"{WORKFLOW}-c1", ORIGINAL)
+
+
+def test_production_attribution_acquires_only_below_the_scratch_root(tmp_path: Path) -> None:
+    from thoth_control_plane.activities.source_attribution import _OnFirstUse
+
+    assert _OnFirstUse(_settings(tmp_path))._root is None

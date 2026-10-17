@@ -290,3 +290,11 @@ Found while writing the plan; the operator was told before execution.
      downloading.
    - A fresh upload, and every `--remove-local` candidate, is verified by fetching a copy and
      hashing it.
+8. **Scratch stays in the container's temp directory** (review minor, ruling 2026-10-17).
+   - Compose sets no `THOTH_MEDIA_SCRATCH_DIR`, so scratch is the worker container's `/tmp`.
+   - On WSL, that writable layer already lives on ext4.
+   - A separate volume would add an ownership step for the non-root worker (uid 10001) and buy
+     nothing.
+9. **A store outage during attribution ends that activity in an error, and the workflow goes on
+   without attribution.** This is the same as a report-store outage. Changing it is a workflow
+   change, outside this sub-project.

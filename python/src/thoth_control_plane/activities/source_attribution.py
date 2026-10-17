@@ -11,7 +11,6 @@ elapsed milliseconds reach Temporal history.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import contextvars
 import logging
 import re
@@ -26,7 +25,11 @@ from pydantic import Field
 from temporalio import activity
 
 from thoth_control_plane.acquisition.models import SourceReport
-from thoth_control_plane.activities.media_scratch import MediaScratch, report_media_locations
+from thoth_control_plane.activities.media_scratch import (
+    MediaScratch,
+    heartbeating,
+    report_media_locations,
+)
 from thoth_control_plane.activities.source_investigation import (
     AcquisitionRunner,
     _account_profiles,
@@ -220,11 +223,10 @@ async def _run(
         return failed()
 
     store = media or LocalMediaStore(artifact_root)
-    async with MediaScratch(store, scratch_dir) as scratch:
+    async with heartbeating(_heartbeat), MediaScratch(store, scratch_dir) as scratch:
         # The repost's first video: what `_video` hands the attributor.
         await scratch.pull([str(m.location) for m in report.media if m.kind == "video"][:1])
         token = ACQUISITION_ROOT.set(scratch.root)
-        heartbeat = asyncio.create_task(_heartbeat())
         try:
             outcome = await attributor.identify(
                 input_.workflow_id, report, _video(report, scratch.root)
@@ -244,9 +246,6 @@ async def _run(
             return failed()
         finally:
             ACQUISITION_ROOT.reset(token)
-            heartbeat.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await heartbeat
 
         content = outcome.attribution.model_dump_json(indent=2).encode("utf-8")
         location = folder / ATTRIBUTION_FILE
@@ -299,7 +298,7 @@ class _OnFirstUse:
     so a missing key must not stop it from starting; it fails the attribution instead.
     """
 
-    def __init__(self, settings: Settings, artifact_root: Path) -> None:
+    def __init__(self, settings: Settings, artifact_root: Path | None = None) -> None:
         self._settings = settings
         self._root = artifact_root
         self._inner: SourceAttributor | None = None
@@ -324,7 +323,8 @@ def build_source_attribution_activity(
     media: MediaStore | None = None,
 ) -> Callable[[SourceAttributionActivityInput], Awaitable[SourceAttributionActivityResult]]:
     artifact_root = settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT.resolve()
-    selected = attributor or _OnFirstUse(settings, artifact_root)
+    # No fallback root: candidates land only below the running attribution's scratch.
+    selected = attributor or _OnFirstUse(settings)
     selected_reports = reports or connect_reports(settings)
     selected_media = media or build_media_store(settings)
     scratch_dir = settings.THOTH_MEDIA_SCRATCH_DIR
