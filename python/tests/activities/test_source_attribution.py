@@ -94,7 +94,10 @@ async def test_a_replaced_verdict_persists_both_artifacts(tmp_path: Path, report
     )
 
     assert result.verdict == "replaced"
-    assert attributor.calls[0][2] == (tmp_path / report.media[0].location).resolve()
+    # The attributor reads a scratch copy of the stored video, never the artifact root itself.
+    video = attributor.calls[0][2]
+    assert video is not None and video.as_posix().endswith(str(report.media[0].location))
+    assert not video.is_relative_to(tmp_path)
     assert result.attribution is not None and result.original_report is not None
     assert result.attribution.kind == "source_attribution"
     assert result.attribution.location == f"reports/{WORKFLOW}/source-attribution.json"
@@ -389,3 +392,84 @@ async def test_a_down_store_while_writing_the_attribution_raises(
     )
     with pytest.raises(ReportStoreUnavailable):
         await activity(SourceAttributionActivityInput(workflow_id=WORKFLOW))
+
+
+def _media_store(tmp_path: Path):
+    from thoth_control_plane.infrastructure.media_store import LocalMediaStore
+
+    root = tmp_path / "store"
+    root.mkdir()
+    return root, LocalMediaStore(root)
+
+
+@pytest.mark.asyncio
+async def test_attribution_reads_the_repost_video_from_the_store(
+    tmp_path: Path, report_store
+) -> None:
+    store_root, store = _media_store(tmp_path)
+    report = _report()
+    _persist(store_root, report_store, report)  # the video lives in the store, not the root
+    seen: list[Path | None] = []
+
+    class Seeing(FakeAttributor):
+        async def identify(self, workflow_id, report, video):
+            seen.append(video)
+            assert video is not None and video.read_bytes() == b"\x00" * 2000
+            return await super().identify(workflow_id, report, video)
+
+    await _run(
+        SourceAttributionActivityInput(workflow_id=WORKFLOW),
+        tmp_path / "unused-root",
+        Seeing(_replaced(_report(f"{WORKFLOW}-c1"))),
+        report_store,
+        media=store,
+    )
+    assert seen and seen[0] is not None and not seen[0].exists()  # scratch removed afterwards
+
+
+@pytest.mark.asyncio
+async def test_the_original_media_is_pushed_and_candidates_land_in_the_scratch(
+    tmp_path: Path, report_store
+) -> None:
+    from thoth_control_plane.activities.source_attribution import ACQUISITION_ROOT
+
+    store_root, store = _media_store(tmp_path)
+    _persist(store_root, report_store, _report())
+    original = _report(f"{WORKFLOW}-c1")
+
+    class Finding(FakeAttributor):
+        async def identify(self, workflow_id, report, video):
+            path = ACQUISITION_ROOT.get() / str(original.media[0].location)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"original-video")
+            return await super().identify(workflow_id, report, video)
+
+    await _run(
+        SourceAttributionActivityInput(workflow_id=WORKFLOW),
+        tmp_path / "unused-root",
+        Finding(_replaced(original)),
+        report_store,
+        media=store,
+    )
+    stored = store.stat(str(original.media[0].location))
+    assert stored.size_bytes == len(b"original-video")
+
+
+@pytest.mark.asyncio
+async def test_the_runner_acquirer_follows_the_running_scratch_root(tmp_path: Path) -> None:
+    from thoth_control_plane.activities.source_attribution import ACQUISITION_ROOT
+
+    roots: list[Path] = []
+
+    async def runner(workflow_id: str, url: str, root: Path) -> AcquisitionResult:
+        roots.append(root)
+        return AcquisitionResult(report=_report(workflow_id))
+
+    acquirer = RunnerAcquirer(runner, tmp_path / "fallback")
+    token = ACQUISITION_ROOT.set(tmp_path / "scratch")
+    try:
+        await acquirer.acquire(f"{WORKFLOW}-c1", ORIGINAL)
+    finally:
+        ACQUISITION_ROOT.reset(token)
+    await acquirer.acquire(f"{WORKFLOW}-c2", ORIGINAL)
+    assert roots == [tmp_path / "scratch", tmp_path / "fallback"]

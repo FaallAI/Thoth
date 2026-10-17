@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import contextvars
 import logging
 import re
 import shutil
@@ -25,6 +26,7 @@ from pydantic import Field
 from temporalio import activity
 
 from thoth_control_plane.acquisition.models import SourceReport
+from thoth_control_plane.activities.media_scratch import MediaScratch, report_media_locations
 from thoth_control_plane.activities.source_investigation import (
     AcquisitionRunner,
     _account_profiles,
@@ -58,6 +60,11 @@ from thoth_control_plane.domain.models import (
     SourceProgressEvent,
     StrictModel,
 )
+from thoth_control_plane.infrastructure.media_store import (
+    LocalMediaStore,
+    MediaStore,
+    build_media_store,
+)
 from thoth_control_plane.infrastructure.report_store import Reports, connect_reports, read_report
 
 logger = logging.getLogger(__name__)
@@ -65,6 +72,8 @@ HEARTBEAT_SECONDS = 30.0
 ATTRIBUTION_FILE = "source-attribution.json"
 REPORT_FILE = "source-report.json"
 Verdict = Literal["original", "replaced", "unresolved"]
+#: The running attribution's scratch root: candidates are acquired below it (spec 2026-10-17).
+ACQUISITION_ROOT: contextvars.ContextVar[Path] = contextvars.ContextVar("attribution_root")
 
 
 class SourceAttributionActivityInput(StrictModel):
@@ -95,17 +104,26 @@ def _video(report: SourceReport, artifact_root: Path) -> Path | None:
 
 
 class RunnerAcquirer:
-    """Acquire candidates through the production runner, each under its own report key."""
+    """Acquire candidates through the production runner, each under its own report key, below
+    the running attribution's scratch root (or the given root outside an attribution)."""
 
-    def __init__(self, runner: AcquisitionRunner, artifact_root: Path) -> None:
+    def __init__(self, runner: AcquisitionRunner, artifact_root: Path | None = None) -> None:
         self._runner = runner
-        self._root = artifact_root
+        self._fallback = artifact_root
+
+    @property
+    def _root(self) -> Path:
+        root = ACQUISITION_ROOT.get(self._fallback)
+        if root is None:
+            raise RuntimeError("no acquisition root")
+        return root
 
     async def acquire(self, candidate_id: str, url: str) -> AcquiredCandidate | None:
-        result = await self._runner(candidate_id, url, self._root)
+        root = self._root
+        result = await self._runner(candidate_id, url, root)
         if result.report is None:
             return None
-        return AcquiredCandidate(candidate_id, result.report, _video(result.report, self._root))
+        return AcquiredCandidate(candidate_id, result.report, _video(result.report, root))
 
     async def discard(self, candidate_id: str) -> None:
         if not re.fullmatch(OPAQUE_ID_PATTERN, candidate_id):
@@ -183,6 +201,9 @@ async def _run(
     artifact_root: Path,
     attributor: Attributor,
     reports: Reports,
+    *,
+    media: MediaStore | None = None,
+    scratch_dir: Path | None = None,
 ) -> SourceAttributionActivityResult:
     started = time.monotonic()
 
@@ -198,52 +219,68 @@ async def _run(
         logger.warning("source attribution skipped; no stage 3 report for this workflow")
         return failed()
 
-    heartbeat = asyncio.create_task(_heartbeat())
-    try:
-        outcome = await attributor.identify(
-            input_.workflow_id, report, _video(report, artifact_root)
-        )
-    except asyncio.CancelledError:
-        raise
-    except AttributionError as error:
-        logger.warning("source attribution stopped: %s", error.code)
+    store = media or LocalMediaStore(artifact_root)
+    async with MediaScratch(store, scratch_dir) as scratch:
+        # The repost's first video: what `_video` hands the attributor.
+        await scratch.pull([str(m.location) for m in report.media if m.kind == "video"][:1])
+        token = ACQUISITION_ROOT.set(scratch.root)
+        heartbeat = asyncio.create_task(_heartbeat())
+        try:
+            outcome = await attributor.identify(
+                input_.workflow_id, report, _video(report, scratch.root)
+            )
+        except asyncio.CancelledError:
+            raise
+        except AttributionError as error:
+            logger.warning("source attribution stopped: %s", error.code)
+            elapsed = int((time.monotonic() - started) * 1000)
+            return SourceAttributionActivityResult(
+                verdict="unresolved",
+                failure=error.code,
+                events=[_event("unresolved", elapsed, "failed", error.code)],
+            )
+        except Exception:
+            logger.warning("source attribution failed; the repost report stands")
+            return failed()
+        finally:
+            ACQUISITION_ROOT.reset(token)
+            heartbeat.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await heartbeat
+
+        content = outcome.attribution.model_dump_json(indent=2).encode("utf-8")
+        location = folder / ATTRIBUTION_FILE
+        await asyncio.to_thread(reports.put, location.as_posix(), "source_attribution", content)
+        attribution = _artifact("source_attribution", "Source attribution", location, content)
+        original = None
+        if outcome.original is not None:
+            # The original's media goes up before its report row, as acquisition does.
+            await scratch.push(report_media_locations(outcome.original.report))
+            original_location = (
+                PurePosixPath("reports") / outcome.original.candidate_id / REPORT_FILE
+            )
+            original_content = outcome.original.report.model_dump_json(indent=2).encode("utf-8")
+            await asyncio.to_thread(
+                reports.put,
+                original_location.as_posix(),
+                "original_source_report",
+                original_content,
+            )
+            original = _artifact(
+                "original_source_report",
+                "Original source report",
+                original_location,
+                original_content,
+            )
+
+        verdict = outcome.attribution.verdict
         elapsed = int((time.monotonic() - started) * 1000)
         return SourceAttributionActivityResult(
-            verdict="unresolved",
-            failure=error.code,
-            events=[_event("unresolved", elapsed, "failed", error.code)],
+            verdict=verdict,
+            attribution=attribution,
+            original_report=original,
+            events=[_event(verdict, elapsed, "succeeded")],
         )
-    except Exception:
-        logger.warning("source attribution failed; the repost report stands")
-        return failed()
-    finally:
-        heartbeat.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await heartbeat
-
-    content = outcome.attribution.model_dump_json(indent=2).encode("utf-8")
-    location = folder / ATTRIBUTION_FILE
-    await asyncio.to_thread(reports.put, location.as_posix(), "source_attribution", content)
-    attribution = _artifact("source_attribution", "Source attribution", location, content)
-    original = None
-    if outcome.original is not None:
-        original_location = PurePosixPath("reports") / outcome.original.candidate_id / REPORT_FILE
-        original_content = outcome.original.report.model_dump_json(indent=2).encode("utf-8")
-        await asyncio.to_thread(
-            reports.put, original_location.as_posix(), "original_source_report", original_content
-        )
-        original = _artifact(
-            "original_source_report", "Original source report", original_location, original_content
-        )
-
-    verdict = outcome.attribution.verdict
-    elapsed = int((time.monotonic() - started) * 1000)
-    return SourceAttributionActivityResult(
-        verdict=verdict,
-        attribution=attribution,
-        original_report=original,
-        events=[_event(verdict, elapsed, "succeeded")],
-    )
 
 
 @activity.defn(name="attribute_source")
@@ -280,16 +317,29 @@ class _OnFirstUse:
 
 
 def build_source_attribution_activity(
-    settings: Settings, *, attributor: Attributor | None = None, reports: Reports | None = None
+    settings: Settings,
+    *,
+    attributor: Attributor | None = None,
+    reports: Reports | None = None,
+    media: MediaStore | None = None,
 ) -> Callable[[SourceAttributionActivityInput], Awaitable[SourceAttributionActivityResult]]:
     artifact_root = settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT.resolve()
     selected = attributor or _OnFirstUse(settings, artifact_root)
     selected_reports = reports or connect_reports(settings)
+    selected_media = media or build_media_store(settings)
+    scratch_dir = settings.THOTH_MEDIA_SCRATCH_DIR
 
     @activity.defn(name="attribute_source")
     async def configured_source_attribution_activity(
         input_: SourceAttributionActivityInput,
     ) -> SourceAttributionActivityResult:
-        return await _run(input_, artifact_root, selected, selected_reports)
+        return await _run(
+            input_,
+            artifact_root,
+            selected,
+            selected_reports,
+            media=selected_media,
+            scratch_dir=scratch_dir,
+        )
 
     return configured_source_attribution_activity
