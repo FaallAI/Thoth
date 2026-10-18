@@ -185,3 +185,13 @@ for (const retired of ["/discovery", "/content-set", "/profiles", "/legacy"]) {
     expect(window.location.pathname).toBe("/workflows");
   });
 }
+
+test("the Studio draft list keeps the ordinary page layout; only the editor goes full screen", async () => {
+  stubFetch();
+  window.history.replaceState(null, "", "/studio");
+  const { default: App } = await import("./App");
+  render(<App />);
+  await screen.findByRole("button", { name: /Heading/ });
+  const main = globalThis.document.getElementById("workspace")!;
+  expect(main.className).not.toContain("dashboard-page-studio");
+});

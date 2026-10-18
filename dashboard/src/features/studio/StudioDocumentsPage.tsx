@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 
 import type { ControlPlaneClient, EditDocumentListItem } from "@/api/control-plane";
 import { Button } from "@/components/ui/button";
+import { formatWhen } from "@/lib/format-time";
 
 /** Every Studio draft of the active project, newest first; each opens by URL. */
 export function StudioDocumentsPage({
@@ -61,7 +62,7 @@ export function StudioDocumentsPage({
               onClick={() => navigate(`/studio/${encodeURIComponent(projectId)}/${encodeURIComponent(item.document_id)}`)}
             >
               <span>{item.label}</span>
-              <small>{`Revision ${item.revision} · ${item.updated_at}`}</small>
+              <small>{`Revision ${item.revision} · ${formatWhen(item.updated_at)}`}</small>
             </button>
           </li>
         ))}
