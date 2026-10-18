@@ -3,13 +3,14 @@
 import asyncio
 import re
 from collections.abc import AsyncIterator
-from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from thoth_control_plane.api.dependencies import current_actor
+from thoth_control_plane.api.ranged import ranged_response
 from thoth_control_plane.application import (
     Actor,
     ApprovalSubmission,
@@ -28,6 +29,11 @@ from thoth_control_plane.infrastructure.legacy_reader import (
     LegacyJobMappingError,
     LegacyJobNotFound,
     LegacyJobReader,
+)
+from thoth_control_plane.infrastructure.media_store import (
+    MediaLocatorInvalid,
+    MediaStoreUnavailable,
+    MediaUnavailable,
 )
 from thoth_control_plane.infrastructure.report_store import REPORT_KINDS, ReportStoreUnavailable
 
@@ -128,14 +134,23 @@ async def download_workflow_artifact(
             media_type=artifact.media_type,
             headers={"Content-Disposition": f'attachment; filename="{artifact.artifact_id}.json"'},
         )
-    artifact_root = Path(request.app.state.settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT).resolve()
-    artifact_path = (artifact_root / artifact.location).resolve()
-    if artifact_root not in artifact_path.parents or not artifact_path.is_file():
-        raise ArtifactNotFound
-    return FileResponse(
-        artifact_path,
+    # Workflow media lives in the media store since PR #19; no service mounts the volume.
+    media = request.app.state.media_store
+    try:
+        size = await asyncio.to_thread(media.size, artifact.location)
+    except (MediaUnavailable, MediaLocatorInvalid):
+        raise ArtifactNotFound from None
+    except MediaStoreUnavailable as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="media_store_unavailable"
+        ) from error
+    suffix = PurePosixPath(artifact.location).suffix
+    return ranged_response(
+        size=size,
+        read=lambda start, end: media.open_range(artifact.location, start, end),
         media_type=artifact.media_type,
-        filename=f"{artifact.artifact_id}{artifact_path.suffix}",
+        range_header=request.headers.get("range"),
+        headers={"Content-Disposition": f'attachment; filename="{artifact.artifact_id}{suffix}"'},
     )
 
 

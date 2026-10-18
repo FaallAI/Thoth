@@ -189,3 +189,80 @@ async def test_an_expired_workflow_detail_answers_from_the_store(api, stores) ->
 async def test_listing_a_missing_project_is_404(api) -> None:
     response = await api.get("/api/v1/projects/missing/workflows", headers=AUTH)
     assert response.status_code == 404
+
+
+def summary_with(artifacts: list[dict]) -> "WorkflowSummary":
+    import json
+
+    from thoth_control_plane.domain import WorkflowSummary
+
+    return WorkflowSummary.model_validate_json(
+        json.dumps(
+            {
+                "workflow_id": "wf_001",
+                "status": "succeeded",
+                "created_at": T_OLD.isoformat(),
+                "updated_at": T_OLD.isoformat(),
+                "source": {"display_url": "https://x.test/v", "platform": "tiktok"},
+                "stages": [],
+                "artifacts": artifacts,
+            }
+        )
+    )
+
+
+CLIP = {
+    "artifact_id": "clip",
+    "kind": "footage",
+    "label": "Clip",
+    "media_type": "video/mp4",
+    "location": "reports/wf_001/footage/clip.mp4",
+}
+GONE = {**CLIP, "artifact_id": "gone", "location": "reports/wf_001/footage/gone.mp4"}
+
+
+@pytest.mark.asyncio
+async def test_media_artifacts_stream_from_the_store_with_ranges(gateway, stores, tmp_path) -> None:
+    from thoth_control_plane.infrastructure.media_store import LocalMediaStore
+
+    # The object lives only in the store, never under the (unmounted) artifact root.
+    settings = Settings(
+        THOTH_CONTROL_PLANE_API_KEY="test-key",
+        THOTH_CONTROL_PLANE_ARTIFACT_ROOT=str(tmp_path / "artifact-root"),
+    )
+    clip = tmp_path / "store" / "reports" / "wf_001" / "footage" / "clip.mp4"
+    clip.parent.mkdir(parents=True)
+    clip.write_bytes(b"0123456789")
+    gateway.workflows["wf_001"] = summary_with([CLIP, GONE])
+    app = app_for(gateway, stores, settings)
+    app.state.media_store = LocalMediaStore(tmp_path / "store")
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        whole = await client.get("/api/v1/workflows/wf_001/artifacts/clip", headers=AUTH)
+        part = await client.get(
+            "/api/v1/workflows/wf_001/artifacts/clip", headers={**AUTH, "Range": "bytes=2-4"}
+        )
+        missing = await client.get("/api/v1/workflows/wf_001/artifacts/gone", headers=AUTH)
+    assert whole.status_code == 200
+    assert whole.content == b"0123456789"
+    assert 'filename="clip.mp4"' in whole.headers["content-disposition"]
+    assert part.status_code == 206
+    assert part.content == b"234"
+    assert missing.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_a_media_store_outage_answers_503(gateway, stores, monkeypatch) -> None:
+    from thoth_control_plane.infrastructure.media_store import MediaStoreUnavailable
+
+    app = app_for(gateway, stores)
+
+    def down(location):
+        raise MediaStoreUnavailable("media_store_unavailable")
+
+    monkeypatch.setattr(app.state.media_store, "size", down)
+    gateway.workflows["wf_001"] = summary_with([CLIP])
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/v1/workflows/wf_001/artifacts/clip", headers=AUTH)
+    assert response.status_code == 503
