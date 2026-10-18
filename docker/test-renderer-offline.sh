@@ -583,6 +583,26 @@ def absent(render_job_id):
     print("ok")
 
 
+def projects():
+    """A project is created and listed, and its workflow list answers with an empty page."""
+    status, created = call("POST", "/projects", {"name": "Smoke project"})
+    if status != 201:
+        raise SystemExit(f"project create returned {status}")
+    status, listed = call("GET", "/projects")
+    if status != 200 or created["project_id"] not in {p["project_id"] for p in listed["items"]}:
+        raise SystemExit("the created project is not listed")
+    status, runs = call("GET", f"/projects/{created['project_id']}/workflows")
+    if status != 200 or runs != {"items": [], "next_cursor": None}:
+        raise SystemExit(f"project workflows returned {status}")
+
+
+def documents(document_id):
+    """The seeded Studio document appears in its project's document list."""
+    status, page = call("GET", f"/projects/{PROJECT_ID}/edit-documents")
+    if status != 200 or document_id not in {item["document_id"] for item in page["items"]}:
+        raise SystemExit("the seeded document is not listed")
+
+
 COMMANDS = {
     "seed": lambda d, f, a: seed(d, int(f), None if a == "none" else int(a)),
     "create": create,
@@ -596,6 +616,8 @@ COMMANDS = {
     "stored": stored,
     "failure": failure,
     "absent": absent,
+    "projects": projects,
+    "documents": documents,
 }
 
 if __name__ == "__main__":
@@ -705,6 +727,13 @@ echo render_output_checksum_matches=true
 # The published render is an object in the media store, not a file on a shared volume.
 driver stored "$job" >/dev/null || fail render_output_in_the_store
 echo render_output_in_the_store=true
+
+# --- projects, their workflow lists, and Studio documents (spec 2026-10-18) -----
+driver projects >/dev/null || fail project_created_and_listed
+echo project_created_and_listed=true
+echo project_workflows_listed=true
+driver documents "$document_id" >/dev/null || fail edit_documents_listed
+echo edit_documents_listed=true
 
 # --- one active render at a time, and cancellation ---------------------------
 driver seed "$long_document_id" "$long_frames" none >/dev/null || fail second_render_is_refused
