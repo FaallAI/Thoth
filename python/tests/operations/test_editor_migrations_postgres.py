@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 import psycopg
+import psycopg.types.json
 import pytest
 
 from thoth_control_plane.operations.editor_migrations import apply_editor_migrations
@@ -176,3 +177,82 @@ def test_insert_missing_never_overwrites_on_postgres() -> None:
     assert store.insert_missing(location, "source_report", b'{"v": 2}') is False
     assert store.get(location) == b'{"v": 1}'
     assert _body(location) == {"v": 1}
+
+
+def _revision(project: str, document: str, revision: int, heading: str, when: str) -> None:
+    body = {"clips": [{"kind": "text", "heading": heading}], "revision": revision}
+    with psycopg.connect(DATABASE_URL) as connection:
+        connection.execute(
+            "INSERT INTO edit_document_revisions"
+            " (project_id, document_id, revision, document_json, created_at)"
+            " VALUES (%s, %s, %s, %s, %s)",
+            (project, document, revision, psycopg.types.json.Jsonb(body), when),
+        )
+
+
+@pytest.mark.asyncio
+async def test_studio_documents_list_their_latest_revision_newest_first() -> None:
+    from thoth_control_plane.infrastructure.editor_repository import (
+        PostgresEditDocumentRepository,
+    )
+
+    apply_editor_migrations(DATABASE_URL, MIGRATIONS)
+    _revision("p1", "doc_old", 1, "Old", "2026-10-01T00:00:00Z")
+    _revision("p1", "doc_new", 1, "First title", "2026-10-02T00:00:00Z")
+    _revision("p1", "doc_new", 2, "Second title", "2026-10-03T00:00:00Z")
+    _revision("p2", "doc_other", 1, "Elsewhere", "2026-10-04T00:00:00Z")
+    repository = PostgresEditDocumentRepository(DATABASE_URL)
+
+    first = await repository.list_documents(project_id="p1", limit=1, cursor=None)
+    assert [(i.document_id, i.revision, i.label) for i in first.items] == [
+        ("doc_new", 2, "Second title")
+    ]
+    assert first.items[0].imported is False
+    rest = await repository.list_documents(project_id="p1", limit=1, cursor=first.next_cursor)
+    assert [i.document_id for i in rest.items] == ["doc_old"]
+    assert rest.next_cursor is None
+
+
+def test_workflow_runs_round_trip_their_summary_and_page_on_postgres() -> None:
+    import json
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.engine import make_url
+
+    from thoth_control_plane.domain import Actor, WorkflowSummary
+    from thoth_control_plane.infrastructure.project_store import ProjectStore
+    from thoth_control_plane.infrastructure.workflow_run_store import WorkflowRunStore
+
+    apply_editor_migrations(DATABASE_URL, MIGRATIONS)
+    engine = create_engine(make_url(DATABASE_URL).set(drivername="postgresql+psycopg"))
+    start = datetime(2026, 10, 18, tzinfo=UTC)
+    ticks = iter(start + timedelta(seconds=n) for n in range(100))
+    projects = ProjectStore(engine)
+    runs = WorkflowRunStore(engine, clock=lambda: next(ticks))
+    owner = Actor(actor_id="owner", actor_type="user")
+    project = projects.create("News")
+    for name in ("wf_a", "wf_b"):
+        summary = WorkflowSummary.model_validate_json(
+            json.dumps(
+                {
+                    "workflow_id": name,
+                    "status": "running",
+                    "created_at": start.isoformat(),
+                    "updated_at": start.isoformat(),
+                    "source": {"display_url": "https://x.test/v", "platform": "tiktok"},
+                    "stages": [],
+                }
+            )
+        )
+        runs.record_start(summary, project_id=project.project_id, actor=owner)
+
+    first, cursor = runs.page(
+        project_id=project.project_id, unassigned=False, actor=owner, cursor=None, limit=1
+    )
+    rest, end = runs.page(
+        project_id=project.project_id, unassigned=False, actor=owner, cursor=cursor, limit=1
+    )
+    assert [r.workflow_id for r in first + rest] == ["wf_b", "wf_a"]
+    assert end is None
+    assert first[0].summary is not None and first[0].summary.status.value == "running"

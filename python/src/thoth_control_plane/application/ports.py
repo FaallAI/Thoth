@@ -13,6 +13,7 @@ from thoth_control_plane.domain import (
     WorkflowRequest,
     WorkflowSummary,
 )
+from thoth_control_plane.domain.edit_document_list import EditDocumentListPage
 from thoth_control_plane.domain.edit_document_operations import EditDocumentOperation
 from thoth_control_plane.domain.edit_document_v2 import EditDocument, EditDocumentV2
 from thoth_control_plane.domain.prompts import (
@@ -145,6 +146,12 @@ class EditDocumentRepository(Protocol):
     async def insert_revision(self, document: EditDocument) -> None: ...
 
     async def get_latest(self, *, project_id: str, document_id: str) -> EditDocument | None: ...
+
+    async def list_documents(
+        self, *, project_id: str, limit: int, cursor: str | None
+    ) -> EditDocumentListPage:
+        """The project's documents at their latest revision, newest first."""
+        ...
 
     async def get_revision(
         self, *, project_id: str, document_id: str, revision: int

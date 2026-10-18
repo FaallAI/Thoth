@@ -561,6 +561,7 @@ def test_openapi_exposes_exact_required_path_method_pairs(gateway) -> None:
         ("/api/v1/projects/{project_id}/workflows", "post"),
         ("/api/v1/workflows", "get"),
         ("/api/v1/workflows/{workflow_id}", "patch"),
+        ("/api/v1/projects/{project_id}/edit-documents", "get"),
         ("/api/v1/projects/{project_id}/edit-documents/import-content-set", "post"),
         ("/api/v1/projects/{project_id}/edit-documents/{document_id}", "get"),
         ("/api/v1/projects/{project_id}/edit-documents/{document_id}", "patch"),

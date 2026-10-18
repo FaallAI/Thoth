@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
+from datetime import datetime
 from typing import Any
 
 from psycopg import AsyncConnection
@@ -13,6 +15,11 @@ from pydantic import TypeAdapter
 from thoth_control_plane.application.ports import (
     EditDocumentRevisionConflict,
     EditDocumentUpgradeConflict,
+)
+from thoth_control_plane.domain.edit_document_list import (
+    EditDocumentListItem,
+    EditDocumentListPage,
+    document_label,
 )
 from thoth_control_plane.domain.edit_document_operations import (
     EditDocumentOperation,
@@ -34,6 +41,36 @@ def _upgrade_payload_hash(project_id: str, document_id: str, base_revision: int)
     """Hash the canonical upgrade request so no raw request is ever retained."""
     canonical = f"{project_id}|{document_id}|{base_revision}".encode()
     return hashlib.sha256(canonical).hexdigest()
+
+
+#: The newest revision of each document in one project, newest first, by keyset.
+_LIST_QUERY = """
+    WITH latest AS (
+        SELECT DISTINCT ON (document_id) document_id, revision, created_at, document_json
+        FROM edit_document_revisions
+        WHERE project_id = %s
+        ORDER BY document_id, revision DESC
+    )
+    SELECT l.document_id, l.revision, l.created_at, l.document_json,
+           EXISTS (SELECT 1 FROM studio_import_drafts d
+                   WHERE d.project_id = %s AND d.document_id = l.document_id)
+    FROM latest l
+    {keyset}
+    ORDER BY l.created_at DESC, l.document_id DESC
+    LIMIT %s
+"""
+LIST_LIMIT_MAX = 50
+
+
+def _list_cursor(created_at: datetime, document_id: str) -> str:
+    raw = f"{created_at.isoformat()}|{document_id}".encode()
+    return base64.urlsafe_b64encode(raw).decode("ascii")
+
+
+def _decode_list_cursor(cursor: str) -> tuple[datetime, str]:
+    raw = base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8")
+    created_at, document_id = raw.split("|", 1)
+    return datetime.fromisoformat(created_at), document_id
 
 
 class EditDocumentConflict(Exception):
@@ -97,6 +134,37 @@ class PostgresEditDocumentRepository:
                 return DOCUMENT_ADAPTER.validate_python(row[0]) if row else None
         except Exception as error:
             raise EditDocumentPersistenceError() from error
+
+    async def list_documents(
+        self, *, project_id: str, limit: int, cursor: str | None
+    ) -> EditDocumentListPage:
+        clamped = max(1, min(int(limit), LIST_LIMIT_MAX))
+        try:
+            keyset = _decode_list_cursor(cursor) if cursor else None
+            query = _LIST_QUERY.format(
+                keyset="WHERE (l.created_at, l.document_id) < (%s, %s)" if keyset else ""
+            )
+            params = (project_id, project_id, *(keyset or ()), clamped + 1)
+            connection = await AsyncConnection.connect(self._database_url)
+            async with connection:
+                database_cursor = connection.cursor()
+                await database_cursor.execute(query, params)
+                rows = await database_cursor.fetchall()
+        except Exception as error:
+            raise EditDocumentPersistenceError() from error
+        page = rows[:clamped]
+        items = [
+            EditDocumentListItem(
+                document_id=document_id,
+                revision=revision,
+                updated_at=created_at,
+                label=document_label(document_json),
+                imported=imported,
+            )
+            for document_id, revision, created_at, document_json, imported in page
+        ]
+        next_cursor = _list_cursor(page[-1][2], page[-1][0]) if len(rows) > clamped else None
+        return EditDocumentListPage(items=items, next_cursor=next_cursor)
 
     async def get_revision(
         self, *, project_id: str, document_id: str, revision: int
