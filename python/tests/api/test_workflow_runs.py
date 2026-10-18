@@ -264,3 +264,32 @@ async def test_a_media_store_outage_answers_503(gateway, stores, monkeypatch) ->
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/api/v1/workflows/wf_001/artifacts/clip", headers=AUTH)
     assert response.status_code == 503
+
+
+async def test_any_settle_failure_still_lists_the_stored_rows(api, stores, gateway) -> None:
+    project = stores[0].create("News")
+    await start(api, project.project_id)
+    gateway.settle_error = RuntimeError("history payload no longer decodes")
+    response = await api.get(f"/api/v1/projects/{project.project_id}/workflows", headers=AUTH)
+    assert response.status_code == 200
+    assert response.json()["items"][0]["status"] == "queued"
+
+
+async def test_a_slow_settle_is_bounded(api, stores, gateway, monkeypatch) -> None:
+    import asyncio
+    import time
+
+    from thoth_control_plane.application import workflow_runs
+
+    project = stores[0].create("News")
+    await start(api, project.project_id)
+
+    async def stalled(workflow_id):
+        await asyncio.sleep(5)
+
+    monkeypatch.setattr(gateway, "settle", stalled)
+    monkeypatch.setattr(workflow_runs, "SETTLE_TIMEOUT_SECONDS", 0.05)
+    began = time.monotonic()
+    response = await api.get(f"/api/v1/projects/{project.project_id}/workflows", headers=AUTH)
+    assert response.status_code == 200
+    assert time.monotonic() - began < 2

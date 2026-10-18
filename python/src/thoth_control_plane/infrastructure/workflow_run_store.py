@@ -188,11 +188,18 @@ class WorkflowRunStore:
                 row = session.get(WorkflowRunRow, workflow_id)
                 if row is None:
                     return
+                stored = summary.model_dump(mode="json") if summary is not None else row.summary
+                if (row.status, row.history_expired, row.summary) == (
+                    status,
+                    history_expired,
+                    stored,
+                ):
+                    return  # a re-read of the same state writes nothing
                 row.status = status
                 row.history_expired = history_expired
-                if summary is not None:
-                    row.summary = summary.model_dump(mode="json")
-                row.updated_at = self._clock()
+                row.summary = stored
+                # The run's own time, not the moment someone looked at it.
+                row.updated_at = summary.updated_at if summary is not None else self._clock()
         except SQLAlchemyError as error:
             raise self._unavailable(error) from None
 

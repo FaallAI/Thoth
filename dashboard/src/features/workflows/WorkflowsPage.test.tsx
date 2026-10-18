@@ -85,3 +85,17 @@ test("the wizard no longer promises a finished cut or unavailable review", async
   expect(screen.queryByText(/every stage/)).toBeNull();
   expect(screen.getByRole("option", { name: "Approval before the content set is final" })).toBeDefined();
 });
+
+test("a failed unassigned listing or load-more says so instead of vanishing", async () => {
+  const c = client();
+  c.listUnassignedWorkflows.mockImplementation(async () => {
+    throw new Error("503");
+  });
+  render(<MemoryRouter><WorkflowsPage client={c as never} projectId="p1" projects={PROJECTS} /></MemoryRouter>);
+  expect(await screen.findByText("Unassigned runs could not be loaded. Try again.")).toBeDefined();
+  c.listProjectWorkflows.mockImplementation(async () => {
+    throw new Error("503");
+  });
+  await userEvent.setup().click(await screen.findByRole("button", { name: "Load more" }));
+  expect(await screen.findByText("Runs could not be loaded. Try again.")).toBeDefined();
+});

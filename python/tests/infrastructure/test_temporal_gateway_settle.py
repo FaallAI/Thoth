@@ -83,3 +83,22 @@ async def test_another_rpc_error_is_not_ready() -> None:
     down = Handle(error=RPCError("down", RPCStatusCode.UNAVAILABLE, b""))
     with pytest.raises(WorkflowNotReady):
         await TemporalWorkflowGateway(Client(down)).settle("wf_a")
+
+
+class FailingResult(Handle):
+    def __init__(self, error):
+        super().__init__(WorkflowExecutionStatus.COMPLETED)
+        self._result_error = error
+
+    async def result(self):
+        raise self._result_error
+
+
+async def test_a_result_failure_maps_like_describe() -> None:
+    from thoth_control_plane.application import WorkflowNotReady
+
+    gone = FailingResult(RPCError("gone", RPCStatusCode.NOT_FOUND, b""))
+    assert isinstance(await TemporalWorkflowGateway(Client(gone)).settle("wf_a"), RunExpired)
+    down = FailingResult(RPCError("down", RPCStatusCode.UNAVAILABLE, b""))
+    with pytest.raises(WorkflowNotReady):
+        await TemporalWorkflowGateway(Client(down)).settle("wf_a")

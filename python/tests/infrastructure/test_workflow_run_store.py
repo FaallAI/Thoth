@@ -119,3 +119,18 @@ def test_report_artifacts_and_source_rows_come_from_workflow_reports(stores) -> 
     assert workflow_id == "wf_a"
     assert "canonical_url" in content
     assert first_seen.tzinfo is not None
+
+
+def test_settle_takes_the_summary_time_and_ignores_unchanged_reads(stores) -> None:
+    _, runs, _ = stores
+    runs.record_start(summary("wf_a"), project_id=None, actor=OWNER)
+    finished = summary("wf_a", "succeeded").model_copy(
+        update={"updated_at": datetime(2026, 9, 30, 12, tzinfo=UTC)}
+    )
+    runs.settle("wf_a", status="succeeded", summary=finished, history_expired=False)
+    first = runs.get("wf_a")
+    assert first is not None and first.updated_at == datetime(2026, 9, 30, 12, tzinfo=UTC)
+    # Re-reading the same summary (a detail page refresh) changes nothing, the time included.
+    runs.settle("wf_a", status="succeeded", summary=finished, history_expired=False)
+    again = runs.get("wf_a")
+    assert again is not None and again.updated_at == first.updated_at

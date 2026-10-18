@@ -165,7 +165,13 @@ class TemporalWorkflowGateway:
         if description.status == WorkflowExecutionStatus.RUNNING:
             return RunLive(await _query(handle, SourceInvestigationWorkflow.summary))
         if description.status == WorkflowExecutionStatus.COMPLETED:
-            summary = await handle.result()
+            try:
+                summary = await handle.result()
+            except RPCError as error:
+                # The history can expire, or Temporal go away, between describe and result.
+                if error.status == RPCStatusCode.NOT_FOUND:
+                    return RunExpired()
+                raise WorkflowNotReady() from error
             return RunClosed(summary, summary.status.value)
         if description.status == WorkflowExecutionStatus.CANCELED:
             return RunClosed(None, "cancelled")

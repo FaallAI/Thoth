@@ -19,7 +19,6 @@ from thoth_control_plane.application.workflows import (
     ArtifactNotFound,
     WorkflowApplicationError,
     WorkflowNotFound,
-    WorkflowNotReady,
     WorkflowService,
 )
 from thoth_control_plane.domain import Actor, ArtifactRef, WorkflowRequest, WorkflowSummary
@@ -34,6 +33,8 @@ logger = logging.getLogger(__name__)
 
 #: At most this many unsettled rows of one page are asked about, concurrently.
 SETTLE_LIMIT = 20
+#: One slow settle must not hold the page: past this, the stored row is returned as is.
+SETTLE_TIMEOUT_SECONDS = 3.0
 
 
 class ProjectNotFound(WorkflowApplicationError):
@@ -114,8 +115,10 @@ class WorkflowRunService:
 
     async def _settle(self, run: StoredRun) -> StoredRun:
         try:
-            outcome = await self._gateway.settle(run.workflow_id)
-        except (WorkflowNotReady, WorkflowNotFound) as error:
+            outcome = await asyncio.wait_for(
+                self._gateway.settle(run.workflow_id), timeout=SETTLE_TIMEOUT_SECONDS
+            )
+        except Exception as error:
             logger.warning(
                 "run settle skipped workflow_id=%s reason=%s", run.workflow_id, type(error).__name__
             )

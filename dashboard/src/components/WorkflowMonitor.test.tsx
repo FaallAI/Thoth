@@ -165,3 +165,11 @@ test("results download through the client and an expired history is announced", 
     URL.revokeObjectURL = revokeObjectURL;
   }
 });
+
+test("a downloaded artifact keeps the extension of its stored object", async () => {
+  const { downloadName } = await import("./WorkflowMonitor");
+  const artifact = (location: string) => ({ artifact_id: "clip", kind: "footage", label: "Clip", media_type: "video/mp4", location });
+  expect(downloadName(artifact("reports/wf_001/footage/clip.mp4"))).toBe("clip.mp4");
+  expect(downloadName(artifact("reports/wf_001/content-set.json"))).toBe("clip.json");
+  expect(downloadName(artifact("reports/wf_001/noext"))).toBe("clip");
+});

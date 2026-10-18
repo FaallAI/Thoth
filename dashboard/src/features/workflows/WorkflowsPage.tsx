@@ -66,7 +66,9 @@ export function WorkflowsPage({
         setLoose(page.items);
         setLooseNext(page.next_cursor ?? null);
       },
-      () => {},
+      () => {
+        if (live) setError("Unassigned runs could not be loaded. Try again.");
+      },
     );
     return () => {
       live = false;
@@ -84,15 +86,23 @@ export function WorkflowsPage({
 
   const more = async () => {
     if (!projectId || !next) return;
-    const page = await client.listProjectWorkflows(projectId, next);
-    setRuns((current) => [...current, ...page.items]);
-    setNext(page.next_cursor ?? null);
+    try {
+      const page = await client.listProjectWorkflows(projectId, next);
+      setRuns((current) => [...current, ...page.items]);
+      setNext(page.next_cursor ?? null);
+    } catch {
+      setError("Runs could not be loaded. Try again.");
+    }
   };
   const moreLoose = async () => {
     if (!looseNext) return;
-    const page = await client.listUnassignedWorkflows(looseNext);
-    setLoose((current) => [...current, ...page.items]);
-    setLooseNext(page.next_cursor ?? null);
+    try {
+      const page = await client.listUnassignedWorkflows(looseNext);
+      setLoose((current) => [...current, ...page.items]);
+      setLooseNext(page.next_cursor ?? null);
+    } catch {
+      setError("Unassigned runs could not be loaded. Try again.");
+    }
   };
   const move = async (workflowId: string, target: string) => {
     try {

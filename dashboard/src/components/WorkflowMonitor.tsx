@@ -21,6 +21,11 @@ function workflowProgress(workflow: WorkflowSummary | null): number {
   return (completed / stages.length) * 100;
 }
 
+/** A blob URL drops the server's Content-Disposition, so the saved name carries the extension. */
+export function downloadName(artifact: ArtifactRef): string {
+  return `${artifact.artifact_id}${artifact.location.match(/\.[A-Za-z0-9]+$/)?.[0] ?? ""}`;
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "The workflow action could not be completed.";
 }
@@ -67,9 +72,10 @@ export function WorkflowMonitor({ workflowId, client, onSnapshot }: { workflowId
       const url = URL.createObjectURL(await client.downloadWorkflowArtifact(workflowId, artifact.artifact_id));
       const link = document.createElement("a");
       link.href = url;
-      link.download = artifact.artifact_id;
+      link.download = downloadName(artifact);
       link.click();
-      URL.revokeObjectURL(url);
+      // Revoking in the same tick can cancel the download in some browsers.
+      setTimeout(() => URL.revokeObjectURL(url), 0);
     } catch {
       setActionError("The file could not be downloaded. Try again.");
     }
