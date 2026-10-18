@@ -274,6 +274,7 @@ class WorkflowSummary(StrictModel):
     artifacts: list[ArtifactRef] = Field(default_factory=list)
     approval: ApprovalRequest | None = None
     failure: WorkflowFailure | None = None
+    history_expired: bool = False
 
     @field_validator("status", mode="before")
     @classmethod
