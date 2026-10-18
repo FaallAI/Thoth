@@ -97,8 +97,9 @@ For UI hot-reload during development, run the Vite dev server instead and open i
 bun --cwd=dashboard run dev
 ```
 
-Vite proxies `/api` to `127.0.0.1:8787`, so in dev mode the server must be on the default
-port `8787` (or edit the proxy target in `dashboard/vite.config.ts`).
+Vite proxies only `/api/v1`, to the Python control plane on `127.0.0.1:8000`. The dashboard no
+longer uses this Rust server: its Rust-backed pages were removed on 2026-10-18 (see
+`docs/ROADMAP.md`), so the SPA the server still serves from `dashboard/dist` has no Rust pages.
 
 ## Python workflow control plane (v1, additive)
 

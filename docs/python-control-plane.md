@@ -1,8 +1,8 @@
 # Python workflow control plane operations
 
 The Python control plane is the v1 product boundary for one source-investigation workflow.
-It runs beside the existing Rust server and worker during migration; it does not replace the
-Rust media engine or the legacy Scout console.
+It is the dashboard's only backend: no dashboard page and no control-plane route reaches the Rust
+server (removed 2026-10-18). The frozen Rust media engine retires at Stage 10.
 
 ## Local topology
 
@@ -44,17 +44,12 @@ the value.
 | `THOTH_SOURCE_ATTRIBUTION_ENABLED` | FastAPI | Default `true`. `false` starts `identify_original` workflows without the attribution stage. |
 | `THOTH_TEMPORAL_TARGET` | FastAPI, Python worker | Temporal gRPC target; default `localhost:7233`. |
 | `THOTH_TEMPORAL_NAMESPACE` | FastAPI, Python worker | Temporal namespace; default `default`. |
-| `THOTH_LEGACY_API_BASE_URL` | FastAPI | Optional read-only Rust observation bridge base URL. |
-| `THOTH_LEGACY_API_KEY` | FastAPI | Secret paired with `THOTH_LEGACY_API_BASE_URL`; configuring only one is rejected. |
 | `THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE` | Python worker / workflow start wiring | Worker-owned implementation choice: `python`, `python_tiktok_with_legacy_fallback` (migration default), or `legacy_scout`. It is never accepted from HTTP. |
 | `VITE_CONTROL_PLANE_URL` | Dashboard build/dev server | FastAPI origin, normally `http://127.0.0.1:8000`. |
 | `VITE_CONTROL_PLANE_API_KEY` | Dashboard build/dev server | Local owner credential used by the v1 client. Do not commit it. |
 
-The existing Scout UI continues to use its legacy Rust route and `VITE_THOTH_API_KEY`. Setting
-`VITE_CONTROL_PLANE_URL` does not redirect legacy Scout traffic into the v1 workflow API.
-
 For Vite development, leave `VITE_CONTROL_PLANE_URL` unset: the dev server proxies `/api/v1` to
-the local control plane and `/api` to the Rust server, avoiding a browser CORS preflight. Set a
+the local control plane, avoiding a browser CORS preflight. Set a
 direct control-plane URL only when the API allows the exact dashboard origin through
 `THOTH_CONTROL_PLANE_CORS_ORIGINS`.
 
@@ -364,7 +359,6 @@ Every response carries `X-Thoth-Contract-Version: 1`. All state-changing endpoin
 | `POST /api/v1/workflows/{workflow_id}/cancel` | Idempotently request cancellation. |
 | `POST /api/v1/workflows/{workflow_id}/retry` | Request retry from a validated stage. Currently returns `503` because no durable checkpoint policy is implemented. |
 | `GET /api/v1/workflows/{workflow_id}/artifacts/{artifact_id}` | Authorize through workflow ownership and stream one referenced artifact. |
-| `GET /api/v1/legacy/jobs/{legacy_job_id}` and `/events` | Read-only migration projection; never starts or mutates legacy work. |
 
 The retryable flag on a failure states whether the failed activity is safe to consider for a
 future checkpointed retry. It is not permission to rerun now. Until artifact fingerprint and

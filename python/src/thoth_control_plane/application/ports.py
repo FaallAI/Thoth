@@ -1,6 +1,7 @@
 """Typed outbound ports for workflow orchestration."""
 
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -12,6 +13,7 @@ from thoth_control_plane.domain import (
     WorkflowRequest,
     WorkflowSummary,
 )
+from thoth_control_plane.domain.edit_document_list import EditDocumentListPage
 from thoth_control_plane.domain.edit_document_operations import EditDocumentOperation
 from thoth_control_plane.domain.edit_document_v2 import EditDocument, EditDocumentV2
 from thoth_control_plane.domain.prompts import (
@@ -27,6 +29,33 @@ from thoth_control_plane.domain.studio_imports import (
     StudioImportInventory,
     StudioImportItem,
 )
+
+
+class WorkflowRunsUnavailable(RuntimeError):
+    """The workflow run store could not be reached or refused the statement."""
+
+
+@dataclass(frozen=True)
+class RunLive:
+    """The execution is running; its live summary."""
+
+    summary: WorkflowSummary
+
+
+@dataclass(frozen=True)
+class RunClosed:
+    """The execution closed; the summary it returned when it completed, else None."""
+
+    summary: WorkflowSummary | None
+    status: str
+
+
+@dataclass(frozen=True)
+class RunExpired:
+    """Temporal no longer holds the execution (past its retention)."""
+
+
+RunSettlement = RunLive | RunClosed | RunExpired
 
 
 class EditDocumentRevisionConflict(Exception):
@@ -87,6 +116,8 @@ class WorkflowGateway(Protocol):
 
     async def get(self, workflow_id: str, *, actor: Actor) -> WorkflowSummary: ...
 
+    async def settle(self, workflow_id: str) -> RunSettlement: ...
+
     def stream_events(
         self, workflow_id: str, *, actor: Actor, after_sequence: int
     ) -> AsyncIterator[WorkflowEvent]: ...
@@ -116,6 +147,12 @@ class EditDocumentRepository(Protocol):
     async def insert_revision(self, document: EditDocument) -> None: ...
 
     async def get_latest(self, *, project_id: str, document_id: str) -> EditDocument | None: ...
+
+    async def list_documents(
+        self, *, project_id: str, limit: int, cursor: str | None
+    ) -> EditDocumentListPage:
+        """The project's documents at their latest revision, newest first."""
+        ...
 
     async def get_revision(
         self, *, project_id: str, document_id: str, revision: int

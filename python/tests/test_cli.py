@@ -269,3 +269,38 @@ def test_editor_migrate_uses_the_runtime_python_migrations_directory(monkeypatch
 
     assert result.exit_code == 0
     assert called_with == ["postgresql://test", expected_root]
+
+
+RUST_PROJECTS = (
+    '[{"id": "db766411-3cb0-47a4-9dc9-b67d22f6f34e", "name": "test", "workspace_path": "x",'
+    ' "created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-01T00:00:00Z"}'
+)
+
+
+def test_projects_import_reads_the_rust_json_from_stdin(monkeypatch) -> None:
+    from sqlalchemy import create_engine
+    from sqlalchemy.pool import StaticPool
+    from typer.testing import CliRunner
+
+    from thoth_control_plane import cli
+    from thoth_control_plane.infrastructure import run_models  # noqa: F401
+    from thoth_control_plane.infrastructure.project_store import ProjectStore
+    from thoth_control_plane.infrastructure.source_account_models import Base
+
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(engine)
+    store = ProjectStore(engine)
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_API_KEY", "k")
+    monkeypatch.setenv("THOTH_EDITOR_DATABASE_URL", "postgresql://unused/db")
+    monkeypatch.setattr(cli.ProjectStore, "connect", classmethod(lambda cls, url: store))
+    runner = CliRunner()
+    first = runner.invoke(
+        cli.app, ["projects", "import", "-"], input=RUST_PROJECTS + ', {"id": "", "name": "x"}]'
+    )
+    assert first.output.strip().splitlines()[-1] == "imported=1 present=0 invalid=1"
+    assert first.exit_code == 1
+    again = runner.invoke(cli.app, ["projects", "import", "-"], input=RUST_PROJECTS + "]")
+    assert again.output.strip().splitlines()[-1] == "imported=0 present=1 invalid=0"
+    assert again.exit_code == 0

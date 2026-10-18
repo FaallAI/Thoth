@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { createProject, listProjects, type ProjectRecord } from "@/api";
+import { controlPlaneClient, type ControlPlaneClient, type Project } from "@/api/control-plane";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,13 +21,15 @@ export function ProjectSwitcher({
   onSelect,
   compact = false,
   onProjectsChanged,
+  client = controlPlaneClient,
 }: {
   projectId: string | null;
-  onSelect: (id: string) => void;
+  onSelect: (id: string | null) => void;
   compact?: boolean;
-  onProjectsChanged?: (projects: ProjectRecord[]) => void;
+  onProjectsChanged?: (projects: Project[]) => void;
+  client?: Pick<ControlPlaneClient, "listProjects" | "createProject">;
 }) {
-  const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -35,11 +37,16 @@ export function ProjectSwitcher({
   const [managing, setManaging] = useState(false);
 
   useEffect(() => {
-    listProjects().then((ps) => {
-      setProjects(ps);
-      onProjectsChanged?.(ps);
-      if (ps.length && !projectId) onSelect(ps[0].id);
-    });
+    client.listProjects().then(
+      (ps) => {
+        setProjects(ps);
+        onProjectsChanged?.(ps);
+        // A remembered project that no longer exists falls back to the first one.
+        if (ps.length && !ps.some((p) => p.project_id === projectId)) onSelect(ps[0].project_id);
+        else if (!ps.length && projectId) onSelect(null);
+      },
+      () => setError("Projects could not be loaded."),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -47,10 +54,10 @@ export function ProjectSwitcher({
     const name = newName.trim();
     if (!name) return;
     try {
-      const p = await createProject(name);
+      const p = await client.createProject(name);
       setProjects((cur) => [...cur, p]);
       onProjectsChanged?.([...projects, p]);
-      onSelect(p.id);
+      onSelect(p.project_id);
       setCreating(false);
       setNewName("");
       setError(null);
@@ -91,7 +98,7 @@ export function ProjectSwitcher({
   return (
     <div className={compact ? "pen-project-picker" : "flex items-center gap-2"}>
       {!compact && <Label htmlFor="project" className="text-xs text-muted-foreground">Project</Label>}
-      <Select open={menuOpen} onOpenChange={setMenuOpen} items={projects.map((project) => ({ value: project.id, label: project.name }))} value={projectId ?? null} onValueChange={(v) => v && onSelect(String(v))}>
+      <Select open={menuOpen} onOpenChange={setMenuOpen} items={projects.map((project) => ({ value: project.project_id, label: project.name }))} value={projectId ?? null} onValueChange={(v) => v && onSelect(String(v))}>
         <SelectTrigger id="project" aria-label="Project" className={compact ? "pen-project-trigger" : "w-44"}>
           {compact && <span className="pen-project-dot" aria-hidden="true" />}
           <SelectValue placeholder="No projects" />
@@ -99,9 +106,9 @@ export function ProjectSwitcher({
         <SelectContent className={compact ? "pen-project-dropdown" : undefined} align="end" alignItemWithTrigger={!compact} sideOffset={8}>
           {compact && <div className="pen-project-heading"><p>Switch project</p><small>Choose the active workspace</small></div>}
           {projects.map((p, index) => (
-            <SelectItem key={p.id} value={p.id} className={compact ? "pen-project-option" : undefined}>
+            <SelectItem key={p.project_id} value={p.project_id} className={compact ? "pen-project-option" : undefined}>
               {compact && <span className={`pen-project-dot pen-dot-${index % 3}`} aria-hidden="true" />}
-              <span>{p.name}{compact && <small>{p.id === projectId ? "Current project" : "Workspace"}</small>}</span>
+              <span>{p.name}{compact && <small>{p.project_id === projectId ? "Current project" : "Workspace"}</small>}</span>
             </SelectItem>
           ))}
           {compact && <div className="pen-project-actions">
@@ -114,7 +121,7 @@ export function ProjectSwitcher({
         New project
       </Button>}
       {compact && <PenDialog open={creating} onOpenChange={setCreating} title="New project" description="Create a workspace for your productions.">{createForm}</PenDialog>}
-      {compact && <PenDialog open={managing} onOpenChange={setManaging} title="Manage projects" description="Choose an existing project or create a new workspace."><div className="pen-managed-projects">{projects.map((project) => <button type="button" key={project.id} onClick={() => { onSelect(project.id); setManaging(false); }}><span className="pen-project-dot" />{project.name}<small>{project.id === projectId ? "Current project" : "Switch project"}</small></button>)}<Button onClick={() => { setManaging(false); setCreating(true); }}>New project</Button></div></PenDialog>}
+      {compact && <PenDialog open={managing} onOpenChange={setManaging} title="Manage projects" description="Choose an existing project or create a new workspace."><div className="pen-managed-projects">{projects.map((project) => <button type="button" key={project.project_id} onClick={() => { onSelect(project.project_id); setManaging(false); }}><span className="pen-project-dot" />{project.name}<small>{project.project_id === projectId ? "Current project" : "Switch project"}</small></button>)}<Button onClick={() => { setManaging(false); setCreating(true); }}>New project</Button></div></PenDialog>}
     </div>
   );
 }

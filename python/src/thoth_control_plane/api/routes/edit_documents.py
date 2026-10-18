@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
@@ -21,6 +21,7 @@ from thoth_control_plane.application.ports import (
     EditDocumentUpgradeConflict,
 )
 from thoth_control_plane.domain import Actor, EditDocument
+from thoth_control_plane.domain.edit_document_list import EditDocumentListPage
 from thoth_control_plane.domain.edit_document_operations import EditDocumentPatch
 from thoth_control_plane.domain.edit_document_v2 import DocumentRevisionConflictBody
 
@@ -44,6 +45,20 @@ async def import_content_set(
 ) -> EditDocument:
     try:
         return await service.import_content_set(project_id, payload)
+    except EditorUnavailable as error:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE) from error
+
+
+@router.get("/projects/{project_id}/edit-documents", response_model=EditDocumentListPage)
+async def list_edit_documents(
+    project_id: str,
+    _: Annotated[Actor, Depends(current_actor)],
+    service: Annotated[EditDocumentService, Depends(get_edit_document_service)],
+    cursor: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+) -> EditDocumentListPage:
+    try:
+        return await service.list_documents(project_id, limit=limit, cursor=cursor)
     except EditorUnavailable as error:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE) from error
 

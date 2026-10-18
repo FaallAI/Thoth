@@ -1577,3 +1577,13 @@ describe("source import readiness", () => {
     expect(screen.getByRole("status", { name: "Source import" }).textContent).toContain("Crowd reaction · Scene 2");
   });
 });
+
+test("the format row appears only for a real preset", async () => {
+  const client = makeClient([], {
+    // A capability with no preset: the server omits it when no renderer is configured.
+    getRenderCapability: mock(async () => ({ ...AVAILABLE, available: false, preset_id: undefined, reason: "renderer_not_configured" as const }) as unknown as RenderCapability),
+  });
+  const { container } = panel(client);
+  expect(await screen.findByText("Rendering is not set up on this installation.")).toBeDefined();
+  expect(container.textContent).not.toContain("Unavailable");
+});
