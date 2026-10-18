@@ -1,31 +1,30 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, mock, test } from "bun:test";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const listProjects = mock(async () => [{ id: "p1", name: "Alpha" }] as unknown[]);
-const createProject = mock(async (name: string) => ({ id: "p2", name }));
+import { ProjectSwitcher } from "./ProjectSwitcher";
 
-// Same relative-path mock gotcha as RunForm.test.tsx.
-mock.module("../api", () => ({ listProjects, createProject }));
+const project = (projectId: string, name: string) => ({ project_id: projectId, name, created_at: "", updated_at: "" });
 
-afterEach(() => {
-  cleanup();
-  listProjects.mockClear();
-  createProject.mockClear();
-});
+function fakeClient() {
+  return {
+    listProjects: mock(async () => [project("p1", "Alpha")]),
+    createProject: mock(async (name: string) => project("p2", name)),
+  };
+}
+
+afterEach(cleanup);
 
 test("shows the selected project name before the menu is opened", async () => {
-  const { ProjectSwitcher } = await import("./ProjectSwitcher");
-  render(<ProjectSwitcher projectId="p1" onSelect={() => {}} />);
+  render(<ProjectSwitcher projectId="p1" onSelect={() => {}} client={fakeClient()} />);
   expect(await screen.findByText("Alpha")).toBeDefined();
 });
 
 test("the compact project picker keeps creation inside its menu", async () => {
-  const { ProjectSwitcher } = await import("./ProjectSwitcher");
   const user = userEvent.setup();
-  render(<ProjectSwitcher compact projectId="p1" onSelect={() => {}} />);
+  render(<ProjectSwitcher compact projectId="p1" onSelect={() => {}} client={fakeClient()} />);
   expect(await screen.findByText("Alpha")).toBeDefined();
   expect(Boolean(screen.queryByRole("button", { name: /new project/i }))).toBe(false);
   await user.click(screen.getByRole("combobox", { name: "Project" }));
@@ -36,28 +35,34 @@ test("the compact project picker keeps creation inside its menu", async () => {
 test("creates a project from the inline form and selects it", async () => {
   const user = userEvent.setup();
   const onSelect = mock(() => {});
-  const { ProjectSwitcher } = await import("./ProjectSwitcher");
-  render(<ProjectSwitcher projectId="p1" onSelect={onSelect} />);
+  const client = fakeClient();
+  render(<ProjectSwitcher projectId="p1" onSelect={onSelect} client={client} />);
 
   await user.click(await screen.findByRole("button", { name: /new project/i }));
   await user.type(screen.getByLabelText(/new project name/i), "Beta");
   await user.click(screen.getByRole("button", { name: /^create$/i }));
 
-  expect(createProject).toHaveBeenCalledWith("Beta");
+  expect(client.createProject).toHaveBeenCalledWith("Beta");
   expect(onSelect).toHaveBeenCalledWith("p2");
 });
 
 test("shows an inline error when create fails", async () => {
-  createProject.mockImplementationOnce(async () => {
+  const client = fakeClient();
+  client.createProject.mockImplementationOnce(async () => {
     throw new Error("project already exists");
   });
   const user = userEvent.setup();
-  const { ProjectSwitcher } = await import("./ProjectSwitcher");
-  render(<ProjectSwitcher projectId="p1" onSelect={() => {}} />);
+  render(<ProjectSwitcher projectId="p1" onSelect={() => {}} client={client} />);
 
   await user.click(await screen.findByRole("button", { name: /new project/i }));
   await user.type(screen.getByLabelText(/new project name/i), "Alpha");
   await user.click(screen.getByRole("button", { name: /^create$/i }));
 
   expect(await screen.findByText("project already exists")).toBeDefined();
+});
+
+test("a remembered project that no longer exists falls back to the first one", async () => {
+  const onSelect = mock(() => {});
+  render(<ProjectSwitcher projectId="deleted" onSelect={onSelect} client={fakeClient()} />);
+  await waitFor(() => expect(onSelect).toHaveBeenCalledWith("p1"));
 });

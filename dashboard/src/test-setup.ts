@@ -2,7 +2,8 @@
 // the global scope so @testing-library/react can render into it under `bun test`.
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 
-GlobalRegistrator.register();
+// A real origin: React Router builds links with `new URL(to, location.origin)`.
+GlobalRegistrator.register({ url: "http://localhost:5173/" });
 
 // happy-dom doesn't implement these DOM methods that base-ui primitives
 // (ScrollArea, Select) call during render. Stub them so component tests render.

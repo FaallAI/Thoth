@@ -27,7 +27,7 @@ let createCalls = 0;
 let apiWrites: string[] = [];
 let revision = 1;
 let inventoryItems: unknown[] = [];
-let projects: unknown[] = [{ id: "project_001", name: "Project", workspace_path: "", created_at: "", updated_at: "" }];
+let projects: unknown[] = [{ project_id: "project_001", name: "Project", created_at: "", updated_at: "" }];
 const originalFetch = globalThis.fetch;
 const response = (value: unknown) => new Response(JSON.stringify(value), { status: 200, headers: { "Content-Type": "application/json" } });
 
@@ -35,10 +35,14 @@ function stubFetch() {
   globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
     if (init?.method && init.method !== "GET") apiWrites.push(path);
-    if (path === "/api/projects" && init?.method === "POST") {
-      return response({ id: "project_002", name: "Other", workspace_path: "", created_at: "", updated_at: "" });
+    if (path === "/api/v1/projects" && init?.method === "POST") {
+      return response({ project_id: "project_002", name: "Other", created_at: "", updated_at: "" });
     }
-    if (path === "/api/projects") return response(projects);
+    if (path === "/api/v1/projects") return response({ items: projects });
+    if (path.includes("/workflows?") || path.endsWith("/workflows")) return response({ items: [], next_cursor: null });
+    if (path.includes("/edit-documents?")) {
+      return response({ items: [{ document_id: "document_001", revision: 1, updated_at: "", label: "Heading", imported: true }], next_cursor: null });
+    }
     if (path === "/api/scout/content-set/data") return response({ path: "content-set.json", exists: true, output_root: "", content, error: null });
     if (path === "/api/scout/status") return response({ run: { status: "idle" } });
     if (path.endsWith("/studio-imports/inspect")) {
@@ -60,25 +64,7 @@ function stubFetch() {
   }) as unknown as typeof fetch;
 }
 
-afterEach(() => { cleanup(); globalThis.fetch = originalFetch; inspectBodies = []; createCalls = 0; apiWrites = []; revision = 1; inventoryItems = []; projects = [{ id: "project_001", name: "Project", workspace_path: "", created_at: "", updated_at: "" }]; });
-
-test("creating a blank workflow keeps a local draft and blocks unsupported execution without API writes", async () => {
-  stubFetch();
-  const { default: App } = await import("./App");
-  render(<App />);
-  const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: "New workflow" }));
-  const dialog = await screen.findByRole("dialog", { name: "Create a workflow" });
-  await user.type(within(dialog).getByLabelText("Workflow name"), "My custom cut");
-  await user.click(within(dialog).getByRole("button", { name: /Blank workflow/ }));
-  await user.click(within(dialog).getByRole("button", { name: /Add your first step/ }));
-  await user.click(within(dialog).getByRole("button", { name: /Script Start from a written idea/ }));
-  await user.click(within(dialog).getByRole("button", { name: "Create draft" }));
-  expect((await screen.findByRole("status")).textContent).toContain("My custom cut");
-  expect(screen.getByRole("status").textContent).toContain("Custom stage execution is unavailable");
-  expect((screen.getByRole("button", { name: "Start pipeline" }) as HTMLButtonElement).disabled).toBe(true);
-  expect(apiWrites).toHaveLength(0);
-});
+afterEach(() => { cleanup(); globalThis.fetch = originalFetch; inspectBodies = []; createCalls = 0; apiWrites = []; revision = 1; inventoryItems = []; projects = [{ project_id: "project_001", name: "Project", created_at: "", updated_at: "" }]; window.history.replaceState(null, "", "/"); localStorage.clear(); });
 
 test("search navigates to the selected workspace page and closes its dialog", async () => {
   stubFetch();
@@ -97,7 +83,7 @@ async function openContentSet() {
   stubFetch();
   const { default: App } = await import("./App");
   render(<App />);
-  await userEvent.setup().click(screen.getByRole("button", { name: "Content Set" }));
+  await userEvent.setup().click(screen.getByRole("link", { name: "Content Set" }));
   await screen.findByRole("button", { name: "Open in Studio" });
 }
 
@@ -107,15 +93,16 @@ async function resumeDraft(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole("button", { name: "Continue in Studio" }));
 }
 
-test("workspace navigation identifies the active page and guides Studio entry through Content Set", async () => {
+test("workspace navigation identifies the active page and Creator Studio lists the project's drafts", async () => {
   stubFetch();
   const { default: App } = await import("./App");
   render(<App />);
   const nav = screen.getByRole("navigation", { name: "Workspace" });
-  expect(within(nav).getByRole("button", { name: "Workflows" }).getAttribute("aria-current")).toBe("page");
-  await userEvent.setup().click(within(nav).getByRole("button", { name: "Creator Studio" }));
-  expect(await screen.findByRole("button", { name: "Open in Studio" })).toBeDefined();
-  expect(within(nav).getByRole("button", { name: "Content Set" }).getAttribute("aria-current")).toBe("page");
+  expect(within(nav).getByRole("link", { name: "Workflows" }).getAttribute("aria-current")).toBe("page");
+  await userEvent.setup().click(within(nav).getByRole("link", { name: "Creator Studio" }));
+  expect(await screen.findByRole("button", { name: /Heading/ })).toBeDefined();
+  expect(window.location.pathname).toBe("/studio");
+  expect(within(nav).getByRole("link", { name: "Creator Studio" }).getAttribute("aria-current")).toBe("page");
   expect(createCalls).toBe(0);
   expect(inspectBodies).toHaveLength(0);
 });
@@ -130,9 +117,10 @@ test("Open in Studio only inspects, and Resume opens the chosen draft in Guided 
 
   await resumeDraft(user);
   expect(await screen.findByLabelText("Heading")).toBeDefined();
+  expect(window.location.pathname).toBe("/studio/project_001/document_001");
   expect(createCalls).toBe(0);
   await user.click(screen.getByRole("button", { name: "Back" }));
-  expect(await screen.findByRole("button", { name: "Open in Studio" })).toBeDefined();
+  expect(await screen.findByRole("heading", { level: 1, name: "Creator Studio" })).toBeDefined();
 });
 
 test("disables opening Studio when no project is selected", async () => {
@@ -208,7 +196,7 @@ test("Resolve source items in Studio reopens the draft's inventory and reloads t
   const blocked = await screen.findByRole("status", { name: "Source import" });
   expect(blocked.textContent).toContain("Crowd reaction · Scene 1");
   await user.click(within(blocked).getByRole("button", { name: "Resolve source items" }));
-  const dialog = await screen.findByRole("dialog", { name: "Open in Studio — Main" });
+  const dialog = await screen.findByRole("dialog", { name: "Resolve source items" });
   await user.click(await within(dialog).findByRole("button", { name: "Exclude from Studio edit" }));
   await user.click(within(dialog).getByRole("button", { name: "Continue in Studio" }));
 
@@ -216,4 +204,30 @@ test("Resolve source items in Studio reopens the draft's inventory and reloads t
   expect(createCalls).toBe(0);
   await user.click(screen.getByRole("button", { name: "Render" }));
   await waitFor(() => expect(screen.queryByRole("status", { name: "Source import" })).toBeNull());
+});
+
+test("a reloaded Studio deep link renders without Content Set state", async () => {
+  stubFetch();
+  window.history.replaceState(null, "", "/studio/project_001/document_001");
+  const { default: App } = await import("./App");
+  render(<App />);
+  expect(await screen.findByLabelText("Heading")).toBeDefined();
+  expect(inspectBodies).toHaveLength(0);
+});
+
+test("a stored project that no longer exists falls back to the first project", async () => {
+  stubFetch();
+  localStorage.setItem("thoth.activeProject", "deleted_project");
+  const { default: App } = await import("./App");
+  render(<App />);
+  await waitFor(() => expect(localStorage.getItem("thoth.activeProject")).toBe("project_001"));
+});
+
+test("an unknown path lands on Workflows", async () => {
+  stubFetch();
+  window.history.replaceState(null, "", "/no-such-page");
+  const { default: App } = await import("./App");
+  render(<App />);
+  expect(await screen.findByRole("heading", { level: 1, name: "Workflows" })).toBeDefined();
+  expect(window.location.pathname).toBe("/workflows");
 });
