@@ -10,7 +10,6 @@ import base64
 import json
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any
 
@@ -19,8 +18,9 @@ from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 
+from thoth_control_plane.application.ports import WorkflowRunsUnavailable
 from thoth_control_plane.domain import Actor, ArtifactRef, WorkflowSummary
-from thoth_control_plane.domain.workflow_runs import WorkflowRun
+from thoth_control_plane.domain.workflow_runs import StoredRun
 from thoth_control_plane.infrastructure.report_models import WorkflowReportRow
 from thoth_control_plane.infrastructure.run_models import WorkflowRunRow
 
@@ -32,43 +32,6 @@ _REPORT_LABELS = {
     "source_attribution": "Source attribution",
     "content_set": "Content set",
 }
-
-
-class WorkflowRunsUnavailable(RuntimeError):
-    """The database could not be reached or refused the statement."""
-
-
-@dataclass(frozen=True)
-class StoredRun:
-    workflow_id: str
-    project_id: str | None
-    actor_type: str
-    actor_id: str
-    display_url: str
-    platform: str
-    status: str
-    history_expired: bool
-    summary: WorkflowSummary | None
-    created_at: datetime
-    updated_at: datetime
-
-    def owned_by(self, actor: Actor) -> bool:
-        return (self.actor_type, self.actor_id) == (actor.actor_type, actor.actor_id)
-
-    def to_run(self) -> WorkflowRun:
-        return WorkflowRun(
-            workflow_id=self.workflow_id,
-            project_id=self.project_id,
-            source={"display_url": self.display_url, "platform": self.platform},
-            status=self.status,
-            history_expired=self.history_expired,
-            artifact_count=len(self.summary.artifacts) if self.summary else 0,
-            created_at=self.created_at,
-            updated_at=self.updated_at,
-        )
-
-    def with_(self, **changes: Any) -> StoredRun:
-        return replace(self, **changes)
 
 
 def _aware(moment: datetime) -> datetime:
@@ -314,3 +277,6 @@ class WorkflowRunStore:
         except SQLAlchemyError as error:
             raise self._unavailable(error) from None
         return [(workflow_id, content, _aware(first)) for workflow_id, content, first in rows]
+
+
+__all__ = ["StoredRun", "WorkflowRunStore", "WorkflowRunsUnavailable"]

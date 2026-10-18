@@ -21,6 +21,8 @@ from thoth_control_plane.application import (
     WorkflowService,
     WorkflowSummary,
 )
+from thoth_control_plane.api.routes.workflow_runs import get_run_service
+from thoth_control_plane.application.workflow_runs import WorkflowRunService
 from thoth_control_plane.infrastructure.event_store import LegacyEventStore
 from thoth_control_plane.infrastructure.legacy_reader import (
     LegacyJobMappingError,
@@ -72,18 +74,18 @@ async def create_workflow(
     request: WorkflowRequest,
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
     actor: Annotated[Actor, Depends(current_actor)],
-    service: Annotated[WorkflowService, Depends(get_workflow_service)],
+    runs: Annotated[WorkflowRunService, Depends(get_run_service)],
 ) -> WorkflowSummary:
-    return await service.start(request, actor=actor, idempotency_key=idempotency_key)
+    return await runs.start(None, request, actor=actor, idempotency_key=idempotency_key)
 
 
 @router.get("/workflows/{workflow_id}", response_model=WorkflowSummary)
 async def get_workflow(
     workflow_id: str,
     actor: Annotated[Actor, Depends(current_actor)],
-    service: Annotated[WorkflowService, Depends(get_workflow_service)],
+    runs: Annotated[WorkflowRunService, Depends(get_run_service)],
 ) -> WorkflowSummary:
-    return await service.get(workflow_id, actor=actor)
+    return await runs.get(workflow_id, actor=actor)
 
 
 @router.get(
@@ -103,11 +105,11 @@ async def download_workflow_artifact(
     artifact_id: str,
     request: Request,
     actor: Annotated[Actor, Depends(current_actor)],
-    service: Annotated[WorkflowService, Depends(get_workflow_service)],
+    runs: Annotated[WorkflowRunService, Depends(get_run_service)],
 ) -> Response:
     """Authorize through the workflow owner boundary, then serve one safe artifact."""
 
-    artifact = await service.get_artifact(workflow_id, artifact_id, actor=actor)
+    artifact = await runs.get_artifact(workflow_id, artifact_id, actor=actor)
     if artifact.kind in REPORT_KINDS:
         reports = request.app.state.report_store
         try:

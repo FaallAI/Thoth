@@ -30,6 +30,10 @@ from thoth_control_plane.domain.studio_imports import (
 )
 
 
+class WorkflowRunsUnavailable(RuntimeError):
+    """The workflow run store could not be reached or refused the statement."""
+
+
 @dataclass(frozen=True)
 class RunLive:
     """The execution is running; its live summary."""
