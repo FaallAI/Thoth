@@ -17,6 +17,7 @@ from thoth_control_plane.application import ApprovalSubmission, RetryRequest
 from thoth_control_plane.config import Settings, SettingsValidationError
 from thoth_control_plane.domain import WorkflowEvent, WorkflowRequest
 from thoth_control_plane.infrastructure.media_store import MediaStoreUnavailable
+from thoth_control_plane.infrastructure.project_store import ProjectStore, ProjectStoreUnavailable
 from thoth_control_plane.infrastructure.report_store import ReportStore, ReportStoreUnavailable
 from thoth_control_plane.infrastructure.s3_media_store import S3MediaStore
 from thoth_control_plane.operations.editor_migrations import apply_editor_migrations
@@ -93,6 +94,55 @@ def reports_import(
         raise typer.Exit(1) from None
     typer.echo(f"imported={counts.imported} present={counts.present} invalid={counts.invalid}")
     if counts.invalid:
+        raise typer.Exit(1)
+
+
+projects_app = typer.Typer(no_args_is_help=True)
+app.add_typer(projects_app, name="projects")
+
+
+@projects_app.command("import")
+def projects_import(
+    source: Annotated[str, typer.Argument(help="JSON from Rust /api/projects, or - for stdin")],
+) -> None:
+    """Insert the Rust server's projects with their IDs; never overwrite. Counts only."""
+    import sys
+
+    from pydantic import ValidationError
+
+    from thoth_control_plane.domain.projects import Project
+
+    database_url = Settings().THOTH_EDITOR_DATABASE_URL
+    if database_url is None:
+        raise typer.BadParameter("THOTH_EDITOR_DATABASE_URL must be configured")
+    text = sys.stdin.read() if source == "-" else Path(source).read_text(encoding="utf-8")
+    store = ProjectStore.connect(database_url.get_secret_value())
+    imported = present = invalid = 0
+    for item in json.loads(text):
+        try:
+            # StrictModel accepts ISO timestamps only through JSON validation.
+            project = Project.model_validate_json(
+                json.dumps(
+                    {
+                        "project_id": item["id"],
+                        "name": str(item["name"]).strip(),
+                        "created_at": item["created_at"],
+                        "updated_at": item["updated_at"],
+                    }
+                )
+            )
+        except (KeyError, TypeError, ValidationError):
+            invalid += 1
+            continue
+        try:
+            inserted = store.insert_missing(project)
+        except ProjectStoreUnavailable:
+            typer.echo("project store unavailable")
+            raise typer.Exit(1) from None
+        imported += inserted
+        present += not inserted
+    typer.echo(f"imported={imported} present={present} invalid={invalid}")
+    if invalid:
         raise typer.Exit(1)
 
 

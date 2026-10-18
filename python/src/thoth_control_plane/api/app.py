@@ -21,6 +21,7 @@ from thoth_control_plane.api.routes.edit_documents import router as edit_documen
 from thoth_control_plane.api.routes.editor_assets import router as editor_asset_router
 from thoth_control_plane.api.routes.health import router as health_router
 from thoth_control_plane.api.routes.internal_render_jobs import router as internal_render_router
+from thoth_control_plane.api.routes.projects import router as project_router
 from thoth_control_plane.api.routes.prompt_lab import router as prompt_lab_router
 from thoth_control_plane.api.routes.prompt_proposals import router as prompt_proposal_router
 from thoth_control_plane.api.routes.render_jobs import router as render_job_router
@@ -86,6 +87,7 @@ from thoth_control_plane.infrastructure.renderer_gateway import (
     HttpRendererGateway,
     UnavailableRendererGateway,
 )
+from thoth_control_plane.infrastructure.project_store import ProjectStore, ProjectStoreUnavailable
 from thoth_control_plane.infrastructure.report_store import Reports, ReportStore
 from thoth_control_plane.infrastructure.source_account_store import SourceAccountStore
 from thoth_control_plane.infrastructure.studio_import_repository import (
@@ -193,6 +195,7 @@ def create_app(
     source_account_store: SourceAccountStore | None = None,
     account_profiles: AccountProfiles | None = None,
     report_store: Reports | None = None,
+    project_store: ProjectStore | None = None,
 ) -> FastAPI:
     """Create an isolated v1 API application for the supplied workflow gateway."""
     settings = settings or Settings()  # type: ignore[call-arg]
@@ -313,6 +316,9 @@ def create_app(
     if report_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
         report_store = ReportStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
     app.state.report_store = report_store
+    if project_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
+        project_store = ProjectStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
+    app.state.project_store = project_store
     app.state.media_store = media
 
     app.add_middleware(
@@ -346,6 +352,13 @@ def create_app(
             mapped_status: int = status_code,
         ) -> JSONResponse:
             return JSONResponse(status_code=mapped_status, content={"detail": str(exc)})
+
+    @app.exception_handler(ProjectStoreUnavailable)
+    async def project_store_unavailable_handler(request: Request, exc: Exception) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"detail": "project_store_unavailable"},
+        )
 
     @app.exception_handler(UnsupportedPlatform)
     async def unsupported_platform_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -407,6 +420,7 @@ def create_app(
         return response
 
     app.include_router(health_router)
+    app.include_router(project_router, prefix="/api/v1")
     app.include_router(workflow_router, prefix="/api/v1")
     app.include_router(edit_document_router, prefix="/api/v1")
     app.include_router(editor_asset_router, prefix="/api/v1")
