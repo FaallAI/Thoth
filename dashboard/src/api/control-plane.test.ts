@@ -1105,3 +1105,49 @@ test("a Studio import failure carries its status and fixed code, never the serve
   expect(lost).toMatchObject({ status: null, code: null });
   expect(String(lost)).not.toContain("proxy");
 });
+
+test("project, workflow-run, and Studio document calls hit the new routes", async () => {
+  const calls: string[] = [];
+  const fetchStub = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push(`${init?.method ?? "GET"} ${String(input)}`);
+    if (String(input).endsWith("/artifacts/clip")) return new Response("BYTES");
+    return new Response(JSON.stringify({ items: [], next_cursor: null, project_id: "p1", name: "N" }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as unknown as typeof fetch;
+  const client = createControlPlaneClient({ baseUrl: "", apiKey: "k", fetch: fetchStub });
+  await client.listProjects();
+  await client.createProject("N");
+  await client.startProjectWorkflow("p1", {} as never, "key-1");
+  await client.listProjectWorkflows("p1", "c1");
+  await client.listUnassignedWorkflows();
+  await client.moveWorkflow("wf_1", "p1");
+  await client.listEditDocuments("p1");
+  expect(await (await client.downloadWorkflowArtifact("wf_1", "clip")).text()).toBe("BYTES");
+  expect(calls).toEqual([
+    "GET /api/v1/projects",
+    "POST /api/v1/projects",
+    "POST /api/v1/projects/p1/workflows",
+    "GET /api/v1/projects/p1/workflows?limit=20&cursor=c1",
+    "GET /api/v1/workflows?unassigned=true&limit=50",
+    "PATCH /api/v1/workflows/wf_1",
+    "GET /api/v1/projects/p1/edit-documents?limit=20",
+    "GET /api/v1/workflows/wf_1/artifacts/clip",
+  ]);
+});
+
+test("the workflow stream stops polling once a snapshot is terminal", async () => {
+  let snapshots = 0;
+  const fetchStub = (async (input: RequestInfo | URL) => {
+    if (String(input).endsWith("/events")) return new Response(null, { status: 503 });
+    snapshots += 1;
+    return new Response(
+      JSON.stringify({ workflow_id: "wf_1", status: "succeeded", stages: [], artifacts: [], source: { display_url: "https://x.test", platform: "x" }, created_at: "", updated_at: "" }),
+      { headers: { "Content-Type": "application/json" } },
+    );
+  }) as unknown as typeof fetch;
+  const stop = createControlPlaneClient({ baseUrl: "", apiKey: "k", fetch: fetchStub }).streamWorkflow("wf_1", () => {});
+  await new Promise((resolve) => setTimeout(resolve, 2_500));
+  stop();
+  expect(snapshots).toBeLessThanOrEqual(2);
+});
