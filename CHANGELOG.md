@@ -64,21 +64,23 @@ All notable changes to this project will be documented in this file.
 | M3 | Downloads were saved without an extension | The extension of the stored object is kept |
 | M6 | A failed Unassigned list vanished silently | The failure is shown |
 
-**Deferred minors:**
+**Review minors, fixed at the operator's request (each RED→GREEN):**
 
-- M2: a malformed cursor answers 500 or 503 instead of 422.
-- M4: the resolve-only gate's loading and failure states.
-- M5: an expired run's detail status can disagree with a known row status.
-- M7: the backfill re-asks Temporal about every workflow on each deploy.
-- M8: voice CLI tracebacks on invalid input.
-- M9: a stale active project survives an empty project list.
+| Minor | Problem | Fix |
+|---|---|---|
+| M2 | A malformed `cursor` answered 500 or 503 | It answers 422 `invalid_cursor` (shared `domain/cursors.py`) |
+| M4 | The resolve-only gate showed the drafts chooser while loading and after a failure | It shows a loading line, a retry, and its own 404 message |
+| M5 | An expired run's detail could disagree with a known row status | The detail keeps that status |
+| M7 | The backfill re-asked Temporal about every workflow on each deploy | It only asks about workflows without a row |
+| M8 | The voice CLI printed a traceback on invalid input | It prints `VoiceRejected: invalid_request`; a broken ElevenLabs body is `VoiceUnavailable("elevenlabs_bad_response")` |
+| M9 | A stale active project survived an empty project list | It is cleared |
 
-**Verification:**
+**Verification (after all fixes):**
 
 - `make lint` is clean.
-- `make test`: 3985 passed, 62 skipped.
-- `make test-postgres`: 13 passed.
-- Dashboard: `bun test` 718/718, `tsc` 0 errors, and `bun run build` passes.
+- `make test`: 3992 passed, 63 skipped.
+- `make test-postgres`: 14 passed.
+- Dashboard: `bun test` 721/721, `tsc` 0 errors, and `bun run build` passes.
 - The OpenAPI and generated types show no drift.
 - No Rust change.
 
@@ -91,8 +93,7 @@ All notable changes to this project will be documented in this file.
   - then, once, `thoth-control projects import -` with the Rust project list;
   - the post-deploy Edge headless UI walk.
 - **Next roadmap item:** priority 2 (Workflow → Studio with media).
-- **Follow-ups:** the deferred minors above; `docs/ROADMAP.md` (PR #23) marks priority 1 done once
-  both merge.
+- **Follow-ups:** `docs/ROADMAP.md` (PR #23) marks priority 1 done once both merge.
 
 ## 2026-10-17 - PR #20 and PR #21 deployed; the artifact volume is gone
 
