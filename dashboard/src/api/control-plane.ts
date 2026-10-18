@@ -2,6 +2,7 @@ import type { components } from "./generated/control-plane";
 
 export type WorkflowRequest = components["schemas"]["WorkflowRequest"];
 export type WorkflowSummary = components["schemas"]["WorkflowSummary"];
+export type ArtifactRef = components["schemas"]["ArtifactRef"];
 export type Project = components["schemas"]["Project"];
 export type WorkflowRun = components["schemas"]["WorkflowRun"];
 export type WorkflowRunPage = components["schemas"]["WorkflowRunPage"];
