@@ -94,3 +94,16 @@ def test_voice_say_reports_an_invalid_request_without_a_traceback(monkeypatch, t
     )
     assert result.exit_code == 1
     assert result.output.strip() == "VoiceRejected: invalid_request"
+
+
+def test_the_cli_loads_without_the_optional_openai_package() -> None:
+    import subprocess
+    import sys
+
+    # The base install (no acquisition extra) runs `thoth-control`; openai must stay optional.
+    code = (
+        "import sys; sys.modules['openai'] = None; sys.modules['av'] = None; "
+        "import thoth_control_plane.cli"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr[-600:]

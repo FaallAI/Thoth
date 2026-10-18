@@ -6,8 +6,10 @@ selects its engine. No word timings: a caller that needs them aligns the audio i
 
 from __future__ import annotations
 
-import httpx
-import openai
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import httpx
 
 from thoth_control_plane.voice.audio import probe_duration
 from thoth_control_plane.voice.ports import (
@@ -22,6 +24,9 @@ class OpenAICompatibleVoice:
     def __init__(
         self, base_url: str, api_key: str | None, *, http_client: httpx.AsyncClient | None = None
     ) -> None:
+        # openai ships with the acquisition extra; the base install's CLI must still load (CI).
+        import openai
+
         self._client = openai.AsyncOpenAI(
             base_url=base_url, api_key=api_key or "unused", http_client=http_client, max_retries=0
         )
@@ -32,6 +37,8 @@ class OpenAICompatibleVoice:
     async def synthesize(self, request: VoiceRequest) -> SynthesizedVoice:
         if not request.model:
             raise VoiceRejected("openai_compatible_model_required")
+        import openai
+
         try:
             response = await self._client.audio.speech.create(
                 model=request.model,
