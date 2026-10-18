@@ -111,7 +111,6 @@ class UnavailableWorkflowGateway:
     ) -> WorkflowSummary:
         raise WorkflowNotReady
 
-
     async def settle(self, workflow_id: str) -> RunSettlement:
         raise WorkflowNotReady
 

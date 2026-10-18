@@ -58,8 +58,16 @@ def test_voice_say_reports_an_unconfigured_provider(monkeypatch, tmp_path) -> No
     result = CliRunner().invoke(
         cli.app,
         [
-            "voice", "say", "--provider", "openai-compatible", "--voice", "v",
-            "--text", "a", "--out", str(tmp_path / "x.wav"),
+            "voice",
+            "say",
+            "--provider",
+            "openai-compatible",
+            "--voice",
+            "v",
+            "--text",
+            "a",
+            "--out",
+            str(tmp_path / "x.wav"),
         ],
     )
     assert result.exit_code == 1

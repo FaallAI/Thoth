@@ -1,5 +1,6 @@
 """Workflow runs per project: start, list, settle, move, and the expired-history fallback."""
 
+import json
 from datetime import UTC, datetime
 
 import httpx
@@ -12,6 +13,7 @@ from thoth_control_plane.api import create_app
 from thoth_control_plane.application import WorkflowNotReady
 from thoth_control_plane.application.ports import RunClosed, RunExpired
 from thoth_control_plane.config import Settings
+from thoth_control_plane.domain import WorkflowSummary
 from thoth_control_plane.infrastructure import run_models  # noqa: F401
 from thoth_control_plane.infrastructure.project_store import ProjectStore
 from thoth_control_plane.infrastructure.report_store import ReportStore
@@ -191,11 +193,7 @@ async def test_listing_a_missing_project_is_404(api) -> None:
     assert response.status_code == 404
 
 
-def summary_with(artifacts: list[dict]) -> "WorkflowSummary":
-    import json
-
-    from thoth_control_plane.domain import WorkflowSummary
-
+def summary_with(artifacts: list[dict]) -> WorkflowSummary:
     return WorkflowSummary.model_validate_json(
         json.dumps(
             {

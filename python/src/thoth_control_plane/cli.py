@@ -20,21 +20,14 @@ from thoth_control_plane.domain import WorkflowEvent, WorkflowRequest
 from thoth_control_plane.infrastructure.media_store import MediaStoreUnavailable
 from thoth_control_plane.infrastructure.project_store import ProjectStore, ProjectStoreUnavailable
 from thoth_control_plane.infrastructure.report_store import ReportStore, ReportStoreUnavailable
+from thoth_control_plane.infrastructure.s3_media_store import S3MediaStore
 from thoth_control_plane.infrastructure.workflow_run_store import (
     WorkflowRunStore,
     WorkflowRunsUnavailable,
 )
-from thoth_control_plane.infrastructure.s3_media_store import S3MediaStore
 from thoth_control_plane.operations.editor_migrations import apply_editor_migrations
 from thoth_control_plane.operations.media_import import import_media, remove_local_media
 from thoth_control_plane.operations.report_import import import_reports
-from thoth_control_plane.voice.factory import build_voice
-from thoth_control_plane.voice.ports import (
-    VoiceNotConfigured,
-    VoiceRejected,
-    VoiceRequest,
-    VoiceUnavailable,
-)
 from thoth_control_plane.operations.run_backfill import (
     backfill_runs,
     is_workflow_id,
@@ -68,6 +61,13 @@ from thoth_control_plane.operations.tiktok_soak_cli import (
     TikTokSoakInputError,
     load_tiktok_soak_observations,
     write_tiktok_soak_report,
+)
+from thoth_control_plane.voice.factory import build_voice
+from thoth_control_plane.voice.ports import (
+    VoiceNotConfigured,
+    VoiceRejected,
+    VoiceRequest,
+    VoiceUnavailable,
 )
 
 app = typer.Typer(no_args_is_help=True)
@@ -327,7 +327,7 @@ async def _backfill_start_times(settings: Settings, workflow_ids: list[str]) -> 
         client = await Client.connect(
             settings.THOTH_TEMPORAL_TARGET, namespace=settings.THOTH_TEMPORAL_NAMESPACE
         )
-    except Exception as error:  # noqa: BLE001 - any connect failure falls back to report times
+    except Exception as error:
         typer.echo(f"temporal unavailable ({type(error).__name__}); using report times")
         return {}
     return await temporal_start_times(client, workflow_ids)

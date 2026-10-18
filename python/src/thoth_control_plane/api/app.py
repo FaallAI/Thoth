@@ -22,7 +22,6 @@ from thoth_control_plane.api.routes.editor_assets import router as editor_asset_
 from thoth_control_plane.api.routes.health import router as health_router
 from thoth_control_plane.api.routes.internal_render_jobs import router as internal_render_router
 from thoth_control_plane.api.routes.projects import router as project_router
-from thoth_control_plane.application.workflow_runs import ProjectNotFound
 from thoth_control_plane.api.routes.prompt_lab import router as prompt_lab_router
 from thoth_control_plane.api.routes.prompt_proposals import router as prompt_proposal_router
 from thoth_control_plane.api.routes.render_jobs import router as render_job_router
@@ -64,6 +63,7 @@ from thoth_control_plane.application.render_jobs import RenderJobService
 from thoth_control_plane.application.studio_imports import StudioImportService
 from thoth_control_plane.application.studio_review import StudioReviewService
 from thoth_control_plane.application.studio_review_ports import StudioReviewRepository
+from thoth_control_plane.application.workflow_runs import ProjectNotFound
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain.prompt_proposals import PromptProviderDefinition
 from thoth_control_plane.infrastructure.artifact_root import LocalArtifactRoot
@@ -74,6 +74,7 @@ from thoth_control_plane.infrastructure.editor_preview import EditorPreviewSigne
 from thoth_control_plane.infrastructure.editor_repository import PostgresEditDocumentRepository
 from thoth_control_plane.infrastructure.media_probe import probe_media
 from thoth_control_plane.infrastructure.media_store import MediaStore, build_media_store
+from thoth_control_plane.infrastructure.project_store import ProjectStore, ProjectStoreUnavailable
 from thoth_control_plane.infrastructure.prompt_proposal_gateway import (
     TemporalPromptProposalGateway,
 )
@@ -89,12 +90,7 @@ from thoth_control_plane.infrastructure.renderer_gateway import (
     HttpRendererGateway,
     UnavailableRendererGateway,
 )
-from thoth_control_plane.infrastructure.project_store import ProjectStore, ProjectStoreUnavailable
 from thoth_control_plane.infrastructure.report_store import Reports, ReportStore
-from thoth_control_plane.infrastructure.workflow_run_store import (
-    WorkflowRunStore,
-    WorkflowRunsUnavailable,
-)
 from thoth_control_plane.infrastructure.source_account_store import SourceAccountStore
 from thoth_control_plane.infrastructure.studio_import_repository import (
     PostgresStudioImportRepository,
@@ -103,6 +99,10 @@ from thoth_control_plane.infrastructure.studio_review_repository import (
     PostgresStudioReviewRepository,
 )
 from thoth_control_plane.infrastructure.temporal_gateway import TemporalWorkflowGateway
+from thoth_control_plane.infrastructure.workflow_run_store import (
+    WorkflowRunStore,
+    WorkflowRunsUnavailable,
+)
 from thoth_control_plane.observability import configure_provider_logging
 
 CONTRACT_VERSION = "1"

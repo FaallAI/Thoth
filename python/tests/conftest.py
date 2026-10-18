@@ -20,12 +20,12 @@ from temporalio.worker import Worker
 
 from thoth_control_plane.activities.source_investigation import SourceInvestigationActivityInput
 from thoth_control_plane.api.app import create_app
-from thoth_control_plane.application.ports import RunExpired, RunLive, RunSettlement
 from thoth_control_plane.application import (
     ApprovalNotAllowed,
     ApprovalSubmission,
     WorkflowNotFound,
 )
+from thoth_control_plane.application.ports import RunExpired, RunLive, RunSettlement
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain import (
     Actor,

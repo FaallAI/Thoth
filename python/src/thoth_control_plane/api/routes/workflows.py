@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from thoth_control_plane.api.dependencies import current_actor
 from thoth_control_plane.api.ranged import ranged_response
+from thoth_control_plane.api.routes.workflow_runs import get_run_service
 from thoth_control_plane.application import (
     Actor,
     ApprovalSubmission,
@@ -22,7 +23,6 @@ from thoth_control_plane.application import (
     WorkflowService,
     WorkflowSummary,
 )
-from thoth_control_plane.api.routes.workflow_runs import get_run_service
 from thoth_control_plane.application.workflow_runs import WorkflowRunService
 from thoth_control_plane.infrastructure.event_store import LegacyEventStore
 from thoth_control_plane.infrastructure.legacy_reader import (

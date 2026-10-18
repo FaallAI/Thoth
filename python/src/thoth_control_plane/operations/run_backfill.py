@@ -46,7 +46,9 @@ async def temporal_start_times(client: Any, workflow_ids: Iterable[str]) -> dict
     found: dict[str, datetime] = {}
     for workflow_id in workflow_ids:
         try:
-            found[workflow_id] = (await client.get_workflow_handle(workflow_id).describe()).start_time
+            found[workflow_id] = (
+                await client.get_workflow_handle(workflow_id).describe()
+            ).start_time
         except RPCError as error:
             logger.debug("no start time workflow_id=%s reason=%s", workflow_id, error.status)
     return found

@@ -57,6 +57,7 @@ class RunExpired:
 
 RunSettlement = RunLive | RunClosed | RunExpired
 
+
 class EditDocumentRevisionConflict(Exception):
     """The document changed after the caller's base revision."""
 

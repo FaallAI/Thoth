@@ -66,7 +66,9 @@ def _cursor(run: StoredRun) -> str:
 
 
 def _decode(cursor: str) -> tuple[datetime, str]:
-    created_at, workflow_id = base64.urlsafe_b64decode(cursor.encode("ascii")).decode().split("|", 1)
+    created_at, workflow_id = (
+        base64.urlsafe_b64decode(cursor.encode("ascii")).decode().split("|", 1)
+    )
     return datetime.fromisoformat(created_at), workflow_id
 
 
@@ -222,7 +224,9 @@ class WorkflowRunStore:
                         platform=run.platform,
                         status=run.status,
                         history_expired=run.history_expired,
-                        summary=None if run.summary is None else run.summary.model_dump(mode="json"),
+                        summary=None
+                        if run.summary is None
+                        else run.summary.model_dump(mode="json"),
                         created_at=run.created_at,
                         updated_at=run.updated_at,
                     )

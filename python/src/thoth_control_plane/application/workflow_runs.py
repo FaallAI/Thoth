@@ -43,9 +43,7 @@ class ProjectNotFound(WorkflowApplicationError):
 
 
 class WorkflowRunService:
-    def __init__(
-        self, runs: Any, projects: Any, workflows: WorkflowService, gateway: Any
-    ) -> None:
+    def __init__(self, runs: Any, projects: Any, workflows: WorkflowService, gateway: Any) -> None:
         self._runs = runs
         self._projects = projects
         self._workflows = workflows
@@ -74,9 +72,7 @@ class WorkflowRunService:
         Temporal returns the same workflow, and the row lands."""
         if project_id is not None:
             await self._require_project(project_id)
-        summary = await self._workflows.start(
-            request, actor=actor, idempotency_key=idempotency_key
-        )
+        summary = await self._workflows.start(request, actor=actor, idempotency_key=idempotency_key)
         if self._runs is None:
             if project_id is not None:
                 raise WorkflowRunsUnavailable("workflow_runs_unavailable")

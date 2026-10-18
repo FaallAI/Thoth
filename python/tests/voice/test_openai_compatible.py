@@ -30,9 +30,9 @@ async def test_speech_request_carries_model_voice_speed_and_language() -> None:
         return httpx.Response(200, content=wav(1.5), headers={"content-type": "audio/wav"})
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    voice = await OpenAICompatibleVoice("http://voices.test/v1", None, http_client=client).synthesize(
-        VoiceRequest(text="Halo", voice_id="M1", model="supertonic3", speed=1.1)
-    )
+    voice = await OpenAICompatibleVoice(
+        "http://voices.test/v1", None, http_client=client
+    ).synthesize(VoiceRequest(text="Halo", voice_id="M1", model="supertonic3", speed=1.1))
     assert seen["path"] == "/v1/audio/speech"
     assert seen["body"] == {
         "model": "supertonic3",
