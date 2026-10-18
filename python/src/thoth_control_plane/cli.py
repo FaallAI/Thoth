@@ -28,6 +28,13 @@ from thoth_control_plane.infrastructure.s3_media_store import S3MediaStore
 from thoth_control_plane.operations.editor_migrations import apply_editor_migrations
 from thoth_control_plane.operations.media_import import import_media, remove_local_media
 from thoth_control_plane.operations.report_import import import_reports
+from thoth_control_plane.voice.factory import build_voice
+from thoth_control_plane.voice.ports import (
+    VoiceNotConfigured,
+    VoiceRejected,
+    VoiceRequest,
+    VoiceUnavailable,
+)
 from thoth_control_plane.operations.run_backfill import (
     backfill_runs,
     is_workflow_id,
@@ -154,6 +161,47 @@ def projects_import(
     typer.echo(f"imported={imported} present={present} invalid={invalid}")
     if invalid:
         raise typer.Exit(1)
+
+
+voice_app = typer.Typer(no_args_is_help=True)
+app.add_typer(voice_app, name="voice")
+
+
+@voice_app.command("say")
+def voice_say(
+    voice: Annotated[str, typer.Option("--voice")],
+    out: Annotated[Path, typer.Option("--out")],
+    provider: Annotated[str, typer.Option("--provider")] = "elevenlabs",
+    model: Annotated[str | None, typer.Option("--model")] = None,
+    speed: Annotated[float, typer.Option("--speed")] = 1.0,
+    language: Annotated[str, typer.Option("--language")] = "id",
+    text: Annotated[str | None, typer.Option("--text")] = None,
+    file: Annotated[Path | None, typer.Option("--file")] = None,
+) -> None:
+    """Synthesize one script with a live provider (operator only; no test calls a provider)."""
+    if (text is None) == (file is None):
+        raise typer.BadParameter("give exactly one of --text or --file")
+    if provider not in ("elevenlabs", "openai-compatible"):
+        raise typer.BadParameter("provider must be elevenlabs or openai-compatible")
+    script = text if text is not None else file.read_text(encoding="utf-8")  # type: ignore[union-attr]
+    try:
+        synthesizer = build_voice(Settings(), provider.replace("-", "_"))  # type: ignore[arg-type]
+        result = asyncio.run(
+            synthesizer.synthesize(
+                VoiceRequest(
+                    text=script, voice_id=voice, model=model, speed=speed, language=language
+                )
+            )
+        )
+    except (VoiceNotConfigured, VoiceRejected, VoiceUnavailable) as error:
+        typer.echo(f"{type(error).__name__}: {error}")
+        raise typer.Exit(1) from None
+    out.write_bytes(result.audio)
+    words = [word.model_dump() for word in result.word_timings or []]
+    Path(f"{out}.words.json").write_text(json.dumps(words), encoding="utf-8")
+    typer.echo(
+        f"provider={provider} duration_seconds={result.duration_seconds:.2f} words={len(words)}"
+    )
 
 
 media_app = typer.Typer(no_args_is_help=True)

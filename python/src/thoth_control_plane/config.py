@@ -85,6 +85,10 @@ class Settings(BaseSettings):
     THOTH_SOURCE_VISION_MODEL: str = "qwen/qwen3-vl-30b-a3b-instruct"
     # Vision and Jev decisions both go through OpenRouter (operator, 2026-10-08/09).
     THOTH_OPENROUTER_API_KEY: SecretStr | None = None
+    # Voice adapter (spec 2026-10-18, section 9): ElevenLabs, or any OpenAI-compatible server.
+    THOTH_ELEVENLABS_API_KEY: SecretStr | None = None
+    THOTH_VOICE_OPENAI_COMPATIBLE_BASE_URL: AnyHttpUrl | None = None
+    THOTH_VOICE_OPENAI_COMPATIBLE_API_KEY: SecretStr | None = None
     # Read by the API when it starts an identify_original workflow; a kill switch.
     THOTH_SOURCE_ATTRIBUTION_ENABLED: bool = True
     # Speech models baked into the image (spec 2026-10-13); never downloaded at run time.
