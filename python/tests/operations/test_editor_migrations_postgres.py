@@ -38,11 +38,12 @@ def _tables() -> set[str]:
 
 
 def test_fresh_database_applies_every_revision_and_a_rerun_applies_none() -> None:
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 11
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 12
     assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 0
     assert {"alembic_version", "studio_import_drafts", "studio_import_decisions"} <= _tables()
     assert {"source_account_policies", "source_proxies", "source_accounts"} <= _tables()
     assert "workflow_reports" in _tables()
+    assert {"projects", "workflow_runs"} <= _tables()
 
 
 def test_database_migrated_before_alembic_is_adopted_and_only_the_rest_applied() -> None:
@@ -50,7 +51,7 @@ def test_database_migrated_before_alembic_is_adopted_and_only_the_rest_applied()
         for migration in sorted(MIGRATIONS.glob("*.sql"))[:6]:
             connection.execute(migration.read_text(encoding="utf-8"))
 
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 5
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 6
     assert {"studio_import_drafts", "studio_import_decisions"} <= _tables()
 
 
