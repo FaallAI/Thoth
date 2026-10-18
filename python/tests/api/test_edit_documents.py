@@ -597,3 +597,24 @@ async def test_listing_studio_documents_without_a_database_is_503(gateway) -> No
             "/api/v1/projects/project_001/edit-documents", headers=AUTH_HEADERS
         )
     assert response.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_a_malformed_studio_document_cursor_is_a_client_error(gateway) -> None:
+    from thoth_control_plane.domain.cursors import decode_cursor
+
+    class BadCursorRepository(MemoryEditDocumentRepository):
+        async def list_documents(self, *, project_id: str, limit: int, cursor: str | None):
+            decode_cursor(cursor or "")
+            raise AssertionError("unreachable")
+
+    app = create_app(
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway, BadCursorRepository()
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(
+            "/api/v1/projects/project_001/edit-documents?cursor=%25%25", headers=AUTH_HEADERS
+        )
+    assert response.status_code == 422
+    assert response.json() == {"detail": "invalid_cursor"}

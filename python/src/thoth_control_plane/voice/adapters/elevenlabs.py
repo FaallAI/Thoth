@@ -81,10 +81,14 @@ class ElevenLabsVoice:
         except httpx.HTTPError:
             raise VoiceUnavailable("elevenlabs_unreachable") from None
         raise_for_status(response, "elevenlabs")
-        payload = response.json()
-        audio = base64.b64decode(payload["audio_base64"])
-        alignment = payload.get("alignment")
-        words = words_from_alignment(alignment) if alignment else None
+        try:
+            payload = response.json()
+            audio = base64.b64decode(payload["audio_base64"])
+            alignment = payload.get("alignment")
+            words = words_from_alignment(alignment) if alignment else None
+        except (ValueError, KeyError, TypeError):
+            # A proxy error page or a changed body shape: retryable, and never echoed back.
+            raise VoiceUnavailable("elevenlabs_bad_response") from None
         duration = words[-1].end_seconds if words else probe_duration(audio)
         return SynthesizedVoice(
             audio=audio, media_type="audio/mpeg", duration_seconds=duration, word_timings=words

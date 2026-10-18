@@ -66,3 +66,10 @@ test("a remembered project that no longer exists falls back to the first one", a
   render(<ProjectSwitcher projectId="deleted" onSelect={onSelect} client={fakeClient()} />);
   await waitFor(() => expect(onSelect).toHaveBeenCalledWith("p1"));
 });
+
+test("with no projects at all, a remembered project is cleared", async () => {
+  const onSelect = mock((_id: string | null) => {});
+  const client = { ...fakeClient(), listProjects: mock(async () => []) };
+  render(<ProjectSwitcher projectId="deleted" onSelect={onSelect} client={client} />);
+  await waitFor(() => expect(onSelect).toHaveBeenCalledWith(null));
+});

@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import base64
 import hashlib
-from datetime import datetime
 from typing import Any
 
 from psycopg import AsyncConnection
@@ -16,6 +14,7 @@ from thoth_control_plane.application.ports import (
     EditDocumentRevisionConflict,
     EditDocumentUpgradeConflict,
 )
+from thoth_control_plane.domain.cursors import decode_cursor, encode_cursor
 from thoth_control_plane.domain.edit_document_list import (
     EditDocumentListItem,
     EditDocumentListPage,
@@ -60,17 +59,6 @@ _LIST_QUERY = """
     LIMIT %s
 """
 LIST_LIMIT_MAX = 50
-
-
-def _list_cursor(created_at: datetime, document_id: str) -> str:
-    raw = f"{created_at.isoformat()}|{document_id}".encode()
-    return base64.urlsafe_b64encode(raw).decode("ascii")
-
-
-def _decode_list_cursor(cursor: str) -> tuple[datetime, str]:
-    raw = base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8")
-    created_at, document_id = raw.split("|", 1)
-    return datetime.fromisoformat(created_at), document_id
 
 
 class EditDocumentConflict(Exception):
@@ -139,8 +127,9 @@ class PostgresEditDocumentRepository:
         self, *, project_id: str, limit: int, cursor: str | None
     ) -> EditDocumentListPage:
         clamped = max(1, min(int(limit), LIST_LIMIT_MAX))
+        # A bad cursor is the client's error (InvalidCursor -> 422), never a persistence failure.
+        keyset = decode_cursor(cursor) if cursor else None
         try:
-            keyset = _decode_list_cursor(cursor) if cursor else None
             query = _LIST_QUERY.format(
                 keyset="WHERE (l.created_at, l.document_id) < (%s, %s)" if keyset else ""
             )
@@ -163,7 +152,7 @@ class PostgresEditDocumentRepository:
             )
             for document_id, revision, created_at, document_json, imported in page
         ]
-        next_cursor = _list_cursor(page[-1][2], page[-1][0]) if len(rows) > clamped else None
+        next_cursor = encode_cursor(page[-1][2], page[-1][0]) if len(rows) > clamped else None
         return EditDocumentListPage(items=items, next_cursor=next_cursor)
 
     async def get_revision(

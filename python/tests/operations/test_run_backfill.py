@@ -84,3 +84,21 @@ async def test_temporal_start_times_skip_workflows_temporal_no_longer_holds() ->
             return Handle(workflow_id)
 
     assert await temporal_start_times(Client(), ["wf_live", "wf_gone"]) == {"wf_live": started}
+
+
+def test_only_workflows_without_a_row_need_a_start_time() -> None:
+    from thoth_control_plane.operations.run_backfill import workflows_needing_rows
+
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(engine)
+    reports, runs = ReportStore(engine), WorkflowRunStore(engine)
+    reports.put(f"reports/{GOOD}/source-report.json", "source_report", report("https://x.test/1"))
+    reports.put(
+        f"reports/{NO_SOURCE}/source-report.json", "source_report", report("https://x.test/2")
+    )
+    reports.put("reports/wf_test/source-report.json", "source_report", report("https://x.test/3"))
+    assert workflows_needing_rows(runs) == [GOOD, NO_SOURCE]
+    backfill_runs(runs)
+    assert workflows_needing_rows(runs) == []

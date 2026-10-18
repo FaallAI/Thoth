@@ -72,3 +72,25 @@ def test_voice_say_reports_an_unconfigured_provider(monkeypatch, tmp_path) -> No
     )
     assert result.exit_code == 1
     assert "VoiceNotConfigured" in result.output
+
+
+def test_voice_say_reports_an_invalid_request_without_a_traceback(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_API_KEY", "k")
+    monkeypatch.setattr(cli, "build_voice", lambda settings, provider: object())
+    result = CliRunner().invoke(
+        cli.app,
+        [
+            "voice",
+            "say",
+            "--voice",
+            "v",
+            "--text",
+            "a",
+            "--speed",
+            "1.6",
+            "--out",
+            str(tmp_path / "x"),
+        ],
+    )
+    assert result.exit_code == 1
+    assert result.output.strip() == "VoiceRejected: invalid_request"

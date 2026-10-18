@@ -21,7 +21,13 @@ from thoth_control_plane.application.workflows import (
     WorkflowNotFound,
     WorkflowService,
 )
-from thoth_control_plane.domain import Actor, ArtifactRef, WorkflowRequest, WorkflowSummary
+from thoth_control_plane.domain import (
+    Actor,
+    ArtifactRef,
+    WorkflowRequest,
+    WorkflowStatus,
+    WorkflowSummary,
+)
 from thoth_control_plane.domain.workflow_runs import (
     UNSETTLED,
     StoredRun,
@@ -35,6 +41,13 @@ logger = logging.getLogger(__name__)
 SETTLE_LIMIT = 20
 #: One slow settle must not hold the page: past this, the stored row is returned as is.
 SETTLE_TIMEOUT_SECONDS = 3.0
+
+
+def _known_status(run: StoredRun) -> dict[str, WorkflowStatus]:
+    """The row's status when it is a real one: it outranks a stale live summary and P3's guess."""
+    if run.status in {status.value for status in WorkflowStatus}:
+        return {"status": WorkflowStatus(run.status)}
+    return {}
 
 
 class ProjectNotFound(WorkflowApplicationError):
@@ -151,7 +164,7 @@ class WorkflowRunService:
         )
         return WorkflowSummary(
             workflow_id=run.workflow_id,
-            status="succeeded",
+            status=_known_status(run).get("status", WorkflowStatus.SUCCEEDED),
             created_at=run.created_at,
             updated_at=run.updated_at,
             source={"display_url": run.display_url, "platform": run.platform},
@@ -170,7 +183,7 @@ class WorkflowRunService:
             if run is None or not run.owned_by(actor):
                 raise
             stored = run.summary or await self._synthesized(run)
-            return stored.model_copy(update={"history_expired": True})
+            return stored.model_copy(update={"history_expired": True, **_known_status(run)})
         if self._runs is not None:
             try:
                 await asyncio.to_thread(

@@ -24,7 +24,7 @@ export function ProjectSwitcher({
   client = controlPlaneClient,
 }: {
   projectId: string | null;
-  onSelect: (id: string) => void;
+  onSelect: (id: string | null) => void;
   compact?: boolean;
   onProjectsChanged?: (projects: Project[]) => void;
   client?: Pick<ControlPlaneClient, "listProjects" | "createProject">;
@@ -43,6 +43,7 @@ export function ProjectSwitcher({
         onProjectsChanged?.(ps);
         // A remembered project that no longer exists falls back to the first one.
         if (ps.length && !ps.some((p) => p.project_id === projectId)) onSelect(ps[0].project_id);
+        else if (!ps.length && projectId) onSelect(null);
       },
       () => setError("Projects could not be loaded."),
     );

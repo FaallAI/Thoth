@@ -54,6 +54,15 @@ async def temporal_start_times(client: Any, workflow_ids: Iterable[str]) -> dict
     return found
 
 
+def workflows_needing_rows(store: WorkflowRunStore) -> list[str]:
+    """Workflow IDs with a source report but no run row yet: the only ones worth asking Temporal."""
+    return [
+        workflow_id
+        for workflow_id, _, _ in store.source_report_rows()
+        if is_workflow_id(workflow_id) and store.get(workflow_id) is None
+    ]
+
+
 def backfill_runs(
     store: WorkflowRunStore, start_times: Mapping[str, datetime] | None = None
 ) -> BackfillCounts:

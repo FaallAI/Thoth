@@ -293,3 +293,23 @@ async def test_a_slow_settle_is_bounded(api, stores, gateway, monkeypatch) -> No
     response = await api.get(f"/api/v1/projects/{project.project_id}/workflows", headers=AUTH)
     assert response.status_code == 200
     assert time.monotonic() - began < 2
+
+
+async def test_a_malformed_cursor_is_a_client_error(api, stores) -> None:
+    project = stores[0].create("News")
+    response = await api.get(
+        f"/api/v1/projects/{project.project_id}/workflows?cursor=not-a-cursor", headers=AUTH
+    )
+    assert response.status_code == 422
+    assert response.json() == {"detail": "invalid_cursor"}
+
+
+async def test_an_expired_detail_keeps_a_known_status(api, stores) -> None:
+    from dataclasses import replace
+
+    failed = replace(old_run("wf_failed", None, expired=True), status="failed")
+    stores[1].insert_missing(failed)
+    stores[2].put("reports/wf_failed/source-report.json", "source_report", b"{}")
+    body = (await api.get("/api/v1/workflows/wf_failed", headers=AUTH)).json()
+    assert body["status"] == "failed"
+    assert body["history_expired"] is True

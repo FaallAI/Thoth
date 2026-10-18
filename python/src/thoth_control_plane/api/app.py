@@ -65,6 +65,7 @@ from thoth_control_plane.application.studio_review import StudioReviewService
 from thoth_control_plane.application.studio_review_ports import StudioReviewRepository
 from thoth_control_plane.application.workflow_runs import ProjectNotFound
 from thoth_control_plane.config import Settings
+from thoth_control_plane.domain.cursors import InvalidCursor
 from thoth_control_plane.domain.prompt_proposals import PromptProviderDefinition
 from thoth_control_plane.infrastructure.artifact_root import LocalArtifactRoot
 from thoth_control_plane.infrastructure.editor_asset_repository import (
@@ -365,6 +366,12 @@ def create_app(
             mapped_status: int = status_code,
         ) -> JSONResponse:
             return JSONResponse(status_code=mapped_status, content={"detail": str(exc)})
+
+    @app.exception_handler(InvalidCursor)
+    async def invalid_cursor_handler(request: Request, exc: Exception) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content={"detail": "invalid_cursor"}
+        )
 
     @app.exception_handler(WorkflowRunsUnavailable)
     async def workflow_runs_unavailable_handler(request: Request, exc: Exception) -> JSONResponse:

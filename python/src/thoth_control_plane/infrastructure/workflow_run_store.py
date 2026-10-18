@@ -6,7 +6,6 @@ store; callers wrap calls in `asyncio.to_thread`. A database error is `WorkflowR
 
 from __future__ import annotations
 
-import base64
 import json
 import logging
 from collections.abc import Callable
@@ -20,6 +19,7 @@ from sqlalchemy.orm import sessionmaker
 
 from thoth_control_plane.application.ports import WorkflowRunsUnavailable
 from thoth_control_plane.domain import Actor, ArtifactRef, WorkflowSummary
+from thoth_control_plane.domain.cursors import decode_cursor, encode_cursor
 from thoth_control_plane.domain.workflow_runs import StoredRun
 from thoth_control_plane.infrastructure.report_models import WorkflowReportRow
 from thoth_control_plane.infrastructure.run_models import WorkflowRunRow
@@ -58,18 +58,6 @@ def _stored(row: WorkflowRunRow) -> StoredRun:
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
-
-
-def _cursor(run: StoredRun) -> str:
-    raw = f"{run.created_at.isoformat()}|{run.workflow_id}".encode()
-    return base64.urlsafe_b64encode(raw).decode("ascii")
-
-
-def _decode(cursor: str) -> tuple[datetime, str]:
-    created_at, workflow_id = (
-        base64.urlsafe_b64decode(cursor.encode("ascii")).decode().split("|", 1)
-    )
-    return datetime.fromisoformat(created_at), workflow_id
 
 
 class WorkflowRunStore:
@@ -146,7 +134,7 @@ class WorkflowRunStore:
             else WorkflowRunRow.project_id == project_id,
         )
         if cursor:
-            created_at, workflow_id = _decode(cursor)
+            created_at, workflow_id = decode_cursor(cursor)
             query = query.where(
                 or_(
                     WorkflowRunRow.created_at < created_at,
@@ -165,7 +153,10 @@ class WorkflowRunStore:
         except SQLAlchemyError as error:
             raise self._unavailable(error) from None
         page = rows[:limit]
-        return page, (_cursor(page[-1]) if len(rows) > limit else None)
+        next_cursor = (
+            encode_cursor(page[-1].created_at, page[-1].workflow_id) if len(rows) > limit else None
+        )
+        return page, next_cursor
 
     def get(self, workflow_id: str) -> StoredRun | None:
         try:

@@ -256,3 +256,17 @@ def test_workflow_runs_round_trip_their_summary_and_page_on_postgres() -> None:
     assert [r.workflow_id for r in first + rest] == ["wf_b", "wf_a"]
     assert end is None
     assert first[0].summary is not None and first[0].summary.status.value == "running"
+
+
+@pytest.mark.asyncio
+async def test_a_malformed_studio_document_cursor_raises_invalid_cursor() -> None:
+    from thoth_control_plane.domain.cursors import InvalidCursor
+    from thoth_control_plane.infrastructure.editor_repository import (
+        PostgresEditDocumentRepository,
+    )
+
+    apply_editor_migrations(DATABASE_URL, MIGRATIONS)
+    with pytest.raises(InvalidCursor):
+        await PostgresEditDocumentRepository(DATABASE_URL).list_documents(
+            project_id="p1", limit=5, cursor="%%"
+        )

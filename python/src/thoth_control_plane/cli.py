@@ -13,6 +13,7 @@ from typing import Annotated, Any
 
 import httpx
 import typer
+from pydantic import ValidationError
 
 from thoth_control_plane.application import ApprovalSubmission, RetryRequest
 from thoth_control_plane.config import Settings, SettingsValidationError
@@ -30,8 +31,8 @@ from thoth_control_plane.operations.media_import import import_media, remove_loc
 from thoth_control_plane.operations.report_import import import_reports
 from thoth_control_plane.operations.run_backfill import (
     backfill_runs,
-    is_workflow_id,
     temporal_start_times,
+    workflows_needing_rows,
 )
 from thoth_control_plane.operations.stage1_controlled_fallback import (
     GATE_IDS,
@@ -185,14 +186,15 @@ def voice_say(
         raise typer.BadParameter("provider must be elevenlabs or openai-compatible")
     script = text if text is not None else file.read_text(encoding="utf-8")  # type: ignore[union-attr]
     try:
-        synthesizer = build_voice(Settings(), provider.replace("-", "_"))  # type: ignore[arg-type]
-        result = asyncio.run(
-            synthesizer.synthesize(
-                VoiceRequest(
-                    text=script, voice_id=voice, model=model, speed=speed, language=language
-                )
-            )
+        request = VoiceRequest(
+            text=script, voice_id=voice, model=model, speed=speed, language=language
         )
+    except ValidationError:
+        typer.echo("VoiceRejected: invalid_request")
+        raise typer.Exit(1) from None
+    try:
+        synthesizer = build_voice(Settings(), provider.replace("-", "_"))  # type: ignore[arg-type]
+        result = asyncio.run(synthesizer.synthesize(request))
     except (VoiceNotConfigured, VoiceRejected, VoiceUnavailable) as error:
         typer.echo(f"{type(error).__name__}: {error}")
         raise typer.Exit(1) from None
@@ -307,7 +309,7 @@ def workflows_backfill() -> None:
     settings = Settings()
     store = WorkflowRunStore.connect(database_url.get_secret_value())
     try:
-        ids = [w for w, _, _ in store.source_report_rows() if is_workflow_id(w)]
+        ids = workflows_needing_rows(store)
         start_times = asyncio.run(_backfill_start_times(settings, ids))
         counts = backfill_runs(store, start_times=start_times)
     except WorkflowRunsUnavailable:

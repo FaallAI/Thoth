@@ -11,6 +11,7 @@ from thoth_control_plane.application.ports import (
     EditDocumentRevisionConflict,
     EditDocumentUpgradeConflict,
 )
+from thoth_control_plane.domain.cursors import InvalidCursor
 from thoth_control_plane.domain.edit_document_list import EditDocumentListPage
 from thoth_control_plane.domain.edit_document_operations import EditDocumentPatch
 from thoth_control_plane.domain.edit_document_v2 import EditDocument
@@ -189,6 +190,8 @@ class EditDocumentService:
             return await self._repository.list_documents(
                 project_id=project_id, limit=limit, cursor=cursor
             )
+        except InvalidCursor:
+            raise
         except Exception as error:
             raise EditorUnavailable() from error
 

@@ -101,3 +101,19 @@ async def test_a_connection_failure_is_unavailable() -> None:
         await ElevenLabsVoice("k", transport=httpx.MockTransport(handler)).synthesize(
             VoiceRequest(text="a", voice_id="v")
         )
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        httpx.Response(200, text="<html>proxy error</html>"),
+        httpx.Response(200, json={"alignment": None}),
+    ],
+)
+async def test_an_unreadable_success_body_is_unavailable(response) -> None:
+    transport = httpx.MockTransport(lambda request: response)
+    with pytest.raises(VoiceUnavailable) as caught:
+        await ElevenLabsVoice("k", transport=transport).synthesize(
+            VoiceRequest(text="a", voice_id="v")
+        )
+    assert str(caught.value) == "elevenlabs_bad_response"
