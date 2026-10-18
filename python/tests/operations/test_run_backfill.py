@@ -42,3 +42,45 @@ def test_backfill_inserts_once_strips_queries_and_counts_invalid() -> None:
     assert runs.get("wf_test") is None
 
     assert backfill_runs(runs) == (0, 1, 1)
+
+
+def test_a_known_start_time_replaces_the_report_import_time() -> None:
+    from datetime import UTC, datetime
+
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(engine)
+    reports, runs = ReportStore(engine), WorkflowRunStore(engine)
+    reports.put(f"reports/{GOOD}/source-report.json", "source_report", report("https://x.test/v/1"))
+    started = datetime(2026, 9, 25, 13, 8, tzinfo=UTC)
+    assert backfill_runs(runs, start_times={GOOD: started}) == (1, 0, 0)
+    stored = runs.get(GOOD)
+    assert stored is not None
+    assert stored.created_at == started
+    assert stored.updated_at == started
+
+
+async def test_temporal_start_times_skip_workflows_temporal_no_longer_holds() -> None:
+    from datetime import UTC, datetime
+
+    from temporalio.service import RPCError, RPCStatusCode
+
+    from thoth_control_plane.operations.run_backfill import temporal_start_times
+
+    started = datetime(2026, 9, 25, tzinfo=UTC)
+
+    class Handle:
+        def __init__(self, workflow_id):
+            self.workflow_id = workflow_id
+
+        async def describe(self):
+            if self.workflow_id == "wf_gone":
+                raise RPCError("gone", RPCStatusCode.NOT_FOUND, b"")
+            return type("Description", (), {"start_time": started})()
+
+    class Client:
+        def get_workflow_handle(self, workflow_id):
+            return Handle(workflow_id)
+
+    assert await temporal_start_times(Client(), ["wf_live", "wf_gone"]) == {"wf_live": started}

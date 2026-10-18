@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import uuid
@@ -27,7 +28,11 @@ from thoth_control_plane.infrastructure.s3_media_store import S3MediaStore
 from thoth_control_plane.operations.editor_migrations import apply_editor_migrations
 from thoth_control_plane.operations.media_import import import_media, remove_local_media
 from thoth_control_plane.operations.report_import import import_reports
-from thoth_control_plane.operations.run_backfill import backfill_runs
+from thoth_control_plane.operations.run_backfill import (
+    backfill_runs,
+    is_workflow_id,
+    temporal_start_times,
+)
 from thoth_control_plane.operations.stage1_controlled_fallback import (
     GATE_IDS,
     ControlledFallbackEvidenceError,
@@ -251,12 +256,33 @@ def workflows_backfill() -> None:
     database_url = Settings().THOTH_EDITOR_DATABASE_URL
     if database_url is None:
         raise typer.BadParameter("THOTH_EDITOR_DATABASE_URL must be configured")
+    settings = Settings()
+    store = WorkflowRunStore.connect(database_url.get_secret_value())
     try:
-        counts = backfill_runs(WorkflowRunStore.connect(database_url.get_secret_value()))
+        ids = [w for w, _, _ in store.source_report_rows() if is_workflow_id(w)]
+        start_times = asyncio.run(_backfill_start_times(settings, ids))
+        counts = backfill_runs(store, start_times=start_times)
     except WorkflowRunsUnavailable:
         typer.echo("workflow run store unavailable")
         raise typer.Exit(1) from None
-    typer.echo(f"inserted={counts.inserted} present={counts.present} invalid={counts.invalid}")
+    typer.echo(
+        f"inserted={counts.inserted} present={counts.present} invalid={counts.invalid}"
+        f" start_times={len(start_times)}"
+    )
+
+
+async def _backfill_start_times(settings: Settings, workflow_ids: list[str]) -> dict[str, Any]:
+    """Temporal start times for the backfill; Temporal down means report times for all."""
+    from temporalio.client import Client
+
+    try:
+        client = await Client.connect(
+            settings.THOTH_TEMPORAL_TARGET, namespace=settings.THOTH_TEMPORAL_NAMESPACE
+        )
+    except Exception as error:  # noqa: BLE001 - any connect failure falls back to report times
+        typer.echo(f"temporal unavailable ({type(error).__name__}); using report times")
+        return {}
+    return await temporal_start_times(client, workflow_ids)
 
 
 @workflow_app.command("start")
