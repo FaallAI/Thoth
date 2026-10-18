@@ -16,9 +16,9 @@ As of 2026-10-18. Nothing is in flight: every PR through #22 is merged and deplo
 | 3 | ~~Decide the Rust engine's direction~~ Decided 2026-10-18: port it into the Python control plane | See "Decision: the Rust engine" | Done |
 | 4 | Stage 5c: post cards, carousel photos, creator profile | Completes the Content Set that Studio imports; card overlays were left out of item 2 | 2 |
 | 5 | Dashboard serving and Google/GitHub sign-in (UI phase 3) | The control-plane key ships in the JS bundle today; this must land before the stack is reachable from another host | 1 |
-| 6 | Auto-draft, in six slices (transcript, voice, script + Rust Profiles as presets, draft, reframe, other modes) | Restores "source to finished video" on the new path; see the research below | 2 |
+| 6 | Auto-draft, in six slices (transcript, voice, script + Profiles rebuilt as Python presets, draft, reframe, other modes) | Restores "source to finished video" on the new path, and the Profiles page removed on 2026-10-18; see the research below | 2 |
 | 7 | Stage 6: enrichment | Gives auto-draft narration its context | 6 |
-| 8 | Stage 8: discovery in Python, then UI phase 4 (retire the legacy pages) | Discovery starts workflows; the Content Set page, Scout discovery, Legacy Console and "Send to render" go | 2 |
+| 8 | Stage 8: discovery in Python, then the Discovery and Content Set pages rebuilt on it | The Rust-backed pages are already gone (2026-10-18); discovery starts workflows | 2 |
 | 9 | Stage 7: durable orchestration | Restart-safe, resumable runs before the final acceptance | 8 |
 | 10 | Stage 9: cutover and the final live acceptance | Runs every live smoke deferred under ADR 0001 | 1-9 |
 | 11 | Stage 10: retire Scout TypeScript and the Rust engine | Last | 10 |
@@ -39,7 +39,8 @@ From the 2026-10-18 UI audit.
   trim) and the footage into editor assets and creates a draft with every item resolved.
 - **Phase 3, serving:** a Caddy `web` container serves the SPA with a fallback and proxies
   `/api/v1` with the bearer injected on the server. Sign-in uses Google and GitHub.
-- **Phase 4, legacy retirement:** together with Stage 8.
+- **Phase 4, legacy retirement:** done early, on 2026-10-18 (see "Removed pages to rebuild in
+  Python"). Stage 8 rebuilds Discovery and Content Set on the Python control plane.
 
 ## Decision: the Rust engine
 
@@ -51,9 +52,25 @@ draft for Remotion to render. Rust is frozen and retires at Stage 10.
 Tool choices, flow and slices:
 [research/2026-10-18-auto-video-engine-python-research.md](research/2026-10-18-auto-video-engine-python-research.md).
 
-**Interim:** after the UI foundation, the Legacy Console and Profiles recognize only projects
-that also exist in Rust (today the imported project "test"). An automatic video needed before
-auto-draft ships is run in "test".
+**Interim:** the dashboard no longer reaches the Rust server (operator, 2026-10-18). Until
+auto-draft ships, an automatic video can only be made with the Rust CLI outside the dashboard.
+
+## Removed pages to rebuild in Python
+
+The operator removed every dashboard path to the Rust server on 2026-10-18, before Python
+replacements existed. These four pages are gone from the UI and must be rebuilt on the Python
+control plane:
+
+| Page | What it did on Rust | Rebuilt in |
+|---|---|---|
+| Discovery | Topic search through Scout, starting a Content Set run | Item 8 (Stage 8: discovery in Python) |
+| Content Set | Viewed a Scout Content Set; "Open in Studio" and "Send to render" | Item 2 for "Open in Studio" from a workflow; item 8 for the page itself |
+| Profiles | Reusable run presets (provider, voice, layout, style) | Item 6 (auto-draft slice 3: presets) |
+| Legacy Console | Started and monitored Rust render jobs | Item 6 (auto-draft produces the video; Workflows and Studio monitor it) |
+
+The control plane's read-only legacy job bridge (`/api/v1/legacy/jobs`,
+`THOTH_LEGACY_API_BASE_URL`) went with them. The Studio import gate's Content Set mode and its
+projection helper stay in the code for item 2.
 
 ## Waiting on the operator
 
