@@ -19,10 +19,15 @@ from thoth_control_plane.domain import WorkflowEvent, WorkflowRequest
 from thoth_control_plane.infrastructure.media_store import MediaStoreUnavailable
 from thoth_control_plane.infrastructure.project_store import ProjectStore, ProjectStoreUnavailable
 from thoth_control_plane.infrastructure.report_store import ReportStore, ReportStoreUnavailable
+from thoth_control_plane.infrastructure.workflow_run_store import (
+    WorkflowRunStore,
+    WorkflowRunsUnavailable,
+)
 from thoth_control_plane.infrastructure.s3_media_store import S3MediaStore
 from thoth_control_plane.operations.editor_migrations import apply_editor_migrations
 from thoth_control_plane.operations.media_import import import_media, remove_local_media
 from thoth_control_plane.operations.report_import import import_reports
+from thoth_control_plane.operations.run_backfill import backfill_runs
 from thoth_control_plane.operations.stage1_controlled_fallback import (
     GATE_IDS,
     ControlledFallbackEvidenceError,
@@ -238,6 +243,20 @@ def _stream_events(path: str) -> Iterator[WorkflowEvent]:
 
 def _render(summary: dict[str, Any]) -> None:
     typer.echo(json.dumps(summary, indent=2, sort_keys=True, default=str))
+
+
+@workflow_app.command("backfill")
+def workflows_backfill() -> None:
+    """Create run rows for workflows that already have reports; idempotent; counts only."""
+    database_url = Settings().THOTH_EDITOR_DATABASE_URL
+    if database_url is None:
+        raise typer.BadParameter("THOTH_EDITOR_DATABASE_URL must be configured")
+    try:
+        counts = backfill_runs(WorkflowRunStore.connect(database_url.get_secret_value()))
+    except WorkflowRunsUnavailable:
+        typer.echo("workflow run store unavailable")
+        raise typer.Exit(1) from None
+    typer.echo(f"inserted={counts.inserted} present={counts.present} invalid={counts.invalid}")
 
 
 @workflow_app.command("start")
