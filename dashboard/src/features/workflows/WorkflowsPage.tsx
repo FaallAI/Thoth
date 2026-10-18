@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 import type { ControlPlaneClient, Project, WorkflowRequest, WorkflowRun } from "@/api/control-plane";
 import { Button } from "@/components/ui/button";
 import { WorkflowWizard } from "@/components/WorkflowWizard";
+import { formatWhen } from "@/lib/format-time";
 
 type WorkflowsClient = Pick<
   ControlPlaneClient,
@@ -127,7 +128,7 @@ export function WorkflowsPage({
                 <tr key={run.workflow_id}>
                   <td><button type="button" className="pen-run-link" onClick={() => open(run.workflow_id)}>{run.source.display_url}</button></td>
                   <td>{runStatus(run)}</td>
-                  <td>{run.updated_at}</td>
+                  <td>{formatWhen(run.updated_at)}</td>
                   <td>{run.artifact_count ? `${run.artifact_count} artifacts` : "—"}</td>
                 </tr>
               ))}
@@ -139,7 +140,7 @@ export function WorkflowsPage({
         </div>
       </section>
       {loose.length > 0 && (
-        <details className="pen-workflow-details">
+        <details className="pen-unassigned-runs">
           <summary>{`Unassigned (${loose.length}${looseNext ? "+" : ""})`}</summary>
           <ul>
             {loose.map((run) => (

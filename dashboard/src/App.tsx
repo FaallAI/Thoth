@@ -85,7 +85,7 @@ function Shell() {
           })}
           <div className="dashboard-sidebar-footer"><button type="button" onClick={() => setHelpOpen(true)}><CircleHelp aria-hidden="true" />Help & documentation</button></div>
         </nav>
-        <main id="workspace" tabIndex={-1} className={`dashboard-main dashboard-page-${page}`}>
+        <main id="workspace" tabIndex={-1} className={`dashboard-main dashboard-page-${page === "studio" && !inStudio ? "drafts" : page}`}>
           {!inStudio && <header className="dashboard-page-heading"><div>
             <p className="dashboard-eyebrow">{pages[page].eyebrow}</p>
             <h1>{pages[page].label}</h1>

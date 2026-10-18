@@ -52,3 +52,18 @@ test("more drafts load on request", async () => {
   await userEvent.setup().click(await screen.findByRole("button", { name: "Load more" }));
   expect(await screen.findByRole("button", { name: /doc_b/ })).toBeDefined();
 });
+
+test("a draft row shows its revision and a readable time, not a raw timestamp", async () => {
+  const updated = "2026-09-24T17:09:14.339165Z";
+  const client = {
+    listEditDocuments: mock(async () => ({
+      items: [{ document_id: "doc_1", revision: 3, updated_at: updated, label: "Kucing", imported: true }],
+      next_cursor: null,
+    })),
+  };
+  render(<MemoryRouter><StudioDocumentsPage client={client} projectId="p1" /></MemoryRouter>);
+  const row = await screen.findByRole("button", { name: /Kucing/ });
+  const when = new Date(updated).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  expect(row.querySelector("small")?.textContent).toBe(`Revision 3 · ${when}`);
+  expect(row.textContent).not.toContain("T17:09");
+});
