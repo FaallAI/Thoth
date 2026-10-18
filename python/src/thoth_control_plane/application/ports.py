@@ -1,6 +1,7 @@
 """Typed outbound ports for workflow orchestration."""
 
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -28,6 +29,28 @@ from thoth_control_plane.domain.studio_imports import (
     StudioImportItem,
 )
 
+
+@dataclass(frozen=True)
+class RunLive:
+    """The execution is running; its live summary."""
+
+    summary: WorkflowSummary
+
+
+@dataclass(frozen=True)
+class RunClosed:
+    """The execution closed; the summary it returned when it completed, else None."""
+
+    summary: WorkflowSummary | None
+    status: str
+
+
+@dataclass(frozen=True)
+class RunExpired:
+    """Temporal no longer holds the execution (past its retention)."""
+
+
+RunSettlement = RunLive | RunClosed | RunExpired
 
 class EditDocumentRevisionConflict(Exception):
     """The document changed after the caller's base revision."""
@@ -86,6 +109,8 @@ class WorkflowGateway(Protocol):
     ) -> WorkflowSummary: ...
 
     async def get(self, workflow_id: str, *, actor: Actor) -> WorkflowSummary: ...
+
+    async def settle(self, workflow_id: str) -> RunSettlement: ...
 
     def stream_events(
         self, workflow_id: str, *, actor: Actor, after_sequence: int

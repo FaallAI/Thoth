@@ -9,7 +9,12 @@ from datetime import UTC, datetime
 from hashlib import sha256
 from typing import Any, TypeVar
 
-from temporalio.client import Client, WorkflowHandle, WorkflowQueryFailedError
+from temporalio.client import (
+    Client,
+    WorkflowExecutionStatus,
+    WorkflowHandle,
+    WorkflowQueryFailedError,
+)
 from temporalio.common import WorkflowIDConflictPolicy, WorkflowIDReusePolicy
 from temporalio.contrib.pydantic import pydantic_data_converter
 from temporalio.exceptions import WorkflowAlreadyStartedError
@@ -21,6 +26,7 @@ from thoth_control_plane.application import (
     WorkflowNotFound,
     WorkflowNotReady,
 )
+from thoth_control_plane.application.ports import RunClosed, RunExpired, RunLive, RunSettlement
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain import (
     Actor,
@@ -143,6 +149,27 @@ class TemporalWorkflowGateway:
     async def get(self, workflow_id: str, *, actor: Actor) -> WorkflowSummary:
         handle = await self._authorized_handle(workflow_id, actor)
         return await _query(handle, SourceInvestigationWorkflow.summary)
+
+    async def settle(self, workflow_id: str) -> RunSettlement:
+        """A run's state without the owner query, so a closed run is never replayed (P4).
+
+        The caller authorizes through the stored run's actor before asking.
+        """
+        handle = self._client.get_workflow_handle(workflow_id, result_type=WorkflowSummary)
+        try:
+            description = await handle.describe()
+        except RPCError as error:
+            if error.status == RPCStatusCode.NOT_FOUND:
+                return RunExpired()
+            raise WorkflowNotReady() from error
+        if description.status == WorkflowExecutionStatus.RUNNING:
+            return RunLive(await _query(handle, SourceInvestigationWorkflow.summary))
+        if description.status == WorkflowExecutionStatus.COMPLETED:
+            summary = await handle.result()
+            return RunClosed(summary, summary.status.value)
+        if description.status == WorkflowExecutionStatus.CANCELED:
+            return RunClosed(None, "cancelled")
+        return RunClosed(None, "failed")
 
     async def stream_events(
         self, workflow_id: str, *, actor: Actor, after_sequence: int

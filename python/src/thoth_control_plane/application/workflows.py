@@ -4,7 +4,11 @@ from asyncio import Lock
 from collections.abc import AsyncIterator
 
 from thoth_control_plane.acquisition.platforms import platform_support
-from thoth_control_plane.application.ports import ApprovalSubmission, WorkflowGateway
+from thoth_control_plane.application.ports import (
+    ApprovalSubmission,
+    RunSettlement,
+    WorkflowGateway,
+)
 from thoth_control_plane.domain import (
     Actor,
     ArtifactRef,
@@ -105,6 +109,10 @@ class UnavailableWorkflowGateway:
         *,
         actor: Actor,
     ) -> WorkflowSummary:
+        raise WorkflowNotReady
+
+
+    async def settle(self, workflow_id: str) -> RunSettlement:
         raise WorkflowNotReady
 
 

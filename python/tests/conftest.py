@@ -20,6 +20,7 @@ from temporalio.worker import Worker
 
 from thoth_control_plane.activities.source_investigation import SourceInvestigationActivityInput
 from thoth_control_plane.api.app import create_app
+from thoth_control_plane.application.ports import RunExpired, RunLive, RunSettlement
 from thoth_control_plane.application import (
     ApprovalNotAllowed,
     ApprovalSubmission,
@@ -127,6 +128,8 @@ class InMemoryWorkflowGateway:
             ),
         ]
         self.last_event_cursor: int | None = None
+        self.settlements: dict[str, RunSettlement] = {}
+        self.settle_error: Exception | None = None
 
     def _workflow(self, workflow_id: str) -> WorkflowSummary:
         try:
@@ -170,6 +173,15 @@ class InMemoryWorkflowGateway:
     async def get(self, workflow_id: str, *, actor: Actor) -> WorkflowSummary:
         self.actors.append(actor)
         return self._workflow(workflow_id)
+
+    async def settle(self, workflow_id: str) -> RunSettlement:
+        if self.settle_error is not None:
+            raise self.settle_error
+        if workflow_id in self.settlements:
+            return self.settlements[workflow_id]
+        if workflow_id in self.workflows:
+            return RunLive(self.workflows[workflow_id])
+        return RunExpired()
 
     async def stream_events(
         self, workflow_id: str, *, actor: Actor, after_sequence: int
