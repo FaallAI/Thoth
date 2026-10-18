@@ -60,8 +60,6 @@ class Settings(BaseSettings):
     THOTH_FFPROBE: str = "ffprobe"
     THOTH_TEMPORAL_TARGET: str = "localhost:7233"
     THOTH_TEMPORAL_NAMESPACE: str = "default"
-    THOTH_LEGACY_API_BASE_URL: str | None = None
-    THOTH_LEGACY_API_KEY: SecretStr | None = None
     THOTH_EDITOR_DATABASE_URL: SecretStr | None = None
     THOTH_EDITOR_PREVIEW_SIGNING_KEY: SecretStr | None = None
     THOTH_EDITOR_PREVIEW_TTL_SECONDS: Annotated[int, Field(ge=30, le=3600)] = 300
@@ -113,24 +111,8 @@ class Settings(BaseSettings):
     THOTH_MEDIA_S3_SECURE: bool = False
 
     def __init__(self, **values: object) -> None:
-        """Load settings, then reject an incomplete gateway pair without retaining inputs."""
+        """Load settings, then reject incomplete pairs without retaining inputs."""
         super().__init__(**values)
-        has_base_url = bool((self.THOTH_LEGACY_API_BASE_URL or "").strip())
-        has_api_key = bool(
-            self.THOTH_LEGACY_API_KEY is not None
-            and self.THOTH_LEGACY_API_KEY.get_secret_value().strip()
-        )
-        if has_base_url != has_api_key:
-            raise SettingsValidationError(
-                "legacy gateway base URL and API key must be configured together"
-            )
-        supplied_partial_value = (
-            self.THOTH_LEGACY_API_BASE_URL is not None or self.THOTH_LEGACY_API_KEY is not None
-        )
-        if supplied_partial_value and not (has_base_url and has_api_key):
-            raise SettingsValidationError(
-                "legacy gateway base URL and API key must be configured together"
-            )
         preview_base_url = self.THOTH_EDITOR_PREVIEW_BASE_URL
         if preview_base_url is not None and not _is_same_origin_path(preview_base_url):
             raise SettingsValidationError(
@@ -174,11 +156,6 @@ class Settings(BaseSettings):
     def openrouter_api_key(self) -> str | None:
         """The OpenRouter key for vision and Jev; attribution refuses to start without it."""
         return _secret(self.THOTH_OPENROUTER_API_KEY)
-
-    @property
-    def legacy_bridge_enabled(self) -> bool:
-        """Whether the validated legacy observation bridge can be constructed."""
-        return self.THOTH_LEGACY_API_BASE_URL is not None and self.THOTH_LEGACY_API_KEY is not None
 
     @property
     def renderer_enabled(self) -> bool:

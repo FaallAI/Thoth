@@ -16,8 +16,9 @@ bun run build
 bun run lint
 ```
 
-The existing Scout console remains on the legacy Rust API and `VITE_THOTH_API_KEY`; it is not the
-v1 workflow path. The ordinary v1 screen exposes Source, Style, Review, Progress, Decisions,
+The dashboard talks only to the Python control plane. The Discovery, Content Set, Profiles, and
+Legacy Console pages that used the Rust server were removed on 2026-10-18; they return in Python
+(see `docs/ROADMAP.md`). The ordinary v1 screen exposes Source, Style, Review, Progress, Decisions,
 Results, Cancel, and Retry rather than Scout executor flags or stdout-driven state. See
 [`docs/python-control-plane.md`](../docs/python-control-plane.md) for the four-process local stack,
 SSE reconnect rule, authorization, redaction, and adapter retirement gate.

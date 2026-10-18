@@ -13,18 +13,12 @@ const document = {
   scenes: [{ scene_id: "scene_001", role: "title", start_frame: 0, duration_in_frames: 150, clip_ids: ["clip_001"] }],
   clips: [{ kind: "text", clip_id: "clip_001", scene_id: "scene_001", track_id: "track_visual", start_frame: 0, duration_in_frames: 150, heading: "Heading", body: "Body", ownership: "ai_managed", style_slot: "title" }],
 } satisfies EditDocument;
-const content = {
-  main: { title: "Main", url: "https://example.test/main?sig=secret", image_path: "C:\\Users\\operator\\main.jpg" },
-  footage: [],
-  comments: [],
-  figures: [],
-  references: [],
-};
 const sourceKey = "c".repeat(64);
 const draft = { document_id: "document_001", source_key: sourceKey, revision: 1, created_at: "2026-09-24T18:02:00Z" };
 let inspectBodies: string[] = [];
 let createCalls = 0;
 let apiWrites: string[] = [];
+let requested: string[] = [];
 let revision = 1;
 let inventoryItems: unknown[] = [];
 let projects: unknown[] = [{ project_id: "project_001", name: "Project", created_at: "", updated_at: "" }];
@@ -34,6 +28,7 @@ const response = (value: unknown) => new Response(JSON.stringify(value), { statu
 function stubFetch() {
   globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
+    requested.push(path);
     if (init?.method && init.method !== "GET") apiWrites.push(path);
     if (path === "/api/v1/projects" && init?.method === "POST") {
       return response({ project_id: "project_002", name: "Other", created_at: "", updated_at: "" });
@@ -43,8 +38,6 @@ function stubFetch() {
     if (path.includes("/edit-documents?")) {
       return response({ items: [{ document_id: "document_001", revision: 1, updated_at: "", label: "Heading", imported: true }], next_cursor: null });
     }
-    if (path === "/api/scout/content-set/data") return response({ path: "content-set.json", exists: true, output_root: "", content, error: null });
-    if (path === "/api/scout/status") return response({ run: { status: "idle" } });
     if (path.endsWith("/studio-imports/inspect")) {
       inspectBodies.push(String(init?.body));
       return response({ project_id: "project_001", source_key: sourceKey, items: [], drafts: [draft], more_drafts: false });
@@ -64,7 +57,7 @@ function stubFetch() {
   }) as unknown as typeof fetch;
 }
 
-afterEach(() => { cleanup(); globalThis.fetch = originalFetch; inspectBodies = []; createCalls = 0; apiWrites = []; revision = 1; inventoryItems = []; projects = [{ project_id: "project_001", name: "Project", created_at: "", updated_at: "" }]; window.history.replaceState(null, "", "/"); localStorage.clear(); });
+afterEach(() => { cleanup(); globalThis.fetch = originalFetch; inspectBodies = []; createCalls = 0; apiWrites = []; requested = []; revision = 1; inventoryItems = []; projects = [{ project_id: "project_001", name: "Project", created_at: "", updated_at: "" }]; window.history.replaceState(null, "", "/"); localStorage.clear(); });
 
 test("search navigates to the selected workspace page and closes its dialog", async () => {
   stubFetch();
@@ -73,24 +66,18 @@ test("search navigates to the selected workspace page and closes its dialog", as
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Search projects, workflows…" }));
   const dialog = await screen.findByRole("dialog");
-  await user.click(within(dialog).getByRole("button", { name: /Discovery/ }));
-  expect(await screen.findByRole("heading", { level: 1, name: "Discover the next story" })).toBeDefined();
+  await user.click(within(dialog).getByRole("button", { name: /Creator Studio/ }));
+  expect(await screen.findByRole("heading", { level: 1, name: "Creator Studio" })).toBeDefined();
   expect(Boolean(screen.queryByRole("dialog"))).toBe(false);
   expect(apiWrites).toHaveLength(0);
 });
 
-async function openContentSet() {
+async function openDraft() {
   stubFetch();
+  window.history.replaceState(null, "", "/studio/project_001/document_001");
   const { default: App } = await import("./App");
   render(<App />);
-  await userEvent.setup().click(screen.getByRole("link", { name: "Content Set" }));
-  await screen.findByRole("button", { name: "Open in Studio" });
-}
-
-async function resumeDraft(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole("radio", { name: /revision 1/ }));
-  await user.click(screen.getByRole("button", { name: "Resume" }));
-  await user.click(await screen.findByRole("button", { name: "Continue in Studio" }));
+  await screen.findByLabelText("Heading");
 }
 
 test("workspace navigation identifies the active page and Creator Studio lists the project's drafts", async () => {
@@ -107,65 +94,9 @@ test("workspace navigation identifies the active page and Creator Studio lists t
   expect(inspectBodies).toHaveLength(0);
 });
 
-test("Open in Studio only inspects, and Resume opens the chosen draft in Guided Studio", async () => {
-  await openContentSet();
-  const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: "Open in Studio" }));
-  await screen.findByRole("dialog", { name: "Open in Studio — Main" });
-  expect(inspectBodies).toHaveLength(1);
-  expect(createCalls).toBe(0);
-
-  await resumeDraft(user);
-  expect(await screen.findByLabelText("Heading")).toBeDefined();
-  expect(window.location.pathname).toBe("/studio/project_001/document_001");
-  expect(createCalls).toBe(0);
-  await user.click(screen.getByRole("button", { name: "Back" }));
-  expect(await screen.findByRole("heading", { level: 1, name: "Creator Studio" })).toBeDefined();
-});
-
-test("disables opening Studio when no project is selected", async () => {
-  projects = [];
-  await openContentSet();
-  expect((screen.getByRole("button", { name: "Open in Studio" }) as HTMLButtonElement).disabled).toBe(true);
-  expect(inspectBodies).toHaveLength(0);
-});
-
-test("the inspected source carries no local path and no signed query", async () => {
-  await openContentSet();
-  await userEvent.setup().click(screen.getByRole("button", { name: "Open in Studio" }));
-  await screen.findByRole("dialog", { name: "Open in Studio — Main" });
-  expect(inspectBodies[0]).toContain("https://example.test/main");
-  for (const leak of ["C:\\", "operator", "sig=", "secret", "image_path"]) expect(inspectBodies[0]).not.toContain(leak);
-});
-
-test("switching the project while choosing never creates a draft", async () => {
-  await openContentSet();
-  const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: "Open in Studio" }));
-  await screen.findByRole("radio", { name: /revision 1/ });
-
-  await user.click(screen.getByRole("combobox", { name: "Project" }));
-  await user.click(await screen.findByRole("button", { name: /new project/i }));
-  await user.type(screen.getByLabelText("New project name"), "Other");
-  await user.click(screen.getByRole("button", { name: /^create$/i }));
-  await waitFor(() => expect(Boolean(screen.queryByLabelText("New project name"))).toBe(false));
-
-  expect(createCalls).toBe(0);
-  expect(inspectBodies).toHaveLength(1);
-});
-
-test("keeps Send to render on the legacy console path", async () => {
-  await openContentSet();
-  await userEvent.setup().click(screen.getByRole("button", { name: /Send to render/ }));
-  expect((screen.getByLabelText("Content-set path (optional)") as HTMLInputElement).value).toBe("content-set.json");
-});
-
 test("keeps naming the Studio document's project after the global project changes", async () => {
-  await openContentSet();
+  await openDraft();
   const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: "Open in Studio" }));
-  await resumeDraft(user);
-  await screen.findByLabelText("Heading");
   const header = globalThis.document.querySelector<HTMLElement>('section[aria-label="Guided Studio"] > header')!;
   expect(within(header).getAllByText("Project Project").length).toBeGreaterThan(0);
 
@@ -186,11 +117,8 @@ test("Resolve source items in Studio reopens the draft's inventory and reloads t
     item_id: "footage_000", role: "footage", order: 0, label: "Crowd reaction", platform: "tiktok",
     media_kind: "video", scene_id: "scene_001", reason: null, disposition: "unresolved", asset_id: null,
   }];
-  await openContentSet();
+  await openDraft();
   const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: "Open in Studio" }));
-  await resumeDraft(user);
-  await screen.findByLabelText("Heading");
   await user.click(screen.getByRole("button", { name: "Render" }));
 
   const blocked = await screen.findByRole("status", { name: "Source import" });
@@ -231,3 +159,29 @@ test("an unknown path lands on Workflows", async () => {
   expect(await screen.findByRole("heading", { level: 1, name: "Workflows" })).toBeDefined();
   expect(window.location.pathname).toBe("/workflows");
 });
+
+test("no page reaches the retired Rust server: only control-plane routes are requested", async () => {
+  stubFetch();
+  const { default: App } = await import("./App");
+  render(<App />);
+  const nav = screen.getByRole("navigation", { name: "Workspace" });
+  expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["Workflows", "Creator Studio", "Source Accounts"]);
+  const user = userEvent.setup();
+  await user.click(within(nav).getByRole("link", { name: "Creator Studio" }));
+  await screen.findByRole("button", { name: /Heading/ });
+  await user.click(within(nav).getByRole("link", { name: "Workflows" }));
+  await screen.findByRole("heading", { level: 1, name: "Workflows" });
+  expect(requested.length).toBeGreaterThan(0);
+  expect(requested.filter((path) => !path.startsWith("/api/v1/"))).toEqual([]);
+});
+
+for (const retired of ["/discovery", "/content-set", "/profiles", "/legacy"]) {
+  test(`the retired ${retired} page lands on Workflows`, async () => {
+    stubFetch();
+    window.history.replaceState(null, "", retired);
+    const { default: App } = await import("./App");
+    render(<App />);
+    expect(await screen.findByRole("heading", { level: 1, name: "Workflows" })).toBeDefined();
+    expect(window.location.pathname).toBe("/workflows");
+  });
+}

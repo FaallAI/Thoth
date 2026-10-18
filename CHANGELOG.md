@@ -75,13 +75,34 @@ All notable changes to this project will be documented in this file.
 | M8 | The voice CLI printed a traceback on invalid input | It prints `VoiceRejected: invalid_request`; a broken ElevenLabs body is `VoiceUnavailable("elevenlabs_bad_response")` |
 | M9 | A stale active project survived an empty project list | It is cleared |
 
+**Nothing reaches the Rust server any more (operator, 2026-10-18).** Removed on purpose, before
+Python replacements exist:
+
+- the Discovery, Content Set, Profiles and Legacy Console pages, with `dashboard/src/api.ts`, their
+  components, tests and CSS, the "My profile" menu entry and their search entries;
+- the Vite `/api` and `/health` proxies to the Rust server; only `/api/v1` to the control plane
+  remains;
+- the control plane's read-only legacy job bridge: `GET /api/v1/legacy/jobs/{id}` and `/events`,
+  `THOTH_LEGACY_API_BASE_URL` and `THOTH_LEGACY_API_KEY`.
+
+An App test asserts that every request the dashboard makes goes to `/api/v1/`; it failed against
+an injected `/api/jobs` call. The four pages are listed in `docs/ROADMAP.md` (PR #23) as features
+to rebuild in Python. The Studio import gate's Content Set mode and its projection helper stay
+for roadmap item 2. The one Rust project is imported from the Rust SQLite file, read-only, so the
+Rust server is never started.
+
+**CI fix.** The stack smoke failed because the base-install `thoth-control` imported `openai`
+through the voice adapter; `openai` is now imported lazily (`051dead`), pinned by a test that
+failed first.
+
 **Verification (after all fixes):**
 
 - `make lint` is clean.
-- `make test`: 3992 passed, 63 skipped.
+- `make test`: 3982 passed, 63 skipped (the legacy bridge tests went with it).
 - `make test-postgres`: 14 passed.
-- Dashboard: `bun test` 721/721, `tsc` 0 errors, and `bun run build` passes.
-- The OpenAPI and generated types show no drift.
+- Dashboard: `bun test` 674/674 (the removed pages' tests went with them), `tsc` 0 errors, and
+  `bun run build` passes.
+- OpenAPI and the generated types are regenerated without the legacy routes.
 - No Rust change.
 
 **Next steps:**
@@ -90,7 +111,7 @@ All notable changes to this project will be documented in this file.
   - push, PR, CI (including the stack smoke), merge, digest pin and deploy, preferably before
     about 2026-10-25 so the backfill still reads the oldest start times. The deploy should print
     `inserted=264 ... start_times≈257`;
-  - then, once, `thoth-control projects import -` with the Rust project list;
+  - then, once, `thoth-control projects import -` with the Rust project read from its SQLite file;
   - the post-deploy Edge headless UI walk.
 - **Next roadmap item:** priority 2 (Workflow → Studio with media).
 - **Follow-ups:** `docs/ROADMAP.md` (PR #23) marks priority 1 done once both merge.

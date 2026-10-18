@@ -4,46 +4,6 @@
  */
 
 export interface paths {
-    "/api/v1/legacy/jobs/{legacy_job_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Observe a legacy job during migration
-         * @description Return a safe v1 projection of one legacy Rust job, without mutations.
-         */
-        get: operations["get_legacy_job_api_v1_legacy_jobs__legacy_job_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/legacy/jobs/{legacy_job_id}/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Replay legacy job observations during migration
-         * @description Expose migration-only SSE replay with a strict, monotonically increasing cursor.
-         */
-        get: operations["stream_legacy_job_events_api_v1_legacy_jobs__legacy_job_id__events_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -3398,73 +3358,6 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    get_legacy_job_api_v1_legacy_jobs__legacy_job_id__get: {
-        parameters: {
-            query?: never;
-            header?: {
-                Authorization?: string | null;
-            };
-            path: {
-                legacy_job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkflowSummary"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    stream_legacy_job_events_api_v1_legacy_jobs__legacy_job_id__events_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                "Last-Event-ID"?: string | null;
-                Authorization?: string | null;
-            };
-            path: {
-                legacy_job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     list_projects_api_v1_projects_get: {
         parameters: {
             query?: never;
