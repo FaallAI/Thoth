@@ -553,7 +553,7 @@ function RenderSurface({
       <div className="studio-render-revision"><div><strong>{documentTitle ?? documentId}</strong><p>Saved revision {documentRevision} · {templateId} v{templateVersion}</p></div><span><CheckCircle2 size={14} />{facts.saveStatus === "saved" ? "Saved" : "Saved version"}</span></div>
       <div className="studio-render-source-card">
         <div className="studio-render-thumbnail"><Film size={32} /><strong>{documentTitle ?? documentId}</strong><span>Saved version</span>{canvas ? <small>{canvas.width} × {canvas.height}</small> : null}</div>
-        <div className="studio-render-source-details"><h3>Ready to render</h3><p>Rendering uses saved revision {documentRevision}.</p><dl><div><dt>Format</dt><dd>{state.capability?.preset_id ?? "Unavailable"}</dd></div><div><dt>Canvas</dt><dd>{canvas ? `${canvas.width} × ${canvas.height}` : "—"}</dd></div><div><dt>Duration</dt><dd>{canvas ? `${(canvas.duration_in_frames / canvas.fps).toFixed(1)}s` : "—"}</dd></div><div><dt>Frame rate</dt><dd>{canvas ? `${canvas.fps} fps` : "—"}</dd></div></dl>
+        <div className="studio-render-source-details"><h3>Ready to render</h3><p>Rendering uses saved revision {documentRevision}.</p><dl>{state.capability?.preset_id ? <div><dt>Format</dt><dd>{state.capability.preset_id}</dd></div> : null}<div><dt>Canvas</dt><dd>{canvas ? `${canvas.width} × ${canvas.height}` : "—"}</dd></div><div><dt>Duration</dt><dd>{canvas ? `${(canvas.duration_in_frames / canvas.fps).toFixed(1)}s` : "—"}</dd></div><div><dt>Frame rate</dt><dd>{canvas ? `${canvas.fps} fps` : "—"}</dd></div></dl>
       <div className="flex flex-wrap items-center gap-2">
         {monitorOnly ? (
           <p className="text-xs text-muted-foreground">

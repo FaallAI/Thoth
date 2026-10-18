@@ -1137,3 +1137,16 @@ test("captions and scene audio added in Simple mode persist in one autosave", as
     expect.objectContaining({ kind: "set_track_muted", track_id: "track_music", muted: true }),
   ]);
 });
+
+test("Studio offers no rename control it cannot honour", async () => {
+  const { GuidedStudio } = await import("./GuidedStudio");
+  const client = {
+    ...promptClientBase,
+    getEditDocument: mock(async () => document),
+    patchEditDocument: mock(async () => ({ kind: "saved" as const, document })),
+  };
+  render(<GuidedStudio client={client} projectId="project_001" documentId="document_001" onBack={() => {}} />);
+  expect(await screen.findByLabelText("Heading")).toBeDefined();
+  // Boolean(): a failing toBeNull() makes Bun print the whole element and crash (exit 127).
+  expect(Boolean(screen.queryByRole("button", { name: "Rename document unavailable" }))).toBe(false);
+});

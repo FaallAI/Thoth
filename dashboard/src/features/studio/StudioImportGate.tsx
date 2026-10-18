@@ -26,7 +26,8 @@ export type StudioImportClient = Pick<
 type StudioImportGateProps = {
   client: StudioImportClient;
   projectId: string;
-  source: StudioSourceProjection;
+  /** Absent in resolve-only mode: a draft reopened from Studio by URL, with no Content Set. */
+  source?: StudioSourceProjection;
   /** Reopened from Studio: show this draft's inventory first instead of the draft choice. */
   resumeDocumentId?: string;
   onOpen: (documentId: string) => void;
@@ -88,6 +89,7 @@ export function StudioImportGate({ client, projectId, source, resumeDocumentId, 
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    if (!source) return;
     let alive = true;
     setListFailure(undefined);
     client.inspectStudioImport(projectId, source).then(
@@ -180,7 +182,7 @@ export function StudioImportGate({ client, projectId, source, resumeDocumentId, 
   }, []);
 
   const create = async () => {
-    if (!inspection) return;
+    if (!source || !inspection) return;
     const key = pendingKey ?? crypto.randomUUID();
     setPendingKey(key);
     setBusy(true);
@@ -279,10 +281,14 @@ export function StudioImportGate({ client, projectId, source, resumeDocumentId, 
     if (!assets && assetLoad === undefined) loadAssets();
   };
 
-  const main = source.items[0];
-  const title = main?.title ? `Open in Studio — ${main.title}` : "Open in Studio";
+  const main = source?.items[0];
+  const title = !source
+    ? "Resolve source items"
+    : main?.title
+      ? `Open in Studio — ${main.title}`
+      : "Open in Studio";
   const drafts = inspection?.drafts ?? [];
-  const textScenes = source.items.filter(
+  const textScenes = (source?.items ?? []).filter(
     (item, index) => index > 0 && item.role !== "main_footage" && item.media_kind === "none" && (item.title || item.text),
   ).length;
 

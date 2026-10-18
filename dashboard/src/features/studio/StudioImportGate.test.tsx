@@ -460,3 +460,14 @@ test("reopening a draft from Studio goes straight to its inventory and creates n
   await userEvent.setup().click(screen.getByRole("button", { name: "Continue in Studio" }));
   expect(onOpen).toHaveBeenCalledWith("edoc_003");
 });
+
+test("resolve-only mode needs no source, never inspects, and opens the draft's inventory", async () => {
+  const client = fakeClient();
+  render(
+    <StudioImportGate client={client} projectId="project_001" resumeDocumentId="edoc_003" onOpen={() => {}} onClose={() => {}} />,
+  );
+  expect(await screen.findByRole("dialog", { name: "Resolve source items" })).toBeDefined();
+  expect(await screen.findByRole("list", { name: "Source inventory" })).toBeDefined();
+  expect(client.inspectStudioImport).not.toHaveBeenCalled();
+  expect(client.createStudioImport).not.toHaveBeenCalled();
+});
