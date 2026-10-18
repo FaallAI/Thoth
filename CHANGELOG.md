@@ -2,6 +2,98 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-18 - UI foundation and voice adapter (roadmap priority 1)
+
+**Spec:** `docs/superpowers/specs/2026-10-18-ui-foundation-design.md`.
+**Plan:** `docs/superpowers/plans/2026-10-18-ui-foundation.md`.
+**Branch:** `feat/ui-foundation`. Executed natively, then reviewed by a fresh reviewer.
+
+**Shipped:**
+
+- **Projects in the control plane** (migration 0012):
+  - `GET/POST /api/v1/projects` and `GET /api/v1/projects/{id}`;
+  - `thoth-control projects import -`, which reads the Rust `/api/projects` JSON and keeps the IDs.
+- **Workflow runs** (`workflow_runs` table):
+  - a row is written at start and settled when it is read, from Temporal `describe` and `result`;
+    the workflow code is unchanged;
+  - `POST/GET /api/v1/projects/{id}/workflows`, `GET /api/v1/workflows?unassigned=true` and
+    `PATCH /api/v1/workflows/{id}`;
+  - an expired history falls back to the stored summary, or to one built from `workflow_reports`.
+- **Backfill.** `thoth-control workflow backfill` runs on every deploy. Run times come from
+  Temporal start times: the 2026-10-16 import stamped 259 of the 264 source reports with the import
+  day. Temporal still held 257 of the 264 on 2026-10-18, the oldest from 2026-09-25 and expiring
+  about 2026-10-25.
+- **Fix: workflow media downloads.** They answered 404 since PR #19/#21. They are now served from
+  the media store, with byte ranges.
+- **Studio documents per project.** `GET /api/v1/projects/{id}/edit-documents`, labelled by the
+  first text heading.
+- **Voice adapter** (`thoth_control_plane.voice`):
+  - providers `elevenlabs` (with word timings) and `openai_compatible` (for VoiceStudio and
+    similar servers);
+  - `thoth-control voice say`;
+  - edge-tts is excluded by operator decision.
+- **Dashboard:**
+  - React Router v7 with routes `/workflows`, `/workflows/:id`, `/studio` and
+    `/studio/:project/:doc`;
+  - the active project lives in the control plane and is remembered per browser;
+  - the Workflows list with an unassigned section and a move action;
+  - artifact downloads;
+  - the Studio draft list and the resolve-only import gate.
+- **Clean-up:** removed the metric placeholders, the local-only "New workflow" draft dialog, the
+  unavailable review option, the disabled rename button and the "Format: Unavailable" row. The
+  wizard copy now says "From source to content set". The Vite `/api` proxy points at 8787.
+- **Stack smoke:** gains `project_created_and_listed`, `project_workflows_listed` and
+  `edit_documents_listed`.
+
+**Rulings:**
+
+- P1 and P6 are listed in the plan.
+- Execution rulings live in the ledger. Among them:
+  - `StoredRun` sits in the domain;
+  - `history_expired` uses `default_factory`, so it stays optional in the generated TypeScript;
+  - `ProjectSwitcher` takes its client as a prop;
+  - happy-dom is registered with a URL.
+
+**Final review:** Critical 0, Important 2, Minor 9. Five findings were fixed with RED→GREEN tests:
+
+| Finding | Problem | Fix |
+|---|---|---|
+| I1 | Any settle failure turned the run listing into a 500 | A broad catch per row |
+| I2 | Settling had no time bound | 3 s per row |
+| M1 | "Last update" showed when the run was viewed | It takes the run's own time; unchanged reads write nothing |
+| M3 | Downloads were saved without an extension | The extension of the stored object is kept |
+| M6 | A failed Unassigned list vanished silently | The failure is shown |
+
+**Deferred minors:**
+
+- M2: a malformed cursor answers 500 or 503 instead of 422.
+- M4: the resolve-only gate's loading and failure states.
+- M5: an expired run's detail status can disagree with a known row status.
+- M7: the backfill re-asks Temporal about every workflow on each deploy.
+- M8: voice CLI tracebacks on invalid input.
+- M9: a stale active project survives an empty project list.
+
+**Verification:**
+
+- `make lint` is clean.
+- `make test`: 3985 passed, 62 skipped.
+- `make test-postgres`: 13 passed.
+- Dashboard: `bun test` 718/718, `tsc` 0 errors, and `bun run build` passes.
+- The OpenAPI and generated types show no drift.
+- No Rust change.
+
+**Next steps:**
+
+- **Operator gates, each needing its own authorization:**
+  - push, PR, CI (including the stack smoke), merge, digest pin and deploy, preferably before
+    about 2026-10-25 so the backfill still reads the oldest start times. The deploy should print
+    `inserted=264 ... start_times≈257`;
+  - then, once, `thoth-control projects import -` with the Rust project list;
+  - the post-deploy Edge headless UI walk.
+- **Next roadmap item:** priority 2 (Workflow → Studio with media).
+- **Follow-ups:** the deferred minors above; `docs/ROADMAP.md` (PR #23) marks priority 1 done once
+  both merge.
+
 ## 2026-10-17 - PR #20 and PR #21 deployed; the artifact volume is gone
 
 **PR #20 deployed** (review minors of sub-project 1).
