@@ -1,0 +1,25 @@
+# The dashboard behind Caddy (spec 2026-10-19). An overlay like the renderer: the base stack
+# still parses without it.
+services:
+  web:
+    image: ${THOTH_WEB_IMAGE:?set digest-qualified THOTH_WEB_IMAGE}
+    user: "10001:10001"
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      THOTH_SITE_ADDRESS: ${THOTH_SITE_ADDRESS:-:8088}
+    read_only: true
+    tmpfs:
+      - /data:uid=10001,gid=10001,mode=0700
+      - /config:uid=10001,gid=10001,mode=0700
+    cap_drop: [ALL]
+    ports:
+      - "127.0.0.1:${THOTH_WEB_PORT:-8088}:8088"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8088/"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+    networks: [stage1-private]

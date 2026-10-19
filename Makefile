@@ -51,8 +51,8 @@ smoke-parity: ## Offline parity smoke; IMAGE=<image>
 smoke-fallback: ## Offline controlled-fallback smoke; IMAGE=<image>
 	bash docker/test-controlled-fallback-offline.sh $(IMAGE)
 
-smoke-renderer: ## Offline renderer smoke; IMAGE=<image> RENDERER_IMAGE=<image>
-	bash docker/test-renderer-offline.sh $(IMAGE) $(RENDERER_IMAGE)
+smoke-renderer: ## Offline renderer + web smoke; IMAGE=<image> RENDERER_IMAGE=<image> WEB_IMAGE=<image>
+	bash docker/test-renderer-offline.sh $(IMAGE) $(RENDERER_IMAGE) $(WEB_IMAGE)
 
 deploy: ## Deploy the stack on the THOTH_IMAGE pinned in .env.stage1.local
 	bash scripts/ops/deploy-stage1.sh

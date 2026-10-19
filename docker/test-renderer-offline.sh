@@ -9,13 +9,14 @@ set -euo pipefail
 # Generated credentials never reach another account on the runner.
 umask 077
 
-if [ "$#" -ne 2 ]; then
-    echo "usage: docker/test-renderer-offline.sh IMAGE RENDERER_IMAGE" >&2
+if [ "$#" -ne 3 ]; then
+    echo "usage: docker/test-renderer-offline.sh IMAGE RENDERER_IMAGE WEB_IMAGE" >&2
     exit 64
 fi
 
 image="$1"
 renderer_image="$2"
+web_image="$3"
 
 #: Only projects with this prefix are ever torn down by this harness.
 project_prefix=stage1-renderer-smoke
@@ -92,6 +93,7 @@ fail() {
     # Renderer diagnostics are fixed codes, so they carry no caller payload.
     echo "--- renderer (tail) ---" >&2
     compose logs --no-color --no-log-prefix --tail 40 remotion-renderer >&2 || true
+    compose logs --no-color --no-log-prefix --tail 40 web >&2 || true
     exit 1
 }
 
@@ -109,6 +111,7 @@ asset_id="asset_$(openssl rand -hex 8)"
 
 {
     echo "SMOKE_IMAGE=${image}"
+    echo "SMOKE_WEB_IMAGE=${web_image}"
     echo "SMOKE_RENDERER_IMAGE=${renderer_image}"
     echo "SMOKE_DB_PASSWORD=${db_password}"
     echo "SMOKE_API_KEY=${api_key}"
@@ -228,6 +231,25 @@ services:
       timeout: 5s
       retries: 40
       start_period: 10s
+
+  web:
+    image: ${SMOKE_WEB_IMAGE:?}
+    user: "10001:10001"
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      THOTH_SITE_ADDRESS: ":8088"
+    read_only: true
+    tmpfs:
+      - /data:uid=10001,gid=10001,mode=0700
+      - /config:uid=10001,gid=10001,mode=0700
+    cap_drop: [ALL]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8088/"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   remotion-renderer:
     image: ${SMOKE_RENDERER_IMAGE:?}
@@ -734,6 +756,38 @@ echo project_created_and_listed=true
 echo project_workflows_listed=true
 driver documents "$document_id" >/dev/null || fail edit_documents_listed
 echo edit_documents_listed=true
+
+# --- the web container: SPA fallback, API behind sign-in, developer tokens (spec 2026-10-19) ---
+compose up --detach --wait --wait-timeout "$start_timeout" web >/dev/null 2>&1 \
+    || fail web_serves_the_spa_on_deep_paths
+#: Status (and, with BODY=1, body) of one request to the web container, from the api container.
+web() {
+    compose exec -T --env BODY="${BODY:-0}" api /opt/thoth/python/.venv/bin/python -c '
+import os, sys, urllib.error, urllib.request
+request = urllib.request.Request("http://web:8088" + sys.argv[1], method=sys.argv[2] if len(sys.argv) > 2 else "GET")
+if len(sys.argv) > 3:
+    request.add_header("Authorization", "Bearer " + sys.argv[3])
+try:
+    with urllib.request.urlopen(request, timeout=10) as response:
+        status, body = response.status, response.read().decode()
+except urllib.error.HTTPError as error:
+    status, body = error.code, ""
+print(body if os.environ.get("BODY") == "1" else status)
+' "$@"
+}
+BODY=1 web /studio/p/d | grep -q '<div id="root">' || fail web_serves_the_spa_on_deep_paths
+echo web_serves_the_spa_on_deep_paths=true
+[ "$(web /api/v1/projects)" = "403" ] || fail web_requires_a_session
+echo web_requires_a_session=true
+dev_token=$(compose exec -T api thoth-control tokens create --email smoke@thoth.test --name smoke --scope admin | tr -d '\r') \
+    || fail developer_token_accepted
+[ "$(web /api/v1/projects GET "$dev_token")" = "200" ] || fail developer_token_accepted
+echo developer_token_accepted=true
+token_id=$(BODY=1 web /api/v1/me/tokens GET "$dev_token" | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["token_id"])') \
+    || fail developer_token_revoked
+[ "$(web "/api/v1/me/tokens/$token_id" DELETE "$dev_token")" = "204" ] || fail developer_token_revoked
+[ "$(web /api/v1/projects GET "$dev_token")" = "403" ] || fail developer_token_revoked
+echo developer_token_revoked=true
 
 # --- one active render at a time, and cancellation ---------------------------
 driver seed "$long_document_id" "$long_frames" none >/dev/null || fail second_render_is_refused
