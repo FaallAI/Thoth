@@ -16,8 +16,11 @@ import typer
 from pydantic import ValidationError
 
 from thoth_control_plane.application import ApprovalSubmission, RetryRequest
+from thoth_control_plane.auth.models import ALL_SCOPES, CreateToken, Principal
+from thoth_control_plane.auth.service import SignInService
 from thoth_control_plane.config import Settings, SettingsValidationError
 from thoth_control_plane.domain import WorkflowEvent, WorkflowRequest
+from thoth_control_plane.infrastructure.account_store import AccountStore
 from thoth_control_plane.infrastructure.media_store import MediaStoreUnavailable
 from thoth_control_plane.infrastructure.project_store import ProjectStore, ProjectStoreUnavailable
 from thoth_control_plane.infrastructure.report_store import ReportStore, ReportStoreUnavailable
@@ -162,6 +165,42 @@ def projects_import(
     typer.echo(f"imported={imported} present={present} invalid={invalid}")
     if invalid:
         raise typer.Exit(1)
+
+
+tokens_app = typer.Typer(no_args_is_help=True)
+app.add_typer(tokens_app, name="tokens")
+
+
+@tokens_app.command("create")
+def tokens_create(
+    email: Annotated[
+        str, typer.Option(help="The developer's email; the user is created if missing")
+    ],
+    name: Annotated[str, typer.Option(help="What the token is for, e.g. vite or ci")],
+    scope: Annotated[str, typer.Option(help="read, write or admin")] = "write",
+    days: Annotated[int, typer.Option(help="Lifetime in days, 1 to 365")] = 90,
+) -> None:
+    """Create a personal developer token (spec 3.3). Prints the token once and nothing else."""
+    from pydantic import ValidationError
+
+    database_url = Settings().THOTH_EDITOR_DATABASE_URL
+    if database_url is None:
+        raise typer.BadParameter("THOTH_EDITOR_DATABASE_URL must be configured")
+    address = email.strip().lower()
+    try:
+        request = CreateToken.model_validate({"name": name, "scope": scope, "days": days})
+        if "@" not in address:
+            raise ValueError("email")
+    except (ValidationError, ValueError):
+        typer.echo("invalid_request")
+        raise typer.Exit(1) from None
+    store = AccountStore.connect(database_url.get_secret_value())
+    account = store.ensure_user(address, address.partition("@")[0])
+    principal = Principal(
+        account.user_id, account.workspace_id, ALL_SCOPES, "session", account.email
+    )
+    created = asyncio.run(SignInService(store, None, None).create_token(principal, request))
+    typer.echo(created.secret)
 
 
 voice_app = typer.Typer(no_args_is_help=True)

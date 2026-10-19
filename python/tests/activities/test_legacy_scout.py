@@ -407,6 +407,7 @@ def test_no_fastapi_request_model_exposes_activity_mode() -> None:
         "CreatePromptProposalRequest",
         "CreateRenderJobRequest",
         "CreateStudioImport",
+        "CreateToken",
         "EditDocumentPatch",
         "MoveWorkflow",
         "ProxyImportRequest",

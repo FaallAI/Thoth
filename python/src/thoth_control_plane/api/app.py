@@ -23,6 +23,7 @@ from thoth_control_plane.api.routes.edit_documents import router as edit_documen
 from thoth_control_plane.api.routes.editor_assets import router as editor_asset_router
 from thoth_control_plane.api.routes.health import router as health_router
 from thoth_control_plane.api.routes.internal_render_jobs import router as internal_render_router
+from thoth_control_plane.api.routes.me import router as me_router
 from thoth_control_plane.api.routes.projects import router as project_router
 from thoth_control_plane.api.routes.prompt_lab import router as prompt_lab_router
 from thoth_control_plane.api.routes.prompt_proposals import router as prompt_proposal_router
@@ -482,6 +483,7 @@ def create_app(
     app.include_router(auth_router)
     app.include_router(health_router)
     app.include_router(project_router, prefix="/api/v1")
+    app.include_router(me_router, prefix="/api/v1")
     app.include_router(workflow_run_router, prefix="/api/v1")
     app.include_router(workflow_router, prefix="/api/v1")
     app.include_router(edit_document_router, prefix="/api/v1")
