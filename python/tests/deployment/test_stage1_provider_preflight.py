@@ -32,7 +32,7 @@ VALID_CONTENT = f"THOTH_NOVITA_API_KEY={CANARY_KEY}\nTHOTH_SUBTITLE_OCR_MODEL={V
 REPOSITORY_ROOT = Path("C:/Users/operator/checkouts/CLIPPER")
 
 VALID_LOCAL_ENVIRONMENT = {
-    "THOTH_IMAGE": "ghcr.io/muhfalihr/thoth@sha256:" + "a1" * 32,
+    "THOTH_IMAGE": "ghcr.io/faallai/thoth@sha256:" + "a1" * 32,
     "THOTH_STAGE1_DATA_ROOT": "/home/operator/thoth-stage1",
     "THOTH_STAGE1_ACTIVITY_MODE": "python_tiktok_with_legacy_fallback",
     "THOTH_CONTROL_PLANE_API_KEY": "local-api-key",

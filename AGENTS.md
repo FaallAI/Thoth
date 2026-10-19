@@ -67,7 +67,7 @@ Write the same next steps into that work's `CHANGELOG.md` entry and its active c
 - **Shell pathing:** In Bash use forward slashes (`C:/Users/...`) and `rg`/`tail`. In PowerShell use backslashes and `Select-Object -Last N`.
 - **Large file access:** `src/analyze/service.rs` (~2400 lines) and generated JSON/HTML under `.understand-anything/tmp/`, `test/scraper/*.html`, and `arch-input.json` exceed read caps; use offset/limit, grep, or targeted scripts.
 - **Issue tracker & domain docs:**
-  - Issues live in GitHub (`muhfalihr/Thoth`) via `gh` CLI. See [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md).
+  - Issues live in GitHub (`FaallAI/Thoth`) via `gh` CLI. See [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md).
   - Canonical triage labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md).
   - Domain docs: Single-context `CONTEXT.md` plus `docs/adr/` at the repo root. See [`docs/agents/domain.md`](docs/agents/domain.md).
 

@@ -13,7 +13,7 @@ from thoth_control_plane.operations.stage1_local_preflight import (
 runner = CliRunner()
 
 REPOSITORY_ROOT = Path("C:/Users/operator/checkouts/CLIPPER")
-VALID_IMAGE = "ghcr.io/muhfalihr/thoth@sha256:" + "a1" * 32
+VALID_IMAGE = "ghcr.io/faallai/thoth@sha256:" + "a1" * 32
 
 VALID_ENVIRONMENT = {
     "THOTH_IMAGE": VALID_IMAGE,
@@ -46,13 +46,13 @@ def test_activity_mode_is_optional_and_defaults_to_the_approved_fallback() -> No
 @pytest.mark.parametrize(
     "image",
     [
-        "ghcr.io/muhfalihr/thoth:latest",
-        "ghcr.io/muhfalihr/thoth:sha-1c904a7",
-        "ghcr.io/muhfalihr/thoth",
-        "ghcr.io/muhfalihr/thoth@sha256:" + "A1" * 32,
-        "ghcr.io/muhfalihr/thoth@sha256:" + "a1" * 31,
-        "ghcr.io/muhfalihr/other@sha256:" + "a1" * 32,
-        "docker.io/muhfalihr/thoth@sha256:" + "a1" * 32,
+        "ghcr.io/faallai/thoth:latest",
+        "ghcr.io/faallai/thoth:sha-1c904a7",
+        "ghcr.io/faallai/thoth",
+        "ghcr.io/faallai/thoth@sha256:" + "A1" * 32,
+        "ghcr.io/faallai/thoth@sha256:" + "a1" * 31,
+        "ghcr.io/faallai/other@sha256:" + "a1" * 32,
+        "docker.io/faallai/thoth@sha256:" + "a1" * 32,
         VALID_IMAGE + " extra",
         "",
     ],
@@ -118,7 +118,7 @@ def test_missing_or_placeholder_secret_is_rejected(secret: str, value: str) -> N
 
 def test_failure_messages_never_echo_the_offending_value() -> None:
     values = _environment(
-        THOTH_IMAGE="ghcr.io/muhfalihr/thoth:secret-looking-tag",
+        THOTH_IMAGE="ghcr.io/faallai/thoth:secret-looking-tag",
         THOTH_CONTROL_PLANE_API_KEY="super-secret-api-key",
     )
 
@@ -180,7 +180,7 @@ def test_preflight_command_accepts_an_approved_environment(tmp_path: Path) -> No
 def test_preflight_command_rejects_a_mutable_image_without_echoing_values(tmp_path: Path) -> None:
     env_file = _write_environment(
         tmp_path,
-        THOTH_IMAGE="ghcr.io/muhfalihr/thoth:latest",
+        THOTH_IMAGE="ghcr.io/faallai/thoth:latest",
         THOTH_CONTROL_PLANE_API_KEY="super-secret-api-key",
     )
 
