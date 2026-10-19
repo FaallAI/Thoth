@@ -2,6 +2,51 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-19 - Move to the FaallAI organization, first real sign-in, and a code-cooldown fix
+
+**Organization move:**
+
+- The repository moved from `muhfalihr/Thoth` to `FaallAI/Thoth` (org renamed from
+  `FallAI-lab`); open PRs moved with it and `origin` points at the org.
+- PR #28 (`b196c84`) moved every image reference to `ghcr.io/faallai/*`. The org first had to
+  allow public packages (Settings → Packages → Package creation) before the three packages
+  could be made public; new GHCR packages are private by default.
+- The Free plan has no branch protection or rulesets for private repositories. A local
+  `.git/hooks/pre-push` refuses any push, force-push or deletion of `master` instead; merges
+  go through pull requests on GitHub.
+
+**Deploy (operator-authorized):** `thoth@sha256:90546ffa…`, `thoth-web@sha256:c30d2957…` and
+`thoth-remotion-renderer@sha256:ffff44bb…` from the `master` build of `b196c84`. All services
+healthy with zero restarts; `/auth/providers` returns `["github"]` with
+`THOTH_AUTH_GITHUB_ORG=FaallAI`.
+
+**First real sign-in:** succeeded through GitHub, then an emailed code. Two setup faults on the
+way, both outside the code:
+
+- the env carried the client ID of a different OAuth App than the one given the redirect URI
+  (GitHub now names the field "Redirect URIs");
+- Gmail drops the SMTP connection at login for an account password; it needs an App Password.
+
+**Fixed:** a code that failed to send still started the 60-second resend cooldown and counted
+toward the daily limit, so the retry after an SMTP failure answered "A code was sent less than a
+minute ago" although nothing was sent. A failed send now discards its challenge
+(`AccountStore.discard_challenge`). Test:
+`test_a_failed_send_does_not_start_the_cooldown` (RED → GREEN).
+
+**Verification:** `tests/auth` 51 passed, `tests/infrastructure` 400 passed (34 Postgres skips,
+covered by `make test-postgres` 16 passed), `tests/api` 354 passed, `make lint` clean.
+
+**Merged and deployed:** PR #29 merged as `08df791`; CI passed on the PR and on `master`. The
+deploy pins `thoth@sha256:5b6a521f…`, `thoth-web@sha256:e936455e…` and
+`thoth-remotion-renderer@sha256:be598893…`; every service is healthy with zero restarts.
+
+**Next steps:**
+
+- the Studio media preview check under the CSP needs one editor asset. A workflow run does not
+  create one: workflow media reaches Studio only with roadmap item 2 (Workflow to Studio);
+- operator web steps: require 2FA in the FaallAI organization and upload its avatar;
+- SaaS sub-project 2: per-user isolated workspaces (multi-tenancy).
+
 ## 2026-10-19 - PR #26 and PR #27 merged; accounts and the web container deployed
 
 **PR #26** (the three UI walk defects) merged as `bb7e61c`. There was nothing to deploy for it,
@@ -47,6 +92,7 @@ because no service serves the dashboard.
   from `thoth-control tokens create`.
 - **After sign-in is set up:** the first real sign-in, and a Studio media preview under the CSP.
 - **Next:** SaaS sub-project 2 (an isolated workspace per user).
+
 
 ## 2026-10-19 - Accounts, sign-in and developer access (SaaS sub-project 1)
 

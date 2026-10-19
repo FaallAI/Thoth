@@ -140,7 +140,7 @@ def test_container_workflow_smoke_never_starts_the_live_services() -> None:
 
 def test_container_workflow_pins_gates_tags_platform_and_digest_summary() -> None:
     workflow = _repo_text(".github/workflows/container-image.yml")
-    assert "REGISTRY_IMAGE: ghcr.io/muhfalihr/thoth" in workflow
+    assert "REGISTRY_IMAGE: ghcr.io/faallai/thoth" in workflow
     # From python/, so pytest reads python/pyproject.toml (asyncio_mode and markers).
     assert (
         "working-directory: python\n"
@@ -174,7 +174,7 @@ def test_container_workflow_pins_gates_tags_platform_and_digest_summary() -> Non
 #: The renderer is a second image from a second Dockerfile, so it gets a second
 #: repository. One repository holding two unrelated runtimes would make a digest
 #: ambiguous about which one it names.
-RENDERER_REGISTRY = "ghcr.io/muhfalihr/thoth-remotion-renderer"
+RENDERER_REGISTRY = "ghcr.io/faallai/thoth-remotion-renderer"
 
 
 def test_container_workflow_publishes_the_renderer_as_its_own_image() -> None:
@@ -183,7 +183,7 @@ def test_container_workflow_publishes_the_renderer_as_its_own_image() -> None:
 
     assert f"RENDERER_REGISTRY_IMAGE: {RENDERER_REGISTRY}" in workflow
     # The existing application image keeps its repository and its identity.
-    assert "REGISTRY_IMAGE: ghcr.io/muhfalihr/thoth\n" in workflow
+    assert "REGISTRY_IMAGE: ghcr.io/faallai/thoth\n" in workflow
     assert "file: Dockerfile.renderer" in publication
     assert "images: ${{ env.RENDERER_REGISTRY_IMAGE }}" in publication
     assert "org.opencontainers.image.revision=${{ github.sha }}" in publication
@@ -354,7 +354,7 @@ def test_operations_documentation_requires_digest_pinning_and_runtime_injection(
     documentation = _repo_text("docs/python-control-plane.md")
     digest_prompt = 'Read-Host "Paste the sha256 digest from the successful workflow summary"'
     assert "### Stage 1 compatibility container" in documentation
-    assert "ghcr.io/muhfalihr/thoth@" in documentation
+    assert "ghcr.io/faallai/thoth@" in documentation
     assert digest_prompt in documentation
     assert "/var/lib/thoth/artifacts" in documentation
     assert "thoth_control_plane.api.app:create_app" in documentation
@@ -507,7 +507,7 @@ def test_blueprint_does_not_pin_a_release_digest_it_cannot_keep_current() -> Non
     """
     blueprint = _repo_text("BLUEPRINT.md")
     prose = " ".join(blueprint.split())
-    assert not re.search(r"ghcr\.io/muhfalihr/thoth@sha256:[0-9a-f]{64}", blueprint)
+    assert not re.search(r"ghcr\.io/faallai/thoth@sha256:[0-9a-f]{64}", blueprint)
     assert "read from the Actions summary of the exact commit being deployed" in prose
 
 
@@ -633,8 +633,7 @@ def test_published_digest_is_proved_by_the_same_harness() -> None:
     smoke = workflow[workflow.index("  stack-smoke:") :]
 
     assert (
-        "THOTH_IMAGE_REF: ghcr.io/muhfalihr/thoth@${{ needs.publish-image.outputs.digest }}"
-        in smoke
+        "THOTH_IMAGE_REF: ghcr.io/faallai/thoth@${{ needs.publish-image.outputs.digest }}" in smoke
     )
     assert 'bash docker/test-cdp-offline.sh "${THOTH_IMAGE_REF}"' in smoke
     assert "up -d --wait postgresql editor-postgresql temporal temporal-ui api" in smoke

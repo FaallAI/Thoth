@@ -28,7 +28,7 @@ def test_local_stage1_secret_and_evidence_inputs_are_git_safe() -> None:
     assert ".env.stage1.local" in gitignore
     assert "stage1-local-observations*.jsonl" in gitignore
     assert "stage1-local-reports/" in gitignore
-    assert "THOTH_IMAGE=ghcr.io/muhfalihr/thoth@sha256:" + "0" * 64 in env_example
+    assert "THOTH_IMAGE=ghcr.io/faallai/thoth@sha256:" + "0" * 64 in env_example
     assert "THOTH_STAGE1_DATA_ROOT=/absolute/path/outside/repository/thoth-stage1" in env_example
     assert "THOTH_CONTROL_PLANE_API_KEY=replace-with-local-secret" in env_example
     assert "THOTH_POSTGRES_PASSWORD=replace-with-local-secret" in env_example
@@ -567,7 +567,7 @@ def test_renderer_inputs_are_placeholders_in_the_example_environment() -> None:
     env_example = _env_file()
 
     assert (
-        "THOTH_RENDERER_IMAGE=ghcr.io/muhfalihr/thoth-remotion-renderer@sha256:" + "0" * 64
+        "THOTH_RENDERER_IMAGE=ghcr.io/faallai/thoth-remotion-renderer@sha256:" + "0" * 64
         in env_example
     )
     assert "THOTH_RENDERER_INTERNAL_CREDENTIAL=replace-with-local-secret" in env_example

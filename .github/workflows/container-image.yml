@@ -18,9 +18,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  REGISTRY_IMAGE: ghcr.io/muhfalihr/thoth
-  RENDERER_REGISTRY_IMAGE: ghcr.io/muhfalihr/thoth-remotion-renderer
-  WEB_REGISTRY_IMAGE: ghcr.io/muhfalihr/thoth-web
+  REGISTRY_IMAGE: ghcr.io/faallai/thoth
+  RENDERER_REGISTRY_IMAGE: ghcr.io/faallai/thoth-remotion-renderer
+  WEB_REGISTRY_IMAGE: ghcr.io/faallai/thoth-web
 
 jobs:
   quality:
@@ -387,9 +387,9 @@ jobs:
       packages: read
     env:
       COMPOSE_FILE_ARGS: --env-file stage1.ci.env -f compose.stage1.local.yml
-      THOTH_IMAGE_REF: ghcr.io/muhfalihr/thoth@${{ needs.publish-image.outputs.digest }}
-      THOTH_RENDERER_IMAGE_REF: ghcr.io/muhfalihr/thoth-remotion-renderer@${{ needs.publish-image.outputs.renderer_digest }}
-      THOTH_WEB_IMAGE_REF: ghcr.io/muhfalihr/thoth-web@${{ needs.publish-image.outputs.web_digest }}
+      THOTH_IMAGE_REF: ghcr.io/faallai/thoth@${{ needs.publish-image.outputs.digest }}
+      THOTH_RENDERER_IMAGE_REF: ghcr.io/faallai/thoth-remotion-renderer@${{ needs.publish-image.outputs.renderer_digest }}
+      THOTH_WEB_IMAGE_REF: ghcr.io/faallai/thoth-web@${{ needs.publish-image.outputs.web_digest }}
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

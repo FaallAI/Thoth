@@ -29,7 +29,7 @@ import { platformForUrl } from '../url.ts';
 
 // Honest, identifying UA per Reddit's API access guidelines — never a
 // spoofed browser string (Ruling 10 forbids fingerprint impersonation here).
-const REDDIT_USER_AGENT = 'CLIPPER-scout/1.0 (content acquisition; https://github.com/muhfalihr/CLIPPER)';
+const REDDIT_USER_AGENT = 'CLIPPER-scout/1.0 (content acquisition; https://github.com/FaallAI/Thoth)';
 
 interface RawRedditComment {
   idx: number;

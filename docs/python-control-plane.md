@@ -72,14 +72,14 @@ history, logs, diagnostics, screenshots, reports, or verification output.
 ### Stage 1 compatibility container
 
 GitHub Actions builds the Linux AMD64 compatibility image at
-`ghcr.io/muhfalihr/thoth`. A branch or version tag is only a discovery aid; deployment and the
+`ghcr.io/faallai/thoth`. A branch or version tag is only a discovery aid; deployment and the
 Stage 1 change record must use the immutable digest printed in the successful **Container image**
 workflow summary. In PowerShell, pull the selected build without putting runtime secrets in the
 command:
 
 ```powershell
 $ImageDigest = Read-Host "Paste the sha256 digest from the successful workflow summary"
-$Image = "ghcr.io/muhfalihr/thoth@$ImageDigest"
+$Image = "ghcr.io/faallai/thoth@$ImageDigest"
 docker pull $Image
 docker image inspect $Image --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}'
 ```

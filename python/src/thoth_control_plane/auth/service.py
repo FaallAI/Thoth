@@ -410,7 +410,8 @@ class SignInService:
         try:
             await self._mailer.send(account.email, CODE_SUBJECT, body)
         except MailNotSent:
-            await self._run(self._store.consume_challenge, challenge_id)
+            # Nothing reached the user: no cooldown and no daily count for this attempt.
+            await self._run(self._store.discard_challenge, challenge_id)
             await self._event(
                 "email_code", "failed", user_id=account.user_id, detail_code="code_not_sent"
             )

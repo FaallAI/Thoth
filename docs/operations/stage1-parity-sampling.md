@@ -144,7 +144,7 @@ holds a `reference-attempt.json` for the same reason.
 SAMPLE_DIR="$HOME/thoth-stage1-parity/<sample-id>"
 export THOTH_PARITY_SAMPLE_DIR="$SAMPLE_DIR"
 export THOTH_PARITY_REFERENCE_ID=<reference-id>
-export THOTH_PARITY_IMAGE=ghcr.io/muhfalihr/thoth@sha256:<the window's pinned digest>
+export THOTH_PARITY_IMAGE=ghcr.io/faallai/thoth@sha256:<the window's pinned digest>
 mkdir -p "$SAMPLE_DIR/python/reports" "$SAMPLE_DIR/scout-output" "$SAMPLE_DIR/reference-input"
 chmod 700 "$SAMPLE_DIR"
 # Write the approved fixture URL into "$SAMPLE_DIR/url.txt" with an editor, then:
