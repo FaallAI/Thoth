@@ -46,20 +46,46 @@ signed in, so no one hit it yet.
 
 **Verification:**
 
-- Python: full suite 4094 passed, 68 skipped (the one failure of the first run, the explicit
-  migration list missing `0014`, is fixed in `55b0663`); `make test-postgres` 19 passed, three
-  runs in a row; `make lint` clean.
+- Python: full suite 4102 passed, 68 skipped (after the review fixes below); `make test-postgres`
+  19 passed, three runs in a row; `make lint` clean.
 - Dashboard: `bun test` 697 passed, `tsc --noEmit` 0 errors, `bun run build` succeeded.
 - Not run locally: the stack smoke. It needs the images this branch publishes, so CI's stack smoke
   at the push gate is the run of record and must print `workspaces_are_isolated=true`.
+
+**Final review (fresh reviewer, Opus):** ready to merge with fixes; no path found by which one
+workspace reads or changes another's data. Fixed in one pass, each with a test that failed first:
+
+- **Critical:** the stack smoke uploaded its asset before seeding, so the upload hit the new guard
+  and the smoke would have died in CI. The driver now registers its project (`ensure_project()`)
+  in both `upload()` and `seed()` (`test_the_smoke_registers_its_project_before_any_project_route`).
+- **Important:** `/api/v1/me` and `/auth/me` answered 500 on a server without the account store
+  (the new required fields were missing). Both use one `accountless_me()`
+  (`test_me_answers_without_an_account_store`).
+- **Important:** the workflow events stream checked the owner only after its 200 had started, so
+  another workspace got a broken 200 stream instead of 404 (no data was sent). The route now
+  authorizes before streaming. Found by the new parameterised test of every workflow action from
+  another workspace (`test_no_workflow_action_reaches_another_workspaces_run`, plus
+  `test_a_workflow_cannot_start_under_another_workspaces_project`).
+- **Important (no code):** project-scoped rows without a `projects` row would become unreachable.
+  Checked on the live database before deploy: all 16 tables with `project_id` have 0 orphans.
+
+**Deferred minors:** a stale docstring in `api/dependencies.py`; the spec names the projects
+index `(workspace_id, created_at)` while the migration uses `(workspace_id, updated_at DESC)` (the
+better one); a user with no membership gets a dead session with no message instead of
+`not_allowed`; `create_workspace_token` reads the first membership's role instead of
+`principal.role`; the dashboard briefly shows "Create your first project" before the project list
+loads.
 
 **Rulings:** recorded in the plan's SDD ledger; the ones a reviewer should weigh: the smoke runs
 in CI rather than locally, and the roadmap marks sub-project 2 "built, awaiting deploy".
 
 **Next steps:**
 
-- **Operator gates:** push, PR, CI (stack smoke included), merge, then a deploy (migration `0014`
-  applies; nothing is dropped).
+- **Operator gates:** push, PR, CI (the stack smoke must print `render_output_is_h264_mp4=true`
+  and `workspaces_are_isolated=true`), merge, then a deploy (migration `0014` applies; nothing is
+  dropped). Rerun the orphan check right before the deploy: for every table with a `project_id`
+  column, `SELECT count(DISTINCT project_id) … WHERE project_id NOT IN (SELECT project_id FROM
+  projects)` must be 0.
 - **Operator check after the deploy:** a second real account (another member of the GitHub
   organization) signs in and sees an empty workspace, and the operator still sees every project.
 - **SaaS sub-project 3, metering:** count workflows and videos per workspace, estimate their cost,

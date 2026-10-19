@@ -109,3 +109,24 @@ async def test_workspace_tokens_are_refused_until_the_operator_enables_them(gate
             "/api/v1/workspace/tokens", json={"name": "partner"}, headers=SAME_SITE
         )
         assert made.status_code == 201 and made.json()["token"]["owner_kind"] == "workspace"
+
+
+async def test_me_answers_without_an_account_store(gateway) -> None:
+    import httpx
+
+    from thoth_control_plane.api import create_app
+    from thoth_control_plane.config import Settings
+
+    app = create_app(Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        for path in ("/api/v1/me", "/auth/me"):
+            response = await client.get(path, headers={"Authorization": "Bearer test-key"})
+            assert response.status_code == 200, path
+            body = response.json()
+            assert body["workspace"] == {
+                "workspace_id": "ws_bootstrap",
+                "name": "ws_bootstrap",
+                "role": None,
+            }
+            assert body["platform_admin"] is True

@@ -404,17 +404,22 @@ def checksum_of(path):
     return "sha256:" + digest.hexdigest()
 
 
-def seed(document_id, frames, asset_frames):
-    saved = document(document_id, frames, asset_frames)
+def ensure_project():
+    """Project routes answer only for a project of the caller's workspace (spec 2026-10-19
+    workspace isolation); the service key acts in the bootstrap workspace, so register it there."""
     with psycopg.connect(DATABASE_URL) as connection:
-        cursor = connection.cursor()
-        # Project routes answer only for a project of the caller's workspace (spec 2026-10-19
-        # workspace isolation); the service key acts in the bootstrap workspace.
-        cursor.execute(
+        connection.execute(
             "INSERT INTO projects (project_id, name, workspace_id)"
             " VALUES (%s, 'Smoke project', 'ws_bootstrap') ON CONFLICT DO NOTHING",
             (PROJECT_ID,),
         )
+
+
+def seed(document_id, frames, asset_frames):
+    ensure_project()
+    saved = document(document_id, frames, asset_frames)
+    with psycopg.connect(DATABASE_URL) as connection:
+        cursor = connection.cursor()
         if asset_frames is not None:
             source = ASSET_FILE
             cursor.execute(
@@ -518,6 +523,7 @@ def asset_location():
 def upload():
     """Upload the generated clip through the public route, exactly as the Studio does, and
     print the asset id the control plane assigned."""
+    ensure_project()
     request = urllib.request.Request(
         f"{BASE}/projects/{PROJECT_ID}/editor-assets",
         data=ASSET_FILE.read_bytes(),

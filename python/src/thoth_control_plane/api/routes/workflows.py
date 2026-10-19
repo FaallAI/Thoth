@@ -149,12 +149,12 @@ async def stream_workflow_events(
 ) -> StreamingResponse:
     """Stream the current workflow snapshot and replay only unseen typed events."""
     after_sequence = _parse_last_event_id(last_event_id)
+    # Authorize before the stream starts: once the 200 is sent, a refusal cannot become a 404.
+    summary = await service.get(workflow_id, actor=actor)
 
     async def encoded_events() -> AsyncIterator[str]:
         if last_event_id is None:
-            snapshot = _workflow_snapshot_event(
-                await service.get(workflow_id, actor=actor), sequence=1
-            )
+            snapshot = _workflow_snapshot_event(summary, sequence=1)
             yield f"event: workflow.snapshot\ndata: {snapshot.model_dump_json()}\n\n"
         async for event in service.stream_events(
             workflow_id,

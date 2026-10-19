@@ -242,3 +242,42 @@ async def test_source_accounts_are_for_platform_admins_only(api, accounts) -> No
     assert (await api.get("/api/v1/source-accounts", headers=alice_write)).status_code == 403
     assert (await api.get("/api/v1/source-accounts", headers=alice)).status_code != 403
     assert (await api.get("/api/v1/source-accounts", headers=SERVICE)).status_code != 403
+
+
+@pytest.mark.parametrize(
+    ("method", "suffix", "body"),
+    [
+        ("GET", "/artifacts/art_1", None),
+        ("GET", "/events", None),
+        ("POST", "/cancel", None),
+        ("POST", "/retry", {}),
+        ("POST", "/approve", {"approval_id": "apr_1", "decision": "approve"}),
+    ],
+)
+async def test_no_workflow_action_reaches_another_workspaces_run(
+    api, accounts, method, suffix, body
+) -> None:
+    alice = bearer_for(accounts, "alice@acme.test")
+    bob = bearer_for(accounts, "bob@acme.test")
+    project = (await api.post("/api/v1/projects", json={"name": "News"}, headers=alice)).json()
+    started = await api.post(
+        f"/api/v1/projects/{project['project_id']}/workflows",
+        json=REQUEST,
+        headers={**alice, "Idempotency-Key": "k1"},
+    )
+    url = f"/api/v1/workflows/{started.json()['workflow_id']}{suffix}"
+    response = await api.request(method, url, json=body, headers=bob)
+    assert response.status_code == 404
+
+
+async def test_a_workflow_cannot_start_under_another_workspaces_project(api, accounts) -> None:
+    alice = bearer_for(accounts, "alice@acme.test")
+    bob = bearer_for(accounts, "bob@acme.test")
+    project = (await api.post("/api/v1/projects", json={"name": "News"}, headers=alice)).json()
+    started = await api.post(
+        f"/api/v1/projects/{project['project_id']}/workflows",
+        json=REQUEST,
+        headers={**bob, "Idempotency-Key": "kb"},
+    )
+    assert started.status_code == 404
+    assert started.json() == {"detail": "project_not_found"}

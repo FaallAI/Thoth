@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import Field
 
 from thoth_control_plane.api.dependencies import SESSION_COOKIE, resolve_principal
-from thoth_control_plane.auth.models import MeView, SignInRefused
+from thoth_control_plane.auth.models import MeView, SignInRefused, accountless_me
 from thoth_control_plane.auth.providers import PROVIDER_FAILURES
 from thoth_control_plane.auth.service import (
     DEVICE_TTL,
@@ -245,11 +245,5 @@ async def me(
         return _detail("signed_out", 401)
     sign_in = request.app.state.sign_in
     if sign_in is None:
-        return MeView(
-            user_id=None,
-            email=None,
-            display_name=None,
-            workspace_id=principal.workspace_id,
-            scopes=sorted(principal.scopes),
-        )  # type: ignore[arg-type]
+        return accountless_me(principal)
     return await sign_in.describe(principal)

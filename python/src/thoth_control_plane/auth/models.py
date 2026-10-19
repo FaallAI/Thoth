@@ -97,6 +97,23 @@ class MeView(StrictModel):
     platform_admin: bool
 
 
+def accountless_me(principal: Principal) -> MeView:
+    """`/me` on a server without the account store: the principal alone, nothing looked up."""
+    return MeView(
+        user_id=principal.user_id,
+        email=principal.email,
+        display_name=None,
+        workspace_id=principal.workspace_id,
+        scopes=sorted(principal.scopes),  # type: ignore[arg-type]
+        workspace=WorkspaceView(
+            workspace_id=principal.workspace_id,
+            name=principal.workspace_id,
+            role=principal.role,
+        ),
+        platform_admin=is_platform_admin(principal),
+    )
+
+
 class TokenView(StrictModel):
     token_id: str
     owner_kind: Literal["user", "workspace"]
