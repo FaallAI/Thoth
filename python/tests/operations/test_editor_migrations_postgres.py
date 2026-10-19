@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 import psycopg
+import psycopg.types.json
 import pytest
 
 from thoth_control_plane.operations.editor_migrations import apply_editor_migrations
@@ -38,11 +39,12 @@ def _tables() -> set[str]:
 
 
 def test_fresh_database_applies_every_revision_and_a_rerun_applies_none() -> None:
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 11
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 13
     assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 0
     assert {"alembic_version", "studio_import_drafts", "studio_import_decisions"} <= _tables()
     assert {"source_account_policies", "source_proxies", "source_accounts"} <= _tables()
     assert "workflow_reports" in _tables()
+    assert {"projects", "workflow_runs"} <= _tables()
 
 
 def test_database_migrated_before_alembic_is_adopted_and_only_the_rest_applied() -> None:
@@ -50,7 +52,7 @@ def test_database_migrated_before_alembic_is_adopted_and_only_the_rest_applied()
         for migration in sorted(MIGRATIONS.glob("*.sql"))[:6]:
             connection.execute(migration.read_text(encoding="utf-8"))
 
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 5
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 7
     assert {"studio_import_drafts", "studio_import_decisions"} <= _tables()
 
 
@@ -175,3 +177,137 @@ def test_insert_missing_never_overwrites_on_postgres() -> None:
     assert store.insert_missing(location, "source_report", b'{"v": 2}') is False
     assert store.get(location) == b'{"v": 1}'
     assert _body(location) == {"v": 1}
+
+
+def _revision(project: str, document: str, revision: int, heading: str, when: str) -> None:
+    body = {"clips": [{"kind": "text", "heading": heading}], "revision": revision}
+    with psycopg.connect(DATABASE_URL) as connection:
+        connection.execute(
+            "INSERT INTO edit_document_revisions"
+            " (project_id, document_id, revision, document_json, created_at)"
+            " VALUES (%s, %s, %s, %s, %s)",
+            (project, document, revision, psycopg.types.json.Jsonb(body), when),
+        )
+
+
+@pytest.mark.asyncio
+async def test_studio_documents_list_their_latest_revision_newest_first() -> None:
+    from thoth_control_plane.infrastructure.editor_repository import (
+        PostgresEditDocumentRepository,
+    )
+
+    apply_editor_migrations(DATABASE_URL, MIGRATIONS)
+    _revision("p1", "doc_old", 1, "Old", "2026-10-01T00:00:00Z")
+    _revision("p1", "doc_new", 1, "First title", "2026-10-02T00:00:00Z")
+    _revision("p1", "doc_new", 2, "Second title", "2026-10-03T00:00:00Z")
+    _revision("p2", "doc_other", 1, "Elsewhere", "2026-10-04T00:00:00Z")
+    repository = PostgresEditDocumentRepository(DATABASE_URL)
+
+    first = await repository.list_documents(project_id="p1", limit=1, cursor=None)
+    assert [(i.document_id, i.revision, i.label) for i in first.items] == [
+        ("doc_new", 2, "Second title")
+    ]
+    assert first.items[0].imported is False
+    rest = await repository.list_documents(project_id="p1", limit=1, cursor=first.next_cursor)
+    assert [i.document_id for i in rest.items] == ["doc_old"]
+    assert rest.next_cursor is None
+
+
+def test_workflow_runs_round_trip_their_summary_and_page_on_postgres() -> None:
+    import json
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.engine import make_url
+
+    from thoth_control_plane.domain import Actor, WorkflowSummary
+    from thoth_control_plane.infrastructure.project_store import ProjectStore
+    from thoth_control_plane.infrastructure.workflow_run_store import WorkflowRunStore
+
+    apply_editor_migrations(DATABASE_URL, MIGRATIONS)
+    engine = create_engine(make_url(DATABASE_URL).set(drivername="postgresql+psycopg"))
+    start = datetime(2026, 10, 18, tzinfo=UTC)
+    ticks = iter(start + timedelta(seconds=n) for n in range(100))
+    projects = ProjectStore(engine)
+    runs = WorkflowRunStore(engine, clock=lambda: next(ticks))
+    owner = Actor(actor_id="owner", actor_type="user")
+    project = projects.create("News")
+    for name in ("wf_a", "wf_b"):
+        summary = WorkflowSummary.model_validate_json(
+            json.dumps(
+                {
+                    "workflow_id": name,
+                    "status": "running",
+                    "created_at": start.isoformat(),
+                    "updated_at": start.isoformat(),
+                    "source": {"display_url": "https://x.test/v", "platform": "tiktok"},
+                    "stages": [],
+                }
+            )
+        )
+        runs.record_start(summary, project_id=project.project_id, actor=owner)
+
+    first, cursor = runs.page(
+        project_id=project.project_id, unassigned=False, actor=owner, cursor=None, limit=1
+    )
+    rest, end = runs.page(
+        project_id=project.project_id, unassigned=False, actor=owner, cursor=cursor, limit=1
+    )
+    assert [r.workflow_id for r in first + rest] == ["wf_b", "wf_a"]
+    assert end is None
+    assert first[0].summary is not None and first[0].summary.status.value == "running"
+
+
+@pytest.mark.asyncio
+async def test_a_malformed_studio_document_cursor_raises_invalid_cursor() -> None:
+    from thoth_control_plane.domain.cursors import InvalidCursor
+    from thoth_control_plane.infrastructure.editor_repository import (
+        PostgresEditDocumentRepository,
+    )
+
+    apply_editor_migrations(DATABASE_URL, MIGRATIONS)
+    with pytest.raises(InvalidCursor):
+        await PostgresEditDocumentRepository(DATABASE_URL).list_documents(
+            project_id="p1", limit=5, cursor="%%"
+        )
+
+
+def test_accounts_tables_exist_with_the_bootstrap_workspace() -> None:
+    apply_editor_migrations(DATABASE_URL, MIGRATIONS)
+    assert {
+        "workspaces",
+        "users",
+        "user_identities",
+        "workspace_members",
+        "sessions",
+        "trusted_devices",
+        "email_challenges",
+        "access_tokens",
+        "auth_events",
+    } <= _tables()
+    with psycopg.connect(DATABASE_URL) as connection:
+        rows = connection.execute("SELECT workspace_id, name FROM workspaces").fetchall()
+        assert rows == [("ws_bootstrap", "Thoth")]
+        with pytest.raises(psycopg.errors.CheckViolation):
+            connection.execute(
+                "INSERT INTO users (user_id, email, display_name, created_at)"
+                " VALUES ('usr_1', 'Mixed@Case.test', 'A', now())"
+            )
+
+
+def test_account_store_round_trips_on_postgres() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from thoth_control_plane.infrastructure.account_store import AccountStore
+
+    apply_editor_migrations(DATABASE_URL, MIGRATIONS)
+    store = AccountStore.connect(DATABASE_URL)
+    user = store.ensure_user("a@acme.test", "A")
+    assert user.workspace_id == "ws_bootstrap"
+    later = datetime.now(UTC) + timedelta(hours=1)
+    store.create_session(user.user_id, user.workspace_id, "h", later)
+    assert store.live_session("h").user_id == user.user_id
+    store.record_event("sign_in", "ok", user_id=user.user_id)
+    store.create_challenge("chl_pg", user.user_id, "c", "hmac", later)
+    assert [store.claim_attempt("c").attempts for _ in range(5)] == [1, 2, 3, 4, 5]
+    assert store.claim_attempt("c") is None

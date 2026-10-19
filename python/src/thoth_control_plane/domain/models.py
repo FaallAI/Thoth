@@ -274,6 +274,8 @@ class WorkflowSummary(StrictModel):
     artifacts: list[ArtifactRef] = Field(default_factory=list)
     approval: ApprovalRequest | None = None
     failure: WorkflowFailure | None = None
+    # default_factory keeps it optional in the generated TypeScript, like `artifacts`.
+    history_expired: bool = Field(default_factory=lambda: False)
 
     @field_validator("status", mode="before")
     @classmethod

@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { ArrowLeft, Feather, Pencil, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, Feather, SlidersHorizontal } from "lucide-react";
 
 import type { ControlPlaneClient, EditDocument, EditDocumentOperation, EditorAsset } from "@/api/control-plane";
 import type { PreviewSources } from "./AdvancedTimelineComposition";
@@ -366,7 +366,6 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         <strong className="studio-brand">Thoth</strong>
         <span className="studio-title">Creator Studio</span>
         <span className="studio-document-title" title={documentTitle ?? documentId}>{documentTitle ?? documentId}</span>
-        <button type="button" className="studio-rename" aria-label="Rename document unavailable" title="Document renaming is not available in this session." disabled><Pencil size={14} /></button>
         <StudioJobNav selected={job} onSelect={selectJob} />
 
         {!compact && timeline ? (

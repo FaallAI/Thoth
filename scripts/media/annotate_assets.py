@@ -340,7 +340,7 @@ def chat_completion(content, model: str, cfg: dict, api_key: str,
         "Accept": "application/json",
     }
     if "openrouter" in cfg["url"]:
-        headers["HTTP-Referer"] = "https://github.com/muhfalihr/thoth"
+        headers["HTTP-Referer"] = "https://github.com/FaallAI/Thoth"
         headers["X-Title"] = "Thoth Asset Annotator"
 
     last = None

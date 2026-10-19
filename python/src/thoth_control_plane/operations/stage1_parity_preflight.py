@@ -67,7 +67,7 @@ def check_parity_inputs(
 def _check_image(image: str) -> None:
     if not IMAGE_PATTERN.fullmatch(image):
         raise Stage1PreflightError(
-            "the parity reference image must be ghcr.io/muhfalihr/thoth pinned to a "
+            "the parity reference image must be ghcr.io/faallai/thoth pinned to a "
             "lowercase sha256 digest, the same release as the Python worker"
         )
 

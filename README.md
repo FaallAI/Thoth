@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/muhfalihr/Thoth/releases"><img src="https://img.shields.io/badge/version-0.1.0-f97316?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/FaallAI/Thoth/releases"><img src="https://img.shields.io/badge/version-0.1.0-f97316?style=flat-square" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License"></a>
   <img src="https://img.shields.io/badge/rust-1.85+-orange?style=flat-square&logo=rust&logoColor=white" alt="Rust">
   <img src="https://img.shields.io/badge/node-24+-339933?style=flat-square&logo=node.js&logoColor=white" alt="Node.js">
@@ -71,34 +71,20 @@ subproject.
 
 ## Running the dashboard
 
-Two processes, both started from the repo root (they share `thoth.db`):
+The deployed stack serves the dashboard from its `web` container at **http://localhost:8088**.
+People sign in with Google or GitHub and then enter a code sent by email; see "Sign-in and
+developer access" in [`docs/python-control-plane.md`](docs/python-control-plane.md).
+
+For UI hot-reload during development, run the Vite dev server with a personal developer token
+(`thoth-control tokens create`) and open http://localhost:5173:
 
 ```
-cargo run -p thoth-server                       # API + dashboard on :8787
-./target/release/thoth.exe worker --db thoth.db # executes queued jobs
+THOTH_DEV_TOKEN=thoth_pat_... bun --cwd=dashboard run dev
 ```
 
-Then open **http://127.0.0.1:8787**. Without the worker, jobs stay `queued`.
-
-**The server serves the prebuilt SPA from `dashboard/dist`** (a gitignored build
-artifact — it is NOT updated by `git pull`/merge). After any dashboard change, or the
-first time you check out a branch whose UI differs, **rebuild it** or the server keeps
-serving a stale UI:
-
-```
-bun --cwd=dashboard install    # first run, or when dashboard deps change
-bun --cwd=dashboard run build  # regenerates dashboard/dist
-```
-
-For UI hot-reload during development, run the Vite dev server instead and open its URL
-(default http://localhost:5173):
-
-```
-bun --cwd=dashboard run dev
-```
-
-Vite proxies `/api` to `127.0.0.1:8787`, so in dev mode the server must be on the default
-port `8787` (or edit the proxy target in `dashboard/vite.config.ts`).
+Vite proxies `/api/v1` and `/auth` to the Python control plane on `127.0.0.1:8000` and adds the
+token on the way. The legacy Rust server (`cargo run -p thoth-server`) no longer backs the
+dashboard; its Rust-backed pages were removed on 2026-10-18 (see `docs/ROADMAP.md`).
 
 ## Python workflow control plane (v1, additive)
 

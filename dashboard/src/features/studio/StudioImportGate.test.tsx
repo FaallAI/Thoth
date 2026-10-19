@@ -460,3 +460,46 @@ test("reopening a draft from Studio goes straight to its inventory and creates n
   await userEvent.setup().click(screen.getByRole("button", { name: "Continue in Studio" }));
   expect(onOpen).toHaveBeenCalledWith("edoc_003");
 });
+
+test("resolve-only mode needs no source, never inspects, and opens the draft's inventory", async () => {
+  const client = fakeClient();
+  render(
+    <StudioImportGate client={client} projectId="project_001" resumeDocumentId="edoc_003" onOpen={() => {}} onClose={() => {}} />,
+  );
+  expect(await screen.findByRole("dialog", { name: "Resolve source items" })).toBeDefined();
+  expect(await screen.findByRole("list", { name: "Source inventory" })).toBeDefined();
+  expect(client.inspectStudioImport).not.toHaveBeenCalled();
+  expect(client.createStudioImport).not.toHaveBeenCalled();
+});
+
+test("resolve-only mode shows a loading line, not the drafts chooser", async () => {
+  const client = fakeClient({ getStudioImportInventory: mock(() => new Promise<never>(() => {})) });
+  render(<StudioImportGate client={client} projectId="project_001" resumeDocumentId="edoc_003" onOpen={() => {}} onClose={() => {}} />);
+  expect(await screen.findByText("Loading the draft's source items…")).toBeDefined();
+  expect(Boolean(screen.queryByText("Drafts for this source"))).toBe(false);
+  expect(Boolean(screen.queryByRole("button", { name: "Create new draft" }))).toBe(false);
+});
+
+test("resolve-only mode retries a failed open and words a missing draft for itself", async () => {
+  let calls = 0;
+  const client = fakeClient({
+    getStudioImportInventory: mock(async (_projectId: string, documentId: string) => {
+      calls += 1;
+      if (calls === 1) throw new StudioImportRequestError(500);
+      return inventoryOf(documentId);
+    }),
+  });
+  render(<StudioImportGate client={client} projectId="project_001" resumeDocumentId="edoc_003" onOpen={() => {}} onClose={() => {}} />);
+  await userEvent.setup().click(await screen.findByRole("button", { name: "Try again" }));
+  expect(await screen.findByRole("list", { name: "Source inventory" })).toBeDefined();
+  cleanup();
+
+  const gone = fakeClient({
+    getStudioImportInventory: mock(async () => {
+      throw new StudioImportRequestError(404);
+    }),
+  });
+  render(<StudioImportGate client={gone} projectId="project_001" resumeDocumentId="edoc_gone" onOpen={() => {}} onClose={() => {}} />);
+  expect(await screen.findByText("This draft is no longer available.")).toBeDefined();
+  expect(Boolean(screen.queryByText(/draft list/))).toBe(false);
+});

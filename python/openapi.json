@@ -836,6 +836,22 @@
         "title": "CreateDecision",
         "type": "object"
       },
+      "CreateProject": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CreateProject",
+        "type": "object"
+      },
       "CreatePromptProposalRequest": {
         "additionalProperties": false,
         "properties": {
@@ -976,6 +992,57 @@
         "title": "CreateStudioImport",
         "type": "object"
       },
+      "CreateToken": {
+        "additionalProperties": false,
+        "properties": {
+          "days": {
+            "default": 90,
+            "maximum": 365.0,
+            "minimum": 1.0,
+            "title": "Days",
+            "type": "integer"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "scope": {
+            "default": "write",
+            "enum": [
+              "read",
+              "write",
+              "admin"
+            ],
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CreateToken",
+        "type": "object"
+      },
+      "CreatedToken": {
+        "additionalProperties": false,
+        "properties": {
+          "secret": {
+            "title": "Secret",
+            "type": "string"
+          },
+          "token": {
+            "$ref": "#/components/schemas/TokenView"
+          }
+        },
+        "required": [
+          "token",
+          "secret"
+        ],
+        "title": "CreatedToken",
+        "type": "object"
+      },
       "Crop": {
         "additionalProperties": false,
         "properties": {
@@ -1037,6 +1104,74 @@
           "latest"
         ],
         "title": "DocumentRevisionConflictBody",
+        "type": "object"
+      },
+      "EditDocumentListItem": {
+        "additionalProperties": false,
+        "properties": {
+          "document_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "imported": {
+            "title": "Imported",
+            "type": "boolean"
+          },
+          "label": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "revision": {
+            "exclusiveMinimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id",
+          "revision",
+          "updated_at",
+          "label",
+          "imported"
+        ],
+        "title": "EditDocumentListItem",
+        "type": "object"
+      },
+      "EditDocumentListPage": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EditDocumentListItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "EditDocumentListPage",
         "type": "object"
       },
       "EditDocumentPatch": {
@@ -1607,6 +1742,69 @@
         "title": "MainImport",
         "type": "object"
       },
+      "MeView": {
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "scopes": {
+            "items": {
+              "enum": [
+                "read",
+                "write",
+                "admin"
+              ],
+              "type": "string"
+            },
+            "title": "Scopes",
+            "type": "array"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "email",
+          "display_name",
+          "workspace_id",
+          "scopes"
+        ],
+        "title": "MeView",
+        "type": "object"
+      },
       "MoveClip": {
         "additionalProperties": false,
         "properties": {
@@ -1649,6 +1847,21 @@
           "from_frame"
         ],
         "title": "MoveClip",
+        "type": "object"
+      },
+      "MoveWorkflow": {
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "pattern": "^(?:[A-Za-z][A-Za-z0-9_-]{0,127}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$",
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "title": "MoveWorkflow",
         "type": "object"
       },
       "OutputRequest": {
@@ -1832,6 +2045,57 @@
           "expires_at"
         ],
         "title": "PreviewCapabilityResponse",
+        "type": "object"
+      },
+      "Project": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "project_id": {
+            "pattern": "^(?:[A-Za-z][A-Za-z0-9_-]{0,127}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "name",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Project",
+        "type": "object"
+      },
+      "ProjectList": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Project"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ProjectList",
         "type": "object"
       },
       "ProjectPromptBinding": {
@@ -5739,6 +6003,74 @@
         "title": "TimelineVideoClip",
         "type": "object"
       },
+      "TokenView": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "owner_kind": {
+            "enum": [
+              "user",
+              "workspace"
+            ],
+            "title": "Owner Kind",
+            "type": "string"
+          },
+          "prefix": {
+            "title": "Prefix",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "read",
+              "write",
+              "admin"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "token_id": {
+            "title": "Token Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token_id",
+          "owner_kind",
+          "name",
+          "prefix",
+          "scope",
+          "created_at",
+          "expires_at",
+          "last_used_at"
+        ],
+        "title": "TokenView",
+        "type": "object"
+      },
       "Track": {
         "additionalProperties": false,
         "properties": {
@@ -6027,6 +6359,104 @@
         "title": "WorkflowRequest",
         "type": "object"
       },
+      "WorkflowRun": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_count": {
+            "minimum": 0.0,
+            "title": "Artifact Count",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "history_expired": {
+            "title": "History Expired",
+            "type": "boolean"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "pattern": "^(?:[A-Za-z][A-Za-z0-9_-]{0,127}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "source": {
+            "$ref": "#/components/schemas/WorkflowSource"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "awaiting_approval",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "unknown"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "workflow_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Workflow Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow_id",
+          "project_id",
+          "source",
+          "status",
+          "history_expired",
+          "artifact_count",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "WorkflowRun",
+        "type": "object"
+      },
+      "WorkflowRunPage": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowRun"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "WorkflowRunPage",
+        "type": "object"
+      },
       "WorkflowSource": {
         "additionalProperties": false,
         "properties": {
@@ -6097,6 +6527,10 @@
               }
             ]
           },
+          "history_expired": {
+            "title": "History Expired",
+            "type": "boolean"
+          },
           "source": {
             "$ref": "#/components/schemas/WorkflowSource"
           },
@@ -6140,20 +6574,10 @@
   },
   "openapi": "3.1.0",
   "paths": {
-    "/api/v1/legacy/jobs/{legacy_job_id}": {
+    "/api/v1/me": {
       "get": {
-        "description": "Return a safe v1 projection of one legacy Rust job, without mutations.",
-        "operationId": "get_legacy_job_api_v1_legacy_jobs__legacy_job_id__get",
+        "operationId": "me_api_v1_me_get",
         "parameters": [
-          {
-            "in": "path",
-            "name": "legacy_job_id",
-            "required": true,
-            "schema": {
-              "title": "Legacy Job Id",
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "Authorization",
@@ -6176,7 +6600,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/WorkflowSummary"
+                  "$ref": "#/components/schemas/MeView"
                 }
               }
             },
@@ -6193,29 +6617,19 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Observe a legacy job during migration",
+        "summary": "Me",
         "tags": [
-          "migration"
+          "account"
         ]
       }
     },
-    "/api/v1/legacy/jobs/{legacy_job_id}/events": {
+    "/api/v1/me/tokens": {
       "get": {
-        "description": "Expose migration-only SSE replay with a strict, monotonically increasing cursor.",
-        "operationId": "stream_legacy_job_events_api_v1_legacy_jobs__legacy_job_id__events_get",
+        "operationId": "list_tokens_api_v1_me_tokens_get",
         "parameters": [
           {
-            "in": "path",
-            "name": "legacy_job_id",
-            "required": true,
-            "schema": {
-              "title": "Legacy Job Id",
-              "type": "string"
-            }
-          },
-          {
             "in": "header",
-            "name": "Last-Event-ID",
+            "name": "Authorization",
             "required": false,
             "schema": {
               "anyOf": [
@@ -6226,7 +6640,261 @@
                   "type": "null"
                 }
               ],
-              "title": "Last-Event-Id"
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TokenView"
+                  },
+                  "title": "Response List Tokens Api V1 Me Tokens Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Tokens",
+        "tags": [
+          "account"
+        ]
+      },
+      "post": {
+        "operationId": "create_token_api_v1_me_tokens_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateToken"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedToken"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Token",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/v1/me/tokens/{token_id}": {
+      "delete": {
+        "operationId": "revoke_token_api_v1_me_tokens__token_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token_id",
+            "required": true,
+            "schema": {
+              "title": "Token Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Token",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/v1/projects": {
+      "get": {
+        "operationId": "list_projects_api_v1_projects_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Projects"
+      },
+      "post": {
+        "operationId": "create_project_api_v1_projects_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Project"
+      }
+    },
+    "/api/v1/projects/{project_id}": {
+      "get": {
+        "operationId": "get_project_api_v1_projects__project_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
             }
           },
           {
@@ -6250,7 +6918,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
               }
             },
             "description": "Successful Response"
@@ -6266,10 +6936,90 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Replay legacy job observations during migration",
-        "tags": [
-          "migration"
-        ]
+        "summary": "Get Project"
+      }
+    },
+    "/api/v1/projects/{project_id}/edit-documents": {
+      "get": {
+        "operationId": "list_edit_documents_api_v1_projects__project_id__edit_documents_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditDocumentListPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Edit Documents"
       }
     },
     "/api/v1/projects/{project_id}/edit-documents/import-content-set": {
@@ -8748,7 +9498,7 @@
     },
     "/api/v1/projects/{project_id}/render-jobs/{render_job_id}/output": {
       "get": {
-        "description": "Stream the one published render, never a redirect to where it lives.",
+        "description": "Stream the one published render from the store, never a redirect to where it lives.",
         "operationId": "download_render_output_api_v1_projects__project_id__render_jobs__render_job_id__output_get",
         "parameters": [
           {
@@ -9250,6 +10000,162 @@
           }
         },
         "summary": "List Studio Import Drafts"
+      }
+    },
+    "/api/v1/projects/{project_id}/workflows": {
+      "get": {
+        "operationId": "list_project_workflows_api_v1_projects__project_id__workflows_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRunPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Project Workflows"
+      },
+      "post": {
+        "operationId": "start_project_workflow_api_v1_projects__project_id__workflows_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Project Workflow"
       }
     },
     "/api/v1/prompt-providers": {
@@ -10073,6 +10979,87 @@
       }
     },
     "/api/v1/workflows": {
+      "get": {
+        "operationId": "list_unassigned_workflows_api_v1_workflows_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "unassigned",
+            "required": true,
+            "schema": {
+              "title": "Unassigned",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRunPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Unassigned Workflows"
+      },
       "post": {
         "operationId": "create_workflow_api_v1_workflows_post",
         "parameters": [
@@ -10191,6 +11178,69 @@
           }
         },
         "summary": "Get Workflow"
+      },
+      "patch": {
+        "operationId": "move_workflow_api_v1_workflows__workflow_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveWorkflow"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRun"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Move Workflow"
       }
     },
     "/api/v1/workflows/{workflow_id}/approve": {
@@ -10260,7 +11310,7 @@
     },
     "/api/v1/workflows/{workflow_id}/artifacts/{artifact_id}": {
       "get": {
-        "description": "Authorize through the workflow owner boundary, then stream one safe artifact.",
+        "description": "Authorize through the workflow owner boundary, then serve one safe artifact.",
         "operationId": "download_workflow_artifact_api_v1_workflows__workflow_id__artifacts__artifact_id__get",
         "parameters": [
           {
@@ -10517,6 +11567,65 @@
           }
         },
         "summary": "Retry Workflow"
+      }
+    },
+    "/api/v1/workspace/tokens": {
+      "post": {
+        "operationId": "create_workspace_token_api_v1_workspace_tokens_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateToken"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedToken"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Workspace Token",
+        "tags": [
+          "account"
+        ]
       }
     },
     "/healthz": {

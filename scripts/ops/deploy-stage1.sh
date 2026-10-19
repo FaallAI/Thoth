@@ -13,10 +13,11 @@ image=$(value THOTH_IMAGE)
 provider_env=$(value THOTH_STAGE1_PROVIDER_ENV_FILE)
 data_root=$(value THOTH_STAGE1_DATA_ROOT)
 compose=(docker compose --env-file "$env_file" -f compose.stage1.local.yml
-    -f compose.stage1.providers.yml -f compose.stage1.renderer.yml)
+    -f compose.stage1.providers.yml -f compose.stage1.renderer.yml -f compose.stage1.web.yml)
 step() { echo "== $*"; }
 
 step preflight
+[ -n "$(value THOTH_WEB_IMAGE)" ] || { echo "THOTH_WEB_IMAGE is not pinned" >&2; exit 1; }
 docker run --rm -v "$root:$root:ro" -v "$(dirname "$provider_env"):$(dirname "$provider_env"):ro" \
     -v "$data_root:$data_root:ro" -w "$root" --user 0 "$image" \
     /opt/thoth/python/.venv/bin/thoth-control operations stage1-local-preflight \
@@ -26,6 +27,8 @@ step config
 "${compose[@]}" config --images
 step migrate
 "${compose[@]}" run --rm --no-deps api thoth-control editor migrate 2>&1 | tail -3
+step backfill-runs
+"${compose[@]}" run --rm --no-deps api thoth-control workflow backfill 2>&1 | tail -1
 step stop-worker
 "${compose[@]}" stop worker
 # The artifact volume is no longer mounted (spec 2026-10-17, render storage). While its host

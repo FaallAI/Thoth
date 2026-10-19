@@ -1,0 +1,7 @@
+*
+!dashboard
+!packages/remotion-composition
+!deploy/web/Caddyfile
+**/node_modules
+dashboard/dist
+**/.env*

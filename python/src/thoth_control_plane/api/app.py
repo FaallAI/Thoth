@@ -13,20 +13,25 @@ from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.sessions import SessionMiddleware
 from temporalio.service import RPCError
 
 from thoth_control_plane.acquisition.accounts.profiles import AccountProfiles
 from thoth_control_plane.acquisition.accounts.vault import Vault
+from thoth_control_plane.api.routes.auth import router as auth_router
 from thoth_control_plane.api.routes.edit_documents import router as edit_document_router
 from thoth_control_plane.api.routes.editor_assets import router as editor_asset_router
 from thoth_control_plane.api.routes.health import router as health_router
 from thoth_control_plane.api.routes.internal_render_jobs import router as internal_render_router
+from thoth_control_plane.api.routes.me import router as me_router
+from thoth_control_plane.api.routes.projects import router as project_router
 from thoth_control_plane.api.routes.prompt_lab import router as prompt_lab_router
 from thoth_control_plane.api.routes.prompt_proposals import router as prompt_proposal_router
 from thoth_control_plane.api.routes.render_jobs import router as render_job_router
 from thoth_control_plane.api.routes.source_accounts import router as source_account_router
 from thoth_control_plane.api.routes.studio_imports import router as studio_import_router
 from thoth_control_plane.api.routes.studio_review import router as studio_review_router
+from thoth_control_plane.api.routes.workflow_runs import router as workflow_run_router
 from thoth_control_plane.api.routes.workflows import router as workflow_router
 from thoth_control_plane.application import (
     ApprovalNotAllowed,
@@ -61,8 +66,14 @@ from thoth_control_plane.application.render_jobs import RenderJobService
 from thoth_control_plane.application.studio_imports import StudioImportService
 from thoth_control_plane.application.studio_review import StudioReviewService
 from thoth_control_plane.application.studio_review_ports import StudioReviewRepository
+from thoth_control_plane.application.workflow_runs import ProjectNotFound
+from thoth_control_plane.auth.mailer import Mailer, mailer_from
+from thoth_control_plane.auth.providers import IdentityProvider, build_providers
+from thoth_control_plane.auth.service import SignInService
 from thoth_control_plane.config import Settings
+from thoth_control_plane.domain.cursors import InvalidCursor
 from thoth_control_plane.domain.prompt_proposals import PromptProviderDefinition
+from thoth_control_plane.infrastructure.account_store import AccountStore
 from thoth_control_plane.infrastructure.artifact_root import LocalArtifactRoot
 from thoth_control_plane.infrastructure.editor_asset_repository import (
     PostgresEditorAssetRepository,
@@ -71,6 +82,7 @@ from thoth_control_plane.infrastructure.editor_preview import EditorPreviewSigne
 from thoth_control_plane.infrastructure.editor_repository import PostgresEditDocumentRepository
 from thoth_control_plane.infrastructure.media_probe import probe_media
 from thoth_control_plane.infrastructure.media_store import MediaStore, build_media_store
+from thoth_control_plane.infrastructure.project_store import ProjectStore, ProjectStoreUnavailable
 from thoth_control_plane.infrastructure.prompt_proposal_gateway import (
     TemporalPromptProposalGateway,
 )
@@ -95,6 +107,10 @@ from thoth_control_plane.infrastructure.studio_review_repository import (
     PostgresStudioReviewRepository,
 )
 from thoth_control_plane.infrastructure.temporal_gateway import TemporalWorkflowGateway
+from thoth_control_plane.infrastructure.workflow_run_store import (
+    WorkflowRunStore,
+    WorkflowRunsUnavailable,
+)
 from thoth_control_plane.observability import configure_provider_logging
 
 CONTRACT_VERSION = "1"
@@ -193,6 +209,11 @@ def create_app(
     source_account_store: SourceAccountStore | None = None,
     account_profiles: AccountProfiles | None = None,
     report_store: Reports | None = None,
+    project_store: ProjectStore | None = None,
+    workflow_run_store: WorkflowRunStore | None = None,
+    account_store: AccountStore | None = None,
+    mailer: Mailer | None = None,
+    identity_providers: dict[str, IdentityProvider] | None = None,
 ) -> FastAPI:
     """Create an isolated v1 API application for the supplied workflow gateway."""
     settings = settings or Settings()  # type: ignore[call-arg]
@@ -313,6 +334,38 @@ def create_app(
     if report_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
         report_store = ReportStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
     app.state.report_store = report_store
+    if project_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
+        project_store = ProjectStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
+    app.state.project_store = project_store
+    if workflow_run_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
+        workflow_run_store = WorkflowRunStore.connect(
+            settings.THOTH_EDITOR_DATABASE_URL.get_secret_value()
+        )
+    app.state.workflow_run_store = workflow_run_store
+    if account_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
+        account_store = AccountStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
+    auth_secret = (
+        settings.THOTH_AUTH_SECRET.get_secret_value() if settings.THOTH_AUTH_SECRET else None
+    )
+    app.state.sign_in = (
+        None
+        if account_store is None
+        else SignInService(account_store, mailer or mailer_from(settings), auth_secret)
+    )
+    app.state.auth_providers = (
+        identity_providers if identity_providers is not None else build_providers(settings)
+    )
+    if auth_secret is not None:
+        # Authlib keeps the OAuth state and PKCE verifier here, only on /auth, for 10 minutes.
+        app.add_middleware(
+            SessionMiddleware,
+            secret_key=auth_secret,
+            session_cookie="thoth_oauth",
+            max_age=600,
+            path="/auth",
+            same_site="lax",
+            https_only=settings.cookie_secure,
+        )
     app.state.media_store = media
 
     app.add_middleware(
@@ -335,6 +388,7 @@ def create_app(
         ApprovalNotAllowed: status.HTTP_409_CONFLICT,
         WorkflowNotFound: status.HTTP_404_NOT_FOUND,
         WorkflowNotReady: status.HTTP_503_SERVICE_UNAVAILABLE,
+        ProjectNotFound: status.HTTP_404_NOT_FOUND,
     }
 
     for exception_type, status_code in exception_statuses.items():
@@ -346,6 +400,26 @@ def create_app(
             mapped_status: int = status_code,
         ) -> JSONResponse:
             return JSONResponse(status_code=mapped_status, content={"detail": str(exc)})
+
+    @app.exception_handler(InvalidCursor)
+    async def invalid_cursor_handler(request: Request, exc: Exception) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content={"detail": "invalid_cursor"}
+        )
+
+    @app.exception_handler(WorkflowRunsUnavailable)
+    async def workflow_runs_unavailable_handler(request: Request, exc: Exception) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"detail": "workflow_runs_unavailable"},
+        )
+
+    @app.exception_handler(ProjectStoreUnavailable)
+    async def project_store_unavailable_handler(request: Request, exc: Exception) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"detail": "project_store_unavailable"},
+        )
 
     @app.exception_handler(UnsupportedPlatform)
     async def unsupported_platform_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -406,7 +480,11 @@ def create_app(
         response.headers["X-Thoth-Contract-Version"] = CONTRACT_VERSION
         return response
 
+    app.include_router(auth_router)
     app.include_router(health_router)
+    app.include_router(project_router, prefix="/api/v1")
+    app.include_router(me_router, prefix="/api/v1")
+    app.include_router(workflow_run_router, prefix="/api/v1")
     app.include_router(workflow_router, prefix="/api/v1")
     app.include_router(edit_document_router, prefix="/api/v1")
     app.include_router(editor_asset_router, prefix="/api/v1")

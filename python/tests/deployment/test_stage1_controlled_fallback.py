@@ -47,7 +47,7 @@ posix_only = pytest.mark.skipif(
     os.name != "posix", reason="file mode bits are only meaningful on POSIX hosts"
 )
 
-VALID_DIGEST_REF = "ghcr.io/muhfalihr/thoth@sha256:" + "a1" * 32
+VALID_DIGEST_REF = "ghcr.io/faallai/thoth@sha256:" + "a1" * 32
 VALID_DIGEST = "sha256:" + "a1" * 32
 VALID_ACQUISITION_REVISION = "b2" * 20
 VALID_HARNESS_REVISION = "c3" * 20
@@ -134,7 +134,7 @@ def test_valid_inputs_pass_preflight(tmp_path: Path) -> None:
 
 def test_rejects_mutable_image_tag(tmp_path: Path) -> None:
     kwargs = _valid_inputs(tmp_path)
-    kwargs["image"] = "ghcr.io/muhfalihr/thoth:latest"
+    kwargs["image"] = "ghcr.io/faallai/thoth:latest"
     with pytest.raises(Stage1PreflightError):
         check_controlled_fallback_inputs(**kwargs)
 
@@ -859,7 +859,7 @@ def test_preflight_rejects_a_role_running_the_wrong_digest(tmp_path: Path) -> No
     executor = _happy_executor()
     executor.queue(
         "inspect:svc-api",
-        CommandResult(0, _role_inspect(image="ghcr.io/muhfalihr/thoth@sha256:" + "9" * 64), b""),
+        CommandResult(0, _role_inspect(image="ghcr.io/faallai/thoth@sha256:" + "9" * 64), b""),
     )
     runner = ControlledFallbackRunner(_run_config(tmp_path), executor)
     with pytest.raises(Stage1PreflightError):

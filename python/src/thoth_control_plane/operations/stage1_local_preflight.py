@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from pathlib import Path, PurePosixPath
 
-IMAGE_PATTERN = re.compile(r"ghcr\.io/muhfalihr/thoth@sha256:[0-9a-f]{64}")
+IMAGE_PATTERN = re.compile(r"ghcr\.io/faallai/thoth@sha256:[0-9a-f]{64}")
 DEFAULT_ACTIVITY_MODE = "python_tiktok_with_legacy_fallback"
 ROLLBACK_ACTIVITY_MODE = "legacy_scout"
 APPROVED_ACTIVITY_MODES = (DEFAULT_ACTIVITY_MODE, ROLLBACK_ACTIVITY_MODE)
@@ -81,7 +81,7 @@ def check_stage1_local_environment(values: dict[str, str], *, repository_root: P
 def _check_image(image: str) -> None:
     if not IMAGE_PATTERN.fullmatch(image):
         raise Stage1PreflightError(
-            "THOTH_IMAGE must be ghcr.io/muhfalihr/thoth pinned to a lowercase sha256 digest"
+            "THOTH_IMAGE must be ghcr.io/faallai/thoth pinned to a lowercase sha256 digest"
         )
 
 

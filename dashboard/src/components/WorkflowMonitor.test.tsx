@@ -59,6 +59,7 @@ test("shows human workflow status before optional diagnostics", async () => {
     cancelWorkflow: mock(async () => summary),
     retryWorkflow: mock(async () => summary),
     approveWorkflow: mock(async () => summary),
+    downloadWorkflowArtifact: mock(async () => new Blob()),
   };
   render(<WorkflowMonitor workflowId="wf_001" client={client} />);
 
@@ -85,6 +86,7 @@ test("does not let a stale initial fetch overwrite the live stream snapshot", as
     cancelWorkflow: mock(async () => live),
     retryWorkflow: mock(async () => live),
     approveWorkflow: mock(async () => live),
+    downloadWorkflowArtifact: mock(async () => new Blob()),
   };
   render(<WorkflowMonitor workflowId="wf_001" client={client} />);
 
@@ -115,6 +117,7 @@ test("renders action summaries and errors, and averages all stage progress", asy
     cancelWorkflow: mock(async () => cancelled),
     retryWorkflow: mock(async () => { throw new Error("checkpoint is unavailable"); }),
     approveWorkflow: mock(async () => running),
+    downloadWorkflowArtifact: mock(async () => new Blob()),
   };
   render(<WorkflowMonitor workflowId="wf_001" client={client} />);
 
@@ -125,4 +128,53 @@ test("renders action summaries and errors, and averages all stage progress", asy
 
   await user.click(screen.getByRole("button", { name: "Retry" }));
   expect(await screen.findByText("checkpoint is unavailable")).toBeDefined();
+});
+
+test("results download through the client and an expired history is announced", async () => {
+  const blob = new Blob(["{}"]);
+  const downloadWorkflowArtifact = mock(async () => blob);
+  const client = {
+    streamWorkflow: (_id: string, onSnapshot: (snapshot: WorkflowSummary) => void) => {
+      onSnapshot(
+        summary({
+          status: "succeeded",
+          history_expired: true,
+          artifacts: [
+            { artifact_id: "content_set", kind: "content_set", label: "Content set", media_type: "application/json", location: "reports/wf_001/content-set.json" },
+          ],
+        }),
+      );
+      return () => {};
+    },
+    downloadWorkflowArtifact,
+    cancelWorkflow: mock(),
+    retryWorkflow: mock(),
+    approveWorkflow: mock(),
+  };
+  const createObjectURL = URL.createObjectURL;
+  const revokeObjectURL = URL.revokeObjectURL;
+  URL.createObjectURL = () => "blob:x";
+  URL.revokeObjectURL = () => {};
+  // A browser saves a download link without navigating; happy-dom would navigate the window to
+  // blob:x and leave its origin "null" for every later test file.
+  const anchorClick = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = () => {};
+  try {
+    render(<WorkflowMonitor workflowId="wf_001" client={client as never} />);
+    expect(await screen.findByText("History expired; showing the stored result.")).toBeDefined();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Content set" }));
+    expect(downloadWorkflowArtifact).toHaveBeenCalledWith("wf_001", "content_set");
+  } finally {
+    URL.createObjectURL = createObjectURL;
+    URL.revokeObjectURL = revokeObjectURL;
+    HTMLAnchorElement.prototype.click = anchorClick;
+  }
+});
+
+test("a downloaded artifact keeps the extension of its stored object", async () => {
+  const { downloadName } = await import("@/lib/download-name");
+  const artifact = (location: string) => ({ artifact_id: "clip", kind: "footage", label: "Clip", media_type: "video/mp4", location });
+  expect(downloadName(artifact("reports/wf_001/footage/clip.mp4"))).toBe("clip.mp4");
+  expect(downloadName(artifact("reports/wf_001/content-set.json"))).toBe("clip.json");
+  expect(downloadName(artifact("reports/wf_001/noext"))).toBe("clip");
 });

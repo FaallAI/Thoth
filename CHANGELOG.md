@@ -2,6 +2,294 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-19 - Move to the FaallAI organization, first real sign-in, and a code-cooldown fix
+
+**Organization move:**
+
+- The repository moved from `muhfalihr/Thoth` to `FaallAI/Thoth` (org renamed from
+  `FallAI-lab`); open PRs moved with it and `origin` points at the org.
+- PR #28 (`b196c84`) moved every image reference to `ghcr.io/faallai/*`. The org first had to
+  allow public packages (Settings → Packages → Package creation) before the three packages
+  could be made public; new GHCR packages are private by default.
+- The Free plan has no branch protection or rulesets for private repositories. A local
+  `.git/hooks/pre-push` refuses any push, force-push or deletion of `master` instead; merges
+  go through pull requests on GitHub.
+
+**Deploy (operator-authorized):** `thoth@sha256:90546ffa…`, `thoth-web@sha256:c30d2957…` and
+`thoth-remotion-renderer@sha256:ffff44bb…` from the `master` build of `b196c84`. All services
+healthy with zero restarts; `/auth/providers` returns `["github"]` with
+`THOTH_AUTH_GITHUB_ORG=FaallAI`.
+
+**First real sign-in:** succeeded through GitHub, then an emailed code. Two setup faults on the
+way, both outside the code:
+
+- the env carried the client ID of a different OAuth App than the one given the redirect URI
+  (GitHub now names the field "Redirect URIs");
+- Gmail drops the SMTP connection at login for an account password; it needs an App Password.
+
+**Fixed:** a code that failed to send still started the 60-second resend cooldown and counted
+toward the daily limit, so the retry after an SMTP failure answered "A code was sent less than a
+minute ago" although nothing was sent. A failed send now discards its challenge
+(`AccountStore.discard_challenge`). Test:
+`test_a_failed_send_does_not_start_the_cooldown` (RED → GREEN).
+
+**Verification:** `tests/auth` 51 passed, `tests/infrastructure` 400 passed (34 Postgres skips,
+covered by `make test-postgres` 16 passed), `tests/api` 354 passed, `make lint` clean.
+
+**Next steps:**
+
+- operator gates: push, PR, CI and merge of this fix, then a deploy;
+- the Studio media preview check under the CSP needs one uploaded asset (operator uploading);
+- merge PR #23 (roadmap) and PR #25 (deploy records);
+- SaaS sub-project 2: per-user isolated workspaces (multi-tenancy).
+
+## 2026-10-19 - Accounts, sign-in and developer access (SaaS sub-project 1)
+
+**Spec:** `docs/superpowers/specs/2026-10-19-accounts-and-sign-in-design.md`.
+**Plan:** `docs/superpowers/plans/2026-10-19-accounts-and-sign-in.md`.
+**Branch:** `feat/accounts-sign-in`. Executed natively.
+
+The operator wants Thoth to become a usage-priced SaaS. The work splits into four sub-projects,
+in this order: accounts, multi-tenancy, metering and cost model, then billing. This entry is the
+first.
+
+**Shipped:**
+
+- **Accounts schema (editor migration 0013):**
+  - the tables `users`, `user_identities`, `workspaces` (with `ws_bootstrap`),
+    `workspace_members`, `sessions`, `trusted_devices`, `email_challenges`, `access_tokens` and
+    `auth_events`;
+  - only token hashes and code HMACs are stored, never the secrets themselves.
+- **Sign-in** (`/auth/*`, Authlib, outside OpenAPI):
+  - Google is accepted for a verified email in one domain, with a matching `hd` claim when present;
+  - GitHub is accepted for a verified primary email and an active member of one organization;
+  - the rule is checked again on every sign-in;
+  - a 6-digit code is then emailed over SMTP: valid 10 min, 5 attempts, a 60 s resend floor and at
+    most 10 codes a day;
+  - the browser is then trusted for 30 days;
+  - a session lasts 12 h, renewed on use, and never longer than 7 days in all;
+  - cookie writes must carry the site's `Origin`;
+  - every refusal returns to `/login?error=` with a fixed code.
+- **Developer access:**
+  - personal `thoth_pat_` tokens with the scopes read, write or admin, 90 days by default and 365
+    at most, 20 per user, shown once;
+  - `GET/POST /api/v1/me/tokens`, `DELETE /api/v1/me/tokens/{id}` and `GET /api/v1/me`;
+  - `thoth-control tokens create`, to bootstrap the first token;
+  - workspace tokens for external developers are built but refused until
+    `THOTH_AUTH_WORKSPACE_TOKENS=true`, which waits for multi-tenancy and billing;
+  - the legacy `THOTH_CONTROL_PLANE_API_KEY` remains a service token, recorded at most once a
+    minute.
+- **Data actor unchanged:** every principal still acts as the data actor `owner` (spec 3.6). The
+  48 existing routes are untouched, and the API keeps answering 403 `Not authorized` without
+  credentials.
+- **Dashboard:**
+  - the login and verify pages, and an auth gate that re-checks on any 403;
+  - the API key is gone from the bundle, and `vite build` refuses `VITE_CONTROL_PLANE_API_KEY`;
+  - a user menu, and a Developer tokens page;
+  - `vite dev` injects `THOTH_DEV_TOKEN` through its proxy, so the server has no bypass.
+- **Serving:**
+  - **Image:** `thoth-web` (`Dockerfile.web`, Caddy 2.11.4 pinned by digest) runs as uid 10001,
+    read-only, with every capability dropped.
+  - **Overlay:** `compose.stage1.web.yml` publishes it on `127.0.0.1:8088`.
+  - **Behaviour:** an SPA fallback, `/api/v1` and `/auth` forwarded to the API, a strict CSP,
+    `X-Frame-Options: DENY`, and no-store on pages.
+  - **Delivery:** CI builds, publishes and smokes it, and the deploy pins `THOTH_WEB_IMAGE`.
+
+**Rulings** (the full text is in the SDD ledger):
+- **Contract pins the plan missed,** now updated:
+  - the editor migration adoption count (6 → 7) and the migration file list;
+  - the CI image set (3 images);
+  - the smoke's argument count;
+  - the dev pytest runner's fixed `--with` list (authlib, itsdangerous).
+- **HTTP library:** Authlib 1.9 uses `httpx2` when it is installed. The providers follow the same
+  module, so they catch its errors and the tests fake its transport.
+- **JOSE errors:** a wrong-audience `id_token` raised `joserfc.errors.JoseError`, which would have
+  been a 500. It is now `provider_error`, caught by a failing-first test.
+- **Caddy capability:** the official binary carries `cap_net_bind_service`, so it could not run with
+  every capability dropped. The capability is stripped, and the Caddyfile uses `http_port 8080`
+  and `https_port 8443` for a later domain.
+- **Plan code that did not type-check or lint:**
+  - parameter properties under `erasableSyntaxOnly`;
+  - Bun's `typeof fetch`;
+  - `nodenext` import extensions;
+  - react-refresh exports, so `SIGN_IN_ERRORS` and `useAuth` moved to their own modules.
+- **Smoke and test fixes:**
+  - three App tests await the gated shell;
+  - the smoke starts `web` before probing it;
+  - one me-route test probes `/api/v1/me`.
+
+**Final review** (a fresh reviewer on the most capable model): Critical 0, Important 2, Minor 8.
+Two Minors were re-graded Important by their effect. Four findings were fixed, each with a test
+that failed first:
+
+| Finding | Problem | Fix |
+|---|---|---|
+| Open redirect | A tab, CR, LF, space or DEL in `next` became `//evil.example` after sign-in | The server refuses such values, and the verify page navigates only within the site |
+| Five-attempt limit | Racing guesses got more than five codes checked | Every guess claims an attempt atomically first (`UPDATE … attempts < 5 RETURNING`) |
+| Unreachable provider | `/auth/login` answered a raw 500 | It returns `/login?error=provider_error` |
+| Token lineage | A token minted by an admin token survived its parent's revocation | `access_tokens.parent_token_id` (migration 0013, never deployed) caps the child's expiry at the parent's, and revoking a token revokes everything it minted |
+
+**Review minors, fixed at the operator's request (each with a test that failed first):**
+
+| Problem | Fix |
+|---|---|
+| A missing hashed asset fell back to index.html | `handle /assets/*` serves files only, so a missing one is a 404; a smoke check covers it |
+| A trusted-browser sign-in kept the old session | It now revokes the old session |
+| A trailing slash or capital letters in `THOTH_SITE_ORIGIN` broke every cookie write | The origin is normalised to `scheme://host[:port]` |
+| Forced or repeated sign-ins could burn the daily code limit in a burst | Sign-in also waits 60 s between codes, with the new code `too_soon` and copy for it |
+| A domain deploy needed manual port wiring | `THOTH_WEB_HTTP_BIND` and `THOTH_WEB_HTTPS_BIND` map to container 8080/8443, and the healthcheck accepts either site |
+| Parallel creates could exceed the 20-token limit | The limit is checked under a row lock in the insert's transaction |
+
+A test-isolation fix: the WorkflowMonitor download test no longer lets happy-dom navigate to
+`blob:`.
+
+**Verification (after the fix pass and the minors):**
+- `make lint` is clean.
+- `make test`: 4077 passed, 65 skipped. `make test-postgres`: 16 passed.
+- Dashboard: `bun test` 694/694, `tsc` 0 errors, and `bun run build` passes.
+- OpenAPI gained only `/api/v1/me...`, `/api/v1/workspace/tokens` and four schemas.
+- No Rust change.
+- **Local offline smoke** (`docker/test-renderer-offline.sh thoth:local <renderer digest>
+  thoth-web:local`): every line is true, including `web_serves_the_spa_on_deep_paths`,
+  `web_requires_a_session`, `developer_token_accepted` and `developer_token_revoked`, and
+  `teardown_leaves_nothing=true`.
+- **CSP walk:**
+  - setup: Edge over CDP, a session cookie, and a throwaway compose project with the new images,
+    removed afterwards;
+  - `/login`, `/workflows`, `/studio`, `/settings/tokens` and `/accounts` rendered with zero CSP
+    violations;
+  - a Studio media preview was not exercised, because the throwaway database held no asset.
+
+**Next steps:**
+- **Operator gates:**
+  - push, PR, CI, merge;
+  - pin `THOTH_WEB_IMAGE` and the new `THOTH_IMAGE`, then deploy, which applies migration 0013;
+  - create the Google OAuth client and the GitHub OAuth App, with callbacks
+    `http://localhost:8088/auth/callback/{google,github}`, and approve the app in the organization;
+  - provide an SMTP account, and set `THOTH_AUTH_*`, `THOTH_SMTP_*` and `THOTH_SITE_ORIGIN`;
+  - optionally set WSL `networkingMode=mirrored`.
+- **First real sign-in and media preview under the CSP:** at the post-deploy walk, or at the final
+  live acceptance.
+- **Next:** SaaS sub-project 2 (multi-tenancy: every user gets their own isolated workspace),
+  then metering and the cost model, then billing. Roadmap priority 2 (Workflow → Studio) resumes
+  from its brainstorm checkpoint.
+- **Follow-ups:** per-IP rate limiting at Caddy, and removing the legacy service key once every
+  script uses a personal token.
+
+## 2026-10-18 - UI foundation and voice adapter (roadmap priority 1)
+
+**Spec:** `docs/superpowers/specs/2026-10-18-ui-foundation-design.md`.
+**Plan:** `docs/superpowers/plans/2026-10-18-ui-foundation.md`.
+**Branch:** `feat/ui-foundation`. Executed natively, then reviewed by a fresh reviewer.
+
+**Shipped:**
+
+- **Projects in the control plane** (migration 0012):
+  - `GET/POST /api/v1/projects` and `GET /api/v1/projects/{id}`;
+  - `thoth-control projects import -`, which reads the Rust `/api/projects` JSON and keeps the IDs.
+- **Workflow runs** (`workflow_runs` table):
+  - a row is written at start and settled when it is read, from Temporal `describe` and `result`;
+    the workflow code is unchanged;
+  - `POST/GET /api/v1/projects/{id}/workflows`, `GET /api/v1/workflows?unassigned=true` and
+    `PATCH /api/v1/workflows/{id}`;
+  - an expired history falls back to the stored summary, or to one built from `workflow_reports`.
+- **Backfill.** `thoth-control workflow backfill` runs on every deploy. Run times come from
+  Temporal start times: the 2026-10-16 import stamped 259 of the 264 source reports with the import
+  day. Temporal still held 257 of the 264 on 2026-10-18, the oldest from 2026-09-25 and expiring
+  about 2026-10-25.
+- **Fix: workflow media downloads.** They answered 404 since PR #19/#21. They are now served from
+  the media store, with byte ranges.
+- **Studio documents per project.** `GET /api/v1/projects/{id}/edit-documents`, labelled by the
+  first text heading.
+- **Voice adapter** (`thoth_control_plane.voice`):
+  - providers `elevenlabs` (with word timings) and `openai_compatible` (for VoiceStudio and
+    similar servers);
+  - `thoth-control voice say`;
+  - edge-tts is excluded by operator decision.
+- **Dashboard:**
+  - React Router v7 with routes `/workflows`, `/workflows/:id`, `/studio` and
+    `/studio/:project/:doc`;
+  - the active project lives in the control plane and is remembered per browser;
+  - the Workflows list with an unassigned section and a move action;
+  - artifact downloads;
+  - the Studio draft list and the resolve-only import gate.
+- **Clean-up:** removed the metric placeholders, the local-only "New workflow" draft dialog, the
+  unavailable review option, the disabled rename button and the "Format: Unavailable" row. The
+  wizard copy now says "From source to content set". The Vite `/api` proxy points at 8787.
+- **Stack smoke:** gains `project_created_and_listed`, `project_workflows_listed` and
+  `edit_documents_listed`.
+
+**Rulings:**
+
+- P1 and P6 are listed in the plan.
+- Execution rulings live in the ledger. Among them:
+  - `StoredRun` sits in the domain;
+  - `history_expired` uses `default_factory`, so it stays optional in the generated TypeScript;
+  - `ProjectSwitcher` takes its client as a prop;
+  - happy-dom is registered with a URL.
+
+**Final review:** Critical 0, Important 2, Minor 9. Five findings were fixed with RED→GREEN tests:
+
+| Finding | Problem | Fix |
+|---|---|---|
+| I1 | Any settle failure turned the run listing into a 500 | A broad catch per row |
+| I2 | Settling had no time bound | 3 s per row |
+| M1 | "Last update" showed when the run was viewed | It takes the run's own time; unchanged reads write nothing |
+| M3 | Downloads were saved without an extension | The extension of the stored object is kept |
+| M6 | A failed Unassigned list vanished silently | The failure is shown |
+
+**Review minors, fixed at the operator's request (each RED→GREEN):**
+
+| Minor | Problem | Fix |
+|---|---|---|
+| M2 | A malformed `cursor` answered 500 or 503 | It answers 422 `invalid_cursor` (shared `domain/cursors.py`) |
+| M4 | The resolve-only gate showed the drafts chooser while loading and after a failure | It shows a loading line, a retry, and its own 404 message |
+| M5 | An expired run's detail could disagree with a known row status | The detail keeps that status |
+| M7 | The backfill re-asked Temporal about every workflow on each deploy | It only asks about workflows without a row |
+| M8 | The voice CLI printed a traceback on invalid input | It prints `VoiceRejected: invalid_request`; a broken ElevenLabs body is `VoiceUnavailable("elevenlabs_bad_response")` |
+| M9 | A stale active project survived an empty project list | It is cleared |
+
+**Nothing reaches the Rust server any more (operator, 2026-10-18).** Removed on purpose, before
+Python replacements exist:
+
+- the Discovery, Content Set, Profiles and Legacy Console pages, with `dashboard/src/api.ts`, their
+  components, tests and CSS, the "My profile" menu entry and their search entries;
+- the Vite `/api` and `/health` proxies to the Rust server; only `/api/v1` to the control plane
+  remains;
+- the control plane's read-only legacy job bridge: `GET /api/v1/legacy/jobs/{id}` and `/events`,
+  `THOTH_LEGACY_API_BASE_URL` and `THOTH_LEGACY_API_KEY`.
+
+An App test asserts that every request the dashboard makes goes to `/api/v1/`; it failed against
+an injected `/api/jobs` call. The four pages are listed in `docs/ROADMAP.md` (PR #23) as features
+to rebuild in Python. The Studio import gate's Content Set mode and its projection helper stay
+for roadmap item 2. The one Rust project is imported from the Rust SQLite file, read-only, so the
+Rust server is never started.
+
+**CI fix.** The stack smoke failed because the base-install `thoth-control` imported `openai`
+through the voice adapter; `openai` is now imported lazily (`051dead`), pinned by a test that
+failed first.
+
+**Verification (after all fixes):**
+
+- `make lint` is clean.
+- `make test`: 3982 passed, 63 skipped (the legacy bridge tests went with it).
+- `make test-postgres`: 14 passed.
+- Dashboard: `bun test` 674/674 (the removed pages' tests went with them), `tsc` 0 errors, and
+  `bun run build` passes.
+- OpenAPI and the generated types are regenerated without the legacy routes.
+- No Rust change.
+
+**Next steps:**
+
+- **Operator gates, each needing its own authorization:**
+  - push, PR, CI (including the stack smoke), merge, digest pin and deploy, preferably before
+    about 2026-10-25 so the backfill still reads the oldest start times. The deploy should print
+    `inserted=264 ... start_times≈257`;
+  - then, once, `thoth-control projects import -` with the Rust project read from its SQLite file;
+  - the post-deploy Edge headless UI walk.
+- **Next roadmap item:** priority 2 (Workflow → Studio with media).
+- **Follow-ups:** `docs/ROADMAP.md` (PR #23) marks priority 1 done once both merge.
+
 ## 2026-10-17 - PR #20 and PR #21 deployed; the artifact volume is gone
 
 **PR #20 deployed** (review minors of sub-project 1).

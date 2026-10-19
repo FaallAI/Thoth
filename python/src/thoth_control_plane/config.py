@@ -60,12 +60,24 @@ class Settings(BaseSettings):
     THOTH_FFPROBE: str = "ffprobe"
     THOTH_TEMPORAL_TARGET: str = "localhost:7233"
     THOTH_TEMPORAL_NAMESPACE: str = "default"
-    THOTH_LEGACY_API_BASE_URL: str | None = None
-    THOTH_LEGACY_API_KEY: SecretStr | None = None
     THOTH_EDITOR_DATABASE_URL: SecretStr | None = None
     THOTH_EDITOR_PREVIEW_SIGNING_KEY: SecretStr | None = None
     THOTH_EDITOR_PREVIEW_TTL_SECONDS: Annotated[int, Field(ge=30, le=3600)] = 300
     THOTH_EDITOR_PREVIEW_BASE_URL: str | None = None
+    THOTH_SITE_ORIGIN: str = "http://localhost:8088"
+    THOTH_AUTH_SECRET: SecretStr | None = None
+    THOTH_AUTH_GOOGLE_CLIENT_ID: str | None = None
+    THOTH_AUTH_GOOGLE_CLIENT_SECRET: SecretStr | None = None
+    THOTH_AUTH_GOOGLE_DOMAIN: str | None = None
+    THOTH_AUTH_GITHUB_CLIENT_ID: str | None = None
+    THOTH_AUTH_GITHUB_CLIENT_SECRET: SecretStr | None = None
+    THOTH_AUTH_GITHUB_ORG: str | None = None
+    THOTH_SMTP_HOST: str | None = None
+    THOTH_SMTP_PORT: Annotated[int, Field(ge=1, le=65535)] = 587
+    THOTH_SMTP_USERNAME: str | None = None
+    THOTH_SMTP_PASSWORD: SecretStr | None = None
+    THOTH_SMTP_FROM: str | None = None
+    THOTH_AUTH_WORKSPACE_TOKENS: bool = False
     THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE: SourceActivityMode = (
         "python_tiktok_with_legacy_fallback"
     )
@@ -85,6 +97,10 @@ class Settings(BaseSettings):
     THOTH_SOURCE_VISION_MODEL: str = "qwen/qwen3-vl-30b-a3b-instruct"
     # Vision and Jev decisions both go through OpenRouter (operator, 2026-10-08/09).
     THOTH_OPENROUTER_API_KEY: SecretStr | None = None
+    # Voice adapter (spec 2026-10-18, section 9): ElevenLabs, or any OpenAI-compatible server.
+    THOTH_ELEVENLABS_API_KEY: SecretStr | None = None
+    THOTH_VOICE_OPENAI_COMPATIBLE_BASE_URL: AnyHttpUrl | None = None
+    THOTH_VOICE_OPENAI_COMPATIBLE_API_KEY: SecretStr | None = None
     # Read by the API when it starts an identify_original workflow; a kill switch.
     THOTH_SOURCE_ATTRIBUTION_ENABLED: bool = True
     # Speech models baked into the image (spec 2026-10-13); never downloaded at run time.
@@ -109,24 +125,8 @@ class Settings(BaseSettings):
     THOTH_MEDIA_S3_SECURE: bool = False
 
     def __init__(self, **values: object) -> None:
-        """Load settings, then reject an incomplete gateway pair without retaining inputs."""
+        """Load settings, then reject incomplete pairs without retaining inputs."""
         super().__init__(**values)
-        has_base_url = bool((self.THOTH_LEGACY_API_BASE_URL or "").strip())
-        has_api_key = bool(
-            self.THOTH_LEGACY_API_KEY is not None
-            and self.THOTH_LEGACY_API_KEY.get_secret_value().strip()
-        )
-        if has_base_url != has_api_key:
-            raise SettingsValidationError(
-                "legacy gateway base URL and API key must be configured together"
-            )
-        supplied_partial_value = (
-            self.THOTH_LEGACY_API_BASE_URL is not None or self.THOTH_LEGACY_API_KEY is not None
-        )
-        if supplied_partial_value and not (has_base_url and has_api_key):
-            raise SettingsValidationError(
-                "legacy gateway base URL and API key must be configured together"
-            )
         preview_base_url = self.THOTH_EDITOR_PREVIEW_BASE_URL
         if preview_base_url is not None and not _is_same_origin_path(preview_base_url):
             raise SettingsValidationError(
@@ -154,6 +154,65 @@ class Settings(BaseSettings):
                     )
                 model_ids.add(model.model_id)
 
+    @field_validator(
+        "THOTH_AUTH_SECRET",
+        "THOTH_AUTH_GOOGLE_CLIENT_ID",
+        "THOTH_AUTH_GOOGLE_CLIENT_SECRET",
+        "THOTH_AUTH_GOOGLE_DOMAIN",
+        "THOTH_AUTH_GITHUB_CLIENT_ID",
+        "THOTH_AUTH_GITHUB_CLIENT_SECRET",
+        "THOTH_AUTH_GITHUB_ORG",
+        "THOTH_SMTP_HOST",
+        "THOTH_SMTP_USERNAME",
+        "THOTH_SMTP_PASSWORD",
+        "THOTH_SMTP_FROM",
+        mode="before",
+    )
+    @classmethod
+    def _blank_is_unset(cls, value: object) -> object:
+        """Compose passes `${VAR:-}` as an empty string; empty means not configured."""
+        return None if isinstance(value, str) and not value.strip() else value
+
+    @field_validator("THOTH_SITE_ORIGIN")
+    @classmethod
+    def _origin(cls, value: str) -> str:
+        """Compared exactly with the browser's Origin header, so keep only scheme://host[:port]."""
+        scheme, _, rest = value.strip().partition("://")
+        return f"{scheme.lower()}://{rest.split('/', 1)[0].lower()}"
+
+    @property
+    def cookie_secure(self) -> bool:
+        return self.THOTH_SITE_ORIGIN.startswith("https://")
+
+    @property
+    def email_codes_enabled(self) -> bool:
+        return self.THOTH_SMTP_HOST is not None and self.THOTH_SMTP_FROM is not None
+
+    @property
+    def sign_in_ready(self) -> bool:
+        """Everything a provider needs besides its own client: a secret, the DB, and mail."""
+        return (
+            self.THOTH_AUTH_SECRET is not None
+            and self.THOTH_EDITOR_DATABASE_URL is not None
+            and self.email_codes_enabled
+        )
+
+    @property
+    def google_sign_in_enabled(self) -> bool:
+        return self.sign_in_ready and None not in (
+            self.THOTH_AUTH_GOOGLE_CLIENT_ID,
+            self.THOTH_AUTH_GOOGLE_CLIENT_SECRET,
+            self.THOTH_AUTH_GOOGLE_DOMAIN,
+        )
+
+    @property
+    def github_sign_in_enabled(self) -> bool:
+        return self.sign_in_ready and None not in (
+            self.THOTH_AUTH_GITHUB_CLIENT_ID,
+            self.THOTH_AUTH_GITHUB_CLIENT_SECRET,
+            self.THOTH_AUTH_GITHUB_ORG,
+        )
+
     @property
     def prompt_provider_secrets(self) -> dict[str, SecretStr]:
         """Worker-only credential map keyed by catalog credential_id."""
@@ -170,11 +229,6 @@ class Settings(BaseSettings):
     def openrouter_api_key(self) -> str | None:
         """The OpenRouter key for vision and Jev; attribution refuses to start without it."""
         return _secret(self.THOTH_OPENROUTER_API_KEY)
-
-    @property
-    def legacy_bridge_enabled(self) -> bool:
-        """Whether the validated legacy observation bridge can be constructed."""
-        return self.THOTH_LEGACY_API_BASE_URL is not None and self.THOTH_LEGACY_API_KEY is not None
 
     @property
     def renderer_enabled(self) -> bool:

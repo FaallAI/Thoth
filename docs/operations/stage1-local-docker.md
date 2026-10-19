@@ -503,7 +503,7 @@ verdict. Bind every new aggregate report in the operator change record to all si
 
 | Identity | What it is |
 | --- | --- |
-| Acquisition digest | The deployed `ghcr.io/muhfalihr/thoth@sha256:…` every THOTH role runs |
+| Acquisition digest | The deployed `ghcr.io/faallai/thoth@sha256:…` every THOTH role runs |
 | Acquisition implementation commit | The commit that built that digest |
 | Evaluator implementation commit | The commit containing the `TikTokSoakPolicy` and `evaluate_tiktok_soak` implementation that generated the report |
 | Embedded policy values | The window, run-count, parity, and rate values recorded inside that report |

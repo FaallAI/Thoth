@@ -2,10 +2,11 @@
 
 ## Python v1 workflow dashboard
 
-The **New video** workflow uses generated OpenAPI types and the Python control plane's
-`/api/v1/workflows` product contract. Configure the local Vite process with
-`VITE_CONTROL_PLANE_URL=http://127.0.0.1:8000` and inject
-`VITE_CONTROL_PLANE_API_KEY` without printing or committing its value, then run `bun run dev`.
+The dashboard uses generated OpenAPI types and the Python control plane's `/api/v1` contract.
+The browser signs in (Google or GitHub, then an emailed code) and never holds an API key. For
+local development, run `THOTH_DEV_TOKEN=thoth_pat_... bun run dev`: the Vite proxy adds that
+personal token to `/api/v1` and `/auth` requests. `vite build` refuses to run while
+`VITE_CONTROL_PLANE_API_KEY` is set.
 
 Generate/check the client and verify the dashboard with:
 
@@ -16,8 +17,9 @@ bun run build
 bun run lint
 ```
 
-The existing Scout console remains on the legacy Rust API and `VITE_THOTH_API_KEY`; it is not the
-v1 workflow path. The ordinary v1 screen exposes Source, Style, Review, Progress, Decisions,
+The dashboard talks only to the Python control plane. The Discovery, Content Set, Profiles, and
+Legacy Console pages that used the Rust server were removed on 2026-10-18; they return in Python
+(see `docs/ROADMAP.md`). The ordinary v1 screen exposes Source, Style, Review, Progress, Decisions,
 Results, Cancel, and Retry rather than Scout executor flags or stdout-driven state. See
 [`docs/python-control-plane.md`](../docs/python-control-plane.md) for the four-process local stack,
 SSE reconnect rule, authorization, redaction, and adapter retirement gate.

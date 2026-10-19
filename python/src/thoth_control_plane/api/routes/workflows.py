@@ -3,13 +3,15 @@
 import asyncio
 import re
 from collections.abc import AsyncIterator
-from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from thoth_control_plane.api.dependencies import current_actor
+from thoth_control_plane.api.ranged import ranged_response
+from thoth_control_plane.api.routes.workflow_runs import get_run_service
 from thoth_control_plane.application import (
     Actor,
     ApprovalSubmission,
@@ -21,11 +23,11 @@ from thoth_control_plane.application import (
     WorkflowService,
     WorkflowSummary,
 )
-from thoth_control_plane.infrastructure.event_store import LegacyEventStore
-from thoth_control_plane.infrastructure.legacy_reader import (
-    LegacyJobMappingError,
-    LegacyJobNotFound,
-    LegacyJobReader,
+from thoth_control_plane.application.workflow_runs import WorkflowRunService
+from thoth_control_plane.infrastructure.media_store import (
+    MediaLocatorInvalid,
+    MediaStoreUnavailable,
+    MediaUnavailable,
 )
 from thoth_control_plane.infrastructure.report_store import REPORT_KINDS, ReportStoreUnavailable
 
@@ -34,25 +36,6 @@ router = APIRouter()
 
 def get_workflow_service(request: Request) -> WorkflowService:
     return request.app.state.workflow_service
-
-
-def get_legacy_job_reader(request: Request) -> LegacyJobReader:
-    """Get the migration-only, read-only adapter without changing product wiring."""
-    configured_reader = getattr(request.app.state, "legacy_job_reader", None)
-    if configured_reader is not None:
-        return configured_reader
-    settings = request.app.state.settings
-    if not settings.legacy_bridge_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Legacy bridge is not configured",
-        )
-    reader = LegacyJobReader.from_settings(
-        settings.THOTH_LEGACY_API_BASE_URL or "",
-        settings.THOTH_LEGACY_API_KEY.get_secret_value() if settings.THOTH_LEGACY_API_KEY else "",
-    )
-    request.app.state.legacy_job_reader = reader
-    return reader
 
 
 @router.get("/style-presets", response_model=list[StylePreset])
@@ -72,18 +55,18 @@ async def create_workflow(
     request: WorkflowRequest,
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
     actor: Annotated[Actor, Depends(current_actor)],
-    service: Annotated[WorkflowService, Depends(get_workflow_service)],
+    runs: Annotated[WorkflowRunService, Depends(get_run_service)],
 ) -> WorkflowSummary:
-    return await service.start(request, actor=actor, idempotency_key=idempotency_key)
+    return await runs.start(None, request, actor=actor, idempotency_key=idempotency_key)
 
 
 @router.get("/workflows/{workflow_id}", response_model=WorkflowSummary)
 async def get_workflow(
     workflow_id: str,
     actor: Annotated[Actor, Depends(current_actor)],
-    service: Annotated[WorkflowService, Depends(get_workflow_service)],
+    runs: Annotated[WorkflowRunService, Depends(get_run_service)],
 ) -> WorkflowSummary:
-    return await service.get(workflow_id, actor=actor)
+    return await runs.get(workflow_id, actor=actor)
 
 
 @router.get(
@@ -103,11 +86,11 @@ async def download_workflow_artifact(
     artifact_id: str,
     request: Request,
     actor: Annotated[Actor, Depends(current_actor)],
-    service: Annotated[WorkflowService, Depends(get_workflow_service)],
+    runs: Annotated[WorkflowRunService, Depends(get_run_service)],
 ) -> Response:
     """Authorize through the workflow owner boundary, then serve one safe artifact."""
 
-    artifact = await service.get_artifact(workflow_id, artifact_id, actor=actor)
+    artifact = await runs.get_artifact(workflow_id, artifact_id, actor=actor)
     if artifact.kind in REPORT_KINDS:
         reports = request.app.state.report_store
         try:
@@ -126,14 +109,23 @@ async def download_workflow_artifact(
             media_type=artifact.media_type,
             headers={"Content-Disposition": f'attachment; filename="{artifact.artifact_id}.json"'},
         )
-    artifact_root = Path(request.app.state.settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT).resolve()
-    artifact_path = (artifact_root / artifact.location).resolve()
-    if artifact_root not in artifact_path.parents or not artifact_path.is_file():
-        raise ArtifactNotFound
-    return FileResponse(
-        artifact_path,
+    # Workflow media lives in the media store since PR #19; no service mounts the volume.
+    media = request.app.state.media_store
+    try:
+        size = await asyncio.to_thread(media.size, artifact.location)
+    except (MediaUnavailable, MediaLocatorInvalid):
+        raise ArtifactNotFound from None
+    except MediaStoreUnavailable as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="media_store_unavailable"
+        ) from error
+    suffix = PurePosixPath(artifact.location).suffix
+    return ranged_response(
+        size=size,
+        read=lambda start, end: media.open_range(artifact.location, start, end),
         media_type=artifact.media_type,
-        filename=f"{artifact.artifact_id}{artifact_path.suffix}",
+        range_header=request.headers.get("range"),
+        headers={"Content-Disposition": f'attachment; filename="{artifact.artifact_id}{suffix}"'},
     )
 
 
@@ -172,60 +164,6 @@ async def stream_workflow_events(
             yield (
                 f"id: {event.sequence}\nevent: {event.kind}\ndata: {event.model_dump_json()}\n\n"
             )
-
-    return StreamingResponse(encoded_events(), media_type="text/event-stream")
-
-
-@router.get(
-    "/legacy/jobs/{legacy_job_id}",
-    response_model=WorkflowSummary,
-    tags=["migration"],
-    summary="Observe a legacy job during migration",
-)
-async def get_legacy_job(
-    legacy_job_id: str,
-    actor: Annotated[Actor, Depends(current_actor)],
-    reader: Annotated[LegacyJobReader, Depends(get_legacy_job_reader)],
-) -> WorkflowSummary:
-    """Return a safe v1 projection of one legacy Rust job, without mutations."""
-    try:
-        return await reader.get_summary(legacy_job_id, actor)
-    except LegacyJobNotFound as error:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found"
-        ) from error
-    except LegacyJobMappingError as error:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail="Legacy job is unavailable"
-        ) from error
-
-
-@router.get(
-    "/legacy/jobs/{legacy_job_id}/events",
-    tags=["migration"],
-    summary="Replay legacy job observations during migration",
-)
-async def stream_legacy_job_events(
-    legacy_job_id: str,
-    actor: Annotated[Actor, Depends(current_actor)],
-    reader: Annotated[LegacyJobReader, Depends(get_legacy_job_reader)],
-    last_event_id: Annotated[str | None, Header(alias="Last-Event-ID")] = None,
-) -> StreamingResponse:
-    """Expose migration-only SSE replay with a strict, monotonically increasing cursor."""
-    after_sequence = _parse_last_event_id(last_event_id)
-    store = LegacyEventStore(reader)
-
-    async def encoded_events() -> AsyncIterator[str]:
-        try:
-            async for event in store.replay(legacy_job_id, actor, after_sequence):
-                yield (
-                    f"id: {event.sequence}\nevent: {event.kind}\n"
-                    f"data: {event.model_dump_json()}\n\n"
-                )
-        except LegacyJobNotFound:
-            return
-        except LegacyJobMappingError:
-            return
 
     return StreamingResponse(encoded_events(), media_type="text/event-stream")
 

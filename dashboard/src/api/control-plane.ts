@@ -1,7 +1,14 @@
+import { notifyForbidden } from "@/lib/auth-events";
 import type { components } from "./generated/control-plane";
 
 export type WorkflowRequest = components["schemas"]["WorkflowRequest"];
 export type WorkflowSummary = components["schemas"]["WorkflowSummary"];
+export type ArtifactRef = components["schemas"]["ArtifactRef"];
+export type Project = components["schemas"]["Project"];
+export type WorkflowRun = components["schemas"]["WorkflowRun"];
+export type WorkflowRunPage = components["schemas"]["WorkflowRunPage"];
+export type EditDocumentListItem = components["schemas"]["EditDocumentListItem"];
+export type EditDocumentListPage = components["schemas"]["EditDocumentListPage"];
 export type StylePreset = components["schemas"]["StylePreset"];
 export type ApprovalSubmission = components["schemas"]["ApprovalSubmission"];
 export type RetryRequest = components["schemas"]["RetryRequest"];
@@ -194,6 +201,18 @@ export class StudioImportRequestError extends Error {
 export type ControlPlaneClient = {
   listStylePresets: () => Promise<StylePreset[]>;
   createWorkflow: (request: WorkflowRequest, idempotencyKey: string) => Promise<WorkflowSummary>;
+  listProjects: () => Promise<Project[]>;
+  createProject: (name: string) => Promise<Project>;
+  startProjectWorkflow: (
+    projectId: string,
+    request: WorkflowRequest,
+    idempotencyKey: string,
+  ) => Promise<WorkflowSummary>;
+  listProjectWorkflows: (projectId: string, cursor?: string) => Promise<WorkflowRunPage>;
+  listUnassignedWorkflows: (cursor?: string) => Promise<WorkflowRunPage>;
+  moveWorkflow: (workflowId: string, projectId: string) => Promise<WorkflowRun>;
+  downloadWorkflowArtifact: (workflowId: string, artifactId: string) => Promise<Blob>;
+  listEditDocuments: (projectId: string, cursor?: string) => Promise<EditDocumentListPage>;
   getWorkflow: (workflowId: string) => Promise<WorkflowSummary>;
   streamWorkflow: (
     workflowId: string,
@@ -330,7 +349,6 @@ export type ControlPlaneClient = {
 type ClientOptions = { baseUrl?: string; apiKey?: string; fetch?: typeof fetch };
 
 const defaultBaseUrl = (import.meta.env.VITE_CONTROL_PLANE_URL ?? "").replace(/\/$/, "");
-const defaultApiKey = import.meta.env.VITE_CONTROL_PLANE_API_KEY ?? "";
 
 function eventBlocks(chunk: string): Array<{ id?: string; data: string }> {
   return chunk.split("\n\n").flatMap((block) => {
@@ -344,11 +362,20 @@ function eventBlocks(chunk: string): Array<{ id?: string; data: string }> {
   });
 }
 
+const TERMINAL_STATUSES = new Set(["succeeded", "failed", "cancelled"]);
+
 export function createControlPlaneClient(options: ClientOptions = {}): ControlPlaneClient {
   const baseUrl = (options.baseUrl ?? defaultBaseUrl).replace(/\/$/, "");
-  const apiKey = options.apiKey ?? defaultApiKey;
-  const doFetch = options.fetch ?? fetch;
-  const headers = (extra: HeadersInit = {}) => ({ Authorization: `Bearer ${apiKey}`, ...extra });
+  // The browser authenticates with its same-site session cookie; it never holds a key (spec 3.6).
+  const apiKey = options.apiKey ?? "";
+  const rawFetch = options.fetch ?? fetch;
+  const doFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const response = await rawFetch(input, init);
+    if (response.status === 403) notifyForbidden();
+    return response;
+  };
+  const headers = (extra: HeadersInit = {}) =>
+    apiKey ? { Authorization: `Bearer ${apiKey}`, ...extra } : { ...extra };
 
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const response = await doFetch(`${baseUrl}${path}`, {
@@ -500,6 +527,53 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
         body: JSON.stringify(workflow),
       }),
     getWorkflow: (workflowId) => request<WorkflowSummary>(`/api/v1/workflows/${workflowId}`),
+    listProjects: async () => (await request<{ items: Project[] }>("/api/v1/projects")).items,
+    createProject: (name) =>
+      request<Project>("/api/v1/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      }),
+    startProjectWorkflow: (projectId, workflow, idempotencyKey) =>
+      request<WorkflowSummary>(`/api/v1/projects/${encodeURIComponent(projectId)}/workflows`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify(workflow),
+      }),
+    listProjectWorkflows: (projectId, cursor) => {
+      const query = new URLSearchParams({ limit: "20" });
+      if (cursor) query.set("cursor", cursor);
+      return request<WorkflowRunPage>(
+        `/api/v1/projects/${encodeURIComponent(projectId)}/workflows?${query.toString()}`,
+      );
+    },
+    listUnassignedWorkflows: (cursor) => {
+      const query = new URLSearchParams({ unassigned: "true", limit: "50" });
+      if (cursor) query.set("cursor", cursor);
+      return request<WorkflowRunPage>(`/api/v1/workflows?${query.toString()}`);
+    },
+    moveWorkflow: (workflowId, projectId) =>
+      request<WorkflowRun>(`/api/v1/workflows/${encodeURIComponent(workflowId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_id: projectId }),
+      }),
+    // A plain link cannot carry the bearer, so the bytes come back as a Blob to save.
+    downloadWorkflowArtifact: async (workflowId, artifactId) => {
+      const response = await doFetch(
+        `${baseUrl}/api/v1/workflows/${encodeURIComponent(workflowId)}/artifacts/${encodeURIComponent(artifactId)}`,
+        { headers: headers() },
+      );
+      if (!response.ok) throw new Error(`Control plane request failed (${response.status})`);
+      return response.blob();
+    },
+    listEditDocuments: (projectId, cursor) => {
+      const query = new URLSearchParams({ limit: "20" });
+      if (cursor) query.set("cursor", cursor);
+      return request<EditDocumentListPage>(
+        `/api/v1/projects/${encodeURIComponent(projectId)}/edit-documents?${query.toString()}`,
+      );
+    },
     approveWorkflow: (workflowId, approval) =>
       request<WorkflowSummary>(`/api/v1/workflows/${workflowId}/approve`, {
         method: "POST",
@@ -703,12 +777,16 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
       let cursor = lastEventId;
       let controller: AbortController | undefined;
       let snapshotRefresh = Promise.resolve();
+      // Ruling P6: a terminal or history-expired run never changes again; stop reconnecting.
+      let finished = false;
 
       const refreshSnapshot = () => {
         snapshotRefresh = snapshotRefresh.then(async () => {
           if (!active) return;
           try {
-            onSnapshot(await client.getWorkflow(workflowId));
+            const snapshot = await client.getWorkflow(workflowId);
+            onSnapshot(snapshot);
+            if (TERMINAL_STATUSES.has(snapshot.status) || snapshot.history_expired) finished = true;
           } catch {
             // A later stream retry or user action will obtain the next snapshot.
           }
@@ -718,7 +796,7 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
       void refreshSnapshot();
 
       void (async () => {
-        while (active) {
+        while (active && !finished) {
           controller = new AbortController();
           try {
             const response = await fetch(`${baseUrl}/api/v1/workflows/${workflowId}/events`, {
@@ -729,7 +807,7 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let pending = "";
-            while (active) {
+            while (active && !finished) {
               const { done, value } = await reader.read();
               pending = (pending + decoder.decode(value, { stream: !done })).replace(/\r\n/g, "\n");
               let boundary = pending.indexOf("\n\n");
@@ -747,7 +825,7 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
             // The immediately refreshed snapshot is authoritative after every reconnect.
           }
           await refreshSnapshot();
-          if (active) await new Promise((resolve) => setTimeout(resolve, 1_000));
+          if (active && !finished) await new Promise((resolve) => setTimeout(resolve, 1_000));
         }
       })();
       return () => {

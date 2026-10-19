@@ -26,7 +26,8 @@ export type StudioImportClient = Pick<
 type StudioImportGateProps = {
   client: StudioImportClient;
   projectId: string;
-  source: StudioSourceProjection;
+  /** Absent in resolve-only mode: a draft reopened from Studio by URL, with no Content Set. */
+  source?: StudioSourceProjection;
   /** Reopened from Studio: show this draft's inventory first instead of the draft choice. */
   resumeDocumentId?: string;
   onOpen: (documentId: string) => void;
@@ -75,6 +76,8 @@ export function StudioImportGate({ client, projectId, source, resumeDocumentId, 
   const [attempt, setAttempt] = useState(0);
   const [inspection, setInspection] = useState<StudioSourceInspection>();
   const [listFailure, setListFailure] = useState<string>();
+  // Resolve-only mode (no source): the open failed and can be retried.
+  const [openFailed, setOpenFailed] = useState(false);
   const [selected, setSelected] = useState<string>();
   // A create that failed keeps its key, so an explicit retry can never make a second draft.
   const [pendingKey, setPendingKey] = useState<string>();
@@ -88,6 +91,7 @@ export function StudioImportGate({ client, projectId, source, resumeDocumentId, 
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    if (!source) return;
     let alive = true;
     setListFailure(undefined);
     client.inspectStudioImport(projectId, source).then(
@@ -152,11 +156,18 @@ export function StudioImportGate({ client, projectId, source, resumeDocumentId, 
   const openDraft = async (draftId: string, sourceKey: string) => {
     setBusy(true);
     setAlert(undefined);
+    setOpenFailed(false);
     try {
       setInventory(await client.getStudioImportInventory(projectId, draftId));
     } catch (error) {
       if (!(error instanceof StudioImportRequestError && error.status === 404)) {
         setAlert(failure(error, "The draft could not be opened. Try again."));
+        setOpenFailed(!source);
+        return;
+      }
+      if (!source) {
+        // Resolve-only mode has no draft list to refresh.
+        setAlert("This draft is no longer available.");
         return;
       }
       // A draft that is gone is never replaced silently: the list is refreshed and the creator chooses again.
@@ -180,7 +191,7 @@ export function StudioImportGate({ client, projectId, source, resumeDocumentId, 
   }, []);
 
   const create = async () => {
-    if (!inspection) return;
+    if (!source || !inspection) return;
     const key = pendingKey ?? crypto.randomUUID();
     setPendingKey(key);
     setBusy(true);
@@ -279,10 +290,14 @@ export function StudioImportGate({ client, projectId, source, resumeDocumentId, 
     if (!assets && assetLoad === undefined) loadAssets();
   };
 
-  const main = source.items[0];
-  const title = main?.title ? `Open in Studio — ${main.title}` : "Open in Studio";
+  const main = source?.items[0];
+  const title = !source
+    ? "Resolve source items"
+    : main?.title
+      ? `Open in Studio — ${main.title}`
+      : "Open in Studio";
   const drafts = inspection?.drafts ?? [];
-  const textScenes = source.items.filter(
+  const textScenes = (source?.items ?? []).filter(
     (item, index) => index > 0 && item.role !== "main_footage" && item.media_kind === "none" && (item.title || item.text),
   ).length;
 
@@ -464,6 +479,16 @@ export function StudioImportGate({ client, projectId, source, resumeDocumentId, 
                 ) : null}
               </div>
             </>
+          ) : !source ? (
+            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+              {openFailed && resumeDocumentId ? (
+                <button type="button" className={buttonClass} onClick={() => void openDraft(resumeDocumentId, "")}>
+                  Try again
+                </button>
+              ) : alert ? null : (
+                <p role="status">Loading the draft's source items…</p>
+              )}
+            </div>
           ) : (
             <fieldset disabled={busy}>
               <legend className={sectionLabel}>Drafts for this source</legend>
@@ -533,7 +558,7 @@ export function StudioImportGate({ client, projectId, source, resumeDocumentId, 
                 Continue in Studio
               </button>
             </>
-          ) : (
+          ) : !source ? null : (
             <>
               {drafts.length ? (
                 <button

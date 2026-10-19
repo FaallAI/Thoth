@@ -140,7 +140,7 @@ def test_container_workflow_smoke_never_starts_the_live_services() -> None:
 
 def test_container_workflow_pins_gates_tags_platform_and_digest_summary() -> None:
     workflow = _repo_text(".github/workflows/container-image.yml")
-    assert "REGISTRY_IMAGE: ghcr.io/muhfalihr/thoth" in workflow
+    assert "REGISTRY_IMAGE: ghcr.io/faallai/thoth" in workflow
     # From python/, so pytest reads python/pyproject.toml (asyncio_mode and markers).
     assert (
         "working-directory: python\n"
@@ -174,7 +174,7 @@ def test_container_workflow_pins_gates_tags_platform_and_digest_summary() -> Non
 #: The renderer is a second image from a second Dockerfile, so it gets a second
 #: repository. One repository holding two unrelated runtimes would make a digest
 #: ambiguous about which one it names.
-RENDERER_REGISTRY = "ghcr.io/muhfalihr/thoth-remotion-renderer"
+RENDERER_REGISTRY = "ghcr.io/faallai/thoth-remotion-renderer"
 
 
 def test_container_workflow_publishes_the_renderer_as_its_own_image() -> None:
@@ -183,13 +183,16 @@ def test_container_workflow_publishes_the_renderer_as_its_own_image() -> None:
 
     assert f"RENDERER_REGISTRY_IMAGE: {RENDERER_REGISTRY}" in workflow
     # The existing application image keeps its repository and its identity.
-    assert "REGISTRY_IMAGE: ghcr.io/muhfalihr/thoth\n" in workflow
+    assert "REGISTRY_IMAGE: ghcr.io/faallai/thoth\n" in workflow
     assert "file: Dockerfile.renderer" in publication
     assert "images: ${{ env.RENDERER_REGISTRY_IMAGE }}" in publication
     assert "org.opencontainers.image.revision=${{ github.sha }}" in publication
-    assert publication.count("push: true") == 2
-    assert publication.count("provenance: mode=max") == 2
-    assert publication.count("sbom: true") == 2
+    # The dashboard web image (spec 2026-10-19) is the third published image.
+    assert "file: Dockerfile.web" in publication
+    assert "images: ${{ env.WEB_REGISTRY_IMAGE }}" in publication
+    assert publication.count("push: true") == 3
+    assert publication.count("provenance: mode=max") == 3
+    assert publication.count("sbom: true") == 3
 
 
 def test_container_workflow_exposes_each_published_digest_separately() -> None:
@@ -198,6 +201,7 @@ def test_container_workflow_exposes_each_published_digest_separately() -> None:
 
     assert "digest: ${{ steps.build.outputs.digest }}" in outputs
     assert "renderer_digest: ${{ steps.renderer-build.outputs.digest }}" in outputs
+    assert "web_digest: ${{ steps.web-build.outputs.digest }}" in outputs
     summary = workflow.split("Record immutable release identity", 1)[1]
     assert "RENDERER_IMAGE_DIGEST: ${{ steps.renderer-build.outputs.digest }}" in summary
     assert "${RENDERER_REGISTRY_IMAGE}" in summary
@@ -209,8 +213,10 @@ def test_container_workflow_validates_both_candidate_images_without_publishing()
 
     assert "RENDERER_CANDIDATE_IMAGE: thoth-remotion-renderer:pr-${{ github.sha }}" in validation
     assert "file: Dockerfile.renderer" in validation
-    assert validation.count("push: false") == 2
-    assert validation.count("load: true") == 2
+    assert "WEB_CANDIDATE_IMAGE: thoth-web:pr-${{ github.sha }}" in validation
+    assert "file: Dockerfile.web" in validation
+    assert validation.count("push: false") == 3
+    assert validation.count("load: true") == 3
     assert "packages: write" not in validation
     assert (
         'bash docker/test-renderer-offline.sh "${CANDIDATE_IMAGE}" '
@@ -256,8 +262,8 @@ def test_renderer_smoke_is_a_two_image_self_cleaning_harness() -> None:
 
     assert "set -euo pipefail" in script
     assert "umask 077" in script
-    assert "usage: docker/test-renderer-offline.sh IMAGE RENDERER_IMAGE" in script
-    assert '[ "$#" -ne 2 ]' in script
+    assert "usage: docker/test-renderer-offline.sh IMAGE RENDERER_IMAGE WEB_IMAGE" in script
+    assert '[ "$#" -ne 3 ]' in script
     assert "mktemp -d" in script
     assert "trap teardown EXIT INT TERM" in script
     # Broad cleanup would take the operator's own stack with it.
@@ -348,7 +354,7 @@ def test_operations_documentation_requires_digest_pinning_and_runtime_injection(
     documentation = _repo_text("docs/python-control-plane.md")
     digest_prompt = 'Read-Host "Paste the sha256 digest from the successful workflow summary"'
     assert "### Stage 1 compatibility container" in documentation
-    assert "ghcr.io/muhfalihr/thoth@" in documentation
+    assert "ghcr.io/faallai/thoth@" in documentation
     assert digest_prompt in documentation
     assert "/var/lib/thoth/artifacts" in documentation
     assert "thoth_control_plane.api.app:create_app" in documentation
@@ -501,7 +507,7 @@ def test_blueprint_does_not_pin_a_release_digest_it_cannot_keep_current() -> Non
     """
     blueprint = _repo_text("BLUEPRINT.md")
     prose = " ".join(blueprint.split())
-    assert not re.search(r"ghcr\.io/muhfalihr/thoth@sha256:[0-9a-f]{64}", blueprint)
+    assert not re.search(r"ghcr\.io/faallai/thoth@sha256:[0-9a-f]{64}", blueprint)
     assert "read from the Actions summary of the exact commit being deployed" in prose
 
 
@@ -627,8 +633,7 @@ def test_published_digest_is_proved_by_the_same_harness() -> None:
     smoke = workflow[workflow.index("  stack-smoke:") :]
 
     assert (
-        "THOTH_IMAGE_REF: ghcr.io/muhfalihr/thoth@${{ needs.publish-image.outputs.digest }}"
-        in smoke
+        "THOTH_IMAGE_REF: ghcr.io/faallai/thoth@${{ needs.publish-image.outputs.digest }}" in smoke
     )
     assert 'bash docker/test-cdp-offline.sh "${THOTH_IMAGE_REF}"' in smoke
     assert "up -d --wait postgresql editor-postgresql temporal temporal-ui api" in smoke
@@ -1214,3 +1219,14 @@ def test_the_deploy_imports_reports_with_the_old_worker_stopped() -> None:
         script.index("up -d --wait"),
     ]
     assert order == sorted(order)
+
+
+def test_web_serves_missing_assets_as_404_and_publishes_domain_ports() -> None:
+    root = Path(__file__).resolve().parents[3]
+    caddyfile = (root / "deploy/web/Caddyfile").read_text(encoding="utf-8")
+    assets = caddyfile[caddyfile.index("handle /assets/*") :]
+    assets = assets[: assets.index("}") + 1]
+    assert "file_server" in assets and "try_files" not in assets
+    overlay = (root / "compose.stage1.web.yml").read_text(encoding="utf-8")
+    assert ":8080" in overlay and ":8443" in overlay  # host 80/443 map here for a domain
+    assert "THOTH_WEB_HTTP_BIND" in overlay and "THOTH_WEB_HTTPS_BIND" in overlay

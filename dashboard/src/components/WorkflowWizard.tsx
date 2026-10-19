@@ -70,7 +70,7 @@ export function WorkflowWizard({
 
   return (
     <Card className="workflow-create">
-      <CardHeader><div><p className="dashboard-eyebrow">Start a new run</p><CardTitle>From source to finished cut</CardTitle></div><ArrowUpRight aria-hidden="true" /></CardHeader>
+      <CardHeader><div><p className="dashboard-eyebrow">Start a new run</p><CardTitle>From source to content set</CardTitle></div><ArrowUpRight aria-hidden="true" /></CardHeader>
       <CardContent>
         <form className="flex flex-col gap-4" onSubmit={submit}>
           <div className="grid gap-2">
@@ -85,8 +85,7 @@ export function WorkflowWizard({
           </div>
           <div className="grid gap-2"><Label htmlFor="workflow-review">Review mode</Label>
             <select id="workflow-review" value={review ? "publish" : "none"} onChange={(event) => setReview(event.target.value === "publish")}>
-              <option value="publish">Approval before publishing</option><option value="none">No publish approval</option>
-              <option value="stages" disabled>Approval at every stage · unavailable</option>
+              <option value="publish">Approval before the content set is final</option><option value="none">No publish approval</option>
             </select>
           </div></div>
           {error && <p className="text-sm text-destructive" role="alert">{error}</p>}

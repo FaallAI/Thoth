@@ -39,6 +39,28 @@ class MemoryEditDocumentRepository:
     async def get_latest(self, *, project_id: str, document_id: str) -> EditDocument | None:
         return self.documents.get((project_id, document_id))
 
+    async def list_documents(self, *, project_id: str, limit: int, cursor: str | None):
+        from datetime import UTC, datetime
+
+        from thoth_control_plane.domain.edit_document_list import (
+            EditDocumentListItem,
+            EditDocumentListPage,
+            document_label,
+        )
+
+        items = [
+            EditDocumentListItem(
+                document_id=document.document_id,
+                revision=document.revision,
+                updated_at=datetime(2026, 10, 18, tzinfo=UTC),
+                label=document_label(document.model_dump(mode="json")),
+                imported=False,
+            )
+            for (project, _), document in self.documents.items()
+            if project == project_id
+        ]
+        return EditDocumentListPage(items=items[:limit], next_cursor=None)
+
     async def apply_operations(
         self,
         project_id: str,
@@ -531,3 +553,68 @@ async def test_patch_edits_one_caption_cue_under_the_base_revision(gateway) -> N
     assert caption["cues"][0]["text"] == "Corrected caption"
     assert stale.status_code == 409
     assert stale.json()["latest"]["revision"] == 2
+
+
+@pytest.mark.asyncio
+async def test_a_project_lists_its_studio_documents(gateway) -> None:
+    app = create_app(
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"),
+        gateway,
+        MemoryEditDocumentRepository(),
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        created = await client.post(
+            "/api/v1/projects/project_001/edit-documents/import-content-set",
+            headers=AUTH_HEADERS,
+            json=PAYLOAD,
+        )
+        listed = await client.get(
+            "/api/v1/projects/project_001/edit-documents", headers=AUTH_HEADERS
+        )
+        other = await client.get(
+            "/api/v1/projects/project_002/edit-documents", headers=AUTH_HEADERS
+        )
+        refused = await client.get(
+            "/api/v1/projects/project_001/edit-documents?limit=0", headers=AUTH_HEADERS
+        )
+
+    assert listed.status_code == 200
+    [item] = listed.json()["items"]
+    assert item["document_id"] == created.json()["document_id"]
+    heading = next(clip["heading"] for clip in created.json()["clips"] if clip["kind"] == "text")
+    assert item["label"] == heading.strip()[:120]
+    assert other.json() == {"items": [], "next_cursor": None}
+    assert refused.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_listing_studio_documents_without_a_database_is_503(gateway) -> None:
+    app = create_app(Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(
+            "/api/v1/projects/project_001/edit-documents", headers=AUTH_HEADERS
+        )
+    assert response.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_a_malformed_studio_document_cursor_is_a_client_error(gateway) -> None:
+    from thoth_control_plane.domain.cursors import decode_cursor
+
+    class BadCursorRepository(MemoryEditDocumentRepository):
+        async def list_documents(self, *, project_id: str, limit: int, cursor: str | None):
+            decode_cursor(cursor or "")
+            raise AssertionError("unreachable")
+
+    app = create_app(
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway, BadCursorRepository()
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(
+            "/api/v1/projects/project_001/edit-documents?cursor=%25%25", headers=AUTH_HEADERS
+        )
+    assert response.status_code == 422
+    assert response.json() == {"detail": "invalid_cursor"}

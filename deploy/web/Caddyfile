@@ -1,0 +1,38 @@
+{
+	admin off
+	# Unprivileged ports: a domain deploy maps host 80/443 here, so no capability is needed.
+	http_port 8080
+	https_port 8443
+	# Local by default; a real domain in THOTH_SITE_ADDRESS turns on automatic HTTPS.
+	auto_https disable_redirects
+}
+
+{$THOTH_SITE_ADDRESS::8088} {
+	encode zstd gzip
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+
+	@backend path /api/v1/* /auth/*
+	handle @backend {
+		reverse_proxy {$THOTH_API_UPSTREAM:api:8000}
+	}
+
+	# Hashed build files: served as-is, and a missing one is a 404, never index.html.
+	handle /assets/* {
+		root * /srv/dashboard
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
+	handle {
+		root * /srv/dashboard
+		header Cache-Control "no-store"
+		try_files {path} /index.html
+		file_server
+	}
+}

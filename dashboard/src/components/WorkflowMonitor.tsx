@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import { Circle, CircleCheck, LoaderCircle, Workflow } from "lucide-react";
 
-import type { ControlPlaneClient, WorkflowSummary } from "@/api/control-plane";
+import type { ArtifactRef, ControlPlaneClient, WorkflowSummary } from "@/api/control-plane";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { downloadName } from "@/lib/download-name";
 
 type MonitorClient = Pick<
   ControlPlaneClient,
-  "streamWorkflow" | "cancelWorkflow" | "retryWorkflow" | "approveWorkflow"
+  "streamWorkflow" | "cancelWorkflow" | "retryWorkflow" | "approveWorkflow" | "downloadWorkflowArtifact"
 >;
 
 function workflowProgress(workflow: WorkflowSummary | null): number {
@@ -61,6 +62,21 @@ export function WorkflowMonitor({ workflowId, client, onSnapshot }: { workflowId
     return <Card className="workflow-monitor workflow-monitor-empty"><CardHeader><CardTitle>Live pipeline</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground"><Workflow aria-hidden="true" /><p>Start a workflow to follow its progress.</p><p>Stages, review decisions, and results will appear here.</p></CardContent></Card>;
   }
 
+  // A plain link cannot carry the bearer: fetch the bytes, then save them under the artifact ID.
+  const download = async (artifact: ArtifactRef) => {
+    try {
+      const url = URL.createObjectURL(await client.downloadWorkflowArtifact(workflowId, artifact.artifact_id));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = downloadName(artifact);
+      link.click();
+      // Revoking in the same tick can cancel the download in some browsers.
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch {
+      setActionError("The file could not be downloaded. Try again.");
+    }
+  };
+
   const approval = workflow?.approval;
   const artifacts = workflow?.artifacts ?? [];
   return <div className="workflow-monitor flex flex-col gap-3">
@@ -75,7 +91,8 @@ export function WorkflowMonitor({ workflowId, client, onSnapshot }: { workflowId
       <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => void applyAction(() => client.retryWorkflow(workflowId))}>Retry</Button><Button size="sm" variant="outline" onClick={() => void applyAction(() => client.cancelWorkflow(workflowId))}>Cancel</Button></div>
     </div></details>
     {approval && <Card><CardHeader><CardTitle>Needs your decision</CardTitle></CardHeader><CardContent className="space-y-2"><p>{approval.prompt}</p><div className="flex gap-2">{approval.allowed_decisions.map((decision) => <Button key={decision} size="sm" onClick={() => void applyAction(() => client.approveWorkflow(workflowId, { approval_id: approval.approval_id, decision }))}>{decision}</Button>)}</div></CardContent></Card>}
-    {artifacts.length > 0 && <Card><CardHeader><CardTitle>Results</CardTitle></CardHeader><CardContent><ul className="text-sm">{artifacts.map((artifact) => <li key={artifact.artifact_id}>{artifact.label}</li>)}</ul></CardContent></Card>}
+    {workflow?.history_expired && <p role="status" className="text-sm text-muted-foreground">History expired; showing the stored result.</p>}
+    {artifacts.length > 0 && <Card><CardHeader><CardTitle>Results</CardTitle></CardHeader><CardContent><ul className="text-sm">{artifacts.map((artifact) => <li key={artifact.artifact_id}><Button size="sm" variant="ghost" onClick={() => void download(artifact)}>{artifact.label}</Button></li>)}</ul></CardContent></Card>}
     {workflow?.failure && <Button size="sm" variant="ghost" onClick={() => setDiagnostics((shown) => !shown)}>Diagnostics</Button>}
     {diagnostics && workflow?.failure && <Card><CardContent className="py-3 text-xs">{workflow.failure.message}</CardContent></Card>}
   </div>;

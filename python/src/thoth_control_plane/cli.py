@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import uuid
@@ -12,16 +13,30 @@ from typing import Annotated, Any
 
 import httpx
 import typer
+from pydantic import ValidationError
 
 from thoth_control_plane.application import ApprovalSubmission, RetryRequest
+from thoth_control_plane.auth.models import ALL_SCOPES, CreateToken, Principal
+from thoth_control_plane.auth.service import SignInService
 from thoth_control_plane.config import Settings, SettingsValidationError
 from thoth_control_plane.domain import WorkflowEvent, WorkflowRequest
+from thoth_control_plane.infrastructure.account_store import AccountStore
 from thoth_control_plane.infrastructure.media_store import MediaStoreUnavailable
+from thoth_control_plane.infrastructure.project_store import ProjectStore, ProjectStoreUnavailable
 from thoth_control_plane.infrastructure.report_store import ReportStore, ReportStoreUnavailable
 from thoth_control_plane.infrastructure.s3_media_store import S3MediaStore
+from thoth_control_plane.infrastructure.workflow_run_store import (
+    WorkflowRunStore,
+    WorkflowRunsUnavailable,
+)
 from thoth_control_plane.operations.editor_migrations import apply_editor_migrations
 from thoth_control_plane.operations.media_import import import_media, remove_local_media
 from thoth_control_plane.operations.report_import import import_reports
+from thoth_control_plane.operations.run_backfill import (
+    backfill_runs,
+    temporal_start_times,
+    workflows_needing_rows,
+)
 from thoth_control_plane.operations.stage1_controlled_fallback import (
     GATE_IDS,
     ControlledFallbackEvidenceError,
@@ -50,6 +65,13 @@ from thoth_control_plane.operations.tiktok_soak_cli import (
     TikTokSoakInputError,
     load_tiktok_soak_observations,
     write_tiktok_soak_report,
+)
+from thoth_control_plane.voice.factory import build_voice
+from thoth_control_plane.voice.ports import (
+    VoiceNotConfigured,
+    VoiceRejected,
+    VoiceRequest,
+    VoiceUnavailable,
 )
 
 app = typer.Typer(no_args_is_help=True)
@@ -94,6 +116,133 @@ def reports_import(
     typer.echo(f"imported={counts.imported} present={counts.present} invalid={counts.invalid}")
     if counts.invalid:
         raise typer.Exit(1)
+
+
+projects_app = typer.Typer(no_args_is_help=True)
+app.add_typer(projects_app, name="projects")
+
+
+@projects_app.command("import")
+def projects_import(
+    source: Annotated[str, typer.Argument(help="JSON from Rust /api/projects, or - for stdin")],
+) -> None:
+    """Insert the Rust server's projects with their IDs; never overwrite. Counts only."""
+    import sys
+
+    from pydantic import ValidationError
+
+    from thoth_control_plane.domain.projects import Project
+
+    database_url = Settings().THOTH_EDITOR_DATABASE_URL
+    if database_url is None:
+        raise typer.BadParameter("THOTH_EDITOR_DATABASE_URL must be configured")
+    text = sys.stdin.read() if source == "-" else Path(source).read_text(encoding="utf-8")
+    store = ProjectStore.connect(database_url.get_secret_value())
+    imported = present = invalid = 0
+    for item in json.loads(text):
+        try:
+            # StrictModel accepts ISO timestamps only through JSON validation.
+            project = Project.model_validate_json(
+                json.dumps(
+                    {
+                        "project_id": item["id"],
+                        "name": str(item["name"]).strip(),
+                        "created_at": item["created_at"],
+                        "updated_at": item["updated_at"],
+                    }
+                )
+            )
+        except (KeyError, TypeError, ValidationError):
+            invalid += 1
+            continue
+        try:
+            inserted = store.insert_missing(project)
+        except ProjectStoreUnavailable:
+            typer.echo("project store unavailable")
+            raise typer.Exit(1) from None
+        imported += inserted
+        present += not inserted
+    typer.echo(f"imported={imported} present={present} invalid={invalid}")
+    if invalid:
+        raise typer.Exit(1)
+
+
+tokens_app = typer.Typer(no_args_is_help=True)
+app.add_typer(tokens_app, name="tokens")
+
+
+@tokens_app.command("create")
+def tokens_create(
+    email: Annotated[
+        str, typer.Option(help="The developer's email; the user is created if missing")
+    ],
+    name: Annotated[str, typer.Option(help="What the token is for, e.g. vite or ci")],
+    scope: Annotated[str, typer.Option(help="read, write or admin")] = "write",
+    days: Annotated[int, typer.Option(help="Lifetime in days, 1 to 365")] = 90,
+) -> None:
+    """Create a personal developer token (spec 3.3). Prints the token once and nothing else."""
+    from pydantic import ValidationError
+
+    database_url = Settings().THOTH_EDITOR_DATABASE_URL
+    if database_url is None:
+        raise typer.BadParameter("THOTH_EDITOR_DATABASE_URL must be configured")
+    address = email.strip().lower()
+    try:
+        request = CreateToken.model_validate({"name": name, "scope": scope, "days": days})
+        if "@" not in address:
+            raise ValueError("email")
+    except (ValidationError, ValueError):
+        typer.echo("invalid_request")
+        raise typer.Exit(1) from None
+    store = AccountStore.connect(database_url.get_secret_value())
+    account = store.ensure_user(address, address.partition("@")[0])
+    principal = Principal(
+        account.user_id, account.workspace_id, ALL_SCOPES, "session", account.email
+    )
+    created = asyncio.run(SignInService(store, None, None).create_token(principal, request))
+    typer.echo(created.secret)
+
+
+voice_app = typer.Typer(no_args_is_help=True)
+app.add_typer(voice_app, name="voice")
+
+
+@voice_app.command("say")
+def voice_say(
+    voice: Annotated[str, typer.Option("--voice")],
+    out: Annotated[Path, typer.Option("--out")],
+    provider: Annotated[str, typer.Option("--provider")] = "elevenlabs",
+    model: Annotated[str | None, typer.Option("--model")] = None,
+    speed: Annotated[float, typer.Option("--speed")] = 1.0,
+    language: Annotated[str, typer.Option("--language")] = "id",
+    text: Annotated[str | None, typer.Option("--text")] = None,
+    file: Annotated[Path | None, typer.Option("--file")] = None,
+) -> None:
+    """Synthesize one script with a live provider (operator only; no test calls a provider)."""
+    if (text is None) == (file is None):
+        raise typer.BadParameter("give exactly one of --text or --file")
+    if provider not in ("elevenlabs", "openai-compatible"):
+        raise typer.BadParameter("provider must be elevenlabs or openai-compatible")
+    script = text if text is not None else file.read_text(encoding="utf-8")  # type: ignore[union-attr]
+    try:
+        request = VoiceRequest(
+            text=script, voice_id=voice, model=model, speed=speed, language=language
+        )
+    except ValidationError:
+        typer.echo("VoiceRejected: invalid_request")
+        raise typer.Exit(1) from None
+    try:
+        synthesizer = build_voice(Settings(), provider.replace("-", "_"))  # type: ignore[arg-type]
+        result = asyncio.run(synthesizer.synthesize(request))
+    except (VoiceNotConfigured, VoiceRejected, VoiceUnavailable) as error:
+        typer.echo(f"{type(error).__name__}: {error}")
+        raise typer.Exit(1) from None
+    out.write_bytes(result.audio)
+    words = [word.model_dump() for word in result.word_timings or []]
+    Path(f"{out}.words.json").write_text(json.dumps(words), encoding="utf-8")
+    typer.echo(
+        f"provider={provider} duration_seconds={result.duration_seconds:.2f} words={len(words)}"
+    )
 
 
 media_app = typer.Typer(no_args_is_help=True)
@@ -188,6 +337,41 @@ def _stream_events(path: str) -> Iterator[WorkflowEvent]:
 
 def _render(summary: dict[str, Any]) -> None:
     typer.echo(json.dumps(summary, indent=2, sort_keys=True, default=str))
+
+
+@workflow_app.command("backfill")
+def workflows_backfill() -> None:
+    """Create run rows for workflows that already have reports; idempotent; counts only."""
+    database_url = Settings().THOTH_EDITOR_DATABASE_URL
+    if database_url is None:
+        raise typer.BadParameter("THOTH_EDITOR_DATABASE_URL must be configured")
+    settings = Settings()
+    store = WorkflowRunStore.connect(database_url.get_secret_value())
+    try:
+        ids = workflows_needing_rows(store)
+        start_times = asyncio.run(_backfill_start_times(settings, ids))
+        counts = backfill_runs(store, start_times=start_times)
+    except WorkflowRunsUnavailable:
+        typer.echo("workflow run store unavailable")
+        raise typer.Exit(1) from None
+    typer.echo(
+        f"inserted={counts.inserted} present={counts.present} invalid={counts.invalid}"
+        f" start_times={len(start_times)}"
+    )
+
+
+async def _backfill_start_times(settings: Settings, workflow_ids: list[str]) -> dict[str, Any]:
+    """Temporal start times for the backfill; Temporal down means report times for all."""
+    from temporalio.client import Client
+
+    try:
+        client = await Client.connect(
+            settings.THOTH_TEMPORAL_TARGET, namespace=settings.THOTH_TEMPORAL_NAMESPACE
+        )
+    except Exception as error:
+        typer.echo(f"temporal unavailable ({type(error).__name__}); using report times")
+        return {}
+    return await temporal_start_times(client, workflow_ids)
 
 
 @workflow_app.command("start")

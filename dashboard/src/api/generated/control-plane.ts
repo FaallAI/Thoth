@@ -4,18 +4,15 @@
  */
 
 export interface paths {
-    "/api/v1/legacy/jobs/{legacy_job_id}": {
+    "/api/v1/me": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * Observe a legacy job during migration
-         * @description Return a safe v1 projection of one legacy Rust job, without mutations.
-         */
-        get: operations["get_legacy_job_api_v1_legacy_jobs__legacy_job_id__get"];
+        /** Me */
+        get: operations["me_api_v1_me_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -24,18 +21,85 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/legacy/jobs/{legacy_job_id}/events": {
+    "/api/v1/me/tokens": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * Replay legacy job observations during migration
-         * @description Expose migration-only SSE replay with a strict, monotonically increasing cursor.
-         */
-        get: operations["stream_legacy_job_events_api_v1_legacy_jobs__legacy_job_id__events_get"];
+        /** List Tokens */
+        get: operations["list_tokens_api_v1_me_tokens_get"];
+        put?: never;
+        /** Create Token */
+        post: operations["create_token_api_v1_me_tokens_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/tokens/{token_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke Token */
+        delete: operations["revoke_token_api_v1_me_tokens__token_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Projects */
+        get: operations["list_projects_api_v1_projects_get"];
+        put?: never;
+        /** Create Project */
+        post: operations["create_project_api_v1_projects_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Project */
+        get: operations["get_project_api_v1_projects__project_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/edit-documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Edit Documents */
+        get: operations["list_edit_documents_api_v1_projects__project_id__edit_documents_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -477,7 +541,7 @@ export interface paths {
         };
         /**
          * Download Render Output
-         * @description Stream the one published render, never a redirect to where it lives.
+         * @description Stream the one published render from the store, never a redirect to where it lives.
          */
         get: operations["download_render_output_api_v1_projects__project_id__render_jobs__render_job_id__output_get"];
         put?: never;
@@ -599,6 +663,24 @@ export interface paths {
         get: operations["list_studio_import_drafts_api_v1_projects__project_id__studio_imports__source_key__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/workflows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Project Workflows */
+        get: operations["list_project_workflows_api_v1_projects__project_id__workflows_get"];
+        put?: never;
+        /** Start Project Workflow */
+        post: operations["start_project_workflow_api_v1_projects__project_id__workflows_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -841,7 +923,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List Unassigned Workflows */
+        get: operations["list_unassigned_workflows_api_v1_workflows_get"];
         put?: never;
         /** Create Workflow */
         post: operations["create_workflow_api_v1_workflows_post"];
@@ -865,7 +948,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Move Workflow */
+        patch: operations["move_workflow_api_v1_workflows__workflow_id__patch"];
         trace?: never;
     };
     "/api/v1/workflows/{workflow_id}/approve": {
@@ -894,7 +978,7 @@ export interface paths {
         };
         /**
          * Download Workflow Artifact
-         * @description Authorize through the workflow owner boundary, then stream one safe artifact.
+         * @description Authorize through the workflow owner boundary, then serve one safe artifact.
          */
         get: operations["download_workflow_artifact_api_v1_workflows__workflow_id__artifacts__artifact_id__get"];
         put?: never;
@@ -953,6 +1037,23 @@ export interface paths {
         put?: never;
         /** Retry Workflow */
         post: operations["retry_workflow_api_v1_workflows__workflow_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspace/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Workspace Token */
+        post: operations["create_workspace_token_api_v1_workspace_tokens_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1298,6 +1399,11 @@ export interface components {
             /** Reason */
             reason?: string | null;
         };
+        /** CreateProject */
+        CreateProject: {
+            /** Name */
+            name: string;
+        };
         /** CreatePromptProposalRequest */
         CreatePromptProposalRequest: {
             /** Improvement Instructions */
@@ -1346,6 +1452,28 @@ export interface components {
             /** Source Key */
             source_key: string;
         };
+        /** CreateToken */
+        CreateToken: {
+            /**
+             * Days
+             * @default 90
+             */
+            days: number;
+            /** Name */
+            name: string;
+            /**
+             * Scope
+             * @default write
+             * @enum {string}
+             */
+            scope: "read" | "write" | "admin";
+        };
+        /** CreatedToken */
+        CreatedToken: {
+            /** Secret */
+            secret: string;
+            token: components["schemas"]["TokenView"];
+        };
         /** Crop */
         Crop: {
             /**
@@ -1382,6 +1510,29 @@ export interface components {
             code: "document_revision_conflict";
             /** Latest */
             latest: components["schemas"]["EditDocumentV1"] | components["schemas"]["EditDocumentV2"];
+        };
+        /** EditDocumentListItem */
+        EditDocumentListItem: {
+            /** Document Id */
+            document_id: string;
+            /** Imported */
+            imported: boolean;
+            /** Label */
+            label: string;
+            /** Revision */
+            revision: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** EditDocumentListPage */
+        EditDocumentListPage: {
+            /** Items */
+            items: components["schemas"]["EditDocumentListItem"][];
+            /** Next Cursor */
+            next_cursor: string | null;
         };
         /** EditDocumentPatch */
         EditDocumentPatch: {
@@ -1531,6 +1682,19 @@ export interface components {
             /** Title */
             title?: string | null;
         };
+        /** MeView */
+        MeView: {
+            /** Display Name */
+            display_name: string | null;
+            /** Email */
+            email: string | null;
+            /** Scopes */
+            scopes: ("read" | "write" | "admin")[];
+            /** User Id */
+            user_id: string | null;
+            /** Workspace Id */
+            workspace_id: string;
+        };
         /** MoveClip */
         MoveClip: {
             /** Clip Id */
@@ -1551,6 +1715,11 @@ export interface components {
             ripple: boolean;
             /** Target Track Id */
             target_track_id: string;
+        };
+        /** MoveWorkflow */
+        MoveWorkflow: {
+            /** Project Id */
+            project_id: string;
         };
         /** OutputRequest */
         OutputRequest: {
@@ -1631,6 +1800,28 @@ export interface components {
             expires_at: string;
             /** Preview Url */
             preview_url: string;
+        };
+        /** Project */
+        Project: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Name */
+            name: string;
+            /** Project Id */
+            project_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ProjectList */
+        ProjectList: {
+            /** Items */
+            items: components["schemas"]["Project"][];
         };
         /** ProjectPromptBinding */
         ProjectPromptBinding: {
@@ -3084,6 +3275,37 @@ export interface components {
             /** Track Id */
             track_id: string;
         };
+        /** TokenView */
+        TokenView: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Name */
+            name: string;
+            /**
+             * Owner Kind
+             * @enum {string}
+             */
+            owner_kind: "user" | "workspace";
+            /** Prefix */
+            prefix: string;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "read" | "write" | "admin";
+            /** Token Id */
+            token_id: string;
+        };
         /** Track */
         Track: {
             /** Clip Ids */
@@ -3188,6 +3410,40 @@ export interface components {
             source: components["schemas"]["SourceInput"];
             style: components["schemas"]["StyleChoice"];
         };
+        /** WorkflowRun */
+        WorkflowRun: {
+            /** Artifact Count */
+            artifact_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** History Expired */
+            history_expired: boolean;
+            /** Project Id */
+            project_id: string | null;
+            source: components["schemas"]["WorkflowSource"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "awaiting_approval" | "succeeded" | "failed" | "cancelled" | "unknown";
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Workflow Id */
+            workflow_id: string;
+        };
+        /** WorkflowRunPage */
+        WorkflowRunPage: {
+            /** Items */
+            items: components["schemas"]["WorkflowRun"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** WorkflowSource */
         WorkflowSource: {
             /**
@@ -3214,6 +3470,8 @@ export interface components {
              */
             created_at: string;
             failure?: components["schemas"]["WorkflowFailure"] | null;
+            /** History Expired */
+            history_expired?: boolean;
             source: components["schemas"]["WorkflowSource"];
             /** Stages */
             stages: components["schemas"]["StageSummary"][];
@@ -3235,15 +3493,13 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    get_legacy_job_api_v1_legacy_jobs__legacy_job_id__get: {
+    me_api_v1_me_get: {
         parameters: {
             query?: never;
             header?: {
                 Authorization?: string | null;
             };
-            path: {
-                legacy_job_id: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -3254,7 +3510,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WorkflowSummary"];
+                    "application/json": components["schemas"]["MeView"];
                 };
             };
             /** @description Validation Error */
@@ -3268,15 +3524,177 @@ export interface operations {
             };
         };
     };
-    stream_legacy_job_events_api_v1_legacy_jobs__legacy_job_id__events_get: {
+    list_tokens_api_v1_me_tokens_get: {
         parameters: {
             query?: never;
             header?: {
-                "Last-Event-ID"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_token_api_v1_me_tokens_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateToken"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedToken"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_token_api_v1_me_tokens__token_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
                 Authorization?: string | null;
             };
             path: {
-                legacy_job_id: string;
+                token_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_projects_api_v1_projects_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_project_api_v1_projects_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateProject"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_project_api_v1_projects__project_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
             };
             cookie?: never;
         };
@@ -3288,7 +3706,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_edit_documents_api_v1_projects__project_id__edit_documents_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditDocumentListPage"];
                 };
             };
             /** @description Validation Error */
@@ -4793,6 +5247,80 @@ export interface operations {
             };
         };
     };
+    list_project_workflows_api_v1_projects__project_id__workflows_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowRunPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_project_workflow_api_v1_projects__project_id__workflows_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkflowRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_prompt_providers_api_v1_prompt_providers_get: {
         parameters: {
             query?: never;
@@ -5292,6 +5820,41 @@ export interface operations {
             };
         };
     };
+    list_unassigned_workflows_api_v1_workflows_get: {
+        parameters: {
+            query: {
+                unassigned: boolean;
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowRunPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_workflow_api_v1_workflows_post: {
         parameters: {
             query?: never;
@@ -5348,6 +5911,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkflowSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    move_workflow_api_v1_workflows__workflow_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                workflow_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveWorkflow"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowRun"];
                 };
             };
             /** @description Validation Error */
@@ -5524,6 +6124,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkflowSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_workspace_token_api_v1_workspace_tokens_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateToken"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedToken"];
                 };
             };
             /** @description Validation Error */

@@ -1,0 +1,38 @@
+"""SQLAlchemy ORM mapping of the projects and workflow_runs tables (editor migration 0012)."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+
+from sqlalchemy import JSON, Boolean, ForeignKey, String
+from sqlalchemy.orm import Mapped, mapped_column
+
+from thoth_control_plane.infrastructure.source_account_models import Base, UtcDateTime
+
+
+class ProjectRow(Base):
+    __tablename__ = "projects"
+
+    project_id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime)
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime)
+
+
+class WorkflowRunRow(Base):
+    __tablename__ = "workflow_runs"
+
+    workflow_id: Mapped[str] = mapped_column(String, primary_key=True)
+    project_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("projects.project_id"), nullable=True
+    )
+    actor_type: Mapped[str] = mapped_column(String)
+    actor_id: Mapped[str] = mapped_column(String)
+    display_url: Mapped[str] = mapped_column(String)
+    platform: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String)
+    history_expired: Mapped[bool] = mapped_column(Boolean, default=False)
+    summary: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime)
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime)
