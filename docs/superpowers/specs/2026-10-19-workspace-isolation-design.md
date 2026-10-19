@@ -55,7 +55,7 @@ until this sub-project ships.
 ### 1.2 Projects belong to a workspace
 
 - Editor migration `0014` adds `projects.workspace_id TEXT NOT NULL REFERENCES workspaces`, fills
-  every existing row with `ws_bootstrap`, and adds an index on `(workspace_id, created_at)`.
+  every existing row with `ws_bootstrap`, and adds an index on `(workspace_id, updated_at DESC)`.
 - `GET /projects` lists the caller's workspace only; `POST /projects` creates in it.
 - **The project guard** is one FastAPI dependency used by every route with `{project_id}` in its
   path. It loads the project and answers **404** when it does not exist or belongs to another

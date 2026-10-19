@@ -318,10 +318,8 @@ class SignInService:
         """External developer tokens. The route refuses this until the operator enables them."""
         if principal.user_id is None:
             raise UserRequired()
-        account = await self._run(self._store.account, principal.user_id)
         if (
-            account is None
-            or account.role not in ("owner", "admin")
+            principal.role not in ("owner", "admin")
             or not SCOPE_SETS[request.scope] <= principal.scopes
         ):
             raise ScopeTooBroad()

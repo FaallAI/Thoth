@@ -69,12 +69,16 @@ workspace reads or changes another's data. Fixed in one pass, each with a test t
 - **Important (no code):** project-scoped rows without a `projects` row would become unreachable.
   Checked on the live database before deploy: all 16 tables with `project_id` have 0 orphans.
 
-**Deferred minors:** a stale docstring in `api/dependencies.py`; the spec names the projects
-index `(workspace_id, created_at)` while the migration uses `(workspace_id, updated_at DESC)` (the
-better one); a user with no membership gets a dead session with no message instead of
-`not_allowed`; `create_workspace_token` reads the first membership's role instead of
-`principal.role`; the dashboard briefly shows "Create your first project" before the project list
-loads.
+**Review minors, fixed at the operator's request (each with a test that failed first):**
+
+- A user with no membership got a dead session with no message. Sign-in now refuses them with
+  `not_allowed`, like a disabled user (`test_signing_in_without_membership_is_not_allowed`).
+- `create_workspace_token` read the first membership's role; it now checks `principal.role`
+  (`test_a_workspace_token_needs_the_membership_role_of_an_admin`).
+- The dashboard briefly showed "Create your first project" before the project list loaded; it now
+  waits for the list (`the first-project invitation waits for the project list`).
+- The stale docstring in `api/dependencies.py` and the spec's index text
+  (`(workspace_id, updated_at DESC)`, as migrated) are corrected.
 
 **Rulings:** recorded in the plan's SDD ledger; the ones a reviewer should weigh: the smoke runs
 in CI rather than locally, and the roadmap marks sub-project 2 "built, awaiting deploy".

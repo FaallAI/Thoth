@@ -21,6 +21,7 @@ let apiWrites: string[] = [];
 let requested: string[] = [];
 let revision = 1;
 let inventoryItems: unknown[] = [];
+let projectsPending = false;
 let projects: unknown[] = [{ project_id: "project_001", name: "Project", created_at: "", updated_at: "" }];
 const ADMIN_ME = { user_id: "usr_1", email: "alice@acme.test", display_name: "Alice", workspace_id: "ws_bootstrap", scopes: ["admin", "read", "write"], workspace: { workspace_id: "ws_bootstrap", name: "Thoth", role: "owner" }, platform_admin: true };
 let me: unknown = ADMIN_ME;
@@ -36,6 +37,7 @@ function stubFetch() {
     if (path === "/api/v1/projects" && init?.method === "POST") {
       return response({ project_id: "project_002", name: "Other", created_at: "", updated_at: "" });
     }
+    if (path === "/api/v1/projects" && projectsPending) return new Promise<Response>(() => {});
     if (path === "/api/v1/projects") return response({ items: projects });
     if (path.includes("/workflows?") || path.endsWith("/workflows")) return response({ items: [], next_cursor: null });
     if (path.includes("/edit-documents?")) {
@@ -60,7 +62,7 @@ function stubFetch() {
   }) as unknown as typeof fetch;
 }
 
-afterEach(() => { cleanup(); me = ADMIN_ME; globalThis.fetch = originalFetch; inspectBodies = []; createCalls = 0; apiWrites = []; requested = []; revision = 1; inventoryItems = []; projects = [{ project_id: "project_001", name: "Project", created_at: "", updated_at: "" }]; window.history.replaceState(null, "", "/"); localStorage.clear(); });
+afterEach(() => { cleanup(); projectsPending = false; me = ADMIN_ME; globalThis.fetch = originalFetch; inspectBodies = []; createCalls = 0; apiWrites = []; requested = []; revision = 1; inventoryItems = []; projects = [{ project_id: "project_001", name: "Project", created_at: "", updated_at: "" }]; window.history.replaceState(null, "", "/"); localStorage.clear(); });
 
 test("search navigates to the selected workspace page and closes its dialog", async () => {
   stubFetch();
@@ -236,4 +238,14 @@ test("an empty workspace invites the first project", async () => {
   const { default: App } = await import("./App");
   render(<App />);
   expect(await screen.findByText("Create your first project")).toBeDefined();
+});
+
+test("the first-project invitation waits for the project list", async () => {
+  projectsPending = true;
+  window.history.replaceState(null, "", "/studio");
+  stubFetch();
+  const { default: App } = await import("./App");
+  render(<App />);
+  expect(await screen.findByText("Select or create a project to begin.")).toBeDefined();
+  expect(Boolean(screen.queryByText("Create your first project"))).toBe(false);
 });

@@ -1,7 +1,8 @@
 """Shared authenticated API dependencies.
 
 A caller is a session cookie, a developer token, or the legacy service key (spec 3.5-3.6). Every
-principal still acts on the shared `owner` data until sub-project 2 scopes data by workspace.
+principal acts on the data of its workspace, and project routes only reach that workspace's
+projects.
 """
 
 from __future__ import annotations

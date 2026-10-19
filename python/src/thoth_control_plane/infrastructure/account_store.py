@@ -590,5 +590,6 @@ class AccountStore:
             display_name=user.display_name,
             workspace_id=member.workspace_id if member else BOOTSTRAP_WORKSPACE_ID,
             role=member.role if member else "member",
-            disabled=user.disabled_at is not None,
+            # No membership means no workspace to sign in to: refuse like a disabled user.
+            disabled=user.disabled_at is not None or member is None,
         )

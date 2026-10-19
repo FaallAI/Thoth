@@ -62,7 +62,8 @@ function Shell() {
   const { me } = useAuth();
   const nav = NAV.filter(([id]) => id !== "accounts" || me.platform_admin);
   const [projectId, setProjectId] = useActiveProject();
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [loadedProjects, setProjects] = useState<Project[] | null>(null);
+  const projects = loadedProjects ?? [];
   const [runs, setRuns] = useState<WorkflowRun[]>([]);
   const [helpOpen, setHelpOpen] = useState(false);
   const inStudio = /^\/studio\/[^/]+\/[^/]+/.test(location.pathname);
@@ -71,7 +72,7 @@ function Shell() {
 
   const needsProject = (
     <div className="flex flex-1 flex-col items-center justify-center gap-1 p-8 text-sm text-muted-foreground">
-      <p>{projects.length === 0 ? "Create your first project" : "Select or create a project to begin."}</p>
+      <p>{loadedProjects?.length === 0 ? "Create your first project" : "Select or create a project to begin."}</p>
       <p className="text-xs">Use “New project” at the top right.</p>
     </div>
   );

@@ -1,6 +1,7 @@
 """Sign-in rules end to end against SQLite (spec sections 2 and 3)."""
 
 import re
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -371,6 +372,24 @@ async def test_a_personal_token_without_membership_is_refused(service, mailer, s
     with store._engine.begin() as connection:
         connection.execute(text("DELETE FROM workspace_members"))
     assert await service.authenticate_token(created.secret) is None
+
+
+async def test_signing_in_without_membership_is_not_allowed(service, mailer, store) -> None:
+    first = await signed_in(service, mailer)
+    with store._engine.begin() as connection:
+        connection.execute(text("DELETE FROM workspace_members"))
+    with pytest.raises(SignInRefused) as caught:
+        await service.begin(ALICE, first.device_token)
+    assert caught.value.code == "not_allowed"
+
+
+async def test_a_workspace_token_needs_the_membership_role_of_an_admin(service, mailer) -> None:
+    first = await signed_in(service, mailer)
+    owner = await service.authenticate_session(first.session_token)
+    with pytest.raises(ScopeTooBroad):
+        await service.create_workspace_token(
+            replace(owner, role="member"), CreateToken(name="partner", scope="read", days=30)
+        )
 
 
 def test_who_is_a_platform_admin() -> None:
