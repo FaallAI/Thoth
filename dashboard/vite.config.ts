@@ -2,10 +2,11 @@ import path from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { devProxy, refuseBundledKey } from "./vite.auth.ts";
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), refuseBundledKey()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -19,8 +20,6 @@ export default defineConfig({
     dedupe: ["react", "react-dom", "remotion"],
   },
   server: {
-    proxy: {
-      "/api/v1": "http://127.0.0.1:8000",
-    },
+    proxy: devProxy(),
   },
 });

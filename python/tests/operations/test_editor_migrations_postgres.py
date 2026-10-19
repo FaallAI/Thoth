@@ -39,7 +39,7 @@ def _tables() -> set[str]:
 
 
 def test_fresh_database_applies_every_revision_and_a_rerun_applies_none() -> None:
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 12
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 13
     assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 0
     assert {"alembic_version", "studio_import_drafts", "studio_import_decisions"} <= _tables()
     assert {"source_account_policies", "source_proxies", "source_accounts"} <= _tables()
@@ -52,7 +52,7 @@ def test_database_migrated_before_alembic_is_adopted_and_only_the_rest_applied()
         for migration in sorted(MIGRATIONS.glob("*.sql"))[:6]:
             connection.execute(migration.read_text(encoding="utf-8"))
 
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 6
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 7
     assert {"studio_import_drafts", "studio_import_decisions"} <= _tables()
 
 
@@ -270,3 +270,44 @@ async def test_a_malformed_studio_document_cursor_raises_invalid_cursor() -> Non
         await PostgresEditDocumentRepository(DATABASE_URL).list_documents(
             project_id="p1", limit=5, cursor="%%"
         )
+
+
+def test_accounts_tables_exist_with_the_bootstrap_workspace() -> None:
+    apply_editor_migrations(DATABASE_URL, MIGRATIONS)
+    assert {
+        "workspaces",
+        "users",
+        "user_identities",
+        "workspace_members",
+        "sessions",
+        "trusted_devices",
+        "email_challenges",
+        "access_tokens",
+        "auth_events",
+    } <= _tables()
+    with psycopg.connect(DATABASE_URL) as connection:
+        rows = connection.execute("SELECT workspace_id, name FROM workspaces").fetchall()
+        assert rows == [("ws_bootstrap", "Thoth")]
+        with pytest.raises(psycopg.errors.CheckViolation):
+            connection.execute(
+                "INSERT INTO users (user_id, email, display_name, created_at)"
+                " VALUES ('usr_1', 'Mixed@Case.test', 'A', now())"
+            )
+
+
+def test_account_store_round_trips_on_postgres() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from thoth_control_plane.infrastructure.account_store import AccountStore
+
+    apply_editor_migrations(DATABASE_URL, MIGRATIONS)
+    store = AccountStore.connect(DATABASE_URL)
+    user = store.ensure_user("a@acme.test", "A")
+    assert user.workspace_id == "ws_bootstrap"
+    later = datetime.now(UTC) + timedelta(hours=1)
+    store.create_session(user.user_id, user.workspace_id, "h", later)
+    assert store.live_session("h").user_id == user.user_id
+    store.record_event("sign_in", "ok", user_id=user.user_id)
+    store.create_challenge("chl_pg", user.user_id, "c", "hmac", later)
+    assert [store.claim_attempt("c").attempts for _ in range(5)] == [1, 2, 3, 4, 5]
+    assert store.claim_attempt("c") is None

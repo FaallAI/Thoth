@@ -1,0 +1,29 @@
+# The dashboard behind Caddy (spec 2026-10-19). An overlay like the renderer: the base stack
+# still parses without it.
+services:
+  web:
+    image: ${THOTH_WEB_IMAGE:?set digest-qualified THOTH_WEB_IMAGE}
+    user: "10001:10001"
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      THOTH_SITE_ADDRESS: ${THOTH_SITE_ADDRESS:-:8088}
+    read_only: true
+    tmpfs:
+      - /data:uid=10001,gid=10001,mode=0700
+      - /config:uid=10001,gid=10001,mode=0700
+    cap_drop: [ALL]
+    ports:
+      - "127.0.0.1:${THOTH_WEB_PORT:-8088}:8088"
+      # A domain deploy sets THOTH_SITE_ADDRESS and binds these to 0.0.0.0:80 and 0.0.0.0:443.
+      - "${THOTH_WEB_HTTP_BIND:-127.0.0.1:18080}:8080"
+      - "${THOTH_WEB_HTTPS_BIND:-127.0.0.1:18443}:8443"
+    healthcheck:
+      # The local site answers on 8088; a domain site listens on 8443 instead.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8088/ || nc -z 127.0.0.1 8443"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+    networks: [stage1-private]

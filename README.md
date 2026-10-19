@@ -71,35 +71,20 @@ subproject.
 
 ## Running the dashboard
 
-Two processes, both started from the repo root (they share `thoth.db`):
+The deployed stack serves the dashboard from its `web` container at **http://localhost:8088**.
+People sign in with Google or GitHub and then enter a code sent by email; see "Sign-in and
+developer access" in [`docs/python-control-plane.md`](docs/python-control-plane.md).
+
+For UI hot-reload during development, run the Vite dev server with a personal developer token
+(`thoth-control tokens create`) and open http://localhost:5173:
 
 ```
-cargo run -p thoth-server                       # API + dashboard on :8787
-./target/release/thoth.exe worker --db thoth.db # executes queued jobs
+THOTH_DEV_TOKEN=thoth_pat_... bun --cwd=dashboard run dev
 ```
 
-Then open **http://127.0.0.1:8787**. Without the worker, jobs stay `queued`.
-
-**The server serves the prebuilt SPA from `dashboard/dist`** (a gitignored build
-artifact — it is NOT updated by `git pull`/merge). After any dashboard change, or the
-first time you check out a branch whose UI differs, **rebuild it** or the server keeps
-serving a stale UI:
-
-```
-bun --cwd=dashboard install    # first run, or when dashboard deps change
-bun --cwd=dashboard run build  # regenerates dashboard/dist
-```
-
-For UI hot-reload during development, run the Vite dev server instead and open its URL
-(default http://localhost:5173):
-
-```
-bun --cwd=dashboard run dev
-```
-
-Vite proxies only `/api/v1`, to the Python control plane on `127.0.0.1:8000`. The dashboard no
-longer uses this Rust server: its Rust-backed pages were removed on 2026-10-18 (see
-`docs/ROADMAP.md`), so the SPA the server still serves from `dashboard/dist` has no Rust pages.
+Vite proxies `/api/v1` and `/auth` to the Python control plane on `127.0.0.1:8000` and adds the
+token on the way. The legacy Rust server (`cargo run -p thoth-server`) no longer backs the
+dashboard; its Rust-backed pages were removed on 2026-10-18 (see `docs/ROADMAP.md`).
 
 ## Python workflow control plane (v1, additive)
 
