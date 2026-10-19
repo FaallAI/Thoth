@@ -15,6 +15,7 @@ from pathlib import Path
 import httpx
 import pytest
 
+from tests.api.open_projects import OPEN_PROJECTS
 from thoth_control_plane.api import create_app
 from thoth_control_plane.application.render_bundles import RenderBundleInvalid
 from thoth_control_plane.application.render_job_ports import (
@@ -180,6 +181,7 @@ def render_app(gateway, service: StubRenderJobService):
         Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"),
         gateway,
         render_job_service=service,
+        project_store=OPEN_PROJECTS,
     )
 
 
@@ -592,7 +594,9 @@ async def test_cleanup_refuses_a_job_a_renderer_may_still_be_writing(gateway) ->
 
 @pytest.mark.asyncio
 async def test_an_app_without_a_renderer_still_serves_capability(gateway) -> None:
-    app = create_app(Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway)
+    app = create_app(
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway, project_store=OPEN_PROJECTS
+    )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as http:
         response = await http.get(f"{BASE_URL}/render-capability", headers=AUTH_HEADERS)
@@ -608,6 +612,7 @@ def test_the_composed_render_service_checks_studio_import_readiness(gateway) -> 
         Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"),
         gateway,
         studio_import_repository=imports,  # type: ignore[arg-type]
+        project_store=OPEN_PROJECTS,
     )
 
     # Without the import store, render creation would skip the readiness guard.

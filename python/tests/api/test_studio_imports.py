@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 import pytest
 
+from tests.api.open_projects import OPEN_PROJECTS
 from tests.api.test_edit_documents import PAYLOAD, MemoryEditDocumentRepository
 from tests.application.test_studio_imports import MemoryStudioImports
 from tests.domain.test_studio_imports import projection_payload
@@ -39,6 +40,7 @@ def client(repository: MemoryStudioImports | None = None) -> httpx.AsyncClient:
         None,
         MemoryEditDocumentRepository(),
         studio_import_repository=repository or MemoryStudioImports(),
+        project_store=OPEN_PROJECTS,
     )
     return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
 

@@ -106,6 +106,7 @@ class InMemoryWorkflowGateway:
     def __init__(self) -> None:
         self.workflows: dict[str, WorkflowSummary] = {}
         self.actors: list[Actor] = []
+        self.owners: dict[str, tuple[str, str]] = {}
         self.connection_available = True
         self.last_from_stage: str | None = None
         self.last_approval: ApprovalSubmission | None = None
@@ -136,6 +137,14 @@ class InMemoryWorkflowGateway:
             return self.workflows[workflow_id]
         except KeyError as exc:
             raise WorkflowNotFound from exc
+
+    def _owned(self, workflow_id: str, actor: Actor) -> WorkflowSummary:
+        """Like the Temporal gateway: another owner's workflow is not found."""
+        summary = self._workflow(workflow_id)
+        owner = self.owners.get(workflow_id)
+        if owner is not None and owner != (actor.actor_type, actor.actor_id):
+            raise WorkflowNotFound
+        return summary
 
     async def check_connection(self) -> bool:
         return self.connection_available
@@ -168,11 +177,12 @@ class InMemoryWorkflowGateway:
             stages=[],
         )
         self.workflows[summary.workflow_id] = summary
+        self.owners[summary.workflow_id] = (actor.actor_type, actor.actor_id)
         return summary
 
     async def get(self, workflow_id: str, *, actor: Actor) -> WorkflowSummary:
         self.actors.append(actor)
-        return self._workflow(workflow_id)
+        return self._owned(workflow_id, actor)
 
     async def settle(self, workflow_id: str) -> RunSettlement:
         if self.settle_error is not None:
@@ -187,7 +197,7 @@ class InMemoryWorkflowGateway:
         self, workflow_id: str, *, actor: Actor, after_sequence: int
     ) -> AsyncIterator[WorkflowEvent]:
         self.actors.append(actor)
-        self._workflow(workflow_id)
+        self._owned(workflow_id, actor)
         self.last_event_cursor = after_sequence
         for event in self.events:
             if event.sequence > after_sequence:
@@ -195,7 +205,7 @@ class InMemoryWorkflowGateway:
 
     async def cancel(self, workflow_id: str, *, actor: Actor) -> WorkflowSummary:
         self.actors.append(actor)
-        summary = self._workflow(workflow_id).model_copy(
+        summary = self._owned(workflow_id, actor).model_copy(
             update={"status": WorkflowStatus.CANCELLED}
         )
         self.workflows[workflow_id] = summary
@@ -210,7 +220,9 @@ class InMemoryWorkflowGateway:
     ) -> WorkflowSummary:
         self.actors.append(actor)
         self.last_from_stage = from_stage
-        summary = self._workflow(workflow_id).model_copy(update={"status": WorkflowStatus.QUEUED})
+        summary = self._owned(workflow_id, actor).model_copy(
+            update={"status": WorkflowStatus.QUEUED}
+        )
         self.workflows[workflow_id] = summary
         return summary
 
@@ -225,7 +237,9 @@ class InMemoryWorkflowGateway:
         if not self.approval_allowed:
             raise ApprovalNotAllowed
         self.last_approval = approval
-        summary = self._workflow(workflow_id).model_copy(update={"status": WorkflowStatus.RUNNING})
+        summary = self._owned(workflow_id, actor).model_copy(
+            update={"status": WorkflowStatus.RUNNING}
+        )
         self.workflows[workflow_id] = summary
         return summary
 

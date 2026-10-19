@@ -5,6 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
+from tests.api.open_projects import OPEN_PROJECTS
 from tests.domain.edit_document_v2_fixtures import document_with_every_clip_kind
 from thoth_control_plane.api import create_app
 from thoth_control_plane.application.edit_documents import EditDocumentNotFound
@@ -85,6 +86,7 @@ async def test_import_then_retrieve_an_authenticated_document(gateway) -> None:
         Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"),
         gateway,
         MemoryEditDocumentRepository(),
+        project_store=OPEN_PROJECTS,
     )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -107,7 +109,10 @@ async def test_import_then_retrieve_an_authenticated_document(gateway) -> None:
 @pytest.mark.asyncio
 async def test_import_content_set_accepts_legacy_uuid_project_id(gateway) -> None:
     app = create_app(
-        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway, MemoryEditDocumentRepository()
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"),
+        gateway,
+        MemoryEditDocumentRepository(),
+        project_store=OPEN_PROJECTS,
     )
     transport = httpx.ASGITransport(app=app)
 
@@ -127,7 +132,10 @@ async def test_editor_routes_fail_closed_for_auth_unknown_input_and_missing_docu
     gateway,
 ) -> None:
     app = create_app(
-        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway, MemoryEditDocumentRepository()
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"),
+        gateway,
+        MemoryEditDocumentRepository(),
+        project_store=OPEN_PROJECTS,
     )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -152,7 +160,9 @@ async def test_editor_routes_fail_closed_for_auth_unknown_input_and_missing_docu
 async def test_editor_routes_report_unavailable_persistence_without_affecting_workflows(
     gateway,
 ) -> None:
-    app = create_app(Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway)
+    app = create_app(
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway, project_store=OPEN_PROJECTS
+    )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         unavailable = await client.post(
@@ -169,7 +179,10 @@ async def test_editor_routes_report_unavailable_persistence_without_affecting_wo
 @pytest.mark.asyncio
 async def test_patch_saves_an_authenticated_document_revision(gateway) -> None:
     app = create_app(
-        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway, MemoryEditDocumentRepository()
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"),
+        gateway,
+        MemoryEditDocumentRepository(),
+        project_store=OPEN_PROJECTS,
     )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -203,7 +216,10 @@ async def test_patch_saves_an_authenticated_document_revision(gateway) -> None:
 @pytest.mark.asyncio
 async def test_patch_fails_closed_for_auth_unknown_input_and_missing_document(gateway) -> None:
     app = create_app(
-        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway, MemoryEditDocumentRepository()
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"),
+        gateway,
+        MemoryEditDocumentRepository(),
+        project_store=OPEN_PROJECTS,
     )
     transport = httpx.ASGITransport(app=app)
     payload = {
@@ -241,7 +257,10 @@ async def test_patch_fails_closed_for_auth_unknown_input_and_missing_document(ga
 @pytest.mark.asyncio
 async def test_patch_returns_validated_latest_document_for_a_stale_revision(gateway) -> None:
     app = create_app(
-        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway, MemoryEditDocumentRepository()
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"),
+        gateway,
+        MemoryEditDocumentRepository(),
+        project_store=OPEN_PROJECTS,
     )
     transport = httpx.ASGITransport(app=app)
     patch = {
@@ -282,7 +301,9 @@ async def test_patch_returns_validated_latest_document_for_a_stale_revision(gate
 
 @pytest.mark.asyncio
 async def test_patch_reports_unavailable_persistence(gateway) -> None:
-    app = create_app(Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway)
+    app = create_app(
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway, project_store=OPEN_PROJECTS
+    )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.patch(
@@ -308,7 +329,10 @@ async def test_patch_reports_unavailable_persistence(gateway) -> None:
 @pytest.mark.asyncio
 async def test_openapi_includes_one_patch_edit_document_operation(gateway) -> None:
     app = create_app(
-        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway, MemoryEditDocumentRepository()
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"),
+        gateway,
+        MemoryEditDocumentRepository(),
+        project_store=OPEN_PROJECTS,
     )
 
     operation = app.openapi()["paths"]["/api/v1/projects/{project_id}/edit-documents/{document_id}"]
@@ -357,7 +381,10 @@ class UpgradeRepository(MemoryEditDocumentRepository):
 
 def upgrade_app(gateway, repository: MemoryEditDocumentRepository | None = None):
     return create_app(
-        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway, repository or UpgradeRepository()
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"),
+        gateway,
+        repository or UpgradeRepository(),
+        project_store=OPEN_PROJECTS,
     )
 
 
@@ -504,7 +531,9 @@ async def test_upgrade_route_conflicts_on_a_replayed_key_with_another_payload(ga
 
 @pytest.mark.asyncio
 async def test_upgrade_route_reports_unavailable_persistence(gateway) -> None:
-    app = create_app(Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway)
+    app = create_app(
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway, project_store=OPEN_PROJECTS
+    )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
@@ -521,7 +550,12 @@ async def test_patch_edits_one_caption_cue_under_the_base_revision(gateway) -> N
     repository = MemoryEditDocumentRepository()
     document = EditDocumentV2.model_validate(document_with_every_clip_kind())
     await repository.insert_revision(document)
-    app = create_app(Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway, repository)
+    app = create_app(
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"),
+        gateway,
+        repository,
+        project_store=OPEN_PROJECTS,
+    )
     url = f"/api/v1/projects/project_001/edit-documents/{document.document_id}"
 
     def caption_patch(base_revision: int, cue_index: int) -> dict[str, object]:
@@ -561,6 +595,7 @@ async def test_a_project_lists_its_studio_documents(gateway) -> None:
         Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"),
         gateway,
         MemoryEditDocumentRepository(),
+        project_store=OPEN_PROJECTS,
     )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -590,7 +625,9 @@ async def test_a_project_lists_its_studio_documents(gateway) -> None:
 
 @pytest.mark.asyncio
 async def test_listing_studio_documents_without_a_database_is_503(gateway) -> None:
-    app = create_app(Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway)
+    app = create_app(
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway, project_store=OPEN_PROJECTS
+    )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get(
@@ -609,7 +646,10 @@ async def test_a_malformed_studio_document_cursor_is_a_client_error(gateway) -> 
             raise AssertionError("unreachable")
 
     app = create_app(
-        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway, BadCursorRepository()
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"),
+        gateway,
+        BadCursorRepository(),
+        project_store=OPEN_PROJECTS,
     )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
