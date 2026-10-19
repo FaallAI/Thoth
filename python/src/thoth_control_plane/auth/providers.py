@@ -45,7 +45,9 @@ class IdentityProvider(Protocol):
     async def identity(self, request: Request) -> VerifiedIdentity: ...
 
 
-def _client_kwargs(scope: str, transport: oauth_http.AsyncBaseTransport | None) -> dict[str, object]:
+def _client_kwargs(
+    scope: str, transport: oauth_http.AsyncBaseTransport | None
+) -> dict[str, object]:
     kwargs: dict[str, object] = {"scope": scope, "code_challenge_method": "S256"}
     if transport is not None:
         kwargs["transport"] = transport

@@ -88,15 +88,27 @@ def _unavailable(error: Exception) -> AccountStoreUnavailable:
 
 def _session(row: SessionRow) -> SessionRecord:
     return SessionRecord(
-        row.session_id, row.user_id, row.workspace_id, row.created_at, row.last_seen_at,
+        row.session_id,
+        row.user_id,
+        row.workspace_id,
+        row.created_at,
+        row.last_seen_at,
         row.expires_at,
     )
 
 
 def _token(row: TokenRow) -> TokenRecord:
     return TokenRecord(
-        row.token_id, row.owner_kind, row.owner_id, row.workspace_id, row.name, row.prefix,
-        row.scope, row.created_at, row.expires_at, row.last_used_at,
+        row.token_id,
+        row.owner_kind,
+        row.owner_id,
+        row.workspace_id,
+        row.name,
+        row.prefix,
+        row.scope,
+        row.created_at,
+        row.expires_at,
+        row.last_used_at,
     )
 
 
@@ -312,7 +324,11 @@ class AccountStore:
         if row is None:
             return None
         return ChallengeRecord(
-            row.challenge_id, row.user_id, row.code_hmac, row.attempts, row.created_at,
+            row.challenge_id,
+            row.user_id,
+            row.code_hmac,
+            row.attempts,
+            row.created_at,
             row.expires_at,
         )
 
@@ -471,7 +487,7 @@ class AccountStore:
     def _execute(self, statement: object) -> None:
         self._write(lambda session: session.execute(statement))
 
-    def _one(self, statement: object):  # noqa: ANN202 - an ORM row or None
+    def _one(self, statement: object):
         try:
             with self._sessions() as session:
                 return session.scalars(statement).first()

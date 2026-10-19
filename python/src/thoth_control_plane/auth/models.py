@@ -25,7 +25,7 @@ SignInErrorCode = Literal[
 
 @dataclass(frozen=True)
 class Principal:
-    """An authenticated caller. `user_id` is None for the legacy service key and workspace tokens."""
+    """An authenticated caller; `user_id` is None for the service key and workspace tokens."""
 
     user_id: str | None
     workspace_id: str

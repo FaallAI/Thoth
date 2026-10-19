@@ -1,0 +1,254 @@
+"""Sign-in rules end to end against SQLite (spec sections 2 and 3)."""
+
+import re
+from datetime import UTC, datetime, timedelta
+
+import pytest
+from sqlalchemy import create_engine, text
+from sqlalchemy.pool import StaticPool
+
+from thoth_control_plane.auth.mailer import MailNotSent
+from thoth_control_plane.auth.models import (
+    BOOTSTRAP_WORKSPACE_ID,
+    SCOPE_SETS,
+    CreateToken,
+    Principal,
+    SignInRefused,
+    VerifiedIdentity,
+)
+from thoth_control_plane.auth.service import (
+    CodeLimited,
+    CodeNotSent,
+    CodeRejected,
+    CodeSent,
+    ScopeTooBroad,
+    SignedIn,
+    SignInService,
+    TokenLimitReached,
+    UserRequired,
+)
+from thoth_control_plane.infrastructure import account_models  # noqa: F401
+from thoth_control_plane.infrastructure.account_models import WorkspaceRow
+from thoth_control_plane.infrastructure.account_store import AccountStore
+from thoth_control_plane.infrastructure.source_account_models import Base
+
+T0 = datetime(2026, 10, 19, tzinfo=UTC)
+ALICE = VerifiedIdentity("google", "g1", "alice@acme.test", "Alice")
+
+
+class Clock:
+    def __init__(self) -> None:
+        self.now = T0
+
+    def __call__(self) -> datetime:
+        return self.now
+
+
+class FakeMailer:
+    def __init__(self) -> None:
+        self.sent: list[tuple[str, str, str]] = []
+        self.fail = False
+
+    async def send(self, to: str, subject: str, body: str) -> None:
+        if self.fail:
+            raise MailNotSent()
+        self.sent.append((to, subject, body))
+
+    @property
+    def last_code(self) -> str:
+        return re.search(r"\b(\d{6})\b", self.sent[-1][2]).group(1)
+
+
+@pytest.fixture
+def clock() -> Clock:
+    return Clock()
+
+
+@pytest.fixture
+def mailer() -> FakeMailer:
+    return FakeMailer()
+
+
+@pytest.fixture
+def store(clock) -> AccountStore:
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(engine)
+    with engine.begin() as connection:
+        connection.execute(
+            WorkspaceRow.__table__.insert().values(
+                workspace_id=BOOTSTRAP_WORKSPACE_ID, name="Thoth", created_at=T0
+            )
+        )
+    return AccountStore(engine, clock=clock)
+
+
+@pytest.fixture
+def service(store, mailer, clock) -> SignInService:
+    return SignInService(store, mailer, "s" * 32, clock=clock)
+
+
+async def signed_in(service, mailer, *, trust=True) -> SignedIn:
+    step = await service.begin(ALICE, None)
+    assert isinstance(step, CodeSent)
+    return await service.verify(
+        step.challenge_token, mailer.last_code, trust_device=trust, previous_session=None
+    )
+
+
+async def test_a_first_sign_in_emails_a_code_and_the_code_opens_a_session(service, mailer) -> None:
+    step = await service.begin(ALICE, None)
+    assert isinstance(step, CodeSent)
+    assert mailer.sent[0][0] == "alice@acme.test"
+    done = await service.verify(
+        step.challenge_token, mailer.last_code, trust_device=True, previous_session=None
+    )
+    assert done.device_token is not None
+    principal = await service.authenticate_session(done.session_token)
+    assert principal == Principal(
+        principal.user_id, BOOTSTRAP_WORKSPACE_ID, SCOPE_SETS["admin"], "session", "alice@acme.test"
+    )
+
+
+async def test_a_trusted_browser_skips_the_code(service, mailer) -> None:
+    first = await signed_in(service, mailer)
+    mailer.sent.clear()
+    again = await service.begin(ALICE, first.device_token)
+    assert isinstance(again, SignedIn) and again.device_token is None
+    assert mailer.sent == []
+
+
+async def test_a_code_dies_after_five_misses_and_a_used_code_never_works_again(
+    service, mailer
+) -> None:
+    step = await service.begin(ALICE, None)
+    good = mailer.last_code
+    bad = "000000" if good != "000000" else "111111"
+    for _ in range(4):
+        with pytest.raises(CodeRejected, match="wrong_code"):
+            await service.verify(
+                step.challenge_token, bad, trust_device=False, previous_session=None
+            )
+    with pytest.raises(CodeRejected, match="too_many_attempts"):
+        await service.verify(step.challenge_token, bad, trust_device=False, previous_session=None)
+    with pytest.raises(CodeRejected, match="expired"):
+        await service.verify(step.challenge_token, good, trust_device=False, previous_session=None)
+    fresh = await service.begin(ALICE, None)  # begin has no cooldown
+    code = mailer.last_code
+    await service.verify(fresh.challenge_token, code, trust_device=False, previous_session=None)
+    with pytest.raises(CodeRejected, match="expired"):
+        await service.verify(fresh.challenge_token, code, trust_device=False, previous_session=None)
+
+
+async def test_a_code_expires_after_ten_minutes(service, mailer, clock) -> None:
+    step = await service.begin(ALICE, None)
+    clock.now = T0 + timedelta(minutes=10, seconds=1)
+    with pytest.raises(CodeRejected, match="expired"):
+        await service.verify(
+            step.challenge_token, mailer.last_code, trust_device=False, previous_session=None
+        )
+
+
+async def test_resend_waits_sixty_seconds_and_replaces_the_code(service, mailer, clock) -> None:
+    step = await service.begin(ALICE, None)
+    with pytest.raises(CodeLimited, match="resend_too_soon"):
+        await service.resend(step.challenge_token)
+    clock.now = T0 + timedelta(seconds=61)
+    again = await service.resend(step.challenge_token)
+    with pytest.raises(CodeRejected, match="expired"):
+        await service.verify(
+            step.challenge_token, mailer.last_code, trust_device=False, previous_session=None
+        )
+    await service.verify(
+        again.challenge_token, mailer.last_code, trust_device=False, previous_session=None
+    )
+
+
+async def test_ten_codes_a_day_at_most(service, mailer, clock) -> None:
+    for minute in range(10):
+        clock.now = T0 + timedelta(minutes=minute)
+        await service.begin(ALICE, None)
+    with pytest.raises(SignInRefused) as caught:
+        await service.begin(ALICE, None)
+    assert caught.value.code == "too_many_codes"
+
+
+async def test_an_unsent_code_cannot_be_used(service, mailer) -> None:
+    mailer.fail = True
+    with pytest.raises(CodeNotSent):
+        await service.begin(ALICE, None)
+
+
+async def test_a_session_slides_but_never_outlives_seven_days(service, mailer, clock) -> None:
+    done = await signed_in(service, mailer)
+    for hours in range(11, 24 * 7, 11):
+        clock.now = T0 + timedelta(hours=hours)
+        assert await service.authenticate_session(done.session_token) is not None
+    clock.now = T0 + timedelta(days=7, minutes=1)
+    assert await service.authenticate_session(done.session_token) is None
+
+
+async def test_signing_in_again_rotates_the_session_and_logout_ends_it(
+    service, mailer, clock
+) -> None:
+    first = await signed_in(service, mailer, trust=False)
+    clock.now = T0 + timedelta(minutes=2)
+    step = await service.begin(ALICE, None)
+    second = await service.verify(
+        step.challenge_token,
+        mailer.last_code,
+        trust_device=False,
+        previous_session=first.session_token,
+    )
+    assert await service.authenticate_session(first.session_token) is None
+    await service.logout(second.session_token, None, forget_device=False)
+    assert await service.authenticate_session(second.session_token) is None
+
+
+async def test_a_disabled_user_cannot_sign_in_or_keep_a_session(service, mailer, store) -> None:
+    done = await signed_in(service, mailer)
+    with store._engine.begin() as connection:
+        connection.execute(text("UPDATE users SET disabled_at = CURRENT_TIMESTAMP"))
+    assert await service.authenticate_session(done.session_token) is None
+    with pytest.raises(SignInRefused, match="not_allowed"):
+        await service.begin(ALICE, done.device_token)
+
+
+async def test_tokens_are_scoped_limited_listed_and_revoked(service, mailer, clock) -> None:
+    done = await signed_in(service, mailer)
+    owner = await service.authenticate_session(done.session_token)
+    created = await service.create_token(owner, CreateToken(name="ci", scope="read", days=1))
+    assert created.secret.startswith("thoth_pat_") and created.token.prefix == created.secret[:16]
+    by_token = await service.authenticate_token(created.secret)
+    assert by_token.scopes == SCOPE_SETS["read"] and by_token.via == "token"
+    with pytest.raises(ScopeTooBroad):
+        await service.create_token(by_token, CreateToken(name="wider", scope="write"))
+    assert [t.name for t in await service.list_tokens(owner)] == ["ci"]
+    assert await service.revoke_token(owner, created.token.token_id)
+    assert await service.authenticate_token(created.secret) is None
+    for index in range(20):
+        await service.create_token(owner, CreateToken(name=f"t{index}"))
+    with pytest.raises(TokenLimitReached):
+        await service.create_token(owner, CreateToken(name="one too many"))
+    clock.now = T0 + timedelta(days=91)
+    assert await service.authenticate_token(created.secret) is None
+
+
+async def test_the_service_key_principal_has_no_user_for_personal_tokens(service) -> None:
+    service_principal = Principal(None, BOOTSTRAP_WORKSPACE_ID, SCOPE_SETS["admin"], "service")
+    with pytest.raises(UserRequired):
+        await service.create_token(service_principal, CreateToken(name="x"))
+
+
+async def test_without_a_secret_or_mailer_sign_in_is_not_configured(store) -> None:
+    with pytest.raises(SignInRefused, match="not_configured"):
+        await SignInService(store, None, "s" * 32).begin(ALICE, None)
+    with pytest.raises(SignInRefused, match="not_configured"):
+        await SignInService(store, FakeMailer(), None).begin(ALICE, None)
+
+
+async def test_an_unknown_token_or_session_is_simply_absent(service) -> None:
+    assert await service.authenticate_token("not-a-thoth-token") is None
+    assert await service.authenticate_token("thoth_pat_nope") is None
+    assert await service.authenticate_session("nope") is None

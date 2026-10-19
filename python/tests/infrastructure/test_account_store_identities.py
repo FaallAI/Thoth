@@ -45,9 +45,7 @@ def test_the_first_user_owns_the_bootstrap_workspace_and_later_users_get_their_o
 def test_one_email_across_google_and_github_is_one_user_with_one_workspace(store) -> None:
     by_google = store.upsert_identity(google("g1", "alice@acme.test"))
     store.upsert_identity(google("g9", "someone@acme.test"))  # the bootstrap is taken now
-    by_github = store.upsert_identity(
-        VerifiedIdentity("github", "42", "alice@acme.test", "alice")
-    )
+    by_github = store.upsert_identity(VerifiedIdentity("github", "42", "alice@acme.test", "alice"))
     assert by_github.user_id == by_google.user_id
     assert by_github.workspace_id == by_google.workspace_id
     again = store.upsert_identity(google("g1", "alice@acme.test"))

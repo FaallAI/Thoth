@@ -275,8 +275,15 @@ async def test_a_malformed_studio_document_cursor_raises_invalid_cursor() -> Non
 def test_accounts_tables_exist_with_the_bootstrap_workspace() -> None:
     apply_editor_migrations(DATABASE_URL, MIGRATIONS)
     assert {
-        "workspaces", "users", "user_identities", "workspace_members", "sessions",
-        "trusted_devices", "email_challenges", "access_tokens", "auth_events",
+        "workspaces",
+        "users",
+        "user_identities",
+        "workspace_members",
+        "sessions",
+        "trusted_devices",
+        "email_challenges",
+        "access_tokens",
+        "auth_events",
     } <= _tables()
     with psycopg.connect(DATABASE_URL) as connection:
         rows = connection.execute("SELECT workspace_id, name FROM workspaces").fetchall()

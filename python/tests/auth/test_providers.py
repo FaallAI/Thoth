@@ -4,7 +4,6 @@ import time
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
-import pytest
 from authlib.jose import JsonWebKey, jwt
 from starlette.applications import Starlette
 from starlette.middleware.sessions import SessionMiddleware
@@ -59,7 +58,9 @@ def github_api(*, state: str | None = "active") -> oauth_http.MockTransport:
                 200, json=[{"email": "Alice@Acme.test", "primary": True, "verified": True}]
             )
         if url == "https://api.github.com/user/memberships/orgs/acme" and state:
-            return oauth_http.Response(200, json={"state": state, "organization": {"login": "acme"}})
+            return oauth_http.Response(
+                200, json={"state": state, "organization": {"login": "acme"}}
+            )
         return oauth_http.Response(404, json={"message": "Not Found"})
 
     return oauth_http.MockTransport(handler)
@@ -78,10 +79,14 @@ async def test_github_signs_in_an_active_member_through_a_real_redirect() -> Non
 
 
 async def test_github_refuses_a_pending_member() -> None:
-    app = harness(GitHubProvider("gh-id", "gh-secret", "acme", transport=github_api(state="pending")))
+    app = harness(
+        GitHubProvider("gh-id", "gh-secret", "acme", transport=github_api(state="pending"))
+    )
     async with client(app) as http:
         state = query(await http.get("/login"))["state"]
-        assert (await http.get(f"/callback?code=c&state={state}")).json() == {"refused": "not_allowed"}
+        assert (await http.get(f"/callback?code=c&state={state}")).json() == {
+            "refused": "not_allowed"
+        }
 
 
 async def test_a_replayed_or_foreign_callback_is_a_provider_error_not_a_crash() -> None:
@@ -104,26 +109,42 @@ def google_api(nonce: dict[str, str], **claims) -> oauth_http.MockTransport:
     def handler(request: oauth_http.Request) -> oauth_http.Response:
         url = str(request.url)
         if url == f"{ISSUER}/.well-known/openid-configuration":
-            return oauth_http.Response(200, json={
-                "issuer": ISSUER,
-                "authorization_endpoint": f"{ISSUER}/auth",
-                "token_endpoint": f"{ISSUER}/token",
-                "jwks_uri": f"{ISSUER}/jwks",
-                "id_token_signing_alg_values_supported": ["RS256"],
-            })
+            return oauth_http.Response(
+                200,
+                json={
+                    "issuer": ISSUER,
+                    "authorization_endpoint": f"{ISSUER}/auth",
+                    "token_endpoint": f"{ISSUER}/token",
+                    "jwks_uri": f"{ISSUER}/jwks",
+                    "id_token_signing_alg_values_supported": ["RS256"],
+                },
+            )
         if url == f"{ISSUER}/jwks":
             return oauth_http.Response(200, json={"keys": [KEY.as_dict(is_private=False)]})
         if url == f"{ISSUER}/token":
             now = int(time.time())
             body = {
-                "iss": ISSUER, "aud": "g-id", "sub": "g-123", "iat": now, "exp": now + 600,
-                "nonce": nonce["value"], "email": "alice@acme.test", "email_verified": True,
-                "hd": "acme.test", "name": "Alice",
+                "iss": ISSUER,
+                "aud": "g-id",
+                "sub": "g-123",
+                "iat": now,
+                "exp": now + 600,
+                "nonce": nonce["value"],
+                "email": "alice@acme.test",
+                "email_verified": True,
+                "hd": "acme.test",
+                "name": "Alice",
             } | claims
             token = jwt.encode({"alg": "RS256", "kid": "k1"}, body, KEY).decode()
-            return oauth_http.Response(200, json={
-                "access_token": "a", "token_type": "Bearer", "expires_in": 600, "id_token": token,
-            })
+            return oauth_http.Response(
+                200,
+                json={
+                    "access_token": "a",
+                    "token_type": "Bearer",
+                    "expires_in": 600,
+                    "id_token": token,
+                },
+            )
         return oauth_http.Response(404)
 
     return oauth_http.MockTransport(handler)
@@ -132,7 +153,9 @@ def google_api(nonce: dict[str, str], **claims) -> oauth_http.MockTransport:
 async def google_sign_in(**claims) -> dict:
     nonce: dict[str, str] = {}
     provider = GoogleProvider(
-        "g-id", "g-secret", "acme.test",
+        "g-id",
+        "g-secret",
+        "acme.test",
         metadata_url=f"{ISSUER}/.well-known/openid-configuration",
         transport=google_api(nonce, **claims),
     )
@@ -164,11 +187,15 @@ def test_only_fully_configured_providers_are_built() -> None:
         THOTH_SMTP_FROM="no-reply@acme.test",
     )
     assert build_providers(Settings(**base)) == {}
-    both = build_providers(Settings(
-        **base,
-        THOTH_AUTH_GOOGLE_CLIENT_ID="g", THOTH_AUTH_GOOGLE_CLIENT_SECRET="s",
-        THOTH_AUTH_GOOGLE_DOMAIN="acme.test",
-        THOTH_AUTH_GITHUB_CLIENT_ID="h", THOTH_AUTH_GITHUB_CLIENT_SECRET="s",
-        THOTH_AUTH_GITHUB_ORG="acme",
-    ))
+    both = build_providers(
+        Settings(
+            **base,
+            THOTH_AUTH_GOOGLE_CLIENT_ID="g",
+            THOTH_AUTH_GOOGLE_CLIENT_SECRET="s",
+            THOTH_AUTH_GOOGLE_DOMAIN="acme.test",
+            THOTH_AUTH_GITHUB_CLIENT_ID="h",
+            THOTH_AUTH_GITHUB_CLIENT_SECRET="s",
+            THOTH_AUTH_GITHUB_ORG="acme",
+        )
+    )
     assert sorted(both) == ["github", "google"]

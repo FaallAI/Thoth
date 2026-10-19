@@ -13,13 +13,20 @@ def refused(call) -> str:
 
 
 def userinfo(**extra):
-    return {"sub": "g-1", "email": "alice@acme.test", "email_verified": True, "name": "Alice"} | extra
+    return {
+        "sub": "g-1",
+        "email": "alice@acme.test",
+        "email_verified": True,
+        "name": "Alice",
+    } | extra
 
 
 def test_google_accepts_a_verified_address_in_the_exact_domain_lowercased() -> None:
     identity = google_identity(userinfo(email="ALICE@Acme.Test", hd="acme.test"), "acme.test")
     assert (identity.provider, identity.subject, identity.email) == (
-        "google", "g-1", "alice@acme.test",
+        "google",
+        "g-1",
+        "alice@acme.test",
     )
 
 
@@ -52,7 +59,10 @@ def membership(state="active", org="Acme"):
 def test_github_accepts_an_active_member_with_a_verified_primary_email() -> None:
     identity = github_identity(GITHUB_USER, VERIFIED, membership(), "acme")
     assert (identity.provider, identity.subject, identity.email, identity.display_name) == (
-        "github", "42", "alice@acme.test", "Alice",
+        "github",
+        "42",
+        "alice@acme.test",
+        "Alice",
     )
 
 

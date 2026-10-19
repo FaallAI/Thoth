@@ -83,8 +83,16 @@ def test_tokens_are_listed_newest_first_counted_revoked_and_touched(store, clock
 
     def record(token_id: str, created: datetime) -> TokenRecord:
         return TokenRecord(
-            token_id, "user", user.user_id, user.workspace_id, token_id, "thoth_pat_ab",
-            "write", created, created + timedelta(days=90), None,
+            token_id,
+            "user",
+            user.user_id,
+            user.workspace_id,
+            token_id,
+            "thoth_pat_ab",
+            "write",
+            created,
+            created + timedelta(days=90),
+            None,
         )
 
     store.create_token(record("tok_old", T0), "t1")
