@@ -408,6 +408,13 @@ def seed(document_id, frames, asset_frames):
     saved = document(document_id, frames, asset_frames)
     with psycopg.connect(DATABASE_URL) as connection:
         cursor = connection.cursor()
+        # Project routes answer only for a project of the caller's workspace (spec 2026-10-19
+        # workspace isolation); the service key acts in the bootstrap workspace.
+        cursor.execute(
+            "INSERT INTO projects (project_id, name, workspace_id)"
+            " VALUES (%s, 'Smoke project', 'ws_bootstrap') ON CONFLICT DO NOTHING",
+            (PROJECT_ID,),
+        )
         if asset_frames is not None:
             source = ASSET_FILE
             cursor.execute(
@@ -767,6 +774,9 @@ import os, sys, urllib.error, urllib.request
 request = urllib.request.Request("http://web:8088" + sys.argv[1], method=sys.argv[2] if len(sys.argv) > 2 else "GET")
 if len(sys.argv) > 3:
     request.add_header("Authorization", "Bearer " + sys.argv[3])
+if len(sys.argv) > 4:
+    request.data = sys.argv[4].encode()
+    request.add_header("Content-Type", "application/json")
 try:
     with urllib.request.urlopen(request, timeout=10) as response:
         status, body = response.status, response.read().decode()
@@ -790,6 +800,23 @@ token_id=$(BODY=1 web /api/v1/me/tokens GET "$dev_token" | python3 -c 'import js
 [ "$(web "/api/v1/me/tokens/$token_id" DELETE "$dev_token")" = "204" ] || fail developer_token_revoked
 [ "$(web /api/v1/projects GET "$dev_token")" = "403" ] || fail developer_token_revoked
 echo developer_token_revoked=true
+
+# --- workspace isolation: a second user never sees the first user's project (spec 2026-10-19) ---
+# smoke@thoth.test signed up first in this smoke, so it owns ws_bootstrap; second@ gets its own.
+first_token=$(compose exec -T api thoth-control tokens create --email smoke@thoth.test --name iso --scope admin | tr -d '\r') \
+    || fail workspaces_are_isolated
+second_token=$(compose exec -T api thoth-control tokens create --email second@thoth.test --name iso --scope admin | tr -d '\r') \
+    || fail workspaces_are_isolated
+second_project=$(BODY=1 web /api/v1/projects POST "$second_token" '{"name":"Second"}' \
+    | python3 -c 'import json,sys; print(json.load(sys.stdin)["project_id"])') \
+    || fail workspaces_are_isolated
+[ "$(web "/api/v1/projects/$second_project" GET "$second_token")" = "200" ] || fail workspaces_are_isolated
+[ "$(web "/api/v1/projects/$second_project" GET "$first_token")" = "404" ] || fail workspaces_are_isolated
+if BODY=1 web /api/v1/projects GET "$second_token" | grep -q "Smoke project"; then
+    fail workspaces_are_isolated
+fi
+[ "$(web /api/v1/source-accounts GET "$second_token")" = "403" ] || fail workspaces_are_isolated
+echo workspaces_are_isolated=true
 
 # --- one active render at a time, and cancellation ---------------------------
 driver seed "$long_document_id" "$long_frames" none >/dev/null || fail second_render_is_refused
