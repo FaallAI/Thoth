@@ -134,7 +134,11 @@ async def callback(provider: str, request: Request) -> Response:
         return _to_login("not_configured")
     try:
         identity = await found.identity(request)
-        step = await sign_in.begin(identity, request.cookies.get(DEVICE_COOKIE))
+        step = await sign_in.begin(
+            identity,
+            request.cookies.get(DEVICE_COOKIE),
+            previous_session=request.cookies.get(SESSION_COOKIE),
+        )
     except SignInRefused as refused:
         return _to_login(refused.code)
     except CodeNotSent:

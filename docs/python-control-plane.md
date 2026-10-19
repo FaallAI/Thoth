@@ -392,8 +392,9 @@ The stack serves the dashboard from the `web` container (`compose.stage1.web.yml
 - **Container hardening:** it runs as uid 10001, read-only, with every capability dropped. Caddy
   listens only on unprivileged ports: 8088 for the site, 8080 and 8443 for a later domain.
 - **A real domain:** set `THOTH_SITE_ADDRESS` to the domain and `THOTH_SITE_ORIGIN` to
-  `https://<domain>`, then publish host 80 to container 8080 and host 443 to 8443. Caddy then
-  obtains certificates itself.
+  `https://<domain>`, and set `THOTH_WEB_HTTP_BIND=0.0.0.0:80` and
+  `THOTH_WEB_HTTPS_BIND=0.0.0.0:443` (they map to container 8080 and 8443). Caddy then obtains
+  certificates itself, and the healthcheck accepts either site.
 
 ### Who may sign in
 

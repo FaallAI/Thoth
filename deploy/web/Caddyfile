@@ -22,12 +22,16 @@
 		reverse_proxy {$THOTH_API_UPSTREAM:api:8000}
 	}
 
+	# Hashed build files: served as-is, and a missing one is a 404, never index.html.
+	handle /assets/* {
+		root * /srv/dashboard
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
 	handle {
 		root * /srv/dashboard
-		@hashed path /assets/*
-		header @hashed Cache-Control "public, max-age=31536000, immutable"
-		@page not path /assets/*
-		header @page Cache-Control "no-store"
+		header Cache-Control "no-store"
 		try_files {path} /index.html
 		file_server
 	}

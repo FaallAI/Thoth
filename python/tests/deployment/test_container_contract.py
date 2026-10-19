@@ -1220,3 +1220,14 @@ def test_the_deploy_imports_reports_with_the_old_worker_stopped() -> None:
         script.index("up -d --wait"),
     ]
     assert order == sorted(order)
+
+
+def test_web_serves_missing_assets_as_404_and_publishes_domain_ports() -> None:
+    root = Path(__file__).resolve().parents[3]
+    caddyfile = (root / "deploy/web/Caddyfile").read_text(encoding="utf-8")
+    assets = caddyfile[caddyfile.index("handle /assets/*") :]
+    assets = assets[: assets.index("}") + 1]
+    assert "file_server" in assets and "try_files" not in assets
+    overlay = (root / "compose.stage1.web.yml").read_text(encoding="utf-8")
+    assert ":8080" in overlay and ":8443" in overlay  # host 80/443 map here for a domain
+    assert "THOTH_WEB_HTTP_BIND" in overlay and "THOTH_WEB_HTTPS_BIND" in overlay

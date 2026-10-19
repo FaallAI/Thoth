@@ -777,6 +777,8 @@ print(body if os.environ.get("BODY") == "1" else status)
 }
 BODY=1 web /studio/p/d | grep -q '<div id="root">' || fail web_serves_the_spa_on_deep_paths
 echo web_serves_the_spa_on_deep_paths=true
+[ "$(web /assets/missing-0000.js)" = "404" ] || fail web_missing_asset_is_404
+echo web_missing_asset_is_404=true
 [ "$(web /api/v1/projects)" = "403" ] || fail web_requires_a_session
 echo web_requires_a_session=true
 dev_token=$(compose exec -T api thoth-control tokens create --email smoke@thoth.test --name smoke --scope admin | tr -d '\r') \

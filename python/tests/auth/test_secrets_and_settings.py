@@ -61,3 +61,11 @@ def test_blank_auth_settings_are_unset_and_sign_in_needs_every_part() -> None:
     )
     assert ready.sign_in_ready and ready.google_sign_in_enabled and ready.cookie_secure
     assert not ready.github_sign_in_enabled
+
+
+def test_the_site_origin_is_normalised_once() -> None:
+    settings = Settings(
+        THOTH_CONTROL_PLANE_API_KEY="k", THOTH_SITE_ORIGIN="HTTPS://Thoth.Example.COM/"
+    )
+    assert settings.THOTH_SITE_ORIGIN == "https://thoth.example.com"
+    assert settings.cookie_secure

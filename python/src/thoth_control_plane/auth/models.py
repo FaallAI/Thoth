@@ -19,7 +19,12 @@ SCOPE_SETS: dict[str, frozenset[str]] = {
 ALL_SCOPES = SCOPE_SETS["admin"]
 BOOTSTRAP_WORKSPACE_ID = "ws_bootstrap"
 SignInErrorCode = Literal[
-    "unverified_email", "not_allowed", "provider_error", "not_configured", "too_many_codes"
+    "unverified_email",
+    "not_allowed",
+    "provider_error",
+    "not_configured",
+    "too_many_codes",
+    "too_soon",
 ]
 
 

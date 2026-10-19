@@ -88,20 +88,23 @@ that failed first:
 | Unreachable provider | `/auth/login` answered a raw 500 | It returns `/login?error=provider_error` |
 | Token lineage | A token minted by an admin token survived its parent's revocation | `access_tokens.parent_token_id` (migration 0013, never deployed) caps the child's expiry at the parent's, and revoking a token revokes everything it minted |
 
-**Deferred minors:**
-- a missing hashed asset is cached as HTML for a year (Caddy `header` runs before `try_files`);
-- a trusted-browser sign-in does not rotate the previous session;
-- the exact `THOTH_SITE_ORIGIN` comparison breaks on a trailing slash;
-- forced sign-ins can burn the daily code limit;
-- a domain deploy needs 80/443 mapped to 8080/8443 and its healthcheck adjusted (documented);
-- the 20-token limit is count-then-insert.
+**Review minors, fixed at the operator's request (each with a test that failed first):**
+
+| Problem | Fix |
+|---|---|
+| A missing hashed asset fell back to index.html | `handle /assets/*` serves files only, so a missing one is a 404; a smoke check covers it |
+| A trusted-browser sign-in kept the old session | It now revokes the old session |
+| A trailing slash or capital letters in `THOTH_SITE_ORIGIN` broke every cookie write | The origin is normalised to `scheme://host[:port]` |
+| Forced or repeated sign-ins could burn the daily code limit in a burst | Sign-in also waits 60 s between codes, with the new code `too_soon` and copy for it |
+| A domain deploy needed manual port wiring | `THOTH_WEB_HTTP_BIND` and `THOTH_WEB_HTTPS_BIND` map to container 8080/8443, and the healthcheck accepts either site |
+| Parallel creates could exceed the 20-token limit | The limit is checked under a row lock in the insert's transaction |
 
 A test-isolation fix: the WorkflowMonitor download test no longer lets happy-dom navigate to
 `blob:`.
 
-**Verification (after the fix pass):**
+**Verification (after the fix pass and the minors):**
 - `make lint` is clean.
-- `make test`: 4072 passed, 65 skipped. `make test-postgres`: 16 passed.
+- `make test`: 4077 passed, 65 skipped. `make test-postgres`: 16 passed.
 - Dashboard: `bun test` 694/694, `tsc` 0 errors, and `bun run build` passes.
 - OpenAPI gained only `/api/v1/me...`, `/api/v1/workspace/tokens` and four schemas.
 - No Rust change.

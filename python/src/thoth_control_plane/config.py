@@ -173,6 +173,13 @@ class Settings(BaseSettings):
         """Compose passes `${VAR:-}` as an empty string; empty means not configured."""
         return None if isinstance(value, str) and not value.strip() else value
 
+    @field_validator("THOTH_SITE_ORIGIN")
+    @classmethod
+    def _origin(cls, value: str) -> str:
+        """Compared exactly with the browser's Origin header, so keep only scheme://host[:port]."""
+        scheme, _, rest = value.strip().partition("://")
+        return f"{scheme.lower()}://{rest.split('/', 1)[0].lower()}"
+
     @property
     def cookie_secure(self) -> bool:
         return self.THOTH_SITE_ORIGIN.startswith("https://")

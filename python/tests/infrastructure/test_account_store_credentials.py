@@ -127,3 +127,26 @@ def test_claiming_an_attempt_is_atomic_and_stops_at_five(store, clock) -> None:
     assert store.consume_challenge("chl_2")
     assert store.claim_attempt("c2") is None  # a used challenge takes no more guesses
     assert store.claim_attempt("unknown") is None
+
+
+def test_a_token_over_the_limit_is_refused_inside_the_insert(store, clock) -> None:
+    user = store.ensure_user("a@acme.test", "A")
+
+    def record(token_id: str) -> TokenRecord:
+        return TokenRecord(
+            token_id,
+            "user",
+            user.user_id,
+            user.workspace_id,
+            token_id,
+            "thoth_pat_ab",
+            "write",
+            T0,
+            T0 + timedelta(days=90),
+            None,
+        )
+
+    assert store.create_token(record("tok_1"), "h1", limit=2)
+    assert store.create_token(record("tok_2"), "h2", limit=2)
+    assert not store.create_token(record("tok_3"), "h3", limit=2)
+    assert store.live_token("h3") is None

@@ -142,7 +142,10 @@ class SignInService:
     # --- signing in ------------------------------------------------------------------------
 
     async def begin(
-        self, identity: VerifiedIdentity, device_token: str | None
+        self,
+        identity: VerifiedIdentity,
+        device_token: str | None,
+        previous_session: str | None = None,
     ) -> SignedIn | CodeSent:
         if self._secret is None or self._mailer is None:
             raise SignInRefused("not_configured")
@@ -155,11 +158,16 @@ class SignInService:
         if device_token and await self._run(
             self._store.is_trusted, account.user_id, token_hash(device_token)
         ):
+            if previous_session:  # a new sign-in never keeps the old session alive
+                await self._run(self._store.revoke_session, token_hash(previous_session))
             return await self._start(account, trust_device=False)
         try:
-            return await self._send_code(account, enforce_cooldown=False)
-        except CodeLimited:
-            raise SignInRefused("too_many_codes") from None
+            # The cooldown also applies here, so repeated (even forced) sign-ins cannot burn
+            # the daily code limit in a burst.
+            return await self._send_code(account, enforce_cooldown=True)
+        except CodeLimited as limited:
+            code = "too_soon" if limited.code == "resend_too_soon" else "too_many_codes"
+            raise SignInRefused(code) from None
 
     async def verify(
         self,
@@ -272,9 +280,6 @@ class SignInService:
             raise UserRequired()
         if not SCOPE_SETS[request.scope] <= principal.scopes:
             raise ScopeTooBroad()
-        count = await self._run(self._store.active_token_count, "user", principal.user_id)
-        if count >= TOKEN_LIMIT:
-            raise TokenLimitReached()
         return await self._issue(
             "user",
             principal.user_id,
@@ -297,9 +302,6 @@ class SignInService:
             or not SCOPE_SETS[request.scope] <= principal.scopes
         ):
             raise ScopeTooBroad()
-        count = await self._run(self._store.active_token_count, "workspace", principal.workspace_id)
-        if count >= TOKEN_LIMIT:
-            raise TokenLimitReached()
         return await self._issue(
             "workspace",
             principal.workspace_id,
@@ -355,7 +357,8 @@ class SignInService:
             last_used_at=None,
             parent_token_id=parent_token_id,
         )
-        await self._run(self._store.create_token, record, token_hash(secret))
+        if not await self._run(self._store.create_token, record, token_hash(secret), TOKEN_LIMIT):
+            raise TokenLimitReached()
         await self._event("token_created", "ok", user_id=actor_user_id, token_id=record.token_id)
         return CreatedToken(token=token_view(record), secret=secret)
 

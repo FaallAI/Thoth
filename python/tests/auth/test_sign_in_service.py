@@ -120,7 +120,7 @@ async def test_a_trusted_browser_skips_the_code(service, mailer) -> None:
 
 
 async def test_a_code_dies_after_five_misses_and_a_used_code_never_works_again(
-    service, mailer
+    service, mailer, clock
 ) -> None:
     step = await service.begin(ALICE, None)
     good = mailer.last_code
@@ -134,7 +134,8 @@ async def test_a_code_dies_after_five_misses_and_a_used_code_never_works_again(
         await service.verify(step.challenge_token, bad, trust_device=False, previous_session=None)
     with pytest.raises(CodeRejected, match="expired"):
         await service.verify(step.challenge_token, good, trust_device=False, previous_session=None)
-    fresh = await service.begin(ALICE, None)  # begin has no cooldown
+    clock.now = T0 + timedelta(seconds=61)  # a new sign-in waits out the code cooldown
+    fresh = await service.begin(ALICE, None)
     code = mailer.last_code
     await service.verify(fresh.challenge_token, code, trust_device=False, previous_session=None)
     with pytest.raises(CodeRejected, match="expired"):
@@ -174,7 +175,7 @@ async def test_ten_codes_a_day_at_most(service, mailer, clock) -> None:
     assert caught.value.code == "too_many_codes"
 
 
-async def test_an_unsent_code_cannot_be_used(service, mailer) -> None:
+async def test_an_unsent_code_cannot_be_used(service, mailer, clock) -> None:
     mailer.fail = True
     with pytest.raises(CodeNotSent):
         await service.begin(ALICE, None)
@@ -308,3 +309,25 @@ async def test_a_token_minted_by_a_token_never_outlives_its_parent(service, mail
     assert (
         await service.authenticate_token(child.secret) is None
     )  # revoking the leak cuts its heirs
+
+
+async def test_a_trusted_browser_sign_in_rotates_the_previous_session(
+    service, mailer, clock
+) -> None:
+    first = await signed_in(service, mailer)
+    clock.now = T0 + timedelta(minutes=2)
+    again = await service.begin(ALICE, first.device_token, previous_session=first.session_token)
+    assert isinstance(again, SignedIn)
+    assert await service.authenticate_session(first.session_token) is None
+    assert await service.authenticate_session(again.session_token) is not None
+
+
+async def test_sign_ins_within_a_minute_send_one_code(service, mailer, clock) -> None:
+    await service.begin(ALICE, None)
+    with pytest.raises(SignInRefused) as caught:
+        await service.begin(ALICE, None)
+    assert caught.value.code == "too_soon"
+    assert len(mailer.sent) == 1
+    clock.now = T0 + timedelta(seconds=61)
+    await service.begin(ALICE, None)
+    assert len(mailer.sent) == 2

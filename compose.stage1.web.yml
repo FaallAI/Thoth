@@ -16,8 +16,12 @@ services:
     cap_drop: [ALL]
     ports:
       - "127.0.0.1:${THOTH_WEB_PORT:-8088}:8088"
+      # A domain deploy sets THOTH_SITE_ADDRESS and binds these to 0.0.0.0:80 and 0.0.0.0:443.
+      - "${THOTH_WEB_HTTP_BIND:-127.0.0.1:18080}:8080"
+      - "${THOTH_WEB_HTTPS_BIND:-127.0.0.1:18443}:8443"
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8088/"]
+      # The local site answers on 8088; a domain site listens on 8443 instead.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8088/ || nc -z 127.0.0.1 8443"]
       interval: 10s
       timeout: 5s
       retries: 12

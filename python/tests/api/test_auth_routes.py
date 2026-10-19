@@ -182,7 +182,12 @@ async def test_next_never_leaves_the_site(api, mailer, target) -> None:
     assert response.headers["location"] == "/login/verify?next=/workflows"
 
 
-async def test_logout_ends_the_session_and_can_forget_the_browser(api, mailer) -> None:
+async def test_logout_ends_the_session_and_can_forget_the_browser(api, mailer, monkeypatch) -> None:
+    from datetime import timedelta
+
+    from thoth_control_plane.auth import service as sign_in_service
+
+    monkeypatch.setattr(sign_in_service, "RESEND_AFTER", timedelta(0))  # two sign-ins back to back
     await sign_in(api, mailer)
     out = await api.post("/auth/logout", json={"forget_device": True}, headers=SAME_SITE)
     assert out.status_code == 204

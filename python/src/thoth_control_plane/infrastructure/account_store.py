@@ -390,7 +390,11 @@ class AccountStore:
 
     # --- developer tokens ------------------------------------------------------------------
 
-    def create_token(self, record: TokenRecord, token_hash: str) -> None:
+    def create_token(self, record: TokenRecord, token_hash: str, limit: int | None = None) -> bool:
+        """Insert a token; with a limit, refuse (False) when the owner already holds that many.
+
+        The owner's row is locked first, so parallel creates cannot both pass the count.
+        """
         row = TokenRow(
             token_id=record.token_id,
             owner_kind=record.owner_kind,
@@ -404,7 +408,27 @@ class AccountStore:
             expires_at=record.expires_at,
             parent_token_id=record.parent_token_id,
         )
-        self._write(lambda session: session.add(row))
+        try:
+            with self._sessions.begin() as session:
+                if limit is not None:
+                    owner = UserRow if record.owner_kind == "user" else WorkspaceRow
+                    session.get(owner, record.owner_id, with_for_update=True)
+                    held = session.scalar(
+                        select(func.count())
+                        .select_from(TokenRow)
+                        .where(
+                            TokenRow.owner_kind == record.owner_kind,
+                            TokenRow.owner_id == record.owner_id,
+                            TokenRow.revoked_at.is_(None),
+                            TokenRow.expires_at > self._clock(),
+                        )
+                    )
+                    if (held or 0) >= limit:
+                        return False
+                session.add(row)
+                return True
+        except SQLAlchemyError as error:
+            raise _unavailable(error) from None
 
     def token(self, token_id: str) -> TokenRecord | None:
         """One token in any state (revoked or expired included), or None."""
