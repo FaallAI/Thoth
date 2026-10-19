@@ -18,6 +18,7 @@ from temporalio.service import RPCError
 
 from thoth_control_plane.acquisition.accounts.profiles import AccountProfiles
 from thoth_control_plane.acquisition.accounts.vault import Vault
+from thoth_control_plane.api.routes.auth import router as auth_router
 from thoth_control_plane.api.routes.edit_documents import router as edit_document_router
 from thoth_control_plane.api.routes.editor_assets import router as editor_asset_router
 from thoth_control_plane.api.routes.health import router as health_router
@@ -478,6 +479,7 @@ def create_app(
         response.headers["X-Thoth-Contract-Version"] = CONTRACT_VERSION
         return response
 
+    app.include_router(auth_router)
     app.include_router(health_router)
     app.include_router(project_router, prefix="/api/v1")
     app.include_router(workflow_run_router, prefix="/api/v1")

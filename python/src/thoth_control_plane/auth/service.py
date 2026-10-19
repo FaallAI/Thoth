@@ -20,6 +20,7 @@ from thoth_control_plane.auth.models import (
     SCOPE_SETS,
     CreatedToken,
     CreateToken,
+    MeView,
     Principal,
     SignInRefused,
     TokenView,
@@ -244,6 +245,19 @@ class SignInService:
         if record.last_used_at is None or now - record.last_used_at >= TOUCH_EVERY:
             await self._run(self._store.touch_token, record.token_id, now)
         return Principal(user_id, record.workspace_id, SCOPE_SETS[record.scope], "token", email)
+
+    async def describe(self, principal: Principal) -> MeView:
+        name = None
+        if principal.user_id is not None:
+            account = await self._run(self._store.account, principal.user_id)
+            name = account.display_name if account else None
+        return MeView(
+            user_id=principal.user_id,
+            email=principal.email,
+            display_name=name,
+            workspace_id=principal.workspace_id,
+            scopes=sorted(principal.scopes),  # type: ignore[arg-type]
+        )
 
     async def note_service_key(self) -> None:
         await self._event("service_key", "ok")
