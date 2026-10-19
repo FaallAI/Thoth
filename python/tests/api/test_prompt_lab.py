@@ -5,6 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
+from tests.api.open_projects import OPEN_PROJECTS
 from thoth_control_plane.api import create_app
 from thoth_control_plane.application.ports import (
     PromptBindingNotFound,
@@ -125,7 +126,13 @@ TEMPLATE_PAYLOAD = {
 
 
 def app_with_prompt_repository(repository: MemoryPromptLabRepository | None) -> object:
-    return create_app(Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), None, None, repository)
+    return create_app(
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"),
+        None,
+        None,
+        repository,
+        project_store=OPEN_PROJECTS,
+    )
 
 
 @pytest.mark.asyncio

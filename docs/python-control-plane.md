@@ -512,9 +512,25 @@ It is not a `VITE_` variable, so it never enters a bundle, and `vite build` refu
 To test the real sign-in through Vite instead, set `THOTH_SITE_ORIGIN=http://localhost:5173` on
 the API.
 
+### Workspaces
+
+Every user works in their own workspace. The first user of an installation owns the bootstrap
+workspace, which holds every record made before workspaces existed; every later user gets a
+personal workspace on their first sign-in.
+
+- Projects belong to a workspace, and every route under `/api/v1/projects/{project_id}` answers
+  404 `project_not_found` for another workspace's project, exactly as for a missing one.
+- Workflows belong to their workspace's data actor: the bootstrap keeps the legacy `owner`, and
+  any other workspace uses its own ID.
+- Source accounts and proxies are a platform resource. Only the service key and the owners and
+  admins of the bootstrap workspace manage them, with the `admin` scope; every workspace's
+  workflows share the pool.
+- A session or token stops working as soon as its user is no longer a member of its workspace.
+
 ## Authorization and approvals
 
-Every principal (a session, a developer token or the service key) maps to the audited data `Actor` `owner` until SaaS sub-project 2 scopes data by workspace. Authorization is
+Every principal (a session, a developer token or the service key) maps to the audited data
+`Actor` of its workspace (see "Workspaces"). Authorization is
 checked again at the application/gateway boundary for summary, events, controls, and artifact
 download. A missing, wrong, or non-Bearer credential receives `403`; an invisible workflow or
 artifact receives the same safe not-found boundary as an absent one.

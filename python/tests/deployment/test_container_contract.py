@@ -1230,3 +1230,13 @@ def test_web_serves_missing_assets_as_404_and_publishes_domain_ports() -> None:
     overlay = (root / "compose.stage1.web.yml").read_text(encoding="utf-8")
     assert ":8080" in overlay and ":8443" in overlay  # host 80/443 map here for a domain
     assert "THOTH_WEB_HTTP_BIND" in overlay and "THOTH_WEB_HTTPS_BIND" in overlay
+
+
+def test_the_smoke_registers_its_project_before_any_project_route() -> None:
+    """Project routes answer 404 for an unregistered project (workspace isolation), so every
+    driver step that calls one first registers the smoke project in the bootstrap workspace."""
+    script = _repo_text("docker/test-renderer-offline.sh")
+    for name in ("upload", "seed"):
+        body = script[script.index(f"def {name}(") :]
+        body = body[: body.index("\ndef ", 1)]
+        assert "ensure_project()" in body, name

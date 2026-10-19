@@ -50,7 +50,7 @@ def stores():
 
 def test_record_start_is_an_upsert_that_never_moves_the_project(stores) -> None:
     projects, runs, _ = stores
-    project = projects.create("News")
+    project = projects.create("News", "ws_bootstrap")
     runs.record_start(summary("wf_a"), project_id=project.project_id, actor=OWNER)
     runs.record_start(summary("wf_a", "running"), project_id=None, actor=OWNER)
     stored = runs.get("wf_a")
@@ -62,7 +62,7 @@ def test_record_start_is_an_upsert_that_never_moves_the_project(stores) -> None:
 
 def test_pages_are_per_project_newest_first_with_a_cursor(stores) -> None:
     projects, runs, _ = stores
-    project = projects.create("News")
+    project = projects.create("News", "ws_bootstrap")
     for name in ("wf_a", "wf_b", "wf_c"):
         runs.record_start(summary(name), project_id=project.project_id, actor=OWNER)
     runs.record_start(summary("wf_x"), project_id=None, actor=OWNER)
@@ -94,7 +94,7 @@ def test_settle_and_assign(stores) -> None:
     runs.settle(
         "wf_a", status="succeeded", summary=summary("wf_a", "succeeded"), history_expired=False
     )
-    project = projects.create("News")
+    project = projects.create("News", "ws_bootstrap")
     moved = runs.assign("wf_a", project.project_id)
     assert moved is not None
     assert moved.project_id == project.project_id

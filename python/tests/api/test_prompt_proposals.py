@@ -5,6 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
+from tests.api.open_projects import OPEN_PROJECTS
 from tests.application.test_prompt_lab import MemoryPromptLabRepository
 from tests.application.test_prompt_proposals import (
     MemoryProposalRepository,
@@ -73,6 +74,7 @@ async def seeded_app(
         prompt_proposal_repository=proposal_repository,
         prompt_proposal_gateway=gateway or RecordingGateway(),
         prompt_provider_catalog=PROVIDER_CATALOG,
+        project_store=OPEN_PROJECTS,
     )
     transport = httpx.ASGITransport(app=app)
     client = httpx.AsyncClient(transport=transport, base_url="http://test")

@@ -18,6 +18,20 @@ SCOPE_SETS: dict[str, frozenset[str]] = {
 }
 ALL_SCOPES = SCOPE_SETS["admin"]
 BOOTSTRAP_WORKSPACE_ID = "ws_bootstrap"
+#: The single data actor every record had before workspaces; it stays the bootstrap's actor.
+LEGACY_ACTOR_ID = "owner"
+
+
+def data_actor_id(workspace_id: str) -> str:
+    """The data actor that owns a workspace's records (spec 1.1)."""
+    return LEGACY_ACTOR_ID if workspace_id == BOOTSTRAP_WORKSPACE_ID else workspace_id
+
+
+def actor_workspace_id(actor_id: str) -> str:
+    """The workspace a data actor belongs to: the inverse of `data_actor_id`."""
+    return BOOTSTRAP_WORKSPACE_ID if actor_id == LEGACY_ACTOR_ID else actor_id
+
+
 SignInErrorCode = Literal[
     "unverified_email",
     "not_allowed",
@@ -38,6 +52,19 @@ class Principal:
     via: Literal["session", "token", "service"]
     email: str | None = None
     token_id: str | None = None  # the developer token used, when via == "token"
+    # the caller's role in workspace_id; None for the service key and workspace tokens
+    role: str | None = None
+
+
+def is_platform_admin(principal: Principal) -> bool:
+    """The service key, or an owner/admin of the bootstrap workspace (spec 1.3)."""
+    if principal.via == "service":
+        return True
+    return (
+        principal.user_id is not None
+        and principal.workspace_id == BOOTSTRAP_WORKSPACE_ID
+        and principal.role in ("owner", "admin")
+    )
 
 
 @dataclass(frozen=True)
@@ -54,12 +81,37 @@ class SignInRefused(Exception):
         self.code = code
 
 
+class WorkspaceView(StrictModel):
+    workspace_id: str
+    name: str
+    role: str | None
+
+
 class MeView(StrictModel):
     user_id: str | None
     email: str | None
     display_name: str | None
     workspace_id: str
     scopes: list[Scope]
+    workspace: WorkspaceView
+    platform_admin: bool
+
+
+def accountless_me(principal: Principal) -> MeView:
+    """`/me` on a server without the account store: the principal alone, nothing looked up."""
+    return MeView(
+        user_id=principal.user_id,
+        email=principal.email,
+        display_name=None,
+        workspace_id=principal.workspace_id,
+        scopes=sorted(principal.scopes),  # type: ignore[arg-type]
+        workspace=WorkspaceView(
+            workspace_id=principal.workspace_id,
+            name=principal.workspace_id,
+            role=principal.role,
+        ),
+        platform_admin=is_platform_admin(principal),
+    )
 
 
 class TokenView(StrictModel):

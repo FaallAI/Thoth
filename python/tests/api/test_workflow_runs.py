@@ -87,7 +87,7 @@ async def start(api, project_id: str, key: str = "k1"):
 
 @pytest.mark.asyncio
 async def test_a_project_start_is_listed_under_its_project(api, stores) -> None:
-    project = stores[0].create("News")
+    project = stores[0].create("News", "ws_bootstrap")
     assert (await start(api, project.project_id)).status_code == 202
     response = await api.get(f"/api/v1/projects/{project.project_id}/workflows", headers=AUTH)
     page = response.json()
@@ -108,7 +108,7 @@ async def test_the_legacy_start_is_unassigned_and_can_be_moved(api, stores) -> N
     await api.post("/api/v1/workflows", json=REQUEST, headers={**AUTH, "Idempotency-Key": "k"})
     loose = (await api.get("/api/v1/workflows?unassigned=true", headers=AUTH)).json()["items"]
     assert [r["workflow_id"] for r in loose] == ["wf_001"]
-    project = stores[0].create("News")
+    project = stores[0].create("News", "ws_bootstrap")
     moved = await api.patch(
         "/api/v1/workflows/wf_001", json={"project_id": project.project_id}, headers=AUTH
     )
@@ -126,7 +126,7 @@ async def test_the_legacy_start_is_unassigned_and_can_be_moved(api, stores) -> N
 async def test_a_retried_start_after_a_row_failure_lands_the_row(
     api, stores, gateway, monkeypatch
 ) -> None:
-    project = stores[0].create("News")
+    project = stores[0].create("News", "ws_bootstrap")
     runs = stores[1]
     original = runs.record_start
     calls = {"n": 0}
@@ -148,7 +148,7 @@ async def test_a_retried_start_after_a_row_failure_lands_the_row(
 
 @pytest.mark.asyncio
 async def test_listing_settles_closed_and_expired_runs(api, stores, gateway) -> None:
-    project = stores[0].create("News")
+    project = stores[0].create("News", "ws_bootstrap")
     await start(api, project.project_id)
     gateway.settlements["wf_001"] = RunClosed(None, "cancelled")
     listing = f"/api/v1/projects/{project.project_id}/workflows"
@@ -166,7 +166,7 @@ async def test_listing_settles_closed_and_expired_runs(api, stores, gateway) -> 
 
 @pytest.mark.asyncio
 async def test_a_temporal_outage_still_lists_the_stored_rows(api, stores, gateway) -> None:
-    project = stores[0].create("News")
+    project = stores[0].create("News", "ws_bootstrap")
     await start(api, project.project_id)
     gateway.settle_error = WorkflowNotReady()
     response = await api.get(f"/api/v1/projects/{project.project_id}/workflows", headers=AUTH)
@@ -267,7 +267,7 @@ async def test_a_media_store_outage_answers_503(gateway, stores, monkeypatch) ->
 
 
 async def test_any_settle_failure_still_lists_the_stored_rows(api, stores, gateway) -> None:
-    project = stores[0].create("News")
+    project = stores[0].create("News", "ws_bootstrap")
     await start(api, project.project_id)
     gateway.settle_error = RuntimeError("history payload no longer decodes")
     response = await api.get(f"/api/v1/projects/{project.project_id}/workflows", headers=AUTH)
@@ -281,7 +281,7 @@ async def test_a_slow_settle_is_bounded(api, stores, gateway, monkeypatch) -> No
 
     from thoth_control_plane.application import workflow_runs
 
-    project = stores[0].create("News")
+    project = stores[0].create("News", "ws_bootstrap")
     await start(api, project.project_id)
 
     async def stalled(workflow_id):
@@ -296,7 +296,7 @@ async def test_a_slow_settle_is_bounded(api, stores, gateway, monkeypatch) -> No
 
 
 async def test_a_malformed_cursor_is_a_client_error(api, stores) -> None:
-    project = stores[0].create("News")
+    project = stores[0].create("News", "ws_bootstrap")
     response = await api.get(
         f"/api/v1/projects/{project.project_id}/workflows?cursor=not-a-cursor", headers=AUTH
     )

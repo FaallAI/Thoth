@@ -1767,6 +1767,10 @@
             ],
             "title": "Email"
           },
+          "platform_admin": {
+            "title": "Platform Admin",
+            "type": "boolean"
+          },
           "scopes": {
             "items": {
               "enum": [
@@ -1790,6 +1794,9 @@
             ],
             "title": "User Id"
           },
+          "workspace": {
+            "$ref": "#/components/schemas/WorkspaceView"
+          },
           "workspace_id": {
             "title": "Workspace Id",
             "type": "string"
@@ -1800,7 +1807,9 @@
           "email",
           "display_name",
           "workspace_id",
-          "scopes"
+          "scopes",
+          "workspace",
+          "platform_admin"
         ],
         "title": "MeView",
         "type": "object"
@@ -6564,6 +6573,37 @@
           "stages"
         ],
         "title": "WorkflowSummary",
+        "type": "object"
+      },
+      "WorkspaceView": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "name",
+          "role"
+        ],
+        "title": "WorkspaceView",
         "type": "object"
       }
     }

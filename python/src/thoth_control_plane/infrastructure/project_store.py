@@ -16,6 +16,7 @@ from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 
+from thoth_control_plane.auth.models import BOOTSTRAP_WORKSPACE_ID
 from thoth_control_plane.domain.projects import Project
 from thoth_control_plane.infrastructure.run_models import ProjectRow
 
@@ -61,29 +62,36 @@ class ProjectStore:
             )
         )
 
-    def list(self) -> list[Project]:
+    def list(self, workspace_id: str) -> list[Project]:
         try:
             with self._sessions() as session:
                 rows = session.scalars(
-                    select(ProjectRow).order_by(
-                        ProjectRow.updated_at.desc(), ProjectRow.project_id.desc()
-                    )
+                    select(ProjectRow)
+                    .where(ProjectRow.workspace_id == workspace_id)
+                    .order_by(ProjectRow.updated_at.desc(), ProjectRow.project_id.desc())
                 ).all()
         except SQLAlchemyError as error:
             raise _unavailable(error) from None
         return [_project(row) for row in rows]
 
-    def get(self, project_id: str) -> Project | None:
+    def get(self, project_id: str, workspace_id: str) -> Project | None:
+        """The project, or None when it is missing or belongs to another workspace."""
         try:
             with self._sessions() as session:
                 row = session.get(ProjectRow, project_id)
         except SQLAlchemyError as error:
             raise _unavailable(error) from None
-        return None if row is None else _project(row)
+        return None if row is None or row.workspace_id != workspace_id else _project(row)
 
-    def create(self, name: str) -> Project:
+    def create(self, name: str, workspace_id: str) -> Project:
         now = self._clock()
-        row = ProjectRow(project_id=str(uuid4()), name=name.strip(), created_at=now, updated_at=now)
+        row = ProjectRow(
+            project_id=str(uuid4()),
+            name=name.strip(),
+            created_at=now,
+            updated_at=now,
+            workspace_id=workspace_id,
+        )
         try:
             with self._sessions.begin() as session:
                 session.add(row)
@@ -92,12 +100,12 @@ class ProjectStore:
         return _project(row)
 
     def insert_missing(self, project: Project) -> bool:
-        """Import only: insert with the given ID when absent, never overwrite."""
+        """Import only: insert with the given ID into the bootstrap workspace, never overwrite."""
         try:
             with self._sessions.begin() as session:
                 if session.get(ProjectRow, project.project_id) is not None:
                     return False
-                session.add(ProjectRow(**project.model_dump()))
+                session.add(ProjectRow(**project.model_dump(), workspace_id=BOOTSTRAP_WORKSPACE_ID))
                 return True
         except SQLAlchemyError as error:
             raise _unavailable(error) from None

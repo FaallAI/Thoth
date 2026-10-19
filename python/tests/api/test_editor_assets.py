@@ -10,6 +10,7 @@ from pathlib import Path
 import httpx
 import pytest
 
+from tests.api.open_projects import OPEN_PROJECTS
 from thoth_control_plane.api import create_app
 from thoth_control_plane.application.editor_asset_ports import EditorAssetPersistenceError
 from thoth_control_plane.config import Settings
@@ -78,6 +79,7 @@ def assets_app(gateway, repository: MemoryEditorAssetRepository | None = None):
         gateway,
         None,
         editor_asset_repository=repository or MemoryEditorAssetRepository(),
+        project_store=OPEN_PROJECTS,
     )
 
 
@@ -171,7 +173,9 @@ async def test_asset_route_reports_a_failing_store_as_unavailable(gateway) -> No
 
 @pytest.mark.asyncio
 async def test_asset_route_reports_unconfigured_persistence(gateway) -> None:
-    app = create_app(Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway)
+    app = create_app(
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway, project_store=OPEN_PROJECTS
+    )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get(ASSETS_URL, headers=AUTH_HEADERS)
@@ -218,6 +222,7 @@ def preview_app(gateway, tmp_path: Path, records=None, **overrides):
         gateway,
         None,
         editor_asset_repository=repository,
+        project_store=OPEN_PROJECTS,
     )
 
 
@@ -415,6 +420,7 @@ async def test_preview_routes_report_an_unconfigured_signing_key(gateway, tmp_pa
         editor_asset_repository=MemoryEditorAssetRepository(
             records={("project_001", "asset_main"): record()}
         ),
+        project_store=OPEN_PROJECTS,
     )
     async with client_for(app) as client:
         issued = await client.post(CAPABILITY_URL, headers=AUTH_HEADERS)

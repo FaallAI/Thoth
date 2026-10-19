@@ -39,7 +39,7 @@ def _tables() -> set[str]:
 
 
 def test_fresh_database_applies_every_revision_and_a_rerun_applies_none() -> None:
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 13
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 14
     assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 0
     assert {"alembic_version", "studio_import_drafts", "studio_import_decisions"} <= _tables()
     assert {"source_account_policies", "source_proxies", "source_accounts"} <= _tables()
@@ -52,7 +52,7 @@ def test_database_migrated_before_alembic_is_adopted_and_only_the_rest_applied()
         for migration in sorted(MIGRATIONS.glob("*.sql"))[:6]:
             connection.execute(migration.read_text(encoding="utf-8"))
 
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 7
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 8
     assert {"studio_import_drafts", "studio_import_decisions"} <= _tables()
 
 
@@ -231,7 +231,7 @@ def test_workflow_runs_round_trip_their_summary_and_page_on_postgres() -> None:
     projects = ProjectStore(engine)
     runs = WorkflowRunStore(engine, clock=lambda: next(ticks))
     owner = Actor(actor_id="owner", actor_type="user")
-    project = projects.create("News")
+    project = projects.create("News", "ws_bootstrap")
     for name in ("wf_a", "wf_b"):
         summary = WorkflowSummary.model_validate_json(
             json.dumps(
@@ -311,3 +311,75 @@ def test_account_store_round_trips_on_postgres() -> None:
     store.create_challenge("chl_pg", user.user_id, "c", "hmac", later)
     assert [store.claim_attempt("c").attempts for _ in range(5)] == [1, 2, 3, 4, 5]
     assert store.claim_attempt("c") is None
+
+
+def test_existing_projects_move_to_the_bootstrap_workspace(tmp_path: Path) -> None:
+    import shutil
+
+    before = tmp_path / "editor"
+    shutil.copytree(MIGRATIONS, before)
+    (before / "0014_project_workspaces.sql").unlink()
+    (before / "alembic" / "versions" / "0014_project_workspaces.py").unlink()
+    assert apply_editor_migrations(DATABASE_URL, before) == 13
+    with psycopg.connect(DATABASE_URL) as connection:
+        connection.execute("INSERT INTO projects (project_id, name) VALUES ('p-legacy', 'Legacy')")
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 1
+    with psycopg.connect(DATABASE_URL) as connection:
+        assert connection.execute(
+            "SELECT workspace_id FROM projects WHERE project_id = 'p-legacy'"
+        ).fetchone() == ("ws_bootstrap",)
+        with pytest.raises(psycopg.errors.NotNullViolation):
+            connection.execute(
+                "INSERT INTO projects (project_id, name, workspace_id) VALUES ('p2', 'X', NULL)"
+            )
+    with (
+        psycopg.connect(DATABASE_URL) as connection,
+        pytest.raises(psycopg.errors.ForeignKeyViolation),
+    ):
+        connection.execute(
+            "INSERT INTO projects (project_id, name, workspace_id) VALUES ('p3', 'X', 'ws_none')"
+        )
+
+
+def test_racing_first_users_leave_one_bootstrap_owner() -> None:
+    import threading
+
+    from thoth_control_plane.infrastructure.account_store import AccountStore
+
+    apply_editor_migrations(DATABASE_URL, MIGRATIONS)
+    stores = [AccountStore.connect(DATABASE_URL) for _ in range(4)]
+    barrier = threading.Barrier(len(stores))
+    errors: list[BaseException] = []
+
+    def first_sign_in(index: int) -> None:
+        barrier.wait()
+        try:
+            stores[index].ensure_user(f"user{index}@acme.test", f"User {index}")
+        except BaseException as error:  # a thread's exception would otherwise vanish
+            errors.append(error)
+
+    threads = [threading.Thread(target=first_sign_in, args=(i,)) for i in range(len(stores))]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert errors == []
+    with psycopg.connect(DATABASE_URL) as connection:
+        owners = connection.execute(
+            "SELECT count(*) FROM workspace_members WHERE workspace_id = 'ws_bootstrap'"
+        ).fetchone()
+        workspaces = connection.execute("SELECT count(*) FROM workspaces").fetchone()
+    assert owners == (1,)
+    assert workspaces == (4,)  # the bootstrap plus three personal workspaces
+
+
+def test_a_second_user_gets_a_personal_workspace_on_postgres() -> None:
+    from thoth_control_plane.infrastructure.account_store import AccountStore
+
+    apply_editor_migrations(DATABASE_URL, MIGRATIONS)
+    store = AccountStore.connect(DATABASE_URL)
+    assert store.ensure_user("first@acme.test", "First").workspace_id == "ws_bootstrap"
+    second = store.ensure_user("second@acme.test", "Second")
+    assert second.workspace_id.startswith("ws_") and second.workspace_id != "ws_bootstrap"
+    assert store.member_role(second.user_id, second.workspace_id) == "owner"
+    assert store.workspace_name(second.workspace_id) == "Second's workspace"

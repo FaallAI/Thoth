@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 import httpx
 import pytest
 
+from tests.api.open_projects import OPEN_PROJECTS
 from thoth_control_plane.api import create_app
 from thoth_control_plane.application.studio_review_ports import (
     InvalidStudioReviewPage,
@@ -93,6 +94,7 @@ def client(gateway, repository: StubReviewRepository | None) -> httpx.AsyncClien
         Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"),
         gateway,
         studio_review_repository=repository,
+        project_store=OPEN_PROJECTS,
     )
     return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
 

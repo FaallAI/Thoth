@@ -21,6 +21,7 @@ from thoth_control_plane.application.workflows import (
     WorkflowNotFound,
     WorkflowService,
 )
+from thoth_control_plane.auth.models import actor_workspace_id
 from thoth_control_plane.domain import (
     Actor,
     ArtifactRef,
@@ -68,10 +69,12 @@ class WorkflowRunService:
             raise WorkflowRunsUnavailable("workflow_runs_unavailable")
         return self._runs
 
-    async def _require_project(self, project_id: str) -> None:
+    async def _require_project(self, project_id: str, actor: Actor) -> None:
+        """The project must exist in the caller's workspace; a foreign one is not found."""
         if self._projects is None:
             raise WorkflowRunsUnavailable("workflow_runs_unavailable")
-        if await asyncio.to_thread(self._projects.get, project_id) is None:
+        workspace_id = actor_workspace_id(actor.actor_id)
+        if await asyncio.to_thread(self._projects.get, project_id, workspace_id) is None:
             raise ProjectNotFound
 
     async def start(
@@ -85,7 +88,7 @@ class WorkflowRunService:
         """Start, then record. A failed record answers 503; the client's retry reuses its key,
         Temporal returns the same workflow, and the row lands."""
         if project_id is not None:
-            await self._require_project(project_id)
+            await self._require_project(project_id, actor)
         summary = await self._workflows.start(request, actor=actor, idempotency_key=idempotency_key)
         if self._runs is None:
             if project_id is not None:
@@ -107,7 +110,7 @@ class WorkflowRunService:
     ) -> WorkflowRunPage:
         store = self._store()
         if project_id is not None:
-            await self._require_project(project_id)
+            await self._require_project(project_id, actor)
         rows, next_cursor = await asyncio.to_thread(
             store.page,
             project_id=project_id,
@@ -208,7 +211,7 @@ class WorkflowRunService:
 
     async def assign(self, workflow_id: str, project_id: str, *, actor: Actor) -> WorkflowRun:
         store = self._store()
-        await self._require_project(project_id)
+        await self._require_project(project_id, actor)
         run = await asyncio.to_thread(store.get, workflow_id)
         if run is None or not run.owned_by(actor):
             raise WorkflowNotFound

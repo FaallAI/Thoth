@@ -1688,10 +1688,13 @@ export interface components {
             display_name: string | null;
             /** Email */
             email: string | null;
+            /** Platform Admin */
+            platform_admin: boolean;
             /** Scopes */
             scopes: ("read" | "write" | "admin")[];
             /** User Id */
             user_id: string | null;
+            workspace: components["schemas"]["WorkspaceView"];
             /** Workspace Id */
             workspace_id: string;
         };
@@ -3483,6 +3486,15 @@ export interface components {
             updated_at: string;
             /** Workflow Id */
             workflow_id: string;
+        };
+        /** WorkspaceView */
+        WorkspaceView: {
+            /** Name */
+            name: string;
+            /** Role */
+            role: string | null;
+            /** Workspace Id */
+            workspace_id: string;
         };
     };
     responses: never;

@@ -1,18 +1,26 @@
 """Shared authenticated API dependencies.
 
 A caller is a session cookie, a developer token, or the legacy service key (spec 3.5-3.6). Every
-principal still acts on the shared `owner` data until sub-project 2 scopes data by workspace.
+principal acts on the data of its workspace, and project routes only reach that workspace's
+projects.
 """
 
 from __future__ import annotations
 
+import asyncio
 import time
 from hmac import compare_digest
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, Request, status
 
-from thoth_control_plane.auth.models import ALL_SCOPES, BOOTSTRAP_WORKSPACE_ID, Principal
+from thoth_control_plane.auth.models import (
+    ALL_SCOPES,
+    BOOTSTRAP_WORKSPACE_ID,
+    Principal,
+    data_actor_id,
+    is_platform_admin,
+)
 from thoth_control_plane.auth.service import AuthUnavailable
 from thoth_control_plane.domain import Actor
 
@@ -84,10 +92,39 @@ def require_write(request: Request, principal: Principal) -> None:
 async def current_actor(
     request: Request, principal: Annotated[Principal, Depends(current_principal)]
 ) -> Actor:
-    """The data actor: still the single `owner` (spec 3.6); the email is kept for audit."""
+    """The caller's workspace as the data actor (spec 1.1), and the project guard (spec 1.2).
+
+    Every route with `{project_id}` in its path depends on this, so the project must be in the
+    caller's workspace; a foreign project answers exactly like a missing one. The email is kept
+    for audit.
+    """
     require_write(request, principal)
+    project_id = request.path_params.get("project_id")
+    if project_id is not None:
+        await _require_project(request, project_id, principal.workspace_id)
     display = principal.email[:200] if principal.email else None
-    return Actor(actor_id="owner", actor_type="user", display_name=display)
+    return Actor(
+        actor_id=data_actor_id(principal.workspace_id), actor_type="user", display_name=display
+    )
+
+
+async def _require_project(request: Request, project_id: str, workspace_id: str) -> None:
+    from thoth_control_plane.infrastructure.project_store import ProjectStoreUnavailable
+
+    store = request.app.state.project_store
+    if store is None:
+        raise ProjectStoreUnavailable("project_store_unavailable")
+    if await asyncio.to_thread(store.get, project_id, workspace_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project_not_found")
+
+
+async def platform_actor(
+    request: Request, principal: Annotated[Principal, Depends(current_principal)]
+) -> Actor:
+    """Platform resources (source accounts, proxies): platform admins with the admin scope."""
+    if not is_platform_admin(principal) or "admin" not in principal.scopes:
+        raise _forbidden()
+    return await current_actor(request, principal)
 
 
 def internal_renderer(

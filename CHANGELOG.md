@@ -2,6 +2,99 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-19 - Workspace isolation (SaaS sub-project 2)
+
+**Spec:** `docs/superpowers/specs/2026-10-19-workspace-isolation-design.md`.
+**Plan:** `docs/superpowers/plans/2026-10-19-workspace-isolation.md`.
+**Branch:** `feat/workspace-isolation`. Executed natively.
+
+Every signed-in user now sees and changes only their own workspace's data. The operator owns the
+bootstrap workspace and keeps every existing record.
+
+**Shipped:**
+
+- **Projects belong to a workspace.** Editor migration `0014` adds `projects.workspace_id`
+  (`NOT NULL`, foreign key to `workspaces`) and moves every existing project to `ws_bootstrap`.
+  `ProjectStore.list`, `get` and `create` take the workspace; a foreign project is `None`.
+- **The data actor is the workspace.** `ws_bootstrap` keeps the legacy `owner` actor, so existing
+  runs, Temporal workflows and workflow IDs resolve unchanged; any other workspace acts as its own
+  ID. Workflows, run lists and the Temporal owner check are therefore workspace-scoped.
+- **One project guard.** `current_actor` checks any `{project_id}` path parameter against the
+  caller's workspace and answers 404 `project_not_found` for a foreign project, exactly as for a
+  missing one. Moving a run (`PATCH /workflows/{id}`) checks the body's project the same way.
+- **Platform routes.** Source accounts and proxies need a platform admin (the service key, or an
+  owner/admin of `ws_bootstrap`) with the `admin` scope; anyone else gets 403 `Not authorized`.
+- **Membership on every request.** A session or personal token resolves only while its user is a
+  member of its workspace; the role joins the `Principal`. Racing first sign-ins are serialized
+  by locking the bootstrap row, so there is exactly one bootstrap owner.
+- **`/api/v1/me`** adds `workspace {workspace_id, name, role}` and `platform_admin`.
+- **Dashboard:** Source Accounts is hidden from non-admins (a direct visit says it is managed by
+  the platform administrators), the workspace menu names the workspace, and an empty workspace
+  shows "Create your first project".
+- **Structural lock:** a test walks the route table and fails CI when a `{project_id}` route skips
+  the guard, a platform route skips `platform_actor`, or a data route has no caller; an HTTP sweep
+  calls every project route as another workspace. Both were shown to fail with the guard removed.
+- **Stack smoke:** the render driver seeds its project in `ws_bootstrap`, and a new
+  `workspaces_are_isolated` check signs up a second user and shows neither sees the other's
+  project.
+
+**Fixed (found while testing):** on PostgreSQL every **second** user's first sign-in failed with
+`account_store_unavailable`: the new member row was inserted before its workspace row and the
+foreign key refused it. The workspace is now written first
+(`test_a_second_user_gets_a_personal_workspace_on_postgres`, RED → GREEN). Only the operator had
+signed in, so no one hit it yet.
+
+**Verification:**
+
+- Python: full suite 4102 passed, 68 skipped (after the review fixes below); `make test-postgres`
+  19 passed, three runs in a row; `make lint` clean.
+- Dashboard: `bun test` 697 passed, `tsc --noEmit` 0 errors, `bun run build` succeeded.
+- Not run locally: the stack smoke. It needs the images this branch publishes, so CI's stack smoke
+  at the push gate is the run of record and must print `workspaces_are_isolated=true`.
+
+**Final review (fresh reviewer, Opus):** ready to merge with fixes; no path found by which one
+workspace reads or changes another's data. Fixed in one pass, each with a test that failed first:
+
+- **Critical:** the stack smoke uploaded its asset before seeding, so the upload hit the new guard
+  and the smoke would have died in CI. The driver now registers its project (`ensure_project()`)
+  in both `upload()` and `seed()` (`test_the_smoke_registers_its_project_before_any_project_route`).
+- **Important:** `/api/v1/me` and `/auth/me` answered 500 on a server without the account store
+  (the new required fields were missing). Both use one `accountless_me()`
+  (`test_me_answers_without_an_account_store`).
+- **Important:** the workflow events stream checked the owner only after its 200 had started, so
+  another workspace got a broken 200 stream instead of 404 (no data was sent). The route now
+  authorizes before streaming. Found by the new parameterised test of every workflow action from
+  another workspace (`test_no_workflow_action_reaches_another_workspaces_run`, plus
+  `test_a_workflow_cannot_start_under_another_workspaces_project`).
+- **Important (no code):** project-scoped rows without a `projects` row would become unreachable.
+  Checked on the live database before deploy: all 16 tables with `project_id` have 0 orphans.
+
+**Review minors, fixed at the operator's request (each with a test that failed first):**
+
+- A user with no membership got a dead session with no message. Sign-in now refuses them with
+  `not_allowed`, like a disabled user (`test_signing_in_without_membership_is_not_allowed`).
+- `create_workspace_token` read the first membership's role; it now checks `principal.role`
+  (`test_a_workspace_token_needs_the_membership_role_of_an_admin`).
+- The dashboard briefly showed "Create your first project" before the project list loaded; it now
+  waits for the list (`the first-project invitation waits for the project list`).
+- The stale docstring in `api/dependencies.py` and the spec's index text
+  (`(workspace_id, updated_at DESC)`, as migrated) are corrected.
+
+**Rulings:** recorded in the plan's SDD ledger; the ones a reviewer should weigh: the smoke runs
+in CI rather than locally, and the roadmap marks sub-project 2 "built, awaiting deploy".
+
+**Next steps:**
+
+- **Operator gates:** push, PR, CI (the stack smoke must print `render_output_is_h264_mp4=true`
+  and `workspaces_are_isolated=true`), merge, then a deploy (migration `0014` applies; nothing is
+  dropped). Rerun the orphan check right before the deploy: for every table with a `project_id`
+  column, `SELECT count(DISTINCT project_id) … WHERE project_id NOT IN (SELECT project_id FROM
+  projects)` must be 0.
+- **Operator check after the deploy:** a second real account (another member of the GitHub
+  organization) signs in and sees an empty workspace, and the operator still sees every project.
+- **SaaS sub-project 3, metering:** count workflows and videos per workspace, estimate their cost,
+  and add a per-workspace quota on source-account leases and proxy use before public sign-up.
+
 ## 2026-10-19 - Move to the FaallAI organization, first real sign-in, and a code-cooldown fix
 
 **Organization move:**

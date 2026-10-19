@@ -29,7 +29,7 @@ from thoth_control_plane.acquisition.accounts.policy import (
 from thoth_control_plane.acquisition.accounts.profiles import AccountProfiles
 from thoth_control_plane.acquisition.accounts.proxies import ProxyImportError, parse_proxy_list
 from thoth_control_plane.acquisition.accounts.session_check import check_session
-from thoth_control_plane.api.dependencies import current_actor
+from thoth_control_plane.api.dependencies import platform_actor
 from thoth_control_plane.domain import Actor
 from thoth_control_plane.domain.source_accounts import (
     AccessPolicyUpdate,
@@ -85,7 +85,7 @@ def get_account_profiles(request: Request) -> AccountProfiles | None:
 
 Store = Annotated[SourceAccountStore | None, Depends(get_source_account_store)]
 Profiles = Annotated[AccountProfiles | None, Depends(get_account_profiles)]
-Authorized = Annotated[Actor, Depends(current_actor)]
+Authorized = Annotated[Actor, Depends(platform_actor)]
 
 
 def _error(status_code: int, code: str, **extra: Any) -> HTTPException:

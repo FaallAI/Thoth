@@ -25,6 +25,8 @@ from thoth_control_plane.auth.models import (
     SignInRefused,
     TokenView,
     VerifiedIdentity,
+    WorkspaceView,
+    is_platform_admin,
 )
 from thoth_control_plane.auth.secrets import (
     TOKEN_PREFIX,
@@ -232,11 +234,16 @@ class SignInService:
         account = await self._run(self._store.account, record.user_id)
         if account is None or account.disabled:
             return None
+        role = await self._run(self._store.member_role, account.user_id, record.workspace_id)
+        if role is None:  # removed from the workspace: signed out on the next request
+            return None
         now = self._clock()
         if now - record.last_seen_at >= TOUCH_EVERY:
             expires = min(now + SESSION_IDLE, record.created_at + SESSION_MAX)
             await self._run(self._store.extend_session, record.session_id, expires, now)
-        return Principal(account.user_id, record.workspace_id, ALL_SCOPES, "session", account.email)
+        return Principal(
+            account.user_id, record.workspace_id, ALL_SCOPES, "session", account.email, role=role
+        )
 
     async def authenticate_token(self, text: str) -> Principal | None:
         if not text.startswith(TOKEN_PREFIX):
@@ -244,17 +251,26 @@ class SignInService:
         record = await self._run(self._store.live_token, token_hash(text))
         if record is None:
             return None
-        user_id = email = None
+        user_id = email = role = None
         if record.owner_kind == "user":
             account = await self._run(self._store.account, record.owner_id)
             if account is None or account.disabled:
+                return None
+            role = await self._run(self._store.member_role, account.user_id, record.workspace_id)
+            if role is None:
                 return None
             user_id, email = account.user_id, account.email
         now = self._clock()
         if record.last_used_at is None or now - record.last_used_at >= TOUCH_EVERY:
             await self._run(self._store.touch_token, record.token_id, now)
         return Principal(
-            user_id, record.workspace_id, SCOPE_SETS[record.scope], "token", email, record.token_id
+            user_id,
+            record.workspace_id,
+            SCOPE_SETS[record.scope],
+            "token",
+            email,
+            record.token_id,
+            role=role,
         )
 
     async def describe(self, principal: Principal) -> MeView:
@@ -262,12 +278,19 @@ class SignInService:
         if principal.user_id is not None:
             account = await self._run(self._store.account, principal.user_id)
             name = account.display_name if account else None
+        workspace_name = await self._run(self._store.workspace_name, principal.workspace_id)
         return MeView(
             user_id=principal.user_id,
             email=principal.email,
             display_name=name,
             workspace_id=principal.workspace_id,
             scopes=sorted(principal.scopes),  # type: ignore[arg-type]
+            workspace=WorkspaceView(
+                workspace_id=principal.workspace_id,
+                name=workspace_name or principal.workspace_id,
+                role=principal.role,
+            ),
+            platform_admin=is_platform_admin(principal),
         )
 
     async def note_service_key(self) -> None:
@@ -295,10 +318,8 @@ class SignInService:
         """External developer tokens. The route refuses this until the operator enables them."""
         if principal.user_id is None:
             raise UserRequired()
-        account = await self._run(self._store.account, principal.user_id)
         if (
-            account is None
-            or account.role not in ("owner", "admin")
+            principal.role not in ("owner", "admin")
             or not SCOPE_SETS[request.scope] <= principal.scopes
         ):
             raise ScopeTooBroad()

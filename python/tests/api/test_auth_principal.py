@@ -159,23 +159,125 @@ async def test_the_service_key_still_works_and_is_noted_at_most_once_a_minute(ap
     assert noted == 1
 
 
-async def test_everyone_signed_in_acts_on_the_same_owner_data(api, accounts) -> None:
-    cookies = session_for(accounts)
-    origin = {"Origin": ORIGIN}
-    project = (
-        await api.post("/api/v1/projects", json={"name": "News"}, cookies=cookies, headers=origin)
-    ).json()
+def bearer_for(accounts: AccountStore, email: str, scope: str = "write") -> dict[str, str]:
+    """A personal token of the user with this email, in that user's own workspace."""
+    name = email.split("@")[0]
+    user = accounts.ensure_user(email, name.title())
+    secret = f"thoth_pat_{name}_{scope}"
+    now = datetime.now(UTC)
+    accounts.create_token(
+        TokenRecord(
+            f"tok_{name}_{scope}",
+            "user",
+            user.user_id,
+            user.workspace_id,
+            scope,
+            secret[:16],
+            scope,
+            now - timedelta(days=1),
+            now + timedelta(days=1),
+            None,
+        ),
+        token_hash(secret),
+    )
+    return {"Authorization": f"Bearer {secret}"}
+
+
+async def test_a_second_user_cannot_reach_the_first_users_project_or_workflow(
+    api, accounts
+) -> None:
+    alice = bearer_for(accounts, "alice@acme.test")  # first user: the bootstrap workspace
+    bob = bearer_for(accounts, "bob@acme.test")  # second user: a personal workspace
+    project = (await api.post("/api/v1/projects", json={"name": "News"}, headers=alice)).json()
     started = await api.post(
         f"/api/v1/projects/{project['project_id']}/workflows",
         json=REQUEST,
-        cookies=cookies,
-        headers={**origin, "Idempotency-Key": "k1"},
+        headers={**alice, "Idempotency-Key": "k1"},
     )
-    assert started.status_code in (200, 201, 202)
     workflow_id = started.json()["workflow_id"]
-    by_service = await api.get(f"/api/v1/workflows/{workflow_id}", headers=SERVICE)
-    assert by_service.status_code == 200
-    by_other = await api.get(
-        f"/api/v1/workflows/{workflow_id}", cookies=session_for(accounts, "bob@acme.test")
+
+    assert (await api.get(f"/api/v1/workflows/{workflow_id}", headers=SERVICE)).status_code == 200
+    foreign_project = await api.get(f"/api/v1/projects/{project['project_id']}", headers=bob)
+    assert foreign_project.status_code == 404
+    assert foreign_project.json() == {"detail": "project_not_found"}
+    assert (await api.get("/api/v1/projects", headers=bob)).json()["items"] == []
+    assert (await api.get(f"/api/v1/workflows/{workflow_id}", headers=bob)).status_code == 404
+    runs = await api.get(f"/api/v1/projects/{project['project_id']}/workflows", headers=bob)
+    assert runs.status_code == 404
+
+
+async def test_the_data_actor_is_the_callers_workspace(api, accounts, gateway) -> None:
+    alice = bearer_for(accounts, "alice@acme.test")
+    bob = bearer_for(accounts, "bob@acme.test")
+    await api.get("/api/v1/style-presets", headers=alice)
+    assert gateway.actors[-1].actor_id == "owner"
+    await api.get("/api/v1/style-presets", headers=bob)
+    bob_workspace = accounts.ensure_user("bob@acme.test", "Bob").workspace_id
+    assert gateway.actors[-1].actor_id == bob_workspace != "owner"
+
+
+async def test_a_run_cannot_move_into_another_workspaces_project(api, accounts) -> None:
+    alice = bearer_for(accounts, "alice@acme.test")
+    bob = bearer_for(accounts, "bob@acme.test")
+    project = (await api.post("/api/v1/projects", json={"name": "News"}, headers=alice)).json()
+    started = await api.post(
+        "/api/v1/workflows", json=REQUEST, headers={**bob, "Idempotency-Key": "kb"}
     )
-    assert by_other.status_code == 200
+    moved = await api.patch(
+        f"/api/v1/workflows/{started.json()['workflow_id']}",
+        json={"project_id": project["project_id"]},
+        headers=bob,
+    )
+    assert moved.status_code == 404
+    assert moved.json() == {"detail": "project_not_found"}
+
+
+async def test_source_accounts_are_for_platform_admins_only(api, accounts) -> None:
+    alice = bearer_for(accounts, "alice@acme.test", scope="admin")
+    alice_write = bearer_for(accounts, "alice@acme.test", scope="write")
+    bob = bearer_for(accounts, "bob@acme.test", scope="admin")
+    refused = await api.get("/api/v1/source-accounts", headers=bob)
+    assert refused.status_code == 403
+    assert refused.json() == {"detail": "Not authorized"}
+    assert (await api.get("/api/v1/source-accounts", headers=alice_write)).status_code == 403
+    assert (await api.get("/api/v1/source-accounts", headers=alice)).status_code != 403
+    assert (await api.get("/api/v1/source-accounts", headers=SERVICE)).status_code != 403
+
+
+@pytest.mark.parametrize(
+    ("method", "suffix", "body"),
+    [
+        ("GET", "/artifacts/art_1", None),
+        ("GET", "/events", None),
+        ("POST", "/cancel", None),
+        ("POST", "/retry", {}),
+        ("POST", "/approve", {"approval_id": "apr_1", "decision": "approve"}),
+    ],
+)
+async def test_no_workflow_action_reaches_another_workspaces_run(
+    api, accounts, method, suffix, body
+) -> None:
+    alice = bearer_for(accounts, "alice@acme.test")
+    bob = bearer_for(accounts, "bob@acme.test")
+    project = (await api.post("/api/v1/projects", json={"name": "News"}, headers=alice)).json()
+    started = await api.post(
+        f"/api/v1/projects/{project['project_id']}/workflows",
+        json=REQUEST,
+        headers={**alice, "Idempotency-Key": "k1"},
+    )
+    url = f"/api/v1/workflows/{started.json()['workflow_id']}{suffix}"
+    response = await api.request(method, url, json=body, headers=bob)
+    assert response.status_code == 404
+
+
+async def test_a_workflow_cannot_start_under_another_workspaces_project(api, accounts) -> None:
+    alice = bearer_for(accounts, "alice@acme.test")
+    bob = bearer_for(accounts, "bob@acme.test")
+    project = (await api.post("/api/v1/projects", json={"name": "News"}, headers=alice)).json()
+    started = await api.post(
+        f"/api/v1/projects/{project['project_id']}/workflows",
+        json=REQUEST,
+        headers={**bob, "Idempotency-Key": "kb"},
+    )
+    assert started.status_code == 404
+    assert started.json() == {"detail": "project_not_found"}

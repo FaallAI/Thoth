@@ -7,7 +7,14 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from thoth_control_plane.api.dependencies import current_principal, require_write
-from thoth_control_plane.auth.models import CreatedToken, CreateToken, MeView, Principal, TokenView
+from thoth_control_plane.auth.models import (
+    CreatedToken,
+    CreateToken,
+    MeView,
+    Principal,
+    TokenView,
+    accountless_me,
+)
 from thoth_control_plane.auth.service import (
     AuthUnavailable,
     ScopeTooBroad,
@@ -54,13 +61,7 @@ async def _issue(call) -> CreatedToken:
 async def me(request: Request, principal: Caller) -> MeView:
     service = request.app.state.sign_in
     if service is None:
-        return MeView(
-            user_id=None,
-            email=None,
-            display_name=None,
-            workspace_id=principal.workspace_id,
-            scopes=sorted(principal.scopes),
-        )  # type: ignore[arg-type]
+        return accountless_me(principal)
     return await service.describe(principal)
 
 

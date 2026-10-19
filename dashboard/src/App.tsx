@@ -60,8 +60,10 @@ function Shell() {
   const navigate = useNavigate();
   const location = useLocation();
   const { me } = useAuth();
+  const nav = NAV.filter(([id]) => id !== "accounts" || me.platform_admin);
   const [projectId, setProjectId] = useActiveProject();
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [loadedProjects, setProjects] = useState<Project[] | null>(null);
+  const projects = loadedProjects ?? [];
   const [runs, setRuns] = useState<WorkflowRun[]>([]);
   const [helpOpen, setHelpOpen] = useState(false);
   const inStudio = /^\/studio\/[^/]+\/[^/]+/.test(location.pathname);
@@ -70,8 +72,14 @@ function Shell() {
 
   const needsProject = (
     <div className="flex flex-1 flex-col items-center justify-center gap-1 p-8 text-sm text-muted-foreground">
-      <p>Select or create a project to begin.</p>
+      <p>{loadedProjects?.length === 0 ? "Create your first project" : "Select or create a project to begin."}</p>
       <p className="text-xs">Use “New project” at the top right.</p>
+    </div>
+  );
+
+  const platformOnly = (
+    <div className="flex flex-1 flex-col items-center justify-center gap-1 p-8 text-sm text-muted-foreground">
+      <p>Source accounts are managed by the platform administrators.</p>
     </div>
   );
 
@@ -90,7 +98,7 @@ function Shell() {
       <div className="dashboard-body">
         <nav className="dashboard-sidebar" aria-label="Workspace">
           <p className="dashboard-nav-label">Workspace</p>
-          {NAV.map(([id, label]) => {
+          {nav.map(([id, label]) => {
             const Icon = pages[id].icon;
             const current = page === id || (id === "accounts" && page === "proxies") || (id === "studio" && inStudio);
             return <div key={id} className={id === "accounts" ? "dashboard-tools-start" : undefined}>
@@ -114,8 +122,8 @@ function Shell() {
             <Route path="/workflows/:workflowId" element={<WorkflowDetailRoute />} />
             <Route path="/studio" element={projectId ? <StudioDocumentsPage client={controlPlaneClient} projectId={projectId} /> : needsProject} />
             <Route path="/studio/:projectId/:documentId" element={<StudioDocumentRoute workspaceControls={switcher} projects={projects} />} />
-            <Route path="/accounts" element={<SourceAccounts client={sourceAccountsClient} onManageProxies={() => navigate("/accounts/proxies")} />} />
-            <Route path="/accounts/proxies" element={<SourceProxies client={sourceAccountsClient} onBack={() => navigate("/accounts")} />} />
+            <Route path="/accounts" element={me.platform_admin ? <SourceAccounts client={sourceAccountsClient} onManageProxies={() => navigate("/accounts/proxies")} /> : platformOnly} />
+            <Route path="/accounts/proxies" element={me.platform_admin ? <SourceProxies client={sourceAccountsClient} onBack={() => navigate("/accounts")} /> : platformOnly} />
             <Route path="/settings/tokens" element={<TokensPage />} />
             <Route path="*" element={<Navigate to="/workflows" replace />} />
           </Routes>

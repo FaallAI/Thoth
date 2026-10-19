@@ -8,6 +8,7 @@ from typing import Any
 import httpx
 import pytest
 
+from tests.api.open_projects import OPEN_PROJECTS
 from thoth_control_plane.api import create_app
 from thoth_control_plane.application.editor_asset_uploads import (
     UPLOAD_MAX_BYTES,
@@ -51,6 +52,7 @@ def upload_app(gateway, root: Path, repository: MemoryRepository, report: Any = 
         gateway,
         None,
         editor_asset_repository=repository,
+        project_store=OPEN_PROJECTS,
     )
 
     async def probe(_: Path) -> dict[str, Any]:
