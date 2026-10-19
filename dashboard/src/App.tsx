@@ -16,6 +16,9 @@ import { CircleHelp, Clapperboard, Feather, KeyRound, Workflow } from "lucide-re
 import { DashboardSearch } from "@/components/DashboardSearch";
 import { WorkspaceMenu } from "@/components/WorkspaceMenu";
 import { PenDialog } from "@/components/PenDialog";
+import { AuthGate } from "@/features/auth/AuthGate";
+import { LoginPage } from "@/features/auth/LoginPage";
+import { VerifyPage } from "@/features/auth/VerifyPage";
 import { useActiveProject } from "@/lib/active-project";
 import { documentLabel } from "@/lib/document-label";
 
@@ -37,7 +40,15 @@ function pageFor(pathname: string): PageKey {
 
 /** The router lives here rather than in main.tsx, so tests render <App /> as before (ruling P5). */
 export default function App() {
-  return <BrowserRouter><Shell /></BrowserRouter>;
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login/verify" element={<VerifyPage />} />
+        <Route path="*" element={<AuthGate><Shell /></AuthGate>} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
 
 function Shell() {

@@ -81,3 +81,10 @@
 @media (prefers-reduced-motion: reduce) {
   .dashboard-shell *, .dashboard-shell *::before, .dashboard-shell *::after { scroll-behavior: auto; transition-duration: .01ms; animation-duration: .01ms; }
 }
+.dashboard-login { min-height: 100dvh; display: grid; place-items: center; padding: 16px; background: var(--background); }
+.dashboard-login-card { width: min(100%, 380px); display: grid; gap: 14px; padding: 28px; border-radius: 8px; background: var(--card); }
+.dashboard-login-card h1 { font-size: 22px; font-weight: 600; }
+.dashboard-login-card input#sign-in-code { height: 44px; font: 600 22px var(--font-mono); letter-spacing: .3em; text-align: center; border-radius: 6px; background: var(--background); }
+.dashboard-login-trust { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.dashboard-login-note, .dashboard-auth-status { font-size: 12px; color: var(--muted-foreground); }
+.dashboard-auth-status { padding: 24px; }

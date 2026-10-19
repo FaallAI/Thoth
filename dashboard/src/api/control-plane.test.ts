@@ -1151,3 +1151,17 @@ test("the workflow stream stops polling once a snapshot is terminal", async () =
   stop();
   expect(snapshots).toBeLessThanOrEqual(2);
 });
+
+test("the default client sends no API key and a 403 raises the forbidden event", async () => {
+  const { authEvents } = await import("@/lib/auth-events");
+  let forbidden = 0;
+  const onForbidden = () => { forbidden += 1; };
+  authEvents.addEventListener("forbidden", onForbidden);
+  const fetchMock = mock(async () => new Response(JSON.stringify({ detail: "Not authorized" }), { status: 403 }));
+  const client = createControlPlaneClient({ baseUrl: "", fetch: fetchMock as unknown as typeof fetch });
+  await expect(client.listProjects()).rejects.toThrow();
+  const init = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1];
+  expect(new Headers(init.headers).has("Authorization")).toBe(false);
+  expect(forbidden).toBe(1);
+  authEvents.removeEventListener("forbidden", onForbidden);
+});

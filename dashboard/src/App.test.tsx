@@ -29,6 +29,7 @@ function stubFetch() {
   globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
     requested.push(path);
+    if (path === "/auth/me") return response({ user_id: "usr_1", email: "alice@acme.test", display_name: "Alice", workspace_id: "ws_bootstrap", scopes: ["admin", "read", "write"] });
     if (init?.method && init.method !== "GET") apiWrites.push(path);
     if (path === "/api/v1/projects" && init?.method === "POST") {
       return response({ project_id: "project_002", name: "Other", created_at: "", updated_at: "" });
@@ -64,7 +65,7 @@ test("search navigates to the selected workspace page and closes its dialog", as
   const { default: App } = await import("./App");
   render(<App />);
   const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: "Search projects, workflows…" }));
+  await user.click(await screen.findByRole("button", { name: "Search projects, workflows…" }));
   const dialog = await screen.findByRole("dialog");
   await user.click(within(dialog).getByRole("button", { name: /Creator Studio/ }));
   expect(await screen.findByRole("heading", { level: 1, name: "Creator Studio" })).toBeDefined();
@@ -84,8 +85,9 @@ test("workspace navigation identifies the active page and Creator Studio lists t
   stubFetch();
   const { default: App } = await import("./App");
   render(<App />);
-  const nav = screen.getByRole("navigation", { name: "Workspace" });
-  expect(within(nav).getByRole("link", { name: "Workflows" }).getAttribute("aria-current")).toBe("page");
+  const nav = await screen.findByRole("navigation", { name: "Workspace" });
+  // The gate renders the shell at "/" first; its redirect to /workflows lands a tick later.
+  await waitFor(() => expect(within(nav).getByRole("link", { name: "Workflows" }).getAttribute("aria-current")).toBe("page"));
   await userEvent.setup().click(within(nav).getByRole("link", { name: "Creator Studio" }));
   expect(await screen.findByRole("button", { name: /Heading/ })).toBeDefined();
   expect(window.location.pathname).toBe("/studio");
@@ -164,7 +166,7 @@ test("no page reaches the retired Rust server: only control-plane routes are req
   stubFetch();
   const { default: App } = await import("./App");
   render(<App />);
-  const nav = screen.getByRole("navigation", { name: "Workspace" });
+  const nav = await screen.findByRole("navigation", { name: "Workspace" });
   expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["Workflows", "Creator Studio", "Source Accounts"]);
   const user = userEvent.setup();
   await user.click(within(nav).getByRole("link", { name: "Creator Studio" }));
@@ -172,7 +174,7 @@ test("no page reaches the retired Rust server: only control-plane routes are req
   await user.click(within(nav).getByRole("link", { name: "Workflows" }));
   await screen.findByRole("heading", { level: 1, name: "Workflows" });
   expect(requested.length).toBeGreaterThan(0);
-  expect(requested.filter((path) => !path.startsWith("/api/v1/"))).toEqual([]);
+  expect(requested.filter((path) => !path.startsWith("/api/v1/") && path !== "/auth/me")).toEqual([]);
 });
 
 for (const retired of ["/discovery", "/content-set", "/profiles", "/legacy"]) {
@@ -194,4 +196,19 @@ test("the Studio draft list keeps the ordinary page layout; only the editor goes
   await screen.findByRole("button", { name: /Heading/ });
   const main = globalThis.document.getElementById("workspace")!;
   expect(main.className).not.toContain("dashboard-page-studio");
+});
+
+test("signed out, every page goes to the login page with next", async () => {
+  stubFetch();
+  const signedOut = globalThis.fetch;
+  globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) =>
+    String(input) === "/auth/me" ? new Response("{}", { status: 401 })
+      : String(input) === "/auth/providers" ? response({ providers: ["google"] })
+      : (signedOut as typeof fetch)(input, init),
+  ) as unknown as typeof fetch;
+  window.history.replaceState(null, "", "/studio");
+  const { default: App } = await import("./App");
+  render(<App />);
+  expect(await screen.findByRole("link", { name: "Continue with Google" })).toBeDefined();
+  expect(window.location.pathname + window.location.search).toBe("/login?next=%2Fstudio");
 });
