@@ -2,7 +2,6 @@
 
 All notable changes to this project will be documented in this file.
 
-<<<<<<< HEAD
 ## 2026-10-19 - PR #26 and PR #27 merged; accounts and the web container deployed
 
 **PR #26** (the three UI walk defects) merged as `bb7e61c`. There was nothing to deploy for it,
@@ -49,56 +48,6 @@ because no service serves the dashboard.
 - **After sign-in is set up:** the first real sign-in, and a Studio media preview under the CSP.
 - **Next:** SaaS sub-project 2 (an isolated workspace per user).
 
-## 2026-10-19 - PR #24 merged and deployed; the Rust project imported
-
-**PR #24 merged** (UI foundation, voice adapter, and the removal of every path to the Rust server).
-- Master `34306ec`, image `thoth@sha256:8bf11ec3...68b5`, pinned in `.env.stage1.local`. The file
-  was backed up first. The renderer pin is unchanged, because this PR does not touch the renderer.
-- CI passed on the PR and on master, including the stack smoke and its three new checks.
-
-**`make deploy`:**
-- `backfill-runs`: `inserted=262 present=0 invalid=2 start_times=257`.
-  - All 264 workflow reports were read.
-  - Two are skipped by design: their source report has no `canonical_url` or `platform`.
-  - 257 runs carry their Temporal start time. The other 5 had already left Temporal's history and
-    carry their report's first-seen time.
-- Every service is healthy, with restarts=0 for `api` and `worker`.
-- The `api` and `worker` logs show zero errors, zero 5xx, zero TMPRL1101 and zero
-  `event loop stalled`.
-
-**Rust project imported** without starting the Rust server.
-- The `projects` row was read from the Rust SQLite file in read-only mode.
-- `thoth-control projects import -` printed `imported=1 present=0 invalid=0`. A rerun printed
-  `present=1`.
-- Project "test" (`db766411-…`) keeps its ID, so its three Studio drafts stay attached.
-
-**Edge headless walk** of the deployed stack through `vite dev`:
-- The navigation lists only Workflows, Creator Studio and Source Accounts.
-- `/discovery`, `/legacy`, `/profiles` and `/content-set` land on Workflows.
-- Workflows selects "test" and lists the backfilled runs under Unassigned.
-- A run's detail page shows its stage and three results.
-- An artifact download answers 200 from the media store (404 before this PR).
-- Creator Studio lists the three "test" drafts.
-
-**Defects the walk found**, for a follow-up fix:
-1. Workflows: the collapsed "Unassigned (50+)" toggle sits at the top right of the wizard card
-   instead of below the run table.
-2. Creator Studio list: the page heading renders below the draft list, because the editor's
-   full-screen `dashboard-page-studio` layout also applies to `/studio`.
-3. Draft rows: there is no space between the label and "Revision N", and the time is a raw ISO
-   string.
-
-A report download ignores `Range` and answers 200 with the whole file. That is valid HTTP.
-
-**Operational note.** From Windows, the WSL-published ports (`127.0.0.1:8000`) are reachable only
-while a WSL session is open. Without one, the Vite proxy answers 502 with `ECONNREFUSED`. Hold a
-session open, for example `wsl -e sleep 1800`, during a local UI walk.
-
-**Next steps:**
-- Fix the three walk defects (small dashboard PR).
-- Merge PR #23 (roadmap). It records the four removed Rust pages to rebuild in Python.
-- Then roadmap priority 2: Workflow → Studio with media.
-=======
 ## 2026-10-19 - Accounts, sign-in and developer access (SaaS sub-project 1)
 
 **Spec:** `docs/superpowers/specs/2026-10-19-accounts-and-sign-in-design.md`.
@@ -231,7 +180,56 @@ A test-isolation fix: the WorkflowMonitor download test no longer lets happy-dom
   from its brainstorm checkpoint.
 - **Follow-ups:** per-IP rate limiting at Caddy, and removing the legacy service key once every
   script uses a personal token.
->>>>>>> origin/master
+
+## 2026-10-19 - PR #24 merged and deployed; the Rust project imported
+
+**PR #24 merged** (UI foundation, voice adapter, and the removal of every path to the Rust server).
+- Master `34306ec`, image `thoth@sha256:8bf11ec3...68b5`, pinned in `.env.stage1.local`. The file
+  was backed up first. The renderer pin is unchanged, because this PR does not touch the renderer.
+- CI passed on the PR and on master, including the stack smoke and its three new checks.
+
+**`make deploy`:**
+- `backfill-runs`: `inserted=262 present=0 invalid=2 start_times=257`.
+  - All 264 workflow reports were read.
+  - Two are skipped by design: their source report has no `canonical_url` or `platform`.
+  - 257 runs carry their Temporal start time. The other 5 had already left Temporal's history and
+    carry their report's first-seen time.
+- Every service is healthy, with restarts=0 for `api` and `worker`.
+- The `api` and `worker` logs show zero errors, zero 5xx, zero TMPRL1101 and zero
+  `event loop stalled`.
+
+**Rust project imported** without starting the Rust server.
+- The `projects` row was read from the Rust SQLite file in read-only mode.
+- `thoth-control projects import -` printed `imported=1 present=0 invalid=0`. A rerun printed
+  `present=1`.
+- Project "test" (`db766411-…`) keeps its ID, so its three Studio drafts stay attached.
+
+**Edge headless walk** of the deployed stack through `vite dev`:
+- The navigation lists only Workflows, Creator Studio and Source Accounts.
+- `/discovery`, `/legacy`, `/profiles` and `/content-set` land on Workflows.
+- Workflows selects "test" and lists the backfilled runs under Unassigned.
+- A run's detail page shows its stage and three results.
+- An artifact download answers 200 from the media store (404 before this PR).
+- Creator Studio lists the three "test" drafts.
+
+**Defects the walk found**, for a follow-up fix:
+1. Workflows: the collapsed "Unassigned (50+)" toggle sits at the top right of the wizard card
+   instead of below the run table.
+2. Creator Studio list: the page heading renders below the draft list, because the editor's
+   full-screen `dashboard-page-studio` layout also applies to `/studio`.
+3. Draft rows: there is no space between the label and "Revision N", and the time is a raw ISO
+   string.
+
+A report download ignores `Range` and answers 200 with the whole file. That is valid HTTP.
+
+**Operational note.** From Windows, the WSL-published ports (`127.0.0.1:8000`) are reachable only
+while a WSL session is open. Without one, the Vite proxy answers 502 with `ECONNREFUSED`. Hold a
+session open, for example `wsl -e sleep 1800`, during a local UI walk.
+
+**Next steps:**
+- Fix the three walk defects (small dashboard PR).
+- Merge PR #23 (roadmap). It records the four removed Rust pages to rebuild in Python.
+- Then roadmap priority 2: Workflow → Studio with media.
 
 ## 2026-10-18 - UI foundation and voice adapter (roadmap priority 1)
 
