@@ -2,6 +2,47 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-19 - Move to the FaallAI organization, first real sign-in, and a code-cooldown fix
+
+**Organization move:**
+
+- The repository moved from `muhfalihr/Thoth` to `FaallAI/Thoth` (org renamed from
+  `FallAI-lab`); open PRs moved with it and `origin` points at the org.
+- PR #28 (`b196c84`) moved every image reference to `ghcr.io/faallai/*`. The org first had to
+  allow public packages (Settings → Packages → Package creation) before the three packages
+  could be made public; new GHCR packages are private by default.
+- The Free plan has no branch protection or rulesets for private repositories. A local
+  `.git/hooks/pre-push` refuses any push, force-push or deletion of `master` instead; merges
+  go through pull requests on GitHub.
+
+**Deploy (operator-authorized):** `thoth@sha256:90546ffa…`, `thoth-web@sha256:c30d2957…` and
+`thoth-remotion-renderer@sha256:ffff44bb…` from the `master` build of `b196c84`. All services
+healthy with zero restarts; `/auth/providers` returns `["github"]` with
+`THOTH_AUTH_GITHUB_ORG=FaallAI`.
+
+**First real sign-in:** succeeded through GitHub, then an emailed code. Two setup faults on the
+way, both outside the code:
+
+- the env carried the client ID of a different OAuth App than the one given the redirect URI
+  (GitHub now names the field "Redirect URIs");
+- Gmail drops the SMTP connection at login for an account password; it needs an App Password.
+
+**Fixed:** a code that failed to send still started the 60-second resend cooldown and counted
+toward the daily limit, so the retry after an SMTP failure answered "A code was sent less than a
+minute ago" although nothing was sent. A failed send now discards its challenge
+(`AccountStore.discard_challenge`). Test:
+`test_a_failed_send_does_not_start_the_cooldown` (RED → GREEN).
+
+**Verification:** `tests/auth` 51 passed, `tests/infrastructure` 400 passed (34 Postgres skips,
+covered by `make test-postgres` 16 passed), `tests/api` 354 passed, `make lint` clean.
+
+**Next steps:**
+
+- operator gates: push, PR, CI and merge of this fix, then a deploy;
+- the Studio media preview check under the CSP needs one uploaded asset (operator uploading);
+- merge PR #23 (roadmap) and PR #25 (deploy records);
+- SaaS sub-project 2: per-user isolated workspaces (multi-tenancy).
+
 ## 2026-10-19 - Accounts, sign-in and developer access (SaaS sub-project 1)
 
 **Spec:** `docs/superpowers/specs/2026-10-19-accounts-and-sign-in-design.md`.
