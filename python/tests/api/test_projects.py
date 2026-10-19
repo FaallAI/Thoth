@@ -66,7 +66,7 @@ async def test_no_database_answers_503(gateway) -> None:
 @pytest.mark.asyncio
 async def test_a_store_failure_answers_503(gateway) -> None:
     class Down:
-        def list(self):
+        def list(self, workspace_id):
             raise ProjectStoreUnavailable("project_store_unavailable")
 
     app = create_app(SETTINGS, gateway, project_store=Down())

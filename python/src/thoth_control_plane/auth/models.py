@@ -18,6 +18,20 @@ SCOPE_SETS: dict[str, frozenset[str]] = {
 }
 ALL_SCOPES = SCOPE_SETS["admin"]
 BOOTSTRAP_WORKSPACE_ID = "ws_bootstrap"
+#: The single data actor every record had before workspaces; it stays the bootstrap's actor.
+LEGACY_ACTOR_ID = "owner"
+
+
+def data_actor_id(workspace_id: str) -> str:
+    """The data actor that owns a workspace's records (spec 1.1)."""
+    return LEGACY_ACTOR_ID if workspace_id == BOOTSTRAP_WORKSPACE_ID else workspace_id
+
+
+def actor_workspace_id(actor_id: str) -> str:
+    """The workspace a data actor belongs to: the inverse of `data_actor_id`."""
+    return BOOTSTRAP_WORKSPACE_ID if actor_id == LEGACY_ACTOR_ID else actor_id
+
+
 SignInErrorCode = Literal[
     "unverified_email",
     "not_allowed",

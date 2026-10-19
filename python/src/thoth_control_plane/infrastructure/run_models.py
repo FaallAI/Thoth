@@ -18,6 +18,10 @@ class ProjectRow(Base):
     name: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime)
+    #: No ORM foreign key and no default: the 0014 constraint is the authority, and a row must
+    #: never fall into the bootstrap workspace silently. (SQLite fixtures that build only the
+    #: run tables have no `workspaces` table to point at.)
+    workspace_id: Mapped[str] = mapped_column(String)
 
 
 class WorkflowRunRow(Base):

@@ -16,7 +16,15 @@ def test_a_run_belongs_to_a_project_and_keeps_its_summary() -> None:
     engine = create_engine("sqlite://", poolclass=StaticPool)
     Base.metadata.create_all(engine)
     with Session(engine) as session:
-        session.add(ProjectRow(project_id="p1", name="News", created_at=NOW, updated_at=NOW))
+        session.add(
+            ProjectRow(
+                project_id="p1",
+                name="News",
+                created_at=NOW,
+                updated_at=NOW,
+                workspace_id="ws_bootstrap",
+            )
+        )
         session.add(
             WorkflowRunRow(
                 workflow_id="wf_001",
