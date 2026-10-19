@@ -8,7 +8,8 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { AuthRequestError, type Me } from "@/api/auth";
 import { notifyForbidden } from "@/lib/auth-events";
 
-import { AuthGate, useAuth } from "./AuthGate";
+import { AuthGate } from "./AuthGate";
+import { useAuth } from "./auth-context";
 import { LoginPage } from "./LoginPage";
 import { VerifyPage } from "./VerifyPage";
 

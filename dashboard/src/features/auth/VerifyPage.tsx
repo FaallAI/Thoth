@@ -4,7 +4,7 @@ import { Link, useSearchParams } from "react-router";
 import { authClient, AuthRequestError, type AuthClient } from "@/api/auth";
 import { Button } from "@/components/ui/button";
 
-import { SIGN_IN_ERRORS } from "./LoginPage";
+import { SIGN_IN_ERRORS } from "./sign-in-errors";
 
 const CODE_ERRORS: Record<string, string> = {
   wrong_code: "That code is not right. Check the email and try again.",

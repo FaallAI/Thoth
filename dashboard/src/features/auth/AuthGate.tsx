@@ -1,17 +1,10 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Navigate, useLocation } from "react-router";
 
 import { authClient, type AuthClient, type Me } from "@/api/auth";
 import { authEvents } from "@/lib/auth-events";
 
-type AuthState = { me: Me; refresh: () => Promise<void> };
-const AuthContext = createContext<AuthState | null>(null);
-
-export function useAuth(): AuthState {
-  const state = useContext(AuthContext);
-  if (!state) throw new Error("useAuth must be used inside <AuthGate>");
-  return state;
-}
+import { AuthContext } from "./auth-context";
 
 /** Renders its children only for a signed-in caller; a session that ends sends them to /login. */
 export function AuthGate({ client = authClient, children }: { client?: Pick<AuthClient, "me">; children: ReactNode }) {

@@ -5,15 +5,8 @@ import { Feather } from "lucide-react";
 import { authClient, type AuthClient } from "@/api/auth";
 import { buttonVariants } from "@/components/ui/button";
 
-export const SIGN_IN_ERRORS: Record<string, string> = {
-  unverified_email: "Your provider has not verified this email address.",
-  not_allowed: "This account is not allowed to sign in to this workspace.",
-  provider_error: "Sign-in did not complete. Try again.",
-  not_configured: "Sign-in is not configured on this server.",
-  too_many_codes: "Too many codes were sent today. Try again tomorrow.",
-  code_not_sent: "The sign-in code could not be sent. Try again.",
-  unavailable: "Sign-in is unavailable right now. Try again shortly.",
-};
+import { SIGN_IN_ERRORS } from "./sign-in-errors";
+
 const LABELS: Record<string, string> = { google: "Continue with Google", github: "Continue with GitHub" };
 
 export function LoginPage({ client = authClient }: { client?: Pick<AuthClient, "providers"> }) {

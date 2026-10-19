@@ -16,7 +16,10 @@ import { CircleHelp, Clapperboard, Feather, KeyRound, Workflow } from "lucide-re
 import { DashboardSearch } from "@/components/DashboardSearch";
 import { WorkspaceMenu } from "@/components/WorkspaceMenu";
 import { PenDialog } from "@/components/PenDialog";
+import { authClient } from "@/api/auth";
 import { AuthGate } from "@/features/auth/AuthGate";
+import { useAuth } from "@/features/auth/auth-context";
+import { TokensPage } from "@/features/settings/TokensPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { VerifyPage } from "@/features/auth/VerifyPage";
 import { useActiveProject } from "@/lib/active-project";
@@ -26,6 +29,7 @@ const pages = {
   workflows: { path: "/workflows", label: "Workflows", eyebrow: "Workspace / 01", description: "Launch, track, and review your production runs.", icon: Workflow },
   studio: { path: "/studio", label: "Creator Studio", eyebrow: "Create / 02", description: "Your Studio drafts in this project.", icon: Clapperboard },
   accounts: { path: "/accounts", label: "Source Accounts", eyebrow: "Access / 03", description: "Logged-in sessions that acquisition rotates through, per platform.", icon: KeyRound },
+  tokens: { path: "/settings/tokens", label: "Developer tokens", eyebrow: "Access / 03", description: "Personal tokens for the API and the CLI. Each token is shown once.", icon: KeyRound },
   proxies: { path: "/accounts/proxies", label: "Proxies", eyebrow: "Access / 03", description: "Dedicated proxies for source accounts. Each proxy serves one account.", icon: KeyRound },
 } as const;
 type PageKey = keyof typeof pages;
@@ -35,6 +39,7 @@ const NAV: [PageKey, string][] = [
 
 function pageFor(pathname: string): PageKey {
   if (pathname.startsWith(pages.proxies.path)) return "proxies";
+  if (pathname.startsWith(pages.tokens.path)) return "tokens";
   return (Object.keys(pages) as PageKey[]).find((key) => pathname.startsWith(pages[key].path)) ?? "workflows";
 }
 
@@ -54,6 +59,7 @@ export default function App() {
 function Shell() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { me } = useAuth();
   const [projectId, setProjectId] = useActiveProject();
   const [projects, setProjects] = useState<Project[]>([]);
   const [runs, setRuns] = useState<WorkflowRun[]>([]);
@@ -78,7 +84,7 @@ function Shell() {
         <div className="dashboard-header-tools">
           <DashboardSearch projects={projects} workflows={runs} onWorkflow={(id) => navigate(`/workflows/${encodeURIComponent(id)}`)} onProject={setProjectId} onNavigate={(path) => navigate(path)} />
           <div className="dashboard-project">{switcher}</div>
-          <WorkspaceMenu onHelp={() => setHelpOpen(true)} />
+          <WorkspaceMenu me={me} onHelp={() => setHelpOpen(true)} onTokens={() => navigate("/settings/tokens")} onSignOut={(forget) => void authClient.logout(forget).finally(() => window.location.assign("/login"))} />
         </div>
       </header>
       <div className="dashboard-body">
@@ -110,6 +116,7 @@ function Shell() {
             <Route path="/studio/:projectId/:documentId" element={<StudioDocumentRoute workspaceControls={switcher} projects={projects} />} />
             <Route path="/accounts" element={<SourceAccounts client={sourceAccountsClient} onManageProxies={() => navigate("/accounts/proxies")} />} />
             <Route path="/accounts/proxies" element={<SourceProxies client={sourceAccountsClient} onBack={() => navigate("/accounts")} />} />
+            <Route path="/settings/tokens" element={<TokensPage />} />
             <Route path="*" element={<Navigate to="/workflows" replace />} />
           </Routes>
         </main>

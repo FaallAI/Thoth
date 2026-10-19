@@ -88,3 +88,6 @@
 .dashboard-login-trust { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .dashboard-login-note, .dashboard-auth-status { font-size: 12px; color: var(--muted-foreground); }
 .dashboard-auth-status { padding: 24px; }
+.dashboard-tokens { display: grid; gap: 16px; }
+.dashboard-token-form, .dashboard-token-created { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px 14px; align-items: center; padding: 20px 22px; height: auto; }
+.dashboard-token-created p { grid-column: 1 / -1; font-size: 12px; color: var(--muted-foreground); }
