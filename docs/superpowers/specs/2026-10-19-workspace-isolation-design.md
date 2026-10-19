@@ -183,6 +183,11 @@ All offline; no live test until the final acceptance.
 
 - Team invitations, member management UI, and switching between workspaces.
 - Per-workspace source accounts or proxies.
+- **Usage limits on the shared pool (carried to sub-project 3, operator 2026-10-19).** Every
+  workspace's workflows lease the operator's source accounts and proxies. One active workspace can
+  therefore spend the daily account budgets (Instagram allows about 20 searches a day), drive the
+  operator's accounts toward spam flags or bans, and use the proxy balance. Sub-project 3 must add
+  a per-workspace quota on account leases and proxy use, and public sign-up must not open before it.
 - PostgreSQL row-level security.
 - Workspace prefixes in media object keys.
 - Metering, quotas and billing (sub-projects 3 and 4).
