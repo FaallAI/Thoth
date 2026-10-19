@@ -29,7 +29,7 @@ from thoth_control_plane.operations.stage1_parity_preflight import (
 
 CANARY_KEY = "synthetic-canary-only-not-a-real-key"
 CANARY_FIXTURE = "https://www.tiktok.com/@synthetic-canary/video/1234567890123456789"
-VALID_IMAGE = "ghcr.io/muhfalihr/thoth@sha256:" + "a1" * 32
+VALID_IMAGE = "ghcr.io/faallai/thoth@sha256:" + "a1" * 32
 PROVIDER_CONTENT = f"THOTH_NOVITA_API_KEY={CANARY_KEY}\nTHOTH_SUBTITLE_OCR_MODEL=vendor/model\n"
 
 posix_only = pytest.mark.skipif(
@@ -94,7 +94,7 @@ def test_the_preflight_returns_nothing_so_inputs_cannot_be_printed(tmp_path: Pat
 def test_mutable_reference_image_is_rejected(tmp_path: Path) -> None:
     with pytest.raises(ValueError):
         check_parity_inputs(
-            "ghcr.io/muhfalihr/thoth:latest",
+            "ghcr.io/faallai/thoth:latest",
             tmp_path / "sample",
             tmp_path / "provider.env",
             repository_root=tmp_path / "repo",
@@ -105,11 +105,11 @@ def test_mutable_reference_image_is_rejected(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "image",
     [
-        "ghcr.io/muhfalihr/thoth:stage1",
-        "ghcr.io/muhfalihr/thoth",
+        "ghcr.io/faallai/thoth:stage1",
+        "ghcr.io/faallai/thoth",
         "ghcr.io/someone-else/thoth@sha256:" + "a1" * 32,
-        "ghcr.io/muhfalihr/thoth@sha256:" + "A1" * 32,
-        "ghcr.io/muhfalihr/thoth@sha256:a1",
+        "ghcr.io/faallai/thoth@sha256:" + "A1" * 32,
+        "ghcr.io/faallai/thoth@sha256:a1",
         "",
     ],
 )

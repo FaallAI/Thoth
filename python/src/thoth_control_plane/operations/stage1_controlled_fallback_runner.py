@@ -212,7 +212,7 @@ class ControlledFallbackRunner:
         """
         config = self._config
         check_controlled_fallback_inputs(
-            image=f"ghcr.io/muhfalihr/thoth@{config.digest}",
+            image=f"ghcr.io/faallai/thoth@{config.digest}",
             sample=config.sample,
             provider=config.provider,
             repository_root=config.repository_root,
@@ -267,7 +267,7 @@ class ControlledFallbackRunner:
             *args,
         ]
         env = {
-            "THOTH_CONTROLLED_FALLBACK_IMAGE": f"ghcr.io/muhfalihr/thoth@{config.digest}",
+            "THOTH_CONTROLLED_FALLBACK_IMAGE": f"ghcr.io/faallai/thoth@{config.digest}",
             "THOTH_CONTROLLED_FALLBACK_SAMPLE_DIR": str(config.sample),
             "THOTH_STAGE1_PROVIDER_ENV_FILE": str(config.provider),
         }
@@ -281,7 +281,7 @@ class ControlledFallbackRunner:
             )
 
     def _check_compose_images(self) -> None:
-        expected = f"ghcr.io/muhfalihr/thoth@{self._config.digest}"
+        expected = f"ghcr.io/faallai/thoth@{self._config.digest}"
         result = self._compose("config", "--images")
         images = {
             line.strip()
@@ -355,7 +355,7 @@ class ControlledFallbackRunner:
         config = self._config
         docker_config = payload.get("Config") or {}
         # Docker records the reference the service was started from, not the bare digest.
-        if docker_config.get("Image") != f"ghcr.io/muhfalihr/thoth@{config.digest}":
+        if docker_config.get("Image") != f"ghcr.io/faallai/thoth@{config.digest}":
             raise Stage1PreflightError(f"the {service} role must run the exact authorized digest")
         if docker_config.get("User") != EXPECTED_ROLE_USER:
             raise Stage1PreflightError(f"the {service} role must run as an unprivileged fixed uid")
@@ -455,7 +455,7 @@ class ControlledFallbackRunner:
             "0:0",
             "-v",
             f"{config.sample}:/staging",
-            f"ghcr.io/muhfalihr/thoth@{config.digest}",
+            f"ghcr.io/faallai/thoth@{config.digest}",
             "/bin/sh",
             "-c",
             script,

@@ -26,7 +26,7 @@ Membangun pipeline otomatis yang memahami **gaya editing media sosial viral** (T
   their current media and discovery paths. This control plane neither replaces them nor exposes
   Scout executor flags through its v1 API/dashboard.
 - **Stage 1 container checkpoint (2026-09-04): published, deployment pending.** One
-  immutable `ghcr.io/muhfalihr/thoth` digest serves the worker/API/CDP sidecar roles; the image
+  immutable `ghcr.io/faallai/thoth` digest serves the worker/API/CDP sidecar roles; the image
   includes Linux FFmpeg/FFprobe and the private headless CDP launcher required by temporary Scout
   fallback. GitHub Actions publishes one digest per pushed commit, and the image labels bind that
   digest to its revision, so every push mints a new release identity. The deployable digest is

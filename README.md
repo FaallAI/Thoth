@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/muhfalihr/Thoth/releases"><img src="https://img.shields.io/badge/version-0.1.0-f97316?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/FaallAI/Thoth/releases"><img src="https://img.shields.io/badge/version-0.1.0-f97316?style=flat-square" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License"></a>
   <img src="https://img.shields.io/badge/rust-1.85+-orange?style=flat-square&logo=rust&logoColor=white" alt="Rust">
   <img src="https://img.shields.io/badge/node-24+-339933?style=flat-square&logo=node.js&logoColor=white" alt="Node.js">
