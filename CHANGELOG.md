@@ -2,6 +2,114 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-19 - Accounts, sign-in and developer access (SaaS sub-project 1)
+
+**Spec:** `docs/superpowers/specs/2026-10-19-accounts-and-sign-in-design.md`.
+**Plan:** `docs/superpowers/plans/2026-10-19-accounts-and-sign-in.md`.
+**Branch:** `feat/accounts-sign-in`. Executed natively.
+
+The operator wants Thoth to become a usage-priced SaaS. The work splits into four sub-projects,
+in this order: accounts, multi-tenancy, metering and cost model, then billing. This entry is the
+first.
+
+**Shipped:**
+
+- **Accounts schema (editor migration 0013):**
+  - the tables `users`, `user_identities`, `workspaces` (with `ws_bootstrap`),
+    `workspace_members`, `sessions`, `trusted_devices`, `email_challenges`, `access_tokens` and
+    `auth_events`;
+  - only token hashes and code HMACs are stored, never the secrets themselves.
+- **Sign-in** (`/auth/*`, Authlib, outside OpenAPI):
+  - Google is accepted for a verified email in one domain, with a matching `hd` claim when present;
+  - GitHub is accepted for a verified primary email and an active member of one organization;
+  - the rule is checked again on every sign-in;
+  - a 6-digit code is then emailed over SMTP: valid 10 min, 5 attempts, a 60 s resend floor and at
+    most 10 codes a day;
+  - the browser is then trusted for 30 days;
+  - a session lasts 12 h, renewed on use, and never longer than 7 days in all;
+  - cookie writes must carry the site's `Origin`;
+  - every refusal returns to `/login?error=` with a fixed code.
+- **Developer access:**
+  - personal `thoth_pat_` tokens with the scopes read, write or admin, 90 days by default and 365
+    at most, 20 per user, shown once;
+  - `GET/POST /api/v1/me/tokens`, `DELETE /api/v1/me/tokens/{id}` and `GET /api/v1/me`;
+  - `thoth-control tokens create`, to bootstrap the first token;
+  - workspace tokens for external developers are built but refused until
+    `THOTH_AUTH_WORKSPACE_TOKENS=true`, which waits for multi-tenancy and billing;
+  - the legacy `THOTH_CONTROL_PLANE_API_KEY` remains a service token, recorded at most once a
+    minute.
+- **Data actor unchanged:** every principal still acts as the data actor `owner` (spec 3.6). The
+  48 existing routes are untouched, and the API keeps answering 403 `Not authorized` without
+  credentials.
+- **Dashboard:**
+  - the login and verify pages, and an auth gate that re-checks on any 403;
+  - the API key is gone from the bundle, and `vite build` refuses `VITE_CONTROL_PLANE_API_KEY`;
+  - a user menu, and a Developer tokens page;
+  - `vite dev` injects `THOTH_DEV_TOKEN` through its proxy, so the server has no bypass.
+- **Serving:**
+  - **Image:** `thoth-web` (`Dockerfile.web`, Caddy 2.11.4 pinned by digest) runs as uid 10001,
+    read-only, with every capability dropped.
+  - **Overlay:** `compose.stage1.web.yml` publishes it on `127.0.0.1:8088`.
+  - **Behaviour:** an SPA fallback, `/api/v1` and `/auth` forwarded to the API, a strict CSP,
+    `X-Frame-Options: DENY`, and no-store on pages.
+  - **Delivery:** CI builds, publishes and smokes it, and the deploy pins `THOTH_WEB_IMAGE`.
+
+**Rulings** (the full text is in the SDD ledger):
+- **Contract pins the plan missed,** now updated:
+  - the editor migration adoption count (6 → 7) and the migration file list;
+  - the CI image set (3 images);
+  - the smoke's argument count;
+  - the dev pytest runner's fixed `--with` list (authlib, itsdangerous).
+- **HTTP library:** Authlib 1.9 uses `httpx2` when it is installed. The providers follow the same
+  module, so they catch its errors and the tests fake its transport.
+- **JOSE errors:** a wrong-audience `id_token` raised `joserfc.errors.JoseError`, which would have
+  been a 500. It is now `provider_error`, caught by a failing-first test.
+- **Caddy capability:** the official binary carries `cap_net_bind_service`, so it could not run with
+  every capability dropped. The capability is stripped, and the Caddyfile uses `http_port 8080`
+  and `https_port 8443` for a later domain.
+- **Plan code that did not type-check or lint:**
+  - parameter properties under `erasableSyntaxOnly`;
+  - Bun's `typeof fetch`;
+  - `nodenext` import extensions;
+  - react-refresh exports, so `SIGN_IN_ERRORS` and `useAuth` moved to their own modules.
+- **Smoke and test fixes:**
+  - three App tests await the gated shell;
+  - the smoke starts `web` before probing it;
+  - one me-route test probes `/api/v1/me`.
+
+**Verification:**
+- `make lint` is clean.
+- `make test`: 4063 passed, 65 skipped. `make test-postgres`: 16 passed.
+- Dashboard: `bun test` 693/693, `tsc` 0 errors, and `bun run build` passes.
+- OpenAPI gained only `/api/v1/me...`, `/api/v1/workspace/tokens` and four schemas.
+- No Rust change.
+- **Local offline smoke** (`docker/test-renderer-offline.sh thoth:local <renderer digest>
+  thoth-web:local`): every line is true, including `web_serves_the_spa_on_deep_paths`,
+  `web_requires_a_session`, `developer_token_accepted` and `developer_token_revoked`, and
+  `teardown_leaves_nothing=true`.
+- **CSP walk:**
+  - setup: Edge over CDP, a session cookie, and a throwaway compose project with the new images,
+    removed afterwards;
+  - `/login`, `/workflows`, `/studio`, `/settings/tokens` and `/accounts` rendered with zero CSP
+    violations;
+  - a Studio media preview was not exercised, because the throwaway database held no asset.
+
+**Next steps:**
+- **Operator gates:**
+  - push, PR, CI, merge;
+  - pin `THOTH_WEB_IMAGE` and the new `THOTH_IMAGE`, then deploy, which applies migration 0013;
+  - create the Google OAuth client and the GitHub OAuth App, with callbacks
+    `http://localhost:8088/auth/callback/{google,github}`, and approve the app in the organization;
+  - provide an SMTP account, and set `THOTH_AUTH_*`, `THOTH_SMTP_*` and `THOTH_SITE_ORIGIN`;
+  - optionally set WSL `networkingMode=mirrored`.
+- **First real sign-in and media preview under the CSP:** at the post-deploy walk, or at the final
+  live acceptance.
+- **Next:** SaaS sub-project 2 (multi-tenancy: every user gets their own isolated workspace),
+  then metering and the cost model, then billing. Roadmap priority 2 (Workflow → Studio) resumes
+  from its brainstorm checkpoint.
+- **Follow-ups:** per-IP rate limiting at Caddy, and removing the legacy service key once every
+  script uses a personal token.
+
 ## 2026-10-18 - UI foundation and voice adapter (roadmap priority 1)
 
 **Spec:** `docs/superpowers/specs/2026-10-18-ui-foundation-design.md`.

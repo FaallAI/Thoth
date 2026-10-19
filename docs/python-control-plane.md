@@ -33,7 +33,7 @@ the value.
 
 | Variable | Process | Meaning |
 | --- | --- | --- |
-| `THOTH_CONTROL_PLANE_API_KEY` | FastAPI, CLI | Owner bearer credential. Required. |
+| `THOTH_CONTROL_PLANE_API_KEY` | FastAPI, CLI | Legacy service key: smokes, CI and deploy scripts. Required. People sign in instead (see "Sign-in and developer access"). |
 | `THOTH_CONTROL_PLANE_CORS_ORIGINS` | FastAPI | JSON list of allowed dashboard origins, for example the local Vite origin. Empty by default. |
 | `THOTH_CONTROL_PLANE_ARTIFACT_ROOT` | FastAPI, Python worker working directory | Root for safe relative artifact locations. Defaults to `.thoth-artifacts`; API and worker must resolve the same root. |
 | `THOTH_EDITOR_DATABASE_URL` | FastAPI, `thoth-control editor migrate` | Secret PostgreSQL URL for immutable Creator Studio revisions. Stage 1 Compose derives it from the isolated editor database password. |
@@ -46,7 +46,6 @@ the value.
 | `THOTH_TEMPORAL_NAMESPACE` | FastAPI, Python worker | Temporal namespace; default `default`. |
 | `THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE` | Python worker / workflow start wiring | Worker-owned implementation choice: `python`, `python_tiktok_with_legacy_fallback` (migration default), or `legacy_scout`. It is never accepted from HTTP. |
 | `VITE_CONTROL_PLANE_URL` | Dashboard build/dev server | FastAPI origin, normally `http://127.0.0.1:8000`. |
-| `VITE_CONTROL_PLANE_API_KEY` | Dashboard build/dev server | Local owner credential used by the v1 client. Do not commit it. |
 
 For Vite development, leave `VITE_CONTROL_PLANE_URL` unset: the dev server proxies `/api/v1` to
 the local control plane, avoiding a browser CORS preflight. Set a
@@ -378,9 +377,143 @@ with `Last-Event-ID`; do not manufacture a cursor from list position or raw lega
 snapshot is authoritative current state, while replayed events are the audit trail after the
 cursor. Reconnect can repeat a snapshot, so clients must apply events idempotently.
 
+## Sign-in and developer access
+
+Spec: `docs/superpowers/specs/2026-10-19-accounts-and-sign-in-design.md`, SaaS sub-project 1.
+
+### Serving
+
+The stack serves the dashboard from the `web` container (`compose.stage1.web.yml`, image
+`THOTH_WEB_IMAGE`) at `http://localhost:8088`.
+
+- **Routing:** Caddy serves the built SPA with a fallback to `index.html`, and forwards `/api/v1`
+  and `/auth` to the API.
+- **No credential in the container:** Caddy holds no key, and the browser never holds an API key.
+- **Container hardening:** it runs as uid 10001, read-only, with every capability dropped. Caddy
+  listens only on unprivileged ports: 8088 for the site, 8080 and 8443 for a later domain.
+- **A real domain:** set `THOTH_SITE_ADDRESS` to the domain and `THOTH_SITE_ORIGIN` to
+  `https://<domain>`, then publish host 80 to container 8080 and host 443 to 8443. Caddy then
+  obtains certificates itself.
+
+### Who may sign in
+
+| Provider | Accepted when |
+| --- | --- |
+| Google | The email is verified by Google, ends in `@THOTH_AUTH_GOOGLE_DOMAIN`, and any `hd` claim equals that domain |
+| GitHub | The primary email is verified, and the user is an `active` member of `THOTH_AUTH_GITHUB_ORG` |
+
+The rule is checked again on every sign-in.
+
+After the provider, a 6-digit code goes to that verified email.
+- **Code limits:** valid 10 minutes, 5 attempts, a resend no sooner than 60 s, and at most 10 codes
+  a day.
+- **Trusted browser:** once a code succeeds, the browser is trusted for 30 days and later
+  sign-ins there skip the code.
+- **Sessions:** 12 h, renewed on use, and never longer than 7 days in all.
+
+Every signed-in user still acts as the data actor `owner` and sees the one shared dataset.
+Per-user workspaces arrive in SaaS sub-project 2, so keep the domain and the organization limited
+to people you trust.
+
+### Settings
+
+| Variable | Process | Meaning |
+| --- | --- | --- |
+| `THOTH_SITE_ORIGIN` | FastAPI | The site origin; default `http://localhost:8088`. It builds the OAuth redirect URIs, and cookie-authenticated writes must carry it as `Origin`. |
+| `THOTH_AUTH_SECRET` | FastAPI | Secret for the code HMACs and the OAuth state cookie. Generate it with `python -c "import secrets; print(secrets.token_urlsafe(48))"`. |
+| `THOTH_AUTH_GOOGLE_CLIENT_ID` | FastAPI | Google OAuth client of type Web application. |
+| `THOTH_AUTH_GOOGLE_CLIENT_SECRET` | FastAPI | Secret for that client. |
+| `THOTH_AUTH_GOOGLE_DOMAIN` | FastAPI | The one email domain Google sign-in accepts. |
+| `THOTH_AUTH_GITHUB_CLIENT_ID` | FastAPI | GitHub OAuth App client ID. |
+| `THOTH_AUTH_GITHUB_CLIENT_SECRET` | FastAPI | Secret for that app. |
+| `THOTH_AUTH_GITHUB_ORG` | FastAPI | The organization GitHub sign-in requires. |
+| `THOTH_SMTP_HOST` | FastAPI | SMTP server host for sign-in codes. |
+| `THOTH_SMTP_PORT` | FastAPI | SMTP server port; default 587 (STARTTLS). 465 means implicit TLS. |
+| `THOTH_SMTP_USERNAME` | FastAPI | SMTP user. |
+| `THOTH_SMTP_PASSWORD` | FastAPI | SMTP password (secret). |
+| `THOTH_SMTP_FROM` | FastAPI | The sender, for example `Thoth <no-reply@example.com>`. |
+| `THOTH_AUTH_WORKSPACE_TOKENS` | FastAPI | `true` allows workspace tokens for external developers. Keep it off until multi-tenancy and billing exist. |
+
+Every variable is optional, and an empty value means not configured:
+- a provider is offered only when its client ID, secret and rule are set, together with
+  `THOTH_AUTH_SECRET`, the editor database and SMTP;
+- without SMTP nobody can finish signing in, so sign-in fails closed;
+- developer tokens and the service key keep working either way.
+
+### Creating the OAuth apps (operator)
+
+- **Google Cloud console:** under APIs & Services, Credentials, create an OAuth client ID of type
+  Web application. Add the authorised redirect URI
+  `http://localhost:8088/auth/callback/google`, or `<THOTH_SITE_ORIGIN>/auth/callback/google`.
+- **GitHub:** under Settings, Developer settings, OAuth Apps, create a new OAuth App.
+  - Set the homepage to `THOTH_SITE_ORIGIN`.
+  - Set the callback URL to `<THOTH_SITE_ORIGIN>/auth/callback/github`.
+  - Then, in the organization's settings under Third-party access, approve the app. Otherwise the
+    membership check cannot see the organization and refuses everyone.
+
+### Cookies and failure codes
+
+| Cookie | Path | Holds |
+| --- | --- | --- |
+| `thoth_session` | `/` | The session token: HttpOnly, SameSite=Lax, Secure on HTTPS |
+| `thoth_device` | `/auth` | The trusted-browser token, for 30 days |
+| `thoth_challenge` | `/auth` | The pending email code, for 10 minutes |
+| `thoth_oauth` | `/auth` | Authlib's signed state and PKCE verifier, for 10 minutes |
+
+The server stores only hashes of the tokens and an HMAC of each code.
+
+**Failure codes:**
+- `/login?error=`: `unverified_email`, `not_allowed`, `provider_error`, `not_configured`,
+  `too_many_codes`, `code_not_sent`, `unavailable`.
+- Code errors: `wrong_code`, `expired`, `too_many_attempts`, `resend_too_soon`, `daily_limit`.
+- Authorization errors: `insufficient_scope`, `cross_site_request`, `user_required`,
+  `token_limit`, `workspace_tokens_disabled`.
+- `GET /auth/me` answers 401 `signed_out` when nobody is signed in.
+- The rest of the API keeps answering 403 `Not authorized` to a request without valid credentials.
+
+### Developer tokens
+
+- **Format:** personal tokens start with `thoth_pat_` and are sent as `Authorization: Bearer`.
+- **Scopes:** `read`, `write` (implies read) or `admin` (implies both). A request that changes data
+  needs `write`.
+- **Lifetime and limits:** 90 days by default, 365 at most, and at most 20 active per user.
+- **Visibility:** the text is shown once.
+- **Where to manage them:** the dashboard's **Developer tokens** page, or `GET/POST
+  /api/v1/me/tokens` and `DELETE /api/v1/me/tokens/{token_id}`, with a session or an `admin`
+  token.
+
+The first token, before OAuth is configured, comes from the operator command below. It needs
+database access, creates the user when missing (the first user owns the bootstrap workspace), and
+prints only the token:
+
+```bash
+docker compose --env-file .env.stage1.local -f compose.stage1.local.yml exec -T api \
+    thoth-control tokens create --email you@example.com --name laptop --scope admin
+```
+
+**The legacy service key.** `THOTH_CONTROL_PLANE_API_KEY` still works as a service token for the
+smokes, CI and the deploy scripts. It has no user, so it cannot manage personal tokens, and its
+use is recorded in `auth_events` at most once a minute.
+
+### Local development without signing in
+
+The server has no bypass. Put a personal token in your own shell environment and run the dev
+server:
+
+```bash
+THOTH_DEV_TOKEN=thoth_pat_... bun --cwd=dashboard run dev
+```
+
+The Vite proxy adds `Authorization: Bearer $THOTH_DEV_TOKEN` to `/api/v1` and `/auth` requests.
+It is not a `VITE_` variable, so it never enters a bundle, and `vite build` refuses to run while
+`VITE_CONTROL_PLANE_API_KEY` is set.
+
+To test the real sign-in through Vite instead, set `THOTH_SITE_ORIGIN=http://localhost:5173` on
+the API.
+
 ## Authorization and approvals
 
-The local v1 implementation maps the valid owner key to an audited `Actor`. Authorization is
+Every principal (a session, a developer token or the service key) maps to the audited data `Actor` `owner` until SaaS sub-project 2 scopes data by workspace. Authorization is
 checked again at the application/gateway boundary for summary, events, controls, and artifact
 download. A missing, wrong, or non-Bearer credential receives `403`; an invisible workflow or
 artifact receives the same safe not-found boundary as an absent one.
