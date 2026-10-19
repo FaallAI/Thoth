@@ -364,6 +364,9 @@ Retirement then proceeds in this order:
 
 ## Immediate Next Step
 
+The current priority order across the migration, the UI phases and the backlog lives in
+[ROADMAP.md](ROADMAP.md). The text below is the historical next step at Stage 2's close.
+
 Stage 2 is closed (see the status note under Stage 2). Stage 3, the remaining platform
 adapters, starts with its own design specification and proceeds under the direct-migration
 strategy of
