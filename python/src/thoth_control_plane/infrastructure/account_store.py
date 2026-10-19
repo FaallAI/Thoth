@@ -12,14 +12,19 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, func, select, update
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from thoth_control_plane.auth.models import BOOTSTRAP_WORKSPACE_ID, VerifiedIdentity
 from thoth_control_plane.infrastructure.account_models import (
+    AuthEventRow,
+    ChallengeRow,
+    DeviceRow,
     MemberRow,
+    SessionRow,
+    TokenRow,
     UserIdentityRow,
     UserRow,
     WorkspaceRow,
@@ -42,9 +47,57 @@ class AccountUser:
     disabled: bool
 
 
+@dataclass(frozen=True)
+class SessionRecord:
+    session_id: str
+    user_id: str
+    workspace_id: str
+    created_at: datetime
+    last_seen_at: datetime
+    expires_at: datetime
+
+
+@dataclass(frozen=True)
+class ChallengeRecord:
+    challenge_id: str
+    user_id: str
+    code_hmac: str
+    attempts: int
+    created_at: datetime
+    expires_at: datetime
+
+
+@dataclass(frozen=True)
+class TokenRecord:
+    token_id: str
+    owner_kind: str
+    owner_id: str
+    workspace_id: str
+    name: str
+    prefix: str
+    scope: str
+    created_at: datetime
+    expires_at: datetime
+    last_used_at: datetime | None
+
+
 def _unavailable(error: Exception) -> AccountStoreUnavailable:
     logger.warning("account store failed: %s", type(error).__name__)
     return AccountStoreUnavailable("account_store_unavailable")
+
+
+def _session(row: SessionRow) -> SessionRecord:
+    return SessionRecord(
+        row.session_id, row.user_id, row.workspace_id, row.created_at, row.last_seen_at,
+        row.expires_at,
+    )
+
+
+def _token(row: TokenRow) -> TokenRecord:
+    return TokenRecord(
+        row.token_id, row.owner_kind, row.owner_id, row.workspace_id, row.name, row.prefix,
+        row.scope, row.created_at, row.expires_at, row.last_used_at,
+    )
 
 
 class AccountStore:
@@ -152,6 +205,278 @@ class AccountStore:
         )
         session.flush()
         return user
+
+    # --- sessions --------------------------------------------------------------------------
+
+    def create_session(
+        self, user_id: str, workspace_id: str, token_hash: str, expires_at: datetime
+    ) -> SessionRecord:
+        now = self._clock()
+        row = SessionRow(
+            session_id=f"ses_{uuid4().hex}",
+            user_id=user_id,
+            workspace_id=workspace_id,
+            token_hash=token_hash,
+            created_at=now,
+            last_seen_at=now,
+            expires_at=expires_at,
+        )
+        self._write(lambda session: session.add(row))
+        return _session(row)
+
+    def live_session(self, token_hash: str) -> SessionRecord | None:
+        row = self._one(
+            select(SessionRow).where(
+                SessionRow.token_hash == token_hash,
+                SessionRow.revoked_at.is_(None),
+                SessionRow.expires_at > self._clock(),
+            )
+        )
+        return None if row is None else _session(row)
+
+    def extend_session(self, session_id: str, expires_at: datetime, seen_at: datetime) -> None:
+        self._execute(
+            update(SessionRow)
+            .where(SessionRow.session_id == session_id)
+            .values(expires_at=expires_at, last_seen_at=seen_at)
+        )
+
+    def revoke_session(self, token_hash: str) -> None:
+        self._execute(
+            update(SessionRow)
+            .where(SessionRow.token_hash == token_hash, SessionRow.revoked_at.is_(None))
+            .values(revoked_at=self._clock())
+        )
+
+    # --- trusted browsers ------------------------------------------------------------------
+
+    def trust_device(self, user_id: str, token_hash: str, expires_at: datetime) -> None:
+        row = DeviceRow(
+            device_id=f"dev_{uuid4().hex}",
+            user_id=user_id,
+            token_hash=token_hash,
+            created_at=self._clock(),
+            expires_at=expires_at,
+        )
+        self._write(lambda session: session.add(row))
+
+    def is_trusted(self, user_id: str, token_hash: str) -> bool:
+        return (
+            self._one(
+                select(DeviceRow).where(
+                    DeviceRow.token_hash == token_hash,
+                    DeviceRow.user_id == user_id,
+                    DeviceRow.revoked_at.is_(None),
+                    DeviceRow.expires_at > self._clock(),
+                )
+            )
+            is not None
+        )
+
+    def forget_device(self, token_hash: str) -> None:
+        self._execute(
+            update(DeviceRow)
+            .where(DeviceRow.token_hash == token_hash, DeviceRow.revoked_at.is_(None))
+            .values(revoked_at=self._clock())
+        )
+
+    # --- email challenges ------------------------------------------------------------------
+
+    def create_challenge(
+        self,
+        challenge_id: str,
+        user_id: str,
+        token_hash: str,
+        code_hmac: str,
+        expires_at: datetime,
+    ) -> None:
+        row = ChallengeRow(
+            challenge_id=challenge_id,
+            user_id=user_id,
+            token_hash=token_hash,
+            code_hmac=code_hmac,
+            attempts=0,
+            created_at=self._clock(),
+            expires_at=expires_at,
+        )
+        self._write(lambda session: session.add(row))
+
+    def live_challenge(self, token_hash: str) -> ChallengeRecord | None:
+        row = self._one(
+            select(ChallengeRow).where(
+                ChallengeRow.token_hash == token_hash,
+                ChallengeRow.consumed_at.is_(None),
+                ChallengeRow.expires_at > self._clock(),
+            )
+        )
+        if row is None:
+            return None
+        return ChallengeRecord(
+            row.challenge_id, row.user_id, row.code_hmac, row.attempts, row.created_at,
+            row.expires_at,
+        )
+
+    def count_attempt(self, challenge_id: str) -> int:
+        try:
+            with self._sessions.begin() as session:
+                row = session.get(ChallengeRow, challenge_id, with_for_update=True)
+                if row is None:
+                    return 0
+                row.attempts = min(row.attempts + 1, 5)
+                return row.attempts
+        except SQLAlchemyError as error:
+            raise _unavailable(error) from None
+
+    def consume_challenge(self, challenge_id: str) -> bool:
+        try:
+            with self._sessions.begin() as session:
+                result = session.execute(
+                    update(ChallengeRow)
+                    .where(
+                        ChallengeRow.challenge_id == challenge_id,
+                        ChallengeRow.consumed_at.is_(None),
+                    )
+                    .values(consumed_at=self._clock())
+                )
+                return result.rowcount == 1
+        except SQLAlchemyError as error:
+            raise _unavailable(error) from None
+
+    def challenge_times(self, user_id: str, since: datetime) -> list[datetime]:
+        try:
+            with self._sessions() as session:
+                return list(
+                    session.scalars(
+                        select(ChallengeRow.created_at)
+                        .where(ChallengeRow.user_id == user_id, ChallengeRow.created_at >= since)
+                        .order_by(ChallengeRow.created_at)
+                    )
+                )
+        except SQLAlchemyError as error:
+            raise _unavailable(error) from None
+
+    # --- developer tokens ------------------------------------------------------------------
+
+    def create_token(self, record: TokenRecord, token_hash: str) -> None:
+        row = TokenRow(
+            token_id=record.token_id,
+            owner_kind=record.owner_kind,
+            owner_id=record.owner_id,
+            workspace_id=record.workspace_id,
+            name=record.name,
+            prefix=record.prefix,
+            token_hash=token_hash,
+            scope=record.scope,
+            created_at=record.created_at,
+            expires_at=record.expires_at,
+        )
+        self._write(lambda session: session.add(row))
+
+    def live_token(self, token_hash: str) -> TokenRecord | None:
+        row = self._one(
+            select(TokenRow).where(
+                TokenRow.token_hash == token_hash,
+                TokenRow.revoked_at.is_(None),
+                TokenRow.expires_at > self._clock(),
+            )
+        )
+        return None if row is None else _token(row)
+
+    def list_tokens(self, owner_kind: str, owner_id: str) -> list[TokenRecord]:
+        """Tokens that are not revoked, newest first; expired ones stay listed until revoked."""
+        try:
+            with self._sessions() as session:
+                rows = session.scalars(
+                    select(TokenRow)
+                    .where(
+                        TokenRow.owner_kind == owner_kind,
+                        TokenRow.owner_id == owner_id,
+                        TokenRow.revoked_at.is_(None),
+                    )
+                    .order_by(TokenRow.created_at.desc(), TokenRow.token_id.desc())
+                ).all()
+        except SQLAlchemyError as error:
+            raise _unavailable(error) from None
+        return [_token(row) for row in rows]
+
+    def active_token_count(self, owner_kind: str, owner_id: str) -> int:
+        try:
+            with self._sessions() as session:
+                return int(
+                    session.scalar(
+                        select(func.count())
+                        .select_from(TokenRow)
+                        .where(
+                            TokenRow.owner_kind == owner_kind,
+                            TokenRow.owner_id == owner_id,
+                            TokenRow.revoked_at.is_(None),
+                            TokenRow.expires_at > self._clock(),
+                        )
+                    )
+                    or 0
+                )
+        except SQLAlchemyError as error:
+            raise _unavailable(error) from None
+
+    def revoke_token(self, token_id: str, owner_kind: str, owner_id: str) -> bool:
+        try:
+            with self._sessions.begin() as session:
+                result = session.execute(
+                    update(TokenRow)
+                    .where(
+                        TokenRow.token_id == token_id,
+                        TokenRow.owner_kind == owner_kind,
+                        TokenRow.owner_id == owner_id,
+                        TokenRow.revoked_at.is_(None),
+                    )
+                    .values(revoked_at=self._clock())
+                )
+                return result.rowcount == 1
+        except SQLAlchemyError as error:
+            raise _unavailable(error) from None
+
+    def touch_token(self, token_id: str, at: datetime) -> None:
+        self._execute(update(TokenRow).where(TokenRow.token_id == token_id).values(last_used_at=at))
+
+    # --- events ----------------------------------------------------------------------------
+
+    def record_event(
+        self,
+        kind: str,
+        outcome: str,
+        *,
+        user_id: str | None = None,
+        token_id: str | None = None,
+        detail_code: str | None = None,
+    ) -> None:
+        row = AuthEventRow(
+            at=self._clock(),
+            kind=kind,
+            outcome=outcome,
+            user_id=user_id,
+            token_id=token_id,
+            detail_code=detail_code,
+        )
+        self._write(lambda session: session.add(row))
+
+    # --- plumbing --------------------------------------------------------------------------
+
+    def _write(self, action: Callable[[Session], object]) -> None:
+        try:
+            with self._sessions.begin() as session:
+                action(session)
+        except SQLAlchemyError as error:
+            raise _unavailable(error) from None
+
+    def _execute(self, statement: object) -> None:
+        self._write(lambda session: session.execute(statement))
+
+    def _one(self, statement: object):  # noqa: ANN202 - an ORM row or None
+        try:
+            with self._sessions() as session:
+                return session.scalars(statement).first()
+        except SQLAlchemyError as error:
+            raise _unavailable(error) from None
 
     @staticmethod
     def _account(session: Session, user: UserRow) -> AccountUser:

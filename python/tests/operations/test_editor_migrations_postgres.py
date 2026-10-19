@@ -286,3 +286,18 @@ def test_accounts_tables_exist_with_the_bootstrap_workspace() -> None:
                 "INSERT INTO users (user_id, email, display_name, created_at)"
                 " VALUES ('usr_1', 'Mixed@Case.test', 'A', now())"
             )
+
+
+def test_account_store_round_trips_on_postgres() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from thoth_control_plane.infrastructure.account_store import AccountStore
+
+    apply_editor_migrations(DATABASE_URL, MIGRATIONS)
+    store = AccountStore.connect(DATABASE_URL)
+    user = store.ensure_user("a@acme.test", "A")
+    assert user.workspace_id == "ws_bootstrap"
+    later = datetime.now(UTC) + timedelta(hours=1)
+    store.create_session(user.user_id, user.workspace_id, "h", later)
+    assert store.live_session("h").user_id == user.user_id
+    store.record_event("sign_in", "ok", user_id=user.user_id)
