@@ -13,6 +13,7 @@ from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.sessions import SessionMiddleware
 from temporalio.service import RPCError
 
 from thoth_control_plane.acquisition.accounts.profiles import AccountProfiles
@@ -64,9 +65,13 @@ from thoth_control_plane.application.studio_imports import StudioImportService
 from thoth_control_plane.application.studio_review import StudioReviewService
 from thoth_control_plane.application.studio_review_ports import StudioReviewRepository
 from thoth_control_plane.application.workflow_runs import ProjectNotFound
+from thoth_control_plane.auth.mailer import Mailer, mailer_from
+from thoth_control_plane.auth.providers import IdentityProvider, build_providers
+from thoth_control_plane.auth.service import SignInService
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain.cursors import InvalidCursor
 from thoth_control_plane.domain.prompt_proposals import PromptProviderDefinition
+from thoth_control_plane.infrastructure.account_store import AccountStore
 from thoth_control_plane.infrastructure.artifact_root import LocalArtifactRoot
 from thoth_control_plane.infrastructure.editor_asset_repository import (
     PostgresEditorAssetRepository,
@@ -204,6 +209,9 @@ def create_app(
     report_store: Reports | None = None,
     project_store: ProjectStore | None = None,
     workflow_run_store: WorkflowRunStore | None = None,
+    account_store: AccountStore | None = None,
+    mailer: Mailer | None = None,
+    identity_providers: dict[str, IdentityProvider] | None = None,
 ) -> FastAPI:
     """Create an isolated v1 API application for the supplied workflow gateway."""
     settings = settings or Settings()  # type: ignore[call-arg]
@@ -332,6 +340,30 @@ def create_app(
             settings.THOTH_EDITOR_DATABASE_URL.get_secret_value()
         )
     app.state.workflow_run_store = workflow_run_store
+    if account_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
+        account_store = AccountStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
+    auth_secret = (
+        settings.THOTH_AUTH_SECRET.get_secret_value() if settings.THOTH_AUTH_SECRET else None
+    )
+    app.state.sign_in = (
+        None
+        if account_store is None
+        else SignInService(account_store, mailer or mailer_from(settings), auth_secret)
+    )
+    app.state.auth_providers = (
+        identity_providers if identity_providers is not None else build_providers(settings)
+    )
+    if auth_secret is not None:
+        # Authlib keeps the OAuth state and PKCE verifier here, only on /auth, for 10 minutes.
+        app.add_middleware(
+            SessionMiddleware,
+            secret_key=auth_secret,
+            session_cookie="thoth_oauth",
+            max_age=600,
+            path="/auth",
+            same_site="lax",
+            https_only=settings.cookie_secure,
+        )
     app.state.media_store = media
 
     app.add_middleware(
