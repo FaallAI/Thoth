@@ -77,10 +77,32 @@ first.
   - the smoke starts `web` before probing it;
   - one me-route test probes `/api/v1/me`.
 
-**Verification:**
+**Final review** (a fresh reviewer on the most capable model): Critical 0, Important 2, Minor 8.
+Two Minors were re-graded Important by their effect. Four findings were fixed, each with a test
+that failed first:
+
+| Finding | Problem | Fix |
+|---|---|---|
+| Open redirect | A tab, CR, LF, space or DEL in `next` became `//evil.example` after sign-in | The server refuses such values, and the verify page navigates only within the site |
+| Five-attempt limit | Racing guesses got more than five codes checked | Every guess claims an attempt atomically first (`UPDATE … attempts < 5 RETURNING`) |
+| Unreachable provider | `/auth/login` answered a raw 500 | It returns `/login?error=provider_error` |
+| Token lineage | A token minted by an admin token survived its parent's revocation | `access_tokens.parent_token_id` (migration 0013, never deployed) caps the child's expiry at the parent's, and revoking a token revokes everything it minted |
+
+**Deferred minors:**
+- a missing hashed asset is cached as HTML for a year (Caddy `header` runs before `try_files`);
+- a trusted-browser sign-in does not rotate the previous session;
+- the exact `THOTH_SITE_ORIGIN` comparison breaks on a trailing slash;
+- forced sign-ins can burn the daily code limit;
+- a domain deploy needs 80/443 mapped to 8080/8443 and its healthcheck adjusted (documented);
+- the 20-token limit is count-then-insert.
+
+A test-isolation fix: the WorkflowMonitor download test no longer lets happy-dom navigate to
+`blob:`.
+
+**Verification (after the fix pass):**
 - `make lint` is clean.
-- `make test`: 4063 passed, 65 skipped. `make test-postgres`: 16 passed.
-- Dashboard: `bun test` 693/693, `tsc` 0 errors, and `bun run build` passes.
+- `make test`: 4072 passed, 65 skipped. `make test-postgres`: 16 passed.
+- Dashboard: `bun test` 694/694, `tsc` 0 errors, and `bun run build` passes.
 - OpenAPI gained only `/api/v1/me...`, `/api/v1/workspace/tokens` and four schemas.
 - No Rust change.
 - **Local offline smoke** (`docker/test-renderer-offline.sh thoth:local <renderer digest>
