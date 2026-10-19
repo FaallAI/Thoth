@@ -30,8 +30,9 @@
 .pen-project-actions button { display: flex; gap: 10px; align-items: center; width: 100%; height: 39px; padding: 0 11px; text-align: left; font-size: 12px; }
 .pen-project-actions svg { width: 15px; height: 15px; color: #c5c6c7; }
 .pen-managed-projects { padding: 24px 30px; display: grid; gap: 10px; }
-.pen-managed-projects > button { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 14px; background: #2a2c2e; border-radius: 5px; text-align: left; }
+.pen-managed-projects button { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 14px; background: #2a2c2e; border-radius: 5px; text-align: left; }
 .pen-managed-projects small { margin-left: auto; color: #c5c6c7; }
+.pen-managed-projects li > button { width: 100%; }
 .dashboard-body { grid-template-columns: 222px minmax(0, 1fr); }
 .dashboard-sidebar { padding: 30px 18px; gap: 7px; }
 .dashboard-nav-label { font: 400 10px/12px Inter, sans-serif; letter-spacing: 2px; margin: 0 0 14px; }
@@ -97,8 +98,14 @@
 .pen-workflow-details { position: absolute; top: 292px; right: 20px; padding: 4px; font-size: 11px; z-index: 1; }
 .pen-workflow-details[open] { background: #242628; border: 1px solid #47494a; border-radius: 5px; padding: 10px; }
 .pen-workflow-details summary { cursor: pointer; color: #c5c6c7; }
+.pen-unassigned-runs { margin-top: 16px; padding: 14px 22px; background: #242628; border-radius: 8px; font-size: 12px; }
+.pen-unassigned-runs summary { cursor: pointer; color: #c5c6c7; }
+.pen-unassigned-runs ul { display: grid; gap: 8px; margin-top: 12px; }
+.pen-unassigned-runs li { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.pen-unassigned-runs li > button { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.pen-unassigned-runs li > select { margin-left: auto; }
 .pen-workflow-details > div { padding: 12px 0; }
-.pen-recent-runs { margin-top: 24px; height: 219px; background: #242628; border-radius: 8px; overflow: hidden; }
+.pen-recent-runs { margin-top: 24px; min-height: 219px; background: #242628; border-radius: 8px; overflow: hidden; }
 .pen-recent-runs > header { display: flex; align-items: center; justify-content: space-between; height: 52px; padding: 0 22px; border-bottom: 1px solid #47494a; }
 .pen-recent-runs h2 { font-size: 17px; font-weight: 600; }
 .pen-recent-runs > header button { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #d49a79; }

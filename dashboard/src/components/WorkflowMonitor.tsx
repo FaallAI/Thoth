@@ -5,6 +5,7 @@ import type { ArtifactRef, ControlPlaneClient, WorkflowSummary } from "@/api/con
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { downloadName } from "@/lib/download-name";
 
 type MonitorClient = Pick<
   ControlPlaneClient,
@@ -19,11 +20,6 @@ function workflowProgress(workflow: WorkflowSummary | null): number {
     0,
   );
   return (completed / stages.length) * 100;
-}
-
-/** A blob URL drops the server's Content-Disposition, so the saved name carries the extension. */
-export function downloadName(artifact: ArtifactRef): string {
-  return `${artifact.artifact_id}${artifact.location.match(/\.[A-Za-z0-9]+$/)?.[0] ?? ""}`;
 }
 
 function errorMessage(error: unknown): string {

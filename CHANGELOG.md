@@ -2,6 +2,53 @@
 
 All notable changes to this project will be documented in this file.
 
+<<<<<<< HEAD
+## 2026-10-19 - PR #26 and PR #27 merged; accounts and the web container deployed
+
+**PR #26** (the three UI walk defects) merged as `bb7e61c`. There was nothing to deploy for it,
+because no service serves the dashboard.
+
+**PR #27** (accounts, sign-in and developer access; SaaS sub-project 1) merged as `e5f8cce`.
+- CI passed on the PR and on master, including the stack smoke and its new web checks.
+- Images pinned in `.env.stage1.local`, which was backed up first:
+  - `thoth@sha256:8332a290...2915`;
+  - the new `THOTH_WEB_IMAGE=thoth-web@sha256:0bf85b07...dc3a`;
+  - the renderer pin is unchanged.
+
+**The first `make deploy` failed at `up` with `unauthorized` on `thoth-web`.**
+- The package CI had just created on GHCR was private by default, while `thoth` and the renderer
+  are public, and Docker on the host is not logged in to GHCR.
+- The stack was brought back up at once without the web overlay, on the new `thoth` image, after
+  migration 0013 had applied.
+- The operator then made `thoth-web` public, and the redeploy succeeded.
+
+**Deploy result:**
+- **Migration:** `alembic_version=0013`, and `ws_bootstrap` exists.
+- **Backfill:** `inserted=0 present=262 invalid=2`.
+- **Services:** every service is healthy, including `web`.
+- **Logs:** `api`, `worker` and `web` show zero restarts, zero errors, zero TMPRL1101 and zero
+  `event loop stalled`.
+- **Through `web` on `127.0.0.1:8088`:**
+  - a deep path answers 200 with the CSP, `X-Frame-Options: DENY` and `no-store`;
+  - a missing asset answers 404;
+  - `/api/v1/projects` answers 403 without credentials, and `/api/v1/me` answers 200 with the
+    service key;
+  - `/auth/me` answers 401;
+  - `/auth/providers` is empty, because sign-in is not configured.
+- **Edge:** `/studio` lands on the login page, which says sign-in is not configured.
+
+**Next steps:**
+- **Operator gates:**
+  - create the Google OAuth client and the GitHub OAuth App, with callbacks
+    `http://localhost:8088/auth/callback/{google,github}`, and approve the app in the organization;
+  - provide an SMTP account;
+  - set `THOTH_AUTH_SECRET`, `THOTH_AUTH_GOOGLE_*`, `THOTH_AUTH_GITHUB_*`, `THOTH_SMTP_*` and
+    `THOTH_SITE_ORIGIN`, then redeploy.
+- **Until then,** reach the dashboard through `vite dev` with `THOTH_DEV_TOKEN`, a personal token
+  from `thoth-control tokens create`.
+- **After sign-in is set up:** the first real sign-in, and a Studio media preview under the CSP.
+- **Next:** SaaS sub-project 2 (an isolated workspace per user).
+
 ## 2026-10-19 - PR #24 merged and deployed; the Rust project imported
 
 **PR #24 merged** (UI foundation, voice adapter, and the removal of every path to the Rust server).
@@ -51,6 +98,140 @@ session open, for example `wsl -e sleep 1800`, during a local UI walk.
 - Fix the three walk defects (small dashboard PR).
 - Merge PR #23 (roadmap). It records the four removed Rust pages to rebuild in Python.
 - Then roadmap priority 2: Workflow → Studio with media.
+=======
+## 2026-10-19 - Accounts, sign-in and developer access (SaaS sub-project 1)
+
+**Spec:** `docs/superpowers/specs/2026-10-19-accounts-and-sign-in-design.md`.
+**Plan:** `docs/superpowers/plans/2026-10-19-accounts-and-sign-in.md`.
+**Branch:** `feat/accounts-sign-in`. Executed natively.
+
+The operator wants Thoth to become a usage-priced SaaS. The work splits into four sub-projects,
+in this order: accounts, multi-tenancy, metering and cost model, then billing. This entry is the
+first.
+
+**Shipped:**
+
+- **Accounts schema (editor migration 0013):**
+  - the tables `users`, `user_identities`, `workspaces` (with `ws_bootstrap`),
+    `workspace_members`, `sessions`, `trusted_devices`, `email_challenges`, `access_tokens` and
+    `auth_events`;
+  - only token hashes and code HMACs are stored, never the secrets themselves.
+- **Sign-in** (`/auth/*`, Authlib, outside OpenAPI):
+  - Google is accepted for a verified email in one domain, with a matching `hd` claim when present;
+  - GitHub is accepted for a verified primary email and an active member of one organization;
+  - the rule is checked again on every sign-in;
+  - a 6-digit code is then emailed over SMTP: valid 10 min, 5 attempts, a 60 s resend floor and at
+    most 10 codes a day;
+  - the browser is then trusted for 30 days;
+  - a session lasts 12 h, renewed on use, and never longer than 7 days in all;
+  - cookie writes must carry the site's `Origin`;
+  - every refusal returns to `/login?error=` with a fixed code.
+- **Developer access:**
+  - personal `thoth_pat_` tokens with the scopes read, write or admin, 90 days by default and 365
+    at most, 20 per user, shown once;
+  - `GET/POST /api/v1/me/tokens`, `DELETE /api/v1/me/tokens/{id}` and `GET /api/v1/me`;
+  - `thoth-control tokens create`, to bootstrap the first token;
+  - workspace tokens for external developers are built but refused until
+    `THOTH_AUTH_WORKSPACE_TOKENS=true`, which waits for multi-tenancy and billing;
+  - the legacy `THOTH_CONTROL_PLANE_API_KEY` remains a service token, recorded at most once a
+    minute.
+- **Data actor unchanged:** every principal still acts as the data actor `owner` (spec 3.6). The
+  48 existing routes are untouched, and the API keeps answering 403 `Not authorized` without
+  credentials.
+- **Dashboard:**
+  - the login and verify pages, and an auth gate that re-checks on any 403;
+  - the API key is gone from the bundle, and `vite build` refuses `VITE_CONTROL_PLANE_API_KEY`;
+  - a user menu, and a Developer tokens page;
+  - `vite dev` injects `THOTH_DEV_TOKEN` through its proxy, so the server has no bypass.
+- **Serving:**
+  - **Image:** `thoth-web` (`Dockerfile.web`, Caddy 2.11.4 pinned by digest) runs as uid 10001,
+    read-only, with every capability dropped.
+  - **Overlay:** `compose.stage1.web.yml` publishes it on `127.0.0.1:8088`.
+  - **Behaviour:** an SPA fallback, `/api/v1` and `/auth` forwarded to the API, a strict CSP,
+    `X-Frame-Options: DENY`, and no-store on pages.
+  - **Delivery:** CI builds, publishes and smokes it, and the deploy pins `THOTH_WEB_IMAGE`.
+
+**Rulings** (the full text is in the SDD ledger):
+- **Contract pins the plan missed,** now updated:
+  - the editor migration adoption count (6 → 7) and the migration file list;
+  - the CI image set (3 images);
+  - the smoke's argument count;
+  - the dev pytest runner's fixed `--with` list (authlib, itsdangerous).
+- **HTTP library:** Authlib 1.9 uses `httpx2` when it is installed. The providers follow the same
+  module, so they catch its errors and the tests fake its transport.
+- **JOSE errors:** a wrong-audience `id_token` raised `joserfc.errors.JoseError`, which would have
+  been a 500. It is now `provider_error`, caught by a failing-first test.
+- **Caddy capability:** the official binary carries `cap_net_bind_service`, so it could not run with
+  every capability dropped. The capability is stripped, and the Caddyfile uses `http_port 8080`
+  and `https_port 8443` for a later domain.
+- **Plan code that did not type-check or lint:**
+  - parameter properties under `erasableSyntaxOnly`;
+  - Bun's `typeof fetch`;
+  - `nodenext` import extensions;
+  - react-refresh exports, so `SIGN_IN_ERRORS` and `useAuth` moved to their own modules.
+- **Smoke and test fixes:**
+  - three App tests await the gated shell;
+  - the smoke starts `web` before probing it;
+  - one me-route test probes `/api/v1/me`.
+
+**Final review** (a fresh reviewer on the most capable model): Critical 0, Important 2, Minor 8.
+Two Minors were re-graded Important by their effect. Four findings were fixed, each with a test
+that failed first:
+
+| Finding | Problem | Fix |
+|---|---|---|
+| Open redirect | A tab, CR, LF, space or DEL in `next` became `//evil.example` after sign-in | The server refuses such values, and the verify page navigates only within the site |
+| Five-attempt limit | Racing guesses got more than five codes checked | Every guess claims an attempt atomically first (`UPDATE … attempts < 5 RETURNING`) |
+| Unreachable provider | `/auth/login` answered a raw 500 | It returns `/login?error=provider_error` |
+| Token lineage | A token minted by an admin token survived its parent's revocation | `access_tokens.parent_token_id` (migration 0013, never deployed) caps the child's expiry at the parent's, and revoking a token revokes everything it minted |
+
+**Review minors, fixed at the operator's request (each with a test that failed first):**
+
+| Problem | Fix |
+|---|---|
+| A missing hashed asset fell back to index.html | `handle /assets/*` serves files only, so a missing one is a 404; a smoke check covers it |
+| A trusted-browser sign-in kept the old session | It now revokes the old session |
+| A trailing slash or capital letters in `THOTH_SITE_ORIGIN` broke every cookie write | The origin is normalised to `scheme://host[:port]` |
+| Forced or repeated sign-ins could burn the daily code limit in a burst | Sign-in also waits 60 s between codes, with the new code `too_soon` and copy for it |
+| A domain deploy needed manual port wiring | `THOTH_WEB_HTTP_BIND` and `THOTH_WEB_HTTPS_BIND` map to container 8080/8443, and the healthcheck accepts either site |
+| Parallel creates could exceed the 20-token limit | The limit is checked under a row lock in the insert's transaction |
+
+A test-isolation fix: the WorkflowMonitor download test no longer lets happy-dom navigate to
+`blob:`.
+
+**Verification (after the fix pass and the minors):**
+- `make lint` is clean.
+- `make test`: 4077 passed, 65 skipped. `make test-postgres`: 16 passed.
+- Dashboard: `bun test` 694/694, `tsc` 0 errors, and `bun run build` passes.
+- OpenAPI gained only `/api/v1/me...`, `/api/v1/workspace/tokens` and four schemas.
+- No Rust change.
+- **Local offline smoke** (`docker/test-renderer-offline.sh thoth:local <renderer digest>
+  thoth-web:local`): every line is true, including `web_serves_the_spa_on_deep_paths`,
+  `web_requires_a_session`, `developer_token_accepted` and `developer_token_revoked`, and
+  `teardown_leaves_nothing=true`.
+- **CSP walk:**
+  - setup: Edge over CDP, a session cookie, and a throwaway compose project with the new images,
+    removed afterwards;
+  - `/login`, `/workflows`, `/studio`, `/settings/tokens` and `/accounts` rendered with zero CSP
+    violations;
+  - a Studio media preview was not exercised, because the throwaway database held no asset.
+
+**Next steps:**
+- **Operator gates:**
+  - push, PR, CI, merge;
+  - pin `THOTH_WEB_IMAGE` and the new `THOTH_IMAGE`, then deploy, which applies migration 0013;
+  - create the Google OAuth client and the GitHub OAuth App, with callbacks
+    `http://localhost:8088/auth/callback/{google,github}`, and approve the app in the organization;
+  - provide an SMTP account, and set `THOTH_AUTH_*`, `THOTH_SMTP_*` and `THOTH_SITE_ORIGIN`;
+  - optionally set WSL `networkingMode=mirrored`.
+- **First real sign-in and media preview under the CSP:** at the post-deploy walk, or at the final
+  live acceptance.
+- **Next:** SaaS sub-project 2 (multi-tenancy: every user gets their own isolated workspace),
+  then metering and the cost model, then billing. Roadmap priority 2 (Workflow → Studio) resumes
+  from its brainstorm checkpoint.
+- **Follow-ups:** per-IP rate limiting at Caddy, and removing the legacy service key once every
+  script uses a personal token.
+>>>>>>> origin/master
 
 ## 2026-10-18 - UI foundation and voice adapter (roadmap priority 1)
 

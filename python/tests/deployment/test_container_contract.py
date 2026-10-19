@@ -187,9 +187,12 @@ def test_container_workflow_publishes_the_renderer_as_its_own_image() -> None:
     assert "file: Dockerfile.renderer" in publication
     assert "images: ${{ env.RENDERER_REGISTRY_IMAGE }}" in publication
     assert "org.opencontainers.image.revision=${{ github.sha }}" in publication
-    assert publication.count("push: true") == 2
-    assert publication.count("provenance: mode=max") == 2
-    assert publication.count("sbom: true") == 2
+    # The dashboard web image (spec 2026-10-19) is the third published image.
+    assert "file: Dockerfile.web" in publication
+    assert "images: ${{ env.WEB_REGISTRY_IMAGE }}" in publication
+    assert publication.count("push: true") == 3
+    assert publication.count("provenance: mode=max") == 3
+    assert publication.count("sbom: true") == 3
 
 
 def test_container_workflow_exposes_each_published_digest_separately() -> None:
@@ -198,6 +201,7 @@ def test_container_workflow_exposes_each_published_digest_separately() -> None:
 
     assert "digest: ${{ steps.build.outputs.digest }}" in outputs
     assert "renderer_digest: ${{ steps.renderer-build.outputs.digest }}" in outputs
+    assert "web_digest: ${{ steps.web-build.outputs.digest }}" in outputs
     summary = workflow.split("Record immutable release identity", 1)[1]
     assert "RENDERER_IMAGE_DIGEST: ${{ steps.renderer-build.outputs.digest }}" in summary
     assert "${RENDERER_REGISTRY_IMAGE}" in summary
@@ -209,8 +213,10 @@ def test_container_workflow_validates_both_candidate_images_without_publishing()
 
     assert "RENDERER_CANDIDATE_IMAGE: thoth-remotion-renderer:pr-${{ github.sha }}" in validation
     assert "file: Dockerfile.renderer" in validation
-    assert validation.count("push: false") == 2
-    assert validation.count("load: true") == 2
+    assert "WEB_CANDIDATE_IMAGE: thoth-web:pr-${{ github.sha }}" in validation
+    assert "file: Dockerfile.web" in validation
+    assert validation.count("push: false") == 3
+    assert validation.count("load: true") == 3
     assert "packages: write" not in validation
     assert (
         'bash docker/test-renderer-offline.sh "${CANDIDATE_IMAGE}" '
@@ -256,8 +262,8 @@ def test_renderer_smoke_is_a_two_image_self_cleaning_harness() -> None:
 
     assert "set -euo pipefail" in script
     assert "umask 077" in script
-    assert "usage: docker/test-renderer-offline.sh IMAGE RENDERER_IMAGE" in script
-    assert '[ "$#" -ne 2 ]' in script
+    assert "usage: docker/test-renderer-offline.sh IMAGE RENDERER_IMAGE WEB_IMAGE" in script
+    assert '[ "$#" -ne 3 ]' in script
     assert "mktemp -d" in script
     assert "trap teardown EXIT INT TERM" in script
     # Broad cleanup would take the operator's own stack with it.
@@ -1214,3 +1220,14 @@ def test_the_deploy_imports_reports_with_the_old_worker_stopped() -> None:
         script.index("up -d --wait"),
     ]
     assert order == sorted(order)
+
+
+def test_web_serves_missing_assets_as_404_and_publishes_domain_ports() -> None:
+    root = Path(__file__).resolve().parents[3]
+    caddyfile = (root / "deploy/web/Caddyfile").read_text(encoding="utf-8")
+    assets = caddyfile[caddyfile.index("handle /assets/*") :]
+    assets = assets[: assets.index("}") + 1]
+    assert "file_server" in assets and "try_files" not in assets
+    overlay = (root / "compose.stage1.web.yml").read_text(encoding="utf-8")
+    assert ":8080" in overlay and ":8443" in overlay  # host 80/443 map here for a domain
+    assert "THOTH_WEB_HTTP_BIND" in overlay and "THOTH_WEB_HTTPS_BIND" in overlay

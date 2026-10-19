@@ -99,3 +99,13 @@ test("a failed unassigned listing or load-more says so instead of vanishing", as
   await userEvent.setup().click(await screen.findByRole("button", { name: "Load more" }));
   expect(await screen.findByText("Runs could not be loaded. Try again.")).toBeDefined();
 });
+
+test("runs show a readable last update, and Unassigned sits in the page flow", async () => {
+  render(<MemoryRouter><WorkflowsPage client={client() as never} projectId="p1" projects={PROJECTS} /></MemoryRouter>);
+  const row = (await screen.findByRole("button", { name: "https://x.test/wf_a" })).closest("tr")!;
+  const when = new Date("2026-10-18T00:00:00Z").toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  expect(within(row).getByText(when)).toBeDefined();
+  const unassigned = (await screen.findByText(/Unassigned/)).closest("details")!;
+  // .pen-workflow-details is absolutely positioned for another design element.
+  expect(unassigned.className).toBe("pen-unassigned-runs");
+});

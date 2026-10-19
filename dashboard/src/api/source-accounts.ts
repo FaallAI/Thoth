@@ -1,3 +1,4 @@
+import { notifyForbidden } from "@/lib/auth-events";
 import type { components } from "@/api/generated/control-plane";
 
 export type SourcePlatform = components["schemas"]["SourceAccountCreate"]["platform"];
@@ -71,7 +72,7 @@ type ClientOptions = { baseUrl?: string; apiKey?: string; fetch?: typeof fetch }
 
 export function createSourceAccountsClient(options: ClientOptions = {}): SourceAccountsClient {
   const baseUrl = (options.baseUrl ?? import.meta.env.VITE_CONTROL_PLANE_URL ?? "").replace(/\/$/, "");
-  const apiKey = options.apiKey ?? import.meta.env.VITE_CONTROL_PLANE_API_KEY ?? "";
+  const apiKey = options.apiKey ?? "";
   const doFetch = options.fetch ?? fetch;
 
   async function call<T>(path: string, method = "GET", body?: unknown): Promise<T> {
@@ -80,11 +81,12 @@ export function createSourceAccountsClient(options: ClientOptions = {}): SourceA
       response = await doFetch(`${baseUrl}/api/v1${path}`, {
         method,
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
           ...(body === undefined ? {} : { "Content-Type": "application/json" }),
         },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
+      if (response.status === 403) notifyForbidden();
     } catch {
       throw new SourceAccountsRequestError(null, null);
     }

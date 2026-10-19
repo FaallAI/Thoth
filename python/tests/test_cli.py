@@ -304,3 +304,46 @@ def test_projects_import_reads_the_rust_json_from_stdin(monkeypatch) -> None:
     again = runner.invoke(cli.app, ["projects", "import", "-"], input=RUST_PROJECTS + "]")
     assert again.output.strip().splitlines()[-1] == "imported=0 present=1 invalid=0"
     assert again.exit_code == 0
+
+
+def test_tokens_create_prints_one_working_token_and_creates_the_user(monkeypatch) -> None:
+    import asyncio
+    from datetime import UTC, datetime
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.pool import StaticPool
+    from typer.testing import CliRunner
+
+    from thoth_control_plane import cli
+    from thoth_control_plane.auth.service import SignInService
+    from thoth_control_plane.infrastructure import account_models  # noqa: F401
+    from thoth_control_plane.infrastructure.account_models import WorkspaceRow
+    from thoth_control_plane.infrastructure.account_store import AccountStore
+    from thoth_control_plane.infrastructure.source_account_models import Base
+
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(engine)
+    with engine.begin() as connection:
+        connection.execute(
+            WorkspaceRow.__table__.insert().values(
+                workspace_id="ws_bootstrap", name="Thoth", created_at=datetime.now(UTC)
+            )
+        )
+    store = AccountStore(engine)
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_API_KEY", "k")
+    monkeypatch.setenv("THOTH_EDITOR_DATABASE_URL", "postgresql://unused/db")
+    monkeypatch.setattr(cli.AccountStore, "connect", classmethod(lambda cls, url: store))
+    result = CliRunner().invoke(
+        cli.app, ["tokens", "create", "--email", "Dev@Acme.test", "--name", "vite"]
+    )
+    assert result.exit_code == 0, result.output
+    secret = result.output.strip()
+    assert secret.startswith("thoth_pat_") and "\n" not in secret
+    principal = asyncio.run(SignInService(store, None, None).authenticate_token(secret))
+    assert principal.email == "dev@acme.test" and principal.workspace_id == "ws_bootstrap"
+    bad = CliRunner().invoke(
+        cli.app, ["tokens", "create", "--email", "x@y", "--name", "n", "--scope", "root"]
+    )
+    assert bad.exit_code == 1 and bad.output.strip() == "invalid_request"

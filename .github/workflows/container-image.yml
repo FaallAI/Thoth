@@ -20,6 +20,7 @@ concurrency:
 env:
   REGISTRY_IMAGE: ghcr.io/muhfalihr/thoth
   RENDERER_REGISTRY_IMAGE: ghcr.io/muhfalihr/thoth-remotion-renderer
+  WEB_REGISTRY_IMAGE: ghcr.io/muhfalihr/thoth-web
 
 jobs:
   quality:
@@ -115,6 +116,7 @@ jobs:
           set -euo pipefail
           THOTH_RENDERER_IMAGE= THOTH_RENDERER_INTERNAL_CREDENTIAL= docker compose --env-file .env.stage1.local.example -f compose.stage1.local.yml config --quiet
           docker compose --env-file .env.stage1.local.example -f compose.stage1.local.yml -f compose.stage1.renderer.yml config --quiet
+          docker compose --env-file .env.stage1.local.example -f compose.stage1.local.yml -f compose.stage1.web.yml config --quiet
 
       - name: Install locked Scout dependencies
         run: bun --cwd=scout install --frozen-lockfile
@@ -135,6 +137,7 @@ jobs:
     env:
       CANDIDATE_IMAGE: thoth-stage1:pr-${{ github.sha }}
       RENDERER_CANDIDATE_IMAGE: thoth-remotion-renderer:pr-${{ github.sha }}
+      WEB_CANDIDATE_IMAGE: thoth-web:pr-${{ github.sha }}
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -170,6 +173,18 @@ jobs:
           cache-from: type=gha,scope=thoth-renderer
           cache-to: type=gha,mode=max,scope=thoth-renderer
 
+      - name: Build the web image without publishing
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: Dockerfile.web
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: ${{ env.WEB_CANDIDATE_IMAGE }}
+          cache-from: type=gha,scope=thoth-web
+          cache-to: type=gha,mode=max,scope=thoth-web
+
       # Chromium answers on loopback even when no sibling container can reach it, so a
       # build that succeeds proves nothing about the transport the worker depends on.
       - name: Verify private CDP transport
@@ -189,7 +204,7 @@ jobs:
       # A render crosses both images, so neither candidate is validated until a
       # synthetic document has actually become an MP4 through the pair.
       - name: Verify the isolated render stack
-        run: bash docker/test-renderer-offline.sh "${CANDIDATE_IMAGE}" "${RENDERER_CANDIDATE_IMAGE}"
+        run: bash docker/test-renderer-offline.sh "${CANDIDATE_IMAGE}" "${RENDERER_CANDIDATE_IMAGE}" "${WEB_CANDIDATE_IMAGE}"
 
   publish-image:
     name: Publish image
@@ -202,6 +217,7 @@ jobs:
     outputs:
       digest: ${{ steps.build.outputs.digest }}
       renderer_digest: ${{ steps.renderer-build.outputs.digest }}
+      web_digest: ${{ steps.web-build.outputs.digest }}
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -283,12 +299,45 @@ jobs:
           provenance: mode=max
           sbom: true
 
+      - name: Generate web image metadata
+        id: web-meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ${{ env.WEB_REGISTRY_IMAGE }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=sha-${{ github.sha }}
+            type=ref,event=branch
+            type=ref,event=tag
+          labels: |
+            org.opencontainers.image.title=Thoth dashboard web
+            org.opencontainers.image.description=The dashboard SPA behind Caddy
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Build and publish web image
+        id: web-build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: Dockerfile.web
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.web-meta.outputs.tags }}
+          labels: ${{ steps.web-meta.outputs.labels }}
+          cache-from: type=gha,scope=thoth-web
+          cache-to: type=gha,mode=max,scope=thoth-web
+          provenance: mode=max
+          sbom: true
+
       - name: Record immutable release identity
         env:
           IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
           IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
           RENDERER_IMAGE_TAGS: ${{ steps.renderer-meta.outputs.tags }}
           RENDERER_IMAGE_DIGEST: ${{ steps.renderer-build.outputs.digest }}
+          WEB_IMAGE_TAGS: ${{ steps.web-meta.outputs.tags }}
+          WEB_IMAGE_DIGEST: ${{ steps.web-build.outputs.digest }}
         run: |
           {
             echo "## Published container image"
@@ -314,6 +363,18 @@ jobs:
             echo '```text'
             printf '%s\n' "${RENDERER_IMAGE_TAGS}"
             echo '```'
+            echo
+            echo "## Published web image"
+            echo
+            echo "- Repository: ${WEB_REGISTRY_IMAGE}"
+            echo "- Git revision: ${GITHUB_SHA}"
+            echo "- Platform: linux/amd64"
+            echo "- Digest: ${WEB_IMAGE_DIGEST}"
+            echo
+            echo "### Tags"
+            echo '```text'
+            printf '%s\n' "${WEB_IMAGE_TAGS}"
+            echo '```'
           } >> "${GITHUB_STEP_SUMMARY}"
 
   stack-smoke:
@@ -328,6 +389,7 @@ jobs:
       COMPOSE_FILE_ARGS: --env-file stage1.ci.env -f compose.stage1.local.yml
       THOTH_IMAGE_REF: ghcr.io/muhfalihr/thoth@${{ needs.publish-image.outputs.digest }}
       THOTH_RENDERER_IMAGE_REF: ghcr.io/muhfalihr/thoth-remotion-renderer@${{ needs.publish-image.outputs.renderer_digest }}
+      THOTH_WEB_IMAGE_REF: ghcr.io/muhfalihr/thoth-web@${{ needs.publish-image.outputs.web_digest }}
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -432,7 +494,7 @@ jobs:
         run: bash docker/test-controlled-fallback-offline.sh "${THOTH_IMAGE_REF}"
 
       - name: Verify the isolated render stack on the published digests
-        run: bash docker/test-renderer-offline.sh "${THOTH_IMAGE_REF}" "${THOTH_RENDERER_IMAGE_REF}"
+        run: bash docker/test-renderer-offline.sh "${THOTH_IMAGE_REF}" "${THOTH_RENDERER_IMAGE_REF}" "${THOTH_WEB_IMAGE_REF}"
 
       - name: Dump service logs on failure
         if: failure()

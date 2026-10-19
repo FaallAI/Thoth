@@ -1,3 +1,4 @@
+import { notifyForbidden } from "@/lib/auth-events";
 import type { components } from "./generated/control-plane";
 
 export type WorkflowRequest = components["schemas"]["WorkflowRequest"];
@@ -348,7 +349,6 @@ export type ControlPlaneClient = {
 type ClientOptions = { baseUrl?: string; apiKey?: string; fetch?: typeof fetch };
 
 const defaultBaseUrl = (import.meta.env.VITE_CONTROL_PLANE_URL ?? "").replace(/\/$/, "");
-const defaultApiKey = import.meta.env.VITE_CONTROL_PLANE_API_KEY ?? "";
 
 function eventBlocks(chunk: string): Array<{ id?: string; data: string }> {
   return chunk.split("\n\n").flatMap((block) => {
@@ -366,9 +366,16 @@ const TERMINAL_STATUSES = new Set(["succeeded", "failed", "cancelled"]);
 
 export function createControlPlaneClient(options: ClientOptions = {}): ControlPlaneClient {
   const baseUrl = (options.baseUrl ?? defaultBaseUrl).replace(/\/$/, "");
-  const apiKey = options.apiKey ?? defaultApiKey;
-  const doFetch = options.fetch ?? fetch;
-  const headers = (extra: HeadersInit = {}) => ({ Authorization: `Bearer ${apiKey}`, ...extra });
+  // The browser authenticates with its same-site session cookie; it never holds a key (spec 3.6).
+  const apiKey = options.apiKey ?? "";
+  const rawFetch = options.fetch ?? fetch;
+  const doFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const response = await rawFetch(input, init);
+    if (response.status === 403) notifyForbidden();
+    return response;
+  };
+  const headers = (extra: HeadersInit = {}) =>
+    apiKey ? { Authorization: `Bearer ${apiKey}`, ...extra } : { ...extra };
 
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const response = await doFetch(`${baseUrl}${path}`, {

@@ -64,6 +64,20 @@ class Settings(BaseSettings):
     THOTH_EDITOR_PREVIEW_SIGNING_KEY: SecretStr | None = None
     THOTH_EDITOR_PREVIEW_TTL_SECONDS: Annotated[int, Field(ge=30, le=3600)] = 300
     THOTH_EDITOR_PREVIEW_BASE_URL: str | None = None
+    THOTH_SITE_ORIGIN: str = "http://localhost:8088"
+    THOTH_AUTH_SECRET: SecretStr | None = None
+    THOTH_AUTH_GOOGLE_CLIENT_ID: str | None = None
+    THOTH_AUTH_GOOGLE_CLIENT_SECRET: SecretStr | None = None
+    THOTH_AUTH_GOOGLE_DOMAIN: str | None = None
+    THOTH_AUTH_GITHUB_CLIENT_ID: str | None = None
+    THOTH_AUTH_GITHUB_CLIENT_SECRET: SecretStr | None = None
+    THOTH_AUTH_GITHUB_ORG: str | None = None
+    THOTH_SMTP_HOST: str | None = None
+    THOTH_SMTP_PORT: Annotated[int, Field(ge=1, le=65535)] = 587
+    THOTH_SMTP_USERNAME: str | None = None
+    THOTH_SMTP_PASSWORD: SecretStr | None = None
+    THOTH_SMTP_FROM: str | None = None
+    THOTH_AUTH_WORKSPACE_TOKENS: bool = False
     THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE: SourceActivityMode = (
         "python_tiktok_with_legacy_fallback"
     )
@@ -139,6 +153,65 @@ class Settings(BaseSettings):
                         "prompt provider catalog contains a duplicate model id"
                     )
                 model_ids.add(model.model_id)
+
+    @field_validator(
+        "THOTH_AUTH_SECRET",
+        "THOTH_AUTH_GOOGLE_CLIENT_ID",
+        "THOTH_AUTH_GOOGLE_CLIENT_SECRET",
+        "THOTH_AUTH_GOOGLE_DOMAIN",
+        "THOTH_AUTH_GITHUB_CLIENT_ID",
+        "THOTH_AUTH_GITHUB_CLIENT_SECRET",
+        "THOTH_AUTH_GITHUB_ORG",
+        "THOTH_SMTP_HOST",
+        "THOTH_SMTP_USERNAME",
+        "THOTH_SMTP_PASSWORD",
+        "THOTH_SMTP_FROM",
+        mode="before",
+    )
+    @classmethod
+    def _blank_is_unset(cls, value: object) -> object:
+        """Compose passes `${VAR:-}` as an empty string; empty means not configured."""
+        return None if isinstance(value, str) and not value.strip() else value
+
+    @field_validator("THOTH_SITE_ORIGIN")
+    @classmethod
+    def _origin(cls, value: str) -> str:
+        """Compared exactly with the browser's Origin header, so keep only scheme://host[:port]."""
+        scheme, _, rest = value.strip().partition("://")
+        return f"{scheme.lower()}://{rest.split('/', 1)[0].lower()}"
+
+    @property
+    def cookie_secure(self) -> bool:
+        return self.THOTH_SITE_ORIGIN.startswith("https://")
+
+    @property
+    def email_codes_enabled(self) -> bool:
+        return self.THOTH_SMTP_HOST is not None and self.THOTH_SMTP_FROM is not None
+
+    @property
+    def sign_in_ready(self) -> bool:
+        """Everything a provider needs besides its own client: a secret, the DB, and mail."""
+        return (
+            self.THOTH_AUTH_SECRET is not None
+            and self.THOTH_EDITOR_DATABASE_URL is not None
+            and self.email_codes_enabled
+        )
+
+    @property
+    def google_sign_in_enabled(self) -> bool:
+        return self.sign_in_ready and None not in (
+            self.THOTH_AUTH_GOOGLE_CLIENT_ID,
+            self.THOTH_AUTH_GOOGLE_CLIENT_SECRET,
+            self.THOTH_AUTH_GOOGLE_DOMAIN,
+        )
+
+    @property
+    def github_sign_in_enabled(self) -> bool:
+        return self.sign_in_ready and None not in (
+            self.THOTH_AUTH_GITHUB_CLIENT_ID,
+            self.THOTH_AUTH_GITHUB_CLIENT_SECRET,
+            self.THOTH_AUTH_GITHUB_ORG,
+        )
 
     @property
     def prompt_provider_secrets(self) -> dict[str, SecretStr]:
