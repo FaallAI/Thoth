@@ -26,7 +26,7 @@ export function WorkspaceMenu({
   return <>
     <button type="button" aria-label="Workspace menu" className="pen-avatar" onClick={() => setOpen(true)}>{mark}</button>
     <PenDialog open={open} onOpenChange={setOpen} title="Workspace menu" className="pen-workspace-menu">
-      <div className="pen-workspace-identity"><span className="pen-avatar">{mark}</span><div><strong>{me.display_name ?? me.email ?? "Service access"}</strong><small>{me.email ?? "No personal account"}</small></div></div>
+      <div className="pen-workspace-identity"><span className="pen-avatar">{mark}</span><div><strong>{me.display_name ?? me.email ?? "Service access"}</strong><small>{me.email ?? "No personal account"}</small><small className="pen-workspace-name">{me.workspace.name}</small></div></div>
       <button type="button" onClick={run(onTokens)}><KeyRound aria-hidden="true" /><span>Developer tokens<small>API and CLI access</small></span></button>
       <button type="button" onClick={run(onHelp)}><CircleHelp aria-hidden="true" /><span>Help & shortcuts<small>Guides and key commands</small></span></button>
       <button type="button" className="pen-sign-out" onClick={run(() => onSignOut(false))}><LogOut aria-hidden="true" />Sign out</button>

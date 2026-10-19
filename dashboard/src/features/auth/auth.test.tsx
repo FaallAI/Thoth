@@ -15,7 +15,7 @@ import { VerifyPage } from "./VerifyPage";
 
 afterEach(cleanup);
 
-const ME: Me = { user_id: "usr_1", email: "alice@acme.test", display_name: "Alice", workspace_id: "ws_bootstrap", scopes: ["admin", "read", "write"] };
+const ME: Me = { user_id: "usr_1", email: "alice@acme.test", display_name: "Alice", workspace_id: "ws_bootstrap", scopes: ["admin", "read", "write"], workspace: { workspace_id: "ws_bootstrap", name: "Thoth", role: "owner" }, platform_admin: true };
 
 function Who() {
   return <p>{`signed in as ${useAuth().me.email}`}</p>;

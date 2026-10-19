@@ -22,6 +22,8 @@ let requested: string[] = [];
 let revision = 1;
 let inventoryItems: unknown[] = [];
 let projects: unknown[] = [{ project_id: "project_001", name: "Project", created_at: "", updated_at: "" }];
+const ADMIN_ME = { user_id: "usr_1", email: "alice@acme.test", display_name: "Alice", workspace_id: "ws_bootstrap", scopes: ["admin", "read", "write"], workspace: { workspace_id: "ws_bootstrap", name: "Thoth", role: "owner" }, platform_admin: true };
+let me: unknown = ADMIN_ME;
 const originalFetch = globalThis.fetch;
 const response = (value: unknown) => new Response(JSON.stringify(value), { status: 200, headers: { "Content-Type": "application/json" } });
 
@@ -29,7 +31,7 @@ function stubFetch() {
   globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
     requested.push(path);
-    if (path === "/auth/me") return response({ user_id: "usr_1", email: "alice@acme.test", display_name: "Alice", workspace_id: "ws_bootstrap", scopes: ["admin", "read", "write"] });
+    if (path === "/auth/me") return response(me);
     if (init?.method && init.method !== "GET") apiWrites.push(path);
     if (path === "/api/v1/projects" && init?.method === "POST") {
       return response({ project_id: "project_002", name: "Other", created_at: "", updated_at: "" });
@@ -58,7 +60,7 @@ function stubFetch() {
   }) as unknown as typeof fetch;
 }
 
-afterEach(() => { cleanup(); globalThis.fetch = originalFetch; inspectBodies = []; createCalls = 0; apiWrites = []; requested = []; revision = 1; inventoryItems = []; projects = [{ project_id: "project_001", name: "Project", created_at: "", updated_at: "" }]; window.history.replaceState(null, "", "/"); localStorage.clear(); });
+afterEach(() => { cleanup(); me = ADMIN_ME; globalThis.fetch = originalFetch; inspectBodies = []; createCalls = 0; apiWrites = []; requested = []; revision = 1; inventoryItems = []; projects = [{ project_id: "project_001", name: "Project", created_at: "", updated_at: "" }]; window.history.replaceState(null, "", "/"); localStorage.clear(); });
 
 test("search navigates to the selected workspace page and closes its dialog", async () => {
   stubFetch();
@@ -211,4 +213,27 @@ test("signed out, every page goes to the login page with next", async () => {
   render(<App />);
   expect(await screen.findByRole("link", { name: "Continue with Google" })).toBeDefined();
   expect(window.location.pathname + window.location.search).toBe("/login?next=%2Fstudio");
+});
+
+test("Source Accounts is only in the navigation of a platform admin", async () => {
+  me = { ...ADMIN_ME, workspace_id: "ws_bob", workspace: { workspace_id: "ws_bob", name: "Bob's workspace", role: "owner" }, platform_admin: false };
+  stubFetch();
+  const { default: App } = await import("./App");
+  render(<App />);
+  expect(await screen.findByRole("heading", { level: 1, name: "Workflows" })).toBeDefined();
+  expect(Boolean(screen.queryByRole("link", { name: /Source Accounts/ }))).toBe(false);
+  cleanup();
+  window.history.replaceState(null, "", "/accounts");
+  render(<App />);
+  expect(await screen.findByText("Source accounts are managed by the platform administrators.")).toBeDefined();
+  expect(requested.some((path) => path.includes("/source-accounts"))).toBe(false);
+});
+
+test("an empty workspace invites the first project", async () => {
+  projects = [];
+  window.history.replaceState(null, "", "/studio");
+  stubFetch();
+  const { default: App } = await import("./App");
+  render(<App />);
+  expect(await screen.findByText("Create your first project")).toBeDefined();
 });

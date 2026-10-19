@@ -10,7 +10,7 @@ import { WorkspaceMenu } from "./WorkspaceMenu";
 
 afterEach(cleanup);
 
-const ME: Me = { user_id: "usr_1", email: "alice.walker@acme.test", display_name: "Alice Walker", workspace_id: "ws_bootstrap", scopes: ["admin", "read", "write"] };
+const ME: Me = { user_id: "usr_1", email: "alice.walker@acme.test", display_name: "Alice Walker", workspace_id: "ws_bootstrap", scopes: ["admin", "read", "write"], workspace: { workspace_id: "ws_bootstrap", name: "Thoth", role: "owner" }, platform_admin: true };
 
 test("the menu names the signed-in person and signs out", async () => {
   const onSignOut = mock((_forget: boolean) => {});
@@ -25,4 +25,10 @@ test("the menu names the signed-in person and signs out", async () => {
   await user.click(screen.getByRole("button", { name: "Workspace menu" }));
   await user.click(screen.getByRole("button", { name: "Sign out and forget this browser" }));
   expect(onSignOut).toHaveBeenCalledWith(true);
+});
+
+test("the menu names the workspace", async () => {
+  render(<WorkspaceMenu me={ME} onHelp={() => {}} onTokens={() => {}} onSignOut={() => {}} />);
+  await userEvent.setup().click(screen.getByRole("button", { name: "Workspace menu" }));
+  expect(await screen.findByText("Thoth")).toBeDefined();
 });
