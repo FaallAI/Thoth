@@ -36,12 +36,63 @@ minute ago" although nothing was sent. A failed send now discards its challenge
 **Verification:** `tests/auth` 51 passed, `tests/infrastructure` 400 passed (34 Postgres skips,
 covered by `make test-postgres` 16 passed), `tests/api` 354 passed, `make lint` clean.
 
+**Merged and deployed:** PR #29 merged as `08df791`; CI passed on the PR and on `master`. The
+deploy pins `thoth@sha256:5b6a521f…`, `thoth-web@sha256:e936455e…` and
+`thoth-remotion-renderer@sha256:be598893…`; every service is healthy with zero restarts.
+
 **Next steps:**
 
-- operator gates: push, PR, CI and merge of this fix, then a deploy;
-- the Studio media preview check under the CSP needs one uploaded asset (operator uploading);
-- merge PR #23 (roadmap) and PR #25 (deploy records);
+- the Studio media preview check under the CSP needs one editor asset. A workflow run does not
+  create one: workflow media reaches Studio only with roadmap item 2 (Workflow to Studio);
+- operator web steps: require 2FA in the FaallAI organization and upload its avatar;
 - SaaS sub-project 2: per-user isolated workspaces (multi-tenancy).
+
+## 2026-10-19 - PR #26 and PR #27 merged; accounts and the web container deployed
+
+**PR #26** (the three UI walk defects) merged as `bb7e61c`. There was nothing to deploy for it,
+because no service serves the dashboard.
+
+**PR #27** (accounts, sign-in and developer access; SaaS sub-project 1) merged as `e5f8cce`.
+- CI passed on the PR and on master, including the stack smoke and its new web checks.
+- Images pinned in `.env.stage1.local`, which was backed up first:
+  - `thoth@sha256:8332a290...2915`;
+  - the new `THOTH_WEB_IMAGE=thoth-web@sha256:0bf85b07...dc3a`;
+  - the renderer pin is unchanged.
+
+**The first `make deploy` failed at `up` with `unauthorized` on `thoth-web`.**
+- The package CI had just created on GHCR was private by default, while `thoth` and the renderer
+  are public, and Docker on the host is not logged in to GHCR.
+- The stack was brought back up at once without the web overlay, on the new `thoth` image, after
+  migration 0013 had applied.
+- The operator then made `thoth-web` public, and the redeploy succeeded.
+
+**Deploy result:**
+- **Migration:** `alembic_version=0013`, and `ws_bootstrap` exists.
+- **Backfill:** `inserted=0 present=262 invalid=2`.
+- **Services:** every service is healthy, including `web`.
+- **Logs:** `api`, `worker` and `web` show zero restarts, zero errors, zero TMPRL1101 and zero
+  `event loop stalled`.
+- **Through `web` on `127.0.0.1:8088`:**
+  - a deep path answers 200 with the CSP, `X-Frame-Options: DENY` and `no-store`;
+  - a missing asset answers 404;
+  - `/api/v1/projects` answers 403 without credentials, and `/api/v1/me` answers 200 with the
+    service key;
+  - `/auth/me` answers 401;
+  - `/auth/providers` is empty, because sign-in is not configured.
+- **Edge:** `/studio` lands on the login page, which says sign-in is not configured.
+
+**Next steps:**
+- **Operator gates:**
+  - create the Google OAuth client and the GitHub OAuth App, with callbacks
+    `http://localhost:8088/auth/callback/{google,github}`, and approve the app in the organization;
+  - provide an SMTP account;
+  - set `THOTH_AUTH_SECRET`, `THOTH_AUTH_GOOGLE_*`, `THOTH_AUTH_GITHUB_*`, `THOTH_SMTP_*` and
+    `THOTH_SITE_ORIGIN`, then redeploy.
+- **Until then,** reach the dashboard through `vite dev` with `THOTH_DEV_TOKEN`, a personal token
+  from `thoth-control tokens create`.
+- **After sign-in is set up:** the first real sign-in, and a Studio media preview under the CSP.
+- **Next:** SaaS sub-project 2 (an isolated workspace per user).
+
 
 ## 2026-10-19 - Accounts, sign-in and developer access (SaaS sub-project 1)
 
@@ -175,6 +226,56 @@ A test-isolation fix: the WorkflowMonitor download test no longer lets happy-dom
   from its brainstorm checkpoint.
 - **Follow-ups:** per-IP rate limiting at Caddy, and removing the legacy service key once every
   script uses a personal token.
+
+## 2026-10-19 - PR #24 merged and deployed; the Rust project imported
+
+**PR #24 merged** (UI foundation, voice adapter, and the removal of every path to the Rust server).
+- Master `34306ec`, image `thoth@sha256:8bf11ec3...68b5`, pinned in `.env.stage1.local`. The file
+  was backed up first. The renderer pin is unchanged, because this PR does not touch the renderer.
+- CI passed on the PR and on master, including the stack smoke and its three new checks.
+
+**`make deploy`:**
+- `backfill-runs`: `inserted=262 present=0 invalid=2 start_times=257`.
+  - All 264 workflow reports were read.
+  - Two are skipped by design: their source report has no `canonical_url` or `platform`.
+  - 257 runs carry their Temporal start time. The other 5 had already left Temporal's history and
+    carry their report's first-seen time.
+- Every service is healthy, with restarts=0 for `api` and `worker`.
+- The `api` and `worker` logs show zero errors, zero 5xx, zero TMPRL1101 and zero
+  `event loop stalled`.
+
+**Rust project imported** without starting the Rust server.
+- The `projects` row was read from the Rust SQLite file in read-only mode.
+- `thoth-control projects import -` printed `imported=1 present=0 invalid=0`. A rerun printed
+  `present=1`.
+- Project "test" (`db766411-…`) keeps its ID, so its three Studio drafts stay attached.
+
+**Edge headless walk** of the deployed stack through `vite dev`:
+- The navigation lists only Workflows, Creator Studio and Source Accounts.
+- `/discovery`, `/legacy`, `/profiles` and `/content-set` land on Workflows.
+- Workflows selects "test" and lists the backfilled runs under Unassigned.
+- A run's detail page shows its stage and three results.
+- An artifact download answers 200 from the media store (404 before this PR).
+- Creator Studio lists the three "test" drafts.
+
+**Defects the walk found**, for a follow-up fix:
+1. Workflows: the collapsed "Unassigned (50+)" toggle sits at the top right of the wizard card
+   instead of below the run table.
+2. Creator Studio list: the page heading renders below the draft list, because the editor's
+   full-screen `dashboard-page-studio` layout also applies to `/studio`.
+3. Draft rows: there is no space between the label and "Revision N", and the time is a raw ISO
+   string.
+
+A report download ignores `Range` and answers 200 with the whole file. That is valid HTTP.
+
+**Operational note.** From Windows, the WSL-published ports (`127.0.0.1:8000`) are reachable only
+while a WSL session is open. Without one, the Vite proxy answers 502 with `ECONNREFUSED`. Hold a
+session open, for example `wsl -e sleep 1800`, during a local UI walk.
+
+**Next steps:**
+- Fix the three walk defects (small dashboard PR).
+- Merge PR #23 (roadmap). It records the four removed Rust pages to rebuild in Python.
+- Then roadmap priority 2: Workflow → Studio with media.
 
 ## 2026-10-18 - UI foundation and voice adapter (roadmap priority 1)
 
