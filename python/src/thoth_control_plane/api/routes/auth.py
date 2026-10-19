@@ -14,6 +14,7 @@ from pydantic import Field
 
 from thoth_control_plane.api.dependencies import SESSION_COOKIE, resolve_principal
 from thoth_control_plane.auth.models import MeView, SignInRefused
+from thoth_control_plane.auth.providers import PROVIDER_FAILURES
 from thoth_control_plane.auth.service import (
     DEVICE_TTL,
     SESSION_MAX,
@@ -44,8 +45,18 @@ class LogoutBody(StrictModel):
 
 
 def safe_next(value: str | None) -> str:
-    """Only a same-site absolute path; anything else becomes the Workflows page."""
-    if not value or not value.startswith("/") or value.startswith("//") or "\\" in value:
+    """Only a same-site absolute path; anything else becomes the Workflows page.
+
+    A browser's URL parser drops tab, CR and LF, so "/\t/evil.test" would become "//evil.test":
+    any control character or space refuses the value outright.
+    """
+    if (
+        not value
+        or not value.startswith("/")
+        or value.startswith("//")
+        or "\\" in value
+        or any(ord(character) <= 0x20 or ord(character) == 0x7F for character in value)
+    ):
         return DEFAULT_NEXT
     return value
 
@@ -108,7 +119,10 @@ async def login(provider: str, request: Request, next: str | None = None) -> Res
         return _to_login("not_configured")
     request.session[NEXT_KEY] = safe_next(next)
     origin = request.app.state.settings.THOTH_SITE_ORIGIN.rstrip("/")
-    return await found.redirect(request, f"{origin}/auth/callback/{provider}")
+    try:
+        return await found.redirect(request, f"{origin}/auth/callback/{provider}")
+    except PROVIDER_FAILURES:  # e.g. Google's metadata endpoint is unreachable
+        return _to_login("provider_error")
 
 
 @router.get("/callback/{provider}")

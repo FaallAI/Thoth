@@ -32,6 +32,7 @@ class Principal:
     scopes: frozenset[str]
     via: Literal["session", "token", "service"]
     email: str | None = None
+    token_id: str | None = None  # the developer token used, when via == "token"
 
 
 @dataclass(frozen=True)

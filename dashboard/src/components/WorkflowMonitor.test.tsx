@@ -155,6 +155,10 @@ test("results download through the client and an expired history is announced", 
   const revokeObjectURL = URL.revokeObjectURL;
   URL.createObjectURL = () => "blob:x";
   URL.revokeObjectURL = () => {};
+  // A browser saves a download link without navigating; happy-dom would navigate the window to
+  // blob:x and leave its origin "null" for every later test file.
+  const anchorClick = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = () => {};
   try {
     render(<WorkflowMonitor workflowId="wf_001" client={client as never} />);
     expect(await screen.findByText("History expired; showing the stored result.")).toBeDefined();
@@ -163,6 +167,7 @@ test("results download through the client and an expired history is announced", 
   } finally {
     URL.createObjectURL = createObjectURL;
     URL.revokeObjectURL = revokeObjectURL;
+    HTMLAnchorElement.prototype.click = anchorClick;
   }
 });
 

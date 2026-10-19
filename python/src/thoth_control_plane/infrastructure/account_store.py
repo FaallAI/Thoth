@@ -79,6 +79,7 @@ class TokenRecord:
     created_at: datetime
     expires_at: datetime
     last_used_at: datetime | None
+    parent_token_id: str | None = None
 
 
 def _unavailable(error: Exception) -> AccountStoreUnavailable:
@@ -109,6 +110,7 @@ def _token(row: TokenRow) -> TokenRecord:
         row.created_at,
         row.expires_at,
         row.last_used_at,
+        row.parent_token_id,
     )
 
 
@@ -332,16 +334,31 @@ class AccountStore:
             row.expires_at,
         )
 
-    def count_attempt(self, challenge_id: str) -> int:
+    def claim_attempt(self, token_hash: str) -> ChallengeRecord | None:
+        """Count one guess before it is checked, atomically; None once 5 were counted, or used."""
         try:
             with self._sessions.begin() as session:
-                row = session.get(ChallengeRow, challenge_id, with_for_update=True)
-                if row is None:
-                    return 0
-                row.attempts = min(row.attempts + 1, 5)
-                return row.attempts
+                row = session.execute(
+                    update(ChallengeRow)
+                    .where(
+                        ChallengeRow.token_hash == token_hash,
+                        ChallengeRow.consumed_at.is_(None),
+                        ChallengeRow.expires_at > self._clock(),
+                        ChallengeRow.attempts < 5,
+                    )
+                    .values(attempts=ChallengeRow.attempts + 1)
+                    .returning(
+                        ChallengeRow.challenge_id,
+                        ChallengeRow.user_id,
+                        ChallengeRow.code_hmac,
+                        ChallengeRow.attempts,
+                        ChallengeRow.created_at,
+                        ChallengeRow.expires_at,
+                    )
+                ).first()
         except SQLAlchemyError as error:
             raise _unavailable(error) from None
+        return None if row is None else ChallengeRecord(*row)
 
     def consume_challenge(self, challenge_id: str) -> bool:
         try:
@@ -385,8 +402,14 @@ class AccountStore:
             scope=record.scope,
             created_at=record.created_at,
             expires_at=record.expires_at,
+            parent_token_id=record.parent_token_id,
         )
         self._write(lambda session: session.add(row))
+
+    def token(self, token_id: str) -> TokenRecord | None:
+        """One token in any state (revoked or expired included), or None."""
+        row = self._one(select(TokenRow).where(TokenRow.token_id == token_id))
+        return None if row is None else _token(row)
 
     def live_token(self, token_hash: str) -> TokenRecord | None:
         row = self._one(
@@ -435,6 +458,8 @@ class AccountStore:
             raise _unavailable(error) from None
 
     def revoke_token(self, token_id: str, owner_kind: str, owner_id: str) -> bool:
+        """Revoke one of the owner's tokens and, transitively, every token it minted."""
+        now = self._clock()
         try:
             with self._sessions.begin() as session:
                 result = session.execute(
@@ -445,9 +470,24 @@ class AccountStore:
                         TokenRow.owner_id == owner_id,
                         TokenRow.revoked_at.is_(None),
                     )
-                    .values(revoked_at=self._clock())
+                    .values(revoked_at=now)
                 )
-                return result.rowcount == 1
+                if result.rowcount != 1:
+                    return False
+                frontier = [token_id]
+                while frontier:
+                    frontier = list(
+                        session.scalars(
+                            update(TokenRow)
+                            .where(
+                                TokenRow.parent_token_id.in_(frontier),
+                                TokenRow.revoked_at.is_(None),
+                            )
+                            .values(revoked_at=now)
+                            .returning(TokenRow.token_id)
+                        )
+                    )
+                return True
         except SQLAlchemyError as error:
             raise _unavailable(error) from None
 

@@ -79,9 +79,12 @@ CREATE TABLE access_tokens (
     created_at TIMESTAMPTZ NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
     last_used_at TIMESTAMPTZ,
-    revoked_at TIMESTAMPTZ
+    revoked_at TIMESTAMPTZ,
+    -- The token that minted this one: revoking a token revokes everything it minted.
+    parent_token_id TEXT REFERENCES access_tokens (token_id)
 );
 CREATE INDEX access_tokens_owner ON access_tokens (owner_kind, owner_id, created_at DESC);
+CREATE INDEX access_tokens_parent ON access_tokens (parent_token_id) WHERE parent_token_id IS NOT NULL;
 
 CREATE TABLE auth_events (
     event_id BIGSERIAL PRIMARY KEY,

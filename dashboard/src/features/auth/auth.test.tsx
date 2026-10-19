@@ -103,3 +103,16 @@ test("the verify page signs in with the code and reports a wrong one", async () 
   expect(verify).toHaveBeenLastCalledWith("123456", true, "/studio");
   expect((screen.getByRole("button", { name: /Resend in/ }) as HTMLButtonElement).disabled).toBe(true);
 });
+
+test("the verify page never leaves the site, whatever the server echoes", async () => {
+  const onSignedIn = mock((_target: string) => {});
+  render(
+    <MemoryRouter initialEntries={["/login/verify"]}>
+      <VerifyPage client={{ verify: mock(async () => "/\t/evil.example"), resend: mock(async () => {}) }} onSignedIn={onSignedIn} />
+    </MemoryRouter>,
+  );
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("Code from your email"), "123456");
+  await user.click(screen.getByRole("button", { name: "Continue" }));
+  await waitFor(() => expect(onSignedIn).toHaveBeenCalledWith("/workflows"));
+});

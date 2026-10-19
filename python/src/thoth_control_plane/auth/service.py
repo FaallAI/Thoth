@@ -169,15 +169,16 @@ class SignInService:
         trust_device: bool,
         previous_session: str | None,
     ) -> SignedIn:
-        record = await self._run(self._store.live_challenge, token_hash(challenge_token))
+        # Every guess claims one of the five attempts atomically before it is checked, so racing
+        # requests cannot get more than five codes evaluated.
+        hashed = token_hash(challenge_token)
+        record = await self._run(self._store.claim_attempt, hashed)
         if record is None:
-            raise CodeRejected("expired")
-        if record.attempts >= CODE_ATTEMPTS:
-            raise CodeRejected("too_many_attempts")
+            live = await self._run(self._store.live_challenge, hashed)
+            raise CodeRejected("too_many_attempts" if live is not None else "expired")
         expected = code_hmac(self._secret or "", record.challenge_id, code.strip())
         if not same(record.code_hmac, expected):
-            attempts = await self._run(self._store.count_attempt, record.challenge_id)
-            if attempts >= CODE_ATTEMPTS:
+            if record.attempts >= CODE_ATTEMPTS:
                 await self._run(self._store.consume_challenge, record.challenge_id)
                 await self._event(
                     "email_code", "refused", user_id=record.user_id, detail_code="too_many_attempts"
@@ -244,7 +245,9 @@ class SignInService:
         now = self._clock()
         if record.last_used_at is None or now - record.last_used_at >= TOUCH_EVERY:
             await self._run(self._store.touch_token, record.token_id, now)
-        return Principal(user_id, record.workspace_id, SCOPE_SETS[record.scope], "token", email)
+        return Principal(
+            user_id, record.workspace_id, SCOPE_SETS[record.scope], "token", email, record.token_id
+        )
 
     async def describe(self, principal: Principal) -> MeView:
         name = None
@@ -273,7 +276,12 @@ class SignInService:
         if count >= TOKEN_LIMIT:
             raise TokenLimitReached()
         return await self._issue(
-            "user", principal.user_id, principal.workspace_id, request, principal.user_id
+            "user",
+            principal.user_id,
+            principal.workspace_id,
+            request,
+            principal.user_id,
+            principal.token_id,
         )
 
     async def create_workspace_token(
@@ -293,7 +301,12 @@ class SignInService:
         if count >= TOKEN_LIMIT:
             raise TokenLimitReached()
         return await self._issue(
-            "workspace", principal.workspace_id, principal.workspace_id, request, principal.user_id
+            "workspace",
+            principal.workspace_id,
+            principal.workspace_id,
+            request,
+            principal.user_id,
+            principal.token_id,
         )
 
     async def list_tokens(self, principal: Principal) -> list[TokenView]:
@@ -319,9 +332,16 @@ class SignInService:
         workspace_id: str,
         request: CreateToken,
         actor_user_id: str,
+        parent_token_id: str | None = None,
     ) -> CreatedToken:
         secret = random_token(TOKEN_PREFIX)
         now = self._clock()
+        expires_at = now + timedelta(days=request.days)
+        if parent_token_id is not None:
+            # A token minted by a token never outlives it, and revoking it revokes this one.
+            parent = await self._run(self._store.token, parent_token_id)
+            if parent is not None:
+                expires_at = min(expires_at, parent.expires_at)
         record = TokenRecord(
             token_id=f"tok_{uuid4().hex}",
             owner_kind=owner_kind,
@@ -331,8 +351,9 @@ class SignInService:
             prefix=secret[: len(TOKEN_PREFIX) + 6],
             scope=request.scope,
             created_at=now,
-            expires_at=now + timedelta(days=request.days),
+            expires_at=expires_at,
             last_used_at=None,
+            parent_token_id=parent_token_id,
         )
         await self._run(self._store.create_token, record, token_hash(secret))
         await self._event("token_created", "ok", user_id=actor_user_id, token_id=record.token_id)

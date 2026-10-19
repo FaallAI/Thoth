@@ -70,8 +70,8 @@ def test_a_challenge_counts_attempts_and_is_used_once(store, clock) -> None:
     user = store.ensure_user("a@acme.test", "A")
     store.create_challenge("chl_1", user.user_id, "c1", "hmac", T0 + timedelta(minutes=10))
     assert store.live_challenge("c1").attempts == 0
-    assert store.count_attempt("chl_1") == 1
-    assert store.count_attempt("chl_1") == 2
+    assert store.claim_attempt("c1").attempts == 1
+    assert store.claim_attempt("c1").attempts == 2
     assert store.consume_challenge("chl_1")
     assert not store.consume_challenge("chl_1")  # only one caller ever wins
     assert store.live_challenge("c1") is None
@@ -115,3 +115,15 @@ def test_events_hold_codes_not_secrets(store) -> None:
     with store._sessions() as session:
         row = session.scalars(select(AuthEventRow)).one()
     assert (row.kind, row.outcome, row.detail_code) == ("sign_in", "refused", "not_allowed")
+
+
+def test_claiming_an_attempt_is_atomic_and_stops_at_five(store, clock) -> None:
+    user = store.ensure_user("a@acme.test", "A")
+    store.create_challenge("chl_1", user.user_id, "c1", "hmac", T0 + timedelta(minutes=10))
+    claimed = [store.claim_attempt("c1") for _ in range(6)]
+    assert [c.attempts for c in claimed[:5]] == [1, 2, 3, 4, 5]
+    assert claimed[5] is None  # a sixth guess is never evaluated
+    store.create_challenge("chl_2", user.user_id, "c2", "hmac", T0 + timedelta(minutes=10))
+    assert store.consume_challenge("chl_2")
+    assert store.claim_attempt("c2") is None  # a used challenge takes no more guesses
+    assert store.claim_attempt("unknown") is None

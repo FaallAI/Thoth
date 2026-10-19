@@ -161,7 +161,21 @@ async def test_resend_is_throttled(api, mailer) -> None:
     assert (response.status_code, response.json()) == (429, {"detail": "resend_too_soon"})
 
 
-@pytest.mark.parametrize("target", ["//evil.test/x", "https://evil.test", "evil", "/\\evil.test"])
+@pytest.mark.parametrize(
+    "target",
+    [
+        "//evil.test/x",
+        "https://evil.test",
+        "evil",
+        "/\\evil.test",
+        # A URL parser drops tab, CR and LF, so these would become //evil.test.
+        "/\t/evil.test",
+        "/\n/evil.test",
+        "/\r/evil.test",
+        "/ /evil.test",
+        "/\x7f/evil.test",
+    ],
+)
 async def test_next_never_leaves_the_site(api, mailer, target) -> None:
     await api.get("/auth/login/google", params={"next": target})
     response = await api.get("/auth/callback/google?code=c&state=s")
@@ -180,3 +194,17 @@ async def test_logout_ends_the_session_and_can_forget_the_browser(api, mailer) -
 async def test_me_accepts_a_developer_token_for_the_local_dashboard(api, mailer) -> None:
     response = await api.get("/auth/me", headers={"Authorization": "Bearer test-key"})
     assert response.status_code == 200 and response.json()["user_id"] is None
+
+
+async def test_an_unreachable_provider_at_login_returns_to_the_login_page(api, provider) -> None:
+    from thoth_control_plane.auth.providers import oauth_http
+
+    async def down(request, redirect_uri):
+        raise oauth_http.ConnectError("metadata endpoint unreachable")
+
+    provider.redirect = down
+    response = await api.get("/auth/login/google?next=/studio")
+    assert (response.status_code, response.headers["location"]) == (
+        303,
+        "/login?error=provider_error",
+    )

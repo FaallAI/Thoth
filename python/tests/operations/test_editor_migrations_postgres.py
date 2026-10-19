@@ -308,3 +308,6 @@ def test_account_store_round_trips_on_postgres() -> None:
     store.create_session(user.user_id, user.workspace_id, "h", later)
     assert store.live_session("h").user_id == user.user_id
     store.record_event("sign_in", "ok", user_id=user.user_id)
+    store.create_challenge("chl_pg", user.user_id, "c", "hmac", later)
+    assert [store.claim_attempt("c").attempts for _ in range(5)] == [1, 2, 3, 4, 5]
+    assert store.claim_attempt("c") is None

@@ -101,6 +101,9 @@ class TokenRow(Base):
     expires_at: Mapped[datetime] = mapped_column(UtcDateTime)
     last_used_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    parent_token_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("access_tokens.token_id"), nullable=True
+    )
 
 
 class AuthEventRow(Base):

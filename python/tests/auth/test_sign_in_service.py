@@ -252,3 +252,59 @@ async def test_an_unknown_token_or_session_is_simply_absent(service) -> None:
     assert await service.authenticate_token("not-a-thoth-token") is None
     assert await service.authenticate_token("thoth_pat_nope") is None
     assert await service.authenticate_session("nope") is None
+
+
+async def test_racing_guesses_get_at_most_five_evaluations(
+    service, mailer, store, monkeypatch
+) -> None:
+    """Six wrong guesses are in flight (each has read the challenge, none counted yet)."""
+    import asyncio
+    import threading
+
+    step = await service.begin(ALICE, None)
+    good = mailer.last_code
+    bad = "000000" if good != "000000" else "111111"
+    gate = threading.Event()
+    real = store.claim_attempt
+
+    lock = threading.Lock()  # the test database is one shared SQLite connection
+
+    def held(token_hash):
+        with lock:
+            claimed = real(token_hash)  # the guess is counted, then held before it is checked
+        gate.wait(5)
+        return claimed
+
+    monkeypatch.setattr(store, "claim_attempt", held)
+    racing = [
+        asyncio.create_task(
+            service.verify(step.challenge_token, bad, trust_device=False, previous_session=None)
+        )
+        for _ in range(6)
+    ]
+    await asyncio.sleep(0.3)
+    monkeypatch.setattr(store, "claim_attempt", real)  # the good guess is not held
+    try:
+        with pytest.raises(CodeRejected):
+            await service.verify(
+                step.challenge_token, good, trust_device=False, previous_session=None
+            )
+    finally:
+        gate.set()
+        await asyncio.gather(*racing, return_exceptions=True)
+
+
+async def test_a_token_minted_by_a_token_never_outlives_its_parent(service, mailer) -> None:
+    done = await signed_in(service, mailer)
+    owner = await service.authenticate_session(done.session_token)
+    parent = await service.create_token(owner, CreateToken(name="leaked", scope="admin", days=1))
+    by_parent = await service.authenticate_token(parent.secret)
+    child = await service.create_token(
+        by_parent, CreateToken(name="successor", scope="admin", days=365)
+    )
+    assert child.token.expires_at <= parent.token.expires_at
+    assert await service.authenticate_token(child.secret) is not None
+    assert await service.revoke_token(owner, parent.token.token_id)
+    assert (
+        await service.authenticate_token(child.secret) is None
+    )  # revoking the leak cuts its heirs
