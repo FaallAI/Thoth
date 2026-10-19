@@ -37,7 +37,7 @@ with its own spec, plan and rollout. They run **before item 2**, in this order:
 | Sub-project | Scope | Status |
 |---|---|---|
 | 1. Accounts, sign-in, developer access | Google/GitHub sign-in with an emailed code, sessions, trusted browsers, developer tokens, the Caddy `web` container | Done 2026-10-19 (item 5) |
-| 2. Multi-tenancy | Every user gets an isolated workspace; data and access are scoped to it | Built 2026-10-19 (`feat/workspace-isolation`); awaiting push, merge and deploy |
+| 2. Multi-tenancy | Every user gets an isolated workspace; data and access are scoped to it | Done: deployed 2026-10-20 (PR #30, `d71665d`) |
 | 3. Metering and cost model | Count workflows and videos per workspace; estimate what each costs; a per-workspace quota on source-account leases and proxy use, required before public sign-up | Next |
 | 4. Billing | Plans, payment and limits on top of the meter | After 3 |
 

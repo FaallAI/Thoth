@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-20 - PR #30 merged and deployed; workspace isolation is live
+
+**Merged:** PR #30 (`d71665d`) after CI passed on the branch and on `master`; the stack smoke
+printed `render_output_is_h264_mp4=true` and `workspaces_are_isolated=true`. The review minors were
+fixed before the merge (`d26a85c`, see the entry below).
+
+**Deployed** with `make deploy` on `thoth@ba9b033b`, `thoth-web@ec4cce41` and
+`thoth-remotion-renderer@8c3cea54` (`sha-d71665d`; previous pins backed up outside the repository).
+
+- Right before the deploy, the orphan check found 0 orphans in all 16 tables with a `project_id`.
+- The live database is on Alembic `0014`; its one project is in `ws_bootstrap`, and
+  `projects.workspace_id` is `NOT NULL`.
+- The first `make deploy` stopped at `up`: the `temporal` container (up for 8 hours) failed its
+  health check by service name while it answered `SERVING` by IP. A restart of `temporal` cleared
+  it, and the second `make deploy` passed. `api`, `worker`, `web`, `remotion-renderer` and
+  `legacy-cdp` run with 0 restarts and no errors; `/auth/providers` lists GitHub, `/auth/me`
+  answers 401 signed out, and the GitHub sign-in redirect is intact.
+
+**Next steps:**
+
+- **Operator check:** a second real account (another member of the FaallAI GitHub organization)
+  signs in and sees an empty workspace; the operator still sees every project and run, and Source
+  Accounts stays visible only to the operator.
+- **SaaS sub-project 3, metering:** count workflows and videos per workspace, estimate their cost,
+  and add a per-workspace quota on source-account leases and proxy use before public sign-up.
+- **Open operator web steps:** require 2FA in the organization, upload the organization avatar,
+  approve the OAuth app in the organization.
+
 ## 2026-10-19 - Workspace isolation (SaaS sub-project 2)
 
 **Spec:** `docs/superpowers/specs/2026-10-19-workspace-isolation-design.md`.
