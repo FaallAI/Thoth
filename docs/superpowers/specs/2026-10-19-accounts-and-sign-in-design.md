@@ -128,7 +128,7 @@ the project direction.
 | `workspace_members` | workspace_id, user_id, role (`owner`/`admin`/`member`), created_at |
 | `sessions` | id, user_id, workspace_id, token_hash (unique), created_at, last_seen_at, expires_at, revoked_at |
 | `trusted_devices` | id, user_id, token_hash (unique), created_at, expires_at, revoked_at |
-| `email_challenges` | id, user_id, code_hmac, attempts, created_at, expires_at, consumed_at |
+| `email_challenges` | id, user_id, token_hash (the challenge cookie), code_hmac, attempts, created_at, expires_at, consumed_at |
 | `access_tokens` | id, owner_kind (`user`/`workspace`), owner_id, name, prefix, token_hash (unique), scopes, created_at, expires_at, last_used_at, revoked_at |
 | `auth_events` | id, at, kind, user_id, token_id, outcome, detail_code. It never holds a secret, a code or an email body. |
 
@@ -158,6 +158,20 @@ hash, and every comparison is constant-time.
   - the token text is shown once, at creation;
   - each user may hold at most 20 active tokens;
   - revoking takes effect immediately.
+- **API:**
+  - `GET /api/v1/me` returns the principal's user, workspace and scopes.
+  - `GET /api/v1/me/tokens` and `POST /api/v1/me/tokens` list and create the caller's personal
+    tokens.
+  - `DELETE /api/v1/me/tokens/{token_id}` revokes one.
+  - All three need a signed-in user (a session, or a personal token with `admin`). The service key
+    has no user, so it gets 403 `user_required`.
+- **Bootstrap CLI:** `thoth-control tokens create --email EMAIL --name NAME [--scope write]
+  [--days 90]`.
+  - It needs database access, so it is an operator command.
+  - It creates the user when missing; the first user becomes owner of the bootstrap workspace.
+  - It prints the token once.
+  - This is how a developer gets `THOTH_DEV_TOKEN` before OAuth is configured, and how the smoke
+    gets a token.
 - **Owners:**
   - **Personal tokens** belong to a user, for the internal team, the CLI and scripts.
   - **Workspace tokens** belong to a workspace, for external developers. The code path exists and
@@ -176,18 +190,29 @@ The server never bypasses authentication. During development, `dashboard/vite.co
 ### 3.5 The legacy owner key
 
 - `THOTH_CONTROL_PLANE_API_KEY` stays accepted as a **service token** for the smokes, CI and the
-  deploy scripts. It maps to the bootstrap owner with every scope, and each use is recorded in
-  `auth_events`.
+  deploy scripts. It maps to the bootstrap owner with every scope. Its use is recorded in
+  `auth_events` at most once a minute per API process, so a smoke does not write a row per
+  request.
 - `vite build` fails when `VITE_CONTROL_PLANE_API_KEY` is set, so the key can never be bundled
   again.
 - Removing the service key is a follow-up, once every script uses a personal token.
 
 ### 3.6 Principal and authorization
 
-- **`current_principal`** replaces `current_actor`. It accepts a session cookie, a developer token
-  or the service key, and returns
-  `Actor(actor_id=user_id, actor_type="user", workspace_id, scopes)`.
-- **Existing routes keep their signatures.** Every route that mutates requires `write`.
+- **`current_principal`** accepts a session cookie, a developer token or the service key. It returns a
+  `Principal(user_id | None, workspace_id, scopes, via)`, where `via` is `session`, `token` or
+  `service`.
+- **`current_actor` keeps returning the data actor `Actor(actor_id="owner", actor_type="user")`**
+  for every principal of the bootstrap workspace.
+  - Today data ownership is keyed by `actor_id`: workflow IDs are derived from it, Temporal checks
+    the owner, and the run lists filter by it. Giving each user their own actor ID would hide the
+    existing data from everyone.
+  - Sub-project 2 replaces this with workspace ownership.
+  - `display_name` carries the user's email, for audit.
+- **Existing routes keep their signatures** (48 routes depend on `current_actor`).
+  - `current_actor` requires the `write` scope for every unsafe method (POST, PUT, PATCH, DELETE),
+    and answers 403 `insufficient_scope` otherwise.
+  - It also applies the Origin check (3.2) to cookie-authenticated requests.
 - **Data ownership is unchanged in this sub-project.** Every authenticated principal still sees the
   single existing dataset. Sub-project 2 scopes data by workspace, and public sign-up stays closed
   until then.
@@ -202,8 +227,12 @@ The server never bypasses authentication. During development, `dashboard/vite.co
   - a 6-digit input (`inputmode="numeric"`, `autocomplete="one-time-code"`);
   - resend with a countdown;
   - "Trust this browser for 30 days", checked by default.
-- **Auth gate:** the app calls `/auth/me` at start. A 401 from any API call redirects to
-  `/login?next=<current path>`.
+- **Auth gate:**
+  - The app calls `/auth/me` at start, which answers 401 when nobody is signed in.
+  - The API keeps its existing contract: a request without valid credentials gets 403 `Not
+    authorized`, which 19 tests already pin.
+  - When any API call gets that 403, the app re-checks `/auth/me`. A 401 there redirects to
+    `/login?next=<current path>`.
 - **Clients:** `control-plane.ts` and `source-accounts.ts` drop the `Authorization` header and
   `VITE_CONTROL_PLANE_API_KEY`. Requests are same-origin and carry the cookie.
 - **Workspace menu:**
