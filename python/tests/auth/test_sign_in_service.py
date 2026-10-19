@@ -181,6 +181,15 @@ async def test_an_unsent_code_cannot_be_used(service, mailer, clock) -> None:
         await service.begin(ALICE, None)
 
 
+async def test_a_failed_send_does_not_start_the_cooldown(service, mailer) -> None:
+    mailer.fail = True
+    with pytest.raises(CodeNotSent):
+        await service.begin(ALICE, None)
+    mailer.fail = False
+    await service.begin(ALICE, None)  # same instant: nothing was sent, so nothing to wait for
+    assert len(mailer.sent) == 1
+
+
 async def test_a_session_slides_but_never_outlives_seven_days(service, mailer, clock) -> None:
     done = await signed_in(service, mailer)
     for hours in range(11, 24 * 7, 11):

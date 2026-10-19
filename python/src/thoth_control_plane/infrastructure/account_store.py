@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import create_engine, func, select, update
+from sqlalchemy import create_engine, delete, func, select, update
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
@@ -374,6 +374,10 @@ class AccountStore:
                 return result.rowcount == 1
         except SQLAlchemyError as error:
             raise _unavailable(error) from None
+
+    def discard_challenge(self, challenge_id: str) -> None:
+        """Forget a challenge whose code never left, so it counts toward no limit."""
+        self._execute(delete(ChallengeRow).where(ChallengeRow.challenge_id == challenge_id))
 
     def challenge_times(self, user_id: str, since: datetime) -> list[datetime]:
         try:
