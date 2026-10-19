@@ -188,6 +188,17 @@ class AccountStore:
         except SQLAlchemyError as error:
             raise _unavailable(error) from None
 
+    def member_role(self, user_id: str, workspace_id: str) -> str | None:
+        """The user's role in the workspace, or None when they are not a member."""
+        return self._one(
+            select(MemberRow.role).where(
+                MemberRow.user_id == user_id, MemberRow.workspace_id == workspace_id
+            )
+        )
+
+    def workspace_name(self, workspace_id: str) -> str | None:
+        return self._one(select(WorkspaceRow.name).where(WorkspaceRow.workspace_id == workspace_id))
+
     def _new_user(self, session: Session, email: str, name: str, now: datetime) -> UserRow:
         user = UserRow(
             user_id=f"usr_{uuid4().hex}",
@@ -197,8 +208,9 @@ class AccountStore:
         )
         session.add(user)
         session.flush()
-        # ponytail: two first sign-ins racing may both own the bootstrap; harmless until
-        # sub-project 2 scopes data by workspace.
+        # Owning the bootstrap makes a platform admin, so racing first sign-ins must serialize:
+        # lock the bootstrap row, then count its members.
+        session.get(WorkspaceRow, BOOTSTRAP_WORKSPACE_ID, with_for_update=True)
         taken = session.scalar(
             select(func.count())
             .select_from(MemberRow)
@@ -214,6 +226,9 @@ class AccountStore:
                     created_at=now,
                 )
             )
+            # The ORM has no relationship between the two rows, so it may insert the member
+            # first; PostgreSQL then refuses the foreign key. Write the workspace first.
+            session.flush()
         session.add(
             MemberRow(workspace_id=workspace_id, user_id=user.user_id, role="owner", created_at=now)
         )

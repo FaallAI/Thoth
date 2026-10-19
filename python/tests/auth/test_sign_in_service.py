@@ -15,6 +15,7 @@ from thoth_control_plane.auth.models import (
     Principal,
     SignInRefused,
     VerifiedIdentity,
+    is_platform_admin,
 )
 from thoth_control_plane.auth.service import (
     CodeLimited,
@@ -107,7 +108,12 @@ async def test_a_first_sign_in_emails_a_code_and_the_code_opens_a_session(servic
     assert done.device_token is not None
     principal = await service.authenticate_session(done.session_token)
     assert principal == Principal(
-        principal.user_id, BOOTSTRAP_WORKSPACE_ID, SCOPE_SETS["admin"], "session", "alice@acme.test"
+        principal.user_id,
+        BOOTSTRAP_WORKSPACE_ID,
+        SCOPE_SETS["admin"],
+        "session",
+        "alice@acme.test",
+        role="owner",
     )
 
 
@@ -340,3 +346,58 @@ async def test_sign_ins_within_a_minute_send_one_code(service, mailer, clock) ->
     clock.now = T0 + timedelta(seconds=61)
     await service.begin(ALICE, None)
     assert len(mailer.sent) == 2
+
+
+async def test_the_principal_carries_the_membership_role(service, mailer) -> None:
+    first = await signed_in(service, mailer)
+    principal = await service.authenticate_session(first.session_token)
+    assert principal.workspace_id == BOOTSTRAP_WORKSPACE_ID
+    assert principal.role == "owner"
+    assert is_platform_admin(principal)
+
+
+async def test_a_session_without_membership_is_signed_out(service, mailer, store) -> None:
+    first = await signed_in(service, mailer)
+    with store._engine.begin() as connection:
+        connection.execute(text("DELETE FROM workspace_members"))
+    assert await service.authenticate_session(first.session_token) is None
+
+
+async def test_a_personal_token_without_membership_is_refused(service, mailer, store) -> None:
+    first = await signed_in(service, mailer)
+    principal = await service.authenticate_session(first.session_token)
+    created = await service.create_token(principal, CreateToken(name="cli", scope="write", days=30))
+    assert await service.authenticate_token(created.secret) is not None
+    with store._engine.begin() as connection:
+        connection.execute(text("DELETE FROM workspace_members"))
+    assert await service.authenticate_token(created.secret) is None
+
+
+def test_who_is_a_platform_admin() -> None:
+    def principal(workspace, role, via="session", user="usr_1"):
+        return Principal(user, workspace, SCOPE_SETS["admin"], via, role=role)
+
+    service_key = Principal(None, BOOTSTRAP_WORKSPACE_ID, SCOPE_SETS["admin"], "service")
+    assert is_platform_admin(service_key)
+    assert is_platform_admin(principal(BOOTSTRAP_WORKSPACE_ID, "owner"))
+    assert is_platform_admin(principal(BOOTSTRAP_WORKSPACE_ID, "admin", via="token"))
+    assert not is_platform_admin(principal(BOOTSTRAP_WORKSPACE_ID, "member"))
+    assert not is_platform_admin(principal("ws_other", "owner"))
+    assert not is_platform_admin(principal(BOOTSTRAP_WORKSPACE_ID, None, via="token", user=None))
+
+
+async def test_describe_names_the_workspace_and_the_admin_flag(service, mailer, store) -> None:
+    first = await signed_in(service, mailer)
+    principal = await service.authenticate_session(first.session_token)
+    view = await service.describe(principal)
+    assert view.workspace.workspace_id == BOOTSTRAP_WORKSPACE_ID
+    assert view.workspace.name == "Thoth"
+    assert view.workspace.role == "owner"
+    assert view.platform_admin is True
+    bob = store.ensure_user("bob@acme.test", "Bob")
+    assert bob.workspace_id != BOOTSTRAP_WORKSPACE_ID
+    bob_view = await service.describe(
+        Principal(bob.user_id, bob.workspace_id, SCOPE_SETS["admin"], "session", role="owner")
+    )
+    assert bob_view.workspace.name == "Bob's workspace"
+    assert bob_view.platform_admin is False
