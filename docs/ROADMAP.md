@@ -5,17 +5,18 @@ migration stages keep their detail in
 [python-scout-migration-roadmap.md](python-scout-migration-roadmap.md); finished work is recorded
 in `CHANGELOG.md`. Update this file when an item finishes or the operator changes an order.
 
-As of 2026-10-18. Nothing is in flight: every PR through #22 is merged and deployed.
+As of 2026-10-19. Nothing is in flight: every PR through #29 is merged, and the stack runs
+`master` at `08df791` from `ghcr.io/faallai/*`. The repository lives at `FaallAI/Thoth`.
 
 ## Priority order
 
 | # | Item | Why it comes here | Blocked by |
 |---|---|---|---|
-| 1 | UI foundation (UI phase 0+1) | Every later UI item needs projects in the control plane, stored workflows, and URL routing | Nothing; the design is approved |
+| 1 | ~~UI foundation (UI phase 0+1)~~ Done 2026-10-19 (PR #24, #26) | Every later UI item needs projects in the control plane, stored workflows, and URL routing | Done |
 | 2 | Workflow to Studio with media (UI phase 2) | It opens the only end-to-end path: today a workflow's output cannot reach Studio and the main video must be uploaded by hand | 1 |
 | 3 | ~~Decide the Rust engine's direction~~ Decided 2026-10-18: port it into the Python control plane | See "Decision: the Rust engine" | Done |
 | 4 | Stage 5c: post cards, carousel photos, creator profile | Completes the Content Set that Studio imports; card overlays were left out of item 2 | 2 |
-| 5 | Dashboard serving and Google/GitHub sign-in (UI phase 3) | The control-plane key ships in the JS bundle today; this must land before the stack is reachable from another host | 1 |
+| 5 | ~~Dashboard serving and Google/GitHub sign-in (UI phase 3)~~ Done 2026-10-19 as SaaS sub-project 1 (PR #27, #29) | The control-plane key no longer ships in the JS bundle; GitHub sign-in is live | Done |
 | 6 | Auto-draft, in six slices (transcript, voice, script + Profiles rebuilt as Python presets, draft, reframe, other modes) | Restores "source to finished video" on the new path, and the Profiles page removed on 2026-10-18; see the research below | 2 |
 | 7 | Stage 6: enrichment | Gives auto-draft narration its context | 6 |
 | 8 | Stage 8: discovery in Python, then the Discovery and Content Set pages rebuilt on it | The Rust-backed pages are already gone (2026-10-18); discovery starts workflows | 2 |
@@ -25,6 +26,20 @@ As of 2026-10-18. Nothing is in flight: every PR through #22 is merged and deplo
 
 Items that wait on operator input run in parallel whenever the input arrives; see
 "Waiting on the operator".
+
+## SaaS track
+
+The operator decided on 2026-10-19 that Thoth becomes a usage-priced SaaS: a subscription
+priced per workflow and per video, plus developer access (internal API and CLI, a local
+dashboard without sign-in, and an external API). The work splits into four sub-projects, each
+with its own spec, plan and rollout. They run **before item 2**, in this order:
+
+| Sub-project | Scope | Status |
+|---|---|---|
+| 1. Accounts, sign-in, developer access | Google/GitHub sign-in with an emailed code, sessions, trusted browsers, developer tokens, the Caddy `web` container | Done 2026-10-19 (item 5) |
+| 2. Multi-tenancy | Every user gets an isolated workspace; data and access are scoped to it | Next |
+| 3. Metering and cost model | Count workflows and videos per workspace; estimate what each costs | After 2 |
+| 4. Billing | Plans, payment and limits on top of the meter | After 3 |
 
 ## UI phases
 
