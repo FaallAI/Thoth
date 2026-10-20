@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-20 - PR #32 merged and deployed; metering is live
+
+**Merged:** PR #32 (`f8acc10`) after CI passed on the branch. The stack smoke printed
+`render_output_is_h264_mp4=true`, `workspaces_are_isolated=true` and
+`usage_counts_the_render=true`.
+
+**Master CI:** the Template release parity job failed once with `visual_mismatch`. The branch
+changed no renderer or template file, and a rerun of the failed job passed. This is the known
+flaky parity follow-up.
+
+**Deployed** with `make deploy` on `thoth@b372bc85`, `thoth-web@d8652dc3` and
+`thoth-remotion-renderer@ae497046` (`sha-f8acc10`; previous pins backed up outside the
+repository).
+
+- Before the deploy, the live database was on Alembic `0014` and `temporal` was healthy by
+  service name.
+- After the deploy:
+  - Alembic is at `0015`; `usage_events`, `workspace_quotas` and `unit_prices` exist, and so does
+    `source_account_policies.operator_reserve_percent`.
+  - `api`, `worker`, `web`, `remotion-renderer` and `legacy-cdp` run with 0 restarts and no
+    errors.
+  - `/api/v1/usage` answers 403 signed out and, with the service key, reports `ws_bootstrap`
+    with no quota.
+  - Sign-in still redirects to GitHub.
+
+**Next steps:**
+
+- **Operator:** set unit prices with `thoth-control prices set <kind> <key|*> <unit> <usd>` in the
+  `api` container. Until then, the admin estimate stays `complete: false`. Also check the default
+  quotas and the 50% reserve.
+- **Operator check:** a second real account signs in and sees an empty workspace and its own
+  Usage page.
+- **SaaS sub-project 4, billing:** plans and payments on top of the meter.
+
 ## 2026-10-20 - Metering, cost model and pool quota (SaaS sub-project 3)
 
 **Spec:** `docs/superpowers/specs/2026-10-20-metering-design.md`.
