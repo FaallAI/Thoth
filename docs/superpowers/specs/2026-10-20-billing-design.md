@@ -276,6 +276,10 @@ acceptance.
 - On deploy, every workspace except `ws_bootstrap` is held to the free allowance. Today only the
   operator's workspace exists.
 - **Operator gates, deferred until every feature is finished:**
+  - a public HTTPS address for Thoth (a domain, or a tunnel for testing). Xendit calls the
+    webhook from the internet and cannot reach `localhost:8088`. Then set `THOTH_SITE_ORIGIN` and
+    the OAuth redirect URIs to that address, and register
+    `https://<host>/billing/webhooks/xendit` in the Xendit dashboard;
   - the Xendit keys;
   - paid plans and their prices (judged with the margin report once meter unit prices are set);
   - turning public sign-up on.
