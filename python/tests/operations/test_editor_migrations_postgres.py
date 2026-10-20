@@ -411,7 +411,7 @@ def test_metering_tables_and_the_reserve_column_exist() -> None:
 
 def test_billing_tables_exist_with_the_free_plan() -> None:
     apply_editor_migrations(DATABASE_URL, MIGRATIONS)
-    assert {"plans", "subscriptions", "invoices", "allowance_uses"} <= _tables()
+    assert {"plans", "subscriptions", "invoices", "allowance_uses", "exchange_rates"} <= _tables()
     with psycopg.connect(DATABASE_URL) as connection:
         assert connection.execute(
             "SELECT plan_id, name, price_idr, workflows_per_period, videos_per_period,"

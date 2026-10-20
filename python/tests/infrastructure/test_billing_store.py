@@ -168,3 +168,11 @@ def test_an_issued_invoice_keeps_its_amount_after_a_price_change(store) -> None:
         "pro", name="Pro", price_idr=150000, workflows=50, videos=20, period_days=30, active=True
     )
     assert store.settle(invoice.invoice_id, "PAID", 99000) == "applied"
+
+
+def test_the_exchange_rate_round_trips_and_must_be_positive(store) -> None:
+    assert store.usd_idr_rate() is None
+    assert store.set_usd_idr_rate(16250.5) == 16250.5
+    assert store.usd_idr_rate() == 16250.5
+    with pytest.raises(InvalidPlan):
+        store.set_usd_idr_rate(0)

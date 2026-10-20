@@ -384,3 +384,83 @@ def test_quotas_and_prices_from_the_cli(monkeypatch) -> None:
         runner.invoke(app, ["prices", "set", "provider_call", "*", "call", "0.002"]).exit_code == 0
     )
     assert "provider_call * call 0.002" in runner.invoke(app, ["prices", "list"]).output
+
+
+def test_plans_rates_and_grants_from_the_cli(monkeypatch) -> None:
+    from datetime import UTC, datetime
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.pool import StaticPool
+
+    from thoth_control_plane.infrastructure import billing_models  # noqa: F401
+    from thoth_control_plane.infrastructure.account_models import WorkspaceRow
+    from thoth_control_plane.infrastructure.billing_models import PlanRow
+    from thoth_control_plane.infrastructure.billing_store import BillingStore
+    from thoth_control_plane.infrastructure.source_account_models import Base
+
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(engine)
+    now = datetime.now(UTC)
+    with engine.begin() as connection:
+        connection.execute(
+            WorkspaceRow.__table__.insert().values(workspace_id="ws_a", name="A", created_at=now)
+        )
+        connection.execute(
+            PlanRow.__table__.insert().values(
+                plan_id="free",
+                name="Free",
+                price_idr=0,
+                workflows_per_period=3,
+                videos_per_period=1,
+                period_days=30,
+                active=True,
+                updated_at=now,
+            )
+        )
+    store = BillingStore(engine)
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_API_KEY", "k")
+    monkeypatch.setenv("THOTH_EDITOR_DATABASE_URL", "postgresql://unused/db")
+    monkeypatch.setattr(cli.BillingStore, "connect", classmethod(lambda cls, url: store))
+    made = runner.invoke(
+        app,
+        [
+            "plans",
+            "set",
+            "pro",
+            "--name",
+            "Pro",
+            "--price-idr",
+            "99000",
+            "--workflows",
+            "50",
+            "--videos",
+            "20",
+        ],
+    )
+    assert made.exit_code == 0, made.output
+    listed = runner.invoke(app, ["plans", "list"]).output
+    assert "pro Pro 99000 workflows=50 videos=20 days=30 active" in listed
+    assert runner.invoke(app, ["plans", "rate", "16000"]).exit_code == 0
+    assert store.usd_idr_rate() == 16000.0
+    assert runner.invoke(app, ["subscriptions", "set", "ws_a", "pro", "14"]).exit_code == 0
+    assert store.subscription("ws_a").plan_id == "pro"
+    bad = runner.invoke(
+        app,
+        [
+            "plans",
+            "set",
+            "free",
+            "--name",
+            "Free",
+            "--price-idr",
+            "0",
+            "--workflows",
+            "3",
+            "--videos",
+            "1",
+            "--inactive",
+        ],
+    )
+    assert (bad.exit_code, bad.output.strip()) == (1, "invalid_plan")

@@ -31,6 +31,7 @@ from thoth_control_plane.billing import (
 )
 from thoth_control_plane.infrastructure.billing_models import (
     AllowanceUseRow,
+    ExchangeRateRow,
     InvoiceRow,
     PlanRow,
     SubscriptionRow,
@@ -126,6 +127,23 @@ class BillingStore:
             row.workflows_per_period, row.videos_per_period = workflows, videos
             row.period_days, row.active, row.updated_at = period_days, active, self._clock()
             return _plan(row)
+
+    def usd_idr_rate(self) -> float | None:
+        """Rupiah per US dollar for the margin report (spec 1.5); None until it is set."""
+        with self._session() as session:
+            row = session.get(ExchangeRateRow, "USD_IDR")
+            return None if row is None else row.rate
+
+    def set_usd_idr_rate(self, rate: float) -> float:
+        if not rate > 0:
+            raise InvalidPlan("invalid_rate")
+        with self._session(write=True) as session:
+            row = session.get(ExchangeRateRow, "USD_IDR")
+            if row is None:
+                row = ExchangeRateRow(pair="USD_IDR")
+                session.add(row)
+            row.rate, row.updated_at = float(rate), self._clock()
+            return row.rate
 
     # --- subscriptions -------------------------------------------------------------------
 

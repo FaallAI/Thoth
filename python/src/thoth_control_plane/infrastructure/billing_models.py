@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from thoth_control_plane.infrastructure import account_models  # noqa: F401  (workspaces FK)
@@ -60,3 +60,11 @@ class AllowanceUseRow(Base):
     ref: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)
     released_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+
+
+class ExchangeRateRow(Base):
+    __tablename__ = "exchange_rates"
+
+    pair: Mapped[str] = mapped_column(String, primary_key=True)
+    rate: Mapped[float] = mapped_column(Float)
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime)

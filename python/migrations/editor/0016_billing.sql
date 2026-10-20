@@ -43,3 +43,10 @@ CREATE TABLE allowance_uses (
     UNIQUE (workspace_id, kind, ref)
 );
 CREATE INDEX allowance_uses_period ON allowance_uses (workspace_id, kind, created_at);
+
+-- The operator's USD->IDR rate for the margin report (billing spec 1.5); unset until set.
+CREATE TABLE exchange_rates (
+    pair TEXT PRIMARY KEY CHECK (pair = 'USD_IDR'),
+    rate DOUBLE PRECISION NOT NULL CHECK (rate > 0),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
