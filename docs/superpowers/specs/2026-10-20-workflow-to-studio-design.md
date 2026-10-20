@@ -167,7 +167,7 @@ All offline.
   every projection validates as `StudioSourceProjection`.
 - **Import unit tests** with an in-memory media store and a fake probe: reuse by checksum (no
   fetch, no copy), missing and mismatched objects, invalid probe (nothing copied), registration
-  failure (copy deleted), refused attach (asset kept), temporary file always removed, and
+  failure (copy deleted), refused attach (asset kept), the probe given a presigned URL (never a downloaded file) on the S3 store, and
   `media_stored` recorded only inside a meter scope.
 - **Route tests:** GET is read-only and accepts an unassigned run; POST assigns, creates and
   imports; a replayed key returns the same draft; every 409, 404 and 503 code; the structural
