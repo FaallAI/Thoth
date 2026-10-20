@@ -34,6 +34,7 @@ class UsageTotal:
     unit: str
     quantity: float
     events: int
+    in_workflow: bool = False  # the events carry a workflow_id (spec 2.4 cost buckets)
 
 
 @dataclass(frozen=True)
@@ -99,6 +100,7 @@ class UsageStore:
             )
 
     def _grouped(self, start: datetime, end: datetime, workspace_id: str | None) -> list[Any]:
+        in_workflow = UsageEventRow.workflow_id.is_not(None)
         query = select(
             UsageEventRow.workspace_id,
             UsageEventRow.kind,
@@ -106,36 +108,41 @@ class UsageStore:
             UsageEventRow.unit,
             func.sum(UsageEventRow.quantity),
             func.count(),
+            in_workflow,
         ).where(UsageEventRow.occurred_at >= start, UsageEventRow.occurred_at < end)
         if workspace_id is not None:
             query = query.where(UsageEventRow.workspace_id == workspace_id)
         query = query.group_by(
-            UsageEventRow.workspace_id, UsageEventRow.kind, UsageEventRow.key, UsageEventRow.unit
+            UsageEventRow.workspace_id,
+            UsageEventRow.kind,
+            UsageEventRow.key,
+            UsageEventRow.unit,
+            in_workflow,
         ).order_by(UsageEventRow.workspace_id, UsageEventRow.kind, UsageEventRow.key)
         with self._sessions() as session:
             return list(session.execute(query).all())
 
+    @staticmethod
+    def _total(row: Any) -> UsageTotal:
+        _ws, kind, key, unit, quantity, events, in_workflow = row
+        return UsageTotal(kind, key, unit, float(quantity), int(events), bool(in_workflow))
+
     def totals(self, workspace_id: str, start: datetime, end: datetime) -> list[UsageTotal]:
-        return [
-            UsageTotal(kind, key, unit, float(quantity), int(events))
-            for _ws, kind, key, unit, quantity, events in self._grouped(start, end, workspace_id)
-        ]
+        return [self._total(row) for row in self._grouped(start, end, workspace_id)]
 
     def totals_by_workspace(self, start: datetime, end: datetime) -> dict[str, list[UsageTotal]]:
         found: dict[str, list[UsageTotal]] = {}
-        for workspace, kind, key, unit, quantity, events in self._grouped(start, end, None):
-            found.setdefault(workspace, []).append(
-                UsageTotal(kind, key, unit, float(quantity), int(events))
-            )
+        for row in self._grouped(start, end, None):
+            found.setdefault(row[0], []).append(self._total(row))
         return found
 
     def leases_today(self, workspace_id: str) -> dict[str, int]:
         start = day_start(self._clock())
-        return {
-            total.key: total.events
-            for total in self.totals(workspace_id, start, start + timedelta(days=1))
-            if total.kind == "account_lease"
-        }
+        leases: dict[str, int] = {}
+        for total in self.totals(workspace_id, start, start + timedelta(days=1)):
+            if total.kind == "account_lease":
+                leases[total.key] = leases.get(total.key, 0) + total.events
+        return leases
 
     def quotas(self, workspace_id: str) -> dict[str, int]:
         with self._sessions() as session:

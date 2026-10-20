@@ -64,7 +64,7 @@ def test_every_platform_route_needs_a_platform_admin(gateway) -> None:
     platform = [
         (path, names)
         for path, _route, names in _routes(gateway)
-        if path.startswith(("/api/v1/source-accounts", "/api/v1/source-proxies"))
+        if path.startswith(("/api/v1/source-accounts", "/api/v1/source-proxies", "/api/v1/admin"))
     ]
     assert platform, "no platform route found"
     assert [path for path, names in platform if "platform_actor" not in names] == []

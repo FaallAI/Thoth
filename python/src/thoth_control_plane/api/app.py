@@ -32,6 +32,7 @@ from thoth_control_plane.api.routes.render_jobs import router as render_job_rout
 from thoth_control_plane.api.routes.source_accounts import router as source_account_router
 from thoth_control_plane.api.routes.studio_imports import router as studio_import_router
 from thoth_control_plane.api.routes.studio_review import router as studio_review_router
+from thoth_control_plane.api.routes.usage import router as usage_router
 from thoth_control_plane.api.routes.workflow_runs import router as workflow_run_router
 from thoth_control_plane.api.routes.workflows import router as workflow_router
 from thoth_control_plane.application import (
@@ -506,6 +507,7 @@ def create_app(
     app.include_router(studio_review_router, prefix="/api/v1")
     app.include_router(studio_import_router, prefix="/api/v1")
     app.include_router(source_account_router, prefix="/api/v1")
+    app.include_router(usage_router, prefix="/api/v1")
     # Unversioned and unpublished: only the private renderer ever calls these.
     app.include_router(internal_render_router)
     return app

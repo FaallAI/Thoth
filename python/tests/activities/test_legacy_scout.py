@@ -411,6 +411,8 @@ def test_no_fastapi_request_model_exposes_activity_mode() -> None:
         "EditDocumentPatch",
         "MoveWorkflow",
         "ProxyImportRequest",
+        "PriceView",
+        "QuotaChange",
         "ResolveStudioImportItem",
         "RetryRequest",
         "SaveProjectPromptBindingRequest",

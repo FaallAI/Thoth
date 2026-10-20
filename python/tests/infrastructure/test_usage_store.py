@@ -102,3 +102,10 @@ def test_a_workflow_and_a_project_map_to_their_workspace(store: UsageStore, engi
     assert store.workspace_of_workflow("wf_1") == "ws_w"
     assert store.workspace_of_workflow("wf_2") == "ws_bootstrap"
     assert store.workspace_of_workflow("wf_none") is None
+
+
+def test_totals_tell_workflow_usage_apart(store: UsageStore) -> None:
+    store.record(UsageRecord("ws_a", "account_lease", "x", 1, "session", "wf_1"))
+    store.record(UsageRecord("ws_a", "account_lease", "x", 1, "session"))
+    rows = sorted((t.in_workflow, t.events) for t in store.totals("ws_a", *DAY))
+    assert rows == [(False, 1), (True, 1)]

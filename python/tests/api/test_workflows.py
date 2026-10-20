@@ -555,6 +555,12 @@ def test_openapi_exposes_exact_required_path_method_pairs(gateway) -> None:
     assert actual == {
         ("/api/v1/projects", "get"),
         ("/api/v1/me", "get"),
+        ("/api/v1/usage", "get"),
+        ("/api/v1/admin/usage", "get"),
+        ("/api/v1/admin/prices", "get"),
+        ("/api/v1/admin/prices", "put"),
+        ("/api/v1/admin/workspaces/{workspace_id}/quotas", "get"),
+        ("/api/v1/admin/workspaces/{workspace_id}/quotas", "put"),
         ("/api/v1/me/tokens", "get"),
         ("/api/v1/me/tokens", "post"),
         ("/api/v1/me/tokens/{token_id}", "delete"),
