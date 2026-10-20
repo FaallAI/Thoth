@@ -225,3 +225,26 @@ def test_the_draft_stops_at_the_scene_limit_and_titles_untitled_items() -> None:
     assert len(document.scenes) == 100
     assert document.clips[0].heading == "Untitled video"
     assert document.clips[1].heading == "Footage 1"
+
+
+async def test_a_keyed_draft_lives_under_the_given_key_not_the_projection_hash() -> None:
+    repository = MemoryStudioImports()
+    service = StudioImportService(repository)
+    projection = create_request().source
+    key = "f" * 64
+
+    draft = await service.create_keyed(PROJECT, key, projection, "wf-open-1")
+    again = await service.create_keyed(PROJECT, key, projection, "wf-open-1")
+
+    assert (draft.source_key, again.document_id) == (key, draft.document_id)
+    inspection = await service.inspect_keyed(PROJECT, key, projection)
+    assert inspection.source_key == key
+    assert [found.document_id for found in inspection.drafts] == [draft.document_id]
+    assert (await service.inspect(PROJECT, projection)).drafts == []
+
+
+async def test_a_keyed_draft_refuses_an_unsafe_idempotency_key() -> None:
+    with pytest.raises(ValidationError):
+        await StudioImportService(MemoryStudioImports()).create_keyed(
+            PROJECT, "f" * 64, create_request().source, "C:\\Users\\key"
+        )
