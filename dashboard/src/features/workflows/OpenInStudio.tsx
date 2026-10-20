@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   StudioImportRequestError,
@@ -43,6 +43,15 @@ export function OpenInStudio({ client, projectId, workflowId, summary, onOpen }:
   const [inspection, setInspection] = useState<StudioSourceInspection | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The import a POST started but never confirmed: the next click replays its key, so the
+  // server finishes that draft instead of leaving it half imported.
+  const pending = useRef<{ key: string; leftOut: boolean } | null>(null);
+  // Choices and a pending import belong to one project and one run.
+  useEffect(() => {
+    setInspection(null);
+    setError(null);
+    pending.current = null;
+  }, [projectId, workflowId]);
   if (summary?.status !== "succeeded" || !summary.artifacts?.some((artifact) => artifact.kind === "content_set")) {
     return null;
   }
@@ -58,16 +67,20 @@ export function OpenInStudio({ client, projectId, workflowId, summary, onOpen }:
       setBusy(false);
     }
   };
-  // A fresh key per Create: a deliberate second draft must not replay the first.
-  const create = async (project: string) => {
-    const result = await client.openWorkflowInStudio(project, workflowId, crypto.randomUUID());
-    onOpen(project, result.draft.document_id, result.items.some((item) => item.outcome === "unresolved"));
+  // `shownLeftOut`: the person saw fields Studio leaves out; they wait in the gate as decisions.
+  const create = async (project: string, key: string, shownLeftOut: boolean) => {
+    pending.current = { key, leftOut: shownLeftOut };
+    const result = await client.openWorkflowInStudio(project, workflowId, key);
+    pending.current = null;
+    onOpen(project, result.draft.document_id, shownLeftOut || result.items.some((item) => item.outcome === "unresolved"));
   };
   const start = (project: string) =>
     attempt(async () => {
+      const unfinished = pending.current;
+      if (unfinished) return create(project, unfinished.key, unfinished.leftOut);
       const found = await client.inspectWorkflowStudioImport(project, workflowId);
       if (found.drafts?.length || leftOut(found).length) setInspection(found);
-      else await create(project);
+      else await create(project, crypto.randomUUID(), false);
     });
 
   return (
@@ -93,7 +106,7 @@ export function OpenInStudio({ client, projectId, workflowId, summary, onOpen }:
               {`Resume draft from ${new Date(draft.created_at).toLocaleString()}`}
             </Button>
           ))}
-          <Button disabled={busy} onClick={() => void attempt(() => create(projectId))}>Create new draft</Button>
+          <Button disabled={busy} onClick={() => void attempt(() => create(projectId, crypto.randomUUID(), leftOut(inspection).length > 0))}>Create new draft</Button>
         </div>
       )}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}

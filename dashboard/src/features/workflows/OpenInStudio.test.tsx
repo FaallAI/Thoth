@@ -130,3 +130,57 @@ test("each refusal has its own words", async () => {
     cleanup();
   }
 });
+
+const LEFT_OUT = [
+  {
+    item_id: "unsupported_000",
+    role: "main",
+    order: 0,
+    label: "main.profile_card",
+    platform: null,
+    media_kind: "none",
+    scene_id: null,
+    reason: "Cards wait for Stage 5c",
+    disposition: "unresolved",
+  },
+] as StudioSourceInspection["items"];
+
+test("a retry after a cut-off import finishes the same draft", async () => {
+  let attempts = 0;
+  const c = {
+    inspectWorkflowStudioImport: mock(async () => inspection()),
+    openWorkflowInStudio: mock(async (_project: string, _workflow: string, _key: string) => {
+      attempts += 1;
+      if (attempts === 1) throw new StudioImportRequestError(503, null);
+      return opened();
+    }),
+  };
+  const onOpen = mock(() => {});
+  render(<OpenInStudio client={c} projectId="p1" workflowId="wf_1" summary={done()} onOpen={onOpen} />);
+  await open();
+  expect(await screen.findByText("Studio is not available right now. Try again later.")).toBeDefined();
+  await open();
+  await waitFor(() => expect(onOpen).toHaveBeenCalledWith("p1", "edoc_1", false));
+  const keys = c.openWorkflowInStudio.mock.calls.map((call) => call[2]);
+  expect(keys).toHaveLength(2);
+  expect(keys[1]).toBe(keys[0]);
+  expect(c.inspectWorkflowStudioImport).toHaveBeenCalledTimes(1);
+});
+
+test("what Studio left out opens the draft with the gate", async () => {
+  const onOpen = mock(() => {});
+  render(<OpenInStudio client={client(inspection({ items: LEFT_OUT }))} projectId="p1" workflowId="wf_1" summary={done()} onOpen={onOpen} />);
+  await open();
+  await userEvent.setup().click(await screen.findByRole("button", { name: "Create new draft" }));
+  await waitFor(() => expect(onOpen).toHaveBeenCalledWith("p1", "edoc_1", true));
+});
+
+test("a project switch drops the choices made for the old project", async () => {
+  const drafts = [{ document_id: "edoc_old", source_key: KEY, revision: 2, created_at: "2026-10-19T00:00:00Z" }];
+  const c = client(inspection({ drafts }));
+  const { rerender } = render(<OpenInStudio client={c} projectId="p1" workflowId="wf_1" summary={done()} onOpen={() => {}} />);
+  await open();
+  expect(await screen.findByRole("button", { name: /Resume draft/ })).toBeDefined();
+  rerender(<OpenInStudio client={c} projectId="p2" workflowId="wf_1" summary={done()} onOpen={() => {}} />);
+  expect(screen.queryByRole("button", { name: /Resume draft/ })).toBeNull();
+});
