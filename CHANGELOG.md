@@ -53,12 +53,36 @@ All notable changes to this project will be documented in this file.
 
 **Verification (offline):**
 
-- Python 4148 passed, 71 skipped.
-- PostgreSQL: the migrations 20 passed, and the source-account races 5 passed. With the row lock
+- Python 4149 passed, 72 skipped (after the review fixes).
+- PostgreSQL: the migrations 20 passed, and the source-account tests 6 passed. With the row lock
   removed, both race tests failed 3 of 3 runs.
 - Lint clean.
 - Dashboard 702 passed, `tsc` clean, build OK.
 - The stack smoke has not run locally; CI runs it at the push gate.
+
+**Final review (fresh reviewer, Opus):** ready to merge with fixes. It found no Critical issue,
+and all five review-focus scenarios hold. Fixed, each with a test that failed first:
+
+- An empty pool (every account cooling down or spent) was reported to the user as
+  `quota_exhausted`. It is now `no_account_available`
+  (`test_an_empty_pool_is_no_account_not_a_reached_quota`).
+- The quota lock on the `ws_bootstrap` row was `FOR UPDATE`. That blocked every foreign-key insert
+  referencing it and allowed a rare deadlock at the first leases of a day. It is now
+  `FOR NO KEY UPDATE` (`test_the_quota_lock_never_blocks_foreign_key_inserts`), and the race tests
+  still pass.
+
+**Deferred minors:**
+
+- **Usage page:** "Remaining" shows the workspace quota only, not the reserve line.
+- **Run detail:** the dashboard does not render `quota_exhausted`.
+- **Completion count:** a worker crash at the wrong moment could count one run twice; the code
+  comment overstates this.
+- **Admin usage range:** it takes `start` and `end` (end exclusive) where the spec says `from` and
+  `to`.
+- **Quota override:** for an unknown workspace it answers 500.
+- **`MeteredMediaStore`:** it stats the file outside the meter's error handling.
+- **CLI voice calls:** they are not metered.
+- **Replay coverage:** no replay test of a pre-metering history.
 
 **Next steps:**
 
