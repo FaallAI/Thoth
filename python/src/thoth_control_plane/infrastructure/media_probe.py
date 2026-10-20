@@ -17,18 +17,21 @@ from thoth_control_plane.application.editor_asset_ports import EditorAssetMediaI
 PROBE_TIMEOUT_SECONDS = 30
 
 
-#: ffprobe may open a local file or the store's signed HTTP(S) URL, and nothing else.
-PROTOCOLS = "file,http,https,tcp,tls"
+#: What ffprobe may open: a store URL reaches only the network, a local path only files, so
+#: a crafted object (a playlist, a concat list) can never pivot from one to the other.
+URL_PROTOCOLS = "http,https,tcp,tls"
+FILE_PROTOCOLS = "file"
 
 
 async def probe_media(ffprobe: str, source: Path | str) -> dict[str, Any]:
     """Raise ``OSError`` when ffprobe itself is missing, invalid media when it refuses."""
+    remote = str(source).startswith(("http://", "https://"))
     process = await asyncio.create_subprocess_exec(
         ffprobe,
         "-v",
         "error",
         "-protocol_whitelist",
-        PROTOCOLS,
+        URL_PROTOCOLS if remote else FILE_PROTOCOLS,
         "-print_format",
         "json",
         "-show_streams",

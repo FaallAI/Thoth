@@ -73,5 +73,17 @@ async def test_probe_may_open_only_files_and_http(monkeypatch: pytest.MonkeyPatc
 
     [argv] = calls
     whitelist = argv.index("-protocol_whitelist")
-    assert argv[whitelist + 1] == "file,http,https,tcp,tls"
+    assert argv[whitelist + 1] == "http,https,tcp,tls"
     assert argv[-1] == "http://minio:9000/thoth-media/reports/a.mp4?X-Amz-Signature=s"
+
+
+@pytest.mark.asyncio
+async def test_a_local_probe_may_open_only_files(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = spawned(monkeypatch, Process(0, b"{}"))
+
+    await media_probe.probe_media("ffprobe", tmp_path / "a.mp4")
+
+    [argv] = calls
+    assert argv[argv.index("-protocol_whitelist") + 1] == "file"

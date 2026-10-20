@@ -83,6 +83,8 @@ class WorkflowMedia(Protocol):
 
     def delete(self, location: str) -> None: ...
 
+    def check(self) -> None: ...
+
 
 class WorkflowAssets(Protocol):
     async def find_ready_by_checksum(
@@ -129,6 +131,11 @@ class WorkflowStudioImportService:
         key, source = await self._source(workflow_id)
         if self._assets is None:
             raise WorkflowStudioUnavailable()
+        try:
+            # Before any draft exists: an outage answers 503 instead of an empty draft.
+            await asyncio.to_thread(self._media.check)
+        except Exception as error:
+            raise WorkflowStudioUnavailable() from error
         draft = await self._imports.create_keyed(
             project_id, key, source.projection, idempotency_key
         )

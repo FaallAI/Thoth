@@ -494,3 +494,15 @@ async def test_a_missing_ffprobe_fails_loud(tmp_path: Path) -> None:
     w = world(tmp_path, probe=NoFfprobe())
     with pytest.raises(WorkflowStudioUnavailable):
         await w.service.open(PROJECT, WF, ACTOR, "open-1")
+
+
+async def test_an_unreachable_media_store_creates_no_draft(tmp_path: Path) -> None:
+    class DownStore(LocalMediaStore):
+        def check(self) -> None:
+            raise RuntimeError("media store down")
+
+    w = world(tmp_path)
+    w.service._media = MeteredMediaStore(DownStore(tmp_path / "store"))
+    with pytest.raises(WorkflowStudioUnavailable):
+        await w.service.open(PROJECT, WF, ACTOR, "open-1")
+    assert (w.imports.rows, w.runs.get(WF).project_id) == ([], None)

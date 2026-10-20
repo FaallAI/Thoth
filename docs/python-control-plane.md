@@ -362,7 +362,8 @@ Every response carries `X-Thoth-Contract-Version: 1`. All state-changing endpoin
 | `POST /api/v1/projects/{project_id}/workflows/{workflow_id}/studio-import` | With `Idempotency-Key`: create (or replay) a Studio draft from the run's Content Set, assigning an unassigned run to the project. Each media item is reused by checksum or probed in place and copied server side into `uploads/<project>/`; an item that fails stays unresolved, and a replay of the key retries it. Refusals: `409 content_set_unavailable`, `409 content_set_invalid`, `409 workflow_in_other_project`, `404`, `503`. |
 
 Opening a workflow in Studio probes each media object where it is stored: ffprobe reads a
-five-minute signed MinIO URL, limited to the `file`, `http`, `https`, `tcp` and `tls` protocols.
+five-minute signed MinIO URL, limited to the `http`, `https`, `tcp` and `tls` protocols (a
+local store path may open `file` only).
 `THOTH_MEDIA_S3_REGION` (default `us-east-1`) is the region the API signs those URLs with; it
 must match MinIO's region.
 
