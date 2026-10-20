@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-20 - PR #34 merged and deployed; billing is live (go-live deferred)
+
+**Merged:** PR #34 (`240397b`) after CI passed on the branch and on `master`. The stack smoke
+printed `render_output_is_h264_mp4=true`, `workspaces_are_isolated=true`,
+`usage_counts_the_render=true` and `plan_limit_is_enforced=true`.
+
+**Deployed** with `make deploy` on `thoth@95631e49`, `thoth-web@222b9d67` and
+`thoth-remotion-renderer@c37e1dce` (`sha-240397b`; previous pins backed up outside the repository).
+
+- `api`, `worker`, `web`, `remotion-renderer` and `legacy-cdp` run with 0 restarts and no errors.
+- The live database is on Alembic `0016`. All five billing tables exist, and the only plan is
+  `free` (Rp0, 3 workflows, 1 video).
+- **Routes:**
+  - `/api/v1/billing` answers 403 signed out, and reports the operator's workspace as unlimited;
+  - `POST /billing/webhooks/xendit` reaches the API through the web container (503 while the
+    Xendit keys are unset, where the SPA would have answered 405);
+  - sign-in still redirects to GitHub.
+
+**Next steps:**
+
+- **Deferred by the operator until every roadmap feature is finished:**
+  - a public HTTPS address and the Xendit webhook registration;
+  - the Xendit keys;
+  - the paid plans and the exchange rate;
+  - the meter unit prices;
+  - public sign-up;
+  - the second-account check.
+- **Next on the roadmap:** priority 2, Workflow → Studio, resuming its brainstorm at design
+  section 2.
+
 ## 2026-10-20 - Billing: plans, payment and limits (SaaS sub-project 4)
 
 **Spec:** `docs/superpowers/specs/2026-10-20-billing-design.md`.
