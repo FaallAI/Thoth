@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import contextlib
 import mimetypes
-from datetime import timedelta
 from collections.abc import Iterator
+from datetime import timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
