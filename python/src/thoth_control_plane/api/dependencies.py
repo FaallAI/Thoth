@@ -14,6 +14,7 @@ from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, Request, status
 
+from thoth_control_plane import metering
 from thoth_control_plane.auth.models import (
     ALL_SCOPES,
     BOOTSTRAP_WORKSPACE_ID,
@@ -23,6 +24,7 @@ from thoth_control_plane.auth.models import (
 )
 from thoth_control_plane.auth.service import AuthUnavailable
 from thoth_control_plane.domain import Actor
+from thoth_control_plane.metering import MeterScope
 
 SESSION_COOKIE = "thoth_session"
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
@@ -102,6 +104,8 @@ async def current_actor(
     project_id = request.path_params.get("project_id")
     if project_id is not None:
         await _require_project(request, project_id, principal.workspace_id)
+    # Usage this request causes is the caller's workspace's (spec 2026-10-20 metering, 2.2).
+    metering.enter_scope(MeterScope(principal.workspace_id, project_id=project_id))
     display = principal.email[:200] if principal.email else None
     return Actor(
         actor_id=data_actor_id(principal.workspace_id), actor_type="user", display_name=display

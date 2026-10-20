@@ -27,6 +27,7 @@ from thoth_control_plane.application import (
     WorkflowNotReady,
 )
 from thoth_control_plane.application.ports import RunClosed, RunExpired, RunLive, RunSettlement
+from thoth_control_plane.auth.models import actor_workspace_id
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain import (
     Actor,
@@ -135,6 +136,8 @@ class TemporalWorkflowGateway:
                 memo={
                     "idempotency_key": idempotency_key,
                     "request_snapshot_id": requested_snapshot_id,
+                    # The meter scope of every activity (spec 2026-10-20 metering, 1.2).
+                    "workspace_id": actor_workspace_id(actor.actor_id),
                 },
             )
 

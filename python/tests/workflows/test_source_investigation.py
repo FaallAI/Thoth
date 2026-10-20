@@ -679,6 +679,9 @@ async def test_production_worker_registration_binds_source_activity_to_configure
         reports=report_store,
     )
 
+    from thoth_control_plane.activities.meter_scope import MeterScopeInterceptor
+
+    assert [type(i) for i in registered["interceptors"]] == [MeterScopeInterceptor]
     activities = registered["activities"]
     assert isinstance(activities, list)
     result = await activities[0](

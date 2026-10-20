@@ -34,3 +34,36 @@ async def test_a_workflow_of_another_workspace_is_not_found() -> None:
     with pytest.raises(WorkflowNotFound):
         await gateway.get("wf_x", actor=Actor(actor_id="ws_abc", actor_type="user"))
     assert await gateway.get("wf_x", actor=Actor(actor_id="owner", actor_type="user")) is SUMMARY
+
+
+class Started(Exception):
+    pass
+
+
+class StartingClient:
+    def __init__(self) -> None:
+        self.kwargs: dict = {}
+
+    async def start_workflow(self, *args, **kwargs):
+        self.kwargs = kwargs
+        raise Started
+
+
+@pytest.mark.asyncio
+async def test_a_started_workflow_carries_its_workspace_in_the_memo() -> None:
+    from thoth_control_plane.domain import WorkflowRequest
+
+    client = StartingClient()
+    request = WorkflowRequest.model_validate(
+        {
+            "source": {"url": "https://www.tiktok.com/@a/video/1", "intent": "identify_original"},
+            "style": {"preset_id": "news-vertical"},
+            "output": {"format": "vertical_video", "language": "id"},
+            "review": {"require_publish_approval": True},
+        }
+    )
+    with pytest.raises(Started):
+        await TemporalWorkflowGateway(client).start(  # type: ignore[arg-type]
+            request, actor=Actor(actor_id="ws_abc", actor_type="user"), idempotency_key="k"
+        )
+    assert client.kwargs["memo"]["workspace_id"] == "ws_abc"

@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 from temporalio.service import RPCError
 
+from thoth_control_plane import metering
 from thoth_control_plane.acquisition.accounts.profiles import AccountProfiles
 from thoth_control_plane.acquisition.accounts.vault import Vault
 from thoth_control_plane.api.routes.auth import router as auth_router
@@ -107,6 +108,7 @@ from thoth_control_plane.infrastructure.studio_review_repository import (
     PostgresStudioReviewRepository,
 )
 from thoth_control_plane.infrastructure.temporal_gateway import TemporalWorkflowGateway
+from thoth_control_plane.infrastructure.usage_store import UsageStore
 from thoth_control_plane.infrastructure.workflow_run_store import (
     WorkflowRunStore,
     WorkflowRunsUnavailable,
@@ -214,6 +216,7 @@ def create_app(
     account_store: AccountStore | None = None,
     mailer: Mailer | None = None,
     identity_providers: dict[str, IdentityProvider] | None = None,
+    usage_store: UsageStore | None = None,
 ) -> FastAPI:
     """Create an isolated v1 API application for the supplied workflow gateway."""
     settings = settings or Settings()  # type: ignore[call-arg]
@@ -342,6 +345,11 @@ def create_app(
             settings.THOTH_EDITOR_DATABASE_URL.get_secret_value()
         )
     app.state.workflow_run_store = workflow_run_store
+    if usage_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
+        usage_store = UsageStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
+    app.state.usage_store = usage_store
+    if usage_store is not None:
+        metering.install(usage_store)
     if account_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
         account_store = AccountStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
     auth_secret = (
