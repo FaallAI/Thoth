@@ -52,6 +52,8 @@ class SourceAccountPolicyRow(Base):
     # NULL means the platform default; 0 means unlimited (editor migration 0009).
     daily_budget: Mapped[int | None] = mapped_column(Integer, nullable=True)
     engine: Mapped[str] = mapped_column(String, default="patchright")
+    # NULL means the default share; 0-100 percent of capacity kept for ws_bootstrap (0015).
+    operator_reserve_percent: Mapped[int | None] = mapped_column(Integer, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime)
 
 

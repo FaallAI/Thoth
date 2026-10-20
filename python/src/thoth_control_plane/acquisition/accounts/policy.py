@@ -14,6 +14,11 @@ DEFAULT_MODE: Mode = "fallback"
 DEFAULT_SPACING_SECONDS = 60
 # Spec 2026-10-13 (account safety): leases per account per UTC day, and Instagram's spacing.
 DEFAULT_DAILY_BUDGETS = {"instagram": 20, "tiktok": 40, "x": 30, "youtube": 60, "threads": 30}
+#: Leases a workspace other than the operator's may take per platform per UTC day
+#: (spec 2026-10-20 metering, 1.1).
+DEFAULT_WORKSPACE_DAILY_LEASES = {"instagram": 3, "tiktok": 10, "x": 5, "youtube": 10, "threads": 5}
+#: The share of a platform's daily account capacity kept for ws_bootstrap (spec 1.4).
+DEFAULT_OPERATOR_RESERVE_PERCENT = 50
 DEFAULT_SPACING_SECONDS_BY_PLATFORM = {"instagram": 600}
 ENGINES = ("patchright", "camoufox")
 # Only Instagram's signed-in reels discovery runs Camoufox (spec 3.4); every other session is
