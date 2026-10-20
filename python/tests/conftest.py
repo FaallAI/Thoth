@@ -80,6 +80,16 @@ def _is_local(address: Any) -> bool:
 
 
 @pytest.fixture(autouse=True)
+def _no_usage_sink():
+    """The meter's sink is process-wide: every test starts and ends without one."""
+    from thoth_control_plane import metering
+
+    metering.install(None)
+    yield
+    metering.install(None)
+
+
+@pytest.fixture(autouse=True)
 def _offline_unless_live(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch):
     """Refuse every non-loopback connection outside tests marked ``live``.
 
