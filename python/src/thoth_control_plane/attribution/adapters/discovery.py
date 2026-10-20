@@ -31,6 +31,7 @@ from thoth_control_plane.attribution.adapters.frames import ToolMissing
 from thoth_control_plane.attribution.models import Platform
 from thoth_control_plane.infrastructure.source_account_store import (
     AccountLease,
+    QuotaReached,
     SourceAccountStore,
 )
 
@@ -79,6 +80,9 @@ class StoreLeases:
             lease = await asyncio.to_thread(self._store.lease, platform)
         except ToolMissing:
             raise  # a required tool is an explicit error, never "no account"
+        except QuotaReached:
+            logger.info("source account quota reached; discovery runs anonymously")
+            return None
         except Exception:
             logger.warning("source account lease unavailable; discovery runs anonymously")
             return None

@@ -2,23 +2,28 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from cryptography.fernet import Fernet
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from thoth_control_plane import metering
 from thoth_control_plane.acquisition.accounts import fingerprints
 from thoth_control_plane.acquisition.accounts.cookies import parse_cookies
 from thoth_control_plane.acquisition.accounts.proxies import parse_proxy_list
 from thoth_control_plane.acquisition.accounts.vault import Vault
 from thoth_control_plane.infrastructure.source_account_models import Base, SourceAccountRow
 from thoth_control_plane.infrastructure.source_account_store import (
+    QuotaReached,
     SourceAccountError,
     SourceAccountStore,
 )
+from thoth_control_plane.infrastructure.usage_models import UsageEventRow, WorkspaceQuotaRow
+from thoth_control_plane.metering import MeterScope
 
 NOW = datetime(2026, 10, 7, 12, 0, tzinfo=UTC)
 SECRET = "s3cr3t-session-value"
@@ -485,3 +490,126 @@ def test_a_lease_prunes_usage_older_than_a_month(
     with Session(engine) as session:
         days = sorted(row.day for row in session.scalars(select(SourceAccountUsageRow)))
     assert days == [(NOW - timedelta(days=30)).date(), NOW.date()]
+
+
+A = MeterScope("ws_a", workflow_id="wf_a")
+
+
+def _quota(engine, workspace: str, platform: str, n: int) -> None:
+    with Session(engine) as session, session.begin():
+        session.add(
+            WorkspaceQuotaRow(
+                workspace_id=workspace, platform=platform, daily_leases=n, updated_at=NOW
+            )
+        )
+
+
+def _lease_and_release(store: SourceAccountStore, platform: str):
+    lease = store.lease(platform)
+    if lease is not None:
+        store.report(lease.account_id, None, leased_until=lease.leased_until)
+    return lease
+
+
+def test_a_workspace_stops_at_its_daily_quota_and_the_bootstrap_does_not(store, engine, clock):
+    store.set_policy("tiktok", "always", 0, daily_budget=0)
+    store.add_account("tiktok", "t1", _cookies("tiktok"))
+    _quota(engine, "ws_a", "tiktok", 2)
+    with metering.scoped(A):
+        assert _lease_and_release(store, "tiktok") is not None
+        assert _lease_and_release(store, "tiktok") is not None
+        with pytest.raises(QuotaReached) as refused:
+            store.lease("tiktok")
+        assert refused.value.code == "workspace_quota"
+    assert _lease_and_release(store, "tiktok") is not None  # no scope: the bootstrap
+    clock.now = NOW + timedelta(days=1)
+    with metering.scoped(A):
+        assert _lease_and_release(store, "tiktok") is not None
+
+
+def test_a_zero_quota_turns_source_accounts_off_for_the_workspace(store, engine) -> None:
+    store.set_policy("tiktok", "always", 0, daily_budget=0)
+    store.add_account("tiktok", "t1", _cookies("tiktok"))
+    _quota(engine, "ws_a", "tiktok", 0)
+    with metering.scoped(A), pytest.raises(QuotaReached):
+        store.lease("tiktok")
+
+
+def test_the_reserve_keeps_half_the_capacity_for_the_operator(store, engine) -> None:
+    store.set_policy("instagram", "always", 0, daily_budget=20)
+    store.add_account("instagram", "i1", _cookies("instagram"))
+    _quota(engine, "ws_a", "instagram", 100)
+    with metering.scoped(A):
+        for _ in range(10):
+            assert _lease_and_release(store, "instagram") is not None
+        with pytest.raises(QuotaReached) as refused:
+            store.lease("instagram")
+        assert refused.value.code == "operator_reserve"
+    assert _lease_and_release(store, "instagram") is not None  # the bootstrap still leases
+
+
+def test_capacity_skips_a_cooldown_that_lasts_past_today(store, engine) -> None:
+    store.set_policy("instagram", "always", 0, daily_budget=20)
+    store.add_account("instagram", "i1", _cookies("instagram"))
+    resting = store.add_account("instagram", "i2", _cookies("instagram", "other"))
+    with Session(engine) as session, session.begin():
+        row = session.get(SourceAccountRow, uuid.UUID(resting.id))
+        row.status, row.cooldown_until = "cooldown", NOW + timedelta(days=2)
+    _quota(engine, "ws_a", "instagram", 100)
+    with metering.scoped(A):
+        for _ in range(10):
+            assert _lease_and_release(store, "instagram") is not None
+        with pytest.raises(QuotaReached):
+            store.lease("instagram")
+
+
+def test_an_unlimited_budget_has_no_reserve(store, engine) -> None:
+    store.set_policy("tiktok", "always", 0, daily_budget=0)
+    store.add_account("tiktok", "t1", _cookies("tiktok"))
+    _quota(engine, "ws_a", "tiktok", 30)
+    with metering.scoped(A):
+        for _ in range(30):
+            assert _lease_and_release(store, "tiktok") is not None
+
+
+def test_the_reserve_percentage_can_be_changed_per_platform(store, engine) -> None:
+    store.set_policy("instagram", "always", 0, daily_budget=20, operator_reserve_percent=0)
+    assert store.policy("instagram").operator_reserve_percent == 0
+    store.add_account("instagram", "i1", _cookies("instagram"))
+    _quota(engine, "ws_a", "instagram", 100)
+    with metering.scoped(A):
+        for _ in range(20):
+            assert _lease_and_release(store, "instagram") is not None
+
+
+def test_every_lease_records_one_event_for_its_workspace(store, engine) -> None:
+    store.set_policy("tiktok", "always", 0, daily_budget=0)
+    store.add_account("tiktok", "t1", _cookies("tiktok"))
+    with metering.scoped(A):
+        _lease_and_release(store, "tiktok")
+    _lease_and_release(store, "tiktok")
+    with Session(engine) as session:
+        rows = session.execute(
+            select(
+                UsageEventRow.workspace_id,
+                UsageEventRow.workflow_id,
+                UsageEventRow.kind,
+                UsageEventRow.key,
+                UsageEventRow.unit,
+            )
+        ).all()
+    assert sorted(rows, key=str) == sorted(
+        [
+            ("ws_a", "wf_a", "account_lease", "tiktok", "session"),
+            ("ws_bootstrap", None, "account_lease", "tiktok", "session"),
+        ],
+        key=str,
+    )
+
+
+def test_no_account_writes_no_event(store, engine) -> None:
+    store.set_policy("tiktok", "always", 0, daily_budget=0)
+    with metering.scoped(A):
+        assert store.lease("tiktok") is None
+    with Session(engine) as session:
+        assert session.scalar(select(func.count()).select_from(UsageEventRow)) == 0

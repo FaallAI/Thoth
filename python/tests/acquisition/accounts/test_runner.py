@@ -26,7 +26,10 @@ from thoth_control_plane.acquisition.models import (
     AttemptStatus,
 )
 from thoth_control_plane.infrastructure.source_account_models import Base
-from thoth_control_plane.infrastructure.source_account_store import SourceAccountStore
+from thoth_control_plane.infrastructure.source_account_store import (
+    QuotaReached,
+    SourceAccountStore,
+)
 
 URL = "https://www.instagram.com/p/abc/"
 NOW = datetime(2026, 10, 7, 12, 0, tzinfo=UTC)
@@ -257,3 +260,22 @@ async def test_a_leased_acquisition_runs_in_the_accounts_patchright_profile(
     assert session.engine == "patchright"  # card crops stay on Scrapling (spec 3.4)
     assert not session.profile_dir.exists()
     assert [path.name.split(".")[1] for path in (tmp_path / "profiles").iterdir()] == ["patchright"]
+
+
+class QuotaStore:
+    """A store whose workspace has used its quota: every lease is refused."""
+
+    def policy(self, platform):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(mode="always")
+
+    def lease(self, platform, engine=None):
+        raise QuotaReached("workspace_quota")
+
+
+async def test_a_reached_quota_runs_anonymously_and_says_so() -> None:
+    script = Script(SUCCESS)
+    result = await _run(QuotaStore(), script)  # type: ignore[arg-type]
+    assert script.sessions == [None]
+    assert result.account == AccountUse(used=False, no_account_available=True, quota_exhausted=True)

@@ -8,16 +8,18 @@ by the vault before they reach a row and opened only to build a `SessionAccess`.
 from __future__ import annotations
 
 import json
+import math
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Final
 
-from sqlalchemy import and_, create_engine, delete, or_, select, true
+from sqlalchemy import and_, create_engine, delete, func, or_, select, true
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session, sessionmaker
 
+from thoth_control_plane import metering
 from thoth_control_plane.acquisition.accounts import fingerprints
 from thoth_control_plane.acquisition.accounts.access import SessionAccess
 from thoth_control_plane.acquisition.accounts.cookies import PLATFORMS, CookieSet, Platform
@@ -25,8 +27,10 @@ from thoth_control_plane.acquisition.accounts.policy import (
     CAMOUFOX_PLATFORMS,
     DEFAULT_DAILY_BUDGETS,
     DEFAULT_MODE,
+    DEFAULT_OPERATOR_RESERVE_PERCENT,
     DEFAULT_SPACING_SECONDS,
     DEFAULT_SPACING_SECONDS_BY_PLATFORM,
+    DEFAULT_WORKSPACE_DAILY_LEASES,
     ENGINES,
     LEASE,
     Health,
@@ -36,12 +40,15 @@ from thoth_control_plane.acquisition.accounts.policy import (
 )
 from thoth_control_plane.acquisition.accounts.proxies import ProxyImport
 from thoth_control_plane.acquisition.accounts.vault import Vault, VaultError
+from thoth_control_plane.auth.models import BOOTSTRAP_WORKSPACE_ID
+from thoth_control_plane.infrastructure.account_models import WorkspaceRow
 from thoth_control_plane.infrastructure.source_account_models import (
     SourceAccountPolicyRow,
     SourceAccountRow,
     SourceAccountUsageRow,
     SourceProxyRow,
 )
+from thoth_control_plane.infrastructure.usage_models import UsageEventRow, WorkspaceQuotaRow
 
 UNSET: Final = object()
 # Daily usage only gates today's budget; a month stays for the operator to read.
@@ -61,6 +68,15 @@ class SourceAccountError(Exception):
         self.code = code
 
 
+class QuotaReached(Exception):
+    """The workspace's daily quota, or the operator reserve, refuses this lease (spec 2026-10-20).
+    Callers treat it like "no account available" and say so in the run report."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
 @dataclass(frozen=True)
 class PolicyView:
     platform: Platform
@@ -68,6 +84,7 @@ class PolicyView:
     min_spacing_seconds: int
     daily_budget: int = 0  # effective: the platform default when the row leaves it unset
     engine: str = "patchright"
+    operator_reserve_percent: int = DEFAULT_OPERATOR_RESERVE_PERCENT
 
 
 @dataclass(frozen=True)
@@ -159,6 +176,7 @@ class SourceAccountStore:
         min_spacing_seconds: int,
         daily_budget: Any = UNSET,
         engine: Any = UNSET,
+        operator_reserve_percent: Any = UNSET,
     ) -> PolicyView:
         """Omit `daily_budget` or `engine` to keep it; `daily_budget=None` is the default."""
         with self._sessions.begin() as session:
@@ -174,6 +192,13 @@ class SourceAccountStore:
                 row.engine = engine
             if daily_budget is not UNSET:
                 row.daily_budget = daily_budget
+            if operator_reserve_percent is not UNSET:
+                if (
+                    operator_reserve_percent is not None
+                    and not 0 <= operator_reserve_percent <= 100
+                ):
+                    raise ValueError("operator_reserve_percent must be 0-100")
+                row.operator_reserve_percent = operator_reserve_percent
             row.mode, row.min_spacing_seconds = mode, min_spacing_seconds
             row.updated_at = self._clock()
         return self._policy_view(platform, row)
@@ -190,6 +215,9 @@ class SourceAccountStore:
             row.min_spacing_seconds,
             budget if row.daily_budget is None else row.daily_budget,
             row.engine or "patchright",
+            DEFAULT_OPERATOR_RESERVE_PERCENT
+            if row.operator_reserve_percent is None
+            else row.operator_reserve_percent,
         )
 
     # Accounts
@@ -305,8 +333,12 @@ class SourceAccountStore:
     def lease(self, platform: Platform, engine: str | None = None) -> AccountLease | None:
         """The least recently used eligible account, held for `LEASE`; None when none is.
 
-        `engine` defaults to the platform's; acquisition asks for Patchright (spec 3.4).
+        `engine` defaults to the platform's; acquisition asks for Patchright (spec 3.4). A
+        workspace other than the bootstrap is held to its quota and the operator reserve
+        (spec 2026-10-20 metering); `QuotaReached` says which refused.
         """
+        scope = metering.current_scope()
+        workspace_id = scope.workspace_id if scope is not None else BOOTSTRAP_WORKSPACE_ID
         for _ in range(MAX_LEASE_ATTEMPTS):
             now = self._clock()
             policy = self.policy(platform)
@@ -324,6 +356,8 @@ class SourceAccountStore:
                 else true()
             )
             with self._sessions.begin() as session:
+                if workspace_id != BOOTSTRAP_WORKSPACE_ID:
+                    self._check_quota(session, workspace_id, platform, policy, now)
                 row = session.scalars(
                     select(SourceAccountRow)
                     .where(
@@ -367,8 +401,82 @@ class SourceAccountStore:
                     session.add(SourceAccountUsageRow(account_id=row.id, day=today, uses=1))
                 else:
                     usage.uses += 1
+                session.add(
+                    UsageEventRow(
+                        event_id=f"use_{uuid.uuid4().hex}",
+                        workspace_id=workspace_id,
+                        workflow_id=scope.workflow_id if scope is not None else None,
+                        project_id=scope.project_id if scope is not None else None,
+                        kind="account_lease",
+                        key=platform,
+                        quantity=1.0,
+                        unit="session",
+                        occurred_at=now,
+                    )
+                )
                 return AccountLease(str(row.id), platform, access, row.leased_until)
         return None
+
+    def _check_quota(
+        self,
+        session: Session,
+        workspace_id: str,
+        platform: Platform,
+        policy: PolicyView,
+        now: datetime,
+    ) -> None:
+        """Spec 2026-10-20, 1.2 and 1.4: the workspace quota, then the operator reserve."""
+        # One lock for every non-bootstrap lease: the reserve spans workspaces.
+        session.get(WorkspaceRow, BOOTSTRAP_WORKSPACE_ID, with_for_update=True)
+        today = now.date()
+        start = datetime.combine(today, datetime.min.time(), tzinfo=UTC)
+        override = session.get(WorkspaceQuotaRow, (workspace_id, platform))
+        limit = (
+            override.daily_leases
+            if override is not None
+            else DEFAULT_WORKSPACE_DAILY_LEASES.get(platform, 0)
+        )
+        used = session.scalar(
+            select(func.count())
+            .select_from(UsageEventRow)
+            .where(
+                UsageEventRow.workspace_id == workspace_id,
+                UsageEventRow.kind == "account_lease",
+                UsageEventRow.key == platform,
+                UsageEventRow.occurred_at >= start,
+            )
+        )
+        if (used or 0) >= limit:
+            raise QuotaReached("workspace_quota")
+        if policy.daily_budget <= 0:
+            return  # an unlimited budget has no reserve
+        tomorrow = start + timedelta(days=1)
+        ids = list(
+            session.scalars(
+                select(SourceAccountRow.id).where(
+                    SourceAccountRow.platform == platform,
+                    or_(
+                        SourceAccountRow.status == "healthy",
+                        and_(
+                            SourceAccountRow.status == "cooldown",
+                            SourceAccountRow.cooldown_until < tomorrow,
+                        ),
+                    ),
+                )
+            )
+        )
+        uses = dict(
+            session.execute(
+                select(SourceAccountUsageRow.account_id, SourceAccountUsageRow.uses).where(
+                    SourceAccountUsageRow.account_id.in_(ids),
+                    SourceAccountUsageRow.day == today,
+                )
+            ).all()
+        )
+        remaining = sum(max(0, policy.daily_budget - uses.get(i, 0)) for i in ids)
+        reserve = math.ceil(len(ids) * policy.daily_budget * policy.operator_reserve_percent / 100)
+        if remaining - 1 < reserve:
+            raise QuotaReached("operator_reserve")
 
     def report(
         self, account_id: str, outcome: Outcome | None, leased_until: datetime | None = None
