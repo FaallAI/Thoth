@@ -89,23 +89,37 @@ Table `subscriptions`, one row per workspace: `workspace_id` (primary key, forei
 
 ### 1.3 Allowance use
 
-Within the current period of a workspace:
+A workflow start calls Temporal and a render calls the renderer, so a database lock cannot be
+held across the start itself. Each unit is therefore recorded in a small ledger when it is
+admitted.
 
-- **workflows used** = rows of `workflow_runs` whose `actor_id` is the workspace's data actor,
-  created in the period (the row is written when the workflow starts);
-- **videos used** = `render_jobs` of the workspace's projects created in the period whose status
-  is not `failed` or `cancelled`. A failed or cancelled render gives its unit back.
+Table `allowance_uses`:
+- `use_id`;
+- `workspace_id` and `kind` (`workflow` or `video`);
+- `ref`: a hash of the actor and the idempotency key for a workflow, or the render job ID for a
+  video;
+- `created_at` and `released_at`.
+- `(workspace_id, kind, ref)` is unique.
+
+**Used** = the rows of the kind in the current period (`created_at >= period_start`) that are not
+released.
+
+- A workflow start that fails, or a render that fails or is cancelled, releases its unit.
+- An idempotent retry of the same workflow start finds its own row and is admitted without
+  consuming a second unit.
 
 ### 1.4 Where the allowance is checked
 
-- Before starting a workflow (`POST /api/v1/projects/{project_id}/workflows` and every other
-  workflow start the API offers) and before creating a render job (`POST …/render-jobs`).
-- The check and the start that consumes the unit run under a `SELECT … FOR NO KEY UPDATE` lock
-  on the workspace's `subscriptions` row, so two starts racing at the last unit admit exactly
-  one.
-- Exhausted: **402** `plan_limit_reached` with
-  `{"detail": "plan_limit_reached", "kind": "workflow"|"video", "used": n, "allowance": n,
-  "period_end": …}`.
+- **Workflows:** in the workflow-run service, before the start. This covers both
+  `POST /api/v1/workflows` and `POST /api/v1/projects/{project_id}/workflows`.
+- **Renders:** in the render service, before a render job is reserved. This covers create and
+  retry.
+- The check and the ledger insert run in one transaction that first takes
+  `SELECT … FOR NO KEY UPDATE` on the workspace's `subscriptions` row. Two starts racing at the
+  last unit therefore admit exactly one.
+- Exhausted: **402** with
+  `{"detail": {"code": "plan_limit_reached", "kind": "workflow"|"video", "used": n,
+  "allowance": n, "period_end": …}}`.
 
 ### 1.5 Pricing against metered cost
 
