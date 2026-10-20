@@ -4,6 +4,83 @@
  */
 
 export interface paths {
+    "/api/v1/admin/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Plans */
+        get: operations["list_plans_api_v1_admin_plans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/plans/margin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Plan Margin
+         * @description Each plan's price against metered cost, in rupiah at the admin rate (spec 1.5).
+         */
+        get: operations["plan_margin_api_v1_admin_plans_margin_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/plans/rate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Rate
+         * @description Rupiah per US dollar for the margin report (spec 1.5). Declared before the plan route.
+         */
+        put: operations["set_rate_api_v1_admin_plans_rate_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/plans/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Edit Plan
+         * @description Create or change a plan without a deploy (spec 1.1).
+         */
+        put: operations["edit_plan_api_v1_admin_plans__plan_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/prices": {
         parameters: {
             query?: never;
@@ -54,6 +131,46 @@ export interface paths {
         /** Change Quota */
         put: operations["change_quota_api_v1_admin_workspaces__workspace_id__quotas_put"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Billing
+         * @description The caller's plan, this period's allowance and invoices (spec 2.4).
+         */
+        get: operations["my_billing_api_v1_billing_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Checkout
+         * @description Buy or renew a plan (spec 2.1): owners and admins of the workspace only.
+         */
+        post: operations["checkout_api_v1_billing_checkout_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1390,6 +1507,30 @@ export interface components {
              */
             kind: "attach_asset";
         };
+        /** BillingView */
+        BillingView: {
+            /** Invoices */
+            invoices: components["schemas"]["InvoiceOut"][];
+            /** Period End */
+            period_end: string | null;
+            /** Period Start */
+            period_start: string | null;
+            plan: components["schemas"]["PlanOut"] | null;
+            /** Plans */
+            plans: components["schemas"]["PlanOut"][];
+            /** Unlimited */
+            unlimited: boolean;
+            /** Videos Allowed */
+            videos_allowed: number | null;
+            /** Videos Used */
+            videos_used: number;
+            /** Workflows Allowed */
+            workflows_allowed: number | null;
+            /** Workflows Used */
+            workflows_used: number;
+            /** Workspace Id */
+            workspace_id: string;
+        };
         /** Canvas */
         Canvas: {
             /** Duration In Frames */
@@ -1421,6 +1562,20 @@ export interface components {
             from_frame: number;
             /** Text */
             text: string;
+        };
+        /** CheckoutRequest */
+        CheckoutRequest: {
+            /** Plan Id */
+            plan_id: string;
+        };
+        /** CheckoutView */
+        CheckoutView: {
+            /** Applied */
+            applied: boolean;
+            /** Invoice Id */
+            invoice_id: string | null;
+            /** Invoice Url */
+            invoice_url: string | null;
         };
         /** ContentSetImportRequest */
         ContentSetImportRequest: {
@@ -1770,6 +1925,26 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** InvoiceOut */
+        InvoiceOut: {
+            /** Amount Idr */
+            amount_idr: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Invoice Id */
+            invoice_id: string;
+            /** Invoice Url */
+            invoice_url: string | null;
+            /** Paid At */
+            paid_at: string | null;
+            /** Plan Id */
+            plan_id: string;
+            /** Status */
+            status: string;
+        };
         /** LockRevisionConflictBody */
         LockRevisionConflictBody: {
             /**
@@ -1786,6 +1961,25 @@ export interface components {
             description?: string | null;
             /** Title */
             title?: string | null;
+        };
+        /** MarginView */
+        MarginView: {
+            /** Complete */
+            complete: boolean;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /** Idr Per Usd */
+            idr_per_usd: number | null;
+            /** Plans */
+            plans: components["schemas"]["PlanMargin"][];
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
         };
         /** MeView */
         MeView: {
@@ -1842,6 +2036,59 @@ export interface components {
             accent_slot?: string | null;
             /** Text */
             text?: string | null;
+        };
+        /** PlanEdit */
+        PlanEdit: {
+            /** Active */
+            active?: boolean | null;
+            /** Name */
+            name: string;
+            /** Period Days */
+            period_days?: number | null;
+            /** Price Idr */
+            price_idr: number;
+            /** Videos Per Period */
+            videos_per_period: number;
+            /** Workflows Per Period */
+            workflows_per_period: number;
+        };
+        /** PlanMargin */
+        PlanMargin: {
+            /** Cost Per Video Usd */
+            cost_per_video_usd: number | null;
+            /** Cost Per Workflow Usd */
+            cost_per_workflow_usd: number | null;
+            /** Full Use Cost Idr */
+            full_use_cost_idr: number | null;
+            /** Full Use Cost Usd */
+            full_use_cost_usd: number | null;
+            /** Margin Idr */
+            margin_idr: number | null;
+            /** Plan Id */
+            plan_id: string;
+            /** Price Idr */
+            price_idr: number;
+            /** Videos Per Period */
+            videos_per_period: number;
+            /** Workflows Per Period */
+            workflows_per_period: number;
+        };
+        /** PlanOut */
+        PlanOut: {
+            /** Active */
+            active: boolean;
+            /** Name */
+            name: string;
+            /** Period Days */
+            period_days: number;
+            /** Plan Id */
+            plan_id: string;
+            /** Price Idr */
+            price_idr: number;
+            /** Videos Per Period */
+            videos_per_period: number;
+            /** Workflows Per Period */
+            workflows_per_period: number;
         };
         /** PlatformAccounts */
         PlatformAccounts: {
@@ -2228,6 +2475,11 @@ export interface components {
             };
             /** Workspace Id */
             workspace_id: string;
+        };
+        /** RateEdit */
+        RateEdit: {
+            /** Idr Per Usd */
+            idr_per_usd: number;
         };
         /** RemoveClip */
         RemoveClip: {
@@ -3701,6 +3953,143 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_plans_api_v1_admin_plans_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    plan_margin_api_v1_admin_plans_margin_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarginView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_rate_api_v1_admin_plans_rate_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RateEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateEdit"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_plan_api_v1_admin_plans__plan_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_prices_api_v1_admin_prices_get: {
         parameters: {
             query?: never;
@@ -3858,6 +4247,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuotaView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_billing_api_v1_billing_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    checkout_api_v1_billing_checkout_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckoutRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutView"];
                 };
             };
             /** @description Validation Error */

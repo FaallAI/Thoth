@@ -39,7 +39,7 @@ def _tables() -> set[str]:
 
 
 def test_fresh_database_applies_every_revision_and_a_rerun_applies_none() -> None:
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 15
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 16
     assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 0
     assert {"alembic_version", "studio_import_drafts", "studio_import_decisions"} <= _tables()
     assert {"source_account_policies", "source_proxies", "source_accounts"} <= _tables()
@@ -52,7 +52,7 @@ def test_database_migrated_before_alembic_is_adopted_and_only_the_rest_applied()
         for migration in sorted(MIGRATIONS.glob("*.sql"))[:6]:
             connection.execute(migration.read_text(encoding="utf-8"))
 
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 9
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 10
     assert {"studio_import_drafts", "studio_import_decisions"} <= _tables()
 
 
@@ -322,10 +322,12 @@ def test_existing_projects_move_to_the_bootstrap_workspace(tmp_path: Path) -> No
     (before / "alembic" / "versions" / "0014_project_workspaces.py").unlink()
     (before / "0015_metering.sql").unlink()
     (before / "alembic" / "versions" / "0015_metering.py").unlink()
+    (before / "0016_billing.sql").unlink()
+    (before / "alembic" / "versions" / "0016_billing.py").unlink()
     assert apply_editor_migrations(DATABASE_URL, before) == 13
     with psycopg.connect(DATABASE_URL) as connection:
         connection.execute("INSERT INTO projects (project_id, name) VALUES ('p-legacy', 'Legacy')")
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 2
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 3
     with psycopg.connect(DATABASE_URL) as connection:
         assert connection.execute(
             "SELECT workspace_id FROM projects WHERE project_id = 'p-legacy'"
@@ -405,3 +407,24 @@ def test_metering_tables_and_the_reserve_column_exist() -> None:
             "INSERT INTO source_account_policies (platform, mode, operator_reserve_percent,"
             " updated_at) VALUES ('instagram', 'always', 101, now())"
         )
+
+
+def test_billing_tables_exist_with_the_free_plan() -> None:
+    apply_editor_migrations(DATABASE_URL, MIGRATIONS)
+    assert {"plans", "subscriptions", "invoices", "allowance_uses", "exchange_rates"} <= _tables()
+    with psycopg.connect(DATABASE_URL) as connection:
+        assert connection.execute(
+            "SELECT plan_id, name, price_idr, workflows_per_period, videos_per_period,"
+            " period_days, active FROM plans"
+        ).fetchall() == [("free", "Free", 0, 3, 1, 30, True)]
+        with pytest.raises(psycopg.errors.CheckViolation):
+            connection.execute(
+                "INSERT INTO plans (plan_id, name, price_idr, workflows_per_period,"
+                " videos_per_period, period_days, active) VALUES ('x', 'X', -1, 1, 1, 30, true)"
+            )
+    with psycopg.connect(DATABASE_URL) as connection, pytest.raises(psycopg.errors.UniqueViolation):
+        for _ in range(2):
+            connection.execute(
+                "INSERT INTO allowance_uses (use_id, workspace_id, kind, ref, created_at)"
+                " VALUES (gen_random_uuid()::text, 'ws_bootstrap', 'workflow', 'r1', now())"
+            )

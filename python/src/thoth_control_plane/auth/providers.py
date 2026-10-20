@@ -65,8 +65,10 @@ class GoogleProvider:
         *,
         metadata_url: str = GOOGLE_METADATA,
         transport: oauth_http.AsyncBaseTransport | None = None,
+        public: bool = False,
     ) -> None:
         self._domain = domain
+        self._public = public
         self._client = OAuth().register(
             "google",
             client_id=client_id,
@@ -83,7 +85,7 @@ class GoogleProvider:
             token = await self._client.authorize_access_token(request)
         except PROVIDER_FAILURES:
             raise SignInRefused("provider_error") from None
-        return google_identity(token.get("userinfo") or {}, self._domain)
+        return google_identity(token.get("userinfo") or {}, self._domain, public=self._public)
 
 
 class GitHubProvider:
@@ -96,8 +98,10 @@ class GitHubProvider:
         org: str,
         *,
         transport: oauth_http.AsyncBaseTransport | None = None,
+        public: bool = False,
     ) -> None:
         self._org = org
+        self._public = public
         self._client = OAuth().register(
             "github",
             client_id=client_id,
@@ -124,7 +128,11 @@ class GitHubProvider:
             found = membership.json() if membership.status_code == 200 else None
             listed = emails.json()
             return github_identity(
-                user.json(), listed if isinstance(listed, list) else [], found, self._org
+                user.json(),
+                listed if isinstance(listed, list) else [],
+                found,
+                self._org,
+                public=self._public,
             )
         except PROVIDER_FAILURES:
             raise SignInRefused("provider_error") from None
@@ -141,6 +149,7 @@ def build_providers(
             settings.THOTH_AUTH_GOOGLE_CLIENT_SECRET.get_secret_value(),  # type: ignore[union-attr]
             settings.THOTH_AUTH_GOOGLE_DOMAIN or "",
             transport=transport,
+            public=settings.THOTH_AUTH_PUBLIC_SIGNUP,
         )
     if settings.github_sign_in_enabled:
         providers["github"] = GitHubProvider(
@@ -148,5 +157,6 @@ def build_providers(
             settings.THOTH_AUTH_GITHUB_CLIENT_SECRET.get_secret_value(),  # type: ignore[union-attr]
             settings.THOTH_AUTH_GITHUB_ORG or "",
             transport=transport,
+            public=settings.THOTH_AUTH_PUBLIC_SIGNUP,
         )
     return providers

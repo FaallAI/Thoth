@@ -557,6 +557,36 @@ for the caller's workspace.
   - `complete` is false while any usage has no unit price. Set prices with
     `thoth-control prices set <kind> <key|*> <unit> <usd>` after a deploy.
 
+### Billing
+
+Every workspace is on a plan with a monthly allowance of workflows and videos (spec
+`docs/superpowers/specs/2026-10-20-billing-design.md`).
+
+- **Plans** live in the database, never in code. Migration `0016` seeds only `free` (Rp0, 3
+  workflows, 1 video, 30 days).
+  - Edit them with `thoth-control plans set <id> --name … --price-idr … --workflows …
+    --videos …`, `plans list`, or `/api/v1/admin/plans`.
+  - A changed allowance applies at once; a changed price applies from the next invoice.
+- **Subscriptions:** a workspace without one is on `free`. A paid plan that is not renewed falls
+  back to `free` at its period end. `thoth-control subscriptions set <workspace> <plan> <days>`
+  grants a plan without payment. `ws_bootstrap` is never limited.
+- **Allowance:** each workflow start and each render takes one unit from the `allowance_uses`
+  ledger, under a row lock on the subscription. A failed workflow start, or a failed or
+  cancelled render, gives its unit back. Past the allowance the answer is 402:
+  `{"detail": {"code": "plan_limit_reached", "kind", "used", "allowance", "period_end"}}`.
+- **Payment:** `POST /api/v1/billing/checkout` opens a Xendit invoice (QRIS, bank transfer,
+  e-wallet, card). Xendit then calls `POST /billing/webhooks/xendit`, checked against
+  `THOTH_XENDIT_CALLBACK_TOKEN`, which extends or starts the plan once.
+- **Margin:** `/api/v1/admin/plans/margin` compares each plan's price with metered cost,
+  converted at the admin rate (`thoth-control plans rate <idr_per_usd>`).
+- **Public sign-up:** `THOTH_AUTH_PUBLIC_SIGNUP=true` admits verified users outside the Google
+  domain or GitHub organization.
+- **Go-live steps, deferred by the operator until every feature is finished:**
+  - a public HTTPS address (Xendit cannot reach `localhost`);
+  - the Xendit keys, plus the webhook URL registered in the Xendit dashboard;
+  - the paid plans, the exchange rate and the meter unit prices;
+  - the sign-up flag.
+
 ## Authorization and approvals
 
 Every principal (a session, a developer token or the service key) maps to the audited data

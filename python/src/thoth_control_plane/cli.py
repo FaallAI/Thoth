@@ -19,9 +19,11 @@ from thoth_control_plane import metering
 from thoth_control_plane.application import ApprovalSubmission, RetryRequest
 from thoth_control_plane.auth.models import ALL_SCOPES, CreateToken, Principal
 from thoth_control_plane.auth.service import SignInService
+from thoth_control_plane.billing import InvalidPlan, UnknownPlan, UnknownWorkspace
 from thoth_control_plane.config import Settings, SettingsValidationError
 from thoth_control_plane.domain import WorkflowEvent, WorkflowRequest
 from thoth_control_plane.infrastructure.account_store import AccountStore
+from thoth_control_plane.infrastructure.billing_store import BillingStore
 from thoth_control_plane.infrastructure.media_store import MediaStoreUnavailable
 from thoth_control_plane.infrastructure.project_store import ProjectStore, ProjectStoreUnavailable
 from thoth_control_plane.infrastructure.report_store import ReportStore, ReportStoreUnavailable
@@ -293,6 +295,82 @@ def prices_list() -> None:
     """Every unit price, one per line: kind key unit usd."""
     for price in _usage_store().prices():
         typer.echo(f"{price.kind} {price.key} {price.unit} {price.usd_per_unit}")
+
+
+plans_app = typer.Typer(no_args_is_help=True)
+app.add_typer(plans_app, name="plans")
+subscriptions_app = typer.Typer(no_args_is_help=True)
+app.add_typer(subscriptions_app, name="subscriptions")
+
+
+def _billing_store() -> BillingStore:
+    database_url = Settings().THOTH_EDITOR_DATABASE_URL
+    if database_url is None:
+        raise typer.BadParameter("THOTH_EDITOR_DATABASE_URL must be configured")
+    return BillingStore.connect(database_url.get_secret_value())
+
+
+@plans_app.command("set")
+def plans_set(
+    plan_id: str,
+    name: Annotated[str, typer.Option()],
+    price_idr: Annotated[int, typer.Option()],
+    workflows: Annotated[int, typer.Option()],
+    videos: Annotated[int, typer.Option()],
+    period_days: Annotated[int | None, typer.Option()] = None,
+    active: Annotated[bool | None, typer.Option("--active/--inactive")] = None,
+) -> None:
+    """Create or change a plan (spec 2026-10-20 billing, 1.1); no deploy needed."""
+    try:
+        _billing_store().set_plan(
+            plan_id,
+            name=name,
+            price_idr=price_idr,
+            workflows=workflows,
+            videos=videos,
+            period_days=period_days,
+            active=active,
+        )
+    except InvalidPlan:
+        typer.echo("invalid_plan")
+        raise typer.Exit(1) from None
+    typer.echo(f"plan={plan_id} saved")
+
+
+@plans_app.command("list")
+def plans_list() -> None:
+    """Every plan, one per line: id name price allowance days state."""
+    for p in _billing_store().plans():
+        typer.echo(
+            f"{p.plan_id} {p.name} {p.price_idr} workflows={p.workflows_per_period} "
+            f"videos={p.videos_per_period} days={p.period_days} "
+            f"{'active' if p.active else 'inactive'}"
+        )
+
+
+@plans_app.command("rate")
+def plans_rate(idr_per_usd: float) -> None:
+    """Rupiah per US dollar for the margin report (spec 1.5)."""
+    try:
+        rate = _billing_store().set_usd_idr_rate(idr_per_usd)
+    except InvalidPlan:
+        typer.echo("invalid_rate")
+        raise typer.Exit(1) from None
+    typer.echo(f"idr_per_usd={rate}")
+
+
+@subscriptions_app.command("set")
+def subscriptions_set(workspace_id: str, plan_id: str, days: int) -> None:
+    """Grant a plan for `days` from now, with no payment (spec 1.2)."""
+    try:
+        sub = _billing_store().grant(workspace_id, plan_id, days)
+    except UnknownWorkspace:
+        typer.echo("unknown_workspace")
+        raise typer.Exit(1) from None
+    except UnknownPlan:
+        typer.echo("unknown_plan")
+        raise typer.Exit(1) from None
+    typer.echo(f"workspace={workspace_id} plan={sub.plan_id} until={sub.period_end.isoformat()}")
 
 
 voice_app = typer.Typer(no_args_is_help=True)

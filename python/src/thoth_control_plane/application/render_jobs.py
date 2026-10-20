@@ -17,10 +17,11 @@ import asyncio
 import contextlib
 import hashlib
 import json
+import logging
 from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import uuid4
 
 from pydantic import Field
@@ -41,12 +42,10 @@ from thoth_control_plane.application.render_job_ports import (
     ArtifactRoot,
     ArtifactUnavailable,
     ReceivedOutput,
-    RenderBusy,
     RendererGateway,
     RendererNotConfigured,
     RendererRejected,
     RendererUnavailable,
-    RenderIdempotencyConflict,
     RenderImportUnresolved,
     RenderJobNotActive,
     RenderJobNotCancellable,
@@ -57,6 +56,7 @@ from thoth_control_plane.application.render_job_ports import (
     RenderPersistenceError,
     RenderRevisionStale,
 )
+from thoth_control_plane.auth.models import actor_workspace_id
 from thoth_control_plane.domain.models import OpaqueId, StrictModel
 from thoth_control_plane.domain.render_jobs import (
     ACTIVE_RENDER_STATUSES,
@@ -106,6 +106,9 @@ def _default_id(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex}"
 
 
+logger = logging.getLogger(__name__)
+
+
 def _utcnow() -> datetime:
     return datetime.now(UTC)
 
@@ -143,6 +146,7 @@ class RenderJobService:
         imports: StudioImportRepository | None = None,
         clock: Callable[[], datetime] = _utcnow,
         new_id: Callable[[str], str] = _default_id,
+        billing: Any = None,
     ) -> None:
         self._jobs = jobs
         self._documents = documents
@@ -154,6 +158,7 @@ class RenderJobService:
         self._imports = imports
         self._clock = clock
         self._new_id = new_id
+        self._billing = billing
 
     @property
     def _enabled(self) -> bool:
@@ -290,16 +295,34 @@ class RenderJobService:
                 {"asset_id": asset.asset_id, "checksum": asset.checksum} for asset in bundle.assets
             ],
         )
+        # A replay of an earlier request returns its render and never takes a second unit.
+        try:
+            replay = await jobs.find_replay(
+                project_id=project_id, idempotency_key=idempotency_key, payload_hash=payload_hash
+            )
+        except BaseException:
+            await asyncio.to_thread(self._discard, render_job_id)
+            raise
+        if replay is not None:
+            await asyncio.to_thread(self._discard, render_job_id)
+            return replay
+        try:
+            await self._consume(actor_id, render_job_id)
+        except BaseException:
+            await asyncio.to_thread(self._discard, render_job_id)  # refused: nothing staged stays
+            raise
         try:
             reserved = await jobs.reserve(
                 job, idempotency_key=idempotency_key, payload_hash=payload_hash
             )
-        except (RenderBusy, RenderIdempotencyConflict):
-            # This request never owned a slot, so its workspace is dead weight.
+        except BaseException:
+            # This request never owned a slot: its unit and its workspace go back.
+            await self._give_back(job)
             await asyncio.to_thread(self._discard, render_job_id)
             raise
         if reserved.render_job_id != render_job_id:
             # An identical earlier request already owns this key and its render.
+            await self._give_back(job)
             return reserved
 
         try:
@@ -431,10 +454,38 @@ class RenderJobService:
         except Exception:  # the original preparation failure is the answer
             return
 
+    async def _consume(self, actor_id: str, render_job_id: str) -> None:
+        """One video of the plan allowance (billing spec 1.4), before a job is reserved."""
+        if self._billing is not None:
+            await asyncio.to_thread(
+                self._billing.consume, actor_workspace_id(actor_id), "video", render_job_id
+            )
+
+    async def _give_back(self, job: RenderJob) -> None:
+        """A render that failed or was cancelled returns its unit (billing spec 1.3)."""
+        if self._billing is None:
+            return
+        try:
+            await asyncio.to_thread(
+                self._billing.release,
+                actor_workspace_id(job.created_by),
+                "video",
+                job.render_job_id,
+            )
+        except Exception:  # the render's own outcome stands; a repeated report retries this
+            logger.warning("render unit not given back render_job_id=%s", job.render_job_id)
+
     async def _close(
         self, jobs: RenderJobRepository, job: RenderJob, code: RenderFailureCode
     ) -> RenderJob:
         now = self._clock()
+        closed = await self._apply_close(jobs, job, code, now)
+        await self._give_back(closed)
+        return closed
+
+    async def _apply_close(
+        self, jobs: RenderJobRepository, job: RenderJob, code: RenderFailureCode, now: datetime
+    ) -> RenderJob:
         return await jobs.apply_event(
             render_job_id=job.render_job_id,
             event=RenderJobEvent(
@@ -542,6 +593,8 @@ class RenderJobService:
         updated = await jobs.apply_event(render_job_id=render_job_id, event=event, now=now)
         if updated.status == "completed" and job.status != "completed" and updated.output:
             await self._meter_render(updated)
+        if updated.status in ("failed", "cancelled"):
+            await self._give_back(updated)  # idempotent, so a repeated report retries a failed one
         return updated
 
     @staticmethod

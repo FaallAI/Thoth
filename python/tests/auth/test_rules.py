@@ -82,3 +82,24 @@ def test_github_refuses_anyone_not_an_active_member_of_the_org(member) -> None:
 def test_github_requires_a_verified_primary_email(emails) -> None:
     call = lambda: github_identity(GITHUB_USER, emails, membership(), "acme")  # noqa: E731
     assert refused(call) == "unverified_email"
+
+
+def test_public_sign_up_admits_a_verified_google_address_from_any_domain() -> None:
+    outsider = userinfo(email="Someone@Gmail.com")
+    assert refused(lambda: google_identity(outsider, "acme.test")) == "not_allowed"
+    assert google_identity(outsider, "acme.test", public=True).email == "someone@gmail.com"
+    unverified = userinfo(email="x@gmail.com", email_verified=False)
+    assert refused(lambda: google_identity(unverified, "acme.test", public=True)) == (
+        "unverified_email"
+    )
+
+
+def test_public_sign_up_admits_a_github_user_outside_the_org_with_a_verified_email() -> None:
+    user = {"id": 7, "login": "out"}
+    emails = [{"email": "out@x.test", "primary": True, "verified": True}]
+    assert refused(lambda: github_identity(user, emails, None, "FaallAI")) == "not_allowed"
+    assert github_identity(user, emails, None, "FaallAI", public=True).email == "out@x.test"
+    unverified = [{**emails[0], "verified": False}]
+    assert refused(lambda: github_identity(user, unverified, None, "FaallAI", public=True)) == (
+        "unverified_email"
+    )

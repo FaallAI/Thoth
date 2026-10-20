@@ -58,6 +58,7 @@ function stubFetch() {
     if (path.includes("/edit-documents/document_001")) return response({ ...document, revision });
     if (path.endsWith("/render-capability")) return response({ available: true, preset_id: "p", renderer_version: "r" });
     if (path.includes("/render-jobs")) return response({ jobs: [], next_cursor: null });
+    if (path === "/api/v1/billing") return response({ workspace_id: "ws_bootstrap", unlimited: true, plan: null, period_start: null, period_end: null, workflows_used: 0, workflows_allowed: null, videos_used: 0, videos_allowed: null, plans: [], invoices: [] });
     if (path === "/api/v1/usage") return response({ workspace_id: "ws_bootstrap", month: "2026-10", workflows: 0, videos: 0, rendered_seconds: 0, stored_bytes: 0, leases: {}, quotas: [] });
     return response([]);
   }) as unknown as typeof fetch;
@@ -172,7 +173,7 @@ test("no page reaches the retired Rust server: only control-plane routes are req
   const { default: App } = await import("./App");
   render(<App />);
   const nav = await screen.findByRole("navigation", { name: "Workspace" });
-  expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["Workflows", "Creator Studio", "Usage", "Source Accounts"]);
+  expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["Workflows", "Creator Studio", "Usage", "Billing", "Source Accounts"]);
   const user = userEvent.setup();
   await user.click(within(nav).getByRole("link", { name: "Creator Studio" }));
   await screen.findByRole("button", { name: /Heading/ });

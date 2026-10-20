@@ -135,6 +135,7 @@ const errorCopy: Record<RenderErrorCode, string> = {
   render_dispatch_failed: "The render could not be started. Try again.",
   render_unavailable: "Rendering is unavailable right now. Try again later.",
   render_request_failed: "Something went wrong. Try again.",
+  plan_limit_reached: "This month's video allowance is used up. Open Billing to choose a plan.",
 };
 
 /** How a render ended, in the same fixed-code spirit as the request errors. */
@@ -634,6 +635,9 @@ function RenderSurface({
         <p role="alert" className="text-sm text-destructive">
           {errorCopy[state.lastError]}
         </p>
+      ) : null}
+      {state.lastError === "plan_limit_reached" ? (
+        <a className="text-sm underline" href="/billing">Open Billing</a>
       ) : null}
 
       </div></div>

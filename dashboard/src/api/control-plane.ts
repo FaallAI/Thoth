@@ -112,6 +112,7 @@ const RENDER_ERROR_CODES = [
   "render_dispatch_failed",
   "render_unavailable",
   "render_request_failed",
+  "plan_limit_reached",
 ] as const;
 
 export type RenderErrorCode = (typeof RENDER_ERROR_CODES)[number];
@@ -123,6 +124,13 @@ export function asRenderErrorCode(value: unknown): RenderErrorCode {
   return typeof value === "string" && KNOWN_RENDER_ERROR_CODES.has(value)
     ? (value as RenderErrorCode)
     : "render_request_failed";
+}
+
+/** The workspace used this period's plan allowance (billing spec 1.4): HTTP 402. */
+export class PlanLimitError extends Error {
+  constructor() {
+    super("plan_limit_reached");
+  }
 }
 
 /** Why a render request failed, as a fixed code the UI may show verbatim. */
@@ -382,6 +390,7 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
       ...init,
       headers: headers(init.headers),
     });
+    if (response.status === 402) throw new PlanLimitError();
     if (!response.ok) throw new Error(`Control plane request failed (${response.status})`);
     return response.json() as Promise<T>;
   }

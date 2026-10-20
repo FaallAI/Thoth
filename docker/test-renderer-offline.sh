@@ -775,11 +775,13 @@ compose up --detach --wait --wait-timeout "$start_timeout" web >/dev/null 2>&1 \
     || fail web_serves_the_spa_on_deep_paths
 #: Status (and, with BODY=1, body) of one request to the web container, from the api container.
 web() {
-    compose exec -T --env BODY="${BODY:-0}" api /opt/thoth/python/.venv/bin/python -c '
+    compose exec -T --env BODY="${BODY:-0}" --env IDEM="${IDEM:-}" api /opt/thoth/python/.venv/bin/python -c '
 import os, sys, urllib.error, urllib.request
 request = urllib.request.Request("http://web:8088" + sys.argv[1], method=sys.argv[2] if len(sys.argv) > 2 else "GET")
 if len(sys.argv) > 3:
     request.add_header("Authorization", "Bearer " + sys.argv[3])
+if os.environ.get("IDEM"):
+    request.add_header("Idempotency-Key", os.environ["IDEM"])
 if len(sys.argv) > 4:
     request.data = sys.argv[4].encode()
     request.add_header("Content-Type", "application/json")
@@ -832,6 +834,17 @@ first_videos=$(usage_videos "$first_token") || fail usage_counts_the_render
 [ "$first_videos" -ge 1 ] || fail usage_counts_the_render
 [ "$(usage_videos "$second_token")" = "0" ] || fail usage_counts_the_render
 echo usage_counts_the_render=true
+
+# --- billing: a workspace past its free allowance is refused before anything starts (2026-10-20) ---
+compose exec -T api thoth-control plans set free --name Free --price-idr 0 --workflows 0 --videos 1 >/dev/null \
+    || fail plan_limit_is_enforced
+plan=$(BODY=1 web /api/v1/billing GET "$second_token" | python3 -c 'import json,sys; print(json.load(sys.stdin)["plan"]["plan_id"])') \
+    || fail plan_limit_is_enforced
+[ "$plan" = "free" ] || fail plan_limit_is_enforced
+request='{"source":{"url":"https://example.test/v/1","intent":"identify_original"},"style":{"preset_id":"news-vertical"},"output":{"format":"vertical_video","language":"id"},"review":{"require_publish_approval":true}}'
+[ "$(IDEM=smoke-limit web /api/v1/workflows POST "$second_token" "$request")" = "402" ] \
+    || fail plan_limit_is_enforced
+echo plan_limit_is_enforced=true
 
 # --- one active render at a time, and cancellation ---------------------------
 driver seed "$long_document_id" "$long_frames" none >/dev/null || fail second_render_is_refused

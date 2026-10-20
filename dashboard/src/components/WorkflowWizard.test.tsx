@@ -4,6 +4,8 @@ import { afterEach, expect, mock, test } from "bun:test";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { PlanLimitError } from "@/api/control-plane";
+
 import { WorkflowWizard } from "./WorkflowWizard";
 
 afterEach(cleanup);
@@ -57,4 +59,22 @@ test("a retry after a failed start reuses the idempotency key; a changed request
   expect(keys[0]).toEqual(expect.any(String));
   expect(keys[1]).toBe(keys[0]);
   expect(keys[2]).not.toBe(keys[0]);
+});
+
+test("a used-up allowance says so instead of a generic failure", async () => {
+  const user = userEvent.setup();
+  const fakeClient = {
+    listStylePresets: mock(async () => [
+      { preset_id: "news-vertical", label: "News vertical", description: "Fast-paced" },
+    ]),
+    createWorkflow: mock(async () => {
+      throw new PlanLimitError();
+    }),
+  };
+  render(<WorkflowWizard client={fakeClient} onStarted={() => {}} />);
+  await user.type(screen.getByLabelText("Source URL"), "https://example.test/post/1");
+  await user.selectOptions(await screen.findByLabelText("Style"), "news-vertical");
+  await user.click(screen.getByRole("button", { name: "Start pipeline" }));
+  expect(await screen.findByText("This month's allowance is used up. Open Billing to choose a plan.")).toBeDefined();
+  expect(screen.getByRole("link", { name: "Open Billing" }).getAttribute("href")).toBe("/billing");
 });

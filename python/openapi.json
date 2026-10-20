@@ -600,6 +600,112 @@
         "title": "AttachImportAsset",
         "type": "object"
       },
+      "BillingView": {
+        "additionalProperties": false,
+        "properties": {
+          "invoices": {
+            "items": {
+              "$ref": "#/components/schemas/InvoiceOut"
+            },
+            "title": "Invoices",
+            "type": "array"
+          },
+          "period_end": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period End"
+          },
+          "period_start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Start"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "plans": {
+            "items": {
+              "$ref": "#/components/schemas/PlanOut"
+            },
+            "title": "Plans",
+            "type": "array"
+          },
+          "unlimited": {
+            "title": "Unlimited",
+            "type": "boolean"
+          },
+          "videos_allowed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Videos Allowed"
+          },
+          "videos_used": {
+            "title": "Videos Used",
+            "type": "integer"
+          },
+          "workflows_allowed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workflows Allowed"
+          },
+          "workflows_used": {
+            "title": "Workflows Used",
+            "type": "integer"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "unlimited",
+          "plan",
+          "period_start",
+          "period_end",
+          "workflows_used",
+          "workflows_allowed",
+          "videos_used",
+          "videos_allowed",
+          "plans",
+          "invoices"
+        ],
+        "title": "BillingView",
+        "type": "object"
+      },
       "Canvas": {
         "additionalProperties": false,
         "properties": {
@@ -660,6 +766,58 @@
           "text"
         ],
         "title": "CaptionCue",
+        "type": "object"
+      },
+      "CheckoutRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "plan_id": {
+            "title": "Plan Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan_id"
+        ],
+        "title": "CheckoutRequest",
+        "type": "object"
+      },
+      "CheckoutView": {
+        "additionalProperties": false,
+        "properties": {
+          "applied": {
+            "title": "Applied",
+            "type": "boolean"
+          },
+          "invoice_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Id"
+          },
+          "invoice_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Url"
+          }
+        },
+        "required": [
+          "invoice_id",
+          "invoice_url",
+          "applied"
+        ],
+        "title": "CheckoutView",
         "type": "object"
       },
       "ContentSetImportRequest": {
@@ -1780,6 +1938,66 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "InvoiceOut": {
+        "additionalProperties": false,
+        "properties": {
+          "amount_idr": {
+            "title": "Amount Idr",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "invoice_id": {
+            "title": "Invoice Id",
+            "type": "string"
+          },
+          "invoice_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Url"
+          },
+          "paid_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid At"
+          },
+          "plan_id": {
+            "title": "Plan Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "invoice_id",
+          "plan_id",
+          "amount_idr",
+          "status",
+          "invoice_url",
+          "created_at",
+          "paid_at"
+        ],
+        "title": "InvoiceOut",
+        "type": "object"
+      },
       "LockRevisionConflictBody": {
         "additionalProperties": false,
         "properties": {
@@ -1828,6 +2046,52 @@
           }
         },
         "title": "MainImport",
+        "type": "object"
+      },
+      "MarginView": {
+        "additionalProperties": false,
+        "properties": {
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "end": {
+            "format": "date",
+            "title": "End",
+            "type": "string"
+          },
+          "idr_per_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idr Per Usd"
+          },
+          "plans": {
+            "items": {
+              "$ref": "#/components/schemas/PlanMargin"
+            },
+            "title": "Plans",
+            "type": "array"
+          },
+          "start": {
+            "format": "date",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "idr_per_usd",
+          "complete",
+          "plans"
+        ],
+        "title": "MarginView",
         "type": "object"
       },
       "MeView": {
@@ -2012,6 +2276,190 @@
           }
         },
         "title": "OverlayParameters",
+        "type": "object"
+      },
+      "PlanEdit": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "period_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Days"
+          },
+          "price_idr": {
+            "title": "Price Idr",
+            "type": "integer"
+          },
+          "videos_per_period": {
+            "title": "Videos Per Period",
+            "type": "integer"
+          },
+          "workflows_per_period": {
+            "title": "Workflows Per Period",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "price_idr",
+          "workflows_per_period",
+          "videos_per_period"
+        ],
+        "title": "PlanEdit",
+        "type": "object"
+      },
+      "PlanMargin": {
+        "additionalProperties": false,
+        "properties": {
+          "cost_per_video_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Video Usd"
+          },
+          "cost_per_workflow_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Workflow Usd"
+          },
+          "full_use_cost_idr": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Use Cost Idr"
+          },
+          "full_use_cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Use Cost Usd"
+          },
+          "margin_idr": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Margin Idr"
+          },
+          "plan_id": {
+            "title": "Plan Id",
+            "type": "string"
+          },
+          "price_idr": {
+            "title": "Price Idr",
+            "type": "integer"
+          },
+          "videos_per_period": {
+            "title": "Videos Per Period",
+            "type": "integer"
+          },
+          "workflows_per_period": {
+            "title": "Workflows Per Period",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "plan_id",
+          "price_idr",
+          "workflows_per_period",
+          "videos_per_period",
+          "cost_per_workflow_usd",
+          "cost_per_video_usd",
+          "full_use_cost_usd",
+          "full_use_cost_idr",
+          "margin_idr"
+        ],
+        "title": "PlanMargin",
+        "type": "object"
+      },
+      "PlanOut": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "period_days": {
+            "title": "Period Days",
+            "type": "integer"
+          },
+          "plan_id": {
+            "title": "Plan Id",
+            "type": "string"
+          },
+          "price_idr": {
+            "title": "Price Idr",
+            "type": "integer"
+          },
+          "videos_per_period": {
+            "title": "Videos Per Period",
+            "type": "integer"
+          },
+          "workflows_per_period": {
+            "title": "Workflows Per Period",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "plan_id",
+          "name",
+          "price_idr",
+          "workflows_per_period",
+          "videos_per_period",
+          "period_days",
+          "active"
+        ],
+        "title": "PlanOut",
         "type": "object"
       },
       "PlatformAccounts": {
@@ -3068,6 +3516,20 @@
           "quotas"
         ],
         "title": "QuotaView",
+        "type": "object"
+      },
+      "RateEdit": {
+        "additionalProperties": false,
+        "properties": {
+          "idr_per_usd": {
+            "title": "Idr Per Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "idr_per_usd"
+        ],
+        "title": "RateEdit",
         "type": "object"
       },
       "RemoveClip": {
@@ -6975,6 +7437,272 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/admin/plans": {
+      "get": {
+        "operationId": "list_plans_api_v1_admin_plans_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PlanOut"
+                  },
+                  "title": "Response List Plans Api V1 Admin Plans Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Plans",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/admin/plans/margin": {
+      "get": {
+        "description": "Each plan's price against metered cost, in rupiah at the admin rate (spec 1.5).",
+        "operationId": "plan_margin_api_v1_admin_plans_margin_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarginView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Plan Margin",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/admin/plans/rate": {
+      "put": {
+        "description": "Rupiah per US dollar for the margin report (spec 1.5). Declared before the plan route.",
+        "operationId": "set_rate_api_v1_admin_plans_rate_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RateEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateEdit"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Rate",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/admin/plans/{plan_id}": {
+      "put": {
+        "description": "Create or change a plan without a deploy (spec 1.1).",
+        "operationId": "edit_plan_api_v1_admin_plans__plan_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Edit Plan",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
     "/api/v1/admin/prices": {
       "get": {
         "operationId": "list_prices_api_v1_admin_prices_get",
@@ -7290,6 +8018,116 @@
         "summary": "Change Quota",
         "tags": [
           "usage"
+        ]
+      }
+    },
+    "/api/v1/billing": {
+      "get": {
+        "description": "The caller's plan, this period's allowance and invoices (spec 2.4).",
+        "operationId": "my_billing_api_v1_billing_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "My Billing",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/billing/checkout": {
+      "post": {
+        "description": "Buy or renew a plan (spec 2.1): owners and admins of the workspace only.",
+        "operationId": "checkout_api_v1_billing_checkout_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Checkout",
+        "tags": [
+          "billing"
         ]
       }
     },

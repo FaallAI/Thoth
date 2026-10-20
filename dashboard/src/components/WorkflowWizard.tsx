@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { ControlPlaneClient, StylePreset, WorkflowRequest } from "@/api/control-plane";
+import { PlanLimitError, type ControlPlaneClient, type StylePreset, type WorkflowRequest } from "@/api/control-plane";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,8 @@ import { ArrowRight, ArrowUpRight, Link2 } from "lucide-react";
 type WizardClient = Pick<ControlPlaneClient, "listStylePresets"> & {
   createWorkflow: (request: WorkflowRequest, idempotencyKey: string) => Promise<{ workflow_id: string }>;
 };
+
+const LIMIT_MESSAGE = "This month's allowance is used up. Open Billing to choose a plan.";
 
 export function WorkflowWizard({
   client,
@@ -61,8 +63,12 @@ export function WorkflowWizard({
       const { workflow_id } = await client.createWorkflow(request, key);
       attempt.current = null;
       onStarted(workflow_id);
-    } catch {
-      setError("Could not start the workflow. Check the source and try again.");
+    } catch (failure) {
+      setError(
+        failure instanceof PlanLimitError
+          ? LIMIT_MESSAGE
+          : "Could not start the workflow. Check the source and try again.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -89,6 +95,7 @@ export function WorkflowWizard({
             </select>
           </div></div>
           {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
+          {error === LIMIT_MESSAGE && <a className="text-sm underline" href="/billing">Open Billing</a>}
           <div className="pen-launch-footer"><span title={disabledReason || "Duration depends on the source and configured providers."}>{disabledReason || "Estimated run time varies"}</span><Button disabled={submitting || !style || Boolean(disabledReason)} type="submit">Start pipeline<ArrowRight aria-hidden="true" /></Button></div>
         </form>
       </CardContent>
