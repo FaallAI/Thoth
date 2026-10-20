@@ -1,4 +1,8 @@
-"""Turn a provider's answer into a verified identity, or refuse it with a fixed code."""
+"""Turn a provider's answer into a verified identity, or refuse it with a fixed code.
+
+Public sign-up (THOTH_AUTH_PUBLIC_SIGNUP) drops only the domain and organization rule; the
+provider-verified email and the emailed code still apply (billing spec 3.2).
+"""
 
 from __future__ import annotations
 
@@ -11,16 +15,21 @@ def _domain(email: str) -> str:
     return email.rpartition("@")[2] if "@" in email else ""
 
 
-def google_identity(userinfo: Mapping[str, object], domain: str) -> VerifiedIdentity:
+def google_identity(
+    userinfo: Mapping[str, object], domain: str, *, public: bool = False
+) -> VerifiedIdentity:
     if userinfo.get("email_verified") is not True:
         raise SignInRefused("unverified_email")
     email = str(userinfo.get("email") or "").strip().lower()
     wanted = domain.strip().lower()
-    if not email or _domain(email) != wanted:
+    if not email:
         raise SignInRefused("not_allowed")
-    hosted = userinfo.get("hd")
-    if hosted is not None and str(hosted).strip().lower() != wanted:
-        raise SignInRefused("not_allowed")
+    if not public:
+        if _domain(email) != wanted:
+            raise SignInRefused("not_allowed")
+        hosted = userinfo.get("hd")
+        if hosted is not None and str(hosted).strip().lower() != wanted:
+            raise SignInRefused("not_allowed")
     subject = str(userinfo.get("sub") or "")
     if not subject:
         raise SignInRefused("provider_error")
@@ -32,6 +41,8 @@ def github_identity(
     emails: Sequence[Mapping[str, object]],
     membership: Mapping[str, object] | None,
     org: str,
+    *,
+    public: bool = False,
 ) -> VerifiedIdentity:
     subject = str(user.get("id") or "")
     if not subject:
@@ -42,7 +53,7 @@ def github_identity(
         raise SignInRefused("unverified_email")
     organization = (membership or {}).get("organization") or {}
     login = str(organization.get("login") or "") if isinstance(organization, Mapping) else ""
-    if (
+    if not public and (
         membership is None
         or membership.get("state") != "active"
         or login.lower() != org.strip().lower()

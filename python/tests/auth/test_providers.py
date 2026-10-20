@@ -199,3 +199,25 @@ def test_only_fully_configured_providers_are_built() -> None:
         )
     )
     assert sorted(both) == ["github", "google"]
+
+
+def test_the_public_sign_up_flag_reaches_both_providers() -> None:
+    settings = Settings(
+        THOTH_CONTROL_PLANE_API_KEY="k",
+        THOTH_EDITOR_DATABASE_URL="postgresql://u:p@db/x",
+        THOTH_AUTH_SECRET="s" * 32,
+        THOTH_SMTP_HOST="smtp.test",
+        THOTH_SMTP_FROM="no-reply@acme.test",
+        THOTH_AUTH_GOOGLE_CLIENT_ID="g",
+        THOTH_AUTH_GOOGLE_CLIENT_SECRET="s",
+        THOTH_AUTH_GOOGLE_DOMAIN="acme.test",
+        THOTH_AUTH_GITHUB_CLIENT_ID="h",
+        THOTH_AUTH_GITHUB_CLIENT_SECRET="s",
+        THOTH_AUTH_GITHUB_ORG="acme",
+    )
+    assert {name: p._public for name, p in build_providers(settings).items()} == {
+        "google": False,
+        "github": False,
+    }
+    opened = build_providers(settings.model_copy(update={"THOTH_AUTH_PUBLIC_SIGNUP": True}))
+    assert {name: p._public for name, p in opened.items()} == {"google": True, "github": True}

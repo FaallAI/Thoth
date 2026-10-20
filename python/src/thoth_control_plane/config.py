@@ -78,6 +78,8 @@ class Settings(BaseSettings):
     THOTH_SMTP_PASSWORD: SecretStr | None = None
     THOTH_SMTP_FROM: str | None = None
     THOTH_AUTH_WORKSPACE_TOKENS: bool = False
+    # Admit verified users outside the Google domain / GitHub org (billing spec 3.2).
+    THOTH_AUTH_PUBLIC_SIGNUP: bool = False
     # Billing (spec 2026-10-20): both empty leave checkout and the webhook off.
     THOTH_XENDIT_SECRET_KEY: SecretStr | None = None
     THOTH_XENDIT_CALLBACK_TOKEN: SecretStr | None = None
