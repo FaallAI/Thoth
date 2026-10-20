@@ -54,6 +54,12 @@ class EditorAssetRepository(Protocol):
         """Read one bounded batch of ready records, in the requested order."""
         ...
 
+    async def find_ready_by_checksum(
+        self, *, project_id: str, checksum: str
+    ) -> EditorAssetRecord | None:
+        """The project's oldest ready asset with these exact bytes, so a copy is never repeated."""
+        ...
+
     async def register_ready(self, record: EditorAssetRecord) -> None:
         """Insert one validated record; a failure must leave no row behind."""
         ...

@@ -99,6 +99,32 @@ class PostgresEditorAssetRepository:
         except Exception as error:
             raise EditorAssetPersistenceError() from error
 
+    async def find_ready_by_checksum(
+        self, *, project_id: str, checksum: str
+    ) -> EditorAssetRecord | None:
+        try:
+            connection = await AsyncConnection.connect(self._database_url)
+            async with connection:
+                database_cursor = connection.cursor()
+                await database_cursor.execute(
+                    f"""
+                    SELECT {PUBLIC_COLUMNS}, artifact_location, provenance
+                    FROM editor_assets
+                    WHERE project_id = %s AND checksum = %s AND validation_state = 'ready'
+                    ORDER BY created_at, asset_id
+                    LIMIT 1
+                    """,
+                    (project_id, checksum),
+                )
+                row = await database_cursor.fetchone()
+                if row is None:
+                    return None
+                return EditorAssetRecord(
+                    asset=_asset(row), artifact_location=row[-2], provenance=row[-1]
+                )
+        except Exception as error:
+            raise EditorAssetPersistenceError() from error
+
     async def get_ready_records(
         self, *, project_id: str, asset_ids: tuple[str, ...]
     ) -> tuple[EditorAssetRecord, ...]:

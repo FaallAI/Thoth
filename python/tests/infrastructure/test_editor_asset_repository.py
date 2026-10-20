@@ -366,3 +366,32 @@ async def test_register_ready_hides_a_database_failure(monkeypatch: pytest.Monke
 
     with pytest.raises(EditorAssetPersistenceError, match=r"^editor asset unavailable$"):
         await patched(monkeypatch, FailingCursor()).register_ready(upload_record())
+
+
+@pytest.mark.asyncio
+async def test_find_ready_by_checksum_is_project_scoped_and_oldest_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cursor = Cursor(row=record_row(provenance="workflow_import"))
+
+    record = await patched(monkeypatch, cursor).find_ready_by_checksum(
+        project_id="project_001", checksum="sha256:" + "a" * 64
+    )
+
+    assert record is not None and record.provenance == "workflow_import"
+    query, params = cursor.calls[0]
+    assert "WHERE project_id = %s AND checksum = %s" in query
+    assert "validation_state = 'ready'" in query
+    assert "ORDER BY created_at, asset_id" in query and "LIMIT 1" in query
+    assert params == ("project_001", "sha256:" + "a" * 64)
+
+
+@pytest.mark.asyncio
+async def test_find_ready_by_checksum_without_a_match_is_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = patched(monkeypatch, Cursor(row=None))
+    found = await repository.find_ready_by_checksum(
+        project_id="project_001", checksum="sha256:" + "f" * 64
+    )
+    assert found is None
