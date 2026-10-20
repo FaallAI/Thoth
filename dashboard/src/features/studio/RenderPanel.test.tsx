@@ -937,6 +937,20 @@ describe("settling a mutation", () => {
     expect(client.getRenderCapability).toHaveBeenCalledTimes(2);
   });
 
+  test("a used-up video allowance says so", async () => {
+    const client = makeClient([], {
+      createRenderJob: mock(async () => {
+        throw { code: "plan_limit_reached" };
+      }),
+    });
+    panel(client);
+    await startRender();
+
+    expect(screen.getByRole("alert").textContent).toBe(
+      "This month's video allowance is used up. Open Billing to choose a plan.",
+    );
+  });
+
   test("a failed cleanup re-reads authoritative state", async () => {
     const client = makeClient([COMPLETED], {
       cleanupRenderArtifacts: mock(async () => {

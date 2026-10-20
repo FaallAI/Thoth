@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { ControlPlaneClient, StylePreset, WorkflowRequest } from "@/api/control-plane";
+import { PlanLimitError, type ControlPlaneClient, type StylePreset, type WorkflowRequest } from "@/api/control-plane";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -61,8 +61,12 @@ export function WorkflowWizard({
       const { workflow_id } = await client.createWorkflow(request, key);
       attempt.current = null;
       onStarted(workflow_id);
-    } catch {
-      setError("Could not start the workflow. Check the source and try again.");
+    } catch (failure) {
+      setError(
+        failure instanceof PlanLimitError
+          ? "This month's allowance is used up. Open Billing to choose a plan."
+          : "Could not start the workflow. Check the source and try again.",
+      );
     } finally {
       setSubmitting(false);
     }
