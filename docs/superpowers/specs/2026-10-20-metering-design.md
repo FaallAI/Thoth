@@ -25,6 +25,8 @@ Two problems remain after sub-project 2:
 
 - Each workspace leases at most its daily quota of source-account sessions per platform. Past
   the quota its workflows still run, without signing in, and the run report says why.
+- However many workspaces there are, a reserved share of each platform's daily account capacity
+  stays for the operator's own workflows.
 - Every workflow, rendered video, stored byte, account lease and provider call is recorded
   against its workspace.
 - A platform admin sets unit prices and reads the estimated cost per workspace, per workflow and
@@ -37,6 +39,7 @@ Two problems remain after sub-project 2:
 | First outcome | Protect the shared pool and collect pricing data |
 | A workspace over its quota | Its acquisition runs anonymously, as when no account is available; the run report marks the quota; the workflow does not fail |
 | Quota shape | Leases per platform per UTC day per workspace, with platform defaults an admin can override per workspace; `ws_bootstrap` is exempt |
+| Operator reserve | Half of the pool's daily capacity per platform stays for `ws_bootstrap`; other workspaces stop leasing at that line. An admin can change the percentage per platform |
 | Visibility | Users see their workspace's usage and remaining quota; only platform admins see costs |
 | Approach | Usage events at the existing seams, priced by an admin-edited unit price table (approach A). Exact per-provider token accounting is out of scope |
 
@@ -61,9 +64,10 @@ Two problems remain after sub-project 2:
   mapped with `actor_workspace_id()`. A workflow with no `workflow_runs` row (none is expected)
   is treated as `ws_bootstrap`, with a `warn` log.
 - In one PostgreSQL transaction, the wrapper:
-  1. locks the workspace's counter for the platform and day;
+  1. locks the `ws_bootstrap` workspace row (1.4);
   2. counts that day's `account_lease` events for the workspace and platform;
-  3. refuses when the count has reached the quota;
+  3. refuses when the count has reached the quota, or when the lease would cut into the
+     operator reserve (1.4);
   4. otherwise leases and writes the `account_lease` event.
 - Two activities racing at the last unit of quota get exactly one lease.
 - **A refusal** behaves like "no account available": the acquisition runs anonymously, and
@@ -78,10 +82,33 @@ the lease quota also limits proxy use. Bytes through the proxy are not measured:
 reports no per-session usage to Thoth. The meter counts proxied sessions, and the unit price is
 per session.
 
-### 1.4 Administration
+### 1.4 The operator reserve
+
+Per-workspace quotas do not bound the total: seven workspaces at three Instagram leases each
+spend a 20-lease account before the operator's workflows run. The reserve keeps a share for
+`ws_bootstrap`.
+
+- **Capacity** of a platform today = the sum of the daily budgets of its accounts that are
+  `healthy`, or in a `cooldown` that ends today. **Used** = their uses today
+  (`source_account_usage`). **Remaining** = capacity − used.
+- **Reserve** = `ceil(capacity × reserve_percent / 100)`. The default `reserve_percent` is 50.
+  Column `operator_reserve_percent` (nullable, 0–100) on `source_account_policies` overrides it
+  per platform.
+- A lease for any workspace other than `ws_bootstrap` is refused when `remaining − 1 < reserve`,
+  exactly like a quota refusal (`quota_exhausted`, anonymous run). `ws_bootstrap` leases are
+  never refused by the reserve. They are refused only by each account's own budget, as today.
+- A platform whose budget is unlimited (`daily_budget = 0`) has no reserve.
+- **Races:** every lease of a workspace other than `ws_bootstrap` first locks the
+  `ws_bootstrap` row of `workspaces` (`SELECT … FOR UPDATE`). This serializes the reserve and
+  the per-workspace quota checks across all workspaces. Two workspaces racing at the reserve
+  line get at most one lease. Leases are rare, so one lock costs nothing measurable.
+
+### 1.5 Administration
 
 - CLI: `thoth-control quotas set <workspace_id> <platform> <n>`, `quotas clear <workspace_id>
-  <platform>`, and `quotas show <workspace_id>`.
+  <platform>`, `quotas show <workspace_id>`, and `quotas reserve <platform> <percent>`.
+- The existing `PUT /api/v1/source-accounts/policies/{platform}` accepts an optional
+  `operator_reserve_percent`, and the policy view shows it.
 - API: `GET` and `PUT /api/v1/admin/workspaces/{workspace_id}/quotas`, platform admin and the
   `admin` scope only (the existing `platform_actor` dependency).
 
@@ -150,7 +177,7 @@ Index `(workspace_id, at)` and `(workspace_id, kind, key, at)`.
 
 | Case | Behaviour |
 |---|---|
-| The quota check or the lease event cannot be written (database unavailable) | No lease; acquisition runs anonymously; `warn`. The pool stays protected when the meter is down |
+| The quota or reserve check, or the lease event, cannot be written (database unavailable) | No lease; acquisition runs anonymously; `warn`. The pool stays protected when the meter is down |
 | Any other event cannot be written | `warn`; the work continues. The meter loses that event, never the user's work |
 | A provider call outside any meter scope (e.g. an operator CLI command) | Recorded against `ws_bootstrap` with `warn` |
 | A non-admin calls a quota or price route | 403 `Not authorized` (existing contract) |
@@ -165,23 +192,32 @@ All offline; no live test until the final acceptance.
    - `ws_bootstrap` is exempt;
    - `quota_exhausted` reaches the run report;
    - each of the three lease callers goes through the wrapper.
-2. **Race on PostgreSQL:** two concurrent leases with one unit of quota left produce exactly one
-   lease and one `account_lease` event.
-3. **Meter:**
+2. **Races on PostgreSQL:**
+   - two concurrent leases of one workspace with one unit of quota left produce exactly one
+     lease and one `account_lease` event;
+   - two workspaces racing one lease above the reserve line produce exactly one lease.
+3. **Operator reserve:**
+   - at 50% of a 20-lease account, other workspaces stop after 10 leases a day while
+     `ws_bootstrap` still leases;
+   - capacity counts only healthy accounts and cooldowns ending today;
+   - an unlimited budget has no reserve;
+   - the per-platform percentage override applies.
+4. **Meter:**
    - every event kind is written at its seam with the right workspace, workflow and project;
    - tokens or characters are taken from the provider response when present;
    - every activity that calls a provider sets the meter scope (a test fails when one does not).
-4. **Cost:** unpriced items are reported as `unpriced`; the `*` key fallback; averages per
+5. **Cost:** unpriced items are reported as `unpriced`; the `*` key fallback; averages per
    workflow and per video.
-5. **Isolation:** workspace B never sees A's usage; the sub-project 2 structural route test covers
+6. **Isolation:** workspace B never sees A's usage; the sub-project 2 structural route test covers
    the new routes, and the admin routes require a platform admin.
-6. **Dashboard:** the Usage page shows usage and remaining quota, and no money.
-7. **Stack smoke in CI:** after the smoke render, `/api/v1/usage` for its workspace reports at
+7. **Dashboard:** the Usage page shows usage and remaining quota, and no money.
+8. **Stack smoke in CI:** after the smoke render, `/api/v1/usage` for its workspace reports at
    least one rendered video.
 
 ### 3.3 Rollout
 
-- Editor migration `0015` only adds `usage_events`, `workspace_quotas` and `unit_prices`.
+- Editor migration `0015` adds `usage_events`, `workspace_quotas` and `unit_prices`, and the
+  nullable column `source_account_policies.operator_reserve_percent`. Nothing is dropped.
 - No backfill: the meter counts from the deploy. Old provider calls were never recorded, so a
   partial backfill would distort the cost estimate.
 - **Operator gates after the deploy:** set unit prices with `thoth-control prices set`, and check
