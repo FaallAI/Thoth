@@ -170,8 +170,15 @@ Index `(workspace_id, at)` and `(workspace_id, kind, key, at)`.
   videos, rendered seconds, stored bytes, leases per platform, and today's quota and remaining
   leases per platform. No money. The dashboard gets a "Usage" page.
 - **Platform admins:** `GET /api/v1/admin/usage?from=…&to=…` returns per workspace: the totals,
-  the estimated cost, the average cost per completed workflow and per rendered video, and the
-  unpriced items. This is the pricing input for sub-project 4.
+  the estimated cost, and the unpriced items. This is the pricing input for sub-project 4.
+  - **No cost is counted twice.** Each priced event falls in exactly one bucket:
+    - **workflow:** it carries a `workflow_id` (leases, provider calls and media inside a
+      workflow);
+    - **video:** a render, meaning `video_rendered` or a render's stored output;
+    - **other:** everything else (Studio and prompt-lab calls, editor uploads).
+  - The cost per workflow is the workflow bucket ÷ completed workflows; the cost per video is the
+    video bucket ÷ rendered videos. A plan can bill one basis or both without double counting.
+  - `complete` is false while any event has no unit price. The estimate is then too low.
 
 ## 3. Errors, testing and rollout
 
