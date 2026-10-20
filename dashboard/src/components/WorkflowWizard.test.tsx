@@ -76,4 +76,5 @@ test("a used-up allowance says so instead of a generic failure", async () => {
   await user.selectOptions(await screen.findByLabelText("Style"), "news-vertical");
   await user.click(screen.getByRole("button", { name: "Start pipeline" }));
   expect(await screen.findByText("This month's allowance is used up. Open Billing to choose a plan.")).toBeDefined();
+  expect(screen.getByRole("link", { name: "Open Billing" }).getAttribute("href")).toBe("/billing");
 });

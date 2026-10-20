@@ -19,7 +19,7 @@ from thoth_control_plane import metering
 from thoth_control_plane.application import ApprovalSubmission, RetryRequest
 from thoth_control_plane.auth.models import ALL_SCOPES, CreateToken, Principal
 from thoth_control_plane.auth.service import SignInService
-from thoth_control_plane.billing import InvalidPlan, UnknownPlan
+from thoth_control_plane.billing import InvalidPlan, UnknownPlan, UnknownWorkspace
 from thoth_control_plane.config import Settings, SettingsValidationError
 from thoth_control_plane.domain import WorkflowEvent, WorkflowRequest
 from thoth_control_plane.infrastructure.account_store import AccountStore
@@ -317,8 +317,8 @@ def plans_set(
     price_idr: Annotated[int, typer.Option()],
     workflows: Annotated[int, typer.Option()],
     videos: Annotated[int, typer.Option()],
-    period_days: Annotated[int, typer.Option()] = 30,
-    active: Annotated[bool, typer.Option("--active/--inactive")] = True,
+    period_days: Annotated[int | None, typer.Option()] = None,
+    active: Annotated[bool | None, typer.Option("--active/--inactive")] = None,
 ) -> None:
     """Create or change a plan (spec 2026-10-20 billing, 1.1); no deploy needed."""
     try:
@@ -364,6 +364,9 @@ def subscriptions_set(workspace_id: str, plan_id: str, days: int) -> None:
     """Grant a plan for `days` from now, with no payment (spec 1.2)."""
     try:
         sub = _billing_store().grant(workspace_id, plan_id, days)
+    except UnknownWorkspace:
+        typer.echo("unknown_workspace")
+        raise typer.Exit(1) from None
     except UnknownPlan:
         typer.echo("unknown_plan")
         raise typer.Exit(1) from None

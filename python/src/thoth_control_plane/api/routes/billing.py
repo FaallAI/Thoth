@@ -24,6 +24,8 @@ from thoth_control_plane.metering import estimate
 router = APIRouter(tags=["billing"])
 Caller = Annotated[Principal, Depends(current_principal)]
 Admin = Annotated[Actor, Depends(platform_actor)]
+#: Usage counted for its own sake, never billed by a provider: no unit price is needed.
+COUNTERS = frozenset({"workflow_completed"})
 
 
 class CheckoutRequest(StrictModel):
@@ -100,8 +102,8 @@ class PlanEdit(StrictModel):
     price_idr: int
     workflows_per_period: int
     videos_per_period: int
-    period_days: int = 30
-    active: bool = True
+    period_days: int | None = None  # None keeps the stored value
+    active: bool | None = None  # None keeps the stored value
 
 
 class RateEdit(StrictModel):
@@ -232,10 +234,10 @@ async def plan_margin(
     for total, line in zip(totals, result.lines, strict=True):
         bucket = _bucket(total)
         if bucket in spent:
-            if line.usd is None:
-                unpriced.add(bucket)
-            else:
+            if line.usd is not None:
                 spent[bucket] += line.usd
+            elif total.kind not in COUNTERS:
+                unpriced.add(bucket)
     workflows = sum(t.events for t in totals if t.kind == "workflow_completed")
     videos = sum(t.events for t in totals if t.kind == "video_rendered")
     per_workflow = (
@@ -268,7 +270,8 @@ async def plan_margin(
         start=begin,
         end=finish,
         idr_per_usd=rate,
-        complete=not result.unpriced and rate is not None,
+        complete=rate is not None
+        and not any(line.kind not in COUNTERS for line in result.unpriced),
         plans=margins,
     )
 

@@ -68,3 +68,14 @@ async def test_a_failed_start_gives_its_unit_back_but_a_retry_never_releases_the
             None, object(), actor=ACTOR, idempotency_key="k2"
         )
     assert workflow_ref("user", "ws_a", "k2") in billing.uses
+
+
+async def test_a_stalled_query_after_temporal_accepted_the_start_keeps_the_unit() -> None:
+    from thoth_control_plane.application import WorkflowNotReady
+
+    billing = Billing(allowance=1)
+    with pytest.raises(WorkflowNotReady):
+        await WorkflowRunService(None, None, Workflows(WorkflowNotReady()), None, billing).start(
+            None, object(), actor=ACTOR, idempotency_key="k1"
+        )
+    assert billing.released == [] and len(billing.uses) == 1

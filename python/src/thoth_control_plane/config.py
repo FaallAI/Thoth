@@ -206,10 +206,11 @@ class Settings(BaseSettings):
 
     @property
     def google_sign_in_enabled(self) -> bool:
+        # Public sign-up ignores the domain rule, so it does not need a domain (billing 3.2).
         return self.sign_in_ready and None not in (
             self.THOTH_AUTH_GOOGLE_CLIENT_ID,
             self.THOTH_AUTH_GOOGLE_CLIENT_SECRET,
-            self.THOTH_AUTH_GOOGLE_DOMAIN,
+            "public" if self.THOTH_AUTH_PUBLIC_SIGNUP else self.THOTH_AUTH_GOOGLE_DOMAIN,
         )
 
     @property
@@ -217,7 +218,7 @@ class Settings(BaseSettings):
         return self.sign_in_ready and None not in (
             self.THOTH_AUTH_GITHUB_CLIENT_ID,
             self.THOTH_AUTH_GITHUB_CLIENT_SECRET,
-            self.THOTH_AUTH_GITHUB_ORG,
+            "public" if self.THOTH_AUTH_PUBLIC_SIGNUP else self.THOTH_AUTH_GITHUB_ORG,
         )
 
     @property

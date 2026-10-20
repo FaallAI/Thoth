@@ -2039,18 +2039,12 @@ export interface components {
         };
         /** PlanEdit */
         PlanEdit: {
-            /**
-             * Active
-             * @default true
-             */
-            active: boolean;
+            /** Active */
+            active?: boolean | null;
             /** Name */
             name: string;
-            /**
-             * Period Days
-             * @default 30
-             */
-            period_days: number;
+            /** Period Days */
+            period_days?: number | null;
             /** Price Idr */
             price_idr: number;
             /** Videos Per Period */

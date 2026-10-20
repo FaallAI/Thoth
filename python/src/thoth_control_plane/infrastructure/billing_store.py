@@ -29,7 +29,9 @@ from thoth_control_plane.billing import (
     PlanView,
     SubscriptionView,
     UnknownPlan,
+    UnknownWorkspace,
 )
+from thoth_control_plane.infrastructure.account_models import WorkspaceRow
 from thoth_control_plane.infrastructure.billing_models import (
     AllowanceUseRow,
     ExchangeRateRow,
@@ -108,25 +110,31 @@ class BillingStore:
         price_idr: int,
         workflows: int,
         videos: int,
-        period_days: int,
-        active: bool,
+        period_days: int | None = None,
+        active: bool | None = None,
     ) -> PlanView:
+        """Create or change a plan; `period_days` or `active` left None keeps the stored value
+        (30 days and active for a new plan)."""
         if (
             not PLAN_ID.fullmatch(plan_id)
             or not 1 <= len(name.strip()) <= 60
             or min(price_idr, workflows, videos) < 0
-            or not 1 <= period_days <= 366
-            or (plan_id == FREE_PLAN_ID and not active)
+            or (period_days is not None and not 1 <= period_days <= 366)
+            or (plan_id == FREE_PLAN_ID and active is False)
         ):
             raise InvalidPlan("invalid_plan")
         with self._session(write=True) as session:
             row = session.get(PlanRow, plan_id)
             if row is None:
-                row = PlanRow(plan_id=plan_id)
+                row = PlanRow(plan_id=plan_id, period_days=30, active=True)
                 session.add(row)
             row.name, row.price_idr = name.strip(), price_idr
             row.workflows_per_period, row.videos_per_period = workflows, videos
-            row.period_days, row.active, row.updated_at = period_days, active, self._clock()
+            if period_days is not None:
+                row.period_days = period_days
+            if active is not None:
+                row.active = active
+            row.updated_at = self._clock()
             return _plan(row)
 
     def usd_idr_rate(self) -> float | None:
@@ -369,6 +377,8 @@ class BillingStore:
             with self._sessions.begin() as session:
                 if session.get(SubscriptionRow, workspace_id) is not None:
                     return
+                if session.get(WorkspaceRow, workspace_id) is None:
+                    raise UnknownWorkspace(workspace_id)
                 free = session.get(PlanRow, FREE_PLAN_ID)
                 if free is None:
                     raise BillingUnavailable("free_plan_missing")

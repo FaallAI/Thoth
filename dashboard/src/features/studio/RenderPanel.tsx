@@ -636,6 +636,9 @@ function RenderSurface({
           {errorCopy[state.lastError]}
         </p>
       ) : null}
+      {state.lastError === "plan_limit_reached" ? (
+        <a className="text-sm underline" href="/billing">Open Billing</a>
+      ) : null}
 
       </div></div>
       <p className="studio-render-scope"><Info size={15} />Rendering creates an output file. It does not publish the video.</p>

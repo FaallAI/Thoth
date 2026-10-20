@@ -4,6 +4,18 @@ import type { components } from "@/api/generated/control-plane";
 export type BillingView = components["schemas"]["BillingView"];
 export type CheckoutView = components["schemas"]["CheckoutView"];
 
+/** Why a billing request was refused: the HTTP status and the server's fixed code. */
+export class BillingRequestError extends Error {
+  readonly status: number;
+  readonly code: string | null;
+
+  constructor(status: number, code: string | null) {
+    super(code ?? `billing_request_failed_${status}`);
+    this.status = status;
+    this.code = code;
+  }
+}
+
 type Fetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 export function createBillingClient(doFetch: Fetch = (input, init) => fetch(input, init)) {
@@ -19,7 +31,10 @@ export function createBillingClient(doFetch: Fetch = (input, init) => fetch(inpu
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan_id: planId }),
       });
-      if (!response.ok) throw new Error(`checkout_failed_${response.status}`);
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { detail?: unknown } | null;
+        throw new BillingRequestError(response.status, typeof body?.detail === "string" ? body.detail : null);
+      }
       return (await response.json()) as CheckoutView;
     },
   };

@@ -66,17 +66,20 @@ failed first:
   applied.
 - **Paid invoice dropped:** a payment for an invoice marked `failed` was dropped.
 
-Deferred minors are listed in the plan's ledger:
-- a stalled start releasing its unit;
-- a give-back that is not retried;
-- a refused render's staging left behind;
-- partial plan edits resetting `period_days` and `active`;
-- unknown workspace IDs answering with a traceback;
-- limit messages without a Billing link;
-- an empty payer email;
-- the margin needing a price for `workflow_completed`;
-- the 403 checkout copy;
-- the sign-up flag still needing a domain or organization set.
+**Review minors, fixed at the operator's request (each with a test that failed first):**
+- **Workflow start:** a start that Temporal accepted but whose read-back stalled keeps its unit.
+- **Render unit:** a give-back that failed is retried on the renderer's repeated report.
+- **Refused render:** it leaves no staging behind.
+- **Partial plan edit:** it keeps `period_days` and `active`.
+- **Unknown workspace:** it answers `unknown_workspace`.
+- **Limit messages:** they link to Billing.
+- **Missing email:** an invoice for a caller without one leaves `payer_email` out.
+- **Completed workflows:** they are a counter that needs no unit price.
+- **Refused checkout:** it says why: owner/admin only, plan still running, or already on the plan.
+- **Public sign-up:** it no longer needs a Google domain or GitHub organization set.
+
+**Verification after the minors:** Python 4210 passed, 76 skipped; PostgreSQL 21 + 9; dashboard
+711 passed, `tsc` clean, build OK; lint clean.
 
 **Verification (offline):**
 - Python 4202 passed, 76 skipped (after the review fixes). PostgreSQL: migrations 21; source-account and billing races and locks 9.

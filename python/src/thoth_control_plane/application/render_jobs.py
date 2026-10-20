@@ -17,6 +17,7 @@ import asyncio
 import contextlib
 import hashlib
 import json
+import logging
 from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -103,6 +104,9 @@ class DownloadableRender:
 
 def _default_id(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex}"
+
+
+logger = logging.getLogger(__name__)
 
 
 def _utcnow() -> datetime:
@@ -302,7 +306,11 @@ class RenderJobService:
         if replay is not None:
             await asyncio.to_thread(self._discard, render_job_id)
             return replay
-        await self._consume(actor_id, render_job_id)
+        try:
+            await self._consume(actor_id, render_job_id)
+        except BaseException:
+            await asyncio.to_thread(self._discard, render_job_id)  # refused: nothing staged stays
+            raise
         try:
             reserved = await jobs.reserve(
                 job, idempotency_key=idempotency_key, payload_hash=payload_hash
@@ -455,13 +463,17 @@ class RenderJobService:
 
     async def _give_back(self, job: RenderJob) -> None:
         """A render that failed or was cancelled returns its unit (billing spec 1.3)."""
-        if self._billing is not None:
+        if self._billing is None:
+            return
+        try:
             await asyncio.to_thread(
                 self._billing.release,
                 actor_workspace_id(job.created_by),
                 "video",
                 job.render_job_id,
             )
+        except Exception:  # the render's own outcome stands; a repeated report retries this
+            logger.warning("render unit not given back render_job_id=%s", job.render_job_id)
 
     async def _close(
         self, jobs: RenderJobRepository, job: RenderJob, code: RenderFailureCode
@@ -581,8 +593,8 @@ class RenderJobService:
         updated = await jobs.apply_event(render_job_id=render_job_id, event=event, now=now)
         if updated.status == "completed" and job.status != "completed" and updated.output:
             await self._meter_render(updated)
-        if updated.status in ("failed", "cancelled") and job.status not in ("failed", "cancelled"):
-            await self._give_back(updated)
+        if updated.status in ("failed", "cancelled"):
+            await self._give_back(updated)  # idempotent, so a repeated report retries a failed one
         return updated
 
     @staticmethod

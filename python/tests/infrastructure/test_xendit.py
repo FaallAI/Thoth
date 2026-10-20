@@ -54,3 +54,21 @@ async def test_a_refusal_never_carries_the_secret(status) -> None:
             failure_url="u",
         )
     assert "xnd_secret" not in repr(failed.value)
+
+
+async def test_an_invoice_without_an_email_leaves_the_field_out() -> None:
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"id": "xnd_1", "invoice_url": "https://checkout.x/1"})
+
+    await XenditInvoices("k", transport=httpx.MockTransport(handler)).create(
+        external_id="i",
+        amount_idr=1,
+        payer_email="",
+        description="d",
+        success_url="u",
+        failure_url="u",
+    )
+    assert "payer_email" not in seen["body"]

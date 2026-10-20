@@ -949,6 +949,7 @@ describe("settling a mutation", () => {
     expect(screen.getByRole("alert").textContent).toBe(
       "This month's video allowance is used up. Open Billing to choose a plan.",
     );
+    expect(screen.getByRole("link", { name: "Open Billing" }).getAttribute("href")).toBe("/billing");
   });
 
   test("a failed cleanup re-reads authoritative state", async () => {

@@ -2282,18 +2282,30 @@
         "additionalProperties": false,
         "properties": {
           "active": {
-            "default": true,
-            "title": "Active",
-            "type": "boolean"
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
           },
           "name": {
             "title": "Name",
             "type": "string"
           },
           "period_days": {
-            "default": 30,
-            "title": "Period Days",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Days"
           },
           "price_idr": {
             "title": "Price Idr",

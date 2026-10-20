@@ -49,13 +49,14 @@ class XenditInvoices:
         body = {
             "external_id": external_id,
             "amount": amount_idr,
-            "payer_email": payer_email,
             "description": description,
             "invoice_duration": INVOICE_SECONDS,
             "currency": "IDR",
             "success_redirect_url": success_url,
             "failure_redirect_url": failure_url,
         }
+        if payer_email:
+            body["payer_email"] = payer_email
         try:
             async with httpx.AsyncClient(
                 base_url=BASE_URL, transport=self._transport, timeout=30, auth=(self._key, "")

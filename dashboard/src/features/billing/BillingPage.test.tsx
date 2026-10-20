@@ -54,3 +54,17 @@ test("the current plan has no Choose button", async () => {
   expect(await screen.findByRole("button", { name: "Choose Pro" })).toBeDefined();
   expect(Boolean(screen.queryByRole("button", { name: "Choose Free" }))).toBe(false);
 });
+
+test("a checkout refusal says why", async () => {
+  const { BillingRequestError } = await import("@/api/billing");
+  for (const [status, code, text] of [
+    [403, "Not authorized", "Only the workspace owner or an admin can change the plan."],
+    [409, "plan_active", "Your paid plan is still running. It moves to Free when its period ends."],
+  ] as const) {
+    const checkout = mock(async () => { throw new BillingRequestError(status, code); });
+    render(<BillingPage client={{ get: mock(async () => view), checkout }} navigate={() => {}} />);
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Choose Pro" }));
+    expect(await screen.findByText(text)).toBeDefined();
+    cleanup();
+  }
+});

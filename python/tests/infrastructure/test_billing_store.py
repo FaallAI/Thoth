@@ -12,6 +12,7 @@ from thoth_control_plane.billing import (
     PlanConflict,
     PlanLimitReached,
     UnknownPlan,
+    UnknownWorkspace,
 )
 from thoth_control_plane.infrastructure import billing_models  # noqa: F401
 from thoth_control_plane.infrastructure.account_models import WorkspaceRow
@@ -228,3 +229,31 @@ def test_a_payment_for_an_invoice_marked_failed_still_starts_the_plan(store) -> 
     store.fail_invoice(invoice.invoice_id)  # Xendit timed out but had created the invoice
     assert store.settle(invoice.invoice_id, "PAID", 99000) == "applied"
     assert store.subscription("ws_a").plan_id == "pro"
+
+
+def test_a_partial_plan_edit_keeps_the_period_and_the_state(store) -> None:
+    store.set_plan(
+        "q",
+        name="Quarter",
+        price_idr=250000,
+        workflows=150,
+        videos=60,
+        period_days=90,
+        active=False,
+    )
+    store.set_plan(
+        "q",
+        name="Quarter",
+        price_idr=240000,
+        workflows=150,
+        videos=60,
+        period_days=None,
+        active=None,
+    )
+    plan = store.plan("q")
+    assert (plan.price_idr, plan.period_days, plan.active) == (240000, 90, False)
+
+
+def test_an_unknown_workspace_is_named_not_asserted(store) -> None:
+    with pytest.raises(UnknownWorkspace):
+        store.grant("ws_nope", "free", 30)

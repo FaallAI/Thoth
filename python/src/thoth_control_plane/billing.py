@@ -27,6 +27,10 @@ class UnknownPlan(LookupError):
     pass
 
 
+class UnknownWorkspace(LookupError):
+    pass
+
+
 class PlanConflict(Exception):
     """A free-plan choice that would reset an allowance or drop a paid period: HTTP 409."""
 

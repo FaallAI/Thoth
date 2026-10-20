@@ -464,3 +464,34 @@ def test_plans_rates_and_grants_from_the_cli(monkeypatch) -> None:
         ],
     )
     assert (bad.exit_code, bad.output.strip()) == (1, "invalid_plan")
+    store.set_plan(
+        "q",
+        name="Quarter",
+        price_idr=250000,
+        workflows=150,
+        videos=60,
+        period_days=90,
+        active=False,
+    )
+    edited = runner.invoke(
+        app,
+        [
+            "plans",
+            "set",
+            "q",
+            "--name",
+            "Quarter",
+            "--price-idr",
+            "240000",
+            "--workflows",
+            "150",
+            "--videos",
+            "60",
+        ],
+    )
+    assert edited.exit_code == 0 and (store.plan("q").period_days, store.plan("q").active) == (
+        90,
+        False,
+    )
+    nobody = runner.invoke(app, ["subscriptions", "set", "ws_nope", "pro", "14"])
+    assert (nobody.exit_code, nobody.output.strip()) == (1, "unknown_workspace")

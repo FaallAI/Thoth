@@ -1337,3 +1337,33 @@ async def test_an_idempotent_replay_at_the_limit_returns_the_running_render() ->
     again = await create_one(service, key="k1")  # a reconnect replays the same request
     assert again.render_job_id == first.render_job_id
     assert billing.live == {first.render_job_id}
+
+
+async def test_a_give_back_that_failed_is_retried_on_the_repeated_event() -> None:
+    class Flaky(RecordingBilling):
+        def __init__(self) -> None:
+            super().__init__(allowance=1)
+            self.down = True
+
+        def release(self, workspace_id, kind, ref):
+            if self.down:
+                self.down = False
+                raise RuntimeError("billing down")
+            super().release(workspace_id, kind, ref)
+
+    billing = Flaky()
+    service = build_service(billing=billing)
+    job = await create_one(service)
+    await fail(service, job)  # the give-back fails, and the event still applies
+    await fail(service, job)  # the renderer repeats its report
+    assert billing.live == set()
+
+
+async def test_a_refused_render_leaves_no_staging_behind() -> None:
+    from thoth_control_plane.billing import PlanLimitReached
+
+    artifacts = Artifacts()
+    service = build_service(artifacts=artifacts, billing=RecordingBilling(allowance=0))
+    with pytest.raises(PlanLimitReached):
+        await create_one(service)
+    assert len(artifacts.cleaned) == 1

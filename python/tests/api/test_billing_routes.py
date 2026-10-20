@@ -138,3 +138,17 @@ async def test_the_margin_converts_metered_cost_with_the_admin_rate(world) -> No
     assert body["complete"] is True and body["idr_per_usd"] == 16000.0
     # 50 workflows x $0.10 + 20 videos x $0.30 = $11 = Rp176.000; Rp99.000 - Rp176.000
     assert (pro["full_use_cost_idr"], pro["margin_idr"]) == (176000, -77000)
+
+
+async def test_completed_workflows_are_a_counter_and_need_no_price(world) -> None:
+    app, _billing, usage, *_ = world
+    usage.set_price("account_lease", "*", "session", 0.10)
+    usage.record(
+        UsageRecord("ws_x", "workflow_completed", "source_investigation", 1, "workflow", "wf_1")
+    )
+    usage.record(UsageRecord("ws_x", "account_lease", "instagram", 1, "session", "wf_1"))
+    await _call(app, "PUT", "/api/v1/admin/plans/rate", SERVICE, {"idr_per_usd": 16000})
+    body = (await _call(app, "GET", "/api/v1/admin/plans/margin", SERVICE)).json()
+    pro = next(p for p in body["plans"] if p["plan_id"] == "pro")
+    assert body["complete"] is True
+    assert pro["cost_per_workflow_usd"] == pytest.approx(0.10)

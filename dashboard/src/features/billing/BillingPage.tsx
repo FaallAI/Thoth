@@ -1,10 +1,21 @@
 import { useEffect, useState } from "react";
 
-import { billingClient, type BillingClient, type BillingView } from "@/api/billing";
+import { billingClient, BillingRequestError, type BillingClient, type BillingView } from "@/api/billing";
 import { Button } from "@/components/ui/button";
 
 /** Rp99.000: dots between thousands, fixed whatever the runtime's locale data says. */
 const rupiah = (value: number) => `Rp${String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+const REFUSALS: Record<string, string> = {
+  already_on_plan: "You are already on this plan.",
+  plan_active: "Your paid plan is still running. It moves to Free when its period ends.",
+  unknown_plan: "That plan is no longer offered.",
+};
+const refusal = (failure: unknown) =>
+  failure instanceof BillingRequestError
+    ? failure.status === 403
+      ? "Only the workspace owner or an admin can change the plan."
+      : (failure.code && REFUSALS[failure.code]) || "Checkout is not available right now. Try again later."
+    : "Checkout is not available right now. Try again later.";
 const left = (used: number, allowed: number | null | undefined) => Math.max(0, (allowed ?? 0) - used);
 
 export function BillingPage({
@@ -26,8 +37,8 @@ export function BillingPage({
       const made = await client.checkout(planId);
       if (made.invoice_url) navigate(made.invoice_url);
       else await load();
-    } catch {
-      setError("Checkout is not available right now. Try again later.");
+    } catch (failure) {
+      setError(refusal(failure));
     }
   }
 
