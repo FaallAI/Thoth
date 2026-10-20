@@ -638,6 +638,84 @@ def documents(document_id):
         raise SystemExit("the seeded document is not listed")
 
 
+def studio_import():
+    """Open a finished workflow in Studio (spec 2026-10-20 workflow to Studio): the API probes
+    the run's main video straight from MinIO, copies it into the project, attaches it, and a
+    replay of the same key copies nothing again."""
+    from thoth_control_plane.assembly.models import ContentSet
+    from thoth_control_plane.infrastructure.report_store import ReportStore
+
+    ensure_project()
+    workflow_id = "wf_smoke_studio"
+    media = f"reports/{workflow_id}/media/main.mp4"
+    STORE.put_file(media, ASSET_FILE)
+    with psycopg.connect(DATABASE_URL) as connection:
+        connection.execute(
+            "INSERT INTO workflow_runs (workflow_id, project_id, actor_type, actor_id,"
+            " display_url, platform, status, created_at, updated_at)"
+            " VALUES (%s, NULL, 'user', 'owner', 'https://example.test/v/1', 'tiktok',"
+            " 'succeeded', now(), now()) ON CONFLICT DO NOTHING",
+            (workflow_id,),
+        )
+    content_set = ContentSet.model_validate_json(
+        json.dumps(
+        {
+            "workflow_id": workflow_id,
+            "attribution_verdict": "none",
+            "main": {
+                "source": "input",
+                "url": "https://example.test/v/1",
+                "platform": "tiktok",
+                "owner_handle": "smoke",
+                "kind": "video",
+                "video": {
+                    "location": media,
+                    "media_type": "video/mp4",
+                    "checksum": checksum_of(ASSET_FILE),
+                    "bytes": ASSET_FILE.stat().st_size,
+                    "duration_seconds": 4.0,
+                },
+                "ocr": {
+                    "analyzed_at": "2026-10-20T00:00:00Z",
+                    "requested_frames": 12,
+                    "valid_frames": 12,
+                    "outcome": "clean",
+                    "trim_start": 0.0,
+                    "mute_audio": False,
+                },
+            },
+            "figures_status": "none",
+        }
+        )
+    )
+    ReportStore.connect(DATABASE_URL).put(
+        f"reports/{workflow_id}/content-set.json",
+        "content_set",
+        content_set.model_dump_json(indent=2).encode("utf-8"),
+    )
+    path = f"/projects/{PROJECT_ID}/workflows/{workflow_id}/studio-import"
+    status, opened = call("POST", path, idempotency_key="smoke-studio-1")
+    if status != 201 or [(i["item_id"], i["outcome"]) for i in opened["items"]] != [
+        ("main_000", "copied")
+    ]:
+        raise SystemExit(f"open returned {status}")
+    document_id = opened["draft"]["document_id"]
+    status, inventory = call("GET", f"/projects/{PROJECT_ID}/studio-imports/documents/{document_id}")
+    main = next(item for item in inventory["items"] if item["item_id"] == "main_000")
+    if status != 200 or main["disposition"] != "attached":
+        raise SystemExit("the main video is not attached")
+    if STORE.size(f"uploads/{PROJECT_ID}/{main['asset_id']}.mp4") != ASSET_FILE.stat().st_size:
+        raise SystemExit("the copy is not in the project's uploads")
+    status, again = call("POST", path, idempotency_key="smoke-studio-1")
+    if (
+        status != 201
+        or again["draft"]["document_id"] != document_id
+        or [i["outcome"] for i in again["items"]] != ["decided"]
+    ):
+        raise SystemExit("a replay did not return the same draft")
+    print("ok")
+
+
 COMMANDS = {
     "seed": lambda d, f, a: seed(d, int(f), None if a == "none" else int(a)),
     "create": create,
@@ -653,6 +731,7 @@ COMMANDS = {
     "absent": absent,
     "projects": projects,
     "documents": documents,
+    "studio_import": studio_import,
 }
 
 if __name__ == "__main__":
@@ -769,6 +848,10 @@ echo project_created_and_listed=true
 echo project_workflows_listed=true
 driver documents "$document_id" >/dev/null || fail edit_documents_listed
 echo edit_documents_listed=true
+
+# --- a finished workflow opens in Studio with its media (spec 2026-10-20) ----------
+driver studio_import >/dev/null || fail workflow_opens_in_studio
+echo workflow_opens_in_studio=true
 
 # --- the web container: SPA fallback, API behind sign-in, developer tokens (spec 2026-10-19) ---
 compose up --detach --wait --wait-timeout "$start_timeout" web >/dev/null 2>&1 \

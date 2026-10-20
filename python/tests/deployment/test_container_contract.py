@@ -290,6 +290,7 @@ def test_renderer_smoke_proves_the_properties_a_render_stack_must_hold() -> None
         "cancel_leaves_no_published_output=true",
         "deadline_fails_without_publishing=true",
         "teardown_leaves_nothing=true",
+        "workflow_opens_in_studio=true",
     }
     assert required <= set(script.split())
 
