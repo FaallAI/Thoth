@@ -24,6 +24,7 @@ from thoth_control_plane.billing import (
     BillingUnavailable,
     InvalidPlan,
     InvoiceView,
+    PlanConflict,
     PlanLimitReached,
     PlanView,
     SubscriptionView,
@@ -150,7 +151,8 @@ class BillingStore:
     def subscription(self, workspace_id: str) -> SubscriptionView:
         self._ensure(workspace_id)
         with self._session(write=True) as session:
-            row = self._current(session, workspace_id, lock=False)
+            # Locked: a roll-forward here must never overwrite a plan a payment just applied.
+            row = self._current(session, workspace_id, lock=True)
             return SubscriptionView(row.workspace_id, row.plan_id, row.period_start, row.period_end)
 
     def grant(self, workspace_id: str, plan_id: str, days: int) -> SubscriptionView:
@@ -181,8 +183,12 @@ class BillingStore:
                     AllowanceUseRow.ref == ref,
                 )
             )
-            if existing is not None and existing.released_at is None:
-                return False
+            if (
+                existing is not None
+                and existing.released_at is None
+                and existing.created_at >= sub.period_start
+            ):
+                return False  # an idempotent retry within this period
             plan = session.get(PlanRow, sub.plan_id)
             assert plan is not None
             allowance = plan.workflows_per_period if kind == "workflow" else plan.videos_per_period
@@ -190,7 +196,7 @@ class BillingStore:
             if used >= allowance:
                 raise PlanLimitReached(kind, used, allowance, sub.period_end)
             now = self._clock()
-            if existing is not None:
+            if existing is not None:  # released, or from an earlier period: a new unit
                 existing.released_at, existing.created_at = None, now
             else:
                 session.add(
@@ -222,7 +228,7 @@ class BillingStore:
             return AllowanceView(workspace_id, True, None, None, None, 0, None, 0, None)
         self._ensure(workspace_id)
         with self._session(write=True) as session:
-            sub = self._current(session, workspace_id, lock=False)
+            sub = self._current(session, workspace_id, lock=True)
             row = session.get(PlanRow, sub.plan_id)
             assert row is not None
             plan = _plan(row)
@@ -279,6 +285,22 @@ class BillingStore:
             )
             return [_invoice(row) for row in rows]
 
+    def choose_free_plan(self, workspace_id: str, plan_id: str) -> None:
+        """A Rp0 checkout (spec 2.1). It never resets this period's use and never drops a paid
+        period still running; switching between Rp0 plans keeps the period."""
+        self._ensure(workspace_id)
+        with self._session(write=True) as session:
+            plan = session.get(PlanRow, plan_id)
+            if plan is None or not plan.active or plan.price_idr != 0:
+                raise UnknownPlan(plan_id)
+            row = self._current(session, workspace_id, lock=True)
+            if row.plan_id == plan_id:
+                raise PlanConflict("already_on_plan")
+            current = session.get(PlanRow, row.plan_id)
+            if current is not None and current.price_idr > 0:
+                raise PlanConflict("plan_active")
+            row.plan_id, row.updated_at = plan_id, self._clock()
+
     def apply_plan(self, workspace_id: str, plan_id: str) -> None:
         """Start or extend `plan_id` now (spec 2.2): a Rp0 checkout or a paid invoice."""
         self._ensure(workspace_id)
@@ -297,7 +319,10 @@ class BillingStore:
         with self._session(write=True) as session:
             row = session.get(InvoiceRow, invoice_id, with_for_update={"key_share": True})
             assert row is not None
-            if row.status != "pending":
+            # A `failed` invoice is one Xendit may still have created and been paid for.
+            if row.status not in ("pending", "failed") or (
+                row.status == "failed" and status not in ("PAID", "SETTLED")
+            ):
                 return "ignored"
             if status == "EXPIRED":
                 row.status = "expired"

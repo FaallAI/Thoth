@@ -81,3 +81,17 @@ def test_racing_first_starts_create_one_free_row(store: BillingStore) -> None:
         assert connection.execute(
             "SELECT count(*) FROM subscriptions WHERE workspace_id = 'ws_b'"
         ).fetchone() == (1,)
+
+
+def test_reads_that_roll_a_period_forward_lock_the_row(store: BillingStore) -> None:
+    from sqlalchemy import event
+
+    store.subscription("ws_a")  # the lazy row exists
+    statements: list[str] = []
+    engine = store._sessions.kw["bind"]
+    event.listen(engine, "before_cursor_execute", lambda *a: statements.append(a[2]))
+    store.subscription("ws_a")
+    store.allowance("ws_a")
+    # _ensure's existence check reads unlocked and writes nothing; every roll-forward read locks.
+    locked = [s for s in statements if "FROM subscriptions" in s and "FOR NO KEY UPDATE" in s]
+    assert len(locked) == 2

@@ -27,6 +27,14 @@ class UnknownPlan(LookupError):
     pass
 
 
+class PlanConflict(Exception):
+    """A free-plan choice that would reset an allowance or drop a paid period: HTTP 409."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
 class InvalidPlan(ValueError):
     pass
 

@@ -1315,3 +1315,25 @@ async def test_a_dispatch_failure_gives_its_unit_back() -> None:
     with pytest.raises(RendererUnavailable):
         await create_one(service)
     assert billing.live == set()
+
+
+async def test_a_reserve_failure_gives_the_unit_back() -> None:
+    from thoth_control_plane.application.render_job_ports import RenderPersistenceError
+
+    class Broken(Jobs):
+        async def reserve(self, job, *, idempotency_key, payload_hash):
+            raise RenderPersistenceError()
+
+    billing = RecordingBilling(allowance=1)
+    with pytest.raises(RenderPersistenceError):
+        await create_one(build_service(jobs=Broken(), billing=billing))
+    assert billing.live == set()
+
+
+async def test_an_idempotent_replay_at_the_limit_returns_the_running_render() -> None:
+    billing = RecordingBilling(allowance=1)
+    service = build_service(billing=billing)
+    first = await create_one(service, key="k1")
+    again = await create_one(service, key="k1")  # a reconnect replays the same request
+    assert again.render_job_id == first.render_job_id
+    assert billing.live == {first.render_job_id}

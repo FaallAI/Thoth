@@ -53,7 +53,11 @@ export function BillingPage({
               <strong>{plan.name}</strong>{" "}
               <span>{`${rupiah(plan.price_idr)} / ${plan.period_days} days`}</span>{" "}
               <span>{`${plan.workflows_per_period} workflows, ${plan.videos_per_period} videos`}</span>{" "}
-              <Button type="button" variant="outline" onClick={() => void choose(plan.plan_id)}>{`Choose ${plan.name}`}</Button>
+              {plan.plan_id === view.plan?.plan_id ? (
+                <span className="text-xs text-muted-foreground">Current plan</span>
+              ) : (
+                <Button type="button" variant="outline" onClick={() => void choose(plan.plan_id)}>{`Choose ${plan.name}`}</Button>
+              )}
             </li>
           ))}
         </ul>

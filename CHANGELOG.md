@@ -50,11 +50,39 @@ All notable changes to this project will be documented in this file.
 - a public HTTPS address is a go-live prerequisite, because Xendit cannot reach `localhost`;
 - the margin report uses an admin-set exchange rate.
 
+**Final review (fresh reviewer, Opus):** ready to merge with fixes. Fixed, each with a test that
+failed first:
+- **Free-plan reset:** choosing the current free plan again reset the allowance. It now answers
+  409 `already_on_plan`.
+- **Paid period dropped:** a Rp0 checkout dropped a running paid period. It now answers 409
+  `plan_active`.
+- **Webhook not proxied:** Caddy did not proxy `/billing/webhooks/*`, so a payment would never
+  apply.
+- **Render unit leaked:** a reserve failure leaked a render unit.
+- **Render replay refused:** an idempotent render replay at the limit answered 402 instead of
+  returning the running render.
+- **Old key reused:** an Idempotency-Key from an earlier period started a free workflow.
+- **Lost update:** an unlocked roll-forward read could overwrite a period a payment had just
+  applied.
+- **Paid invoice dropped:** a payment for an invoice marked `failed` was dropped.
+
+Deferred minors are listed in the plan's ledger:
+- a stalled start releasing its unit;
+- a give-back that is not retried;
+- a refused render's staging left behind;
+- partial plan edits resetting `period_days` and `active`;
+- unknown workspace IDs answering with a traceback;
+- limit messages without a Billing link;
+- an empty payer email;
+- the margin needing a price for `workflow_completed`;
+- the 403 checkout copy;
+- the sign-up flag still needing a domain or organization set.
+
 **Verification (offline):**
-- Python 4193 passed, 75 skipped. PostgreSQL: migrations 21; source-account and billing races 8.
+- Python 4202 passed, 76 skipped (after the review fixes). PostgreSQL: migrations 21; source-account and billing races and locks 9.
   With the subscription lock removed, the billing race failed 3 of 3 runs.
 - Lint clean.
-- Dashboard 709 passed, `tsc` clean, build OK.
+- Dashboard 710 passed, `tsc` clean, build OK.
 - The stack smoke has not run locally; CI runs it at the push gate.
 
 **Next steps:**

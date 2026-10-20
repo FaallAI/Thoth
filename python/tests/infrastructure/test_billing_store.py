@@ -7,7 +7,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from thoth_control_plane.billing import InvalidPlan, PlanLimitReached, UnknownPlan
+from thoth_control_plane.billing import (
+    InvalidPlan,
+    PlanConflict,
+    PlanLimitReached,
+    UnknownPlan,
+)
 from thoth_control_plane.infrastructure import billing_models  # noqa: F401
 from thoth_control_plane.infrastructure.account_models import WorkspaceRow
 from thoth_control_plane.infrastructure.billing_models import PlanRow
@@ -176,3 +181,50 @@ def test_the_exchange_rate_round_trips_and_must_be_positive(store) -> None:
     assert store.usd_idr_rate() == 16250.5
     with pytest.raises(InvalidPlan):
         store.set_usd_idr_rate(0)
+
+
+def test_choosing_the_current_free_plan_again_never_resets_the_allowance(store) -> None:
+    for i in range(3):
+        store.consume("ws_a", "workflow", f"r{i}")
+    with pytest.raises(PlanConflict) as refused:
+        store.choose_free_plan("ws_a", "free")
+    assert refused.value.code == "already_on_plan"
+    with pytest.raises(PlanLimitReached):
+        store.consume("ws_a", "workflow", "r9")
+
+
+def test_a_paid_plan_in_its_period_is_never_dropped_for_a_free_one(store) -> None:
+    _pro(store)
+    store.grant("ws_a", "pro", 30)
+    with pytest.raises(PlanConflict) as refused:
+        store.choose_free_plan("ws_a", "free")
+    assert refused.value.code == "plan_active"
+    assert store.subscription("ws_a").plan_id == "pro"
+
+
+def test_switching_between_free_plans_keeps_the_period_and_its_use(store) -> None:
+    store.set_plan(
+        "lite", name="Lite", price_idr=0, workflows=3, videos=1, period_days=30, active=True
+    )
+    for i in range(3):
+        store.consume("ws_a", "workflow", f"r{i}")
+    store.choose_free_plan("ws_a", "lite")
+    sub = store.subscription("ws_a")
+    assert (sub.plan_id, sub.period_start) == ("lite", NOW)
+    with pytest.raises(PlanLimitReached):
+        store.consume("ws_a", "workflow", "r9")
+
+
+def test_an_old_ref_from_an_earlier_period_counts_again(store, clock) -> None:
+    assert store.consume("ws_a", "workflow", "r1") is True
+    clock.now = NOW + timedelta(days=31)
+    assert store.consume("ws_a", "workflow", "r1") is True  # a reused key is a new start
+    assert store.allowance("ws_a").workflows_used == 1
+
+
+def test_a_payment_for_an_invoice_marked_failed_still_starts_the_plan(store) -> None:
+    _pro(store)
+    invoice = store.open_invoice("ws_a", "pro")
+    store.fail_invoice(invoice.invoice_id)  # Xendit timed out but had created the invoice
+    assert store.settle(invoice.invoice_id, "PAID", 99000) == "applied"
+    assert store.subscription("ws_a").plan_id == "pro"

@@ -48,3 +48,9 @@ test("a failed checkout says so and stays on the page", async () => {
   await userEvent.setup().click(await screen.findByRole("button", { name: "Choose Pro" }));
   expect(await screen.findByText("Checkout is not available right now. Try again later.")).toBeDefined();
 });
+
+test("the current plan has no Choose button", async () => {
+  render(<BillingPage client={{ get: mock(async () => view), checkout: applied }} navigate={() => {}} />);
+  expect(await screen.findByRole("button", { name: "Choose Pro" })).toBeDefined();
+  expect(Boolean(screen.queryByRole("button", { name: "Choose Free" }))).toBe(false);
+});

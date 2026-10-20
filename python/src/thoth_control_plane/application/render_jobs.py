@@ -41,12 +41,10 @@ from thoth_control_plane.application.render_job_ports import (
     ArtifactRoot,
     ArtifactUnavailable,
     ReceivedOutput,
-    RenderBusy,
     RendererGateway,
     RendererNotConfigured,
     RendererRejected,
     RendererUnavailable,
-    RenderIdempotencyConflict,
     RenderImportUnresolved,
     RenderJobNotActive,
     RenderJobNotCancellable,
@@ -293,13 +291,24 @@ class RenderJobService:
                 {"asset_id": asset.asset_id, "checksum": asset.checksum} for asset in bundle.assets
             ],
         )
+        # A replay of an earlier request returns its render and never takes a second unit.
+        try:
+            replay = await jobs.find_replay(
+                project_id=project_id, idempotency_key=idempotency_key, payload_hash=payload_hash
+            )
+        except BaseException:
+            await asyncio.to_thread(self._discard, render_job_id)
+            raise
+        if replay is not None:
+            await asyncio.to_thread(self._discard, render_job_id)
+            return replay
         await self._consume(actor_id, render_job_id)
         try:
             reserved = await jobs.reserve(
                 job, idempotency_key=idempotency_key, payload_hash=payload_hash
             )
-        except (RenderBusy, RenderIdempotencyConflict):
-            # This request never owned a slot, so its workspace is dead weight.
+        except BaseException:
+            # This request never owned a slot: its unit and its workspace go back.
             await self._give_back(job)
             await asyncio.to_thread(self._discard, render_job_id)
             raise

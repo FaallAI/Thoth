@@ -14,7 +14,7 @@ from thoth_control_plane.api.dependencies import (
     require_write,
 )
 from thoth_control_plane.auth.models import BOOTSTRAP_WORKSPACE_ID, Principal, is_platform_admin
-from thoth_control_plane.billing import InvalidPlan, UnknownPlan
+from thoth_control_plane.billing import InvalidPlan, PlanConflict, UnknownPlan
 from thoth_control_plane.domain import Actor
 from thoth_control_plane.domain.models import StrictModel
 from thoth_control_plane.infrastructure.billing_store import BillingStore
@@ -56,7 +56,10 @@ async def checkout(request: Request, body: CheckoutRequest, principal: Caller) -
     if plan is None or not plan.active:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown_plan")
     if plan.price_idr == 0:
-        await asyncio.to_thread(store.apply_plan, principal.workspace_id, plan.plan_id)
+        try:
+            await asyncio.to_thread(store.choose_free_plan, principal.workspace_id, plan.plan_id)
+        except PlanConflict as conflict:
+            raise HTTPException(status.HTTP_409_CONFLICT, conflict.code) from None
         return CheckoutView(invoice_id=None, invoice_url=None, applied=True)
     payments = getattr(request.app.state, "payments", None)
     if payments is None:

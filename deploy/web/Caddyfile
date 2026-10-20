@@ -17,7 +17,8 @@
 		-Server
 	}
 
-	@backend path /api/v1/* /auth/*
+	# Xendit posts payment callbacks to /billing/webhooks/* (billing spec 2.2).
+	@backend path /api/v1/* /auth/* /billing/webhooks/*
 	handle @backend {
 		reverse_proxy {$THOTH_API_UPSTREAM:api:8000}
 	}

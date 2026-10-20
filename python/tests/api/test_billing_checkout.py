@@ -109,10 +109,22 @@ async def test_checkout_refusals(world) -> None:
 
 async def test_a_free_plan_needs_no_invoice(world) -> None:
     app, billing, payments, bob, bob_ws = world
-    billing.grant(bob_ws, "pro", 30)
-    made = await _call(app, "POST", "/api/v1/billing/checkout", bob, {"plan_id": "free"})
+    billing.set_plan(
+        "lite", name="Lite", price_idr=0, workflows=3, videos=1, period_days=30, active=True
+    )
+    made = await _call(app, "POST", "/api/v1/billing/checkout", bob, {"plan_id": "lite"})
     assert made.json() == {"invoice_id": None, "invoice_url": None, "applied": True}
-    assert payments.calls == [] and billing.subscription(bob_ws).plan_id == "free"
+    assert payments.calls == [] and billing.subscription(bob_ws).plan_id == "lite"
+
+
+async def test_a_free_checkout_never_resets_an_allowance_or_drops_a_paid_period(world) -> None:
+    app, billing, _payments, bob, bob_ws = world
+    again = await _call(app, "POST", "/api/v1/billing/checkout", bob, {"plan_id": "free"})
+    billing.grant(bob_ws, "pro", 30)
+    drop = await _call(app, "POST", "/api/v1/billing/checkout", bob, {"plan_id": "free"})
+    assert (again.status_code, again.json()) == (409, {"detail": "already_on_plan"})
+    assert (drop.status_code, drop.json()) == (409, {"detail": "plan_active"})
+    assert billing.subscription(bob_ws).plan_id == "pro"
 
 
 async def test_without_xendit_checkout_and_the_webhook_are_unavailable(gateway) -> None:

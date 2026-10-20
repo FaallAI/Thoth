@@ -1240,3 +1240,10 @@ def test_the_smoke_registers_its_project_before_any_project_route() -> None:
         body = script[script.index(f"def {name}(") :]
         body = body[: body.index("\ndef ", 1)]
         assert "ensure_project()" in body, name
+
+
+def test_the_xendit_webhook_is_proxied_to_the_api() -> None:
+    """Billing spec 2.2: Xendit posts to /billing/webhooks/xendit; the SPA must not answer it."""
+    caddyfile = _repo_text("deploy/web/Caddyfile")
+    backend = next(line for line in caddyfile.splitlines() if "@backend path" in line)
+    assert "/billing/webhooks/*" in backend.split()
