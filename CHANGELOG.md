@@ -2,6 +2,75 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-20 - Billing: plans, payment and limits (SaaS sub-project 4)
+
+**Spec:** `docs/superpowers/specs/2026-10-20-billing-design.md`.
+**Plan:** `docs/superpowers/plans/2026-10-20-billing.md` (executed natively, branch `feat/billing`).
+
+**What shipped:**
+
+- **Migration `0016`** adds `plans` (seeded only with `free`: Rp0, 3 workflows, 1 video, 30 days),
+  `subscriptions`, `invoices`, the `allowance_uses` ledger and `exchange_rates`. Nothing is
+  dropped.
+- **`BillingStore`:**
+  - plans are edited without a deploy;
+  - subscriptions start on `free`, roll forward, and fall back to `free` when a paid plan is not
+    renewed;
+  - the operator can grant a plan;
+  - the allowance is checked and recorded in one transaction under `FOR NO KEY UPDATE` on the
+    subscription row;
+  - invoices are settled idempotently, in one transaction with the plan they buy.
+- **Enforcement:**
+  - a workflow start or a render takes one unit before Temporal or the renderer starts;
+  - a failed start, or a failed or cancelled render (every close path), gives its unit back;
+  - an idempotent retry never takes a second unit;
+  - past the allowance the answer is 402 `plan_limit_reached`;
+  - an unreadable billing store answers 503 and refuses the start;
+  - `ws_bootstrap` is exempt.
+- **Xendit:**
+  - an Invoice API adapter;
+  - `POST /api/v1/billing/checkout` (owner or admin; a Rp0 plan needs no invoice);
+  - `POST /billing/webhooks/xendit`, checked against the callback token, idempotent, and
+    rejecting a mismatched amount.
+- **Views and CLI:**
+  - `GET /api/v1/billing`;
+  - admin `GET` and `PUT /api/v1/admin/plans`, `PUT /api/v1/admin/plans/rate` and
+    `GET /api/v1/admin/plans/margin`. The margin report converts metered USD cost at the admin
+    USD→IDR rate and shows each plan's margin in rupiah (an operator note);
+  - CLI `thoth-control plans set|list|rate` and `subscriptions set`.
+- **Sign-up:** `THOTH_AUTH_PUBLIC_SIGNUP` (default `false`) drops only the Google-domain and
+  GitHub-organization rule.
+- **Dashboard:** a Billing page (plan, what is left, plans in rupiah, checkout, invoices), and a
+  used-up message on workflow start and on render.
+- **Stack smoke:** a new `plan_limit_is_enforced` check.
+
+**Operator notes folded in during the work:**
+- plan values are editable by the admin, never in code;
+- the allowance ledger, so check and consume are one transaction;
+- a public HTTPS address is a go-live prerequisite, because Xendit cannot reach `localhost`;
+- the margin report uses an admin-set exchange rate.
+
+**Verification (offline):**
+- Python 4193 passed, 75 skipped. PostgreSQL: migrations 21; source-account and billing races 8.
+  With the subscription lock removed, the billing race failed 3 of 3 runs.
+- Lint clean.
+- Dashboard 709 passed, `tsc` clean, build OK.
+- The stack smoke has not run locally; CI runs it at the push gate.
+
+**Next steps:**
+
+- **Operator gates:** push, PR, CI (the smoke must print `render_output_is_h264_mp4=true`,
+  `workspaces_are_isolated=true`, `usage_counts_the_render=true` and
+  `plan_limit_is_enforced=true`), merge, then deploy (migration `0016`).
+- **Deferred by the operator until every roadmap feature is finished:**
+  - a public HTTPS address, with `THOTH_SITE_ORIGIN` and the OAuth redirects moved to it;
+  - the Xendit keys, and the webhook registered in the Xendit dashboard;
+  - the paid plans and the exchange rate;
+  - the meter unit prices;
+  - `THOTH_AUTH_PUBLIC_SIGNUP=true`;
+  - the second-account check.
+- **Next on the roadmap:** priority 2, Workflow → Studio.
+
 ## 2026-10-20 - PR #32 merged and deployed; metering is live
 
 **Merged:** PR #32 (`f8acc10`) after CI passed on the branch. The stack smoke printed
