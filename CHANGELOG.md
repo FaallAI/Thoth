@@ -29,11 +29,11 @@ repository).
 
 **Next steps:**
 
-- **Operator:** set unit prices with `thoth-control prices set <kind> <key|*> <unit> <usd>` in the
-  `api` container. Until then, the admin estimate stays `complete: false`. Also check the default
-  quotas and the 50% reserve.
-- **Operator check:** a second real account signs in and sees an empty workspace and its own
-  Usage page.
+- **Deferred by the operator until every roadmap feature is finished:**
+  - set unit prices with `thoth-control prices set <kind> <key|*> <unit> <usd>` in the `api`
+    container (until then, the admin estimate stays `complete: false`);
+  - check the default quotas and the 50% reserve;
+  - have a second real account sign in and see an empty workspace and its own Usage page.
 - **SaaS sub-project 4, billing:** plans and payments on top of the meter.
 
 ## 2026-10-20 - Metering, cost model and pool quota (SaaS sub-project 3)
