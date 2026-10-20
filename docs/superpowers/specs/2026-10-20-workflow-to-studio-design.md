@@ -74,11 +74,16 @@ For each projected item that has a `MediaRef`, in item order:
 2. **Check the source.** `media.stat(MediaRef.location)`. A missing object makes the item
    unresolved with reason `media_missing`; a size different from `MediaRef.bytes` makes it
    unresolved with `media_mismatch`.
-3. **Probe.** The store has no internal or signed URL, so the source is fetched to a temporary
-   file (the same temporary directory the upload service uses) and passed to the existing
-   `MediaProbe`; `described_asset(...)` turns the report into the asset exactly as an upload does.
-   An invalid report makes the item unresolved with `media_invalid`; nothing has been copied yet.
-   The temporary file is always removed.
+3. **Probe, reading MinIO directly.** A new store method `probe_url(location) -> str` returns a
+   short-lived (5 minute) presigned GET URL from the MinIO client (`presigned_get_object`, signed
+   locally against the internal endpoint the API already uses). ffprobe reads that URL with HTTP
+   range requests, so only the container header and index are transferred, never the whole file.
+   `probe_media` accepts the URL as its input argument and restricts ffprobe with
+   `-protocol_whitelist http,https,tcp,tls`; the URL is passed only as an argument vector entry and
+   never logged or returned. The local filesystem store (development and tests) returns the
+   object's file path instead. `described_asset(...)` turns the report into the asset exactly as
+   an upload does. An invalid report or a probe timeout makes the item unresolved with
+   `media_invalid`; nothing has been copied yet.
 4. **Copy.** `media.copy(MediaRef.location, "uploads/<project_id>/<new name>")`, a server-side
    copy in MinIO, using the same name rule as `publish_upload`.
 5. **Register.** `register_ready(EditorAssetRecord(asset, location, provenance="workflow_import"))`
