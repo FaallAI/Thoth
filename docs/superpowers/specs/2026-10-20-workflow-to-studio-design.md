@@ -76,14 +76,19 @@ For each projected item that has a `MediaRef`, in item order:
    unresolved with `media_mismatch`.
 3. **Probe, reading MinIO directly.** A new store method `probe_url(location) -> str` returns a
    short-lived (5 minute) presigned GET URL from the MinIO client (`presigned_get_object`, signed
-   locally against the internal endpoint the API already uses). ffprobe reads that URL with HTTP
+   locally against the internal endpoint the API already uses, with an explicit `region` from a new
+   setting `THOTH_MEDIA_S3_REGION`, default `us-east-1`, so signing never makes a network call).
+   ffprobe reads that URL with HTTP
    range requests, so only the container header and index are transferred, never the whole file.
    `probe_media` accepts the URL as its input argument and restricts ffprobe with
    `-protocol_whitelist http,https,tcp,tls`; the URL is passed only as an argument vector entry and
    never logged or returned. The local filesystem store (development and tests) returns the
    object's file path instead. `described_asset(...)` turns the report into the asset exactly as
-   an upload does. An invalid report or a probe timeout makes the item unresolved with
-   `media_invalid`; nothing has been copied yet.
+   an upload does. An invalid report or a probe timeout (the existing 30 seconds per probe) makes
+   the item unresolved with `media_invalid`; nothing has been copied yet. Probes run one at a time:
+   at most seven media items (one main, `MAX_FOOTAGE = 6`) bound the worst case near three and a
+   half minutes against a very slow store; concurrent probes are added only if imports prove
+   slow.
 4. **Copy.** `media.copy(MediaRef.location, "uploads/<project_id>/<new name>")`, a server-side
    copy in MinIO, using the same name rule as `publish_upload`.
 5. **Register.** `register_ready(EditorAssetRecord(asset, location, provenance="workflow_import"))`
@@ -96,6 +101,12 @@ For each projected item that has a `MediaRef`, in item order:
 
 One item's failure never stops the others. Every outcome is reported per item:
 `reused`, `copied` or `unresolved` with its reason.
+
+Two imports running at the same moment in one project (two tabs pressing Create) can both miss
+the checksum lookup and copy the same media twice. The result is a duplicate asset and wasted
+bytes, never corrupt data, so it is accepted. A unique index is not an option: manual uploads may
+already hold duplicates. `ponytail:` if duplicates show up in practice, hold a Postgres advisory
+lock per project around lookup, copy and registration.
 
 ### 2.1 Metering, billing and isolation
 
@@ -126,9 +137,11 @@ dependency style.
   4. the answer is `201` with `WorkflowStudioImport`: the `StudioDraft` plus the per-item
      outcomes.
 
-  Replaying the key returns the same draft and outcomes recorded the first time, without copying
-  again: the outcomes are read back from the draft's inventory, and reused or copied assets are
-  found by checksum.
+  Replaying the key returns the same draft and **continues** the import: every item that has
+  media and is still unresolved goes through section 2 again, so a request cut off after the draft
+  was created (a dropped connection, a restarted API) finishes on the next try. Media already
+  copied are found by checksum and never copied again; items already attached are left alone.
+  Items a person excluded in the gate are not retried.
 
 ### 3.2 Dashboard
 
@@ -156,7 +169,7 @@ dependency style.
 | The run is unknown or owned by another workspace; the project is not the caller's | `404` |
 | Postgres or the media store unreachable before the draft exists | `503`; nothing is created |
 | One item's media missing, mismatched, invalid, or refused | that item `unresolved` with its code; the import still answers `201` |
-| Replayed `Idempotency-Key` | the same draft, no new copy |
+| Replayed `Idempotency-Key` | the same draft; unresolved media items are retried, copied media are reused |
 
 ### 4.2 Testing
 
@@ -167,10 +180,10 @@ All offline.
   every projection validates as `StudioSourceProjection`.
 - **Import unit tests** with an in-memory media store and a fake probe: reuse by checksum (no
   fetch, no copy), missing and mismatched objects, invalid probe (nothing copied), registration
-  failure (copy deleted), refused attach (asset kept), the probe given a presigned URL (never a downloaded file) on the S3 store, and
+  failure (copy deleted), refused attach (asset kept), presigning with an explicit region, the probe given a presigned URL (never a downloaded file) on the S3 store, and
   `media_stored` recorded only inside a meter scope.
 - **Route tests:** GET is read-only and accepts an unassigned run; POST assigns, creates and
-  imports; a replayed key returns the same draft; every 409, 404 and 503 code; the structural
+  imports; a replayed key returns the same draft and finishes items a cut-off first request left unresolved, without a second copy; every 409, 404 and 503 code; the structural
   route test and the workflow path-pair contract list include the new routes.
 - **Postgres test:** one import that reads a real `workflow_reports` row and registers an asset
   with `provenance = 'workflow_import'`.
@@ -180,6 +193,8 @@ All offline.
   Set, call the POST and assert the draft exists with its main item attached.
 
 ## Out of scope
+
+- Serialising concurrent imports in one project (see section 2).
 
 - Carousel slides past the first, profile cards, comment cards, mute and subtitle blur (Stage 5c).
 - A background or resumable import for very large Content Sets.
