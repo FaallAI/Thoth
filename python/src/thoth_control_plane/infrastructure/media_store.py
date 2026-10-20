@@ -74,9 +74,9 @@ class MediaStore(Protocol):
 class MeteredMediaStore:
     """Records the bytes a scoped caller stores (spec 2026-10-20, 2.1); delegates the rest.
 
-    A server-side copy counts like a write (a workflow import copies media into a project).
-    Unscoped writes and copies (the private renderer route, CLI imports) record nothing: a
-    render's output is counted when the render completes.
+    Unscoped writes (the private renderer route, CLI imports) record nothing: a render's
+    output is counted when the render completes. A server-side copy is counted by its caller
+    once kept (a workflow import counts it after registering the asset).
     """
 
     def __init__(self, inner: MediaStore) -> None:
@@ -113,16 +113,8 @@ class MeteredMediaStore:
         return self._inner.open_range(location, start, end)
 
     def copy(self, source: str, destination: str) -> None:
+        # Not counted here: a copy may still be rolled back, so its caller counts it once kept.
         self._inner.copy(source, destination)
-        from thoth_control_plane import metering
-
-        try:
-            size = self._inner.size(destination)
-        except (MediaUnavailable, MediaStoreUnavailable):
-            return  # the copy succeeded; only its size is unknown
-        metering.record_sync(
-            "media_stored", destination.split("/", 1)[0], size, "byte", in_scope_only=True
-        )
 
     def probe_source(self, location: str) -> str:
         return self._inner.probe_source(location)

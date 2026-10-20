@@ -142,3 +142,14 @@ def test_the_workflow_source_key_is_per_workflow_and_per_content() -> None:
     assert key == hashlib.sha256(f"workflow:wf_a:{digest}".encode()).hexdigest()
     assert key != workflow_source_key("wf_b", digest)
     assert key != workflow_source_key("wf_a", hashlib.sha256(b"other").hexdigest())
+
+
+def test_a_youtube_watch_link_keeps_its_video_id() -> None:
+    clips = [
+        footage(0, url="https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10s", platform="youtube"),
+        footage(1, url="https://m.youtube.com/watch?feature=share", platform="youtube"),
+    ]
+    data = content_set() | {"footage": clips, "footage_status": "ok"}
+    items = project_content_set(parse(data)).projection.items
+    assert items[1].source_url == "https://youtu.be/dQw4w9WgXcQ"
+    assert items[2].source_url == "https://m.youtube.com/watch"

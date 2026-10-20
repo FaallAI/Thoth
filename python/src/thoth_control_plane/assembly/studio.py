@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 from thoth_control_plane.assembly.models import ContentSet, MainOcr, MediaRef
 from thoth_control_plane.domain.studio_imports import (
@@ -47,11 +48,23 @@ def _digest(value: Any) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+YOUTUBE_HOSTS = frozenset({"youtube.com", "www.youtube.com", "m.youtube.com"})
+YOUTUBE_ID = re.compile(r"^[A-Za-z0-9_-]{6,32}$")
+
+
 def _canonical(url: object) -> str | None:
-    """The gate takes no query, fragment or credentials: keep the scheme, host and path."""
+    """The gate takes no query, fragment or credentials: keep the scheme, host and path.
+
+    A YouTube watch link carries its video only in the query, so it becomes the equivalent
+    `https://youtu.be/<id>` short link instead of a bare `/watch`.
+    """
     parts = urlsplit(str(url))
     if parts.scheme not in {"http", "https"} or not parts.hostname:
         return None
+    if parts.hostname in YOUTUBE_HOSTS and parts.path == "/watch":
+        video = parse_qs(parts.query).get("v", [""])[0]
+        if YOUTUBE_ID.fullmatch(video):
+            return f"https://youtu.be/{video}"
     host = parts.hostname if parts.port is None else f"{parts.hostname}:{parts.port}"
     value = urlunsplit((parts.scheme, host, parts.path or "/", "", ""))
     return value if len(value) <= 2_048 and "\\" not in value else None

@@ -384,7 +384,8 @@ def test_signing_a_probe_url_makes_no_network_call(tmp_path: Path) -> None:
     assert "X-Amz-Expires=300" in url
 
 
-def test_the_metered_store_records_scoped_copies_only(tmp_path) -> None:
+def test_the_metered_store_leaves_copies_to_their_caller(tmp_path) -> None:
+    """A copy can still be rolled back; the importer counts it once it is registered."""
     from tests.test_metering import Sink
     from thoth_control_plane import metering
     from thoth_control_plane.infrastructure.media_store import MeteredMediaStore
@@ -396,10 +397,7 @@ def test_the_metered_store_records_scoped_copies_only(tmp_path) -> None:
     source = tmp_path / "clip.mp4"
     source.write_bytes(b"x" * 120)
     store.put_file("reports/wf_1/clip.mp4", source)
-    store.copy("reports/wf_1/clip.mp4", "renders/rj_1/output.mp4")  # unscoped: a render publish
     with metering.scoped(MeterScope("ws_a", project_id="p1")):
         store.copy("reports/wf_1/clip.mp4", "uploads/p1/asset_1.mp4")
-    assert [(e.workspace_id, e.key, e.quantity) for e in sink.events] == [
-        ("ws_a", "uploads", 120.0)
-    ]
+    assert sink.events == []
     assert store.probe_source("uploads/p1/asset_1.mp4").endswith("asset_1.mp4")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import hashlib
 import json
@@ -133,11 +134,12 @@ class MemoryRuns:
     def get(self, workflow_id: str) -> StoredRun | None:
         return self.runs.get(workflow_id)
 
-    def assign(self, workflow_id: str, project_id: str) -> StoredRun | None:
+    def claim(self, workflow_id: str, project_id: str) -> StoredRun | None:
         run = self.runs.get(workflow_id)
         if run is None:
             return None
-        self.runs[workflow_id] = dataclasses.replace(run, project_id=project_id)
+        if run.project_id is None:
+            self.runs[workflow_id] = dataclasses.replace(run, project_id=project_id)
         return self.runs[workflow_id]
 
 
@@ -176,11 +178,17 @@ class AttachingImports(MemoryStudioImports):
     """MemoryStudioImports plus the decision path, with the refusals Postgres gives."""
 
     def __init__(
-        self, refuse: dict[str, str] | None = None, conflict: set[str] | None = None
+        self,
+        refuse: dict[str, str] | None = None,
+        conflict: set[str] | None = None,
+        conflict_once: set[str] | None = None,
+        decide_first: set[str] | None = None,
     ) -> None:
         super().__init__()
         self.refuse = refuse or {}
         self.conflict = conflict or set()
+        self.conflict_once = conflict_once or set()  # an unrelated edit bumps the revision once
+        self.decide_first = decide_first or set()  # a person excludes the item in the gate first
 
     async def resolve_item(
         self,
@@ -196,6 +204,18 @@ class AttachingImports(MemoryStudioImports):
             for row in self.rows
             if (row["project_id"], row["draft"].document_id) == (project_id, document_id)
         )
+        if item_id in self.decide_first:
+            self.decide_first.discard(item_id)
+            row["inventory"] = [
+                item.model_copy(update={"disposition": "excluded"})
+                if item.item_id == item_id
+                else item
+                for item in row["inventory"]
+            ]
+            raise StudioImportItemResolved()
+        if item_id in self.conflict_once:
+            self.conflict_once.discard(item_id)
+            raise EditDocumentRevisionConflict(row["document"])
         if item_id in self.conflict or base_revision != row["draft"].revision:
             raise EditDocumentRevisionConflict(row["document"])
         entry = next(item for item in row["inventory"] if item.item_id == item_id)
@@ -506,3 +526,50 @@ async def test_an_unreachable_media_store_creates_no_draft(tmp_path: Path) -> No
     with pytest.raises(WorkflowStudioUnavailable):
         await w.service.open(PROJECT, WF, ACTOR, "open-1")
     assert (w.imports.rows, w.runs.get(WF).project_id) == ([], None)
+
+
+async def test_an_unrelated_edit_during_an_attach_is_retried_once(tmp_path: Path) -> None:
+    w = world(tmp_path, imports=AttachingImports(conflict_once={"footage_000"}))
+    assert outcomes(await w.service.open(PROJECT, WF, ACTOR, "open-1")) == ALL_COPIED
+
+
+async def test_an_item_decided_meanwhile_is_reported_decided(tmp_path: Path) -> None:
+    w = world(tmp_path, imports=AttachingImports(decide_first={"footage_000"}))
+    opened = await w.service.open(PROJECT, WF, ACTOR, "open-1")
+    found = {item.item_id: (item.outcome, item.reason) for item in opened.items}
+    assert found["footage_000"] == ("decided", None)
+    assert found["footage_001"] == ("copied", None)
+
+
+async def test_another_tab_claiming_the_run_first_wins(tmp_path: Path) -> None:
+    class ClaimedElsewhere(MemoryRuns):
+        def claim(self, workflow_id: str, project_id: str) -> StoredRun | None:
+            self.runs[workflow_id] = stored_run(project_id="project_002")
+            return super().claim(workflow_id, project_id)
+
+    w = world(tmp_path)
+    w.service._runs = ClaimedElsewhere(stored_run())
+    with pytest.raises(WorkflowInOtherProject):
+        await w.service.open(PROJECT, WF, ACTOR, "open-1")
+    assert w.imports.rows == []
+    assert w.service._runs.get(WF).project_id == "project_002"
+
+
+async def test_a_cancelled_registration_leaves_no_copy(tmp_path: Path) -> None:
+    class Cancelled(MemoryAssets):
+        async def register_ready(self, record: EditorAssetRecord) -> None:
+            raise asyncio.CancelledError
+
+    w = world(tmp_path, assets=Cancelled())
+    with pytest.raises(asyncio.CancelledError):
+        await w.service.open(PROJECT, WF, ACTOR, "open-1")
+    assert w.media.list(f"uploads/{PROJECT}/") == []
+
+
+async def test_a_copy_rolled_back_is_never_counted(tmp_path: Path) -> None:
+    sink = Sink()
+    metering.install(sink)
+    w = world(tmp_path, assets=MemoryAssets(fail_register=True))
+    with metering.scoped(MeterScope("ws_a", project_id=PROJECT)):
+        await w.service.open(PROJECT, WF, ACTOR, "open-1")
+    assert [event for event in sink.events if event.key == "uploads"] == []

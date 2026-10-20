@@ -18,6 +18,7 @@ import logging
 from typing import Any, Literal, Protocol
 from uuid import uuid4
 
+from thoth_control_plane import metering
 from thoth_control_plane.application.editor_asset_ports import EditorAssetMediaInvalid
 from thoth_control_plane.application.editor_asset_uploads import (
     UPLOAD_TYPES,
@@ -136,15 +137,17 @@ class WorkflowStudioImportService:
             await asyncio.to_thread(self._media.check)
         except Exception as error:
             raise WorkflowStudioUnavailable() from error
+        if run.project_id is None:
+            # Claimed before the draft: of two tabs racing for an unassigned run, the loser
+            # leaves no draft behind, and a claimed run never moves to another project.
+            claimed = await asyncio.to_thread(self._runs.claim, workflow_id, project_id)
+            if claimed is None:
+                raise WorkflowNotFound
+            if claimed.project_id != project_id:
+                raise WorkflowInOtherProject()
         draft = await self._imports.create_keyed(
             project_id, key, source.projection, idempotency_key
         )
-        # Assigned after the draft exists: a refusal above leaves the run where it was.
-        if (
-            run.project_id is None
-            and await asyncio.to_thread(self._runs.assign, workflow_id, project_id) is None
-        ):
-            raise WorkflowNotFound
         inventory = await self._imports.get_inventory(project_id, draft.document_id)
         items: list[WorkflowImportItem] = []
         for entry in list(inventory.items):
@@ -200,21 +203,28 @@ class WorkflowStudioImportService:
             record, outcome = await self._asset_for(project_id, ref)
         except _ItemFailed as failed:
             return self._left(item_id, failed.code), inventory
-        request = ResolveStudioImportItem(
-            base_revision=inventory.revision,
-            decision=AttachImportAsset(kind="attach_asset", asset_id=record.asset.asset_id),
-        )
-        try:
-            inventory = await self._imports.resolve(
-                project_id, inventory.document_id, item_id, request
+        for attempt in range(2):
+            request = ResolveStudioImportItem(
+                base_revision=inventory.revision,
+                decision=AttachImportAsset(kind="attach_asset", asset_id=record.asset.asset_id),
             )
-        except StudioImportDecisionRejected as refused:
-            return self._left(item_id, refused.code), inventory
-        except (EditDocumentRevisionConflict, StudioImportItemResolved):
-            # Someone decided in the gate meanwhile: their decision stands.
-            latest = await self._imports.get_inventory(project_id, inventory.document_id)
-            return self._left(item_id, "draft_changed"), latest
-        return WorkflowImportItem(item_id=item_id, outcome=outcome), inventory
+            try:
+                inventory = await self._imports.resolve(
+                    project_id, inventory.document_id, item_id, request
+                )
+            except StudioImportDecisionRejected as refused:
+                return self._left(item_id, refused.code), inventory
+            except (EditDocumentRevisionConflict, StudioImportItemResolved):
+                inventory = await self._imports.get_inventory(project_id, inventory.document_id)
+                entry = next((i for i in inventory.items if i.item_id == item_id), None)
+                if entry is None or entry.disposition != "unresolved":
+                    # A person decided this item in the gate meanwhile: their decision stands.
+                    return WorkflowImportItem(item_id=item_id, outcome="decided"), inventory
+                if attempt:  # the draft keeps changing under the import; the gate takes over
+                    return self._left(item_id, "draft_changed"), inventory
+                continue  # an unrelated edit moved the revision: attach again on the latest
+            return WorkflowImportItem(item_id=item_id, outcome=outcome), inventory
+        raise AssertionError("unreachable")  # pragma: no cover
 
     @staticmethod
     def _left(item_id: str, reason: str) -> WorkflowImportItem:
@@ -265,10 +275,19 @@ class WorkflowStudioImportService:
         )
         try:
             await self._assets.register_ready(record)
-        except Exception:
+        except BaseException as error:
+            # Also on cancellation, so an aborted request leaves no orphan upload behind.
+            # ponytail: a killed process between copy and register still leaks one object;
+            # a sweep of unregistered uploads/ objects would close it.
             with contextlib.suppress(Exception):
                 await asyncio.to_thread(self._media.delete, destination)
+            if not isinstance(error, Exception):
+                raise
             raise _ItemFailed("asset_unavailable") from None
+        # Counted only once registered: a copy rolled back above is never billed as storage.
+        await asyncio.to_thread(
+            metering.record_sync, "media_stored", "uploads", ref.bytes, "byte", in_scope_only=True
+        )
         return record, "copied"
 
     @staticmethod
