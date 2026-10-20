@@ -72,11 +72,13 @@ from thoth_control_plane.application.workflow_runs import ProjectNotFound
 from thoth_control_plane.auth.mailer import Mailer, mailer_from
 from thoth_control_plane.auth.providers import IdentityProvider, build_providers
 from thoth_control_plane.auth.service import SignInService
+from thoth_control_plane.billing import BillingUnavailable, PlanLimitReached
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain.cursors import InvalidCursor
 from thoth_control_plane.domain.prompt_proposals import PromptProviderDefinition
 from thoth_control_plane.infrastructure.account_store import AccountStore
 from thoth_control_plane.infrastructure.artifact_root import LocalArtifactRoot
+from thoth_control_plane.infrastructure.billing_store import BillingStore
 from thoth_control_plane.infrastructure.editor_asset_repository import (
     PostgresEditorAssetRepository,
 )
@@ -144,6 +146,7 @@ def _render_job_service(
     editor_asset_repository: EditorAssetRepository | None,
     studio_import_repository: StudioImportRepository | None,
     media: MediaStore,
+    billing: BillingStore | None = None,
 ) -> RenderJobService:
     """Compose the render service from settings, degrading instead of failing.
 
@@ -176,6 +179,7 @@ def _render_job_service(
         ),
         max_render_seconds=settings.THOTH_RENDER_MAX_SECONDS,
         imports=studio_import_repository,
+        billing=billing,
     )
 
 
@@ -222,6 +226,7 @@ def create_app(
     mailer: Mailer | None = None,
     identity_providers: dict[str, IdentityProvider] | None = None,
     usage_store: UsageStore | None = None,
+    billing_store: BillingStore | None = None,
 ) -> FastAPI:
     """Create an isolated v1 API application for the supplied workflow gateway."""
     settings = settings or Settings()  # type: ignore[call-arg]
@@ -266,12 +271,15 @@ def create_app(
     # One store for every route; building it does no I/O, so the API still starts with the
     # store down and only the media routes answer 503 (spec 2026-10-17, render storage).
     media = MeteredMediaStore(build_media_store(settings))
+    if billing_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
+        billing_store = BillingStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
     render_service = render_job_service or _render_job_service(
         settings,
         editor_repository,
         editor_asset_repository,
         studio_import_repository,
         media,
+        billing_store,
     )
 
     @asynccontextmanager
@@ -353,6 +361,7 @@ def create_app(
     if usage_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
         usage_store = UsageStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
     app.state.usage_store = usage_store
+    app.state.billing_store = billing_store
     if usage_store is not None:
         metering.install(usage_store)
     if account_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
@@ -418,6 +427,29 @@ def create_app(
     async def invalid_cursor_handler(request: Request, exc: Exception) -> JSONResponse:
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content={"detail": "invalid_cursor"}
+        )
+
+    @app.exception_handler(PlanLimitReached)
+    async def plan_limit_handler(request: Request, exc: Exception) -> JSONResponse:
+        assert isinstance(exc, PlanLimitReached)
+        return JSONResponse(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            content={
+                "detail": {
+                    "code": "plan_limit_reached",
+                    "kind": exc.kind,
+                    "used": exc.used,
+                    "allowance": exc.allowance,
+                    "period_end": exc.period_end.isoformat() if exc.period_end else None,
+                }
+            },
+        )
+
+    @app.exception_handler(BillingUnavailable)
+    async def billing_unavailable_handler(request: Request, exc: Exception) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"detail": "billing_unavailable"},
         )
 
     @app.exception_handler(WorkflowRunsUnavailable)

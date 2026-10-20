@@ -380,6 +380,7 @@ def build_service(
     imports: Imports | None = None,
     max_render_seconds: int = 900,
     unconfigured_repository: bool = False,
+    billing: Any = None,
 ) -> RenderJobService:
     counter = {"n": 0}
 
@@ -402,6 +403,7 @@ def build_service(
         max_render_seconds=max_render_seconds,
         clock=Clock(),
         new_id=new_id,
+        billing=billing,
     )
 
 
@@ -1266,3 +1268,50 @@ async def test_a_completed_render_records_its_seconds_and_bytes_once() -> None:
         ("ws_p", PROJECT, "video_rendered", 10.0, "second"),
         ("ws_p", PROJECT, "media_stored", 4096.0, "byte"),
     ]
+
+
+class RecordingBilling:
+    def __init__(self, allowance: int = 1) -> None:
+        self.allowance, self.live, self.released = allowance, set(), []
+
+    def consume(self, workspace_id, kind, ref):
+        from thoth_control_plane.billing import PlanLimitReached
+
+        if ref in self.live:
+            return False
+        if len(self.live) >= self.allowance:
+            raise PlanLimitReached(kind, len(self.live), self.allowance, None)
+        self.live.add(ref)
+        return True
+
+    def release(self, workspace_id, kind, ref):
+        if ref in self.live:
+            self.live.discard(ref)
+            self.released.append(ref)
+
+
+async def test_a_render_past_the_allowance_is_refused_before_reserving() -> None:
+    from thoth_control_plane.billing import PlanLimitReached
+
+    jobs = Jobs()
+    service = build_service(jobs=jobs, billing=RecordingBilling(allowance=0))
+    with pytest.raises(PlanLimitReached):
+        await create_one(service)
+    assert await jobs.get_active() is None
+
+
+async def test_a_failed_render_gives_its_unit_back_once() -> None:
+    billing = RecordingBilling(allowance=1)
+    service = build_service(billing=billing)
+    job = await create_one(service)
+    await fail(service, job)
+    await fail(service, job)  # a replayed report
+    assert billing.released == [job.render_job_id] and billing.live == set()
+
+
+async def test_a_dispatch_failure_gives_its_unit_back() -> None:
+    billing = RecordingBilling(allowance=1)
+    service = build_service(billing=billing, renderer=Renderer(error=RendererUnavailable()))
+    with pytest.raises(RendererUnavailable):
+        await create_one(service)
+    assert billing.live == set()

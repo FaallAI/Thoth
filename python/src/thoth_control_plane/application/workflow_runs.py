@@ -22,6 +22,7 @@ from thoth_control_plane.application.workflows import (
     WorkflowService,
 )
 from thoth_control_plane.auth.models import actor_workspace_id
+from thoth_control_plane.billing import workflow_ref
 from thoth_control_plane.domain import (
     Actor,
     ArtifactRef,
@@ -58,8 +59,16 @@ class ProjectNotFound(WorkflowApplicationError):
 
 
 class WorkflowRunService:
-    def __init__(self, runs: Any, projects: Any, workflows: WorkflowService, gateway: Any) -> None:
+    def __init__(
+        self,
+        runs: Any,
+        projects: Any,
+        workflows: WorkflowService,
+        gateway: Any,
+        billing: Any = None,
+    ) -> None:
         self._runs = runs
+        self._billing = billing
         self._projects = projects
         self._workflows = workflows
         self._gateway = gateway
@@ -89,7 +98,22 @@ class WorkflowRunService:
         Temporal returns the same workflow, and the row lands."""
         if project_id is not None:
             await self._require_project(project_id, actor)
-        summary = await self._workflows.start(request, actor=actor, idempotency_key=idempotency_key)
+        # The plan allowance (billing spec 1.4): admitted before Temporal ever starts.
+        workspace = actor_workspace_id(actor.actor_id)
+        ref = workflow_ref(actor.actor_type, actor.actor_id, idempotency_key)
+        fresh = (
+            await asyncio.to_thread(self._billing.consume, workspace, "workflow", ref)
+            if self._billing is not None
+            else False
+        )
+        try:
+            summary = await self._workflows.start(
+                request, actor=actor, idempotency_key=idempotency_key
+            )
+        except BaseException:
+            if fresh:  # only a unit this call took is given back
+                await asyncio.to_thread(self._billing.release, workspace, "workflow", ref)
+            raise
         if self._runs is None:
             if project_id is not None:
                 raise WorkflowRunsUnavailable("workflow_runs_unavailable")
