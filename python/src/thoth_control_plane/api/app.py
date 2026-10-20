@@ -36,6 +36,7 @@ from thoth_control_plane.api.routes.studio_imports import router as studio_impor
 from thoth_control_plane.api.routes.studio_review import router as studio_review_router
 from thoth_control_plane.api.routes.usage import router as usage_router
 from thoth_control_plane.api.routes.workflow_runs import router as workflow_run_router
+from thoth_control_plane.api.routes.workflow_studio_imports import router as workflow_studio_router
 from thoth_control_plane.api.routes.workflows import router as workflow_router
 from thoth_control_plane.application import (
     ApprovalNotAllowed,
@@ -71,6 +72,7 @@ from thoth_control_plane.application.studio_imports import StudioImportService
 from thoth_control_plane.application.studio_review import StudioReviewService
 from thoth_control_plane.application.studio_review_ports import StudioReviewRepository
 from thoth_control_plane.application.workflow_runs import ProjectNotFound
+from thoth_control_plane.application.workflow_studio_imports import WorkflowStudioImportService
 from thoth_control_plane.auth.mailer import Mailer, mailer_from
 from thoth_control_plane.auth.providers import IdentityProvider, build_providers
 from thoth_control_plane.auth.service import SignInService
@@ -361,6 +363,14 @@ def create_app(
             settings.THOTH_EDITOR_DATABASE_URL.get_secret_value()
         )
     app.state.workflow_run_store = workflow_run_store
+    app.state.workflow_studio_service = WorkflowStudioImportService(
+        runs=workflow_run_store,
+        reports=report_store,
+        media=media,
+        assets=editor_asset_repository,
+        imports=app.state.studio_import_service,
+        probe=functools.partial(probe_media, settings.THOTH_FFPROBE),
+    )
     if usage_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
         usage_store = UsageStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
     app.state.usage_store = usage_store
@@ -546,6 +556,7 @@ def create_app(
     app.include_router(render_job_router, prefix="/api/v1")
     app.include_router(studio_review_router, prefix="/api/v1")
     app.include_router(studio_import_router, prefix="/api/v1")
+    app.include_router(workflow_studio_router, prefix="/api/v1")
     app.include_router(source_account_router, prefix="/api/v1")
     app.include_router(usage_router, prefix="/api/v1")
     app.include_router(billing_router, prefix="/api/v1")

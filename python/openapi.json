@@ -7077,6 +7077,45 @@
         "title": "WorkflowFailure",
         "type": "object"
       },
+      "WorkflowImportItem": {
+        "additionalProperties": false,
+        "description": "What one media item's import did: reused or copied an asset, left it unresolved with a\nfixed reason, or found it already decided (attached or excluded) by an earlier attempt.",
+        "properties": {
+          "item_id": {
+            "pattern": "^[a-z][a-z0-9_]{0,63}$",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "reused",
+              "copied",
+              "unresolved",
+              "decided"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "item_id",
+          "outcome"
+        ],
+        "title": "WorkflowImportItem",
+        "type": "object"
+      },
       "WorkflowRequest": {
         "additionalProperties": false,
         "properties": {
@@ -7234,6 +7273,28 @@
         ],
         "title": "WorkflowStatus",
         "type": "string"
+      },
+      "WorkflowStudioImport": {
+        "additionalProperties": false,
+        "description": "The draft a workflow opened into, at its latest revision, and each media item's outcome.",
+        "properties": {
+          "draft": {
+            "$ref": "#/components/schemas/StudioDraft"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowImportItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "draft",
+          "items"
+        ],
+        "title": "WorkflowStudioImport",
+        "type": "object"
       },
       "WorkflowSummary": {
         "additionalProperties": false,
@@ -11713,6 +11774,143 @@
           }
         },
         "summary": "Start Project Workflow"
+      }
+    },
+    "/api/v1/projects/{project_id}/workflows/{workflow_id}/studio-import": {
+      "get": {
+        "description": "Read-only: what opening this run would import, and the drafts already made from it.",
+        "operationId": "inspect_workflow_studio_import_api_v1_projects__project_id__workflows__workflow_id__studio_import_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workflow_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioSourceInspection"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Inspect Workflow Studio Import"
+      },
+      "post": {
+        "description": "Create (or replay) one draft from the run and bring its media in; a replay finishes the\nitems an earlier attempt left unresolved.",
+        "operationId": "open_workflow_in_studio_api_v1_projects__project_id__workflows__workflow_id__studio_import_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workflow_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowStudioImport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Open Workflow In Studio"
       }
     },
     "/api/v1/prompt-providers": {
