@@ -12,7 +12,7 @@ import { sourceAccountsClient } from "@/api/source-accounts";
 import { controlPlaneClient, type Project, type WorkflowRun } from "@/api/control-plane";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { CircleHelp, Clapperboard, Feather, KeyRound, Workflow } from "lucide-react";
+import { CircleHelp, Clapperboard, Feather, Gauge, KeyRound, Workflow } from "lucide-react";
 import { DashboardSearch } from "@/components/DashboardSearch";
 import { WorkspaceMenu } from "@/components/WorkspaceMenu";
 import { PenDialog } from "@/components/PenDialog";
@@ -20,6 +20,7 @@ import { authClient } from "@/api/auth";
 import { AuthGate } from "@/features/auth/AuthGate";
 import { useAuth } from "@/features/auth/auth-context";
 import { TokensPage } from "@/features/settings/TokensPage";
+import { UsagePage } from "@/features/usage/UsagePage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { VerifyPage } from "@/features/auth/VerifyPage";
 import { useActiveProject } from "@/lib/active-project";
@@ -28,13 +29,14 @@ import { documentLabel } from "@/lib/document-label";
 const pages = {
   workflows: { path: "/workflows", label: "Workflows", eyebrow: "Workspace / 01", description: "Launch, track, and review your production runs.", icon: Workflow },
   studio: { path: "/studio", label: "Creator Studio", eyebrow: "Create / 02", description: "Your Studio drafts in this project.", icon: Clapperboard },
+  usage: { path: "/usage", label: "Usage", eyebrow: "Workspace / 03", description: "What this workspace used this month, and today's source-account sessions.", icon: Gauge },
   accounts: { path: "/accounts", label: "Source Accounts", eyebrow: "Access / 03", description: "Logged-in sessions that acquisition rotates through, per platform.", icon: KeyRound },
   tokens: { path: "/settings/tokens", label: "Developer tokens", eyebrow: "Access / 03", description: "Personal tokens for the API and the CLI. Each token is shown once.", icon: KeyRound },
   proxies: { path: "/accounts/proxies", label: "Proxies", eyebrow: "Access / 03", description: "Dedicated proxies for source accounts. Each proxy serves one account.", icon: KeyRound },
 } as const;
 type PageKey = keyof typeof pages;
 const NAV: [PageKey, string][] = [
-  ["workflows", "Workflows"], ["studio", "Creator Studio"], ["accounts", "Source Accounts"],
+  ["workflows", "Workflows"], ["studio", "Creator Studio"], ["usage", "Usage"], ["accounts", "Source Accounts"],
 ];
 
 function pageFor(pathname: string): PageKey {
@@ -124,6 +126,7 @@ function Shell() {
             <Route path="/studio/:projectId/:documentId" element={<StudioDocumentRoute workspaceControls={switcher} projects={projects} />} />
             <Route path="/accounts" element={me.platform_admin ? <SourceAccounts client={sourceAccountsClient} onManageProxies={() => navigate("/accounts/proxies")} /> : platformOnly} />
             <Route path="/accounts/proxies" element={me.platform_admin ? <SourceProxies client={sourceAccountsClient} onBack={() => navigate("/accounts")} /> : platformOnly} />
+            <Route path="/usage" element={<UsagePage />} />
             <Route path="/settings/tokens" element={<TokensPage />} />
             <Route path="*" element={<Navigate to="/workflows" replace />} />
           </Routes>
