@@ -60,9 +60,11 @@ Two problems remain after sub-project 2:
 - Every source-account lease goes through one wrapper around `SourceAccountStore.lease()`. Today
   three callers lease: the acquisition `account_runner`, attribution discovery, and the X footage
   search. All three run inside Temporal activities.
-- The wrapper finds the workspace from the activity's workflow ID: `workflow_runs.actor_id`,
-  mapped with `actor_workspace_id()`. A workflow with no `workflow_runs` row (none is expected)
-  is treated as `ws_bootstrap`, with a `warn` log.
+- The wrapper finds the workspace from the workflow's memo: the gateway writes `workspace_id`
+  into it when it starts the workflow. The `workflow_runs` row is written only after the start,
+  so the first activity can run before it exists. Without a memo (a workflow started before this
+  deploy), the wrapper uses `workflow_runs.actor_id`, mapped with `actor_workspace_id()`. With
+  neither, the workflow is treated as `ws_bootstrap`, with a `warn` log.
 - In one PostgreSQL transaction, the wrapper:
   1. locks the `ws_bootstrap` workspace row (1.4);
   2. counts that day's `account_lease` events for the workspace and platform;
