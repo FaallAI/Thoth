@@ -134,6 +134,13 @@ released.
 Unit prices apply when the report is computed, so prices set later cover usage metered since
 2026-10-20.
 
+**Exchange rate (operator, 2026-10-20).** Metered costs are in USD and plan prices are in rupiah.
+- Table `exchange_rates` holds one admin-set rate, `USD_IDR` (rupiah per US dollar, `> 0`). It is
+  set with `thoth-control plans rate <idr_per_usd>` or `PUT /api/v1/admin/plans/rate`.
+- The margin report converts with it: per plan it shows the full-use cost in rupiah and
+  `margin_idr` = price − that cost.
+- Without a rate, or without metered costs, those two are empty, and `complete` stays false.
+
 ## 2. Payment through Xendit
 
 ### 2.1 Checkout
