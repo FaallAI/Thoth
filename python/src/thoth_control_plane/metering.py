@@ -192,7 +192,7 @@ class Estimate:
 
 
 def estimate(totals: Sequence[Any], prices: Mapping[tuple[str, str, str], float]) -> Estimate:
-    """Σ quantity × unit price; a key of `*` prices every key of its kind and unit."""
+    """The sum of quantity times unit price; a key of `*` prices every key of its kind and unit."""
     lines = []
     for total in totals:
         price = prices.get((total.kind, total.key, total.unit))
