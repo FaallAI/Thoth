@@ -25,6 +25,7 @@ from uuid import uuid4
 
 from pydantic import Field
 
+from thoth_control_plane import metering
 from thoth_control_plane.application.editor_asset_ports import EditorAssetRepository
 from thoth_control_plane.application.ports import EditDocumentRepository, StudioImportRepository
 from thoth_control_plane.application.render_bundles import (
@@ -538,7 +539,22 @@ class RenderJobService:
             # Publication reads, writes, and copies stored objects: off the event loop.
             event = await asyncio.to_thread(self._publish, job, event)
         now = self._clock()
-        return await jobs.apply_event(render_job_id=render_job_id, event=event, now=now)
+        updated = await jobs.apply_event(render_job_id=render_job_id, event=event, now=now)
+        if updated.status == "completed" and job.status != "completed" and updated.output:
+            await self._meter_render(updated)
+        return updated
+
+    @staticmethod
+    async def _meter_render(job: RenderJob) -> None:
+        """A completed render's seconds and bytes, for its project's workspace (spec 2.1)."""
+        # ponytail: two racing completion reports could both count; the renderer sends one.
+        assert job.output is not None
+        scope = await asyncio.to_thread(metering.project_scope, job.project_id)
+        with metering.scoped(scope):
+            await metering.record(
+                "video_rendered", job.preset_id, job.output.duration_seconds, "second"
+            )
+            await metering.record("media_stored", "renders", job.output.size_bytes, "byte")
 
     @staticmethod
     def _is_applicable(job: RenderJob, event: RenderJobEvent) -> bool:

@@ -13,6 +13,7 @@ from typing import TypeVar
 
 from pydantic import BaseModel
 
+from thoth_control_plane import metering
 from thoth_control_plane.attribution.ports import (
     AttributionError,
     CoverReading,
@@ -79,6 +80,7 @@ class AgnoVisionReader:
         except Exception as error:
             logger.warning("vision read unavailable")
             raise AttributionError("vision_unavailable") from error
+        await metering.record_model_run(self._model, run)
         if not isinstance(run.content, schema):
             logger.warning("vision read unusable")
             raise AttributionError("vision_unavailable")

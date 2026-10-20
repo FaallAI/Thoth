@@ -26,14 +26,21 @@ from thoth_control_plane.activities import (
     build_source_investigation_activity,
 )
 from thoth_control_plane.activities.footage import build_footage_activity
-from thoth_control_plane.activities.meter_scope import MeterScopeInterceptor
+from thoth_control_plane.activities.meter_scope import (
+    MeterScopeInterceptor,
+    record_workflow_completed,
+)
 from thoth_control_plane.activities.prompt_proposal import (
     PROMPT_PROPOSAL_TASK_QUEUE,
     build_prompt_proposal_activity,
 )
 from thoth_control_plane.config import Settings, SettingsValidationError
 from thoth_control_plane.footage.adapters.embedder import load_model
-from thoth_control_plane.infrastructure.media_store import MediaStore, build_media_store
+from thoth_control_plane.infrastructure.media_store import (
+    MediaStore,
+    MeteredMediaStore,
+    build_media_store,
+)
 from thoth_control_plane.infrastructure.prompt_proposal_repository import (
     PostgresPromptProposalRepository,
 )
@@ -117,6 +124,7 @@ def build_source_investigation_worker(
             build_source_attribution_activity(settings, reports=reports, media=media),
             build_content_assembly_activity(settings, reports=reports, media=media),
             build_footage_activity(settings, reports=reports, media=media),
+            record_workflow_completed,
         ],
         interceptors=[MeterScopeInterceptor(client)],
         max_concurrent_activities=1,
@@ -219,7 +227,7 @@ async def run_worker(settings: Settings | None = None) -> None:
     configure_logging()
     preload_heavy_modules()
     warm_up(runtime_settings)
-    media = check_media_store(runtime_settings)
+    media = MeteredMediaStore(check_media_store(runtime_settings))
     # check_media_tools refused to start without the editor database.
     metering.install(
         UsageStore.connect(runtime_settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())  # type: ignore[union-attr]

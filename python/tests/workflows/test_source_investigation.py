@@ -22,6 +22,7 @@ from thoth_control_plane.activities.content_assembly import (
 )
 from thoth_control_plane.activities.footage import FootageActivityInput, FootageActivityResult
 from thoth_control_plane.activities.legacy_scout import LEGACY_ADAPTER_TASK_QUEUE, LegacyScoutInput
+from thoth_control_plane.activities.meter_scope import record_workflow_completed
 from thoth_control_plane.activities.source_attribution import (
     SourceAttributionActivityInput,
     SourceAttributionActivityResult,
@@ -205,7 +206,7 @@ async def test_identify_original_finishes_with_a_redacted_source_report(
         workflow_env.client,
         task_queue="test",
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect],
+        activities=[record_workflow_completed, fake_inspect],
     ):
         result = await workflow_env.client.execute_workflow(
             SourceInvestigationWorkflow.run,
@@ -232,6 +233,7 @@ async def test_legacy_selection_runs_only_the_isolated_adapter_queue(
             workflow_env.client,
             task_queue="test",
             workflows=[SourceInvestigationWorkflow],
+            activities=[record_workflow_completed],
         ),
         Worker(
             workflow_env.client,
@@ -259,7 +261,7 @@ async def test_produce_video_waits_for_authorized_approval_then_resumes_once(
         workflow_env.client,
         task_queue="test",
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect],
+        activities=[record_workflow_completed, fake_inspect],
     ):
         handle = await workflow_env.client.start_workflow(
             SourceInvestigationWorkflow.run,
@@ -320,7 +322,7 @@ async def test_cancel_signal_finishes_as_cancelled(
         workflow_env.client,
         task_queue="test",
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect],
+        activities=[record_workflow_completed, fake_inspect],
     ):
         handle = await workflow_env.client.start_workflow(
             SourceInvestigationWorkflow.run,
@@ -352,6 +354,7 @@ async def test_legacy_timeout_or_nonzero_failure_reaches_workflow_summary(
             workflow_env.client,
             task_queue="test",
             workflows=[SourceInvestigationWorkflow],
+            activities=[record_workflow_completed],
         ),
         Worker(
             workflow_env.client,
@@ -388,6 +391,7 @@ async def test_legacy_cancellation_cancels_the_owned_activity_and_workflow(
             workflow_env.client,
             task_queue="test",
             workflows=[SourceInvestigationWorkflow],
+            activities=[record_workflow_completed],
         ),
         Worker(
             workflow_env.client,
@@ -420,7 +424,7 @@ async def test_activity_failure_is_bounded_and_returns_only_a_safe_failure(
         workflow_env.client,
         task_queue="test",
         workflows=[SourceInvestigationWorkflow],
-        activities=[failing_inspect],
+        activities=[record_workflow_completed, failing_inspect],
     ):
         result = await workflow_env.client.execute_workflow(
             SourceInvestigationWorkflow.run,
@@ -445,7 +449,7 @@ async def test_success_trace_records_the_complete_safe_source_lifecycle(
         workflow_env.client,
         task_queue="test",
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect],
+        activities=[record_workflow_completed, fake_inspect],
     ):
         await workflow_env.client.execute_workflow(
             SourceInvestigationWorkflow.run,
@@ -480,7 +484,7 @@ async def test_approval_and_cancel_traces_record_their_terminal_lifecycle(
         workflow_env.client,
         task_queue="test",
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect],
+        activities=[record_workflow_completed, fake_inspect],
     ):
         handle = await workflow_env.client.start_workflow(
             SourceInvestigationWorkflow.run,
@@ -507,7 +511,7 @@ async def test_activity_error_records_a_typed_safe_workflow_failure_event(
         workflow_env.client,
         task_queue="test",
         workflows=[SourceInvestigationWorkflow],
-        activities=[crashing_inspect],
+        activities=[record_workflow_completed, crashing_inspect],
     ):
         result = await workflow_env.client.execute_workflow(
             SourceInvestigationWorkflow.run,
@@ -535,7 +539,7 @@ async def test_temporal_gateway_reuses_durable_id_and_enforces_actor_scope(
         workflow_env.client,
         task_queue=TASK_QUEUE,
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect],
+        activities=[record_workflow_completed, fake_inspect],
     ):
         gateway = TemporalWorkflowGateway(workflow_env.client)
         owner = Actor(actor_id="owner", actor_type="user")
@@ -583,7 +587,7 @@ async def test_temporal_history_contains_only_redacted_workflow_values(
         workflow_env.client,
         task_queue=TASK_QUEUE,
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect],
+        activities=[record_workflow_completed, fake_inspect],
     ):
         gateway = TemporalWorkflowGateway(workflow_env.client)
         summary = await gateway.start(
@@ -706,7 +710,7 @@ async def test_gateway_approval_and_cancellation_use_authorized_boundaries(
         workflow_env.client,
         task_queue=TASK_QUEUE,
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect],
+        activities=[record_workflow_completed, fake_inspect],
     ):
         gateway = TemporalWorkflowGateway(workflow_env.client)
         approved = await gateway.start(
@@ -753,7 +757,7 @@ async def test_gateway_event_stream_returns_current_snapshot_then_unseen_events(
         workflow_env.client,
         task_queue=TASK_QUEUE,
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect],
+        activities=[record_workflow_completed, fake_inspect],
     ):
         gateway = TemporalWorkflowGateway(workflow_env.client)
         owner = Actor(actor_id="owner", actor_type="user")
@@ -837,7 +841,7 @@ async def test_gateway_cancellation_wins_when_the_running_activity_returns_an_er
         workflow_env.client,
         task_queue=TASK_QUEUE,
         workflows=[SourceInvestigationWorkflow],
-        activities=[cancelling_inspect],
+        activities=[record_workflow_completed, cancelling_inspect],
     ):
         gateway = TemporalWorkflowGateway(workflow_env.client)
         started = await gateway.start(
@@ -967,7 +971,7 @@ async def run_routing_case(workflow_env, *, source_url: str, mode: str, python_a
             workflow_env.client,
             task_queue="test",
             workflows=[SourceInvestigationWorkflow],
-            activities=[python_activity],
+            activities=[record_workflow_completed, python_activity],
         ),
         Worker(
             workflow_env.client,
@@ -1329,7 +1333,7 @@ async def run_fallback_case_and_query_events(
             workflow_env.client,
             task_queue="test",
             workflows=[SourceInvestigationWorkflow],
-            activities=[eligible_headless_failure_with_events],
+            activities=[record_workflow_completed, eligible_headless_failure_with_events],
         ),
         Worker(
             workflow_env.client,
@@ -1359,7 +1363,7 @@ async def run_mode_and_query_events(
             workflow_env.client,
             task_queue="test",
             workflows=[SourceInvestigationWorkflow],
-            activities=[eligible_headless_failure_with_events],
+            activities=[record_workflow_completed, eligible_headless_failure_with_events],
         ),
         Worker(
             workflow_env.client,
@@ -1388,7 +1392,7 @@ async def run_ineligible_failure_and_query_events(
         workflow_env.client,
         task_queue="test",
         workflows=[SourceInvestigationWorkflow],
-        activities=[acquisition_runner_python_failure],
+        activities=[record_workflow_completed, acquisition_runner_python_failure],
     ):
         result = await workflow_env.client.execute_workflow(
             SourceInvestigationWorkflow.run,
@@ -1456,7 +1460,7 @@ async def test_legacy_activity_failure_still_preserves_python_and_transition_evi
             workflow_env.client,
             task_queue="test",
             workflows=[SourceInvestigationWorkflow],
-            activities=[eligible_headless_failure_with_events],
+            activities=[record_workflow_completed, eligible_headless_failure_with_events],
         ),
         Worker(
             workflow_env.client,
@@ -1560,7 +1564,7 @@ async def test_identify_original_appends_the_attribution_artifacts(
         workflow_env.client,
         task_queue="test",
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect, fake_attribute],
+        activities=[record_workflow_completed, fake_inspect, fake_attribute],
     ):
         result = await workflow_env.client.execute_workflow(
             SourceInvestigationWorkflow.run,
@@ -1585,7 +1589,7 @@ async def test_a_failing_attribution_keeps_the_repost_result(
         workflow_env.client,
         task_queue="test",
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect, crashing_attribute],
+        activities=[record_workflow_completed, fake_inspect, crashing_attribute],
     ):
         result = await workflow_env.client.execute_workflow(
             SourceInvestigationWorkflow.run,
@@ -1609,7 +1613,7 @@ async def test_cancel_during_attribution_finishes_as_cancelled(
         workflow_env.client,
         task_queue="test",
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect, blocking_attribute],
+        activities=[record_workflow_completed, fake_inspect, blocking_attribute],
     ):
         handle = await workflow_env.client.start_workflow(
             SourceInvestigationWorkflow.run,
@@ -1639,7 +1643,11 @@ async def test_a_legacy_fallback_report_is_not_attributed(
             workflow_env.client,
             task_queue="test",
             workflows=[SourceInvestigationWorkflow],
-            activities=[eligible_headless_failure_with_events, fake_attribute],
+            activities=[
+                record_workflow_completed,
+                eligible_headless_failure_with_events,
+                fake_attribute,
+            ],
         ),
         Worker(
             workflow_env.client,
@@ -1668,7 +1676,7 @@ async def test_the_gateway_requests_attribution_when_enabled(
         workflow_env.client,
         task_queue=TASK_QUEUE,
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect, fake_attribute],
+        activities=[record_workflow_completed, fake_inspect, fake_attribute],
     ):
         gateway = TemporalWorkflowGateway(workflow_env.client, attribute_source=True)
         summary = await gateway.start(
@@ -1787,7 +1795,7 @@ async def test_assembly_appends_the_content_set_after_attribution(
         workflow_env.client,
         task_queue="test",
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect, fake_attribute, fake_assemble],
+        activities=[record_workflow_completed, fake_inspect, fake_attribute, fake_assemble],
     ):
         result = await workflow_env.client.execute_workflow(
             SourceInvestigationWorkflow.run,
@@ -1814,7 +1822,7 @@ async def test_assembly_runs_without_attribution(workflow_env: WorkflowEnvironme
         workflow_env.client,
         task_queue="test",
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect, fake_assemble],
+        activities=[record_workflow_completed, fake_inspect, fake_assemble],
     ):
         result = await workflow_env.client.execute_workflow(
             SourceInvestigationWorkflow.run,
@@ -1836,7 +1844,7 @@ async def test_a_failed_assembly_fails_the_workflow_with_its_reason(
         workflow_env.client,
         task_queue="test",
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect, fake_attribute, failing_assemble],
+        activities=[record_workflow_completed, fake_inspect, fake_attribute, failing_assemble],
     ):
         handle = await workflow_env.client.start_workflow(
             SourceInvestigationWorkflow.run,
@@ -1863,7 +1871,7 @@ async def test_a_crashing_assembly_fails_without_leaking(workflow_env: WorkflowE
         workflow_env.client,
         task_queue="test",
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect, crashing_assemble],
+        activities=[record_workflow_completed, fake_inspect, crashing_assemble],
     ):
         result = await workflow_env.client.execute_workflow(
             SourceInvestigationWorkflow.run,
@@ -1886,7 +1894,7 @@ async def test_cancel_during_assembly_finishes_as_cancelled(
         workflow_env.client,
         task_queue="test",
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect, blocking_assemble],
+        activities=[record_workflow_completed, fake_inspect, blocking_assemble],
     ):
         handle = await workflow_env.client.start_workflow(
             SourceInvestigationWorkflow.run,
@@ -1910,7 +1918,7 @@ async def test_the_flag_off_keeps_todays_behavior(workflow_env: WorkflowEnvironm
         workflow_env.client,
         task_queue="test",
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect, fake_attribute, fake_assemble],
+        activities=[record_workflow_completed, fake_inspect, fake_attribute, fake_assemble],
     ):
         result = await workflow_env.client.execute_workflow(
             SourceInvestigationWorkflow.run,
@@ -1930,7 +1938,7 @@ async def test_the_gateway_requests_assembly_when_enabled(
         workflow_env.client,
         task_queue=TASK_QUEUE,
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect, fake_assemble],
+        activities=[record_workflow_completed, fake_inspect, fake_assemble],
     ):
         gateway = TemporalWorkflowGateway(workflow_env.client, assemble_content=True)
         summary = await gateway.start(
@@ -1954,7 +1962,7 @@ async def test_a_failed_attribution_fails_the_workflow_with_its_reason(
         workflow_env.client,
         task_queue="test",
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect, failing_attribute, fake_assemble],
+        activities=[record_workflow_completed, fake_inspect, failing_attribute, fake_assemble],
     ):
         handle = await workflow_env.client.start_workflow(
             SourceInvestigationWorkflow.run,
@@ -2011,7 +2019,13 @@ async def test_footage_runs_after_attribution_and_before_assembly(
         workflow_env.client,
         task_queue="test",
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect, fake_attribute, fake_footage, ordered_assemble],
+        activities=[
+            record_workflow_completed,
+            fake_inspect,
+            fake_attribute,
+            fake_footage,
+            ordered_assemble,
+        ],
     ):
         result = await workflow_env.client.execute_workflow(
             SourceInvestigationWorkflow.run,
@@ -2032,7 +2046,13 @@ async def test_a_crashing_footage_stage_never_fails_the_workflow(
         workflow_env.client,
         task_queue="test",
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect, fake_attribute, crashing_footage, fake_assemble],
+        activities=[
+            record_workflow_completed,
+            fake_inspect,
+            fake_attribute,
+            crashing_footage,
+            fake_assemble,
+        ],
     ):
         handle = await workflow_env.client.start_workflow(
             SourceInvestigationWorkflow.run,
@@ -2058,7 +2078,13 @@ async def test_footage_off_runs_no_footage_activity(workflow_env: WorkflowEnviro
         workflow_env.client,
         task_queue="test",
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect, fake_attribute, fake_footage, fake_assemble],
+        activities=[
+            record_workflow_completed,
+            fake_inspect,
+            fake_attribute,
+            fake_footage,
+            fake_assemble,
+        ],
     ):
         await workflow_env.client.execute_workflow(
             SourceInvestigationWorkflow.run,
@@ -2078,7 +2104,7 @@ async def test_the_gateway_requests_footage_when_enabled(
         workflow_env.client,
         task_queue=TASK_QUEUE,
         workflows=[SourceInvestigationWorkflow],
-        activities=[fake_inspect, fake_footage, fake_assemble],
+        activities=[record_workflow_completed, fake_inspect, fake_footage, fake_assemble],
     ):
         gateway = TemporalWorkflowGateway(
             workflow_env.client, assemble_content=True, build_footage=True
@@ -2093,3 +2119,51 @@ async def test_the_gateway_requests_footage_when_enabled(
         ).result()
 
     assert len(FOOTAGE_INPUTS) == 1
+
+
+COMPLETIONS: list[str] = []
+
+
+@activity.defn(name="record_workflow_completed")
+async def fake_record_workflow_completed() -> None:
+    COMPLETIONS.append(activity.info().workflow_id)
+
+
+@pytest.mark.asyncio
+async def test_a_successful_run_records_its_completion_once(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    COMPLETIONS.clear()
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[fake_inspect, fake_record_workflow_completed],
+    ):
+        result = await workflow_env.client.execute_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[workflow_input(VALID_IDENTIFY_REQUEST)],
+            id="wf_test_completion_counted",
+            task_queue="test",
+        )
+    assert result.status == "succeeded"
+    assert COMPLETIONS == ["wf_test_completion_counted"]
+
+
+@pytest.mark.asyncio
+async def test_a_failed_run_records_no_completion(workflow_env: WorkflowEnvironment) -> None:
+    COMPLETIONS.clear()
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[failing_inspect, fake_record_workflow_completed],
+    ):
+        result = await workflow_env.client.execute_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[workflow_input(VALID_IDENTIFY_REQUEST)],
+            id="wf_test_completion_not_counted",
+            task_queue="test",
+        )
+    assert result.status == "failed"
+    assert COMPLETIONS == []

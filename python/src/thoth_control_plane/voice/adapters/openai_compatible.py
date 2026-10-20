@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import httpx
 
+from thoth_control_plane import metering
 from thoth_control_plane.voice.audio import probe_duration
 from thoth_control_plane.voice.ports import (
     SynthesizedVoice,
@@ -55,6 +56,7 @@ class OpenAICompatibleVoice:
             raise VoiceRejected(code) from None
         except openai.APIConnectionError:
             raise VoiceUnavailable("openai_compatible_unreachable") from None
+        await metering.record_call(request.model, characters=len(request.text))
         audio = response.content
         return SynthesizedVoice(
             audio=audio,

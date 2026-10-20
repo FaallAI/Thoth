@@ -10,6 +10,7 @@ from temporalio.worker import Worker
 
 from thoth_control_plane.acquisition.models import AcquisitionResult, SourceReport
 from thoth_control_plane.activities import build_source_investigation_activity
+from thoth_control_plane.activities.meter_scope import record_workflow_completed
 from thoth_control_plane.api import create_app
 from thoth_control_plane.config import Settings
 from thoth_control_plane.infrastructure.temporal_gateway import TASK_QUEUE, TemporalWorkflowGateway
@@ -144,7 +145,7 @@ async def test_production_activity_and_api_share_a_custom_artifact_root(
             environment.client,
             task_queue=TASK_QUEUE,
             workflows=[SourceInvestigationWorkflow],
-            activities=[configured_activity],
+            activities=[record_workflow_completed, configured_activity],
             max_cached_workflows=0,
         ):
             app = create_app(

@@ -1250,3 +1250,19 @@ async def test_render_storage_calls_never_run_on_the_event_loop() -> None:
     names = {name for name, _ in threads}
     assert {"prepare", "write_bundle", "read_bundle", "publish", "cleanup"} <= names
     assert all(thread != loop_thread for _, thread in threads)
+
+
+async def test_a_completed_render_records_its_seconds_and_bytes_once() -> None:
+    from tests.test_metering import Sink
+    from thoth_control_plane import metering
+
+    sink = Sink(projects={PROJECT: "ws_p"})
+    metering.install(sink)
+    service = build_service()
+    job = await create_one(service)
+    await complete(service, job)
+    await service.ingest_event(job.render_job_id, completion_event(job))  # a replayed report
+    assert [(e.workspace_id, e.project_id, e.kind, e.quantity, e.unit) for e in sink.events] == [
+        ("ws_p", PROJECT, "video_rendered", 10.0, "second"),
+        ("ws_p", PROJECT, "media_stored", 4096.0, "byte"),
+    ]

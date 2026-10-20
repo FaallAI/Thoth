@@ -67,6 +67,53 @@ class MediaStore(Protocol):
     def check(self) -> None: ...
 
 
+class MeteredMediaStore:
+    """Records the bytes a scoped caller stores (spec 2026-10-20, 2.1); delegates the rest.
+
+    Unscoped writes (the private renderer route, CLI imports) record nothing: a render's
+    output is counted when the render completes.
+    """
+
+    def __init__(self, inner: MediaStore) -> None:
+        self._inner = inner
+
+    def put_file(self, location: str, path: Path) -> None:
+        self._inner.put_file(location, path)
+        from thoth_control_plane import metering
+
+        metering.record_sync(
+            "media_stored",
+            location.split("/", 1)[0],
+            path.stat().st_size,
+            "byte",
+            in_scope_only=True,
+        )
+
+    def fetch(self, location: str, destination: Path) -> None:
+        self._inner.fetch(location, destination)
+
+    def stat(self, location: str) -> MediaStat:
+        return self._inner.stat(location)
+
+    def size(self, location: str) -> int:
+        return self._inner.size(location)
+
+    def delete(self, location: str) -> None:
+        self._inner.delete(location)
+
+    def list(self, prefix: str) -> list[str]:
+        return self._inner.list(prefix)
+
+    def open_range(self, location: str, start: int = 0, end: int | None = None) -> Iterator[bytes]:
+        return self._inner.open_range(location, start, end)
+
+    def copy(self, source: str, destination: str) -> None:
+        self._inner.copy(source, destination)
+
+    def check(self) -> None:
+        self._inner.check()
+
+
 def checked_locator(location: str) -> str:
     """The locator itself, or `MediaLocatorInvalid`; runs before any key or path is built."""
     if not isinstance(location, str) or not 0 < len(location) <= 512:

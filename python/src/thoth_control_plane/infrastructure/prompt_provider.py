@@ -7,6 +7,7 @@ from typing import Any
 
 import httpx
 
+from thoth_control_plane import metering
 from thoth_control_plane.application.prompt_proposal_ports import (
     ProviderInvalidOutput,
     ProviderRateLimited,
@@ -104,6 +105,12 @@ class OpenAICompatiblePromptProvider:
             raise ProviderRateLimited()
         if response.status_code >= 400:
             raise ProviderUnavailable()
+        usage = _usage(response)
+        await metering.record_call(
+            request.model_id,
+            tokens_in=usage.get("prompt_tokens"),
+            tokens_out=usage.get("completion_tokens"),
+        )
         content = self._extract_content(response)
         return self._validate_output(request, content)
 
@@ -190,3 +197,12 @@ class OpenAICompatiblePromptProvider:
             raise
         except Exception as error:
             raise ProviderInvalidOutput() from error
+
+
+def _usage(response: httpx.Response) -> dict[str, Any]:
+    """The token counts an OpenAI-compatible provider reported, when it did."""
+    try:
+        usage = response.json().get("usage")
+    except (ValueError, AttributeError):
+        return {}
+    return usage if isinstance(usage, dict) else {}

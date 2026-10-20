@@ -47,3 +47,10 @@ class MeterScopeInterceptor(Interceptor):
 
     def intercept_activity(self, next: ActivityInboundInterceptor) -> ActivityInboundInterceptor:
         return _ScopedActivity(next, self._client)
+
+
+@activity.defn(name="record_workflow_completed")
+async def record_workflow_completed() -> None:
+    """The workflow's own last step when it succeeds, so a run nobody opens still counts
+    (spec 2026-10-20 metering, 2.1). The interceptor's scope names the workspace."""
+    await metering.record("workflow_completed", "source_investigation", 1, "workflow")

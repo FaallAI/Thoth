@@ -82,7 +82,11 @@ from thoth_control_plane.infrastructure.editor_asset_repository import (
 from thoth_control_plane.infrastructure.editor_preview import EditorPreviewSigner
 from thoth_control_plane.infrastructure.editor_repository import PostgresEditDocumentRepository
 from thoth_control_plane.infrastructure.media_probe import probe_media
-from thoth_control_plane.infrastructure.media_store import MediaStore, build_media_store
+from thoth_control_plane.infrastructure.media_store import (
+    MediaStore,
+    MeteredMediaStore,
+    build_media_store,
+)
 from thoth_control_plane.infrastructure.project_store import ProjectStore, ProjectStoreUnavailable
 from thoth_control_plane.infrastructure.prompt_proposal_gateway import (
     TemporalPromptProposalGateway,
@@ -260,7 +264,7 @@ def create_app(
 
     # One store for every route; building it does no I/O, so the API still starts with the
     # store down and only the media routes answer 503 (spec 2026-10-17, render storage).
-    media = build_media_store(settings)
+    media = MeteredMediaStore(build_media_store(settings))
     render_service = render_job_service or _render_job_service(
         settings,
         editor_repository,
