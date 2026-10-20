@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import math
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -173,15 +173,16 @@ async def my_usage(
 async def admin_usage(
     request: Request,
     _: Admin,
-    start: date | None = None,
-    end: date | None = None,
+    start: Annotated[date | None, Query(alias="from")] = None,
+    end: Annotated[date | None, Query(alias="to")] = None,
 ) -> AdminUsageView:
+    """`from` and `to` are UTC days, both included; the default is the current month."""
     store = _store(request)
     _label, month_start, month_end = _month_range(None)
     begin = start or month_start.date()
-    finish = end or month_end.date()
+    finish = end or (month_end - timedelta(days=1)).date()
     since = datetime.combine(begin, datetime.min.time(), tzinfo=UTC)
-    until = datetime.combine(finish, datetime.min.time(), tzinfo=UTC)
+    until = datetime.combine(finish, datetime.min.time(), tzinfo=UTC) + timedelta(days=1)
     by_workspace = await asyncio.to_thread(store.totals_by_workspace, since, until)
     prices = {
         (p.kind, p.key, p.unit): p.usd_per_unit for p in await asyncio.to_thread(store.prices)
@@ -239,6 +240,8 @@ async def change_quota(
             )
     except ValueError:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "invalid_quota") from None
+    except LookupError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown_workspace") from None
     return QuotaView(
         workspace_id=workspace_id, quotas=await asyncio.to_thread(store.quotas, workspace_id)
     )

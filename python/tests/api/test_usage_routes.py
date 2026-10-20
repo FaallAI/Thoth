@@ -140,3 +140,26 @@ async def test_an_admin_sets_a_quota_and_a_price(setup) -> None:
         {"kind": "teleport", "key": "*", "unit": "call", "usd_per_unit": 1},
     )
     assert bad.status_code == 422
+
+
+async def test_the_admin_range_is_from_and_to_inclusive(setup, engine) -> None:
+    app, _usage, _bob, bob_ws = setup
+    september = UsageStore(engine, lambda: datetime(2026, 9, 15, 12, tzinfo=UTC))
+    september.record(UsageRecord(bob_ws, "video_rendered", "p", 5, "second"))
+    body = (
+        await _call(app, "GET", "/api/v1/admin/usage?from=2026-09-15&to=2026-09-15", SERVICE)
+    ).json()
+    assert [w["workspace_id"] for w in body["workspaces"]] == [bob_ws]
+    assert (body["start"], body["end"]) == ("2026-09-15", "2026-09-15")
+
+
+async def test_a_quota_for_an_unknown_workspace_is_not_found(setup) -> None:
+    app, *_ = setup
+    response = await _call(
+        app,
+        "PUT",
+        "/api/v1/admin/workspaces/ws_nope/quotas",
+        SERVICE,
+        {"platform": "instagram", "daily_leases": 1},
+    )
+    assert (response.status_code, response.json()) == (404, {"detail": "unknown_workspace"})

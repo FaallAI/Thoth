@@ -7087,11 +7087,12 @@
     },
     "/api/v1/admin/usage": {
       "get": {
+        "description": "`from` and `to` are UTC days, both included; the default is the current month.",
         "operationId": "admin_usage_api_v1_admin_usage_get",
         "parameters": [
           {
             "in": "query",
-            "name": "start",
+            "name": "from",
             "required": false,
             "schema": {
               "anyOf": [
@@ -7103,12 +7104,12 @@
                   "type": "null"
                 }
               ],
-              "title": "Start"
+              "title": "From"
             }
           },
           {
             "in": "query",
-            "name": "end",
+            "name": "to",
             "required": false,
             "schema": {
               "anyOf": [
@@ -7120,7 +7121,7 @@
                   "type": "null"
                 }
               ],
-              "title": "End"
+              "title": "To"
             }
           },
           {

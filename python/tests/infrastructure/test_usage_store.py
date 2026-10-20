@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from thoth_control_plane.infrastructure import usage_models  # noqa: F401
+from thoth_control_plane.infrastructure.account_models import WorkspaceRow
 from thoth_control_plane.infrastructure.run_models import ProjectRow, WorkflowRunRow
 from thoth_control_plane.infrastructure.source_account_models import Base
 from thoth_control_plane.infrastructure.usage_store import UsageStore
@@ -23,6 +24,10 @@ def engine():
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
     Base.metadata.create_all(engine)
+    with engine.begin() as connection:
+        connection.execute(
+            WorkspaceRow.__table__.insert().values(workspace_id="ws_a", name="A", created_at=NOW)
+        )
     return engine
 
 
@@ -109,3 +114,8 @@ def test_totals_tell_workflow_usage_apart(store: UsageStore) -> None:
     store.record(UsageRecord("ws_a", "account_lease", "x", 1, "session"))
     rows = sorted((t.in_workflow, t.events) for t in store.totals("ws_a", *DAY))
     assert rows == [(False, 1), (True, 1)]
+
+
+def test_a_quota_for_an_unknown_workspace_is_refused(store: UsageStore) -> None:
+    with pytest.raises(LookupError):
+        store.set_quota("ws_nope", "instagram", 1)

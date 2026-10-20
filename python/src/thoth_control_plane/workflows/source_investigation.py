@@ -94,8 +94,9 @@ class SourceInvestigationWorkflow:
     async def run(self, input_: SourceInvestigationWorkflowInput) -> WorkflowSummary:
         summary = await self._run(input_)
         # A succeeded run counts itself (spec 2026-10-20 metering, 2.1). The patch keeps
-        # histories recorded before metering replaying as they were; one attempt never counts
-        # twice, and a failure costs only the count.
+        # histories recorded before metering replaying as they were. One attempt means no retry
+        # counts twice; a worker crash between the activity and its marker can still count a
+        # run twice (local activities are at least once), and a failure costs only the count.
         if summary.status == WorkflowStatus.SUCCEEDED and workflow.patched(COMPLETION_PATCH):
             try:
                 await workflow.execute_local_activity(

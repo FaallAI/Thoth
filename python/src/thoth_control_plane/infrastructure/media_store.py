@@ -81,12 +81,12 @@ class MeteredMediaStore:
         self._inner.put_file(location, path)
         from thoth_control_plane import metering
 
+        try:
+            size = path.stat().st_size
+        except OSError:
+            return  # the write succeeded; only its size is unknown
         metering.record_sync(
-            "media_stored",
-            location.split("/", 1)[0],
-            path.stat().st_size,
-            "byte",
-            in_scope_only=True,
+            "media_stored", location.split("/", 1)[0], size, "byte", in_scope_only=True
         )
 
     def fetch(self, location: str, destination: Path) -> None:

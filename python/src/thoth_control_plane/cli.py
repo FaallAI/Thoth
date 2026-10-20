@@ -15,6 +15,7 @@ import httpx
 import typer
 from pydantic import ValidationError
 
+from thoth_control_plane import metering
 from thoth_control_plane.application import ApprovalSubmission, RetryRequest
 from thoth_control_plane.auth.models import ALL_SCOPES, CreateToken, Principal
 from thoth_control_plane.auth.service import SignInService
@@ -225,6 +226,9 @@ def quotas_set(workspace_id: str, platform: str, daily_leases: int) -> None:
     except ValueError:
         typer.echo("invalid_quota")
         raise typer.Exit(1) from None
+    except LookupError:
+        typer.echo("unknown_workspace")
+        raise typer.Exit(1) from None
     typer.echo(f"workspace={workspace_id} platform={platform} daily_leases={daily_leases}")
 
 
@@ -319,8 +323,12 @@ def voice_say(
     except ValidationError:
         typer.echo("VoiceRejected: invalid_request")
         raise typer.Exit(1) from None
+    settings = Settings()
+    if settings.THOTH_EDITOR_DATABASE_URL is not None:
+        # An operator call outside any workspace: metered for the bootstrap (spec 2026-10-20, 3.1).
+        metering.install(UsageStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value()))
     try:
-        synthesizer = build_voice(Settings(), provider.replace("-", "_"))  # type: ignore[arg-type]
+        synthesizer = build_voice(settings, provider.replace("-", "_"))  # type: ignore[arg-type]
         result = asyncio.run(synthesizer.synthesize(request))
     except (VoiceNotConfigured, VoiceRejected, VoiceUnavailable) as error:
         typer.echo(f"{type(error).__name__}: {error}")

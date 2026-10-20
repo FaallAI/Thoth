@@ -29,7 +29,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Admin Usage */
+        /**
+         * Admin Usage
+         * @description `from` and `to` are UTC days, both included; the default is the current month.
+         */
         get: operations["admin_usage_api_v1_admin_usage_get"];
         put?: never;
         post?: never;
@@ -3767,8 +3770,8 @@ export interface operations {
     admin_usage_api_v1_admin_usage_get: {
         parameters: {
             query?: {
-                start?: string | null;
-                end?: string | null;
+                from?: string | null;
+                to?: string | null;
             };
             header?: {
                 Authorization?: string | null;

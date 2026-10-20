@@ -71,18 +71,20 @@ and all five review-focus scenarios hold. Fixed, each with a test that failed fi
   `FOR NO KEY UPDATE` (`test_the_quota_lock_never_blocks_foreign_key_inserts`), and the race tests
   still pass.
 
-**Deferred minors:**
+**Review minors, fixed at the operator's request (each with a test that failed first):**
 
-- **Usage page:** "Remaining" shows the workspace quota only, not the reserve line.
-- **Run detail:** the dashboard does not render `quota_exhausted`.
-- **Completion count:** a worker crash at the wrong moment could count one run twice; the code
-  comment overstates this.
-- **Admin usage range:** it takes `start` and `end` (end exclusive) where the spec says `from` and
-  `to`.
-- **Quota override:** for an unknown workspace it answers 500.
-- **`MeteredMediaStore`:** it stats the file outside the meter's error handling.
-- **CLI voice calls:** they are not metered.
-- **Replay coverage:** no replay test of a pre-metering history.
+- **Usage page:** the column reads "Left of your limit", and the page says the shared pool can
+  run out first. It no longer promises a run-report flag the dashboard does not show (the flag is
+  in the API's source events only).
+- **Admin usage range:** it takes the spec's `from` and `to`, both inclusive.
+- **Unknown workspace:** a quota for it answers 404 `unknown_workspace` (CLI: `unknown_workspace`).
+- **Metered media writes:** a write the store accepted never fails on the size lookup.
+- **CLI voice calls:** `voice say` is metered for the bootstrap workspace (spec 3.1).
+- **Completion count:** the comment now says a crash can count a run twice.
+- **Replay coverage:** a replay test of a pre-metering history pins the `workflow.patched` guard.
+
+**Verification after the minors:** Python 4155 passed, 72 skipped; PostgreSQL 20 + 6; dashboard
+703 passed, `tsc` clean, build OK; lint clean.
 
 **Next steps:**
 

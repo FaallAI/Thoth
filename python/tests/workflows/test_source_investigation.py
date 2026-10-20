@@ -2167,3 +2167,39 @@ async def test_a_failed_run_records_no_completion(workflow_env: WorkflowEnvironm
         )
     assert result.status == "failed"
     assert COMPLETIONS == []
+
+
+@pytest.mark.asyncio
+async def test_a_history_recorded_before_metering_still_replays(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    from temporalio.client import WorkflowHistory
+    from temporalio.worker import Replayer
+
+    workflow_id = "wf_test_pre_metering_replay"
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[record_workflow_completed, fake_inspect],
+    ):
+        handle = await workflow_env.client.start_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[workflow_input(VALID_IDENTIFY_REQUEST)],
+            id=workflow_id,
+            task_queue="test",
+        )
+        await handle.result()
+        history = await handle.fetch_history()
+    recorded = history.to_json_dict()
+    # A pre-metering history: the same run without what the patch adds (its marker, its
+    # TemporalChangeVersion search attribute upsert) and the local activity's marker.
+    added = ("MARKER_RECORDED", "UPSERT_WORKFLOW_SEARCH_ATTRIBUTES")
+    events = [e for e in recorded["events"] if not str(e.get("eventType")).endswith(added)]
+    assert len(recorded["events"]) - len(events) == 3
+    for number, event in enumerate(events, start=1):
+        event["eventId"] = str(number)
+    recorded["events"] = events
+    await Replayer(
+        workflows=[SourceInvestigationWorkflow], data_converter=pydantic_data_converter
+    ).replay_workflow(WorkflowHistory.from_json(workflow_id, recorded))

@@ -18,6 +18,7 @@ from sqlalchemy.orm import sessionmaker
 from thoth_control_plane.acquisition.accounts.cookies import PLATFORMS
 from thoth_control_plane.acquisition.accounts.policy import DEFAULT_WORKSPACE_DAILY_LEASES
 from thoth_control_plane.auth.models import actor_workspace_id
+from thoth_control_plane.infrastructure.account_models import WorkspaceRow
 from thoth_control_plane.infrastructure.run_models import ProjectRow, WorkflowRunRow
 from thoth_control_plane.infrastructure.usage_models import (
     UnitPriceRow,
@@ -161,6 +162,8 @@ class UsageStore:
         if platform not in PLATFORMS or daily_leases < 0:
             raise ValueError("invalid_quota")
         with self._sessions.begin() as session:
+            if session.get(WorkspaceRow, workspace_id) is None:
+                raise LookupError("unknown_workspace")
             row = session.get(WorkspaceQuotaRow, (workspace_id, platform))
             if row is None:
                 row = WorkspaceQuotaRow(workspace_id=workspace_id, platform=platform)

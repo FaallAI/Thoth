@@ -37,3 +37,9 @@ test("a failed load says so", async () => {
   render(<UsagePage client={{ get: mock(async () => { throw new Error("down"); }) }} />);
   expect(await screen.findByText("Usage could not be loaded. Try again.")).toBeDefined();
 });
+
+test("the page says the shared pool can run out before the limit, and promises no report flag", async () => {
+  render(<UsagePage client={{ get: mock(async () => usage) }} />);
+  expect(await screen.findByText(/The shared account pool can run out before your limit/)).toBeDefined();
+  expect(document.body.textContent?.includes("report says so")).toBe(false);
+});

@@ -28,7 +28,7 @@ export function UsagePage({ client = usageClient }: { client?: Pick<UsageClient,
       <section className="pen-recent-runs">
         <header><h2>Source account sessions today</h2></header>
         <table>
-          <thead><tr><th>Platform</th><th>Used today</th><th>Remaining</th></tr></thead>
+          <thead><tr><th>Platform</th><th>Used today</th><th>Left of your limit</th></tr></thead>
           <tbody>
             {usage.quotas.map((quota) => (
               <tr key={quota.platform}>
@@ -39,7 +39,7 @@ export function UsagePage({ client = usageClient }: { client?: Pick<UsageClient,
             ))}
           </tbody>
         </table>
-        <p className="text-xs text-muted-foreground">Past the limit, workflows still run without signing in, and their report says so.</p>
+        <p className="text-xs text-muted-foreground">The shared account pool can run out before your limit. Without a session, workflows still run without signing in, so their results can be thinner.</p>
       </section>
     </div>
   );
