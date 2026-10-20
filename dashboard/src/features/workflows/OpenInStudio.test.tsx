@@ -13,7 +13,10 @@ import {
 
 import { OpenInStudio } from "./OpenInStudio";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+});
 
 const KEY = "a".repeat(64);
 const done = (artifacts = [{ artifact_id: "content_set", kind: "content_set" }], status = "succeeded") =>
@@ -183,4 +186,47 @@ test("a project switch drops the choices made for the old project", async () => 
   expect(await screen.findByRole("button", { name: /Resume draft/ })).toBeDefined();
   rerender(<OpenInStudio client={c} projectId="p2" workflowId="wf_1" summary={done()} onOpen={() => {}} />);
   expect(screen.queryByRole("button", { name: /Resume draft/ })).toBeNull();
+});
+
+test("a cut-off import is finished after a page reload", async () => {
+  const failing = {
+    inspectWorkflowStudioImport: mock(async () => inspection()),
+    openWorkflowInStudio: mock(async (_project: string, _workflow: string, _key: string) => {
+      throw new StudioImportRequestError(null, null);
+    }),
+  };
+  render(<OpenInStudio client={failing} projectId="p1" workflowId="wf_1" summary={done()} onOpen={() => {}} />);
+  await open();
+  expect(await screen.findByText("Offline — reconnect and try again.")).toBeDefined();
+  const [[, , firstKey]] = failing.openWorkflowInStudio.mock.calls;
+  cleanup(); // the page reloads: the component and its memory are gone
+
+  const drafts = [{ document_id: "edoc_1", source_key: KEY, revision: 1, created_at: "2026-10-20T00:00:00Z" }];
+  const after = {
+    inspectWorkflowStudioImport: mock(async () => inspection({ drafts })),
+    openWorkflowInStudio: mock(async (_project: string, _workflow: string, _key: string) => opened()),
+  };
+  const onOpen = mock(() => {});
+  render(<OpenInStudio client={after} projectId="p1" workflowId="wf_1" summary={done()} onOpen={onOpen} />);
+  await open();
+  await waitFor(() => expect(onOpen).toHaveBeenCalledWith("p1", "edoc_1", false));
+  expect(after.openWorkflowInStudio.mock.calls[0][2]).toBe(firstKey);
+  expect(after.inspectWorkflowStudioImport).not.toHaveBeenCalled();
+  cleanup();
+
+  // Finished: the next open asks again instead of replaying.
+  render(<OpenInStudio client={after} projectId="p1" workflowId="wf_1" summary={done()} onOpen={() => {}} />);
+  await open();
+  expect(await screen.findByRole("button", { name: /Resume draft/ })).toBeDefined();
+});
+
+test("an unfinished import belongs to its own project and run", async () => {
+  localStorage.setItem("thoth.studioImport.p1.wf_other", JSON.stringify({ key: "k-other", leftOut: false }));
+  localStorage.setItem("thoth.studioImport.p1.wf_1", "not json");
+  const c = client();
+  render(<OpenInStudio client={c} projectId="p1" workflowId="wf_1" summary={done()} onOpen={() => {}} />);
+  await open();
+  await waitFor(() => expect(c.openWorkflowInStudio).toHaveBeenCalledTimes(1));
+  expect(c.inspectWorkflowStudioImport).toHaveBeenCalledTimes(1);
+  expect((c.openWorkflowInStudio.mock.calls[0] as unknown[])[2]).not.toBe("k-other");
 });

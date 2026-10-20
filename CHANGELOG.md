@@ -14,14 +14,14 @@ consumes no billing allowance. New setting `THOTH_MEDIA_S3_REGION` (default `us-
 
 **Verification:** Python 4260 passed, 78 skipped; ruff clean. Postgres: migrations 21 passed, and
 the workflow import, billing and source-account Postgres tests 10 passed. MinIO media store 74
-passed (the presigned probe URL is fetched from a real MinIO). Dashboard 722 passed, `tsc` clean,
+passed (the presigned probe URL is fetched from a real MinIO). Dashboard 724 passed, `tsc` clean,
 build succeeds. No Rust change, so `build_cuda.bat` was not run. The stack smoke verdict
 `workflow_opens_in_studio=true` runs in CI.
 
 **Review:** one whole-branch review (no Critical). Fixed before merge: a media-store outage
 now answers 503 before any draft exists; ffprobe opens only `http,https,tcp,tls` for a store URL
-(`file` only for a local path); the dashboard replays a cut-off import's key so the next click
-finishes it; the gate opens when Studio left fields out; a project switch drops stale choices.
+(`file` only for a local path); the dashboard keeps a cut-off import's key per project and run
+(also across a reload) and replays it, so the next click finishes that draft; the gate opens when Studio left fields out; a project switch drops stale choices.
 Seven minors are deferred (listed in the ledger).
 
 **Next steps:**

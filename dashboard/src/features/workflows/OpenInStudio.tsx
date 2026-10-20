@@ -36,6 +36,31 @@ function failure(error: unknown): string {
 }
 
 // Inventory entries with no media and a reason are the fields Studio leaves out.
+type Unfinished = { key: string; leftOut: boolean };
+const KEY_SHAPE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+const storageKey = (project: string, workflow: string) => `thoth.studioImport.${project}.${workflow}`;
+
+// The key of an import the server never confirmed, kept per project and run so a reload or a
+// return to the page still replays it. Storage may be absent or full; memory then carries it.
+function recall(project: string, workflow: string): Unfinished | null {
+  try {
+    const value = JSON.parse(localStorage.getItem(storageKey(project, workflow)) ?? "null") as unknown;
+    const { key, leftOut } = (value ?? {}) as Partial<Unfinished>;
+    return typeof key === "string" && KEY_SHAPE.test(key) && typeof leftOut === "boolean" ? { key, leftOut } : null;
+  } catch {
+    return null;
+  }
+}
+
+function keep(project: string, workflow: string, value: Unfinished | null) {
+  try {
+    if (value) localStorage.setItem(storageKey(project, workflow), JSON.stringify(value));
+    else localStorage.removeItem(storageKey(project, workflow));
+  } catch {
+    // memory still holds it for this page
+  }
+}
+
 const leftOut = (found: StudioSourceInspection) => found.items.filter((item) => item.media_kind === "none" && item.reason);
 
 /** "Open in Studio" for a finished run: import its Content Set, or resume a draft made from it. */
@@ -43,9 +68,9 @@ export function OpenInStudio({ client, projectId, workflowId, summary, onOpen }:
   const [inspection, setInspection] = useState<StudioSourceInspection | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // The import a POST started but never confirmed: the next click replays its key, so the
-  // server finishes that draft instead of leaving it half imported.
-  const pending = useRef<{ key: string; leftOut: boolean } | null>(null);
+  // The import a POST started but never confirmed: the next click (also after a reload, via
+  // `recall`) replays its key, so the server finishes that draft instead of leaving it half done.
+  const pending = useRef<Unfinished | null>(null);
   // Choices and a pending import belong to one project and one run.
   useEffect(() => {
     setInspection(null);
@@ -70,13 +95,15 @@ export function OpenInStudio({ client, projectId, workflowId, summary, onOpen }:
   // `shownLeftOut`: the person saw fields Studio leaves out; they wait in the gate as decisions.
   const create = async (project: string, key: string, shownLeftOut: boolean) => {
     pending.current = { key, leftOut: shownLeftOut };
+    keep(project, workflowId, pending.current);
     const result = await client.openWorkflowInStudio(project, workflowId, key);
     pending.current = null;
+    keep(project, workflowId, null);
     onOpen(project, result.draft.document_id, shownLeftOut || result.items.some((item) => item.outcome === "unresolved"));
   };
   const start = (project: string) =>
     attempt(async () => {
-      const unfinished = pending.current;
+      const unfinished = pending.current ?? recall(project, workflowId);
       if (unfinished) return create(project, unfinished.key, unfinished.leftOut);
       const found = await client.inspectWorkflowStudioImport(project, workflowId);
       if (found.drafts?.length || leftOut(found).length) setInspection(found);
