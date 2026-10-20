@@ -1,0 +1,183 @@
+"""A Content Set projected for Studio (spec 2026-10-20 workflow to Studio, section 1).
+
+Pure: no I/O. Each media item keeps the `MediaRef` it came from, keyed by the inventory item id
+the import gate gives it (`<role>_<order:03d>`), so the importer copies exactly that object.
+Schema 1 bounds a Content Set at one main, six footage and twelve comments, far inside the
+gate's item and scene limits, so nothing here truncates.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import dataclass
+from typing import Any
+from urllib.parse import urlsplit, urlunsplit
+
+from thoth_control_plane.assembly.models import ContentSet, MainOcr, MediaRef
+from thoth_control_plane.domain.studio_imports import (
+    SourceRole,
+    StudioSourceItem,
+    StudioSourceProjection,
+    StudioUnsupportedField,
+)
+
+TITLE_LIMIT = 300
+TEXT_LIMIT = 2_000
+CARDS = "Cards wait for Stage 5c"
+SLIDES = "Carousel slides wait for Stage 5c"
+MUTE = "Per-clip mute is not supported"
+BLUR = "Subtitle blur is not supported"
+FIGURES = "Figures are context, not scenes"
+
+
+@dataclass(frozen=True)
+class WorkflowProjection:
+    projection: StudioSourceProjection
+    media: dict[str, MediaRef]
+
+
+def workflow_source_key(workflow_id: str, content_sha256: str) -> str:
+    """Distinct per workflow, stable for one Content Set, new when it is re-assembled."""
+    return hashlib.sha256(f"workflow:{workflow_id}:{content_sha256}".encode()).hexdigest()
+
+
+def _digest(value: Any) -> str:
+    text = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _canonical(url: object) -> str | None:
+    """The gate takes no query, fragment or credentials: keep the scheme, host and path."""
+    parts = urlsplit(str(url))
+    if parts.scheme not in {"http", "https"} or not parts.hostname:
+        return None
+    host = parts.hostname if parts.port is None else f"{parts.hostname}:{parts.port}"
+    value = urlunsplit((parts.scheme, host, parts.path or "/", "", ""))
+    return value if len(value) <= 2_048 and "\\" not in value else None
+
+
+def _trim(ocr: MainOcr | None) -> float | None:
+    return ocr.trim_start if ocr is not None and ocr.trim_start > 0 else None
+
+
+class _Builder:
+    def __init__(self) -> None:
+        self.items: list[StudioSourceItem] = []
+        self.unsupported: list[StudioUnsupportedField] = []
+        self.media: dict[str, MediaRef] = {}
+
+    def report(
+        self, field: str, role: SourceRole | None, order: int | None, reason: str, value: Any
+    ) -> None:
+        self.unsupported.append(
+            StudioUnsupportedField(
+                field=field, role=role, order=order, reason=reason, value_digest=_digest(value)
+            )
+        )
+
+    def bounded(
+        self, field: str, role: SourceRole, order: int, value: str, limit: int
+    ) -> str | None:
+        if not value:
+            return None
+        if len(value) > limit:
+            self.report(field, role, order, f"Longer than {limit} characters", value)
+            return None
+        return value
+
+    def add(
+        self,
+        role: SourceRole,
+        order: int,
+        *,
+        title: str | None,
+        text: str | None,
+        platform: str | None,
+        url: object | None,
+        media: MediaRef | None,
+        trim: float | None,
+    ) -> None:
+        if media is None:
+            kind = "none"
+        else:
+            kind = "video" if media.media_type.startswith("video/") else "image"
+            self.media[f"{role}_{order:03d}"] = media
+        self.items.append(
+            StudioSourceItem(
+                role=role,
+                order=order,
+                title=title,
+                text=text,
+                platform=platform,
+                source_url=None if url is None else _canonical(url),
+                media_kind=kind,
+                trim_start_seconds=trim if kind == "video" else None,
+            )
+        )
+
+    def ocr(self, prefix: str, role: SourceRole, order: int, ocr: MainOcr | None) -> None:
+        if ocr is None:
+            return
+        if ocr.mute_audio:
+            self.report(f"{prefix}.mute_audio", role, order, MUTE, True)
+        if ocr.subtitle_blur:
+            regions = [region.model_dump(mode="json") for region in ocr.subtitle_blur]
+            self.report(f"{prefix}.subtitle_blur", role, order, BLUR, regions)
+
+
+def project_content_set(content_set: ContentSet) -> WorkflowProjection:
+    built = _Builder()
+    main = content_set.main
+    if main.kind == "video":
+        media = main.video
+    elif main.kind == "images":
+        media = main.images[0]
+    else:
+        media = main.card
+    built.add(
+        "main",
+        0,
+        title=built.bounded("main.title", "main", 0, main.title, TITLE_LIMIT),
+        text=built.bounded("main.description", "main", 0, main.description, TEXT_LIMIT),
+        platform=str(main.platform),
+        url=main.url,
+        media=media,
+        trim=_trim(main.ocr),
+    )
+    if len(main.images) > 1:
+        slides = [image.location.as_posix() for image in main.images[1:]]
+        built.report("main.images", "main", 0, SLIDES, slides)
+    if main.profile_card is not None:
+        built.report("main.profile_card", "main", 0, CARDS, main.profile_card.location.as_posix())
+    built.ocr("main.ocr", "main", 0, main.ocr)
+    for order, clip in enumerate(content_set.footage):
+        built.add(
+            "footage",
+            order,
+            title=f"@{clip.owner_handle}",
+            text=clip.description or None,
+            platform=clip.platform,
+            url=clip.url,
+            media=clip.video,
+            trim=_trim(clip.ocr),
+        )
+        built.ocr("footage.ocr", "footage", order, clip.ocr)
+    for order, comment in enumerate(content_set.comments):
+        built.add(
+            "comment",
+            order,
+            title=f"@{comment.author}",
+            text=comment.text,
+            platform=None,
+            url=None,
+            media=None,
+            trim=None,
+        )
+        if comment.card is not None:
+            built.report("comments.card", "comment", order, CARDS, comment.card.location.as_posix())
+    if content_set.figures:
+        figures = [figure.model_dump(mode="json") for figure in content_set.figures]
+        built.report("figures", None, None, FIGURES, figures)
+    projection = StudioSourceProjection(items=built.items, unsupported=built.unsupported)
+    return WorkflowProjection(projection=projection, media=built.media)
