@@ -426,8 +426,9 @@ class SourceAccountStore:
         now: datetime,
     ) -> None:
         """Spec 2026-10-20, 1.2 and 1.4: the workspace quota, then the operator reserve."""
-        # One lock for every non-bootstrap lease: the reserve spans workspaces.
-        session.get(WorkspaceRow, BOOTSTRAP_WORKSPACE_ID, with_for_update=True)
+        # One lock for every non-bootstrap lease: the reserve spans workspaces. NO KEY UPDATE
+        # leaves the KEY SHARE lock of foreign-key inserts free, so it blocks nothing else.
+        session.get(WorkspaceRow, BOOTSTRAP_WORKSPACE_ID, with_for_update={"key_share": True})
         today = now.date()
         start = datetime.combine(today, datetime.min.time(), tzinfo=UTC)
         override = session.get(WorkspaceQuotaRow, (workspace_id, platform))
@@ -474,6 +475,8 @@ class SourceAccountStore:
             ).all()
         )
         remaining = sum(max(0, policy.daily_budget - uses.get(i, 0)) for i in ids)
+        if remaining <= 0:
+            return  # no account is free at all: "no account available", not the workspace's limit
         reserve = math.ceil(len(ids) * policy.daily_budget * policy.operator_reserve_percent / 100)
         if remaining - 1 < reserve:
             raise QuotaReached("operator_reserve")

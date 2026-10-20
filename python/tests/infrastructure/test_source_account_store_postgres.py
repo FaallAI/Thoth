@@ -144,3 +144,19 @@ def test_two_workspaces_at_the_reserve_line_get_one_lease(store: SourceAccountSt
     assert sorted(type(r).__name__ for r in results) == ["AccountLease", "str"]
     assert "operator_reserve" in results
     assert store.lease("instagram") is not None  # the bootstrap still leases
+
+
+def test_the_quota_lock_never_blocks_foreign_key_inserts(store: SourceAccountStore) -> None:
+    from sqlalchemy import event
+
+    _workspaces("ws_a")
+    store.set_policy("instagram", "always", 0, daily_budget=0)
+    store.add_account("instagram", "a", _cookies("a"))
+    statements: list[str] = []
+    engine = store._sessions.kw["bind"]
+    event.listen(engine, "before_cursor_execute", lambda *a: statements.append(a[2]))
+    with metering.scoped(MeterScope("ws_a")):
+        assert store.lease("instagram") is not None
+    locks = [s for s in statements if "FROM workspaces" in s and "FOR " in s]
+    # FOR UPDATE would conflict with the FOR KEY SHARE every insert referencing ws_bootstrap takes.
+    assert locks and all("FOR NO KEY UPDATE" in s for s in locks)

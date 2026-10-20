@@ -613,3 +613,10 @@ def test_no_account_writes_no_event(store, engine) -> None:
         assert store.lease("tiktok") is None
     with Session(engine) as session:
         assert session.scalar(select(func.count()).select_from(UsageEventRow)) == 0
+
+
+def test_an_empty_pool_is_no_account_not_a_reached_quota(store, engine) -> None:
+    store.set_policy("instagram", "always", 0, daily_budget=20)
+    _quota(engine, "ws_a", "instagram", 100)
+    with metering.scoped(A):
+        assert store.lease("instagram") is None  # no account at all: not the workspace's limit
