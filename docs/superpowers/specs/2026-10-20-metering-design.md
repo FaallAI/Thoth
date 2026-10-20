@@ -137,7 +137,7 @@ Index `(workspace_id, at)` and `(workspace_id, kind, key, at)`.
 | kind | Written | Rows |
 |---|---|---|
 | `account_lease` | by the lease wrapper, in the quota transaction (1.2) | 1 `session`, key = platform |
-| `workflow_completed` | when a run reaches a terminal success status in `workflow_runs` | 1 `workflow` |
+| `workflow_completed` | by the workflow itself as its last step when it succeeds (a local activity), so a run nobody opens is still counted | 1 `workflow` |
 | `video_rendered` | when a render job succeeds | output length in `second` |
 | `media_stored` | when an editor asset, a render output or a workflow artifact is stored | its size in `byte` |
 | `provider_call` | by each provider adapter: vision, captions, figures, footage queries, voice (TTS), the prompt provider | 1 `call`, plus `token_in`/`token_out` or `character` rows when the provider's response reports them |
