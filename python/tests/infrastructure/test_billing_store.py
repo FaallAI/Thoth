@@ -1,0 +1,132 @@
+"""The billing store on in-memory SQLite; locking is tested on PostgreSQL apart."""
+
+from datetime import UTC, datetime, timedelta
+
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
+
+from thoth_control_plane.billing import InvalidPlan, PlanLimitReached, UnknownPlan
+from thoth_control_plane.infrastructure import billing_models  # noqa: F401
+from thoth_control_plane.infrastructure.account_models import WorkspaceRow
+from thoth_control_plane.infrastructure.billing_models import PlanRow
+from thoth_control_plane.infrastructure.billing_store import BillingStore
+from thoth_control_plane.infrastructure.source_account_models import Base
+
+NOW = datetime(2026, 10, 20, 12, 0, tzinfo=UTC)
+
+
+class Clock:
+    def __init__(self) -> None:
+        self.now = NOW
+
+    def __call__(self) -> datetime:
+        return self.now
+
+
+@pytest.fixture
+def clock() -> Clock:
+    return Clock()
+
+
+@pytest.fixture
+def store(clock) -> BillingStore:
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(engine)
+    with Session(engine) as session, session.begin():
+        session.add(WorkspaceRow(workspace_id="ws_a", name="A", created_at=NOW))
+        session.add(
+            PlanRow(
+                plan_id="free",
+                name="Free",
+                price_idr=0,
+                workflows_per_period=3,
+                videos_per_period=1,
+                period_days=30,
+                active=True,
+                updated_at=NOW,
+            )
+        )
+    return BillingStore(engine, clock)
+
+
+def _pro(store: BillingStore) -> None:
+    store.set_plan(
+        "pro", name="Pro", price_idr=99000, workflows=50, videos=20, period_days=30, active=True
+    )
+
+
+def test_a_new_workspace_is_on_free_from_now(store: BillingStore) -> None:
+    sub = store.subscription("ws_a")
+    assert (sub.plan_id, sub.period_start, sub.period_end) == (
+        "free",
+        NOW,
+        NOW + timedelta(days=30),
+    )
+
+
+def test_the_free_allowance_admits_three_workflows_then_refuses(store: BillingStore) -> None:
+    assert [store.consume("ws_a", "workflow", f"r{i}") for i in range(3)] == [True] * 3
+    with pytest.raises(PlanLimitReached) as refused:
+        store.consume("ws_a", "workflow", "r4")
+    assert (refused.value.kind, refused.value.used, refused.value.allowance) == ("workflow", 3, 3)
+
+
+def test_the_same_ref_is_admitted_again_without_a_second_unit(store: BillingStore) -> None:
+    assert store.consume("ws_a", "video", "rj_1") is True
+    assert store.consume("ws_a", "video", "rj_1") is False  # an idempotent retry
+    assert store.allowance("ws_a").videos_used == 1
+
+
+def test_a_released_unit_is_given_back(store: BillingStore) -> None:
+    store.consume("ws_a", "video", "rj_1")
+    store.release("ws_a", "video", "rj_1")
+    assert store.allowance("ws_a").videos_used == 0
+    assert store.consume("ws_a", "video", "rj_2") is True
+
+
+def test_the_operator_workspace_is_never_counted(store: BillingStore) -> None:
+    assert [store.consume("ws_bootstrap", "workflow", f"r{i}") for i in range(10)] == [False] * 10
+    assert store.allowance("ws_bootstrap").unlimited is True
+
+
+def test_free_rolls_forward_and_the_new_period_starts_empty(store: BillingStore, clock) -> None:
+    for i in range(3):
+        store.consume("ws_a", "workflow", f"r{i}")
+    clock.now = NOW + timedelta(days=31)
+    sub = store.subscription("ws_a")
+    assert (sub.plan_id, sub.period_start) == ("free", clock.now)
+    assert store.consume("ws_a", "workflow", "r9") is True
+
+
+def test_an_unpaid_plan_falls_back_to_free_at_its_end(store: BillingStore, clock) -> None:
+    _pro(store)
+    store.grant("ws_a", "pro", 30)
+    assert store.subscription("ws_a").plan_id == "pro"
+    clock.now = NOW + timedelta(days=30)
+    for i in range(3):
+        store.consume("ws_a", "workflow", f"r{i}")
+    with pytest.raises(PlanLimitReached):  # held to free, not to the expired pro allowance
+        store.consume("ws_a", "workflow", "r4")
+    assert store.subscription("ws_a").plan_id == "free"
+
+
+def test_plans_are_edited_and_validated(store: BillingStore) -> None:
+    store.set_plan(
+        "free", name="Free", price_idr=0, workflows=5, videos=2, period_days=30, active=True
+    )
+    assert store.allowance("ws_a").workflows_allowed == 5  # applies to the current period
+    with pytest.raises(InvalidPlan):
+        store.set_plan(
+            "free", name="Free", price_idr=0, workflows=5, videos=2, period_days=30, active=False
+        )
+    with pytest.raises(InvalidPlan):
+        store.set_plan(
+            "Bad Id", name="X", price_idr=0, workflows=1, videos=1, period_days=30, active=True
+        )
+    with pytest.raises(UnknownPlan):
+        store.grant("ws_a", "nope", 30)
+    assert [p.plan_id for p in store.plans(active_only=True)] == ["free"]
