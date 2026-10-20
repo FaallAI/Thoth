@@ -128,6 +128,8 @@ class Settings(BaseSettings):
     THOTH_MEDIA_S3_ACCESS_KEY: SecretStr | None = None
     THOTH_MEDIA_S3_SECRET_KEY: SecretStr | None = None
     THOTH_MEDIA_S3_SECURE: bool = False
+    #: Signing a probe URL locally needs the region; MinIO's own default is us-east-1.
+    THOTH_MEDIA_S3_REGION: str = "us-east-1"
 
     def __init__(self, **values: object) -> None:
         """Load settings, then reject incomplete pairs without retaining inputs."""

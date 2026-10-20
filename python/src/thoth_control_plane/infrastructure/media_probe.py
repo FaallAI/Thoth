@@ -1,7 +1,7 @@
 """Run the image's own ffprobe on one received upload and return its JSON report.
 
 The argument vector is fixed and never passes through a shell; the only
-caller-controlled value is a path this process composed below the artifact root.
+caller-controlled value is a path or signed URL this process composed.
 """
 
 from __future__ import annotations
@@ -17,17 +17,23 @@ from thoth_control_plane.application.editor_asset_ports import EditorAssetMediaI
 PROBE_TIMEOUT_SECONDS = 30
 
 
-async def probe_media(ffprobe: str, path: Path) -> dict[str, Any]:
+#: ffprobe may open a local file or the store's signed HTTP(S) URL, and nothing else.
+PROTOCOLS = "file,http,https,tcp,tls"
+
+
+async def probe_media(ffprobe: str, source: Path | str) -> dict[str, Any]:
     """Raise ``OSError`` when ffprobe itself is missing, invalid media when it refuses."""
     process = await asyncio.create_subprocess_exec(
         ffprobe,
         "-v",
         "error",
+        "-protocol_whitelist",
+        PROTOCOLS,
         "-print_format",
         "json",
         "-show_streams",
         "-show_format",
-        str(path),
+        str(source),
         stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,

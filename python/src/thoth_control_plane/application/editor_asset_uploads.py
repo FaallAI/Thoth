@@ -36,7 +36,7 @@ UPLOAD_MAX_BYTES = 512 * 1024 * 1024
 CANVAS_FPS = 30
 PROVENANCE = "studio_upload"
 
-MediaProbe = Callable[[Path], Awaitable[dict[str, Any]]]
+MediaProbe = Callable[[Path | str], Awaitable[dict[str, Any]]]
 
 
 @dataclass(frozen=True)

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import mimetypes
+from datetime import timedelta
 from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -72,6 +73,7 @@ class S3MediaStore:
             access_key=access.get_secret_value(),
             secret_key=secret.get_secret_value(),
             secure=settings.THOTH_MEDIA_S3_SECURE,
+            region=settings.THOTH_MEDIA_S3_REGION,
             http_client=http,
         )
         return cls(client, settings.THOTH_MEDIA_S3_BUCKET)
@@ -142,6 +144,13 @@ class S3MediaStore:
         src, dst = checked_locator(source), checked_locator(destination)
         with _errors():
             self._client.copy_object(self._bucket, dst, CopySource(self._bucket, src))
+
+    def probe_source(self, location: str) -> str:
+        """A five-minute signed GET URL; the client's region keeps signing off the network."""
+        key = checked_locator(location)
+        with _errors():
+            # minio 7.2.20 takes these positionally (the 8.x keyword form does not exist here).
+            return self._client.presigned_get_object(self._bucket, key, timedelta(minutes=5))
 
     def check(self) -> None:
         with _errors():
