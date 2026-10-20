@@ -527,6 +527,36 @@ personal workspace on their first sign-in.
   workflows share the pool.
 - A session or token stops working as soon as its user is no longer a member of its workspace.
 
+### Metering
+
+Every workspace's usage is recorded in `usage_events`, one row per event: `account_lease` (one
+proxied source-account session), `workflow_completed`, `video_rendered` (output seconds),
+`media_stored` (bytes), and `provider_call` (calls, plus tokens or characters when the provider
+reports them). Activities are metered for the workspace their workflow's memo names; API requests
+for the caller's workspace.
+
+- **Quota.** A workspace other than the bootstrap leases at most its daily quota per platform:
+  Instagram 3, TikTok 10, X 5, YouTube 10, Threads 5 per UTC day by default.
+  `thoth-control quotas set <workspace> <platform> <n>` overrides it; `0` turns source accounts
+  off for that workspace.
+- **Operator reserve.** Other workspaces stop leasing when a lease would leave less than
+  `ceil(capacity × reserve%)` of the platform's daily account capacity. The reserve is 50% by
+  default; `thoth-control quotas reserve <platform> <percent>` changes it.
+- **Past either limit** the acquisition runs without signing in, and the run report carries
+  `quota_exhausted`. The workflow does not fail.
+- **Usage.** `GET /api/v1/usage` and the dashboard's Usage page show a workspace its month and
+  today's remaining sessions, with no money.
+- **Costs.** `/api/v1/admin/usage`, `/api/v1/admin/prices`,
+  `/api/v1/admin/workspaces/{id}/quotas` and `thoth-control prices set|list` are for platform
+  admins.
+  - The estimate splits costs into three buckets, with no cost in two:
+    - **workflow:** events inside a workflow;
+    - **video:** renders;
+    - **other:** Studio and uploads.
+  - It reports the cost per workflow and per video from their own buckets.
+  - `complete` is false while any usage has no unit price. Set prices with
+    `thoth-control prices set <kind> <key|*> <unit> <usd>` after a deploy.
+
 ## Authorization and approvals
 
 Every principal (a session, a developer token or the service key) maps to the audited data

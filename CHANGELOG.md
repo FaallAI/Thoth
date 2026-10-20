@@ -2,6 +2,74 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-20 - Metering, cost model and pool quota (SaaS sub-project 3)
+
+**Spec:** `docs/superpowers/specs/2026-10-20-metering-design.md`.
+**Plan:** `docs/superpowers/plans/2026-10-20-metering.md` (executed natively, branch
+`feat/metering`).
+
+**What shipped:**
+
+- **Schema:** editor migration `0015` adds `usage_events`, `workspace_quotas`, `unit_prices` and
+  `source_account_policies.operator_reserve_percent`. Nothing is dropped or backfilled.
+- **The meter:** a meter scope (workspace, workflow, project) carried in a context variable; a
+  process-wide `UsageStore` sink; and a cost estimate in USD that reports unpriced usage instead of
+  counting it as zero.
+- **Quota and operator reserve:** applied inside `SourceAccountStore.lease()`, in the lease's
+  transaction, under one `ws_bootstrap` row lock.
+  - The default per-workspace quotas are Instagram 3, TikTok 10, X 5, YouTube 10 and Threads 5
+    leases per UTC day; `ws_bootstrap` is exempt.
+  - Half of each platform's daily capacity is kept for the operator's own workflows.
+  - Past either limit, acquisition runs anonymously with `quota_exhausted`, and the workflow never
+    fails.
+- **Where the scope comes from:**
+  - for activities, the gateway writes `workspace_id` into the workflow memo and an activity
+    interceptor reads it;
+  - for API requests, `current_actor` sets it.
+- **Seams:**
+  - every agno provider adapter, the prompt provider and both voice adapters (calls, plus tokens or
+    characters);
+  - completed renders (seconds and bytes);
+  - scoped media writes (`MeteredMediaStore`);
+  - completed workflows, counted by the workflow itself as a final local activity, guarded by a
+    patch.
+- **API, CLI and dashboard:**
+  - `GET /api/v1/usage` for every workspace, with no money;
+  - `/api/v1/admin/usage`, `/api/v1/admin/prices` and `/api/v1/admin/workspaces/{id}/quotas` for
+    platform admins, where costs fall in disjoint workflow, video and other buckets with a
+    `complete` flag;
+  - `thoth-control quotas set|clear|show|reserve` and `thoth-control prices set|list`;
+  - a dashboard Usage page.
+- **Stack smoke:** a new `usage_counts_the_render` check.
+
+**Operator notes folded in during the work:**
+
+- The operator reserve, so many small workspaces cannot spend the pool before the operator's
+  own workflows run.
+- The completion count comes from the workflow itself rather than from `workflow_runs`
+  settlement, which happens only when someone opens a run.
+- The cost per workflow and the cost per video come from separate buckets, so no cost is billed
+  twice.
+
+**Verification (offline):**
+
+- Python 4148 passed, 71 skipped.
+- PostgreSQL: the migrations 20 passed, and the source-account races 5 passed. With the row lock
+  removed, both race tests failed 3 of 3 runs.
+- Lint clean.
+- Dashboard 702 passed, `tsc` clean, build OK.
+- The stack smoke has not run locally; CI runs it at the push gate.
+
+**Next steps:**
+
+- **Operator gates:** push, PR, CI (the smoke must print `render_output_is_h264_mp4=true`,
+  `workspaces_are_isolated=true` and `usage_counts_the_render=true`), merge, then deploy
+  (migration `0015`).
+- **After the deploy:** set unit prices with `thoth-control prices set …`, until which the admin
+  estimate stays `complete: false`. Check the default quotas and the 50% reserve.
+- **SaaS sub-project 4, billing:** plans and payments on top of the meter. Choose one billing
+  basis per cost bucket.
+
 ## 2026-10-20 - PR #30 merged and deployed; workspace isolation is live
 
 **Merged:** PR #30 (`d71665d`) after CI passed on the branch and on `master`; the stack smoke
