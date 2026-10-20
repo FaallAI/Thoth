@@ -41,6 +41,19 @@
             ],
             "title": "Mode",
             "type": "string"
+          },
+          "operator_reserve_percent": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator Reserve Percent"
           }
         },
         "required": [
@@ -255,6 +268,35 @@
           "order"
         ],
         "title": "AddTrack",
+        "type": "object"
+      },
+      "AdminUsageView": {
+        "additionalProperties": false,
+        "properties": {
+          "end": {
+            "format": "date",
+            "title": "End",
+            "type": "string"
+          },
+          "start": {
+            "format": "date",
+            "title": "Start",
+            "type": "string"
+          },
+          "workspaces": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceCostView"
+            },
+            "title": "Workspaces",
+            "type": "array"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "workspaces"
+        ],
+        "title": "AdminUsageView",
         "type": "object"
       },
       "ApplyPromptProposalRequest": {
@@ -749,6 +791,52 @@
           "cookies"
         ],
         "title": "CookieValidationRequest",
+        "type": "object"
+      },
+      "CostLineView": {
+        "additionalProperties": false,
+        "properties": {
+          "bucket": {
+            "title": "Bucket",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "number"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usd"
+          }
+        },
+        "required": [
+          "bucket",
+          "kind",
+          "key",
+          "unit",
+          "quantity",
+          "usd"
+        ],
+        "title": "CostLineView",
         "type": "object"
       },
       "CreateComment": {
@@ -1964,6 +2052,11 @@
             "title": "Mode",
             "type": "string"
           },
+          "operator_reserve_percent": {
+            "default": 50,
+            "title": "Operator Reserve Percent",
+            "type": "integer"
+          },
           "platform": {
             "enum": [
               "tiktok",
@@ -1986,6 +2079,49 @@
           "accounts"
         ],
         "title": "PlatformAccounts",
+        "type": "object"
+      },
+      "PlatformQuota": {
+        "additionalProperties": false,
+        "properties": {
+          "daily_leases": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Leases"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "remaining_today": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Today"
+          },
+          "used_today": {
+            "title": "Used Today",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "platform",
+          "daily_leases",
+          "used_today",
+          "remaining_today"
+        ],
+        "title": "PlatformQuota",
         "type": "object"
       },
       "Position": {
@@ -2054,6 +2190,38 @@
           "expires_at"
         ],
         "title": "PreviewCapabilityResponse",
+        "type": "object"
+      },
+      "PriceView": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "usd_per_unit": {
+            "minimum": 0.0,
+            "title": "Usd Per Unit",
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "key",
+          "unit",
+          "usd_per_unit"
+        ],
+        "title": "PriceView",
         "type": "object"
       },
       "Project": {
@@ -2851,6 +3019,55 @@
           "invalid_lines"
         ],
         "title": "ProxyImportSummary",
+        "type": "object"
+      },
+      "QuotaChange": {
+        "additionalProperties": false,
+        "properties": {
+          "daily_leases": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Leases"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          }
+        },
+        "required": [
+          "platform",
+          "daily_leases"
+        ],
+        "title": "QuotaChange",
+        "type": "object"
+      },
+      "QuotaView": {
+        "additionalProperties": false,
+        "properties": {
+          "quotas": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Quotas",
+            "type": "object"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "quotas"
+        ],
+        "title": "QuotaView",
         "type": "object"
       },
       "RemoveClip": {
@@ -6194,6 +6411,61 @@
         "title": "UpgradeTimelineRequest",
         "type": "object"
       },
+      "UsageView": {
+        "additionalProperties": false,
+        "properties": {
+          "leases": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Leases",
+            "type": "object"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "quotas": {
+            "items": {
+              "$ref": "#/components/schemas/PlatformQuota"
+            },
+            "title": "Quotas",
+            "type": "array"
+          },
+          "rendered_seconds": {
+            "title": "Rendered Seconds",
+            "type": "number"
+          },
+          "stored_bytes": {
+            "title": "Stored Bytes",
+            "type": "integer"
+          },
+          "videos": {
+            "title": "Videos",
+            "type": "integer"
+          },
+          "workflows": {
+            "title": "Workflows",
+            "type": "integer"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "month",
+          "workflows",
+          "videos",
+          "rendered_seconds",
+          "stored_bytes",
+          "leases",
+          "quotas"
+        ],
+        "title": "UsageView",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -6575,6 +6847,95 @@
         "title": "WorkflowSummary",
         "type": "object"
       },
+      "WorkspaceCostView": {
+        "additionalProperties": false,
+        "properties": {
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "estimated_usd": {
+            "title": "Estimated Usd",
+            "type": "number"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/CostLineView"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "other_usd": {
+            "title": "Other Usd",
+            "type": "number"
+          },
+          "per_video_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per Video Usd"
+          },
+          "per_workflow_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per Workflow Usd"
+          },
+          "unpriced": {
+            "items": {
+              "$ref": "#/components/schemas/CostLineView"
+            },
+            "title": "Unpriced",
+            "type": "array"
+          },
+          "video_usd": {
+            "title": "Video Usd",
+            "type": "number"
+          },
+          "videos": {
+            "title": "Videos",
+            "type": "integer"
+          },
+          "workflow_usd": {
+            "title": "Workflow Usd",
+            "type": "number"
+          },
+          "workflows": {
+            "title": "Workflows",
+            "type": "integer"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "workflows",
+          "videos",
+          "estimated_usd",
+          "workflow_usd",
+          "video_usd",
+          "other_usd",
+          "per_workflow_usd",
+          "per_video_usd",
+          "complete",
+          "lines",
+          "unpriced"
+        ],
+        "title": "WorkspaceCostView",
+        "type": "object"
+      },
       "WorkspaceView": {
         "additionalProperties": false,
         "properties": {
@@ -6614,6 +6975,324 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/admin/prices": {
+      "get": {
+        "operationId": "list_prices_api_v1_admin_prices_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PriceView"
+                  },
+                  "title": "Response List Prices Api V1 Admin Prices Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Prices",
+        "tags": [
+          "usage"
+        ]
+      },
+      "put": {
+        "operationId": "set_price_api_v1_admin_prices_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PriceView"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriceView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Price",
+        "tags": [
+          "usage"
+        ]
+      }
+    },
+    "/api/v1/admin/usage": {
+      "get": {
+        "description": "`from` and `to` are UTC days, both included; the default is the current month.",
+        "operationId": "admin_usage_api_v1_admin_usage_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUsageView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Usage",
+        "tags": [
+          "usage"
+        ]
+      }
+    },
+    "/api/v1/admin/workspaces/{workspace_id}/quotas": {
+      "get": {
+        "operationId": "workspace_quotas_api_v1_admin_workspaces__workspace_id__quotas_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotaView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Workspace Quotas",
+        "tags": [
+          "usage"
+        ]
+      },
+      "put": {
+        "operationId": "change_quota_api_v1_admin_workspaces__workspace_id__quotas_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuotaChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotaView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change Quota",
+        "tags": [
+          "usage"
+        ]
+      }
+    },
     "/api/v1/me": {
       "get": {
         "operationId": "me_api_v1_me_get",
@@ -11016,6 +11695,72 @@
           }
         },
         "summary": "List Style Presets"
+      }
+    },
+    "/api/v1/usage": {
+      "get": {
+        "operationId": "my_usage_api_v1_usage_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "My Usage",
+        "tags": [
+          "usage"
+        ]
       }
     },
     "/api/v1/workflows": {

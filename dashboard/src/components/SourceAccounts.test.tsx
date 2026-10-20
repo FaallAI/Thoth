@@ -58,6 +58,7 @@ function overview(available = true, accounts = ROWS, mode: "anonymous" | "fallba
         min_spacing_seconds: 60,
         daily_budget: 40,
         engine: "patchright" as const,
+        operator_reserve_percent: 50,
         counts: { healthy: count("healthy"), cooldown: count("cooldown"), expired: count("expired"), disabled: count("disabled") },
         accounts: mine,
       };

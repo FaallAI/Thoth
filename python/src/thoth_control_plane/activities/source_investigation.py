@@ -199,6 +199,7 @@ def _account_events(account: AccountUse | None, platform: str) -> list[SourcePro
         "stage": f"{platform}_account",
         "account_used": account.used,
         "no_account_available": account.no_account_available,
+        "quota_exhausted": account.quota_exhausted,
     }
     if account.outcome is not None:
         payload["account_outcome"] = account.outcome

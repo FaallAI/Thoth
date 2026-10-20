@@ -734,7 +734,22 @@ async def test_account_use_becomes_one_enum_only_event_before_cleanup(tmp_path: 
         "stage": "tiktok_account",
         "account_used": False,
         "no_account_available": True,
+        "quota_exhausted": False,
     }
+
+
+@pytest.mark.asyncio
+async def test_a_reached_quota_is_said_in_the_account_event(tmp_path: Path) -> None:
+    async def runner(workflow_id: str, source_url: str, artifact_root: Path):
+        del workflow_id, source_url, artifact_root
+        return AcquisitionResult(
+            failure=AcquisitionFailure(code="request_timeout", retryable=True),
+            account=AccountUse(used=False, no_account_available=True, quota_exhausted=True),
+        )
+
+    result = await build_source_investigation_activity(_settings(tmp_path), runner=runner)(INPUT)
+
+    assert result.events[0].payload["quota_exhausted"] is True
 
 
 def test_without_a_vault_the_production_runner_warns_once_and_stays_anonymous(

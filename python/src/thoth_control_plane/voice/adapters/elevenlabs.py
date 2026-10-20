@@ -8,6 +8,7 @@ from urllib.parse import quote
 
 import httpx
 
+from thoth_control_plane import metering
 from thoth_control_plane.voice.audio import probe_duration
 from thoth_control_plane.voice.ports import (
     SynthesizedVoice,
@@ -81,6 +82,8 @@ class ElevenLabsVoice:
         except httpx.HTTPError:
             raise VoiceUnavailable("elevenlabs_unreachable") from None
         raise_for_status(response, "elevenlabs")
+        # Billed once accepted, before the body is decoded (spec 2026-10-20, 2.1).
+        await metering.record_call(f"elevenlabs/{body['model_id']}", characters=len(request.text))
         try:
             payload = response.json()
             audio = base64.b64decode(payload["audio_base64"])

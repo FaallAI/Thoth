@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 from temporalio.service import RPCError
 
+from thoth_control_plane import metering
 from thoth_control_plane.acquisition.accounts.profiles import AccountProfiles
 from thoth_control_plane.acquisition.accounts.vault import Vault
 from thoth_control_plane.api.routes.auth import router as auth_router
@@ -31,6 +32,7 @@ from thoth_control_plane.api.routes.render_jobs import router as render_job_rout
 from thoth_control_plane.api.routes.source_accounts import router as source_account_router
 from thoth_control_plane.api.routes.studio_imports import router as studio_import_router
 from thoth_control_plane.api.routes.studio_review import router as studio_review_router
+from thoth_control_plane.api.routes.usage import router as usage_router
 from thoth_control_plane.api.routes.workflow_runs import router as workflow_run_router
 from thoth_control_plane.api.routes.workflows import router as workflow_router
 from thoth_control_plane.application import (
@@ -81,7 +83,11 @@ from thoth_control_plane.infrastructure.editor_asset_repository import (
 from thoth_control_plane.infrastructure.editor_preview import EditorPreviewSigner
 from thoth_control_plane.infrastructure.editor_repository import PostgresEditDocumentRepository
 from thoth_control_plane.infrastructure.media_probe import probe_media
-from thoth_control_plane.infrastructure.media_store import MediaStore, build_media_store
+from thoth_control_plane.infrastructure.media_store import (
+    MediaStore,
+    MeteredMediaStore,
+    build_media_store,
+)
 from thoth_control_plane.infrastructure.project_store import ProjectStore, ProjectStoreUnavailable
 from thoth_control_plane.infrastructure.prompt_proposal_gateway import (
     TemporalPromptProposalGateway,
@@ -107,6 +113,7 @@ from thoth_control_plane.infrastructure.studio_review_repository import (
     PostgresStudioReviewRepository,
 )
 from thoth_control_plane.infrastructure.temporal_gateway import TemporalWorkflowGateway
+from thoth_control_plane.infrastructure.usage_store import UsageStore
 from thoth_control_plane.infrastructure.workflow_run_store import (
     WorkflowRunStore,
     WorkflowRunsUnavailable,
@@ -214,6 +221,7 @@ def create_app(
     account_store: AccountStore | None = None,
     mailer: Mailer | None = None,
     identity_providers: dict[str, IdentityProvider] | None = None,
+    usage_store: UsageStore | None = None,
 ) -> FastAPI:
     """Create an isolated v1 API application for the supplied workflow gateway."""
     settings = settings or Settings()  # type: ignore[call-arg]
@@ -257,7 +265,7 @@ def create_app(
 
     # One store for every route; building it does no I/O, so the API still starts with the
     # store down and only the media routes answer 503 (spec 2026-10-17, render storage).
-    media = build_media_store(settings)
+    media = MeteredMediaStore(build_media_store(settings))
     render_service = render_job_service or _render_job_service(
         settings,
         editor_repository,
@@ -342,6 +350,11 @@ def create_app(
             settings.THOTH_EDITOR_DATABASE_URL.get_secret_value()
         )
     app.state.workflow_run_store = workflow_run_store
+    if usage_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
+        usage_store = UsageStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
+    app.state.usage_store = usage_store
+    if usage_store is not None:
+        metering.install(usage_store)
     if account_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
         account_store = AccountStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
     auth_secret = (
@@ -494,6 +507,7 @@ def create_app(
     app.include_router(studio_review_router, prefix="/api/v1")
     app.include_router(studio_import_router, prefix="/api/v1")
     app.include_router(source_account_router, prefix="/api/v1")
+    app.include_router(usage_router, prefix="/api/v1")
     # Unversioned and unpublished: only the private renderer ever calls these.
     app.include_router(internal_render_router)
     return app

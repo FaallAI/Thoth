@@ -372,6 +372,7 @@ SOURCE_EVENT_PAYLOAD_KEYS = frozenset(
         "account_used",
         "account_outcome",
         "no_account_available",
+        "quota_exhausted",
         "verdict",
         "ocr_outcome",
         "comment_count",
@@ -461,7 +462,7 @@ class SourceProgressEvent(StrictModel):
         stage = payload.get("stage")
         if not isinstance(stage, str) or not SOURCE_EVENT_STAGE_PATTERN.fullmatch(stage):
             raise ValueError("source event stage must be a safe code")
-        for flag in ("account_used", "no_account_available"):
+        for flag in ("account_used", "no_account_available", "quota_exhausted"):
             if flag in payload and not isinstance(payload[flag], bool):
                 raise ValueError("source event account flags must be booleans")
         outcome = payload.get("account_outcome")

@@ -18,6 +18,7 @@ from temporalio.contrib.pydantic import pydantic_data_converter
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
+from thoth_control_plane.activities.meter_scope import record_workflow_completed
 from thoth_control_plane.activities.source_investigation import SourceInvestigationActivityInput
 from thoth_control_plane.api.app import create_app
 from thoth_control_plane.application import (
@@ -77,6 +78,16 @@ def _is_local(address: Any) -> bool:
         return ipaddress.ip_address(host).is_loopback
     except ValueError:
         return False
+
+
+@pytest.fixture(autouse=True)
+def _no_usage_sink():
+    """The meter's sink is process-wide: every test starts and ends without one."""
+    from thoth_control_plane import metering
+
+    metering.install(None)
+    yield
+    metering.install(None)
 
 
 @pytest.fixture(autouse=True)
@@ -411,7 +422,7 @@ class OfflineControlPlane:
             self._environment.client,
             task_queue=TASK_QUEUE,
             workflows=[SourceInvestigationWorkflow],
-            activities=[self._inspect_activity],
+            activities=[record_workflow_completed, self._inspect_activity],
             max_cached_workflows=0,
         )
         await worker.__aenter__()

@@ -107,3 +107,30 @@ def test_the_cli_loads_without_the_optional_openai_package() -> None:
     )
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr[-600:]
+
+
+def test_voice_say_meters_the_call_for_the_operator(monkeypatch, tmp_path) -> None:
+    from tests.test_metering import Sink
+    from thoth_control_plane import metering
+
+    sink = Sink()
+
+    class Fake:
+        async def synthesize(self, request):
+            await metering.record_call("fake/voice", characters=len(request.text))
+            return SynthesizedVoice(
+                audio=b"MP3", media_type="audio/mpeg", duration_seconds=1.0, word_timings=None
+            )
+
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_API_KEY", "k")
+    monkeypatch.setenv("THOTH_EDITOR_DATABASE_URL", "postgresql://unused/db")
+    monkeypatch.setattr(cli, "build_voice", lambda settings, provider: Fake())
+    monkeypatch.setattr(cli.UsageStore, "connect", classmethod(lambda cls, url: sink))
+    result = CliRunner().invoke(
+        cli.app, ["voice", "say", "--voice", "v", "--text", "Halo", "--out", str(tmp_path / "a")]
+    )
+    assert result.exit_code == 0, result.output
+    assert [(e.workspace_id, e.unit, e.quantity) for e in sink.events] == [
+        ("ws_bootstrap", "call", 1.0),
+        ("ws_bootstrap", "character", 4.0),
+    ]

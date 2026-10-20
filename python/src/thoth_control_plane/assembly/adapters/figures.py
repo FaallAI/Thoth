@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from thoth_control_plane import metering
 from thoth_control_plane.assembly.figures import FigureAnswer
 
 logger = logging.getLogger(__name__)
@@ -40,4 +41,5 @@ class AgnoFigureModel:
         except Exception:
             logger.warning("figures unavailable; the content set continues without them")
             return None
+        await metering.record_model_run(self._model, run)
         return run.content if isinstance(run.content, FigureAnswer) else None

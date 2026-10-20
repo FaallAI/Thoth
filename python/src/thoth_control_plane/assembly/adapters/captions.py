@@ -11,6 +11,7 @@ from collections.abc import Sequence
 
 from pydantic import BaseModel, Field
 
+from thoth_control_plane import metering
 from thoth_control_plane.attribution.ports import Frame
 
 logger = logging.getLogger(__name__)
@@ -59,4 +60,5 @@ class AgnoCaptionJudge:
         except Exception:
             logger.warning("caption check unavailable; the rule-based verdict stands")
             return None
+        await metering.record_model_run(self._model, run)
         return run.content.speech_captions if isinstance(run.content, CaptionCheck) else None

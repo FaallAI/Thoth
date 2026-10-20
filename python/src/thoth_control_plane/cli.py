@@ -15,6 +15,7 @@ import httpx
 import typer
 from pydantic import ValidationError
 
+from thoth_control_plane import metering
 from thoth_control_plane.application import ApprovalSubmission, RetryRequest
 from thoth_control_plane.auth.models import ALL_SCOPES, CreateToken, Principal
 from thoth_control_plane.auth.service import SignInService
@@ -25,6 +26,7 @@ from thoth_control_plane.infrastructure.media_store import MediaStoreUnavailable
 from thoth_control_plane.infrastructure.project_store import ProjectStore, ProjectStoreUnavailable
 from thoth_control_plane.infrastructure.report_store import ReportStore, ReportStoreUnavailable
 from thoth_control_plane.infrastructure.s3_media_store import S3MediaStore
+from thoth_control_plane.infrastructure.usage_store import UsageStore
 from thoth_control_plane.infrastructure.workflow_run_store import (
     WorkflowRunStore,
     WorkflowRunsUnavailable,
@@ -203,6 +205,96 @@ def tokens_create(
     typer.echo(created.secret)
 
 
+quotas_app = typer.Typer(no_args_is_help=True)
+app.add_typer(quotas_app, name="quotas")
+prices_app = typer.Typer(no_args_is_help=True)
+app.add_typer(prices_app, name="prices")
+
+
+def _usage_store() -> UsageStore:
+    database_url = Settings().THOTH_EDITOR_DATABASE_URL
+    if database_url is None:
+        raise typer.BadParameter("THOTH_EDITOR_DATABASE_URL must be configured")
+    return UsageStore.connect(database_url.get_secret_value())
+
+
+@quotas_app.command("set")
+def quotas_set(workspace_id: str, platform: str, daily_leases: int) -> None:
+    """Override a workspace's daily lease quota for one platform (spec 2026-10-20, 1.5)."""
+    try:
+        _usage_store().set_quota(workspace_id, platform, daily_leases)
+    except ValueError:
+        typer.echo("invalid_quota")
+        raise typer.Exit(1) from None
+    except LookupError:
+        typer.echo("unknown_workspace")
+        raise typer.Exit(1) from None
+    typer.echo(f"workspace={workspace_id} platform={platform} daily_leases={daily_leases}")
+
+
+@quotas_app.command("clear")
+def quotas_clear(workspace_id: str, platform: str) -> None:
+    """Return a workspace to the platform default."""
+    _usage_store().clear_quota(workspace_id, platform)
+    typer.echo(f"workspace={workspace_id} platform={platform} default")
+
+
+@quotas_app.command("show")
+def quotas_show(workspace_id: str) -> None:
+    """A workspace's daily lease quota and today's use, per platform."""
+    store = _usage_store()
+    today = store.leases_today(workspace_id)
+    for platform, limit in store.quotas(workspace_id).items():
+        typer.echo(f"platform={platform} daily_leases={limit} used_today={today.get(platform, 0)}")
+
+
+@quotas_app.command("reserve")
+def quotas_reserve(platform: str, percent: int) -> None:
+    """Set the share of a platform's daily capacity kept for the operator (spec 1.4)."""
+    from thoth_control_plane.acquisition.accounts.cookies import PLATFORMS
+    from thoth_control_plane.acquisition.accounts.vault import Vault
+    from thoth_control_plane.infrastructure.source_account_store import SourceAccountStore
+
+    settings = Settings()
+    vault = Vault.from_key(settings.account_vault_key)
+    if vault is None or settings.THOTH_EDITOR_DATABASE_URL is None:
+        raise typer.BadParameter("the account vault key and the editor database are required")
+    if platform not in PLATFORMS:
+        typer.echo("invalid_reserve")
+        raise typer.Exit(1)
+    store = SourceAccountStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value(), vault)
+    policy = store.policy(platform)  # type: ignore[arg-type]
+    try:
+        store.set_policy(
+            policy.platform,
+            policy.mode,
+            policy.min_spacing_seconds,
+            operator_reserve_percent=percent,
+        )
+    except ValueError:
+        typer.echo("invalid_reserve")
+        raise typer.Exit(1) from None
+    typer.echo(f"platform={platform} operator_reserve_percent={percent}")
+
+
+@prices_app.command("set")
+def prices_set(kind: str, key: str, unit: str, usd_per_unit: float) -> None:
+    """Set a unit price in USD; key `*` prices every key of the kind and unit (spec 2.3)."""
+    try:
+        _usage_store().set_price(kind, key, unit, usd_per_unit)
+    except ValueError:
+        typer.echo("invalid_price")
+        raise typer.Exit(1) from None
+    typer.echo(f"{kind} {key} {unit} {usd_per_unit}")
+
+
+@prices_app.command("list")
+def prices_list() -> None:
+    """Every unit price, one per line: kind key unit usd."""
+    for price in _usage_store().prices():
+        typer.echo(f"{price.kind} {price.key} {price.unit} {price.usd_per_unit}")
+
+
 voice_app = typer.Typer(no_args_is_help=True)
 app.add_typer(voice_app, name="voice")
 
@@ -231,8 +323,12 @@ def voice_say(
     except ValidationError:
         typer.echo("VoiceRejected: invalid_request")
         raise typer.Exit(1) from None
+    settings = Settings()
+    if settings.THOTH_EDITOR_DATABASE_URL is not None:
+        # An operator call outside any workspace: metered for the bootstrap (spec 2026-10-20, 3.1).
+        metering.install(UsageStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value()))
     try:
-        synthesizer = build_voice(Settings(), provider.replace("-", "_"))  # type: ignore[arg-type]
+        synthesizer = build_voice(settings, provider.replace("-", "_"))  # type: ignore[arg-type]
         result = asyncio.run(synthesizer.synthesize(request))
     except (VoiceNotConfigured, VoiceRejected, VoiceUnavailable) as error:
         typer.echo(f"{type(error).__name__}: {error}")

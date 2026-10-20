@@ -58,6 +58,7 @@ function stubFetch() {
     if (path.includes("/edit-documents/document_001")) return response({ ...document, revision });
     if (path.endsWith("/render-capability")) return response({ available: true, preset_id: "p", renderer_version: "r" });
     if (path.includes("/render-jobs")) return response({ jobs: [], next_cursor: null });
+    if (path === "/api/v1/usage") return response({ workspace_id: "ws_bootstrap", month: "2026-10", workflows: 0, videos: 0, rendered_seconds: 0, stored_bytes: 0, leases: {}, quotas: [] });
     return response([]);
   }) as unknown as typeof fetch;
 }
@@ -171,7 +172,7 @@ test("no page reaches the retired Rust server: only control-plane routes are req
   const { default: App } = await import("./App");
   render(<App />);
   const nav = await screen.findByRole("navigation", { name: "Workspace" });
-  expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["Workflows", "Creator Studio", "Source Accounts"]);
+  expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["Workflows", "Creator Studio", "Usage", "Source Accounts"]);
   const user = userEvent.setup();
   await user.click(within(nav).getByRole("link", { name: "Creator Studio" }));
   await screen.findByRole("button", { name: /Heading/ });
@@ -248,4 +249,12 @@ test("the first-project invitation waits for the project list", async () => {
   render(<App />);
   expect(await screen.findByText("Select or create a project to begin.")).toBeDefined();
   expect(Boolean(screen.queryByText("Create your first project"))).toBe(false);
+});
+
+test("Usage is in the navigation of every user", async () => {
+  me = { ...ADMIN_ME, platform_admin: false };
+  stubFetch();
+  const { default: App } = await import("./App");
+  render(<App />);
+  expect(await screen.findByRole("link", { name: /Usage/ })).toBeDefined();
 });

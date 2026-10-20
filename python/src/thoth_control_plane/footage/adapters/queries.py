@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from thoth_control_plane import metering
 from thoth_control_plane.footage.queries import FootageQueryAnswer
 
 logger = logging.getLogger(__name__)
@@ -40,4 +41,5 @@ class AgnoQueryModel:
         except Exception:
             logger.warning("footage queries unavailable")
             return None
+        await metering.record_model_run(self._model, run)
         return run.content if isinstance(run.content, FootageQueryAnswer) else None

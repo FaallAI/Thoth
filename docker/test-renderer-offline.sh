@@ -824,6 +824,15 @@ fi
 [ "$(web /api/v1/source-accounts GET "$second_token")" = "403" ] || fail workspaces_are_isolated
 echo workspaces_are_isolated=true
 
+# --- metering: the smoke render is counted for its workspace, never another's (2026-10-20) ---
+usage_videos() {
+    BODY=1 web /api/v1/usage GET "$1" | python3 -c 'import json,sys; print(json.load(sys.stdin)["videos"])'
+}
+first_videos=$(usage_videos "$first_token") || fail usage_counts_the_render
+[ "$first_videos" -ge 1 ] || fail usage_counts_the_render
+[ "$(usage_videos "$second_token")" = "0" ] || fail usage_counts_the_render
+echo usage_counts_the_render=true
+
 # --- one active render at a time, and cancellation ---------------------------
 driver seed "$long_document_id" "$long_frames" none >/dev/null || fail second_render_is_refused
 long_job=$(driver create "$long_document_id") || fail second_render_is_refused

@@ -180,6 +180,7 @@ async def test_the_policy_is_set_per_platform() -> None:
             "min_spacing_seconds": 120,
             "daily_budget": 20,
             "engine": "patchright",
+            "operator_reserve_percent": 50,
         }
         overview = (await api.get("/source-accounts", headers=AUTH)).json()
         modes = {p["platform"]: p["mode"] for p in overview["platforms"]}

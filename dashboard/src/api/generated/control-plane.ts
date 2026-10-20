@@ -4,6 +4,62 @@
  */
 
 export interface paths {
+    "/api/v1/admin/prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Prices */
+        get: operations["list_prices_api_v1_admin_prices_get"];
+        /** Set Price */
+        put: operations["set_price_api_v1_admin_prices_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Usage
+         * @description `from` and `to` are UTC days, both included; the default is the current month.
+         */
+        get: operations["admin_usage_api_v1_admin_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/workspaces/{workspace_id}/quotas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Workspace Quotas */
+        get: operations["workspace_quotas_api_v1_admin_workspaces__workspace_id__quotas_get"];
+        /** Change Quota */
+        put: operations["change_quota_api_v1_admin_workspaces__workspace_id__quotas_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -916,6 +972,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My Usage */
+        get: operations["my_usage_api_v1_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workflows": {
         parameters: {
             query?: never;
@@ -1118,6 +1191,8 @@ export interface components {
              * @enum {string}
              */
             mode: "anonymous" | "fallback" | "always";
+            /** Operator Reserve Percent */
+            operator_reserve_percent?: number | null;
         };
         /** ActorSnapshot */
         ActorSnapshot: {
@@ -1199,6 +1274,21 @@ export interface components {
              * @enum {string}
              */
             track_kind: "main_video" | "b_roll" | "overlay" | "caption" | "narration" | "music" | "sfx";
+        };
+        /** AdminUsageView */
+        AdminUsageView: {
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /** Workspaces */
+            workspaces: components["schemas"]["WorkspaceCostView"][];
         };
         /** ApplyPromptProposalRequest */
         ApplyPromptProposalRequest: {
@@ -1367,6 +1457,21 @@ export interface components {
              * @enum {string}
              */
             platform: "tiktok" | "threads" | "instagram" | "x" | "youtube";
+        };
+        /** CostLineView */
+        CostLineView: {
+            /** Bucket */
+            bucket: string;
+            /** Key */
+            key: string;
+            /** Kind */
+            kind: string;
+            /** Quantity */
+            quantity: number;
+            /** Unit */
+            unit: string;
+            /** Usd */
+            usd: number | null;
         };
         /**
          * CreateComment
@@ -1758,10 +1863,26 @@ export interface components {
              */
             mode: "anonymous" | "fallback" | "always";
             /**
+             * Operator Reserve Percent
+             * @default 50
+             */
+            operator_reserve_percent: number;
+            /**
              * Platform
              * @enum {string}
              */
             platform: "tiktok" | "threads" | "instagram" | "x" | "youtube";
+        };
+        /** PlatformQuota */
+        PlatformQuota: {
+            /** Daily Leases */
+            daily_leases: number | null;
+            /** Platform */
+            platform: string;
+            /** Remaining Today */
+            remaining_today: number | null;
+            /** Used Today */
+            used_today: number;
         };
         /** Position */
         Position: {
@@ -1803,6 +1924,17 @@ export interface components {
             expires_at: string;
             /** Preview Url */
             preview_url: string;
+        };
+        /** PriceView */
+        PriceView: {
+            /** Key */
+            key: string;
+            /** Kind */
+            kind: string;
+            /** Unit */
+            unit: string;
+            /** Usd Per Unit */
+            usd_per_unit: number;
         };
         /** Project */
         Project: {
@@ -2080,6 +2212,22 @@ export interface components {
             duplicates: number;
             /** Invalid Lines */
             invalid_lines: number[];
+        };
+        /** QuotaChange */
+        QuotaChange: {
+            /** Daily Leases */
+            daily_leases: number | null;
+            /** Platform */
+            platform: string;
+        };
+        /** QuotaView */
+        QuotaView: {
+            /** Quotas */
+            quotas: {
+                [key: string]: number;
+            };
+            /** Workspace Id */
+            workspace_id: string;
         };
         /** RemoveClip */
         RemoveClip: {
@@ -3360,6 +3508,27 @@ export interface components {
             /** Base Revision */
             base_revision: number;
         };
+        /** UsageView */
+        UsageView: {
+            /** Leases */
+            leases: {
+                [key: string]: number;
+            };
+            /** Month */
+            month: string;
+            /** Quotas */
+            quotas: components["schemas"]["PlatformQuota"][];
+            /** Rendered Seconds */
+            rendered_seconds: number;
+            /** Stored Bytes */
+            stored_bytes: number;
+            /** Videos */
+            videos: number;
+            /** Workflows */
+            workflows: number;
+            /** Workspace Id */
+            workspace_id: string;
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -3487,6 +3656,33 @@ export interface components {
             /** Workflow Id */
             workflow_id: string;
         };
+        /** WorkspaceCostView */
+        WorkspaceCostView: {
+            /** Complete */
+            complete: boolean;
+            /** Estimated Usd */
+            estimated_usd: number;
+            /** Lines */
+            lines: components["schemas"]["CostLineView"][];
+            /** Other Usd */
+            other_usd: number;
+            /** Per Video Usd */
+            per_video_usd: number | null;
+            /** Per Workflow Usd */
+            per_workflow_usd: number | null;
+            /** Unpriced */
+            unpriced: components["schemas"]["CostLineView"][];
+            /** Video Usd */
+            video_usd: number;
+            /** Videos */
+            videos: number;
+            /** Workflow Usd */
+            workflow_usd: number;
+            /** Workflows */
+            workflows: number;
+            /** Workspace Id */
+            workspace_id: string;
+        };
         /** WorkspaceView */
         WorkspaceView: {
             /** Name */
@@ -3505,6 +3701,176 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_prices_api_v1_admin_prices_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_price_api_v1_admin_prices_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceView"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_usage_api_v1_admin_usage_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUsageView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    workspace_quotas_api_v1_admin_workspaces__workspace_id__quotas_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuotaView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_quota_api_v1_admin_workspaces__workspace_id__quotas_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuotaChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuotaView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     me_api_v1_me_get: {
         parameters: {
             query?: never;
@@ -5819,6 +6185,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StylePreset"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_usage_api_v1_usage_get: {
+        parameters: {
+            query?: {
+                month?: string | null;
+            };
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageView"];
                 };
             };
             /** @description Validation Error */

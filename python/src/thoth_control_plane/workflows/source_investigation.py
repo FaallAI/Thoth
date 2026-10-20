@@ -62,6 +62,9 @@ with workflow.unsafe.imports_passed_through():
 # payload validator that guards `fallback_from` can never drift apart.
 
 
+COMPLETION_PATCH = "usage-workflow-completed"
+
+
 @workflow.defn
 class SourceInvestigationWorkflow:
     """Investigate a source, then durably gate acquisition when requested."""
@@ -89,6 +92,23 @@ class SourceInvestigationWorkflow:
 
     @workflow.run
     async def run(self, input_: SourceInvestigationWorkflowInput) -> WorkflowSummary:
+        summary = await self._run(input_)
+        # A succeeded run counts itself (spec 2026-10-20 metering, 2.1). The patch keeps
+        # histories recorded before metering replaying as they were. One attempt means no retry
+        # counts twice; a worker crash between the activity and its marker can still count a
+        # run twice (local activities are at least once), and a failure costs only the count.
+        if summary.status == WorkflowStatus.SUCCEEDED and workflow.patched(COMPLETION_PATCH):
+            try:
+                await workflow.execute_local_activity(
+                    "record_workflow_completed",
+                    start_to_close_timeout=timedelta(seconds=30),
+                    retry_policy=RetryPolicy(maximum_attempts=1),
+                )
+            except ActivityError:
+                workflow.logger.warning("workflow completion was not metered")
+        return summary
+
+    async def _run(self, input_: SourceInvestigationWorkflowInput) -> WorkflowSummary:
         self._workflow_id = workflow.info().workflow_id
         self._request_snapshot_id = input_.request_snapshot_id
         self._actor_id = input_.actor.actor_id

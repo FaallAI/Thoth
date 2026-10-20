@@ -347,3 +347,40 @@ def test_tokens_create_prints_one_working_token_and_creates_the_user(monkeypatch
         cli.app, ["tokens", "create", "--email", "x@y", "--name", "n", "--scope", "root"]
     )
     assert bad.exit_code == 1 and bad.output.strip() == "invalid_request"
+
+
+def test_quotas_and_prices_from_the_cli(monkeypatch) -> None:
+    from datetime import UTC, datetime
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.pool import StaticPool
+
+    from thoth_control_plane.infrastructure import usage_models  # noqa: F401
+    from thoth_control_plane.infrastructure.account_models import WorkspaceRow
+    from thoth_control_plane.infrastructure.source_account_models import Base
+    from thoth_control_plane.infrastructure.usage_store import UsageStore
+
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(engine)
+    with engine.begin() as connection:
+        connection.execute(
+            WorkspaceRow.__table__.insert().values(
+                workspace_id="ws_a", name="A", created_at=datetime.now(UTC)
+            )
+        )
+    store = UsageStore(engine)
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_API_KEY", "k")
+    monkeypatch.setenv("THOTH_EDITOR_DATABASE_URL", "postgresql://unused/db")
+    monkeypatch.setattr(cli.UsageStore, "connect", classmethod(lambda cls, url: store))
+    assert runner.invoke(app, ["quotas", "set", "ws_a", "instagram", "1"]).exit_code == 0
+    shown = runner.invoke(app, ["quotas", "show", "ws_a"]).output
+    assert "platform=instagram daily_leases=1 used_today=0" in shown
+    assert runner.invoke(app, ["quotas", "set", "ws_a", "myspace", "1"]).exit_code == 1
+    unknown = runner.invoke(app, ["quotas", "set", "ws_nope", "instagram", "1"])
+    assert (unknown.exit_code, unknown.output.strip()) == (1, "unknown_workspace")
+    assert (
+        runner.invoke(app, ["prices", "set", "provider_call", "*", "call", "0.002"]).exit_code == 0
+    )
+    assert "provider_call * call 0.002" in runner.invoke(app, ["prices", "list"]).output

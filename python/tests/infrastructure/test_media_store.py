@@ -311,3 +311,43 @@ def test_size_reports_the_object_size_without_reading_it(store, tmp_path: Path) 
     assert store.size(LOCATION) == 10
     with pytest.raises(MediaUnavailable):
         store.size("reports/wf_a/media/absent.mp4")
+
+
+def test_the_metered_store_records_scoped_writes_only(tmp_path) -> None:
+    from tests.test_metering import Sink
+    from thoth_control_plane import metering
+    from thoth_control_plane.infrastructure.media_store import LocalMediaStore, MeteredMediaStore
+    from thoth_control_plane.metering import MeterScope
+
+    sink = Sink()
+    metering.install(sink)
+    store = MeteredMediaStore(LocalMediaStore(tmp_path / "root"))
+    source = tmp_path / "clip.mp4"
+    source.write_bytes(b"x" * 300)
+    store.put_file("reports/wf_1/clip.mp4", source)  # no scope: the private renderer, a CLI
+    with metering.scoped(MeterScope("ws_a", workflow_id="wf_1")):
+        store.put_file("reports/wf_1/clip2.mp4", source)
+    assert [(e.workspace_id, e.key, e.quantity) for e in sink.events] == [
+        ("ws_a", "reports", 300.0)
+    ]
+    assert store.size("reports/wf_1/clip2.mp4") == 300
+
+
+def test_a_metered_write_never_fails_after_the_store_accepted_it(tmp_path) -> None:
+    from tests.test_metering import Sink
+    from thoth_control_plane import metering
+    from thoth_control_plane.infrastructure.media_store import LocalMediaStore, MeteredMediaStore
+    from thoth_control_plane.metering import MeterScope
+
+    class Moving(LocalMediaStore):
+        def put_file(self, location, path):
+            super().put_file(location, path)
+            path.unlink()  # a store that consumes its source
+
+    metering.install(Sink())
+    source = tmp_path / "clip.mp4"
+    source.write_bytes(b"x" * 10)
+    store = MeteredMediaStore(Moving(tmp_path / "root"))
+    with metering.scoped(MeterScope("ws_a")):
+        store.put_file("reports/wf_1/clip.mp4", source)  # no exception
+    assert store.size("reports/wf_1/clip.mp4") == 10

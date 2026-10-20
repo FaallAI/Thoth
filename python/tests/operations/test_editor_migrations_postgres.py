@@ -39,7 +39,7 @@ def _tables() -> set[str]:
 
 
 def test_fresh_database_applies_every_revision_and_a_rerun_applies_none() -> None:
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 14
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 15
     assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 0
     assert {"alembic_version", "studio_import_drafts", "studio_import_decisions"} <= _tables()
     assert {"source_account_policies", "source_proxies", "source_accounts"} <= _tables()
@@ -52,7 +52,7 @@ def test_database_migrated_before_alembic_is_adopted_and_only_the_rest_applied()
         for migration in sorted(MIGRATIONS.glob("*.sql"))[:6]:
             connection.execute(migration.read_text(encoding="utf-8"))
 
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 8
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 9
     assert {"studio_import_drafts", "studio_import_decisions"} <= _tables()
 
 
@@ -320,10 +320,12 @@ def test_existing_projects_move_to_the_bootstrap_workspace(tmp_path: Path) -> No
     shutil.copytree(MIGRATIONS, before)
     (before / "0014_project_workspaces.sql").unlink()
     (before / "alembic" / "versions" / "0014_project_workspaces.py").unlink()
+    (before / "0015_metering.sql").unlink()
+    (before / "alembic" / "versions" / "0015_metering.py").unlink()
     assert apply_editor_migrations(DATABASE_URL, before) == 13
     with psycopg.connect(DATABASE_URL) as connection:
         connection.execute("INSERT INTO projects (project_id, name) VALUES ('p-legacy', 'Legacy')")
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 1
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 2
     with psycopg.connect(DATABASE_URL) as connection:
         assert connection.execute(
             "SELECT workspace_id FROM projects WHERE project_id = 'p-legacy'"
@@ -383,3 +385,23 @@ def test_a_second_user_gets_a_personal_workspace_on_postgres() -> None:
     assert second.workspace_id.startswith("ws_") and second.workspace_id != "ws_bootstrap"
     assert store.member_role(second.user_id, second.workspace_id) == "owner"
     assert store.workspace_name(second.workspace_id) == "Second's workspace"
+
+
+def test_metering_tables_and_the_reserve_column_exist() -> None:
+    apply_editor_migrations(DATABASE_URL, MIGRATIONS)
+    assert {"usage_events", "workspace_quotas", "unit_prices"} <= _tables()
+    with psycopg.connect(DATABASE_URL) as connection:
+        connection.execute(
+            "INSERT INTO usage_events (event_id, workspace_id, kind, key, quantity, unit)"
+            " VALUES ('use_1', 'ws_bootstrap', 'account_lease', 'instagram', 1, 'session')"
+        )
+        with pytest.raises(psycopg.errors.CheckViolation):
+            connection.execute(
+                "INSERT INTO usage_events (event_id, workspace_id, kind, key, quantity, unit)"
+                " VALUES ('use_2', 'ws_bootstrap', 'teleport', 'x', 1, 'session')"
+            )
+    with psycopg.connect(DATABASE_URL) as connection, pytest.raises(psycopg.errors.CheckViolation):
+        connection.execute(
+            "INSERT INTO source_account_policies (platform, mode, operator_reserve_percent,"
+            " updated_at) VALUES ('instagram', 'always', 101, now())"
+        )

@@ -24,6 +24,7 @@ from thoth_control_plane.acquisition.models import AccountUse, AcquisitionReason
 from thoth_control_plane.acquisition.platforms import platform_of
 from thoth_control_plane.infrastructure.source_account_store import (
     AccountLease,
+    QuotaReached,
     SourceAccountStore,
 )
 
@@ -51,6 +52,8 @@ async def _lease(store: SourceAccountStore, platform: str) -> AccountLease | Non
     try:
         # Card crops stay on Scrapling and Patchright whatever the platform's engine (3.4).
         return await asyncio.to_thread(store.lease, platform, "patchright")  # type: ignore[arg-type]
+    except QuotaReached:
+        raise
     except Exception:
         logger.warning("source account lease unavailable; acquisition runs anonymously")
         return None
@@ -85,12 +88,21 @@ def account_runner(
             anonymous = await attempt(None)
             if account_outcome(anonymous) not in ("blocked", "login_wall"):
                 return anonymous
-        lease = await _lease(store, platform)
+        quota_exhausted = False
+        try:
+            lease = await _lease(store, platform)
+        except QuotaReached:
+            lease, quota_exhausted = None, True
+            logger.info("source account quota reached platform=%s", platform)
         if lease is None:
             result = anonymous if anonymous is not None else await attempt(None)
             logger.info("no source account available platform=%s mode=%s", platform, mode)
             return result.model_copy(
-                update={"account": AccountUse(used=False, no_account_available=True)}
+                update={
+                    "account": AccountUse(
+                        used=False, no_account_available=True, quota_exhausted=quota_exhausted
+                    )
+                }
             )
         outcome: Outcome | None = None
         try:

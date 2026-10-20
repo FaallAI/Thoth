@@ -273,6 +273,7 @@ class AccountUse(StrictModel):
     used: bool
     outcome: Literal["success", "blocked", "challenge", "rate_limited", "login_wall"] | None = None
     no_account_available: bool = False
+    quota_exhausted: bool = False
 
 
 class AcquisitionResult(StrictModel):

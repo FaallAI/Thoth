@@ -74,6 +74,7 @@ class PlatformAccounts(StrictModel):
     min_spacing_seconds: int
     daily_budget: int
     engine: BrowserEngine
+    operator_reserve_percent: int = 50
     counts: StatusCounts
     accounts: list[SourceAccount]
 
@@ -90,6 +91,8 @@ class AccessPolicyUpdate(StrictModel):
     min_spacing_seconds: Annotated[int, Field(ge=0, le=MAX_SPACING_SECONDS)]
     daily_budget: DailyBudget | None = None
     engine: BrowserEngine = "patchright"
+    #: Share of the daily capacity kept for the operator; null means the default (50).
+    operator_reserve_percent: Annotated[int, Field(ge=0, le=100)] | None = None
 
 
 class CookieValidationRequest(StrictModel):

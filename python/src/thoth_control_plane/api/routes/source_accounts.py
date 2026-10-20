@@ -177,6 +177,7 @@ async def list_source_accounts(_: Authorized, store: Store) -> SourceAccountsOve
                 min_spacing_seconds=policy.min_spacing_seconds,
                 daily_budget=policy.daily_budget,
                 engine=policy.engine,  # type: ignore[arg-type]
+                operator_reserve_percent=policy.operator_reserve_percent,
                 counts=counts,
                 accounts=mine,
             )
@@ -196,12 +197,16 @@ async def update_access_policy(
         payload.min_spacing_seconds,
         payload.daily_budget if "daily_budget" in given else UNSET,
         payload.engine if "engine" in given else UNSET,
+        operator_reserve_percent=payload.operator_reserve_percent
+        if "operator_reserve_percent" in given
+        else UNSET,
     )
     return AccessPolicyUpdate(
         mode=view.mode,
         min_spacing_seconds=view.min_spacing_seconds,
         daily_budget=view.daily_budget,
         engine=view.engine,  # type: ignore[arg-type]
+        operator_reserve_percent=view.operator_reserve_percent,
     )
 
 
