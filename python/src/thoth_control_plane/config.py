@@ -78,6 +78,9 @@ class Settings(BaseSettings):
     THOTH_SMTP_PASSWORD: SecretStr | None = None
     THOTH_SMTP_FROM: str | None = None
     THOTH_AUTH_WORKSPACE_TOKENS: bool = False
+    # Billing (spec 2026-10-20): both empty leave checkout and the webhook off.
+    THOTH_XENDIT_SECRET_KEY: SecretStr | None = None
+    THOTH_XENDIT_CALLBACK_TOKEN: SecretStr | None = None
     THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE: SourceActivityMode = (
         "python_tiktok_with_legacy_fallback"
     )
@@ -166,6 +169,8 @@ class Settings(BaseSettings):
         "THOTH_SMTP_USERNAME",
         "THOTH_SMTP_PASSWORD",
         "THOTH_SMTP_FROM",
+        "THOTH_XENDIT_SECRET_KEY",
+        "THOTH_XENDIT_CALLBACK_TOKEN",
         mode="before",
     )
     @classmethod
@@ -211,6 +216,14 @@ class Settings(BaseSettings):
             self.THOTH_AUTH_GITHUB_CLIENT_ID,
             self.THOTH_AUTH_GITHUB_CLIENT_SECRET,
             self.THOTH_AUTH_GITHUB_ORG,
+        )
+
+    @property
+    def billing_enabled(self) -> bool:
+        return (
+            self.THOTH_XENDIT_SECRET_KEY is not None
+            and self.THOTH_XENDIT_CALLBACK_TOKEN is not None
+            and self.THOTH_EDITOR_DATABASE_URL is not None
         )
 
     @property

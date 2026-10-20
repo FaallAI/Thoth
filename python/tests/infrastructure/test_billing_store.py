@@ -130,3 +130,41 @@ def test_plans_are_edited_and_validated(store: BillingStore) -> None:
     with pytest.raises(UnknownPlan):
         store.grant("ws_a", "nope", 30)
     assert [p.plan_id for p in store.plans(active_only=True)] == ["free"]
+
+
+def test_a_paid_invoice_starts_the_plan_once(store, clock) -> None:
+    _pro(store)
+    invoice = store.open_invoice("ws_a", "pro")
+    assert (invoice.status, invoice.amount_idr) == ("pending", 99000)
+    assert store.settle(invoice.invoice_id, "PAID", 99000) == "applied"
+    assert store.settle(invoice.invoice_id, "PAID", 99000) == "ignored"  # a replay
+    sub = store.subscription("ws_a")
+    assert (sub.plan_id, sub.period_end) == ("pro", NOW + timedelta(days=30))
+
+
+def test_renewing_the_same_plan_extends_its_period(store, clock) -> None:
+    _pro(store)
+    store.settle(store.open_invoice("ws_a", "pro").invoice_id, "PAID", 99000)
+    clock.now = NOW + timedelta(days=10)
+    store.settle(store.open_invoice("ws_a", "pro").invoice_id, "PAID", 99000)
+    assert store.subscription("ws_a").period_end == NOW + timedelta(days=60)
+
+
+def test_a_wrong_amount_an_expiry_and_an_unknown_invoice_change_nothing(store) -> None:
+    _pro(store)
+    invoice = store.open_invoice("ws_a", "pro")
+    assert store.settle(invoice.invoice_id, "PAID", 1000) == "mismatch"
+    assert store.subscription("ws_a").plan_id == "free"
+    assert store.settle(invoice.invoice_id, "EXPIRED", None) == "applied"
+    assert store.settle(invoice.invoice_id, "PAID", 99000) == "ignored"  # no longer pending
+    assert store.settle("inv_nope", "PAID", 1) == "unknown"
+    assert [i.status for i in store.invoices("ws_a")] == ["expired"]
+
+
+def test_an_issued_invoice_keeps_its_amount_after_a_price_change(store) -> None:
+    _pro(store)
+    invoice = store.open_invoice("ws_a", "pro")
+    store.set_plan(
+        "pro", name="Pro", price_idr=150000, workflows=50, videos=20, period_days=30, active=True
+    )
+    assert store.settle(invoice.invoice_id, "PAID", 99000) == "applied"

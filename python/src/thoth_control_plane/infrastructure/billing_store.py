@@ -23,6 +23,7 @@ from thoth_control_plane.billing import (
     AllowanceView,
     BillingUnavailable,
     InvalidPlan,
+    InvoiceView,
     PlanLimitReached,
     PlanView,
     SubscriptionView,
@@ -30,6 +31,7 @@ from thoth_control_plane.billing import (
 )
 from thoth_control_plane.infrastructure.billing_models import (
     AllowanceUseRow,
+    InvoiceRow,
     PlanRow,
     SubscriptionRow,
 )
@@ -46,6 +48,18 @@ def _plan(row: PlanRow) -> PlanView:
         row.videos_per_period,
         row.period_days,
         row.active,
+    )
+
+
+def _invoice(row: InvoiceRow) -> InvoiceView:
+    return InvoiceView(
+        row.invoice_id,
+        row.plan_id,
+        row.amount_idr,
+        row.status,
+        row.invoice_url,
+        row.created_at,
+        row.paid_at,
     )
 
 
@@ -205,6 +219,91 @@ class BillingStore:
                 self._used(session, workspace_id, "video", sub.period_start),
                 plan.videos_per_period,
             )
+
+    # --- invoices (spec 2) --------------------------------------------------------------
+
+    def open_invoice(self, workspace_id: str, plan_id: str) -> InvoiceView:
+        """A pending invoice at the plan's current price; a later price change never moves it."""
+        with self._session(write=True) as session:
+            plan = session.get(PlanRow, plan_id)
+            if plan is None or not plan.active:
+                raise UnknownPlan(plan_id)
+            row = InvoiceRow(
+                invoice_id=f"inv_{uuid.uuid4().hex}",
+                workspace_id=workspace_id,
+                plan_id=plan_id,
+                amount_idr=plan.price_idr,
+                status="pending",
+                created_at=self._clock(),
+            )
+            session.add(row)
+            return _invoice(row)
+
+    def attach_invoice(self, invoice_id: str, provider_id: str, url: str) -> None:
+        with self._session(write=True) as session:
+            row = session.get(InvoiceRow, invoice_id)
+            if row is not None:
+                row.provider_invoice_id, row.invoice_url = provider_id, url
+
+    def fail_invoice(self, invoice_id: str) -> None:
+        with self._session(write=True) as session:
+            row = session.get(InvoiceRow, invoice_id)
+            if row is not None and row.status == "pending":
+                row.status = "failed"
+
+    def invoices(self, workspace_id: str) -> list[InvoiceView]:
+        with self._session() as session:
+            rows = session.scalars(
+                select(InvoiceRow)
+                .where(InvoiceRow.workspace_id == workspace_id)
+                .order_by(InvoiceRow.created_at.desc())
+                .limit(50)
+            )
+            return [_invoice(row) for row in rows]
+
+    def apply_plan(self, workspace_id: str, plan_id: str) -> None:
+        """Start or extend `plan_id` now (spec 2.2): a Rp0 checkout or a paid invoice."""
+        self._ensure(workspace_id)
+        with self._session(write=True) as session:
+            self._start_plan(session, workspace_id, plan_id)
+
+    def settle(self, invoice_id: str, status: str, paid_amount: int | None) -> str:
+        """Apply one webhook. Only a pending invoice moves, so a replay does nothing; a payment
+        and the plan it buys commit together."""
+        with self._session() as session:
+            found = session.get(InvoiceRow, invoice_id)
+            workspace_id = None if found is None else found.workspace_id
+        if workspace_id is None:
+            return "unknown"
+        self._ensure(workspace_id)
+        with self._session(write=True) as session:
+            row = session.get(InvoiceRow, invoice_id, with_for_update={"key_share": True})
+            assert row is not None
+            if row.status != "pending":
+                return "ignored"
+            if status == "EXPIRED":
+                row.status = "expired"
+                return "applied"
+            if status not in ("PAID", "SETTLED"):
+                return "ignored"
+            if paid_amount != row.amount_idr:
+                return "mismatch"
+            row.status, row.paid_at = "paid", self._clock()
+            self._start_plan(session, row.workspace_id, row.plan_id)
+            return "applied"
+
+    def _start_plan(self, session: Session, workspace_id: str, plan_id: str) -> None:
+        plan = session.get(PlanRow, plan_id)
+        if plan is None:
+            raise UnknownPlan(plan_id)
+        row = self._current(session, workspace_id, lock=True)
+        now = self._clock()
+        if row.plan_id == plan_id and plan_id != FREE_PLAN_ID and now < row.period_end:
+            row.period_end += timedelta(days=plan.period_days)
+        else:
+            row.plan_id, row.period_start = plan_id, now
+            row.period_end = now + timedelta(days=plan.period_days)
+        row.updated_at = now
 
     # --- internals -----------------------------------------------------------------------
 

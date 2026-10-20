@@ -177,6 +177,10 @@ services:
       THOTH_SMTP_USERNAME: "${THOTH_SMTP_USERNAME:-}"
       THOTH_SMTP_PASSWORD: "${THOTH_SMTP_PASSWORD:-}"
       THOTH_SMTP_FROM: "${THOTH_SMTP_FROM:-}"
+      # Billing (spec 2026-10-20). Empty keys leave checkout off; allowances still apply.
+      THOTH_XENDIT_SECRET_KEY: "${THOTH_XENDIT_SECRET_KEY:-}"
+      THOTH_XENDIT_CALLBACK_TOKEN: "${THOTH_XENDIT_CALLBACK_TOKEN:-}"
+      THOTH_AUTH_PUBLIC_SIGNUP: "${THOTH_AUTH_PUBLIC_SIGNUP:-false}"
     volumes:
       # Sealed per-account browser profiles: the worker writes them, the api deletes them.
       - type: bind

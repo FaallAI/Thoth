@@ -20,6 +20,8 @@ from thoth_control_plane import metering
 from thoth_control_plane.acquisition.accounts.profiles import AccountProfiles
 from thoth_control_plane.acquisition.accounts.vault import Vault
 from thoth_control_plane.api.routes.auth import router as auth_router
+from thoth_control_plane.api.routes.billing import router as billing_router
+from thoth_control_plane.api.routes.billing_webhooks import router as billing_webhook_router
 from thoth_control_plane.api.routes.edit_documents import router as edit_document_router
 from thoth_control_plane.api.routes.editor_assets import router as editor_asset_router
 from thoth_control_plane.api.routes.health import router as health_router
@@ -120,6 +122,7 @@ from thoth_control_plane.infrastructure.workflow_run_store import (
     WorkflowRunStore,
     WorkflowRunsUnavailable,
 )
+from thoth_control_plane.infrastructure.xendit import XenditInvoices
 from thoth_control_plane.observability import configure_provider_logging
 
 CONTRACT_VERSION = "1"
@@ -362,6 +365,11 @@ def create_app(
         usage_store = UsageStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
     app.state.usage_store = usage_store
     app.state.billing_store = billing_store
+    app.state.payments = (
+        XenditInvoices(settings.THOTH_XENDIT_SECRET_KEY.get_secret_value())  # type: ignore[union-attr]
+        if settings.billing_enabled
+        else None
+    )
     if usage_store is not None:
         metering.install(usage_store)
     if account_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
@@ -540,6 +548,8 @@ def create_app(
     app.include_router(studio_import_router, prefix="/api/v1")
     app.include_router(source_account_router, prefix="/api/v1")
     app.include_router(usage_router, prefix="/api/v1")
+    app.include_router(billing_router, prefix="/api/v1")
+    app.include_router(billing_webhook_router)
     # Unversioned and unpublished: only the private renderer ever calls these.
     app.include_router(internal_render_router)
     return app
