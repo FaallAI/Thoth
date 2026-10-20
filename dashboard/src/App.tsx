@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router";
+import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { ProjectSwitcher } from "@/components/ProjectSwitcher";
 import { GuidedStudio } from "@/features/studio/GuidedStudio";
 import { StudioImportGate } from "@/features/studio/StudioImportGate";
@@ -123,7 +123,7 @@ function Shell() {
           <Routes>
             <Route path="/" element={<Navigate to="/workflows" replace />} />
             <Route path="/workflows" element={<WorkflowsPage client={controlPlaneClient} projectId={projectId} projects={projects} onRuns={setRuns} />} />
-            <Route path="/workflows/:workflowId" element={<WorkflowDetailRoute />} />
+            <Route path="/workflows/:workflowId" element={<WorkflowDetailRoute projectId={projectId} />} />
             <Route path="/studio" element={projectId ? <StudioDocumentsPage client={controlPlaneClient} projectId={projectId} /> : needsProject} />
             <Route path="/studio/:projectId/:documentId" element={<StudioDocumentRoute workspaceControls={switcher} projects={projects} />} />
             <Route path="/accounts" element={me.platform_admin ? <SourceAccounts client={sourceAccountsClient} onManageProxies={() => navigate("/accounts/proxies")} /> : platformOnly} />
@@ -140,9 +140,19 @@ function Shell() {
   );
 }
 
-function WorkflowDetailRoute() {
+function WorkflowDetailRoute({ projectId }: { projectId: string | null }) {
   const { workflowId = "" } = useParams();
-  return <WorkflowDetailPage client={controlPlaneClient} workflowId={workflowId} />;
+  const navigate = useNavigate();
+  return (
+    <WorkflowDetailPage
+      client={controlPlaneClient}
+      workflowId={workflowId}
+      projectId={projectId}
+      onOpenStudio={(project, document, resolve) =>
+        navigate(`/studio/${encodeURIComponent(project)}/${encodeURIComponent(document)}${resolve ? "?resolve=1" : ""}`)
+      }
+    />
+  );
 }
 
 /** Studio from its URL alone; "Resolve source items" opens the gate without a Content Set. */
@@ -151,7 +161,9 @@ function StudioDocumentRoute({ workspaceControls, projects }: { workspaceControl
   const navigate = useNavigate();
   // `opened` rises on every return from the gate, so Studio reloads the revision decisions saved.
   const [opened, setOpened] = useState(0);
-  const [resolving, setResolving] = useState(false);
+  const [searchParams] = useSearchParams();
+  // `?resolve=1`: a workflow import left an item unresolved, so the gate opens with the draft.
+  const [resolving, setResolving] = useState(() => searchParams.get("resolve") === "1");
   const [title, setTitle] = useState<string>();
   useEffect(() => {
     let live = true;
