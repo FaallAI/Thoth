@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 
 import {
   StudioImportRequestError,
+  type StudioImportInventory,
   type StudioSourceInspection,
   type WorkflowStudioImport,
   type WorkflowSummary,
@@ -34,10 +35,30 @@ const opened = (outcome: "copied" | "unresolved" = "copied"): WorkflowStudioImpo
   items: [{ item_id: "main_000", outcome, reason: outcome === "unresolved" ? "media_missing" : null }],
 });
 
-function client(found = inspection(), result = opened()) {
+const inventory = (disposition: "unresolved" | "attached" = "attached") => ({
+  document_id: "edoc_old",
+  source_key: KEY,
+  revision: 2,
+  items: [
+    {
+      item_id: "footage_000",
+      role: "footage",
+      order: 0,
+      label: "Footage 1",
+      platform: "tiktok",
+      media_kind: "video",
+      scene_id: "scene_002",
+      reason: null,
+      disposition,
+    },
+  ],
+}) as unknown as StudioImportInventory;
+
+function client(found = inspection(), result = opened(), resumed = inventory()) {
   return {
     inspectWorkflowStudioImport: mock(async () => found),
     openWorkflowInStudio: mock(async () => result),
+    getStudioImportInventory: mock(async () => resumed),
   };
 }
 
@@ -84,7 +105,7 @@ test("an earlier draft can be resumed instead of imported again", async () => {
   render(<OpenInStudio client={c} projectId="p1" workflowId="wf_1" summary={done()} onOpen={onOpen} />);
   await open();
   await userEvent.setup().click(await screen.findByRole("button", { name: /Resume draft/ }));
-  expect(onOpen).toHaveBeenCalledWith("p1", "edoc_old", false);
+  await waitFor(() => expect(onOpen).toHaveBeenCalledWith("p1", "edoc_old", false));
   expect(c.openWorkflowInStudio).not.toHaveBeenCalled();
   await userEvent.setup().click(screen.getByRole("button", { name: "Create new draft" }));
   await waitFor(() => expect(c.openWorkflowInStudio).toHaveBeenCalledTimes(1));
@@ -122,6 +143,7 @@ test("each refusal has its own words", async () => {
   ];
   for (const [status, code, text] of cases) {
     const c = {
+      getStudioImportInventory: mock(async () => inventory()),
       inspectWorkflowStudioImport: mock(async () => {
         throw new StudioImportRequestError(status, code);
       }),
@@ -151,6 +173,7 @@ const LEFT_OUT = [
 test("a retry after a cut-off import finishes the same draft", async () => {
   let attempts = 0;
   const c = {
+    getStudioImportInventory: mock(async () => inventory()),
     inspectWorkflowStudioImport: mock(async () => inspection()),
     openWorkflowInStudio: mock(async (_project: string, _workflow: string, _key: string) => {
       attempts += 1;
@@ -190,6 +213,7 @@ test("a project switch drops the choices made for the old project", async () => 
 
 test("a cut-off import is finished after a page reload", async () => {
   const failing = {
+    getStudioImportInventory: mock(async () => inventory()),
     inspectWorkflowStudioImport: mock(async () => inspection()),
     openWorkflowInStudio: mock(async (_project: string, _workflow: string, _key: string) => {
       throw new StudioImportRequestError(null, null);
@@ -203,6 +227,7 @@ test("a cut-off import is finished after a page reload", async () => {
 
   const drafts = [{ document_id: "edoc_1", source_key: KEY, revision: 1, created_at: "2026-10-20T00:00:00Z" }];
   const after = {
+    getStudioImportInventory: mock(async () => inventory()),
     inspectWorkflowStudioImport: mock(async () => inspection({ drafts })),
     openWorkflowInStudio: mock(async (_project: string, _workflow: string, _key: string) => opened()),
   };
@@ -229,4 +254,29 @@ test("an unfinished import belongs to its own project and run", async () => {
   await waitFor(() => expect(c.openWorkflowInStudio).toHaveBeenCalledTimes(1));
   expect(c.inspectWorkflowStudioImport).toHaveBeenCalledTimes(1);
   expect((c.openWorkflowInStudio.mock.calls[0] as unknown[])[2]).not.toBe("k-other");
+});
+
+test("a resumed draft with items still undecided opens with the gate", async () => {
+  const drafts = [{ document_id: "edoc_old", source_key: KEY, revision: 2, created_at: "2026-10-19T00:00:00Z" }];
+  const c = client(inspection({ drafts }), opened(), inventory("unresolved"));
+  const onOpen = mock(() => {});
+  render(<OpenInStudio client={c} projectId="p1" workflowId="wf_1" summary={done()} onOpen={onOpen} />);
+  await open();
+  await userEvent.setup().click(await screen.findByRole("button", { name: /Resume draft/ }));
+  await waitFor(() => expect(onOpen).toHaveBeenCalledWith("p1", "edoc_old", true));
+  expect(c.getStudioImportInventory).toHaveBeenCalledWith("p1", "edoc_old");
+});
+
+test("the button says what it is doing", async () => {
+  let answer: (value: StudioSourceInspection) => void = () => {};
+  const c = {
+    ...client(),
+    inspectWorkflowStudioImport: mock(() => new Promise<StudioSourceInspection>((resolve) => { answer = resolve; })),
+    openWorkflowInStudio: mock(() => new Promise<WorkflowStudioImport>(() => {})),
+  };
+  render(<OpenInStudio client={c} projectId="p1" workflowId="wf_1" summary={done()} onOpen={() => {}} />);
+  await open();
+  expect(await screen.findByRole("button", { name: "Opening…" })).toBeDefined();
+  answer(inspection());
+  expect(await screen.findByRole("button", { name: "Importing media…" })).toBeDefined();
 });

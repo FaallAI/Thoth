@@ -8,7 +8,10 @@ import {
 } from "@/api/control-plane";
 import { Button } from "@/components/ui/button";
 
-export type OpenInStudioClient = Pick<ControlPlaneClient, "inspectWorkflowStudioImport" | "openWorkflowInStudio">;
+export type OpenInStudioClient = Pick<
+  ControlPlaneClient,
+  "inspectWorkflowStudioImport" | "openWorkflowInStudio" | "getStudioImportInventory"
+>;
 
 type Props = {
   client: OpenInStudioClient;
@@ -66,7 +69,8 @@ const leftOut = (found: StudioSourceInspection) => found.items.filter((item) => 
 /** "Open in Studio" for a finished run: import its Content Set, or resume a draft made from it. */
 export function OpenInStudio({ client, projectId, workflowId, summary, onOpen }: Props) {
   const [inspection, setInspection] = useState<StudioSourceInspection | null>(null);
-  const [busy, setBusy] = useState(false);
+  // What the button is doing: reading the run (or a draft), or importing its media.
+  const [busy, setBusy] = useState<"opening" | "importing" | null>(null);
   const [error, setError] = useState<string | null>(null);
   // The import a POST started but never confirmed: the next click (also after a reload, via
   // `recall`) replays its key, so the server finishes that draft instead of leaving it half done.
@@ -82,18 +86,19 @@ export function OpenInStudio({ client, projectId, workflowId, summary, onOpen }:
   }
 
   const attempt = async (step: () => Promise<void>) => {
-    setBusy(true);
+    setBusy("opening");
     setError(null);
     try {
       await step();
     } catch (caught) {
       setError(failure(caught));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
   // `shownLeftOut`: the person saw fields Studio leaves out; they wait in the gate as decisions.
   const create = async (project: string, key: string, shownLeftOut: boolean) => {
+    setBusy("importing");
     pending.current = { key, leftOut: shownLeftOut };
     keep(project, workflowId, pending.current);
     const result = await client.openWorkflowInStudio(project, workflowId, key);
@@ -101,6 +106,12 @@ export function OpenInStudio({ client, projectId, workflowId, summary, onOpen }:
     keep(project, workflowId, null);
     onOpen(project, result.draft.document_id, shownLeftOut || result.items.some((item) => item.outcome === "unresolved"));
   };
+  // A resumed draft opens with the gate while any of its items still waits for a decision.
+  const resume = (project: string, documentId: string) =>
+    attempt(async () => {
+      const draft = await client.getStudioImportInventory(project, documentId);
+      onOpen(project, documentId, draft.items.some((item) => item.disposition === "unresolved"));
+    });
   const start = (project: string) =>
     attempt(async () => {
       const unfinished = pending.current ?? recall(project, workflowId);
@@ -112,8 +123,8 @@ export function OpenInStudio({ client, projectId, workflowId, summary, onOpen }:
 
   return (
     <section className="open-in-studio" aria-label="Open in Studio">
-      <Button disabled={!projectId || busy} onClick={() => projectId && void start(projectId)}>
-        {busy ? "Importing media…" : "Open in Studio"}
+      <Button disabled={!projectId || busy !== null} onClick={() => projectId && void start(projectId)}>
+        {busy === "importing" ? "Importing media…" : busy ? "Opening…" : "Open in Studio"}
       </Button>
       {!projectId && <p className="text-sm text-muted-foreground">Choose a project first.</p>}
       {inspection && projectId && (
@@ -129,11 +140,11 @@ export function OpenInStudio({ client, projectId, workflowId, summary, onOpen }:
             </>
           )}
           {(inspection.drafts ?? []).map((draft) => (
-            <Button key={draft.document_id} variant="outline" disabled={busy} onClick={() => onOpen(projectId, draft.document_id, false)}>
+            <Button key={draft.document_id} variant="outline" disabled={busy !== null} onClick={() => void resume(projectId, draft.document_id)}>
               {`Resume draft from ${new Date(draft.created_at).toLocaleString()}`}
             </Button>
           ))}
-          <Button disabled={busy} onClick={() => void attempt(() => create(projectId, crypto.randomUUID(), leftOut(inspection).length > 0))}>Create new draft</Button>
+          <Button disabled={busy !== null} onClick={() => void attempt(() => create(projectId, crypto.randomUUID(), leftOut(inspection).length > 0))}>Create new draft</Button>
         </div>
       )}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
