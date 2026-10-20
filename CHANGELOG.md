@@ -12,11 +12,17 @@ signed URL, copies them server side into `uploads/<project>/`, registers them
 gate; replaying the same `Idempotency-Key` finishes it. Copies count as `media_stored`; the import
 consumes no billing allowance. New setting `THOTH_MEDIA_S3_REGION` (default `us-east-1`).
 
-**Verification:** Python 4258 passed, 78 skipped; ruff clean. Postgres: migrations 21 passed, and
+**Verification:** Python 4260 passed, 78 skipped; ruff clean. Postgres: migrations 21 passed, and
 the workflow import, billing and source-account Postgres tests 10 passed. MinIO media store 74
-passed (the presigned probe URL is fetched from a real MinIO). Dashboard 719 passed, `tsc` clean,
+passed (the presigned probe URL is fetched from a real MinIO). Dashboard 722 passed, `tsc` clean,
 build succeeds. No Rust change, so `build_cuda.bat` was not run. The stack smoke verdict
 `workflow_opens_in_studio=true` runs in CI.
+
+**Review:** one whole-branch review (no Critical). Fixed before merge: a media-store outage
+now answers 503 before any draft exists; ffprobe opens only `http,https,tcp,tls` for a store URL
+(`file` only for a local path); the dashboard replays a cut-off import's key so the next click
+finishes it; the gate opens when Studio left fields out; a project switch drops stale choices.
+Seven minors are deferred (listed in the ledger).
 
 **Next steps:**
 - Operator gates, each needing its own authorization: push and PR, CI (including the stack smoke
