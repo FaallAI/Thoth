@@ -10,6 +10,7 @@
       // The shared composition resolves Remotion through this same mapping, so
       // app and package load one module instance under the test runner.
       "remotion": ["./node_modules/remotion"],
+      "@remotion/media": ["./node_modules/@remotion/media"],
       "@thoth/remotion-composition": ["../packages/remotion-composition/src/index.ts"],
       "@thoth/remotion-composition/*": ["../packages/remotion-composition/src/*"]
     }

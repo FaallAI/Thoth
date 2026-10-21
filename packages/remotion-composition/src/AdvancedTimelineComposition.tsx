@@ -1,4 +1,5 @@
-import { AbsoluteFill, Audio, Img, Sequence, Video } from "remotion";
+import { Video } from "@remotion/media";
+import { AbsoluteFill, Audio, Img, Sequence } from "remotion";
 import type { CSSProperties, ReactNode } from "react";
 
 import type { AssetKind, EditDocumentV2, TimelineClip } from "./timeline";
@@ -241,7 +242,6 @@ function renderClip(
         height: percent(1 / span(crop.height)),
         left: percent(-crop.left / span(crop.width)),
         top: percent(-crop.top / span(crop.height)),
-        objectFit: clip.fit,
       };
       return (
         // The frame clips the crop and carries the placement; the media itself
@@ -256,9 +256,19 @@ function renderClip(
         >
           {/* A still has no source timeline, so only a movie carries a trim. */}
           {kind === "image" ? (
-            <Img src={source} style={media} />
+            <Img src={source} style={{ ...media, objectFit: clip.fit }} />
           ) : (
-            <Video src={source} startFrom={clip.source_from_frame} muted={muted} style={media} />
+            // One WebCodecs decoder for the preview and the render: the HTML5 element mis-seeks
+            // under load (parity frame 90, 2026-10-21), and an FFmpeg frame extractor shifts
+            // colours away from what the editor shows. Never fall back to that extractor.
+            <Video
+              src={source}
+              trimBefore={clip.source_from_frame}
+              muted={muted}
+              objectFit={clip.fit}
+              style={media}
+              disallowFallbackToOffthreadVideo
+            />
           )}
         </AbsoluteFill>
       );

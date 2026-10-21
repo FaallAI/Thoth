@@ -17,7 +17,7 @@ export default defineConfig({
     },
     // The shared composition lives outside this app, so Remotion and React must
     // still resolve to this app's single copy of each.
-    dedupe: ["react", "react-dom", "remotion"],
+    dedupe: ["react", "react-dom", "remotion", "@remotion/media"],
   },
   server: {
     proxy: devProxy(),

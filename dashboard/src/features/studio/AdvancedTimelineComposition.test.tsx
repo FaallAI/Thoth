@@ -42,7 +42,6 @@ mock.module("remotion", () => ({
       {children}
     </div>
   ),
-  Video: (props: Record<string, unknown>) => <div data-testid="video" {...props} />,
   // Volume is a frame callback, which no DOM attribute can carry, so it is
   // captured instead of spread.
   Audio: ({ volume, ...rest }: Record<string, unknown>) => {
@@ -67,6 +66,17 @@ mock.module("remotion", () => ({
     continueRender: (handle: number) => renderDelay.continued.push(handle),
     cancelRender: (error: unknown) => renderDelay.cancelled.push(error),
   }),
+}));
+
+// The WebCodecs video tag needs a real decoder; its props are what the composition decides.
+mock.module("@remotion/media", () => ({
+  Video: ({ disallowFallbackToOffthreadVideo, ...rest }: Record<string, unknown>) => (
+    <div
+      data-testid="video"
+      data-no-fallback={String(disallowFallbackToOffthreadVideo === true)}
+      {...rest}
+    />
+  ),
 }));
 
 const { AdvancedTimelineComposition, COMPOSITION_ID } = await import("@thoth/remotion-composition");
@@ -345,7 +355,7 @@ test("media sources are looked up by asset ID and trimmed at the source frame", 
   render(<AdvancedTimelineComposition document={documentV2()} previewSources={SOURCES} />);
   const video = screen.getByTestId("video");
   expect(video.getAttribute("src")).toBe(SOURCES.asset_video);
-  expect(video.getAttribute("startFrom")).toBe("30");
+  expect(video.getAttribute("trimBefore")).toBe("30");
   expect(video.getAttribute("crossOrigin")).toBeNull();
 });
 
@@ -373,7 +383,7 @@ test("fit, crop, and position shape how a video fills the canvas", () => {
   const [plain, shaped] = screen.getAllByTestId("video") as HTMLElement[];
   const frames = screen.getAllByTestId("clip-frame") as HTMLElement[];
 
-  expect(plain!.style.objectFit).toBe("cover");
+  expect(plain!.getAttribute("objectFit")).toBe("cover");
   expect([plain!.style.width, plain!.style.height, plain!.style.left, plain!.style.top]).toEqual([
     "100%",
     "100%",
@@ -383,7 +393,7 @@ test("fit, crop, and position shape how a video fills the canvas", () => {
   expect(frames[0]!.style.transform).toBe("translate(0%, 0%) scale(1)");
 
   // A half-wide, 60%-tall crop has to enlarge the frame and shift it back.
-  expect(shaped!.style.objectFit).toBe("contain");
+  expect(shaped!.getAttribute("objectFit")).toBe("contain");
   expect([shaped!.style.width, shaped!.style.height, shaped!.style.left, shaped!.style.top]).toEqual([
     "200%",
     "166.6667%",
@@ -551,4 +561,12 @@ test("a font that will not load cancels the render instead of drawing a substitu
   } finally {
     restore();
   }
+});
+
+test("video is drawn by the frame-accurate decoder that never falls back", () => {
+  // The HTML5 video element mis-seeks under load (parity frame 90, 2026-10-21).
+  render(<AdvancedTimelineComposition document={documentV2()} previewSources={SOURCES} />);
+  const drawn = screen.getByTestId("video");
+  expect(drawn.getAttribute("trimBefore")).toBe("30");
+  expect(drawn.getAttribute("data-no-fallback")).toBe("true");
 });

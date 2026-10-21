@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@remotion/bundler": "4.0.523",
+    "@remotion/media": "4.0.523",
     "@remotion/renderer": "4.0.523",
     "ajv": "8.20.0",
     "react": "19.2.7",

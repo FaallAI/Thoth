@@ -9,6 +9,7 @@
     "./register": "./src/register.tsx"
   },
   "peerDependencies": {
+    "@remotion/media": "4.0.523",
     "react": "^19.2.7",
     "remotion": "4.0.523"
   }
