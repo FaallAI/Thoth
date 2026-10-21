@@ -571,3 +571,49 @@ test("video is drawn by the frame-accurate decoder that never falls back", () =>
   expect(drawn.getAttribute("trimBefore")).toBe("30");
   expect(drawn.getAttribute("data-no-fallback")).toBe("true");
 });
+
+/** documentV2 with one subtitle band on its video clip, blur switched as given. */
+function blurred(enabled: boolean, window: [number, number] | null = null): EditDocumentV2 {
+  const document = documentV2();
+  const video = document.clips!.find((clip) => clip.clip_id === "clip_video")!;
+  Object.assign(video, {
+    blur_enabled: enabled,
+    blur_regions: [
+      {
+        x: 0.1,
+        y: 0.65,
+        w: 0.8,
+        h: 0.09,
+        from_frame: window?.[0] ?? null,
+        to_frame: window?.[1] ?? null,
+      },
+    ],
+  });
+  return document;
+}
+
+test("blur off draws nothing", () => {
+  render(<AdvancedTimelineComposition document={blurred(false)} previewSources={SOURCES} />);
+  expect(screen.queryByTestId("blur-region")).toBeNull();
+});
+
+test("blur on draws each region with a backdrop blur", () => {
+  render(<AdvancedTimelineComposition document={blurred(true)} previewSources={SOURCES} />);
+  const region = screen.getByTestId("blur-region") as HTMLElement;
+  expect(region.style.backdropFilter).toMatch(/^blur\(\d+(\.\d+)?px\)$/);
+});
+
+test("a windowed region renders inside a Sequence offset by the trim", () => {
+  // The clip starts 30 source frames in, so source frames 60-120 are clip frames 30-90.
+  render(<AdvancedTimelineComposition document={blurred(true, [60, 120])} previewSources={SOURCES} />);
+  const region = screen.getByTestId("blur-region");
+  const window = region.closest('[data-testid="sequence"]') as HTMLElement;
+  expect([window.getAttribute("data-from"), window.getAttribute("data-duration")]).toEqual(["30", "60"]);
+});
+
+test("an image clip ignores blur", () => {
+  const document = blurred(true);
+  document.asset_refs![0]!.kind = "image";
+  render(<AdvancedTimelineComposition document={document} previewSources={SOURCES} />);
+  expect(screen.queryByTestId("blur-region")).toBeNull();
+});
