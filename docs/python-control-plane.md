@@ -358,6 +358,14 @@ Every response carries `X-Thoth-Contract-Version: 1`. All state-changing endpoin
 | `POST /api/v1/workflows/{workflow_id}/cancel` | Idempotently request cancellation. |
 | `POST /api/v1/workflows/{workflow_id}/retry` | Request retry from a validated stage. Currently returns `503` because no durable checkpoint policy is implemented. |
 | `GET /api/v1/workflows/{workflow_id}/artifacts/{artifact_id}` | Authorize through workflow ownership and stream one referenced artifact. |
+| `GET /api/v1/projects/{project_id}/workflows/{workflow_id}/studio-import` | Read-only: what opening the run in Studio would import, what Studio leaves out, and the drafts already made from it. |
+| `POST /api/v1/projects/{project_id}/workflows/{workflow_id}/studio-import` | With `Idempotency-Key`: create (or replay) a Studio draft from the run's Content Set, assigning an unassigned run to the project. Each media item is reused by checksum or probed in place and copied server side into `uploads/<project>/`; an item that fails stays unresolved, and a replay of the key retries it. Refusals: `409 content_set_unavailable`, `409 content_set_invalid`, `409 workflow_in_other_project`, `404`, `503`. |
+
+Opening a workflow in Studio probes each media object where it is stored: ffprobe reads a
+five-minute signed MinIO URL, limited to the `http`, `https`, `tcp` and `tls` protocols (a
+local store path may open `file` only).
+`THOTH_MEDIA_S3_REGION` (default `us-east-1`) is the region the API signs those URLs with; it
+must match MinIO's region.
 
 The retryable flag on a failure states whether the failed activity is safe to consider for a
 future checkpointed retry. It is not permission to rerun now. Until artifact fingerprint and

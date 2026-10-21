@@ -1165,3 +1165,19 @@ test("the default client sends no API key and a 403 raises the forbidden event",
   expect(forbidden).toBe(1);
   authEvents.removeEventListener("forbidden", onForbidden);
 });
+
+
+test("workflow import routes encode both ids", async () => {
+  const calls: RecordedCall[] = [];
+  const client = importClient(calls, ok({}));
+
+  await client.inspectWorkflowStudioImport("project / 1", "wf / 1");
+  await client.openWorkflowInStudio("project / 1", "wf / 1", "open_001");
+
+  const path = "/api/v1/projects/project%20%2F%201/workflows/wf%20%2F%201/studio-import";
+  expect(calls.map((call) => [call.url, call.init?.method ?? "GET"])).toEqual([
+    [path, "GET"],
+    [path, "POST"],
+  ]);
+  expect(new Headers(calls[1].init?.headers).get("Idempotency-Key")).toBe("open_001");
+});

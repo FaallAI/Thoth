@@ -64,6 +64,10 @@ class MediaStore(Protocol):
 
     def copy(self, source: str, destination: str) -> None: ...
 
+    def probe_source(self, location: str) -> str:
+        """An input ffprobe reads in place: a local path, or a short-lived signed URL."""
+        ...
+
     def check(self) -> None: ...
 
 
@@ -71,7 +75,8 @@ class MeteredMediaStore:
     """Records the bytes a scoped caller stores (spec 2026-10-20, 2.1); delegates the rest.
 
     Unscoped writes (the private renderer route, CLI imports) record nothing: a render's
-    output is counted when the render completes.
+    output is counted when the render completes. A server-side copy is counted by its caller
+    once kept (a workflow import counts it after registering the asset).
     """
 
     def __init__(self, inner: MediaStore) -> None:
@@ -108,7 +113,11 @@ class MeteredMediaStore:
         return self._inner.open_range(location, start, end)
 
     def copy(self, source: str, destination: str) -> None:
+        # Not counted here: a copy may still be rolled back, so its caller counts it once kept.
         self._inner.copy(source, destination)
+
+    def probe_source(self, location: str) -> str:
+        return self._inner.probe_source(location)
 
     def check(self) -> None:
         self._inner.check()
@@ -225,6 +234,12 @@ class LocalMediaStore:
         if not origin.is_file():
             raise MediaUnavailable("media_unavailable")
         _copy(origin, self._path(destination))
+
+    def probe_source(self, location: str) -> str:
+        path = self._path(location)
+        if not path.is_file():
+            raise MediaUnavailable("media_unavailable")
+        return str(path)
 
     def check(self) -> None:
         if not self._root.is_dir():

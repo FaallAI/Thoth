@@ -32,6 +32,7 @@ export type StudioImportItem = components["schemas"]["StudioImportItem"];
 export type StudioDraft = components["schemas"]["StudioDraft"];
 export type StudioDraftList = components["schemas"]["StudioDraftList"];
 export type StudioImportInventory = components["schemas"]["StudioImportInventory"];
+export type WorkflowStudioImport = components["schemas"]["WorkflowStudioImport"];
 export type CreateStudioImport = components["schemas"]["CreateStudioImport"];
 export type ResolveStudioImportItem = components["schemas"]["ResolveStudioImportItem"];
 export type PromptStageDefinition = components["schemas"]["PromptStageDefinition"];
@@ -237,6 +238,8 @@ export type ControlPlaneClient = {
     idempotencyKey: string,
   ) => Promise<StudioDraft>;
   listStudioImportDrafts: (projectId: string, sourceKey: string) => Promise<StudioDraftList>;
+  inspectWorkflowStudioImport: (projectId: string, workflowId: string) => Promise<StudioSourceInspection>;
+  openWorkflowInStudio: (projectId: string, workflowId: string, idempotencyKey: string) => Promise<WorkflowStudioImport>;
   getStudioImportInventory: (projectId: string, documentId: string) => Promise<StudioImportInventory>;
   resolveStudioImportItem: (
     projectId: string,
@@ -463,6 +466,8 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
       headers: { "Content-Type": "application/json", ...extra },
       body: JSON.stringify(body),
     });
+  const workflowImportPath = (projectId: string, workflowId: string) =>
+    `/api/v1/projects/${encodeURIComponent(projectId)}/workflows/${encodeURIComponent(workflowId)}/studio-import`;
 
   // Render failures answer `{ detail: { code } }`. Only an allowlisted code is
   // believed; every other body, however it is shaped, becomes one fixed code.
@@ -602,6 +607,12 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
       importPost(importPath(projectId), request, { "Idempotency-Key": idempotencyKey }),
     listStudioImportDrafts: (projectId, sourceKey) =>
       importCall(importPath(projectId, `/${encodeURIComponent(sourceKey)}`)),
+    inspectWorkflowStudioImport: (projectId, workflowId) => importCall(workflowImportPath(projectId, workflowId)),
+    openWorkflowInStudio: (projectId, workflowId, idempotencyKey) =>
+      importCall(workflowImportPath(projectId, workflowId), {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
+      }),
     getStudioImportInventory: (projectId, documentId) =>
       importCall(importPath(projectId, `/documents/${encodeURIComponent(documentId)}`)),
     resolveStudioImportItem: (projectId, documentId, itemId, request) =>

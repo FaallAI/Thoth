@@ -105,8 +105,14 @@ class StudioImportService:
         self, project_id: ProjectId, projection: StudioSourceProjection
     ) -> StudioSourceInspection:
         """Read-only: what would be imported, and which drafts already exist."""
-        inspection = inspect_source(project_id, projection)
-        listing = await self.list_drafts(project_id, inspection.source_key)
+        return await self.inspect_keyed(project_id, source_key(projection), projection)
+
+    async def inspect_keyed(
+        self, project_id: ProjectId, key: str, projection: StudioSourceProjection
+    ) -> StudioSourceInspection:
+        """`inspect` under a key the caller derived (a workflow import), not the projection's."""
+        inspection = inspect_source(project_id, projection).model_copy(update={"source_key": key})
+        listing = await self.list_drafts(project_id, key)
         return inspection.model_copy(
             update={"drafts": listing.drafts, "more_drafts": listing.more_drafts}
         )
@@ -115,16 +121,30 @@ class StudioImportService:
         self, project_id: ProjectId, request: CreateStudioImport, idempotency_key: str
     ) -> StudioDraft:
         IDEMPOTENCY_KEY_ADAPTER.validate_python(idempotency_key)
-        repository = self._store()
+        self._store()
         if source_key(request.source) != request.source_key:
             raise StudioImportSourceMismatch()
+        return await self.create_keyed(
+            project_id, request.source_key, request.source, idempotency_key
+        )
+
+    async def create_keyed(
+        self,
+        project_id: ProjectId,
+        key: str,
+        projection: StudioSourceProjection,
+        idempotency_key: str,
+    ) -> StudioDraft:
+        """Create one draft per idempotency key under `key`; a replay returns the same draft."""
+        IDEMPOTENCY_KEY_ADAPTER.validate_python(idempotency_key)
+        repository = self._store()
         try:
             return await repository.create_draft(
                 project_id=project_id,
-                source_key=request.source_key,
+                source_key=key,
                 idempotency_key=idempotency_key,
-                document=build_studio_draft(project_id, f"edoc_{uuid4().hex}", request.source),
-                inventory=inventory(request.source),
+                document=build_studio_draft(project_id, f"edoc_{uuid4().hex}", projection),
+                inventory=inventory(projection),
             )
         except PASSTHROUGH:
             raise

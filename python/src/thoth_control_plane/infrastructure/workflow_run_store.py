@@ -206,6 +206,21 @@ class WorkflowRunStore:
         except SQLAlchemyError as error:
             raise self._unavailable(error) from None
 
+    def claim(self, workflow_id: str, project_id: str) -> StoredRun | None:
+        """Assign an unassigned run, under a row lock; a run already in a project stays put.
+        The caller compares the returned project; None means the run does not exist."""
+        try:
+            with self._sessions.begin() as session:
+                row = session.get(WorkflowRunRow, workflow_id, with_for_update=True)
+                if row is None:
+                    return None
+                if row.project_id is None:
+                    row.project_id = project_id
+                    row.updated_at = self._clock()
+                return _stored(row)
+        except SQLAlchemyError as error:
+            raise self._unavailable(error) from None
+
     def insert_missing(self, run: StoredRun) -> bool:
         """Backfill only: insert when absent, never overwrite."""
         try:

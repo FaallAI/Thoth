@@ -860,6 +860,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/workflows/{workflow_id}/studio-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Inspect Workflow Studio Import
+         * @description Read-only: what opening this run would import, and the drafts already made from it.
+         */
+        get: operations["inspect_workflow_studio_import_api_v1_projects__project_id__workflows__workflow_id__studio_import_get"];
+        put?: never;
+        /**
+         * Open Workflow In Studio
+         * @description Create (or replay) one draft from the run and bring its media in; a replay finishes the
+         *     items an earlier attempt left unresolved.
+         */
+        post: operations["open_workflow_in_studio_api_v1_projects__project_id__workflows__workflow_id__studio_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/prompt-providers": {
         parameters: {
             query?: never;
@@ -3827,6 +3852,22 @@ export interface components {
              */
             retryable: boolean;
         };
+        /**
+         * WorkflowImportItem
+         * @description What one media item's import did: reused or copied an asset, left it unresolved with a
+         *     fixed reason, or found it already decided (attached or excluded) by an earlier attempt.
+         */
+        WorkflowImportItem: {
+            /** Item Id */
+            item_id: string;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "reused" | "copied" | "unresolved" | "decided";
+            /** Reason */
+            reason?: string | null;
+        };
         /** WorkflowRequest */
         WorkflowRequest: {
             output: components["schemas"]["OutputRequest"];
@@ -3883,6 +3924,15 @@ export interface components {
          * @enum {string}
          */
         WorkflowStatus: "queued" | "running" | "awaiting_approval" | "succeeded" | "failed" | "cancelled";
+        /**
+         * WorkflowStudioImport
+         * @description The draft a workflow opened into, at its latest revision, and each media item's outcome.
+         */
+        WorkflowStudioImport: {
+            draft: components["schemas"]["StudioDraft"];
+            /** Items */
+            items: components["schemas"]["WorkflowImportItem"][];
+        };
         /** WorkflowSummary */
         WorkflowSummary: {
             approval?: components["schemas"]["ApprovalRequest"] | null;
@@ -6141,6 +6191,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkflowSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    inspect_workflow_studio_import_api_v1_projects__project_id__workflows__workflow_id__studio_import_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                workflow_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudioSourceInspection"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    open_workflow_in_studio_api_v1_projects__project_id__workflows__workflow_id__studio_import_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                workflow_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowStudioImport"];
                 };
             };
             /** @description Validation Error */

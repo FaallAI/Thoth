@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-21 - Workflow to Studio with media (roadmap priority 2), built on `feat/workflow-to-studio`
+
+A finished workflow now opens in Studio from its detail page. The API projects the run's Content
+Set (the `workflow_reports` row) into a Studio draft under a per-workflow source key, reuses any
+project asset with the same checksum, probes the rest straight from MinIO through a five-minute
+signed URL, copies them server side into `uploads/<project>/`, registers them
+(`provenance = workflow_import`) and attaches them. A failed item stays unresolved in the import
+gate; replaying the same `Idempotency-Key` finishes it. Copies count as `media_stored`; the import
+consumes no billing allowance. New setting `THOTH_MEDIA_S3_REGION` (default `us-east-1`).
+
+**Verification:** Python 4267 passed, 78 skipped; ruff clean. Postgres: migrations 21 passed, and
+the workflow import, billing and source-account Postgres tests 10 passed. MinIO media store 74
+passed (the presigned probe URL is fetched from a real MinIO). Dashboard 726 passed, `tsc` clean,
+build succeeds. No Rust change, so `build_cuda.bat` was not run. The stack smoke verdict
+`workflow_opens_in_studio=true` runs in CI.
+
+**Review:** one whole-branch review (no Critical). Fixed before merge: a media-store outage
+now answers 503 before any draft exists; ffprobe opens only `http,https,tcp,tls` for a store URL
+(`file` only for a local path); the dashboard keeps a cut-off import's key per project and run
+(also across a reload) and replays it, so the next click finishes that draft; the gate opens when Studio left fields out; a project switch drops stale choices.
+The seven review minors were then fixed as well: an unrelated edit during an attach is retried
+once (an item a person decided meanwhile reports `decided`); Resume opens the gate while items
+are undecided; the button reads "Opening…" until media are imported; an unassigned run is
+claimed under a row lock before the draft, so it never moves between projects; a cancelled
+registration removes its copy; a copy counts as `media_stored` only once registered; YouTube
+watch links keep their video as `https://youtu.be/<id>`.
+
+**Next steps:**
+- Operator gates, each needing its own authorization: push and PR, CI (including the stack smoke
+  verdict `workflow_opens_in_studio=true`), merge, deploy.
+- Roadmap item 4 (Stage 5c: post cards, carousel photos, creator profile) is unblocked by this.
+- Deferred until every feature is finished: meter unit prices, the quota/reserve check, billing
+  go-live, the second-account test.
+
 ## 2026-10-20 - PR #34 merged and deployed; billing is live (go-live deferred)
 
 **Merged:** PR #34 (`240397b`) after CI passed on the branch and on `master`. The stack smoke

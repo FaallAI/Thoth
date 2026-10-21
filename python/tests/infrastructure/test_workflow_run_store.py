@@ -134,3 +134,17 @@ def test_settle_takes_the_summary_time_and_ignores_unchanged_reads(stores) -> No
     runs.settle("wf_a", status="succeeded", summary=finished, history_expired=False)
     again = runs.get("wf_a")
     assert again is not None and again.updated_at == first.updated_at
+
+
+def test_claim_assigns_only_an_unassigned_run(stores) -> None:
+    projects, runs, _ = stores
+    runs.record_start(summary("wf_a"), project_id=None, actor=OWNER)
+    first = projects.create("A", "ws_bootstrap").project_id
+    second = projects.create("B", "ws_bootstrap").project_id
+
+    claimed = runs.claim("wf_a", first)
+    again = runs.claim("wf_a", second)
+
+    assert claimed is not None and claimed.project_id == first
+    assert again is not None and again.project_id == first  # never moved
+    assert runs.claim("wf_missing", first) is None

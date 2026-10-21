@@ -13,7 +13,7 @@ As of 2026-10-19. Nothing is in flight: every PR through #29 is merged, and the 
 | # | Item | Why it comes here | Blocked by |
 |---|---|---|---|
 | 1 | ~~UI foundation (UI phase 0+1)~~ Done 2026-10-19 (PR #24, #26) | Every later UI item needs projects in the control plane, stored workflows, and URL routing | Done |
-| 2 | Workflow to Studio with media (UI phase 2) | It opens the only end-to-end path: today a workflow's output cannot reach Studio and the main video must be uploaded by hand | 1 |
+| 2 | ~~Workflow to Studio with media (UI phase 2)~~ Built 2026-10-21 on `feat/workflow-to-studio`; push, merge and deploy pending | It opens the only end-to-end path: today a workflow's output cannot reach Studio and the main video must be uploaded by hand | 1 |
 | 3 | ~~Decide the Rust engine's direction~~ Decided 2026-10-18: port it into the Python control plane | See "Decision: the Rust engine" | Done |
 | 4 | Stage 5c: post cards, carousel photos, creator profile | Completes the Content Set that Studio imports; card overlays were left out of item 2 | 2 |
 | 5 | ~~Dashboard serving and Google/GitHub sign-in (UI phase 3)~~ Done 2026-10-19 as SaaS sub-project 1 (PR #27, #29) | The control-plane key no longer ships in the JS bundle; GitHub sign-in is live | Done |

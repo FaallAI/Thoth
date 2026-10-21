@@ -264,3 +264,23 @@ def inspect_source(project_id: str, projection: StudioSourceProjection) -> Studi
     return StudioSourceInspection(
         project_id=project_id, source_key=source_key(projection), items=inventory(projection)
     )
+
+
+ImportOutcome: TypeAlias = Literal["reused", "copied", "unresolved", "decided"]
+ImportCode = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")]
+
+
+class WorkflowImportItem(StrictModel):
+    """What one media item's import did: reused or copied an asset, left it unresolved with a
+    fixed reason, or found it already decided (attached or excluded) by an earlier attempt."""
+
+    item_id: ImportCode
+    outcome: ImportOutcome
+    reason: ImportCode | None = None
+
+
+class WorkflowStudioImport(StrictModel):
+    """The draft a workflow opened into, at its latest revision, and each media item's outcome."""
+
+    draft: StudioDraft
+    items: list[WorkflowImportItem]

@@ -351,3 +351,53 @@ def test_a_metered_write_never_fails_after_the_store_accepted_it(tmp_path) -> No
     with metering.scoped(MeterScope("ws_a")):
         store.put_file("reports/wf_1/clip.mp4", source)  # no exception
     assert store.size("reports/wf_1/clip.mp4") == 10
+
+
+def test_probe_source_reads_the_object_in_place(store, tmp_path: Path) -> None:
+    store.put_file(LOCATION, _file(tmp_path, "s.mp4", b"probe-bytes"))
+    source = store.probe_source(LOCATION)
+    if source.startswith("http"):
+        import urllib.request
+
+        with urllib.request.urlopen(source, timeout=10) as response:
+            assert response.read() == b"probe-bytes"
+    else:
+        assert Path(source).read_bytes() == b"probe-bytes"
+
+
+def test_the_local_probe_source_of_an_absent_object_is_unavailable(tmp_path: Path) -> None:
+    with pytest.raises(MediaUnavailable):
+        LocalMediaStore(tmp_path).probe_source("reports/wf_a/media/absent.mp4")
+
+
+def test_signing_a_probe_url_makes_no_network_call(tmp_path: Path) -> None:
+    # Port 9 is closed: without an explicit region minio would ask the bucket for its location.
+    settings = Settings(
+        THOTH_CONTROL_PLANE_API_KEY="k",
+        THOTH_CONTROL_PLANE_ARTIFACT_ROOT=tmp_path,
+        THOTH_MEDIA_S3_ENDPOINT="127.0.0.1:9",
+        THOTH_MEDIA_S3_ACCESS_KEY="access",
+        THOTH_MEDIA_S3_SECRET_KEY="secret-key",
+    )
+    url = build_media_store(settings).probe_source(LOCATION)
+    assert url.startswith(f"http://127.0.0.1:9/thoth-media/{LOCATION}?")
+    assert "X-Amz-Expires=300" in url
+
+
+def test_the_metered_store_leaves_copies_to_their_caller(tmp_path) -> None:
+    """A copy can still be rolled back; the importer counts it once it is registered."""
+    from tests.test_metering import Sink
+    from thoth_control_plane import metering
+    from thoth_control_plane.infrastructure.media_store import MeteredMediaStore
+    from thoth_control_plane.metering import MeterScope
+
+    sink = Sink()
+    metering.install(sink)
+    store = MeteredMediaStore(LocalMediaStore(tmp_path / "root"))
+    source = tmp_path / "clip.mp4"
+    source.write_bytes(b"x" * 120)
+    store.put_file("reports/wf_1/clip.mp4", source)
+    with metering.scoped(MeterScope("ws_a", project_id="p1")):
+        store.copy("reports/wf_1/clip.mp4", "uploads/p1/asset_1.mp4")
+    assert sink.events == []
+    assert store.probe_source("uploads/p1/asset_1.mp4").endswith("asset_1.mp4")
