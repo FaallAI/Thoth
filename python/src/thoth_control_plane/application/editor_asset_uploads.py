@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import math
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
@@ -119,6 +120,8 @@ def described_asset(
         raise EditorAssetMediaInvalid("invalid_media") from error
 
 
+logger = logging.getLogger(__name__)
+
 #: An upload or import registers its object within seconds; anything older without a row was
 #: left by a process killed between the copy and the register.
 UPLOAD_SWEEP_GRACE = timedelta(hours=1)
@@ -126,11 +129,12 @@ _SWEEP_BATCH = 500
 
 
 async def sweep_unregistered_uploads(
-    media: MediaStore, assets: EditorAssetRepository, now: datetime
-) -> int:
-    """Delete `uploads/` objects older than the grace period that no asset row points at.
+    media: MediaStore, assets: EditorAssetRepository, now: datetime, *, delete: bool = False
+) -> list[str]:
+    """`uploads/` objects older than the grace period that no asset row points at.
 
-    A database failure raises before anything is deleted, so an outage never reads as "orphan".
+    Logged, and deleted only when `delete` is set. Every batch is checked before anything is
+    deleted, so a database failure raises with nothing touched and never reads as "orphan".
     """
     # ponytail: lists the whole uploads/ prefix each pass; page by project if it grows large.
     stale = await asyncio.to_thread(media.list, "uploads/", older_than=now - UPLOAD_SWEEP_GRACE)
@@ -139,9 +143,17 @@ async def sweep_unregistered_uploads(
         batch = stale[start : start + _SWEEP_BATCH]
         kept = await assets.registered_locations(batch)
         orphans.extend(location for location in batch if location not in kept)
-    for location in orphans:
-        await asyncio.to_thread(media.delete, location)
-    return len(orphans)
+    if orphans:
+        logger.warning(
+            "upload sweep: %d unregistered upload(s) %s: %s",
+            len(orphans),
+            "deleted" if delete else "found (report only)",
+            ", ".join(orphans[:20]),
+        )
+    if delete:
+        for location in orphans:
+            await asyncio.to_thread(media.delete, location)
+    return orphans
 
 
 class EditorAssetUploadService:

@@ -201,11 +201,13 @@ async def _reconcile_render_deadlines(service: RenderJobService, interval: float
             await service.reconcile_expired(datetime.now(UTC))
 
 
-async def _sweep_uploads(media: MediaStore, assets: EditorAssetRepository, interval: float) -> None:
+async def _sweep_uploads(
+    media: MediaStore, assets: EditorAssetRepository, interval: float, *, delete: bool
+) -> None:
     """Sweep at startup, then on an interval; a failed pass deletes nothing and waits."""
     while True:
         with contextlib.suppress(Exception):
-            await sweep_unregistered_uploads(media, assets, datetime.now(UTC))
+            await sweep_unregistered_uploads(media, assets, datetime.now(UTC), delete=delete)
         await asyncio.sleep(interval)
 
 
@@ -338,7 +340,12 @@ def create_app(
         if editor_asset_repository is not None:
             tasks.append(
                 asyncio.create_task(
-                    _sweep_uploads(media, editor_asset_repository, UPLOAD_SWEEP_INTERVAL_SECONDS)
+                    _sweep_uploads(
+                        media,
+                        editor_asset_repository,
+                        UPLOAD_SWEEP_INTERVAL_SECONDS,
+                        delete=settings.THOTH_UPLOAD_SWEEP_DELETE,
+                    )
                 )
             )
         try:

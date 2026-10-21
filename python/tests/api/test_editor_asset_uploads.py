@@ -42,12 +42,19 @@ class MemoryRepository:
         return self.records.get((project_id, asset_id))
 
 
-def upload_app(gateway, root: Path, repository: MemoryRepository, report: Any = IMAGE_REPORT):
+def upload_app(
+    gateway,
+    root: Path,
+    repository: MemoryRepository,
+    report: Any = IMAGE_REPORT,
+    sweep_delete: bool = False,
+):
     app = create_app(
         Settings(
             THOTH_CONTROL_PLANE_API_KEY="test-key",
             THOTH_CONTROL_PLANE_ARTIFACT_ROOT=root,
             THOTH_EDITOR_PREVIEW_SIGNING_KEY="api-test-signing-key",
+            THOTH_UPLOAD_SWEEP_DELETE=sweep_delete,
         ),
         gateway,
         None,
@@ -190,7 +197,10 @@ async def test_upload_requires_authentication_and_a_safe_project(gateway, tmp_pa
 
 
 @pytest.mark.asyncio
-async def test_startup_sweeps_an_old_upload_no_asset_points_at(gateway, tmp_path: Path) -> None:
+@pytest.mark.parametrize("sweep_delete", [False, True])
+async def test_startup_sweeps_an_old_upload_no_asset_points_at(
+    gateway, tmp_path: Path, sweep_delete: bool
+) -> None:
     import asyncio
     import os
     import time
@@ -208,7 +218,7 @@ async def test_startup_sweeps_an_old_upload_no_asset_points_at(gateway, tmp_path
         async def registered_locations(self, locations: list[str]) -> set[str]:
             return {"uploads/project_001/asset_kept.png"} & set(locations)
 
-    app = upload_app(gateway, root, Registered())
+    app = upload_app(gateway, root, Registered(), sweep_delete=sweep_delete)
     async with app.router.lifespan_context(app):
         # The first pass runs in the background at startup, so startup never waits on the store.
         for _ in range(100):
@@ -217,4 +227,5 @@ async def test_startup_sweeps_an_old_upload_no_asset_points_at(gateway, tmp_path
             await asyncio.sleep(0.02)
 
     assert kept.is_file()
-    assert not orphan.exists()
+    # Report-only unless the operator turns deletion on.
+    assert orphan.exists() is not sweep_delete
