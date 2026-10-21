@@ -267,6 +267,12 @@ export function applyTimelineOperation(
       clip.volume = operation.volume;
       break;
     }
+    case "set_clip_blur": {
+      const clip = unlockedClip(next, operation.clip_id);
+      if (clip.kind !== "video") throw new Error("blur applies only to video clips");
+      clip.blur_enabled = operation.blur_enabled;
+      break;
+    }
     case "set_caption_cue_text": {
       const clip = unlockedClip(next, operation.clip_id);
       const cue = clip.kind === "caption" ? clip.cues[operation.cue_index] : undefined;
@@ -379,7 +385,7 @@ function addClipFromAsset(
     ...(document.clips ?? []),
     clipKind === "audio"
       ? { ...shared, kind: "audio" as const, volume: 1, fade_in_frames: 0, fade_out_frames: 0 }
-      : { ...shared, kind: "video" as const, fit: "cover" as const },
+      : { ...shared, kind: "video" as const, fit: "cover" as const, blur_enabled: false },
   ];
   target.clip_ids = [...(target.clip_ids ?? []), operation.clip_id];
 }

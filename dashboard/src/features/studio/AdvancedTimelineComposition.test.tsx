@@ -199,6 +199,7 @@ function documentV2(): EditDocumentV2 {
         hidden: false,
         locked: true,
         fit: "cover",
+        blur_enabled: false,
       },
       {
         kind: "audio",

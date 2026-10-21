@@ -89,6 +89,7 @@ export function timelineDocument(): EditDocumentV2 {
         hidden: false,
         locked: false,
         fit: "cover",
+        blur_enabled: false,
       },
       {
         kind: "video",
@@ -102,6 +103,7 @@ export function timelineDocument(): EditDocumentV2 {
         hidden: false,
         locked: true,
         fit: "cover",
+        blur_enabled: false,
       },
       {
         kind: "audio",
@@ -281,6 +283,7 @@ export function typedTimelineDocument(): EditDocumentV2 {
         hidden: false,
         locked: false,
         fit: "cover",
+        blur_enabled: false,
         crop: { left: 0, top: 0, width: 1, height: 1 },
         position: { x: 0, y: 0, scale: 1 },
       },
@@ -296,6 +299,7 @@ export function typedTimelineDocument(): EditDocumentV2 {
         hidden: false,
         locked: false,
         fit: "contain",
+        blur_enabled: false,
         crop: { left: 0.1, top: 0.2, width: 0.5, height: 0.6 },
         position: { x: 0.25, y: -0.5, scale: 1.5 },
       },
@@ -353,6 +357,7 @@ export function typedTimelineDocument(): EditDocumentV2 {
         hidden: false,
         locked: false,
         fit: "contain",
+        blur_enabled: false,
       },
     ],
   };
@@ -410,6 +415,7 @@ export function sceneStripDocument(): EditDocumentV2 {
         hidden: false,
         locked: false,
         fit: "cover",
+        blur_enabled: false,
       },
     ],
   };

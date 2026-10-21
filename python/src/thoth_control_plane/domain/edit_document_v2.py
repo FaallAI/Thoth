@@ -123,6 +123,35 @@ class Position(StrictModel):
     scale: Scale = 1.0
 
 
+class ClipBlurRegion(StrictModel):
+    """A region to blur, in fractions of the source frame and source frames (spec 5c-1, 5.1).
+
+    Source frames, not timeline frames: trimming, moving or splitting a clip never shifts it.
+    A region without a window lasts the whole clip.
+    """
+
+    x: NormalizedUnit
+    y: NormalizedUnit
+    w: NormalizedUnit
+    h: NormalizedUnit
+    from_frame: FrameStart | None = None
+    to_frame: Frame | None = None
+
+    @model_validator(mode="after")
+    def inside_and_ordered(self) -> ClipBlurRegion:
+        if self.x + self.w > 1.0 or self.y + self.h > 1.0 or not self.w or not self.h:
+            raise ValueError("a blur region must stay inside the source frame")
+        if (self.from_frame is None) != (self.to_frame is None):
+            raise ValueError("a blur window needs both ends")
+        if (
+            self.from_frame is not None
+            and self.to_frame is not None
+            and (self.to_frame <= self.from_frame)
+        ):
+            raise ValueError("a blur window must end after it starts")
+        return self
+
+
 class OverlayParameters(StrictModel):
     text: ShortText | None = None
     accent_slot: StyleSlot | None = None
@@ -150,6 +179,11 @@ class TimelineVideoClip(TimelineClipBase):
     fit: FitMode = "cover"
     crop: Crop | None = None
     position: Position | None = None
+    blur_regions: Annotated[list[ClipBlurRegion], Field(max_length=200)] = Field(
+        default_factory=list
+    )
+    # Imported subtitle regions stay off until narration replaces the speech (spec 5c-1, 6).
+    blur_enabled: bool = False
 
 
 class TimelineOverlayClip(TimelineClipBase):

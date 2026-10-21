@@ -38,6 +38,7 @@ from thoth_control_plane.domain.timeline_operations import (
     SetCaptionCueText,
     SetCaptionCueTiming,
     SetCaptionStyle,
+    SetClipBlur,
     SetClipHidden,
     SetClipLocked,
     SetClipVolume,
@@ -1233,3 +1234,58 @@ def test_reordering_a_captioned_scene_carries_its_caption() -> None:
     result = apply_edit_operations(captioned_draft(), [reorder("scene_002", 0)])
 
     assert (find_clip(result, "clip_cap").from_frame, result.scenes[0].scene_id) == (0, "scene_002")
+
+
+REGION = {"x": 0.1, "y": 0.65, "w": 0.8, "h": 0.09, "from_frame": 30, "to_frame": 90}
+
+
+def blurred_main() -> EditDocumentV2:
+    payload = document_v2_payload()
+    clip_by_id(payload, "clip_main")["blur_regions"] = [dict(REGION)]
+    return EditDocumentV2.model_validate(payload)
+
+
+def set_blur(clip_id: str, enabled: bool) -> SetClipBlur:
+    return SetClipBlur(
+        kind="set_clip_blur", operation_id="op_blur", clip_id=clip_id, blur_enabled=enabled
+    )
+
+
+def test_a_stored_video_clip_without_blur_still_validates() -> None:
+    clip = find_clip(document_v2_fixture(), "clip_main")
+    assert clip.blur_regions == []
+    assert clip.blur_enabled is False
+
+
+def test_set_clip_blur_switches_blur() -> None:
+    on = apply_edit_operations(blurred_main(), [set_blur("clip_main", True)])
+    assert find_clip(on, "clip_main").blur_enabled is True
+    off = apply_edit_operations(on, [set_blur("clip_main", False)])
+    assert find_clip(off, "clip_main").blur_enabled is False
+
+
+def test_set_clip_blur_refuses_a_text_clip() -> None:
+    with pytest.raises(ValueError, match="video"):
+        apply_edit_operations(document_v2_fixture(), [set_blur("clip_001", True)])
+
+
+def test_a_split_keeps_blur_regions_on_both_halves() -> None:
+    result = apply_edit_operations(blurred_main(), [split_main(90, "clip_left", "clip_right")])
+    for clip_id in ("clip_left", "clip_right"):
+        [region] = find_clip(result, clip_id).blur_regions
+        assert (region.from_frame, region.to_frame) == (30, 90)
+
+
+@pytest.mark.parametrize(
+    "region",
+    [
+        {**REGION, "x": 0.9, "w": 0.2},
+        {**REGION, "from_frame": 30, "to_frame": None},
+        {**REGION, "from_frame": 90, "to_frame": 90},
+    ],
+)
+def test_a_blur_region_outside_the_frame_or_window_is_refused(region: dict[str, Any]) -> None:
+    payload = document_v2_payload()
+    clip_by_id(payload, "clip_main")["blur_regions"] = [region]
+    with pytest.raises(ValidationError):
+        EditDocumentV2.model_validate(payload)
