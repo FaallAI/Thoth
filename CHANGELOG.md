@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-21 - PR #36 merged and deployed; a workflow opens in Studio
+
+**Merged:** PR #36 (`c9c6f0c`) after CI passed on the branch and on `master`. The stack smoke
+printed `workflow_opens_in_studio=true`: inside the API image, ffprobe read a five-minute signed
+MinIO URL, and the clip was copied into `uploads/<project>/` and attached to the draft.
+
+**Deployed** with `make deploy` on `thoth@57874384`, `thoth-web@354d1c61` and
+`thoth-remotion-renderer@6beafb28` (`sha-c9c6f0c`; previous pins backed up outside the repository).
+
+- `api`, `worker`, `web`, `remotion-renderer` and `legacy-cdp` run with 0 restarts and no errors.
+- No migration in this release; the live database stays on Alembic `0016`.
+- `THOTH_MEDIA_S3_REGION` is unset in the stack and takes its default, `us-east-1`.
+- **Routes:**
+  - `GET /api/v1/projects/{project_id}/workflows/{workflow_id}/studio-import` is published in the
+    live OpenAPI document and answers 403 signed out, like the other project routes;
+  - sign-in still redirects to GitHub.
+
+**Next steps:**
+
+- **Next on the roadmap:** item 4, Stage 5c (post cards, carousel photos, creator profile), which
+  completes the Content Set that Studio imports; card overlays were left out of item 2.
+- **Open follow-ups:**
+  - a killed process between copy and register can leak one `uploads/` object; a sweep of
+    unregistered uploads would close it;
+  - the first signed-in "Open in Studio" on a real workflow is part of the final live acceptance.
+- **Deferred by the operator until every roadmap feature is finished:** the meter unit prices, the
+  quota/reserve check, billing go-live (public HTTPS address, Xendit keys and webhook, paid plans,
+  exchange rate, public sign-up) and the second-account check.
+
 ## 2026-10-21 - Workflow to Studio with media (roadmap priority 2), built on `feat/workflow-to-studio`
 
 A finished workflow now opens in Studio from its detail page. The API projects the run's Content
