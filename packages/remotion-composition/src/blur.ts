@@ -45,7 +45,11 @@ export function blurBoxes(
   const boxTop = (-crop.top / (crop.height || 1)) * canvas.height;
   const picture = drawn(clip.fit ?? "cover", asset, boxWidth, boxHeight);
   const trim = clip.source_from_frame ?? 0;
-  return (clip.blur_regions ?? []).map((region) => {
+  // A window that ends at or before the clip's trim (after a split or trim) shows nothing.
+  const visible = (clip.blur_regions ?? []).filter(
+    (region) => region.to_frame == null || region.to_frame > trim,
+  );
+  return visible.map((region) => {
     const height = region.h * picture.height;
     const sigma = Math.max(BLUR_FLOOR / scale, BLUR_FACTOR * height);
     const windowed = region.from_frame != null && region.to_frame != null;

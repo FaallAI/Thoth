@@ -61,3 +61,13 @@ test("a window is relative to the clip's own trim", () => {
   );
   expect([box!.from, box!.to]).toEqual([30, 90]);
 });
+
+test("a window wholly before the clip's trim draws nothing", () => {
+  // A split or trim past the window's end must not flash a one-frame blur at the start.
+  const boxes = blurBoxes(
+    clip({ source_from_frame: 90, blur_regions: [{ ...BAND, from_frame: 30, to_frame: 90 }] }),
+    { width: 720, height: 1280 },
+    CANVAS,
+  );
+  expect(boxes).toEqual([]);
+});

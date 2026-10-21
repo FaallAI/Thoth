@@ -213,7 +213,7 @@ export function TimelineInspector({
                     <button
                       type="button"
                       className="rounded border border-border px-2 py-1 text-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                      disabled={clip.locked === true}
+                      disabled={clip.locked === true || track?.locked === true}
                       onClick={() =>
                         emit({ kind: "set_clip_blur", clip_id: clip.clip_id, blur_enabled: false })
                       }

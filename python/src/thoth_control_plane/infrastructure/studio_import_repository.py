@@ -347,6 +347,9 @@ class PostgresStudioImportRepository:
             document = apply_edit_operations(latest, operations, resolved_assets={asset_id: asset})
         except ValueError as error:
             raise StudioImportDecisionRejected("attach_rejected") from error
+        if entry.role == "main" and slides:
+            # Every image of a carousel is letterboxed alike, so the framing never jumps.
+            _clip(document, f"clip_{entry.item_id}").fit = "contain"
         if entry.blur_regions:
             # Stored and switched off until narration replaces the speech (spec 5c-1, 6).
             clip = _clip(document, f"clip_{entry.item_id}")

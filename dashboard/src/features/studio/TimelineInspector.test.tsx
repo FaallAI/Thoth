@@ -249,3 +249,10 @@ test("no regions, no blur control", () => {
   expect(screen.queryByText(/Subtitles detected/)).toBeNull();
   expect(screen.queryByRole("button", { name: "Blur subtitles and mute" })).toBeNull();
 });
+
+test("remove blur is disabled on a locked track", () => {
+  const document = subtitled(true);
+  document.tracks.find((track) => track.track_id === "track_main")!.locked = true;
+  mount({ clipId: "clip_main" }, document);
+  expect((screen.getByRole("button", { name: "Remove blur" }) as HTMLButtonElement).disabled).toBe(true);
+});

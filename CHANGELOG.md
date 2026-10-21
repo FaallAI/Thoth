@@ -64,12 +64,32 @@ The approved goldens changed twice, both approved by the operator:
   - editor migrations 21 passed;
   - the workflow-to-Studio integration 4 passed (card placement, the not-placed fourth card,
     blur stored off, overlay items waiting for the main, carousel slides).
-- **Dashboard:** bun test 744 passed, `tsc` clean, build OK.
+- **Dashboard:** bun test 748 passed, `tsc` clean, build OK.
 - **Template release parity:** 5 of 5 runs passed under `--cpus=0.75` on the F1 image built
   from this branch.
 - **Stack smoke** (`docker/test-renderer-offline.sh` on the thoth, renderer and web images built
   from this branch): every verdict true. `workflow_opens_in_studio=true` now asserts 3 cards on
   `track_b_roll`, the main's blur region stored with blur off, and the main track unmuted.
+
+### Whole-branch review
+
+One fresh reviewer (Opus) found no Critical issue. Four were fixed, each test first:
+
+- a blur window wholly before a clip's trim (after a split or trim) flashed for one frame;
+- a carousel's first image was cropped (`cover`) while its slides were letterboxed;
+- the gate answered "Try again" to `main_not_attached` and `no_room_in_reaction_beat`, which
+  now have their own messages;
+- "Remove blur" stayed enabled on a locked track.
+
+**Deferred minors:**
+
+- undo splits "Blur subtitles and mute" into two steps;
+- track-level mute also silences clean b-roll (as spec 5.3 prescribes; per-clip mute belongs in
+  item 6);
+- the public resolve API accepts `reason = "not_placed"`;
+- `profile_slot` overruns a main shorter than 0.5 s;
+- `blurBoxes` has no crop test;
+- two golden sets no manifest names are still committed.
 
 ### Next steps
 

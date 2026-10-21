@@ -259,6 +259,8 @@ async def test_a_carousel_main_plays_its_slides_in_turn(database: str, tmp_path:
         0,
         90,
     )
+    # Every image of a carousel is letterboxed alike, so the framing never jumps (spec 3.3).
+    assert first["fit"] == "contain"
     assert (second["track_id"], second["from_frame"], second["duration_in_frames"]) == (
         "track_main_video",
         90,

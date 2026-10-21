@@ -336,6 +336,8 @@ test("a ready-asset page announces loading and a failure it can retry", async ()
 test.each([
   ["trim_exceeds_asset", "starts after that asset ends"],
   ["asset_duration_unknown", "length of that asset is unknown"],
+  ["main_not_attached", "Attach the main item first"],
+  ["no_room_in_reaction_beat", "no room left in the reaction beat"],
 ])("a source range the asset cannot hold (%s) is stated and leaves the item unresolved", async (code, text) => {
   const resolveStudioImportItem = mock(async () => {
     throw new StudioImportRequestError(422, code);
