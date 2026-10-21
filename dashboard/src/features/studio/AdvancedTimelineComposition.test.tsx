@@ -564,12 +564,13 @@ test("a font that will not load cancels the render instead of drawing a substitu
   }
 });
 
-test("video is drawn by the frame-accurate decoder that never falls back", () => {
-  // The HTML5 video element mis-seeks under load (parity frame 90, 2026-10-21).
+test("video is drawn by the frame-accurate decoder, which may still fall back", () => {
+  // The HTML5 video element mis-seeks under load (parity frame 90, 2026-10-21). A source
+  // headless Chrome cannot decode (HEVC) must still render through the fallback decoder.
   render(<AdvancedTimelineComposition document={documentV2()} previewSources={SOURCES} />);
   const drawn = screen.getByTestId("video");
   expect(drawn.getAttribute("trimBefore")).toBe("30");
-  expect(drawn.getAttribute("data-no-fallback")).toBe("true");
+  expect(drawn.getAttribute("data-no-fallback")).toBe("false");
 });
 
 /** documentV2 with one subtitle band on its video clip, blur switched as given. */

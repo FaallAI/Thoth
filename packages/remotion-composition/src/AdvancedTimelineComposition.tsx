@@ -269,15 +269,15 @@ function renderClip(
             <Img src={source} style={{ ...media, objectFit: clip.fit }} />
           ) : (
             // One WebCodecs decoder for the preview and the render: the HTML5 element mis-seeks
-            // under load (parity frame 90, 2026-10-21), and an FFmpeg frame extractor shifts
-            // colours away from what the editor shows. Never fall back to that extractor.
+            // under load (parity frame 90, 2026-10-21). A source headless Chrome cannot decode
+            // (HEVC) falls back to the FFmpeg frame extractor, which renders a few levels off
+            // the preview's colours rather than cancelling the whole render.
             <Video
               src={source}
               trimBefore={clip.source_from_frame}
               muted={muted}
               objectFit={clip.fit}
               style={media}
-              disallowFallbackToOffthreadVideo
             />
           )}
           {kind === "video" && clip.blur_enabled

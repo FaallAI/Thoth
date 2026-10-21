@@ -853,10 +853,12 @@ compose exec -T remotion-renderer sh -c '
 echo renderer_holds_no_control_plane_capability=true
 
 # --- one synthetic render, end to end ----------------------------------------
+# HEVC on purpose: headless Chrome cannot decode it, so this render proves the
+# fallback decoder still takes over instead of the render being cancelled.
 compose exec -T api /usr/bin/ffmpeg -nostdin -loglevel error -y \
     -f lavfi -i "testsrc=size=1080x1920:rate=30:duration=4" \
     -f lavfi -i "sine=frequency=440:duration=4" \
-    -c:v libx264 -pix_fmt yuv420p -preset ultrafast -c:a aac -shortest \
+    -c:v libx265 -tag:v hvc1 -pix_fmt yuv420p -preset ultrafast -c:a aac -shortest \
     /tmp/smoke-asset.mp4 >/dev/null 2>&1 \
     || fail render_output_is_h264_mp4
 # The control plane names the asset; every later driver call reads it from $asset_id.

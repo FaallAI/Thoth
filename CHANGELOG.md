@@ -46,8 +46,12 @@ The "Template release parity" job failed at random (PR #37: frame 90, 33 % of pi
 - **Rejected fix:** `<OffthreadVideo>` was frame-accurate but shifted colours 15-16/255 away from
   the preview.
 - **Fix:** both the preview and the render use `<Video>` from `@remotion/media` (WebCodecs, the
-  same Chrome decoder), with the fallback to the FFmpeg extractor disabled.
+  same Chrome decoder).
 - **Result:** 10 of 10 constrained runs matched preview and render pixel for pixel.
+- **Fallback kept:** a source headless Chrome cannot decode (HEVC, common in iPhone uploads)
+  still renders through the FFmpeg extractor, a few colour levels off the preview. With the
+  fallback disabled such a render was cancelled, while the earlier `<OffthreadVideo>` render
+  had decoded it. The stack smoke's first render now uses an HEVC source to hold this.
 
 The approved goldens changed twice, both approved by the operator:
 
@@ -66,10 +70,12 @@ The approved goldens changed twice, both approved by the operator:
     blur stored off, overlay items waiting for the main, carousel slides).
 - **Dashboard:** bun test 748 passed, `tsc` clean, build OK.
 - **Template release parity:** 5 of 5 runs passed under `--cpus=0.75` on the F1 image built
-  from this branch.
+  from this branch, and 3 of 3 again after the fallback was restored.
 - **Stack smoke** (`docker/test-renderer-offline.sh` on the thoth, renderer and web images built
   from this branch): every verdict true. `workflow_opens_in_studio=true` now asserts 3 cards on
-  `track_b_roll`, the main's blur region stored with blur off, and the main track unmuted.
+  `track_b_roll`, the main's blur region stored with blur off, and the main track unmuted. With
+  the HEVC source, `render_output_is_h264_mp4` was false while the fallback was disabled and is
+  true with it restored.
 
 ### Whole-branch review
 
@@ -93,8 +99,8 @@ One fresh reviewer (Opus) found no Critical issue. Four were fixed, each test fi
 
 ### Next steps
 
-- **Gates:** push and PR, CI (the stack smoke now proves the 5c-1 layout), merge, deploy, then one
-  real render checked by the operator.
+- **Gates:** push and PR, CI (the stack smoke now proves the 5c-1 layout), merge, deploy, then
+  real renders from each platform checked by the operator.
 - **Operator evaluation** of the layout and blur numbers once drafts are in use; every value is
   in the two constants modules.
 - **Stage 5c-2:** acquisition of post cards (X, Threads, Instagram), carousel photo slides and
