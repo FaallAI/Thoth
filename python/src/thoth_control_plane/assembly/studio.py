@@ -17,18 +17,16 @@ from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 from thoth_control_plane.assembly.models import ContentSet, MainOcr, MediaRef
 from thoth_control_plane.domain.studio_imports import (
+    SourceBlurRegion,
     SourceRole,
     StudioSourceItem,
     StudioSourceProjection,
     StudioUnsupportedField,
 )
+from thoth_control_plane.domain.studio_layout import reading_seconds
 
 TITLE_LIMIT = 300
 TEXT_LIMIT = 2_000
-CARDS = "Cards wait for Stage 5c"
-SLIDES = "Carousel slides wait for Stage 5c"
-MUTE = "Per-clip mute is not supported"
-BLUR = "Subtitle blur is not supported"
 FIGURES = "Figures are context, not scenes"
 
 
@@ -110,6 +108,8 @@ class _Builder:
         url: object | None,
         media: MediaRef | None,
         trim: float | None,
+        ocr: MainOcr | None = None,
+        reading: float | None = None,
     ) -> None:
         if media is None:
             kind = "none"
@@ -126,17 +126,15 @@ class _Builder:
                 source_url=None if url is None else _canonical(url),
                 media_kind=kind,
                 trim_start_seconds=trim if kind == "video" else None,
+                # Imported as data; the draft keeps both switched off (spec 5c-1, section 6).
+                mute_audio=bool(ocr and ocr.mute_audio and kind == "video"),
+                blur_regions=[
+                    SourceBlurRegion.model_validate(region.model_dump())
+                    for region in (ocr.subtitle_blur if ocr and kind == "video" else [])
+                ],
+                reading_seconds=reading,
             )
         )
-
-    def ocr(self, prefix: str, role: SourceRole, order: int, ocr: MainOcr | None) -> None:
-        if ocr is None:
-            return
-        if ocr.mute_audio:
-            self.report(f"{prefix}.mute_audio", role, order, MUTE, True)
-        if ocr.subtitle_blur:
-            regions = [region.model_dump(mode="json") for region in ocr.subtitle_blur]
-            self.report(f"{prefix}.subtitle_blur", role, order, BLUR, regions)
 
 
 def project_content_set(content_set: ContentSet) -> WorkflowProjection:
@@ -157,13 +155,12 @@ def project_content_set(content_set: ContentSet) -> WorkflowProjection:
         url=main.url,
         media=media,
         trim=_trim(main.ocr),
+        ocr=main.ocr,
     )
-    if len(main.images) > 1:
-        slides = [image.location.as_posix() for image in main.images[1:]]
-        built.report("main.images", "main", 0, SLIDES, slides)
-    if main.profile_card is not None:
-        built.report("main.profile_card", "main", 0, CARDS, main.profile_card.location.as_posix())
-    built.ocr("main.ocr", "main", 0, main.ocr)
+    for order, image in enumerate(main.images[1:]):
+        built.add(
+            "slide", order, title=None, text=None, platform=None, url=None, media=image, trim=None
+        )
     for order, clip in enumerate(content_set.footage):
         built.add(
             "footage",
@@ -174,9 +171,38 @@ def project_content_set(content_set: ContentSet) -> WorkflowProjection:
             url=clip.url,
             media=clip.video,
             trim=_trim(clip.ocr),
+            ocr=clip.ocr,
         )
-        built.ocr("footage.ocr", "footage", order, clip.ocr)
-    for order, comment in enumerate(content_set.comments):
+    if main.profile_card is not None:
+        built.add(
+            "profile_card",
+            0,
+            title=f"@{main.owner_handle}",
+            text=None,
+            platform=str(main.platform),
+            url=None,
+            media=main.profile_card,
+            trim=None,
+        )
+    # Most-liked first: the reaction beat places cards in this order (spec 5c-1, 3.2).
+    carded = sorted(
+        (comment for comment in content_set.comments if comment.card is not None),
+        key=lambda comment: -comment.likes,
+    )
+    for order, comment in enumerate(carded):
+        built.add(
+            "comment_card",
+            order,
+            title=f"@{comment.author}",
+            text=comment.text,
+            platform=None,
+            url=None,
+            media=comment.card,
+            trim=None,
+            reading=reading_seconds(comment.text),
+        )
+    plain = [comment for comment in content_set.comments if comment.card is None]
+    for order, comment in enumerate(plain):
         built.add(
             "comment",
             order,
@@ -187,8 +213,6 @@ def project_content_set(content_set: ContentSet) -> WorkflowProjection:
             media=None,
             trim=None,
         )
-        if comment.card is not None:
-            built.report("comments.card", "comment", order, CARDS, comment.card.location.as_posix())
     if content_set.figures:
         figures = [figure.model_dump(mode="json") for figure in content_set.figures]
         built.report("figures", None, None, FIGURES, figures)

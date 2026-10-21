@@ -10,6 +10,7 @@ from tests.assembly.test_models import OCR, VIDEO, content_set
 from thoth_control_plane.assembly.models import ContentSet
 from thoth_control_plane.assembly.studio import project_content_set, workflow_source_key
 from thoth_control_plane.domain.studio_imports import inventory
+from thoth_control_plane.domain.studio_layout import reading_seconds
 
 IMAGE = {
     "location": "reports/wf_a/media/slide-1.jpg",
@@ -71,16 +72,25 @@ def test_a_clean_main_has_no_trim() -> None:
     assert main.trim_start_seconds is None
 
 
-def test_an_images_main_keeps_its_first_slide_and_reports_the_rest() -> None:
+def test_profile_card_and_slides_are_projected() -> None:
     second = IMAGE | {"location": "reports/wf_a/media/slide-2.jpg"}
-    data = content_set(kind="images", video=None, ocr=None, images=[IMAGE, second])
+    third = IMAGE | {"location": "reports/wf_a/media/slide-3.jpg"}
+    data = content_set(
+        kind="images", video=None, ocr=None, images=[IMAGE, second, third], profile_card=IMAGE
+    )
     projected = project_content_set(parse(data))
-    [main] = projected.projection.items
-    assert (main.media_kind, main.trim_start_seconds) == ("image", None)
+    items = projected.projection.items
+    assert [(i.role, i.order, i.media_kind) for i in items] == [
+        ("main", 0, "image"),
+        ("slide", 0, "image"),
+        ("slide", 1, "image"),
+        ("profile_card", 0, "image"),
+    ]
+    assert items[3].title == "@creator"
     assert projected.media["main_000"].location.as_posix() == IMAGE["location"]
-    [slides] = projected.projection.unsupported
-    assert (slides.field, slides.role, slides.order) == ("main.images", "main", 0)
-    assert slides.value_digest is not None
+    assert projected.media["slide_001"].location.as_posix() == third["location"]
+    assert "profile_card_000" in projected.media
+    assert projected.projection.unsupported == []
 
 
 def test_a_card_main_is_a_still() -> None:
@@ -111,22 +121,52 @@ def test_footage_and_comments_follow_the_main_in_order() -> None:
     assert media_items == set(projected.media) == {"main_000", "footage_000", "footage_001"}
 
 
-def test_what_studio_cannot_show_is_reported_once_each_with_a_digest() -> None:
-    subtitled = OCR | {"outcome": "subtitle", "mute_audio": True, "subtitle_blur": [REGION]}
-    data = content_set(profile_card=IMAGE, ocr=subtitled) | {
-        "comments": [{"text": "wow", "author": "viewer", "source": "input", "card": IMAGE}],
+def test_subtitle_main_carries_mute_and_blur() -> None:
+    second = REGION | {"start": 5.0, "end": 9.0}
+    subtitled = OCR | {"outcome": "subtitle", "mute_audio": True, "subtitle_blur": [REGION, second]}
+    data = content_set(ocr=subtitled) | {
         "figures": [{"name": "Prabowo", "type": "person"}],
         "figures_status": "ok",
     }
-    unsupported = project_content_set(parse(data)).projection.unsupported
-    assert [(u.field, u.role, u.order) for u in unsupported] == [
-        ("main.profile_card", "main", 0),
-        ("main.ocr.mute_audio", "main", 0),
-        ("main.ocr.subtitle_blur", "main", 0),
-        ("comments.card", "comment", 0),
-        ("figures", None, None),
+    projected = project_content_set(parse(data))
+    [main] = projected.projection.items
+    assert main.mute_audio is True
+    assert [(r.start, r.end) for r in main.blur_regions] == [(0.0, 4.0), (5.0, 9.0)]
+    assert [(u.field, u.role) for u in projected.projection.unsupported] == [("figures", None)]
+
+
+def test_comment_cards_follow_likes_and_carry_reading_time() -> None:
+    comments = [
+        {"text": "pertama", "author": "satu", "likes": 5, "source": "input", "card": IMAGE},
+        {
+            "text": "kedua lebih panjang",
+            "author": "dua",
+            "likes": 50,
+            "source": "input",
+            "card": IMAGE,
+        },
+        {"text": "ketiga", "author": "tiga", "likes": 50, "source": "input", "card": IMAGE},
     ]
-    assert all(u.value_digest and len(u.value_digest) == 64 for u in unsupported)
+    projected = project_content_set(parse(content_set() | {"comments": comments}))
+    cards = [i for i in projected.projection.items if i.role == "comment_card"]
+    assert [(i.order, i.title) for i in cards] == [(0, "@dua"), (1, "@tiga"), (2, "@satu")]
+    assert [i.reading_seconds for i in cards] == [
+        reading_seconds(c["text"]) for c in (comments[1], comments[2], comments[0])
+    ]
+    assert {"comment_card_000", "comment_card_001", "comment_card_002"} <= set(projected.media)
+    assert not [i for i in projected.projection.items if i.role == "comment"]
+
+
+def test_a_comment_without_a_card_stays_a_text_scene() -> None:
+    comments = [
+        {"text": "ada kartu", "author": "satu", "source": "input", "card": IMAGE},
+        {"text": "tanpa kartu", "author": "dua", "source": "input"},
+    ]
+    items = project_content_set(parse(content_set() | {"comments": comments})).projection.items
+    assert [(i.role, i.order, i.title) for i in items[1:]] == [
+        ("comment_card", 0, "@satu"),
+        ("comment", 0, "@dua"),
+    ]
 
 
 def test_a_description_past_the_text_limit_is_reported_not_cut() -> None:
