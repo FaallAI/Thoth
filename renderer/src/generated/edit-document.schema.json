@@ -172,6 +172,68 @@
       "title": "CaptionCue",
       "type": "object"
     },
+    "ClipBlurRegion": {
+      "additionalProperties": false,
+      "description": "A region to blur, in fractions of the source frame and source frames (spec 5c-1, 5.1).\n\nSource frames, not timeline frames: trimming, moving or splitting a clip never shifts it.\nA region without a window lasts the whole clip.",
+      "properties": {
+        "from_frame": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "From Frame"
+        },
+        "h": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "H",
+          "type": "number"
+        },
+        "to_frame": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "To Frame"
+        },
+        "w": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "W",
+          "type": "number"
+        },
+        "x": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
+      "title": "ClipBlurRegion",
+      "type": "object"
+    },
     "Crop": {
       "additionalProperties": false,
       "properties": {
@@ -867,6 +929,19 @@
           "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
           "title": "Asset Id",
           "type": "string"
+        },
+        "blur_enabled": {
+          "default": false,
+          "title": "Blur Enabled",
+          "type": "boolean"
+        },
+        "blur_regions": {
+          "items": {
+            "$ref": "#/$defs/ClipBlurRegion"
+          },
+          "maxItems": 200,
+          "title": "Blur Regions",
+          "type": "array"
         },
         "clip_id": {
           "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",

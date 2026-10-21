@@ -16,6 +16,7 @@
     "noEmit": true,
     "paths": {
       "remotion": ["../../dashboard/node_modules/remotion"],
+      "@remotion/media": ["../../dashboard/node_modules/@remotion/media"],
       // Types first, runtime second: a type-checker stops at the declarations
       // and a runtime falls through to the implementation beside them.
       "react": ["../../dashboard/node_modules/@types/react", "../../dashboard/node_modules/react"],

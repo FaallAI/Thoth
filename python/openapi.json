@@ -820,6 +820,68 @@
         "title": "CheckoutView",
         "type": "object"
       },
+      "ClipBlurRegion": {
+        "additionalProperties": false,
+        "description": "A region to blur, in fractions of the source frame and source frames (spec 5c-1, 5.1).\n\nSource frames, not timeline frames: trimming, moving or splitting a clip never shifts it.\nA region without a window lasts the whole clip.",
+        "properties": {
+          "from_frame": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Frame"
+          },
+          "h": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "H",
+            "type": "number"
+          },
+          "to_frame": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Frame"
+          },
+          "w": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "W",
+            "type": "number"
+          },
+          "x": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "w",
+          "h"
+        ],
+        "title": "ClipBlurRegion",
+        "type": "object"
+      },
       "ContentSetImportRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1444,6 +1506,7 @@
                   "set_caption_cue_text": "#/components/schemas/SetCaptionCueText",
                   "set_caption_cue_timing": "#/components/schemas/SetCaptionCueTiming",
                   "set_caption_style": "#/components/schemas/SetCaptionStyle",
+                  "set_clip_blur": "#/components/schemas/SetClipBlur",
                   "set_clip_hidden": "#/components/schemas/SetClipHidden",
                   "set_clip_locked": "#/components/schemas/SetClipLocked",
                   "set_clip_volume": "#/components/schemas/SetClipVolume",
@@ -1506,6 +1569,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/SetClipVolume"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipBlur"
                 },
                 {
                   "$ref": "#/components/schemas/SetCaptionCueText"
@@ -1885,6 +1951,18 @@
             "const": "exclude",
             "title": "Kind",
             "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "const": "not_placed",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
           }
         },
         "required": [
@@ -4712,6 +4790,38 @@
         "title": "SetCaptionStyle",
         "type": "object"
       },
+      "SetClipBlur": {
+        "additionalProperties": false,
+        "properties": {
+          "blur_enabled": {
+            "title": "Blur Enabled",
+            "type": "boolean"
+          },
+          "clip_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "set_clip_blur",
+            "title": "Kind",
+            "type": "string"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "clip_id",
+          "blur_enabled"
+        ],
+        "title": "SetClipBlur",
+        "type": "object"
+      },
       "SetClipHidden": {
         "additionalProperties": false,
         "properties": {
@@ -5294,6 +5404,68 @@
         "title": "SourceAccountsOverview",
         "type": "object"
       },
+      "SourceBlurRegion": {
+        "additionalProperties": false,
+        "description": "A detected subtitle region: fractions of the source frame, a window in source seconds.",
+        "properties": {
+          "end": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "h": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "H",
+            "type": "number"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "w": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "W",
+            "type": "number"
+          },
+          "x": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "w",
+          "h"
+        ],
+        "title": "SourceBlurRegion",
+        "type": "object"
+      },
       "SourceInput": {
         "additionalProperties": false,
         "properties": {
@@ -5640,6 +5812,14 @@
             ],
             "title": "Asset Id"
           },
+          "blur_regions": {
+            "items": {
+              "$ref": "#/components/schemas/SourceBlurRegion"
+            },
+            "maxItems": 200,
+            "title": "Blur Regions",
+            "type": "array"
+          },
           "disposition": {
             "enum": [
               "unresolved",
@@ -5669,6 +5849,11 @@
             "title": "Media Kind",
             "type": "string"
           },
+          "mute_audio": {
+            "default": false,
+            "title": "Mute Audio",
+            "type": "boolean"
+          },
           "order": {
             "anyOf": [
               {
@@ -5693,6 +5878,19 @@
             ],
             "title": "Platform"
           },
+          "reading_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 60.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reading Seconds"
+          },
           "reason": {
             "anyOf": [
               {
@@ -5712,7 +5910,10 @@
                 "enum": [
                   "main",
                   "main_footage",
+                  "slide",
                   "footage",
+                  "profile_card",
+                  "comment_card",
                   "comment"
                 ],
                 "type": "string"
@@ -5810,6 +6011,14 @@
         "additionalProperties": false,
         "description": "One ordered creative input of a Content Set, without host paths or signed queries.",
         "properties": {
+          "blur_regions": {
+            "items": {
+              "$ref": "#/components/schemas/SourceBlurRegion"
+            },
+            "maxItems": 200,
+            "title": "Blur Regions",
+            "type": "array"
+          },
           "media_kind": {
             "enum": [
               "video",
@@ -5818,6 +6027,11 @@
             ],
             "title": "Media Kind",
             "type": "string"
+          },
+          "mute_audio": {
+            "default": false,
+            "title": "Mute Audio",
+            "type": "boolean"
           },
           "order": {
             "exclusiveMaximum": 400.0,
@@ -5838,11 +6052,27 @@
             ],
             "title": "Platform"
           },
+          "reading_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 60.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reading Seconds"
+          },
           "role": {
             "enum": [
               "main",
               "main_footage",
+              "slide",
               "footage",
+              "profile_card",
+              "comment_card",
               "comment"
             ],
             "title": "Role",
@@ -5975,7 +6205,10 @@
                 "enum": [
                   "main",
                   "main_footage",
+                  "slide",
                   "footage",
+                  "profile_card",
+                  "comment_card",
                   "comment"
                 ],
                 "type": "string"
@@ -6586,6 +6819,19 @@
             "title": "Asset Id",
             "type": "string"
           },
+          "blur_enabled": {
+            "default": false,
+            "title": "Blur Enabled",
+            "type": "boolean"
+          },
+          "blur_regions": {
+            "items": {
+              "$ref": "#/components/schemas/ClipBlurRegion"
+            },
+            "maxItems": 200,
+            "title": "Blur Regions",
+            "type": "array"
+          },
           "clip_id": {
             "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
             "title": "Clip Id",
@@ -7091,7 +7337,8 @@
               "reused",
               "copied",
               "unresolved",
-              "decided"
+              "decided",
+              "not_placed"
             ],
             "title": "Outcome",
             "type": "string"

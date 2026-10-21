@@ -42,6 +42,7 @@ from thoth_control_plane.domain.editor_assets import EditorAssetRecord
 from thoth_control_plane.domain.models import Actor
 from thoth_control_plane.domain.studio_imports import (
     AttachImportAsset,
+    ExcludeImportItem,
     ResolveStudioImportItem,
     StudioImportInventory,
     StudioSourceInspection,
@@ -213,6 +214,8 @@ class WorkflowStudioImportService:
                     project_id, inventory.document_id, item_id, request
                 )
             except StudioImportDecisionRejected as refused:
+                if refused.code == "no_room_in_reaction_beat":
+                    return await self._not_placed(project_id, inventory, item_id)
                 return self._left(item_id, refused.code), inventory
             except (EditDocumentRevisionConflict, StudioImportItemResolved):
                 inventory = await self._imports.get_inventory(project_id, inventory.document_id)
@@ -225,6 +228,23 @@ class WorkflowStudioImportService:
                 continue  # an unrelated edit moved the revision: attach again on the latest
             return WorkflowImportItem(item_id=item_id, outcome=outcome), inventory
         raise AssertionError("unreachable")  # pragma: no cover
+
+    async def _not_placed(
+        self, project_id: str, inventory: StudioImportInventory, item_id: str
+    ) -> tuple[WorkflowImportItem, StudioImportInventory]:
+        """A comment card the reaction beat had no room for: excluded with that reason, its
+        asset kept in the project so a person can still place it (spec 5c-1, section 7)."""
+        request = ResolveStudioImportItem(
+            base_revision=inventory.revision,
+            decision=ExcludeImportItem(kind="exclude", reason="not_placed"),
+        )
+        try:
+            inventory = await self._imports.resolve(
+                project_id, inventory.document_id, item_id, request
+            )
+        except (EditDocumentRevisionConflict, StudioImportItemResolved):
+            return self._left(item_id, "draft_changed"), inventory
+        return WorkflowImportItem(item_id=item_id, outcome="not_placed"), inventory
 
     @staticmethod
     def _left(item_id: str, reason: str) -> WorkflowImportItem:

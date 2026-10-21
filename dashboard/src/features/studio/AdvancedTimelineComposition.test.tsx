@@ -42,7 +42,6 @@ mock.module("remotion", () => ({
       {children}
     </div>
   ),
-  Video: (props: Record<string, unknown>) => <div data-testid="video" {...props} />,
   // Volume is a frame callback, which no DOM attribute can carry, so it is
   // captured instead of spread.
   Audio: ({ volume, ...rest }: Record<string, unknown>) => {
@@ -67,6 +66,17 @@ mock.module("remotion", () => ({
     continueRender: (handle: number) => renderDelay.continued.push(handle),
     cancelRender: (error: unknown) => renderDelay.cancelled.push(error),
   }),
+}));
+
+// The WebCodecs video tag needs a real decoder; its props are what the composition decides.
+mock.module("@remotion/media", () => ({
+  Video: ({ disallowFallbackToOffthreadVideo, ...rest }: Record<string, unknown>) => (
+    <div
+      data-testid="video"
+      data-no-fallback={String(disallowFallbackToOffthreadVideo === true)}
+      {...rest}
+    />
+  ),
 }));
 
 const { AdvancedTimelineComposition, COMPOSITION_ID } = await import("@thoth/remotion-composition");
@@ -189,6 +199,7 @@ function documentV2(): EditDocumentV2 {
         hidden: false,
         locked: true,
         fit: "cover",
+        blur_enabled: false,
       },
       {
         kind: "audio",
@@ -345,7 +356,7 @@ test("media sources are looked up by asset ID and trimmed at the source frame", 
   render(<AdvancedTimelineComposition document={documentV2()} previewSources={SOURCES} />);
   const video = screen.getByTestId("video");
   expect(video.getAttribute("src")).toBe(SOURCES.asset_video);
-  expect(video.getAttribute("startFrom")).toBe("30");
+  expect(video.getAttribute("trimBefore")).toBe("30");
   expect(video.getAttribute("crossOrigin")).toBeNull();
 });
 
@@ -373,7 +384,7 @@ test("fit, crop, and position shape how a video fills the canvas", () => {
   const [plain, shaped] = screen.getAllByTestId("video") as HTMLElement[];
   const frames = screen.getAllByTestId("clip-frame") as HTMLElement[];
 
-  expect(plain!.style.objectFit).toBe("cover");
+  expect(plain!.getAttribute("objectFit")).toBe("cover");
   expect([plain!.style.width, plain!.style.height, plain!.style.left, plain!.style.top]).toEqual([
     "100%",
     "100%",
@@ -383,7 +394,7 @@ test("fit, crop, and position shape how a video fills the canvas", () => {
   expect(frames[0]!.style.transform).toBe("translate(0%, 0%) scale(1)");
 
   // A half-wide, 60%-tall crop has to enlarge the frame and shift it back.
-  expect(shaped!.style.objectFit).toBe("contain");
+  expect(shaped!.getAttribute("objectFit")).toBe("contain");
   expect([shaped!.style.width, shaped!.style.height, shaped!.style.left, shaped!.style.top]).toEqual([
     "200%",
     "166.6667%",
@@ -551,4 +562,59 @@ test("a font that will not load cancels the render instead of drawing a substitu
   } finally {
     restore();
   }
+});
+
+test("video is drawn by the frame-accurate decoder, which may still fall back", () => {
+  // The HTML5 video element mis-seeks under load (parity frame 90, 2026-10-21). A source
+  // headless Chrome cannot decode (HEVC) must still render through the fallback decoder.
+  render(<AdvancedTimelineComposition document={documentV2()} previewSources={SOURCES} />);
+  const drawn = screen.getByTestId("video");
+  expect(drawn.getAttribute("trimBefore")).toBe("30");
+  expect(drawn.getAttribute("data-no-fallback")).toBe("false");
+});
+
+/** documentV2 with one subtitle band on its video clip, blur switched as given. */
+function blurred(enabled: boolean, window: [number, number] | null = null): EditDocumentV2 {
+  const document = documentV2();
+  const video = document.clips!.find((clip) => clip.clip_id === "clip_video")!;
+  Object.assign(video, {
+    blur_enabled: enabled,
+    blur_regions: [
+      {
+        x: 0.1,
+        y: 0.65,
+        w: 0.8,
+        h: 0.09,
+        from_frame: window?.[0] ?? null,
+        to_frame: window?.[1] ?? null,
+      },
+    ],
+  });
+  return document;
+}
+
+test("blur off draws nothing", () => {
+  render(<AdvancedTimelineComposition document={blurred(false)} previewSources={SOURCES} />);
+  expect(screen.queryByTestId("blur-region")).toBeNull();
+});
+
+test("blur on draws each region with a backdrop blur", () => {
+  render(<AdvancedTimelineComposition document={blurred(true)} previewSources={SOURCES} />);
+  const region = screen.getByTestId("blur-region") as HTMLElement;
+  expect(region.style.backdropFilter).toMatch(/^blur\(\d+(\.\d+)?px\)$/);
+});
+
+test("a windowed region renders inside a Sequence offset by the trim", () => {
+  // The clip starts 30 source frames in, so source frames 60-120 are clip frames 30-90.
+  render(<AdvancedTimelineComposition document={blurred(true, [60, 120])} previewSources={SOURCES} />);
+  const region = screen.getByTestId("blur-region");
+  const window = region.closest('[data-testid="sequence"]') as HTMLElement;
+  expect([window.getAttribute("data-from"), window.getAttribute("data-duration")]).toEqual(["30", "60"]);
+});
+
+test("an image clip ignores blur", () => {
+  const document = blurred(true);
+  document.asset_refs![0]!.kind = "image";
+  render(<AdvancedTimelineComposition document={document} previewSources={SOURCES} />);
+  expect(screen.queryByTestId("blur-region")).toBeNull();
 });

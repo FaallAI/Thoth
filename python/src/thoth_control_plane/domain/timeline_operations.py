@@ -135,6 +135,13 @@ class SetClipVolume(StrictModel):
     volume: Volume
 
 
+class SetClipBlur(StrictModel):
+    kind: Literal["set_clip_blur"]
+    operation_id: OpaqueId
+    clip_id: OpaqueId
+    blur_enabled: bool
+
+
 class SetCaptionCueText(StrictModel):
     kind: Literal["set_caption_cue_text"]
     operation_id: OpaqueId
@@ -207,6 +214,7 @@ TimelineOperation: TypeAlias = Annotated[
     | SetClipHidden
     | SetClipLocked
     | SetClipVolume
+    | SetClipBlur
     | SetCaptionCueText
     | AddCaptionClip
     | SetCaptionCueTiming
@@ -251,6 +259,11 @@ def apply_timeline_operation(
             _clip(document, operation.clip_id).locked = operation.locked
         case SetClipVolume():
             _set_clip_volume(document, operation)
+        case SetClipBlur():
+            clip = _unlocked_clip(document, operation.clip_id)
+            if not isinstance(clip, TimelineVideoClip):
+                raise ValueError("blur applies only to video clips")
+            clip.blur_enabled = operation.blur_enabled
         case SetCaptionCueText():
             clip = _unlocked_clip(document, operation.clip_id)
             if not isinstance(clip, TimelineCaptionClip) or operation.cue_index >= len(clip.cues):

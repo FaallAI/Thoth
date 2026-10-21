@@ -94,6 +94,7 @@ function documentV2(): EditDocumentV2 {
         hidden: false,
         locked: false,
         fit: "cover",
+        blur_enabled: false,
       },
       {
         kind: "audio",
@@ -723,4 +724,45 @@ test("a scene-bound caption keeps its cues inside the caption when the scene shr
     duration_in_frames: 30,
     cues: [{ from_frame: 29, duration_in_frames: 1, text: "Hello" }],
   });
+});
+
+/** documentV2 with one timed subtitle region on the main clip. */
+function blurredDocument(): EditDocumentV2 {
+  const document = documentV2();
+  const main = document.clips!.find((clip) => clip.clip_id === "clip_main")!;
+  Object.assign(main, {
+    blur_regions: [{ x: 0.1, y: 0.65, w: 0.8, h: 0.09, from_frame: 30, to_frame: 90 }],
+  });
+  return document;
+}
+
+test("set_clip_blur toggles blur_enabled", () => {
+  const on = applyTimelineOperation(
+    blurredDocument(),
+    { kind: "set_clip_blur", operation_id: "op_blur", clip_id: "clip_main", blur_enabled: true },
+    {},
+  );
+  const main = on.clips!.find((clip) => clip.clip_id === "clip_main")!;
+  expect(main.kind === "video" && main.blur_enabled).toBe(true);
+});
+
+test("split keeps blur regions", () => {
+  const split = applyTimelineOperation(
+    blurredDocument(),
+    {
+      kind: "split_clip",
+      operation_id: "op_001",
+      clip_id: "clip_main",
+      split_frame: 90,
+      left_clip_id: "clip_left",
+      right_clip_id: "clip_right",
+    },
+    {},
+  );
+  for (const id of ["clip_left", "clip_right"]) {
+    const clip = split.clips!.find((candidate) => candidate.clip_id === id)!;
+    expect(clip.kind === "video" ? clip.blur_regions : null).toEqual([
+      { x: 0.1, y: 0.65, w: 0.8, h: 0.09, from_frame: 30, to_frame: 90 },
+    ]);
+  }
 });

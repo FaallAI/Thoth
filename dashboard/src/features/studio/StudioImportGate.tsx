@@ -34,7 +34,15 @@ type StudioImportGateProps = {
   onClose: () => void;
 };
 
-const ROLE_LABELS = { main: "Main", main_footage: "Main footage", footage: "Footage", comment: "Comment" } as const;
+const ROLE_LABELS = {
+  main: "Main",
+  main_footage: "Main footage",
+  slide: "Slide",
+  footage: "Footage",
+  profile_card: "Profile card",
+  comment_card: "Comment card",
+  comment: "Comment",
+} as const;
 const ASSET_PAGE = 50;
 // Pages may overlap: one asset keeps its first position.
 const uniqueAssets = (list: EditorAsset[]) => [...new Map(list.map((asset) => [asset.asset_id, asset])).values()];
@@ -50,6 +58,9 @@ const MESSAGES: Record<string, string> = {
   item_not_attachable: "This item has no media to attach.",
   trim_exceeds_asset: "This item's trim starts after that asset ends. Choose a longer asset or exclude the item.",
   asset_duration_unknown: "The length of that asset is unknown, so its source range cannot be kept.",
+  main_not_attached: "Attach the main item first; cards and slides are placed over it.",
+  no_room_in_reaction_beat:
+    "There is no room left in the reaction beat for this card. Exclude it, or place it by hand in the timeline.",
 };
 
 function failure(error: unknown, fallback: string): string {

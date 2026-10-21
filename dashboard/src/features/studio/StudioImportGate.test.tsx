@@ -25,6 +25,7 @@ const sourceItem = (role: "main" | "footage" | "comment", order: number, media: 
   source_url: role === "comment" ? null : `https://example.test/${role}/${order}`,
   media_kind: media,
   trim_start_seconds: null,
+  mute_audio: false,
 });
 const SOURCE = {
   items: [
@@ -37,6 +38,7 @@ const SOURCE = {
 
 const mediaItem = (itemId: string, role: "main" | "footage", order: number, label: string): StudioImportItem => ({
   item_id: itemId,
+  mute_audio: false,
   role,
   order,
   label,
@@ -55,6 +57,7 @@ const ITEMS: StudioImportItem[] = [
   mediaItem("footage_003", "footage", 3, "Crowd pan"),
   {
     item_id: "unsupported_000",
+    mute_audio: false,
     role: "main",
     order: 0,
     label: "profile",
@@ -333,6 +336,8 @@ test("a ready-asset page announces loading and a failure it can retry", async ()
 test.each([
   ["trim_exceeds_asset", "starts after that asset ends"],
   ["asset_duration_unknown", "length of that asset is unknown"],
+  ["main_not_attached", "Attach the main item first"],
+  ["no_room_in_reaction_beat", "no room left in the reaction beat"],
 ])("a source range the asset cannot hold (%s) is stated and leaves the item unresolved", async (code, text) => {
   const resolveStudioImportItem = mock(async () => {
     throw new StudioImportRequestError(422, code);
@@ -502,4 +507,35 @@ test("resolve-only mode retries a failed open and words a missing draft for itse
   render(<StudioImportGate client={gone} projectId="project_001" resumeDocumentId="edoc_gone" onOpen={() => {}} onClose={() => {}} />);
   expect(await screen.findByText("This draft is no longer available.")).toBeDefined();
   expect(Boolean(screen.queryByText(/draft list/))).toBe(false);
+});
+
+
+test("overlay items show their labels and the not-placed reason", async () => {
+  const card = (itemId: string, role: "profile_card" | "comment_card" | "slide", label: string) => ({
+    ...mediaItem(itemId, "main", 0, label),
+    role,
+    media_kind: "image" as const,
+  });
+  const items: StudioImportItem[] = [
+    mediaItem("main_000", "main", 0, "Neon Nights"),
+    card("slide_000", "slide", "Slide 2"),
+    card("profile_card_000", "profile_card", "@creator"),
+    {
+      ...card("comment_card_003", "comment_card", "@viewer"),
+      disposition: "excluded",
+      reason: "Not placed: no room in the reaction beat",
+    },
+  ];
+  const client = fakeClient({
+    getStudioImportInventory: mock(async (_projectId: string, documentId: string) =>
+      inventoryOf(documentId, 1, items),
+    ),
+  });
+  const { user } = renderGate(client);
+  await resumeNewest(user);
+  const unplaced = screen.getByRole("listitem", { name: "@viewer" });
+  expect(unplaced.textContent).toContain("Comment card");
+  expect(unplaced.textContent).toContain("Not placed: no room in the reaction beat");
+  expect(screen.getByRole("listitem", { name: "Slide 2" }).textContent).toContain("Slide");
+  expect(screen.getByRole("listitem", { name: "@creator" }).textContent).toContain("Profile card");
 });

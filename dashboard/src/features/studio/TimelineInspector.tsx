@@ -201,6 +201,40 @@ export function TimelineInspector({
                   ? `${clip.position.x}, ${clip.position.y} ×${clip.position.scale}`
                   : NOT_SET,
               )}
+              {clip.blur_regions?.length ? (
+                // Detected subtitles arrive switched off: muting and blurring the speech leaves
+                // the viewer neither the words nor the text until narration replaces it.
+                <div className={field}>
+                  <span>
+                    Subtitles detected ({clip.blur_regions.length}{" "}
+                    {clip.blur_regions.length === 1 ? "region" : "regions"})
+                  </span>
+                  {clip.blur_enabled ? (
+                    <button
+                      type="button"
+                      className="rounded border border-border px-2 py-1 text-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                      disabled={clip.locked === true || track?.locked === true}
+                      onClick={() =>
+                        emit({ kind: "set_clip_blur", clip_id: clip.clip_id, blur_enabled: false })
+                      }
+                    >
+                      Remove blur
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="rounded border border-border px-2 py-1 text-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                      disabled={clip.locked === true || track?.locked === true}
+                      onClick={() => {
+                        emit({ kind: "set_clip_blur", clip_id: clip.clip_id, blur_enabled: true });
+                        emit({ kind: "set_track_muted", track_id: clip.track_id, muted: true });
+                      }}
+                    >
+                      Blur subtitles and mute
+                    </button>
+                  )}
+                </div>
+              ) : null}
             </>
           ) : null}
           {clip.kind === "audio" ? (

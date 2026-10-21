@@ -106,6 +106,8 @@ def document_v2_payload() -> dict[str, Any]:
                 "fit": "cover",
                 "crop": None,
                 "position": None,
+                "blur_regions": [],
+                "blur_enabled": False,
             },
         ],
         "asset_refs": [

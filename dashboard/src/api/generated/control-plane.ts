@@ -1602,6 +1602,27 @@ export interface components {
             /** Invoice Url */
             invoice_url: string | null;
         };
+        /**
+         * ClipBlurRegion
+         * @description A region to blur, in fractions of the source frame and source frames (spec 5c-1, 5.1).
+         *
+         *     Source frames, not timeline frames: trimming, moving or splitting a clip never shifts it.
+         *     A region without a window lasts the whole clip.
+         */
+        ClipBlurRegion: {
+            /** From Frame */
+            from_frame?: number | null;
+            /** H */
+            h: number;
+            /** To Frame */
+            to_frame?: number | null;
+            /** W */
+            w: number;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
         /** ContentSetImportRequest */
         ContentSetImportRequest: {
             /** Footage */
@@ -1824,7 +1845,7 @@ export interface components {
             /** Base Revision */
             base_revision: number;
             /** Operations */
-            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
+            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
         };
         /**
          * EditDocumentV1
@@ -1937,6 +1958,8 @@ export interface components {
              * @enum {string}
              */
             kind: "exclude";
+            /** Reason */
+            reason?: "not_placed" | null;
         };
         /** FootageImport */
         FootageImport: {
@@ -2944,6 +2967,20 @@ export interface components {
              */
             style_slot: "caption_default" | "source";
         };
+        /** SetClipBlur */
+        SetClipBlur: {
+            /** Blur Enabled */
+            blur_enabled: boolean;
+            /** Clip Id */
+            clip_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_clip_blur";
+            /** Operation Id */
+            operation_id: string;
+        };
         /** SetClipHidden */
         SetClipHidden: {
             /** Clip Id */
@@ -3154,6 +3191,24 @@ export interface components {
             /** Platforms */
             platforms: components["schemas"]["PlatformAccounts"][];
         };
+        /**
+         * SourceBlurRegion
+         * @description A detected subtitle region: fractions of the source frame, a window in source seconds.
+         */
+        SourceBlurRegion: {
+            /** End */
+            end?: number | null;
+            /** H */
+            h: number;
+            /** Start */
+            start?: number | null;
+            /** W */
+            w: number;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
         /** SourceInput */
         SourceInput: {
             /**
@@ -3295,6 +3350,8 @@ export interface components {
         StudioImportItem: {
             /** Asset Id */
             asset_id?: string | null;
+            /** Blur Regions */
+            blur_regions?: components["schemas"]["SourceBlurRegion"][];
             /**
              * Disposition
              * @enum {string}
@@ -3309,14 +3366,21 @@ export interface components {
              * @enum {string}
              */
             media_kind: "video" | "image" | "none";
+            /**
+             * Mute Audio
+             * @default false
+             */
+            mute_audio: boolean;
             /** Order */
             order: number | null;
             /** Platform */
             platform: string | null;
+            /** Reading Seconds */
+            reading_seconds?: number | null;
             /** Reason */
             reason: string | null;
             /** Role */
-            role: ("main" | "main_footage" | "footage" | "comment") | null;
+            role: ("main" | "main_footage" | "slide" | "footage" | "profile_card" | "comment_card" | "comment") | null;
             /** Scene Id */
             scene_id: string | null;
             /** Trim Start Seconds */
@@ -3346,20 +3410,29 @@ export interface components {
          * @description One ordered creative input of a Content Set, without host paths or signed queries.
          */
         StudioSourceItem: {
+            /** Blur Regions */
+            blur_regions?: components["schemas"]["SourceBlurRegion"][];
             /**
              * Media Kind
              * @enum {string}
              */
             media_kind: "video" | "image" | "none";
+            /**
+             * Mute Audio
+             * @default false
+             */
+            mute_audio: boolean;
             /** Order */
             order: number;
             /** Platform */
             platform: string | null;
+            /** Reading Seconds */
+            reading_seconds?: number | null;
             /**
              * Role
              * @enum {string}
              */
-            role: "main" | "main_footage" | "footage" | "comment";
+            role: "main" | "main_footage" | "slide" | "footage" | "profile_card" | "comment_card" | "comment";
             /** Source Url */
             source_url: string | null;
             /** Text */
@@ -3391,7 +3464,7 @@ export interface components {
             /** Reason */
             reason: string;
             /** Role */
-            role: ("main" | "main_footage" | "footage" | "comment") | null;
+            role: ("main" | "main_footage" | "slide" | "footage" | "profile_card" | "comment_card" | "comment") | null;
             /** Value Digest */
             value_digest?: string | null;
         };
@@ -3659,6 +3732,13 @@ export interface components {
         TimelineVideoClip: {
             /** Asset Id */
             asset_id: string;
+            /**
+             * Blur Enabled
+             * @default false
+             */
+            blur_enabled: boolean;
+            /** Blur Regions */
+            blur_regions?: components["schemas"]["ClipBlurRegion"][];
             /** Clip Id */
             clip_id: string;
             crop?: components["schemas"]["Crop"] | null;
@@ -3864,7 +3944,7 @@ export interface components {
              * Outcome
              * @enum {string}
              */
-            outcome: "reused" | "copied" | "unresolved" | "decided";
+            outcome: "reused" | "copied" | "unresolved" | "decided" | "not_placed";
             /** Reason */
             reason?: string | null;
         };

@@ -100,8 +100,9 @@ def seed_media(media: Any, tmp_path: Path, data: dict[str, Any] | None = None) -
     """Store one object per MediaRef, exactly as many bytes as it declares."""
     data = data or content_set_data()
     main = data["main"]
-    refs = [ref for ref in (main.get("video"), main.get("card")) if ref]
+    refs = [ref for ref in (main.get("video"), main.get("card"), main.get("profile_card")) if ref]
     refs += [*main.get("images", []), *(item["video"] for item in data.get("footage", []))]
+    refs += [comment["card"] for comment in data.get("comments", []) if comment.get("card")]
     for index, ref in enumerate(refs):
         source = tmp_path / f"seed-{index}.bin"
         source.write_bytes(b"m" * ref["bytes"])
@@ -189,6 +190,7 @@ class AttachingImports(MemoryStudioImports):
         self.conflict = conflict or set()
         self.conflict_once = conflict_once or set()  # an unrelated edit bumps the revision once
         self.decide_first = decide_first or set()  # a person excludes the item in the gate first
+        self.decisions: list[tuple[str, Any]] = []
 
     async def resolve_item(
         self,
@@ -221,9 +223,10 @@ class AttachingImports(MemoryStudioImports):
         entry = next(item for item in row["inventory"] if item.item_id == item_id)
         if entry.disposition != "unresolved":
             raise StudioImportItemResolved()
-        if item_id in self.refuse:
-            raise StudioImportDecisionRejected(self.refuse[item_id])
         attached = isinstance(decision, AttachImportAsset)
+        if item_id in self.refuse and attached:
+            raise StudioImportDecisionRejected(self.refuse[item_id])
+        self.decisions.append((item_id, decision))
         row["inventory"] = [
             item.model_copy(
                 update={
@@ -573,3 +576,44 @@ async def test_a_copy_rolled_back_is_never_counted(tmp_path: Path) -> None:
     with metering.scoped(MeterScope("ws_a", project_id=PROJECT)):
         await w.service.open(PROJECT, WF, ACTOR, "open-1")
     assert [event for event in sink.events if event.key == "uploads"] == []
+
+
+CARD = {
+    "location": f"reports/{WF}/cards/c0.jpg",
+    "media_type": "image/jpeg",
+    "checksum": "sha256:" + "e" * 64,
+    "bytes": 700,
+    "width": 1080,
+    "height": 1350,
+}
+
+
+def carded() -> dict[str, Any]:
+    comment = {"text": "wah", "author": "viewer", "likes": 3, "source": "input", "card": CARD}
+    return content_set_data() | {"comments": [comment]}
+
+
+@pytest.mark.asyncio
+async def test_a_card_with_no_room_is_excluded_as_not_placed(tmp_path: Path) -> None:
+    imports = AttachingImports(refuse={"comment_card_000": "no_room_in_reaction_beat"})
+    built = world(tmp_path, data=carded(), imports=imports)
+
+    opened = await built.service.open("project_001", WF, ACTOR, "open-1")
+
+    item = {item.item_id: item for item in opened.items}["comment_card_000"]
+    assert (item.outcome, item.reason) == ("not_placed", None)
+    [(_, decision)] = [d for d in imports.decisions if d[0] == "comment_card_000"]
+    assert (decision.kind, decision.reason) == ("exclude", "not_placed")
+    assert any(record.asset.checksum == CARD["checksum"] for record in built.assets.records)
+
+
+@pytest.mark.asyncio
+async def test_overlay_items_stay_unresolved_until_the_main_attaches(tmp_path: Path) -> None:
+    imports = AttachingImports(refuse={"comment_card_000": "main_not_attached"})
+    built = world(tmp_path, data=carded(), imports=imports)
+
+    opened = await built.service.open("project_001", WF, ACTOR, "open-1")
+
+    item = {item.item_id: item for item in opened.items}["comment_card_000"]
+    assert (item.outcome, item.reason) == ("unresolved", "main_not_attached")
+    assert not [d for d in imports.decisions if d[0] == "comment_card_000"]

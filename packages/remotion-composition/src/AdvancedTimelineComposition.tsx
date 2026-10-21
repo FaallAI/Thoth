@@ -1,12 +1,15 @@
-import { AbsoluteFill, Audio, Img, Sequence, Video } from "remotion";
+import { Video } from "@remotion/media";
+import { AbsoluteFill, Audio, Img, Sequence } from "remotion";
 import type { CSSProperties, ReactNode } from "react";
 
-import type { AssetKind, EditDocumentV2, TimelineClip } from "./timeline";
+import type { EditDocumentV2, TimelineClip } from "./timeline";
+import { blurBoxes } from "./blur";
 import { visibleLanes } from "./timeline";
 import { safePreviewSource } from "./media";
 import { COMPOSITION_FONT_FAMILY, useCompositionFonts } from "./fonts";
 
 type OverlayClip = Extract<TimelineClip, { kind: "overlay" }>;
+type AssetRef = NonNullable<EditDocumentV2["asset_refs"]>[number];
 type AudioClip = Extract<TimelineClip, { kind: "audio" }>;
 
 /** A style the document may select by name, resolved to a local style object. */
@@ -161,7 +164,7 @@ export function AdvancedTimelineComposition({
   useCompositionFonts();
   // Whether a clip is a still or a movie comes only from the document's own
   // validated asset reference, never from a preview URL or its suffix.
-  const kinds = new Map((document.asset_refs ?? []).map((ref) => [ref.asset_id, ref.kind]));
+  const refs = new Map((document.asset_refs ?? []).map((ref) => [ref.asset_id, ref]));
   return (
     <AbsoluteFill style={CANVAS}>
       {/* Lanes are editor rows, so a hidden track still has one; the composition drops it. */}
@@ -177,7 +180,14 @@ export function AdvancedTimelineComposition({
                 from={clip.from_frame}
                 durationInFrames={clip.duration_in_frames}
               >
-                {renderClip(clip, track.muted === true, kinds, previewSources, onPreviewUnavailable)}
+                {renderClip(
+                  clip,
+                  track.muted === true,
+                  refs,
+                  document.canvas,
+                  previewSources,
+                  onPreviewUnavailable,
+                )}
               </Sequence>
             )),
         )}
@@ -188,7 +198,8 @@ export function AdvancedTimelineComposition({
 function renderClip(
   clip: TimelineClip,
   muted: boolean,
-  kinds: Map<string, AssetKind>,
+  refs: Map<string, AssetRef>,
+  canvas: EditDocumentV2["canvas"],
   sources: PreviewSources,
   onPreviewUnavailable?: (assetId: string) => void,
 ): ReactNode {
@@ -227,7 +238,7 @@ function renderClip(
       );
     }
     case "video": {
-      const kind = kinds.get(clip.asset_id);
+      const kind = refs.get(clip.asset_id)?.kind;
       if (kind !== "video" && kind !== "image") {
         return <PreviewUnavailable label="Video preview unavailable" />;
       }
@@ -241,7 +252,6 @@ function renderClip(
         height: percent(1 / span(crop.height)),
         left: percent(-crop.left / span(crop.width)),
         top: percent(-crop.top / span(crop.height)),
-        objectFit: clip.fit,
       };
       return (
         // The frame clips the crop and carries the placement; the media itself
@@ -256,10 +266,51 @@ function renderClip(
         >
           {/* A still has no source timeline, so only a movie carries a trim. */}
           {kind === "image" ? (
-            <Img src={source} style={media} />
+            <Img src={source} style={{ ...media, objectFit: clip.fit }} />
           ) : (
-            <Video src={source} startFrom={clip.source_from_frame} muted={muted} style={media} />
+            // One WebCodecs decoder for the preview and the render: the HTML5 element mis-seeks
+            // under load (parity frame 90, 2026-10-21). A source headless Chrome cannot decode
+            // (HEVC) falls back to the FFmpeg frame extractor, which renders a few levels off
+            // the preview's colours rather than cancelling the whole render.
+            <Video
+              src={source}
+              trimBefore={clip.source_from_frame}
+              muted={muted}
+              objectFit={clip.fit}
+              style={media}
+            />
           )}
+          {kind === "video" && clip.blur_enabled
+            ? blurBoxes(clip, refs.get(clip.asset_id), canvas).map((box, index) => {
+                const region = (
+                  <div
+                    key={`${clip.clip_id}_blur_${index}`}
+                    data-testid="blur-region"
+                    style={{
+                      position: "absolute",
+                      left: box.left,
+                      top: box.top,
+                      width: box.width,
+                      height: box.height,
+                      backdropFilter: `blur(${box.sigma}px)`,
+                    }}
+                  />
+                );
+                // A windowed region shows only between its source frames, clip-relative here.
+                return box.from === null || box.to === null ? (
+                  region
+                ) : (
+                  <Sequence
+                    key={`${clip.clip_id}_blur_${index}`}
+                    name={`${clip.clip_id}_blur_${index}`}
+                    from={box.from}
+                    durationInFrames={Math.max(1, box.to - box.from)}
+                  >
+                    {region}
+                  </Sequence>
+                );
+              })
+            : null}
         </AbsoluteFill>
       );
     }

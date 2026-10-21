@@ -1009,6 +1009,7 @@ const STUDIO_SOURCE = {
       source_url: "https://example.test/main",
       media_kind: "video",
       trim_start_seconds: null,
+      mute_audio: false,
     },
   ],
   unsupported: [],
