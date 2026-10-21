@@ -171,10 +171,19 @@ async def test_cards_and_blur_land_where_the_layout_says(database: str, tmp_path
 
     opened = await service.open(project, WF, ACTOR, "open-cards")
 
+    gate = await StudioImportService(PostgresStudioImportRepository(database)).get_inventory(
+        project, opened.draft.document_id
+    )
+    fourth = {item.item_id: item for item in gate.items}["comment_card_003"]
+    assert (fourth.disposition, fourth.reason) == (
+        "excluded",
+        "Not placed: no room in the reaction beat",
+    )
+
     outcomes = {item.item_id: (item.outcome, item.reason) for item in opened.items}
     assert outcomes["profile_card_000"][0] == "copied"
     assert [outcomes[f"comment_card_00{i}"][0] for i in range(3)] == ["copied"] * 3
-    assert outcomes["comment_card_003"] == ("unresolved", "no_room_in_reaction_beat")
+    assert outcomes["comment_card_003"] == ("not_placed", None)
     clips, tracks = clips_of(database, project, opened.draft.document_id)
     fps = 30
     start, length = profile_slot(30.0)
