@@ -51,7 +51,10 @@ from thoth_control_plane.application import (
 )
 from thoth_control_plane.application.edit_documents import EditDocumentService
 from thoth_control_plane.application.editor_asset_ports import EditorAssetRepository
-from thoth_control_plane.application.editor_asset_uploads import EditorAssetUploadService
+from thoth_control_plane.application.editor_asset_uploads import (
+    EditorAssetUploadService,
+    sweep_unregistered_uploads,
+)
 from thoth_control_plane.application.editor_assets import EditorAssetService
 from thoth_control_plane.application.ports import (
     EditDocumentRepository,
@@ -133,6 +136,8 @@ CONTRACT_VERSION = "1"
 RENDER_ASSET_MAX_BYTES = 1024 * 1024 * 1024
 #: How often the deadline scan runs. It is a bounded sweep, never a queue.
 RENDER_RECONCILE_INTERVAL_SECONDS = 60
+#: How often uploads a killed process left unregistered are removed.
+UPLOAD_SWEEP_INTERVAL_SECONDS = 3600
 
 
 def _preview_signer(settings: Settings) -> EditorPreviewSigner | None:
@@ -194,6 +199,16 @@ async def _reconcile_render_deadlines(service: RenderJobService, interval: float
         await asyncio.sleep(interval)
         with contextlib.suppress(Exception):
             await service.reconcile_expired(datetime.now(UTC))
+
+
+async def _sweep_uploads(
+    media: MediaStore, assets: EditorAssetRepository, interval: float, *, delete: bool
+) -> None:
+    """Sweep at startup, then on an interval; a failed pass deletes nothing and waits."""
+    while True:
+        with contextlib.suppress(Exception):
+            await sweep_unregistered_uploads(media, assets, datetime.now(UTC), delete=delete)
+        await asyncio.sleep(interval)
 
 
 def _source_account_store(settings: Settings) -> SourceAccountStore | None:
@@ -317,15 +332,29 @@ def create_app(
         # rather than resumed, then the same pass on a cancellable interval.
         with contextlib.suppress(Exception):
             await render_service.reconcile_expired(datetime.now(UTC))
-        reconciler = asyncio.create_task(
-            _reconcile_render_deadlines(render_service, RENDER_RECONCILE_INTERVAL_SECONDS)
-        )
+        tasks = [
+            asyncio.create_task(
+                _reconcile_render_deadlines(render_service, RENDER_RECONCILE_INTERVAL_SECONDS)
+            )
+        ]
+        if editor_asset_repository is not None:
+            tasks.append(
+                asyncio.create_task(
+                    _sweep_uploads(
+                        media,
+                        editor_asset_repository,
+                        UPLOAD_SWEEP_INTERVAL_SECONDS,
+                        delete=settings.THOTH_UPLOAD_SWEEP_DELETE,
+                    )
+                )
+            )
         try:
             yield
         finally:
-            reconciler.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await reconciler
+            for task in tasks:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
 
     app = FastAPI(
         title="Thoth Control Plane",

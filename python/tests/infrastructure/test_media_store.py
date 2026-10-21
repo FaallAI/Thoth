@@ -122,6 +122,21 @@ def test_list_returns_the_locators_below_a_prefix(store, tmp_path: Path) -> None
     assert store.list("reports/wf_none/footage/") == []
 
 
+def test_list_can_keep_only_objects_older_than_a_moment(store, tmp_path: Path) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    source = _file(tmp_path, "a.mp4", b"x")
+    store.put_file("uploads/project_a/asset_1.mp4", source)
+    store.put_file("uploads/project_b/asset_2.mp4", source)
+    now = datetime.now(UTC)
+    # A whole top-level prefix may be listed: the upload sweep reads every project at once.
+    assert store.list("uploads/", older_than=now + timedelta(minutes=5)) == [
+        "uploads/project_a/asset_1.mp4",
+        "uploads/project_b/asset_2.mp4",
+    ]
+    assert store.list("uploads/", older_than=now - timedelta(hours=1)) == []
+
+
 @pytest.mark.parametrize(
     "location",
     [

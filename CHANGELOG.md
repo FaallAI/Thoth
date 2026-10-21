@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-21 - Sweep for uploads no asset row points at (report-only by default)
+
+Closes the follow-up from PR #36. A process killed between copying an upload or a workflow import
+into `uploads/<project>/` and registering it left an object no `editor_assets` row points at.
+
+- The API sweeps `uploads/` at startup and then hourly (`sweep_unregistered_uploads`). It
+  considers only objects over an hour old, so an upload or import in flight is never a candidate.
+- Every candidate batch is checked against the database before anything is deleted. A database
+  failure, in any batch, ends the pass with nothing touched.
+- **Report-only by default** (operator request): the sweep logs
+  `upload sweep: N unregistered upload(s) found (report only): <locators>`. It deletes only with
+  `THOTH_UPLOAD_SWEEP_DELETE=true`, because MinIO holds the only copy of every upload.
+- `MediaStore.list` takes `older_than` (file mtime locally, `last_modified` on S3) and may list a
+  whole top-level prefix. The asset repository gains `registered_locations`.
+
+**Verification (offline):** Python 4278 passed, 79 skipped; ruff clean. On a real PostgreSQL,
+`registered_locations` sees every project's rows and nothing else. On a real MinIO, the media
+store suite passes 76, with the age filter.
+
+**Next steps:**
+
+- After deploy, read the API log for `upload sweep:` lines. Turn deletion on only once the
+  reported objects are confirmed to be orphans.
+- Roadmap item 4, Stage 5c, split by the operator into 5c-1 (Studio: cards, carousel slides, mute
+  and subtitle blur) and then 5c-2 (acquisition of post cards, photo slides and creator-profile
+  footage). Brainstorm for 5c-1 in progress.
+
 ## 2026-10-21 - PR #36 merged and deployed; a workflow opens in Studio
 
 **Merged:** PR #36 (`c9c6f0c`) after CI passed on the branch and on `master`. The stack smoke

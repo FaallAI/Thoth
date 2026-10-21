@@ -85,3 +85,9 @@ async def test_a_workflow_opens_in_studio_on_the_real_tables(database: str, tmp_
     assert {item.outcome for item in second.items} == {"reused"}
     with psycopg.connect(database) as connection:
         assert connection.execute("SELECT count(*) FROM editor_assets").fetchone() == (3,)
+
+    # The orphan sweep sees every project's rows, and nothing else, as registered.
+    lost = f"uploads/{project}/asset_lost.mp4"
+    assert await assets.registered_locations([record.artifact_location, lost]) == {
+        record.artifact_location
+    }

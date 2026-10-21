@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import math
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import uuid4
@@ -29,6 +31,7 @@ from thoth_control_plane.domain.editor_assets import EditorAsset, EditorAssetRec
 if TYPE_CHECKING:
     from thoth_control_plane.application.editor_asset_ports import EditorAssetRepository
     from thoth_control_plane.infrastructure.artifact_root import LocalArtifactRoot
+    from thoth_control_plane.infrastructure.media_store import MediaStore
 
 #: The fixed upload ceiling: half the render staging bound, so any upload stays renderable.
 UPLOAD_MAX_BYTES = 512 * 1024 * 1024
@@ -115,6 +118,42 @@ def described_asset(
     except (ArithmeticError, AttributeError, TypeError, ValueError) as error:
         # A pydantic ValidationError is a ValueError, so a bad width or rate lands here too.
         raise EditorAssetMediaInvalid("invalid_media") from error
+
+
+logger = logging.getLogger(__name__)
+
+#: An upload or import registers its object within seconds; anything older without a row was
+#: left by a process killed between the copy and the register.
+UPLOAD_SWEEP_GRACE = timedelta(hours=1)
+_SWEEP_BATCH = 500
+
+
+async def sweep_unregistered_uploads(
+    media: MediaStore, assets: EditorAssetRepository, now: datetime, *, delete: bool = False
+) -> list[str]:
+    """`uploads/` objects older than the grace period that no asset row points at.
+
+    Logged, and deleted only when `delete` is set. Every batch is checked before anything is
+    deleted, so a database failure raises with nothing touched and never reads as "orphan".
+    """
+    # ponytail: lists the whole uploads/ prefix each pass; page by project if it grows large.
+    stale = await asyncio.to_thread(media.list, "uploads/", older_than=now - UPLOAD_SWEEP_GRACE)
+    orphans: list[str] = []
+    for start in range(0, len(stale), _SWEEP_BATCH):
+        batch = stale[start : start + _SWEEP_BATCH]
+        kept = await assets.registered_locations(batch)
+        orphans.extend(location for location in batch if location not in kept)
+    if orphans:
+        logger.warning(
+            "upload sweep: %d unregistered upload(s) %s: %s",
+            len(orphans),
+            "deleted" if delete else "found (report only)",
+            ", ".join(orphans[:20]),
+        )
+    if delete:
+        for location in orphans:
+            await asyncio.to_thread(media.delete, location)
+    return orphans
 
 
 class EditorAssetUploadService:

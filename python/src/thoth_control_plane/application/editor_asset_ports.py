@@ -1,5 +1,6 @@
 """Typed outbound port for project-scoped editor asset storage."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -62,4 +63,8 @@ class EditorAssetRepository(Protocol):
 
     async def register_ready(self, record: EditorAssetRecord) -> None:
         """Insert one validated record; a failure must leave no row behind."""
+        ...
+
+    async def registered_locations(self, locations: Sequence[str]) -> set[str]:
+        """Which of these locators an asset row of any project points at."""
         ...

@@ -130,6 +130,9 @@ class Settings(BaseSettings):
     THOTH_MEDIA_S3_SECURE: bool = False
     #: Signing a probe URL locally needs the region; MinIO's own default is us-east-1.
     THOTH_MEDIA_S3_REGION: str = "us-east-1"
+    # The hourly sweep of unregistered uploads only logs what it finds until the operator
+    # turns deletion on: MinIO holds the only copy of every upload.
+    THOTH_UPLOAD_SWEEP_DELETE: bool = False
 
     def __init__(self, **values: object) -> None:
         """Load settings, then reject incomplete pairs without retaining inputs."""

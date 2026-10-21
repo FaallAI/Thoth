@@ -367,6 +367,13 @@ local store path may open `file` only).
 `THOTH_MEDIA_S3_REGION` (default `us-east-1`) is the region the API signs those URLs with; it
 must match MinIO's region.
 
+The API also sweeps `uploads/` at startup and then hourly for objects over an hour old that no
+`editor_assets` row of any project points at. Such an object is left when a process is killed
+between copying an upload or import and registering it. By default the sweep only logs them
+(`upload sweep: N unregistered upload(s) found (report only)`). Setting
+`THOTH_UPLOAD_SWEEP_DELETE=true` lets it delete them. Every batch is checked against the database
+before anything is deleted, so if the database cannot answer, nothing is deleted.
+
 The retryable flag on a failure states whether the failed activity is safe to consider for a
 future checkpointed retry. It is not permission to rerun now. Until artifact fingerprint and
 side-effect checkpoint validation exist, the Temporal gateway rejects retry rather than risk a

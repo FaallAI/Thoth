@@ -42,12 +42,19 @@ class MemoryRepository:
         return self.records.get((project_id, asset_id))
 
 
-def upload_app(gateway, root: Path, repository: MemoryRepository, report: Any = IMAGE_REPORT):
+def upload_app(
+    gateway,
+    root: Path,
+    repository: MemoryRepository,
+    report: Any = IMAGE_REPORT,
+    sweep_delete: bool = False,
+):
     app = create_app(
         Settings(
             THOTH_CONTROL_PLANE_API_KEY="test-key",
             THOTH_CONTROL_PLANE_ARTIFACT_ROOT=root,
             THOTH_EDITOR_PREVIEW_SIGNING_KEY="api-test-signing-key",
+            THOTH_UPLOAD_SWEEP_DELETE=sweep_delete,
         ),
         gateway,
         None,
@@ -187,3 +194,38 @@ async def test_upload_requires_authentication_and_a_safe_project(gateway, tmp_pa
     assert anonymous.status_code == 403
     assert unsafe.status_code == 422
     assert leftovers(tmp_path) == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("sweep_delete", [False, True])
+async def test_startup_sweeps_an_old_upload_no_asset_points_at(
+    gateway, tmp_path: Path, sweep_delete: bool
+) -> None:
+    import asyncio
+    import os
+    import time
+
+    root = tmp_path / "artifacts"
+    kept = root / "uploads/project_001/asset_kept.png"
+    orphan = root / "uploads/project_001/asset_lost.png"
+    for path in (kept, orphan):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(PNG)
+        old = time.time() - 2 * 3600
+        os.utime(path, (old, old))
+
+    class Registered(MemoryRepository):
+        async def registered_locations(self, locations: list[str]) -> set[str]:
+            return {"uploads/project_001/asset_kept.png"} & set(locations)
+
+    app = upload_app(gateway, root, Registered(), sweep_delete=sweep_delete)
+    async with app.router.lifespan_context(app):
+        # The first pass runs in the background at startup, so startup never waits on the store.
+        for _ in range(100):
+            if not orphan.exists():
+                break
+            await asyncio.sleep(0.02)
+
+    assert kept.is_file()
+    # Report-only unless the operator turns deletion on.
+    assert orphan.exists() is not sweep_delete

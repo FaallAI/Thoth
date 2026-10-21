@@ -395,3 +395,33 @@ async def test_find_ready_by_checksum_without_a_match_is_none(
         project_id="project_001", checksum="sha256:" + "f" * 64
     )
     assert found is None
+
+
+@pytest.mark.asyncio
+async def test_registered_locations_reads_every_project_in_one_parameterized_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cursor = Cursor(rows=[("uploads/p1/asset_a.mp4",)])
+    wanted = ["uploads/p1/asset_a.mp4", "uploads/p2/asset_b.mp4"]
+
+    found = await patched(monkeypatch, cursor).registered_locations(wanted)
+
+    assert found == {"uploads/p1/asset_a.mp4"}
+    query, params = cursor.calls[0]
+    assert "artifact_location = ANY(%s)" in query
+    assert params == (wanted,)
+
+
+@pytest.mark.asyncio
+async def test_registered_locations_hides_a_database_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def connect(_: str) -> Connection:
+        raise OSError("postgresql://user:secret@db")
+
+    monkeypatch.setattr(
+        "thoth_control_plane.infrastructure.editor_asset_repository.AsyncConnection.connect",
+        connect,
+    )
+    with pytest.raises(EditorAssetPersistenceError):
+        await PostgresEditorAssetRepository("postgresql://redacted").registered_locations(["x"])
