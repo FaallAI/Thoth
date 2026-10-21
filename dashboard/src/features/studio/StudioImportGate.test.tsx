@@ -25,6 +25,7 @@ const sourceItem = (role: "main" | "footage" | "comment", order: number, media: 
   source_url: role === "comment" ? null : `https://example.test/${role}/${order}`,
   media_kind: media,
   trim_start_seconds: null,
+  mute_audio: false,
 });
 const SOURCE = {
   items: [
@@ -37,6 +38,7 @@ const SOURCE = {
 
 const mediaItem = (itemId: string, role: "main" | "footage", order: number, label: string): StudioImportItem => ({
   item_id: itemId,
+  mute_audio: false,
   role,
   order,
   label,
@@ -55,6 +57,7 @@ const ITEMS: StudioImportItem[] = [
   mediaItem("footage_003", "footage", 3, "Crowd pan"),
   {
     item_id: "unsupported_000",
+    mute_audio: false,
     role: "main",
     order: 0,
     label: "profile",

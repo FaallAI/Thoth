@@ -1958,6 +1958,8 @@ export interface components {
              * @enum {string}
              */
             kind: "exclude";
+            /** Reason */
+            reason?: "not_placed" | null;
         };
         /** FootageImport */
         FootageImport: {
@@ -3189,6 +3191,24 @@ export interface components {
             /** Platforms */
             platforms: components["schemas"]["PlatformAccounts"][];
         };
+        /**
+         * SourceBlurRegion
+         * @description A detected subtitle region: fractions of the source frame, a window in source seconds.
+         */
+        SourceBlurRegion: {
+            /** End */
+            end?: number | null;
+            /** H */
+            h: number;
+            /** Start */
+            start?: number | null;
+            /** W */
+            w: number;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
         /** SourceInput */
         SourceInput: {
             /**
@@ -3330,6 +3350,8 @@ export interface components {
         StudioImportItem: {
             /** Asset Id */
             asset_id?: string | null;
+            /** Blur Regions */
+            blur_regions?: components["schemas"]["SourceBlurRegion"][];
             /**
              * Disposition
              * @enum {string}
@@ -3344,14 +3366,21 @@ export interface components {
              * @enum {string}
              */
             media_kind: "video" | "image" | "none";
+            /**
+             * Mute Audio
+             * @default false
+             */
+            mute_audio: boolean;
             /** Order */
             order: number | null;
             /** Platform */
             platform: string | null;
+            /** Reading Seconds */
+            reading_seconds?: number | null;
             /** Reason */
             reason: string | null;
             /** Role */
-            role: ("main" | "main_footage" | "footage" | "comment") | null;
+            role: ("main" | "main_footage" | "slide" | "footage" | "profile_card" | "comment_card" | "comment") | null;
             /** Scene Id */
             scene_id: string | null;
             /** Trim Start Seconds */
@@ -3381,20 +3410,29 @@ export interface components {
          * @description One ordered creative input of a Content Set, without host paths or signed queries.
          */
         StudioSourceItem: {
+            /** Blur Regions */
+            blur_regions?: components["schemas"]["SourceBlurRegion"][];
             /**
              * Media Kind
              * @enum {string}
              */
             media_kind: "video" | "image" | "none";
+            /**
+             * Mute Audio
+             * @default false
+             */
+            mute_audio: boolean;
             /** Order */
             order: number;
             /** Platform */
             platform: string | null;
+            /** Reading Seconds */
+            reading_seconds?: number | null;
             /**
              * Role
              * @enum {string}
              */
-            role: "main" | "main_footage" | "footage" | "comment";
+            role: "main" | "main_footage" | "slide" | "footage" | "profile_card" | "comment_card" | "comment";
             /** Source Url */
             source_url: string | null;
             /** Text */
@@ -3426,7 +3464,7 @@ export interface components {
             /** Reason */
             reason: string;
             /** Role */
-            role: ("main" | "main_footage" | "footage" | "comment") | null;
+            role: ("main" | "main_footage" | "slide" | "footage" | "profile_card" | "comment_card" | "comment") | null;
             /** Value Digest */
             value_digest?: string | null;
         };
@@ -3906,7 +3944,7 @@ export interface components {
              * Outcome
              * @enum {string}
              */
-            outcome: "reused" | "copied" | "unresolved" | "decided";
+            outcome: "reused" | "copied" | "unresolved" | "decided" | "not_placed";
             /** Reason */
             reason?: string | null;
         };

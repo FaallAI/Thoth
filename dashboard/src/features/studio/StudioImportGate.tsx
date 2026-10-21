@@ -34,7 +34,15 @@ type StudioImportGateProps = {
   onClose: () => void;
 };
 
-const ROLE_LABELS = { main: "Main", main_footage: "Main footage", footage: "Footage", comment: "Comment" } as const;
+const ROLE_LABELS = {
+  main: "Main",
+  main_footage: "Main footage",
+  slide: "Slide",
+  footage: "Footage",
+  profile_card: "Profile card",
+  comment_card: "Comment card",
+  comment: "Comment",
+} as const;
 const ASSET_PAGE = 50;
 // Pages may overlap: one asset keeps its first position.
 const uniqueAssets = (list: EditorAsset[]) => [...new Map(list.map((asset) => [asset.asset_id, asset])).values()];

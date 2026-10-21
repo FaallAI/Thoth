@@ -23,6 +23,7 @@ from thoth_control_plane.domain.edit_document_operations import (
 )
 from thoth_control_plane.domain.edit_document_v2 import EditDocument, EditDocumentV2
 from thoth_control_plane.domain.studio_imports import (
+    NOT_PLACED,
     AttachImportAsset,
     ExcludeImportItem,
     StudioDraft,
@@ -187,6 +188,7 @@ class PostgresStudioImportRepository:
                 if entry.disposition != "unresolved":
                     raise StudioImportItemResolved()
                 asset_id = decision.asset_id if isinstance(decision, AttachImportAsset) else None
+                reason = decision.reason if isinstance(decision, ExcludeImportItem) else None
                 disposition = "excluded" if asset_id is None else "attached"
                 if asset_id and (entry.media_kind == "none" or entry.scene_id is None):
                     raise StudioImportDecisionRejected("item_not_attachable")
@@ -220,8 +222,8 @@ class PostgresStudioImportRepository:
                 await cursor.execute(
                     """
                     INSERT INTO studio_import_decisions
-                        (project_id, document_id, item_id, revision, disposition, asset_id)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                        (project_id, document_id, item_id, revision, disposition, asset_id, reason)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         project_id,
@@ -230,6 +232,7 @@ class PostgresStudioImportRepository:
                         result.revision,
                         disposition,
                         asset_id,
+                        reason,
                     ),
                 )
                 return current.model_copy(
@@ -237,7 +240,11 @@ class PostgresStudioImportRepository:
                         "revision": result.revision,
                         "items": [
                             item.model_copy(
-                                update={"disposition": disposition, "asset_id": asset_id}
+                                update={
+                                    "disposition": disposition,
+                                    "asset_id": asset_id,
+                                    **({"reason": NOT_PLACED} if reason == "not_placed" else {}),
+                                }
                             )
                             if item.item_id == item_id
                             else item
@@ -332,21 +339,22 @@ class PostgresStudioImportRepository:
             return None
         await cursor.execute(
             """
-            SELECT item_id, disposition, asset_id
+            SELECT item_id, disposition, asset_id, reason
             FROM studio_import_decisions
             WHERE project_id = %s AND document_id = %s
             """,
             (project_id, document_id),
         )
         decided = {
-            item_id: (disposition, asset_id)
-            for item_id, disposition, asset_id in await cursor.fetchall()
+            item_id: (disposition, asset_id, reason)
+            for item_id, disposition, asset_id, reason in await cursor.fetchall()
         }
         items = [
             item.model_copy(
                 update={
                     "disposition": decided[item.item_id][0],
                     "asset_id": decided[item.item_id][1],
+                    **({"reason": NOT_PLACED} if decided[item.item_id][2] == "not_placed" else {}),
                 }
             )
             if item.item_id in decided

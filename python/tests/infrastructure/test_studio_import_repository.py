@@ -218,7 +218,7 @@ async def test_listing_is_project_scoped_bounded_and_newest_first(monkeypatch) -
 @pytest.mark.asyncio
 async def test_the_manifest_reads_with_decisions_and_the_latest_revision(monkeypatch) -> None:
     cursor = Cursor(
-        {MANIFEST: [manifest_row(3)], DECISIONS: [[("unsupported_000", "excluded", None)]]}
+        {MANIFEST: [manifest_row(3)], DECISIONS: [[("unsupported_000", "excluded", None, None)]]}
     )
     repository, _ = store(monkeypatch, cursor)
 
@@ -278,6 +278,7 @@ async def test_exclude_records_the_decision_with_a_new_revision(monkeypatch) -> 
         2,
         "excluded",
         None,
+        None,
     )
     assert opened[0].exited_with is None
 
@@ -296,7 +297,7 @@ async def test_a_stale_revision_is_a_conflict_with_the_latest_document(monkeypat
 
 @pytest.mark.asyncio
 async def test_an_item_is_decided_once(monkeypatch) -> None:
-    cursor = resolve_cursor(decided=[("unsupported_000", "excluded", None)])
+    cursor = resolve_cursor(decided=[("unsupported_000", "excluded", None, None)])
     repository, _ = store(monkeypatch, cursor)
 
     with pytest.raises(StudioImportItemResolved):
@@ -397,6 +398,7 @@ async def test_attach_inserts_the_media_clip_into_its_scene_with_the_decision(
         2,
         "attached",
         "asset_clip",
+        None,
     )
     assert opened[0].exited_with is None
 
@@ -541,7 +543,7 @@ async def test_attach_refuses_a_document_that_cannot_take_the_clip(monkeypatch) 
 
 @pytest.mark.asyncio
 async def test_an_attached_item_cannot_be_resolved_again(monkeypatch) -> None:
-    cursor = resolve_cursor(decided=[("footage_001", "attached", "asset_clip")])
+    cursor = resolve_cursor(decided=[("footage_001", "attached", "asset_clip", None)])
     repository, _ = store(monkeypatch, cursor)
 
     with pytest.raises(StudioImportItemResolved):
@@ -572,3 +574,24 @@ async def test_a_failed_decision_insert_rolls_back_the_attached_clip(monkeypatch
     assert cursor.ran(INSERT_REVISION)
     assert opened[0].exited_with is RuntimeError
     assert "postgresql" not in str(raised.value)
+
+
+@pytest.mark.asyncio
+async def test_a_not_placed_exclusion_reads_back_with_its_reason(monkeypatch) -> None:
+    cursor = resolve_cursor()
+    repository, _ = store(monkeypatch, cursor)
+
+    await resolve(repository, "footage_000", ExcludeImportItem(kind="exclude", reason="not_placed"))
+    assert cursor.params_of(INSERT_DECISION)[-1] == "not_placed"
+
+    reading = Cursor(
+        {
+            MANIFEST: [manifest_row(2)],
+            DECISIONS: [[("footage_000", "excluded", None, "not_placed")]],
+        }
+    )
+    repository, _ = store(monkeypatch, reading)
+    result = await repository.get_inventory(project_id=PROJECT, document_id=DOCUMENT)
+    entry = {entry.item_id: entry for entry in result.items}["footage_000"]
+    assert entry.disposition == "excluded"
+    assert entry.reason == "Not placed: no room in the reaction beat"

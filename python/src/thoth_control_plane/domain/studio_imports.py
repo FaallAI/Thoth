@@ -13,11 +13,26 @@ from pydantic import AfterValidator, Field, model_validator
 from thoth_control_plane.domain.edit_documents import BodyText, ShortText
 from thoth_control_plane.domain.models import OpaqueId, ProjectId, StrictModel
 
-SourceRole: TypeAlias = Literal["main", "main_footage", "footage", "comment"]
+SourceRole: TypeAlias = Literal[
+    "main", "main_footage", "slide", "footage", "profile_card", "comment_card", "comment"
+]
 MediaKind: TypeAlias = Literal["video", "image", "none"]
 Disposition: TypeAlias = Literal["unresolved", "attached", "excluded"]
 
-ROLE_ORDER: tuple[SourceRole, ...] = ("main", "main_footage", "footage", "comment")
+ROLE_ORDER: tuple[SourceRole, ...] = (
+    "main",
+    "main_footage",
+    "slide",
+    "footage",
+    "profile_card",
+    "comment_card",
+    "comment",
+)
+#: Placed over the main scene, never a scene of their own (spec 2026-10-21 5c-1, 4.1).
+OVERLAY_ROLES: frozenset[str] = frozenset({"slide", "profile_card", "comment_card"})
+#: Roles a Content Set holds at most once.
+SINGLE_ROLES: frozenset[str] = frozenset({"main", "main_footage", "profile_card"})
+NOT_PLACED = "Not placed: no room in the reaction beat"
 MAX_SOURCE_ITEMS = 400
 MAX_UNSUPPORTED_FIELDS = 400
 SCENE_LIMIT = 100
@@ -46,6 +61,17 @@ def _canonical_web_url(value: str) -> str:
 CanonicalUrl = Annotated[str, Field(max_length=2_048), AfterValidator(_canonical_web_url)]
 
 
+class SourceBlurRegion(StrictModel):
+    """A detected subtitle region: fractions of the source frame, a window in source seconds."""
+
+    x: Annotated[float, Field(ge=0, le=1)]
+    y: Annotated[float, Field(ge=0, le=1)]
+    w: Annotated[float, Field(gt=0, le=1)]
+    h: Annotated[float, Field(gt=0, le=1)]
+    start: Annotated[float, Field(ge=0)] | None = None
+    end: Annotated[float, Field(ge=0)] | None = None
+
+
 class StudioSourceItem(StrictModel):
     """One ordered creative input of a Content Set, without host paths or signed queries."""
 
@@ -57,11 +83,21 @@ class StudioSourceItem(StrictModel):
     source_url: CanonicalUrl | None
     media_kind: MediaKind
     trim_start_seconds: TrimSeconds | None
+    mute_audio: bool = False
+    blur_regions: Annotated[list[SourceBlurRegion], Field(max_length=200)] = Field(
+        default_factory=list
+    )
+    # How long a comment card stays up; set on `comment_card` items only.
+    reading_seconds: Annotated[float, Field(gt=0, le=60)] | None = None
 
     @model_validator(mode="after")
     def _trim_needs_video(self) -> StudioSourceItem:
         if self.trim_start_seconds is not None and self.media_kind != "video":
             raise ValueError("only a video item can start at a trim")
+        if (self.blur_regions or self.mute_audio) and self.media_kind != "video":
+            raise ValueError("only a video item carries blur or mute")
+        if (self.reading_seconds is not None) != (self.role == "comment_card"):
+            raise ValueError("a comment card, and only a comment card, has a reading time")
         return self
 
 
@@ -89,9 +125,7 @@ class StudioSourceProjection(StrictModel):
             raise ValueError("items must start with main and follow role order")
         for role in ROLE_ORDER:
             orders = [item.order for item in self.items if item.role == role]
-            if orders != list(range(len(orders))) or (
-                role in {"main", "main_footage"} and len(orders) > 1
-            ):
+            if orders != list(range(len(orders))) or (role in SINGLE_ROLES and len(orders) > 1):
                 raise ValueError(f"{role} items must be numbered from zero without gaps")
         return self
 
@@ -111,6 +145,12 @@ class StudioImportItem(StrictModel):
     asset_id: OpaqueId | None = None
     # Seconds of source media to skip when attached; drafts made before trims were kept have none.
     trim_start_seconds: TrimSeconds | None = None
+    # Carried from the source item so placement needs only the stored inventory (spec 5c-1, 4.2).
+    mute_audio: bool = False
+    blur_regions: Annotated[list[SourceBlurRegion], Field(max_length=200)] = Field(
+        default_factory=list
+    )
+    reading_seconds: Annotated[float, Field(gt=0, le=60)] | None = None
 
 
 class StudioDraft(StrictModel):
@@ -160,6 +200,8 @@ class CreateStudioImport(StrictModel):
 
 class ExcludeImportItem(StrictModel):
     kind: Literal["exclude"]
+    # Set only by the workflow importer for a comment card the reaction beat had no room for.
+    reason: Literal["not_placed"] | None = None
 
 
 class AttachImportAsset(StrictModel):
@@ -191,6 +233,7 @@ def scene_items(projection: StudioSourceProjection) -> list[StudioSourceItem]:
         item
         for item in projection.items
         if item.role != "main_footage"
+        and item.role not in OVERLAY_ROLES
         and (item.role == "main" or item.title or item.text or item.media_kind != "none")
     ]
 
@@ -211,6 +254,9 @@ def inventory(projection: StudioSourceProjection) -> list[StudioImportItem]:
         for index, item in enumerate(ordered[:SCENE_LIMIT], start=1)
     }
     scenes[("main_footage", 0)] = "scene_001"
+    for item in projection.items:
+        if item.role in OVERLAY_ROLES:
+            scenes[(item.role, item.order)] = "scene_001"
     media = [
         StudioImportItem(
             item_id=f"{item.role}_{item.order:03d}",
@@ -223,6 +269,9 @@ def inventory(projection: StudioSourceProjection) -> list[StudioImportItem]:
             reason=None,
             disposition="unresolved",
             trim_start_seconds=item.trim_start_seconds,
+            mute_audio=item.mute_audio,
+            blur_regions=item.blur_regions,
+            reading_seconds=item.reading_seconds,
         )
         for item in projection.items
         if item.media_kind != "none"
@@ -266,7 +315,7 @@ def inspect_source(project_id: str, projection: StudioSourceProjection) -> Studi
     )
 
 
-ImportOutcome: TypeAlias = Literal["reused", "copied", "unresolved", "decided"]
+ImportOutcome: TypeAlias = Literal["reused", "copied", "unresolved", "decided", "not_placed"]
 ImportCode = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")]
 
 

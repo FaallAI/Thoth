@@ -11,6 +11,8 @@ from pydantic import ValidationError
 from thoth_control_plane.domain.studio_imports import (
     StudioSourceProjection,
     inspect_source,
+    inventory,
+    scene_items,
     source_key,
 )
 
@@ -212,3 +214,62 @@ def test_scenes_beyond_the_document_limit_are_reported_not_dropped() -> None:
     assert overflow.disposition == "unresolved"
     assert overflow.label == "21 items beyond the 100-scene limit"
     assert overflow.reason == "Studio documents hold at most 100 scenes"
+
+
+BAND = {"x": 0.1, "y": 0.65, "w": 0.8, "h": 0.09, "start": 6.8, "end": 43.8}
+
+
+def overlay_projection() -> StudioSourceProjection:
+    return StudioSourceProjection.model_validate(
+        {
+            "items": [
+                item("main", 0, mute_audio=True, blur_regions=[BAND]),
+                item("slide", 0, media_kind="image", source_url=None),
+                item("profile_card", 0, media_kind="image", source_url=None),
+                item(
+                    "comment_card",
+                    0,
+                    title="@viewer",
+                    text="Mantap",
+                    media_kind="image",
+                    source_url=None,
+                    reading_seconds=2.5,
+                ),
+            ],
+            "unsupported": [],
+        }
+    )
+
+
+def test_overlay_roles_take_no_scene_and_point_at_the_main_scene() -> None:
+    projection = overlay_projection()
+    assert [entry.role for entry in scene_items(projection)] == ["main"]
+    entries = {entry.item_id: entry for entry in inventory(projection)}
+    for item_id in ("slide_000", "profile_card_000", "comment_card_000"):
+        assert entries[item_id].scene_id == "scene_001"
+    assert entries["comment_card_000"].reading_seconds == 2.5
+    assert entries["main_000"].mute_audio is True
+    assert [region.start for region in entries["main_000"].blur_regions] == [6.8]
+
+
+def test_role_order_includes_the_overlay_roles() -> None:
+    StudioSourceProjection.model_validate(
+        {
+            "items": [item("main", 0), item("footage", 0), item("profile_card", 0)],
+            "unsupported": [],
+        }
+    )
+    with pytest.raises(ValidationError):
+        StudioSourceProjection.model_validate(
+            {
+                "items": [item("main", 0), item("comment_card", 0), item("footage", 0)],
+                "unsupported": [],
+            }
+        )
+
+
+def test_trim_and_blur_need_a_video_item() -> None:
+    with pytest.raises(ValidationError):
+        StudioSourceProjection.model_validate(
+            {"items": [item("main", 0, media_kind="image", blur_regions=[BAND])], "unsupported": []}
+        )
