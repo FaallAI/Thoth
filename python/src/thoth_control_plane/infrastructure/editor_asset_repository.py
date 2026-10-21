@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
@@ -193,3 +194,17 @@ class PostgresEditorAssetRepository:
                 )
         except Exception as error:
             raise EditorAssetPersistenceError() from error
+
+    async def registered_locations(self, locations: Sequence[str]) -> set[str]:
+        try:
+            connection = await AsyncConnection.connect(self._database_url)
+            async with connection:
+                database_cursor = connection.cursor()
+                await database_cursor.execute(
+                    "SELECT artifact_location FROM editor_assets WHERE artifact_location = ANY(%s)",
+                    (list(locations),),
+                )
+                rows = await database_cursor.fetchall()
+        except Exception as error:
+            raise EditorAssetPersistenceError() from error
+        return {row[0] for row in rows}

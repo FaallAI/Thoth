@@ -277,8 +277,8 @@ class WorkflowStudioImportService:
             await self._assets.register_ready(record)
         except BaseException as error:
             # Also on cancellation, so an aborted request leaves no orphan upload behind.
-            # ponytail: a killed process between copy and register still leaks one object;
-            # a sweep of unregistered uploads/ objects would close it.
+            # A process killed between copy and register leaves the object to
+            # `sweep_unregistered_uploads`.
             with contextlib.suppress(Exception):
                 await asyncio.to_thread(self._media.delete, destination)
             if not isinstance(error, Exception):

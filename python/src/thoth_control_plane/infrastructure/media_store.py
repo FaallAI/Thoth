@@ -13,6 +13,7 @@ import re
 import shutil
 from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 from uuid import uuid4
@@ -56,7 +57,9 @@ class MediaStore(Protocol):
 
     def delete(self, location: str) -> None: ...
 
-    def list(self, prefix: str) -> list[str]: ...
+    def list(self, prefix: str, *, older_than: datetime | None = None) -> list[str]:
+        """Locators below a prefix; with `older_than`, only objects last written before it."""
+        ...
 
     def open_range(
         self, location: str, start: int = 0, end: int | None = None
@@ -106,8 +109,8 @@ class MeteredMediaStore:
     def delete(self, location: str) -> None:
         self._inner.delete(location)
 
-    def list(self, prefix: str) -> list[str]:
-        return self._inner.list(prefix)
+    def list(self, prefix: str, *, older_than: datetime | None = None) -> list[str]:
+        return self._inner.list(prefix, older_than=older_than)
 
     def open_range(self, location: str, start: int = 0, end: int | None = None) -> Iterator[bytes]:
         return self._inner.open_range(location, start, end)
@@ -138,10 +141,11 @@ def checked_locator(location: str) -> str:
 
 
 def checked_prefix(prefix: str) -> str:
-    """A listing prefix: a valid locator followed by one `/`."""
+    """A listing prefix: a top-level prefix or a valid locator, followed by one `/`."""
     if not prefix.endswith("/"):
         raise MediaLocatorInvalid("media_locator_invalid")
-    checked_locator(prefix[:-1])
+    if prefix[:-1] not in _PREFIXES:
+        checked_locator(prefix[:-1])
     return prefix
 
 
@@ -200,14 +204,19 @@ class LocalMediaStore:
     def delete(self, location: str) -> None:
         self._path(location).unlink(missing_ok=True)
 
-    def list(self, prefix: str) -> list[str]:
-        base = self._path(checked_prefix(prefix)[:-1])
-        if not base.is_dir():
+    def list(self, prefix: str, *, older_than: datetime | None = None) -> list[str]:
+        name = checked_prefix(prefix)[:-1]
+        base = self._root / name if name in _PREFIXES else self._path(name)
+        if base.is_symlink() or not base.is_dir():
             return []
+        cutoff = None if older_than is None else older_than.timestamp()
         return sorted(
             path.relative_to(self._root).as_posix()
             for path in base.rglob("*")
-            if path.is_file() and not path.is_symlink() and not path.name.endswith(".part")
+            if path.is_file()
+            and not path.is_symlink()
+            and not path.name.endswith(".part")
+            and (cutoff is None or path.stat().st_mtime < cutoff)
         )
 
     def open_range(self, location: str, start: int = 0, end: int | None = None) -> Iterator[bytes]:

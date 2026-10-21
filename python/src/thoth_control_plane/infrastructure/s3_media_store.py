@@ -10,7 +10,7 @@ from __future__ import annotations
 import contextlib
 import mimetypes
 from collections.abc import Iterator
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -113,13 +113,15 @@ class S3MediaStore:
         with _errors():
             self._client.remove_object(self._bucket, key)
 
-    def list(self, prefix: str) -> list[str]:
+    def list(self, prefix: str, *, older_than: datetime | None = None) -> list[str]:
         checked_prefix(prefix)
         with _errors():
             return sorted(
                 item.object_name
                 for item in self._client.list_objects(self._bucket, prefix=prefix, recursive=True)
-                if item.object_name and not item.is_dir
+                if item.object_name
+                and not item.is_dir
+                and (older_than is None or (item.last_modified and item.last_modified < older_than))
             )
 
     def open_range(self, location: str, start: int = 0, end: int | None = None) -> Iterator[bytes]:
