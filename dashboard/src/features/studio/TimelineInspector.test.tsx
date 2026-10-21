@@ -213,3 +213,39 @@ test("reports persisted overlay and caption fields as read-only values", () => {
     "0–30 First cue · 30–90 Second cue",
   );
 });
+
+
+/** The fixture with one subtitle band on its main clip, blur switched as given. */
+function subtitled(enabled: boolean) {
+  const document = timelineDocument();
+  const main = document.clips!.find((clip) => clip.clip_id === "clip_main")!;
+  Object.assign(main, {
+    blur_enabled: enabled,
+    blur_regions: [{ x: 0.1, y: 0.65, w: 0.8, h: 0.09, from_frame: null, to_frame: null }],
+  });
+  return document;
+}
+
+test("blur subtitles and mute emits both operations in order", () => {
+  const { operations } = mount({ clipId: "clip_main" }, subtitled(false));
+  expect(screen.getByText("Subtitles detected (1 region)")).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "Blur subtitles and mute" }));
+  expect(operations.map(payload)).toEqual([
+    { kind: "set_clip_blur", operation_id: "op", clip_id: "clip_main", blur_enabled: true },
+    { kind: "set_track_muted", operation_id: "op", track_id: "track_main", muted: true },
+  ]);
+});
+
+test("remove blur leaves the track mute alone", () => {
+  const { operations } = mount({ clipId: "clip_main" }, subtitled(true));
+  fireEvent.click(screen.getByRole("button", { name: "Remove blur" }));
+  expect(operations.map(payload)).toEqual([
+    { kind: "set_clip_blur", operation_id: "op", clip_id: "clip_main", blur_enabled: false },
+  ]);
+});
+
+test("no regions, no blur control", () => {
+  mount({ clipId: "clip_main" });
+  expect(screen.queryByText(/Subtitles detected/)).toBeNull();
+  expect(screen.queryByRole("button", { name: "Blur subtitles and mute" })).toBeNull();
+});

@@ -158,8 +158,16 @@ def project_content_set(content_set: ContentSet) -> WorkflowProjection:
         ocr=main.ocr,
     )
     for order, image in enumerate(main.images[1:]):
+        # Slide numbers count the carousel's own images: the first slide item is image 2.
         built.add(
-            "slide", order, title=None, text=None, platform=None, url=None, media=image, trim=None
+            "slide",
+            order,
+            title=f"Slide {order + 2}",
+            text=None,
+            platform=None,
+            url=None,
+            media=image,
+            trim=None,
         )
     for order, clip in enumerate(content_set.footage):
         built.add(

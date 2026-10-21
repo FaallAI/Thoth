@@ -280,3 +280,17 @@ test("the button says what it is doing", async () => {
   answer(inspection());
   expect(await screen.findByRole("button", { name: "Importing media…" })).toBeDefined();
 });
+
+
+test("a not-placed card does not count as unfinished", async () => {
+  const result = opened();
+  result.items = [
+    { item_id: "main_000", outcome: "copied", reason: null },
+    { item_id: "comment_card_003", outcome: "not_placed", reason: null },
+  ];
+  const c = client(inspection(), result);
+  const onOpen = mock(() => {});
+  render(<OpenInStudio client={c} projectId="p1" workflowId="wf_1" summary={done()} onOpen={onOpen} />);
+  await open();
+  await waitFor(() => expect(onOpen).toHaveBeenCalledWith("p1", "edoc_1", false));
+});

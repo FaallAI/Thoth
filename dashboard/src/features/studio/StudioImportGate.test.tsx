@@ -506,3 +506,34 @@ test("resolve-only mode retries a failed open and words a missing draft for itse
   expect(await screen.findByText("This draft is no longer available.")).toBeDefined();
   expect(Boolean(screen.queryByText(/draft list/))).toBe(false);
 });
+
+
+test("overlay items show their labels and the not-placed reason", async () => {
+  const card = (itemId: string, role: "profile_card" | "comment_card" | "slide", label: string) => ({
+    ...mediaItem(itemId, "main", 0, label),
+    role,
+    media_kind: "image" as const,
+  });
+  const items: StudioImportItem[] = [
+    mediaItem("main_000", "main", 0, "Neon Nights"),
+    card("slide_000", "slide", "Slide 2"),
+    card("profile_card_000", "profile_card", "@creator"),
+    {
+      ...card("comment_card_003", "comment_card", "@viewer"),
+      disposition: "excluded",
+      reason: "Not placed: no room in the reaction beat",
+    },
+  ];
+  const client = fakeClient({
+    getStudioImportInventory: mock(async (_projectId: string, documentId: string) =>
+      inventoryOf(documentId, 1, items),
+    ),
+  });
+  const { user } = renderGate(client);
+  await resumeNewest(user);
+  const unplaced = screen.getByRole("listitem", { name: "@viewer" });
+  expect(unplaced.textContent).toContain("Comment card");
+  expect(unplaced.textContent).toContain("Not placed: no room in the reaction beat");
+  expect(screen.getByRole("listitem", { name: "Slide 2" }).textContent).toContain("Slide");
+  expect(screen.getByRole("listitem", { name: "@creator" }).textContent).toContain("Profile card");
+});

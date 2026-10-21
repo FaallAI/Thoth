@@ -87,6 +87,8 @@ def test_profile_card_and_slides_are_projected() -> None:
         ("profile_card", 0, "image"),
     ]
     assert items[3].title == "@creator"
+    # The first slide item is the carousel's second image.
+    assert [i.title for i in items[1:3]] == ["Slide 2", "Slide 3"]
     assert projected.media["main_000"].location.as_posix() == IMAGE["location"]
     assert projected.media["slide_001"].location.as_posix() == third["location"]
     assert "profile_card_000" in projected.media
