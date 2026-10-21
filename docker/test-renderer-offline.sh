@@ -314,6 +314,8 @@ ASSET_FILE = Path("/tmp/smoke-asset.mp4")
 OUTPUT_FILE = Path("/tmp/smoke-output.mp4")
 #: A clip no project holds yet, so opening a workflow in Studio must copy and probe it.
 STUDIO_FILE = Path("/tmp/smoke-studio.mp4")
+#: One real card crop stands in for the profile card and both comment cards.
+CARD_FILE = Path("/tmp/smoke-card.png")
 API_KEY = os.environ["THOTH_CONTROL_PLANE_API_KEY"]
 DATABASE_URL = os.environ["THOTH_EDITOR_DATABASE_URL"]
 PROJECT_ID = os.environ["SMOKE_PROJECT_ID"]
@@ -643,7 +645,9 @@ def documents(document_id):
 def studio_import():
     """Open a finished workflow in Studio (spec 2026-10-20 workflow to Studio): the API probes
     the run's main video straight from MinIO, copies it into the project, attaches it, and a
-    replay of the same key copies nothing again."""
+    replay of the same key copies nothing again. Stage 5c-1 (spec 2026-10-21): the profile
+    card and the comment cards land on the b-roll track, and the main's subtitle regions are
+    stored on its clip, switched off, with its track left unmuted."""
     from thoth_control_plane.assembly.models import ContentSet
     from thoth_control_plane.infrastructure.report_store import ReportStore
 
@@ -651,6 +655,16 @@ def studio_import():
     workflow_id = "wf_smoke_studio"
     media = f"reports/{workflow_id}/media/main.mp4"
     STORE.put_file(media, STUDIO_FILE)
+    card_location = f"reports/{workflow_id}/cards/card.png"
+    STORE.put_file(card_location, CARD_FILE)
+    card = {
+        "location": card_location,
+        "media_type": "image/png",
+        "checksum": checksum_of(CARD_FILE),
+        "bytes": CARD_FILE.stat().st_size,
+        "width": 768,
+        "height": 198,
+    }
     with psycopg.connect(DATABASE_URL) as connection:
         connection.execute(
             "INSERT INTO workflow_runs (workflow_id, project_id, actor_type, actor_id,"
@@ -675,17 +689,23 @@ def studio_import():
                     "media_type": "video/mp4",
                     "checksum": checksum_of(STUDIO_FILE),
                     "bytes": STUDIO_FILE.stat().st_size,
-                    "duration_seconds": 3.0,
+                    "duration_seconds": 20.0,
                 },
+                "profile_card": card,
                 "ocr": {
                     "analyzed_at": "2026-10-20T00:00:00Z",
                     "requested_frames": 12,
                     "valid_frames": 12,
-                    "outcome": "clean",
+                    "outcome": "subtitle",
                     "trim_start": 0.0,
-                    "mute_audio": False,
+                    "mute_audio": True,
+                    "subtitle_blur": [{"x": 0.1, "y": 0.65, "w": 0.8, "h": 0.09}],
                 },
             },
+            "comments": [
+                {"text": "wah", "author": "satu", "likes": 9, "source": "input", "card": card},
+                {"text": "keren", "author": "dua", "likes": 3, "source": "input", "card": card},
+            ],
             "figures_status": "none",
         }
         )
@@ -697,10 +717,14 @@ def studio_import():
     )
     path = f"/projects/{PROJECT_ID}/workflows/{workflow_id}/studio-import"
     status, opened = call("POST", path, idempotency_key="smoke-studio-1")
-    if status != 201 or [(i["item_id"], i["outcome"]) for i in opened["items"]] != [
-        ("main_000", "copied")
-    ]:
-        found = [(i["item_id"], i["outcome"], i.get("reason")) for i in opened.get("items", [])]
+    found = [(i["item_id"], i["outcome"], i.get("reason")) for i in opened.get("items", [])]
+    expected = ["main_000", "profile_card_000", "comment_card_000", "comment_card_001"]
+    if (
+        status != 201
+        or [item_id for item_id, _, _ in found] != expected
+        or found[0][1] != "copied"
+        or any(outcome not in {"copied", "reused"} for _, outcome, _ in found)
+    ):
         raise SystemExit(f"open returned {status} {found}")
     document_id = opened["draft"]["document_id"]
     status, inventory = call("GET", f"/projects/{PROJECT_ID}/studio-imports/documents/{document_id}")
@@ -709,11 +733,27 @@ def studio_import():
         raise SystemExit("the main video is not attached")
     if STORE.size(f"uploads/{PROJECT_ID}/{main['asset_id']}.mp4") != STUDIO_FILE.stat().st_size:
         raise SystemExit("the copy is not in the project's uploads")
+    with psycopg.connect(DATABASE_URL) as connection:
+        [document] = connection.execute(
+            "SELECT document_json FROM edit_document_revisions WHERE project_id = %s"
+            " AND document_id = %s ORDER BY revision DESC LIMIT 1",
+            (PROJECT_ID, document_id),
+        ).fetchone()
+    cards = [c for c in document["clips"] if c["track_id"] == "track_b_roll"]
+    main_clip = next(c for c in document["clips"] if c["clip_id"] == "clip_main_000")
+    main_track = next(t for t in document["tracks"] if t["track_id"] == "track_main_video")
+    if (
+        len(cards) != 3
+        or len(main_clip.get("blur_regions", [])) != 1
+        or main_clip.get("blur_enabled") is not False
+        or main_track.get("muted") is not False
+    ):
+        raise SystemExit(f"the draft does not hold the 5c-1 layout: {len(cards)} cards")
     status, again = call("POST", path, idempotency_key="smoke-studio-1")
     if (
         status != 201
         or again["draft"]["document_id"] != document_id
-        or [i["outcome"] for i in again["items"]] != ["decided"]
+        or any(i["outcome"] != "decided" for i in again["items"])
     ):
         raise SystemExit("a replay did not return the same draft")
     print("ok")
@@ -855,10 +895,14 @@ echo edit_documents_listed=true
 # --- a finished workflow opens in Studio with its media (spec 2026-10-20) ----------
 # A distinct clip: the render's own clip is already a project asset and would only be reused.
 compose exec -T api /usr/bin/ffmpeg -nostdin -loglevel error -y \
-    -f lavfi -i "testsrc=size=1080x1920:rate=30:duration=3" \
-    -f lavfi -i "sine=frequency=660:duration=3" \
+    -f lavfi -i "testsrc=size=1080x1920:rate=30:duration=20" \
+    -f lavfi -i "sine=frequency=660:duration=20" \
     -c:v libx264 -pix_fmt yuv420p -preset ultrafast -c:a aac -shortest \
     /tmp/smoke-studio.mp4 >/dev/null 2>&1 \
+    || fail workflow_opens_in_studio
+# A 20 s main leaves the reaction beat room for both comment cards; a 3 s one places none.
+compose exec -T api /usr/bin/ffmpeg -nostdin -loglevel error -y \
+    -f lavfi -i "testsrc=size=768x198:rate=1" -frames:v 1 /tmp/smoke-card.png >/dev/null 2>&1 \
     || fail workflow_opens_in_studio
 driver studio_import >/dev/null || fail workflow_opens_in_studio
 echo workflow_opens_in_studio=true

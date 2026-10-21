@@ -2,6 +2,87 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-21 - Stage 5c-1: cards, carousel slides and subtitle blur in Studio, built on `feat/stage5c1-studio-cards`
+
+**Spec:** `docs/superpowers/specs/2026-10-21-stage5c1-studio-cards-design.md`.
+**Plan:** `docs/superpowers/plans/2026-10-21-stage5c1-studio-cards.md` (Native execution).
+
+### What a draft gets
+
+"Open in Studio" now places what item 2 left out. Every number is in
+`domain/studio_layout.py` (blur strength in `packages/remotion-composition/src/blur.ts`),
+grounded in research and in measurements of the 23 stored Content Sets:
+
+- **Profile card:** on `track_b_roll` from 3 s to 6 s, at 76 % of the canvas width, centred at
+  y = 0.26 × the canvas height. That is the strictest safe area of TikTok, Reels and Shorts.
+- **Comment cards:**
+  - placement follows a reaction beat: most-liked first, from 40 % of the main (and after the
+    profile card), at most three;
+  - each stays up for its characters ÷ 15 + 1 s, clamped to 2.5-7 s;
+  - a card that does not fit is never shortened. It is imported, then excluded with "Not placed:
+    no room in the reaction beat" (migration 0017 adds `studio_import_decisions.reason`).
+- **Carousel slides:** 3 s each, in order, on the main track.
+- **Subtitle regions:**
+  - detected regions are stored on the main or footage clip (`blur_regions`, in source frames)
+    with `blur_enabled = false`, and the track is left unmuted. Narration does not exist yet, so
+    muting and blurring would leave the viewer neither the speech nor the text;
+  - the inspector's **Blur subtitles and mute** turns both on, and **Remove blur** turns blur
+    off. Roadmap item 6 turns them on when it adds narration.
+- **Blur rendering:**
+  - the shared Remotion composition draws blur with `backdrop-filter`, σ = max(24, 0.2 × the
+    region's canvas height), widened by σ on each side;
+  - an eye check of real subtitle bands set the floor: two lines in a 169 px band stayed
+    readable up to σ 16. OCR alone would have suggested σ 8, and the legacy render's
+    `boxblur=12:2` (about σ 10) most likely left subtitles readable.
+
+### The parity check is deterministic now
+
+The "Template release parity" job failed at random (PR #37: frame 90, 33 % of pixels). Under
+`--cpus=0.75` the F1 image reproduced it exactly: frame 90 with changed ratio
+0.3306500771604938.
+
+- **Cause:** the composition drew video with Remotion's HTML5 `<Video>`, which mis-seeks under
+  load. Real renders could show a wrong frame too, not only the CI check.
+- **Rejected fix:** `<OffthreadVideo>` was frame-accurate but shifted colours 15-16/255 away from
+  the preview.
+- **Fix:** both the preview and the render use `<Video>` from `@remotion/media` (WebCodecs, the
+  same Chrome decoder), with the fallback to the FFmpeg extractor disabled.
+- **Result:** 10 of 10 constrained runs matched preview and render pixel for pixel.
+
+The approved goldens changed twice, both approved by the operator:
+
+1. after the decoder change, because the test video carries no colour metadata, so the two
+   decoders picked different matrices;
+2. after the release document gained two blur regions on `clip_motion`. Frame 60 shows both
+   bands blurred, frame 90 only the always-on one, and the preview matches the render with 0
+   changed pixels.
+
+### Verification (offline)
+
+- **Python:** 4303 passed, 82 skipped; ruff clean.
+- **PostgreSQL:**
+  - editor migrations 21 passed;
+  - the workflow-to-Studio integration 4 passed (card placement, the not-placed fourth card,
+    blur stored off, overlay items waiting for the main, carousel slides).
+- **Dashboard:** bun test 744 passed, `tsc` clean, build OK.
+- **Template release parity:** 5 of 5 runs passed under `--cpus=0.75` on the F1 image built
+  from this branch.
+- **Stack smoke** (`docker/test-renderer-offline.sh` on the thoth, renderer and web images built
+  from this branch): every verdict true. `workflow_opens_in_studio=true` now asserts 3 cards on
+  `track_b_roll`, the main's blur region stored with blur off, and the main track unmuted.
+
+### Next steps
+
+- **Gates:** push and PR, CI (the stack smoke now proves the 5c-1 layout), merge, deploy, then one
+  real render checked by the operator.
+- **Operator evaluation** of the layout and blur numbers once drafts are in use; every value is
+  in the two constants modules.
+- **Stage 5c-2:** acquisition of post cards (X, Threads, Instagram), carousel photo slides and
+  creator-profile footage, flowing through this overlay path.
+- **Roadmap item 6:** switch blur and mute on when narration is added.
+- **Deferred by the operator:** the meter unit prices, the quota/reserve check, billing go-live
+  and the second-account check.
+
 ## 2026-10-21 - Sweep for uploads no asset row points at (report-only by default)
 
 Closes the follow-up from PR #36. A process killed between copying an upload or a workflow import
