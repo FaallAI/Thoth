@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-22 - PR #39 merged and deployed; Stage 5c-1 is live
+
+**Merged:** PR #39 (`76872cb`) after CI passed on the branch and on `master`. The stack smoke
+printed `render_output_is_h264_mp4=true` with an HEVC source, so undecodable sources fall back
+instead of cancelling the render, and `workflow_opens_in_studio=true` with the 5c-1 layout.
+
+**Deployed** with `make deploy` on `thoth@cd52dcf6`, `thoth-web@b3737a75` and
+`thoth-remotion-renderer@bf4c781c` (`sha-76872cb`; previous pins backed up outside the repository).
+
+- `api`, `worker`, `web`, `remotion-renderer` and `legacy-cdp` run with 0 restarts and no error
+  lines in their logs.
+- The live editor database is on Alembic `0017`; `studio_import_decisions.reason` exists.
+- Backfill: `inserted=0 present=263 invalid=2`; the two invalid runs predate this release.
+
+**Next steps:**
+
+- **Operator check:** render a few real workflows from each platform, including an iPhone (HEVC)
+  upload, then evaluate the layout and blur numbers in `domain/studio_layout.py` and `blur.ts`.
+- **Next on the roadmap:** Stage 5c-2, acquisition of post cards (X, Threads, Instagram), carousel
+  photo slides and creator-profile footage; then item 6 switches blur and mute on with narration.
+- **Open follow-ups:** the 5c-1 deferred minors listed in the entry below.
+- **Deferred by the operator until every roadmap feature is finished:** the meter unit prices, the
+  quota/reserve check, billing go-live (public HTTPS address, Xendit keys and webhook, paid plans,
+  exchange rate, public sign-up) and the second-account check.
+
 ## 2026-10-21 - Stage 5c-1: cards, carousel slides and subtitle blur in Studio, built on `feat/stage5c1-studio-cards`
 
 **Spec:** `docs/superpowers/specs/2026-10-21-stage5c1-studio-cards-design.md`.
