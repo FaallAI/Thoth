@@ -602,7 +602,7 @@ async def test_a_card_with_no_room_is_excluded_as_not_placed(tmp_path: Path) -> 
 
     item = {item.item_id: item for item in opened.items}["comment_card_000"]
     assert (item.outcome, item.reason) == ("not_placed", None)
-    [(item_id, decision)] = [d for d in imports.decisions if d[0] == "comment_card_000"]
+    [(_, decision)] = [d for d in imports.decisions if d[0] == "comment_card_000"]
     assert (decision.kind, decision.reason) == ("exclude", "not_placed")
     assert any(record.asset.checksum == CARD["checksum"] for record in built.assets.records)
 
