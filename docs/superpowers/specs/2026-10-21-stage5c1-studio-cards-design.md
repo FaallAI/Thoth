@@ -47,14 +47,38 @@ External references:
   second. The Netflix general guide caps one event at 7 seconds.
 - Szarkowska & Gerber-Morón (2018) and the 2024 eye-tracking replication found that reading slows
   while video plays under the text.
-- Third-party safe-zone guides agree that platform UI covers roughly the top 240 px, the bottom
-  250–660 px and the right 120–180 px of a 1080 × 1920 frame, and that text belongs high and
-  centred. No official platform figure was found.
+- Indonesian university readers read 150–200 words per minute in field studies, and the
+  comments average 6.09 characters per word, spaces included. That is 15–20 characters per
+  second; 15 follows the slower readers.
+- Eye-tracking puts the processing latency after text appears at 400–700 ms, before the time
+  spent finding where the text is.
+- Safe zones on a 1080 × 1920 frame, taking the strictest edge of three platforms:
+  - TikTok, measured from the alpha channel of TikTok's own in-feed template: 240 px top, 660 px
+    bottom, 120 px on each side, widening to 300 px on the right below the vertical midpoint,
+    where the like, comment and share column sits;
+  - Reels, from Meta's ads guide: 14 % top, 35 % bottom, 6 % each side;
+  - Shorts, from Google's ads spec: 10 % top, 25 % bottom, 10 % right.
+
+  Combined, the safe area is **x 120–960, y 269–1248**, and below y 960 only up to x 780 on the
+  right. The platforms publish these figures for ads; no organic safe zone is published.
 - Retention guidance (secondary sources) recommends a visual change every 2–4 s and a re-hook
   mid-video, and notes that most mobile viewing is muted.
 
 The legacy render showed comment cards for a fixed 3.5 s. At 17 characters per second a p90
 comment needs about 5 s, so it was cut off.
+
+No primary source gives a typical short-video retention curve. The beat's 40 % start is kept
+from the legacy render as a starting point for the operator's evaluation (section 3.5).
+
+**Blur strength was measured** (2026-10-21, read-only, on the two distinct subtitled mains).
+Frames were scaled to the canvas and each OCR region was blurred with a Gaussian of standard
+deviation σ, which is what CSS `blur(σ)` applies.
+
+- RapidOCR still read 4 of 18 regions at σ 4 and none from σ 8.
+- By eye, a two-line subtitle in a 169 px band stayed plainly readable at σ 6–12, was faint at
+  σ 16 and gone at σ 24. A "SNAP!" logo in a 145 px band stayed readable up to σ 16.
+- The legacy render's `boxblur=12:2` is about σ 10, so its blurred subtitles were most likely
+  still readable.
 
 ## 3. Layout rules
 
@@ -67,9 +91,13 @@ a footage clip.
 
 - From 3.0 s to 6.0 s of the main scene, clamped to the scene: start at most at its length minus
   0.5 s, duration at least 0.5 s. This is the legacy `[profile_card]` default.
-- Scaled to 85 % of the canvas width.
-- Centred horizontally, with its vertical centre at 1080 px (`PROFILE_CENTER_Y = 0.5625`), so a
-  1114 × 416 crop ends above the bottom UI zone (bottom edge ≤ 1260 px).
+- The same upper slot as the comment cards: 76 % of the canvas width (about 820 px), centred
+  horizontally, vertical centre at 500 px (`CARD_CENTER_Y = 0.26`). A 1114 × 416 crop then
+  spans y ≈ 347–653, inside the safe area.
+- The two never overlap in time: the profile card ends at 6 s, and the reaction beat starts at
+  40 % of the main. The legacy "lower" position would have put the card's right edge at
+  x ≈ 999, under TikTok's action column, and on the original video's own subtitles, which in
+  the stored data sit around y 1250.
 - Placed only from a real crop (`main.profile_card`). There is never a synthetic card.
 
 ### 3.2 Comment cards: the reaction beat
@@ -86,8 +114,9 @@ cards in projection order: likes descending, ties in Content Set order.
   card is never shortened below its reading time. At most three are placed.
 - **Spreading:** whatever time is left over in the beat is shared out evenly as extra gaps, so
   the cards spread across the beat as the legacy render's did instead of bunching at its start.
-- **Position:** 80 % of the canvas width, centred horizontally, vertical centre at 500 px
-  (`COMMENT_CENTER_Y = 0.26`).
+- **Position:** 76 % of the canvas width (about 820 px, inside x 120–960), centred
+  horizontally, vertical centre at 500 px (`CARD_CENTER_Y = 0.26`). A comment card then spans
+  y ≈ 394–606.
 - Typical results: an 11 s main gets one or two cards, a 46 s main gets three.
 
 A comment card that gets no slot is not placed. Its asset is still imported and registered, and
@@ -101,7 +130,28 @@ person can still place it by hand.
   `fit = "contain"`.
 - The main item still carries image 0; images 1 onward are `slide` items.
 
-### 3.4 Out of scope for 5c-1
+### 3.4 Blur strength
+
+- σ = max(24, 0.2 × the region's height in canvas pixels). A 109 px band gets σ 24, and a
+  169 px band gets σ 34.
+- The height is measured on the canvas, after the clip's fit, crop and scale, so the blur stays
+  strong enough when the clip is scaled.
+- Each region is widened by σ on every side, so that letter edges at the region's border are
+  blurred too.
+
+### 3.5 Tuning
+
+Every layout and blur number lives in one constants module:
+
+- the reading rate, orientation time, clamps, beat start, gap and card count;
+- the card width and centre;
+- the slide length;
+- the blur factor and floor.
+
+The operator evaluates the result once 5c-1 runs, and these values are tuned from that
+evaluation.
+
+### 3.6 Out of scope for 5c-1
 
 - The legacy notification SFX on each comment card: Studio has no SFX library yet.
 - Entrance animations: the composition has none.
@@ -178,7 +228,7 @@ ClipBlurRegion:
 
 The renderer and the dashboard preview share the composition. For a video clip with
 `blur_enabled` and regions, it draws one absolutely positioned element per region inside the
-clip frame, with `backdrop-filter: blur(BLUR_PX)` (constant, `BLUR_PX = 28`).
+clip frame, with `backdrop-filter: blur(σ)`. σ and the widened region follow section 3.4.
 
 - **Position:** the region is mapped from source fractions to the displayed media box. The
   mapping uses the asset's width and height from `asset_refs`, plus the clip's `fit`, `crop` and
