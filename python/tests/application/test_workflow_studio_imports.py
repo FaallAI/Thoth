@@ -100,8 +100,9 @@ def seed_media(media: Any, tmp_path: Path, data: dict[str, Any] | None = None) -
     """Store one object per MediaRef, exactly as many bytes as it declares."""
     data = data or content_set_data()
     main = data["main"]
-    refs = [ref for ref in (main.get("video"), main.get("card")) if ref]
+    refs = [ref for ref in (main.get("video"), main.get("card"), main.get("profile_card")) if ref]
     refs += [*main.get("images", []), *(item["video"] for item in data.get("footage", []))]
+    refs += [comment["card"] for comment in data.get("comments", []) if comment.get("card")]
     for index, ref in enumerate(refs):
         source = tmp_path / f"seed-{index}.bin"
         source.write_bytes(b"m" * ref["bytes"])

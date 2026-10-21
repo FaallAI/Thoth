@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import pytest
 
+from thoth_control_plane.domain.studio_imports import SourceBlurRegion
 from thoth_control_plane.domain.studio_layout import (
     card_position,
+    clip_regions,
     profile_slot,
     reaction_beat,
     reading_seconds,
@@ -75,3 +77,22 @@ def test_card_position_is_centred_at_the_card_line() -> None:
     assert centre == pytest.approx(0.26 * 1920, abs=1)
     assert card_position(768, 198, CANVAS).x == 0
     assert card_position(None, None, CANVAS).scale == pytest.approx(0.76)
+
+
+def test_the_beat_waits_for_the_profile_card() -> None:
+    # An 11 s main would start its beat at 4.48 s, under the profile card (3-6 s).
+    [slot] = reaction_beat(11.2, [2.5], not_before=6.5)
+    assert slot is not None
+    assert slot[0] >= 6.5
+
+
+def test_clip_regions_drop_and_clamp_at_the_trim() -> None:
+    band = {"x": 0.1, "y": 0.65, "w": 0.8, "h": 0.09}
+    regions = [
+        SourceBlurRegion(**band, start=1.0, end=1.5),
+        SourceBlurRegion(**band, start=1.5, end=3.0),
+        SourceBlurRegion(**band),
+    ]
+    converted = clip_regions(regions, fps=30.0, trim_frames=60)
+    assert [(r.from_frame, r.to_frame) for r in converted] == [(60, 90), (None, None)]
+    assert (converted[0].x, converted[0].h) == (0.1, 0.09)

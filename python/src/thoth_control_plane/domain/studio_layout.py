@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from thoth_control_plane.domain.edit_document_v2 import Position
+from thoth_control_plane.domain.edit_document_v2 import ClipBlurRegion, Position
+from thoth_control_plane.domain.studio_imports import SourceBlurRegion
 
 #: Indonesian readers read 150-200 words a minute at 6.09 characters a word: 15-20 a second.
 READING_CPS = 15.0
@@ -46,15 +47,16 @@ def profile_slot(scene_seconds: float) -> tuple[float, float]:
 
 
 def reaction_beat(
-    scene_seconds: float, reading: Sequence[float]
+    scene_seconds: float, reading: Sequence[float], *, not_before: float = 0.0
 ) -> list[tuple[float, float] | None]:
     """One (start, duration) per comment card in rank order, or None when it is not placed.
 
     Cards are packed in order with CARD_GAP between them; the first that does not fit ends
     the beat, and none is ever shortened. Leftover time is shared evenly before, between
-    and after them, so they spread across the beat.
+    and after them, so they spread across the beat. `not_before` keeps the beat clear of
+    the profile card, which a short main would otherwise overlap in the same slot.
     """
-    start, end = BEAT_START * scene_seconds, scene_seconds - BEAT_TAIL
+    start, end = max(BEAT_START * scene_seconds, not_before), scene_seconds - BEAT_TAIL
     placed: list[float] = []
     cursor = start
     for seconds in reading[:MAX_COMMENT_CARDS]:
@@ -82,3 +84,30 @@ def card_position(
         else min(canvas_width, canvas_height * image_width / image_height)
     )
     return Position(x=0.0, y=CARD_CENTER_Y - 0.5, scale=CARD_WIDTH * canvas_width / drawn)
+
+
+def clip_regions(
+    regions: Sequence[SourceBlurRegion], fps: float, trim_frames: int
+) -> list[ClipBlurRegion]:
+    """Detected regions in source frames for a clip that starts `trim_frames` into its source.
+
+    A window that ends at or before the trim is dropped; one that starts before it is
+    clamped to it. A region without a window covers the whole clip.
+    """
+    kept: list[ClipBlurRegion] = []
+    for region in regions:
+        # OCR allows a hair past the frame edge; the editor does not.
+        box = {
+            "x": region.x,
+            "y": region.y,
+            "w": min(region.w, 1.0 - region.x),
+            "h": min(region.h, 1.0 - region.y),
+        }
+        if region.start is None or region.end is None:
+            kept.append(ClipBlurRegion(**box))
+            continue
+        start, end = round(region.start * fps), round(region.end * fps)
+        if end <= trim_frames or end <= start:
+            continue
+        kept.append(ClipBlurRegion(**box, from_frame=max(start, trim_frames), to_frame=end))
+    return kept
