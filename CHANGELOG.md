@@ -2,6 +2,41 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-23 - PR #41 merged and deployed; Stage 5c-2 is live
+
+**Merged:** PR #41 (`6faba2d`) after every CI job passed on the branch, the stack smoke
+included.
+
+**Deployed** on the branch build `sha-4514fac` (operator, 2026-10-23: the merge added no change
+over the branch head, so the deploy did not wait for the `master` build):
+`thoth@330153d8`, `thoth-remotion-renderer@aaf3de1a` and `thoth-web@7c2fae47`. The previous
+pins were backed up outside the repository.
+
+- The first `make deploy` stopped at `up`: Temporal's health check had been timing out for about
+  two hours before the deploy (814 failures in a row), while its process kept running. A restart
+  of the `temporal` container made it healthy, and a second `make deploy` passed.
+- `api`, `worker`, `web`, `remotion-renderer` and `legacy-cdp` run with 0 restarts and no error
+  lines in their logs.
+- The live editor database is on Alembic `0018`; `footage_candidates.media_kind` and
+  `footage_runs.profile_page` exist.
+- Backfill: `inserted=0 present=263 invalid=2`; the two invalid runs predate this release.
+
+**Next steps:**
+
+- **Operator check:** a real workflow with a TikTok main, then one with an Instagram or X main,
+  to see the post card, profile page and creator material in Studio.
+- **Follow-ups:**
+  - X multi-video posts lose their videos;
+  - X's signed-out profile page is unstable;
+  - TikTok's empty-body refusals (the account cooldown stays, operator 2026-10-23);
+  - live proof of the captcha solver.
+
+  A deep-research prompt for these and the earlier skipped items is in
+  `D:/thoth-tmp/research/followups-2026-10-23/PROMPT.md`.
+- **Dependency refresh** on its own branch: patch and minor upgrades first; Remotion (golden
+  re-approval), scrapling, openai, pillow, react-router and TypeScript 7 one group at a time.
+- **Roadmap item 6:** the style A preset.
+
 ## 2026-10-22 - Stage 5c-2 follow-up: TikTok listing captcha solved in the page
 
 Built on `feat/stage5c2-style-a-materials` (after bc0b0d9). The 5c-2 review had left TikTok
