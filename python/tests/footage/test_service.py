@@ -970,7 +970,36 @@ async def test_a_failed_publish_leaves_the_run_open_for_the_retry(
 
 # --- Stage 5c-2: the creator's own videos and photos (spec 2026-10-22, G3, G3a, G4) ---
 
-MAIN_URL = "https://www.tiktok.com/@akun/video/7499999999999999999"
+MAIN_URL = "https://www.instagram.com/p/MAIN1/"
+
+
+def _instagram_main() -> SourceReport:
+    main = support_report(
+        url=MAIN_URL, owner="akun", text="Banjir besar di Kemang pagi ini", media="none"
+    )
+    return main.model_copy(
+        update={"source": main.source.model_copy(update={"platform": "instagram"})}
+    )
+
+
+def _creator_inputs(tmp_path: Path, publish=None) -> FootageInputs:
+    return FootageInputs(
+        workflow_id="wf_a",
+        report=_instagram_main(),
+        attribution=None,
+        original=None,
+        artifact_root=tmp_path,
+        publish=publish,
+    )
+
+
+async def test_a_tiktok_main_lists_no_creator(store: FootageStore, tmp_path: Path) -> None:
+    # Operator, 2026-10-22: TikTok's profile listing hits a captcha even signed in, and each one
+    # cools the account, so it stays off until the captcha is solved.
+    ports = _creator(CreatorListing(videos=[_own(1, "banjir kemang")], photos=[]))
+    await _builder(store, **ports).build(_inputs(tmp_path))
+    assert ports["creator"].calls == []
+    assert [c for c in store.candidates("wf_a") if c.source == "creator"] == []
 
 
 def _own(n: int, caption: str, published: str = "2026-10-11T08:00:00Z") -> DiscoveredVideo:
@@ -1033,12 +1062,12 @@ def _search_four() -> Search:
 async def test_creator_videos_take_at_most_two_slots(store: FootageStore, tmp_path: Path) -> None:
     own = [_own(n, "banjir kemang dari sisi lain") for n in range(1, 5)]
     ports = _creator(CreatorListing(videos=own, photos=[]))
-    result = await _builder(store, search=_search_four(), **ports).build(_inputs(tmp_path))
+    result = await _builder(store, search=_search_four(), **ports).build(_creator_inputs(tmp_path))
     admitted = store.admitted("wf_a")
     assert result.status == "ok" and len(admitted) == 6
     assert sum(1 for c in admitted if c.source == "creator") == 2
     assert {c.query for c in admitted if c.source == "creator"} == {"creator:@akun"}
-    assert ports["creator"].calls == [("tiktok", "akun", 24)]
+    assert ports["creator"].calls == [("instagram", "akun", 24)]
 
 
 async def test_weak_caption_creator_video_reaches_the_vision_judge(
@@ -1047,7 +1076,7 @@ async def test_weak_caption_creator_video_reaches_the_vision_judge(
     near, far = _own(1, "#fyp #viral"), _own(2, "#fyp", published="2026-09-01T08:00:00Z")
     judge = Judge()
     ports = _creator(CreatorListing(videos=[near, far], photos=[]))
-    await _builder(store, judge=judge, **ports).build(_inputs(tmp_path))
+    await _builder(store, judge=judge, **ports).build(_creator_inputs(tmp_path))
     admitted = [c.url for c in store.admitted("wf_a") if c.source == "creator"]
     assert admitted == [str(near.canonical_url)]
     rejected = {c.url: c.reason for c in store.candidates("wf_a") if c.status == "rejected"}
@@ -1058,7 +1087,9 @@ async def test_weak_caption_creator_video_reaches_the_vision_judge(
 async def test_creator_listing_failure_keeps_search_footage(
     store: FootageStore, tmp_path: Path
 ) -> None:
-    result = await _builder(store, search=_search_four(), **_creator(None)).build(_inputs(tmp_path))
+    result = await _builder(store, search=_search_four(), **_creator(None)).build(
+        _creator_inputs(tmp_path)
+    )
     assert result.status == "ok" and result.admitted == 4
     assert all(c.source == "search" for c in store.admitted("wf_a"))
 
@@ -1066,7 +1097,7 @@ async def test_creator_listing_failure_keeps_search_footage(
 async def test_the_main_is_never_creator_footage(store: FootageStore, tmp_path: Path) -> None:
     main = _own(1, "banjir kemang").model_copy(update={"canonical_url": MAIN_URL})
     await _builder(store, **_creator(CreatorListing(videos=[main], photos=[]))).build(
-        _inputs(tmp_path)
+        _creator_inputs(tmp_path)
     )
     reasons = {c.url: c.reason for c in store.candidates("wf_a")}
     assert reasons == {MAIN_URL: "main"}
@@ -1077,14 +1108,14 @@ async def test_search_failing_still_uses_creator_footage(
 ) -> None:
     ports = _creator(CreatorListing(videos=[_own(1, "banjir kemang")], photos=[]))
     search = Search(fail={"tiktok", "youtube", "x"})
-    result = await _builder(store, search=search, **ports).build(_inputs(tmp_path))
+    result = await _builder(store, search=search, **ports).build(_creator_inputs(tmp_path))
     assert result.status == "ok" and result.admitted == 1
 
 
 async def test_creator_photos_are_capped_at_three(store: FootageStore, tmp_path: Path) -> None:
     photos = [_photo(n) for n in range(1, 6)] + [_photo(9, "resep nasi goreng enak sekali")]
     ports = _creator(CreatorListing(videos=[], photos=photos))
-    result = await _builder(store, **ports).build(_inputs(tmp_path))
+    result = await _builder(store, **ports).build(_creator_inputs(tmp_path))
     images = store.admitted("wf_a", "image")
     assert len(images) == 3 and store.admitted("wf_a") == []
     assert all(c.media_kind == "image" and c.source == "creator" for c in images)
@@ -1096,7 +1127,7 @@ async def test_creator_photos_are_capped_at_three(store: FootageStore, tmp_path:
 
 async def test_the_tiktok_page_card_is_kept_on_the_run(store: FootageStore, tmp_path: Path) -> None:
     ports = _creator(CreatorListing(videos=[], photos=[], page_png=make_png(400, 600)))
-    await _builder(store, **ports).build(_inputs(tmp_path))
+    await _builder(store, **ports).build(_creator_inputs(tmp_path))
     run = store.run("wf_a")
     assert run is not None and run.profile_page is not None
     assert run.profile_page["location"] == "reports/wf_a/cards/profile-page.png"
@@ -1112,7 +1143,7 @@ async def test_the_creator_photos_and_page_card_are_published(
         published.append(sorted(locations))
 
     ports = _creator(CreatorListing(videos=[], photos=[_photo(1)], page_png=make_png(400, 600)))
-    await _builder(store, **ports).build(_publishing_inputs(tmp_path, publish))
+    await _builder(store, **ports).build(_creator_inputs(tmp_path, publish))
     image = store.admitted("wf_a", "image")[0].media_location
     # Published as soon as the photos are judged, and again with the run's end.
     expected = sorted([str(image), "reports/wf_a/cards/profile-page.png"])
@@ -1135,7 +1166,7 @@ async def test_photos_and_the_page_card_are_published_before_the_clip_checks(
     ports = _creator(CreatorListing(videos=[], photos=[_photo(1)], page_png=make_png(400, 600)))
     builder = _builder(store, search=_search_four(), downloader=Crashing(), **ports)
     with pytest.raises(RuntimeError):
-        await builder.build(_publishing_inputs(tmp_path, publish))
+        await builder.build(_creator_inputs(tmp_path, publish))
     image = store.admitted("wf_a", "image")[0].media_location
     assert published and published[0] == sorted([str(image), "reports/wf_a/cards/profile-page.png"])
 
@@ -1145,7 +1176,7 @@ async def test_a_retry_drops_photos_and_the_page_card_it_cannot_find(
 ) -> None:
     # Final review I1: the photo URL cannot be fetched again, so a missing file is media_failed.
     ports = _creator(CreatorListing(videos=[], photos=[_photo(1)], page_png=make_png(400, 600)))
-    await _builder(store, **ports).build(_inputs(tmp_path / "first"))
+    await _builder(store, **ports).build(_creator_inputs(tmp_path / "first"))
     # A fresh scratch on the retry: the run is reopened as running with the files gone.
     from sqlalchemy.orm import Session
 
@@ -1153,7 +1184,7 @@ async def test_a_retry_drops_photos_and_the_page_card_it_cannot_find(
 
     with Session(store._sessions.kw["bind"]) as session, session.begin():
         session.get(FootageRunRow, "wf_a").status = "running"
-    await _builder(store, **_creator(None)).build(_inputs(tmp_path / "second"))
+    await _builder(store, **_creator(None)).build(_creator_inputs(tmp_path / "second"))
     assert store.admitted("wf_a", "image") == []
     reasons = {c.url: c.reason for c in store.candidates("wf_a")}
     assert reasons[str(_photo(1).canonical_url)] == "media_failed"
@@ -1168,6 +1199,6 @@ async def test_a_search_outage_with_creator_material_is_logged(
     ports = _creator(CreatorListing(videos=[_own(1, "banjir kemang")], photos=[]))
     search = Search(fail={"tiktok", "youtube", "x"})
     with caplog.at_level(logging.WARNING):
-        result = await _builder(store, search=search, **ports).build(_inputs(tmp_path))
+        result = await _builder(store, search=search, **ports).build(_creator_inputs(tmp_path))
     assert result.status == "ok"
     assert "footage search unavailable; creator material only" in caplog.text

@@ -199,6 +199,9 @@ through the text and story gates. Those that pass become photos, each a single s
 4. **The profile page** is placed in this stage (G5), not kept for item 6.
 5. **Extensibility:** more materials may come later, so each one stays a separate, optional
    part of the Content Set.
+6. **TikTok creator listing off** (after the live check): TikTok's profile listing hits a captcha
+   signed out and signed in, and each signed-in captcha cools the account. The creator step skips
+   TikTok mains until the captcha is solved; their profile page shows "Not captured".
 
 ## 8. Calls made by the designer (for the operator to check)
 

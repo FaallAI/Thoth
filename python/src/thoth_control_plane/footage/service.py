@@ -87,8 +87,10 @@ MEDIA_FAILURES = frozenset(
 HEADLINE_PREFIX = "headline: "
 DEFAULT_VISUAL = "the scene the post is about"
 SCRATCH_GLOB = "thoth-footage-*"  # the clip downloader's scratch directories
-# Spec 5c-2: profile listings exist for these; photo posts come from all but YouTube.
-CREATOR_PLATFORMS = frozenset({"tiktok", "instagram", "x", "youtube"})
+# Spec 5c-2: profile listings exist for these; photo posts come from all but YouTube. TikTok is
+# off (operator, 2026-10-22): its profile listing hits a captcha signed out and signed in, and
+# each signed-in captcha cools the account. Add it back once the captcha is solved.
+CREATOR_PLATFORMS = frozenset({"instagram", "x", "youtube"})
 PHOTO_PLATFORMS = frozenset({"tiktok", "instagram", "x"})
 PAGE_CARD = "profile-page.png"
 

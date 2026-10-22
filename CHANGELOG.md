@@ -81,9 +81,28 @@ Found, not caused by this branch (the deployed image behaves the same):
   stay "Not captured" until the listing works again; attribution's TikTok profile discovery uses
   the same listing.
 
+### Whole-branch review
+
+A fresh reviewer (Opus) found 1 Critical and 2 Important issues; all were fixed test first:
+
+- **Critical:** the profile page never reached the media store. The acquisition path did not
+  push it, and the footage publish kept only clips.
+- **Important:** admitted photos and the page card could be lost on a retry. They are now stored
+  right after the photo checks, and a missing one is dropped as `media_failed`.
+- **Important:** a search outage was hidden when creator material existed; it is now a warning.
+- **Re-graded to Important:** an oversized image failed the whole footage build; it is now a
+  photo error.
+
+Deferred minors are kept in the checkpoint: photos skip the aggregator, spam and reaction text
+checks, plus the excluded-post-card beat shift, Threads dialog containment, the TikTok 10 s grid
+wait, scroll offsets, the CDN allowlist, `repr` of image links, a log split and row rounding.
+
+**Operator, 2026-10-22:** the creator listing skips TikTok mains until its captcha is solved,
+so workflows no longer cool the TikTok account.
+
 ### Verification (offline)
 
-- **Python:** 4363 passed, 103 skipped; ruff clean. Browser tests in the thoth image: 29 passed.
+- **Python:** 4370 passed, 103 skipped; ruff clean. Browser tests in the thoth image: 29 passed.
 - **PostgreSQL:** editor migrations 22 (0018 constraints), workflow-to-Studio 6.
 - **Dashboard:** bun test 749 passed, `tsc` clean, build OK.
 - **Stack smoke** (`docker/test-renderer-offline.sh`): on the 5c-1 images
