@@ -79,6 +79,47 @@ header-only profile card. Threads has no profile discovery, so it is skipped.
   gate (topic relevance by embedding, the same `story_min`), the clip download, OCR, the vision
   judge and the duplicate hash. The operator chose topic relevance over recency.
 
+**G3a. Relevance when the caption says little.** The story gate reads only the caption, and an
+empty caption scores 0. A creator's own listing is not filtered by a search query, so weak
+captions are likelier there than in search results.
+
+What the stored search candidates show (2026-10-22, read-only, 1,722 candidates):
+
+- TikTok: 30 of 697 captions are empty or tags only (under 15 characters once `#tags` and
+  `@mentions` are removed). They score 0.27 on average, against 0.54 for captions with text.
+  They make up 21 of TikTok's 124 story rejections.
+- The vision judge rejects 178 of the 301 clips it saw (object absent 105, commentary 87). It is
+  the strictest topic check in the pipeline, and it looks at the frames.
+
+The literature on short-video topic recognition combines the title with on-screen text, the
+speech transcript and the frames. A user's title is a weak caption: usually related to the video,
+but not always present.
+
+The creator path therefore runs a three-step relevance check, cheapest first:
+
+1. **Enriched text** (free, all 24 listed posts). Score the caption plus its hashtags split into
+   words (`#BBMLangka` reads as "BBM Langka"), with the existing embedder and `story_min`.
+   - At or above `story_min`: a candidate, as in search.
+   - Below it, with a real caption (15 characters or more of body text): rejected. The creator
+     wrote about something else, and that text is reliable.
+   - Below it, with a weak caption: **undecided**, not rejected.
+2. **Closeness in time** (free). Keep at most 3 undecided posts, published within 7 days of the
+   main and nearest first. A follow-up or "part 2" is posted close to the story. The rest are
+   rejected as `story`.
+3. **The frames.** The kept undecided posts go through the normal clip download, OCR and vision
+   judge, which decides `shows_object` against the main's visual objects as for every candidate.
+   A weak-caption video showing the story's subject passes; one that does not show it is
+   rejected.
+
+This adds at most 3 clip downloads and 3 vision calls per workflow. Speech transcription is not
+added: the vision judge already makes the topic decision on the frames. Add a transcript only if
+logged results show relevant talking clips being lost.
+
+Every workflow logs how many creator posts were scored, undecided, kept by closeness and
+admitted. The operator can then tune the 7-day window and the cap of 3.
+
+Creator photos use the same three steps, with the photo itself as the only frame.
+
 **G4. Creator photos (optional).** Photo and carousel posts from the same profile listing go
 through the text and story gates. Those that pass become photos, each a single still image.
 
