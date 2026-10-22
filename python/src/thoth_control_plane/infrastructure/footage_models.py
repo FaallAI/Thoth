@@ -32,6 +32,8 @@ class FootageRunRow(Base):
     objects: Mapped[list[dict[str, str]]] = mapped_column(JSON)
     started_at: Mapped[datetime] = mapped_column(UtcDateTime)
     finished_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    # The TikTok profile page card the creator listing cropped (migration 0018, spec 5c-2).
+    profile_page: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
 
 class FootageCandidateRow(Base):
@@ -44,6 +46,7 @@ class FootageCandidateRow(Base):
     url: Mapped[str] = mapped_column(String)
     platform: Mapped[str] = mapped_column(String)
     source: Mapped[str] = mapped_column(String)
+    media_kind: Mapped[str] = mapped_column(String, default="video")
     query: Mapped[str] = mapped_column(String)
     visual: Mapped[str] = mapped_column(String)
     owner_handle: Mapped[str] = mapped_column(String)

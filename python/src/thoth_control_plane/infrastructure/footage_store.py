@@ -45,6 +45,7 @@ def _view(row: FootageCandidateRow) -> CandidateView:
         url=row.url,
         platform=row.platform,
         source=row.source,
+        media_kind=row.media_kind,
         query=row.query,
         visual=row.visual,
         owner_handle=row.owner_handle,
@@ -74,6 +75,7 @@ def _run_view(row: FootageRunRow) -> RunView:
         status=row.status,
         footage_status=row.footage_status,
         objects=[FootageObject.model_validate(item) for item in row.objects],
+        profile_page=row.profile_page,
     )
 
 
@@ -158,6 +160,13 @@ class FootageStore:
             row.footage_status = footage_status
             row.finished_at = self._clock()
 
+    def set_profile_page(self, workflow_id: str, card: dict[str, object]) -> None:
+        with self._sessions.begin() as session:
+            row = session.get(FootageRunRow, workflow_id)
+            if row is None:
+                raise ValueError("no footage run for this workflow")
+            row.profile_page = card
+
     # Candidates
 
     def candidates(self, workflow_id: str) -> list[CandidateView]:
@@ -197,6 +206,7 @@ class FootageStore:
                         url=item.url,
                         platform=item.platform,
                         source=item.source,
+                        media_kind=item.media_kind,
                         query=_text(item.query),
                         visual=_text(item.visual),
                         owner_handle=_text(item.owner_handle),
@@ -270,13 +280,14 @@ class FootageStore:
             row.position = None
             row.updated_at = self._clock()
 
-    def admitted(self, workflow_id: str) -> list[CandidateView]:
+    def admitted(self, workflow_id: str, media_kind: str = "video") -> list[CandidateView]:
         with self._sessions() as session:
             rows = session.scalars(
                 select(FootageCandidateRow)
                 .where(
                     FootageCandidateRow.workflow_id == workflow_id,
                     FootageCandidateRow.status == "admitted",
+                    FootageCandidateRow.media_kind == media_kind,
                 )
                 .order_by(FootageCandidateRow.position)
             )
