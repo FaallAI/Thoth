@@ -23,6 +23,7 @@ from thoth_control_plane.acquisition.browser import (
     _default_session_factory,
     _increment_active_sessions,
 )
+from thoth_control_plane.acquisition.cards import MEDIA_BOX_JS, media_box
 from thoth_control_plane.acquisition.models import (
     AcquisitionReason,
     CardArtifact,
@@ -37,25 +38,6 @@ COMMENT_ROW_ATTRIBUTE = "data-thoth-comment"
 COMMENT_PREFIX_CHARS = 30
 DIALOG_TIMEOUT_MS = 3_000
 SHOT_TIMEOUT_MS = 10_000
-# The post card's media box (spec 5c-2, G1): every video and every image at least this share of
-# the card's width, joined. Platform class names churn, and X's 2026 DOM has no test ids, so
-# the media is found by shape, not by a selector; avatars and emoji stay below the share.
-MEDIA_BOX_JS = """(selector) => {
-  const card = document.querySelector(selector);
-  if (!card) return null;
-  const box = e => {
-    const b = e.getBoundingClientRect();
-    return {x: b.left, y: b.top, width: b.width, height: b.height};
-  };
-  const c = box(card);
-  const media = [...card.querySelectorAll('video, img')].map(box)
-    .filter(b => b.width >= 0.3 * c.width && b.height > 0);
-  if (!media.length) return {card: c, media: null};
-  const x1 = Math.min(...media.map(b => b.x)), y1 = Math.min(...media.map(b => b.y));
-  const x2 = Math.max(...media.map(b => b.x + b.width));
-  const y2 = Math.max(...media.map(b => b.y + b.height));
-  return {card: c, media: {x: x1, y: y1, width: x2 - x1, height: y2 - y1}};
-}"""
 # The profile page card (spec 5c-2, G2): the profile header and the first `rows` rows of the
 # post grid, as one clip in page coordinates; null while the grid has no visible item.
 PROFILE_PAGE_JS = """([header, items, rows]) => {
@@ -75,21 +57,6 @@ PROFILE_PAGE_JS = """([header, items, rows]) => {
   const y2 = Math.max(...rects.map(b => b.bottom)) + scrollY;
   return {x: Math.max(0, x1), y: Math.max(0, y1), width: x2 - x1, height: y2 - y1};
 }"""
-
-
-def media_box(card: dict[str, float] | None, media: dict[str, float] | None) -> MediaBox | None:
-    """The media's box as fractions of the card's, or None when it is empty or falls outside."""
-    if not card or not media or card["width"] <= 0 or card["height"] <= 0:
-        return None
-    try:
-        return MediaBox(
-            x=round((media["x"] - card["x"]) / card["width"], 4),
-            y=round((media["y"] - card["y"]) / card["height"], 4),
-            w=round(media["width"] / card["width"], 4),
-            h=round(media["height"] / card["height"], 4),
-        )
-    except ValueError:
-        return None
 
 
 @dataclass(frozen=True)

@@ -15,9 +15,11 @@ from thoth_control_plane.acquisition.browser import (
     HeadlessBrowserError,
     active_scrapling_session_count,
 )
+from thoth_control_plane.acquisition.cards import MEDIA_BOX_JS
 from thoth_control_plane.acquisition.materializer import MediaMaterializationError
-from thoth_control_plane.acquisition.models import AcquisitionReason, MaterializedMedia
+from thoth_control_plane.acquisition.models import AcquisitionReason, MaterializedMedia, MediaBox
 from thoth_control_plane.acquisition.threads_service import (
+    HIDE_DIALOGS_JS,
     POST_CARD_SELECTOR,
     RequestFetchError,
     ThreadsAcquirer,
@@ -149,15 +151,19 @@ async def test_text_only_post_gets_a_report_and_a_post_card(tmp_path: Path) -> N
 
 
 @pytest.mark.asyncio
-async def test_video_post_skips_the_card_visit(tmp_path: Path) -> None:
+async def test_threads_crops_a_video_post_with_its_media_box(tmp_path: Path) -> None:
+    # Style A shows the post with its video playing inside (spec 5c-2, G1).
     node = _node(video_versions=[{"url": "https://v.example.test/1.mp4"}])
-    headless = FakeHeadless(_card_page())
+    box = MediaBox(x=0.05, y=0.2, w=0.6, h=0.6)
+    page = ThreadsPage(xhr_bodies=[], script_texts=[], card_png=make_png(400, 600), card_box=box)
+    headless = FakeHeadless(page)
     result = await _inspect(tmp_path, FakeRequest(_texts(node)), headless)
 
     assert result.report is not None
     assert [m.kind for m in result.report.media] == ["video"]
-    assert result.report.post_card is None
-    assert headless.calls == 0
+    assert result.report.post_card is not None
+    assert result.report.post_card.media_box == box
+    assert headless.calls == 1
 
 
 @pytest.mark.asyncio
@@ -359,14 +365,29 @@ class _Locator:
 
 
 class _Page:
+    def __init__(self) -> None:
+        self.evaluated: list[tuple[str, object]] = []
+
     def locator(self, selector: str) -> _Locator:
         assert selector == POST_CARD_SELECTOR
         return _Locator(make_png(400, 200))
 
+    async def evaluate(self, script: str, arg: object = None) -> object:
+        self.evaluated.append((script, arg))
+        if script == MEDIA_BOX_JS:
+            return {
+                "card": {"x": 0, "y": 0, "width": 400, "height": 200},
+                "media": {"x": 0, "y": 100, "width": 400, "height": 100},
+            }
+        return None
+
 
 class _Active:
+    def __init__(self) -> None:
+        self.page = _Page()
+
     async def fetch(self, url: str, **kwargs: Any):
-        await kwargs["page_action"](_Page())
+        await kwargs["page_action"](self.page)
         return SimpleNamespace(
             url=url,
             captured_xhr=[{"status": 200, "body": {"data": {}}}],
@@ -397,6 +418,12 @@ async def test_headless_browser_returns_page_and_releases_the_session() -> None:
     assert page.script_texts == ["{}"]
     assert page.xhr_bodies == [{"data": {}}]
     assert page.card_png is not None
+    # The sign-up dialog is hidden before the crop, then the media box is measured.
+    assert [script for script, _ in session.active.page.evaluated] == [
+        HIDE_DIALOGS_JS,
+        MEDIA_BOX_JS,
+    ]
+    assert page.card_box == MediaBox(x=0.0, y=0.5, w=1.0, h=0.5)
     assert session.exited == 1
     assert active_scrapling_session_count() == 0
 
