@@ -647,7 +647,9 @@ def studio_import():
     the run's main video straight from MinIO, copies it into the project, attaches it, and a
     replay of the same key copies nothing again. Stage 5c-1 (spec 2026-10-21): the profile
     card and the comment cards land on the b-roll track, and the main's subtitle regions are
-    stored on its clip, switched off, with its track left unmuted."""
+    stored on its clip, switched off, with its track left unmuted. Stage 5c-2 (spec 2026-10-22):
+    the post card opens the video, the profile page, a creator clip and a creator photo follow
+    the main in their own scenes."""
     from thoth_control_plane.assembly.models import ContentSet
     from thoth_control_plane.infrastructure.report_store import ReportStore
 
@@ -657,6 +659,8 @@ def studio_import():
     STORE.put_file(media, STUDIO_FILE)
     card_location = f"reports/{workflow_id}/cards/card.png"
     STORE.put_file(card_location, CARD_FILE)
+    creator_media = f"reports/{workflow_id}/footage/creator.mp4"
+    STORE.put_file(creator_media, STUDIO_FILE)
     card = {
         "location": card_location,
         "media_type": "image/png",
@@ -692,6 +696,8 @@ def studio_import():
                     "duration_seconds": 20.0,
                 },
                 "profile_card": card,
+                "post_card": card | {"media_box": {"x": 0.0, "y": 0.2, "w": 1.0, "h": 0.6}},
+                "profile_page": card,
                 "ocr": {
                     "analyzed_at": "2026-10-20T00:00:00Z",
                     "requested_frames": 12,
@@ -707,6 +713,44 @@ def studio_import():
                 {"text": "keren", "author": "dua", "likes": 3, "source": "input", "card": card},
             ],
             "figures_status": "none",
+            "footage": [
+                {
+                    "source": "creator",
+                    "url": "https://example.test/v/2",
+                    "platform": "tiktok",
+                    "owner_handle": "smoke",
+                    "query": "creator:@smoke",
+                    "video": {
+                        "location": creator_media,
+                        "media_type": "video/mp4",
+                        "checksum": checksum_of(STUDIO_FILE),
+                        "bytes": STUDIO_FILE.stat().st_size,
+                        "duration_seconds": 20.0,
+                    },
+                    "ocr": {
+                        "analyzed_at": "2026-10-20T00:00:00Z",
+                        "requested_frames": 12,
+                        "valid_frames": 12,
+                        "outcome": "clean",
+                        "trim_start": 0.0,
+                        "mute_audio": False,
+                    },
+                    "story_score": 0.7,
+                    "shows_object": "yes",
+                }
+            ],
+            "footage_status": "ok",
+            "photos": [
+                {
+                    "source": "creator",
+                    "url": "https://example.test/p/3",
+                    "platform": "tiktok",
+                    "owner_handle": "smoke",
+                    "image": card,
+                    "story_score": 0.6,
+                }
+            ],
+            "style_a": True,
         }
         )
     )
@@ -718,7 +762,16 @@ def studio_import():
     path = f"/projects/{PROJECT_ID}/workflows/{workflow_id}/studio-import"
     status, opened = call("POST", path, idempotency_key="smoke-studio-1")
     found = [(i["item_id"], i["outcome"], i.get("reason")) for i in opened.get("items", [])]
-    expected = ["main_000", "profile_card_000", "comment_card_000", "comment_card_001"]
+    expected = [
+        "main_000",
+        "post_card_000",
+        "profile_page_000",
+        "creator_footage_000",
+        "creator_photo_000",
+        "profile_card_000",
+        "comment_card_000",
+        "comment_card_001",
+    ]
     if (
         status != 201
         or [item_id for item_id, _, _ in found] != expected
@@ -740,15 +793,27 @@ def studio_import():
             (PROJECT_ID, document_id),
         ).fetchone()
     cards = [c for c in document["clips"] if c["track_id"] == "track_b_roll"]
-    main_clip = next(c for c in document["clips"] if c["clip_id"] == "clip_main_000")
+    clips = {c["clip_id"]: c for c in document["clips"]}
+    main_clip = clips["clip_main_000"]
     main_track = next(t for t in document["tracks"] if t["track_id"] == "track_main_video")
     if (
-        len(cards) != 3
+        len(cards) != 7
         or len(main_clip.get("blur_regions", [])) != 1
         or main_clip.get("blur_enabled") is not False
         or main_track.get("muted") is not False
     ):
-        raise SystemExit(f"the draft does not hold the 5c-1 layout: {len(cards)} cards")
+        raise SystemExit(f"the draft does not hold the 5c-1 layout: {len(cards)} b-roll clips")
+    # Spec 5c-2, G5: the post opens the video; the page, the creator clip and photo follow.
+    scenes = [
+        clips[f"clip_{item}_000"]["scene_id"]
+        for item in ("profile_page", "creator_footage", "creator_photo")
+    ]
+    if (
+        clips["clip_post_card_000"]["from_frame"] != 0
+        or clips["clip_profile_card_000"]["from_frame"] < 90
+        or scenes != ["scene_002", "scene_003", "scene_004"]
+    ):
+        raise SystemExit(f"the draft does not hold the 5c-2 layout: {scenes}")
     status, again = call("POST", path, idempotency_key="smoke-studio-1")
     if (
         status != 201

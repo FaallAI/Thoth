@@ -2,6 +2,69 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-22 - Stage 5c-2: style A materials, built on `feat/stage5c2-style-a-materials`
+
+**Spec:** `docs/superpowers/specs/2026-10-22-stage5c2-style-a-materials-design.md`.
+**Plan:** `docs/superpowers/plans/2026-10-22-stage5c2-style-a-materials.md` (Native execution).
+
+Editing styles become templates; the operator chose style A (IsseiNugroho's story explainer)
+first, after a study of 12 reference Shorts. 5c-2 gathers style A's materials from the platforms
+and Studio places them; roadmap item 6 builds the recipe (hook, narration, motion, arrows).
+
+### What a workflow now gathers
+
+- **Post card for every main.** X, Instagram and Threads crop the post card for video posts too,
+  with a `media_box` (where the post's video sits inside the card, found by shape: the union of
+  videos and images at least 30 % of the card width). TikTok crops the author row and the whole
+  caption; YouTube has none.
+- **Creator profile page.** Header plus the first grid rows (X: the first post). X, Instagram and
+  YouTube crop it on the profile visit; TikTok's grid answers "Something went wrong" signed out, so
+  its page is cropped during the creator listing, which signs in with an account and its proxy
+  when the anonymous listing is blocked (operator, 2026-10-22).
+- **Creator footage.** The creator's 24 latest posts go through the footage gates as
+  `source = "creator"` candidates, at most 2 of the 6 clips. A weak caption (under 15 characters
+  once tags and mentions are removed) is not rejected: hashtags are read as words, then at most
+  3 posts within 7 days of the main reach the vision judge.
+- **Creator photos.** Photo and carousel posts from the same listing pass the same checks; at
+  most 3, fetched once (JPEG, PNG or WebP, 10 MB cap).
+- **Studio.** The post card opens the video for its reading time; the profile card follows it;
+  the profile page, creator clips and photos take their own scenes after the main, the page and
+  photos for 3 s, letterboxed. A missing post card or profile page shows in the gate as
+  "Not captured" (Content Sets marked `style_a` only, so older sets open as before).
+- **Migration 0018:** footage candidates take `source = 'creator'` and `media_kind`; a footage
+  run keeps the TikTok page card.
+
+### Live gates (operator-authorised)
+
+- **Task 0, page recon (2026-10-22):** ten anonymous visits from the deployed image recorded the
+  post and profile pages of TikTok, Instagram, X, YouTube and Threads. The stripped DOMs (no
+  scripts, styles, tokens or query strings; 1.3 MB) live in `python/tests/acquisition/pages` and
+  every selector is tested against them in Chromium. X's 2026 DOM carries no test ids, which is
+  why the media box is found by shape.
+- **CI:** the browser-backed card tests now run in the quality job (Chromium installed,
+  `THOTH_REQUIRE_BROWSER_TESTS=1` turns a missing browser into a failure).
+
+### Verification (offline)
+
+- **Python:** 4363 passed, 103 skipped; ruff clean. Browser tests in the thoth image: 29 passed.
+- **PostgreSQL:** editor migrations 22 (0018 constraints), workflow-to-Studio 6.
+- **Dashboard:** bun test 749 passed, `tsc` clean, build OK.
+- **Stack smoke** (`docker/test-renderer-offline.sh`): on the 5c-1 images
+  `workflow_opens_in_studio=false` (their Content Set model refuses the new fields); on images
+  built from this branch every verdict true. The draft holds the post card at frame 0, the
+  profile card after it, and the profile page, creator clip and creator photo in scenes 2-4.
+
+### Next steps
+
+- **Gates:** Task 12 live crop check per platform (authorised), then push and PR, CI, merge,
+  deploy.
+- **Roadmap item 6:** the style A preset (hook title, narration, subtitles, camera motion, the
+  post's video playing inside its card via `media_box`, arrows and highlights, blur-fill).
+- **Style B:** an own meme bank (Imgflip trending and memegen templates, uploads, image-text
+  matching); **Stage 6:** news and evidence cards.
+- **Deferred by the operator:** meter unit prices, the quota/reserve check, billing go-live and
+  the second-account check.
+
 ## 2026-10-22 - PR #39 merged and deployed; Stage 5c-1 is live
 
 **Merged:** PR #39 (`76872cb`) after CI passed on the branch and on `master`. The stack smoke
