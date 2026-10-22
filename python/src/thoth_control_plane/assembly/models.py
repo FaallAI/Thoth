@@ -210,6 +210,9 @@ class ContentSet(StrictModel):
     footage: list[Footage] = Field(default_factory=list, max_length=MAX_FOOTAGE)
     footage_status: FootageStatus = "disabled"
     photos: list[Photo] = Field(default_factory=list, max_length=MAX_PHOTOS)
+    # Assembled with the style A materials (spec 5c-2): only then does Studio list a missing
+    # post card or profile page as "Not captured"; an older set never had them to miss.
+    style_a: bool = False
 
     @model_validator(mode="after")
     def consistent(self) -> ContentSet:

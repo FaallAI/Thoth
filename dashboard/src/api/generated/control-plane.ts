@@ -3380,7 +3380,7 @@ export interface components {
             /** Reason */
             reason: string | null;
             /** Role */
-            role: ("main" | "main_footage" | "slide" | "footage" | "profile_card" | "comment_card" | "comment") | null;
+            role: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment") | null;
             /** Scene Id */
             scene_id: string | null;
             /** Trim Start Seconds */
@@ -3432,7 +3432,7 @@ export interface components {
              * Role
              * @enum {string}
              */
-            role: "main" | "main_footage" | "slide" | "footage" | "profile_card" | "comment_card" | "comment";
+            role: "main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment";
             /** Source Url */
             source_url: string | null;
             /** Text */
@@ -3464,7 +3464,7 @@ export interface components {
             /** Reason */
             reason: string;
             /** Role */
-            role: ("main" | "main_footage" | "slide" | "footage" | "profile_card" | "comment_card" | "comment") | null;
+            role: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment") | null;
             /** Value Digest */
             value_digest?: string | null;
         };

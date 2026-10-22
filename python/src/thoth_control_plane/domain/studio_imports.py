@@ -14,7 +14,17 @@ from thoth_control_plane.domain.edit_documents import BodyText, ShortText
 from thoth_control_plane.domain.models import OpaqueId, ProjectId, StrictModel
 
 SourceRole: TypeAlias = Literal[
-    "main", "main_footage", "slide", "footage", "profile_card", "comment_card", "comment"
+    "main",
+    "main_footage",
+    "slide",
+    "post_card",
+    "profile_page",
+    "creator_footage",
+    "creator_photo",
+    "footage",
+    "profile_card",
+    "comment_card",
+    "comment",
 ]
 MediaKind: TypeAlias = Literal["video", "image", "none"]
 Disposition: TypeAlias = Literal["unresolved", "attached", "excluded"]
@@ -23,15 +33,26 @@ ROLE_ORDER: tuple[SourceRole, ...] = (
     "main",
     "main_footage",
     "slide",
+    # Style A (spec 2026-10-22 5c-2): the post, who posted it, then the creator's other media.
+    "post_card",
+    "profile_page",
+    "creator_footage",
+    "creator_photo",
     "footage",
     "profile_card",
     "comment_card",
     "comment",
 )
 #: Placed over the main scene, never a scene of their own (spec 2026-10-21 5c-1, 4.1).
-OVERLAY_ROLES: frozenset[str] = frozenset({"slide", "profile_card", "comment_card"})
+OVERLAY_ROLES: frozenset[str] = frozenset({"slide", "post_card", "profile_card", "comment_card"})
 #: Roles a Content Set holds at most once.
-SINGLE_ROLES: frozenset[str] = frozenset({"main", "main_footage", "profile_card"})
+SINGLE_ROLES: frozenset[str] = frozenset(
+    {"main", "main_footage", "post_card", "profile_page", "profile_card"}
+)
+#: Cards shown for their reading time: the comments, and the post that opens the video.
+READ_ROLES: frozenset[str] = frozenset({"comment_card", "post_card"})
+#: Stills held SLIDE_SECONDS in their own scene, letterboxed (spec 5c-2, G5).
+STILL_ROLES: frozenset[str] = frozenset({"profile_page", "creator_photo"})
 NOT_PLACED = "Not placed: no room in the reaction beat"
 MAX_SOURCE_ITEMS = 400
 MAX_UNSUPPORTED_FIELDS = 400
@@ -96,8 +117,8 @@ class StudioSourceItem(StrictModel):
             raise ValueError("only a video item can start at a trim")
         if (self.blur_regions or self.mute_audio) and self.media_kind != "video":
             raise ValueError("only a video item carries blur or mute")
-        if (self.reading_seconds is not None) != (self.role == "comment_card"):
-            raise ValueError("a comment card, and only a comment card, has a reading time")
+        if (self.reading_seconds is not None) != (self.role in READ_ROLES):
+            raise ValueError("a comment or post card, and only those, has a reading time")
         return self
 
 

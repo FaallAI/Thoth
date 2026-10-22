@@ -195,3 +195,74 @@ def test_a_youtube_watch_link_keeps_its_video_id() -> None:
     items = project_content_set(parse(data)).projection.items
     assert items[1].source_url == "https://youtu.be/dQw4w9WgXcQ"
     assert items[2].source_url == "https://m.youtube.com/watch"
+
+
+# --- Stage 5c-2: style A materials (spec 2026-10-22, G5) ---
+
+POST = IMAGE | {
+    "location": "reports/wf_a/cards/post.png",
+    "media_type": "image/png",
+    "media_box": {"x": 0.0, "y": 0.3, "w": 1.0, "h": 0.5},
+}
+PAGE = IMAGE | {"location": "reports/wf_a/cards/profile-page.png", "media_type": "image/png"}
+PHOTO = {
+    "source": "creator",
+    "url": "https://www.tiktok.com/@creator/photo/7600000000000000001",
+    "platform": "tiktok",
+    "owner_handle": "creator",
+    "caption": "foto banjir",
+    "image": IMAGE | {"location": "reports/wf_a/footage/photo-1.jpg"},
+    "story_score": 0.6,
+}
+
+
+def style_a_set() -> dict[str, Any]:
+    return content_set(post_card=POST, profile_page=PAGE) | {
+        "footage": [footage(0, source="creator", query="creator:@creator"), footage(1)],
+        "footage_status": "ok",
+        "photos": [PHOTO],
+        "style_a": True,
+    }
+
+
+def test_projection_orders_the_new_roles() -> None:
+    projected = project_content_set(parse(style_a_set()))
+    items = projected.projection.items
+    assert [(i.role, i.order) for i in items] == [
+        ("main", 0),
+        ("post_card", 0),
+        ("profile_page", 0),
+        ("creator_footage", 0),
+        ("creator_photo", 0),
+        ("footage", 0),
+    ]
+    assert items[1].reading_seconds == reading_seconds("judul panjang")
+    scenes = {i.item_id: i.scene_id for i in inventory(projected.projection)}
+    assert scenes == {
+        "main_000": "scene_001",
+        "post_card_000": "scene_001",
+        "profile_page_000": "scene_002",
+        "creator_footage_000": "scene_003",
+        "creator_photo_000": "scene_004",
+        "footage_000": "scene_005",
+    }
+    assert projected.projection.unsupported == []
+    assert projected.media["post_card_000"].location.as_posix() == POST["location"]
+
+
+def test_a_missing_post_card_is_reported_in_the_gate() -> None:
+    projected = project_content_set(parse(content_set() | {"style_a": True}))
+    reported = {(u.field, u.reason) for u in projected.projection.unsupported}
+    assert reported == {
+        ("main.post_card", "Not captured: post card"),
+        ("main.profile_page", "Not captured: profile page"),
+    }
+    youtube = content_set(platform="youtube", url="https://www.youtube.com/shorts/abcdefghijk")
+    projected = project_content_set(parse(youtube | {"style_a": True}))
+    assert {u.field for u in projected.projection.unsupported} == {"main.profile_page"}
+
+
+def test_an_old_content_set_places_as_before() -> None:
+    projected = project_content_set(parse(content_set()))
+    assert [(i.role, i.order) for i in projected.projection.items] == [("main", 0)]
+    assert projected.projection.unsupported == []

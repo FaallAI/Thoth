@@ -259,6 +259,7 @@ class ContentAssembler:
                 footage=footage,
                 footage_status=footage_status,
                 photos=photos,
+                style_a=True,
             )
         except ValidationError:
             logger.warning("content set rejected by its validators")

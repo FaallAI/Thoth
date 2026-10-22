@@ -6,8 +6,10 @@ import pytest
 
 from thoth_control_plane.domain.studio_imports import SourceBlurRegion
 from thoth_control_plane.domain.studio_layout import (
+    CARD_GAP,
     card_position,
     clip_regions,
+    post_card_slot,
     profile_slot,
     reaction_beat,
     reading_seconds,
@@ -96,3 +98,19 @@ def test_clip_regions_drop_and_clamp_at_the_trim() -> None:
     converted = clip_regions(regions, fps=30.0, trim_frames=60)
     assert [(r.from_frame, r.to_frame) for r in converted] == [(60, 90), (None, None)]
     assert (converted[0].x, converted[0].h) == (0.1, 0.09)
+
+
+def test_profile_card_follows_the_post_card() -> None:
+    # Spec 5c-2, G5: the post opens the video, then who posted it.
+    post = post_card_slot(40.0, 5.2)
+    assert post == (0.0, 5.2)
+    assert profile_slot(40.0, not_before=sum(post) + CARD_GAP)[0] == pytest.approx(5.7)
+
+
+def test_profile_card_keeps_three_seconds_without_a_post_card() -> None:
+    assert profile_slot(40.0)[0] == 3.0
+    assert profile_slot(40.0, not_before=1.0)[0] == 3.0
+
+
+def test_a_post_card_never_outlasts_its_scene() -> None:
+    assert post_card_slot(4.0, 6.0) == (0.0, 4.0)

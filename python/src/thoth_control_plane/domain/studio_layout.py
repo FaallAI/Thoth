@@ -40,9 +40,15 @@ def reading_seconds(text: str) -> float:
     return min(READING_MAX, max(READING_MIN, len(text) / READING_CPS + ORIENTATION_SECONDS))
 
 
-def profile_slot(scene_seconds: float) -> tuple[float, float]:
-    """(start, duration) of the profile card, clamped inside a short main scene."""
-    start = max(0.0, min(PROFILE_AT, scene_seconds - PROFILE_MIN))
+def post_card_slot(scene_seconds: float, reading: float) -> tuple[float, float]:
+    """(start, duration) of the post card: it opens the video for its reading time (spec 5c-2)."""
+    return 0.0, min(reading, scene_seconds)
+
+
+def profile_slot(scene_seconds: float, *, not_before: float = 0.0) -> tuple[float, float]:
+    """(start, duration) of the profile card, after `not_before` (the post card, spec 5c-2) and
+    clamped inside a short main scene."""
+    start = max(0.0, min(max(PROFILE_AT, not_before), scene_seconds - PROFILE_MIN))
     return start, max(PROFILE_MIN, min(PROFILE_SECONDS, scene_seconds - start))
 
 
