@@ -21,6 +21,7 @@ from thoth_control_plane.acquisition.adapters.x import (
     page_tweets,
     post_url,
     tweet_engagement,
+    tweet_photos,
     tweet_published,
     tweet_text,
     tweet_videos,
@@ -28,6 +29,7 @@ from thoth_control_plane.acquisition.adapters.x import (
 from thoth_control_plane.acquisition.discovery import MAX_CAPTION, _empty
 from thoth_control_plane.acquisition.instagram_discovery import _reason, rank_videos
 from thoth_control_plane.acquisition.models import (
+    DiscoveredPhoto,
     DiscoveredVideo,
     DiscoveryDrops,
     DiscoveryReason,
@@ -70,11 +72,29 @@ def _video(tweet: dict[str, Any], owner: str) -> DiscoveredVideo | None:
         return None
 
 
+def _photo(tweet: dict[str, Any], owner: str, images: list[str]) -> DiscoveredPhoto | None:
+    rest_id = numeric_id(tweet["rest_id"])
+    if rest_id is None:
+        return None
+    try:
+        return DiscoveredPhoto(
+            post_id=rest_id,
+            owner_handle=owner,
+            canonical_url=post_url(owner, rest_id),
+            caption=(tweet_text(tweet) or "")[:MAX_CAPTION],
+            published_at=tweet_published(tweet),
+            image_urls=images[:20],
+        )
+    except ValueError:
+        return None
+
+
 def parse_profile(roots: Iterable[object], handle: str, limit: int) -> DiscoveryResult:
     tweets = page_tweets(roots)
     if not tweets:
         return _empty("profile", DiscoveryReason.NO_DATA)
     videos: list[DiscoveredVideo] = []
+    photos: list[DiscoveredPhoto] = []
     photo_posts = invalid = 0
     for tweet in tweets:
         owner = author_of(tweet)
@@ -84,6 +104,9 @@ def parse_profile(roots: Iterable[object], handle: str, limit: int) -> Discovery
             continue
         if not tweet_videos(tweet):
             photo_posts += 1
+            images = tweet_photos(tweet)
+            if images and (photo := _photo(tweet, owner, images)) is not None:
+                photos.append(photo)
             continue
         video = _video(tweet, owner)
         if video is None:
@@ -96,6 +119,7 @@ def parse_profile(roots: Iterable[object], handle: str, limit: int) -> Discovery
         pages=1,
         exhausted=False,
         drops=DiscoveryDrops(photo_posts=photo_posts, invalid=invalid),
+        photos=photos[:limit],
     )
 
 

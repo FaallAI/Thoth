@@ -169,3 +169,16 @@ async def test_a_handle_x_cannot_have_is_no_data_without_a_fetch(handle: str) ->
     fetcher = FakeFetcher(_page(_tweet(1)))
     result = await _discover(fetcher, handle=handle)
     assert (result.videos, result.reason, fetcher.urls) == ([], DiscoveryReason.NO_DATA, [])
+
+
+@pytest.mark.asyncio
+async def test_photo_posts_are_listed_with_their_images() -> None:
+    photo = {"type": "photo", "media_url_https": "https://pbs.twimg.com/media/A1.jpg"}
+    page = _page(_tweet(1), _tweet(2, video=False, media_entities2=[photo]), _tweet(3, video=False))
+    result = await _discover(FakeFetcher(page))
+    assert [p.post_id for p in result.photos] == [_id(2)]
+    assert [str(url) for url in result.photos[0].image_urls] == [
+        "https://pbs.twimg.com/media/A1.jpg"
+    ]
+    assert result.photos[0].caption == "post 2"
+    assert result.drops.photo_posts == 2

@@ -241,6 +241,18 @@ def tweet_engagement(tweet: dict[str, Any]) -> dict[str, int]:
     return {key: count for key, value in pairs if (count := _count(value)) is not None}
 
 
+def tweet_photos(tweet: dict[str, Any]) -> list[str]:
+    """The https URL of each photo entity, in order (spec 5c-2, G4)."""
+    entities = tweet.get("media_entities2")
+    photos: list[str] = []
+    for entity in entities if isinstance(entities, list) else []:
+        if isinstance(entity, dict) and entity.get("type") == "photo":
+            url = _https(entity.get("media_url_https"))
+            if url is not None:
+                photos.append(url)
+    return photos
+
+
 def tweet_videos(tweet: dict[str, Any]) -> list[str]:
     """The best MP4 of each video entity, in order."""
     entities = tweet.get("media_entities2")

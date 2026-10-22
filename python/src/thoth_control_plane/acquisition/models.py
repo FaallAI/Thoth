@@ -374,6 +374,24 @@ class DiscoveredVideo(StrictModel):
     )
 
 
+class DiscoveredPhoto(StrictModel):
+    """A photo or carousel post on a creator's profile (spec 5c-2, G4).
+
+    `image_urls` are the platform's ephemeral image links, used once to fetch a photo and never
+    stored in a report or a Content Set.
+    """
+
+    post_id: SafeId
+    owner_handle: TikTokHandle
+    canonical_url: HttpUrl
+    caption: Annotated[str, Field(max_length=10_000)] = ""
+    published_at: PublishedAt | None = None
+    hashtags: list[Annotated[str, Field(min_length=1, max_length=100)]] = Field(
+        default_factory=list
+    )
+    image_urls: Annotated[list[HttpUrl], Field(min_length=1, max_length=20)]
+
+
 class DiscoveryDrops(StrictModel):
     ads: Annotated[int, Field(ge=0)] = 0
     photo_posts: Annotated[int, Field(ge=0)] = 0
@@ -390,3 +408,6 @@ class DiscoveryResult(StrictModel):
     exhausted: bool  # the last captured page reported no more results
     drops: DiscoveryDrops
     reason: DiscoveryReason | None = None
+    photos: list[DiscoveredPhoto] = Field(default_factory=list)
+    # The profile page card a listing visit cropped (TikTok, spec 5c-2); never serialized.
+    page_png: bytes | None = Field(default=None, exclude=True, repr=False)

@@ -13,7 +13,13 @@ from typing import Any
 import pytest
 
 from tests.acquisition.browser_support import async_api, launch
-from thoth_control_plane.acquisition import browser, instagram_service, x_service, youtube_service
+from thoth_control_plane.acquisition import (
+    browser,
+    discovery,
+    instagram_service,
+    x_service,
+    youtube_service,
+)
 from thoth_control_plane.acquisition.card_browser import MEDIA_BOX_JS, PROFILE_PAGE_JS, media_box
 from thoth_control_plane.acquisition.models import MediaBox
 
@@ -96,6 +102,9 @@ async def test_profile_page_js_is_none_without_grid_items() -> None:
         ("youtube-profile", youtube_service.PROFILE_PAGE_ITEMS, 6),
         ("tiktok-post", browser.POST_CARD_FOLD_SELECTOR, 1),
         ("tiktok-post", '[data-media-card-description-container="true"]', 1),
+        # Signed out the grid fails to load, so only the header is recorded; Task 12 checks the
+        # grid in a signed-in visit (spec 5c-2).
+        ("tiktok-profile", discovery.PROFILE_HEADER, 1),
     ],
 )
 async def test_layout_selectors_match_the_recorded_pages(

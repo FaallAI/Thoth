@@ -23,7 +23,7 @@ from thoth_control_plane.acquisition.browser import (
     _default_session_factory,
     _increment_active_sessions,
 )
-from thoth_control_plane.acquisition.cards import MEDIA_BOX_JS, media_box
+from thoth_control_plane.acquisition.cards import MEDIA_BOX_JS, PROFILE_PAGE_JS, media_box
 from thoth_control_plane.acquisition.models import (
     AcquisitionReason,
     CardArtifact,
@@ -38,25 +38,6 @@ COMMENT_ROW_ATTRIBUTE = "data-thoth-comment"
 COMMENT_PREFIX_CHARS = 30
 DIALOG_TIMEOUT_MS = 3_000
 SHOT_TIMEOUT_MS = 10_000
-# The profile page card (spec 5c-2, G2): the profile header and the first `rows` rows of the
-# post grid, as one clip in page coordinates; null while the grid has no visible item.
-PROFILE_PAGE_JS = """([header, items, rows]) => {
-  const head = document.querySelector(header);
-  const visible = [...document.querySelectorAll(items)].filter(e => {
-    const b = e.getBoundingClientRect();
-    return b.width > 0 && b.height > 0;
-  });
-  if (!head || !visible.length) return null;
-  const top = e => Math.round(e.getBoundingClientRect().top + scrollY);
-  const kept = [...new Set(visible.map(top))].sort((a, b) => a - b).slice(0, rows);
-  const rects = [head, ...visible.filter(e => kept.includes(top(e)))]
-    .map(e => e.getBoundingClientRect());
-  const x1 = Math.min(...rects.map(b => b.left)) + scrollX;
-  const y1 = Math.min(...rects.map(b => b.top)) + scrollY;
-  const x2 = Math.max(...rects.map(b => b.right)) + scrollX;
-  const y2 = Math.max(...rects.map(b => b.bottom)) + scrollY;
-  return {x: Math.max(0, x1), y: Math.max(0, y1), width: x2 - x1, height: y2 - y1};
-}"""
 
 
 @dataclass(frozen=True)

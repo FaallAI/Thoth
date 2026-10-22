@@ -14,9 +14,11 @@ from thoth_control_plane.acquisition.browser import (
     FETCH_WAIT_MS,
     active_scrapling_session_count,
 )
+from thoth_control_plane.acquisition.cards import PROFILE_PAGE_JS
 from thoth_control_plane.acquisition.discovery import (
     CAPTCHA_SELECTOR,
     EXPLORE_URL,
+    PROFILE_GRID_ITEMS,
     XHR_PATTERNS,
     ScraplingDiscoveryBrowser,
     _assemble,
@@ -271,6 +273,9 @@ class FakePage:
         self.body_error = flags.get("body_error", False)
         self.wheel_error = flags.get("wheel_error")
         self.hang = flags.get("hang", False)
+        # The profile grid (spec 5c-2): with page_rect, grid items show and the page is cropped.
+        self.page_rect = flags.get("page_rect", False)
+        self.clips: list[dict] = []
         self.scrolls = 0
         self.handlers: list = []
         self.mouse = SimpleNamespace(wheel=self._wheel)
@@ -303,6 +308,22 @@ class FakePage:
     async def query_selector(self, selector: str) -> object | None:
         assert selector == CAPTCHA_SELECTOR
         return object() if self.captcha else None
+
+    def locator(self, selector: str) -> SimpleNamespace:
+        assert selector == PROFILE_GRID_ITEMS
+
+        async def count() -> int:
+            return 6 if self.page_rect else 0
+
+        return SimpleNamespace(count=count)
+
+    async def evaluate(self, script: str, arg: object = None) -> object:
+        assert script == PROFILE_PAGE_JS
+        return {"x": 0, "y": 0, "width": 800, "height": 900} if self.page_rect else None
+
+    async def screenshot(self, **kwargs: object) -> bytes:
+        self.clips.append(kwargs["clip"])
+        return b"page-png"
 
 
 class FakeSession:
@@ -762,3 +783,44 @@ def test_importing_discovery_module_does_not_import_scrapling_or_patchright() ->
         text=True,
     )
     assert result.returncode == 0, result.stderr
+
+
+IMAGE = "https://p16-sign.tiktokcdn.com/obj/photo-1.jpeg"
+
+
+def test_photo_posts_are_listed_with_their_images() -> None:
+    images = {"images": [{"imageURL": {"urlList": [IMAGE, "https://p16.example/2.jpeg"]}}]}
+    body = _list_body([_item(), _item("1000000003", imagePost=images)])
+    page = parse_discovery_page("profile", body)
+    assert [video.post_id for video in page.videos] == ["1000000001"]
+    assert [photo.post_id for photo in page.photos] == ["1000000003"]
+    photo = page.photos[0]
+    assert str(photo.canonical_url) == "https://www.tiktok.com/@creator/photo/1000000003"
+    assert [str(url) for url in photo.image_urls] == [IMAGE]
+    assert photo.hashtags == ["cats"]
+    assert page.drops.photo_posts == 1
+    result = _assemble("profile", 30, [page, page], captcha=False, timed_out=False)
+    assert [p.post_id for p in result.photos] == ["1000000003"]
+
+
+def test_a_photo_post_without_images_is_only_counted() -> None:
+    page = parse_discovery_page("profile", _list_body([_item("1000000003", imagePost={})]))
+    assert page.photos == [] and page.drops.photo_posts == 1
+
+
+@pytest.mark.asyncio
+async def test_a_profile_listing_crops_the_profile_page_once_the_grid_shows() -> None:
+    # Spec 5c-2, G2: TikTok's grid needs a login, so its page card comes from this visit.
+    session = FakeSession("profile", [_list_body([_item()], has_more=False)], page_rect=True)
+    browser = ScraplingDiscoveryBrowser(session_factory=lambda **kwargs: session)
+    result = await browser.discover(ProfileDiscovery(handle="creator", limit=30))
+    assert result.page_png == b"page-png"
+    assert "page_png" not in result.model_dump()
+
+
+@pytest.mark.asyncio
+async def test_no_grid_means_no_profile_page() -> None:
+    session = FakeSession("profile", [_list_body([_item()], has_more=False)])
+    browser = ScraplingDiscoveryBrowser(session_factory=lambda **kwargs: session)
+    result = await browser.discover(ProfileDiscovery(handle="creator", limit=30))
+    assert result.page_png is None

@@ -316,3 +316,19 @@ async def test_a_login_wall_on_a_detail_page_is_blocked() -> None:
     assert fetcher.urls[1:] == [_url(1)]
     assert len(result.videos) == 2
     assert result.reason is DiscoveryReason.BLOCKED
+
+
+@pytest.mark.asyncio
+async def test_photo_posts_are_listed_with_their_images() -> None:
+    # Spec 5c-2, G4: the creator's photo and carousel posts feed the optional photo slides.
+    image = {"image_versions2": {"candidates": [{"url": "https://cdn.example/1.jpg", "width": 9}]}}
+    carousel = {"carousel_media": [image, {"video_versions": [{"url": "https://cdn.example/v"}]}]}
+    nodes = [_node(1), _node(2, media_type=1, **image), _node(3, media_type=8, **carousel)]
+    result = await _discover(FakeFetcher(_page(nodes)))
+    assert [photo.post_id for photo in result.photos] == [
+        "3100000000000000002",
+        "3100000000000000003",
+    ]
+    assert [str(url) for url in result.photos[0].image_urls] == ["https://cdn.example/1.jpg"]
+    assert str(result.photos[1].canonical_url) == "https://www.instagram.com/p/code_003/"
+    assert result.drops.photo_posts == 2
