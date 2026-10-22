@@ -2,6 +2,59 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-22 - Stage 5c-2 follow-up: TikTok listing captcha solved in the page
+
+Built on `feat/stage5c2-style-a-materials` (after bc0b0d9). The 5c-2 review had left TikTok
+off `CREATOR_PLATFORMS`: its profile grid raised a captcha signed out and signed in, and every
+signed-in captcha cooled the account (Task 12 side effect).
+
+### Research (2026-10-22, `D:/thoth-tmp/research/5c2`)
+
+- The captcha is episodic — TikTok's enforcement is probabilistic. Anonymous headless probes
+  loaded the grid with no modal (Patchright 29 items, Camoufox 45); the modal seen on
+  2026-10-21/22 did not return during the probes.
+- Rerouting `item_list` without its signature is dead: stripping the signature parameters or
+  keeping only the core parameters both answered a non-JSON body with an empty grid (unlike
+  the comment API, which tolerates it). The page's own signed request stays the only source.
+- The solver follows the maintained open-source solvers (EulerStream, SadCaptcha clients,
+  arc298): selectors `#captcha-verify-image`, `.captcha_verify_img_slide`,
+  `.captcha_verify_slide--slidebar`, `.secsdk-captcha-drag-icon`; slide = Sobel/Canny edge
+  maps plus matchTemplate for the gap; whirl (rotate) = ring-band difference for the angle
+  with drag `(track − icon width) × angle / 360`; a humanized drag (ease-out, small
+  overshoot, settle) because constant-speed slides are rejected.
+
+### What changed
+
+- **`acquisition/captcha.py` (new):** solves the modal's two drag subtypes in the open page.
+  Images come from the elements' `src` — an element screenshot bakes the overlaid piece into
+  the background and matches the piece's starting position instead of the gap. Solving never
+  raises and degrades to False without OpenCV; click subtypes (icon, 3D) are not attempted,
+  and the second whirl attempt mirrors the angle to cover the unknown drag direction.
+- **`acquisition/discovery.py`:** the scroll now solves a raised captcha before giving up,
+  and the profile visit solves one before the page-card crop needs the grid — at most
+  `MAX_SOLVES = 3` solver runs per discovery. An unsolved modal keeps the old captcha
+  reason and partial result.
+- **`footage/service.py`:** `tiktok` is back in `CREATOR_PLATFORMS`.
+
+### Verification
+
+- `make test` → 4386 passed, 108 skipped (WSL); ruff clean. Browser-backed tests run in the
+  `thoth:5c2` image via `D:/thoth-tmp/browser-tests.sh` (2 passed, real Chromium): the solver
+  clears a local page shaped like the modal — the drag lands the piece in the gap within 4 px —
+  and reports failure when the modal never clears.
+- Live, anonymous, through the worktree's `ScraplingDiscoveryBrowser`: the listing returned
+  `reason=none`, 24 videos + 1 photo post, and the profile page card
+  (`D:/thoth-tmp/research/5c2/out/profile-page.png`).
+
+### Open
+
+- Live proof against a real TikTok modal is pending — no captcha rose during the probes.
+  Production will log `tiktok captcha solved attempt=N` the first time one does; a wrong
+  whirl direction despite the mirrored retry, or a click subtype, surfaces as
+  `tiktok captcha unsolved` with no behaviour change beyond today's.
+- Next gates: push + PR, CI, merge, deploy, and a footage workflow with a TikTok main (each
+  needs operator authorisation).
+
 ## 2026-10-22 - Stage 5c-2: style A materials, built on `feat/stage5c2-style-a-materials`
 
 **Spec:** `docs/superpowers/specs/2026-10-22-stage5c2-style-a-materials-design.md`.
