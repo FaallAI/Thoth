@@ -56,6 +56,10 @@ Alembic, React/TypeScript (gate labels only), Remotion composition unchanged.
   - the profile card starts at `max(PROFILE_AT, post end + CARD_GAP)`;
   - scene order: main, profile page, creator footage, creator photos, search footage, then
     plain comments.
+- **Live gates:** Task 0 (page recon) and Task 12 (crop check) are live and run only on the
+  operator's authorisation, each as its own gate. Every other task is offline.
+- **No silent gaps:** a missing post card or profile page is shown in the Studio import gate,
+  never only logged.
 - **Commits:** one `git commit -m "<subject>"`, with no body and no trailer.
 - **Repository text:** in English.
 - **Tests:**
@@ -82,6 +86,41 @@ Alembic, React/TypeScript (gate labels only), Remotion composition unchanged.
    `None`; the card is kept. Covered in Task 2: `test_a_media_box_outside_the_card_is_dropped`.
 
 ---
+
+### Task 0: Live page recon and recorded DOM fixtures (operator gate)
+
+Runs only after the operator authorises it as its own gate. Without that authorisation, Tasks
+2-4 use selectors from the existing replay fixtures and are marked unproven in the ledger.
+
+**Files:**
+- Create: `python/tests/acquisition/pages/<platform>-post.html` and
+  `<platform>-profile.html` for TikTok, Instagram, X and YouTube (Threads: post only). These are
+  `page.content()` dumps of one public post page and its creator's profile page.
+- Create: `python/tests/acquisition/test_live_page_selectors.py`
+
+**Interfaces:**
+- Produces: one recorded DOM per page that Tasks 2-4 build their selectors against. Each
+  selector constant is tested against it.
+
+**How to capture:**
+- Use the existing headless stack and access policy: Camoufox for Instagram, leased accounts
+  with their proxies when signed-out pages are thin. Never use the Instagram private API.
+- Make one request per page, paced at least 30 s apart.
+- Use public posts the operator names, or one post from the deployed Content Sets per platform.
+- Strip cookies, tokens and `<script>` bodies from the dumps before they are written. Keep only
+  the DOM structure and its text.
+
+- [ ] **Step 1: Capture the dumps** (live, authorised) and inspect each for the elements the
+  spec names:
+  - the post element and its media element;
+  - the TikTok author header and description;
+  - the profile header and the first grid rows.
+- [ ] **Step 2: Write `test_live_page_selectors.py`.** Load each dump with Playwright
+  `page.set_content` and assert that every selector constant matches exactly one element
+  (`count() == 1`), or at least two grid items for the grid. Before Tasks 2-4 add the constants,
+  this test fails on import.
+- [ ] **Step 3: Commit the dumps and the test** (the test is skipped until its constants exist).
+  `git commit -m "test(acquisition): recorded pages for style A selectors"`
 
 ### Task 1: Models for the new materials
 
@@ -535,6 +574,14 @@ def test_no_main_date_keeps_no_undecided():
     `contain`.
 - Modify: `dashboard/src/features/studio/StudioImportGate.tsx` (`ROLE_LABELS`: "Post card",
   "Profile page", "Creator footage", "Creator photo")
+- A material the main's platform should have but the Content Set lacks becomes visible in the
+  gate, never only in a log:
+  - post card, missing on X, Threads, Instagram or TikTok, unless the main kind is `card`;
+  - profile page, missing on TikTok, Instagram, X or YouTube.
+
+  The projection reports it through the existing `built.report(...)` as an unsupported field:
+  `field="main.post_card"` or `"main.profile_page"`, with reason `"Not captured: post card"` or
+  `"Not captured: profile page"`.
 - Regenerate OpenAPI and the TypeScript types (export script).
 - Test:
   - `python/tests/domain/test_studio_layout.py`;
@@ -566,6 +613,10 @@ def test_profile_card_keeps_three_seconds_without_a_post_card():
   - `test_profile_page_and_photos_hold_three_seconds`.
 
   In the gate test, the four new labels render.
+
+  Also add `test_a_missing_post_card_is_reported_in_the_gate` (projection): an X main without
+  `post_card` yields the unsupported field `main.post_card` with reason
+  "Not captured: post card". A YouTube main yields none.
 - [ ] **Step 2: Run them.** Run `make test T=tests/domain tests/assembly`, the Postgres test and
   `bun test src/features/studio`. Expected: FAIL.
 - [ ] **Step 3: Implement.**
@@ -595,3 +646,30 @@ def test_profile_card_keeps_three_seconds_without_a_post_card():
 - [ ] **Step 4: Write the docs.** Include the Next steps: the gates (push/PR, CI, merge, deploy,
   an optional live capture per platform) and roadmap item 6.
 - [ ] **Step 5: Commit.** `git commit -m "docs: Stage 5c-2 style A materials"`
+
+### Task 12: Live crop check per platform (operator gate, before deploy)
+
+Runs only after the operator authorises it as its own gate. It is the proof that the new crops
+work on real pages: the offline tests prove only the code paths and the recorded DOM.
+
+**Files:**
+- Create: `D:/thoth-tmp/research/5c2/live-check/` (outside the repository): the crops and a
+  summary.
+- Modify: `CHANGELOG.md` (the result).
+
+- [ ] **Step 1: Run one acquisition per platform** (TikTok, Instagram, X, Threads, YouTube) on
+  the `thoth:5c2` image, against the public posts from Task 0, through the normal acquisition
+  activity with its access policy. Pace the runs at least 60 s apart.
+- [ ] **Step 2: Collect evidence.** For each run, collect:
+  - `post.png`, `profile-page.png` and the post card's `media_box`;
+  - the `cards missing` warning line, if any.
+
+  Draw the `media_box` onto a copy of `post.png`, so it can be checked by eye.
+- [ ] **Step 3: Show the operator** the crops and the boxed copies. Expected:
+  - each platform has the materials the spec gives it;
+  - no `cards missing` line for them;
+  - the box sits on the post's media.
+- [ ] **Step 4: Fix any wrong selector.** Fix it against the recorded DOM (Task 0), add the
+  failing assertion to `test_live_page_selectors.py` first, re-run that platform once, then
+  commit `fix(acquisition): <platform> <material> selector`.
+- [ ] **Step 5: Record the outcome** in the CHANGELOG entry and the checkpoint.
