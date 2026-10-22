@@ -171,6 +171,8 @@ async def test_profile_page_and_post_media_follow_the_layout() -> None:
     assert cards.post_media_box == MediaBox(x=0.0, y=0.25, w=1.0, h=0.5)
     assert cards.profile_page_png is not None
     assert profile_page.clips == [rect]
+    # One pixel per CSS pixel: at the device ratio a page ran past the 2 MB card cap (Task 12).
+    assert profile_page.shot_options[0]["scale"] == "css"
     assert (PROFILE_PAGE_JS, [".profile", ".item", 2]) in profile_page.evaluated
 
 

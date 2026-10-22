@@ -154,7 +154,11 @@ async def _crop_page(page: Any, layout: CardLayout) -> bytes | None:
         arg = [layout.profile_selector, layout.page_items, layout.page_rows]
         rect = await page.evaluate(PROFILE_PAGE_JS, arg)
         if isinstance(rect, dict):
-            return await page.screenshot(clip=rect, full_page=True, timeout=SHOT_TIMEOUT_MS)
+            # One pixel per CSS pixel: at the device ratio an Instagram page ran to 3.3 MB,
+            # past the 2 MB card cap (live check, 2026-10-22).
+            return await page.screenshot(
+                clip=rect, full_page=True, scale="css", timeout=SHOT_TIMEOUT_MS
+            )
     return None
 
 

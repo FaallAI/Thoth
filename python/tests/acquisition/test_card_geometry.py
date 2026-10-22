@@ -17,6 +17,7 @@ from thoth_control_plane.acquisition import (
     browser,
     discovery,
     instagram_service,
+    threads_service,
     x_service,
     youtube_service,
 )
@@ -100,7 +101,6 @@ async def test_profile_page_js_is_none_without_grid_items() -> None:
         ("instagram-profile", instagram_service.PROFILE_PAGE_ITEMS, 6),
         ("youtube-profile", youtube_service.PROFILE_CARD_SELECTOR, 1),
         ("youtube-profile", youtube_service.PROFILE_PAGE_ITEMS, 6),
-        ("tiktok-post", browser.POST_CARD_FOLD_SELECTOR, 1),
         ("tiktok-post", '[data-media-card-description-container="true"]', 1),
         # Signed out the grid fails to load, so only the header is recorded; Task 12 checks the
         # grid in a signed-in visit (spec 5c-2).
@@ -118,3 +118,29 @@ async def test_tiktok_post_card_js_finds_the_caption_block_on_the_recorded_page(
     html = (PAGES / "tiktok-post.html").read_text(encoding="utf-8")
     rect = await _run(html, browser.POST_CARD_JS, None)
     assert rect is not None and rect["width"] > 0 and rect["height"] > 0
+
+
+@pytest.mark.asyncio
+async def test_hiding_the_threads_dialog_also_lifts_its_dimming_overlay() -> None:
+    # Task 12: the dialog was hidden but its fixed backdrop still darkened the post card.
+    html = (
+        '<div id="overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.6)">'
+        '<div><div role="dialog">Say more with Threads</div></div></div>'
+        '<div data-pressable-container="true">the post</div>'
+    )
+    script = (
+        threads_service.HIDE_DIALOGS_JS
+        + "; (() => getComputedStyle(document.getElementById('overlay')).visibility)"
+    )
+    async with async_api.async_playwright() as playwright:
+        chromium = await launch(playwright)
+        try:
+            page = await chromium.new_page()
+            await page.set_content(html)
+            await page.evaluate(threads_service.HIDE_DIALOGS_JS)
+            hidden = await page.evaluate(
+                "() => getComputedStyle(document.getElementById('overlay')).visibility"
+            )
+        finally:
+            await chromium.close()
+    assert script and hidden == "hidden"

@@ -323,6 +323,7 @@ class FakePage:
 
     async def screenshot(self, **kwargs: object) -> bytes:
         self.clips.append(kwargs["clip"])
+        self.scale = kwargs.get("scale")
         return b"page-png"
 
 
@@ -815,6 +816,7 @@ async def test_a_profile_listing_crops_the_profile_page_once_the_grid_shows() ->
     browser = ScraplingDiscoveryBrowser(session_factory=lambda **kwargs: session)
     result = await browser.discover(ProfileDiscovery(handle="creator", limit=30))
     assert result.page_png == b"page-png"
+    assert session.page.scale == "css"
     assert "page_png" not in result.model_dump()
 
 

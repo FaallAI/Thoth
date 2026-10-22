@@ -37,6 +37,7 @@ class FakeCardPage:
         self.clicked: list[str] = []
         self.shots: list[str] = []
         self.clips: list[dict[str, float]] = []
+        self.shot_options: list[dict[str, Any]] = []
         self.evaluated: list[tuple[str, object]] = []
 
     def locator(self, selector: str) -> FakeLocator:
@@ -48,6 +49,7 @@ class FakeCardPage:
 
     async def screenshot(self, **kwargs: Any) -> bytes:
         self.clips.append(kwargs["clip"])
+        self.shot_options.append(kwargs)
         return make_png(400, 600)
 
 

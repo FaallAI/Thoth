@@ -140,8 +140,8 @@ PROFILE_CARD_CHECK_JS = r"""() => {
   });
 }"""
 # The post card (spec 5c-2, G1): the first feed video's author row and its caption, as the
-# post page recorded on 2026-10-22 shows them over the video. The caption is unfolded first.
-POST_CARD_FOLD_SELECTOR = '[data-e2e="multiline-text-fold-button"]'
+# post page recorded on 2026-10-22 shows them over the video. The caption stays folded: "more"
+# also unfolds TikTok's own AI summary under it, which is no part of the post (live check).
 POST_CARD_JS = """() => {
   const desc = document.querySelector('[data-media-card-description-container="true"]');
   if (!desc) return null;
@@ -366,9 +366,6 @@ async def _crop_comment_cards(page: Any, cards: list[tuple[str, bytes]]) -> None
 
 
 async def _crop_post_card(page: Any) -> bytes | None:
-    with contextlib.suppress(Exception):
-        await page.locator(POST_CARD_FOLD_SELECTOR).first.click(timeout=2_000)
-        await page.wait_for_timeout(500)
     rect = await page.evaluate(POST_CARD_JS)
     if not isinstance(rect, dict):
         return None

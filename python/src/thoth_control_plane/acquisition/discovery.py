@@ -287,7 +287,7 @@ async def _crop_profile_page(page: Any) -> bytes | None:
             rect = await page.evaluate(PROFILE_PAGE_JS, [PROFILE_HEADER, PROFILE_GRID_ITEMS, 2])
             if not isinstance(rect, dict):
                 return None
-            return await page.screenshot(clip=rect, full_page=True, timeout=10_000)
+            return await page.screenshot(clip=rect, full_page=True, scale="css", timeout=10_000)
         await page.wait_for_timeout(1_000)
     return None
 

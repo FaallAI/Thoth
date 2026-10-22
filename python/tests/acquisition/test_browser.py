@@ -787,6 +787,11 @@ async def test_visit_crops_the_post_header_and_caption(monkeypatch) -> None:
         def __init__(self, tab: _ProfileTab) -> None:
             super().__init__(tab)
             self.clips: list[dict] = []
+            self.located: list[str] = []
+
+        def locator(self, selector: str) -> _Locator:
+            self.located.append(selector)
+            return super().locator(selector)
 
         async def evaluate(self, script: str, arg: object = None) -> object:
             if script == POST_CARD_JS:
@@ -803,6 +808,8 @@ async def test_visit_crops_the_post_header_and_caption(monkeypatch) -> None:
     await browser.close()
 
     assert snapshot.post_card_png == b"post-png"
+    # Never unfolded: TikTok's "more" adds its own AI summary under the caption (Task 12).
+    assert not any("fold-button" in selector for selector in page.located)
     assert page.clips == [{"x": 10, "y": 500, "width": 500, "height": 120}]
     assert "png" not in snapshot.model_dump_json()
 

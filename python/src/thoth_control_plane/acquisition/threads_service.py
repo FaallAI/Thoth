@@ -76,9 +76,13 @@ REQUEST_OPTIONS: dict[str, Any] = {
 THREADS_CAPTURE_XHR = r"https://www\.threads\.(?:com|net)/(?:api/)?graphql.*"
 POST_CARD_SELECTOR = 'div[data-pressable-container="true"]'
 # A signed-out post page opens a "Say more with Threads" dialog over the post (recorded
-# 2026-10-22). It is no part of the post, so it is hidden before the crop.
-HIDE_DIALOGS_JS = """() => document.querySelectorAll('div[role="dialog"]')
-  .forEach(e => { e.style.visibility = 'hidden'; })"""
+# 2026-10-22). It is no part of the post, so it is hidden before the crop, with the fixed
+# backdrop around it that otherwise darkens the whole card (live check).
+HIDE_DIALOGS_JS = """() => document.querySelectorAll('div[role="dialog"]').forEach(dialog => {
+  for (let e = dialog; e && e !== document.body; e = e.parentElement) {
+    if (e === dialog || getComputedStyle(e).position === 'fixed') e.style.visibility = 'hidden';
+  }
+})"""
 SCRIPT_SELECTOR = 'script[type="application/json"]::text'
 SHARE_RESOLVE_TIMEOUT_MS = 15_000
 _STRATEGIES = {
