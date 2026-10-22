@@ -44,6 +44,43 @@ and Studio places them; roadmap item 6 builds the recipe (hook, narration, motio
 - **CI:** the browser-backed card tests now run in the quality job (Chromium installed,
   `THOTH_REQUIRE_BROWSER_TESTS=1` turns a missing browser into a failure).
 
+### Task 12: live crop check (operator-authorised, 2026-10-22)
+
+Real posts through the production acquisition runner with the branch code, the stack's
+accounts and proxies, 60 s apart. Crops kept outside the repository in
+`D:/thoth-tmp/research/5c2/live-check/`.
+
+| Platform | Post card | Media box | Profile page |
+|---|---|---|---|
+| X | yes | on both videos | not captured (signed-out profile unstable; once the profile card failed too) |
+| Instagram | yes | on the video | yes, header and two grid rows |
+| Threads | yes | on the video | none by design |
+| TikTok | yes (author row and caption) | none by design | not captured: profile listing hits a captcha signed out and signed in |
+| YouTube | none by design | - | yes, header and two shelf rows |
+
+The check found five faults the offline tests could not, each fixed test first and re-checked live:
+
+1. Profile pages were shot at the device pixel ratio (Instagram 3.3 MB) and dropped by the 2 MB
+   card cap; they are now shot at CSS scale.
+2. X's header selector uses Playwright's `:has-text`, which `document.querySelector` refuses; the
+   header is now measured by Playwright and only its box reaches the page script.
+3. The YouTube profile visit opens the channel home tab, whose shelves hold lockups, not the
+   Shorts tab's rich items; both are read.
+4. Unfolding a TikTok caption also unfolds TikTok's own AI summary; the caption stays folded.
+5. Threads darkens the page with an empty fixed backdrop beside its sign-up dialog; it is hidden.
+
+Found, not caused by this branch (the deployed image behaves the same):
+
+- **X video posts with two or more videos lose their videos:** X's signed-out post page no longer
+  embeds the tweet JSON the page parser reads (no `$R`/`rest_id` on the recorded page), and
+  syndication gives a URL for a single video only. Such a post falls back to its post card as the
+  main, as before this branch.
+- **TikTok profile listing hits a captcha signed out and signed in** (account `operator-1`, after
+  the operator refreshed its cookies). Each signed-in captcha cools the account: level 1 until
+  21:30, then level 2 until 22:42 WIB on 2026-10-22. TikTok creator clips, photos and page card
+  stay "Not captured" until the listing works again; attribution's TikTok profile discovery uses
+  the same listing.
+
 ### Verification (offline)
 
 - **Python:** 4363 passed, 103 skipped; ruff clean. Browser tests in the thoth image: 29 passed.
@@ -56,8 +93,9 @@ and Studio places them; roadmap item 6 builds the recipe (hook, narration, motio
 
 ### Next steps
 
-- **Gates:** Task 12 live crop check per platform (authorised), then push and PR, CI, merge,
-  deploy.
+- **Gates:** push and PR, CI, merge, deploy.
+- **Follow-ups found live:** X multi-video posts (page JSON gone) and the TikTok profile listing
+  captcha, both outside this branch; X's signed-out profile page.
 - **Roadmap item 6:** the style A preset (hook title, narration, subtitles, camera motion, the
   post's video playing inside its card via `media_box`, arrows and highlights, blur-fill).
 - **Style B:** an own meme bank (Imgflip trending and memegen templates, uploads, image-text
