@@ -131,7 +131,7 @@ def test_persist_cards_keeps_every_comment_and_drops_only_bad_cards(tmp_path, ca
         profile=make_png(500, 200),
     )
     with caplog.at_level(logging.WARNING, logger=cards.__name__):
-        comments, profile = persist_cards(snapshot, "wf_cards_001", tmp_path)
+        comments, profile, _ = persist_cards(snapshot, "wf_cards_001", tmp_path)
 
     assert [comment.comment_id for comment in comments] == ["11111", "22222", "33333", "44444"]
     assert [comment.author for comment in comments] == ["alpha", "beta", "gamma", "delta"]
@@ -165,7 +165,7 @@ def test_persist_cards_drops_a_card_whose_write_fails(
         ]
     )
     with caplog.at_level(logging.WARNING, logger=cards.__name__):
-        comments, profile = persist_cards(snapshot, "wf_cards_001", tmp_path)
+        comments, profile, _ = persist_cards(snapshot, "wf_cards_001", tmp_path)
 
     assert [comment.comment_id for comment in comments] == ["11111"]
     assert comments[0].card is None
@@ -190,7 +190,7 @@ def test_persist_cards_is_silent_when_every_card_is_written(tmp_path, caplog) ->
 
 
 def test_persist_cards_without_a_snapshot_records_nothing(tmp_path) -> None:
-    assert persist_cards(None, "wf_cards_001", tmp_path) == ([], None)
+    assert persist_cards(None, "wf_cards_001", tmp_path) == ([], None, None)
     assert list(tmp_path.iterdir()) == []
 
 
@@ -203,7 +203,7 @@ def test_persisted_comments_serialize_without_image_bytes(tmp_path) -> None:
         ],
         profile=make_png(500, 200),
     )
-    comments, profile = persist_cards(snapshot, "wf_cards_001", tmp_path)
+    comments, profile, _ = persist_cards(snapshot, "wf_cards_001", tmp_path)
     assert profile is not None
     dumped = json.dumps([comment.model_dump(mode="json") for comment in comments])
     dumped += profile.model_dump_json()

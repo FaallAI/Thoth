@@ -141,6 +141,7 @@ def _build_report(
     attempts: list[AcquisitionAttempt],
     comments: list[ReportComment],
     profile_card: CardArtifact | None,
+    post_card: CardArtifact | None = None,
 ) -> SourceReport:
     canonical_url = (
         identity.canonical_url if identity is not None else _fallback_canonical_url(post)
@@ -159,6 +160,7 @@ def _build_report(
         outcome=AcquisitionOutcome(attempts=attempts),
         comments=comments,
         profile_card=profile_card,
+        post_card=post_card,
     )
 
 
@@ -257,12 +259,19 @@ class TikTokAcquisitionService:
 
         if materialized is not None:
             post = _merge_post(identity, headless_post, None)
-            comments, profile_card = await asyncio.to_thread(
+            comments, profile_card, post_card = await asyncio.to_thread(
                 persist_cards, snapshot, workflow_id, artifact_root
             )
             return AcquisitionResult(
                 report=_build_report(
-                    workflow_id, identity, post, materialized, attempts, comments, profile_card
+                    workflow_id,
+                    identity,
+                    post,
+                    materialized,
+                    attempts,
+                    comments,
+                    profile_card,
+                    post_card,
                 )
             )
 
@@ -315,11 +324,18 @@ class TikTokAcquisitionService:
         )
         post = _merge_post(merged_identity, headless_post, resolution.post)
         # Comments come only from the headless visit; TikWM yields none.
-        comments, profile_card = await asyncio.to_thread(
+        comments, profile_card, post_card = await asyncio.to_thread(
             persist_cards, snapshot, workflow_id, artifact_root
         )
         return AcquisitionResult(
             report=_build_report(
-                workflow_id, merged_identity, post, materialized, attempts, comments, profile_card
+                workflow_id,
+                merged_identity,
+                post,
+                materialized,
+                attempts,
+                comments,
+                profile_card,
+                post_card,
             )
         )

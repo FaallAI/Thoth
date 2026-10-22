@@ -159,6 +159,7 @@ class BrowserSnapshot(StrictModel):
     media_candidates: list[ResolvedMedia] = Field(default_factory=list)
     comments: list[TikTokComment] = Field(default_factory=list)
     profile_card_png: bytes | None = Field(default=None, exclude=True, repr=False)
+    post_card_png: bytes | None = Field(default=None, exclude=True, repr=False)
 
 
 class TikTokSource(StrictModel):

@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from thoth_control_plane.acquisition import instagram_service, x_service, youtube_service
+from thoth_control_plane.acquisition import browser, instagram_service, x_service, youtube_service
 from thoth_control_plane.acquisition.card_browser import MEDIA_BOX_JS, PROFILE_PAGE_JS, media_box
 from thoth_control_plane.acquisition.models import MediaBox
 
@@ -101,9 +101,18 @@ async def test_profile_page_js_is_none_without_grid_items() -> None:
         ("instagram-profile", instagram_service.PROFILE_PAGE_ITEMS, 6),
         ("youtube-profile", youtube_service.PROFILE_CARD_SELECTOR, 1),
         ("youtube-profile", youtube_service.PROFILE_PAGE_ITEMS, 6),
+        ("tiktok-post", browser.POST_CARD_FOLD_SELECTOR, 1),
+        ("tiktok-post", '[data-media-card-description-container="true"]', 1),
     ],
 )
 async def test_layout_selectors_match_the_recorded_pages(
     page: str, selector: str, minimum: int
 ) -> None:
     assert await _count(page, selector) >= minimum
+
+
+@pytest.mark.asyncio
+async def test_tiktok_post_card_js_finds_the_caption_block_on_the_recorded_page() -> None:
+    html = (PAGES / "tiktok-post.html").read_text(encoding="utf-8")
+    rect = await _run(html, browser.POST_CARD_JS, None)
+    assert rect is not None and rect["width"] > 0 and rect["height"] > 0

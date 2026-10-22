@@ -11,6 +11,7 @@ from thoth_control_plane.acquisition.browser import (
     COMMENT_CARDS_JS,
     COMMENT_PAGE_JS,
     MAX_COMMENTS,
+    POST_CARD_JS,
     PROFILE_CARD_CHECK_JS,
     PROFILE_CARD_JS,
     HeadlessBrowserError,
@@ -553,7 +554,11 @@ async def test_comments_are_paged_in_page_by_cursor_during_the_same_visit() -> N
     browser = ScraplingHeadlessBrowser(session_factory=_session_running_page_action(page))
     snapshot = await browser.fetch(POST_URL)
     await browser.close()
-    assert page.calls == [["1234567890", 0], ["1234567890", 20]]
+    # The post-card script (spec 5c-2) takes no argument; only the comment pages carry one.
+    assert [call for call in page.calls if call is not None] == [
+        ["1234567890", 0],
+        ["1234567890", 20],
+    ]
     assert [c.comment_id for c in snapshot.comments] == ["70000111", "70000222"]
 
 
@@ -771,3 +776,43 @@ def test_item_struct_without_counters_leaves_them_empty() -> None:
     post = snapshot.post_candidates[0]
     assert post.published_at is None
     assert post.engagement == {}
+
+
+@pytest.mark.asyncio
+async def test_visit_crops_the_post_header_and_caption(monkeypatch) -> None:
+    # Style A's TikTok post card: the author row and the whole caption (spec 5c-2, G1).
+    monkeypatch.setattr(browser_module, "CARD_WAIT_S", 1)
+
+    class PostCardPage(_CardPage):
+        def __init__(self, tab: _ProfileTab) -> None:
+            super().__init__(tab)
+            self.clips: list[dict] = []
+
+        async def evaluate(self, script: str, arg: object = None) -> object:
+            if script == POST_CARD_JS:
+                return {"x": 10, "y": 500, "width": 500, "height": 120}
+            return await super().evaluate(script, arg)
+
+        async def screenshot(self, clip: dict, **kwargs: object) -> bytes:
+            self.clips.append(clip)
+            return b"post-png"
+
+    page = PostCardPage(_ProfileTab([True, True]))
+    browser = ScraplingHeadlessBrowser(session_factory=_session_with_setup(page))
+    snapshot = await browser.fetch(POST_URL)
+    await browser.close()
+
+    assert snapshot.post_card_png == b"post-png"
+    assert page.clips == [{"x": 10, "y": 500, "width": 500, "height": 120}]
+    assert "png" not in snapshot.model_dump_json()
+
+
+@pytest.mark.asyncio
+async def test_no_caption_block_means_no_post_card(monkeypatch) -> None:
+    monkeypatch.setattr(browser_module, "CARD_WAIT_S", 1)
+    page = _CardPage(_ProfileTab([True, True]))  # answers POST_CARD_JS with nothing usable
+    browser = ScraplingHeadlessBrowser(session_factory=_session_with_setup(page))
+    snapshot = await browser.fetch(POST_URL)
+    await browser.close()
+    assert snapshot.post_card_png is None
+    assert snapshot.profile_card_png == b"profile-png-1"

@@ -678,6 +678,7 @@ def snapshot_with_comments() -> BrowserSnapshot:
                 TikTokComment(comment_id="22222", author="beta", text="second"),
             ],
             "profile_card_png": make_png(500, 200),
+            "post_card_png": make_png(500, 160),
         }
     )
 
@@ -700,6 +701,10 @@ async def test_headless_success_records_comments_and_card_artifacts(tmp_path) ->
     assert report.comments[1].card is None
     assert report.profile_card is not None
     assert report.profile_card.location == PurePosixPath("reports/wf_cards_001/cards/profile.png")
+    # The TikTok post card: author row and caption, no media box (spec 5c-2, G1).
+    assert report.post_card is not None
+    assert report.post_card.location == PurePosixPath("reports/wf_cards_001/cards/post.png")
+    assert report.post_card.media_box is None
 
 
 @pytest.mark.asyncio

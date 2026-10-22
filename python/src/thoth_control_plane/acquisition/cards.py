@@ -128,10 +128,10 @@ def write_card(data: bytes, artifact_root: Path, location: PurePosixPath) -> Car
 
 def persist_cards(
     snapshot: BrowserSnapshot | None, workflow_id: str, artifact_root: Path
-) -> tuple[list[ReportComment], CardArtifact | None]:
-    """Report comments and the profile card for a headless snapshot, with cards on disk."""
+) -> tuple[list[ReportComment], CardArtifact | None, CardArtifact | None]:
+    """Report comments, the profile card and the post card of a headless snapshot, on disk."""
     if snapshot is None:
-        return [], None
+        return [], None, None
     card_dir = PurePosixPath("reports") / workflow_id / "cards"
     counts = {"written": 0, "rejected": 0, "failed": 0}
 
@@ -160,6 +160,7 @@ def persist_cards(
         for comment in snapshot.comments
     ]
     profile_card = persist(snapshot.profile_card_png, "profile.png")
+    post_card = persist(snapshot.post_card_png, "post.png")
     if counts["rejected"] or counts["failed"]:
         logger.warning(
             "tiktok card crops: written=%d rejected=%d failed=%d",
@@ -167,4 +168,4 @@ def persist_cards(
             counts["rejected"],
             counts["failed"],
         )
-    return comments, profile_card
+    return comments, profile_card, post_card
