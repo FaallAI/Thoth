@@ -61,8 +61,7 @@ def _whirl_arrays(angle: float = 35.0):
     yy, xx = numpy.mgrid[:200, :200]
     theta = numpy.arctan2(yy - 100.0, xx - 100.0)
     disc = (
-        (numpy.sin(theta * 2) + 0.6 * numpy.sin(theta * 3) + 0.3 * numpy.sin(theta * 7) + 1.9)
-        * 63
+        (numpy.sin(theta * 2) + 0.6 * numpy.sin(theta * 3) + 0.3 * numpy.sin(theta * 7) + 1.9) * 63
     ).astype(numpy.uint8)
     matrix = cv2.getRotationMatrix2D((100.0, 100.0), -angle, 1.0)
     return cv2.warpAffine(disc, matrix, (200, 200)), disc

@@ -38,9 +38,7 @@ handle.addEventListener('pointerup', e => {
     document.querySelector('.captcha_verify_container').remove();
   }
 });
-""".replace(
-    "__GAP_LEFT__", str(100 + NOTCH_X)
-)
+""".replace("__GAP_LEFT__", str(100 + NOTCH_X))
 
 
 def _slide_arrays():
