@@ -18,10 +18,12 @@ from typing import Any
 import pytest
 from sqlalchemy import create_engine
 
+from tests.acquisition.png_fixtures import make_png
 from tests.assembly.support import FIXTURE
 from tests.assembly.support import report as support_report
-from thoth_control_plane.acquisition.models import DiscoveredVideo, SourceReport
+from thoth_control_plane.acquisition.models import DiscoveredPhoto, DiscoveredVideo, SourceReport
 from thoth_control_plane.assembly.ports import AssemblyError
+from thoth_control_plane.attribution.adapters.discovery import CreatorListing
 from thoth_control_plane.attribution.ports import AttributionError, Frame
 from thoth_control_plane.footage.adapters.downloader import ClipError
 from thoth_control_plane.footage.adapters.vision import FootageAnswer
@@ -964,3 +966,152 @@ async def test_a_failed_publish_leaves_the_run_open_for_the_retry(
             _publishing_inputs(tmp_path, publish)
         )
     assert store.run("wf_a").status != "done"
+
+
+# --- Stage 5c-2: the creator's own videos and photos (spec 2026-10-22, G3, G3a, G4) ---
+
+MAIN_URL = "https://www.tiktok.com/@akun/video/7499999999999999999"
+
+
+def _own(n: int, caption: str, published: str = "2026-10-11T08:00:00Z") -> DiscoveredVideo:
+    return DiscoveredVideo(
+        post_id=f"75000000000000000{n:02d}",
+        owner_handle="akun",
+        canonical_url=f"https://www.tiktok.com/@akun/video/75000000000000000{n:02d}",
+        caption=caption,
+        published_at=published,
+        duration_seconds=20.0,
+    )
+
+
+def _photo(n: int, caption: str = "banjir kemang lagi") -> DiscoveredPhoto:
+    return DiscoveredPhoto(
+        post_id=f"76000000000000000{n:02d}",
+        owner_handle="akun",
+        canonical_url=f"https://www.tiktok.com/@akun/photo/76000000000000000{n:02d}",
+        caption=caption,
+        published_at="2026-10-11T08:00:00Z",
+        image_urls=[f"https://p16.example/{n}.jpeg"],
+    )
+
+
+class Creator:
+    def __init__(self, listing: CreatorListing | None) -> None:
+        self.listing = listing
+        self.calls: list[tuple[str, str, int]] = []
+
+    async def listing_of(self, platform: str, handle: str, limit: int) -> CreatorListing | None:
+        self.calls.append((platform, handle, limit))
+        return self.listing
+
+
+class Photos:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    async def fetch(self, url: str, target: Path) -> Path:
+        self.calls.append(url)
+        target = target.with_suffix(".jpg")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(_jpeg_for(Path(url)) + url.encode())
+        return target
+
+
+def _creator(listing: CreatorListing | None) -> dict[str, Any]:
+    return {"creator": Creator(listing), "photos": Photos()}
+
+
+def _search_four() -> Search:
+    return Search(
+        {
+            ("tiktok", "banjir kemang"): [_video(n) for n in range(1, 5)],
+            ("tiktok", "mobil terendam kemang"): [_video(n) for n in range(5, 9)],
+        }
+    )
+
+
+async def test_creator_videos_take_at_most_two_slots(store: FootageStore, tmp_path: Path) -> None:
+    own = [_own(n, "banjir kemang dari sisi lain") for n in range(1, 5)]
+    ports = _creator(CreatorListing(videos=own, photos=[]))
+    result = await _builder(store, search=_search_four(), **ports).build(_inputs(tmp_path))
+    admitted = store.admitted("wf_a")
+    assert result.status == "ok" and len(admitted) == 6
+    assert sum(1 for c in admitted if c.source == "creator") == 2
+    assert {c.query for c in admitted if c.source == "creator"} == {"creator:@akun"}
+    assert ports["creator"].calls == [("tiktok", "akun", 24)]
+
+
+async def test_weak_caption_creator_video_reaches_the_vision_judge(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    near, far = _own(1, "#fyp #viral"), _own(2, "#fyp", published="2026-09-01T08:00:00Z")
+    judge = Judge()
+    ports = _creator(CreatorListing(videos=[near, far], photos=[]))
+    await _builder(store, judge=judge, **ports).build(_inputs(tmp_path))
+    admitted = [c.url for c in store.admitted("wf_a") if c.source == "creator"]
+    assert admitted == [str(near.canonical_url)]
+    rejected = {c.url: c.reason for c in store.candidates("wf_a") if c.status == "rejected"}
+    assert rejected[str(far.canonical_url)] == "story"
+    assert "a flooded street; cars under water" in judge.calls
+
+
+async def test_creator_listing_failure_keeps_search_footage(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    result = await _builder(store, search=_search_four(), **_creator(None)).build(_inputs(tmp_path))
+    assert result.status == "ok" and result.admitted == 4
+    assert all(c.source == "search" for c in store.admitted("wf_a"))
+
+
+async def test_the_main_is_never_creator_footage(store: FootageStore, tmp_path: Path) -> None:
+    main = _own(1, "banjir kemang").model_copy(update={"canonical_url": MAIN_URL})
+    await _builder(store, **_creator(CreatorListing(videos=[main], photos=[]))).build(
+        _inputs(tmp_path)
+    )
+    reasons = {c.url: c.reason for c in store.candidates("wf_a")}
+    assert reasons == {MAIN_URL: "main"}
+
+
+async def test_search_failing_still_uses_creator_footage(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    ports = _creator(CreatorListing(videos=[_own(1, "banjir kemang")], photos=[]))
+    search = Search(fail={"tiktok", "youtube", "x"})
+    result = await _builder(store, search=search, **ports).build(_inputs(tmp_path))
+    assert result.status == "ok" and result.admitted == 1
+
+
+async def test_creator_photos_are_capped_at_three(store: FootageStore, tmp_path: Path) -> None:
+    photos = [_photo(n) for n in range(1, 6)] + [_photo(9, "resep nasi goreng enak sekali")]
+    ports = _creator(CreatorListing(videos=[], photos=photos))
+    result = await _builder(store, **ports).build(_inputs(tmp_path))
+    images = store.admitted("wf_a", "image")
+    assert len(images) == 3 and store.admitted("wf_a") == []
+    assert all(c.media_kind == "image" and c.source == "creator" for c in images)
+    assert all((tmp_path / str(c.media_location)).is_file() for c in images)
+    assert result.photos == 3
+    rejected = {c.url: c.reason for c in store.candidates("wf_a") if c.status == "rejected"}
+    assert rejected[str(photos[-1].canonical_url)] == "story"
+
+
+async def test_the_tiktok_page_card_is_kept_on_the_run(store: FootageStore, tmp_path: Path) -> None:
+    ports = _creator(CreatorListing(videos=[], photos=[], page_png=make_png(400, 600)))
+    await _builder(store, **ports).build(_inputs(tmp_path))
+    run = store.run("wf_a")
+    assert run is not None and run.profile_page is not None
+    assert run.profile_page["location"] == "reports/wf_a/cards/profile-page.png"
+    assert (tmp_path / "reports/wf_a/cards/profile-page.png").is_file()
+
+
+async def test_the_creator_photos_and_page_card_are_published(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    published: list[list[str]] = []
+
+    async def publish(locations: list[str]) -> None:
+        published.append(sorted(locations))
+
+    ports = _creator(CreatorListing(videos=[], photos=[_photo(1)], page_png=make_png(400, 600)))
+    await _builder(store, **ports).build(_publishing_inputs(tmp_path, publish))
+    image = store.admitted("wf_a", "image")[0].media_location
+    assert published == [sorted([str(image), "reports/wf_a/cards/profile-page.png"])]

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from thoth_control_plane.acquisition.models import DiscoveredVideo
 from thoth_control_plane.attribution.ports import Frame
@@ -18,6 +18,9 @@ from thoth_control_plane.footage.models import (
     SearchBatch,
 )
 from thoth_control_plane.footage.queries import FootageQueryAnswer
+
+if TYPE_CHECKING:
+    from thoth_control_plane.attribution.adapters.discovery import CreatorListing
 
 
 class QueryModel(Protocol):
@@ -36,6 +39,16 @@ class ClipDownloader(Protocol):
     async def download(
         self, url: str, window: tuple[float, float] | None, target: Path
     ) -> Path: ...
+
+
+class CreatorPort(Protocol):
+    """The main creator's own listing (spec 5c-2, G3); None when it is unavailable."""
+
+    async def listing_of(self, platform: str, handle: str, limit: int) -> CreatorListing | None: ...
+
+
+class PhotoFetcher(Protocol):
+    async def fetch(self, url: str, target: Path) -> Path: ...
 
 
 class FootageJudge(Protocol):

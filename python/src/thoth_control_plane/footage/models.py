@@ -112,6 +112,7 @@ class FootageResult:
     status: FootageStatus
     admitted: int = 0
     rejected: dict[str, int] = field(default_factory=dict)
+    photos: int = 0  # admitted creator photos (spec 5c-2, G4), apart from the clips
 
 
 @dataclass(frozen=True)
