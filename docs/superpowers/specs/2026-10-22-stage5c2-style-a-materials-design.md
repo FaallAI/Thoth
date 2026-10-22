@@ -161,6 +161,11 @@ through the text and story gates. Those that pass become photos, each a single s
   operator ruled topic relevance over recency.
 - **A failed workflow when a material is missing.** Each material degrades to absent and is
   logged (`warn`). The Content Set stays valid.
+- **A silent gap.**
+  - A post card or profile page the platform should have, but that was not captured, is listed
+    in the Studio import gate as "Not captured", not only logged.
+  - The crops are proven on real pages through two operator-authorised live gates: page recon
+    before the selectors are written, and one crop check per platform before deploy.
 - **New live requests in tests.** Every test runs offline on recorded fixtures (operator rule
   until the final acceptance). No Instagram private API.
 
