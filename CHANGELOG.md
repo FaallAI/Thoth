@@ -2,6 +2,179 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-22 - Stage 5c-2 follow-up: TikTok listing captcha solved in the page
+
+Built on `feat/stage5c2-style-a-materials` (after bc0b0d9). The 5c-2 review had left TikTok
+off `CREATOR_PLATFORMS`: its profile grid raised a captcha signed out and signed in, and every
+signed-in captcha cooled the account (Task 12 side effect).
+
+### Research (2026-10-22, `D:/thoth-tmp/research/5c2`)
+
+- The captcha is episodic — TikTok's enforcement is probabilistic. Anonymous headless probes
+  loaded the grid with no modal (Patchright 29 items, Camoufox 45); the modal seen on
+  2026-10-21/22 did not return during the probes.
+- Rerouting `item_list` without its signature is dead: stripping the signature parameters or
+  keeping only the core parameters both answered a non-JSON body with an empty grid (unlike
+  the comment API, which tolerates it). The page's own signed request stays the only source.
+- The solver follows the maintained open-source solvers (EulerStream, SadCaptcha clients,
+  arc298): selectors `#captcha-verify-image`, `.captcha_verify_img_slide`,
+  `.captcha_verify_slide--slidebar`, `.secsdk-captcha-drag-icon`; slide = Sobel/Canny edge
+  maps plus matchTemplate for the gap; whirl (rotate) = ring-band difference for the angle
+  with drag `(track − icon width) × angle / 360`; a humanized drag (ease-out, small
+  overshoot, settle) because constant-speed slides are rejected.
+
+### What changed
+
+- **`acquisition/captcha.py` (new):** solves the modal's two drag subtypes in the open page.
+  Images come from the elements' `src` — an element screenshot bakes the overlaid piece into
+  the background and matches the piece's starting position instead of the gap. Solving never
+  raises and degrades to False without OpenCV; click subtypes (icon, 3D) are not attempted,
+  and the second whirl attempt mirrors the angle to cover the unknown drag direction.
+- **`acquisition/discovery.py`:** the scroll now solves a raised captcha before giving up,
+  and the profile visit solves one before the page-card crop needs the grid — at most
+  `MAX_SOLVES = 3` solver runs per discovery. An unsolved modal keeps the old captcha
+  reason and partial result.
+- **`footage/service.py`:** `tiktok` is back in `CREATOR_PLATFORMS`.
+
+### Verification
+
+- `make test` → 4386 passed, 108 skipped (WSL); ruff clean. Browser-backed tests run in the
+  `thoth:5c2` image via `D:/thoth-tmp/browser-tests.sh` (2 passed, real Chromium): the solver
+  clears a local page shaped like the modal — the drag lands the piece in the gap within 4 px —
+  and reports failure when the modal never clears.
+- Live, anonymous, through the worktree's `ScraplingDiscoveryBrowser`: the listing returned
+  `reason=none`, 24 videos + 1 photo post, and the profile page card
+  (`D:/thoth-tmp/research/5c2/out/profile-page.png`).
+
+### Open
+
+- Live proof against a real TikTok modal is pending — no captcha rose during the probes.
+  Production will log `tiktok captcha solved attempt=N` the first time one does; a wrong
+  whirl direction despite the mirrored retry, or a click subtype, surfaces as
+  `tiktok captcha unsolved` with no behaviour change beyond today's.
+- Next gates: push + PR, CI, merge, deploy, and a footage workflow with a TikTok main (each
+  needs operator authorisation).
+
+## 2026-10-22 - Stage 5c-2: style A materials, built on `feat/stage5c2-style-a-materials`
+
+**Spec:** `docs/superpowers/specs/2026-10-22-stage5c2-style-a-materials-design.md`.
+**Plan:** `docs/superpowers/plans/2026-10-22-stage5c2-style-a-materials.md` (Native execution).
+
+Editing styles become templates; the operator chose style A (IsseiNugroho's story explainer)
+first, after a study of 12 reference Shorts. 5c-2 gathers style A's materials from the platforms
+and Studio places them; roadmap item 6 builds the recipe (hook, narration, motion, arrows).
+
+### What a workflow now gathers
+
+- **Post card for every main.** X, Instagram and Threads crop the post card for video posts too,
+  with a `media_box` (where the post's video sits inside the card, found by shape: the union of
+  videos and images at least 30 % of the card width). TikTok crops the author row and the whole
+  caption; YouTube has none.
+- **Creator profile page.** Header plus the first grid rows (X: the first post). X, Instagram and
+  YouTube crop it on the profile visit; TikTok's grid answers "Something went wrong" signed out, so
+  its page is cropped during the creator listing, which signs in with an account and its proxy
+  when the anonymous listing is blocked (operator, 2026-10-22).
+- **Creator footage.** The creator's 24 latest posts go through the footage gates as
+  `source = "creator"` candidates, at most 2 of the 6 clips. A weak caption (under 15 characters
+  once tags and mentions are removed) is not rejected: hashtags are read as words, then at most
+  3 posts within 7 days of the main reach the vision judge.
+- **Creator photos.** Photo and carousel posts from the same listing pass the same checks; at
+  most 3, fetched once (JPEG, PNG or WebP, 10 MB cap).
+- **Studio.** The post card opens the video for its reading time; the profile card follows it;
+  the profile page, creator clips and photos take their own scenes after the main, the page and
+  photos for 3 s, letterboxed. A missing post card or profile page shows in the gate as
+  "Not captured" (Content Sets marked `style_a` only, so older sets open as before).
+- **Migration 0018:** footage candidates take `source = 'creator'` and `media_kind`; a footage
+  run keeps the TikTok page card.
+
+### Live gates (operator-authorised)
+
+- **Task 0, page recon (2026-10-22):** ten anonymous visits from the deployed image recorded the
+  post and profile pages of TikTok, Instagram, X, YouTube and Threads. The stripped DOMs (no
+  scripts, styles, tokens or query strings; 1.3 MB) live in `python/tests/acquisition/pages` and
+  every selector is tested against them in Chromium. X's 2026 DOM carries no test ids, which is
+  why the media box is found by shape.
+- **CI:** the browser-backed card tests now run in the quality job (Chromium installed,
+  `THOTH_REQUIRE_BROWSER_TESTS=1` turns a missing browser into a failure).
+
+### Task 12: live crop check (operator-authorised, 2026-10-22)
+
+Real posts through the production acquisition runner with the branch code, the stack's
+accounts and proxies, 60 s apart. Crops kept outside the repository in
+`D:/thoth-tmp/research/5c2/live-check/`.
+
+| Platform | Post card | Media box | Profile page |
+|---|---|---|---|
+| X | yes | on both videos | not captured (signed-out profile unstable; once the profile card failed too) |
+| Instagram | yes | on the video | yes, header and two grid rows |
+| Threads | yes | on the video | none by design |
+| TikTok | yes (author row and caption) | none by design | not captured: profile listing hits a captcha signed out and signed in |
+| YouTube | none by design | - | yes, header and two shelf rows |
+
+The check found five faults the offline tests could not, each fixed test first and re-checked live:
+
+1. Profile pages were shot at the device pixel ratio (Instagram 3.3 MB) and dropped by the 2 MB
+   card cap; they are now shot at CSS scale.
+2. X's header selector uses Playwright's `:has-text`, which `document.querySelector` refuses; the
+   header is now measured by Playwright and only its box reaches the page script.
+3. The YouTube profile visit opens the channel home tab, whose shelves hold lockups, not the
+   Shorts tab's rich items; both are read.
+4. Unfolding a TikTok caption also unfolds TikTok's own AI summary; the caption stays folded.
+5. Threads darkens the page with an empty fixed backdrop beside its sign-up dialog; it is hidden.
+
+Found, not caused by this branch (the deployed image behaves the same):
+
+- **X video posts with two or more videos lose their videos:** X's signed-out post page no longer
+  embeds the tweet JSON the page parser reads (no `$R`/`rest_id` on the recorded page), and
+  syndication gives a URL for a single video only. Such a post falls back to its post card as the
+  main, as before this branch.
+- **TikTok profile listing hits a captcha signed out and signed in** (account `operator-1`, after
+  the operator refreshed its cookies). Each signed-in captcha cools the account: level 1 until
+  21:30, then level 2 until 22:42 WIB on 2026-10-22. TikTok creator clips, photos and page card
+  stay "Not captured" until the listing works again; attribution's TikTok profile discovery uses
+  the same listing.
+
+### Whole-branch review
+
+A fresh reviewer (Opus) found 1 Critical and 2 Important issues; all were fixed test first:
+
+- **Critical:** the profile page never reached the media store. The acquisition path did not
+  push it, and the footage publish kept only clips.
+- **Important:** admitted photos and the page card could be lost on a retry. They are now stored
+  right after the photo checks, and a missing one is dropped as `media_failed`.
+- **Important:** a search outage was hidden when creator material existed; it is now a warning.
+- **Re-graded to Important:** an oversized image failed the whole footage build; it is now a
+  photo error.
+
+Deferred minors are kept in the checkpoint: photos skip the aggregator, spam and reaction text
+checks, plus the excluded-post-card beat shift, Threads dialog containment, the TikTok 10 s grid
+wait, scroll offsets, the CDN allowlist, `repr` of image links, a log split and row rounding.
+
+**Operator, 2026-10-22:** the creator listing skips TikTok mains until its captcha is solved,
+so workflows no longer cool the TikTok account.
+
+### Verification (offline)
+
+- **Python:** 4370 passed, 103 skipped; ruff clean. Browser tests in the thoth image: 29 passed.
+- **PostgreSQL:** editor migrations 22 (0018 constraints), workflow-to-Studio 6.
+- **Dashboard:** bun test 749 passed, `tsc` clean, build OK.
+- **Stack smoke** (`docker/test-renderer-offline.sh`): on the 5c-1 images
+  `workflow_opens_in_studio=false` (their Content Set model refuses the new fields); on images
+  built from this branch every verdict true. The draft holds the post card at frame 0, the
+  profile card after it, and the profile page, creator clip and creator photo in scenes 2-4.
+
+### Next steps
+
+- **Gates:** push and PR, CI, merge, deploy.
+- **Follow-ups found live:** X multi-video posts (page JSON gone) and the TikTok profile listing
+  captcha, both outside this branch; X's signed-out profile page.
+- **Roadmap item 6:** the style A preset (hook title, narration, subtitles, camera motion, the
+  post's video playing inside its card via `media_box`, arrows and highlights, blur-fill).
+- **Style B:** an own meme bank (Imgflip trending and memegen templates, uploads, image-text
+  matching); **Stage 6:** news and evidence cards.
+- **Deferred by the operator:** meter unit prices, the quota/reserve check, billing go-live and
+  the second-account check.
+
 ## 2026-10-22 - PR #39 merged and deployed; Stage 5c-1 is live
 
 **Merged:** PR #39 (`76872cb`) after CI passed on the branch and on `master`. The stack smoke

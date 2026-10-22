@@ -28,6 +28,7 @@ from thoth_control_plane.application.workflow_studio_imports import (
 from thoth_control_plane.domain.studio_layout import (
     CARD_CENTER_Y,
     CARD_GAP,
+    post_card_slot,
     profile_slot,
     reaction_beat,
     reading_seconds,
@@ -267,3 +268,81 @@ async def test_a_carousel_main_plays_its_slides_in_turn(database: str, tmp_path:
         90,
     )
     assert second["fit"] == "contain"
+
+
+# --- Stage 5c-2: style A materials (spec 2026-10-22, G5) ---
+
+LONG = "Antrean panjang kendaraan di SPBU Tabanan sejak pagi karena pasokan BBM terlambat datang."
+
+
+def open_style_a(database: str, tmp_path: Path, data: dict):
+    project = ProjectStore.connect(database).create("Studio", "ws_bootstrap").project_id
+    reports = ReportStore.connect(database)
+    reports.put(content_set_location(WF), "content_set", content_set_bytes(data))
+    runs = WorkflowRunStore.connect(database)
+    runs.insert_missing(stored_run())
+    media = LocalMediaStore(tmp_path / "store")
+    seed_media(media, tmp_path, data)
+    service = WorkflowStudioImportService(
+        runs=runs,
+        reports=reports,
+        media=media,
+        assets=PostgresEditorAssetRepository(database),
+        imports=StudioImportService(PostgresStudioImportRepository(database)),
+        probe=Probe(),
+    )
+    return project, service
+
+
+async def test_post_card_then_profile_card_then_beat(database: str, tmp_path: Path) -> None:
+    data = carded_set()
+    data["main"] |= {"description": LONG, "post_card": card("post")}
+    data["style_a"] = True
+    project, service = open_style_a(database, tmp_path, data)
+
+    opened = await service.open(project, WF, ACTOR, "open-post")
+
+    clips, _ = clips_of(database, project, opened.draft.document_id)
+    fps = 30
+    post_at, post_len = post_card_slot(30.0, reading_seconds(LONG))
+    post = clips["clip_post_card_000"]
+    assert (post["track_id"], post["from_frame"], post["duration_in_frames"]) == (
+        "track_b_roll",
+        0,
+        round(post_len * fps),
+    )
+    assert post["fit"] == "contain"
+    start, length = profile_slot(30.0, not_before=post_at + post_len + CARD_GAP)
+    assert start > 3.0
+    profile = clips["clip_profile_card_000"]
+    assert profile["from_frame"] == round(start * fps)
+    slots = reaction_beat(
+        30.0, [reading_seconds(t) for t in TEXTS], not_before=start + length + CARD_GAP
+    )
+    assert clips["clip_comment_card_000"]["from_frame"] == round(slots[0][0] * fps)
+
+
+async def test_profile_page_and_photos_hold_three_seconds(database: str, tmp_path: Path) -> None:
+    photo = {
+        "source": "creator",
+        "url": "https://www.tiktok.com/@creator/photo/7600000000000000001",
+        "platform": "tiktok",
+        "owner_handle": "creator",
+        "caption": "foto banjir",
+        "image": card("photo"),
+        "story_score": 0.6,
+    }
+    data = content_set_data(profile_page=card("page")) | {"photos": [photo], "style_a": True}
+    project, service = open_style_a(database, tmp_path, data)
+
+    opened = await service.open(project, WF, ACTOR, "open-page")
+
+    clips, _ = clips_of(database, project, opened.draft.document_id)
+    for clip_id in ("clip_profile_page_000", "clip_creator_photo_000"):
+        clip = clips[clip_id]
+        assert (clip["track_id"], clip["duration_in_frames"], clip["fit"]) == (
+            "track_b_roll",
+            90,
+            "contain",
+        )
+    assert clips["clip_profile_page_000"]["scene_id"] == "scene_002"

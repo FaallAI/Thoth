@@ -10,7 +10,12 @@ import pytest
 from tests.acquisition.fakes import FakeCardPage, card_session
 from thoth_control_plane.acquisition import x_service
 from thoth_control_plane.acquisition.browser import active_scrapling_session_count
-from thoth_control_plane.acquisition.card_browser import COMMENT_ROW_ATTRIBUTE, CommentTarget
+from thoth_control_plane.acquisition.card_browser import (
+    COMMENT_ROW_ATTRIBUTE,
+    MEDIA_BOX_JS,
+    PROFILE_PAGE_JS,
+    CommentTarget,
+)
 from thoth_control_plane.acquisition.models import AcquisitionReason
 from thoth_control_plane.acquisition.x_service import (
     POST_CARD_SELECTOR,
@@ -128,13 +133,18 @@ async def test_cards_use_the_x_layout_with_no_dialog() -> None:
     post_selector = f'article:has(a[href$="/status/{POST_ID}"])'
     assert POST_CARD_SELECTOR.format(post_id=POST_ID) == post_selector
     assert post_page.shots == [post_selector, f'[{COMMENT_ROW_ATTRIBUTE}="{C1}"]']
+    # The post card's media box is measured right after the crop (spec 5c-2, G1).
     assert post_page.evaluated == [
-        (TAG_REPLIES_JS, [{"comment_id": C1, "author": "fan_001", "prefix": "a reply"}])
+        (MEDIA_BOX_JS, post_selector),
+        (TAG_REPLIES_JS, [{"comment_id": C1, "author": "fan_001", "prefix": "a reply"}]),
     ]
     # Fail closed: a shifted layout matches nothing rather than the wrong block.
     profile_selector = 'main > div:nth-child(4):has-text("@user_001")'
     assert PROFILE_CARD_SELECTOR.format(owner="user_001") == profile_selector
     assert profile_page.shots == [profile_selector]
+    assert profile_page.evaluated == [
+        (PROFILE_PAGE_JS, [{"x": 0, "y": 0, "width": 400, "height": 200}, "main article", 1])
+    ]
     assert session.exited == 1
     assert active_scrapling_session_count() == 0
 

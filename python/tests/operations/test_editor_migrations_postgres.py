@@ -39,7 +39,7 @@ def _tables() -> set[str]:
 
 
 def test_fresh_database_applies_every_revision_and_a_rerun_applies_none() -> None:
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 17
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 18
     assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 0
     assert {"alembic_version", "studio_import_drafts", "studio_import_decisions"} <= _tables()
     assert {"source_account_policies", "source_proxies", "source_accounts"} <= _tables()
@@ -52,7 +52,7 @@ def test_database_migrated_before_alembic_is_adopted_and_only_the_rest_applied()
         for migration in sorted(MIGRATIONS.glob("*.sql"))[:6]:
             connection.execute(migration.read_text(encoding="utf-8"))
 
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 11
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 12
     assert {"studio_import_drafts", "studio_import_decisions"} <= _tables()
 
 
@@ -326,10 +326,12 @@ def test_existing_projects_move_to_the_bootstrap_workspace(tmp_path: Path) -> No
     (before / "alembic" / "versions" / "0016_billing.py").unlink()
     (before / "0017_studio_import_decision_reason.sql").unlink()
     (before / "alembic" / "versions" / "0017_studio_import_decision_reason.py").unlink()
+    (before / "0018_footage_creator.sql").unlink()
+    (before / "alembic" / "versions" / "0018_footage_creator.py").unlink()
     assert apply_editor_migrations(DATABASE_URL, before) == 13
     with psycopg.connect(DATABASE_URL) as connection:
         connection.execute("INSERT INTO projects (project_id, name) VALUES ('p-legacy', 'Legacy')")
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 4
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 5
     with psycopg.connect(DATABASE_URL) as connection:
         assert connection.execute(
             "SELECT workspace_id FROM projects WHERE project_id = 'p-legacy'"
@@ -430,3 +432,27 @@ def test_billing_tables_exist_with_the_free_plan() -> None:
                 "INSERT INTO allowance_uses (use_id, workspace_id, kind, ref, created_at)"
                 " VALUES (gen_random_uuid()::text, 'ws_bootstrap', 'workflow', 'r1', now())"
             )
+
+
+def test_footage_takes_creator_videos_photos_and_the_page_card() -> None:
+    # Spec 5c-2: creator candidates, photo candidates, and the run's TikTok page card.
+    apply_editor_migrations(DATABASE_URL, MIGRATIONS)
+    insert = (
+        "INSERT INTO footage_candidates (id, workflow_id, url, platform, source, query, visual,"
+        " owner_handle, engagement, status, media_kind, created_at, updated_at) VALUES"
+        " (gen_random_uuid(), 'wf_c', %s, 'tiktok', %s, 'creator:@a', '', 'a', '{}', 'pending',"
+        " %s, now(), now())"
+    )
+    with psycopg.connect(DATABASE_URL) as connection:
+        connection.execute(
+            "INSERT INTO footage_runs (workflow_id, status, objects, started_at, profile_page)"
+            " VALUES ('wf_c', 'running', '[]', now(), '{\"location\": \"x\"}')"
+        )
+        connection.execute(insert, ("https://t.test/1", "creator", "image"))
+        connection.execute(insert, ("https://t.test/2", "search", "video"))
+    for source, kind in (("bogus", "video"), ("creator", "gif")):
+        with (
+            psycopg.connect(DATABASE_URL) as connection,
+            pytest.raises(psycopg.errors.CheckViolation),
+        ):
+            connection.execute(insert, (f"https://t.test/{source}{kind}", source, kind))

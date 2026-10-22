@@ -197,24 +197,25 @@ async def test_image_post_report_carries_comments_and_cards(
 
 
 @pytest.mark.asyncio
-async def test_video_post_asks_for_no_post_card(tmp_path: Path) -> None:
+async def test_video_post_asks_for_its_post_card(tmp_path: Path) -> None:
     node = _node(media_type=2, **_video(0))
-    headless = FakeHeadless(_cards(post_png=None))
+    headless = FakeHeadless(_cards(profile_page_png=make_png(400, 900)))
     result = await _inspect(tmp_path, FakeRequest(_texts(node)), headless)
     assert result.report is not None
     assert [item.kind for item in result.report.media] == ["video"]
-    assert headless.card_calls[0]["want_post"] is False
-    assert result.report.post_card is None
+    assert headless.card_calls[0]["want_post"] is True
+    assert result.report.post_card is not None
+    assert result.report.profile_page is not None
 
 
 @pytest.mark.asyncio
-async def test_carousel_with_a_video_asks_for_no_post_card(tmp_path: Path) -> None:
+async def test_carousel_with_a_video_asks_for_its_post_card(tmp_path: Path) -> None:
     node = _node(carousel_media=[_image(1), _video(2)])
-    headless = FakeHeadless(_cards(post_png=None))
+    headless = FakeHeadless(_cards())
     result = await _inspect(tmp_path, FakeRequest(_texts(node)), headless)
     assert result.report is not None
     assert [item.kind for item in result.report.media] == ["image", "video"]
-    assert headless.card_calls[0]["want_post"] is False
+    assert headless.card_calls[0]["want_post"] is True
 
 
 @pytest.mark.asyncio

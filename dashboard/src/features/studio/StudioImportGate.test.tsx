@@ -539,3 +539,35 @@ test("overlay items show their labels and the not-placed reason", async () => {
   expect(screen.getByRole("listitem", { name: "Slide 2" }).textContent).toContain("Slide");
   expect(screen.getByRole("listitem", { name: "@creator" }).textContent).toContain("Profile card");
 });
+
+test("style A items show their labels", async () => {
+  // Spec 5c-2, G5: the post card, the profile page and the creator's own media.
+  const item = (itemId: string, role: StudioImportItem["role"], label: string): StudioImportItem => ({
+    ...mediaItem(itemId, "main", 0, label),
+    role,
+    media_kind: "image",
+  });
+  const items: StudioImportItem[] = [
+    mediaItem("main_000", "main", 0, "Neon Nights"),
+    item("post_card_000", "post_card", "Post of @creator"),
+    item("profile_page_000", "profile_page", "Page of @creator"),
+    item("creator_footage_000", "creator_footage", "Clip of @creator"),
+    item("creator_photo_000", "creator_photo", "Photo of @creator"),
+  ];
+  const client = fakeClient({
+    getStudioImportInventory: mock(async (_projectId: string, documentId: string) =>
+      inventoryOf(documentId, 1, items),
+    ),
+  });
+  const { user } = renderGate(client);
+  await resumeNewest(user);
+  const labels: [string, string][] = [
+    ["Post of @creator", "Post card"],
+    ["Page of @creator", "Profile page"],
+    ["Clip of @creator", "Creator footage"],
+    ["Photo of @creator", "Creator photo"],
+  ];
+  for (const [name, label] of labels) {
+    expect(screen.getByRole("listitem", { name }).textContent).toContain(label);
+  }
+});

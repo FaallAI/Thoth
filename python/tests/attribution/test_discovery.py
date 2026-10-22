@@ -11,6 +11,7 @@ import pytest
 from thoth_control_plane.acquisition.accounts.access import SessionAccess
 from thoth_control_plane.acquisition.accounts.cookies import parse_cookies
 from thoth_control_plane.acquisition.models import (
+    DiscoveredPhoto,
     DiscoveredVideo,
     DiscoveryDrops,
     DiscoveryReason,
@@ -339,3 +340,23 @@ async def test_a_failed_seal_still_reports_the_outcome(tmp_path: Path) -> None:
         await leases.release(lease, "success")
 
     assert _Store.reported == ["success"]
+
+
+@pytest.mark.asyncio
+async def test_creator_listing_keeps_photos_and_the_page() -> None:
+    photo = DiscoveredPhoto(
+        post_id="1000000009",
+        owner_handle=SOURCE,
+        canonical_url=f"https://www.tiktok.com/@{SOURCE}/photo/1000000009",
+        image_urls=["https://cdn.example/9.jpeg"],
+    )
+    result = _result(_videos(10)).model_copy(update={"photos": [photo], "page_png": b"page"})
+
+    class _Discovery:
+        async def discover(self, request: ProfileDiscovery) -> DiscoveryResult:
+            assert (request.handle, request.limit) == (SOURCE, 24)
+            return result
+
+    discoverer = ProfileDiscoverer({"tiktok": lambda access, scratch: _Discovery()})
+    listing = await discoverer.creator("tiktok", SOURCE, 24)
+    assert (len(listing.videos), listing.photos, listing.page_png) == (10, [photo], b"page")

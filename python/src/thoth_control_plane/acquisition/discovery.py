@@ -2,8 +2,9 @@
 
 TikTok signs its list APIs inside the page, so this module never builds an API request. It
 opens the ordinary page in a stealthy headless session, scrolls it, and reads the list
-responses the page itself makes. A captcha is avoided, never solved or blocked: when TikTok
-refuses, the result is returned partial with a typed reason.
+responses the page itself makes. A captcha is solved in the page when its drag subtypes
+rise (see `captcha.py`); the rest are avoided, and when TikTok still refuses, the result is
+returned partial with a typed reason.
 
 This is the sole boundary where raw list payloads are inspected. Only validated
 `DiscoveredVideo` records and drop counts cross back out; nothing raw is retained or logged.
@@ -31,7 +32,10 @@ from thoth_control_plane.acquisition.browser import (
     _increment_active_sessions,
     _is_timeout,
 )
+from thoth_control_plane.acquisition.captcha import solve as solve_captcha
+from thoth_control_plane.acquisition.cards import PROFILE_PAGE_JS
 from thoth_control_plane.acquisition.models import (
+    DiscoveredPhoto,
     DiscoveredVideo,
     DiscoveryDrops,
     DiscoveryKind,
@@ -66,6 +70,15 @@ SCROLL_WAIT_MS = 3_000
 POLL_MS = 250
 IDLE_SCROLLS = 2
 SCROLL_DEADLINE_S = 60.0
+# Solving a captcha buys the scroll nothing once TikTok keeps re-raising it, so each
+# discovery may try the solver this many times before falling back to the captcha reason.
+MAX_SOLVES = 3
+# The profile page card (spec 5c-2, G2): signed out, TikTok's grid answers "Something went
+# wrong" (recorded 2026-10-22), so the card is cropped here, in the listing visit that the
+# access policy signs in when it must. The avatar anchors the header; the clip spans the rest.
+PROFILE_GRID_ITEMS = '[data-e2e="user-post-item"]'
+PROFILE_HEADER = '[data-e2e="user-avatar"]'
+GRID_WAIT_S = 10
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +89,7 @@ class DiscoveryPage:
     has_more: bool
     drops: DiscoveryDrops
     reason: DiscoveryReason | None = None
+    photos: list[DiscoveredPhoto] = field(default_factory=list)
 
 
 def parse_discovery_page(
@@ -100,6 +114,7 @@ def parse_discovery_page(
         return DiscoveryPage([], False, DiscoveryDrops(), DiscoveryReason.BLOCKED)
 
     videos: list[DiscoveredVideo] = []
+    photos: list[DiscoveredPhoto] = []
     ads = photo_posts = invalid = 0
     for item in _items(kind, payload):
         if not isinstance(item, dict):
@@ -108,13 +123,15 @@ def parse_discovery_page(
             ads += 1
         elif item.get("imagePost") is not None:
             photo_posts += 1
+            if (photo := _photo(item)) is not None:
+                photos.append(photo)
         elif (video := _video(item)) is not None:
             videos.append(video)
         else:
             invalid += 1
     has_more = payload.get("hasMore", payload.get("has_more")) in (True, 1)
     drops = DiscoveryDrops(ads=ads, photo_posts=photo_posts, invalid=invalid)
-    return DiscoveryPage(videos, has_more, drops)
+    return DiscoveryPage(videos, has_more, drops, photos=photos)
 
 
 def _items(kind: DiscoveryKind, payload: dict[str, Any]) -> list[Any]:
@@ -146,6 +163,35 @@ def _video(item: dict[str, Any]) -> DiscoveredVideo | None:
             duration_seconds=_duration(video.get("duration") if isinstance(video, dict) else None),
             engagement=normalize_engagement(item.get("stats"), item.get("statsV2")),
             hashtags=_hashtags(item.get("challenges")),
+        )
+    except ValidationError:
+        return None
+
+
+def _photo(item: dict[str, Any]) -> DiscoveredPhoto | None:
+    """A photo post with the first link of each image; None without a usable one."""
+    post_id = numeric_id(item.get("id")) if isinstance(item.get("id"), str) else None
+    author = item.get("author")
+    handle = author.get("uniqueId") if isinstance(author, dict) else None
+    images = item.get("imagePost")
+    listed = images.get("images") if isinstance(images, dict) else None
+    urls: list[str] = []
+    for image in listed if isinstance(listed, list) else []:
+        links = image.get("imageURL", {}).get("urlList") if isinstance(image, dict) else None
+        if isinstance(links, list) and links and isinstance(links[0], str):
+            urls.append(links[0])
+    if post_id is None or not isinstance(handle, str) or not urls:
+        return None
+    desc = item.get("desc")
+    try:
+        return DiscoveredPhoto(
+            post_id=post_id,
+            owner_handle=handle,
+            canonical_url=f"https://www.tiktok.com/@{handle}/photo/{post_id}",
+            caption=desc[:MAX_CAPTION] if isinstance(desc, str) else "",
+            published_at=published_at_from_epoch(item.get("createTime")),
+            hashtags=_hashtags(item.get("challenges")),
+            image_urls=urls[:20],
         )
     except ValidationError:
         return None
@@ -183,8 +229,10 @@ class _Scroll:
     seen: set[str] = field(default_factory=set)
     done: bool = False
     captcha: bool = False
+    solves: int = 0
     timed_out: bool = False
     stop: str = "none"
+    page_png: bytes | None = None
 
     def on_response(self, response: Any) -> None:
         if re.search(XHR_PATTERNS[self.kind], response.url):
@@ -198,8 +246,10 @@ class _Scroll:
         self.seen = set()
         self.done = False
         self.captcha = False
+        self.solves = 0
         self.timed_out = False
         self.stop = "none"
+        self.page_png = None
         page.on("response", self.on_response)
 
     async def absorb(self) -> None:
@@ -216,8 +266,23 @@ class _Scroll:
                 self.done = True
 
 
+async def _solve(page: Any, scroll: _Scroll) -> bool:
+    """One budgeted solver run: a discovery never spends more than MAX_SOLVES on captchas."""
+    if scroll.solves >= MAX_SOLVES:
+        return False
+    scroll.solves += 1
+    return await solve_captcha(page)
+
+
 def _scroll_action(scroll: _Scroll) -> Callable[[Any], Awaitable[None]]:
     async def action(page: Any) -> None:
+        if scroll.kind == "profile":
+            # The modal hides the grid the crop below waits for, so clear it first.
+            if await page.query_selector(CAPTCHA_SELECTOR) is not None:
+                await _solve(page, scroll)
+            # Before scrolling, while the grid's first rows sit under the header.
+            with contextlib.suppress(Exception):
+                scroll.page_png = await _crop_profile_page(page)
         # A failed or overlong scroll must never discard the pages Scrapling already captured.
         try:
             # A hard bound: a page await that never returns cannot outlive the deadline.
@@ -234,6 +299,20 @@ def _scroll_action(scroll: _Scroll) -> Callable[[Any], Awaitable[None]]:
     return action
 
 
+async def _crop_profile_page(page: Any) -> bytes | None:
+    for _ in range(GRID_WAIT_S):
+        if await page.locator(PROFILE_GRID_ITEMS).count():
+            head = await page.locator(PROFILE_HEADER).first.bounding_box()
+            if head is None:
+                return None
+            rect = await page.evaluate(PROFILE_PAGE_JS, [head, PROFILE_GRID_ITEMS, 2])
+            if not isinstance(rect, dict):
+                return None
+            return await page.screenshot(clip=rect, full_page=True, scale="css", timeout=10_000)
+        await page.wait_for_timeout(1_000)
+    return None
+
+
 async def _paginate(page: Any, scroll: _Scroll) -> None:
     idle = 0
     for _ in range(MAX_SCROLLS):
@@ -245,9 +324,11 @@ async def _paginate(page: Any, scroll: _Scroll) -> None:
             scroll.stop = "done"
             return
         if await page.query_selector(CAPTCHA_SELECTOR) is not None:
-            scroll.captcha = True
-            scroll.stop = "captcha"
-            return
+            if not await _solve(page, scroll):
+                scroll.captcha = True
+                scroll.stop = "captcha"
+                return
+            idle = 0
         before = len(scroll.responses)
         await page.mouse.wheel(0, SCROLL_PX)
         if await _wait_for_new(page, scroll, before):
@@ -278,6 +359,7 @@ def _assemble(
 ) -> DiscoveryResult:
     """Merge parsed pages in capture order; the first page reason stops assembly."""
     videos: dict[str, DiscoveredVideo] = {}
+    photos: dict[str, DiscoveredPhoto] = {}
     pages = ads = photo_posts = invalid = 0
     exhausted = False
     reason: DiscoveryReason | None = None
@@ -292,6 +374,8 @@ def _assemble(
         invalid += page.drops.invalid
         for video in page.videos:
             videos.setdefault(video.post_id, video)
+        for photo in page.photos:
+            photos.setdefault(photo.post_id, photo)
         exhausted = not page.has_more
     if reason is None:
         if captcha:
@@ -307,6 +391,7 @@ def _assemble(
         exhausted=exhausted,
         drops=DiscoveryDrops(ads=ads, photo_posts=photo_posts, invalid=invalid),
         reason=reason,
+        photos=list(photos.values())[:limit],
     )
 
 
@@ -396,10 +481,11 @@ class ScraplingDiscoveryBrowser:
 
         logger.debug("tiktok discovery scroll ended kind=%s stop=%s", kind, scroll.stop)
         captured = getattr(response, "captured_xhr", None) or []
-        return _assemble(
+        result = _assemble(
             kind,
             request.limit,
             [_parse_entry(kind, entry) for entry in captured],
             captcha=scroll.captcha or _captcha_rendered(response),
             timed_out=scroll.timed_out,
         )
+        return result.model_copy(update={"page_png": scroll.page_png})

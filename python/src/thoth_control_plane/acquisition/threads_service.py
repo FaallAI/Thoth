@@ -38,7 +38,7 @@ from thoth_control_plane.acquisition.browser import (
     _is_timeout,
     _parse_captured_xhr,
 )
-from thoth_control_plane.acquisition.cards import CardRejected, write_card
+from thoth_control_plane.acquisition.cards import MEDIA_BOX_JS, CardRejected, media_box, write_card
 from thoth_control_plane.acquisition.materializer import (
     MediaMaterializationError,
     MediaMaterializer,
@@ -52,6 +52,7 @@ from thoth_control_plane.acquisition.models import (
     AcquisitionStrategy,
     CardArtifact,
     MaterializedMedia,
+    MediaBox,
     ReportSource,
     ResolvedMedia,
     SourceReport,
@@ -74,6 +75,25 @@ REQUEST_OPTIONS: dict[str, Any] = {
 }
 THREADS_CAPTURE_XHR = r"https://www\.threads\.(?:com|net)/(?:api/)?graphql.*"
 POST_CARD_SELECTOR = 'div[data-pressable-container="true"]'
+# A signed-out post page opens a "Say more with Threads" dialog over the post (recorded
+# 2026-10-22). It is no part of the post, so it is hidden before the crop, with the fixed
+# backdrop that otherwise darkens the whole card: an empty fixed layer beside it, at
+# rgba(0,0,0,.7) on the live page (live check).
+HIDE_DIALOGS_JS = """() => {
+  const dialogs = document.querySelectorAll('div[role="dialog"]');
+  dialogs.forEach(dialog => {
+    for (let e = dialog; e && e !== document.body; e = e.parentElement) {
+      if (e === dialog || getComputedStyle(e).position === 'fixed') e.style.visibility = 'hidden';
+    }
+  });
+  if (!dialogs.length) return;
+  document.querySelectorAll('body *').forEach(e => {
+    const style = getComputedStyle(e), box = e.getBoundingClientRect();
+    if (style.position === 'fixed' && !e.children.length
+        && box.width >= innerWidth * 0.9 && box.height >= innerHeight * 0.9
+        && style.backgroundColor !== 'rgba(0, 0, 0, 0)') e.style.visibility = 'hidden';
+  });
+}"""
 SCRIPT_SELECTOR = 'script[type="application/json"]::text'
 SHARE_RESOLVE_TIMEOUT_MS = 15_000
 _STRATEGIES = {
@@ -126,15 +146,28 @@ class ThreadsPage:
     xhr_bodies: list[object]
     script_texts: list[str]
     card_png: bytes | None
+    card_box: MediaBox | None = None
 
 
-def _crop_post_card(cards: list[bytes]) -> Callable[[Any], Awaitable[None]]:
+Card = tuple[bytes | None, MediaBox | None]
+NO_CARD: Card = (None, None)
+
+
+def _crop_post_card(cards: list[Card]) -> Callable[[Any], Awaitable[None]]:
     async def crop(page: Any) -> None:
         # Best effort: a card that cannot be cropped is simply absent.
         with contextlib.suppress(Exception):
+            await page.evaluate(HIDE_DIALOGS_JS)
+        with contextlib.suppress(Exception):
             card = page.locator(POST_CARD_SELECTOR).first
             await card.scroll_into_view_if_needed(timeout=5_000)
-            cards.append(await card.screenshot(timeout=10_000))
+            png = await card.screenshot(timeout=10_000)
+            box = None
+            with contextlib.suppress(Exception):
+                boxes = await page.evaluate(MEDIA_BOX_JS, POST_CARD_SELECTOR)
+                if isinstance(boxes, dict):
+                    box = media_box(boxes.get("card"), boxes.get("media"))
+            cards.append((png, box))
 
     return crop
 
@@ -170,7 +203,7 @@ class ThreadsHeadlessBrowser:
 
         self._session = session
         _increment_active_sessions()
-        cards: list[bytes] = []
+        cards: list[Card] = []
         try:
             response = await active.fetch(url, page_action=_crop_post_card(cards), **FETCH_OPTIONS)
             if _blocked(response.url):
@@ -179,7 +212,8 @@ class ThreadsHeadlessBrowser:
             return ThreadsPage(
                 xhr_bodies=[entry.get("body") for entry in xhr if entry.get("status") == 200],
                 script_texts=[text for text in response.css(SCRIPT_SELECTOR).getall() if text],
-                card_png=cards[0] if cards else None,
+                card_png=cards[0][0] if cards else None,
+                card_box=cards[0][1] if cards else None,
             )
         except HeadlessBrowserError:
             await self.close()
@@ -258,11 +292,12 @@ def save_card(
         return None
 
 
-def _persist_post_card(
-    card_png: bytes | None, workflow_id: str, artifact_root: Path
-) -> CardArtifact | None:
+def _persist_post_card(card: Card, workflow_id: str, artifact_root: Path) -> CardArtifact | None:
     location = PurePosixPath("reports") / workflow_id / "cards" / "post.png"
-    return save_card(card_png, artifact_root, location)
+    saved = save_card(card[0], artifact_root, location)
+    if saved is not None and card[1] is not None:
+        saved = saved.model_copy(update={"media_box": card[1]})
+    return saved
 
 
 async def materialize_media(
@@ -312,27 +347,29 @@ class ThreadsAcquirer:
 
     async def _content(
         self, identity: ThreadsPostIdentity
-    ) -> tuple[ThreadsParse | None, AcquisitionReason | None, bytes | None]:
+    ) -> tuple[ThreadsParse | None, AcquisitionReason | None, Card]:
         url = str(identity.canonical_url)
         if CONTENT_METHOD == "request":
             try:
                 texts = await self._request.fetch(url)
             except RequestFetchError as error:
-                return None, error.reason, None
+                return None, error.reason, NO_CARD
             parsed = parse_documents(json_roots(texts), identity)
-            return parsed, None if parsed else AcquisitionReason.REQUEST_INCOMPLETE, None
+            return parsed, None if parsed else AcquisitionReason.REQUEST_INCOMPLETE, NO_CARD
         try:
             page = await self._headless.fetch(url)
         except HeadlessBrowserError as error:
-            return None, error.reason, None
+            return None, error.reason, NO_CARD
         parsed = parse_documents([*page.xhr_bodies, *json_roots(page.script_texts)], identity)
-        return parsed, None if parsed else AcquisitionReason.HEADLESS_INCOMPLETE, page.card_png
+        reason = None if parsed else AcquisitionReason.HEADLESS_INCOMPLETE
+        return parsed, reason, (page.card_png, page.card_box)
 
-    async def _card_visit(self, identity: ThreadsPostIdentity) -> bytes | None:
+    async def _card_visit(self, identity: ThreadsPostIdentity) -> Card:
         try:
-            return (await self._headless.fetch(str(identity.canonical_url))).card_png
+            page = await self._headless.fetch(str(identity.canonical_url))
         except HeadlessBrowserError:
-            return None
+            return NO_CARD
+        return page.card_png, page.card_box
 
     async def inspect(
         self, *, workflow_id: str, source_url: str, artifact_root: Path
@@ -353,7 +390,7 @@ class ThreadsAcquirer:
                     )
                 )
             start = time.monotonic()
-            parsed, reason, card_png = await self._content(identity)
+            parsed, reason, card = await self._content(identity)
             if parsed is not None and not parsed.post.text.strip() and not parsed.media:
                 attempt = _make_attempt(strategy, None, _elapsed_ms(start))
                 return AcquisitionResult(
@@ -384,13 +421,12 @@ class ThreadsAcquirer:
                     )
                 )
             assert parsed is not None  # a None parse always carries a reason
-            post_card = None
-            if not any(item.kind == "video" for item in media):
-                if CONTENT_METHOD == "request":
-                    card_png = await self._card_visit(identity)
-                post_card = await asyncio.to_thread(
-                    _persist_post_card, card_png, workflow_id, artifact_root
-                )
+            # Every post gets its card, video posts too: style A shows it (spec 5c-2, G1).
+            if CONTENT_METHOD == "request":
+                card = await self._card_visit(identity)
+            post_card = await asyncio.to_thread(
+                _persist_post_card, card, workflow_id, artifact_root
+            )
             return AcquisitionResult(
                 report=SourceReport(
                     workflow_id=workflow_id,

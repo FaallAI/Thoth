@@ -110,14 +110,24 @@ async def _run(
     original = await _original(reports, input_.original_report)
     store = media or LocalMediaStore(artifact_root)
     clips = f"reports/{input_.workflow_id}/footage/"
+    # The TikTok page card the creator listing cropped (spec 5c-2); the clips and photos live
+    # under `clips`.
+    page = f"reports/{input_.workflow_id}/cards/profile-page.png"
     async with heartbeating(_heartbeat), MediaScratch(store, scratch_dir) as scratch:
-        # The post's and the original's media, and every clip an earlier attempt admitted.
+        # The post's and the original's media, and every clip, photo and page card an earlier
+        # attempt stored.
         stored_clips = await asyncio.to_thread(store.list, clips)
-        await scratch.pull([*media_locations(report), *media_locations(original), *stored_clips])
+        cards = await asyncio.to_thread(store.list, page.rsplit("/", 1)[0] + "/")
+        stored_page = [location for location in cards if location == page]
+        await scratch.pull(
+            [*media_locations(report), *media_locations(original), *stored_clips, *stored_page]
+        )
 
         async def publish(admitted: list[str]) -> None:
             # A carousel slide is the acquisition's own media, already stored.
-            await scratch.push(location for location in admitted if location.startswith(clips))
+            await scratch.push(
+                location for location in admitted if location.startswith(clips) or location == page
+            )
 
         inputs = FootageInputs(
             workflow_id=input_.workflow_id,
@@ -158,12 +168,18 @@ def build_production_footage(settings: Settings) -> FootageBuilder:
     )
     from thoth_control_plane.assembly.adapters.captions import AgnoCaptionJudge
     from thoth_control_plane.assembly.adapters.region import FfmpegRegionTracker
-    from thoth_control_plane.attribution.adapters.discovery import StoreLeases
+    from thoth_control_plane.attribution.adapters.discovery import (
+        DEFAULT_FACTORIES,
+        ProfileDiscoverer,
+        StoreLeases,
+    )
     from thoth_control_plane.attribution.adapters.frames import FfmpegFrameSource, FfprobeDuration
     from thoth_control_plane.attribution.adapters.ocr import RapidOcrReader
     from thoth_control_plane.attribution.candidates import load_curated
+    from thoth_control_plane.footage.adapters.creator import CreatorListings
     from thoth_control_plane.footage.adapters.downloader import YtDlpClipDownloader
     from thoth_control_plane.footage.adapters.embedder import OnnxEmbedder
+    from thoth_control_plane.footage.adapters.photos import HttpPhotoFetcher
     from thoth_control_plane.footage.adapters.queries import AgnoQueryModel
     from thoth_control_plane.footage.adapters.search import build_platform_search
     from thoth_control_plane.footage.adapters.vision import AgnoFootageJudge
@@ -191,6 +207,10 @@ def build_production_footage(settings: Settings) -> FootageBuilder:
             store=FootageStore.connect(database.get_secret_value()),
             tracker=FfmpegRegionTracker(settings.THOTH_FFMPEG),
             captions=AgnoCaptionJudge(key, settings.THOTH_SOURCE_VISION_MODEL),
+            # Spec 5c-2: the creator's own videos, photos and page card, under the same
+            # account access policy as every other listing.
+            creator=CreatorListings(ProfileDiscoverer(DEFAULT_FACTORIES, leases=leases)),
+            photos=HttpPhotoFetcher(),
         ),
         aggregators=load_curated(),
         story_min=settings.THOTH_FOOTAGE_STORY_MIN,

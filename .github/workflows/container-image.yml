@@ -72,6 +72,12 @@ jobs:
       - name: Install locked Python dependencies
         run: uv sync --project python --frozen --all-groups --extra acquisition
 
+      # The card crop tests check their selectors against recorded pages in Chromium (spec 5c-2);
+      # THOTH_REQUIRE_BROWSER_TESTS below turns a missing browser into a failure, not a skip.
+      - name: Install Chromium for the browser-backed tests
+        working-directory: python
+        run: uv run playwright install --with-deps chromium
+
       # Run from python/ so pytest reads python/pyproject.toml (asyncio_mode, markers);
       # from the repository root it finds no config and unmarked async tests fail.
       - name: Fetch speech test models
@@ -102,6 +108,7 @@ jobs:
           THOTH_TEST_MEDIA_S3_ACCESS_KEY: thoth-test
           THOTH_TEST_MEDIA_S3_SECRET_KEY: thoth-test-secret
           THOTH_REQUIRE_MINIO_TESTS: "1"
+          THOTH_REQUIRE_BROWSER_TESTS: "1"
         run: uv run pytest -m "not live" -q
 
       - name: Run Ruff checks

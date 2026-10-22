@@ -139,6 +139,21 @@ PROFILE_CARD_CHECK_JS = r"""() => {
     return r.height > 0 && r.top >= s.keepBottom && e.checkVisibility({visibilityProperty: true});
   });
 }"""
+# The post card (spec 5c-2, G1): the first feed video's author row and its caption, as the
+# post page recorded on 2026-10-22 shows them over the video. The caption stays folded: "more"
+# also unfolds TikTok's own AI summary under it, which is no part of the post (live check).
+POST_CARD_JS = """() => {
+  const desc = document.querySelector('[data-media-card-description-container="true"]');
+  if (!desc) return null;
+  const rects = [desc.previousElementSibling, desc].filter(Boolean)
+    .map(e => e.getBoundingClientRect()).filter(r => r.width && r.height);
+  if (!rects.length) return null;
+  const x1 = Math.min(...rects.map(r => r.left)), y1 = Math.min(...rects.map(r => r.top));
+  const x2 = Math.max(...rects.map(r => r.right)), y2 = Math.max(...rects.map(r => r.bottom));
+  const p = 12;
+  return {x: Math.max(0, x1 + scrollX - p), y: Math.max(0, y1 + scrollY - p),
+          width: x2 - x1 + 2 * p, height: y2 - y1 + 2 * p};
+}"""
 
 _active_session_count = 0
 
@@ -325,6 +340,7 @@ class _Visit:
     comment_pages: list[Any] = field(default_factory=list)
     comment_cards: list[tuple[str, bytes]] = field(default_factory=list)
     profile_card: bytes | None = None
+    post_card: bytes | None = None
 
 
 async def _wait_for(page: Any, selector: str) -> bool:
@@ -347,6 +363,13 @@ async def _crop_comment_cards(page: Any, cards: list[tuple[str, bytes]]) -> None
             card = page.locator(f'[data-thoth-card="{tag}"]')
             await card.scroll_into_view_if_needed(timeout=5_000)
             cards.append((str(text), await card.screenshot(timeout=10_000)))
+
+
+async def _crop_post_card(page: Any) -> bytes | None:
+    rect = await page.evaluate(POST_CARD_JS)
+    if not isinstance(rect, dict):
+        return None
+    return await page.screenshot(clip=rect)
 
 
 async def _crop_profile_card(page: Any, handle: str) -> bytes | None:
@@ -393,6 +416,8 @@ def _visit_action(identity: TikTokPostIdentity, visit: _Visit) -> Callable[[Any]
                     break
                 cursor = result.get("cursor")
         with contextlib.suppress(Exception):
+            visit.post_card = await _crop_post_card(page)
+        with contextlib.suppress(Exception):
             await _crop_comment_cards(page, visit.comment_cards)
         with contextlib.suppress(Exception):
             visit.profile_card = await _crop_profile_card(page, identity.owner_handle)
@@ -416,6 +441,7 @@ def extract_browser_snapshot(
     comment_pages: list[Any] | None = None,
     comment_cards: list[tuple[str, bytes]] | None = None,
     profile_card: bytes | None = None,
+    post_card: bytes | None = None,
 ) -> BrowserSnapshot:
     """Reduce raw headless browser output to a sanitized `BrowserSnapshot`.
 
@@ -490,6 +516,7 @@ def extract_browser_snapshot(
         media_candidates=media_candidates,
         comments=_reduce_comments(comment_pages or [], comment_cards or []),
         profile_card_png=profile_card,
+        post_card_png=post_card,
     )
 
 
@@ -513,6 +540,7 @@ def _extract_from_response(response: Any, visit: _Visit | None = None) -> Browse
         comment_pages=visit.comment_pages,
         comment_cards=visit.comment_cards,
         profile_card=visit.profile_card,
+        post_card=visit.post_card,
     )
 
 

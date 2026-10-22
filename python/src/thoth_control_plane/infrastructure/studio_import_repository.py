@@ -25,6 +25,7 @@ from thoth_control_plane.domain.edit_document_v2 import EditDocument, EditDocume
 from thoth_control_plane.domain.studio_imports import (
     NOT_PLACED,
     OVERLAY_ROLES,
+    STILL_ROLES,
     AttachImportAsset,
     ExcludeImportItem,
     StudioDraft,
@@ -37,6 +38,7 @@ from thoth_control_plane.domain.studio_layout import (
     SLIDE_SECONDS,
     card_position,
     clip_regions,
+    post_card_slot,
     profile_slot,
     reaction_beat,
 )
@@ -318,6 +320,18 @@ class PostgresStudioImportRepository:
                         duration_in_frames=duration,
                     )
                 )
+        elif entry.role in STILL_ROLES:
+            # The profile page and each creator photo hold SLIDE_SECONDS (spec 5c-2, G5).
+            duration = round(SLIDE_SECONDS * latest.canvas.fps)
+            if duration != scene.duration_in_frames:
+                operations.append(
+                    SetSceneDuration(
+                        kind="set_scene_duration",
+                        operation_id=f"fit_{entry.item_id}",
+                        scene_id=scene.scene_id,
+                        duration_in_frames=duration,
+                    )
+                )
         elif entry.role == "main" and slides:
             # A carousel: the first image, then each slide, SLIDE_SECONDS apiece (spec 5c-1, 3.3).
             duration = round(SLIDE_SECONDS * latest.canvas.fps)
@@ -347,8 +361,9 @@ class PostgresStudioImportRepository:
             document = apply_edit_operations(latest, operations, resolved_assets={asset_id: asset})
         except ValueError as error:
             raise StudioImportDecisionRejected("attach_rejected") from error
-        if entry.role == "main" and slides:
-            # Every image of a carousel is letterboxed alike, so the framing never jumps.
+        if (entry.role == "main" and slides) or entry.role in STILL_ROLES:
+            # Every image of a carousel is letterboxed alike, so the framing never jumps; a
+            # profile page or a photo is shown whole.
             _clip(document, f"clip_{entry.item_id}").fit = "contain"
         if entry.blur_regions:
             # Stored and switched off until narration replaces the speech (spec 5c-1, 6).
@@ -424,18 +439,31 @@ def _overlay(
     seconds = scene.duration_in_frames / canvas.fps
     position = card_position(asset.width, asset.height, (canvas.width, canvas.height))
     track = "track_b_roll"
+    # The post opens the video for its reading time, then who posted it (spec 5c-2, G5).
+    post = next((item for item in current.items if item.role == "post_card"), None)
+    after_post = (
+        sum(post_card_slot(seconds, post.reading_seconds or READING_MIN)) + CARD_GAP
+        if post is not None
+        else 0.0
+    )
     if entry.role == "slide":
         track, position = "track_main_video", None
         at, length = (entry.order + 1) * SLIDE_SECONDS, SLIDE_SECONDS
+    elif entry.role == "post_card":
+        at, length = post_card_slot(seconds, entry.reading_seconds or READING_MIN)
     elif entry.role == "profile_card":
-        at, length = profile_slot(seconds)
+        at, length = profile_slot(seconds, not_before=after_post)
     else:
         cards = sorted(
             (item for item in current.items if item.role == "comment_card"),
             key=lambda item: item.order or 0,
         )
         has_profile = any(item.role == "profile_card" for item in current.items)
-        not_before = sum(profile_slot(seconds)) + CARD_GAP if has_profile else 0.0
+        not_before = (
+            sum(profile_slot(seconds, not_before=after_post)) + CARD_GAP
+            if has_profile
+            else after_post
+        )
         reading = [item.reading_seconds or READING_MIN for item in cards]
         slot = reaction_beat(seconds, reading, not_before=not_before)[entry.order or 0]
         if slot is None:

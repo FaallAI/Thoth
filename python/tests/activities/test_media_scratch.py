@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pytest
 
 from tests.activities.test_source_investigation import _load_fixture_report
+from thoth_control_plane.acquisition.models import CardArtifact
 from thoth_control_plane.activities.media_scratch import (
     MediaScratch,
     media_locations,
@@ -86,3 +87,17 @@ async def test_push_warns_about_recorded_files_it_cannot_find(
             await scratch.push(["reports/wf_a/cards/no.png", "reports/wf_a/media/gone.mp4"])
     assert "2 recorded media files" in caplog.text
     assert "no.png" not in caplog.text and "wf_a" not in caplog.text
+
+
+def test_report_locations_include_the_profile_page() -> None:
+    # Final review C1: the page card was cropped but never pushed to the store.
+    report = _load_fixture_report()
+    page = CardArtifact(
+        location=PurePosixPath("reports/x/cards/profile-page.png"),
+        bytes=4_000,
+        checksum="sha256:" + "b" * 64,
+        width=400,
+        height=600,
+    )
+    paged = report.model_copy(update={"profile_page": page})
+    assert "reports/x/cards/profile-page.png" in report_media_locations(paged)

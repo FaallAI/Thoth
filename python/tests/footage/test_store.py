@@ -187,3 +187,30 @@ def test_a_candidate_pair_postgres_would_refuse_is_refused(
     with pytest.raises(ValueError):
         store.add_candidates("wf_a", items)
     assert store.candidates("wf_a") == []
+
+
+def test_creator_photo_candidates_round_trip(store: FootageStore) -> None:
+    # Spec 5c-2, G4: an admitted creator photo is read apart from the clips.
+    store.start_run("wf_1", OBJECTS)
+    photo = "https://www.instagram.com/p/PHOTO1/"
+    store.add_candidates(
+        "wf_1",
+        [
+            _candidate(),
+            _candidate(photo, platform="instagram", source="creator", media_kind="image"),
+        ],
+    )
+    store.admit("wf_1", "https://x.com/a/status/1", _clip(0))
+    store.admit("wf_1", photo, _clip(0))
+    assert [view.url for view in store.admitted("wf_1", "image")] == [photo]
+    assert [view.url for view in store.admitted("wf_1")] == ["https://x.com/a/status/1"]
+    assert store.admitted("wf_1", "image")[0].media_kind == "image"
+
+
+def test_a_run_keeps_its_profile_page_card(store: FootageStore) -> None:
+    # TikTok's page card comes from the creator listing (spec 5c-2, Task 0 ruling).
+    store.start_run("wf_1", OBJECTS)
+    card = {"location": "reports/wf_1/cards/profile-page.png", "bytes": 4000}
+    store.set_profile_page("wf_1", card)
+    run = store.run("wf_1")
+    assert run is not None and run.profile_page == card

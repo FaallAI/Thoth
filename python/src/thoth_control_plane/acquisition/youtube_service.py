@@ -97,6 +97,10 @@ STALE = (
     "unable to extract",
 )
 PROFILE_CARD_SELECTOR = "#page-header"
+# The profile page card (spec 5c-2): the channel header and the first rows of its videos. The
+# profile visit opens the channel home tab, whose shelves hold lockups; the Shorts tab holds
+# rich items (both recorded on 2026-10-22).
+PROFILE_PAGE_ITEMS = "ytd-rich-item-renderer, ytm-shorts-lockup-view-model, yt-lockup-view-model"
 LOGIN_PATHS = ("/signin",)
 # Tags each matched comment; targets arrive as the evaluate argument, never interpolated.
 # Comments load as the page scrolls. A thread linking to the comment's own `lc=` id is exact;
@@ -148,6 +152,7 @@ YOUTUBE_LAYOUT = CardLayout(
     profile_selector=PROFILE_CARD_SELECTOR,
     tag_js=TAG_COMMENTS_JS,
     login_paths=LOGIN_PATHS,
+    page_items=PROFILE_PAGE_ITEMS,
 )
 
 
@@ -395,19 +400,22 @@ class YouTubeAcquirer:
                 want_post=False,
                 targets=comment_targets(parsed.comments),
             )
-            _, comments, profile_card = await asyncio.to_thread(
+            saved = await asyncio.to_thread(
                 persist_cards, cards, parsed.comments, workflow_id, artifact_root
             )
+            comments = saved.comments
             log_outcome(
                 "youtube",
                 CONTENT_METHOD,
                 len(media),
                 comments,
                 None,
-                profile_card,
+                saved.profile_card,
                 want_post=False,
                 problems=cards.problems,
                 dropped=parsed.dropped_comments,
+                profile_page=saved.profile_page,
+                want_page=True,
             )
             return AcquisitionResult(
                 report=SourceReport(
@@ -417,7 +425,8 @@ class YouTubeAcquirer:
                     media=media,
                     outcome=AcquisitionOutcome(attempts=[attempt]),
                     comments=comments,
-                    profile_card=profile_card,
+                    profile_card=saved.profile_card,
+                    profile_page=saved.profile_page,
                 )
             )
         finally:

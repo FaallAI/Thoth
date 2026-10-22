@@ -21,6 +21,7 @@ from thoth_control_plane.acquisition.accounts.access import SessionAccess
 from thoth_control_plane.acquisition.accounts.policy import Mode, Outcome
 from thoth_control_plane.acquisition.accounts.profiles import AccountProfiles
 from thoth_control_plane.acquisition.models import (
+    DiscoveredPhoto,
     DiscoveredVideo,
     DiscoveryReason,
     DiscoveryResult,
@@ -159,6 +160,15 @@ DEFAULT_FACTORIES: Mapping[str, DiscoveryFactory] = {
 }
 
 
+@dataclasses.dataclass(frozen=True)
+class CreatorListing:
+    """What a creator's profile offers style A (spec 5c-2): videos, photo posts, page card."""
+
+    videos: list[DiscoveredVideo]
+    photos: list[DiscoveredPhoto]
+    page_png: bytes | None = None
+
+
 class DiscoveryBlocked(RuntimeError):
     """A captcha or a block, not an empty profile: the attribution reports discovery_failed."""
 
@@ -189,6 +199,20 @@ class ProfileDiscoverer:
         self, platform: str, request: ProfileDiscovery | KeywordDiscovery
     ) -> list[DiscoveredVideo]:
         """One listing under the platform's access mode (profile or keyword)."""
+        return _videos(await self._listing(platform, request))
+
+    async def creator(self, platform: str, handle: str, limit: int) -> CreatorListing:
+        """A creator's videos, photo posts and page card under the same access policy.
+
+        Spec 5c-2: TikTok's grid needs a login, so a thin or blocked anonymous listing leases an
+        account with its proxy (operator, 2026-10-22), and that visit crops the page card.
+        """
+        result = await self._listing(platform, ProfileDiscovery(handle=handle, limit=limit))
+        return CreatorListing(_videos(result), list(result.photos), result.page_png)
+
+    async def _listing(
+        self, platform: str, request: ProfileDiscovery | KeywordDiscovery
+    ) -> DiscoveryResult:
         mode: Mode = await self._leases.mode(platform) if self._leases else "anonymous"
         anonymous: DiscoveryResult | None = None
         if mode != "always":
@@ -200,15 +224,15 @@ class ProfileDiscoverer:
             )
             blocked = not anonymous.videos and anonymous.reason in RETRY_REASONS
             if mode == "anonymous" or not (thin or blocked):
-                return _videos(anonymous)
+                return anonymous
         assert self._leases is not None  # a leasing mode implies a lease source
         lease = await self._leases.lease(platform)  # type: ignore[arg-type]
         if lease is None:
             logger.info("no source account for discovery platform=%s mode=%s", platform, mode)
             if anonymous is not None and anonymous.videos:
-                return _videos(anonymous)
+                return anonymous
             if mode == "always":
-                return _videos(await self._run(platform, request, None))
+                return await self._run(platform, request, None)
             raise DiscoveryBlocked(f"{platform} discovery blocked and no source account to lease")
         outcome: Outcome | None = None
         try:
@@ -225,13 +249,13 @@ class ProfileDiscoverer:
             if anonymous is None or not anonymous.videos:
                 raise
             logger.warning("signed-in discovery failed; keeping the anonymous listing")
-            return _videos(anonymous)
+            return anonymous
         finally:
             await self._leases.release(lease, outcome)
         logger.info("discovery used a source account platform=%s outcome=%s", platform, outcome)
         if anonymous is not None and len(anonymous.videos) > len(result.videos):
-            return _videos(anonymous)
-        return _videos(result)
+            return anonymous
+        return result
 
     async def _run(
         self,

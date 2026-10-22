@@ -52,6 +52,7 @@ class NewCandidate:
     source_duration: float | None = None
     status: str = "pending"
     reason: str | None = None
+    media_kind: str = "video"  # "image" for a creator photo (spec 5c-2, G4)
 
 
 @dataclass(frozen=True)
@@ -79,6 +80,7 @@ class CandidateView:
     clip_start: float | None
     ocr: dict[str, Any] | None
     position: int | None
+    media_kind: str = "video"
 
 
 @dataclass(frozen=True)
@@ -87,6 +89,8 @@ class RunView:
     status: str
     footage_status: str | None
     objects: list[FootageObject]
+    # The TikTok profile page card from the creator listing (spec 5c-2), a CardArtifact dump.
+    profile_page: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -108,6 +112,7 @@ class FootageResult:
     status: FootageStatus
     admitted: int = 0
     rejected: dict[str, int] = field(default_factory=dict)
+    photos: int = 0  # admitted creator photos (spec 5c-2, G4), apart from the clips
 
 
 @dataclass(frozen=True)

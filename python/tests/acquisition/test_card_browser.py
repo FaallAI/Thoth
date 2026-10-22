@@ -7,16 +7,22 @@ import logging
 import pytest
 
 from tests.acquisition.fakes import FakeCardPage, FakeSession, card_session
+from tests.acquisition.png_fixtures import make_png
 from thoth_control_plane.acquisition.browser import active_scrapling_session_count
 from thoth_control_plane.acquisition.card_browser import (
     COMMENT_ROW_ATTRIBUTE,
+    MEDIA_BOX_JS,
+    PROFILE_PAGE_JS,
     CardBrowser,
     CardLayout,
+    Cards,
     CommentTarget,
     is_login_path,
     log_outcome,
+    media_box,
+    persist_cards,
 )
-from thoth_control_plane.acquisition.models import ReportComment
+from thoth_control_plane.acquisition.models import MediaBox, ReportComment
 
 POST = "https://example.test/post/1"
 PROFILE = "https://example.test/user_001"
@@ -127,3 +133,74 @@ def test_log_outcome_names_the_platform_and_never_text(caplog: pytest.LogCapture
     assert "x comments dropped count=2" in caplog.text
     assert "secret words" not in caplog.text
     assert "fan_001" not in caplog.text
+
+
+def test_media_box_is_relative_to_the_card() -> None:
+    box = media_box(
+        {"x": 100, "y": 200, "width": 400, "height": 600},
+        {"x": 120, "y": 350, "width": 360, "height": 300},
+    )
+    assert box == MediaBox(x=0.05, y=0.25, w=0.9, h=0.5)
+
+
+def test_a_media_box_outside_the_card_is_dropped() -> None:
+    card = {"x": 0, "y": 0, "width": 100, "height": 100}
+    assert media_box(card, {"x": 50, "y": 50, "width": 100, "height": 100}) is None
+    assert media_box(card, {"x": 10, "y": 10, "width": 0, "height": 50}) is None
+    assert media_box(card, None) is None
+
+
+@pytest.mark.asyncio
+async def test_profile_page_and_post_media_follow_the_layout() -> None:
+    layout = CardLayout(
+        ".post", ".profile", "TAG", ("/login",), measure_media=True, page_items=".item"
+    )
+    boxes = {
+        "card": {"x": 0, "y": 0, "width": 400, "height": 800},
+        "media": {"x": 0, "y": 200, "width": 400, "height": 400},
+    }
+    rect = {"x": 0, "y": 0, "width": 600, "height": 900}
+    post_page = FakeCardPage(POST, results={MEDIA_BOX_JS: boxes})
+    profile_page = FakeCardPage(PROFILE, results={PROFILE_PAGE_JS: rect})
+    session = card_session({POST: post_page, PROFILE: profile_page})
+    browser = CardBrowser(layout, lambda **kwargs: session)
+
+    cards = await browser.cards(POST, PROFILE, want_post=True, targets=[])
+    await browser.close()
+
+    assert cards.post_media_box == MediaBox(x=0.0, y=0.25, w=1.0, h=0.5)
+    assert cards.profile_page_png is not None
+    assert profile_page.clips == [rect]
+    # One pixel per CSS pixel: at the device ratio a page ran past the 2 MB card cap (Task 12).
+    assert profile_page.shot_options[0]["scale"] == "css"
+    # The header is measured by Playwright, so a :has-text selector works (Task 12, X).
+    assert (
+        PROFILE_PAGE_JS,
+        [{"x": 0, "y": 0, "width": 400, "height": 200}, ".item", 2],
+    ) in profile_page.evaluated
+
+
+@pytest.mark.asyncio
+async def test_no_grid_items_means_no_profile_page() -> None:
+    layout = CardLayout(".post", ".profile", "TAG", ("/login",), page_items=".item")
+    profile_page = FakeCardPage(PROFILE, results={PROFILE_PAGE_JS: None})
+    session = card_session({PROFILE: profile_page})
+    browser = CardBrowser(layout, lambda **kwargs: session)
+    cards = await browser.cards(POST, PROFILE, want_post=False, targets=[])
+    await browser.close()
+    assert cards.profile_page_png is None
+    assert profile_page.clips == []
+
+
+def test_persisted_cards_carry_the_media_box_and_profile_page(tmp_path) -> None:
+    cards = Cards(
+        post_png=make_png(400, 800),
+        profile_png=make_png(400, 200),
+        profile_page_png=make_png(400, 900),
+        post_media_box=MediaBox(x=0.0, y=0.25, w=1.0, h=0.5),
+    )
+    saved = persist_cards(cards, [], "wf_cards_001", tmp_path)
+    assert saved.post_card is not None and saved.post_card.media_box == cards.post_media_box
+    assert saved.profile_page is not None
+    assert str(saved.profile_page.location) == "reports/wf_cards_001/cards/profile-page.png"
+    assert saved.profile_card is not None and saved.comments == []

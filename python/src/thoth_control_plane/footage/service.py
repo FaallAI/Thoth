@@ -21,7 +21,12 @@ from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, TypeVar
 
-from thoth_control_plane.acquisition.models import DiscoveredVideo, SourceReport
+from thoth_control_plane.acquisition.cards import CardRejected, write_card
+from thoth_control_plane.acquisition.models import (
+    DiscoveredPhoto,
+    DiscoveredVideo,
+    SourceReport,
+)
 from thoth_control_plane.assembly.ocr import analyze_main_ocr
 from thoth_control_plane.assembly.ports import (
     AssemblyError,
@@ -36,6 +41,15 @@ from thoth_control_plane.attribution.models import SourceAttribution
 from thoth_control_plane.attribution.ports import AttributionError
 from thoth_control_plane.footage.adapters.downloader import ClipError
 from thoth_control_plane.footage.adapters.embedder import cosine
+from thoth_control_plane.footage.adapters.photos import PhotoError
+from thoth_control_plane.footage.creator import (
+    CREATOR_LISTING,
+    MAX_PHOTOS,
+    closest,
+    creator_query,
+    enriched_text,
+    verdict,
+)
 from thoth_control_plane.footage.frames import clip_window, dhash, is_duplicate, vision_seconds
 from thoth_control_plane.footage.gates import MainIdentity, text_gate
 from thoth_control_plane.footage.models import (
@@ -49,9 +63,11 @@ from thoth_control_plane.footage.models import (
 )
 from thoth_control_plane.footage.ports import (
     ClipDownloader,
+    CreatorPort,
     Embedder,
     FootageJudge,
     FootageState,
+    PhotoFetcher,
     QueryModel,
     SearchPort,
 )
@@ -71,6 +87,12 @@ MEDIA_FAILURES = frozenset(
 HEADLINE_PREFIX = "headline: "
 DEFAULT_VISUAL = "the scene the post is about"
 SCRATCH_GLOB = "thoth-footage-*"  # the clip downloader's scratch directories
+# Spec 5c-2: profile listings exist for these; photo posts come from all but YouTube. TikTok is
+# back (operator, 2026-10-22): its listing page now solves the drag captchas TikTok raises over
+# the grid (`acquisition/captcha.py`), so a main lists its creator like the other platforms.
+CREATOR_PLATFORMS = frozenset({"tiktok", "instagram", "x", "youtube"})
+PHOTO_PLATFORMS = frozenset({"tiktok", "instagram", "x"})
+PAGE_CARD = "profile-page.png"
 
 T = TypeVar("T")
 
@@ -118,6 +140,8 @@ class FootagePorts:
     store: FootageState
     tracker: RegionTracker | None = None
     captions: CaptionJudge | None = None
+    creator: CreatorPort | None = None
+    photos: PhotoFetcher | None = None
 
 
 @dataclass(frozen=True)
@@ -188,6 +212,16 @@ def select_batch(
     return batch
 
 
+def _when(value: str | None) -> datetime | None:
+    """A stored ISO-8601 UTC time, or None when it is missing or unreadable."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
 def _sha256(path: Path) -> str:
     with path.open("rb") as handle:
         return "sha256:" + hashlib.file_digest(handle, "sha256").hexdigest()
@@ -244,9 +278,15 @@ class FootageBuilder:
     async def _publish(
         self, workflow: str, publish: Callable[[list[str]], Awaitable[None]]
     ) -> None:
-        """Hand over the admitted clips only: a rejected or abandoned download stays local."""
+        """Hand over the admitted clips and photos and the page card only: a rejected or
+        abandoned download stays local."""
         admitted = await asyncio.to_thread(self._store.admitted, workflow)
-        await publish([str(c.media_location) for c in admitted if c.media_location])
+        photos = await asyncio.to_thread(self._store.admitted, workflow, "image")
+        locations = [str(c.media_location) for c in [*admitted, *photos] if c.media_location]
+        run = await asyncio.to_thread(self._store.run, workflow)
+        if run is not None and run.profile_page is not None:
+            locations.append(str(run.profile_page["location"]))
+        await publish(locations)
 
     async def _bounded(self, task: asyncio.Task[Any], seconds: float) -> bool:
         """Wait up to `seconds`, then cancel and allow the grace. False: the task ignored its
@@ -313,22 +353,213 @@ class FootageBuilder:
             return FootageResult(status="none")
 
         hits, failed = await self._search(objects)
-        if failed:
-            await asyncio.to_thread(self._store.finish_run, workflow, "unavailable")
-            return await self._result(workflow, "unavailable")
         identity = MainIdentity.of(
             str(main.source.canonical_url),
             [str(inputs.report.source.canonical_url)],
             main.post.text,
         )
-        await self._gate(workflow, identity, objects, hits)
+        creators = await self._creator(inputs, main, identity, objects)
+        if failed and not creators:
+            await asyncio.to_thread(self._store.finish_run, workflow, "unavailable")
+            return await self._result(workflow, "unavailable")
+        if failed:
+            # The run keeps the creator's material, but the outage must stay visible.
+            logger.warning("footage search unavailable; creator material only")
+        if not failed:
+            await self._gate(workflow, identity, objects, hits)
         await self._story(workflow, main)
         if state.over:  # likewise an embedder
             raise asyncio.CancelledError
         people = frozenset(obj.query for obj in objects if obj.person)
-        return await self._check_all(
-            inputs, main, started, state, [obj.query for obj in objects], {}, people
+        queries = [obj.query for obj in objects]
+        if creators:
+            queries.append(creator_query(main.post.owner_handle))
+        return await self._check_all(inputs, main, started, state, queries, {}, people)
+
+    async def _creator(
+        self,
+        inputs: FootageInputs,
+        main: SourceReport,
+        identity: MainIdentity,
+        objects: Sequence[FootageObject],
+    ) -> int:
+        """The creator's own videos and photos (spec 5c-2, G3, G3a, G4); how many are live.
+
+        Listed once per workflow: a retry finds the creator rows and only counts them.
+        """
+        workflow, root = inputs.workflow_id, inputs.artifact_root
+        platform, handle = main.source.platform, main.post.owner_handle
+        if self._ports.creator is None or platform not in CREATOR_PLATFORMS:
+            return 0
+        known = await asyncio.to_thread(self._store.candidates, workflow)
+        if any(c.source == "creator" for c in known):
+            return sum(1 for c in known if c.source == "creator" and c.status != "rejected")
+        try:
+            listing = await self._ports.creator.listing_of(platform, handle, CREATOR_LISTING)
+        except ToolMissing:
+            raise
+        except Exception as error:
+            logger.warning("footage creator listing failed error=%s", type(error).__name__)
+            listing = None
+        if listing is None:
+            logger.warning("footage creator listing unavailable platform=%s", platform)
+            return 0
+        if listing.page_png is not None:
+            await self._page_card(workflow, root, listing.page_png)
+        visual = "; ".join(obj.visual for obj in objects if obj.visual)[:300] or DEFAULT_VISUAL
+        query = creator_query(handle)
+        seen = {c.url for c in known}
+        videos = [v for v in listing.videos if str(v.canonical_url) not in seen]
+        photos = [p for p in listing.photos if str(p.canonical_url) not in seen]
+        if platform not in PHOTO_PLATFORMS:
+            photos = []
+        posts: list[DiscoveredVideo | DiscoveredPhoto] = [*videos, *photos]
+        texts = [enriched_text(post.caption, post.hashtags) for post in posts]
+        scores = await self._scores(main, texts)
+        main_day = _when(main.post.published_at)
+        rows: list[NewCandidate] = []
+        undecided: list[int] = []
+        verdicts: dict[int, str] = {}
+        for index, post in enumerate(posts):
+            url = str(post.canonical_url)
+            if isinstance(post, DiscoveredVideo):
+                reason = text_gate(url, post, identity, self._aggregators)
+            else:
+                reason = "main" if url in identity.urls else None
+            if reason is None:
+                decided = verdict(scores[index], post.caption, self._story_min)
+                if decided == "undecided":
+                    undecided.append(index)
+                reason = "story" if decided == "reject" else None
+            verdicts[index] = reason or "pending"
+        kept, dropped = closest(undecided, lambda i: _when(posts[i].published_at), main_day)
+        for index in dropped:
+            verdicts[index] = "story"
+        for index, post in enumerate(posts):
+            reason = verdicts[index]
+            photo = isinstance(post, DiscoveredPhoto)
+            rows.append(
+                NewCandidate(
+                    url=str(post.canonical_url),
+                    platform=platform,
+                    source="creator",
+                    query=query,
+                    visual=visual,
+                    owner_handle=post.owner_handle,
+                    caption=post.caption[:2000],
+                    published_at=post.published_at,
+                    engagement={} if photo else dict(post.engagement),
+                    source_duration=None if photo else post.duration_seconds,
+                    status="pending" if reason == "pending" else "rejected",
+                    reason=None if reason == "pending" else reason,
+                    media_kind="image" if photo else "video",
+                )
+            )
+        await asyncio.to_thread(self._store.add_candidates, workflow, rows)
+        for index, row in enumerate(rows):
+            if row.status == "pending":
+                await asyncio.to_thread(self._store.score, workflow, row.url, scores[index])
+        live_photos = sorted(
+            (i for i in range(len(videos), len(posts)) if rows[i].status == "pending"),
+            key=lambda i: -scores[i],
         )
+        admitted_photos = await self._check_photos(
+            workflow, root, [posts[i] for i in live_photos], visual
+        )
+        if inputs.publish is not None and (admitted_photos or listing.page_png is not None):
+            # Stored now: the photo links cannot be fetched again after a crash in the clip
+            # checks, which would otherwise leave admitted rows without their files.
+            await self._publish(workflow, inputs.publish)
+        live_videos = sum(1 for row in rows[: len(videos)] if row.status == "pending")
+        logger.info(
+            "footage creator listed=%d passed=%d undecided=%d kept_close=%d videos=%d photos=%d",
+            len(posts),
+            sum(1 for i in range(len(posts)) if verdicts[i] == "pending") - len(kept),
+            len(undecided),
+            len(kept),
+            live_videos,
+            admitted_photos,
+        )
+        return live_videos + admitted_photos
+
+    async def _scores(self, main: SourceReport, texts: list[str]) -> list[float]:
+        if not texts:
+            return []
+        text = main.post.text
+        story = f"{text[:120]}. {text}".strip()
+        vectors = await self._ports.embedder.embed([story, *texts])
+        return [
+            max(0.0, min(1.0, cosine(vectors[0], vector))) if caption.strip() else 0.0
+            for caption, vector in zip(texts, vectors[1:], strict=True)
+        ]
+
+    async def _page_card(self, workflow: str, root: Path, png: bytes) -> None:
+        location = PurePosixPath("reports") / workflow / "cards" / PAGE_CARD
+        try:
+            card = await asyncio.to_thread(write_card, png, root, location)
+        except (CardRejected, OSError):
+            logger.warning("footage creator page card rejected")
+            return
+        await asyncio.to_thread(
+            self._store.set_profile_page, workflow, card.model_dump(mode="json")
+        )
+
+    async def _check_photos(
+        self, workflow: str, root: Path, photos: list[DiscoveredPhoto], visual: str
+    ) -> int:
+        """Up to MAX_PHOTOS photos, best story score first, each judged on itself."""
+        if self._ports.photos is None:
+            return 0
+        admitted = 0
+        for photo in photos:
+            if admitted >= MAX_PHOTOS:
+                break
+            url = str(photo.canonical_url)
+            target = root / "reports" / workflow / "footage" / f"photo-{photo.post_id}"
+            try:
+                path = await self._ports.photos.fetch(str(photo.image_urls[0]), target)
+            except PhotoError:
+                await asyncio.to_thread(self._store.reject, workflow, url, "media_failed")
+                continue
+            try:
+                frame = await self._ports.frames.frame_at(path, 0.0, width=VISION_WIDTH)
+                answer = await self._ports.judge.judge([frame], visual)
+            except FrameError:
+                reason, seen = "media_failed", {}
+            except AttributionError:
+                reason, seen = "vision_unavailable", {}
+            else:
+                seen = {
+                    "kind": answer.kind,
+                    "shows_object": answer.shows_object,
+                    "description": answer.description,
+                }
+                reason = (
+                    "commentary"
+                    if answer.kind == "commentary"
+                    else "object_absent"
+                    if answer.shows_object == "no"
+                    else ""
+                )
+            if reason:
+                path.unlink(missing_ok=True)
+                await asyncio.to_thread(self._store.reject, workflow, url, reason, **seen)
+                continue
+            clip = AdmittedClip(
+                kind=answer.kind,
+                shows_object=answer.shows_object,
+                description=answer.description,
+                media_location=path.relative_to(root).as_posix(),
+                media_checksum=_sha256(path),
+                media_bytes=path.stat().st_size,
+                clip_duration=0.0,
+                clip_start=0.0,
+                ocr={},
+                position=admitted,
+            )
+            await asyncio.to_thread(self._store.admit, workflow, url, clip)
+            admitted += 1
+        return admitted
 
     async def _objects(
         self, main: SourceReport, attribution: SourceAttribution | None
@@ -461,8 +692,9 @@ class FootageBuilder:
         admitted_hashes = await self._verify_admitted(workflow, root)
         main_hashes = await self._main_hashes(main, root)
         candidates = await asyncio.to_thread(self._store.candidates, workflow)
-        pending = [c for c in candidates if c.status == "pending"]
-        admitted = Counter(c.query for c in candidates if c.status == "admitted")
+        clips = [c for c in candidates if c.media_kind == "video"]  # photos are checked apart
+        pending = [c for c in clips if c.status == "pending"]
+        admitted = Counter(c.query for c in clips if c.status == "admitted")
         used = [c.position for c in candidates if c.position is not None]
         state.positions = itertools.count(max(used, default=-1) + 1)
         queues = {
@@ -495,7 +727,8 @@ class FootageBuilder:
                 if ok:
                     admitted[candidate.query] += 1
                     total += 1
-        status: FootageStatus = "ok" if total else "none"
+        photos = await asyncio.to_thread(self._store.admitted, workflow, "image")
+        status: FootageStatus = "ok" if total or photos else "none"
         if inputs.publish is not None:
             await self._publish(workflow, inputs.publish)
         await asyncio.to_thread(self._store.finish_run, workflow, status)
@@ -681,6 +914,16 @@ class FootageBuilder:
         return False
 
     async def _verify_admitted(self, workflow: str, root: Path) -> list[list[int]]:
+        # A photo or page card an earlier attempt kept but cannot be found again is dropped:
+        # its ephemeral link is gone, so it can never be fetched again (spec 5c-2).
+        for photo in await asyncio.to_thread(self._store.admitted, workflow, "image"):
+            path = root / (photo.media_location or "")
+            if not path.is_file() or _sha256(path) != photo.media_checksum:
+                await asyncio.to_thread(self._store.reject, workflow, photo.url, "media_failed")
+        run = await asyncio.to_thread(self._store.run, workflow)
+        page = run.profile_page if run is not None else None
+        if page is not None and not (root / str(page["location"])).is_file():
+            await asyncio.to_thread(self._store.set_profile_page, workflow, None)
         hashes: list[list[int]] = []
         for candidate in await asyncio.to_thread(self._store.admitted, workflow):
             path = root / (candidate.media_location or "")
@@ -718,11 +961,21 @@ class FootageBuilder:
     async def _result(self, workflow: str, status: str) -> FootageResult:
         candidates = await asyncio.to_thread(self._store.candidates, workflow)
         reasons = Counter(c.reason for c in candidates if c.reason)
-        admitted = sum(1 for c in candidates if c.status == "admitted")
+        admitted = sum(1 for c in candidates if c.status == "admitted" and c.media_kind == "video")
+        photos = sum(1 for c in candidates if c.status == "admitted" and c.media_kind == "image")
         logger.info(
-            "footage finished status=%s admitted=%d rejected=%s", status, admitted, dict(reasons)
+            "footage finished status=%s admitted=%d photos=%d rejected=%s",
+            status,
+            admitted,
+            photos,
+            dict(reasons),
         )
-        return FootageResult(status=status, admitted=admitted, rejected=dict(reasons))  # type: ignore[arg-type]
+        return FootageResult(
+            status=status,  # type: ignore[arg-type]
+            admitted=admitted,
+            rejected=dict(reasons),
+            photos=photos,
+        )
 
     @staticmethod
     def _clean_parts(root: Path, workflow: str) -> None:

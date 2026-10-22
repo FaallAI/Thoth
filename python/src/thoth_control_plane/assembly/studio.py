@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import parse_qs, urlsplit, urlunsplit
 
-from thoth_control_plane.assembly.models import ContentSet, MainOcr, MediaRef
+from thoth_control_plane.assembly.models import ContentSet, Footage, MainOcr, MediaRef
 from thoth_control_plane.domain.studio_imports import (
     SourceBlurRegion,
     SourceRole,
@@ -28,6 +28,9 @@ from thoth_control_plane.domain.studio_layout import reading_seconds
 TITLE_LIMIT = 300
 TEXT_LIMIT = 2_000
 FIGURES = "Figures are context, not scenes"
+# Style A materials each platform should yield (spec 2026-10-22 5c-2, G1 and G2).
+POST_CARD_PLATFORMS = frozenset({"x", "threads", "instagram", "tiktok"})
+PROFILE_PAGE_PLATFORMS = frozenset({"tiktok", "instagram", "x", "youtube"})
 
 
 @dataclass(frozen=True)
@@ -137,6 +140,21 @@ class _Builder:
         )
 
 
+def _footage(built: _Builder, role: SourceRole, clips: list[Footage]) -> None:
+    for order, clip in enumerate(clips):
+        built.add(
+            role,
+            order,
+            title=f"@{clip.owner_handle}",
+            text=clip.description or None,
+            platform=clip.platform,
+            url=clip.url,
+            media=clip.video,
+            trim=_trim(clip.ocr),
+            ocr=clip.ocr,
+        )
+
+
 def project_content_set(content_set: ContentSet) -> WorkflowProjection:
     built = _Builder()
     main = content_set.main
@@ -169,18 +187,44 @@ def project_content_set(content_set: ContentSet) -> WorkflowProjection:
             media=image,
             trim=None,
         )
-    for order, clip in enumerate(content_set.footage):
+    if main.post_card is not None and main.kind != "card":
         built.add(
-            "footage",
-            order,
-            title=f"@{clip.owner_handle}",
-            text=clip.description or None,
-            platform=clip.platform,
-            url=clip.url,
-            media=clip.video,
-            trim=_trim(clip.ocr),
-            ocr=clip.ocr,
+            "post_card",
+            0,
+            title=f"@{main.owner_handle}",
+            text=None,
+            platform=str(main.platform),
+            url=None,
+            media=main.post_card,
+            trim=None,
+            reading=reading_seconds(main.description),
         )
+    if main.profile_page is not None:
+        built.add(
+            "profile_page",
+            0,
+            title=f"@{main.owner_handle}",
+            text=None,
+            platform=str(main.platform),
+            url=None,
+            media=main.profile_page,
+            trim=None,
+        )
+    creator = [clip for clip in content_set.footage if clip.source == "creator"]
+    search = [clip for clip in content_set.footage if clip.source != "creator"]
+    _footage(built, "creator_footage", creator)
+    for order, photo in enumerate(content_set.photos):
+        built.add(
+            "creator_photo",
+            order,
+            title=f"@{photo.owner_handle}",
+            text=built.bounded("photos.caption", "creator_photo", order, photo.caption, TEXT_LIMIT),
+            platform=photo.platform,
+            url=photo.url,
+            media=photo.image,
+            trim=None,
+        )
+    _footage(built, "footage", search)
     if main.profile_card is not None:
         built.add(
             "profile_card",
@@ -224,5 +268,13 @@ def project_content_set(content_set: ContentSet) -> WorkflowProjection:
     if content_set.figures:
         figures = [figure.model_dump(mode="json") for figure in content_set.figures]
         built.report("figures", None, None, FIGURES, figures)
+    if content_set.style_a:
+        # A material the platform should yield but the run did not capture is shown, never
+        # only logged (spec 5c-2, "no silent gap").
+        platform = str(main.platform)
+        if main.kind != "card" and main.post_card is None and platform in POST_CARD_PLATFORMS:
+            built.report("main.post_card", "post_card", 0, "Not captured: post card", None)
+        if main.profile_page is None and platform in PROFILE_PAGE_PLATFORMS:
+            built.report("main.profile_page", "profile_page", 0, "Not captured: profile page", None)
     projection = StudioSourceProjection(items=built.items, unsupported=built.unsupported)
     return WorkflowProjection(projection=projection, media=built.media)

@@ -84,6 +84,9 @@ SIGN_IN_PATHS = ("/i/flow/login", "/login")
 # Both fail closed: a shifted layout matches nothing rather than the wrong block.
 POST_CARD_SELECTOR = 'article:has(a[href$="/status/{post_id}"])'
 PROFILE_CARD_SELECTOR = 'main > div:nth-child(4):has-text("@{owner}")'
+# The profile page card (spec 5c-2): X lists posts, not a grid, so the header and the first
+# post. Checked against the page recorded on 2026-10-22, whose 2026 DOM has no test ids.
+PROFILE_PAGE_ITEMS = "main article"
 # A tag no page uses: an unreadable URL crops nothing.
 NO_MATCH = "thoth-no-card"
 STATUS_ID = re.compile(r"/status/([0-9]{1,19})")
@@ -137,6 +140,9 @@ def x_layout() -> CardLayout:
         profile_selector=PROFILE_CARD_SELECTOR,
         tag_js=TAG_REPLIES_JS,
         login_paths=LOGIN_PATHS,
+        measure_media=True,
+        page_items=PROFILE_PAGE_ITEMS,
+        page_rows=1,
     )
 
 
@@ -304,26 +310,29 @@ class XAcquirer:
                 )
             owner = parsed.post.owner_handle
             canonical = post_url(owner, identity.post_id)
-            want_post = not any(item.kind == "video" for item in media)
+            # Every post gets its card, video posts too: style A shows it (spec 5c-2, G1).
             cards = await self._headless.cards(
                 canonical,
                 f"{CANONICAL_BASE}/{owner}",
-                want_post=want_post,
+                want_post=True,
                 targets=comment_targets(page.comments),
             )
-            post_card, comments, profile_card = await asyncio.to_thread(
+            saved = await asyncio.to_thread(
                 persist_cards, cards, page.comments, workflow_id, artifact_root
             )
+            comments = saved.comments
             log_outcome(
                 "x",
                 CONTENT_METHOD,
                 len(media),
                 comments,
-                post_card,
-                profile_card,
-                want_post=want_post,
+                saved.post_card,
+                saved.profile_card,
+                want_post=True,
                 problems=cards.problems,
                 dropped=page.dropped_comments,
+                profile_page=saved.profile_page,
+                want_page=True,
             )
             return AcquisitionResult(
                 report=SourceReport(
@@ -333,8 +342,9 @@ class XAcquirer:
                     media=media,
                     outcome=AcquisitionOutcome(attempts=[attempt]),
                     comments=comments,
-                    post_card=post_card,
-                    profile_card=profile_card,
+                    post_card=saved.post_card,
+                    profile_card=saved.profile_card,
+                    profile_page=saved.profile_page,
                 )
             )
         finally:

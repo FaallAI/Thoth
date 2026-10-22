@@ -21,6 +21,7 @@ from thoth_control_plane.acquisition.models import (
     DiscoveryResult,
     KeywordDiscovery,
     MaterializedMedia,
+    MediaBox,
     ProfileDiscovery,
     ReportComment,
     ResolvedMedia,
@@ -249,8 +250,28 @@ def test_report_rejects_more_than_fifty_comments() -> None:
                 "height": 80,
             },
         ),
+        (
+            "post_card",
+            {
+                "location": "reports/wf/cards/post.png",
+                "bytes": 4_000,
+                "checksum": "sha256:" + "b" * 64,
+                "width": 300,
+                "height": 80,
+            },
+        ),
+        (
+            "profile_page",
+            {
+                "location": "reports/wf/cards/profile-page.png",
+                "bytes": 4_000,
+                "checksum": "sha256:" + "b" * 64,
+                "width": 300,
+                "height": 80,
+            },
+        ),
     ],
-    ids=["comments", "profile_card"],
+    ids=["comments", "profile_card", "post_card", "profile_page"],
 )
 def test_v1_report_rejects_v2_enrichment(field: str, value: object) -> None:
     payload = json.loads(_fixture_report().model_dump_json())
@@ -557,3 +578,46 @@ def test_a_login_wall_is_reported_with_the_request_blocked_code() -> None:
             assert failure_code(reason) == reason.value
     failure = AcquisitionFailure(code=failure_code(AcquisitionReason.LOGIN_WALL), retryable=True)
     assert failure.code == "request_blocked"
+
+
+def test_media_box_stays_inside_the_card() -> None:
+    assert MediaBox(x=0.1, y=0.2, w=0.8, h=0.5).w == 0.8
+    with pytest.raises(ValidationError):
+        MediaBox(x=0.5, y=0.0, w=0.6, h=0.5)
+    with pytest.raises(ValidationError):
+        MediaBox(x=0.0, y=0.0, w=0.0, h=0.5)
+
+
+def test_a_card_carries_its_media_box() -> None:
+    card = _card().model_copy(update={"media_box": MediaBox(x=0.0, y=0.25, w=1.0, h=0.5)})
+    restored = CardArtifact.model_validate_json(card.model_dump_json())
+    assert restored.media_box == MediaBox(x=0.0, y=0.25, w=1.0, h=0.5)
+    assert _card().media_box is None
+
+
+def test_a_source_report_carries_its_profile_page() -> None:
+    page = _card("reports/wf_contract_001/cards/profile-page.png")
+    report = SourceReport.model_validate_json(
+        json.dumps(
+            {
+                "workflow_id": "wf_contract_001",
+                "source": {
+                    "platform": "x",
+                    "canonical_url": "https://x.com/creator/status/1234567890",
+                },
+                "post": {"post_id": "1234567890", "owner_handle": "creator", "text": "a post"},
+                "outcome": {
+                    "attempts": [
+                        {
+                            "strategy": "scrapling_request",
+                            "status": "succeeded",
+                            "attempt_count": 1,
+                            "elapsed_ms": 10,
+                        }
+                    ]
+                },
+                "profile_page": json.loads(page.model_dump_json()),
+            }
+        )
+    )
+    assert SourceReport.model_validate_json(report.model_dump_json()).profile_page == page

@@ -159,6 +159,7 @@ class BrowserSnapshot(StrictModel):
     media_candidates: list[ResolvedMedia] = Field(default_factory=list)
     comments: list[TikTokComment] = Field(default_factory=list)
     profile_card_png: bytes | None = Field(default=None, exclude=True, repr=False)
+    post_card_png: bytes | None = Field(default=None, exclude=True, repr=False)
 
 
 class TikTokSource(StrictModel):
@@ -171,6 +172,21 @@ class AcquisitionOutcome(StrictModel):
     attempts: Annotated[list[AcquisitionAttempt], Field(min_length=1, max_length=3)]
 
 
+class MediaBox(StrictModel):
+    """Where a post's photo or video sits inside its card, as fractions of the card."""
+
+    x: Annotated[float, Field(ge=0, le=1)]
+    y: Annotated[float, Field(ge=0, le=1)]
+    w: Annotated[float, Field(gt=0, le=1)]
+    h: Annotated[float, Field(gt=0, le=1)]
+
+    @model_validator(mode="after")
+    def inside_the_card(self) -> MediaBox:
+        if self.x + self.w > 1 + 1e-9 or self.y + self.h > 1 + 1e-9:
+            raise ValueError("a media box stays inside its card")
+        return self
+
+
 class CardArtifact(StrictModel):
     """A real TikTok card crop persisted beside the report; never a synthetic render."""
 
@@ -180,6 +196,8 @@ class CardArtifact(StrictModel):
     checksum: Checksum
     width: Annotated[int, Field(gt=0)]
     height: Annotated[int, Field(gt=0)]
+    # Only a post card has one (spec 5c-2, G1); item 6 plays the post's video inside it.
+    media_box: MediaBox | None = None
 
 
 class ReportComment(StrictModel):
@@ -200,10 +218,13 @@ class TikTokSourceReport(StrictModel):
     outcome: AcquisitionOutcome
     comments: list[ReportComment] = Field(default_factory=list, max_length=MAX_COMMENTS)
     profile_card: CardArtifact | None = None
+    post_card: CardArtifact | None = None
+    profile_page: CardArtifact | None = None
 
     @model_validator(mode="after")
     def keep_v1_free_of_enrichment(self) -> TikTokSourceReport:
-        if self.schema_version == 1 and (self.comments or self.profile_card is not None):
+        cards = (self.profile_card, self.post_card, self.profile_page)
+        if self.schema_version == 1 and (self.comments or any(c is not None for c in cards)):
             raise ValueError("schema_version 1 reports carry no comments or cards")
         if any(item.kind != "video" or item.index != 1 for item in self.media):
             raise ValueError("schema_version 1 and 2 reports carry one video at index 1")
@@ -235,6 +256,7 @@ class SourceReport(StrictModel):
     comments: list[ReportComment] = Field(default_factory=list, max_length=MAX_COMMENTS)
     post_card: CardArtifact | None = None
     profile_card: CardArtifact | None = None
+    profile_page: CardArtifact | None = None
 
     @model_validator(mode="after")
     def require_ordered_content(self) -> SourceReport:
@@ -352,6 +374,24 @@ class DiscoveredVideo(StrictModel):
     )
 
 
+class DiscoveredPhoto(StrictModel):
+    """A photo or carousel post on a creator's profile (spec 5c-2, G4).
+
+    `image_urls` are the platform's ephemeral image links, used once to fetch a photo and never
+    stored in a report or a Content Set.
+    """
+
+    post_id: SafeId
+    owner_handle: TikTokHandle
+    canonical_url: HttpUrl
+    caption: Annotated[str, Field(max_length=10_000)] = ""
+    published_at: PublishedAt | None = None
+    hashtags: list[Annotated[str, Field(min_length=1, max_length=100)]] = Field(
+        default_factory=list
+    )
+    image_urls: Annotated[list[HttpUrl], Field(min_length=1, max_length=20)]
+
+
 class DiscoveryDrops(StrictModel):
     ads: Annotated[int, Field(ge=0)] = 0
     photo_posts: Annotated[int, Field(ge=0)] = 0
@@ -368,3 +408,6 @@ class DiscoveryResult(StrictModel):
     exhausted: bool  # the last captured page reported no more results
     drops: DiscoveryDrops
     reason: DiscoveryReason | None = None
+    photos: list[DiscoveredPhoto] = Field(default_factory=list)
+    # The profile page card a listing visit cropped (TikTok, spec 5c-2); never serialized.
+    page_png: bytes | None = Field(default=None, exclude=True, repr=False)

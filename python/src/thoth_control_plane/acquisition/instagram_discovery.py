@@ -18,6 +18,7 @@ from thoth_control_plane.acquisition.adapters.instagram import (
     CANONICAL_BASE,
     CODE,
     HANDLE,
+    _media_of,
     engagement_of,
     find_instagram_media,
     login_required,
@@ -27,6 +28,7 @@ from thoth_control_plane.acquisition.discovery import MAX_CAPTION, _empty
 from thoth_control_plane.acquisition.instagram_service import InstagramRequestFetcher
 from thoth_control_plane.acquisition.models import (
     AcquisitionReason,
+    DiscoveredPhoto,
     DiscoveredVideo,
     DiscoveryDrops,
     DiscoveryReason,
@@ -140,12 +142,36 @@ def _video(node: dict[str, Any], owner: str) -> DiscoveredVideo | None:
         return None
 
 
+def _photo(node: dict[str, Any], owner: str) -> DiscoveredPhoto | None:
+    """A photo or carousel post with its images (spec 5c-2, G4); its videos are left out."""
+    code = node.get("code")
+    pk = numeric_id(node.get("pk"))
+    media = _media_of(node)
+    images = [item.ephemeral_url.get_secret_value() for item in media if item.kind == "image"]
+    if not isinstance(code, str) or CODE.fullmatch(code) is None or pk is None or not images:
+        return None
+    caption = node.get("caption")
+    text = caption.get("text") if isinstance(caption, dict) else None
+    try:
+        return DiscoveredPhoto(
+            post_id=pk,
+            owner_handle=owner,
+            canonical_url=f"{CANONICAL_BASE}/p/{code}/",
+            caption=text[:MAX_CAPTION] if isinstance(text, str) else "",
+            published_at=published_at_from_epoch(node.get("taken_at")),
+            image_urls=images[:20],
+        )
+    except ValueError:
+        return None
+
+
 def parse_profile(roots: Iterable[object], handle: str, limit: int) -> DiscoveryResult:
     found = _timeline(roots, handle)
     if found is None:
         return _empty("profile", DiscoveryReason.NO_DATA)
     owner, edges = found
     videos: dict[str, DiscoveredVideo] = {}
+    photos: dict[str, DiscoveredPhoto] = {}
     photo_posts = invalid = 0
     for edge in edges:
         node = edge.get("node") if isinstance(edge, dict) else None
@@ -155,6 +181,8 @@ def parse_profile(roots: Iterable[object], handle: str, limit: int) -> Discovery
             continue
         if media_type != VIDEO_MEDIA_TYPE:
             photo_posts += 1
+            if (photo := _photo(node, owner)) is not None:
+                photos.setdefault(photo.post_id, photo)
             continue
         video = _video(node, owner)
         if video is None:
@@ -168,6 +196,7 @@ def parse_profile(roots: Iterable[object], handle: str, limit: int) -> Discovery
         pages=1,
         exhausted=False,
         drops=DiscoveryDrops(photo_posts=photo_posts, invalid=invalid),
+        photos=list(photos.values())[:limit],
     )
 
 

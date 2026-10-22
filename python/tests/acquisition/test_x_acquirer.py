@@ -14,7 +14,11 @@ from tests.acquisition.fakes import FakeMaterializer
 from tests.acquisition.png_fixtures import make_png
 from thoth_control_plane.acquisition import x_service
 from thoth_control_plane.acquisition.card_browser import Cards
-from thoth_control_plane.acquisition.models import AcquisitionReason, AcquisitionStrategy
+from thoth_control_plane.acquisition.models import (
+    AcquisitionReason,
+    AcquisitionStrategy,
+    MediaBox,
+)
 from thoth_control_plane.acquisition.x_service import RequestFetchError, XAcquirer
 
 POST_ID = "1800000000000000001"
@@ -162,14 +166,18 @@ async def test_post_report_carries_media_replies_views_and_cards(
 
 
 @pytest.mark.asyncio
-async def test_a_video_post_asks_for_no_post_card(tmp_path: Path) -> None:
+async def test_a_video_post_asks_for_its_post_card(tmp_path: Path) -> None:
+    # Style A shows the post with its video playing inside (spec 5c-2, G1).
     variants = [{"type": "video/mp4", "src": "https://video.twimg.com/vid/1280x720/a.mp4"}]
     data = _synd(mediaDetails=[{"type": "video"}], video={"variants": variants})
-    headless = FakeHeadless(_cards(post_png=None))
+    box = MediaBox(x=0.0, y=0.3, w=1.0, h=0.5)
+    headless = FakeHeadless(_cards(post_media_box=box, profile_page_png=make_png(400, 900)))
     result = await _inspect(tmp_path, FakeRequest(data), headless)
     assert result.report is not None
     assert [item.kind for item in result.report.media] == ["video"]
-    assert headless.card_calls[0]["want_post"] is False
+    assert headless.card_calls[0]["want_post"] is True
+    assert result.report.post_card is not None and result.report.post_card.media_box == box
+    assert result.report.profile_page is not None
 
 
 @pytest.mark.asyncio

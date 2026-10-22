@@ -18,11 +18,12 @@ from typing import Any, Literal, Protocol
 
 from pydantic import ValidationError
 
-from thoth_control_plane.acquisition.models import MaterializedMedia, SourceReport
-from thoth_control_plane.assembly.comments import card_ref, merge_comments
+from thoth_control_plane.acquisition.models import CardArtifact, MaterializedMedia, SourceReport
+from thoth_control_plane.assembly.comments import card_ref, merge_comments, post_card_ref
 from thoth_control_plane.assembly.figures import figure_prompt, normalize_figures
 from thoth_control_plane.assembly.models import (
     MAX_FOOTAGE,
+    MAX_PHOTOS,
     ContentSet,
     Figure,
     Footage,
@@ -30,6 +31,7 @@ from thoth_control_plane.assembly.models import (
     Main,
     MainOcr,
     MediaRef,
+    Photo,
 )
 from thoth_control_plane.assembly.ocr import analyze_main_ocr
 from thoth_control_plane.assembly.ports import (
@@ -97,6 +99,7 @@ def _main_fields(report: SourceReport, source: Literal["input", "original"]) -> 
         "published_at": report.post.published_at,
         "engagement": dict(report.post.engagement),
         "profile_card": card_ref(report.profile_card),
+        "profile_page": card_ref(report.profile_page),
     }
     videos = [media for media in report.media if media.kind == "video"]
     images = [media for media in report.media if media.kind == "image"]
@@ -108,6 +111,9 @@ def _main_fields(report: SourceReport, source: Literal["input", "original"]) -> 
         fields.update(kind="card", card=card_ref(report.post_card))
     else:
         raise AssemblyError("main_media_missing")
+    if fields["kind"] != "card":
+        # A text-only post's card already is the main (spec 5c-2, G1).
+        fields["post_card"] = post_card_ref(report.post_card)
     return fields
 
 
@@ -148,6 +154,31 @@ def _footage_item(view: Any) -> Footage | None:
         return None
 
 
+IMAGE_TYPES = {".jpg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
+
+
+def _photo_item(view: Any) -> Photo | None:
+    location = PurePosixPath(view.media_location or "")
+    try:
+        return Photo(
+            source=view.source,
+            url=view.url,
+            platform=view.platform,
+            owner_handle=view.owner_handle,
+            caption=view.caption[:2000],
+            image=MediaRef(
+                location=location,
+                media_type=IMAGE_TYPES.get(location.suffix, ""),
+                checksum=view.media_checksum,
+                bytes=view.media_bytes,
+            ),
+            story_score=min(1.0, max(0.0, view.story_score or 0.0)),
+        )
+    except (ValidationError, TypeError, ValueError):
+        logger.warning("a stored creator photo failed validation; it is left out")
+        return None
+
+
 def _video_path(root: Path, video: MediaRef) -> Path:
     base = root.resolve()
     path = (root / video.location).resolve()
@@ -181,6 +212,10 @@ class ContentAssembler:
 
         fields = _main_fields(main_report, source)  # type: ignore[arg-type]
         footage, footage_status = await self._footage(inputs.workflow_id)
+        photos, page = await self._creator(inputs.workflow_id)
+        if fields["profile_page"] is None:
+            # TikTok's page card comes from the footage run's creator listing (spec 5c-2).
+            fields["profile_page"] = page
         figures_task = asyncio.create_task(
             self._figures(
                 fields["title"],
@@ -223,6 +258,8 @@ class ContentAssembler:
                 figures_status=status,
                 footage=footage,
                 footage_status=footage_status,
+                photos=photos,
+                style_a=True,
             )
         except ValidationError:
             logger.warning("content set rejected by its validators")
@@ -247,6 +284,28 @@ class ContentAssembler:
         if run.footage_status == "ok":
             return items, "ok" if items else "none"
         return [], run.footage_status or "unavailable"
+
+    async def _creator(self, workflow_id: str) -> tuple[list[Photo], MediaRef | None]:
+        """The creator photos and the page card a finished footage run kept (spec 5c-2)."""
+        reader = self._ports.footage
+        if reader is None:
+            return [], None
+        try:
+            run = await asyncio.to_thread(reader.run, workflow_id)
+            if run is None or run.status != "done":
+                return [], None
+            views = await asyncio.to_thread(reader.admitted, workflow_id, "image")
+        except Exception:
+            logger.warning("creator photos unavailable; the content set continues without them")
+            return [], None
+        photos = [item for item in (_photo_item(view) for view in views) if item is not None]
+        page = None
+        if run.profile_page is not None:
+            try:
+                page = card_ref(CardArtifact.model_validate(run.profile_page, strict=False))
+            except ValidationError:
+                logger.warning("a stored page card failed validation; it is left out")
+        return photos[:MAX_PHOTOS], page
 
     async def _figures(
         self, title: str, description: str, headline: str, footage: Sequence[str] = ()
