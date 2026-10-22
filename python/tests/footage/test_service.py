@@ -993,13 +993,19 @@ def _creator_inputs(tmp_path: Path, publish=None) -> FootageInputs:
     )
 
 
-async def test_a_tiktok_main_lists_no_creator(store: FootageStore, tmp_path: Path) -> None:
-    # Operator, 2026-10-22: TikTok's profile listing hits a captcha even signed in, and each one
-    # cools the account, so it stays off until the captcha is solved.
-    ports = _creator(CreatorListing(videos=[_own(1, "banjir kemang")], photos=[]))
-    await _builder(store, **ports).build(_inputs(tmp_path))
-    assert ports["creator"].calls == []
-    assert [c for c in store.candidates("wf_a") if c.source == "creator"] == []
+async def test_a_tiktok_main_lists_the_creator(store: FootageStore, tmp_path: Path) -> None:
+    # TikTok is back in CREATOR_PLATFORMS: the listing's captcha is solved in the page when
+    # its drag subtypes rise, so a TikTok main lists its creator like the other platforms.
+    own = [_own(1, "banjir kemang dari sisi lain"), _own(2, "banjir kemang dari sisi lain")]
+    ports = _creator(CreatorListing(videos=own, photos=[]))
+
+    result = await _builder(store, **ports).build(_inputs(tmp_path))
+
+    assert ports["creator"].calls == [("tiktok", "akun", 24)]
+    assert result.status == "ok"
+    assert [c.url for c in store.admitted("wf_a") if c.source == "creator"] == [
+        str(video.canonical_url) for video in own
+    ]
 
 
 def _own(n: int, caption: str, published: str = "2026-10-11T08:00:00Z") -> DiscoveredVideo:
