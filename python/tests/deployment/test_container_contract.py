@@ -154,8 +154,12 @@ def test_container_workflow_pins_gates_tags_platform_and_digest_summary() -> Non
         "          THOTH_TEST_MEDIA_S3_ACCESS_KEY: thoth-test\n"
         "          THOTH_TEST_MEDIA_S3_SECRET_KEY: thoth-test-secret\n"
         '          THOTH_REQUIRE_MINIO_TESTS: "1"\n'
+        '          THOTH_REQUIRE_BROWSER_TESTS: "1"\n'
         '        run: uv run pytest -m "not live" -q'
     ) in workflow
+    # The card selectors are checked against recorded pages in Chromium (spec 5c-2); without a
+    # browser those tests would skip and a broken selector would pass CI unseen.
+    assert "uv run playwright install --with-deps chromium" in workflow
     # The speech adapter tests fail without models (operator, 2026-10-13), so CI fetches them.
     assert "fetch_speech_models.py --whisper tiny" in workflow
     assert "bun --cwd=scout run test:acquisition" in workflow

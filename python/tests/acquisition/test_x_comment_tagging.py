@@ -9,14 +9,13 @@ from typing import Any
 
 import pytest
 
+from tests.acquisition.browser_support import async_api, launch
 from thoth_control_plane.acquisition.card_browser import COMMENT_ROW_ATTRIBUTE
 from thoth_control_plane.acquisition.x_service import (
     POST_CARD_SELECTOR,
     PROFILE_CARD_SELECTOR,
     TAG_REPLIES_JS,
 )
-
-async_api = pytest.importorskip("playwright.async_api")
 
 ROW = "<article><div>Name</div><div>@{a}</div><div>{t}</div>{quote}</article>"
 LINKED = '<article id="a{i}"><a href="/{a}/status/{i}">@{a}</a><div>{t}</div></article>'
@@ -28,10 +27,7 @@ def _list(rows: list[tuple[str, str, str]]) -> str:
 
 async def _tag(html: str, targets: list[dict[str, str]]) -> tuple[Any, Any]:
     async with async_api.async_playwright() as playwright:
-        try:
-            browser = await playwright.chromium.launch()
-        except Exception:
-            pytest.skip("no Chromium build installed")
+        browser = await launch(playwright)
         try:
             page = await browser.new_page()
             await page.set_content(html)
@@ -81,10 +77,7 @@ async def test_the_post_selector_skips_the_parent_tweet() -> None:
     post = f'<article id="post"><a href="/user_001/status/{post_id}">t</a></article>'
     reply = '<article id="reply"><a href="/fan_001/status/1800000000000000101">t</a></article>'
     async with async_api.async_playwright() as playwright:
-        try:
-            browser = await playwright.chromium.launch()
-        except Exception:
-            pytest.skip("no Chromium build installed")
+        browser = await launch(playwright)
         try:
             page = await browser.new_page()
             await page.set_content(f"<main>{parent}{post}{reply}</main>")
@@ -102,10 +95,7 @@ async def test_a_reply_row_is_the_one_linking_to_its_own_status() -> None:
     reply = LINKED.format(a="ann", i="1800000000000000101", t="Yes")
     target = {"comment_id": "1800000000000000101", "author": "ann", "prefix": "Yes"}
     async with async_api.async_playwright() as playwright:
-        try:
-            browser = await playwright.chromium.launch()
-        except Exception:
-            pytest.skip("no Chromium build installed")
+        browser = await launch(playwright)
         try:
             page = await browser.new_page()
             await page.set_content(f"<main>{post}{reply}</main>")
@@ -122,10 +112,7 @@ async def test_a_reply_row_is_the_one_linking_to_its_own_status() -> None:
 async def test_the_profile_selector_fails_closed() -> None:
     blocks = "<main><div>a</div><div>b</div><div>c</div><div>Sign up today</div></main>"
     async with async_api.async_playwright() as playwright:
-        try:
-            browser = await playwright.chromium.launch()
-        except Exception:
-            pytest.skip("no Chromium build installed")
+        browser = await launch(playwright)
         try:
             page = await browser.new_page()
             await page.set_content(blocks)

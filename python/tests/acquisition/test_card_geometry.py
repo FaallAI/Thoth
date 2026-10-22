@@ -12,11 +12,10 @@ from typing import Any
 
 import pytest
 
+from tests.acquisition.browser_support import async_api, launch
 from thoth_control_plane.acquisition import browser, instagram_service, x_service, youtube_service
 from thoth_control_plane.acquisition.card_browser import MEDIA_BOX_JS, PROFILE_PAGE_JS, media_box
 from thoth_control_plane.acquisition.models import MediaBox
-
-async_api = pytest.importorskip("playwright.async_api")
 
 PAGES = Path(__file__).parent / "pages"
 X_POST_ID = "2110509448032862621"
@@ -33,10 +32,7 @@ GRID = """<style>body{{margin:0}}</style><div class="head" style="width:600px;he
 
 async def _run(html: str, script: str, arg: Any) -> Any:
     async with async_api.async_playwright() as playwright:
-        try:
-            browser = await playwright.chromium.launch()
-        except Exception:
-            pytest.skip("no Chromium build installed")
+        browser = await launch(playwright)
         try:
             page = await browser.new_page(viewport={"width": 1280, "height": 720})
             await page.set_content(html)
@@ -47,10 +43,7 @@ async def _run(html: str, script: str, arg: Any) -> Any:
 
 async def _count(name: str, selector: str) -> int:
     async with async_api.async_playwright() as playwright:
-        try:
-            browser = await playwright.chromium.launch()
-        except Exception:
-            pytest.skip("no Chromium build installed")
+        browser = await launch(playwright)
         try:
             page = await browser.new_page()
             await page.route("**/*", lambda route: route.abort())

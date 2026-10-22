@@ -9,10 +9,9 @@ from typing import Any
 
 import pytest
 
+from tests.acquisition.browser_support import async_api, launch
 from thoth_control_plane.acquisition.card_browser import COMMENT_ROW_ATTRIBUTE
 from thoth_control_plane.acquisition.youtube_service import TAG_COMMENTS_JS
-
-async_api = pytest.importorskip("playwright.async_api")
 
 
 def _thread(cid: str, author: str, text: str, reply: str = "") -> str:
@@ -26,10 +25,7 @@ def _thread(cid: str, author: str, text: str, reply: str = "") -> str:
 
 async def _tag(html: str, targets: list[dict[str, str]]) -> tuple[Any, Any]:
     async with async_api.async_playwright() as playwright:
-        try:
-            browser = await playwright.chromium.launch()
-        except Exception:
-            pytest.skip("no Chromium build installed")
+        browser = await launch(playwright)
         try:
             page = await browser.new_page()
             await page.set_content(f"<div id='comments'>{html}</div>")

@@ -9,12 +9,11 @@ from typing import Any
 
 import pytest
 
+from tests.acquisition.browser_support import async_api, launch
 from thoth_control_plane.acquisition.instagram_service import (
     COMMENT_ROW_ATTRIBUTE,
     TAG_COMMENTS_JS,
 )
-
-async_api = pytest.importorskip("playwright.async_api")
 
 ROW = (
     '<li><a href="/{a}/"><img src="data:," alt=""></a>'
@@ -28,10 +27,7 @@ def _list(rows: list[tuple[str, str]]) -> str:
 
 async def _tag(html: str, targets: list[dict[str, str]]) -> tuple[Any, Any]:
     async with async_api.async_playwright() as playwright:
-        try:
-            browser = await playwright.chromium.launch()
-        except Exception:
-            pytest.skip("no Chromium build installed")
+        browser = await launch(playwright)
         try:
             page = await browser.new_page()
             await page.set_content(html)
