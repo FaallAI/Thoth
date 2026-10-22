@@ -86,6 +86,9 @@ SHARE_RESOLUTION_METHOD: Literal["request", "headless"] = "request"
 DIALOG_CLOSE_SELECTOR = 'div[role=dialog] svg[aria-label="Close"]'
 POST_CARD_SELECTOR = "main > div > div"
 PROFILE_CARD_SELECTOR = "header"
+# The profile page card (spec 5c-2): the header and the first rows of the post grid, as the
+# signed-out profile showed them on the page recorded on 2026-10-22.
+PROFILE_PAGE_ITEMS = 'main a[href*="/p/"], main a[href*="/reel/"]'
 LOGIN_PATHS = ("/accounts/login", "/login", "/challenge")
 # A sign-in page means no usable session; a challenge means the session was flagged.
 SIGN_IN_PATHS = ("/accounts/login", "/login")
@@ -123,6 +126,8 @@ INSTAGRAM_LAYOUT = CardLayout(
     tag_js=TAG_COMMENTS_JS,
     login_paths=LOGIN_PATHS,
     dismiss_selector=DIALOG_CLOSE_SELECTOR,
+    measure_media=True,
+    page_items=PROFILE_PAGE_ITEMS,
 )
 # Kept under its Stage 3b name for the Instagram callers and tests.
 InstagramCards = Cards
@@ -293,26 +298,29 @@ class InstagramAcquirer:
                     )
                 )
             assert parsed is not None  # a None parse always carries a reason
-            want_post = not any(item.kind == "video" for item in media)
+            # Every post gets its card, video posts too: style A shows it (spec 5c-2, G1).
             cards = await self._headless.cards(
                 str(identity.canonical_url),
                 f"{CANONICAL_BASE}/{parsed.post.owner_handle}/",
-                want_post=want_post,
+                want_post=True,
                 targets=comment_targets(parsed.comments),
             )
-            post_card, comments, profile_card = await asyncio.to_thread(
+            saved = await asyncio.to_thread(
                 persist_cards, cards, parsed.comments, workflow_id, artifact_root
             )
+            comments = saved.comments
             log_outcome(
                 "instagram",
                 CONTENT_METHOD,
                 len(media),
                 comments,
-                post_card,
-                profile_card,
-                want_post=want_post,
+                saved.post_card,
+                saved.profile_card,
+                want_post=True,
                 problems=cards.problems,
                 dropped=parsed.dropped_comments,
+                profile_page=saved.profile_page,
+                want_page=True,
             )
             return AcquisitionResult(
                 report=SourceReport(
@@ -322,8 +330,9 @@ class InstagramAcquirer:
                     media=media,
                     outcome=AcquisitionOutcome(attempts=[attempt]),
                     comments=comments,
-                    post_card=post_card,
-                    profile_card=profile_card,
+                    post_card=saved.post_card,
+                    profile_card=saved.profile_card,
+                    profile_page=saved.profile_page,
                 )
             )
         finally:

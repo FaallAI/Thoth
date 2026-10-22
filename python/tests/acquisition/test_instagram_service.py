@@ -19,6 +19,7 @@ from thoth_control_plane.acquisition.instagram_service import (
     DIALOG_CLOSE_SELECTOR,
     POST_CARD_SELECTOR,
     PROFILE_CARD_SELECTOR,
+    PROFILE_PAGE_ITEMS,
     TAG_COMMENTS_JS,
     CommentTarget,
     InstagramHeadlessBrowser,
@@ -243,9 +244,11 @@ async def test_cards_crop_post_comments_and_profile_in_one_session() -> None:
     assert post_page.clicked == [DIALOG_CLOSE_SELECTOR]
     assert post_page.shots == [POST_CARD_SELECTOR, f'[{COMMENT_ROW_ATTRIBUTE}="{C1}"]']
     assert post_page.evaluated == [
-        [{"comment_id": C1, "author": "fan_001", "prefix": "first comment"}]
+        POST_CARD_SELECTOR,  # the media box, measured right after the crop (spec 5c-2)
+        [{"comment_id": C1, "author": "fan_001", "prefix": "first comment"}],
     ]
     assert profile_page.shots == [PROFILE_CARD_SELECTOR]
+    assert profile_page.evaluated == [[PROFILE_CARD_SELECTOR, PROFILE_PAGE_ITEMS, 2]]
     assert session.exited == 1
     assert active_scrapling_session_count() == 0
 

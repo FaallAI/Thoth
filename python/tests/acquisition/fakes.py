@@ -28,18 +28,27 @@ class FakeLocator:
 class FakeCardPage:
     """A page whose tagging script tags `tagged`; records clicks, shots, and scripts."""
 
-    def __init__(self, url: str, tagged: list[str] | None = None) -> None:
+    def __init__(
+        self, url: str, tagged: list[str] | None = None, results: dict[str, object] | None = None
+    ) -> None:
         self.url, self.tagged = url, tagged or []
+        # Answers for scripts other than the tagging one, keyed by the script text.
+        self.results = results or {}
         self.clicked: list[str] = []
         self.shots: list[str] = []
+        self.clips: list[dict[str, float]] = []
         self.evaluated: list[tuple[str, object]] = []
 
     def locator(self, selector: str) -> FakeLocator:
         return FakeLocator(self, selector)
 
-    async def evaluate(self, script: str, arg: object) -> list[str]:
+    async def evaluate(self, script: str, arg: object = None) -> object:
         self.evaluated.append((script, arg))
-        return self.tagged
+        return self.results.get(script, self.tagged)
+
+    async def screenshot(self, **kwargs: Any) -> bytes:
+        self.clips.append(kwargs["clip"])
+        return make_png(400, 600)
 
 
 class FakeActive:

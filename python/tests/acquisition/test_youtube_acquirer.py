@@ -112,7 +112,11 @@ class FakeHeadless:
 
 
 def _cards() -> Cards:
-    return Cards(comment_pngs={C1: make_png(400, 80)}, profile_png=make_png(400, 200))
+    return Cards(
+        comment_pngs={C1: make_png(400, 80)},
+        profile_png=make_png(400, 200),
+        profile_page_png=make_png(400, 900),
+    )
 
 
 async def _inspect(tmp_path: Path, client, headless, materializer=None, url: str = URL):
@@ -147,6 +151,8 @@ async def test_a_video_report_carries_the_merged_mp4_comments_and_cards(
     assert report.comments[1].card is None
     assert report.post_card is None
     assert report.profile_card is not None
+    assert report.profile_page is not None
+    assert str(report.profile_page.location) == f"reports/{WF}/cards/profile-page.png"
     assert report.outcome.attempts[0].strategy is AcquisitionStrategy.YT_DLP
     assert client.calls == [
         ("extract", (CANONICAL, True)),

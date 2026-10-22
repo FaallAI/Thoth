@@ -26,6 +26,7 @@ from thoth_control_plane.acquisition.browser import (
 from thoth_control_plane.acquisition.models import (
     AcquisitionReason,
     CardArtifact,
+    MediaBox,
     ReportComment,
 )
 from thoth_control_plane.acquisition.threads_service import exit_session, save_card
@@ -35,6 +36,60 @@ logger = logging.getLogger(__name__)
 COMMENT_ROW_ATTRIBUTE = "data-thoth-comment"
 COMMENT_PREFIX_CHARS = 30
 DIALOG_TIMEOUT_MS = 3_000
+SHOT_TIMEOUT_MS = 10_000
+# The post card's media box (spec 5c-2, G1): every video and every image at least this share of
+# the card's width, joined. Platform class names churn, and X's 2026 DOM has no test ids, so
+# the media is found by shape, not by a selector; avatars and emoji stay below the share.
+MEDIA_BOX_JS = """(selector) => {
+  const card = document.querySelector(selector);
+  if (!card) return null;
+  const box = e => {
+    const b = e.getBoundingClientRect();
+    return {x: b.left, y: b.top, width: b.width, height: b.height};
+  };
+  const c = box(card);
+  const media = [...card.querySelectorAll('video, img')].map(box)
+    .filter(b => b.width >= 0.3 * c.width && b.height > 0);
+  if (!media.length) return {card: c, media: null};
+  const x1 = Math.min(...media.map(b => b.x)), y1 = Math.min(...media.map(b => b.y));
+  const x2 = Math.max(...media.map(b => b.x + b.width));
+  const y2 = Math.max(...media.map(b => b.y + b.height));
+  return {card: c, media: {x: x1, y: y1, width: x2 - x1, height: y2 - y1}};
+}"""
+# The profile page card (spec 5c-2, G2): the profile header and the first `rows` rows of the
+# post grid, as one clip in page coordinates; null while the grid has no visible item.
+PROFILE_PAGE_JS = """([header, items, rows]) => {
+  const head = document.querySelector(header);
+  const visible = [...document.querySelectorAll(items)].filter(e => {
+    const b = e.getBoundingClientRect();
+    return b.width > 0 && b.height > 0;
+  });
+  if (!head || !visible.length) return null;
+  const top = e => Math.round(e.getBoundingClientRect().top + scrollY);
+  const kept = [...new Set(visible.map(top))].sort((a, b) => a - b).slice(0, rows);
+  const rects = [head, ...visible.filter(e => kept.includes(top(e)))]
+    .map(e => e.getBoundingClientRect());
+  const x1 = Math.min(...rects.map(b => b.left)) + scrollX;
+  const y1 = Math.min(...rects.map(b => b.top)) + scrollY;
+  const x2 = Math.max(...rects.map(b => b.right)) + scrollX;
+  const y2 = Math.max(...rects.map(b => b.bottom)) + scrollY;
+  return {x: Math.max(0, x1), y: Math.max(0, y1), width: x2 - x1, height: y2 - y1};
+}"""
+
+
+def media_box(card: dict[str, float] | None, media: dict[str, float] | None) -> MediaBox | None:
+    """The media's box as fractions of the card's, or None when it is empty or falls outside."""
+    if not card or not media or card["width"] <= 0 or card["height"] <= 0:
+        return None
+    try:
+        return MediaBox(
+            x=round((media["x"] - card["x"]) / card["width"], 4),
+            y=round((media["y"] - card["y"]) / card["height"], 4),
+            w=round(media["width"] / card["width"], 4),
+            h=round(media["height"] / card["height"], 4),
+        )
+    except ValueError:
+        return None
 
 
 @dataclass(frozen=True)
@@ -47,6 +102,11 @@ class CardLayout:
     tag_js: str
     login_paths: tuple[str, ...]
     dismiss_selector: str | None = None
+    # Measure where the post's media sits inside the post card (spec 5c-2, G1).
+    measure_media: bool = False
+    # Grid items of the profile page; with them the page card is cropped too (spec 5c-2, G2).
+    page_items: str | None = None
+    page_rows: int = 2
 
 
 def is_login_path(url: object, login_paths: tuple[str, ...]) -> bool:
@@ -77,6 +137,8 @@ class Cards:
     comment_pngs: dict[str, bytes] = field(default_factory=dict)
     profile_png: bytes | None = None
     problems: list[str] = field(default_factory=list)
+    post_media_box: MediaBox | None = None
+    profile_page_png: bytes | None = None
 
 
 async def _dismiss(page: Any, selector: str | None) -> None:
@@ -105,6 +167,11 @@ def _on_post(
         await _dismiss(page, layout.dismiss_selector)
         if want_post:
             cards.post_png = await _crop(page, layout.post_selector)
+        if cards.post_png is not None and layout.measure_media:
+            with contextlib.suppress(Exception):
+                boxes = await page.evaluate(MEDIA_BOX_JS, layout.post_selector)
+                if isinstance(boxes, dict):
+                    cards.post_media_box = media_box(boxes.get("card"), boxes.get("media"))
         if not targets:
             return
         tagged: object = []
@@ -128,8 +195,19 @@ def _on_profile(cards: Cards, layout: CardLayout) -> Callable[[Any], Awaitable[N
             return
         await _dismiss(page, layout.dismiss_selector)
         cards.profile_png = await _crop(page, layout.profile_selector)
+        if layout.page_items is not None:
+            cards.profile_page_png = await _crop_page(page, layout)
 
     return action
+
+
+async def _crop_page(page: Any, layout: CardLayout) -> bytes | None:
+    with contextlib.suppress(Exception):
+        arg = [layout.profile_selector, layout.page_items, layout.page_rows]
+        rect = await page.evaluate(PROFILE_PAGE_JS, arg)
+        if isinstance(rect, dict):
+            return await page.screenshot(clip=rect, full_page=True, timeout=SHOT_TIMEOUT_MS)
+    return None
 
 
 class CardBrowser:
@@ -192,9 +270,17 @@ class CardBrowser:
         await exit_session(session)
 
 
+@dataclass(frozen=True)
+class PersistedCards:
+    post_card: CardArtifact | None
+    comments: list[ReportComment]
+    profile_card: CardArtifact | None
+    profile_page: CardArtifact | None
+
+
 def persist_cards(
     cards: Cards, comments: list[ReportComment], workflow_id: str, artifact_root: Path
-) -> tuple[CardArtifact | None, list[ReportComment], CardArtifact | None]:
+) -> PersistedCards:
     base = PurePosixPath("reports") / workflow_id / "cards"
 
     def save(png: bytes | None, name: str) -> CardArtifact | None:
@@ -211,7 +297,15 @@ def persist_cards(
         )
         for comment in comments
     ]
-    return save(cards.post_png, "post.png"), carded, save(cards.profile_png, "profile.png")
+    post = save(cards.post_png, "post.png")
+    if post is not None and cards.post_media_box is not None:
+        post = post.model_copy(update={"media_box": cards.post_media_box})
+    return PersistedCards(
+        post_card=post,
+        comments=carded,
+        profile_card=save(cards.profile_png, "profile.png"),
+        profile_page=save(cards.profile_page_png, "profile-page.png"),
+    )
 
 
 def log_outcome(
@@ -225,12 +319,14 @@ def log_outcome(
     want_post: bool,
     problems: list[str],
     dropped: int,
+    profile_page: CardArtifact | None = None,
+    want_page: bool = False,
 ) -> None:
     """Counts and enums only: never a URL, a handle, or text."""
     carded = sum(comment.card is not None for comment in comments)
     logger.info(
         "%s acquisition finished method=%s media=%d comments=%d comment_cards=%d "
-        "post_card=%s profile_card=%s",
+        "post_card=%s profile_card=%s profile_page=%s",
         platform,
         method,
         media,
@@ -238,12 +334,15 @@ def log_outcome(
         carded,
         post_card is not None,
         profile_card is not None,
+        profile_page is not None,
     )
     missing = []
     if want_post and post_card is None:
         missing.append("post")
     if profile_card is None:
         missing.append("profile")
+    if want_page and profile_page is None:
+        missing.append("page")
     if carded < len(comments):
         missing.append(f"comments={len(comments) - carded}")
     if missing or problems:
