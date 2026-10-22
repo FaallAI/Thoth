@@ -110,14 +110,24 @@ async def _run(
     original = await _original(reports, input_.original_report)
     store = media or LocalMediaStore(artifact_root)
     clips = f"reports/{input_.workflow_id}/footage/"
+    # The TikTok page card the creator listing cropped (spec 5c-2); the clips and photos live
+    # under `clips`.
+    page = f"reports/{input_.workflow_id}/cards/profile-page.png"
     async with heartbeating(_heartbeat), MediaScratch(store, scratch_dir) as scratch:
-        # The post's and the original's media, and every clip an earlier attempt admitted.
+        # The post's and the original's media, and every clip, photo and page card an earlier
+        # attempt stored.
         stored_clips = await asyncio.to_thread(store.list, clips)
-        await scratch.pull([*media_locations(report), *media_locations(original), *stored_clips])
+        cards = await asyncio.to_thread(store.list, page.rsplit("/", 1)[0] + "/")
+        stored_page = [location for location in cards if location == page]
+        await scratch.pull(
+            [*media_locations(report), *media_locations(original), *stored_clips, *stored_page]
+        )
 
         async def publish(admitted: list[str]) -> None:
             # A carousel slide is the acquisition's own media, already stored.
-            await scratch.push(location for location in admitted if location.startswith(clips))
+            await scratch.push(
+                location for location in admitted if location.startswith(clips) or location == page
+            )
 
         inputs = FootageInputs(
             workflow_id=input_.workflow_id,

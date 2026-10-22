@@ -55,3 +55,13 @@ async def test_photo_fetch_caps_size(tmp_path: Path) -> None:
 async def test_a_failed_request_is_a_photo_error(tmp_path: Path) -> None:
     with pytest.raises(PhotoError):
         await _fetcher(b"", status=403).fetch(URL, tmp_path / "photo-1")
+
+
+@pytest.mark.asyncio
+async def test_a_decompression_bomb_is_a_photo_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 100)
+    with pytest.raises(PhotoError):
+        await _fetcher(_jpeg()).fetch(URL, tmp_path / "photo-1")
+    assert list(tmp_path.iterdir()) == []

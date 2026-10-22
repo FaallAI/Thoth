@@ -224,3 +224,39 @@ async def test_the_heartbeat_covers_the_footage_pull(
     )  # type: ignore[arg-type]
     await activity(FootageActivityInput(workflow_id="wf_a"))
     assert store.calls == [("fetch", True)]
+
+
+async def test_the_creator_photos_and_page_card_reach_the_store(
+    tmp_path: Path, report_store
+) -> None:
+    # Final review C1 and I1: the TikTok page card is stored, and a retry pulls it back.
+    from thoth_control_plane.infrastructure.media_store import LocalMediaStore
+
+    store_root = tmp_path / "store"
+    store_root.mkdir()
+    store = LocalMediaStore(store_root)
+    _with_report(report_store)
+    page = "reports/wf_a/cards/profile-page.png"
+    photo = "reports/wf_a/footage/photo-1.jpg"
+    seen: list[bool] = []
+
+    class Building:
+        async def build(self, inputs) -> FootageResult:
+            root = inputs.artifact_root
+            seen.append((root / page).is_file())
+            (root / page).parent.mkdir(parents=True, exist_ok=True)
+            (root / page).write_bytes(b"page-card")
+            (root / photo).parent.mkdir(parents=True, exist_ok=True)
+            (root / photo).write_bytes(b"photo")
+            await inputs.publish([photo, page])
+            return FootageResult(status="ok", admitted=0, photos=1)
+
+    activity = build_footage_activity(
+        _settings(tmp_path / "unused-root"), builder=Building(), reports=report_store, media=store
+    )  # type: ignore[arg-type]
+    await activity(FootageActivityInput(workflow_id="wf_a"))
+    await activity(FootageActivityInput(workflow_id="wf_a"))
+
+    assert store.stat(page).size_bytes == len(b"page-card")
+    assert store.stat(photo).size_bytes == len(b"photo")
+    assert seen == [False, True]  # the retry finds the stored page card in its scratch

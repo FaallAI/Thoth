@@ -160,7 +160,7 @@ class FootageStore:
             row.footage_status = footage_status
             row.finished_at = self._clock()
 
-    def set_profile_page(self, workflow_id: str, card: dict[str, object]) -> None:
+    def set_profile_page(self, workflow_id: str, card: dict[str, object] | None) -> None:
         with self._sessions.begin() as session:
             row = session.get(FootageRunRow, workflow_id)
             if row is None:

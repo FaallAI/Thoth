@@ -36,7 +36,7 @@ def report_media_locations(report: SourceReport) -> list[str]:
     """Every file the report records: its media and every card."""
     locations = media_locations(report)
     locations += [str(comment.card.location) for comment in report.comments if comment.card]
-    for card in (report.profile_card, report.post_card):
+    for card in (report.profile_card, report.post_card, report.profile_page):
         if card is not None:
             locations.append(str(card.location))
     return locations

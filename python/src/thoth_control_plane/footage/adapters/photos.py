@@ -57,7 +57,7 @@ def _image_suffix(body: bytes) -> str:
         with Image.open(io.BytesIO(body)) as image:
             image.verify()
             kind = image.format or ""
-    except (UnidentifiedImageError, OSError, SyntaxError, ValueError):
+    except (UnidentifiedImageError, OSError, SyntaxError, ValueError, Image.DecompressionBombError):
         raise PhotoError("not an image") from None
     if kind not in SUFFIXES:
         raise PhotoError("unsupported image format")

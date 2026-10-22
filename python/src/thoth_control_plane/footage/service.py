@@ -360,6 +360,9 @@ class FootageBuilder:
         if failed and not creators:
             await asyncio.to_thread(self._store.finish_run, workflow, "unavailable")
             return await self._result(workflow, "unavailable")
+        if failed:
+            # The run keeps the creator's material, but the outage must stay visible.
+            logger.warning("footage search unavailable; creator material only")
         if not failed:
             await self._gate(workflow, identity, objects, hits)
         await self._story(workflow, main)
@@ -461,6 +464,10 @@ class FootageBuilder:
         admitted_photos = await self._check_photos(
             workflow, root, [posts[i] for i in live_photos], visual
         )
+        if inputs.publish is not None and (admitted_photos or listing.page_png is not None):
+            # Stored now: the photo links cannot be fetched again after a crash in the clip
+            # checks, which would otherwise leave admitted rows without their files.
+            await self._publish(workflow, inputs.publish)
         live_videos = sum(1 for row in rows[: len(videos)] if row.status == "pending")
         logger.info(
             "footage creator listed=%d passed=%d undecided=%d kept_close=%d videos=%d photos=%d",
@@ -905,6 +912,16 @@ class FootageBuilder:
         return False
 
     async def _verify_admitted(self, workflow: str, root: Path) -> list[list[int]]:
+        # A photo or page card an earlier attempt kept but cannot be found again is dropped:
+        # its ephemeral link is gone, so it can never be fetched again (spec 5c-2).
+        for photo in await asyncio.to_thread(self._store.admitted, workflow, "image"):
+            path = root / (photo.media_location or "")
+            if not path.is_file() or _sha256(path) != photo.media_checksum:
+                await asyncio.to_thread(self._store.reject, workflow, photo.url, "media_failed")
+        run = await asyncio.to_thread(self._store.run, workflow)
+        page = run.profile_page if run is not None else None
+        if page is not None and not (root / str(page["location"])).is_file():
+            await asyncio.to_thread(self._store.set_profile_page, workflow, None)
         hashes: list[list[int]] = []
         for candidate in await asyncio.to_thread(self._store.admitted, workflow):
             path = root / (candidate.media_location or "")

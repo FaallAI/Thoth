@@ -1114,4 +1114,60 @@ async def test_the_creator_photos_and_page_card_are_published(
     ports = _creator(CreatorListing(videos=[], photos=[_photo(1)], page_png=make_png(400, 600)))
     await _builder(store, **ports).build(_publishing_inputs(tmp_path, publish))
     image = store.admitted("wf_a", "image")[0].media_location
-    assert published == [sorted([str(image), "reports/wf_a/cards/profile-page.png"])]
+    # Published as soon as the photos are judged, and again with the run's end.
+    expected = sorted([str(image), "reports/wf_a/cards/profile-page.png"])
+    assert published == [expected, expected]
+
+
+async def test_photos_and_the_page_card_are_published_before_the_clip_checks(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    # Final review I1: a crash in the clip checks must not lose the admitted photos.
+    published: list[list[str]] = []
+
+    async def publish(locations: list[str]) -> None:
+        published.append(sorted(locations))
+
+    class Crashing(Downloader):
+        async def download(self, url: str, window: Any, target: Path) -> Path:
+            raise RuntimeError("worker killed")
+
+    ports = _creator(CreatorListing(videos=[], photos=[_photo(1)], page_png=make_png(400, 600)))
+    builder = _builder(store, search=_search_four(), downloader=Crashing(), **ports)
+    with pytest.raises(RuntimeError):
+        await builder.build(_publishing_inputs(tmp_path, publish))
+    image = store.admitted("wf_a", "image")[0].media_location
+    assert published and published[0] == sorted([str(image), "reports/wf_a/cards/profile-page.png"])
+
+
+async def test_a_retry_drops_photos_and_the_page_card_it_cannot_find(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    # Final review I1: the photo URL cannot be fetched again, so a missing file is media_failed.
+    ports = _creator(CreatorListing(videos=[], photos=[_photo(1)], page_png=make_png(400, 600)))
+    await _builder(store, **ports).build(_inputs(tmp_path / "first"))
+    # A fresh scratch on the retry: the run is reopened as running with the files gone.
+    from sqlalchemy.orm import Session
+
+    from thoth_control_plane.infrastructure.footage_models import FootageRunRow
+
+    with Session(store._sessions.kw["bind"]) as session, session.begin():
+        session.get(FootageRunRow, "wf_a").status = "running"
+    await _builder(store, **_creator(None)).build(_inputs(tmp_path / "second"))
+    assert store.admitted("wf_a", "image") == []
+    reasons = {c.url: c.reason for c in store.candidates("wf_a")}
+    assert reasons[str(_photo(1).canonical_url)] == "media_failed"
+    run = store.run("wf_a")
+    assert run is not None and run.profile_page is None
+
+
+async def test_a_search_outage_with_creator_material_is_logged(
+    store: FootageStore, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Final review I2: creator material keeps the run, but the outage stays visible.
+    ports = _creator(CreatorListing(videos=[_own(1, "banjir kemang")], photos=[]))
+    search = Search(fail={"tiktok", "youtube", "x"})
+    with caplog.at_level(logging.WARNING):
+        result = await _builder(store, search=search, **ports).build(_inputs(tmp_path))
+    assert result.status == "ok"
+    assert "footage search unavailable; creator material only" in caplog.text
