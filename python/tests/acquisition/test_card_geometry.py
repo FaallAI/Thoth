@@ -167,3 +167,26 @@ async def test_the_x_page_card_finds_its_header_and_first_post_on_the_recorded_p
         finally:
             await chromium.close()
     assert head is not None and rect is not None and rect["height"] > head["height"]
+
+
+@pytest.mark.asyncio
+async def test_the_threads_backdrop_beside_the_dialog_is_hidden_too() -> None:
+    # Live check 2026-10-22: the dimming layer is an empty fixed sibling at rgba(0,0,0,.7).
+    html = (
+        '<div id="backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.7)"></div>'
+        '<div style="position:fixed;inset:0"><div role="dialog">Say more with Threads</div></div>'
+        '<div id="post" data-pressable-container="true">the post</div>'
+    )
+    async with async_api.async_playwright() as playwright:
+        chromium = await launch(playwright)
+        try:
+            page = await chromium.new_page()
+            await page.set_content(html)
+            await page.evaluate(threads_service.HIDE_DIALOGS_JS)
+            seen = await page.evaluate(
+                "() => ['backdrop', 'post'].map(id => "
+                "getComputedStyle(document.getElementById(id)).visibility)"
+            )
+        finally:
+            await chromium.close()
+    assert seen == ["hidden", "visible"]
