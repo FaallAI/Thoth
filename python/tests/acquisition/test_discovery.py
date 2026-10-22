@@ -279,7 +279,9 @@ class FakePage:
         self.clips: list[dict] = []
         self.scrolls = 0
         self.handlers: list = []
-        self.mouse = SimpleNamespace(wheel=self._wheel)
+        self.mouse = SimpleNamespace(
+            wheel=self._wheel, move=self._move, down=self._button, up=self._button
+        )
 
     def on(self, event: str, handler) -> None:
         assert event == "response"
@@ -303,12 +305,21 @@ class FakePage:
         self.scrolls += 1
         self.emit()
 
+    async def _move(self, x: float, y: float) -> None:
+        return None
+
+    async def _button(self) -> None:
+        return None
+
     async def wait_for_timeout(self, timeout: int) -> None:
         return None
 
     async def query_selector(self, selector: str) -> object | None:
-        assert selector == CAPTCHA_SELECTOR
-        return object() if self.captcha else None
+        if selector == CAPTCHA_SELECTOR:
+            return object() if self.captcha else None
+        # The captcha solver's modal selectors: no modal exists in this fake, so solving
+        # never finds one and falls straight back to the unsolved behaviour.
+        return None
 
     def locator(self, selector: str) -> SimpleNamespace:
         assert selector in (PROFILE_GRID_ITEMS, PROFILE_HEADER)
@@ -545,6 +556,77 @@ async def test_captcha_container_stops_with_a_partial_result() -> None:
     assert result.reason is DiscoveryReason.CAPTCHA
     assert result.pages == 1
     assert len(result.videos) == 3
+
+
+async def test_a_solved_captcha_lets_the_scroll_continue(monkeypatch) -> None:
+    async def fake_solve(page, attempts=2, rng=None):
+        page.captcha = False
+        return True
+
+    monkeypatch.setattr(discovery_module, "solve_captcha", fake_solve)
+    session = FakeSession("profile", _pages("profile", 3), captcha=True)
+
+    result = await _browser(session).discover(ProfileDiscovery(handle="creator", limit=100))
+
+    assert result.reason is None
+    assert result.pages == 3
+    assert len(result.videos) == 9
+    assert session.page.scrolls == 4  # kept scrolling past the solved captcha
+
+
+async def test_an_unsolved_captcha_still_stops_the_scroll(monkeypatch) -> None:
+    async def fake_solve(page, attempts=2, rng=None):
+        return False
+
+    monkeypatch.setattr(discovery_module, "solve_captcha", fake_solve)
+    session = FakeSession("profile", _pages("profile", 3), captcha=True)
+
+    result = await _browser(session).discover(ProfileDiscovery(handle="creator"))
+
+    assert result.reason is DiscoveryReason.CAPTCHA
+    assert session.page.scrolls == 0
+
+
+async def test_the_solver_budget_bounds_a_captcha_that_keeps_coming_back(monkeypatch) -> None:
+    calls = []
+
+    async def fake_solve(page, attempts=2, rng=None):
+        calls.append(1)
+        return True  # "solved", but the page re-raises the modal every round
+
+    monkeypatch.setattr(discovery_module, "solve_captcha", fake_solve)
+    session = FakeSession("profile", _pages("profile", 3), captcha=True)
+
+    result = await _browser(session).discover(ProfileDiscovery(handle="creator", limit=100))
+
+    # once before the profile crop, twice inside the scroll
+    assert len(calls) == discovery_module.MAX_SOLVES == 3
+    assert result.reason is DiscoveryReason.CAPTCHA
+
+
+async def test_a_captcha_on_load_is_solved_before_the_profile_crop(monkeypatch) -> None:
+    order = []
+
+    async def fake_solve(page, attempts=2, rng=None):
+        order.append("solve")
+        page.captcha = False
+        page.page_rect = True  # the grid only shows once the modal is gone
+        return True
+
+    monkeypatch.setattr(discovery_module, "solve_captcha", fake_solve)
+    original_screenshot = FakePage.screenshot
+
+    async def screenshot(self, **kwargs):
+        order.append("crop")
+        return await original_screenshot(self, **kwargs)
+
+    monkeypatch.setattr(FakePage, "screenshot", screenshot)
+    session = FakeSession("profile", [_list_body([_item()], has_more=False)], captcha=True)
+
+    result = await _browser(session).discover(ProfileDiscovery(handle="creator", limit=30))
+
+    assert order == ["solve", "crop"]
+    assert result.page_png == b"page-png"
 
 
 async def test_captcha_rendered_in_the_final_page_is_reported() -> None:

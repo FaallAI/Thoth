@@ -2,8 +2,9 @@
 
 TikTok signs its list APIs inside the page, so this module never builds an API request. It
 opens the ordinary page in a stealthy headless session, scrolls it, and reads the list
-responses the page itself makes. A captcha is avoided, never solved or blocked: when TikTok
-refuses, the result is returned partial with a typed reason.
+responses the page itself makes. A captcha is solved in the page when its drag subtypes
+rise (see `captcha.py`); the rest are avoided, and when TikTok still refuses, the result is
+returned partial with a typed reason.
 
 This is the sole boundary where raw list payloads are inspected. Only validated
 `DiscoveredVideo` records and drop counts cross back out; nothing raw is retained or logged.
@@ -31,6 +32,7 @@ from thoth_control_plane.acquisition.browser import (
     _increment_active_sessions,
     _is_timeout,
 )
+from thoth_control_plane.acquisition.captcha import solve as solve_captcha
 from thoth_control_plane.acquisition.cards import PROFILE_PAGE_JS
 from thoth_control_plane.acquisition.models import (
     DiscoveredPhoto,
@@ -68,6 +70,9 @@ SCROLL_WAIT_MS = 3_000
 POLL_MS = 250
 IDLE_SCROLLS = 2
 SCROLL_DEADLINE_S = 60.0
+# Solving a captcha buys the scroll nothing once TikTok keeps re-raising it, so each
+# discovery may try the solver this many times before falling back to the captcha reason.
+MAX_SOLVES = 3
 # The profile page card (spec 5c-2, G2): signed out, TikTok's grid answers "Something went
 # wrong" (recorded 2026-10-22), so the card is cropped here, in the listing visit that the
 # access policy signs in when it must. The avatar anchors the header; the clip spans the rest.
@@ -224,6 +229,7 @@ class _Scroll:
     seen: set[str] = field(default_factory=set)
     done: bool = False
     captcha: bool = False
+    solves: int = 0
     timed_out: bool = False
     stop: str = "none"
     page_png: bytes | None = None
@@ -240,6 +246,7 @@ class _Scroll:
         self.seen = set()
         self.done = False
         self.captcha = False
+        self.solves = 0
         self.timed_out = False
         self.stop = "none"
         self.page_png = None
@@ -259,9 +266,20 @@ class _Scroll:
                 self.done = True
 
 
+async def _solve(page: Any, scroll: _Scroll) -> bool:
+    """One budgeted solver run: a discovery never spends more than MAX_SOLVES on captchas."""
+    if scroll.solves >= MAX_SOLVES:
+        return False
+    scroll.solves += 1
+    return await solve_captcha(page)
+
+
 def _scroll_action(scroll: _Scroll) -> Callable[[Any], Awaitable[None]]:
     async def action(page: Any) -> None:
         if scroll.kind == "profile":
+            # The modal hides the grid the crop below waits for, so clear it first.
+            if await page.query_selector(CAPTCHA_SELECTOR) is not None:
+                await _solve(page, scroll)
             # Before scrolling, while the grid's first rows sit under the header.
             with contextlib.suppress(Exception):
                 scroll.page_png = await _crop_profile_page(page)
@@ -306,9 +324,11 @@ async def _paginate(page: Any, scroll: _Scroll) -> None:
             scroll.stop = "done"
             return
         if await page.query_selector(CAPTCHA_SELECTOR) is not None:
-            scroll.captcha = True
-            scroll.stop = "captcha"
-            return
+            if not await _solve(page, scroll):
+                scroll.captcha = True
+                scroll.stop = "captcha"
+                return
+            idle = 0
         before = len(scroll.responses)
         await page.mouse.wheel(0, SCROLL_PX)
         if await _wait_for_new(page, scroll, before):
