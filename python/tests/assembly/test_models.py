@@ -243,3 +243,64 @@ def test_footage_holds_at_most_six_items() -> None:
     ]
     with pytest.raises(ValidationError):
         parse(_footage_set(footage=items, footage_status="ok"))
+
+
+CARD = {
+    "location": "reports/wf_a/cards/post.png",
+    "media_type": "image/png",
+    "checksum": "sha256:" + "c" * 64,
+    "bytes": 4000,
+}
+PHOTO = {
+    "source": "creator",
+    "url": "https://www.instagram.com/p/PHOTO1/",
+    "platform": "instagram",
+    "owner_handle": "creator",
+    "caption": "foto",
+    "image": {**CARD, "location": "reports/wf_a/footage/photo-1.jpg", "media_type": "image/jpeg"},
+    "story_score": 0.5,
+}
+
+
+def test_old_content_sets_still_validate() -> None:
+    # The 5c-1 shape: none of the 5c-2 keys.
+    data = content_set()
+    assert "photos" not in data and "post_card" not in data["main"]
+    parsed = parse(data)
+    assert parsed.photos == []
+    assert parsed.main.post_card is None and parsed.main.profile_page is None
+
+
+def test_a_video_main_carries_its_post_card_and_profile_page() -> None:
+    box = {"x": 0.0, "y": 0.3, "w": 1.0, "h": 0.5}
+    parsed = parse(
+        content_set(
+            post_card={**CARD, "media_box": box},
+            profile_page={**CARD, "location": "reports/wf_a/cards/profile-page.png"},
+        )
+    )
+    assert parsed.main.kind == "video"
+    assert parsed.main.post_card is not None and parsed.main.post_card.media_box is not None
+    assert parsed.main.post_card.media_box.h == 0.5
+    assert parsed.main.profile_page is not None
+
+
+def test_photos_are_capped_unique_and_never_the_main() -> None:
+    photos = [{**PHOTO, "url": f"https://www.instagram.com/p/PHOTO{i}/"} for i in range(4)]
+    with pytest.raises(ValidationError):
+        parse({**content_set(), "photos": photos})
+    with pytest.raises(ValidationError):
+        parse({**content_set(), "photos": [PHOTO, PHOTO]})
+    with pytest.raises(ValidationError):
+        main_url = content_set()["main"]["url"]
+        parse({**content_set(), "photos": [{**PHOTO, "url": main_url}]})
+    assert len(parse({**content_set(), "photos": photos[:3]}).photos) == 3
+
+
+def test_a_photo_must_be_an_image() -> None:
+    with pytest.raises(ValidationError):
+        parse({**content_set(), "photos": [{**PHOTO, "image": VIDEO}]})
+
+
+def test_footage_may_come_from_the_creator() -> None:
+    assert "creator" in Footage.model_fields["source"].annotation.__args__

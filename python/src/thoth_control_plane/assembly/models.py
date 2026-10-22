@@ -14,6 +14,7 @@ from pydantic import AwareDatetime, Field, HttpUrl, model_validator
 
 from thoth_control_plane.acquisition.models import (
     CommentText,
+    MediaBox,
     MediaType,
     PublishedAt,
     SafeRelativeLocation,
@@ -24,6 +25,7 @@ from thoth_control_plane.domain.models import Checksum, OpaqueId, StrictModel
 MAX_COMMENTS = 12
 MAX_FIGURES = 5
 MAX_FOOTAGE = 6
+MAX_PHOTOS = 3
 FootageStatus = Literal["ok", "none", "disabled", "unavailable"]
 OCR_ANALYZER_VERSION = "subtitle-classifier-v1"
 EDGE = 1e-9  # envelope clamping can land a hair past 1.0
@@ -41,6 +43,12 @@ class MediaRef(StrictModel):
     width: Annotated[int, Field(gt=0)] | None = None
     height: Annotated[int, Field(gt=0)] | None = None
     duration_seconds: Seconds | None = None
+
+
+class PostCardRef(MediaRef):
+    """The main post's card as the platform shows it, with where its media sits (spec 5c-2)."""
+
+    media_box: MediaBox | None = None
 
 
 class BlurRegion(StrictModel):
@@ -108,6 +116,9 @@ class Main(StrictModel):
     images: list[MediaRef] = Field(default_factory=list, max_length=20)
     card: MediaRef | None = None
     profile_card: MediaRef | None = None
+    # Style A materials (spec 5c-2), optional so every older Content Set still validates.
+    post_card: PostCardRef | None = None
+    profile_page: MediaRef | None = None
     ocr: MainOcr | None = None
 
     @model_validator(mode="after")
@@ -145,7 +156,7 @@ class Figure(StrictModel):
 class Footage(StrictModel):
     """One b-roll clip (spec 2026-10-14, section 6): a window file and its checks."""
 
-    source: Literal["search", "carousel"]
+    source: Literal["search", "carousel", "creator"]
     url: HttpUrl
     platform: Literal["tiktok", "youtube", "x", "instagram"]
     owner_handle: TikTokHandle
@@ -170,6 +181,24 @@ class Footage(StrictModel):
         return self
 
 
+class Photo(StrictModel):
+    """One of the creator's photo posts that fits the story (spec 5c-2, G4)."""
+
+    source: Literal["creator"]
+    url: HttpUrl
+    platform: Literal["tiktok", "instagram", "x"]
+    owner_handle: TikTokHandle
+    caption: Annotated[str, Field(max_length=2_000)] = ""
+    image: MediaRef
+    story_score: Fraction
+
+    @model_validator(mode="after")
+    def an_image(self) -> Photo:
+        if not self.image.media_type.startswith("image/"):
+            raise ValueError("a photo is an image")
+        return self
+
+
 class ContentSet(StrictModel):
     schema_version: Literal[1] = 1
     workflow_id: OpaqueId
@@ -180,6 +209,7 @@ class ContentSet(StrictModel):
     figures_status: Literal["ok", "none", "unavailable"]
     footage: list[Footage] = Field(default_factory=list, max_length=MAX_FOOTAGE)
     footage_status: FootageStatus = "disabled"
+    photos: list[Photo] = Field(default_factory=list, max_length=MAX_PHOTOS)
 
     @model_validator(mode="after")
     def consistent(self) -> ContentSet:
@@ -190,4 +220,7 @@ class ContentSet(StrictModel):
         urls = [str(item.url) for item in self.footage]
         if len(set(urls)) != len(urls) or str(self.main.url) in urls:
             raise ValueError("footage URLs are unique and never the main's")
+        photos = [str(item.url) for item in self.photos]
+        if len(set(photos)) != len(photos) or str(self.main.url) in photos:
+            raise ValueError("photo URLs are unique and never the main's")
         return self
