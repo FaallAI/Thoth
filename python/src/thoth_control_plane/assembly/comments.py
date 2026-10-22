@@ -13,7 +13,7 @@ from collections.abc import Sequence
 from typing import Literal
 
 from thoth_control_plane.acquisition.models import CardArtifact, SourceReport
-from thoth_control_plane.assembly.models import MAX_COMMENTS, Comment, MediaRef
+from thoth_control_plane.assembly.models import MAX_COMMENTS, Comment, MediaRef, PostCardRef
 
 STICKER = re.compile(r"^\[\s*sti?c?ker\s*\]$", re.IGNORECASE)
 LINK_FIRST = re.compile(r"^https?://", re.IGNORECASE)
@@ -31,6 +31,14 @@ def card_ref(card: CardArtifact | None) -> MediaRef | None:
         width=card.width,
         height=card.height,
     )
+
+
+def post_card_ref(card: CardArtifact | None) -> PostCardRef | None:
+    """The post card with where its media sits (spec 5c-2, G1)."""
+    ref = card_ref(card)
+    if ref is None or card is None:
+        return None
+    return PostCardRef(**ref.model_dump(), media_box=card.media_box)
 
 
 def merge_comments(sources: Sequence[tuple[Source, SourceReport]]) -> list[Comment]:

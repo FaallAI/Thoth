@@ -6,13 +6,13 @@ import asyncio
 import json
 from dataclasses import replace
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import pytest
 
 from tests.assembly.support import comment, report
-from thoth_control_plane.acquisition.models import SourceReport
+from thoth_control_plane.acquisition.models import MediaBox, SourceReport
 from thoth_control_plane.assembly.figures import FigureAnswer
 from thoth_control_plane.assembly.models import MainOcr
 from thoth_control_plane.assembly.ports import AssemblyError
@@ -232,15 +232,22 @@ def test_only_a_possible_repost_is_trimmed(
 
 
 class FootageReader:
-    def __init__(self, run: object, admitted: list[object]) -> None:
+    def __init__(
+        self, run: object, admitted: list[object], photos: list[object] | Exception | None = None
+    ) -> None:
         self._run = run
         self._admitted = admitted
+        self._photos = photos or []
 
     def run(self, workflow_id: str) -> object:
         return self._run
 
-    def admitted(self, workflow_id: str) -> list[object]:
-        return self._admitted
+    def admitted(self, workflow_id: str, media_kind: str = "video") -> list[object]:
+        if media_kind == "video":
+            return self._admitted
+        if isinstance(self._photos, Exception):
+            raise self._photos
+        return self._photos
 
 
 def _clip_view(ocr: dict[str, Any]) -> CandidateView:
@@ -271,8 +278,13 @@ def _clip_view(ocr: dict[str, Any]) -> CandidateView:
     )
 
 
-def _footage_build(tmp_path: Path, reader: FootageReader | None, figures: Figures | None = None):
-    main = report()
+def _footage_build(
+    tmp_path: Path,
+    reader: FootageReader | None,
+    figures: Figures | None = None,
+    main: SourceReport | None = None,
+):
+    main = main or report()
     touch(tmp_path, main)
     assembler = ContentAssembler(
         AssemblyPorts(
@@ -349,3 +361,74 @@ def test_a_broken_stored_clip_is_left_out(tmp_path: Path) -> None:
     reader = FootageReader(_run(), [_clip_view({})])
     content = _footage_build(tmp_path, reader)
     assert (content.footage, content.footage_status) == ([], "none")
+
+
+# --- Stage 5c-2: style A materials (spec 2026-10-22) ---
+
+PAGE_CARD = {
+    "location": "reports/wf_a/cards/profile-page.png",
+    "media_type": "image/png",
+    "bytes": 4000,
+    "checksum": "sha256:" + "d" * 64,
+    "width": 400,
+    "height": 600,
+}
+
+
+def test_video_main_carries_its_post_card_and_media_box(tmp_path: Path) -> None:
+    main = report(post_card=True)
+    assert main.post_card is not None
+    box = MediaBox(x=0.0, y=0.3, w=1.0, h=0.5)
+    main = main.model_copy(
+        update={"post_card": main.post_card.model_copy(update={"media_box": box})}
+    )
+    content = build(tmp_path, main)
+    assert content.main.kind == "video"
+    assert content.main.post_card is not None and content.main.post_card.media_box == box
+    assert content.main.post_card.location == main.post_card.location
+
+
+def test_card_main_has_no_separate_post_card(tmp_path: Path) -> None:
+    content = build(tmp_path, report(media="none", post_card=True))
+    assert content.main.kind == "card" and content.main.card is not None
+    assert content.main.post_card is None
+
+
+def test_the_profile_page_comes_from_the_report_else_the_footage_run(tmp_path: Path) -> None:
+    run = replace(_run(), profile_page=PAGE_CARD)
+    content = _footage_build(tmp_path, FootageReader(run, []))
+    assert content.main.profile_page is not None
+    assert content.main.profile_page.location.as_posix() == PAGE_CARD["location"]
+    own = report().model_copy(
+        update={
+            "profile_page": report(post_card=True).post_card.model_copy(
+                update={"location": PurePosixPath("reports/wf_a/cards/own-page.png")}
+            )
+        }
+    )
+    content = _footage_build(tmp_path, FootageReader(run, []), main=own)
+    assert content.main.profile_page.location.as_posix() == "reports/wf_a/cards/own-page.png"
+
+
+def test_creator_footage_and_photos_reach_the_content_set(tmp_path: Path) -> None:
+    clip = replace(_clip_view(_clean_ocr()), source="creator", query="creator:@creator")
+    photo = replace(
+        _clip_view({}),
+        url="https://www.tiktok.com/@creator/photo/7600000000000000001",
+        source="creator",
+        media_kind="image",
+        media_location="reports/wf_a/footage/photo-7600000000000000001.jpg",
+        clip_duration=0.0,
+        story_score=0.6,
+    )
+    content = _footage_build(tmp_path, FootageReader(_run(), [clip], [photo]))
+    assert [item.source for item in content.footage] == ["creator"]
+    assert len(content.photos) == 1
+    assert content.photos[0].image.media_type == "image/jpeg"
+    assert content.photos[0].story_score == 0.6
+
+
+def test_photos_missing_store_degrades_to_none(tmp_path: Path) -> None:
+    reader = FootageReader(_run(), [_clip_view(_clean_ocr())], RuntimeError("db down"))
+    content = _footage_build(tmp_path, reader)
+    assert content.photos == [] and len(content.footage) == 1
