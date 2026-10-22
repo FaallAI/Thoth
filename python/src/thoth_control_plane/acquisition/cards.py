@@ -57,9 +57,10 @@ MEDIA_BOX_JS = """(selector) => {
 }"""
 
 # The profile page card (spec 5c-2, G2): the profile header and the first `rows` rows of the
-# post grid, as one clip in page coordinates; null while the grid has no visible item.
-PROFILE_PAGE_JS = """([header, items, rows]) => {
-  const head = document.querySelector(header);
+# post grid, as one clip in page coordinates; null while the grid has no visible item. The
+# header comes as Playwright's bounding box (viewport coordinates), so a Playwright-only
+# selector such as X's :has-text can find it (live check, 2026-10-22).
+PROFILE_PAGE_JS = """([head, items, rows]) => {
   const visible = [...document.querySelectorAll(items)].filter(e => {
     const b = e.getBoundingClientRect();
     return b.width > 0 && b.height > 0;
@@ -67,8 +68,10 @@ PROFILE_PAGE_JS = """([header, items, rows]) => {
   if (!head || !visible.length) return null;
   const top = e => Math.round(e.getBoundingClientRect().top + scrollY);
   const kept = [...new Set(visible.map(top))].sort((a, b) => a - b).slice(0, rows);
-  const rects = [head, ...visible.filter(e => kept.includes(top(e)))]
-    .map(e => e.getBoundingClientRect());
+  const rects = [
+    {left: head.x, top: head.y, right: head.x + head.width, bottom: head.y + head.height},
+    ...visible.filter(e => kept.includes(top(e))).map(e => e.getBoundingClientRect()),
+  ];
   const x1 = Math.min(...rects.map(b => b.left)) + scrollX;
   const y1 = Math.min(...rects.map(b => b.top)) + scrollY;
   const x2 = Math.max(...rects.map(b => b.right)) + scrollX;

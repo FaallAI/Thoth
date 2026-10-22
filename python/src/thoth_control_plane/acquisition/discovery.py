@@ -284,7 +284,10 @@ def _scroll_action(scroll: _Scroll) -> Callable[[Any], Awaitable[None]]:
 async def _crop_profile_page(page: Any) -> bytes | None:
     for _ in range(GRID_WAIT_S):
         if await page.locator(PROFILE_GRID_ITEMS).count():
-            rect = await page.evaluate(PROFILE_PAGE_JS, [PROFILE_HEADER, PROFILE_GRID_ITEMS, 2])
+            head = await page.locator(PROFILE_HEADER).first.bounding_box()
+            if head is None:
+                return None
+            rect = await page.evaluate(PROFILE_PAGE_JS, [head, PROFILE_GRID_ITEMS, 2])
             if not isinstance(rect, dict):
                 return None
             return await page.screenshot(clip=rect, full_page=True, scale="css", timeout=10_000)

@@ -151,8 +151,10 @@ def _on_profile(cards: Cards, layout: CardLayout) -> Callable[[Any], Awaitable[N
 
 async def _crop_page(page: Any, layout: CardLayout) -> bytes | None:
     with contextlib.suppress(Exception):
-        arg = [layout.profile_selector, layout.page_items, layout.page_rows]
-        rect = await page.evaluate(PROFILE_PAGE_JS, arg)
+        head = await page.locator(layout.profile_selector).first.bounding_box()
+        if head is None:
+            return None
+        rect = await page.evaluate(PROFILE_PAGE_JS, [head, layout.page_items, layout.page_rows])
         if isinstance(rect, dict):
             # One pixel per CSS pixel: at the device ratio an Instagram page ran to 3.3 MB,
             # past the 2 MB card cap (live check, 2026-10-22).

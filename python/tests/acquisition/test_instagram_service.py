@@ -177,6 +177,9 @@ class _Locator:
         self._page.shots.append(self._selector)
         return make_png(400, 200)
 
+    async def bounding_box(self) -> dict[str, float]:
+        return {"x": 0, "y": 0, "width": 400, "height": 200}
+
 
 class _CardPage:
     def __init__(self, url: str, tagged: list[str] | None = None) -> None:
@@ -248,7 +251,9 @@ async def test_cards_crop_post_comments_and_profile_in_one_session() -> None:
         [{"comment_id": C1, "author": "fan_001", "prefix": "first comment"}],
     ]
     assert profile_page.shots == [PROFILE_CARD_SELECTOR]
-    assert profile_page.evaluated == [[PROFILE_CARD_SELECTOR, PROFILE_PAGE_ITEMS, 2]]
+    assert profile_page.evaluated == [
+        [{"x": 0, "y": 0, "width": 400, "height": 200}, PROFILE_PAGE_ITEMS, 2]
+    ]
     assert session.exited == 1
     assert active_scrapling_session_count() == 0
 

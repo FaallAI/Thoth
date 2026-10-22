@@ -173,7 +173,11 @@ async def test_profile_page_and_post_media_follow_the_layout() -> None:
     assert profile_page.clips == [rect]
     # One pixel per CSS pixel: at the device ratio a page ran past the 2 MB card cap (Task 12).
     assert profile_page.shot_options[0]["scale"] == "css"
-    assert (PROFILE_PAGE_JS, [".profile", ".item", 2]) in profile_page.evaluated
+    # The header is measured by Playwright, so a :has-text selector works (Task 12, X).
+    assert (
+        PROFILE_PAGE_JS,
+        [{"x": 0, "y": 0, "width": 400, "height": 200}, ".item", 2],
+    ) in profile_page.evaluated
 
 
 @pytest.mark.asyncio

@@ -19,6 +19,7 @@ from thoth_control_plane.acquisition.discovery import (
     CAPTCHA_SELECTOR,
     EXPLORE_URL,
     PROFILE_GRID_ITEMS,
+    PROFILE_HEADER,
     XHR_PATTERNS,
     ScraplingDiscoveryBrowser,
     _assemble,
@@ -310,12 +311,17 @@ class FakePage:
         return object() if self.captcha else None
 
     def locator(self, selector: str) -> SimpleNamespace:
-        assert selector == PROFILE_GRID_ITEMS
+        assert selector in (PROFILE_GRID_ITEMS, PROFILE_HEADER)
 
         async def count() -> int:
             return 6 if self.page_rect else 0
 
-        return SimpleNamespace(count=count)
+        async def bounding_box() -> dict:
+            return {"x": 0, "y": 0, "width": 800, "height": 300}
+
+        handle = SimpleNamespace(count=count, bounding_box=bounding_box)
+        handle.first = handle
+        return handle
 
     async def evaluate(self, script: str, arg: object = None) -> object:
         assert script == PROFILE_PAGE_JS

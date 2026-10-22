@@ -142,7 +142,9 @@ async def test_cards_use_the_x_layout_with_no_dialog() -> None:
     profile_selector = 'main > div:nth-child(4):has-text("@user_001")'
     assert PROFILE_CARD_SELECTOR.format(owner="user_001") == profile_selector
     assert profile_page.shots == [profile_selector]
-    assert profile_page.evaluated == [(PROFILE_PAGE_JS, [profile_selector, "main article", 1])]
+    assert profile_page.evaluated == [
+        (PROFILE_PAGE_JS, [{"x": 0, "y": 0, "width": 400, "height": 200}, "main article", 1])
+    ]
     assert session.exited == 1
     assert active_scrapling_session_count() == 0
 

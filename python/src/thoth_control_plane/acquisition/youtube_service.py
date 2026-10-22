@@ -97,9 +97,10 @@ STALE = (
     "unable to extract",
 )
 PROFILE_CARD_SELECTOR = "#page-header"
-# The profile page card (spec 5c-2): the channel header and the first rows of its grid, as
-# the Shorts tab showed them on the page recorded on 2026-10-22.
-PROFILE_PAGE_ITEMS = "ytd-rich-item-renderer"
+# The profile page card (spec 5c-2): the channel header and the first rows of its videos. The
+# profile visit opens the channel home tab, whose shelves hold lockups; the Shorts tab holds
+# rich items (both recorded on 2026-10-22).
+PROFILE_PAGE_ITEMS = "ytd-rich-item-renderer, ytm-shorts-lockup-view-model, yt-lockup-view-model"
 LOGIN_PATHS = ("/signin",)
 # Tags each matched comment; targets arrive as the evaluate argument, never interpolated.
 # Comments load as the page scrolls. A thread linking to the comment's own `lc=` id is exact;

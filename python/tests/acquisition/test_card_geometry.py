@@ -77,13 +77,15 @@ async def test_media_box_js_is_none_without_media() -> None:
 @pytest.mark.asyncio
 async def test_profile_page_js_covers_the_header_and_two_rows() -> None:
     items = "".join('<a class="item" style="height:300px;display:block"></a>' for _ in range(9))
-    rect = await _run(GRID.format(items=items), PROFILE_PAGE_JS, [".head", ".item", 2])
+    head = {"x": 0, "y": 0, "width": 600, "height": 200}
+    rect = await _run(GRID.format(items=items), PROFILE_PAGE_JS, [head, ".item", 2])
     assert (rect["x"], rect["y"], rect["width"], rect["height"]) == (0, 0, 600, 800)
 
 
 @pytest.mark.asyncio
 async def test_profile_page_js_is_none_without_grid_items() -> None:
-    rect = await _run(GRID.format(items=""), PROFILE_PAGE_JS, [".head", ".item", 2])
+    head = {"x": 0, "y": 0, "width": 600, "height": 200}
+    rect = await _run(GRID.format(items=""), PROFILE_PAGE_JS, [head, ".item", 2])
     assert rect is None
 
 
@@ -101,6 +103,8 @@ async def test_profile_page_js_is_none_without_grid_items() -> None:
         ("instagram-profile", instagram_service.PROFILE_PAGE_ITEMS, 6),
         ("youtube-profile", youtube_service.PROFILE_CARD_SELECTOR, 1),
         ("youtube-profile", youtube_service.PROFILE_PAGE_ITEMS, 6),
+        # The channel home tab, which the profile visit opens (Task 12).
+        ("youtube-home", youtube_service.PROFILE_PAGE_ITEMS, 6),
         ("tiktok-post", '[data-media-card-description-container="true"]', 1),
         # Signed out the grid fails to load, so only the header is recorded; Task 12 checks the
         # grid in a signed-in visit (spec 5c-2).
@@ -144,3 +148,22 @@ async def test_hiding_the_threads_dialog_also_lifts_its_dimming_overlay() -> Non
         finally:
             await chromium.close()
     assert script and hidden == "hidden"
+
+
+@pytest.mark.asyncio
+async def test_the_x_page_card_finds_its_header_and_first_post_on_the_recorded_page() -> None:
+    # Task 12: X's header selector uses Playwright's :has-text, which document.querySelector
+    # refuses, so the header is measured by Playwright and only its box reaches the script.
+    async with async_api.async_playwright() as playwright:
+        chromium = await launch(playwright)
+        try:
+            page = await chromium.new_page(viewport={"width": 1280, "height": 720})
+            await page.route("**/*", lambda route: route.abort())
+            html = (PAGES / "x-profile.html").read_text(encoding="utf-8")
+            await page.set_content(html, wait_until="domcontentloaded")
+            selector = x_service.PROFILE_CARD_SELECTOR.format(owner=X_OWNER)
+            head = await page.locator(selector).first.bounding_box()
+            rect = await page.evaluate(PROFILE_PAGE_JS, [head, x_service.PROFILE_PAGE_ITEMS, 1])
+        finally:
+            await chromium.close()
+    assert head is not None and rect is not None and rect["height"] > head["height"]

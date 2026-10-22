@@ -24,6 +24,9 @@ class FakeLocator:
         self._page.shots.append(self._selector)
         return make_png(400, 200)
 
+    async def bounding_box(self) -> dict[str, float]:
+        return {"x": 0, "y": 0, "width": 400, "height": 200}
+
 
 class FakeCardPage:
     """A page whose tagging script tags `tagged`; records clicks, shots, and scripts."""
