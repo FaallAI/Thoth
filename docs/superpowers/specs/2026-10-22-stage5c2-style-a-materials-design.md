@@ -1,7 +1,7 @@
 # Stage 5c-2: Style A Materials from the Social Platforms
 
 **Date:** 2026-10-22
-**Status:** Draft from the 2026-10-22 conversation; awaits operator review.
+**Status:** Agreed in conversation 2026-10-22; awaits operator review of this document.
 **Roadmap:** item 4, Stage 5c, second half. 5c-1 (Studio: cards, slides, subtitle blur) was
 deployed 2026-10-22 (PR #39, `thoth@cd52dcf6`).
 **Builds on:** `2026-10-21-stage5c1-studio-cards-design.md`, the footage spec (2026-10-14), and
@@ -134,7 +134,10 @@ through the text and story gates. Those that pass become photos, each a single s
   profile card.
 - **Creator footage:** placed like search footage, each in its own scene after the main.
 - **Creator photos:** each in its own scene for `SLIDE_SECONDS`, fit `contain`.
-- **Profile page:** see section 7, question 1.
+- **Profile page:** its own scene right after the main, held for `SLIDE_SECONDS`, fit `contain`.
+  This follows style A's order: the story, then who the creator is, then the creator's other
+  videos. The creator footage scenes follow it, then search footage. The operator ruled on
+  2026-10-22 that it is placed in this stage, not kept for item 6.
 
 ## 4. Non-goals
 
@@ -182,15 +185,15 @@ through the text and story gates. Those that pass become photos, each a single s
 - **Gate roles.** New roles appear in the Studio import gate with labels: `post_card`,
   `profile_page`, `creator_footage`, `creator_photo`.
 
-## 7. Questions for the operator
+## 7. Operator rulings (2026-10-22)
 
-1. **The profile page in Studio.**
-   - In style A it appears full screen when the narration talks about the creator.
-   - Before item 6 there is no narration, so there is no such moment.
-   - Proposed: import it into the project's asset library and list it in the gate as "kept for
-     the template", without placing it on the timeline. Item 6 places it.
-   - The alternative is a fixed full-screen slot (for example right after the main), which
-     interrupts the main video.
+1. **Style A** is the first template. 5c-2 gathers its materials; item 6 builds the recipe.
+2. **Memes** wait for style B; **news cards** wait for Stage 6.
+3. **Creator videos** must fit the topic, not merely be recent. Weak captions use the three-step
+   check in G3a.
+4. **The profile page** is placed in this stage (G5), not kept for item 6.
+5. **Extensibility:** more materials may come later, so each one stays a separate, optional
+   part of the Content Set.
 
 ## 8. Calls made by the designer (for the operator to check)
 
@@ -249,7 +252,7 @@ Push, merge, deploy and any live capture are separate gates, each reported as it
 
 - **Roadmap item 6:** the style A preset (hook title, narration, subtitles, camera motion on
   cards, the video playing inside the post card via `media_box`, arrows and highlights,
-  blur-fill, placing the profile page).
+  blur-fill).
 - **Style B:** an own meme bank in the media store, with templates from Imgflip's trending list
   and memegen, plus uploads, matched to context by image-text embeddings.
 - **Stage 6:** news and evidence cards.
