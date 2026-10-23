@@ -131,7 +131,7 @@ class Artifacts:
 def settings() -> RenderPresetSettings:
     return RenderPresetSettings(
         preset_id="standard_vertical_mp4_v1",
-        renderer_version="remotion-4.0.523",
+        renderer_version="remotion-4.0.538",
         max_asset_bytes=512 * 1024 * 1024,
     )
 
@@ -295,7 +295,7 @@ async def test_bundle_carries_the_server_owned_render_contract() -> None:
     assert bundle.template_id == "vertical_text_story"
     assert bundle.template_version == 1
     assert bundle.preset_id == "standard_vertical_mp4_v1"
-    assert bundle.renderer_version == "remotion-4.0.523"
+    assert bundle.renderer_version == "remotion-4.0.538"
     assert bundle.composition_id == "advanced-timeline-v1"
     assert (bundle.width, bundle.height, bundle.fps) == (1080, 1920, 30)
     assert bundle.duration_in_frames == 300
@@ -343,7 +343,7 @@ def test_bundle_rejects_any_field_the_contract_does_not_define() -> None:
                 "template_id": "vertical_text_story",
                 "template_version": 1,
                 "preset_id": "standard_vertical_mp4_v1",
-                "renderer_version": "remotion-4.0.523",
+                "renderer_version": "remotion-4.0.538",
                 "composition_id": "advanced-timeline-v1",
                 "width": 1080,
                 "height": 1920,

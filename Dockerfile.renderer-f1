@@ -11,15 +11,15 @@
 # It is a test image. It is never published, never deployed, and never dispatched
 # to. The service image is `Dockerfile.renderer`, which carries none of this.
 #
-# Base resolved from registry metadata for oven/bun:1.3.14:
-#   index         sha256:e10577f0db68676a7024391c6e5cb4b879ebd17188ab750cf10024a6d700e5c4
-#   linux/amd64   sha256:50317d83cd5a5ae1d8b35b3379c69f57ce1a0dbf4def91f0965653d767851834
+# Base resolved from registry metadata for oven/bun:1.4.4:
+#   index         sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb4720b407548f1d
+#   linux/amd64   sha256:3f23864d3e8c923975c61971cabe67ee3d5a728f1e25a559256b95af719a3478
 
-FROM oven/bun:1.3.14@sha256:50317d83cd5a5ae1d8b35b3379c69f57ce1a0dbf4def91f0965653d767851834 AS parity
+FROM oven/bun:1.4.4@sha256:3f23864d3e8c923975c61971cabe67ee3d5a728f1e25a559256b95af719a3478 AS parity
 
 ENV DEBIAN_FRONTEND=noninteractive \
     THOTH_F1_BASE_DIGEST=sha256:50317d83cd5a5ae1d8b35b3379c69f57ce1a0dbf4def91f0965653d767851834 \
-    THOTH_RENDERER_VERSION=remotion-4.0.523 \
+    THOTH_RENDERER_VERSION=remotion-4.0.538 \
     HOME=/home/thoth
 
 # The same browser libraries and the same system fonts the service image

@@ -26,7 +26,7 @@ export type RendererConfig = {
 export type Environment = Record<string, string | undefined>;
 
 /** The pinned build this container is, recorded in every render's provenance. */
-const DEFAULT_RENDERER_VERSION = "remotion-4.0.523";
+const DEFAULT_RENDERER_VERSION = "remotion-4.0.538";
 /** Matches the control plane's own bound, so neither side outlives the other. */
 const MIN_DEADLINE_SECONDS = 60;
 const MAX_DEADLINE_SECONDS = 7200;

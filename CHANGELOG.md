@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-23 - Render-path dependencies (branch `chore/render-deps`)
+
+This closes the dependency refresh. The render path was held back from PR #43 because it
+touches render parity.
+
+- **Remotion:** 4.0.523 to 4.0.538 in the dashboard, the renderer and the composition peer
+  pins, including `@remotion/player`, `@remotion/bundler` and `@remotion/renderer`.
+- **Renderer build identifier:** `renderer_version` becomes `remotion-4.0.538` in the config,
+  compose, the renderer default and every test that pins it.
+- **React:** 19.2.7 to 19.3.1, with `@types/react` and `@types/react-dom` at 19.3.0, so the
+  Studio preview and the renderer still run the same React.
+- **Bun:** 1.3.14 to 1.4.4 in every image, both CI workflows, and the parity reference image.
+  The parity image is pinned to the `linux/amd64` digest `3f23864d…`.
+
+**Deploy note:** the renderer refuses a bundle whose `renderer_version` is not its own. A render
+queued before the deploy under `remotion-4.0.523` would be refused after it, so deploy with no
+render queued.
+
+**Verification (local):**
+- Dashboard: 749 tests passed; build clean.
+- Renderer: 223 tests passed; typecheck clean.
+- Python: `tests/api`, `application`, `domain`, `infrastructure`, `deployment` and
+  `test_config.py` passed.
+- The golden check runs in CI's "Template release parity". If the new Remotion draws different
+  pixels, that job leaves a candidate golden set for the operator to approve (re-approval)
+  before merge.
+
 ## 2026-10-23 - Captcha outcome lines outlive the worker (branch `chore/captcha-outcome-log`)
 
 The solver's success rate is counted from its `tiktok captcha outcome` lines. Docker drops a

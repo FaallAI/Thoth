@@ -670,7 +670,7 @@ const RENDER_JOB = {
   template_id: "vertical_story",
   template_version: "1",
   preset_id: "standard_vertical_mp4_v1",
-  renderer_version: "remotion-4.0.523",
+  renderer_version: "remotion-4.0.538",
   created_at: "2026-09-21T10:00:00Z",
 } as unknown as RenderJob;
 
@@ -682,7 +682,7 @@ test("reads render capability from the project's own route", async () => {
   const capability = {
     available: true,
     preset_id: "standard_vertical_mp4_v1",
-    renderer_version: "remotion-4.0.523",
+    renderer_version: "remotion-4.0.538",
   } satisfies RenderCapability;
   const calls: RecordedCall[] = [];
   const client = renderClient(calls, () => new Response(JSON.stringify(capability), { status: 200 }));

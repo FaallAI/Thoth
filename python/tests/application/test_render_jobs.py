@@ -397,7 +397,7 @@ def build_service(
         imports=imports,
         settings=RenderPresetSettings(
             preset_id="standard_vertical_mp4_v1",
-            renderer_version="remotion-4.0.523",
+            renderer_version="remotion-4.0.538",
             max_asset_bytes=512 * 1024 * 1024,
         ),
         max_render_seconds=max_render_seconds,
@@ -470,7 +470,7 @@ async def test_capability_is_unavailable_with_a_safe_reason_when_no_renderer_exi
     assert capability.reason == "renderer_not_configured"
     assert capability.active_render_job_id is None
     assert capability.preset_id == "standard_vertical_mp4_v1"
-    assert capability.renderer_version == "remotion-4.0.523"
+    assert capability.renderer_version == "remotion-4.0.538"
 
 
 @pytest.mark.asyncio

@@ -56,7 +56,7 @@ def render_job(**overrides: object) -> RenderJob:
         "template_id": "vertical_text_story",
         "template_version": 1,
         "preset_id": "standard_vertical_mp4_v1",
-        "renderer_version": "remotion-4.0.523",
+        "renderer_version": "remotion-4.0.538",
         "status": "preparing",
         "created_by": "owner",
         "created_at": NOW,
@@ -65,7 +65,7 @@ def render_job(**overrides: object) -> RenderJob:
             "template_id": "vertical_text_story",
             "template_version": 1,
             "preset_id": "standard_vertical_mp4_v1",
-            "renderer_version": "remotion-4.0.523",
+            "renderer_version": "remotion-4.0.538",
         },
     }
     payload.update(overrides)
@@ -97,7 +97,7 @@ def completed_job(path: str = "renders/rj_001/output.mp4") -> RenderJob:
             "template_id": "vertical_text_story",
             "template_version": 1,
             "preset_id": "standard_vertical_mp4_v1",
-            "renderer_version": "remotion-4.0.523",
+            "renderer_version": "remotion-4.0.538",
             "output": OUTPUT_FACTS,
         },
     )
@@ -127,7 +127,7 @@ class StubRenderJobService:
                 "available": True,
                 "reason": None,
                 "preset_id": "standard_vertical_mp4_v1",
-                "renderer_version": "remotion-4.0.523",
+                "renderer_version": "remotion-4.0.538",
                 "active_render_job_id": None,
             }
         )
