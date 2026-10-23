@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-23 - Dependency refresh (branch `chore/deps-refresh`)
+
+The operator asked for every library and package to be brought up to date. This branch covers
+everything outside the render path; the Rust crates are left alone (the engine is frozen and
+retires at Stage 10).
+
+**Updated:**
+
+- **Python:** the whole lock refreshed. Notable: cryptography 50, pytest 9, pytest-asyncio 1.4,
+  pillow 13, av 19, temporalio 1.34, fastapi 0.161, onnxruntime 1.31, patchright 1.64,
+  yt-dlp 2026.10.21, gallery-dl 1.32.17. uv 0.13.5 in CI and the image; ruff 0.17.2.
+- **Dashboard:** react-router 8, TypeScript 7, vite 8.3, happy-dom 21, plus minors.
+- **Scout and renderer tooling:** TypeScript 7, pg 8.23, @types/bun 1.4.
+- **CI:** every GitHub Action moved to its Node 24 release (Node 20 is deprecated on runners).
+- **Web image:** Caddy 2.11.7.
+
+**Held back, each its own follow-up:**
+
+- **scrapling stays on 0.4.15.** 0.5 removes `capture_xhr` and `Response.captured_xhr`, which
+  the TikTok post and listing, Threads and X footage search read. Offline tests use fake
+  sessions, so the break would only show live, as silently empty captures.
+- **openai stays on 2.x.** openai 3 sends through `httpx2`, which respx does not intercept, so
+  the five Agno-backed adapter tests would reach the network.
+- **Render path:** Remotion 4.0.538, React 19.3 and Bun 1.4 go in a separate PR that needs the
+  operator's golden re-approval.
+- **@types/node stays on 24**, matching the Node runtime major.
+
+**Verification (offline):** Python 4386 passed against the frozen lock in a fresh ext4 venv,
+ruff clean; dashboard 749 passed, build and lint clean; renderer 223 passed, typecheck clean;
+scout 126 passed, typecheck clean; actionlint clean. CI proves the new Action pins, the image
+build and the browser tests.
+
+**Noticed:** the daily yt-dlp bot fails at `gh pr create` because the repository does not allow
+GitHub Actions to create pull requests; its stale branch `chore/yt-dlp-2026.10.21` remains.
+
+**Next steps:** CI on this PR, then merge and deploy (separate operator gates); the render-path
+PR; scrapling 0.5 and openai 3 migrations; the operator's repository setting for the yt-dlp bot.
+
 ## 2026-10-23 - PR #41 merged and deployed; Stage 5c-2 is live
 
 **Merged:** PR #41 (`6faba2d`) after every CI job passed on the branch, the stack smoke
