@@ -117,8 +117,8 @@ Two solver faults found live and fixed test first:
 - **Push/PR gate (operator):** push `fix/tiktok-captcha-followups`, PR, CI, review.
 - **Deploy gate (operator):** after merge and deploy, the success rate becomes measurable
   with the `docker compose logs worker | grep` line above.
-- **Signed-in probe gate (operator):** say "go" for one signed-in session on
-  `tiktok operator-1` under the plan above; until then it does not run.
+- **Signed-in probe:** done 2026-10-23 (see the table above); the session stays usable after
+  a solve.
 - **Click subtypes:** still unsupported. Re-run the recording probe (budget rules as in
   `click/SESSIONS.md`) once production outcome lines show `subtype=icon` or `subtype=3d`
   appearing; solving then starts from recorded samples, OpenCV first.
