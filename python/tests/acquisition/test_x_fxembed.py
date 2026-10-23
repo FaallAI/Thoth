@@ -22,7 +22,7 @@ from thoth_control_plane.acquisition.models import (
     DiscoveryReason,
 )
 from thoth_control_plane.acquisition.threads_service import RequestFetchError
-from thoth_control_plane.acquisition.x_fxembed import FxEmbedClient
+from thoth_control_plane.acquisition.x_fxembed import ATTEMPTS, FxEmbedClient
 
 FIXTURES = Path(__file__).resolve().parent.parent / "fixtures" / "x_fxembed"
 POST_ID = "2110509448032862621"
@@ -148,21 +148,21 @@ async def test_client_reads_replies_and_profile_media() -> None:
     assert seen == ["https://fx.test/2/profile/InFebriyan128/media?count=30"]
 
 
-@pytest.mark.parametrize(("status", "tries"), [(429, 1), (500, 2), (503, 2)])
+@pytest.mark.parametrize(("status", "tries"), [(429, 1), (500, ATTEMPTS), (503, ATTEMPTS)])
 async def test_client_refusals_are_blocked(status: int, tries: int) -> None:
     client, seen = _client(_response(status, "{}"))
     with pytest.raises(RequestFetchError) as raised:
         await client.status(POST_ID)
     assert raised.value.reason is AcquisitionReason.REQUEST_BLOCKED
-    assert len(seen) == tries  # a rate limit is never retried; a server error once
+    assert len(seen) == tries  # a rate limit is never retried
 
 
-async def test_client_timeout_is_a_timeout_after_one_retry() -> None:
+async def test_client_timeout_is_a_timeout_after_the_retries() -> None:
     client, seen = _client(TimeoutError("slow"))
     with pytest.raises(RequestFetchError) as raised:
         await client.status(POST_ID)
     assert raised.value.reason is AcquisitionReason.REQUEST_TIMEOUT
-    assert len(seen) == 2
+    assert len(seen) == ATTEMPTS
 
 
 async def test_client_recovers_from_one_transient_failure() -> None:
@@ -171,6 +171,17 @@ async def test_client_recovers_from_one_transient_failure() -> None:
     client, seen = _client(ConnectionError("refused"), _response(200, body))
     assert (await client.status(POST_ID) or {}).get("id") == POST_ID
     assert len(seen) == 2
+
+
+async def test_a_404_from_one_edge_is_retried() -> None:
+    # Live check 2026-10-23: the SIN edge answered 200 while the MRS edge answered 404 with no
+    # results for the same profile, so a 404 is not proof the profile is missing.
+    soft = _response(404, json.dumps({"code": 404, "results": []}))
+    body = json.dumps(load("profile_media.json"))
+    client, seen = _client(soft, soft, _response(200, body))
+    payload = await client.profile_media("InFebriyan128", 30)
+    assert payload is not None and len(payload["results"]) == 18
+    assert len(seen) == 3
 
 
 async def test_client_sends_a_plain_api_request() -> None:
@@ -194,7 +205,7 @@ async def test_client_sends_a_plain_api_request() -> None:
     ],
 )
 async def test_client_missing_or_unreadable_is_none(response: SimpleNamespace) -> None:
-    client, _ = _client(response)
+    client, _ = _client(response)  # a 404 is retried, then it is missing
     assert await client.status(POST_ID) is None
     assert await client.replies(POST_ID) == []
     assert await client.profile_media("InFebriyan128", 30) is None

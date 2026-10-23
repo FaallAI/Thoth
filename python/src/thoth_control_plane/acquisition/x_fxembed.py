@@ -33,9 +33,11 @@ OPTIONS: dict[str, Any] = {
     "headers": {"User-Agent": USER_AGENT},
 }
 MAX_PAGE = 100
-# The public API drops a connection now and then (live check 2026-10-23): one more try after a
-# short pause for a transport error or a server error; a rate limit or a 404 is final.
-ATTEMPTS = 2
+# The public API is uneven (live check 2026-10-23): a connection dropped now and then, and for one
+# profile the SIN edge answered 200 while the MRS edge answered 404 with no results. So a
+# transport error, a server error and a 404 are tried again after a short pause; a rate limit
+# is final, and a 404 that outlasts the retries is missing.
+ATTEMPTS = 3
 RETRY_PAUSE_S = 2.0
 
 
@@ -68,7 +70,8 @@ class FxEmbedClient:
         return None if payload.get("code") == 404 else payload
 
     async def _fetch(self, url: str) -> Any | None:
-        """The 200 response; None for a 404. Raises RequestFetchError once retries are spent."""
+        """The 200 response; None for a lasting 404. Raises RequestFetchError once retries are
+        spent."""
         for attempt in range(1, ATTEMPTS + 1):
             last = attempt == ATTEMPTS
             try:
@@ -87,9 +90,9 @@ class FxEmbedClient:
             status = getattr(response, "status", None)
             if status == 200:
                 return response
-            if status == 404:
+            if status == 404 and last:
                 return None
-            if isinstance(status, int) and status >= 500 and not last:
+            if (status == 404 or (isinstance(status, int) and status >= 500)) and not last:
                 await asyncio.sleep(self._retry_pause)
                 continue
             logger.warning("x fxembed refused status=%s", status)
