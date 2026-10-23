@@ -82,7 +82,35 @@ SIGN_IN_PATHS = ("/i/flow/login", "/login")
 # avatar, name, and bio, directly under the banner.
 # Both fail closed: a shifted layout matches nothing rather than the wrong block.
 POST_CARD_SELECTOR = 'article:has(a[href$="/status/{post_id}"])'
-PROFILE_CARD_SELECTOR = 'main > div:nth-child(4):has-text("@{owner}")'
+# The 2026 X DOM has no test ids and moves its blocks around, so the profile header is found by
+# shape (spec 2026-10-23 G5): the tallest full-width block above the first post that names the
+# owner. The script tags it; the crop then uses the tag.
+PROFILE_CARD_SELECTOR = '[data-thoth-profile-card="1"]'
+TAG_PROFILE_JS = """(owner) => {
+  document.querySelectorAll('[data-thoth-profile-card]')
+    .forEach((el) => el.removeAttribute('data-thoth-profile-card'));
+  const main = document.querySelector('main');
+  if (!main) return false;
+  const first = main.querySelector('article');
+  const limit = first ? first.getBoundingClientRect().top + 1 : Infinity;
+  const width = main.getBoundingClientRect().width;
+  const needle = '@' + owner.toLowerCase();
+  let best = null;
+  let tallest = 0;
+  for (const el of main.querySelectorAll('*')) {
+    if (el.tagName === 'ARTICLE' || el.querySelector('article')) continue;
+    const box = el.getBoundingClientRect();
+    if (box.height <= 0 || box.bottom > limit || box.width < 0.9 * width) continue;
+    if (!(el.innerText || '').toLowerCase().includes(needle)) continue;
+    if (box.height > tallest) {
+      best = el;
+      tallest = box.height;
+    }
+  }
+  if (!best) return false;
+  best.setAttribute('data-thoth-profile-card', '1');
+  return true;
+}"""
 # The profile page card (spec 5c-2): X lists posts, not a grid, so the header and the first
 # post. Checked against the page recorded on 2026-10-22, whose 2026 DOM has no test ids.
 PROFILE_PAGE_ITEMS = "main article"
@@ -211,9 +239,8 @@ class XHeadlessBrowser(CardBrowser):
             post_selector=(
                 POST_CARD_SELECTOR.format(post_id=status.group(1)) if status else NO_MATCH
             ),
-            profile_selector=(
-                PROFILE_CARD_SELECTOR.format(owner=owner.group(1)) if owner else NO_MATCH
-            ),
+            profile_selector=PROFILE_CARD_SELECTOR if owner else NO_MATCH,
+            profile_tag_js=(f"({TAG_PROFILE_JS})({json.dumps(owner.group(1))})" if owner else None),
         )
         return await super().cards(post_url, profile_url, want_post=want_post, targets=targets)
 

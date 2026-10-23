@@ -20,6 +20,7 @@ from thoth_control_plane.acquisition.models import AcquisitionReason
 from thoth_control_plane.acquisition.x_service import (
     POST_CARD_SELECTOR,
     PROFILE_CARD_SELECTOR,
+    TAG_PROFILE_JS,
     TAG_REPLIES_JS,
     RequestFetchError,
     XHeadlessBrowser,
@@ -138,12 +139,12 @@ async def test_cards_use_the_x_layout_with_no_dialog() -> None:
         (MEDIA_BOX_JS, post_selector),
         (TAG_REPLIES_JS, [{"comment_id": C1, "author": "fan_001", "prefix": "a reply"}]),
     ]
-    # Fail closed: a shifted layout matches nothing rather than the wrong block.
-    profile_selector = 'main > div:nth-child(4):has-text("@user_001")'
-    assert PROFILE_CARD_SELECTOR.format(owner="user_001") == profile_selector
-    assert profile_page.shots == [profile_selector]
+    # The header is tagged by shape for this owner first, then cropped by the tag (G5).
+    assert PROFILE_CARD_SELECTOR == '[data-thoth-profile-card="1"]'
+    assert profile_page.shots == [PROFILE_CARD_SELECTOR]
     assert profile_page.evaluated == [
-        (PROFILE_PAGE_JS, [{"x": 0, "y": 0, "width": 400, "height": 200}, "main article", 1])
+        (f'({TAG_PROFILE_JS})("user_001")', None),
+        (PROFILE_PAGE_JS, [{"x": 0, "y": 0, "width": 400, "height": 200}, "main article", 1]),
     ]
     assert session.exited == 1
     assert active_scrapling_session_count() == 0

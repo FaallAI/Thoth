@@ -55,6 +55,8 @@ class CardLayout:
     # Grid items of the profile page; with them the page card is cropped too (spec 5c-2, G2).
     page_items: str | None = None
     page_rows: int = 2
+    # Run before the profile crop; it tags the profile block the selector then names (X).
+    profile_tag_js: str | None = None
 
 
 def is_login_path(url: object, login_paths: tuple[str, ...]) -> bool:
@@ -142,6 +144,9 @@ def _on_profile(cards: Cards, layout: CardLayout) -> Callable[[Any], Awaitable[N
             cards.problems.append(AcquisitionReason.HEADLESS_BLOCKED.value)
             return
         await _dismiss(page, layout.dismiss_selector)
+        if layout.profile_tag_js is not None:
+            with contextlib.suppress(Exception):
+                await page.evaluate(layout.profile_tag_js)
         cards.profile_png = await _crop(page, layout.profile_selector)
         if layout.page_items is not None:
             cards.profile_page_png = await _crop_page(page, layout)
