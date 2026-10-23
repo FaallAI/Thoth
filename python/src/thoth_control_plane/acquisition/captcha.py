@@ -41,6 +41,23 @@ TRACK_WIDTH_JS = (
     " return track ? track.getBoundingClientRect().width : 0; }"
 )
 ROTATION_JS = "el => el.style.transform || ''"
+PROMPT_JS = (
+    "root => { const title = document.querySelector('.captcha_verify_title');"
+    " if (title) return [title.textContent];"
+    " return [...root.querySelectorAll('span')]"
+    "  .filter(s => s.textContent.trim().length > 8 && !s.closest('button'))"
+    "  .map(s => s.textContent.trim()); }"
+)
+#: Click-subtype prompt keywords, from what the maintained sellers document (Capzy,
+#: SadCaptcha, 2026-10): 3D asks for the two objects of the same shape, icon for the icons
+#: that match the instruction — English first, the modal follows the session locale. No
+#: click modal rose within the 2026-10-23 recording budget (three anonymous sessions, no
+#: challenge at all), so the table is unvalidated; the outcome line is what will show what
+#: production really meets.
+CLICK_PROMPTS: dict[str, tuple[str, ...]] = {
+    "3d": ("same shape", "bentuk yang sama", "3d"),
+    "icon": ("icon", "ikon", "sesuai", "match"),
+}
 ATTEMPTS = 2
 MIN_MATCH = 0.25
 VERIFY_WAIT_MS = 1_500
@@ -136,11 +153,23 @@ async def _classify(page: Any) -> str:
 
 
 async def _click_subtype(page: Any) -> str:
-    """The click subtype (icon, 3D) from the modal's prompt and images, or "unknown".
+    """The click subtype (icon, 3D) from the modal's prompt, or "unknown".
 
-    No click subtype has been recorded yet (2026-10-23), so nothing is claimed: an
-    unrecognized modal reports subtype=unknown and is never clicked at random.
+    A click modal carries no drag handle, so the prompt is the only signal left. The keyword
+    table is seller documentation, not recorded evidence — see :data:`CLICK_PROMPTS`. Either
+    way an unhandled subtype is never clicked at random.
     """
+    container = await page.query_selector(CONTAINER_SELECTOR)
+    if container is None:
+        return "unknown"
+    try:
+        prompts = await container.evaluate(PROMPT_JS)
+    except Exception:
+        return "unknown"
+    text = " ".join(prompts if isinstance(prompts, list) else []).lower()
+    for subtype, words in CLICK_PROMPTS.items():
+        if any(word in text for word in words):
+            return subtype
     return "unknown"
 
 

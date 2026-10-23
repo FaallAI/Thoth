@@ -210,10 +210,11 @@ class FakeImage(FakeElement):
 class FakeCaptchaPage:
     """The modal as `solve` sees it; a drag clears it only when it lands on the answer."""
 
-    def __init__(self, elements: dict, imgs: list, accept: list[float]) -> None:
+    def __init__(self, elements: dict, imgs: list, accept: list[float], container=None) -> None:
         self.elements = elements
         self.imgs = imgs
         self.accept = list(accept)  # the final pointer x each attempt must land on
+        self.container = container
         self.cleared = False
         self.mouse = FakeMouse(on_up=self._landed)
 
@@ -227,7 +228,9 @@ class FakeCaptchaPage:
 
     async def query_selector(self, selector: str):
         if selector == CONTAINER_SELECTOR:
-            return None if self.cleared else object()
+            if self.cleared:
+                return None
+            return self.container if self.container is not None else object()
         return self.elements.get(selector)
 
     async def query_selector_all(self, selector: str):
@@ -380,6 +383,42 @@ async def test_solve_reports_an_unrecognized_subtype_without_clicking(caplog) ->
     assert page.mouse.downs == 0
     assert _outcome_lines(caplog) == [
         "tiktok captcha outcome subtype=unknown solved=false attempts=1 reason=unsupported"
+    ]
+
+
+def _click_page(prompt: str) -> FakeCaptchaPage:
+    """A click-shaped modal: a prompt, an image, and no drag handle anywhere."""
+    background, _ = _slide_arrays()
+    image = FakeElement(SLIDE_BOXES["image"], _data_url(background))
+    return FakeCaptchaPage(
+        {IMAGE_SELECTOR: image},
+        [image],
+        accept=[],
+        container=FakeElement((100, 50, 340, 190), evaluates=[prompt]),
+    )
+
+
+@pytest.mark.parametrize(
+    ("prompt", "subtype"),
+    [
+        ("Select the two objects with the same shape", "3d"),
+        ("Klik dua benda dengan bentuk yang sama", "3d"),
+        ("Click the icons that match the prompt", "icon"),
+        ("Klik semua ikon yang sesuai", "icon"),
+        ("Rearrange the tiles until the picture is whole", "unknown"),
+    ],
+)
+async def test_click_subtypes_are_classified_from_the_prompt_and_left_alone(
+    prompt, subtype, caplog
+) -> None:
+    page = _click_page(prompt)
+
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is False
+
+    assert page.mouse.downs == 0  # a click subtype is never answered at random
+    assert _outcome_lines(caplog) == [
+        f"tiktok captcha outcome subtype={subtype} solved=false attempts=1 reason=unsupported"
     ]
 
 
