@@ -8,10 +8,9 @@ from pathlib import Path
 import httpx
 import pytest
 from cryptography.fernet import Fernet
-from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
 
 from tests.activities.test_source_investigation import INPUT, _load_fixture_report, _settings
+from tests.sqlite_support import sqlite_engine
 from thoth_control_plane.acquisition.accounts.runner import account_runner
 from thoth_control_plane.acquisition.accounts.vault import Vault
 from thoth_control_plane.acquisition.models import (
@@ -41,9 +40,7 @@ def _cookies(platform: str, domain: str, name: str) -> str:
 
 
 def _store() -> SourceAccountStore:
-    engine = create_engine(
-        "sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False}
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     return SourceAccountStore(engine, Vault(Fernet.generate_key().decode()))
 

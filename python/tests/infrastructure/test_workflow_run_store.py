@@ -4,9 +4,8 @@ import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
 
+from tests.sqlite_support import sqlite_engine
 from thoth_control_plane.domain import Actor, WorkflowSummary
 from thoth_control_plane.infrastructure import run_models  # noqa: F401
 from thoth_control_plane.infrastructure.project_store import ProjectStore
@@ -36,9 +35,7 @@ def summary(workflow_id: str, status: str = "queued") -> WorkflowSummary:
 
 @pytest.fixture
 def stores():
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     ticks = iter(T0 + timedelta(seconds=n) for n in range(1000))
     return (

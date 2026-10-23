@@ -8,10 +8,9 @@ from pathlib import Path
 
 import pytest
 from cryptography.fernet import Fernet
-from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
 
 from tests.activities.test_source_investigation import _load_fixture_report
+from tests.sqlite_support import sqlite_engine
 from thoth_control_plane.acquisition.accounts.access import SessionAccess
 from thoth_control_plane.acquisition.accounts.cookies import parse_cookies
 from thoth_control_plane.acquisition.accounts.runner import account_outcome, account_runner
@@ -81,9 +80,7 @@ class Script:
 
 @pytest.fixture
 def store() -> SourceAccountStore:
-    engine = create_engine(
-        "sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False}
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     store = SourceAccountStore(engine, Vault(Fernet.generate_key().decode()))
     store.set_policy("instagram", "fallback", 0)

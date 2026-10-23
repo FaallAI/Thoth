@@ -4,10 +4,9 @@ from datetime import UTC, datetime
 
 import httpx
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
 
 from tests.api.test_auth_principal import SERVICE, bearer_for
+from tests.sqlite_support import sqlite_engine
 from thoth_control_plane.api import create_app
 from thoth_control_plane.auth.models import BOOTSTRAP_WORKSPACE_ID
 from thoth_control_plane.config import Settings
@@ -35,9 +34,7 @@ class Payments:
 
 @pytest.fixture
 def world(gateway):
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     now = datetime.now(UTC)
     with engine.begin() as connection:

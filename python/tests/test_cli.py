@@ -5,6 +5,7 @@ import respx
 from pydantic import SecretStr
 from typer.testing import CliRunner
 
+from tests.sqlite_support import sqlite_engine
 from thoth_control_plane import cli
 from thoth_control_plane.cli import app
 
@@ -278,8 +279,6 @@ RUST_PROJECTS = (
 
 
 def test_projects_import_reads_the_rust_json_from_stdin(monkeypatch) -> None:
-    from sqlalchemy import create_engine
-    from sqlalchemy.pool import StaticPool
     from typer.testing import CliRunner
 
     from thoth_control_plane import cli
@@ -287,9 +286,7 @@ def test_projects_import_reads_the_rust_json_from_stdin(monkeypatch) -> None:
     from thoth_control_plane.infrastructure.project_store import ProjectStore
     from thoth_control_plane.infrastructure.source_account_models import Base
 
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     store = ProjectStore(engine)
     monkeypatch.setenv("THOTH_CONTROL_PLANE_API_KEY", "k")
@@ -310,8 +307,6 @@ def test_tokens_create_prints_one_working_token_and_creates_the_user(monkeypatch
     import asyncio
     from datetime import UTC, datetime
 
-    from sqlalchemy import create_engine
-    from sqlalchemy.pool import StaticPool
     from typer.testing import CliRunner
 
     from thoth_control_plane import cli
@@ -321,9 +316,7 @@ def test_tokens_create_prints_one_working_token_and_creates_the_user(monkeypatch
     from thoth_control_plane.infrastructure.account_store import AccountStore
     from thoth_control_plane.infrastructure.source_account_models import Base
 
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     with engine.begin() as connection:
         connection.execute(
@@ -352,17 +345,12 @@ def test_tokens_create_prints_one_working_token_and_creates_the_user(monkeypatch
 def test_quotas_and_prices_from_the_cli(monkeypatch) -> None:
     from datetime import UTC, datetime
 
-    from sqlalchemy import create_engine
-    from sqlalchemy.pool import StaticPool
-
     from thoth_control_plane.infrastructure import usage_models  # noqa: F401
     from thoth_control_plane.infrastructure.account_models import WorkspaceRow
     from thoth_control_plane.infrastructure.source_account_models import Base
     from thoth_control_plane.infrastructure.usage_store import UsageStore
 
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     with engine.begin() as connection:
         connection.execute(
@@ -389,18 +377,13 @@ def test_quotas_and_prices_from_the_cli(monkeypatch) -> None:
 def test_plans_rates_and_grants_from_the_cli(monkeypatch) -> None:
     from datetime import UTC, datetime
 
-    from sqlalchemy import create_engine
-    from sqlalchemy.pool import StaticPool
-
     from thoth_control_plane.infrastructure import billing_models  # noqa: F401
     from thoth_control_plane.infrastructure.account_models import WorkspaceRow
     from thoth_control_plane.infrastructure.billing_models import PlanRow
     from thoth_control_plane.infrastructure.billing_store import BillingStore
     from thoth_control_plane.infrastructure.source_account_models import Base
 
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     now = datetime.now(UTC)
     with engine.begin() as connection:

@@ -3,9 +3,9 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import create_engine, select
-from sqlalchemy.pool import StaticPool
+from sqlalchemy import select
 
+from tests.sqlite_support import sqlite_engine
 from thoth_control_plane.auth.models import BOOTSTRAP_WORKSPACE_ID
 from thoth_control_plane.infrastructure import account_models  # noqa: F401
 from thoth_control_plane.infrastructure.account_models import AuthEventRow, WorkspaceRow
@@ -30,9 +30,7 @@ def clock() -> Clock:
 
 @pytest.fixture
 def store(clock) -> AccountStore:
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     with engine.begin() as connection:
         connection.execute(

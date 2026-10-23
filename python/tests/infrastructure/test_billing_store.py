@@ -3,10 +3,9 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
-from sqlalchemy.pool import StaticPool
 
+from tests.sqlite_support import sqlite_engine
 from thoth_control_plane.billing import (
     InvalidPlan,
     PlanConflict,
@@ -38,9 +37,7 @@ def clock() -> Clock:
 
 @pytest.fixture
 def store(clock) -> BillingStore:
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     with Session(engine) as session, session.begin():
         session.add(WorkspaceRow(workspace_id="ws_a", name="A", created_at=NOW))

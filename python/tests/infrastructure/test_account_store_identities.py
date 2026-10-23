@@ -3,9 +3,9 @@
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import create_engine, text
-from sqlalchemy.pool import StaticPool
+from sqlalchemy import text
 
+from tests.sqlite_support import sqlite_engine
 from thoth_control_plane.auth.models import BOOTSTRAP_WORKSPACE_ID, VerifiedIdentity
 from thoth_control_plane.infrastructure import account_models  # noqa: F401
 from thoth_control_plane.infrastructure.account_models import WorkspaceRow
@@ -17,9 +17,7 @@ T0 = datetime(2026, 10, 19, tzinfo=UTC)
 
 @pytest.fixture
 def store() -> AccountStore:
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     with engine.begin() as connection:  # migration 0013 inserts this row on Postgres
         connection.execute(
