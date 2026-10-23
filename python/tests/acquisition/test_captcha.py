@@ -1,14 +1,16 @@
-"""The captcha solver: image math on synthetic puzzles, drag shape, and page wiring.
+"""The captcha solver: image math on recorded and synthetic puzzles, drag shape, page wiring.
 
-The image fixtures are generated, not recorded: a background with a framed gap and its exact
-patch for `slide`, an analytically rotated disc for `whirl`. The fakes mirror the modal's DOM
-as every maintained solver documents it and clear themselves when a drag lands where the
-puzzle says it must.
+The whirl fixtures are the images TikTok served on 2026-10-23 (a ring around a white hole, and
+the disc that fills it); the slide fixtures are generated — a background with a framed gap and
+its exact patch. The fakes mirror the modal's DOM as every maintained solver documents it and
+clear themselves when a drag lands where the puzzle says it must.
 """
 
 import base64
 import random
 import sys
+from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -17,20 +19,24 @@ from thoth_control_plane.acquisition.captcha import (
     HANDLE_SELECTOR,
     IMAGE_SELECTOR,
     PIECE_SELECTOR,
-    TRACK_SELECTOR,
+    WHIRL_IMAGE_SELECTOR,
     _decode,
     _drag,
+    _rotation_deg,
     gap_offset,
     solve,
     whirl_angle,
+    whirl_distance,
 )
 
 cv2 = pytest.importorskip("cv2", reason="the solver's image math needs OpenCV")
 numpy = pytest.importorskip("numpy", reason="the solver's image math needs NumPy")
 
 
+FIXTURES = Path(__file__).parent / "fixtures"
 NOTCH_X = 200
 SLIDE_BOXES = {"image": (100, 50, 340, 190), "piece": (104, 110, 48, 60)}
+WHIRL_TURNS = 360.0 / 284.0  # the fake modal's disc degrees per slider pixel
 
 
 def _slide_arrays(notch_x: int = NOTCH_X):
@@ -53,18 +59,26 @@ def _data_url(image) -> str:
     return "data:image/png;base64," + base64.b64encode(_png(image)).decode()
 
 
-def _whirl_arrays(angle: float = 35.0):
-    """A disc with an angular pattern, and the same disc rotated by `-angle`.
+def _whirl_arrays(angle: float = 60.0):
+    """A textured disc, and the ring whose hole it fills, turned `angle` degrees apart.
 
-    The pattern mixes coprime frequencies so no rotation other than the exact one can match.
+    The pattern mixes coprime frequencies so no rotation other than the exact one can align
+    the rims: the disc's rim carries the pattern shifted by `angle`, so standing it upright
+    takes a clockwise turn of exactly that many degrees.
     """
+
+    def pattern(phi):
+        return (numpy.sin(2 * phi) + 0.6 * numpy.sin(3 * phi) + 0.3 * numpy.sin(7 * phi) + 1.9) * 63
+
     yy, xx = numpy.mgrid[:200, :200]
-    theta = numpy.arctan2(yy - 100.0, xx - 100.0)
-    disc = (
-        (numpy.sin(theta * 2) + 0.6 * numpy.sin(theta * 3) + 0.3 * numpy.sin(theta * 7) + 1.9) * 63
-    ).astype(numpy.uint8)
-    matrix = cv2.getRotationMatrix2D((100.0, 100.0), -angle, 1.0)
-    return cv2.warpAffine(disc, matrix, (200, 200)), disc
+    disc = pattern(numpy.arctan2(yy - 99.5, xx - 99.5) + numpy.deg2rad(angle))
+    yo, xo = numpy.mgrid[:300, :300]
+    radius = numpy.sqrt((xo - 149.5) ** 2 + (yo - 149.5) ** 2)
+    spoke = pattern(numpy.arctan2(yo - 149.5, xo - 149.5))
+    ring = numpy.where((radius > 101) & (radius < 160), spoke, 255.0)
+    disc3 = numpy.dstack([disc] * 3).astype(numpy.uint8)
+    ring3 = numpy.dstack([ring] * 3).astype(numpy.uint8)
+    return disc3, ring3
 
 
 def test_gap_offset_finds_the_framed_gap() -> None:
@@ -94,23 +108,54 @@ def test_whirl_angle_recovers_a_known_rotation() -> None:
     assert abs(whirl_angle(inner, outer) - 35.0) <= 3
 
 
+def test_whirl_angle_aligns_the_recorded_modal_pair() -> None:
+    inner = _decode((FIXTURES / "whirl_inner.webp").read_bytes())
+    outer = _decode((FIXTURES / "whirl_outer.webp").read_bytes())
+
+    assert inner is not None and outer is not None
+    assert abs(whirl_angle(inner, outer) - 60.0) <= 3
+
+
 def test_whirl_angle_rejects_images_too_small_to_hold_a_ring() -> None:
     blank = numpy.zeros((20, 20), numpy.uint8)
     assert whirl_angle(blank, blank) is None
 
 
+def test_whirl_distance_follows_the_measured_drag_direction() -> None:
+    span, turns = 284.0, 360.0 / 284.0
+
+    assert abs(whirl_distance(60.0, turns, span) - 60.0 / turns) < 0.1  # forward turns the disc
+    assert abs(whirl_distance(60.0, -turns, span) - 300.0 / turns) < 0.1  # one full turn back
+    assert whirl_distance(60.0, 0.5, 20.0) is None  # no candidate fits the span
+    assert whirl_distance(60.0, 0.0, span) is None  # the drag rotates nothing
+
+
+def test_rotation_deg_reads_the_transform_style() -> None:
+    assert _rotation_deg("rotate(0deg)") == 0.0
+    assert _rotation_deg("translateX(12px) rotate(-33.5deg)") == -33.5
+    assert _rotation_deg("rotate(10deg) rotate(20deg)") == 30.0
+    assert _rotation_deg("") == 0.0
+    assert _rotation_deg("none") == 0.0
+
+
 class FakeMouse:
-    def __init__(self, on_up=None) -> None:
+    def __init__(self, on_up=None, on_down=None, on_move=None) -> None:
         self.moves: list[tuple[float, float]] = []
         self.downs = 0
         self.ups = 0
         self._on_up = on_up
+        self._on_down = on_down
+        self._on_move = on_move
 
     async def move(self, x: float, y: float) -> None:
         self.moves.append((x, y))
+        if self._on_move is not None:
+            self._on_move(x, y)
 
     async def down(self) -> None:
         self.downs += 1
+        if self._on_down is not None:
+            self._on_down()
 
     async def up(self) -> None:
         self.ups += 1
@@ -119,9 +164,12 @@ class FakeMouse:
 
 
 class FakeElement:
-    def __init__(self, box: tuple[float, float, float, float], src: str = "") -> None:
+    Box = tuple[float, float, float, float]
+
+    def __init__(self, box: Box, src: str = "", evaluates: Any = None) -> None:
         self._box = dict(zip(("x", "y", "width", "height"), box, strict=True))
         self._src = src
+        self._evaluates = evaluates
 
     async def bounding_box(self) -> dict:
         return dict(self._box)
@@ -129,9 +177,23 @@ class FakeElement:
     async def get_attribute(self, name: str) -> str | None:
         return self._src if name == "src" else None
 
+    async def evaluate(self, script: str, arg: Any = None) -> Any:
+        return self._evaluates() if callable(self._evaluates) else self._evaluates
+
+
+class FakeImage(FakeElement):
+    """A modal image whose inline rotation the fake page turns while the pointer is held."""
+
+    def __init__(self, box: tuple[float, float, float, float], src: str) -> None:
+        super().__init__(box, src)
+        self.rotation = 0.0
+
+    async def evaluate(self, script: str, arg: Any = None) -> Any:
+        return f"rotate({self.rotation:.2f}deg)"
+
 
 class FakeCaptchaPage:
-    """The modal as `solve` sees it; a drag clears it only when it lands on the puzzle's answer."""
+    """The modal as `solve` sees it; a drag clears it only when it lands on the answer."""
 
     def __init__(self, elements: dict, imgs: list, accept: list[float]) -> None:
         self.elements = elements
@@ -154,7 +216,51 @@ class FakeCaptchaPage:
         return self.elements.get(selector)
 
     async def query_selector_all(self, selector: str):
-        assert selector == "img"
+        assert selector == WHIRL_IMAGE_SELECTOR
+        return list(self.imgs)
+
+    async def wait_for_timeout(self, timeout: int) -> None:
+        return None
+
+
+class FakeWhirlPage:
+    """The 2026 whirl modal as `solve` sees it: two images sized apart, a handle in a draggable
+    wrapper, and a disc that rotates with the pointer until it is released."""
+
+    def __init__(self, imgs: list[FakeImage], degrees_per_px: float) -> None:
+        self.elements = {HANDLE_SELECTOR: FakeElement((466, 553, 64, 40), evaluates=348.0)}
+        self.imgs = imgs
+        self.degrees_per_px = degrees_per_px
+        self.cleared = False
+        self.mouse = FakeMouse(on_up=self._released, on_down=self._pressed, on_move=self._moved)
+        self._held = False
+        self._down_x = 0.0
+
+    @property
+    def inner(self) -> FakeImage:
+        return self.imgs[1]
+
+    def _pressed(self) -> None:
+        self._held = True
+        self._down_x = self.mouse.moves[-1][0]
+
+    def _moved(self, x: float, y: float) -> None:
+        if self._held:
+            self.inner.rotation = (x - self._down_x) * self.degrees_per_px
+
+    def _released(self) -> None:
+        self._held = False
+        drift = abs(self.inner.rotation - 60.0) % 360.0
+        if min(drift, 360.0 - drift) <= 3.0:
+            self.cleared = True
+
+    async def query_selector(self, selector: str):
+        if selector == CONTAINER_SELECTOR:
+            return None if self.cleared else object()
+        return self.elements.get(selector)
+
+    async def query_selector_all(self, selector: str):
+        assert selector == WHIRL_IMAGE_SELECTOR
         return list(self.imgs)
 
     async def wait_for_timeout(self, timeout: int) -> None:
@@ -172,6 +278,17 @@ def _slide_page(accept: list[float]) -> FakeCaptchaPage:
         },
         [image],
         accept,
+    )
+
+
+def _whirl_page(degrees_per_px: float) -> FakeWhirlPage:
+    disc, ring = _whirl_arrays(60.0)
+    return FakeWhirlPage(
+        [
+            FakeImage((535, 337, 210, 210), _data_url(ring)),
+            FakeImage((576, 378, 128, 128), _data_url(disc)),
+        ],
+        degrees_per_px,
     )
 
 
@@ -205,22 +322,21 @@ async def test_solve_skips_a_subtype_with_nothing_to_drag() -> None:
     assert page.mouse.downs == 0
 
 
-async def test_solve_flips_the_whirl_direction_on_the_second_attempt() -> None:
-    inner, outer = _whirl_arrays(35.0)
-    outer_image = FakeElement((100, 50, 200, 200), _data_url(outer))
-    page = FakeCaptchaPage(
-        {
-            IMAGE_SELECTOR: outer_image,
-            TRACK_SELECTOR: FakeElement((100, 300, 340, 8)),
-            HANDLE_SELECTOR: FakeElement((100, 294, 40, 24)),
-        },
-        [outer_image, FakeElement((140, 90, 120, 120), _data_url(inner))],
-        # span 300: first attempt 300*35/360 lands at 120+29.2, second 300*325/360 at 120+270.8.
-        accept=[199.2, 390.8],
-    )
+@pytest.mark.parametrize("degrees_per_px", [-WHIRL_TURNS, WHIRL_TURNS])
+async def test_solve_turns_the_disc_whichever_way_the_slider_rotates_it(degrees_per_px) -> None:
+    page = _whirl_page(degrees_per_px)
 
     assert await solve(page, rng=random.Random(1)) is True
     assert page.cleared is True
+    assert page.mouse.downs == 1 and page.mouse.ups == 1
+
+
+async def test_solve_releases_the_handle_when_the_drag_rotates_nothing() -> None:
+    page = _whirl_page(0.0)
+
+    assert await solve(page, rng=random.Random(1)) is False
+    assert page.cleared is False
+    assert page.mouse.downs == 2 and page.mouse.ups == 2  # both attempts end in a release
 
 
 async def test_solve_degrades_to_false_without_opencv(monkeypatch, caplog) -> None:
