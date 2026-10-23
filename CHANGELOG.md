@@ -2,6 +2,127 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-23 - Captcha follow-ups: whirl review minors, one outcome line, click subtypes classified
+
+Branch `fix/tiktok-captcha-followups` (from `256eaed`, after PR #44). Closes what the
+whirl-solver work left open: the two review minors, success-rate observability, and the
+click subtypes handled as far as the recorded evidence allows.
+
+### The two whirl review minors (`acquisition/captcha.py`)
+
+- **Hole radius from the rendered ratio.** `whirl_angle` no longer assumes the outer ring's
+  hole radius equals the inner image's native radius: `_whirl_drag` derives it from the
+  rendered size ratio (inner ÷ outer on screen × the ring's native width ÷ 2), so a disc
+  served at another native resolution still lines up. Without rendered sizes (raw arrays)
+  the disc's own native radius remains the stand-in, which the recorded pair itself
+  satisfies. Test first: the recorded pair with the disc rescaled to 160 px and the
+  recorded rendered ratio (128/210) — failed with a TypeError before the parameter
+  existed, 60° ± 3 after.
+- **The pointer always comes back up.** An exception between `mouse.down()` and
+  `mouse.up()` in `_drag` or `_whirl_drag` used to leave the button pressed; both now
+  release in a `finally`. Tests first: fakes whose `mouse.move` raises mid-drag asserted
+  `ups == 1` and failed with `ups == 0` before the change.
+
+### Success-rate observability
+
+Every `solve()` call now ends in exactly one INFO line, whatever happened:
+
+    tiktok captcha outcome subtype=<whirl|slide|icon|3d|unknown> solved=<true|false> attempts=<n> reason=<none|no_images|no_angle|no_distance|modal_stayed|unsupported|error>
+
+No URL, cookie, handle or image data appears in it; the old solved/unsolved lines folded
+into this one (the whirl measurement detail lines stay). An unsupported subtype does not
+retry (`attempts=1`), a modal that vanished before the attempt reports `no_images`, a
+measured-impossible drag `no_angle`/`no_distance`, a drag that changed nothing
+`modal_stayed`, and a solver without OpenCV `error` with `attempts=0`. Count the success
+rate after a deploy with one line:
+
+    docker compose logs worker | grep "tiktok captcha outcome" | sort | uniq -c
+
+— the `solved=true` share of those lines is the solver's success rate, split by subtype
+and reason for free.
+
+### Click subtypes: detection only
+
+Three operator-authorised anonymous recording sessions (the whole budget) tried to raise
+the modal on 2026-10-23 06:14–06:21 UTC: **no captcha appeared at all** — every anonymous
+listing was served normally. The refusal is intermittent; the same recipe (fresh visit,
+`s_v_web_id` dropped, revisit) had raised the whirl modal at 02:51 UTC the same day. No
+click subtype was ever seen, so there are no samples, no fixtures, and no solving attempt:
+with nothing recorded, OpenCV matching and the project's vision model would both be tuned
+blind, and commercial captcha services stay banned.
+
+What went in instead: `solve()` now classifies the subtype — slide and whirl by what the
+modal offers to drag (the drag handle and its piece/image pair), click subtypes by prompt
+keywords (3D: "same shape"/"bentuk yang sama"; icon: "icon"/"ikon"/"sesuai"/"match",
+English and Indonesian). The keyword table comes from what the maintained sellers document
+(Capzy, SadCaptcha, 2026-10) and is marked unvalidated for exactly that reason. An
+unhandled subtype returns False with `reason=unsupported` and is never clicked at random;
+production's outcome lines will show whether icon/3D actually appear and how often, which
+is the evidence a recording or solving follow-up needs.
+
+Evidence: `D:/thoth-tmp/research/tiktok-solver-proof/click/` — `probe4.py` (the
+refresh-budgeted recording probe), `SESSIONS.md` (the three runs; sessions 1–2's request
+logs were overwritten by the probe's fixed log path, session 3's 162 requests survive in
+`session4c-log.json`).
+
+### Signed-in session after a solve: plan, not run
+
+Whether a leased TikTok session still lists after the solver clears a modal needs the
+account and its proxy, so it waits for the operator's explicit go. The plan:
+
+1. Lease `tiktok operator-1` through the source-account store (the production lease path;
+   one lease of the 40/day TikTok budget, 10-minute holder window), browser context from
+   its cookies/profile with its proxy. No login form is ever touched.
+2. Raise the modal with the fewest requests: one profile visit; if no modal, drop
+   `s_v_web_id` and revisit once (≥ 40 s apart) — the cheapest proven re-raise.
+3. Let `solve()` run its 2-attempt budget; the new outcome line records what happened.
+4. Check the session still lists: in the same page, the next `/api/post/item_list/` must
+   answer JSON with items and the grid must render; then one plain revisit ≥ 40 s later
+   with the same assertion (usability, not just the one reload).
+5. Cost of a failure: an unsolved (or solved-but-still-refused) signed-in captcha reports
+   outcome `challenge`, which escalates the kept cooldown one level — from the account's
+   current level 2 that is 6 h (level 3), from a reset account 15 min; a success resets it
+   to healthy. This plan allows exactly one signed-in probe session.
+
+Verification: `tests/acquisition` green in WSL; the whole Python suite 4403 passed, 111
+skipped; `make lint` clean; the acquisition tests including the captcha Chromium pair pass
+in the thoth image (`browser-tests.sh`, `WT=` this worktree): 1018 passed.
+
+**Signed-in live test** (operator-authorised 2026-10-23, run by the reviewer on this branch):
+one lease of `tiktok operator-1` through the production lease path (`StoreLeases`, the
+account's cookies, profile and proxy), profile `@officialdominannews`, 08:19-08:22 UTC, three
+page loads at most 40 s apart, no login form. Evidence: `D:/thoth-tmp/research/tiktok-solver-proof/signed/`.
+
+| Step | Result |
+|---|---|
+| Visit 1 | two `item_list` answers with empty bodies and a whirl modal, raised on its own (no cookie drop needed) |
+| Solver | angle 300°, inner +22.18°/outer -22.18° over 35.6 px (1.246 deg/px), drag 240.8 of 284 px |
+| After the drag | `item_list` JSON 16 + 16 items, grid 32: **solved** |
+| Visit 3, 40 s later | 16 + 16 + 16 items, grid 48, no modal: **the session stays usable after a solve** |
+| Lease release | `success`; the account went from cooldown level 2 to healthy, level 0 |
+
+Two solver faults found live and fixed test first:
+
+- **A right answer was logged as a failure.** The modal took longer than the fixed 1.5 s check
+  to close. The second attempt then met the closing modal, which had no drag handle, and
+  logged `subtype=unknown reason=unsupported`. The check now polls every 250 ms for up to 6 s.
+  Test: `test_a_right_answer_whose_modal_closes_slowly_is_a_solve`.
+- **A whirl whose images had not rendered yet was never retried.** It was classified
+  `unknown`/`unsupported`. With a drag handle present it is now `no_images` and retried; only a
+  modal with no handle (a click subtype) stops at once. Test:
+  `test_a_whirl_whose_images_load_late_is_solved_on_the_retry`.
+
+**Next steps:**
+
+- **Push/PR gate (operator):** push `fix/tiktok-captcha-followups`, PR, CI, review.
+- **Deploy gate (operator):** after merge and deploy, the success rate becomes measurable
+  with the `docker compose logs worker | grep` line above.
+- **Signed-in probe:** done 2026-10-23 (see the table above); the session stays usable after
+  a solve.
+- **Click subtypes:** still unsupported. Re-run the recording probe (budget rules as in
+  `click/SESSIONS.md`) once production outcome lines show `subtype=icon` or `subtype=3d`
+  appearing; solving then starts from recorded samples, OpenCV first.
+
 ## 2026-10-23 - X via FxEmbed (branch `feat/x-fxembed`)
 
 **Why:** sometime between 2026-10-16 and 2026-10-22, X's signed-out pages stopped embedding
