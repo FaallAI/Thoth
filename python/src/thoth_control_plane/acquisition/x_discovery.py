@@ -1,125 +1,29 @@
-"""X profile discovery: the handle's own video tweets from its anonymous profile page.
+"""X profile discovery: the handle's own media posts, from FxEmbed's profile media listing.
 
-Request only: one Scrapling GET of `/<handle>`, decoded from the page's seroval stream.
-Anonymous pages serve about six recent tweets, so a profile often yields few videos; the
-login feature that follows Stage 3d lengthens the timeline. Never raises; every failure is
-a `DiscoveryResult` with a reason. A library with no caller until Stage 8.
+X's signed-out profile page stopped embedding its timeline in October 2026 (spec 2026-10-23),
+so one FxEmbed GET replaces it; no account is needed. Never raises; every failure is a
+`DiscoveryResult` with a reason.
 """
 
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable
-from typing import Any
 
 from thoth_control_plane.acquisition.adapters.fxembed import fx_profile
 from thoth_control_plane.acquisition.adapters.x import (
     HANDLE,
-    _get,
-    author_of,
-    page_tweets,
-    post_url,
-    tweet_engagement,
-    tweet_photos,
-    tweet_published,
-    tweet_text,
-    tweet_videos,
 )
-from thoth_control_plane.acquisition.discovery import MAX_CAPTION, _empty
-from thoth_control_plane.acquisition.instagram_discovery import _reason, rank_videos
+from thoth_control_plane.acquisition.discovery import _empty
+from thoth_control_plane.acquisition.instagram_discovery import _reason
 from thoth_control_plane.acquisition.models import (
-    DiscoveredPhoto,
-    DiscoveredVideo,
-    DiscoveryDrops,
     DiscoveryReason,
     DiscoveryResult,
     ProfileDiscovery,
 )
-from thoth_control_plane.acquisition.normalize import numeric_id
 from thoth_control_plane.acquisition.threads_service import RequestFetchError
 from thoth_control_plane.acquisition.x_fxembed import FxEmbedClient
 
 logger = logging.getLogger(__name__)
-
-
-# The shapes X has used for a repost's original; none was seen live in Stage 3c.
-REPOST_PATHS = (
-    ("retweeted_status_results",),
-    ("retweeted_status_result",),
-    ("legacy", "retweeted_status_result"),
-)
-
-
-def _repost(tweet: dict[str, Any]) -> bool:
-    return any(isinstance(_get(tweet, *path), dict) for path in REPOST_PATHS)
-
-
-def _video(tweet: dict[str, Any], owner: str) -> DiscoveredVideo | None:
-    rest_id = numeric_id(tweet["rest_id"])
-    if rest_id is None:
-        return None
-    try:
-        return DiscoveredVideo(
-            post_id=rest_id,
-            owner_handle=owner,
-            canonical_url=post_url(owner, rest_id),
-            caption=(tweet_text(tweet) or "")[:MAX_CAPTION],
-            published_at=tweet_published(tweet),
-            engagement=tweet_engagement(tweet),
-        )
-    except ValueError:
-        return None
-
-
-def _photo(tweet: dict[str, Any], owner: str, images: list[str]) -> DiscoveredPhoto | None:
-    rest_id = numeric_id(tweet["rest_id"])
-    if rest_id is None:
-        return None
-    try:
-        return DiscoveredPhoto(
-            post_id=rest_id,
-            owner_handle=owner,
-            canonical_url=post_url(owner, rest_id),
-            caption=(tweet_text(tweet) or "")[:MAX_CAPTION],
-            published_at=tweet_published(tweet),
-            image_urls=images[:20],
-        )
-    except ValueError:
-        return None
-
-
-def parse_profile(roots: Iterable[object], handle: str, limit: int) -> DiscoveryResult:
-    tweets = page_tweets(roots)
-    if not tweets:
-        return _empty("profile", DiscoveryReason.NO_DATA)
-    videos: list[DiscoveredVideo] = []
-    photos: list[DiscoveredPhoto] = []
-    photo_posts = invalid = 0
-    for tweet in tweets:
-        owner = author_of(tweet)
-        # Another author's tweet (a repost's original, a quote) is not the handle's post.
-        if owner is None or owner.lower() != handle.lower() or _repost(tweet):
-            invalid += 1
-            continue
-        if not tweet_videos(tweet):
-            photo_posts += 1
-            images = tweet_photos(tweet)
-            if images and (photo := _photo(tweet, owner, images)) is not None:
-                photos.append(photo)
-            continue
-        video = _video(tweet, owner)
-        if video is None:
-            invalid += 1
-            continue
-        videos.append(video)
-    return DiscoveryResult(
-        kind="profile",
-        videos=rank_videos(videos)[:limit],
-        pages=1,
-        exhausted=False,
-        drops=DiscoveryDrops(photo_posts=photo_posts, invalid=invalid),
-        photos=photos[:limit],
-    )
 
 
 class XProfileDiscovery:

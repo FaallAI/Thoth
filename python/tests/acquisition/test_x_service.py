@@ -90,28 +90,12 @@ async def test_failures_are_classified(result: Any, reason: AcquisitionReason) -
     with pytest.raises(RequestFetchError) as caught:
         await fetcher.syndication(POST_ID)
     assert caught.value.reason is reason
-    with pytest.raises(RequestFetchError) as caught:
-        await fetcher.page(POST)
-    assert caught.value.reason is reason
-
-
-@pytest.mark.asyncio
-async def test_a_page_404_is_blocked() -> None:
-    with pytest.raises(RequestFetchError) as caught:
-        await XRequestFetcher(_get(_response(status=404))).page(POST)
-    assert caught.value.reason is BLOCKED
-
-
-@pytest.mark.asyncio
-async def test_page_returns_the_html_text() -> None:
-    fetcher = XRequestFetcher(_get(_response(body="<p>é</p>".encode())))
-    assert await fetcher.page(POST) == "<p>é</p>"
 
 
 @pytest.mark.asyncio
 async def test_a_handle_that_starts_with_login_is_not_a_login_wall() -> None:
     fetcher = XRequestFetcher(_get(_response(url="https://x.com/loginx")))
-    assert await fetcher.page("https://x.com/loginx") == "{}"
+    assert await fetcher.syndication(POST_ID) == {}
 
 
 TARGETS = [CommentTarget(C1, "fan_001", "a reply")]

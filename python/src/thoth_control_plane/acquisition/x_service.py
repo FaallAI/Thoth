@@ -1,9 +1,10 @@
-"""X single-post acquisition: the syndication JSON core, the page's seroval data as a
-best-effort enrichment (first-page replies, views, reposts), and headless cards.
+"""X single-post acquisition: the syndication JSON core, FxEmbed as a best-effort enrichment
+(every video, first-page replies, views, reposts, long text), and headless cards.
 
-Content is `request` by construction: logged-out pages serve a browser no content data
-(no GraphQL traffic, and the seroval table is dropped after hydration). There is no runtime
-fallback between methods; the legacy fallback lives in the workflow.
+Content is `request` by construction. X's signed-out pages stopped embedding tweet JSON in
+October 2026, so the enrichment reads FxEmbed (spec 2026-10-23); the cards are still cropped
+from the real X pages. There is no runtime fallback between methods; the legacy fallback lives
+in the workflow.
 """
 
 from __future__ import annotations
@@ -179,7 +180,7 @@ def _text(response: Any) -> str:
 
 
 class XRequestFetcher:
-    """Plain impersonated HTTP GETs: the syndication JSON and the post or profile page."""
+    """Plain impersonated HTTP GETs of the syndication JSON."""
 
     def __init__(self, get: Callable[..., Awaitable[Any]] | None = None) -> None:
         self._get = get or _scrapling_get
@@ -212,9 +213,6 @@ class XRequestFetcher:
             return json.loads(_text(response))
         except ValueError:
             return None
-
-    async def page(self, url: str) -> str:
-        return _text(await self._response(url))
 
 
 class XHeadlessBrowser(CardBrowser):

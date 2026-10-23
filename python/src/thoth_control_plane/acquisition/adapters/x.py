@@ -1,9 +1,9 @@
 """SSRF-safe X URL identity and pure parsing of X's anonymous data.
 
 The core of a post is the public syndication JSON
-(`cdn.syndication.twimg.com/tweet-result`). The page's seroval-decoded data adds the
-first-page replies, views, and reposts; it is an enrichment, so nothing missing there is an
-error. Nothing here performs I/O.
+(`cdn.syndication.twimg.com/tweet-result`). The FxEmbed enrichment (`adapters.fxembed`) adds
+every video, first-page replies, views, and reposts; nothing missing there is an error.
+`page_tweets` reads GraphQL timelines (X keyword search). Nothing here performs I/O.
 """
 
 from __future__ import annotations
@@ -18,14 +18,13 @@ from pydantic import Field
 
 from thoth_control_plane.acquisition.adapters.threads import _https, _match_safe_path
 from thoth_control_plane.acquisition.models import (
-    MAX_COMMENTS,
     MAX_MEDIA_ITEMS,
     MAX_POST_TEXT,
     ReportComment,
     ResolvedMedia,
     SourcePost,
 )
-from thoth_control_plane.acquisition.normalize import _count, numeric_id, published_at_from_epoch
+from thoth_control_plane.acquisition.normalize import _count
 from thoth_control_plane.domain.models import StrictModel
 
 CANONICAL_BASE = "https://x.com"
@@ -212,104 +211,9 @@ def page_tweets(roots: Iterable[object]) -> list[dict[str, Any]]:
     return tweets
 
 
-def author_of(tweet: dict[str, Any]) -> str | None:
-    return _handle(_get(tweet, "core", "user_results", "result", "core", "screen_name"))
-
-
 def display_text(text: str) -> str:
     """A tweet's own words: no leading reply mentions, no trailing `t.co` links."""
     return TRAILING_LINKS.sub("", LEADING_MENTIONS.sub("", text)).strip()
-
-
-def tweet_text(tweet: dict[str, Any]) -> str | None:
-    """A long tweet's note text, else its full text, without mentions and media links."""
-    note = _get(tweet, "note_tweet", "note_tweet_results", "result", "text")
-    text = note if isinstance(note, str) else _get(tweet, "details", "full_text")
-    return display_text(html.unescape(text)) if isinstance(text, str) else None
-
-
-def tweet_published(tweet: dict[str, Any]) -> str | None:
-    millis = _get(tweet, "details", "created_at_ms")
-    if isinstance(millis, bool) or not isinstance(millis, int):
-        return None
-    return published_at_from_epoch(millis // 1000)
-
-
-def tweet_engagement(tweet: dict[str, Any]) -> dict[str, int]:
-    pairs = (
-        ("like", _get(tweet, "counts", "favorite_count")),
-        ("comment", _get(tweet, "counts", "reply_count")),
-        ("share", _get(tweet, "counts", "retweet_count")),
-        ("play", _get(tweet, "views", "count")),
-    )
-    return {key: count for key, value in pairs if (count := _count(value)) is not None}
-
-
-def tweet_photos(tweet: dict[str, Any]) -> list[str]:
-    """The https URL of each photo entity, in order (spec 5c-2, G4)."""
-    entities = tweet.get("media_entities2")
-    photos: list[str] = []
-    for entity in entities if isinstance(entities, list) else []:
-        if isinstance(entity, dict) and entity.get("type") == "photo":
-            url = _https(entity.get("media_url_https"))
-            if url is not None:
-                photos.append(url)
-    return photos
-
-
-def tweet_videos(tweet: dict[str, Any]) -> list[str]:
-    """The best MP4 of each video entity, in order."""
-    entities = tweet.get("media_entities2")
-    videos: list[str] = []
-    for entity in entities if isinstance(entities, list) else []:
-        if isinstance(entity, dict) and entity.get("type") in VIDEO_TYPES:
-            url = _best_mp4(_get(entity, "video_info", "variants"), "url", "content_type")
-            if url is not None:
-                videos.append(url)
-    return videos
-
-
-def _comment(tweet: dict[str, Any]) -> ReportComment | None:
-    author, text = author_of(tweet), tweet_text(tweet)
-    rest_id = numeric_id(tweet["rest_id"])
-    if author is None or not text or rest_id is None:
-        return None
-    try:
-        return ReportComment(
-            comment_id=rest_id,
-            author=author,
-            text=text[:MAX_COMMENT_TEXT],
-            likes=_count(_get(tweet, "counts", "favorite_count")) or 0,
-        )
-    except ValueError:
-        return None
-
-
-def parse_page(roots: Iterable[object], identity: XPostIdentity) -> XPageParse:
-    """Replies to the post and its page-only counters; an empty parse when none are found."""
-    tweets = page_tweets(roots)
-    post = next((tweet for tweet in tweets if tweet["rest_id"] == identity.post_id), None)
-    comments: list[ReportComment] = []
-    dropped = 0
-    for tweet in tweets:
-        if tweet is post or _get(tweet, "reply_to_results", "rest_id") != identity.post_id:
-            continue
-        if len(comments) == MAX_COMMENTS:
-            break
-        comment = _comment(tweet)
-        if comment is None:
-            dropped += 1
-            continue
-        comments.append(comment)
-    if post is None:
-        return XPageParse(comments=comments, dropped_comments=dropped)
-    return XPageParse(
-        engagement=tweet_engagement(post),
-        text=tweet_text(post),
-        comments=comments,
-        dropped_comments=dropped,
-        videos=tweet_videos(post),
-    )
 
 
 def with_page(parsed: XParse, page: XPageParse) -> XParse:
