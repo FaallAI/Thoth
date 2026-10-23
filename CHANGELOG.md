@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-23 - X cards: hide the signed-out overlays before cropping (branch `fix/x-card-overlays`)
+
+Found while rendering real X material through the renderer: one of the three X comment cards
+from the live check (`comment-2110532638704595241.png`) was a picture of X's "Continue to X"
+button, not the reply. The reply-tagging script had found the right article. The crop is an
+element screenshot, which paints whatever covers the element, and the signed-out page keeps an
+`<aside class="fixed bottom-0 z-40">` holding that button over the bottom of the viewport.
+
+- **`CardLayout.hide_js`:** a script run on every card page before any crop (post page and
+  profile page).
+- **`HIDE_OVERLAYS_JS` (X):** hides every `fixed` or `sticky` element that neither holds a post
+  nor sits inside one. That covers the bottom bar and the column's sticky header; the posts stay
+  visible.
+
+**Verification:**
+- Browser test `test_the_overlay_script_hides_the_signed_out_bars_but_never_a_post`.
+- `test_cards_use_the_x_layout_with_no_dialog` checks that the script runs first on both pages.
+- `tests/acquisition`: 981 passed offline, 1023 in the thoth image.
+- Ruff: clean.
+
+**Live re-check pending:** two attempts on 2026-10-23 were sent to X's login wall
+(`headless_blocked` on both pages, before any script ran). The next X live check must confirm
+the comment cards.
+
 ## 2026-10-23 - Captcha outcome lines outlive the worker (branch `chore/captcha-outcome-log`)
 
 The solver's success rate is counted from its `tiktok captcha outcome` lines. Docker drops a

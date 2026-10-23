@@ -57,6 +57,8 @@ class CardLayout:
     page_rows: int = 2
     # Run before the profile crop; it tags the profile block the selector then names (X).
     profile_tag_js: str | None = None
+    # Run on every page before any crop: hides what the page lays over its posts (X).
+    hide_js: str | None = None
 
 
 def is_login_path(url: object, login_paths: tuple[str, ...]) -> bool:
@@ -99,6 +101,12 @@ async def _dismiss(page: Any, selector: str | None) -> None:
         await page.locator(selector).first.click(timeout=DIALOG_TIMEOUT_MS)
 
 
+async def _hide_overlays(page: Any, layout: CardLayout) -> None:
+    if layout.hide_js is not None:
+        with contextlib.suppress(Exception):
+            await page.evaluate(layout.hide_js)
+
+
 async def _crop(page: Any, selector: str) -> bytes | None:
     with contextlib.suppress(Exception):
         element = page.locator(selector).first
@@ -115,6 +123,7 @@ def _on_post(
             cards.problems.append(AcquisitionReason.HEADLESS_BLOCKED.value)
             return
         await _dismiss(page, layout.dismiss_selector)
+        await _hide_overlays(page, layout)
         if want_post:
             cards.post_png = await _crop(page, layout.post_selector)
         if cards.post_png is not None and layout.measure_media:
@@ -144,6 +153,7 @@ def _on_profile(cards: Cards, layout: CardLayout) -> Callable[[Any], Awaitable[N
             cards.problems.append(AcquisitionReason.HEADLESS_BLOCKED.value)
             return
         await _dismiss(page, layout.dismiss_selector)
+        await _hide_overlays(page, layout)
         if layout.profile_tag_js is not None:
             with contextlib.suppress(Exception):
                 await page.evaluate(layout.profile_tag_js)

@@ -87,6 +87,19 @@ POST_CARD_SELECTOR = 'article:has(a[href$="/status/{post_id}"])'
 # shape (spec 2026-10-23 G5): the tallest full-width block above the first post that names the
 # owner. The script tags it; the crop then uses the tag.
 PROFILE_CARD_SELECTOR = '[data-thoth-profile-card="1"]'
+# A signed-out page lays fixed and sticky bars over its posts: the "Continue to X" bar at the
+# bottom (an <aside class="fixed bottom-0">) and the column's sticky header. An element
+# screenshot paints whatever covers the element, so one comment card came out as a picture of
+# that button (live check 2026-10-23). Every such layer that holds no post is hidden first.
+HIDE_OVERLAYS_JS = """() => {
+  for (const el of document.querySelectorAll('body *')) {
+    const position = getComputedStyle(el).position;
+    if ((position === 'fixed' || position === 'sticky')
+        && !el.closest('article') && !el.querySelector('article')) {
+      el.style.visibility = 'hidden';
+    }
+  }
+}"""
 TAG_PROFILE_JS = """(owner) => {
   document.querySelectorAll('[data-thoth-profile-card]')
     .forEach((el) => el.removeAttribute('data-thoth-profile-card'));
@@ -172,6 +185,7 @@ def x_layout() -> CardLayout:
         measure_media=True,
         page_items=PROFILE_PAGE_ITEMS,
         page_rows=1,
+        hide_js=HIDE_OVERLAYS_JS,
     )
 
 

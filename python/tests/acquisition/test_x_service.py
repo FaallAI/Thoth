@@ -18,6 +18,7 @@ from thoth_control_plane.acquisition.card_browser import (
 )
 from thoth_control_plane.acquisition.models import AcquisitionReason
 from thoth_control_plane.acquisition.x_service import (
+    HIDE_OVERLAYS_JS,
     POST_CARD_SELECTOR,
     PROFILE_CARD_SELECTOR,
     TAG_PROFILE_JS,
@@ -120,6 +121,7 @@ async def test_cards_use_the_x_layout_with_no_dialog() -> None:
     assert post_page.shots == [post_selector, f'[{COMMENT_ROW_ATTRIBUTE}="{C1}"]']
     # The post card's media box is measured right after the crop (spec 5c-2, G1).
     assert post_page.evaluated == [
+        (HIDE_OVERLAYS_JS, None),
         (MEDIA_BOX_JS, post_selector),
         (TAG_REPLIES_JS, [{"comment_id": C1, "author": "fan_001", "prefix": "a reply"}]),
     ]
@@ -127,6 +129,7 @@ async def test_cards_use_the_x_layout_with_no_dialog() -> None:
     assert PROFILE_CARD_SELECTOR == '[data-thoth-profile-card="1"]'
     assert profile_page.shots == [PROFILE_CARD_SELECTOR]
     assert profile_page.evaluated == [
+        (HIDE_OVERLAYS_JS, None),
         (f'({TAG_PROFILE_JS})("user_001")', None),
         (PROFILE_PAGE_JS, [{"x": 0, "y": 0, "width": 400, "height": 200}, "main article", 1]),
     ]
