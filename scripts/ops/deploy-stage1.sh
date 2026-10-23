@@ -29,6 +29,9 @@ step migrate
 "${compose[@]}" run --rm --no-deps api thoth-control editor migrate 2>&1 | tail -3
 step backfill-runs
 "${compose[@]}" run --rm --no-deps api thoth-control workflow backfill 2>&1 | tail -1
+step save-captcha-outcomes
+# The new worker starts with an empty log; keep the solver's outcome lines first.
+bash scripts/ops/captcha-outcomes.sh "$env_file"
 step stop-worker
 "${compose[@]}" stop worker
 # The artifact volume is no longer mounted (spec 2026-10-17, render storage). While its host
