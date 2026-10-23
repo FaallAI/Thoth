@@ -7,12 +7,14 @@ from the modal's own images: ``slide`` (fit the puzzle piece into the gap) and `
 how. The 2026 whirl modal (a TUXModal) labels none of its moving parts, so the images are
 picked by rendered size, the track is found through the handle's draggable wrapper, and the
 slider's degrees-per-pixel is measured live in mid-drag. Click subtypes (icon matching, 3D
-shapes) are not attempted.
+shapes) are classified but not solved yet; an unhandled subtype is never clicked at random.
 
 Solving is best effort and never raises: without OpenCV, on an unsupported subtype, or after
 the attempt budget, :func:`solve` returns False and the caller keeps its captcha behaviour.
-Selectors follow the ones every maintained solver documents (EulerStream, ScrapeCreators,
-arc298's solver); both spellings of the container class appear across TikTok builds.
+Every call ends in exactly one INFO outcome line — the place production counts the solver's
+success rate from. Selectors follow the ones every maintained solver documents (EulerStream,
+ScrapeCreators, arc298's solver); both spellings of the container class appear across TikTok
+builds.
 """
 
 from __future__ import annotations
@@ -53,45 +55,93 @@ async def solve(page: Any, attempts: int = ATTEMPTS, rng: random.Random | None =
     """Drag the modal's slider until TikTok removes it; False when the modal stays.
 
     Never raises: any surprise (missing OpenCV, unsupported subtype, detached element) is
-    logged and treated as an unsolved attempt.
+    logged and treated as an unsolved attempt. Every call ends in exactly one INFO outcome
+    line, so production logs count the solver's success rate without any other signal.
     """
     try:
         import cv2  # noqa: F401
         import numpy  # noqa: F401
     except ImportError:
         logger.warning("tiktok captcha solver unavailable: opencv is not installed")
+        _outcome("unknown", False, 0, "error")
         return False
     rng = rng or random.Random()
+    subtype, reason, attempt = "unknown", "error", 0
     for attempt in range(1, attempts + 1):
         try:
-            if await _attempt(page, rng):
-                logger.info("tiktok captcha solved attempt=%d", attempt)
-                return True
+            subtype, reason, solved = await _attempt(page, rng)
         except Exception as error:
             logger.debug("tiktok captcha attempt failed error=%s", type(error).__name__)
+            reason = "error"
+        else:
+            if solved:
+                _outcome(subtype, True, attempt, "none")
+                return True
+            if reason == "unsupported":  # a subtype with no solver never retries
+                break
         if attempt < attempts:
             await page.wait_for_timeout(400)
-    logger.warning("tiktok captcha unsolved attempts=%d", attempts)
+    _outcome(subtype, False, attempt, reason)
     return False
 
 
-async def _attempt(page: Any, rng: random.Random) -> bool:
+def _outcome(subtype: str, solved: bool, attempts: int, reason: str) -> None:
+    """The one INFO line every solve call ends in: what rose, whether it fell, and why not."""
+    logger.info(
+        "tiktok captcha outcome subtype=%s solved=%s attempts=%d reason=%s",
+        subtype,
+        str(solved).lower(),
+        attempts,
+        reason,
+    )
+
+
+async def _attempt(page: Any, rng: random.Random) -> tuple[str, str, bool]:
+    """One try: the subtype it saw, why it fell short ("none" when it did not), and success."""
     if await page.query_selector(CONTAINER_SELECTOR) is None:
-        return False
+        return "unknown", "no_images", False
+    subtype = await _classify(page)
+    if subtype not in ("slide", "whirl"):
+        return subtype, "unsupported", False
     handle = await page.query_selector(HANDLE_SELECTOR)
     if handle is None:
-        return False
-    piece = await page.query_selector(PIECE_SELECTOR)
-    if piece is not None:
+        return subtype, "no_images", False
+    if subtype == "slide":
+        piece = await page.query_selector(PIECE_SELECTOR)
+        if piece is None:
+            return "slide", "no_images", False
         drag = await _slide_drag(page, piece)
         if drag is None or abs(drag) < 1:
             logger.debug("tiktok captcha slide subtype gave no drag distance")
-            return False
+            return "slide", "no_distance", False
         await _drag(page, handle, drag, rng)
-    elif not await _whirl_drag(page, handle, rng):
-        return False
+    else:
+        failure = await _whirl_drag(page, handle, rng)
+        if failure is not None:
+            return "whirl", failure, False
     await page.wait_for_timeout(VERIFY_WAIT_MS)
-    return await page.query_selector(CONTAINER_SELECTOR) is None
+    gone = await page.query_selector(CONTAINER_SELECTOR) is None
+    return subtype, ("none" if gone else "modal_stayed"), gone
+
+
+async def _classify(page: Any) -> str:
+    """The modal's subtype from its own DOM: what it offers to drag, or what it asks to click."""
+    if await page.query_selector(HANDLE_SELECTOR) is None:
+        return await _click_subtype(page)
+    if await page.query_selector(PIECE_SELECTOR) is not None:
+        return "slide"
+    if await _whirl_images(page) is not None:
+        return "whirl"
+    return "unknown"
+
+
+async def _click_subtype(page: Any) -> str:
+    """The click subtype (icon, 3D) from the modal's prompt and images, or "unknown".
+
+    No click subtype has been recorded yet (2026-10-23), so nothing is claimed: an
+    unrecognized modal reports subtype=unknown and is never clicked at random.
+    """
+    return "unknown"
 
 
 async def _src_bytes(page: Any, element: Any) -> bytes:
@@ -130,8 +180,8 @@ async def _slide_drag(page: Any, piece: Any) -> float | None:
     return image_box["x"] + gap_css - piece_box["x"]
 
 
-async def _whirl_images(page: Any) -> tuple[Any, Any] | None:
-    """The whirl modal's two images, largest rendered first: the outer ring, then the disc."""
+async def _whirl_images(page: Any) -> list[tuple[float, Any]] | None:
+    """The whirl modal's two images with their rendered widths, largest first: ring, then disc."""
     images = []
     for element in await page.query_selector_all(WHIRL_IMAGE_SELECTOR):
         box = await element.bounding_box()
@@ -140,7 +190,7 @@ async def _whirl_images(page: Any) -> tuple[Any, Any] | None:
     images.sort(key=lambda item: item[0], reverse=True)
     if len(images) < 2 or images[1][0] >= images[0][0]:
         return None
-    return images[0][1], images[1][1]
+    return images[:2]
 
 
 async def _track_width(page: Any, handle: Any) -> float:
@@ -164,63 +214,69 @@ def _rotation_deg(style: str) -> float:
     return sum(float(match) for match in _ROTATIONS.findall(style or ""))
 
 
-async def _whirl_drag(page: Any, handle: Any, rng: random.Random) -> bool:
+async def _whirl_drag(page: Any, handle: Any, rng: random.Random) -> str | None:
     """Drag the slider until the disc's measured rotation reaches the computed angle.
 
     How many degrees a pixel of travel turns the disc is a convention the page never states
     and may flip between challenges, so the drag measures it live instead of trusting a
     constant: a short move with the button held, both images' inline transforms read mid-drag,
     and the remaining travel computed from that reading. One continuous drag does the whole
-    job, whichever way the slider turns the disc.
+    job, whichever way the slider turns the disc. Returns None once the drag is done, or the
+    outcome line's reason it stopped short — the button always comes back up.
     """
     images = await _whirl_images(page)
     handle_box = await handle.bounding_box()
     if images is None or handle_box is None:
-        return False
-    outer, inner = images
+        return "no_images"
+    (outer_w, outer), (inner_w, inner) = images
     span = max(1.0, (await _track_width(page, handle)) - handle_box["width"])
-    angle = whirl_angle(
-        _decode(await _src_bytes(page, inner)), _decode(await _src_bytes(page, outer))
-    )
+    outer_image = _decode(await _src_bytes(page, outer))
+    inner_image = _decode(await _src_bytes(page, inner))
+    # The hole the disc fills, in the ring's own pixels: the two native resolutions need not
+    # match, so the hole comes from the rendered sizes (inner ÷ outer on screen) applied to
+    # the ring's native width.
+    hole = inner_w / outer_w * outer_image.shape[1] / 2.0 if outer_image is not None else None
+    angle = whirl_angle(inner_image, outer_image, hole)
     if angle is None:
-        return False
+        return "no_angle"
     mouse = page.mouse
     x = handle_box["x"] + handle_box["width"] / 2
     y = handle_box["y"] + handle_box["height"] / 2
     inner0, outer0 = await _rotation(inner), await _rotation(outer)
     await mouse.move(x, y)
     await mouse.down()
-    reached = await _glide(
-        page, mouse, x, x + CALIBRATION_PX, y, rng, steps=max(8, min(20, int(CALIBRATION_PX)))
-    )
-    await page.wait_for_timeout(120)
-    inner1, outer1 = await _rotation(inner), await _rotation(outer)
-    # `reached` is where the pointer really stopped (the glide overshoots a few pixels), so the
-    # ratio below uses the travel that actually happened, not the one that was asked for.
-    per_px = ((inner1 - inner0) - (outer1 - outer0)) / (reached - x)
-    logger.info(
-        "tiktok whirl angle=%.1f over %.1fpx: inner=%+.2fdeg outer=%+.2fdeg -> %+.3fdeg/px",
-        angle,
-        reached - x,
-        inner1 - inner0,
-        outer1 - outer0,
-        per_px,
-    )
-    distance = whirl_distance(angle, per_px, span)
-    if distance is None or distance < 1:
-        logger.debug("tiktok whirl gave no drag distance per_px=%.3f", per_px)
+    try:
+        reached = await _glide(
+            page, mouse, x, x + CALIBRATION_PX, y, rng, steps=max(8, min(20, int(CALIBRATION_PX)))
+        )
+        await page.wait_for_timeout(120)
+        inner1, outer1 = await _rotation(inner), await _rotation(outer)
+        # `reached` is where the pointer really stopped (the glide overshoots a few pixels), so
+        # the ratio below uses the travel that actually happened, not the one asked for.
+        per_px = ((inner1 - inner0) - (outer1 - outer0)) / (reached - x)
+        logger.info(
+            "tiktok whirl angle=%.1f over %.1fpx: inner=%+.2fdeg outer=%+.2fdeg -> %+.3fdeg/px",
+            angle,
+            reached - x,
+            inner1 - inner0,
+            outer1 - outer0,
+            per_px,
+        )
+        distance = whirl_distance(angle, per_px, span)
+        if distance is None or distance < 1:
+            logger.debug("tiktok whirl gave no drag distance per_px=%.3f", per_px)
+            return "no_distance"
+        logger.info("tiktok whirl dragging %.1fpx of %.0fpx span", distance, span)
+        travel = int(abs(x + distance - reached))
+        overshoot = await _glide(
+            page, mouse, reached, x + distance, y, rng, steps=max(12, min(40, travel))
+        )
+        await page.wait_for_timeout(rng.randint(120, 260))
+        await _settle(page, mouse, overshoot, x + distance, y, rng)
+        await page.wait_for_timeout(rng.randint(80, 180))
+        return None
+    finally:
         await mouse.up()
-        return False
-    logger.info("tiktok whirl dragging %.1fpx of %.0fpx span", distance, span)
-    travel = int(abs(x + distance - reached))
-    overshoot = await _glide(
-        page, mouse, reached, x + distance, y, rng, steps=max(12, min(40, travel))
-    )
-    await page.wait_for_timeout(rng.randint(120, 260))
-    await _settle(page, mouse, overshoot, x + distance, y, rng)
-    await page.wait_for_timeout(rng.randint(80, 180))
-    await mouse.up()
-    return True
 
 
 def whirl_distance(angle: float, degrees_per_px: float, span: float) -> float | None:
@@ -241,7 +297,8 @@ async def _drag(page: Any, handle: Any, distance: float, rng: random.Random) -> 
     """One humanized drag: fast then slow, a small overshoot, then a settle on the target.
 
     A steady constant-speed slide is the trajectory TikTok's detection rejects, so the pointer
-    eases out, wobbles slightly, passes the target by a few pixels and backs onto it.
+    eases out, wobbles slightly, passes the target by a few pixels and backs onto it. Whatever
+    happens mid-drag, the button comes back up.
     """
     box = await handle.bounding_box()
     if not box:
@@ -251,13 +308,15 @@ async def _drag(page: Any, handle: Any, distance: float, rng: random.Random) -> 
     y = box["y"] + box["height"] / 2
     await mouse.move(x, y)
     await mouse.down()
-    overshoot = await _glide(
-        page, mouse, x, x + distance, y, rng, steps=max(24, min(60, int(abs(distance))))
-    )
-    await page.wait_for_timeout(rng.randint(120, 260))
-    await _settle(page, mouse, overshoot, x + distance, y, rng)
-    await page.wait_for_timeout(rng.randint(80, 180))
-    await mouse.up()
+    try:
+        overshoot = await _glide(
+            page, mouse, x, x + distance, y, rng, steps=max(24, min(60, int(abs(distance))))
+        )
+        await page.wait_for_timeout(rng.randint(120, 260))
+        await _settle(page, mouse, overshoot, x + distance, y, rng)
+        await page.wait_for_timeout(rng.randint(80, 180))
+    finally:
+        await mouse.up()
 
 
 async def _glide(
@@ -373,25 +432,31 @@ def _ring(image: Any, radius_lo: float, radius_hi: float) -> Any:
     return numpy.stack(rows)
 
 
-def whirl_angle(inner: Any, outer: Any) -> float | None:
+def whirl_angle(inner: Any, outer: Any, hole_radius: float | None = None) -> float | None:
     """The clockwise rotation that turns the inner disc to match the outer ring, degrees 0..360.
 
     The outer image is a ring around the white hole the disc fills, so the images are compared
     where they meet: the disc's rim (a band just inside its edge) against the ring just
-    outside the hole, both sampled as colour rings. The best circular shift of one ring
-    against the other is the rotation; one degree of resolution sits well inside the puzzle's
-    own tolerance.
+    outside the hole, both sampled as colour rings. The hole's radius in the ring's own pixels
+    comes from the modal's rendered sizes — `hole_radius`, the disc's on-screen share of the
+    ring applied to the ring's native width — because the two images' native resolutions need
+    not match; without rendered sizes the disc's own native radius is the stand-in. The best
+    circular shift of one ring against the other is the rotation; one degree of resolution
+    sits well inside the puzzle's own tolerance.
     """
     if inner is None or outer is None:
         return None
     import numpy
 
     side = min(inner.shape[:2])
-    if side < 40 or min(outer.shape[:2]) < side + 16:
+    if side < 40:
         return None
     radius = side / 2.0
+    hole = radius if hole_radius is None else hole_radius
+    if min(outer.shape[:2]) < 2 * hole + 16:
+        return None
     inner_rim = _ring(inner, radius - 7, radius - 2)
-    outer_rim = _ring(outer, radius + 2, radius + 7)
+    outer_rim = _ring(outer, hole + 2, hole + 7)
     errors = [
         float(numpy.abs(numpy.roll(inner_rim, shift, axis=1) - outer_rim).mean())
         for shift in range(360)

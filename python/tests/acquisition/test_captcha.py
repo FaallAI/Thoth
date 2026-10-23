@@ -7,6 +7,7 @@ clear themselves when a drag lands where the puzzle says it must.
 """
 
 import base64
+import logging
 import random
 import sys
 from pathlib import Path
@@ -23,6 +24,7 @@ from thoth_control_plane.acquisition.captcha import (
     _decode,
     _drag,
     _rotation_deg,
+    _whirl_drag,
     gap_offset,
     solve,
     whirl_angle,
@@ -64,7 +66,9 @@ def _whirl_arrays(angle: float = 60.0):
 
     The pattern mixes coprime frequencies so no rotation other than the exact one can align
     the rims: the disc's rim carries the pattern shifted by `angle`, so standing it upright
-    takes a clockwise turn of exactly that many degrees.
+    takes a clockwise turn of exactly that many degrees. The ring's hole sits where the fake
+    page's rendered sizes put it (a 300px ring shown at 210px, its 200px disc at 128px), the
+    same on-screen invariant the real modal keeps.
     """
 
     def pattern(phi):
@@ -75,7 +79,7 @@ def _whirl_arrays(angle: float = 60.0):
     yo, xo = numpy.mgrid[:300, :300]
     radius = numpy.sqrt((xo - 149.5) ** 2 + (yo - 149.5) ** 2)
     spoke = pattern(numpy.arctan2(yo - 149.5, xo - 149.5))
-    ring = numpy.where((radius > 101) & (radius < 160), spoke, 255.0)
+    ring = numpy.where((radius > 91) & (radius < 160), spoke, 255.0)
     disc3 = numpy.dstack([disc] * 3).astype(numpy.uint8)
     ring3 = numpy.dstack([ring] * 3).astype(numpy.uint8)
     return disc3, ring3
@@ -114,6 +118,17 @@ def test_whirl_angle_aligns_the_recorded_modal_pair() -> None:
 
     assert inner is not None and outer is not None
     assert abs(whirl_angle(inner, outer) - 60.0) <= 3
+
+
+def test_whirl_angle_derives_the_hole_radius_from_the_rendered_ratio() -> None:
+    """A disc served at another native resolution still lines up when the hole radius comes
+    from the modal's rendered sizes, not from the disc's own pixels."""
+    inner = _decode((FIXTURES / "whirl_inner.webp").read_bytes())
+    outer = _decode((FIXTURES / "whirl_outer.webp").read_bytes())
+    resized = cv2.resize(inner, (160, 160), interpolation=cv2.INTER_AREA)
+    hole = (128.0 / 210.0) * outer.shape[1] / 2.0  # the recorded modal's rendered size ratio
+
+    assert abs(whirl_angle(resized, outer, hole_radius=hole) - 60.0) <= 3
 
 
 def test_whirl_angle_rejects_images_too_small_to_hold_a_ring() -> None:
@@ -309,6 +324,65 @@ async def test_solve_reports_failure_when_the_modal_stays() -> None:
     assert page.mouse.ups == 2
 
 
+def _outcome_lines(caplog) -> list[str]:
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if "tiktok captcha outcome" in record.getMessage()
+    ]
+
+
+async def test_solve_ends_in_exactly_one_outcome_line(caplog) -> None:
+    page = _slide_page(accept=[336])
+
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is True
+
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=slide solved=true attempts=1 reason=none"
+    ]
+
+
+async def test_solve_outcomes_report_a_modal_that_stays(caplog) -> None:
+    page = _slide_page(accept=[500])
+
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is False
+
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=slide solved=false attempts=2 reason=modal_stayed"
+    ]
+
+
+async def test_solve_outcomes_report_a_whirl_with_no_drag_distance(caplog) -> None:
+    page = _whirl_page(0.0)
+
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is False
+
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=whirl solved=false attempts=2 reason=no_distance"
+    ]
+
+
+async def test_solve_reports_an_unrecognized_subtype_without_clicking(caplog) -> None:
+    background, _ = _slide_arrays()
+    image = FakeElement(SLIDE_BOXES["image"], _data_url(background))
+    page = FakeCaptchaPage(
+        {IMAGE_SELECTOR: image, HANDLE_SELECTOR: FakeElement((120, 294, 40, 24))},
+        [image],  # no piece and no image pair: nothing the solver knows how to answer
+        accept=[],
+    )
+
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is False
+
+    assert page.mouse.downs == 0
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=unknown solved=false attempts=1 reason=unsupported"
+    ]
+
+
 async def test_solve_skips_a_subtype_with_nothing_to_drag() -> None:
     background, _ = _slide_arrays()
     image = FakeElement(SLIDE_BOXES["image"], _data_url(background))
@@ -339,15 +413,61 @@ async def test_solve_releases_the_handle_when_the_drag_rotates_nothing() -> None
     assert page.mouse.downs == 2 and page.mouse.ups == 2  # both attempts end in a release
 
 
+async def test_the_drag_releases_the_button_when_a_pointer_move_fails() -> None:
+    class Page:
+        def __init__(self) -> None:
+            self.seen = 0
+            self.mouse = FakeMouse(on_move=self._moved)
+
+        def _moved(self, x: float, y: float) -> None:
+            self.seen += 1
+            if self.seen > 3:
+                raise RuntimeError("detached")
+
+        async def wait_for_timeout(self, timeout: int) -> None:
+            return None
+
+    page = Page()
+    handle = FakeElement((120, 294, 40, 24))
+
+    with pytest.raises(RuntimeError):
+        await _drag(page, handle, 196.0, random.Random(1))
+
+    assert page.mouse.downs == 1 and page.mouse.ups == 1
+
+
+async def test_the_whirl_drag_releases_the_button_when_a_pointer_move_fails() -> None:
+    page = _whirl_page(WHIRL_TURNS)
+    original = page.mouse._on_move
+    seen = 0
+
+    def failing(x: float, y: float) -> None:
+        nonlocal seen
+        seen += 1
+        if seen > 4:  # the first move hovers, the down follows, the failure lands mid-drag
+            raise RuntimeError("detached")
+        original(x, y)
+
+    page.mouse._on_move = failing
+
+    with pytest.raises(RuntimeError):
+        await _whirl_drag(page, page.elements[HANDLE_SELECTOR], random.Random(1))
+
+    assert page.mouse.downs == 1 and page.mouse.ups == 1
+
+
 async def test_solve_degrades_to_false_without_opencv(monkeypatch, caplog) -> None:
     monkeypatch.setitem(sys.modules, "cv2", None)
     page = _slide_page(accept=[336])
     import logging
 
-    with caplog.at_level(logging.WARNING, logger="thoth_control_plane.acquisition.captcha"):
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
         assert await solve(page, rng=random.Random(1)) is False
     assert "opencv" in " ".join(record.getMessage() for record in caplog.records)
     assert page.mouse.downs == 0
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=unknown solved=false attempts=0 reason=error"
+    ]
 
 
 async def test_the_drag_eases_out_overshoots_and_settles_on_the_target() -> None:
