@@ -21,7 +21,7 @@ import {
 const AVAILABLE: RenderCapability = {
   available: true,
   preset_id: "standard_vertical_mp4_v1",
-  renderer_version: "remotion-4.0.523",
+  renderer_version: "remotion-4.0.538",
 };
 
 function job(overrides: Partial<RenderJob> = {}): RenderJob {
@@ -34,7 +34,7 @@ function job(overrides: Partial<RenderJob> = {}): RenderJob {
     template_id: "vertical_story",
     template_version: "1",
     preset_id: "standard_vertical_mp4_v1",
-    renderer_version: "remotion-4.0.523",
+    renderer_version: "remotion-4.0.538",
     created_at: "2026-09-21T10:00:00Z",
     ...overrides,
   } as RenderJob;

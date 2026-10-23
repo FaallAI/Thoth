@@ -9,7 +9,7 @@
 export const FIXTURE_IDENTITY = Object.freeze({
   renderJobId: "rj_001",
   dispatchId: "dsp_001",
-  rendererVersion: "remotion-4.0.523",
+  rendererVersion: "remotion-4.0.538",
 });
 
 type Fields = Record<string, unknown>;

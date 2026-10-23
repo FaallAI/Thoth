@@ -2,6 +2,61 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-23 - Render-path dependencies (branch `chore/render-deps`)
+
+This closes the dependency refresh. The render path was held back from PR #43 because it
+touches render parity.
+
+- **Remotion:** 4.0.523 to 4.0.538 in the dashboard, the renderer and the composition peer
+  pins, including `@remotion/player`, `@remotion/bundler` and `@remotion/renderer`.
+- **Renderer build identifier:** `renderer_version` becomes `remotion-4.0.538` in the config,
+  compose, the renderer default and every test that pins it.
+- **React:** 19.2.7 to 19.3.1, with `@types/react` and `@types/react-dom` at 19.3.0, so the
+  Studio preview and the renderer still run the same React.
+- **Bun:** 1.3.14 to 1.4.4 in every image, both CI workflows, and the parity reference image.
+  The parity image is pinned to the `linux/amd64` digest `3f23864d…`.
+
+**Deploy note:** the renderer refuses a bundle whose `renderer_version` is not its own. A render
+queued before the deploy under `remotion-4.0.523` would be refused after it, so deploy with no
+render queued.
+
+**Verification (local):**
+- Dashboard: 749 tests passed; build clean.
+- Renderer: 223 tests passed; typecheck clean.
+- Python: `tests/api`, `application`, `domain`, `infrastructure`, `deployment` and
+  `test_config.py` passed.
+- **Template release parity, run locally** (the CI job was blocked by GitHub billing): the
+  `Dockerfile.renderer-f1` image on Bun 1.4.4 and Remotion 4.0.538, then
+  `verify-template-release vertical_text_story-v1` with no network. Verdict **pass**, 0 changed
+  pixels against the approved goldens in every preview and render frame, so no golden
+  re-approval is needed. The run reported the old base digest, which was hard-coded as
+  `THOTH_F1_BASE_DIGEST`; that is now the Bun 1.4.4 amd64 digest.
+
+**Frame-accuracy check** (asked by the operator, because the follow-up research had said to keep
+`@remotion/media` at 4.0.523 over a stale-frame bug):
+- **Upstream status:** that bug (remotion #10070, stale or future frames at adjacent `<Sequence>`
+  boundaries in `renderMedia`) was closed on 2026-08-04, before 4.0.523 shipped (2026-09-09).
+  The performance issue #7772 was closed in May. The research note was stale.
+- **Probe:** 120 frames of three back-to-back clips with source jumps (0-39, 100-139, 41-80) from
+  a video whose every frame carries its index as a 10-bit block code, rendered through the
+  production engine (`bundle`, `selectComposition`, `renderMedia`).
+- **Results:**
+
+  | Probe | 4.0.523 | 4.0.538 |
+  |---|---|---|
+  | H.264 frames off | 0 of 120 (26.7 s) | 0 of 120 (18.8 s) |
+  | HEVC frames off (the `<OffthreadVideo>` fallback) | 0 of 120 (20.4 s) | 0 of 120 (17.0 s) |
+
+- **A realistic 20 s render:**
+  - **Material:** two real X videos (one at 29.59 fps), the post, profile and comment cards,
+    blur, overlays and captions.
+  - **Time:** 44.0 s on 4.0.523, 35.4 s on 4.0.538.
+  - **Per-frame comparison of 600 frames:** no frame is closer to a neighbour than to itself
+    (no offset). The mean absolute difference is 1.86/255 (max 2.08), uniform encoder-level
+    noise; the 99th-percentile pixel difference is at most 6/255.
+- **Evidence:** `D:/thoth-tmp/research/remotion-538/` (probes, both renders,
+  `contact-old-new-diff.png`).
+
 ## 2026-10-23 - X cards: hide the signed-out overlays before cropping (branch `fix/x-card-overlays`)
 
 Found while rendering real X material through the renderer: one of the three X comment cards

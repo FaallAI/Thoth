@@ -12,19 +12,19 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@remotion/bundler": "4.0.523",
-    "@remotion/media": "4.0.523",
-    "@remotion/renderer": "4.0.523",
+    "@remotion/bundler": "4.0.538",
+    "@remotion/media": "4.0.538",
+    "@remotion/renderer": "4.0.538",
     "ajv": "8.20.0",
-    "react": "19.2.7",
-    "react-dom": "19.2.7",
-    "remotion": "4.0.523"
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "remotion": "4.0.538"
   },
   "devDependencies": {
-    "@remotion/player": "4.0.523",
+    "@remotion/player": "4.0.538",
     "@types/bun": "^1.4.4",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "typescript": "~7.0.2"
   }
 }

@@ -31,7 +31,7 @@ NonNegativeInt: TypeAlias = Annotated[int, Field(ge=0)]
 ProgressPercent: TypeAlias = Annotated[int, Field(ge=0, le=100)]
 PositiveSeconds: TypeAlias = Annotated[float, Field(gt=0.0, le=86_400.0)]
 Fps: TypeAlias = Annotated[float, Field(gt=0.0, le=240.0)]
-#: A pinned build identifier such as ``remotion-4.0.523``.
+#: A pinned build identifier such as ``remotion-4.0.538``.
 RendererVersion: TypeAlias = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9._-]{0,63}$")]
 
 #: The one template E1 is allowed to render, matching the saved document.

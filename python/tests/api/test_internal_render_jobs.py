@@ -50,7 +50,7 @@ def render_job(**overrides: object) -> RenderJob:
         "template_id": "vertical_text_story",
         "template_version": 1,
         "preset_id": "standard_vertical_mp4_v1",
-        "renderer_version": "remotion-4.0.523",
+        "renderer_version": "remotion-4.0.538",
         "status": "rendering",
         "last_event_sequence": 2,
         "created_by": "owner",
@@ -60,7 +60,7 @@ def render_job(**overrides: object) -> RenderJob:
             "template_id": "vertical_text_story",
             "template_version": 1,
             "preset_id": "standard_vertical_mp4_v1",
-            "renderer_version": "remotion-4.0.523",
+            "renderer_version": "remotion-4.0.538",
         },
     }
     payload.update(overrides)

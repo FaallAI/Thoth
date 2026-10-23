@@ -91,7 +91,7 @@ class Settings(BaseSettings):
     THOTH_RENDERER_INTERNAL_URL: AnyHttpUrl | None = None
     THOTH_RENDERER_INTERNAL_CREDENTIAL: SecretStr | None = None
     THOTH_RENDER_MAX_SECONDS: Annotated[int, Field(ge=60, le=7200)] = 900
-    THOTH_RENDERER_VERSION: str = "remotion-4.0.523"
+    THOTH_RENDERER_VERSION: str = "remotion-4.0.538"
     THOTH_RENDER_PRESET_ID: Literal["standard_vertical_mp4_v1"] = "standard_vertical_mp4_v1"
     # A Fernet key; source accounts need it and the editor database, else they stay off.
     THOTH_ACCOUNT_VAULT_KEY: SecretStr | None = None

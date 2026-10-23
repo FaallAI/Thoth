@@ -13,7 +13,7 @@ describe("loadRendererConfig", () => {
     const config = loadRendererConfig(COMPLETE);
     expect(config.controlPlaneUrl).toBe("http://api:8000");
     expect(config.artifactRoot).toBe("/srv/artifacts");
-    expect(config.rendererVersion).toBe("remotion-4.0.523");
+    expect(config.rendererVersion).toBe("remotion-4.0.538");
     expect(config.port).toBe(8080);
     expect(config.deadlineSeconds).toBe(900);
   });

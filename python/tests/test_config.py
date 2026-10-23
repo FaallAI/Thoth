@@ -66,7 +66,7 @@ def test_renderer_settings_default_to_a_disabled_but_startable_control_plane() -
     assert configured.THOTH_RENDERER_INTERNAL_URL is None
     assert configured.THOTH_RENDERER_INTERNAL_CREDENTIAL is None
     assert configured.THOTH_RENDER_MAX_SECONDS == 900
-    assert configured.THOTH_RENDERER_VERSION == "remotion-4.0.523"
+    assert configured.THOTH_RENDERER_VERSION == "remotion-4.0.538"
     assert configured.THOTH_RENDER_PRESET_ID == "standard_vertical_mp4_v1"
     assert configured.renderer_enabled is False
 

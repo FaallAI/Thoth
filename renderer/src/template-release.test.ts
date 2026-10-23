@@ -330,7 +330,7 @@ test("a report that names a place on disk is refused before it is written", () =
 const REFERENCE = {
   THOTH_F1_BASE_DIGEST: `sha256:${"11".repeat(32)}`,
   THOTH_F1_IMAGE_ID: `sha256:${"22".repeat(32)}`,
-  THOTH_RENDERER_VERSION: "remotion-4.0.523",
+  THOTH_RENDERER_VERSION: "remotion-4.0.538",
 } as const;
 
 const MANIFEST = "golden-manifest.json";

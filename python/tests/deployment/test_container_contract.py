@@ -69,7 +69,7 @@ def test_dockerignore_excludes_sensitive_and_generated_inputs() -> None:
 def test_dockerfile_uses_locked_full_compatibility_runtime() -> None:
     dockerfile = _repo_text("Dockerfile")
     assert "FROM ghcr.io/astral-sh/uv:0.13.5 AS uv-tools" in dockerfile
-    assert "FROM oven/bun:1.3.14 AS bun-tools" in dockerfile
+    assert "FROM oven/bun:1.4.4 AS bun-tools" in dockerfile
     assert "FROM python:3.12-slim-bookworm AS runtime" in dockerfile
     assert "uv sync --frozen --no-dev --extra acquisition" in dockerfile
     assert "bun --cwd=/opt/thoth/scout install --frozen-lockfile --production" in dockerfile
@@ -1035,14 +1035,14 @@ def test_the_player_is_only_a_development_dependency_of_the_renderer() -> None:
     """
     manifest = json.loads(_repo_text("renderer/package.json"))
 
-    assert manifest["devDependencies"]["@remotion/player"] == "4.0.523"
+    assert manifest["devDependencies"]["@remotion/player"] == "4.0.538"
     assert "@remotion/player" not in manifest["dependencies"]
 
 
 def test_parity_reference_image_is_pinned_and_separate() -> None:
     dockerfile = _repo_text("Dockerfile.renderer-f1")
 
-    assert re.search(r"^FROM oven/bun:1\.3\.14@sha256:[0-9a-f]{64} AS ", dockerfile, re.MULTILINE)
+    assert re.search(r"^FROM oven/bun:1\.4\.4@sha256:[0-9a-f]{64} AS ", dockerfile, re.MULTILINE)
     assert "THOTH_F1_BASE_DIGEST=sha256:" in dockerfile
     # Development dependencies are the point of this image: the Player lives there.
     assert "bun install --frozen-lockfile" in dockerfile

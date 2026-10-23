@@ -53,7 +53,7 @@ def fixture_provenance(**overrides: object) -> RenderProvenance:
         "template_id": "vertical_text_story",
         "template_version": 1,
         "preset_id": "standard_vertical_mp4_v1",
-        "renderer_version": "remotion-4.0.523",
+        "renderer_version": "remotion-4.0.538",
         "asset_checksums": ({"asset_id": "asset_main", "checksum": ASSET_CHECKSUM},),
         "output": None,
     }
@@ -71,7 +71,7 @@ def fixture_job(**overrides: object) -> RenderJob:
         "template_id": "vertical_text_story",
         "template_version": 1,
         "preset_id": "standard_vertical_mp4_v1",
-        "renderer_version": "remotion-4.0.523",
+        "renderer_version": "remotion-4.0.538",
         "status": "preparing",
         "last_event_sequence": 0,
         "created_by": "user_1",
@@ -457,7 +457,7 @@ def test_capability_requires_a_reason_when_render_is_unavailable() -> None:
         available=False,
         reason="renderer_not_configured",
         preset_id="standard_vertical_mp4_v1",
-        renderer_version="remotion-4.0.523",
+        renderer_version="remotion-4.0.538",
     )
     assert unavailable.active_render_job_id is None
 
@@ -465,14 +465,14 @@ def test_capability_requires_a_reason_when_render_is_unavailable() -> None:
         RenderCapability(
             available=False,
             preset_id="standard_vertical_mp4_v1",
-            renderer_version="remotion-4.0.523",
+            renderer_version="remotion-4.0.538",
         )
     with pytest.raises(ValidationError):
         RenderCapability(
             available=True,
             reason="render_busy",
             preset_id="standard_vertical_mp4_v1",
-            renderer_version="remotion-4.0.523",
+            renderer_version="remotion-4.0.538",
         )
 
 
