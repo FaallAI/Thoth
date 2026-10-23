@@ -12,6 +12,7 @@ import pytest
 from tests.acquisition.browser_support import async_api, launch
 from thoth_control_plane.acquisition.card_browser import COMMENT_ROW_ATTRIBUTE
 from thoth_control_plane.acquisition.x_service import (
+    HIDE_OVERLAYS_JS,
     POST_CARD_SELECTOR,
     PROFILE_CARD_SELECTOR,
     TAG_PROFILE_JS,
@@ -159,3 +160,35 @@ async def test_the_profile_tag_needs_the_whole_handle() -> None:
         finally:
             await browser.close()
     assert (other, own) == (False, True)
+
+
+@pytest.mark.asyncio
+async def test_the_overlay_script_hides_the_signed_out_bars_but_never_a_post() -> None:
+    # Live check 2026-10-23: X's fixed "Continue to X" bar (an <aside class="fixed bottom-0">)
+    # covered the first reply, so its comment card was a picture of the button.
+    page_html = (
+        "<header id='top' style='position:sticky;top:0'>Post</header>"
+        "<main><article id='post'>the post</article><article id='reply'>a reply</article></main>"
+        "<aside id='bar' style='position:fixed;bottom:0'>Continue to X</aside>"
+        "<div id='feed' style='position:sticky;top:0'><article id='kept'>kept</article></div>"
+    )
+    async with async_api.async_playwright() as playwright:
+        browser = await launch(playwright)
+        try:
+            page = await browser.new_page()
+            await page.set_content(page_html)
+            await page.evaluate(HIDE_OVERLAYS_JS)
+            seen = await page.evaluate(
+                "() => Object.fromEntries(['top','post','reply','bar','feed','kept']"
+                ".map((id) => [id, getComputedStyle(document.getElementById(id)).visibility]))"
+            )
+        finally:
+            await browser.close()
+    assert seen == {
+        "top": "hidden",
+        "post": "visible",
+        "reply": "visible",
+        "bar": "hidden",
+        "feed": "visible",
+        "kept": "visible",
+    }
