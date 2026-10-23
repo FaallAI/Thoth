@@ -7,6 +7,7 @@ unreadable body is None, and every refusal is logged with its HTTP status.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -22,14 +23,20 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_FXEMBED_URL = "https://api.fxtwitter.com"
 USER_AGENT = "Thoth/1.0 (+https://github.com/FaallAI/Thoth)"
-# A plain API: no browser impersonation, an honest User-Agent.
+# A plain API: no browser impersonation, no stealth headers, an honest User-Agent.
 OPTIONS: dict[str, Any] = {
     "timeout": 30,
     "retries": 1,
     "follow_redirects": "safe",
+    "stealthy_headers": False,
+    "impersonate": None,
     "headers": {"User-Agent": USER_AGENT},
 }
 MAX_PAGE = 100
+# The public API drops a connection now and then (live check 2026-10-23): one more try after a
+# short pause for a transport error or a server error; a rate limit or a 404 is final.
+ATTEMPTS = 2
+RETRY_PAUSE_S = 2.0
 
 
 class FxEmbedClient:
@@ -37,28 +44,17 @@ class FxEmbedClient:
         self,
         get: Callable[..., Awaitable[Any]] | None = None,
         base_url: str | None = None,
+        retry_pause: float = RETRY_PAUSE_S,
     ) -> None:
         self._get = get or _scrapling_get
+        self._retry_pause = retry_pause
         base = base_url or os.environ.get("THOTH_X_FXEMBED_URL") or DEFAULT_FXEMBED_URL
         self._base = base.rstrip("/")
 
     async def _json(self, path: str) -> dict[str, Any] | None:
-        try:
-            response = await self._get(f"{self._base}{path}", **OPTIONS)
-        except Exception as error:
-            reason = (
-                AcquisitionReason.REQUEST_TIMEOUT
-                if _is_timeout(error)
-                else AcquisitionReason.REQUEST_BLOCKED
-            )
-            logger.warning("x fxembed unreachable reason=%s", reason.value)
-            raise RequestFetchError(reason) from None
-        status = getattr(response, "status", None)
-        if status == 404:
+        response = await self._fetch(f"{self._base}{path}")
+        if response is None:
             return None
-        if status != 200:
-            logger.warning("x fxembed refused status=%s", status)
-            raise RequestFetchError(AcquisitionReason.REQUEST_BLOCKED)
         body = getattr(response, "body", b"")
         try:
             payload = json.loads(
@@ -70,6 +66,35 @@ class FxEmbedClient:
             logger.warning("x fxembed unreadable")
             return None
         return None if payload.get("code") == 404 else payload
+
+    async def _fetch(self, url: str) -> Any | None:
+        """The 200 response; None for a 404. Raises RequestFetchError once retries are spent."""
+        for attempt in range(1, ATTEMPTS + 1):
+            last = attempt == ATTEMPTS
+            try:
+                response = await self._get(url, **OPTIONS)
+            except Exception as error:
+                if not last:
+                    await asyncio.sleep(self._retry_pause)
+                    continue
+                reason = (
+                    AcquisitionReason.REQUEST_TIMEOUT
+                    if _is_timeout(error)
+                    else AcquisitionReason.REQUEST_BLOCKED
+                )
+                logger.warning("x fxembed unreachable reason=%s", reason.value)
+                raise RequestFetchError(reason) from None
+            status = getattr(response, "status", None)
+            if status == 200:
+                return response
+            if status == 404:
+                return None
+            if isinstance(status, int) and status >= 500 and not last:
+                await asyncio.sleep(self._retry_pause)
+                continue
+            logger.warning("x fxembed refused status=%s", status)
+            raise RequestFetchError(AcquisitionReason.REQUEST_BLOCKED)
+        raise RequestFetchError(AcquisitionReason.REQUEST_BLOCKED)  # unreachable: the loop returns
 
     async def status(self, post_id: str) -> dict[str, Any] | None:
         payload = await self._json(f"/2/status/{post_id}")

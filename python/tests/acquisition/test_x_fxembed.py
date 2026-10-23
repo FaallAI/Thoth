@@ -117,16 +117,18 @@ def _response(status: int, body: str) -> SimpleNamespace:
     return SimpleNamespace(status=status, body=body.encode())
 
 
-def _client(answer: object) -> tuple[FxEmbedClient, list[str]]:
+def _client(*answers: object) -> tuple[FxEmbedClient, list[str]]:
+    """A client whose GETs answer in turn; the last answer repeats."""
     seen: list[str] = []
 
     async def get(url: str, **_: Any) -> Any:
+        answer = answers[min(len(seen), len(answers) - 1)]
         seen.append(url)
         if isinstance(answer, BaseException):
             raise answer
         return answer
 
-    return FxEmbedClient(get, base_url="https://fx.test"), seen
+    return FxEmbedClient(get, base_url="https://fx.test", retry_pause=0), seen
 
 
 async def test_client_reads_a_status() -> None:
@@ -146,19 +148,41 @@ async def test_client_reads_replies_and_profile_media() -> None:
     assert seen == ["https://fx.test/2/profile/InFebriyan128/media?count=30"]
 
 
-@pytest.mark.parametrize("status", [429, 500, 503])
-async def test_client_refusals_are_blocked(status: int) -> None:
-    client, _ = _client(_response(status, "{}"))
+@pytest.mark.parametrize(("status", "tries"), [(429, 1), (500, 2), (503, 2)])
+async def test_client_refusals_are_blocked(status: int, tries: int) -> None:
+    client, seen = _client(_response(status, "{}"))
     with pytest.raises(RequestFetchError) as raised:
         await client.status(POST_ID)
     assert raised.value.reason is AcquisitionReason.REQUEST_BLOCKED
+    assert len(seen) == tries  # a rate limit is never retried; a server error once
 
 
-async def test_client_timeout_is_a_timeout() -> None:
-    client, _ = _client(TimeoutError("slow"))
+async def test_client_timeout_is_a_timeout_after_one_retry() -> None:
+    client, seen = _client(TimeoutError("slow"))
     with pytest.raises(RequestFetchError) as raised:
         await client.status(POST_ID)
     assert raised.value.reason is AcquisitionReason.REQUEST_TIMEOUT
+    assert len(seen) == 2
+
+
+async def test_client_recovers_from_one_transient_failure() -> None:
+    # Live check 2026-10-23: the public API refused one connection, then answered.
+    body = json.dumps(load("status_multi_video.json"))
+    client, seen = _client(ConnectionError("refused"), _response(200, body))
+    assert (await client.status(POST_ID) or {}).get("id") == POST_ID
+    assert len(seen) == 2
+
+
+async def test_client_sends_a_plain_api_request() -> None:
+    sent: dict[str, Any] = {}
+
+    async def get(url: str, **options: Any) -> Any:
+        sent.update(options)
+        return _response(200, "{}")
+
+    await FxEmbedClient(get, base_url="https://fx.test").status(POST_ID)
+    assert sent["stealthy_headers"] is False and sent["impersonate"] is None
+    assert sent["headers"]["User-Agent"].startswith("Thoth/")
 
 
 @pytest.mark.parametrize(
