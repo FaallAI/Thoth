@@ -2,9 +2,7 @@
 
 import json
 
-from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
-
+from tests.sqlite_support import sqlite_engine
 from thoth_control_plane.infrastructure import run_models  # noqa: F401
 from thoth_control_plane.infrastructure.report_store import ReportStore
 from thoth_control_plane.infrastructure.source_account_models import Base
@@ -20,9 +18,7 @@ def report(url: str, platform: str = "tiktok") -> bytes:
 
 
 def test_backfill_inserts_once_strips_queries_and_counts_invalid() -> None:
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     reports, runs = ReportStore(engine), WorkflowRunStore(engine)
     reports.put(
@@ -47,9 +43,7 @@ def test_backfill_inserts_once_strips_queries_and_counts_invalid() -> None:
 def test_a_known_start_time_replaces_the_report_import_time() -> None:
     from datetime import UTC, datetime
 
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     reports, runs = ReportStore(engine), WorkflowRunStore(engine)
     reports.put(f"reports/{GOOD}/source-report.json", "source_report", report("https://x.test/v/1"))
@@ -89,9 +83,7 @@ async def test_temporal_start_times_skip_workflows_temporal_no_longer_holds() ->
 def test_only_workflows_without_a_row_need_a_start_time() -> None:
     from thoth_control_plane.operations.run_backfill import workflows_needing_rows
 
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     reports, runs = ReportStore(engine), WorkflowRunStore(engine)
     reports.put(f"reports/{GOOD}/source-report.json", "source_report", report("https://x.test/1"))

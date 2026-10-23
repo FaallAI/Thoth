@@ -8,6 +8,7 @@ from typing import Any, ClassVar
 
 import pytest
 
+from tests.sqlite_support import sqlite_engine
 from thoth_control_plane.acquisition.accounts.access import SessionAccess
 from thoth_control_plane.acquisition.accounts.cookies import parse_cookies
 from thoth_control_plane.acquisition.models import (
@@ -252,8 +253,6 @@ async def test_a_challenge_cools_the_account(reason: DiscoveryReason) -> None:
 @pytest.mark.asyncio
 async def test_store_leases_open_the_profile_and_seal_it_on_release(tmp_path: Path) -> None:
     from cryptography.fernet import Fernet
-    from sqlalchemy import create_engine
-    from sqlalchemy.pool import StaticPool
 
     from thoth_control_plane.acquisition.accounts.profiles import AccountProfiles
     from thoth_control_plane.acquisition.accounts.vault import Vault
@@ -261,9 +260,7 @@ async def test_store_leases_open_the_profile_and_seal_it_on_release(tmp_path: Pa
     from thoth_control_plane.infrastructure.source_account_models import Base
     from thoth_control_plane.infrastructure.source_account_store import SourceAccountStore
 
-    engine = create_engine(
-        "sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False}
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     vault = Vault(Fernet.generate_key().decode())
     store = SourceAccountStore(engine, vault)

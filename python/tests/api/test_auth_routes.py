@@ -5,10 +5,9 @@ from datetime import UTC, datetime
 
 import httpx
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
 from starlette.responses import RedirectResponse
 
+from tests.sqlite_support import sqlite_engine
 from thoth_control_plane.api import create_app
 from thoth_control_plane.auth.models import BOOTSTRAP_WORKSPACE_ID, SignInRefused, VerifiedIdentity
 from thoth_control_plane.config import Settings
@@ -62,9 +61,7 @@ def mailer() -> FakeMailer:
 
 @pytest.fixture
 async def api(gateway, provider, mailer):
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     with engine.begin() as connection:
         connection.execute(

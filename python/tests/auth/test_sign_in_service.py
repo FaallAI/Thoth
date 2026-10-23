@@ -5,9 +5,9 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import create_engine, text
-from sqlalchemy.pool import StaticPool
+from sqlalchemy import text
 
+from tests.sqlite_support import sqlite_engine
 from thoth_control_plane.auth.mailer import MailNotSent
 from thoth_control_plane.auth.models import (
     BOOTSTRAP_WORKSPACE_ID,
@@ -73,9 +73,7 @@ def mailer() -> FakeMailer:
 
 @pytest.fixture
 def store(clock) -> AccountStore:
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     with engine.begin() as connection:
         connection.execute(

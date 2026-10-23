@@ -11,13 +11,12 @@ from typing import Any
 import httpx
 import pytest
 import pytest_asyncio
-from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
 from temporalio import activity
 from temporalio.contrib.pydantic import pydantic_data_converter
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
+from tests.sqlite_support import sqlite_engine
 from thoth_control_plane.activities.meter_scope import record_workflow_completed
 from thoth_control_plane.activities.source_investigation import SourceInvestigationActivityInput
 from thoth_control_plane.api.app import create_app
@@ -51,9 +50,7 @@ from thoth_control_plane.workflows.source_investigation import SourceInvestigati
 
 @pytest.fixture
 def report_store() -> ReportStore:
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     return ReportStore(engine)
 
