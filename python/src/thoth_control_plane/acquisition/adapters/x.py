@@ -137,6 +137,10 @@ def _syndication_media(data: dict[str, Any], page_videos: Sequence[str]) -> list
             url = paged or lone
             if url is not None:
                 media.append(ResolvedMedia(kind="video", ephemeral_url=url))
+    # The enrichment can name more videos than syndication lists (it carries one video's
+    # renditions only); none of them may be dropped.
+    for url in page_videos[seen_videos:]:
+        media.append(ResolvedMedia(kind="video", ephemeral_url=url))
     return media[:MAX_MEDIA_ITEMS]
 
 

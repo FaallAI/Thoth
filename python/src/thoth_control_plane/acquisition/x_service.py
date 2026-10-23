@@ -19,17 +19,15 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
-from thoth_control_plane.acquisition.adapters.seroval import decode_scripts
+from thoth_control_plane.acquisition.adapters.fxembed import fx_page
 from thoth_control_plane.acquisition.adapters.x import (
     CANONICAL_BASE,
     XPageParse,
     XPostIdentity,
     XUrlError,
     canonicalize_x_post_url,
-    parse_page,
     parse_syndication,
     post_url,
-    syndication_author,
     with_page,
 )
 from thoth_control_plane.acquisition.browser import _default_session_factory, _is_timeout
@@ -69,6 +67,7 @@ from thoth_control_plane.acquisition.threads_service import (
     _scrapling_get,
     materialize_media,
 )
+from thoth_control_plane.acquisition.x_fxembed import FxEmbedClient
 
 logger = logging.getLogger(__name__)
 
@@ -227,30 +226,36 @@ class XAcquirer:
         request_fetcher: XRequestFetcher,
         headless: XHeadlessBrowser,
         materializer: MediaMaterializer,
+        fxembed: FxEmbedClient,
     ) -> None:
         self._request = request_fetcher
         self._headless = headless
         self._materializer = materializer
+        self._fxembed = fxembed
 
-    async def _page(self, url: str, identity: XPostIdentity) -> XPageParse:
-        """Best effort: a failed fetch or an unreadable page gives an empty parse."""
+    async def _enrich(self, identity: XPostIdentity) -> XPageParse:
+        """Videos, counters, long text and replies from FxEmbed (X's signed-out pages stopped
+        embedding tweet JSON in October 2026). Best effort: any failure is today's syndication-
+        only result plus a warning, never a failed acquisition."""
         try:
-            html = await self._request.page(url)
+            status = await self._fxembed.status(identity.post_id)
+            replies = await self._fxembed.replies(identity.post_id) if status is not None else []
+            page = fx_page(status, replies, identity.post_id)
         except RequestFetchError as error:
-            logger.warning("x page enrichment unavailable reason=%s", error.reason.value)
+            logger.warning("x fxembed enrichment unavailable reason=%s", error.reason.value)
             return XPageParse()
-        try:
-            page = parse_page(decode_scripts(html), identity)
         except Exception:
-            # Defense in depth: an unforeseen page shape never fails the acquisition.
-            logger.warning("x page enrichment unreadable")
+            # Defense in depth: an unforeseen answer shape never fails the acquisition.
+            logger.warning("x fxembed enrichment unreadable")
             return XPageParse()
-        if not page.engagement:
-            logger.warning(
-                "x page enrichment found no post replies=%d dropped=%d",
-                len(page.comments),
-                page.dropped_comments,
-            )
+        if status is None:
+            logger.warning("x fxembed enrichment unavailable reason=no_status")
+        logger.info(
+            "x fxembed post videos=%d replies=%d dropped=%d",
+            len(page.videos),
+            len(page.comments),
+            page.dropped_comments,
+        )
         return page
 
     async def inspect(
@@ -270,12 +275,7 @@ class XAcquirer:
                 data = await self._request.syndication(identity.post_id)
             except RequestFetchError as error:
                 data, reason = None, error.reason
-            author = syndication_author(data)
-            page = (
-                await self._page(post_url(author, identity.post_id), identity)
-                if author is not None
-                else XPageParse()
-            )
+            page = await self._enrich(identity) if data is not None else XPageParse()
             parsed = parse_syndication(data, identity, page.videos)
             if parsed is None and reason is None:
                 reason = AcquisitionReason.REQUEST_INCOMPLETE
