@@ -419,6 +419,42 @@ async def test_a_whirl_whose_images_load_late_is_solved_on_the_retry(caplog) -> 
     ]
 
 
+class SlowCloseWhirlPage(FakeWhirlPage):
+    """A whirl modal that, once answered, takes `close_ms` of waiting to disappear: live
+    2026-10-23 (signed in) the modal outlasted the old fixed 1.5 s check after a right answer."""
+
+    def __init__(self, imgs: list[FakeImage], degrees_per_px: float, close_ms: int) -> None:
+        super().__init__(imgs, degrees_per_px)
+        self.close_ms = close_ms
+        self.waited_after = 0
+
+    def _released(self) -> None:
+        super()._released()
+        self.answered, self.cleared = self.cleared, False
+
+    async def wait_for_timeout(self, timeout: int) -> None:
+        if getattr(self, "answered", False):
+            self.waited_after += timeout
+            self.cleared = self.waited_after >= self.close_ms
+
+
+async def test_a_right_answer_whose_modal_closes_slowly_is_a_solve(caplog) -> None:
+    disc, ring = _whirl_arrays(60.0)
+    page = SlowCloseWhirlPage(
+        [
+            FakeImage((535, 337, 210, 210), _data_url(ring)),
+            FakeImage((576, 378, 128, 128), _data_url(disc)),
+        ],
+        WHIRL_TURNS,
+        close_ms=3_500,
+    )
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is True
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=whirl solved=true attempts=1 reason=none"
+    ]
+
+
 def _click_page(prompt: str) -> FakeCaptchaPage:
     """A click-shaped modal: a prompt, an image, and no drag handle anywhere."""
     background, _ = _slide_arrays()

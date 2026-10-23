@@ -60,7 +60,11 @@ CLICK_PROMPTS: dict[str, tuple[str, ...]] = {
 }
 ATTEMPTS = 2
 MIN_MATCH = 0.25
-VERIFY_WAIT_MS = 1_500
+#: After a drag the modal can take seconds to close on a right answer (live, signed in,
+#: 2026-10-23: it outlasted a fixed 1.5 s check, and the solve was logged as a failure), so
+#: the check polls until the modal is gone or the budget runs out.
+VERIFY_TIMEOUT_MS = 6_000
+VERIFY_POLL_MS = 250
 #: The 2026 whirl modal maps slider travel to disc rotation at an unstated rate and direction,
 #: so every drag measures both: this many pixels of travel with the button held, then read the
 #: two images' inline transforms and compute the rest of the drag from the answer.
@@ -138,9 +142,17 @@ async def _attempt(page: Any, rng: random.Random) -> tuple[str, str, bool]:
         failure = await _whirl_drag(page, handle, rng)
         if failure is not None:
             return "whirl", failure, False
-    await page.wait_for_timeout(VERIFY_WAIT_MS)
-    gone = await page.query_selector(CONTAINER_SELECTOR) is None
+    gone = await _closed(page)
     return subtype, ("none" if gone else "modal_stayed"), gone
+
+
+async def _closed(page: Any) -> bool:
+    """Whether the modal goes away within VERIFY_TIMEOUT_MS of the drag."""
+    for _ in range(VERIFY_TIMEOUT_MS // VERIFY_POLL_MS):
+        await page.wait_for_timeout(VERIFY_POLL_MS)
+        if await page.query_selector(CONTAINER_SELECTOR) is None:
+            return True
+    return False
 
 
 async def _classify(page: Any) -> str:

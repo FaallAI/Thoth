@@ -88,6 +88,30 @@ Verification: `tests/acquisition` green in WSL; the whole Python suite 4403 pass
 skipped; `make lint` clean; the acquisition tests including the captcha Chromium pair pass
 in the thoth image (`browser-tests.sh`, `WT=` this worktree): 1018 passed.
 
+**Signed-in live test** (operator-authorised 2026-10-23, run by the reviewer on this branch):
+one lease of `tiktok operator-1` through the production lease path (`StoreLeases`, the
+account's cookies, profile and proxy), profile `@officialdominannews`, 08:19-08:22 UTC, three
+page loads at most 40 s apart, no login form. Evidence: `D:/thoth-tmp/research/tiktok-solver-proof/signed/`.
+
+| Step | Result |
+|---|---|
+| Visit 1 | two `item_list` answers with empty bodies and a whirl modal, raised on its own (no cookie drop needed) |
+| Solver | angle 300°, inner +22.18°/outer -22.18° over 35.6 px (1.246 deg/px), drag 240.8 of 284 px |
+| After the drag | `item_list` JSON 16 + 16 items, grid 32: **solved** |
+| Visit 3, 40 s later | 16 + 16 + 16 items, grid 48, no modal: **the session stays usable after a solve** |
+| Lease release | `success`; the account went from cooldown level 2 to healthy, level 0 |
+
+Two solver faults found live and fixed test first:
+
+- **A right answer was logged as a failure.** The modal took longer than the fixed 1.5 s check
+  to close. The second attempt then met the closing modal, which had no drag handle, and
+  logged `subtype=unknown reason=unsupported`. The check now polls every 250 ms for up to 6 s.
+  Test: `test_a_right_answer_whose_modal_closes_slowly_is_a_solve`.
+- **A whirl whose images had not rendered yet was never retried.** It was classified
+  `unknown`/`unsupported`. With a drag handle present it is now `no_images` and retried; only a
+  modal with no handle (a click subtype) stops at once. Test:
+  `test_a_whirl_whose_images_load_late_is_solved_on_the_retry`.
+
 **Next steps:**
 
 - **Push/PR gate (operator):** push `fix/tiktok-captcha-followups`, PR, CI, review.
