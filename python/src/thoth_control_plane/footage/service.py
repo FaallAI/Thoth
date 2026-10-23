@@ -178,10 +178,13 @@ def _storable(obj: FootageObject) -> bool:
 
 
 def _carousel(main: SourceReport) -> dict[str, PurePosixPath]:
-    """Spec F2: an Instagram /p/ post with at least two videos; the first video is the main."""
+    """Spec F2: an Instagram /p/ post or an X post (spec 2026-10-23 G6) with at least two videos;
+    the first video is the main, the others are its footage."""
     url = str(main.source.canonical_url)
     videos = [media for media in main.media if media.kind == "video"]
-    if main.source.platform != "instagram" or "/p/" not in url or len(videos) < 2:
+    platform = main.source.platform
+    shaped = platform == "x" or (platform == "instagram" and "/p/" in url)
+    if not shaped or len(videos) < 2:
         return {}
     return {f"{url}#slide{media.index}": media.location for media in videos[1 : MAX_FOOTAGE + 1]}
 
