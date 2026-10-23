@@ -8,7 +8,7 @@ RUN cd dashboard && bun install --frozen-lockfile
 COPY dashboard dashboard
 RUN cd dashboard && bun run build
 
-FROM caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
+FROM caddy:2.11.7-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
 COPY deploy/web/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /src/dashboard/dist /srv/dashboard
 # The official binary carries cap_net_bind_service; every port here is above 1024, so drop it and
