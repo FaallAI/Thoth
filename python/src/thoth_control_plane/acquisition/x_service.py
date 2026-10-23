@@ -1,9 +1,10 @@
-"""X single-post acquisition: the syndication JSON core, the page's seroval data as a
-best-effort enrichment (first-page replies, views, reposts), and headless cards.
+"""X single-post acquisition: the syndication JSON core, FxEmbed as a best-effort enrichment
+(every video, first-page replies, views, reposts, long text), and headless cards.
 
-Content is `request` by construction: logged-out pages serve a browser no content data
-(no GraphQL traffic, and the seroval table is dropped after hydration). There is no runtime
-fallback between methods; the legacy fallback lives in the workflow.
+Content is `request` by construction. X's signed-out pages stopped embedding tweet JSON in
+October 2026, so the enrichment reads FxEmbed (spec 2026-10-23); the cards are still cropped
+from the real X pages. There is no runtime fallback between methods; the legacy fallback lives
+in the workflow.
 """
 
 from __future__ import annotations
@@ -19,17 +20,15 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
-from thoth_control_plane.acquisition.adapters.seroval import decode_scripts
+from thoth_control_plane.acquisition.adapters.fxembed import fx_page
 from thoth_control_plane.acquisition.adapters.x import (
     CANONICAL_BASE,
     XPageParse,
     XPostIdentity,
     XUrlError,
     canonicalize_x_post_url,
-    parse_page,
     parse_syndication,
     post_url,
-    syndication_author,
     with_page,
 )
 from thoth_control_plane.acquisition.browser import _default_session_factory, _is_timeout
@@ -69,6 +68,7 @@ from thoth_control_plane.acquisition.threads_service import (
     _scrapling_get,
     materialize_media,
 )
+from thoth_control_plane.acquisition.x_fxembed import FxEmbedClient
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,36 @@ SIGN_IN_PATHS = ("/i/flow/login", "/login")
 # avatar, name, and bio, directly under the banner.
 # Both fail closed: a shifted layout matches nothing rather than the wrong block.
 POST_CARD_SELECTOR = 'article:has(a[href$="/status/{post_id}"])'
-PROFILE_CARD_SELECTOR = 'main > div:nth-child(4):has-text("@{owner}")'
+# The 2026 X DOM has no test ids and moves its blocks around, so the profile header is found by
+# shape (spec 2026-10-23 G5): the tallest full-width block above the first post that names the
+# owner. The script tags it; the crop then uses the tag.
+PROFILE_CARD_SELECTOR = '[data-thoth-profile-card="1"]'
+TAG_PROFILE_JS = """(owner) => {
+  document.querySelectorAll('[data-thoth-profile-card]')
+    .forEach((el) => el.removeAttribute('data-thoth-profile-card'));
+  const main = document.querySelector('main');
+  if (!main) return false;
+  const first = main.querySelector('article');
+  const limit = first ? first.getBoundingClientRect().top + 1 : Infinity;
+  const width = main.getBoundingClientRect().width;
+  // The whole handle: "@bbc" must not match "@bbcnews" (handles are [A-Za-z0-9_] only).
+  const handle = new RegExp('@' + owner + '(?![A-Za-z0-9_])', 'i');
+  let best = null;
+  let tallest = 0;
+  for (const el of main.querySelectorAll('*')) {
+    if (el.tagName === 'ARTICLE' || el.querySelector('article')) continue;
+    const box = el.getBoundingClientRect();
+    if (box.height <= 0 || box.bottom > limit || box.width < 0.9 * width) continue;
+    if (!handle.test(el.innerText || '')) continue;
+    if (box.height > tallest) {
+      best = el;
+      tallest = box.height;
+    }
+  }
+  if (!best) return false;
+  best.setAttribute('data-thoth-profile-card', '1');
+  return true;
+}"""
 # The profile page card (spec 5c-2): X lists posts, not a grid, so the header and the first
 # post. Checked against the page recorded on 2026-10-22, whose 2026 DOM has no test ids.
 PROFILE_PAGE_ITEMS = "main article"
@@ -152,7 +181,7 @@ def _text(response: Any) -> str:
 
 
 class XRequestFetcher:
-    """Plain impersonated HTTP GETs: the syndication JSON and the post or profile page."""
+    """Plain impersonated HTTP GETs of the syndication JSON."""
 
     def __init__(self, get: Callable[..., Awaitable[Any]] | None = None) -> None:
         self._get = get or _scrapling_get
@@ -186,9 +215,6 @@ class XRequestFetcher:
         except ValueError:
             return None
 
-    async def page(self, url: str) -> str:
-        return _text(await self._response(url))
-
 
 class XHeadlessBrowser(CardBrowser):
     """The X card session: post, reply, and profile cards; never content."""
@@ -212,9 +238,8 @@ class XHeadlessBrowser(CardBrowser):
             post_selector=(
                 POST_CARD_SELECTOR.format(post_id=status.group(1)) if status else NO_MATCH
             ),
-            profile_selector=(
-                PROFILE_CARD_SELECTOR.format(owner=owner.group(1)) if owner else NO_MATCH
-            ),
+            profile_selector=PROFILE_CARD_SELECTOR if owner else NO_MATCH,
+            profile_tag_js=(f"({TAG_PROFILE_JS})({json.dumps(owner.group(1))})" if owner else None),
         )
         return await super().cards(post_url, profile_url, want_post=want_post, targets=targets)
 
@@ -227,30 +252,42 @@ class XAcquirer:
         request_fetcher: XRequestFetcher,
         headless: XHeadlessBrowser,
         materializer: MediaMaterializer,
+        fxembed: FxEmbedClient,
     ) -> None:
         self._request = request_fetcher
         self._headless = headless
         self._materializer = materializer
+        self._fxembed = fxembed
 
-    async def _page(self, url: str, identity: XPostIdentity) -> XPageParse:
-        """Best effort: a failed fetch or an unreadable page gives an empty parse."""
+    async def _enrich(self, identity: XPostIdentity) -> XPageParse:
+        """Videos, counters, long text and replies from FxEmbed (X's signed-out pages stopped
+        embedding tweet JSON in October 2026). Best effort: any failure is today's syndication-
+        only result plus a warning, never a failed acquisition."""
         try:
-            html = await self._request.page(url)
+            status = await self._fxembed.status(identity.post_id)
+            replies: list[dict[str, Any]] = []
+            if status is not None:
+                try:
+                    replies = await self._fxembed.replies(identity.post_id)
+                except RequestFetchError as error:
+                    # The status alone still carries every video and the counters.
+                    logger.warning("x fxembed replies unavailable reason=%s", error.reason.value)
+            page = fx_page(status, replies, identity.post_id)
         except RequestFetchError as error:
-            logger.warning("x page enrichment unavailable reason=%s", error.reason.value)
+            logger.warning("x fxembed enrichment unavailable reason=%s", error.reason.value)
             return XPageParse()
-        try:
-            page = parse_page(decode_scripts(html), identity)
         except Exception:
-            # Defense in depth: an unforeseen page shape never fails the acquisition.
-            logger.warning("x page enrichment unreadable")
+            # Defense in depth: an unforeseen answer shape never fails the acquisition.
+            logger.warning("x fxembed enrichment unreadable")
             return XPageParse()
-        if not page.engagement:
-            logger.warning(
-                "x page enrichment found no post replies=%d dropped=%d",
-                len(page.comments),
-                page.dropped_comments,
-            )
+        if status is None:
+            logger.warning("x fxembed enrichment unavailable reason=no_status")
+        logger.info(
+            "x fxembed post videos=%d replies=%d dropped=%d",
+            len(page.videos),
+            len(page.comments),
+            page.dropped_comments,
+        )
         return page
 
     async def inspect(
@@ -270,12 +307,7 @@ class XAcquirer:
                 data = await self._request.syndication(identity.post_id)
             except RequestFetchError as error:
                 data, reason = None, error.reason
-            author = syndication_author(data)
-            page = (
-                await self._page(post_url(author, identity.post_id), identity)
-                if author is not None
-                else XPageParse()
-            )
+            page = await self._enrich(identity) if data is not None else XPageParse()
             parsed = parse_syndication(data, identity, page.videos)
             if parsed is None and reason is None:
                 reason = AcquisitionReason.REQUEST_INCOMPLETE

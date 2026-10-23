@@ -47,6 +47,8 @@ CHALLENGE_REASONS = frozenset({DiscoveryReason.CHALLENGE, DiscoveryReason.CAPTCH
 # X shows about 5 posts signed out; a signed-in listing is fuller. Operator, 2026-10-13: where
 # signed out is weaker, use the login with its proxy.
 THIN_LISTING = 10
+# Platforms whose listings never need an account: X goes through FxEmbed (spec 2026-10-23).
+ACCOUNT_FREE = frozenset({"x"})
 DiscoveryFactory = Callable[[SessionAccess | None, Path], Any]
 
 
@@ -136,11 +138,10 @@ def _instagram(access: SessionAccess | None, scratch: Path) -> Any:
 
 
 def _x(access: SessionAccess | None, scratch: Path) -> Any:
-    from thoth_control_plane.acquisition.registry import _request_get
+    # FxEmbed lists X profiles signed out; an account would add nothing (spec 2026-10-23).
     from thoth_control_plane.acquisition.x_discovery import XProfileDiscovery
-    from thoth_control_plane.acquisition.x_service import XRequestFetcher
 
-    return XProfileDiscovery(XRequestFetcher(_request_get(access)))
+    return XProfileDiscovery()
 
 
 def _youtube(access: SessionAccess | None, scratch: Path) -> Any:
@@ -213,7 +214,11 @@ class ProfileDiscoverer:
     async def _listing(
         self, platform: str, request: ProfileDiscovery | KeywordDiscovery
     ) -> DiscoveryResult:
-        mode: Mode = await self._leases.mode(platform) if self._leases else "anonymous"
+        mode: Mode = (
+            await self._leases.mode(platform)
+            if self._leases and platform not in ACCOUNT_FREE
+            else "anonymous"
+        )
         anonymous: DiscoveryResult | None = None
         if mode != "always":
             anonymous = await self._run(platform, request, None)

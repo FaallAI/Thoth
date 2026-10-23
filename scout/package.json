@@ -16,10 +16,10 @@
     "format": "biome format --write ."
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
-    "typescript": "^5.7.0"
+    "@types/node": "^24.19.2",
+    "typescript": "^7.0.2"
   },
   "optionalDependencies": {
-    "pg": "^8.13.0"
+    "pg": "^8.23.1"
   }
 }

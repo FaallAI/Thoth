@@ -68,7 +68,7 @@ def test_dockerignore_excludes_sensitive_and_generated_inputs() -> None:
 
 def test_dockerfile_uses_locked_full_compatibility_runtime() -> None:
     dockerfile = _repo_text("Dockerfile")
-    assert "FROM ghcr.io/astral-sh/uv:0.10.8 AS uv-tools" in dockerfile
+    assert "FROM ghcr.io/astral-sh/uv:0.13.5 AS uv-tools" in dockerfile
     assert "FROM oven/bun:1.3.14 AS bun-tools" in dockerfile
     assert "FROM python:3.12-slim-bookworm AS runtime" in dockerfile
     assert "uv sync --frozen --no-dev --extra acquisition" in dockerfile
@@ -450,14 +450,14 @@ def test_legacy_cdp_supervisor_keeps_the_browser_private_and_sandboxed() -> None
 def test_container_workflow_pins_every_action_to_full_commit_sha() -> None:
     workflow = _repo_text(".github/workflows/container-image.yml")
     expected = {
-        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262": "# v4",
-        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065": "# v5",
-        "astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e": "# v6",
-        "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6": "# v2",
-        "docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f": "# v3",
-        "docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9": "# v3",
-        "docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051": "# v5",
-        "docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8": "# v6",
+        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1": "# v7.0.1",
+        "actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0": "# v7.1.0",
+        "astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e": "# v10.3.2",
+        "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6": "# v2.2.0",
+        "docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069": "# v4.4.1",
+        "docker/login-action@dbcb813823bdd20940b903addbd779551569679f": "# v4.6.0",
+        "docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302": "# v6.2.0",
+        "docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc": "# v7.4.0",
     }
     action_lines = [line for line in workflow.splitlines() if "uses:" in line]
     references = {
@@ -573,7 +573,7 @@ def test_scout_runtime_downloader_versions_are_exact() -> None:
     """
     project = tomllib.loads(_repo_text("python/pyproject.toml"))
     assert project["project"]["optional-dependencies"]["scout-runtime"] == [
-        "gallery-dl==1.32.11",
+        "gallery-dl==1.32.17",
         f"yt-dlp=={_yt_dlp_pin()}",
     ]
 
@@ -581,7 +581,7 @@ def test_scout_runtime_downloader_versions_are_exact() -> None:
 def test_uv_lock_resolves_the_pinned_downloaders() -> None:
     lock = tomllib.loads(_repo_text("python/uv.lock"))
     locked = {package["name"]: package["version"] for package in lock["package"]}
-    assert locked["gallery-dl"] == "1.32.11"
+    assert locked["gallery-dl"] == "1.32.17"
     assert locked["yt-dlp"] == _yt_dlp_pin()
 
 
@@ -605,7 +605,7 @@ def test_dockerfile_probes_downloader_executables_as_the_runtime_user() -> None:
     assert "YTDLP=/opt/thoth/python/.venv/bin/yt-dlp" in dockerfile
     assert 'test -x "$GALLERY_DL"' in runtime_stage
     assert 'test -x "$YTDLP"' in runtime_stage
-    assert 'test "$("$GALLERY_DL" --version)" = "1.32.11"' in runtime_stage
+    assert 'test "$("$GALLERY_DL" --version)" = "1.32.17"' in runtime_stage
     # yt-dlp prints `2026.08.19` where the lock says `2026.8.19`; the probe compares the
     # executable with the package the frozen sync installed, so a bump needs no edit here.
     ytdlp_probe = (

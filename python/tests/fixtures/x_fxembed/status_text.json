@@ -1,0 +1,22 @@
+{
+ "code": 200,
+ "status": {
+  "id": "20",
+  "text": "just setting up my twttr",
+  "created_at": "Tue Mar 21 20:50:14 +0000 2006",
+  "created_timestamp": 1142974214,
+  "likes": 311870,
+  "reposts": 124569,
+  "replies": 18110,
+  "views": null,
+  "is_note_tweet": false,
+  "author": {
+   "screen_name": "jack"
+  },
+  "raw_text": {
+   "text": "just setting up my twttr"
+  },
+  "replying_to": null,
+  "reposted_by": null
+ }
+}

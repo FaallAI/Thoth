@@ -1,0 +1,66 @@
+{
+ "code": 200,
+ "status": {
+  "id": "2110509448032862621",
+  "text": "Orangutan memasuki kampung warga utk mencari makan krn hutannya terbakar, bahkan ada orangutan betina bersama anaknya makan bekal  milik warga.\n\n📍Kecamatan Dusun Selatan, Kab. Barito Selatan, Kalteng\n\n📍Hanau Seruyan, dekat Tanjung Puting\n\n@kemenhut_ri ini kan yg kalian mau‼️",
+  "created_at": "Wed Oct 14 23:13:58 +0000 2026",
+  "created_timestamp": 1792019638,
+  "likes": 6242,
+  "reposts": 3848,
+  "replies": 87,
+  "views": 185497,
+  "is_note_tweet": false,
+  "author": {
+   "screen_name": "InFebriyan128"
+  },
+  "raw_text": {
+   "text": "Orangutan memasuki kampung warga utk mencari makan krn hutannya terbakar, bahkan ada orangutan betina bersama anaknya makan bekal  milik warga.\n\n📍Kecamatan Dusun Selatan, Kab. Barito Selatan, Kalteng\n\n📍Hanau Seruyan, dekat Tanjung Puting\n\n@kemenhut_ri ini kan yg kalian mau‼️ https://t.co/otn5tpBPzr"
+  },
+  "media": {
+   "videos": [
+    {
+     "url": "https://video.twimg.com/amplify_video/2110509383197294592/vid/avc1/476x846/2LZbw-SrdWhl1e3W.mp4?tag=29",
+     "type": "video",
+     "formats": [
+      {
+       "container": "m3u8",
+       "url": "https://video.twimg.com/amplify_video/2110509383197294592/pl/iH89KqDjD6T2Z3pk.m3u8?tag=29&v=ea5"
+      },
+      {
+       "container": "mp4",
+       "bitrate": 632000,
+       "url": "https://video.twimg.com/amplify_video/2110509383197294592/vid/avc1/320x568/VKvIRkdvouZODlOi.mp4?tag=29"
+      },
+      {
+       "container": "mp4",
+       "bitrate": 950000,
+       "url": "https://video.twimg.com/amplify_video/2110509383197294592/vid/avc1/476x846/2LZbw-SrdWhl1e3W.mp4?tag=29"
+      }
+     ]
+    },
+    {
+     "url": "https://video.twimg.com/amplify_video/2110509419809456128/vid/avc1/480x872/QaLUCZXEAfwIo9u-.mp4?tag=29",
+     "type": "video",
+     "formats": [
+      {
+       "container": "m3u8",
+       "url": "https://video.twimg.com/amplify_video/2110509419809456128/pl/QmvvD-i3N7_X_PMD.m3u8?tag=29&v=cfc"
+      },
+      {
+       "container": "mp4",
+       "bitrate": 632000,
+       "url": "https://video.twimg.com/amplify_video/2110509419809456128/vid/avc1/320x580/XcfoPURkNnQ1mHxc.mp4?tag=29"
+      },
+      {
+       "container": "mp4",
+       "bitrate": 950000,
+       "url": "https://video.twimg.com/amplify_video/2110509419809456128/vid/avc1/480x872/QaLUCZXEAfwIo9u-.mp4?tag=29"
+      }
+     ]
+    }
+   ]
+  },
+  "replying_to": null,
+  "reposted_by": null
+ }
+}

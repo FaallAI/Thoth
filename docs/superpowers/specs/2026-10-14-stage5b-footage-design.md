@@ -123,6 +123,9 @@ footage is the other video slides (the first slide is the main), at most six, an
 searched. Each slide still passes F7 (subtitle OCR, vision, duplicate). Fewer than two video
 slides: the normal flow runs.
 
+Since 2026-10-23 an X post with at least two videos takes the same path (spec
+`2026-10-23-x-fxembed-design.md`, G6); its candidates carry `platform = "x"`.
+
 ### F3 Queries
 
 One structured call through Agno over OpenRouter (`THOTH_FOOTAGE_QUERY_MODEL`, default the
