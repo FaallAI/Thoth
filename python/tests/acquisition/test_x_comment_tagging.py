@@ -124,3 +124,19 @@ async def test_the_profile_tag_fails_closed() -> None:
         finally:
             await browser.close()
     assert (missing, found, count) == (False, True, 1)
+
+
+@pytest.mark.asyncio
+async def test_the_profile_tag_needs_the_whole_handle() -> None:
+    # Review: owner "bbc" must not tag a block that names only "@bbcnews".
+    blocks = "<main><div>Name @bbcnews bio</div></main>"
+    async with async_api.async_playwright() as playwright:
+        browser = await launch(playwright)
+        try:
+            page = await browser.new_page()
+            await page.set_content(blocks)
+            other = await page.evaluate(TAG_PROFILE_JS, "bbc")
+            own = await page.evaluate(TAG_PROFILE_JS, "bbcnews")
+        finally:
+            await browser.close()
+    assert (other, own) == (False, True)

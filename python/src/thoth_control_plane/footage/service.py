@@ -329,7 +329,7 @@ class FootageBuilder:
                 [
                     NewCandidate(
                         url=url,
-                        platform="instagram",
+                        platform=main.source.platform,
                         source="carousel",
                         query=CAROUSEL,
                         visual="",

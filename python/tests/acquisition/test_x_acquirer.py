@@ -91,8 +91,10 @@ class FakeFx:
         status: object = _STATUS,
         replies: list[dict[str, Any]] | None = None,
         error: AcquisitionReason | None = None,
+        replies_error: AcquisitionReason | None = None,
     ) -> None:
         self.data = _status() if status is _STATUS else status
+        self.replies_error = replies_error
         self.reply_list = REPLIES if replies is None else replies
         self.error = error
         self.calls: list[tuple[str, str]] = []
@@ -105,6 +107,8 @@ class FakeFx:
 
     async def replies(self, post_id: str) -> list[dict[str, Any]]:
         self.calls.append(("replies", post_id))
+        if self.replies_error is not None:
+            raise RequestFetchError(self.replies_error)
         return self.reply_list
 
 
@@ -201,6 +205,23 @@ async def test_an_fxembed_outage_falls_back_to_syndication_with_a_warning(
     assert result.report.post.engagement == {"like": 1200, "comment": 34}
     assert "x fxembed enrichment unavailable reason=request_blocked" in caplog.text
     assert fx.calls == [("status", POST_ID)]
+
+
+@pytest.mark.asyncio
+async def test_a_replies_failure_keeps_the_videos_and_counters(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Review: a failed conversation read must not throw away the status it follows.
+    data = _synd(mediaDetails=[{"type": "video"}, {"type": "video"}])
+    fx = FakeFx(
+        _fixture_status("status_multi_video.json"), replies_error=AcquisitionReason.REQUEST_TIMEOUT
+    )
+    result = await _inspect(tmp_path, FakeRequest(data), FakeHeadless(_cards()), fx=fx)
+    assert result.report is not None
+    assert [item.kind for item in result.report.media] == ["video", "video"]
+    assert "play" in result.report.post.engagement
+    assert result.report.comments == []
+    assert "x fxembed replies unavailable reason=request_timeout" in caplog.text
 
 
 @pytest.mark.asyncio

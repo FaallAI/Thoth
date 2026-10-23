@@ -157,12 +157,13 @@ async def test_client_refusals_are_blocked(status: int, tries: int) -> None:
     assert len(seen) == tries  # a rate limit is never retried
 
 
-async def test_client_timeout_is_a_timeout_after_the_retries() -> None:
+async def test_client_timeout_is_final() -> None:
+    # Review: a hung API must cost one timeout, not three.
     client, seen = _client(TimeoutError("slow"))
     with pytest.raises(RequestFetchError) as raised:
         await client.status(POST_ID)
     assert raised.value.reason is AcquisitionReason.REQUEST_TIMEOUT
-    assert len(seen) == ATTEMPTS
+    assert len(seen) == 1
 
 
 async def test_client_recovers_from_one_transient_failure() -> None:

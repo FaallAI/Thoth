@@ -95,14 +95,15 @@ TAG_PROFILE_JS = """(owner) => {
   const first = main.querySelector('article');
   const limit = first ? first.getBoundingClientRect().top + 1 : Infinity;
   const width = main.getBoundingClientRect().width;
-  const needle = '@' + owner.toLowerCase();
+  // The whole handle: "@bbc" must not match "@bbcnews" (handles are [A-Za-z0-9_] only).
+  const handle = new RegExp('@' + owner + '(?![A-Za-z0-9_])', 'i');
   let best = null;
   let tallest = 0;
   for (const el of main.querySelectorAll('*')) {
     if (el.tagName === 'ARTICLE' || el.querySelector('article')) continue;
     const box = el.getBoundingClientRect();
     if (box.height <= 0 || box.bottom > limit || box.width < 0.9 * width) continue;
-    if (!(el.innerText || '').toLowerCase().includes(needle)) continue;
+    if (!handle.test(el.innerText || '')) continue;
     if (box.height > tallest) {
       best = el;
       tallest = box.height;
@@ -264,7 +265,13 @@ class XAcquirer:
         only result plus a warning, never a failed acquisition."""
         try:
             status = await self._fxembed.status(identity.post_id)
-            replies = await self._fxembed.replies(identity.post_id) if status is not None else []
+            replies: list[dict[str, Any]] = []
+            if status is not None:
+                try:
+                    replies = await self._fxembed.replies(identity.post_id)
+                except RequestFetchError as error:
+                    # The status alone still carries every video and the counters.
+                    logger.warning("x fxembed replies unavailable reason=%s", error.reason.value)
             page = fx_page(status, replies, identity.post_id)
         except RequestFetchError as error:
             logger.warning("x fxembed enrichment unavailable reason=%s", error.reason.value)

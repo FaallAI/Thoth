@@ -604,6 +604,7 @@ async def test_an_x_main_with_two_videos_uses_its_other_videos(
     assert result.admitted == 1 and search.calls == []
     admitted = store.admitted("wf_a")
     assert {c.source for c in admitted} == {"carousel"}
+    assert {c.platform for c in admitted} == {"x"}
     assert all(c.url.startswith(f"{X_MAIN}#slide") for c in admitted)
 
 

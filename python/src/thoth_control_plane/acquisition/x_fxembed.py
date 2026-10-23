@@ -35,8 +35,8 @@ OPTIONS: dict[str, Any] = {
 MAX_PAGE = 100
 # The public API is uneven (live check 2026-10-23): a connection dropped now and then, and for one
 # profile the SIN edge answered 200 while the MRS edge answered 404 with no results. So a
-# transport error, a server error and a 404 are tried again after a short pause; a rate limit
-# is final, and a 404 that outlasts the retries is missing.
+# dropped connection, a server error and a 404 are tried again after a short pause; a timeout
+# or a rate limit is final, and a 404 that outlasts the retries is missing.
 ATTEMPTS = 3
 RETRY_PAUSE_S = 2.0
 
@@ -77,12 +77,14 @@ class FxEmbedClient:
             try:
                 response = await self._get(url, **OPTIONS)
             except Exception as error:
-                if not last:
+                timeout = _is_timeout(error)
+                # A hung API costs one timeout, never three; a dropped connection is retried.
+                if not last and not timeout:
                     await asyncio.sleep(self._retry_pause)
                     continue
                 reason = (
                     AcquisitionReason.REQUEST_TIMEOUT
-                    if _is_timeout(error)
+                    if timeout
                     else AcquisitionReason.REQUEST_BLOCKED
                 )
                 logger.warning("x fxembed unreachable reason=%s", reason.value)

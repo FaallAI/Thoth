@@ -157,12 +157,19 @@ async def _x_profile(owner: str) -> dict[str, Any]:
             page = await chromium.new_page(viewport={"width": 1280, "height": 720})
             await page.route("**/*", lambda route: route.abort())
             html = (PAGES / "x-profile.html").read_text(encoding="utf-8")
-            await page.set_content(html, wait_until="domcontentloaded")
+            # `load`, then one snapshot: under CPU load the stripped page still reflows after
+            # DOMContentLoaded, and two separate box reads could straddle that reflow.
+            await page.set_content(html, wait_until="load")
             tagged = await page.evaluate(x_service.TAG_PROFILE_JS, owner)
             selector = x_service.PROFILE_CARD_SELECTOR
             count = await page.locator(selector).count()
-            head = await page.locator(selector).first.bounding_box() if count else None
-            article = await page.locator("main article").first.bounding_box()
+            boxes = await page.evaluate(
+                "(s) => [document.querySelector(s), document.querySelector('main article')]"
+                ".map((e) => e && (({x, y, width, height}) => ({x, y, width, height}))"
+                "(e.getBoundingClientRect()))",
+                selector,
+            )
+            head, article = boxes
             rect = (
                 await page.evaluate(PROFILE_PAGE_JS, [head, x_service.PROFILE_PAGE_ITEMS, 1])
                 if head
