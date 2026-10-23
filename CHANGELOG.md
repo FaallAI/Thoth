@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-23 - Captcha outcome lines outlive the worker (branch `chore/captcha-outcome-log`)
+
+The solver's success rate is counted from its `tiktok captcha outcome` lines. Docker drops a
+container's log with the container, and every deploy recreates the worker, so a deploy would
+have erased every outcome line logged before it. That would also lose the evidence of whether
+the click subtypes (icon/3D) ever appear.
+
+- **`scripts/ops/captcha-outcomes.sh`** appends the worker's outcome lines, with Docker's
+  timestamps, to `$THOTH_STAGE1_DATA_ROOT/ops/captcha-outcomes.log`, then prints the total and
+  a count per `subtype/solved/attempts/reason`. The timestamp makes each line unique, so saving
+  the same log twice adds nothing. A failing `docker compose logs` stops the script loudly.
+- **`make deploy`** runs it as step `save-captcha-outcomes` before the worker stops.
+- **`make captcha-stats`** saves and counts at any time. It replaces the
+  `docker compose logs worker | grep` line in the entry below.
+
+**Verification:**
+- `tests/deployment/test_captcha_outcomes_script.py` runs the script against a fake `docker`.
+  A second save of the same log adds nothing, and the saved lines survive a new, empty worker
+  log. The test also checks that the deploy saves the lines before `stop-worker`.
+- `tests/deployment`: 386 passed.
+
+**Next steps:** merge (operator gate), then `git pull` the local checkout that `make deploy` runs
+from; no image change and no redeploy needed.
+
 ## 2026-10-23 - Deployed: dependency refresh, whirl solver, X via FxEmbed, captcha follow-ups
 
 **Merged:**

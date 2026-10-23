@@ -12,7 +12,7 @@ COMPOSE := docker compose --env-file .env.stage1.local -f compose.stage1.local.y
 T ?= tests
 SERVICE ?= worker
 
-.PHONY: help test lint format check test-postgres test-minio dashboard-test dashboard-build smoke-cdp smoke-parity smoke-fallback smoke-renderer deploy status logs
+.PHONY: help test lint format check test-postgres test-minio dashboard-test dashboard-build smoke-cdp smoke-parity smoke-fallback smoke-renderer deploy status logs captcha-stats
 
 help: ## List the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -56,6 +56,9 @@ smoke-renderer: ## Offline renderer + web smoke; IMAGE=<image> RENDERER_IMAGE=<i
 
 deploy: ## Deploy the stack on the THOTH_IMAGE pinned in .env.stage1.local
 	bash scripts/ops/deploy-stage1.sh
+
+captcha-stats: ## Save the worker's captcha outcome lines, then count every saved one
+	bash scripts/ops/captcha-outcomes.sh
 
 status: ## Stack service status
 	$(COMPOSE) ps --format '{{.Service}} {{.Status}}'
