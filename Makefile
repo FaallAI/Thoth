@@ -4,7 +4,7 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
-RUFF := $(HOME)/.local/bin/uvx ruff@0.16.5
+RUFF := $(HOME)/.local/bin/uvx ruff@0.17.2
 PY_PATHS := python/src python/tests
 # Bun is installed on Windows only; WSL reaches it through interop.
 BUN := $(shell command -v bun || command -v bun.exe)

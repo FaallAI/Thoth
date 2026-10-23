@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM ghcr.io/astral-sh/uv:0.10.8 AS uv-tools
+FROM ghcr.io/astral-sh/uv:0.13.5 AS uv-tools
 FROM oven/bun:1.3.14 AS bun-tools
 
 FROM python:3.12-slim-bookworm AS runtime
@@ -101,7 +101,7 @@ RUN test -w /var/lib/thoth/artifacts \
     && test -d /home/thoth/.cache/camoufox \
     && test -x "$GALLERY_DL" \
     && test -x "$YTDLP" \
-    && test "$("$GALLERY_DL" --version)" = "1.32.11" \
+    && test "$("$GALLERY_DL" --version)" = "1.32.17" \
     && test "$("$YTDLP" --version | sed -E 's/(^|\.)0+([0-9])/\1\2/g')" = "$(/opt/thoth/python/.venv/bin/python -c 'import importlib.metadata as m; print(m.version("yt-dlp"))')" \
     && /usr/bin/ffmpeg -version >/dev/null 2>&1 \
     && /usr/bin/ffprobe -version >/dev/null 2>&1 \
