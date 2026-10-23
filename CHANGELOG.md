@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-23 - Deployed: dependency refresh, whirl solver, X via FxEmbed, captcha follow-ups
+
+**Merged:**
+- PR #43 (dependency refresh, `097ce4d`);
+- PR #44 (whirl solver, `256eaed`);
+- PR #45 (X via FxEmbed, `b1d6cf1`);
+- PR #46 (captcha follow-ups and the signed-in proof, `ffd44fc`).
+
+All CI jobs were green, smoke included.
+
+**Deployed** on the branch build `sha-4c1d69a`. The merge of PR #46 adds nothing over that
+branch head, so the deploy did not wait for the `master` build. The images:
+- `thoth@3616de53`;
+- `thoth-remotion-renderer@ffee450b`;
+- `thoth-web@a9aac4f2`.
+
+The previous pins are backed up outside the repository.
+
+**After the deploy:**
+- Every service is healthy, with 0 restarts and no error lines in the api, worker, renderer or
+  web logs.
+- Backfill: `inserted=0 present=263 invalid=2`; the two invalid runs predate this release.
+- `scripts/ops/captcha-outcomes.sh` (PR #47, not merged yet) ran against the live stack and
+  created `$THOTH_STAGE1_DATA_ROOT/ops/captcha-outcomes.log`, still empty.
+
+**Next steps:**
+- PR #47 (captcha outcome lines outlive the worker): merge, then `git pull` the local checkout.
+- Operator checks:
+  - one real workflow with an X main of two or more videos (carousel footage, comment cards);
+  - one with a TikTok main;
+  - the solver's success rate via `make captcha-stats` once outcomes accumulate.
+- Queue:
+  - the render-path PR (Remotion 4.0.538, React 19.3, Bun 1.4; needs golden re-approval);
+  - the scrapling 0.5 and openai 3 migrations;
+  - TikTok P1/P2;
+  - item 6 (style A recipe).
+
 ## 2026-10-23 - Captcha follow-ups: whirl review minors, one outcome line, click subtypes classified
 
 Branch `fix/tiktok-captcha-followups` (from `256eaed`, after PR #44). Closes what the
