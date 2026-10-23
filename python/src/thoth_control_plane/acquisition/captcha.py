@@ -117,11 +117,13 @@ async def _attempt(page: Any, rng: random.Random) -> tuple[str, str, bool]:
     """One try: the subtype it saw, why it fell short ("none" when it did not), and success."""
     if await page.query_selector(CONTAINER_SELECTOR) is None:
         return "unknown", "no_images", False
-    subtype = await _classify(page)
-    if subtype not in ("slide", "whirl"):
-        return subtype, "unsupported", False
     handle = await page.query_selector(HANDLE_SELECTOR)
+    subtype = await _classify(page)
     if handle is None:
+        # No drag handle: a click subtype, which nothing here answers.
+        return subtype, "unsupported", False
+    if subtype not in ("slide", "whirl"):
+        # A drag handle whose images have not rendered yet: worth the retry.
         return subtype, "no_images", False
     if subtype == "slide":
         piece = await page.query_selector(PIECE_SELECTOR)

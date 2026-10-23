@@ -381,8 +381,41 @@ async def test_solve_reports_an_unrecognized_subtype_without_clicking(caplog) ->
         assert await solve(page, rng=random.Random(1)) is False
 
     assert page.mouse.downs == 0
+    # A drag handle means a drag subtype whose parts have not rendered yet: retried, and
+    # reported as missing images, never as unsupported.
     assert _outcome_lines(caplog) == [
-        "tiktok captcha outcome subtype=unknown solved=false attempts=1 reason=unsupported"
+        "tiktok captcha outcome subtype=unknown solved=false attempts=2 reason=no_images"
+    ]
+
+
+class LateWhirlPage(FakeWhirlPage):
+    """A whirl modal whose images have not rendered on the first look."""
+
+    def __init__(self, imgs: list[FakeImage], degrees_per_px: float) -> None:
+        super().__init__(imgs, degrees_per_px)
+        self.rendered = False
+
+    async def query_selector_all(self, selector: str):
+        return await super().query_selector_all(selector) if self.rendered else []
+
+    async def wait_for_timeout(self, timeout: int) -> None:
+        self.rendered = True
+
+
+async def test_a_whirl_whose_images_load_late_is_solved_on_the_retry(caplog) -> None:
+    # Review: an unrendered whirl was classified unknown -> unsupported and never retried.
+    disc, ring = _whirl_arrays(60.0)
+    page = LateWhirlPage(
+        [
+            FakeImage((535, 337, 210, 210), _data_url(ring)),
+            FakeImage((576, 378, 128, 128), _data_url(disc)),
+        ],
+        WHIRL_TURNS,
+    )
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is True
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=whirl solved=true attempts=2 reason=none"
     ]
 
 
