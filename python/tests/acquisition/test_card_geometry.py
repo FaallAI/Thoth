@@ -95,7 +95,6 @@ async def test_profile_page_js_is_none_without_grid_items() -> None:
     [
         ("x-post", x_service.POST_CARD_SELECTOR.format(post_id=X_POST_ID), 1),
         ("x-post", x_service.POST_CARD_SELECTOR.format(post_id=X_POST_ID) + " video", 1),
-        ("x-profile", x_service.PROFILE_CARD_SELECTOR.format(owner=X_OWNER), 1),
         ("x-profile", x_service.PROFILE_PAGE_ITEMS, 1),
         ("instagram-post", instagram_service.POST_CARD_SELECTOR, 1),
         ("instagram-post", instagram_service.POST_CARD_SELECTOR + " video", 1),
@@ -150,23 +149,68 @@ async def test_hiding_the_threads_dialog_also_lifts_its_dimming_overlay() -> Non
     assert script and hidden == "hidden"
 
 
-@pytest.mark.asyncio
-async def test_the_x_page_card_finds_its_header_and_first_post_on_the_recorded_page() -> None:
-    # Task 12: X's header selector uses Playwright's :has-text, which document.querySelector
-    # refuses, so the header is measured by Playwright and only its box reaches the script.
+async def _x_profile(owner: str) -> dict[str, Any]:
+    """Tag the recorded X profile page for `owner`, then measure the tagged header and page."""
     async with async_api.async_playwright() as playwright:
         chromium = await launch(playwright)
         try:
             page = await chromium.new_page(viewport={"width": 1280, "height": 720})
             await page.route("**/*", lambda route: route.abort())
             html = (PAGES / "x-profile.html").read_text(encoding="utf-8")
-            await page.set_content(html, wait_until="domcontentloaded")
-            selector = x_service.PROFILE_CARD_SELECTOR.format(owner=X_OWNER)
-            head = await page.locator(selector).first.bounding_box()
-            rect = await page.evaluate(PROFILE_PAGE_JS, [head, x_service.PROFILE_PAGE_ITEMS, 1])
+            # `load`, then one snapshot: under CPU load the stripped page still reflows after
+            # DOMContentLoaded, and two separate box reads could straddle that reflow.
+            await page.set_content(html, wait_until="load")
+            tagged = await page.evaluate(x_service.TAG_PROFILE_JS, owner)
+            selector = x_service.PROFILE_CARD_SELECTOR
+            count = await page.locator(selector).count()
+            boxes = await page.evaluate(
+                "(s) => [document.querySelector(s), document.querySelector('main article')]"
+                ".map((e) => e && (({x, y, width, height}) => ({x, y, width, height}))"
+                "(e.getBoundingClientRect()))",
+                selector,
+            )
+            head, article = boxes
+            text = await page.evaluate(
+                "(s) => (document.querySelector(s) || {}).innerText || ''", selector
+            )
+            rect = (
+                await page.evaluate(PROFILE_PAGE_JS, [head, x_service.PROFILE_PAGE_ITEMS, 1])
+                if head
+                else None
+            )
         finally:
             await chromium.close()
-    assert head is not None and rect is not None and rect["height"] > head["height"]
+    return {
+        "tagged": tagged,
+        "count": count,
+        "head": head,
+        "article": article,
+        "rect": rect,
+        "text": text,
+    }
+
+
+@pytest.mark.asyncio
+async def test_x_profile_tag_marks_the_header_on_the_recorded_page() -> None:
+    found = await _x_profile(X_OWNER)
+    assert found["tagged"] is True and found["count"] == 1
+    head, article = found["head"], found["article"]
+    assert head["height"] > 0 and head["y"] + head["height"] <= article["y"] + 1
+    # The header itself: the name, the handle, and the bio below them (recorded 2026-10-22).
+    assert "@InFebriyan128" in found["text"] and "Daily life" in found["text"]
+
+
+@pytest.mark.asyncio
+async def test_x_profile_tag_marks_nothing_without_the_owner() -> None:
+    found = await _x_profile("nobody_here")
+    assert found["tagged"] is False and found["count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_the_x_page_card_finds_its_header_and_first_post_on_the_recorded_page() -> None:
+    # The header is tagged by shape (spec 2026-10-23 G5); only its box reaches the page script.
+    found = await _x_profile(X_OWNER)
+    assert found["rect"] is not None and found["rect"]["height"] > found["head"]["height"]
 
 
 @pytest.mark.asyncio

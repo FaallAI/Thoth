@@ -2,6 +2,92 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-23 - X via FxEmbed (branch `feat/x-fxembed`)
+
+**Why:** sometime between 2026-10-16 and 2026-10-22, X's signed-out pages stopped embedding
+tweet JSON. Several things were lost without any error:
+
+- every video of a multi-video post;
+- X comment cards;
+- views and reposts;
+- X creator footage and photos;
+- X attribution discovery.
+
+Spec: `docs/superpowers/specs/2026-10-23-x-fxembed-design.md`. Plan:
+`docs/superpowers/plans/2026-10-23-x-fxembed.md`. The operator chose the permanent fix and
+authorised both live gates.
+
+**What changed:**
+
+- **Post enrichment:** FxEmbed (`api.fxtwitter.com`, MIT, account-free) replaces the dead page
+  parse. It brings every video in post order, first-page replies, views/reposts and long text.
+  Syndication stays the core and the fallback; a failure logs a warning.
+- **Profile listings:** `/2/profile/{handle}/media` feeds attribution discovery, creator footage
+  and creator photos. An X listing never leases an account (`ACCOUNT_FREE`).
+- **Multi-video X mains:** these take the Stage 5b F2 carousel footage path, with
+  `platform = "x"`.
+- **Profile card:** found by shape. A tag script marks the tallest full-width block above the
+  first post that names the whole `@handle`; this replaces `main > div:nth-child(4)`.
+- **Client behaviour:** plain API GETs with User-Agent `Thoth/1.0`. A dropped connection, a 5xx
+  or a 404 is retried, 3 attempts with 2 s pauses. A timeout or a 429 is final. The base URL is
+  `THOTH_X_FXEMBED_URL`.
+- **Removed:** the X page-JSON readers, the seroval decoder and the X capture/fixture tooling.
+  The X goldens now pin syndication only.
+
+**Live check** (anonymous, no account, cookie or proxy; every request is in
+`D:/thoth-tmp/research/x-fxembed/live-log.md`):
+
+| Check | Result |
+|---|---|
+| Recon: post page | 4 articles: the post plus 3 replies, all among FxEmbed's 34 |
+| Recon: profile page | header 600x252, profile page 600x633 |
+| Acquisition `InFebriyan128/status/2110509448032862621` | 2 videos (0.9 MB + 2.0 MB); 34 comments, 3 carded; like/comment/share/play; post card with `media_box`; profile card; profile page |
+| X creator listing `InFebriyan128` | 6 videos, 4 photos, no lease |
+| Run 1 | found the public API uneven: one connect timeout; the MRS edge answering 404 with no results where the SIN edge answers 200 for the same URL |
+| Run 2 | after the retry fix, a 404 followed by a 200 on retry |
+| Footage run on an X main | not run: no stack worker runs the branch image before CI builds it. F2 for X is pinned offline |
+
+**Review:** a fresh whole-branch review (Opus) found 0 Critical, 3 Important and 7 Minor. All
+were fixed test first:
+
+- the replies failure dropped the videos;
+- the X carousel was stored as `instagram`;
+- a timeout was retried three times;
+- the handle substring match, re-graded from Minor to Important.
+
+A browser test that read two boxes across a reflow under load now waits for `load` and reads
+both in one snapshot.
+
+**Verification:**
+
+- Python: 4379 passed after the minor fixes; the earlier Temporal test-server download flake re-ran 2/2.
+- Ruff: clean.
+- Browser tests in the thoth image: 1000 passed after the minor fixes.
+- PostgreSQL tests: 22 passed.
+
+**Review minors fixed (operator, 2026-10-23: "tolong perbaiki minor dulu"):**
+
+- **Replies:** a reply that names no parent (`replying_to` missing) is dropped; the guard now
+  fails closed.
+- **Tag test:** the recorded-page test now proves the tagged block is the header itself (name,
+  handle and bio). A new test shows a sticky bar that names the user but not the handle is
+  skipped.
+- **Docstring:** `_walk` no longer mentions seroval.
+- **Docs:** `THOTH_X_FXEMBED_URL` is documented in `docs/python-control-plane.md`.
+- **Multi-video fallback:** with FxEmbed down, a multi-video post now keeps every video.
+  Syndication lists each video's renditions per entry (`mediaDetails[].video_info.variants`);
+  the top-level `video` names only the first, which the follow-up research had taken for the
+  whole picture (checked live: two entries, two separate amplify videos).
+
+**Next steps:**
+
+- Push and PR, then merge and deploy. Each is a separate operator gate.
+- After deploy: one real workflow with an X main that has two or more videos, to see the
+  carousel footage and the comment cards in Studio.
+- Self-host FxEmbed if the public edges keep disagreeing. It is one setting.
+- Still open from the follow-up research: TikTok P1/P2 (classification, bounded retry, grid
+  wait), the item 6 style A recipe, and the C1 operator input session.
+
 ## 2026-10-23 - Dependency refresh (branch `chore/deps-refresh`)
 
 The operator asked for every library and package to be brought up to date. This branch covers

@@ -360,3 +360,15 @@ async def test_creator_listing_keeps_photos_and_the_page() -> None:
     discoverer = ProfileDiscoverer({"tiktok": lambda access, scratch: _Discovery()})
     listing = await discoverer.creator("tiktok", SOURCE, 24)
     assert (len(listing.videos), listing.photos, listing.page_png) == (10, [photo], b"page")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["fallback", "always"])
+async def test_a_thin_x_listing_never_leases(mode: str) -> None:
+    # FxEmbed lists X profiles without an account; a lease would only spend the X budget.
+    fake = FakeDiscovery(_result(_videos(3)), _result(_videos(30)))
+    leases = FakeLeases(mode)
+    discoverer = ProfileDiscoverer({"x": fake.factory}, leases=leases)  # type: ignore[arg-type]
+
+    assert len(await discoverer.discover("x", SOURCE)) == 3
+    assert (fake.built_with, leases.released) == ([None], [])

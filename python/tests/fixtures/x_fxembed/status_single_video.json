@@ -1,0 +1,51 @@
+{
+ "code": 200,
+ "status": {
+  "id": "2113402008652882180",
+  "text": "Sebagai pengingat sebagai sesama penghuni bumi 🌏🤗",
+  "created_at": "Thu Oct 22 22:47:58 +0000 2026",
+  "created_timestamp": 1792709278,
+  "likes": 576,
+  "reposts": 212,
+  "replies": 5,
+  "views": 3688,
+  "is_note_tweet": false,
+  "author": {
+   "screen_name": "InFebriyan128"
+  },
+  "raw_text": {
+   "text": "Sebagai pengingat sebagai sesama penghuni bumi 🌏🤗 https://t.co/hy0dWQ9EBZ"
+  },
+  "media": {
+   "videos": [
+    {
+     "url": "https://video.twimg.com/amplify_video/2113401973139705856/vid/avc1/576x1024/-uDHkZOd09egukmb.mp4?tag=29",
+     "type": "video",
+     "formats": [
+      {
+       "container": "m3u8",
+       "url": "https://video.twimg.com/amplify_video/2113401973139705856/pl/DmO7Rrf93pt_I_78.m3u8?tag=29&v=3fb"
+      },
+      {
+       "container": "mp4",
+       "bitrate": 632000,
+       "url": "https://video.twimg.com/amplify_video/2113401973139705856/vid/avc1/320x568/q4u_SlHl-81KHjCI.mp4?tag=29"
+      },
+      {
+       "container": "mp4",
+       "bitrate": 950000,
+       "url": "https://video.twimg.com/amplify_video/2113401973139705856/vid/avc1/480x852/kn5FQj2hE0nqsUho.mp4?tag=29"
+      },
+      {
+       "container": "mp4",
+       "bitrate": 2176000,
+       "url": "https://video.twimg.com/amplify_video/2113401973139705856/vid/avc1/576x1024/-uDHkZOd09egukmb.mp4?tag=29"
+      }
+     ]
+    }
+   ]
+  },
+  "replying_to": null,
+  "reposted_by": null
+ }
+}

@@ -60,122 +60,6 @@
           }
         ]
       }
-    },
-    "page": {
-      "tweets": [
-        {
-          "__typename": "Tweet",
-          "rest_id": "7000000000000000000",
-          "core": {
-            "user_results": {
-              "result": {
-                "core": {
-                  "screen_name": "user_001"
-                }
-              }
-            }
-          },
-          "details": {
-            "full_text": "🚨 aaaa a.a (aaaaaa) aa aaaa a.a (aaaaa)\n\naaaa aaaaa aaaaaa\n\naaa aaaaa’a aaaaaa aaaaa aaaaaaaaaa aaaaaa aaaa aaaaaa, aaaa aaaaaa, aaa aaa aaaaaaa aaaaaa aaaa aaaaa’a aaa aaa aaaa\n\naa aaaaaaaa aaaaa aaaa aaaa a.a aaa aaaaaa aaaaaa aaaaa://a.aa/aaaaaaaaaa",
-            "created_at_ms": 1700007200000
-          },
-          "counts": {
-            "favorite_count": 1900,
-            "reply_count": 140,
-            "retweet_count": 67
-          },
-          "views": {
-            "count": 260000
-          },
-          "media_entities2": [
-            {
-              "type": "video",
-              "video_info": {
-                "variants": [
-                  {
-                    "content_type": "application/x-mpegURL",
-                    "url": "https://media.example.test/video/6/m.mp4"
-                  },
-                  {
-                    "content_type": "video/mp4",
-                    "url": "https://media.example.test/video/7/480x270/m.mp4"
-                  },
-                  {
-                    "content_type": "video/mp4",
-                    "url": "https://media.example.test/video/8/640x360/m.mp4"
-                  },
-                  {
-                    "content_type": "video/mp4",
-                    "url": "https://media.example.test/video/9/1280x720/m.mp4"
-                  },
-                  {
-                    "content_type": "video/mp4",
-                    "url": "https://media.example.test/video/10/1920x1080/m.mp4"
-                  }
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "__typename": "Tweet",
-          "rest_id": "7000000000000000001",
-          "core": {
-            "user_results": {
-              "result": {
-                "core": {
-                  "screen_name": "user_001"
-                }
-              }
-            }
-          },
-          "details": {
-            "full_text": "baab aab aabaaba: abaab://a.ab/aabaabaaba",
-            "created_at_ms": 1700010800000
-          },
-          "counts": {
-            "favorite_count": 1,
-            "reply_count": 0,
-            "retweet_count": 0
-          },
-          "views": {
-            "count": 11000
-          },
-          "reply_to_results": {
-            "rest_id": "7000000000000000000"
-          },
-          "media_entities2": []
-        },
-        {
-          "__typename": "Tweet",
-          "rest_id": "7000000000000000002",
-          "core": {
-            "user_results": {
-              "result": {
-                "core": {
-                  "screen_name": "user_002"
-                }
-              }
-            }
-          },
-          "details": {
-            "full_text": "@ca_acaac aac aac'a acaac aac'a acaa caac aac aaca ac aa ca aca acaac aa caac.  aacaa caa caac aacaaca aca aca aca aca.",
-            "created_at_ms": 1700014400000
-          },
-          "counts": {
-            "favorite_count": 180,
-            "reply_count": 2,
-            "retweet_count": 0
-          },
-          "views": {
-            "count": 10000
-          },
-          "reply_to_results": {
-            "rest_id": "7000000000000000000"
-          },
-          "media_entities2": []
-        }
-      ]
     }
   },
   "expected": {
@@ -186,24 +70,8 @@
     ],
     "engagement": {
       "like": 1900,
-      "comment": 140,
-      "share": 67,
-      "play": 260000
+      "comment": 140
     },
-    "published_at": "2023-11-14T23:13:20Z",
-    "comments": [
-      {
-        "comment_id": "7000000000000000001",
-        "author": "user_001",
-        "text": "baab aab aabaaba: abaab://a.ab/aabaabaaba",
-        "likes": 1
-      },
-      {
-        "comment_id": "7000000000000000002",
-        "author": "user_002",
-        "text": "aac aac'a acaac aac'a acaa caac aac aaca ac aa ca aca acaac aa caac.  aacaa caa caac aacaaca aca aca aca aca.",
-        "likes": 180
-      }
-    ]
+    "published_at": "2023-11-14T23:13:20Z"
   }
 }

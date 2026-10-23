@@ -12,7 +12,6 @@ import pytest
 
 from tests.acquisition.fakes import FakeMaterializer
 from tests.acquisition.png_fixtures import make_png
-from thoth_control_plane.acquisition import x_service
 from thoth_control_plane.acquisition.card_browser import Cards
 from thoth_control_plane.acquisition.models import (
     AcquisitionReason,
@@ -43,46 +42,40 @@ def _synd(**extra: Any) -> dict[str, Any]:
     }
 
 
-def _tweet(rest_id: str, author: str, text: str, reply_to: str | None) -> dict[str, Any]:
-    node: dict[str, Any] = {
-        "__typename": "Tweet",
-        "rest_id": rest_id,
-        "core": {"user_results": {"result": {"core": {"screen_name": author}}}},
-        "details": {"full_text": text, "created_at_ms": 1_714_566_896_000},
-        "counts": {"favorite_count": 3, "reply_count": 1, "retweet_count": 2},
-        "views": {"count": "4500"},
+FIXTURES = Path(__file__).resolve().parent.parent / "fixtures" / "x_fxembed"
+
+
+def _status(**extra: Any) -> dict[str, Any]:
+    return {
+        "id": POST_ID,
+        "text": "hello world",
+        "author": {"screen_name": "user_001"},
+        "likes": 3,
+        "replies": 1,
+        "reposts": 2,
+        "views": 4500,
+        **extra,
     }
-    if reply_to is not None:
-        node["reply_to_results"] = {"rest_id": reply_to}
-    return node
 
 
-def _page(*tweets: dict[str, Any]) -> str:
-    # Compact JSON is a subset of the seroval literals the decoder reads.
-    root = json.dumps({"entries": list(tweets)}, separators=(",", ":"))
-    return f'<script>($R=>$R[0].next({root}))($R["k"])</script>'
+def _reply(reply_id: str, author: str, text: str) -> dict[str, Any]:
+    return {
+        "id": reply_id,
+        "text": text,
+        "author": {"screen_name": author},
+        "likes": 3,
+        "replying_to": {"screen_name": "user_001", "status": POST_ID},
+    }
 
 
-PAGE = _page(
-    _tweet(POST_ID, "user_001", "hello world", None),
-    _tweet(C1, "fan_001", "@user_001 first reply", POST_ID),
-    _tweet(C2, "fan_002", "second", POST_ID),
-)
-
-
-_SYND = object()
+REPLIES = [_reply(C1, "fan_001", "@user_001 first reply"), _reply(C2, "fan_002", "second")]
+_STATUS = object()
 
 
 class FakeRequest:
-    def __init__(
-        self,
-        data: object = _SYND,
-        page: str = PAGE,
-        error: AcquisitionReason | None = None,
-        page_error: AcquisitionReason | None = None,
-    ) -> None:
-        self.data = _synd() if data is _SYND else data
-        self.page_html, self.error, self.page_error = page, error, page_error
+    def __init__(self, data: object = _STATUS, error: AcquisitionReason | None = None) -> None:
+        self.data = _synd() if data is _STATUS else data
+        self.error = error
         self.calls: list[tuple[str, str]] = []
 
     async def syndication(self, post_id: str) -> object:
@@ -91,11 +84,32 @@ class FakeRequest:
             raise RequestFetchError(self.error)
         return self.data
 
-    async def page(self, url: str) -> str:
-        self.calls.append(("page", url))
-        if self.page_error is not None:
-            raise RequestFetchError(self.page_error)
-        return self.page_html
+
+class FakeFx:
+    def __init__(
+        self,
+        status: object = _STATUS,
+        replies: list[dict[str, Any]] | None = None,
+        error: AcquisitionReason | None = None,
+        replies_error: AcquisitionReason | None = None,
+    ) -> None:
+        self.data = _status() if status is _STATUS else status
+        self.replies_error = replies_error
+        self.reply_list = REPLIES if replies is None else replies
+        self.error = error
+        self.calls: list[tuple[str, str]] = []
+
+    async def status(self, post_id: str) -> object:
+        self.calls.append(("status", post_id))
+        if self.error is not None:
+            raise RequestFetchError(self.error)
+        return self.data
+
+    async def replies(self, post_id: str) -> list[dict[str, Any]]:
+        self.calls.append(("replies", post_id))
+        if self.replies_error is not None:
+            raise RequestFetchError(self.replies_error)
+        return self.reply_list
 
 
 class FakeHeadless:
@@ -123,8 +137,8 @@ def _cards(**overrides: Any) -> Cards:
     return Cards(**{**values, **overrides})
 
 
-async def _inspect(tmp_path: Path, request, headless, materializer=None, url: str = URL):
-    acquirer = XAcquirer(request, headless, materializer or FakeMaterializer())
+async def _inspect(tmp_path: Path, request, headless, materializer=None, url: str = URL, fx=None):
+    acquirer = XAcquirer(request, headless, materializer or FakeMaterializer(), fx or FakeFx())
     return await acquirer.inspect(workflow_id=WF, source_url=url, artifact_root=tmp_path)
 
 
@@ -151,7 +165,7 @@ async def test_post_report_carries_media_replies_views_and_cards(
     assert report.comments[1].card is None
     assert report.post_card is not None and report.profile_card is not None
     assert report.outcome.attempts[0].strategy is AcquisitionStrategy.SCRAPLING_REQUEST
-    assert request.calls == [("syndication", POST_ID), ("page", CANONICAL)]
+    assert request.calls == [("syndication", POST_ID)]
     call = headless.card_calls[0]
     assert (call["post"], call["profile"], call["want_post"]) == (
         CANONICAL,
@@ -181,46 +195,75 @@ async def test_a_video_post_asks_for_its_post_card(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_a_failed_page_still_yields_a_report(
+async def test_an_fxembed_outage_falls_back_to_syndication_with_a_warning(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    request = FakeRequest(page_error=AcquisitionReason.REQUEST_BLOCKED)
-    result = await _inspect(tmp_path, request, FakeHeadless(_cards()))
+    fx = FakeFx(error=AcquisitionReason.REQUEST_BLOCKED)
+    result = await _inspect(tmp_path, FakeRequest(), FakeHeadless(_cards()), fx=fx)
     assert result.report is not None
     assert result.report.comments == []
     assert result.report.post.engagement == {"like": 1200, "comment": 34}
-    assert "x page enrichment unavailable reason=request_blocked" in caplog.text
+    assert "x fxembed enrichment unavailable reason=request_blocked" in caplog.text
+    assert fx.calls == [("status", POST_ID)]
 
 
 @pytest.mark.asyncio
-async def test_a_page_parse_error_still_yields_a_report(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+async def test_a_replies_failure_keeps_the_videos_and_counters(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    def explode(html: str) -> list[object]:
-        raise RecursionError
-
-    monkeypatch.setattr(x_service, "decode_scripts", explode)
-    result = await _inspect(tmp_path, FakeRequest(), FakeHeadless(_cards()))
+    # Review: a failed conversation read must not throw away the status it follows.
+    data = _synd(mediaDetails=[{"type": "video"}, {"type": "video"}])
+    fx = FakeFx(
+        _fixture_status("status_multi_video.json"), replies_error=AcquisitionReason.REQUEST_TIMEOUT
+    )
+    result = await _inspect(tmp_path, FakeRequest(data), FakeHeadless(_cards()), fx=fx)
     assert result.report is not None
+    assert [item.kind for item in result.report.media] == ["video", "video"]
+    assert "play" in result.report.post.engagement
     assert result.report.comments == []
+    assert "x fxembed replies unavailable reason=request_timeout" in caplog.text
 
 
 @pytest.mark.asyncio
-async def test_an_unreadable_page_still_yields_a_report(tmp_path: Path) -> None:
-    request = FakeRequest(page="<html><script>($R=>$R[0].next({a:</script></html>")
-    result = await _inspect(tmp_path, request, FakeHeadless(_cards()))
+async def test_a_missing_fxembed_status_still_yields_a_report(tmp_path: Path) -> None:
+    fx = FakeFx(status=None, replies=[])
+    result = await _inspect(tmp_path, FakeRequest(), FakeHeadless(_cards()), fx=fx)
     assert result.report is not None
     assert result.report.comments == []
+    assert fx.calls == [("status", POST_ID)]
 
 
 @pytest.mark.asyncio
-async def test_a_long_tweet_takes_the_page_text(tmp_path: Path) -> None:
-    note = {"note_tweet_results": {"result": {"text": "hello world and the rest"}}}
-    post = {**_tweet(POST_ID, "user_001", "hello world", None), "note_tweet": note}
-    request = FakeRequest(_synd(note_tweet={"id": "n1"}), page=_page(post))
-    result = await _inspect(tmp_path, request, FakeHeadless(_cards()))
+async def test_a_long_tweet_takes_the_fxembed_text(tmp_path: Path) -> None:
+    fx = FakeFx(_status(text="hello world and the rest"))
+    request = FakeRequest(_synd(note_tweet={"id": "n1"}))
+    result = await _inspect(tmp_path, request, FakeHeadless(_cards()), fx=fx)
     assert result.report is not None
     assert result.report.post.text == "hello world and the rest"
+
+
+def _fixture_status(name: str) -> dict[str, Any]:
+    status = json.loads((FIXTURES / name).read_text(encoding="utf-8"))["status"]
+    return {**status, "id": POST_ID}
+
+
+@pytest.mark.asyncio
+async def test_a_multi_video_post_materializes_every_video_in_order(tmp_path: Path) -> None:
+    data = _synd(mediaDetails=[{"type": "video"}, {"type": "video"}])
+    fx = FakeFx(_fixture_status("status_multi_video.json"))
+    result = await _inspect(tmp_path, FakeRequest(data), FakeHeadless(_cards()), fx=fx)
+    assert result.report is not None
+    assert [item.kind for item in result.report.media] == ["video", "video"]
+
+
+@pytest.mark.asyncio
+async def test_fxembed_videos_survive_a_syndication_listing_one_video(tmp_path: Path) -> None:
+    variants = [{"type": "video/mp4", "src": "https://video.twimg.com/vid/1280x720/a.mp4"}]
+    data = _synd(mediaDetails=[{"type": "video"}], video={"variants": variants})
+    fx = FakeFx(_fixture_status("status_multi_video.json"))
+    result = await _inspect(tmp_path, FakeRequest(data), FakeHeadless(_cards()), fx=fx)
+    assert result.report is not None
+    assert [item.kind for item in result.report.media] == ["video", "video"]
 
 
 @pytest.mark.asyncio
@@ -261,7 +304,8 @@ async def test_syndication_failures_are_retryable(
 @pytest.mark.asyncio
 async def test_no_text_and_no_media_is_no_content(tmp_path: Path) -> None:
     data = _synd(text="   ", display_text_range=[0, 3], mediaDetails=[])
-    result = await _inspect(tmp_path, FakeRequest(data, page=""), FakeHeadless())
+    fx = FakeFx(status=None, replies=[])
+    result = await _inspect(tmp_path, FakeRequest(data), FakeHeadless(), fx=fx)
     assert result.failure is not None
     assert (result.failure.code, result.failure.retryable) == ("no_content", False)
 

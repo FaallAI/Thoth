@@ -14,6 +14,7 @@ from thoth_control_plane.acquisition.card_browser import COMMENT_ROW_ATTRIBUTE
 from thoth_control_plane.acquisition.x_service import (
     POST_CARD_SELECTOR,
     PROFILE_CARD_SELECTOR,
+    TAG_PROFILE_JS,
     TAG_REPLIES_JS,
 )
 
@@ -109,17 +110,52 @@ async def test_a_reply_row_is_the_one_linking_to_its_own_status() -> None:
 
 
 @pytest.mark.asyncio
-async def test_the_profile_selector_fails_closed() -> None:
+async def test_the_profile_tag_fails_closed() -> None:
     blocks = "<main><div>a</div><div>b</div><div>c</div><div>Sign up today</div></main>"
     async with async_api.async_playwright() as playwright:
         browser = await launch(playwright)
         try:
             page = await browser.new_page()
             await page.set_content(blocks)
-            selector = PROFILE_CARD_SELECTOR.format(owner="user_001")
-            missing = await page.locator(selector).count()
+            missing = await page.evaluate(TAG_PROFILE_JS, "user_001")
             await page.set_content(blocks.replace("Sign up today", "Name @user_001 bio"))
-            found = await page.locator(selector).count()
+            found = await page.evaluate(TAG_PROFILE_JS, "user_001")
+            count = await page.locator(PROFILE_CARD_SELECTOR).count()
         finally:
             await browser.close()
-    assert (missing, found) == (0, 1)
+    assert (missing, found, count) == (False, True, 1)
+
+
+@pytest.mark.asyncio
+async def test_the_profile_tag_skips_a_sticky_bar_that_names_no_handle() -> None:
+    page_html = (
+        "<main><div id='bar'>Name 120 posts</div>"
+        "<div id='head'><div>banner</div><div>Name @user_001</div><div>bio</div></div>"
+        "<article>post</article></main>"
+    )
+    async with async_api.async_playwright() as playwright:
+        browser = await launch(playwright)
+        try:
+            page = await browser.new_page()
+            await page.set_content(page_html)
+            await page.evaluate(TAG_PROFILE_JS, "user_001")
+            tagged = await page.eval_on_selector(PROFILE_CARD_SELECTOR, "(e) => e.id")
+        finally:
+            await browser.close()
+    assert tagged == "head"
+
+
+@pytest.mark.asyncio
+async def test_the_profile_tag_needs_the_whole_handle() -> None:
+    # Review: owner "bbc" must not tag a block that names only "@bbcnews".
+    blocks = "<main><div>Name @bbcnews bio</div></main>"
+    async with async_api.async_playwright() as playwright:
+        browser = await launch(playwright)
+        try:
+            page = await browser.new_page()
+            await page.set_content(blocks)
+            other = await page.evaluate(TAG_PROFILE_JS, "bbc")
+            own = await page.evaluate(TAG_PROFILE_JS, "bbcnews")
+        finally:
+            await browser.close()
+    assert (other, own) == (False, True)

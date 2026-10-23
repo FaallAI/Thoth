@@ -20,6 +20,7 @@ from thoth_control_plane.acquisition.models import AcquisitionReason
 from thoth_control_plane.acquisition.x_service import (
     POST_CARD_SELECTOR,
     PROFILE_CARD_SELECTOR,
+    TAG_PROFILE_JS,
     TAG_REPLIES_JS,
     RequestFetchError,
     XHeadlessBrowser,
@@ -89,28 +90,12 @@ async def test_failures_are_classified(result: Any, reason: AcquisitionReason) -
     with pytest.raises(RequestFetchError) as caught:
         await fetcher.syndication(POST_ID)
     assert caught.value.reason is reason
-    with pytest.raises(RequestFetchError) as caught:
-        await fetcher.page(POST)
-    assert caught.value.reason is reason
-
-
-@pytest.mark.asyncio
-async def test_a_page_404_is_blocked() -> None:
-    with pytest.raises(RequestFetchError) as caught:
-        await XRequestFetcher(_get(_response(status=404))).page(POST)
-    assert caught.value.reason is BLOCKED
-
-
-@pytest.mark.asyncio
-async def test_page_returns_the_html_text() -> None:
-    fetcher = XRequestFetcher(_get(_response(body="<p>é</p>".encode())))
-    assert await fetcher.page(POST) == "<p>é</p>"
 
 
 @pytest.mark.asyncio
 async def test_a_handle_that_starts_with_login_is_not_a_login_wall() -> None:
     fetcher = XRequestFetcher(_get(_response(url="https://x.com/loginx")))
-    assert await fetcher.page("https://x.com/loginx") == "{}"
+    assert await fetcher.syndication(POST_ID) == {}
 
 
 TARGETS = [CommentTarget(C1, "fan_001", "a reply")]
@@ -138,12 +123,12 @@ async def test_cards_use_the_x_layout_with_no_dialog() -> None:
         (MEDIA_BOX_JS, post_selector),
         (TAG_REPLIES_JS, [{"comment_id": C1, "author": "fan_001", "prefix": "a reply"}]),
     ]
-    # Fail closed: a shifted layout matches nothing rather than the wrong block.
-    profile_selector = 'main > div:nth-child(4):has-text("@user_001")'
-    assert PROFILE_CARD_SELECTOR.format(owner="user_001") == profile_selector
-    assert profile_page.shots == [profile_selector]
+    # The header is tagged by shape for this owner first, then cropped by the tag (G5).
+    assert PROFILE_CARD_SELECTOR == '[data-thoth-profile-card="1"]'
+    assert profile_page.shots == [PROFILE_CARD_SELECTOR]
     assert profile_page.evaluated == [
-        (PROFILE_PAGE_JS, [{"x": 0, "y": 0, "width": 400, "height": 200}, "main article", 1])
+        (f'({TAG_PROFILE_JS})("user_001")', None),
+        (PROFILE_PAGE_JS, [{"x": 0, "y": 0, "width": 400, "height": 200}, "main article", 1]),
     ]
     assert session.exited == 1
     assert active_scrapling_session_count() == 0

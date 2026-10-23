@@ -41,8 +41,12 @@ from thoth_control_plane.infrastructure.source_account_models import Base
 NOW = datetime(2026, 10, 15, 12, tzinfo=UTC)
 
 
-def _report(*, slides: int = 0) -> SourceReport:
-    """A TikTok main without media, or an Instagram carousel main with `slides` videos."""
+X_MAIN = "https://x.com/akun/status/1800000000000000001"
+
+
+def _report(*, slides: int = 0, platform: str = "instagram") -> SourceReport:
+    """A TikTok main without media, or a carousel-shaped main with `slides` videos: an
+    Instagram /p/ post, or an X post (`platform="x"`)."""
     if not slides:
         return support_report(
             url="https://www.tiktok.com/@akun/video/7499999999999999999",
@@ -53,8 +57,8 @@ def _report(*, slides: int = 0) -> SourceReport:
     data = copy.deepcopy(FIXTURE)
     data["workflow_id"] = "wf_a"
     data["source"] = {
-        "platform": "instagram",
-        "canonical_url": "https://www.instagram.com/p/MAIN1/",
+        "platform": platform,
+        "canonical_url": X_MAIN if platform == "x" else "https://www.instagram.com/p/MAIN1/",
     }
     data["post"].update(owner_handle="akun", text="Banjir besar di Kemang pagi ini")
     video = data["media"][0]
@@ -579,6 +583,36 @@ async def test_a_carousel_main_uses_its_own_video_slides(
     assert {c.source for c in admitted} == {"carousel"}
     assert all(c.url.startswith("https://www.instagram.com/p/MAIN1/#slide") for c in admitted)
     assert all(c.story_score == 1.0 for c in admitted)
+
+
+def _slides(tmp_path: Path, count: int) -> None:
+    for index in range(1, count + 1):
+        location = tmp_path / f"reports/wf_a/media/slide-{index}.mp4"
+        location.parent.mkdir(parents=True, exist_ok=True)
+        location.write_bytes(bytes([index]) * 20_000)
+
+
+async def test_an_x_main_with_two_videos_uses_its_other_videos(
+    store: FootageStore, tmp_path: Path
+) -> None:
+    # Spec 2026-10-23 G6: a multi-video X post follows 5b F2 like an Instagram carousel.
+    _slides(tmp_path, 2)
+    search = Search()
+    result = await _builder(store, search=search).build(
+        _inputs(tmp_path, _report(slides=2, platform="x"))
+    )
+    assert result.admitted == 1 and search.calls == []
+    admitted = store.admitted("wf_a")
+    assert {c.source for c in admitted} == {"carousel"}
+    assert {c.platform for c in admitted} == {"x"}
+    assert all(c.url.startswith(f"{X_MAIN}#slide") for c in admitted)
+
+
+async def test_an_x_main_with_one_video_searches(store: FootageStore, tmp_path: Path) -> None:
+    _slides(tmp_path, 1)
+    search = Search(_hits(_video(1)))
+    await _builder(store, search=search).build(_inputs(tmp_path, _report(slides=1, platform="x")))
+    assert search.calls != []
 
 
 def _window(tmp_path: Path, video: DiscoveredVideo) -> Path:

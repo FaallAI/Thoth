@@ -30,6 +30,7 @@ from thoth_control_plane.acquisition.threads_service import (
     ThreadsRequestFetcher,
     _scrapling_get,
 )
+from thoth_control_plane.acquisition.x_fxembed import FxEmbedClient
 from thoth_control_plane.acquisition.x_service import (
     XAcquirer,
     XHeadlessBrowser,
@@ -102,7 +103,9 @@ def acquirer_for(
             InstagramRequestFetcher(get), InstagramHeadlessBrowser(browser), materializer
         )
     if platform == "x":
-        return XAcquirer(XRequestFetcher(get), XHeadlessBrowser(browser), materializer)
+        return XAcquirer(
+            XRequestFetcher(get), XHeadlessBrowser(browser), materializer, FxEmbedClient()
+        )
     if platform == "youtube":
         return YouTubeAcquirer(
             YtDlpClient(_yt_dlp_factory(access, scratch), signed_in=access is not None),
