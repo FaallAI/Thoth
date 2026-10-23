@@ -139,6 +139,34 @@ def test_page_videos_fill_several_videos_in_order() -> None:
     ]
 
 
+def test_each_video_entry_takes_its_own_variants_without_the_page() -> None:
+    # Live 2026-10-23: syndication lists every video's renditions per entry
+    # (mediaDetails[].video_info.variants); the top-level `video` carries the first only.
+    def entry(name: str) -> dict[str, Any]:
+        variants = [
+            {
+                "content_type": "application/x-mpegURL",
+                "url": f"https://video.twimg.com/{name}.m3u8",
+            },
+            {
+                "content_type": "video/mp4",
+                "url": f"https://video.twimg.com/{name}/vid/320x568/a.mp4",
+            },
+            {
+                "content_type": "video/mp4",
+                "url": f"https://video.twimg.com/{name}/vid/480x852/b.mp4",
+            },
+        ]
+        return {"type": "video", "video_info": {"variants": variants}}
+
+    data = _synd(mediaDetails=[entry("one"), entry("two")])
+    urls = _urls(parse_syndication(data, IDENTITY))
+    assert urls == [
+        "https://video.twimg.com/one/vid/480x852/b.mp4",
+        "https://video.twimg.com/two/vid/480x852/b.mp4",
+    ]
+
+
 def test_a_video_with_no_url_is_skipped() -> None:
     lone = {"variants": [{"type": "video/mp4", "src": "https://video.twimg.com/x.mp4"}]}
     data = _synd(mediaDetails=[{"type": "video"}, {"type": "video"}], video=lone)

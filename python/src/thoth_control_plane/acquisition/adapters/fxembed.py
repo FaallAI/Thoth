@@ -78,9 +78,8 @@ def fx_text(status: dict[str, Any]) -> str | None:
 
 
 def _comment(reply: dict[str, Any], post_id: str) -> ReportComment | None:
-    target = _get(reply, "replying_to", "status")
-    if target is not None and target != post_id:
-        return None  # a reply to a reply belongs to another thread
+    if _get(reply, "replying_to", "status") != post_id:
+        return None  # a reply to a reply, or one naming no parent, is not this post's comment
     author, text = _handle(_get(reply, "author", "screen_name")), fx_text(reply)
     reply_id = numeric_id(reply.get("id"))
     if author is None or not text or reply_id is None:

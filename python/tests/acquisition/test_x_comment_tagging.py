@@ -127,6 +127,25 @@ async def test_the_profile_tag_fails_closed() -> None:
 
 
 @pytest.mark.asyncio
+async def test_the_profile_tag_skips_a_sticky_bar_that_names_no_handle() -> None:
+    page_html = (
+        "<main><div id='bar'>Name 120 posts</div>"
+        "<div id='head'><div>banner</div><div>Name @user_001</div><div>bio</div></div>"
+        "<article>post</article></main>"
+    )
+    async with async_api.async_playwright() as playwright:
+        browser = await launch(playwright)
+        try:
+            page = await browser.new_page()
+            await page.set_content(page_html)
+            await page.evaluate(TAG_PROFILE_JS, "user_001")
+            tagged = await page.eval_on_selector(PROFILE_CARD_SELECTOR, "(e) => e.id")
+        finally:
+            await browser.close()
+    assert tagged == "head"
+
+
+@pytest.mark.asyncio
 async def test_the_profile_tag_needs_the_whole_handle() -> None:
     # Review: owner "bbc" must not tag a block that names only "@bbcnews".
     blocks = "<main><div>Name @bbcnews bio</div></main>"

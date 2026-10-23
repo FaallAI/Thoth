@@ -69,6 +69,13 @@ def test_fx_page_keeps_direct_replies_and_counts_drops() -> None:
     assert page.engagement["play"] == 185497
 
 
+def test_fx_page_drops_a_reply_that_names_no_parent() -> None:
+    # Fail closed: only a reply that names this post as its parent is the post's comment.
+    reply = {**load("conversation.json")["replies"][0], "replying_to": None}
+    page = fx_page(None, [reply], POST_ID)
+    assert (page.comments, page.dropped_comments) == ([], 1)
+
+
 def test_fx_page_without_status_still_returns_replies() -> None:
     page = fx_page(None, load("conversation.json")["replies"], POST_ID)
     assert page.videos == [] and page.engagement == {}

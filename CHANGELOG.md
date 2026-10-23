@@ -60,18 +60,24 @@ both in one snapshot.
 
 **Verification:**
 
-- Python: 4376 passed. One Temporal test-server download flake; that test re-ran 2/2.
+- Python: 4379 passed after the minor fixes; the earlier Temporal test-server download flake re-ran 2/2.
 - Ruff: clean.
-- Browser tests in the thoth image: 997 passed.
+- Browser tests in the thoth image: 1000 passed after the minor fixes.
 - PostgreSQL tests: 22 passed.
 
-**Deferred minors:**
+**Review minors fixed (operator, 2026-10-23: "tolong perbaiki minor dulu"):**
 
-- A reply with no `replying_to` is kept.
-- The recorded-page tag test proves "above the first post" only.
-- `_walk`'s docstring still says seroval.
-- `THOTH_X_FXEMBED_URL` is undocumented.
-- With FxEmbed down, a multi-video post falls back to one video. This is pre-existing.
+- **Replies:** a reply that names no parent (`replying_to` missing) is dropped; the guard now
+  fails closed.
+- **Tag test:** the recorded-page test now proves the tagged block is the header itself (name,
+  handle and bio). A new test shows a sticky bar that names the user but not the handle is
+  skipped.
+- **Docstring:** `_walk` no longer mentions seroval.
+- **Docs:** `THOTH_X_FXEMBED_URL` is documented in `docs/python-control-plane.md`.
+- **Multi-video fallback:** with FxEmbed down, a multi-video post now keeps every video.
+  Syndication lists each video's renditions per entry (`mediaDetails[].video_info.variants`);
+  the top-level `video` names only the first, which the follow-up research had taken for the
+  whole picture (checked live: two entries, two separate amplify videos).
 
 **Next steps:**
 

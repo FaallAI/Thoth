@@ -133,7 +133,9 @@ def _syndication_media(data: dict[str, Any], page_videos: Sequence[str]) -> list
         elif item.get("type") in VIDEO_TYPES:
             paged = page_videos[seen_videos] if seen_videos < len(page_videos) else None
             seen_videos += 1
-            url = paged or lone
+            # Each entry carries its own renditions; the top-level `video` names the first only.
+            own = _best_mp4(_get(item, "video_info", "variants"), "url", "content_type")
+            url = paged or own or lone
             if url is not None:
                 media.append(ResolvedMedia(kind="video", ephemeral_url=url))
     # The enrichment can name more videos than syndication lists (it carries one video's
@@ -184,7 +186,7 @@ def parse_syndication(
 
 
 def _walk(roots: Iterable[object]) -> Iterator[dict[str, Any]]:
-    """Every dict in document order, each once; decoded seroval data can be cyclic."""
+    """Every dict in document order, each once; a GraphQL answer can repeat a node."""
     stack: list[object] = list(reversed(list(roots)))
     seen: set[int] = set()
     while stack:

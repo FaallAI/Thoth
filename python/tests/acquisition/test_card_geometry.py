@@ -170,6 +170,9 @@ async def _x_profile(owner: str) -> dict[str, Any]:
                 selector,
             )
             head, article = boxes
+            text = await page.evaluate(
+                "(s) => (document.querySelector(s) || {}).innerText || ''", selector
+            )
             rect = (
                 await page.evaluate(PROFILE_PAGE_JS, [head, x_service.PROFILE_PAGE_ITEMS, 1])
                 if head
@@ -177,7 +180,14 @@ async def _x_profile(owner: str) -> dict[str, Any]:
             )
         finally:
             await chromium.close()
-    return {"tagged": tagged, "count": count, "head": head, "article": article, "rect": rect}
+    return {
+        "tagged": tagged,
+        "count": count,
+        "head": head,
+        "article": article,
+        "rect": rect,
+        "text": text,
+    }
 
 
 @pytest.mark.asyncio
@@ -186,6 +196,8 @@ async def test_x_profile_tag_marks_the_header_on_the_recorded_page() -> None:
     assert found["tagged"] is True and found["count"] == 1
     head, article = found["head"], found["article"]
     assert head["height"] > 0 and head["y"] + head["height"] <= article["y"] + 1
+    # The header itself: the name, the handle, and the bio below them (recorded 2026-10-22).
+    assert "@InFebriyan128" in found["text"] and "Daily life" in found["text"]
 
 
 @pytest.mark.asyncio
