@@ -12,9 +12,8 @@ import logging
 from collections.abc import Iterable
 from typing import Any
 
-from thoth_control_plane.acquisition.adapters.seroval import decode_scripts
+from thoth_control_plane.acquisition.adapters.fxembed import fx_profile
 from thoth_control_plane.acquisition.adapters.x import (
-    CANONICAL_BASE,
     HANDLE,
     _get,
     author_of,
@@ -38,7 +37,7 @@ from thoth_control_plane.acquisition.models import (
 )
 from thoth_control_plane.acquisition.normalize import numeric_id
 from thoth_control_plane.acquisition.threads_service import RequestFetchError
-from thoth_control_plane.acquisition.x_service import XRequestFetcher
+from thoth_control_plane.acquisition.x_fxembed import FxEmbedClient
 
 logger = logging.getLogger(__name__)
 
@@ -124,15 +123,20 @@ def parse_profile(roots: Iterable[object], handle: str, limit: int) -> Discovery
 
 
 class XProfileDiscovery:
-    def __init__(self, fetcher: XRequestFetcher | None = None) -> None:
-        self._fetcher = fetcher or XRequestFetcher()
+    """A profile's own media posts, from FxEmbed (spec 2026-10-23): X's signed-out profile page
+    no longer embeds its timeline, and no account is needed."""
+
+    def __init__(self, fxembed: FxEmbedClient | None = None) -> None:
+        self._fxembed = fxembed or FxEmbedClient()
 
     async def discover(self, request: ProfileDiscovery) -> DiscoveryResult:
         result = await self._collect(request)
         reason = result.reason.value if result.reason is not None else "none"
         logger.info(
-            "x discovery finished kind=profile videos=%d photo_posts=%d invalid=%d reason=%s",
+            "x discovery finished kind=profile videos=%d photos=%d photo_posts=%d invalid=%d"
+            " reason=%s",
             len(result.videos),
+            len(result.photos),
             result.drops.photo_posts,
             result.drops.invalid,
             reason,
@@ -146,11 +150,11 @@ class XProfileDiscovery:
             # A handle X cannot have names no profile; skip the fetch.
             return _empty("profile", DiscoveryReason.NO_DATA)
         try:
-            html = await self._fetcher.page(f"{CANONICAL_BASE}/{request.handle}")
+            payload = await self._fxembed.profile_media(request.handle, request.limit)
         except RequestFetchError as error:
             return _empty("profile", _reason(error))
         try:
-            return parse_profile(decode_scripts(html), request.handle, request.limit)
+            return fx_profile(payload, request.handle, request.limit)
         except Exception:
-            # Defense in depth: discovery never raises on an unforeseen page shape.
+            # Defense in depth: discovery never raises on an unforeseen answer shape.
             return _empty("profile", DiscoveryReason.NO_DATA)
