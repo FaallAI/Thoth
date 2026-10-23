@@ -4,9 +4,8 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
 
+from tests.sqlite_support import sqlite_engine
 from thoth_control_plane.api import create_app
 from thoth_control_plane.auth.models import BOOTSTRAP_WORKSPACE_ID
 from thoth_control_plane.auth.secrets import token_hash
@@ -21,9 +20,7 @@ SAME_SITE = {"Origin": ORIGIN}
 
 
 def build(gateway, **settings):
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     with engine.begin() as connection:
         connection.execute(

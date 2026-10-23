@@ -3,9 +3,8 @@
 import httpx
 import pytest
 import pytest_asyncio
-from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
 
+from tests.sqlite_support import sqlite_engine
 from thoth_control_plane.api import create_app
 from thoth_control_plane.config import Settings
 from thoth_control_plane.infrastructure import run_models  # noqa: F401
@@ -18,9 +17,7 @@ SETTINGS = Settings(THOTH_CONTROL_PLANE_API_KEY="test-key")
 
 @pytest_asyncio.fixture
 async def api(gateway):
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     app = create_app(SETTINGS, gateway, project_store=ProjectStore(engine))
     transport = httpx.ASGITransport(app=app)

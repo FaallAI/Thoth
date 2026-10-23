@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-23 - Tests: a thread-safe SQLite per test (branch `fix/test-sqlite-threads`)
+
+A CI run of "Offline quality gates" crashed with a segfault (PR #47, run 39933411051). The
+crashing thread was `account_store.live_challenge` called through `asyncio.to_thread`; another
+thread was executing on the same connection. The tests built every SQLite engine as one
+in-memory connection shared by all threads (`StaticPool`, `check_same_thread=False`). The
+production stores run on PostgreSQL, so this was a test-harness hazard only.
+
+- **`tests/sqlite_support.py` `sqlite_engine()`:** a private file-backed database per engine in
+  its own temporary directory, removed with the engine. Each thread now gets its own
+  connection. A busy timeout queues writers; WAL with `synchronous=OFF` keeps the suite at its
+  former speed (it doubled to 9 minutes with the default fsync).
+- **Call sites:** the 30 shared-connection engines in 25 test files now call it.
+  `test_run_models.py` keeps its single-thread `StaticPool`, without `check_same_thread=False`;
+  SQLite refuses any cross-thread use there instead of crashing.
+
+**Verification:**
+- `tests/test_sqlite_support.py`: two threads get different connections (RED on the old
+  engine), threads see one database, engines share nothing.
+- Python: 4403 passed in 3 min 52 s.
+- Ruff: clean.
+
 ## 2026-10-23 - Captcha outcome lines outlive the worker (branch `chore/captcha-outcome-log`)
 
 The solver's success rate is counted from its `tiktok captcha outcome` lines. Docker drops a
