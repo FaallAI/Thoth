@@ -88,6 +88,108 @@ both in one snapshot.
 - Still open from the follow-up research: TikTok P1/P2 (classification, bounded retry, grid
   wait), the item 6 style A recipe, and the C1 operator input session.
 
+## 2026-10-23 - Dependency refresh (branch `chore/deps-refresh`)
+
+The operator asked for every library and package to be brought up to date. This branch covers
+everything outside the render path; the Rust crates are left alone (the engine is frozen and
+retires at Stage 10).
+
+**Updated:**
+
+- **Python:** the whole lock refreshed. Notable: cryptography 50, pytest 9, pytest-asyncio 1.4,
+  pillow 13, av 19, temporalio 1.34, fastapi 0.161, onnxruntime 1.31, patchright 1.64,
+  yt-dlp 2026.10.21, gallery-dl 1.32.17. uv 0.13.5 in CI and the image; ruff 0.17.2.
+- **Dashboard:** react-router 8, TypeScript 7, vite 8.3, happy-dom 21, plus minors.
+- **Scout and renderer tooling:** TypeScript 7, pg 8.23, @types/bun 1.4.
+- **CI:** every GitHub Action moved to its Node 24 release (Node 20 is deprecated on runners).
+- **Web image:** Caddy 2.11.7.
+- **One OpenCV:** rapidocr 3.10 depends on `opencv-python-headless`, so the acquisition extra
+  now asks for the same package. Two OpenCV wheels both wrote `cv2` and overfilled the CI
+  runner's disk in `Validate image build`.
+
+**Held back, each its own follow-up:**
+
+- **scrapling stays on 0.4.15.** 0.5 removes `capture_xhr` and `Response.captured_xhr`, which
+  the TikTok post and listing, Threads and X footage search read. Offline tests use fake
+  sessions, so the break would only show live, as silently empty captures.
+- **openai stays on 2.x.** openai 3 sends through `httpx2`, which respx does not intercept, so
+  the five Agno-backed adapter tests would reach the network.
+- **Render path:** Remotion 4.0.538, React 19.3 and Bun 1.4 go in a separate PR that needs the
+  operator's golden re-approval.
+- **@types/node stays on 24**, matching the Node runtime major.
+
+**Verification (offline):** Python 4386 passed against the frozen lock in a fresh ext4 venv,
+ruff clean; dashboard 749 passed, build and lint clean; renderer 223 passed, typecheck clean;
+scout 126 passed, typecheck clean; actionlint clean. CI proves the new Action pins, the image
+build and the browser tests.
+
+**Noticed:** the daily yt-dlp bot fails at `gh pr create` because the repository does not allow
+GitHub Actions to create pull requests; its stale branch `chore/yt-dlp-2026.10.21` remains.
+
+**Next steps:** CI on this PR, then merge and deploy (separate operator gates); the render-path
+PR; scrapling 0.5 and openai 3 migrations; the operator's repository setting for the yt-dlp bot.
+
+## 2026-10-23 - The 2026 TikTok whirl modal solved, live-proven anonymous
+
+Branch `fix/tiktok-whirl-solver` (from `5f6d771`). TikTok's whirl modal moved to a TUXModal
+that labels none of the parts the old solver keyed on, and its geometry changed: the outer
+image is now a ring around a white hole (its centre is blank) while the inner disc fills that
+hole, so the old same-radius-band comparison read the hole.
+
+### Solver (`python/src/thoth_control_plane/acquisition/captcha.py`)
+
+- Selectors: the two images are the modal's `img` elements classified by rendered size (the
+  2026 modal has no `#captcha-verify-image`); the track is found from the handle — its
+  `div[draggable=true]` wrapper's parent — with the old `.captcha_verify_slide--slidebar`
+  kept as the fallback for older builds.
+- Angle: ring-vs-rim comparison. The disc is sampled just inside its edge (radius `r−7 .. r−2`)
+  and the ring just outside the hole (`r+2 .. r+7`), both as colour rings at native scale (the
+  disc natively fills the hole — verified on the recorded pair), and the best circular shift
+  of the two rings wins; 1-degree resolution.
+- Drag mapping, measured live instead of assumed: a short glide with the button held, both
+  images' inline `transform` read mid-drag, and the remaining travel computed from the
+  measured relative degrees-per-pixel (candidates `theta`, `theta ± 360`, whichever fits the
+  span). This is the robust choice: the live session showed **both** images rotate, in
+  opposite directions (inner +0.63, outer −0.63 deg/px), so any fixed constant or
+  single-image assumption would drift. `solve()` still never raises and returns True only
+  when the modal is gone; the slide subtype path is unchanged.
+- Test fixtures: the recorded WebP pair (no personal data) and the stripped 2026 modal DOM
+  under `python/tests/acquisition/fixtures/`. Offline tests cover the angle on the recorded
+  pair (±3° of the recorded 60°), a synthetic ring/disc pair, the mapping logic both
+  directions, transform parsing, and the full drag flow against fakes; Chromium tests load
+  the recorded DOM and clear it in both rotation directions (a `dragstart` preventDefault is
+  required in the shim — the handle's wrapper is `draggable=true`).
+
+### Live proof (operator-authorised session, 2026-10-23 02:51–02:53 UTC, anonymous)
+
+Fresh anonymous visit (45 items) → `s_v_web_id` dropped → revisit raised the whirl modal with
+`item_list` answering 200 + empty body. One `solve()` call, **solved on attempt 1**:
+
+- angle 142.0°, calibration over 34.3 px: inner +21.55°, outer −21.55° → relative
+  +1.256 deg/px, drag 113.0 px of the 284 px span;
+- `verification-sg.tiktok.com/captcha/verify` returned success and the modal disappeared;
+- `item_list` then answered JSON with 21 + 24 items; the grid rendered 45 cards.
+
+Evidence in `D:/thoth-tmp/research/tiktok-solver-proof/`: `probe3.py`, `session3-log.json`
+(196 recorded requests), `session3-visit1.png`, `session3-visit2-modal.png`,
+`session3-visit2-after.png`, `session3-img0.webp`, `session3-img1.webp`. One session used of
+the two allowed; 2 profile visits 54 s apart; no account, cookie file or proxy; no
+credentials submitted. The account cooldown policy is untouched (operator ruling 2026-10-23).
+
+Verification: `tests/acquisition` 968 passed; the whole Python suite 4391 passed, 111
+skipped; `make lint` clean; the captcha tests including the Chromium pair pass in the thoth
+image (`browser-tests.sh`, `WT=` the worktree).
+
+**Next steps:**
+
+- **Push/PR gate (operator):** push `fix/tiktok-whirl-solver`, PR, CI, review.
+- **Deploy gate (operator):** after merge, deploy the new image so the control plane carries
+  the fixed solver; a live-capture smoke on a refused anonymous listing is the post-deploy
+  check.
+- **Follow-ups:** click subtypes (icon, 3D) remain unsupported — they are still classified as
+  a captcha and, signed in, still cool the account; whether a solved captcha keeps a signed-in
+  session usable was not tested (the proof was anonymous by rule).
+
 ## 2026-10-23 - PR #41 merged and deployed; Stage 5c-2 is live
 
 **Merged:** PR #41 (`6faba2d`) after every CI job passed on the branch, the stack smoke
