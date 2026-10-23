@@ -17,6 +17,9 @@ retires at Stage 10).
 - **Scout and renderer tooling:** TypeScript 7, pg 8.23, @types/bun 1.4.
 - **CI:** every GitHub Action moved to its Node 24 release (Node 20 is deprecated on runners).
 - **Web image:** Caddy 2.11.7.
+- **One OpenCV:** rapidocr 3.10 depends on `opencv-python-headless`, so the acquisition extra
+  now asks for the same package. Two OpenCV wheels both wrote `cv2` and overfilled the CI
+  runner's disk in `Validate image build`.
 
 **Held back, each its own follow-up:**
 
