@@ -6,9 +6,8 @@ from datetime import UTC, datetime
 import httpx
 import pytest
 import pytest_asyncio
-from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
 
+from tests.sqlite_support import sqlite_engine
 from thoth_control_plane.api import create_app
 from thoth_control_plane.application import WorkflowNotReady
 from thoth_control_plane.application.ports import RunClosed, RunExpired
@@ -52,9 +51,7 @@ def old_run(workflow_id: str, project_id: str | None, *, expired: bool) -> Store
 
 @pytest.fixture
 def stores():
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     return ProjectStore(engine), WorkflowRunStore(engine), ReportStore(engine)
 

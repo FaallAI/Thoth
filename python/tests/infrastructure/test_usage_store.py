@@ -3,10 +3,9 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
-from sqlalchemy.pool import StaticPool
 
+from tests.sqlite_support import sqlite_engine
 from thoth_control_plane.infrastructure import usage_models  # noqa: F401
 from thoth_control_plane.infrastructure.account_models import WorkspaceRow
 from thoth_control_plane.infrastructure.run_models import ProjectRow, WorkflowRunRow
@@ -20,9 +19,7 @@ DAY = (NOW - timedelta(days=1), NOW + timedelta(days=1))
 
 @pytest.fixture
 def engine():
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     with engine.begin() as connection:
         connection.execute(

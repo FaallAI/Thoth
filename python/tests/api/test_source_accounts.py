@@ -9,10 +9,9 @@ import httpx
 import pytest
 from cryptography.fernet import Fernet
 from fastapi import HTTPException
-from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.pool import StaticPool
 
+from tests.sqlite_support import sqlite_engine
 from thoth_control_plane.acquisition.accounts.cookies import MAX_IMPORT_BYTES, parse_cookies
 from thoth_control_plane.acquisition.accounts.proxies import MAX_PROXY_BYTES
 from thoth_control_plane.acquisition.accounts.vault import Vault
@@ -29,9 +28,7 @@ COOKIES = "\t".join([".instagram.com", "TRUE", "/", "TRUE", "1893456000", "sessi
 
 
 def _store() -> SourceAccountStore:
-    engine = create_engine(
-        "sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False}
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     return SourceAccountStore(engine, Vault(Fernet.generate_key().decode()))
 

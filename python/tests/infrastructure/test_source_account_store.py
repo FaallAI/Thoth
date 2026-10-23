@@ -7,10 +7,10 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from cryptography.fernet import Fernet
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-from sqlalchemy.pool import StaticPool
 
+from tests.sqlite_support import sqlite_engine
 from thoth_control_plane import metering
 from thoth_control_plane.acquisition.accounts import fingerprints
 from thoth_control_plane.acquisition.accounts.cookies import parse_cookies
@@ -49,9 +49,7 @@ def _cookies(platform: str = "instagram", value: str = SECRET):
 
 @pytest.fixture
 def engine():
-    engine = create_engine(
-        "sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False}
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     return engine
 

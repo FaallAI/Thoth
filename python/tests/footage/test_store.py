@@ -5,9 +5,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
 
+from tests.sqlite_support import sqlite_engine
 from thoth_control_plane.acquisition.models import DiscoveredVideo
 from thoth_control_plane.footage.models import AdmittedClip, FootageObject, NewCandidate
 from thoth_control_plane.infrastructure.footage_store import FootageStore
@@ -32,9 +31,7 @@ def clock() -> Clock:
 
 @pytest.fixture
 def store(clock: Clock) -> FootageStore:
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    engine = sqlite_engine()
     Base.metadata.create_all(engine)
     return FootageStore(engine, clock=clock)
 
