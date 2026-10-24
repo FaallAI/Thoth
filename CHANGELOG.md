@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-25 - Design review round 1: canonical tokens, file rules, fix prompts 13-19
+
+**Context:** a review of the 34 exports of `design/thoth-dashboard-v2.pen` against `docs/DESIGN.md`.
+
+**Found:**
+- every row's stage bar was identical;
+- "Figures" showed statistics;
+- card slots were icon placeholders;
+- the search field kept a focus ring on every screen;
+- a redundant Project column;
+- a checkerboard thumbnail;
+- an abbreviated narrow tray label;
+- missing screens: the avatar menu, the command palette, the project switcher, cancelled and expired runs, bulk selection.
+
+Studio was untouched, because the first DESIGN.md had scoped it out.
+
+**Changes:**
+- **Tokens:** the operator chose the new token scheme as canonical. §5.1 maps every Creator Studio F3 token in `dashboard/src/index.css` to it (succeeded gold becomes green, gold means waiting, failed `#ef4444` becomes `#E8918F`, ring becomes copper, radius 6/10), and adds `playhead`.
+- **Design-file rules:** new §5.5 (resting states plus a States board, honest sample data, realistic card crops, the missing-thumbnail tile, the Project column only in All projects, no abbreviations).
+- **Figures:** §8.6 defines them as people, organisations or communities, never statistics.
+- **Studio:** §8.8 is now pending its own research (`D:/thoth-tmp/research/studio-design/`), which produces the Studio chapter and Prompt 20 onward.
+- **Prompts:** `docs/design/pen-dev-prompts.md` adds Prompts 13-19 for these fixes.
+
 ## 2026-10-25 - Deployed master d7405ba (PR #63 card fixes, PR #67 produce_video chain)
 
 **Deployed:** `master` d7405ba after the CI of both PRs went green (validate image included).

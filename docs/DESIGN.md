@@ -88,11 +88,26 @@ The existing `.pen` variables are kept, so code and design agree. New entries ar
 | `status-done` | `#78C69B` (the existing `status-healthy`) | Succeeded, healthy |
 | `status-failed` | `#E8918F` (the existing `status-expired`) | Failed, expired, blocked |
 | `status-idle`* | `#6B6E70` | Queued, pending, skipped, cancelled: dots and bars only (3.43:1), with text labels in `muted` |
-| `purple` | `#AF87FF` | Studio-only: timeline and scene accents |
+| `purple` | `#AF87FF` | Studio-only: timeline and scene accents, AI proposals |
+| `playhead`* | `#82B1E8` | Studio-only: the timeline playhead |
 
 **Colour rules:**
 - Status colours appear only on status pills, stage dots, step icons and progress fills, never on decoration.
 - `copper` marks the one action or element that matters most on a screen.
+
+**This scheme is canonical** (operator, 2026-10-25). The Creator Studio F3 tokens (`design/DESIGN.md`, `dashboard/src/index.css`) migrate to it when the dashboard is restyled:
+
+| F3 token (code today) | Becomes |
+|---|---|
+| `--status-succeeded` `#d7af5f` (gold) | `status-done` `#78C69B`; gold now means `status-waiting` |
+| `--status-failed`, `--destructive` `#ef4444` | `status-failed` `#E8918F` |
+| `--status-running` `#22d3ee` | `status-running` (unchanged) |
+| `--status-queued` `#8b8794`, `--status-cancelled` `#6f6b78` | `status-idle` `#6B6E70` |
+| `--ring` `#efb28e` | `copper` `#D49A79` focus ring |
+| `--primary` `#d49a79`, `--background`, `--card` | `copper`, `bg`, `surface` (same values) |
+| `--accent` `#3b3532` | `raised` `#2A2C2E` |
+| radius 4 / 6 / 8 | 6 (controls), 10 (panels) |
+| `studio-ai` `#af87ff`, `studio-playhead` `#82b1e8` | kept for Studio only (`purple`, `playhead`*) |
 
 ### 5.2 Type
 
@@ -134,6 +149,21 @@ The existing `.pen` variables are kept, so code and design agree. New entries ar
 - **1440:** the design reference.
 - **1024:** the sidebar collapses.
 - **430:** narrow. The sidebar becomes a bottom sheet menu; the run detail stacks the stepper above the log.
+
+### 5.5 Rules for the design file
+
+These come from the first review of `thoth-dashboard-v2.pen` (2026-10-25).
+
+- **States:**
+  - Screens show the **resting state**: no focus ring on the search field or any other control.
+  - Focus, hover, pressed and disabled are shown once, on a dedicated "States" board.
+- **Data:**
+  - Sample data follows the real meaning: a done run's stage bar is all done; a failed run's is red at the failed stage; a waiting run's is gold at "Your review".
+  - Stage bars are never copied unchanged between rows.
+- **Cards:** card slots show realistic card crops (a platform post layout with avatar, name, handle, text and media), never an icon placeholder, because real cards are the product.
+- **Missing thumbnail:** a `well` tile with the platform icon centred. Never a checkerboard.
+- **Lists:** the "Project" column appears only in the "All projects" view.
+- **Labels:** full labels everywhere ("2 running · 1 waiting"). On narrow screens, icons replace words; abbreviations are never used.
 
 ## 6. Components
 
@@ -280,8 +310,9 @@ This is for the implementation spec, not the design file.
   - the main (video, title, owner, attribution verdict "Original" or "Repost of @…");
   - the cards (post, profile, profile page, comments with the count of page and embed cards);
   - footage clips;
-  - figures;
-  - kept comments.
+  - figures, which in Thoth means the **people, organisations or communities the post is about**. Each shows a name, a type icon and a role ("Sabran · person · Governor of Central Kalimantan"). Figures are never statistics.
+  - kept comments, each marked when it has a card.
+- **Card previews** show the real crops (post, profile, profile page, comment cards). An empty slot says "Not captured" and why.
 - **Primary action:** "Open in Studio", which imports and opens the draft. Secondary: download the Content Set JSON.
 
 **8.7 Inbox (`/inbox`).**
@@ -289,7 +320,10 @@ This is for the implementation spec, not the design file.
 - Each item: what, project, since when, and one action.
 - Empty: "Nothing needs you."
 
-**8.8 Studio.** The editor is out of scope. Only the shell (top bar, sidebar) and the import overlay ("Bringing the content set into Studio: n of m media") follow this document.
+**8.8 Studio.** Pending its own research (operator, 2026-10-25): `D:/thoth-tmp/research/studio-design/`.
+- The research produces this chapter and the pen.dev Studio prompts (Prompt 20 onward).
+- Until then, Studio keeps its F3 design and only the shared shell follows this document.
+- The import into Studio and the render use the progress model of §7.
 
 **8.9 Accounts and proxies (admin).**
 - Restyled to the new components.
