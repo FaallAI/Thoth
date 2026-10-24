@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-25 - Dashboard design reference and pen.dev prompts
+
+- `docs/DESIGN.md` is the design reference for the dashboard redesign. It covers the principles, information architecture, visual tokens (measured contrast), components, screens, management, accessibility, and the run progress model. The progress model is the core: the full stage plan, steps inside a stage, estimates, the activity log, and live surfaces.
+- §7.7 lists the backend contract that model needs, for its own spec:
+  - the stage plan in the summary;
+  - activity steps through heartbeat details read with `describe()`;
+  - a `workflow_steps` table of step codes;
+  - estimates;
+  - an inbox query.
+- The operator ruled (§12):
+  - English and Indonesian with a switch;
+  - dark only for now, a light theme later, so semantic tokens only;
+  - desktop notifications asked in context after a run starts, never on a first visit;
+  - the cost hint only after metering prices are set.
+- `docs/design/pen-dev-prompts.md` holds 13 self-contained pen.dev prompts that build `design/thoth-dashboard-v2.pen`. The old `design/thoth-dashboard.pen` stays the read-only reference; a byte-identical backup is kept outside the repository.
+- **Next step:** the operator runs the prompts in pen.dev. After the screens are approved, the backend progress contract gets its own spec.
+
 ## 2026-10-24 - `produce_video` runs attribution, footage and assembly after its approval
 
 Spec and plan: `docs/superpowers/specs/2026-10-24-produce-video-chain-design.md`. Research: `D:/thoth-tmp/research/produce-video-chain/report.md`, option a2.
