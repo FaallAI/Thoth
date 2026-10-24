@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-25 - Deployed master d7405ba (PR #63 card fixes, PR #67 produce_video chain)
+
+**Deployed:** `master` d7405ba after the CI of both PRs went green (validate image included).
+- `thoth@a435ca77` (new); renderer `b2fe65ff` and web `9b530de0` unchanged.
+- No render or workflow was open, and the previous pins are backed up.
+- `make deploy` exit 0; `scrapling_capability=true`.
+- All services healthy, with 0 restarts and no error lines.
+- The worker carries `PRODUCE_CHAIN_PATCH`, `video.twimg.com` is no longer blocked, and `COVERED_JS` is present.
+
+**X live gate** (anonymous, on the reference post `namelesid/status/2113895024895070537`):
+- 154 s end to end.
+- 18 replies; 10 comment cards (4 from the page, 6 from embeds); embeds 6 of 6; `problems=none`.
+- Visual check:
+  - the post card shows the video frames ("00:10"), with no spinner or error;
+  - no page reply card shows the "See all the replies" gate, including the two rows that showed it on 2026-10-24.
+
+**Next steps:**
+- The operator's dashboard gate: one `produce_video` run with a TikTok main, approved, until its Content Set opens in Studio. Check the TikTok profile page, the comment filter (D1/D2) and the TikTok comment-card count after the covered-row check.
+
 ## 2026-10-24 - `produce_video` runs attribution, footage and assembly after its approval
 
 Spec and plan: `docs/superpowers/specs/2026-10-24-produce-video-chain-design.md`. Research: `D:/thoth-tmp/research/produce-video-chain/report.md`, option a2.
