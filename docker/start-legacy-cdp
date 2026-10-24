@@ -60,6 +60,11 @@ if [ "$check_only" = true ]; then
     exit 0
 fi
 
+# This container is the profile's only user, so a Chromium lock present at start is stale: a
+# hard stop (the WSL VM going down) leaves SingletonLock naming a dead container, and Chromium
+# then refuses the profile and exits before DevTools opens (deploy 2026-10-24, restart loop).
+rm -f "$profile_dir/SingletonLock" "$profile_dir/SingletonCookie" "$profile_dir/SingletonSocket"
+
 # Chromium binds DevTools to loopback whatever address it is given, so the browser
 # stays private and the supervisor publishes the relay on the container network.
 if [ "$offline_smoke" = true ]; then
