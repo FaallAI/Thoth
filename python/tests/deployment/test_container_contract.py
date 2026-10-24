@@ -73,8 +73,20 @@ def test_dockerfile_uses_locked_full_compatibility_runtime() -> None:
     assert "FROM python:3.12-slim-bookworm AS runtime" in dockerfile
     assert "uv sync --frozen --no-dev --extra acquisition" in dockerfile
     assert "bun --cwd=/opt/thoth/scout install --frozen-lockfile --production" in dockerfile
-    assert "/opt/thoth/python/.venv/bin/scrapling install" in dockerfile
+    assert "/opt/thoth/python/.venv/bin/patchright install --with-deps chromium" in dockerfile
+    # The image carries exactly one Chromium (the legacy CDP refuses ambiguity) and it is
+    # patchright's — the stealthy sessions launch through patchright, which pins its own
+    # revision. The 2026-10-23 refresh shipped the driver without its browser and every
+    # card visit failed as headless_blocked.
+    assert "/opt/thoth/python/.venv/bin/scrapling install" not in dockerfile
     assert "COPY . " not in dockerfile
+
+
+def test_the_stealthy_browser_launch_smoke_gates_publication_and_deploy() -> None:
+    workflow = _repo_text(".github/workflows/container-image.yml")
+    validation = workflow.split("  validate-image:", 1)[1].split("  publish-image:", 1)[0]
+    assert "test-browser-offline.sh" in validation
+    assert "test-browser-offline.sh" in _repo_text("scripts/ops/deploy-stage1.sh")
 
 
 def test_dockerfile_preserves_legacy_adapter_layout_and_non_root_runtime() -> None:

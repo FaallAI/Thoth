@@ -203,6 +203,12 @@ jobs:
       - name: Verify parity reference browser isolation
         run: bash docker/test-parity-offline.sh "${CANDIDATE_IMAGE}"
 
+      # The stealthy sessions launch through patchright's own Chromium revision while
+      # `scrapling install` installs playwright's; the 2026-10-23 refresh shipped the
+      # driver without its browser and every card visit failed as headless_blocked.
+      - name: Verify the stealthy browser can launch
+        run: bash docker/test-browser-offline.sh "${CANDIDATE_IMAGE}"
+
       # The `f1` gate stages its input and output through the runner's own helper
       # scripts; a wrong owner or mode would burn the single live attempt.
       - name: Verify the controlled fallback gate contract

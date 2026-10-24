@@ -8,6 +8,7 @@ card is always a real crop, never a synthetic render.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import logging
 from collections.abc import Awaitable, Callable
@@ -38,6 +39,10 @@ COMMENT_ROW_ATTRIBUTE = "data-thoth-comment"
 COMMENT_PREFIX_CHARS = 30
 DIALOG_TIMEOUT_MS = 3_000
 SHOT_TIMEOUT_MS = 10_000
+# The two card pages of one workflow sit this far apart: pacing prudence for the anonymous
+# signed-out visits (investigation 2026-10-24; no threshold was measured, X only hard-blocks
+# the default headless UA — this keeps the workload boring to the edge).
+PAGE_SPACING_SECONDS = 30.0
 
 
 @dataclass(frozen=True)
@@ -231,6 +236,7 @@ class CardBrowser:
         if want_post or targets:
             action = _on_post(cards, want_post, targets, self._layout)
             await self._card_visit(post_url, action, cards)
+            await asyncio.sleep(PAGE_SPACING_SECONDS)
         await self._card_visit(profile_url, _on_profile(cards, self._layout), cards)
         return cards
 

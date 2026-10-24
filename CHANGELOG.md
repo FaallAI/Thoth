@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-24 - The stealthy browser launches again; card pages paced (branch `fix/stealthy-browser-mismatch`)
+
+**Root cause (it was never X):** the "X login wall" that began 2026-10-23 ~16:00 UTC did not
+exist. That morning's dependency refresh (PR #43, `2391f0f`) moved patchright 1.62.2 → 1.64.2
+while playwright stayed at 1.62.0; `scrapling install` installs playwright's `chromium-1234`,
+but the stealthy sessions launch through patchright, which requires `chromium-1248`. Every
+`AsyncStealthySession` — X cards, Instagram cards, TikTok page fetches — failed at launch
+("Executable doesn't exist"), and `_classify_fetch_error` reports a launch failure as
+`headless_blocked`, the same string a real login wall logs; the 2026-10-23 16:45/16:46 checks
+and the deploys since all observed that, not X. Live probes on 2026-10-24 (anonymous, this
+machine's IP) show no wall: httpx gets 200 with the full SSR post, a production-parity
+Patchright Chromium renders the post page (200, 4 articles, no redirect, only the raw
+headless default UA gets 403), and the embed widget renders. Full report:
+`D:/thoth-tmp/research/x-login-wall/report.md`.
+
+- **Dockerfile:** the browser layer installs patchright's Chromium — with its system deps —
+  as the image's single Chromium (the legacy CDP's check refuses ambiguity), replacing
+  `scrapling install`, which would bake playwright's revision in as a second copy; the tld
+  snapshot `scrapling install` used to bake stays.
+- **Launch smoke:** `docker/test-browser-offline.sh` runs the existing
+  `check_scrapling_capability()` probe offline against a built image. Wired into the
+  container workflow's validation job and `make deploy`'s preflight (`make smoke-browser
+  IMAGE=<image>` locally). Proven both ways: it fails on the deployed `thoth@9f8379a3` and
+  passes on the same base once `patchright install chromium` has run.
+- **Card pacing:** `CardBrowser.cards()` waits `PAGE_SPACING_SECONDS` (30 s) between the
+  post and the profile page — prudence for the anonymous signed-out visits; the acquisition
+  conftest zeroes it for tests.
+- **Contracts:** the Dockerfile pin and the smoke's CI/deploy wiring are pinned in
+  `tests/deployment/test_container_contract.py`.
+
+**Verification:** `tests/acquisition` + `tests/deployment` 1370 passed / 42 skipped; ruff
+clean.
+
+**Next steps:**
+- Merge and deploy (operator gates approved in chat, 2026-10-24), then the live gate: one
+  anonymous X workflow on the reference post — post card with `media_box`, the 3 comment
+  cards (which also proves PR #51's hidden "Continue to X" bar), profile card and page.
+- One Instagram workflow (its cards share the fix) and a TikTok log check for fewer
+  `headless_blocked` fallbacks.
+
 ## 2026-10-24 - Deployed master 5f62e2b; legacy CDP clears a stale profile lock
 
 **Deployed:** PR #49 (thread-safe SQLite in tests), #51 (X card overlays) and #50 (render path)

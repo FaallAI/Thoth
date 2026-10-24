@@ -55,8 +55,14 @@ RUN /opt/thoth/python/.venv/bin/python /opt/thoth/bin/fetch_speech_models.py \
 # Camoufox (spec 2026-10-13, 3.4): Firefox's system libraries, then the pinned browser in
 # thoth's cache; `fetch` also installs fpgen's fingerprint model into the venv, so the chown
 # below covers both. Without `set`, `fetch` takes whatever the stable channel holds that day.
-RUN /opt/thoth/python/.venv/bin/scrapling install \
+# The image carries exactly ONE Chromium — the legacy CDP refuses ambiguity — and it is
+# patchright's: the stealthy sessions launch through patchright, which pins its own revision,
+# and `scrapling install` would add playwright's as a second copy (the 2026-10-23 refresh
+# shipped patchright without its browser and every card visit failed as headless_blocked).
+# The tld snapshot keeps the one other thing `scrapling install` used to bake in.
+RUN /opt/thoth/python/.venv/bin/patchright install --with-deps chromium \
     && /opt/thoth/python/.venv/bin/python -m playwright install-deps firefox \
+    && /opt/thoth/python/.venv/bin/python -c "from tld.utils import update_tld_names; update_tld_names(fail_silently=True)" \
     && HOME=/home/thoth /opt/thoth/python/.venv/bin/python -m camoufox set official/stable/156.0.1-beta.36 \
     && HOME=/home/thoth /opt/thoth/python/.venv/bin/python -m camoufox fetch \
     && chown -R thoth:thoth /home/thoth /ms-playwright /opt/thoth/python/.venv
