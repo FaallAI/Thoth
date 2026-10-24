@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-24 - Scrapling errors are logged sanitized, not blanked
+
+**Why:** since Stage 1, every Scrapling WARNING/ERROR was rewritten to the constant `scrapling provider event redacted`. On the operator's TikTok run of 2026-10-24, eleven such ERROR lines arrived within half a second and nothing in them could be diagnosed. The operator ruled that error logs must stay visible, with only their secrets hidden.
+
+**Change:** `ScraplingRedactionFilter` now keeps the text and runs it through `sanitize_provider_text`.
+- **URLs** keep their scheme, host and path. Userinfo (a proxy login), query and fragment are dropped.
+- **Cookie, Set-Cookie, Authorization and Proxy-Authorization headers** lose everything after the header name on that line.
+- **Token, session and password fields** keep their name; the value becomes `<redacted>`. This covers `password`, `username`, `token`, `sessionid`, `ct0`, `csrftoken`, `msToken`, `s_v_web_id` and the like.
+- **A bare `user:password@`** becomes `<redacted>@`.
+- **The text is capped** at 1,000 characters.
+
+The traceback and stack are still dropped; the exception's type and sanitized text are appended. A record that cannot be formatted falls back to the old constant. DEBUG and INFO stay dropped. Only these known shapes are removed, so a secret printed bare, with no field name or URL around it, would pass through.
+
+**Tests:**
+- `tests/test_observability.py` asserts the sanitized messages on every handler path: a child logger, a late root handler, `lastResort`, and the JSON worker line.
+- `test_provider_text_keeps_the_error_and_drops_secrets` covers proxy URLs, signed TikTok queries, cookie headers, proxy dicts and the length cap.
+- `test_a_record_that_cannot_be_formatted_is_fully_redacted` covers the fallback.
+- Full suite: 4420 passed, 115 skipped. `make lint` clean.
+
+**Next steps:**
+- Merge and deploy (operator gates).
+- Then read the next TikTok run's Scrapling errors.
+
 ## 2026-10-24 - Deployed master 3703f33 (`browser_unavailable`)
 
 **Deployed:** PR #55 on `master` 3703f33, after its PR checks passed, including "Validate image build" and its browser launch smoke. The images:

@@ -16,6 +16,7 @@ from thoth_control_plane.observability import (
     ScraplingRedactionFilter,
     configure_logging,
     configure_provider_logging,
+    sanitize_provider_text,
     watch_event_loop,
 )
 
@@ -89,7 +90,7 @@ def _reset_logging_state():
         logging.lastResort.filters[:] = original_last_resort_filters
 
 
-def test_scrapling_info_is_dropped_and_error_is_fully_redacted() -> None:
+def test_scrapling_info_is_dropped_and_error_is_kept_without_secrets() -> None:
     records: list[logging.LogRecord] = []
     handler = _ListHandler(records)
     logger = logging.getLogger("scrapling")
@@ -106,7 +107,10 @@ def test_scrapling_info_is_dropped_and_error_is_fully_redacted() -> None:
 
     assert len(records) == 1
     record = records[0]
-    assert record.getMessage() == "scrapling provider event redacted"
+    # Operator ruling 2026-10-24: provider errors stay visible; only their secrets go.
+    assert record.getMessage() == (
+        "failed https://cdn.test/x | RuntimeError: provider token=<redacted>"
+    )
     assert record.args == ()
     assert record.exc_info is None
     assert record.exc_text is None
@@ -139,7 +143,7 @@ def test_scrapling_warning_is_redacted_not_dropped() -> None:
     logger.warning("signed https://cdn.test/video?token=secret")
 
     assert len(records) == 1
-    assert records[0].getMessage() == REDACTED_PROVIDER_MESSAGE
+    assert records[0].getMessage() == "signed https://cdn.test/video"
 
 
 def test_provider_logging_configuration_is_idempotent() -> None:
@@ -205,7 +209,7 @@ def test_scrapling_child_logger_handler_attached_after_configure_is_redacted() -
     assert len(records) == 2  # the INFO record must have been dropped, not just the two WARNINGs
     for record in records:
         assert record.name == "scrapling.fetchers"
-        assert record.getMessage() == REDACTED_PROVIDER_MESSAGE
+        assert record.getMessage() == "signed url token=<redacted>"
         assert "SUPER_SECRET_TOKEN" not in record.getMessage()
         assert record.args == ()
 
@@ -237,7 +241,7 @@ def test_scrapling_child_logger_falls_through_to_last_resort_redacted(monkeypatc
 
     output = stream.getvalue()
     assert "SUPER_SECRET_TOKEN" not in output
-    assert REDACTED_PROVIDER_MESSAGE in output
+    assert "signed url token=<redacted>" in output
 
 
 def test_filter_clears_every_hostile_vector_directly() -> None:
@@ -257,7 +261,10 @@ def test_filter_clears_every_hostile_vector_directly() -> None:
     result = ScraplingRedactionFilter().filter(record)
 
     assert result is True
-    assert record.getMessage() == REDACTED_PROVIDER_MESSAGE
+    assert (
+        record.getMessage()
+        == "signed https://cdn.test/video | RuntimeError: provider token=<redacted>"
+    )
     assert record.args == ()
     assert record.exc_info is None
     assert record.exc_text is None
@@ -316,15 +323,16 @@ def test_root_handler_attached_after_configure_redacts_propagated_child_records(
     child_logger.info("fetched https://cdn.test/x?sig=SUPER_SECRET_TOKEN")
     child_logger.warning("blocked %s", "https://cdn.test/y?token=SUPER_SECRET_TOKEN")
     try:
-        raise RuntimeError("exception text with C:/private/path SUPER_SECRET_TOKEN")
+        raise RuntimeError("exception text with C:/private/path token=SUPER_SECRET_TOKEN")
     except RuntimeError:
         child_logger.error(
             "boom %s", "https://cdn.test/z?k=SUPER_SECRET_TOKEN", exc_info=True, stack_info=True
         )
 
-    assert len(records) == 2  # DEBUG and INFO dropped; WARNING and ERROR redacted
+    assert len(records) == 2  # DEBUG and INFO dropped; WARNING and ERROR sanitized
     for record in records:
-        assert record.getMessage() == REDACTED_PROVIDER_MESSAGE
+        assert "SUPER_SECRET_TOKEN" not in record.getMessage()
+        assert record.getMessage().startswith(("blocked https://cdn.test/y", "boom https://"))
         assert record.args == ()
         assert record.exc_info is None
         assert record.exc_text is None
@@ -343,7 +351,7 @@ def test_root_handler_present_before_configure_receives_redacted_warning() -> No
     child_logger.warning("signed url %s", "token=SUPER_SECRET_TOKEN")
 
     assert len(records) == 1
-    assert records[0].getMessage() == REDACTED_PROVIDER_MESSAGE
+    assert records[0].getMessage() == "signed url token=<redacted>"
     assert records[0].args == ()
 
 
@@ -361,7 +369,7 @@ def test_worker_logging_is_one_json_line_per_record(capsys: pytest.CaptureFixtur
     lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert [(line["level"], line["logger"], line["msg"]) for line in lines] == [
         ("INFO", "thoth_control_plane.footage.service", "footage finished status=ok admitted=3"),
-        ("ERROR", "scrapling.fetchers", REDACTED_PROVIDER_MESSAGE),
+        ("ERROR", "scrapling.fetchers", "cookie <redacted>"),
     ]
     assert all(line["ts"].endswith("+00:00") for line in lines)
 
@@ -379,3 +387,51 @@ async def test_a_blocked_event_loop_dumps_every_stack_and_logs_the_stall(
 
     assert "test_a_blocked_event_loop_dumps_every_stack" in capfd.readouterr().err
     assert any(r.getMessage().startswith("event loop stalled seconds=") for r in caplog.records)
+
+
+@pytest.mark.parametrize(
+    ("raw", "clean"),
+    [
+        # A proxy URL carries the DataImpulse login in its userinfo.
+        (
+            "proxy http://user-123:p4ss@gw.dataimpulse.com:10001 refused",
+            "proxy http://gw.dataimpulse.com:10001 refused",
+        ),
+        ("user-123:p4ss@gw.dataimpulse.com:10001", "<redacted>@gw.dataimpulse.com:10001"),
+        (
+            "GET https://www.tiktok.com/api/item_list/?msToken=abc&X-Bogus=def failed",
+            "GET https://www.tiktok.com/api/item_list/ failed",
+        ),
+        (
+            "headers {'Cookie': 'sessionid=abc; ct0=def', 'Accept': '*/*'}",
+            "headers {'Cookie': <redacted>",
+        ),
+        ("Authorization: Bearer abc.def", "Authorization: <redacted>"),
+        (
+            "{'server': 'http://gw:1', 'username': 'u-1', 'password': 'p'}",
+            "{'server': 'http://gw:1', 'username': '<redacted>', 'password': '<redacted>'}",
+        ),
+        ("sessionid=abc; csrftoken=def", "sessionid=<redacted>; csrftoken=<redacted>"),
+        (
+            "Page.goto: net::ERR_TIMED_OUT at https://x.com/a/status/1",
+            "Page.goto: net::ERR_TIMED_OUT at https://x.com/a/status/1",
+        ),
+        ("x" * 2_000, "x" * 1_000 + "…"),
+    ],
+)
+def test_provider_text_keeps_the_error_and_drops_secrets(raw: str, clean: str) -> None:
+    assert sanitize_provider_text(raw) == clean
+
+
+def test_a_record_that_cannot_be_formatted_is_fully_redacted() -> None:
+    record = logging.LogRecord(
+        name="scrapling.fetchers",
+        level=logging.ERROR,
+        pathname=__file__,
+        lineno=1,
+        msg="needs two %s %s",
+        args=("token=secret",),
+        exc_info=None,
+    )
+    assert ScraplingRedactionFilter().filter(record) is True
+    assert record.getMessage() == REDACTED_PROVIDER_MESSAGE
