@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-24 - Deployed master a56c911 (PR #60, #61); the X live gate found two card defects
+
+**Deployed:** `master` a56c911 after the CI of both PRs went green (validate image included).
+- `thoth@eb142c36` (new); renderer `b2fe65ff` and web `9b530de0` unchanged.
+- `make deploy` exit 0; `scrapling_capability=true`.
+- All services healthy, with 0 restarts and no error lines.
+- No render or workflow was open, and the previous pins are backed up.
+
+**Live gate** (operator-approved, anonymous, on `https://x.com/namelesid/status/2113895024895070537`):
+- 144 s end to end.
+- 19 replies; 10 comment cards (4 from the page, 6 from embeds).
+- `x embed cards tried=6 kept=6 skipped=0`; `problems=none`.
+- The post card, profile card and profile page were captured.
+- Every embed card is X's dark widget showing the right reply.
+
+**Visual defects found:**
+1. **Blocking `video.twimg.com` breaks the post card.** The video tiles show a spinner and "The media could not be played / Reload". The cost research compared DOM counts only, not pixels. Almost all of the 79% byte saving came from this host.
+2. **Page reply cards under X's "See all the replies / Continue to X" gate are captured with the gate over them.** Two of the four page cards were: 2113981394200478014 and 2113963442008731730. `HIDE_OVERLAYS_JS` hides only fixed and sticky overlays.
+
+**Next steps (operator decisions):**
+- Defect 1: stop blocking `video.twimg.com` and keep the other blocked hosts. Bandwidth costs nothing on the anonymous route.
+- Defect 2: skip covered rows at crop time, so those replies fall back to embed cards.
+
 ## 2026-10-24 - X card pages block heavy hosts; embeds paced 30 s, then 10 s
 
 **Origin:** the operator's IMPLEMENT_PLAN of 2026-10-24, from the cost research (`D:/thoth-tmp/research/x-cards-cost/report.md`). It amends PR #60's embed pacing.
