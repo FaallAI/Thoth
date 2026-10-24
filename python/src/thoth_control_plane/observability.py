@@ -18,11 +18,28 @@ import asyncio
 import faulthandler
 import json
 import logging
+import re
 import sys
 import time
 from datetime import UTC, datetime
 
 REDACTED_PROVIDER_MESSAGE = "scrapling provider event redacted"
+MAX_PROVIDER_TEXT = 1_000
+# A URL keeps its scheme, host and path; userinfo (a proxy login), query and fragment go.
+_URL = re.compile(
+    r"(?i)\b([a-z][a-z0-9+.-]*://)(?:[^\s/?#@]*@)?([^\s?#'\"<>]*)(?:[?#][^\s'\"<>]*)?"
+)
+# A cookie or authorization header: everything after it on the line.
+_HEADER = re.compile(
+    r"(?i)\b(set-cookie|cookie|proxy-authorization|authorization)\b(['\"]?\s*[:=]?\s*)[^\n]*"
+)
+_FIELD = re.compile(
+    r"(?i)\b(password|passwd|pwd|secret|token|access_token|auth_token|api_?key|sessionid|sid|"
+    r"session|ct0|csrftoken|ds_user_id|mstoken|s_v_web_id|sid_tt|sid_guard|uid_tt|username)\b"
+    r"(['\"]?\s*[:=]\s*['\"]?)([^\s'\",;&}]+)"
+)
+# A bare `user:password@host` (a proxy written without its scheme).
+_USERINFO = re.compile(r"(?<![\w/])[^\s:/@'\"]+:[^\s:/@'\"]+@")
 # Temporal fails an activation that does not finish within 2 s of event-loop time (TMPRL1101).
 STALL_SECONDS = 1.0
 
@@ -31,15 +48,37 @@ logger = logging.getLogger(__name__)
 _GUARD_MARKER = "_scrapling_redaction_guard"
 
 
+def sanitize_provider_text(text: str) -> str:
+    """The provider's text without the secrets it can carry: proxy logins, signed query strings,
+    cookies, authorization, and token or session fields. Only these known shapes are removed."""
+    text = _URL.sub(r"\1\2", text)
+    text = _HEADER.sub(r"\1\2<redacted>", text)
+    text = _FIELD.sub(r"\1\2<redacted>", text)
+    text = _USERINFO.sub("<redacted>@", text)
+    return text if len(text) <= MAX_PROVIDER_TEXT else text[:MAX_PROVIDER_TEXT] + "…"
+
+
 class ScraplingRedactionFilter(logging.Filter):
-    """Drop DEBUG/INFO and redact WARNING/ERROR records in the `scrapling` namespace."""
+    """Drop DEBUG/INFO and sanitize WARNING/ERROR records in the `scrapling` namespace.
+
+    Operator ruling 2026-10-24: a provider error stays readable (what failed, where, which
+    exception); its secrets do not. The traceback and stack are dropped; the exception's type
+    and sanitized text are appended. Anything that fails to sanitize is fully redacted.
+    """
 
     def filter(self, record: logging.LogRecord) -> bool:
         if not record.name.startswith("scrapling"):
             return True
         if record.levelno < logging.WARNING:
             return False
-        record.msg = REDACTED_PROVIDER_MESSAGE
+        try:
+            text = record.getMessage()
+            error = record.exc_info[1] if record.exc_info else None
+            if error is not None:
+                text = f"{text} | {type(error).__name__}: {error}"
+            record.msg = sanitize_provider_text(text)
+        except Exception:
+            record.msg = REDACTED_PROVIDER_MESSAGE
         record.args = ()
         record.exc_info = None
         record.exc_text = None
