@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-24 - Meaningful comments (noise filter and Jev) and X embed reply cards
+
+Spec: `docs/superpowers/specs/2026-10-24-meaningful-comments-and-x-embed-cards-design.md`.
+
+**Why:** a signed-out X post page shows a few top replies, then a "See all the replies" gate. The operator's X run carded 3 of 14 replies. The operator also ruled that every comment used must be relevant and meaningful.
+
+**D1. Noise filter** (`acquisition/substance.py`, every platform): a comment needs at least one real word after mentions, links, emoji, laughter and filler are removed.
+- It is used in `merge_comments`, for the X embed candidates, and as the fallback when Jev is down.
+- On 236 stored comments it drops 8%, all noise. The first draft's 3-word floor dropped 15%, including the most-liked short reactions.
+
+**D2. Jev judge** (`assembly/comment_judge.py`, `assembly/adapters/comment_judge.py`): one Decisions API call per content set (`typesafe/jev-1.13`, OpenRouter key).
+- One `noul` question per comment, over at most 50 candidates; comments with a probability of at least 0.5 are kept in likes order.
+- With no key, a failed call or a short answer, the noise filter alone decides, with a warning.
+- Metered as a `provider_call`.
+- Live check (operator go): one call, 50 questions, 7,629 input tokens, about $0.0003. On stored TikTok run `wf_ac2a5948`, 49 of 50 were kept and the dropped one was an off-topic meme (0.12).
+
+**D3. X embed cards** (`acquisition/x_service.py`): `XHeadlessBrowser.cards(..., embeds=...)` opens X's own embed widget (`theme=dark&hideThread=true`) for up to 6 meaningful replies without a page card.
+- Visits are 5 s apart.
+- A crop is kept only when the article links to the reply's status or shows its text.
+- Failures are only problems.
+
+**Not yet for dashboard runs:** D1 and D2 run in assembly, which only `identify_original` reaches. Dashboard runs (`produce_video`) get the D3 embed selection only. Verify this when the `produce_video` fix lands (operator).
+
+**Tests:**
+- New: `test_substance`, `test_comment_judge` (including the request body and retry), and the D3 tests in `test_x_service`.
+- `merge_comments` fixtures were updated to meaningful texts.
+- Full suite: 4462 passed, 115 skipped. `make lint` clean.
+
+**Next steps:**
+- Merge, deploy, then the operator-approved anonymous X live gate on the reference post.
+- `blocked_domains` for the card session (cost research) needs a visual check and an operator decision.
+- The `produce_video` chain is still waiting for its research report.
+
 ## 2026-10-24 - Deployed master 466f528 (sanitized Scrapling errors, scripts' Pillow)
 
 **Deployed:** PR #58 (Scrapling errors logged sanitized) and PR #57 (the scripts' Pillow pin) on `master` 466f528, after its CI went green. The images:

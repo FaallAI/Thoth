@@ -91,10 +91,13 @@ def build(
     original: SourceReport | None = None,
     figures: Figures | None = None,
     headline: str | None = None,
+    comments: Any = None,
 ):
     touch(tmp_path, main, *([original] if original else []))
     assembler = ContentAssembler(
-        AssemblyPorts(frames=Frames(), probe=Probe(), text=Clean(), figures=figures),
+        AssemblyPorts(
+            frames=Frames(), probe=Probe(), text=Clean(), figures=figures, comments=comments
+        ),
         clock=lambda: NOW,
     )
     return asyncio.run(
@@ -126,12 +129,12 @@ def test_without_attribution_the_verdict_is_none(tmp_path: Path) -> None:
 
 
 def test_replaced_main_is_the_original_with_both_discussions(tmp_path: Path) -> None:
-    repost = report(comments=[comment("a", "ini repost", 9)])
+    repost = report(comments=[comment("a", "ini repost dari akun lain", 9)])
     original = report(
         workflow_id="wf_a-c1",
         owner="source",
         url=ORIGINAL_URL,
-        comments=[comment("b", "video asli", 3)],
+        comments=[comment("b", "ini video aslinya ternyata", 3)],
     )
 
     content = build(tmp_path, repost, verdict="replaced", original=original)

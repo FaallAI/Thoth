@@ -236,7 +236,10 @@ def test_a_retry_with_the_real_assembler_never_duplicates_comments(
         report_store,
         media="none",
         post_card=True,
-        comments=[comment("a", "satu", 3), comment("b", "dua", 2)],
+        comments=[
+            comment("a", "komentar pertama yang berisi", 3),
+            comment("b", "komentar kedua yang berisi", 2),
+        ],
     )
     real = ContentAssembler(AssemblyPorts(frames=Unused(), probe=Unused(), text=Unused()))
 
@@ -244,7 +247,10 @@ def test_a_retry_with_the_real_assembler_never_duplicates_comments(
     second = run(tmp_path, report_store, real)
 
     stored = ContentSet.model_validate_json(stored_content_set(report_store))
-    assert [c.text for c in stored.comments] == ["satu", "dua"]
+    assert [c.text for c in stored.comments] == [
+        "komentar pertama yang berisi",
+        "komentar kedua yang berisi",
+    ]
     assert first.content_set == second.content_set
 
 

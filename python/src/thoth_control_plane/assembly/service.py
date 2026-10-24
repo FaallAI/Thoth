@@ -19,11 +19,14 @@ from typing import Any, Literal, Protocol
 from pydantic import ValidationError
 
 from thoth_control_plane.acquisition.models import CardArtifact, MaterializedMedia, SourceReport
+from thoth_control_plane.assembly.comment_judge import MAX_CANDIDATES, judge_inputs, judged
 from thoth_control_plane.assembly.comments import card_ref, merge_comments, post_card_ref
 from thoth_control_plane.assembly.figures import figure_prompt, normalize_figures
 from thoth_control_plane.assembly.models import (
+    MAX_COMMENTS,
     MAX_FOOTAGE,
     MAX_PHOTOS,
+    Comment,
     ContentSet,
     Figure,
     Footage,
@@ -37,6 +40,7 @@ from thoth_control_plane.assembly.ocr import analyze_main_ocr
 from thoth_control_plane.assembly.ports import (
     AssemblyError,
     CaptionJudge,
+    CommentJudge,
     DurationProbe,
     FigureModel,
     FrameSampler,
@@ -61,6 +65,7 @@ class AssemblyPorts:
     probe: DurationProbe
     text: TextReader
     figures: FigureModel | None = None
+    comments: CommentJudge | None = None
     tracker: RegionTracker | None = None
     judge: CaptionJudge | None = None
     footage: FootageReader | None = None
@@ -247,13 +252,18 @@ class ContentAssembler:
                 await figures_task
             raise
         figures, status = await figures_task
+        comments = await self._comments(
+            fields["description"],
+            _headline(inputs.attribution),
+            merge_comments(sources, MAX_CANDIDATES),  # type: ignore[arg-type]
+        )
 
         try:
             return ContentSet(
                 workflow_id=inputs.workflow_id,
                 attribution_verdict=verdict,
                 main=Main(**fields, ocr=ocr),
-                comments=merge_comments(sources),  # type: ignore[arg-type]
+                comments=comments,
                 figures=figures,
                 figures_status=status,
                 footage=footage,
@@ -306,6 +316,22 @@ class ContentAssembler:
             except ValidationError:
                 logger.warning("a stored page card failed validation; it is left out")
         return photos[:MAX_PHOTOS], page
+
+    async def _comments(self, post: str, headline: str, candidates: list[Comment]) -> list[Comment]:
+        """Jev's relevant comments; the noise check alone when it cannot answer (spec D2)."""
+        texts = judge_inputs(post, headline, candidates)
+        if texts is None or self._ports.comments is None:
+            return candidates[:MAX_COMMENTS]
+        try:
+            probabilities = await self._ports.comments.keep_probabilities(post, headline, texts)
+        except Exception:
+            probabilities = None
+        if probabilities is None or len(probabilities) != len(texts):
+            logger.warning("comment judge unavailable; the noise check alone decides")
+            return candidates[:MAX_COMMENTS]
+        kept = judged(candidates, probabilities)
+        logger.info("comment judge kept=%d of=%d", len(kept), len(candidates))
+        return kept
 
     async def _figures(
         self, title: str, description: str, headline: str, footage: Sequence[str] = ()

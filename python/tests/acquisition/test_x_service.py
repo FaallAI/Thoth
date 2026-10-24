@@ -154,3 +154,107 @@ def test_the_selectors_are_read_when_the_layout_is_built(
 ) -> None:
     monkeypatch.setattr(x_service, "PROFILE_CARD_SELECTOR", "main header")
     assert x_service.x_layout().profile_selector == "main header"
+
+
+# Spec 2026-10-24 D3: X's own embed widget for meaningful replies the page did not show.
+C2, C3, C4 = "1800000000000000102", "1800000000000000103", "1800000000000000104"
+
+
+def _embed(comment_id: str) -> str:
+    return x_service.EMBED_URL.format(comment_id=comment_id)
+
+
+def _embed_page(comment_id: str, matches: bool = True) -> FakeCardPage:
+    return FakeCardPage(_embed(comment_id), results={x_service.EMBED_MATCH_JS: matches})
+
+
+def test_embed_candidates_are_substantive_replies_by_likes() -> None:
+    from thoth_control_plane.acquisition.models import ReportComment
+
+    def reply(comment_id: str, text: str, likes: int) -> ReportComment:
+        return ReportComment(comment_id=comment_id, author="fan_001", text=text, likes=likes)
+
+    candidates = x_service.embed_candidates(
+        [
+            reply(C1, "Kondisi udara di sana makin parah", 3),
+            reply(C2, "wkwkwkwk", 50),
+            reply(C3, "Semoga cepat turun hujan di Kalteng", 9),
+        ]
+    )
+    assert [target.comment_id for target in candidates] == [C3, C1]
+
+
+def test_the_embed_url_is_dark_and_hides_the_parent() -> None:
+    url = _embed(C2)
+    assert url.startswith("https://platform.twitter.com/embed/Tweet.html?id=")
+    assert f"id={C2}" in url and "theme=dark" in url and "hideThread=true" in url
+
+
+@pytest.mark.asyncio
+async def test_uncarded_replies_get_an_embed_card_and_carded_ones_do_not() -> None:
+    post_page = FakeCardPage(POST, tagged=[C1])
+    pages = {POST: post_page, PROFILE: FakeCardPage(PROFILE), _embed(C2): _embed_page(C2)}
+    session = card_session(pages)
+    browser = XHeadlessBrowser(lambda **kwargs: session)
+    embeds = [CommentTarget(C1, "fan_001", "a reply"), CommentTarget(C2, "fan_002", "b reply")]
+
+    cards = await browser.cards(POST, PROFILE, want_post=True, targets=TARGETS, embeds=embeds)
+    await browser.close()
+
+    assert set(cards.comment_pngs) == {C1, C2}
+    assert session.active.visits == [POST, PROFILE, _embed(C2)]
+    assert pages[_embed(C2)].shots == ["article"]
+    assert pages[_embed(C2)].evaluated == [(x_service.EMBED_MATCH_JS, [C2, "b reply"])]
+
+
+@pytest.mark.asyncio
+async def test_an_embed_of_another_post_is_never_a_card() -> None:
+    pages = {POST: FakeCardPage(POST), PROFILE: FakeCardPage(PROFILE)}
+    pages[_embed(C2)] = _embed_page(C2, matches=False)
+    browser = XHeadlessBrowser(lambda **kwargs: card_session(pages))
+    embeds = [CommentTarget(C2, "fan_002", "b reply")]
+
+    cards = await browser.cards(POST, PROFILE, want_post=True, targets=[], embeds=embeds)
+    await browser.close()
+
+    assert cards.comment_pngs == {}
+    assert pages[_embed(C2)].shots == []
+
+
+@pytest.mark.asyncio
+async def test_embeds_are_capped_and_a_failed_one_is_only_a_problem(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(x_service, "MAX_EMBED_CARDS", 2)
+    # C2's embed page is missing, so its visit fails; C3 and C4 are next in line.
+    pages = {POST: FakeCardPage(POST), PROFILE: FakeCardPage(PROFILE)}
+    pages |= {_embed(C3): _embed_page(C3), _embed(C4): _embed_page(C4)}
+    session = card_session(pages)
+    browser = XHeadlessBrowser(lambda **kwargs: session)
+    embeds = [CommentTarget(c, "fan", f"{c} text") for c in (C2, C3, C4)]
+
+    cards = await browser.cards(POST, PROFILE, want_post=True, targets=[], embeds=embeds)
+    await browser.close()
+
+    assert session.active.visits == [POST, PROFILE, _embed(C2), _embed(C3)]
+    assert list(cards.comment_pngs) == [C3]
+    assert cards.problems == ["headless_blocked"]
+    assert active_scrapling_session_count() == 0
+
+
+@pytest.mark.asyncio
+async def test_embed_visits_wait_for_the_embed_gap(monkeypatch: pytest.MonkeyPatch) -> None:
+    import time
+
+    monkeypatch.setattr(x_service, "EMBED_SPACING_SECONDS", 0.05)
+    pages = {POST: FakeCardPage(POST), PROFILE: FakeCardPage(PROFILE)}
+    pages |= {_embed(C2): _embed_page(C2), _embed(C3): _embed_page(C3)}
+    browser = XHeadlessBrowser(lambda **kwargs: card_session(pages))
+    embeds = [CommentTarget(c, "fan", f"{c} text") for c in (C2, C3)]
+
+    started = time.perf_counter()
+    await browser.cards(POST, PROFILE, want_post=True, targets=[], embeds=embeds)
+    elapsed = time.perf_counter() - started
+    await browser.close()
+
+    assert elapsed >= 0.095  # one gap before each embed visit

@@ -41,6 +41,12 @@ class FigureModel(Protocol):
     async def read(self, prompt: str) -> FigureAnswer | None: ...
 
 
+class CommentJudge(Protocol):
+    async def keep_probabilities(
+        self, post: str, headline: str, comments: Sequence[str]
+    ) -> list[float] | None: ...
+
+
 class RegionTracker(Protocol):
     async def first_absent(
         self, video: Path, region: OcrBox, start: float, end: float

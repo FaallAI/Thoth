@@ -118,9 +118,17 @@ class FakeHeadless:
         self.card_calls: list[dict[str, Any]] = []
         self.closed = 0
 
-    async def cards(self, post_url: str, profile_url: str, *, want_post: bool, targets: list):
+    async def cards(
+        self, post_url: str, profile_url: str, *, want_post: bool, targets: list, embeds=None
+    ):
         self.card_calls.append(
-            {"post": post_url, "profile": profile_url, "want_post": want_post, "targets": targets}
+            {
+                "post": post_url,
+                "profile": profile_url,
+                "want_post": want_post,
+                "targets": targets,
+                "embeds": embeds,
+            }
         )
         return self.result
 
@@ -172,6 +180,8 @@ async def test_post_report_carries_media_replies_views_and_cards(
         "https://x.com/user_001",
         True,
     )
+    # Embed candidates are the replies past the noise check, most liked first (spec D1/D3).
+    assert [target.comment_id for target in call["embeds"]] == [C1, C2]
     assert [t.comment_id for t in call["targets"]] == [C1, C2]
     assert headless.closed == 1
     assert "x.com" not in caplog.text
