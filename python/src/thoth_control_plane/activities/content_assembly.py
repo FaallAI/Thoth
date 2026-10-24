@@ -184,6 +184,7 @@ async def _run(
 
 def build_production_assembler(settings: Settings) -> Assembler:
     from thoth_control_plane.assembly.adapters.captions import AgnoCaptionJudge
+    from thoth_control_plane.assembly.adapters.comment_judge import JevCommentJudge
     from thoth_control_plane.assembly.adapters.figures import AgnoFigureModel
     from thoth_control_plane.assembly.adapters.region import FfmpegRegionTracker
     from thoth_control_plane.assembly.service import AssemblyPorts, ContentAssembler
@@ -200,6 +201,7 @@ def build_production_assembler(settings: Settings) -> Assembler:
             figures=AgnoFigureModel(openrouter, settings.THOTH_FIGURES_MODEL)
             if openrouter
             else None,
+            comments=JevCommentJudge(openrouter) if openrouter else None,
             tracker=FfmpegRegionTracker(settings.THOTH_FFMPEG),
             judge=AgnoCaptionJudge(openrouter, settings.THOTH_SOURCE_VISION_MODEL)
             if openrouter

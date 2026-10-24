@@ -1,7 +1,8 @@
 """Audience comments for the video: a port of Scout's multi-source merge.
 
 Sources come in priority order (the main's own post first). Sticker-only and link-first
-comments carry nothing for narration and are dropped; the dedupe key is the author plus the
+comments carry nothing for narration and are dropped, and so is any comment that says nothing
+(`is_substantive`, spec 2026-10-24 D1); the dedupe key is the author plus the
 first 60 characters, both lowercased (`dedupeKey` in `scout/lib/comment_engine.ts`).
 Ranking is by likes, stable, so ties keep source order.
 """
@@ -13,6 +14,7 @@ from collections.abc import Sequence
 from typing import Literal
 
 from thoth_control_plane.acquisition.models import CardArtifact, SourceReport
+from thoth_control_plane.acquisition.substance import is_substantive
 from thoth_control_plane.assembly.models import MAX_COMMENTS, Comment, MediaRef, PostCardRef
 
 STICKER = re.compile(r"^\[\s*sti?c?ker\s*\]$", re.IGNORECASE)
@@ -41,13 +43,15 @@ def post_card_ref(card: CardArtifact | None) -> PostCardRef | None:
     return PostCardRef(**ref.model_dump(), media_box=card.media_box)
 
 
-def merge_comments(sources: Sequence[tuple[Source, SourceReport]]) -> list[Comment]:
+def merge_comments(
+    sources: Sequence[tuple[Source, SourceReport]], limit: int = MAX_COMMENTS
+) -> list[Comment]:
     seen: set[str] = set()
     merged: list[Comment] = []
     for source, report in sources:
         for item in report.comments:
             text = item.text.strip()
-            if not text or STICKER.match(text) or LINK_FIRST.match(text):
+            if STICKER.match(text) or LINK_FIRST.match(text) or not is_substantive(text):
                 continue
             key = f"{item.author.lower()}|{text[:60].lower()}"
             if key in seen:
@@ -63,4 +67,4 @@ def merge_comments(sources: Sequence[tuple[Source, SourceReport]]) -> list[Comme
                 )
             )
     merged.sort(key=lambda comment: -comment.likes)
-    return merged[:MAX_COMMENTS]
+    return merged[:limit]

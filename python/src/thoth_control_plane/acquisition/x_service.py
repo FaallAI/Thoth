@@ -10,6 +10,7 @@ in the workflow.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import re
@@ -31,12 +32,17 @@ from thoth_control_plane.acquisition.adapters.x import (
     post_url,
     with_page,
 )
-from thoth_control_plane.acquisition.browser import _default_session_factory, _is_timeout
+from thoth_control_plane.acquisition.browser import (
+    HeadlessBrowserError,
+    _default_session_factory,
+    _is_timeout,
+)
 from thoth_control_plane.acquisition.card_browser import (
     CardBrowser,
     CardLayout,
     Cards,
     CommentTarget,
+    _crop,
     comment_targets,
     is_login_path,
     log_outcome,
@@ -52,6 +58,7 @@ from thoth_control_plane.acquisition.models import (
     AcquisitionReason,
     AcquisitionResult,
     MaterializedMedia,
+    ReportComment,
     ReportSource,
     SourceReport,
     failure_code,
@@ -61,6 +68,7 @@ from thoth_control_plane.acquisition.service import (
     _elapsed_ms,
     _make_attempt,
 )
+from thoth_control_plane.acquisition.substance import is_substantive
 from thoth_control_plane.acquisition.threads_service import (
     _STRATEGIES,
     REQUEST_OPTIONS,
@@ -131,6 +139,30 @@ TAG_PROFILE_JS = """(owner) => {
 PROFILE_PAGE_ITEMS = "main article"
 # A tag no page uses: an unreadable URL crops nothing.
 NO_MATCH = "thoth-no-card"
+# Spec 2026-10-24 D3: a signed-out post page shows only a few top replies, then a "See all the
+# replies" gate. X's own embed widget renders any reply, dark and without its parent; it is a
+# real X render, so it may stand in for a page card. Its host is not x.com, so the 30 s page
+# gap does not apply between embeds.
+EMBED_URL = (
+    "https://platform.twitter.com/embed/Tweet.html?id={comment_id}"
+    "&theme=dark&hideThread=true&dnt=true&lang=en"
+)
+MAX_EMBED_CARDS = 6
+EMBED_SPACING_SECONDS = 5.0
+EMBED_WAIT_MS = 10_000
+# The embed is the reply when its article links to the reply's status, or shows its text.
+EMBED_MATCH_JS = r"""
+([id, prefix]) => {
+  const article = document.querySelector("article");
+  if (!article) return false;
+  const status = new RegExp("/status/" + id + "(?:[/?#]|$)");
+  const linked = Array.from(article.querySelectorAll('a[href*="/status/"]')).some(
+    (a) => status.test(a.getAttribute("href") || "")
+  );
+  const squash = (text) => (text || "").replace(/\s+/g, " ").trim().toLowerCase();
+  return linked || (prefix.length > 0 && squash(article.innerText).includes(squash(prefix)));
+}
+"""
 STATUS_ID = re.compile(r"/status/([0-9]{1,19})")
 PROFILE_OWNER = re.compile(r"^/([A-Za-z0-9_]{1,15})/?$")
 # Tags each matched reply row; targets arrive as the evaluate argument, never interpolated.
@@ -230,6 +262,15 @@ class XRequestFetcher:
             return None
 
 
+def embed_candidates(comments: list[ReportComment]) -> list[CommentTarget]:
+    """Meaningful replies, most liked first: the ones worth an embed card (spec D1, D3)."""
+    ranked = sorted(
+        (comment for comment in comments if is_substantive(comment.text)),
+        key=lambda comment: -comment.likes,
+    )
+    return comment_targets(ranked)
+
+
 class XHeadlessBrowser(CardBrowser):
     """The X card session: post, reply, and profile cards; never content."""
 
@@ -243,8 +284,10 @@ class XHeadlessBrowser(CardBrowser):
         *,
         want_post: bool,
         targets: list[CommentTarget],
+        embeds: list[CommentTarget] | None = None,
     ) -> Cards:
-        """The post's own article (never the parent above it); the owner's profile block."""
+        """The post's own article (never the parent above it); the owner's profile block; then
+        embed cards for the meaningful replies the page did not show (spec 2026-10-24, D3)."""
         status = STATUS_ID.search(post_url)
         owner = PROFILE_OWNER.match(urlsplit(profile_url).path)
         self._layout = replace(
@@ -255,7 +298,33 @@ class XHeadlessBrowser(CardBrowser):
             profile_selector=PROFILE_CARD_SELECTOR if owner else NO_MATCH,
             profile_tag_js=(f"({TAG_PROFILE_JS})({json.dumps(owner.group(1))})" if owner else None),
         )
-        return await super().cards(post_url, profile_url, want_post=want_post, targets=targets)
+        cards = await super().cards(post_url, profile_url, want_post=want_post, targets=targets)
+        missing = [target for target in embeds or [] if target.comment_id not in cards.comment_pngs]
+        tried = missing[:MAX_EMBED_CARDS]
+        for target in tried:
+            await asyncio.sleep(EMBED_SPACING_SECONDS)
+            await self._embed(target, cards)
+        if tried:
+            kept = sum(target.comment_id in cards.comment_pngs for target in tried)
+            logger.info("x embed cards tried=%d kept=%d", len(tried), kept)
+        return cards
+
+    async def _embed(self, target: CommentTarget, cards: Cards) -> None:
+        async def action(page: Any) -> None:
+            with contextlib.suppress(Exception):
+                await page.wait_for_selector("article", timeout=EMBED_WAIT_MS)
+            matched = False
+            with contextlib.suppress(Exception):
+                matched = await page.evaluate(EMBED_MATCH_JS, [target.comment_id, target.prefix])
+            if matched is True:
+                png = await _crop(page, "article")
+                if png is not None:
+                    cards.comment_pngs[target.comment_id] = png
+
+        try:
+            await self._visit(EMBED_URL.format(comment_id=target.comment_id), action)
+        except HeadlessBrowserError as error:
+            cards.problems.append(error.reason.value)
 
 
 class XAcquirer:
@@ -362,6 +431,7 @@ class XAcquirer:
                 f"{CANONICAL_BASE}/{owner}",
                 want_post=True,
                 targets=comment_targets(page.comments),
+                embeds=embed_candidates(page.comments),
             )
             saved = await asyncio.to_thread(
                 persist_cards, cards, page.comments, workflow_id, artifact_root

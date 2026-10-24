@@ -46,6 +46,9 @@ class FakeCardPage:
     def locator(self, selector: str) -> FakeLocator:
         return FakeLocator(self, selector)
 
+    async def wait_for_selector(self, selector: str, timeout: int) -> None:
+        return None
+
     async def evaluate(self, script: str, arg: object = None) -> object:
         self.evaluated.append((script, arg))
         return self.results.get(script, self.tagged)
