@@ -225,3 +225,13 @@ def test_persisted_cards_carry_the_media_box_and_profile_page(tmp_path) -> None:
     assert saved.profile_page is not None
     assert str(saved.profile_page.location) == "reports/wf_cards_001/cards/profile-page.png"
     assert saved.profile_card is not None and saved.comments == []
+
+
+@pytest.mark.asyncio
+async def test_a_layout_without_blocked_hosts_blocks_nothing() -> None:
+    # Only X's layout blocks hosts (cost research 2026-10-24); other platforms load as before.
+    session = card_session({POST: FakeCardPage(POST), PROFILE: FakeCardPage(PROFILE)})
+    browser = CardBrowser(LAYOUT, lambda **kwargs: session)
+    await browser.cards(POST, PROFILE, want_post=True, targets=[])
+    await browser.close()
+    assert all("blocked_domains" not in options for options in session.active.options)

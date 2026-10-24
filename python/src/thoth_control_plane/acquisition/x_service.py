@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
+from thoth_control_plane.acquisition import card_browser
 from thoth_control_plane.acquisition.adapters.fxembed import fx_page
 from thoth_control_plane.acquisition.adapters.x import (
     CANONICAL_BASE,
@@ -148,8 +149,27 @@ EMBED_URL = (
     "&theme=dark&hideThread=true&dnt=true&lang=en"
 )
 MAX_EMBED_CARDS = 6
-EMBED_SPACING_SECONDS = 5.0
-EMBED_WAIT_MS = 10_000
+# The first embed keeps the x.com page gap (`card_browser.PAGE_SPACING_SECONDS`) from the last
+# page visit; later embeds are this far apart (cost research 2026-10-24, operator-approved).
+EMBED_SPACING_SECONDS = 10.0
+EMBED_FETCH_TIMEOUT_MS = 15_000
+EMBED_WAIT_MS = 5_000
+# The source activity has 5 minutes (`workflows/source_investigation.py`); the operator's X run
+# spent about 130 s before any embed. No embed starts once the card step has used this much.
+CARD_STEP_BUDGET_SECONDS = 180.0
+# Hosts the x.com card pages never load: video segments, fonts, analytics, and ads. No crop
+# needs them; measured 28.5 MB -> 5.9 MB per workflow with the same DOM (cost research
+# 2026-10-24). Embeds keep every host: their widget is small and its media is the card.
+X_BLOCKED_DOMAINS = frozenset(
+    {
+        "video.twimg.com",
+        "fonts.gstatic.com",
+        "fonts.googleapis.com",
+        "analytics.twitter.com",
+        "static.ads-twitter.com",
+        "ads-twitter.com",
+    }
+)
 # The embed is the reply when its article links to the reply's status, or shows its text.
 EMBED_MATCH_JS = r"""
 ([id, prefix]) => {
@@ -218,6 +238,7 @@ def x_layout() -> CardLayout:
         page_items=PROFILE_PAGE_ITEMS,
         page_rows=1,
         hide_js=HIDE_OVERLAYS_JS,
+        blocked_domains=X_BLOCKED_DOMAINS,
     )
 
 
@@ -298,15 +319,26 @@ class XHeadlessBrowser(CardBrowser):
             profile_selector=PROFILE_CARD_SELECTOR if owner else NO_MATCH,
             profile_tag_js=(f"({TAG_PROFILE_JS})({json.dumps(owner.group(1))})" if owner else None),
         )
+        started = time.monotonic()
         cards = await super().cards(post_url, profile_url, want_post=want_post, targets=targets)
         missing = [target for target in embeds or [] if target.comment_id not in cards.comment_pngs]
-        tried = missing[:MAX_EMBED_CARDS]
-        for target in tried:
-            await asyncio.sleep(EMBED_SPACING_SECONDS)
+        wanted = missing[:MAX_EMBED_CARDS]
+        tried: list[CommentTarget] = []
+        for index, target in enumerate(wanted):
+            gap = card_browser.PAGE_SPACING_SECONDS if index == 0 else EMBED_SPACING_SECONDS
+            if time.monotonic() - started + gap > CARD_STEP_BUDGET_SECONDS:
+                break
+            await asyncio.sleep(gap)
             await self._embed(target, cards)
-        if tried:
+            tried.append(target)
+        if wanted:
             kept = sum(target.comment_id in cards.comment_pngs for target in tried)
-            logger.info("x embed cards tried=%d kept=%d", len(tried), kept)
+            logger.info(
+                "x embed cards tried=%d kept=%d skipped=%d",
+                len(tried),
+                kept,
+                len(wanted) - len(tried),
+            )
         return cards
 
     async def _embed(self, target: CommentTarget, cards: Cards) -> None:
@@ -322,7 +354,11 @@ class XHeadlessBrowser(CardBrowser):
                     cards.comment_pngs[target.comment_id] = png
 
         try:
-            await self._visit(EMBED_URL.format(comment_id=target.comment_id), action)
+            await self._visit(
+                EMBED_URL.format(comment_id=target.comment_id),
+                action,
+                timeout=EMBED_FETCH_TIMEOUT_MS,
+            )
         except HeadlessBrowserError as error:
             cards.problems.append(error.reason.value)
 
