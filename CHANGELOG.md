@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-24 - Deployed master 7fa80f4; the stealthy browser launches again
+
+**Merged and deployed:** PR #53 (`fix/stealthy-browser-mismatch`, the login-wall
+investigation's fix). The image now carries patchright's Chromium as its single Chromium, a
+launch smoke gates CI and `make deploy`, and a workflow's two card pages sit 30 s apart. CI
+was green including the new "Verify the stealthy browser can launch" step.
+
+**Images** (pins in `.env.stage1.local`; the previous pins are backed up outside the
+repository):
+- `thoth@d349b1bb`;
+- `thoth-remotion-renderer@b2fe65ff`;
+- `thoth-web@9b530de0`.
+
+**Deploy:** `make deploy` from WSL. The new `browser-capability` preflight step passed; the
+renderer version is unchanged (`remotion-4.0.538`), so no render drain was needed. Backfill
+`inserted=0 present=263 invalid=2` (the two invalid runs predate this release); 0 captcha
+outcome lines. Every service healthy, no restarts, no error lines in any log.
+
+**Live gate (anonymous, no account/cookie/proxy, recorded in
+`D:/thoth-tmp/research/x-login-wall/live-log.md`):**
+
+| Check | Result |
+|---|---|
+| X acquisition, reference post, deployed image | 2 videos; 34 comments, 3 comment cards; post card with `media_box`; profile card; profile page; `problems=none` |
+| PR #51 proof | `comment-2110532638704595241.png` — the card that was a picture of the "Continue to X" bar on 2026-10-23 — is a real reply row now, same shape and variance as the other reply cards |
+| Pacing | the two x.com page loads sat 30 s apart as coded |
+| Instagram acquisition (a history URL) | video; 15 comments / 15 comment cards; post card; profile card |
+
+X cards, Instagram cards and the TikTok page path share the fixed launch; no TikTok workflow
+was queued, so its next real run is the evidence.
+
+**Next steps:**
+- Operator checks: one real X workflow whose main has two or more videos (the carousel
+  footage and the comment cards in Studio), and one TikTok main to watch its solver outcome
+  lines accumulate.
+- Still open from earlier plans: the scrapling 0.5 migration, TikTok P1/P2, item 6 style A.
+
 ## 2026-10-24 - The stealthy browser launches again; card pages paced (branch `fix/stealthy-browser-mismatch`)
 
 **Root cause (it was never X):** the "X login wall" that began 2026-10-23 ~16:00 UTC did not
