@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 from tests.acquisition.fakes import FakeCardPage, card_session
-from thoth_control_plane.acquisition import x_service
+from thoth_control_plane.acquisition import card_browser, x_service
 from thoth_control_plane.acquisition.browser import active_scrapling_session_count
 from thoth_control_plane.acquisition.card_browser import (
     COMMENT_ROW_ATTRIBUTE,
@@ -242,19 +244,85 @@ async def test_embeds_are_capped_and_a_failed_one_is_only_a_problem(
     assert active_scrapling_session_count() == 0
 
 
+# Cost research 2026-10-24 (operator-approved): the x.com card pages skip video segments, fonts,
+# and analytics (-79% bytes, same DOM); embeds come 30 s after the last x.com page, then 10 s
+# apart; a card-step budget keeps the 5-minute source activity safe.
+PAGE_GAP = card_browser.PAGE_SPACING_SECONDS  # bound at import, before the fixture zeroes it
+EMBED_GAP = x_service.EMBED_SPACING_SECONDS
+
+
+def test_the_pacing_constants() -> None:
+    assert (PAGE_GAP, EMBED_GAP) == (30.0, 10.0)
+    assert x_service.CARD_STEP_BUDGET_SECONDS == 180.0
+    assert x_service.EMBED_FETCH_TIMEOUT_MS == 15_000
+
+
+def _embed_pages(*ids: str) -> dict[str, FakeCardPage]:
+    pages = {POST: FakeCardPage(POST, tagged=[C1]), PROFILE: FakeCardPage(PROFILE)}
+    return pages | {_embed(i): _embed_page(i) for i in ids}
+
+
 @pytest.mark.asyncio
-async def test_embed_visits_wait_for_the_embed_gap(monkeypatch: pytest.MonkeyPatch) -> None:
-    import time
+async def test_x_pages_block_heavy_hosts_and_embeds_do_not() -> None:
+    session = card_session(_embed_pages(C2))
+    browser = XHeadlessBrowser(lambda **kwargs: session)
+    embeds = [CommentTarget(C2, "fan_002", "b reply")]
 
-    monkeypatch.setattr(x_service, "EMBED_SPACING_SECONDS", 0.05)
-    pages = {POST: FakeCardPage(POST), PROFILE: FakeCardPage(PROFILE)}
-    pages |= {_embed(C2): _embed_page(C2), _embed(C3): _embed_page(C3)}
-    browser = XHeadlessBrowser(lambda **kwargs: card_session(pages))
-    embeds = [CommentTarget(c, "fan", f"{c} text") for c in (C2, C3)]
-
-    started = time.perf_counter()
-    await browser.cards(POST, PROFILE, want_post=True, targets=[], embeds=embeds)
-    elapsed = time.perf_counter() - started
+    await browser.cards(POST, PROFILE, want_post=True, targets=TARGETS, embeds=embeds)
     await browser.close()
 
-    assert elapsed >= 0.095  # one gap before each embed visit
+    post, profile, embed = session.active.options
+    expected = {
+        "video.twimg.com",
+        "fonts.gstatic.com",
+        "fonts.googleapis.com",
+        "analytics.twitter.com",
+        "static.ads-twitter.com",
+        "ads-twitter.com",
+    }
+    assert post["blocked_domains"] == profile["blocked_domains"] == expected
+    assert "blocked_domains" not in embed
+    assert embed["timeout"] == x_service.EMBED_FETCH_TIMEOUT_MS
+    assert post["timeout"] != x_service.EMBED_FETCH_TIMEOUT_MS
+
+
+@pytest.mark.asyncio
+async def test_embeds_wait_a_page_gap_then_the_embed_gap(monkeypatch: pytest.MonkeyPatch) -> None:
+    waits: list[float] = []
+
+    async def record(seconds: float, *args: object) -> None:
+        if seconds:
+            waits.append(seconds)
+
+    monkeypatch.setattr(card_browser, "PAGE_SPACING_SECONDS", PAGE_GAP)
+    monkeypatch.setattr(x_service, "EMBED_SPACING_SECONDS", EMBED_GAP)
+    monkeypatch.setattr(asyncio, "sleep", record)
+    session = card_session(_embed_pages(C2, C3, C4))
+    browser = XHeadlessBrowser(lambda **kwargs: session)
+    embeds = [CommentTarget(c, "fan", f"{c} text") for c in (C2, C3, C4)]
+
+    await browser.cards(POST, PROFILE, want_post=True, targets=TARGETS, embeds=embeds)
+    await browser.close()
+
+    # post -> profile, profile -> first embed (both x.com page gaps), then embed -> embed.
+    assert waits == [PAGE_GAP, PAGE_GAP, EMBED_GAP, EMBED_GAP]
+    assert session.active.visits[2:] == [_embed(C2), _embed(C3), _embed(C4)]
+
+
+@pytest.mark.asyncio
+async def test_past_the_card_step_budget_no_embed_starts(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.INFO)
+    monkeypatch.setattr(x_service, "CARD_STEP_BUDGET_SECONDS", -1.0)
+    session = card_session(_embed_pages(C2))
+    browser = XHeadlessBrowser(lambda **kwargs: session)
+
+    cards = await browser.cards(
+        POST, PROFILE, want_post=True, targets=TARGETS, embeds=[CommentTarget(C2, "f", "b")]
+    )
+    await browser.close()
+
+    assert session.active.visits == [POST, PROFILE]
+    assert C2 not in cards.comment_pngs
+    assert any("skipped=1" in record.getMessage() for record in caplog.records)

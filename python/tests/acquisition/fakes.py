@@ -62,9 +62,11 @@ class FakeCardPage:
 class FakeActive:
     def __init__(self, pages: dict[str, FakeCardPage]) -> None:
         self.pages, self.visits = pages, []
+        self.options: list[dict[str, Any]] = []  # each visit's fetch options, page_action aside
 
     async def fetch(self, url: str, **kwargs: Any) -> Any:
         self.visits.append(url)
+        self.options.append({k: v for k, v in kwargs.items() if k != "page_action"})
         page = self.pages[url]
         if kwargs.get("page_action") is not None:
             await kwargs["page_action"](page)

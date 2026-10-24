@@ -65,6 +65,8 @@ class CardLayout:
     profile_tag_js: str | None = None
     # Run on every page before any crop: hides what the page lays over its posts (X).
     hide_js: str | None = None
+    # Hosts the card pages never load: no crop needs them (X; cost research 2026-10-24).
+    blocked_domains: frozenset[str] = frozenset()
 
 
 def is_login_path(url: object, login_paths: tuple[str, ...]) -> bool:
@@ -209,18 +211,22 @@ class CardBrowser:
             _increment_active_sessions()
         return self._active
 
-    async def _visit(self, url: str, action: Callable[[Any], Awaitable[None]] | None = None):
+    async def _visit(
+        self, url: str, action: Callable[[Any], Awaitable[None]] | None = None, **options: Any
+    ):
         active = await self._open()
         try:
-            return await active.fetch(url, page_action=action, **FETCH_OPTIONS)
+            return await active.fetch(url, page_action=action, **{**FETCH_OPTIONS, **options})
         except Exception as error:
             raise HeadlessBrowserError(_classify_fetch_error(error)) from None
 
     async def _card_visit(
         self, url: str, action: Callable[[Any], Awaitable[None]], cards: Cards
     ) -> None:
+        blocked = self._layout.blocked_domains
+        options = {"blocked_domains": set(blocked)} if blocked else {}
         try:
-            await self._visit(url, action)
+            await self._visit(url, action, **options)
         except HeadlessBrowserError as error:
             cards.problems.append(error.reason.value)
 

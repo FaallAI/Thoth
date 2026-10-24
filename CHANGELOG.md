@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-24 - X card pages block heavy hosts; embeds paced 30 s, then 10 s
+
+**Origin:** the operator's IMPLEMENT_PLAN of 2026-10-24, from the cost research (`D:/thoth-tmp/research/x-cards-cost/report.md`). It amends PR #60's embed pacing.
+
+**Changes:**
+- **Blocked hosts.** `CardLayout.blocked_domains` blocks hosts on a layout's card pages. Only X sets it (`X_BLOCKED_DOMAINS`): `video.twimg.com`, `fonts.gstatic.com`, `fonts.googleapis.com`, `analytics.twitter.com`, `static.ads-twitter.com`, `ads-twitter.com`.
+  - It is passed as Scrapling's per-fetch `blocked_domains` on the post and profile pages only.
+  - Measured: 28.5 MB to 5.9 MB per workflow, with the same DOM.
+  - Embeds and other platforms load as before.
+- **Pacing.** The first embed waits the x.com page gap (30 s) after the last page; later embeds are 10 s apart (`EMBED_SPACING_SECONDS`). Embed fetches time out at 15 s.
+- **Budget.** No embed starts once the card step has used `CARD_STEP_BUDGET_SECONDS = 180`; the log line `x embed cards ... skipped=<n>` reports it.
+  - The source activity has 5 minutes. The operator's X run used about 130 s before any embed; about 110 s of fixed waits plus about 6 x 5 s of loads brings it to about 240 s.
+  - Limitation: the budget runs from the card step, not the activity start. A very slow media download before it could still approach the 5-minute limit.
+
+**Tests:**
+- New: blocked hosts on the x.com pages only (not embeds, not other layouts); the pacing constants; the gap order 30, 30, 10, 10; the budget stop. One PR #60 pacing test is replaced.
+- Full suite 4466 passed, 115 skipped; `make lint` clean.
+
+**Next steps:**
+- One deploy covering PR #60 and this change.
+- The anonymous X live gate on the reference post: page cards, 3 page reply cards, up to 6 embeds, `problems=none`, and a visual check that the blocked hosts leave the crops unchanged.
+
 ## 2026-10-24 - Meaningful comments (noise filter and Jev) and X embed reply cards
 
 Spec: `docs/superpowers/specs/2026-10-24-meaningful-comments-and-x-embed-cards-design.md`.
