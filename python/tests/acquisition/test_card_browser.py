@@ -50,7 +50,11 @@ async def test_cards_follow_the_layout() -> None:
     assert post_page.clicked == []
     assert post_page.shots == [".post", f'[{COMMENT_ROW_ATTRIBUTE}="{C1}"]']
     assert post_page.evaluated == [
-        ("TAG", [{"comment_id": C1, "author": "fan_001", "prefix": "a reply"}])
+        ("TAG", [{"comment_id": C1, "author": "fan_001", "prefix": "a reply"}]),
+        (
+            card_browser.COVERED_JS,
+            f'[{COMMENT_ROW_ATTRIBUTE}="{C1}"]',
+        ),  # the row is cropped only when nothing covers it
     ]
     assert profile_page.shots == [".profile"]
     assert session.exited == 1
@@ -235,3 +239,15 @@ async def test_a_layout_without_blocked_hosts_blocks_nothing() -> None:
     await browser.cards(POST, PROFILE, want_post=True, targets=[])
     await browser.close()
     assert all("blocked_domains" not in options for options in session.active.options)
+
+
+@pytest.mark.asyncio
+async def test_a_covered_comment_row_is_never_cropped() -> None:
+    # Live gate 2026-10-24: X's "See all the replies" gate lay over the last page replies and
+    # the crops showed the gate. A row that something else covers is left uncarded.
+    post_page = FakeCardPage(POST, tagged=[C1], results={card_browser.COVERED_JS: True})
+    browser = CardBrowser(LAYOUT, lambda **kwargs: card_session({POST: post_page}))
+    cards = await browser.cards(POST, PROFILE, want_post=True, targets=TARGETS)
+    await browser.close()
+    assert cards.comment_pngs == {}
+    assert (card_browser.COVERED_JS, f'[{COMMENT_ROW_ATTRIBUTE}="{C1}"]') in post_page.evaluated

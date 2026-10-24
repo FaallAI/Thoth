@@ -157,12 +157,11 @@ EMBED_WAIT_MS = 5_000
 # The source activity has 5 minutes (`workflows/source_investigation.py`); the operator's X run
 # spent about 130 s before any embed. No embed starts once the card step has used this much.
 CARD_STEP_BUDGET_SECONDS = 180.0
-# Hosts the x.com card pages never load: video segments, fonts, analytics, and ads. No crop
-# needs them; measured 28.5 MB -> 5.9 MB per workflow with the same DOM (cost research
-# 2026-10-24). Embeds keep every host: their widget is small and its media is the card.
+# Hosts the x.com card pages never load: fonts, analytics, and ads (cost research 2026-10-24).
+# Video segments stay: blocking `video.twimg.com` left the post card's video tiles on a spinner
+# and "The media could not be played" (live gate 2026-10-24). Embeds keep every host.
 X_BLOCKED_DOMAINS = frozenset(
     {
-        "video.twimg.com",
         "fonts.gstatic.com",
         "fonts.googleapis.com",
         "analytics.twitter.com",

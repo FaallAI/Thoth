@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 
 from tests.acquisition.fakes import FakeCardPage, card_session
-from thoth_control_plane.acquisition import youtube_service
+from thoth_control_plane.acquisition import card_browser, youtube_service
 from thoth_control_plane.acquisition.adapters.youtube import MAX_DOWNLOAD_BYTES, FormatChoice
 from thoth_control_plane.acquisition.browser import active_scrapling_session_count
 from thoth_control_plane.acquisition.card_browser import COMMENT_ROW_ATTRIBUTE, CommentTarget
@@ -191,7 +191,8 @@ async def test_cards_crop_comments_and_the_channel_header_never_a_post() -> None
     assert cards.profile_png is not None
     assert post_page.shots == [f'[{COMMENT_ROW_ATTRIBUTE}="{C1}"]']
     assert post_page.evaluated == [
-        (TAG_COMMENTS_JS, [{"comment_id": C1, "author": "fan_001", "prefix": "first comment"}])
+        (TAG_COMMENTS_JS, [{"comment_id": C1, "author": "fan_001", "prefix": "first comment"}]),
+        (card_browser.COVERED_JS, f'[{COMMENT_ROW_ATTRIBUTE}="{C1}"]'),
     ]
     assert channel_page.shots == [PROFILE_CARD_SELECTOR] == ["#page-header"]
     assert post_page.clicked == channel_page.clicked == []

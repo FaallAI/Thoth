@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-24 - X post card keeps its video; covered comment rows are never cropped
+
+**Why:** the X live gate after the a56c911 deploy found two defects (see that entry), and the operator approved both fixes.
+
+**Changes:**
+- **Video unblocked.** `X_BLOCKED_DOMAINS` no longer blocks `video.twimg.com`. Blocking it left the post card's video tiles on a spinner and "The media could not be played". Fonts, analytics and ads hosts stay blocked.
+- **Covered rows skipped** (`card_browser._crop_row`, `COVERED_JS`). Before a comment row is cropped, it is scrolled into view and three points down its middle are hit-tested with `elementFromPoint`. If any visible point lands on something outside the row, the row stays uncarded. The check is by position, so it holds in any page language.
+  - On X, the reply then falls back to its embed card.
+  - The operator ruled that the check applies on every platform. On TikTok, Instagram and YouTube there is no embed fallback, so a covered row simply gets no card rather than a crop of the overlay.
+
+**Tests:**
+- New: `test_a_covered_comment_row_is_never_cropped`; `test_a_covered_page_reply_falls_back_to_its_embed`; the blocked-host set without video.
+- The X, Instagram, YouTube and card-browser crop tests now expect the covered check.
+- Full suite 4468 passed, 115 skipped; `make lint` clean.
+
+**Next steps:**
+- Deploy, then re-run the anonymous X live gate on the reference post.
+- Compare comment-card counts on the next TikTok and Instagram runs.
+
 ## 2026-10-24 - Deployed master a56c911 (PR #60, #61); the X live gate found two card defects
 
 **Deployed:** `master` a56c911 after the CI of both PRs went green (validate image included).

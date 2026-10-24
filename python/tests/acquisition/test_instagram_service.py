@@ -249,6 +249,7 @@ async def test_cards_crop_post_comments_and_profile_in_one_session() -> None:
     assert post_page.evaluated == [
         POST_CARD_SELECTOR,  # the media box, measured right after the crop (spec 5c-2)
         [{"comment_id": C1, "author": "fan_001", "prefix": "first comment"}],
+        f'[{COMMENT_ROW_ATTRIBUTE}="{C1}"]',  # the row is cropped only when nothing covers it
     ]
     assert profile_page.shots == [PROFILE_CARD_SELECTOR]
     assert profile_page.evaluated == [
