@@ -278,6 +278,117 @@ design/exports/v2/.
 
 ---
 
+## Review fixes, round 1 (2026-10-25)
+
+These come from reviewing the first 34 exports. Run them in order in `design/thoth-dashboard-v2.pen` only. They fix what is wrong and add what is missing; they do not redo the screens that are right. Studio has its own prompts, from Prompt 20, after its research.
+
+## Prompt 13: resting states and a States board
+
+```text
+Work only in design/thoth-dashboard-v2.pen. In every screen frame, put controls back to their
+resting state: the top-bar search field and the narrow menu button must NOT show the copper focus
+ring, and no other control may show focus, hover or pressed. Then create one frame "States" next to
+"Components" that shows, for Button, Input, url Input, Status pill, Table row and the sidebar item:
+rest, hover, focus (2px copper ring), pressed and disabled-with-reason - each labelled. Screenshot
+the States board and two fixed screens (Runs - list, Run - running).
+```
+
+## Prompt 14: honest run rows
+
+```text
+Work only in design/thoth-dashboard-v2.pen. In "Runs - list" (and its loading/error/toast/tray
+copies) make every row's stage bar match its status - 5 segments for Fetch the source / Your review /
+Find the original / Collect footage / Build the content set:
+- Running at Collect footage: 3 done (status-done), 1 running (status-running), 1 idle.
+- Running at Find the original (use this for the second running row): 2 done, 1 running, 2 idle.
+- Waiting for you: 1 done, 1 waiting (status-waiting), 3 idle.
+- Done: all 5 status-done.
+- Failed at Build the content set: 4 done, 1 status-failed.
+Remove the "Project" column (this list is already scoped to one project) and let Post take the
+width; add a copy "Runs - all projects" where the Project column is present with mixed projects
+(Haze watch, Banjir Jakarta, Pemilu 2029). Replace the checkerboard thumbnail with the
+missing-thumbnail tile: fill well, the platform icon centered in muted. Screenshot both.
+```
+
+## Prompt 15: real card crops
+
+```text
+Work only in design/thoth-dashboard-v2.pen. Cards are real screenshots of the platform - the
+product's core - so placeholders with icons are wrong. Build four reusable "Card crop" components
+that LOOK like real platform crops (layout only, no logos drawn by hand; use icon nodes):
+1. X post card (dark): avatar circle, name "Nameless" + verified icon, handle "@namelesid",
+   text "Perhari ini, kondisi udara di KALTENG semakin meburuk...", a 2-tile media row with orange
+   haze photos (stock images), the "7:27 AM · Oct 24, 2026 · 705K Views" line and an action row.
+2. Comment card (dark): avatar, "konoh @konoholicx", "Tadi katanya ada yang keluarganya ngabarin
+   juga masih pekat banget di sana huhuhu ya Allah", "1 like", plus a small "embed" badge variant.
+3. Profile card: avatar, "Nameless", "@namelesid", bio "Pundit nigeria-backup", "1,864 Following
+   8,516 Followers".
+4. Profile page: the profile card above a 3-column grid of 6 post thumbnails.
+Use them in: "Run - waiting for you" (replace the empty "Post card" box with the X post card) and
+"Run - done" (replace the four icon boxes in Cards with small crops: Post, Profile, Profile page,
+and a stack of 3 comment cards labelled "Comments 10 - 4 from the page, 6 embeds"). Add one slot in
+a copy "Run - done (missing card)" showing a well tile "Not captured - X showed a login wall".
+Screenshot the components and both screens.
+```
+
+## Prompt 16: figures are people, not statistics
+
+```text
+Work only in design/thoth-dashboard-v2.pen. In "Run - done" (and its Indonesian copy if present),
+"Figures" means the people, organisations or communities the post is about - never numbers.
+Replace the chips (212 hotspots, PM2.5 ...) with a compact list of 3 rows, each: a 16px type icon
+(user for person, building for organisation, users for community), name 14/500 ink, type + role
+13 muted:
+- Sabran · Person · Governor of Central Kalimantan
+- BMKG · Organisation · Indonesian weather and climate agency
+- Warga Palangka Raya · Community · residents affected by the haze
+In "Kept comments", add a small card icon next to comments that have a comment card.
+Screenshot.
+```
+
+## Prompt 17: missing overlays and menus
+
+```text
+Work only in design/thoth-dashboard-v2.pen. Using the App shell, add these screens over the Runs
+list (dim the page beneath to 70% where it is a modal):
+1. "Avatar menu - open": popover under the avatar with name "Alya Putri", email
+   "alya@hazewatch.id", a "Language" row with the segmented switch "English | Bahasa Indonesia",
+   "Settings", "Sign out".
+2. "Command palette - open" (Cmd+K): centered 640w panel, input "Search runs, documents,
+   settings...", groups Runs (3 results with status pills), Studio documents (2), Actions
+   ("New run", "Open inbox", "Switch language"), each row with its shortcut on the right.
+3. "Project switcher - open": popover listing projects with their running counts, a search field,
+   and "New project" at the bottom; plus "New project - dialog" with name input and "Create".
+Screenshot each.
+```
+
+## Prompt 18: missing run states and bulk actions
+
+```text
+Work only in design/thoth-dashboard-v2.pen. Add:
+1. "Run - cancelled": status pill Cancelled (status-idle dot, muted text), stepper stopped at
+   Collect footage with step text "Cancelled by you at 14:06", header line "Kept: source report",
+   primary "Start again" and the log ending with the cancel row.
+2. "Run - details expired": an older done run whose live details are gone - stepper shows stage
+   durations only, a quiet notice "Activity details have expired. Results are kept.",
+   results still shown.
+3. "Runs - selection": the Runs list with 3 rows checked (a checkbox column appears on hover and
+   when anything is selected) and a bottom action bar "3 selected · Retry · Archive · Clear".
+Screenshot each.
+```
+
+## Prompt 19: narrow fixes and re-export
+
+```text
+Work only in design/thoth-dashboard-v2.pen. In every 430-wide screen, the run tray button shows
+icons, not abbreviations: a status-running dot with "2" and a status-waiting dot with "1"
+(tooltip "2 running · 1 waiting"). Check "Run - waiting for you" narrow has the sticky bottom
+bar "Approve and continue" / "Stop here". Then re-export ONLY the screens changed in Prompts 13-19
+as PNG to design/exports/v2/ (overwrite same names; new screens get new names) and list them.
+```
+
+---
+
 ## After pen.dev
 
 When the screens are approved, the implementation gets its own spec, with backend work first, from `docs/DESIGN.md` §7.7:
