@@ -22,6 +22,11 @@ docker run --rm -v "$root:$root:ro" -v "$(dirname "$provider_env"):$(dirname "$p
     -v "$data_root:$data_root:ro" -w "$root" --user 0 "$image" \
     /opt/thoth/python/.venv/bin/thoth-control operations stage1-local-preflight \
     --env-file "$env_file" --provider-env-file "$provider_env" 2>&1 | tail -5
+step browser-capability
+# The stealthy sessions launch through patchright's own Chromium revision; a refreshed
+# driver without its browser turns every card visit into headless_blocked (2026-10-23).
+# Gate the deploy on the pinned image's browser actually being launchable.
+bash docker/test-browser-offline.sh "$image"
 step config
 "${compose[@]}" config --quiet && echo "config ok"
 "${compose[@]}" config --images

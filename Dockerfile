@@ -55,7 +55,11 @@ RUN /opt/thoth/python/.venv/bin/python /opt/thoth/bin/fetch_speech_models.py \
 # Camoufox (spec 2026-10-13, 3.4): Firefox's system libraries, then the pinned browser in
 # thoth's cache; `fetch` also installs fpgen's fingerprint model into the venv, so the chown
 # below covers both. Without `set`, `fetch` takes whatever the stable channel holds that day.
+# `scrapling install` installs playwright's Chromium; the stealthy sessions launch through
+# patchright, which pins its own revision — install both, or a driver bump ships without its
+# browser (the 2026-10-23 refresh did, and every card visit failed as headless_blocked).
 RUN /opt/thoth/python/.venv/bin/scrapling install \
+    && /opt/thoth/python/.venv/bin/patchright install chromium \
     && /opt/thoth/python/.venv/bin/python -m playwright install-deps firefox \
     && HOME=/home/thoth /opt/thoth/python/.venv/bin/python -m camoufox set official/stable/156.0.1-beta.36 \
     && HOME=/home/thoth /opt/thoth/python/.venv/bin/python -m camoufox fetch \
