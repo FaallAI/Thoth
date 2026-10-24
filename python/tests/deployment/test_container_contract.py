@@ -434,6 +434,22 @@ def test_legacy_cdp_launcher_is_fixed_private_contract() -> None:
     assert "--remote-debugging" not in launcher
 
 
+def test_legacy_cdp_launcher_clears_a_stale_profile_lock() -> None:
+    """Deploy 2026-10-24: after the WSL VM stopped hard, the profile kept a SingletonLock naming
+    a dead container, so Chromium refused the profile, exited before DevTools opened, and the
+    sidecar restarted in a loop with an empty log. This container is the profile's only user,
+    so any lock present at start is stale. `--check` stays free of side effects."""
+    launcher = _repo_text("docker/start-legacy-cdp")
+    clear = (
+        'rm -f "$profile_dir/SingletonLock" "$profile_dir/SingletonCookie"'
+        ' "$profile_dir/SingletonSocket"'
+    )
+    assert clear in launcher
+    assert launcher.index('if [ "$check_only" = true ]') < launcher.index(clear)
+    assert launcher.index(clear) < launcher.index("exec bun")
+    assert "rm -rf" not in launcher
+
+
 def test_legacy_cdp_supervisor_keeps_the_browser_private_and_sandboxed() -> None:
     supervisor = _repo_text("scout/runtime/legacy_cdp.ts")
     relay = _repo_text("scout/runtime/cdp_relay.ts")

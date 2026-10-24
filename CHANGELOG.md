@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-24 - Deployed master 5f62e2b; legacy CDP clears a stale profile lock
+
+**Deployed:** PR #49 (thread-safe SQLite in tests), #51 (X card overlays) and #50 (render path)
+on `master` 5f62e2b, after its CI went green. The operator had merged them without waiting for
+CI. The images:
+- `thoth@9f8379a3`;
+- `thoth-remotion-renderer@0f10e86c` (Remotion 4.0.538, `renderer_version` `remotion-4.0.538`);
+- `thoth-web@190d4782`.
+
+No render was queued. The previous pins are backed up outside the repository. The deploy's new
+`save-captcha-outcomes` step ran; there were no outcome lines yet.
+
+**The deploy stopped at `up`.** `legacy-cdp` restarted in a loop: exit 1 after about 20 s, an
+empty log, and a healthcheck refused on 18800. The WSL VM had stopped hard. The bind-mounted
+browser profile kept `SingletonLock -> 474ae0d25c66-18`, naming a container that no longer
+exists, so Chromium refused the profile and exited before DevTools opened. The supervisor
+discards Chromium's output, which is why the log was empty.
+- **Unblocked by hand:** the three `Singleton*` entries were removed, then `up -d --wait` was
+  re-run. Every service is healthy, worker included.
+- **Logs:** no error lines in api, worker, renderer, web or legacy-cdp.
+
+**Fix (branch `fix/legacy-cdp-stale-lock`):** `docker/start-legacy-cdp` removes `SingletonLock`,
+`SingletonCookie` and `SingletonSocket` from the profile before it hands off to the supervisor.
+The container is the profile's only user. `--check` stays free of side effects.
+- Test: `test_legacy_cdp_launcher_clears_a_stale_profile_lock` (the order relative to `--check`
+  and `exec`; no `rm -rf`).
+- `tests/deployment`: 387 passed.
+
+**Next steps:**
+- Merge this fix (operator gate). It ships with the next image.
+- The X comment-card live re-check (PR #51) is still pending.
+
 ## 2026-10-23 - Render-path dependencies (branch `chore/render-deps`)
 
 This closes the dependency refresh. The render path was held back from PR #43 because it
