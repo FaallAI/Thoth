@@ -339,6 +339,7 @@ LEGACY_FALLBACK_ELIGIBLE_CODES = frozenset(
         "cdn_rate_limited",
         "cdn_unavailable",
         "media_validation_failed",
+        "browser_unavailable",
     }
 )
 """Domain-owned taxonomy of codes eligible for legacy-scout fallback.
@@ -437,6 +438,7 @@ SOURCE_EVENT_REASONS = (
             "cdn_unavailable",
             "media_validation_failed",
             "login_wall",
+            "browser_unavailable",
         }
     )
     | ASSEMBLY_REASONS

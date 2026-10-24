@@ -56,6 +56,7 @@ RETRYABLE_FAILURES = frozenset(
         "cdn_rate_limited",
         "cdn_unavailable",
         "media_validation_failed",
+        "browser_unavailable",
     }
 )
 

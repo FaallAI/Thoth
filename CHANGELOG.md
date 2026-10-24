@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-24 - A browser that never launches reports `browser_unavailable`
+
+**Why:** every non-timeout error at a headless session's launch was classified `headless_blocked`, the same code as a site's login wall. On 2026-10-23/24 the stealthy browser could not start (patchright 1.64.2 without its chromium-1248, fixed in PR #53), and the X card probes' `headless_blocked` was misread as X walling this IP.
+
+**Change:**
+- `AcquisitionReason.BROWSER_UNAVAILABLE` (`browser_unavailable`). `_classify_launch_error` gives it to any non-timeout launch failure; a launch timeout stays `headless_timeout`.
+- Covered launch sites:
+  - the TikTok `ScraplingHeadlessBrowser`;
+  - Threads `fetch` and `resolve`;
+  - `CardBrowser._open`, which serves the X and Instagram cards.
+- Errors after launch keep `_classify_fetch_error`.
+
+**Operator ruling 2026-10-24:** a launch failure keeps what it had as `headless_blocked`:
+- it is retryable (`RETRYABLE_FAILURES`);
+- it is eligible for the legacy CDP fallback (`LEGACY_FALLBACK_ELIGIBLE_CODES`, `SoakFailureCode`);
+- it is an accepted source-event reason.
+
+It is not in the account runner's `BLOCKED_CODES`, so it never marks a source account blocked. The capability gate's `acquisition_dependency_unavailable` is unchanged.
+
+**Verification:**
+- New tests: `test_a_browser_that_never_launches_is_unavailable_not_blocked` covers all four launch sites; `test_an_unavailable_browser_keeps_retry_and_fallback_but_cools_no_account`.
+- Full Python suite: 4411 passed, 115 skipped. `make lint` clean.
+
+**Next steps:**
+- Merge and deploy (operator gates); the change ships with the next image.
+
 ## 2026-10-24 - Deployed master 7fa80f4; the stealthy browser launches again
 
 **Merged and deployed:** PR #53 (`fix/stealthy-browser-mismatch`, the login-wall
