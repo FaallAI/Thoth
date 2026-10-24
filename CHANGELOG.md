@@ -17,8 +17,10 @@ Patchright Chromium renders the post page (200, 4 articles, no redirect, only th
 headless default UA gets 403), and the embed widget renders. Full report:
 `D:/thoth-tmp/research/x-login-wall/report.md`.
 
-- **Dockerfile:** the browser layer installs patchright's Chromium next to scrapling's
-  playwright one, so a driver bump can never ship without its browser.
+- **Dockerfile:** the browser layer installs patchright's Chromium — with its system deps —
+  as the image's single Chromium (the legacy CDP's check refuses ambiguity), replacing
+  `scrapling install`, which would bake playwright's revision in as a second copy; the tld
+  snapshot `scrapling install` used to bake stays.
 - **Launch smoke:** `docker/test-browser-offline.sh` runs the existing
   `check_scrapling_capability()` probe offline against a built image. Wired into the
   container workflow's validation job and `make deploy`'s preflight (`make smoke-browser

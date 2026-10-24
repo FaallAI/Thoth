@@ -73,11 +73,12 @@ def test_dockerfile_uses_locked_full_compatibility_runtime() -> None:
     assert "FROM python:3.12-slim-bookworm AS runtime" in dockerfile
     assert "uv sync --frozen --no-dev --extra acquisition" in dockerfile
     assert "bun --cwd=/opt/thoth/scout install --frozen-lockfile --production" in dockerfile
-    assert "/opt/thoth/python/.venv/bin/scrapling install" in dockerfile
-    # `scrapling install` installs playwright's Chromium; the stealthy sessions launch
-    # through patchright, which pins its own revision. The 2026-10-23 refresh shipped the
-    # driver without its browser and every card visit failed as headless_blocked.
-    assert "/opt/thoth/python/.venv/bin/patchright install chromium" in dockerfile
+    assert "/opt/thoth/python/.venv/bin/patchright install --with-deps chromium" in dockerfile
+    # The image carries exactly one Chromium (the legacy CDP refuses ambiguity) and it is
+    # patchright's — the stealthy sessions launch through patchright, which pins its own
+    # revision. The 2026-10-23 refresh shipped the driver without its browser and every
+    # card visit failed as headless_blocked.
+    assert "/opt/thoth/python/.venv/bin/scrapling install" not in dockerfile
     assert "COPY . " not in dockerfile
 
 
