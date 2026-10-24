@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-24 - Deployed master 3703f33 (`browser_unavailable`)
+
+**Deployed:** PR #55 on `master` 3703f33, after its PR checks passed, including "Validate image build" and its browser launch smoke. The images:
+- `thoth@a29ee43e` (new);
+- renderer `b2fe65ff` and web `9b530de0`, both unchanged because the change is Python only.
+
+No render was queued. The previous pins are backed up outside the repository.
+
+**`make deploy`:** exit 0. The `browser-capability` preflight reported `scrapling_capability=true`, and every service came up healthy.
+
+**Checks:**
+- api, worker, renderer, web and legacy-cdp show 0 restarts and no error lines.
+- The worker image carries `AcquisitionReason.BROWSER_UNAVAILABLE`, which is in `LEGACY_FALLBACK_ELIGIBLE_CODES`.
+- Shortly after the deploy the WSL VM restarted on its own, and the whole stack started again. legacy-cdp came back healthy with no restart loop. That is the first live proof of PR #52's stale-lock clearing; the same event left legacy-cdp looping earlier today.
+
+**Next steps:**
+- The operator checks a real X workflow with a main of two or more videos, and a TikTok workflow.
+- `make captcha-stats` once TikTok workflows have run.
+- Triage the 46 Dependabot alerts that GitHub reports on `master`.
+
 ## 2026-10-24 - A browser that never launches reports `browser_unavailable`
 
 **Why:** every non-timeout error at a headless session's launch was classified `headless_blocked`, the same code as a site's login wall. On 2026-10-23/24 the stealthy browser could not start (patchright 1.64.2 without its chromium-1248, fixed in PR #53), and the X card probes' `headless_blocked` was misread as X walling this IP.
