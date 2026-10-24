@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import logging
+import time
 
 import pytest
 
 from tests.acquisition.fakes import FakeCardPage, FakeSession, card_session
 from tests.acquisition.png_fixtures import make_png
+from thoth_control_plane.acquisition import card_browser
 from thoth_control_plane.acquisition.browser import active_scrapling_session_count
 from thoth_control_plane.acquisition.card_browser import (
     COMMENT_ROW_ATTRIBUTE,
@@ -53,6 +55,25 @@ async def test_cards_follow_the_layout() -> None:
     assert profile_page.shots == [".profile"]
     assert session.exited == 1
     assert active_scrapling_session_count() == 0
+
+
+@pytest.mark.asyncio
+async def test_the_two_card_pages_wait_for_the_pacing_gap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The conftest fixture zeroes the gap for the suite; this test restores a small one and
+    # checks the wait really sits between the two visits.
+    monkeypatch.setattr(card_browser, "PAGE_SPACING_SECONDS", 0.05)
+    session = card_session({POST: FakeCardPage(POST), PROFILE: FakeCardPage(PROFILE)})
+    browser = CardBrowser(LAYOUT, lambda **kwargs: session)
+
+    started = time.perf_counter()
+    await browser.cards(POST, PROFILE, want_post=True, targets=[])
+    elapsed = time.perf_counter() - started
+    await browser.close()
+
+    assert session.active.visits == [POST, PROFILE]
+    assert elapsed >= 0.045
 
 
 @pytest.mark.asyncio
