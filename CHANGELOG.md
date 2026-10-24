@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-24 - `produce_video` runs attribution, footage and assembly after its approval
+
+Spec and plan: `docs/superpowers/specs/2026-10-24-produce-video-chain-design.md`. Research: `D:/thoth-tmp/research/produce-video-chain/report.md`, option a2.
+
+**Why:** the dashboard wizard and the CLI start every run as `produce_video`, and that intent stopped at its approval. Dashboard runs therefore never got attribution, footage (the carousel, a TikTok main's profile page), a Content Set, or the comment filter. The last Content Set was built on 2026-10-17.
+
+**Change** (`workflows/source_investigation.py`):
+- The attribution, footage and assembly steps move unchanged into `_production_chain`, including the legacy guard, the flags, the cancel checks and the failure codes. `identify_original` calls it as before.
+- An approved `produce_video` now runs the chain behind `workflow.patched("produce-video-chain")`, then succeeds. Reject and cancel spend nothing.
+- Histories recorded before the patch (approved, then succeeded at once) replay unchanged. No drain is needed.
+- No wizard, API or Studio change.
+
+**Tests:**
+- Approve runs attribution, footage and assembly in order and adds the attribution and Content Set artifacts.
+- Reject runs nothing.
+- A chain failure fails with `content_assembly_failed` / `assembly`.
+- A replay test: a pre-chain `produce_video` history with the chain flags on replays. With the patch removed it fails with `NondeterminismError` (mutation-checked).
+- Full suite: 4472 passed, 115 skipped. `make lint` clean.
+
+**Also checked:** the research's "about one X lease per run" is not right. X runs in the default `fallback` policy mode and leases only when the anonymous attempt is blocked; the normal case is 0.
+
+**Next steps:**
+- Merge and deploy (operator gates).
+- The live gate: one dashboard `produce_video` run with a TikTok main, approved, until its Content Set opens in Studio. Check the TikTok profile page, the comment filter (D1/D2) and the TikTok comment-card count.
+
 ## 2026-10-24 - X post card keeps its video; covered comment rows are never cropped
 
 **Why:** the X live gate after the a56c911 deploy found two defects (see that entry), and the operator approved both fixes.
