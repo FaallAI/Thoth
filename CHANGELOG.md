@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-24 - Deployed master 466f528 (sanitized Scrapling errors, scripts' Pillow)
+
+**Deployed:** PR #58 (Scrapling errors logged sanitized) and PR #57 (the scripts' Pillow pin) on `master` 466f528, after its CI went green. The images:
+- `thoth@0398792d` (new);
+- renderer `b2fe65ff` and web `9b530de0`, both unchanged.
+
+No render or workflow was open. The previous pins are backed up outside the repository.
+
+**Checks:**
+- `make deploy` exit 0; the `browser-capability` preflight reported `scrapling_capability=true`.
+- api, worker, renderer, web and legacy-cdp all show 0 restarts and no error lines.
+- The worker's sanitizer turns `proxy http://u:p@gw:1/x?t=1 token=abc` into `proxy http://gw:1/x token=<redacted>`.
+
+**Next steps:**
+- The next TikTok run's Scrapling errors are readable; diagnose the 11 errors seen on 2026-10-24.
+- Two research tasks are with other agents:
+  - X card cost (`D:/thoth-tmp/research/x-cards-cost/`);
+  - the dashboard intent chain (`D:/thoth-tmp/research/produce-video-chain/`).
+- In progress: meaningful-comment filtering and the embed fallback for X reply cards.
+
 ## 2026-10-24 - Scrapling errors are logged sanitized, not blanked
 
 **Why:** since Stage 1, every Scrapling WARNING/ERROR was rewritten to the constant `scrapling provider event redacted`. On the operator's TikTok run of 2026-10-24, eleven such ERROR lines arrived within half a second and nothing in them could be diagnosed. The operator ruled that error logs must stay visible, with only their secrets hidden.
