@@ -566,6 +566,13 @@ def _is_timeout(error: Exception) -> bool:
     return "timeout" in type(error).__name__.lower()
 
 
+def _classify_launch_error(error: Exception) -> AcquisitionReason:
+    """A session that never started never reached the site, so it must not read as a block."""
+    if _is_timeout(error):
+        return AcquisitionReason.HEADLESS_TIMEOUT
+    return AcquisitionReason.BROWSER_UNAVAILABLE
+
+
 def _classify_fetch_error(error: Exception) -> AcquisitionReason:
     if _is_timeout(error):
         return AcquisitionReason.HEADLESS_TIMEOUT
@@ -584,7 +591,7 @@ class ScraplingHeadlessBrowser:
         try:
             active = await session.__aenter__()
         except Exception as error:
-            raise HeadlessBrowserError(_classify_fetch_error(error)) from None
+            raise HeadlessBrowserError(_classify_launch_error(error)) from None
 
         self._session = session
         _increment_active_sessions()

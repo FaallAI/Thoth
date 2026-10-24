@@ -823,3 +823,53 @@ async def test_no_caption_block_means_no_post_card(monkeypatch) -> None:
     await browser.close()
     assert snapshot.post_card_png is None
     assert snapshot.profile_card_png == b"profile-png-1"
+
+
+class _Unlaunchable:
+    """A session whose browser never starts: the 2026-10-23 image's missing chromium-1248."""
+
+    async def __aenter__(self) -> None:
+        raise RuntimeError("Executable doesn't exist at /ms-playwright/chromium-1248")
+
+    async def __aexit__(self, *exc: object) -> None:
+        return None
+
+
+def _launch_sites() -> list:
+    from thoth_control_plane.acquisition.card_browser import CardBrowser, CardLayout
+    from thoth_control_plane.acquisition.threads_service import ThreadsHeadlessBrowser
+
+    factory = lambda **kwargs: _Unlaunchable()  # noqa: E731
+    cards = CardBrowser(CardLayout(".post", ".profile", "TAG", ("/login",)), factory)
+    return [
+        lambda: ScraplingHeadlessBrowser(session_factory=factory).fetch(POST_URL),
+        lambda: ThreadsHeadlessBrowser(factory).fetch("https://www.threads.com/@a/post/b"),
+        lambda: ThreadsHeadlessBrowser(factory).resolve("https://www.threads.com/share/c/"),
+        lambda: cards._visit("https://example.test/post/1"),
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("site", range(4))
+async def test_a_browser_that_never_launches_is_unavailable_not_blocked(site: int) -> None:
+    # Deploy 2026-10-23/24: a launch failure read as `headless_blocked`, the same code as a
+    # login wall, and was misreported as X walling the IP.
+    with pytest.raises(HeadlessBrowserError) as caught:
+        await _launch_sites()[site]()
+    assert caught.value.reason is AcquisitionReason.BROWSER_UNAVAILABLE
+    assert active_scrapling_session_count() == 0
+
+
+def test_an_unavailable_browser_keeps_retry_and_fallback_but_cools_no_account() -> None:
+    # Operator ruling 2026-10-24: a launch failure keeps the legacy CDP fallback it had as
+    # `headless_blocked`; it is never the site's doing, so no account is marked blocked.
+    from thoth_control_plane.acquisition.accounts.runner import BLOCKED_CODES
+    from thoth_control_plane.acquisition.service import RETRYABLE_FAILURES
+    from thoth_control_plane.domain.models import (
+        LEGACY_FALLBACK_ELIGIBLE_CODES,
+        SOURCE_EVENT_REASONS,
+    )
+
+    code = AcquisitionReason.BROWSER_UNAVAILABLE.value
+    assert code in RETRYABLE_FAILURES & LEGACY_FALLBACK_ELIGIBLE_CODES & SOURCE_EVENT_REASONS
+    assert code not in BLOCKED_CODES

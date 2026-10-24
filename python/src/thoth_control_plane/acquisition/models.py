@@ -80,6 +80,9 @@ class AcquisitionReason(StrEnum):
     # A login page instead of the content: reported as `request_blocked`; the reason
     # tells source-account rotation that a session has expired.
     LOGIN_WALL = "login_wall"
+    # The browser never started (a mismatched binary, a stale profile lock): never the site's
+    # doing, so it cools no account, but it is retried and may still fall back to legacy.
+    BROWSER_UNAVAILABLE = "browser_unavailable"
 
 
 def failure_code(reason: AcquisitionReason) -> str:
@@ -281,6 +284,7 @@ class AcquisitionFailure(StrictModel):
         "cdn_rate_limited",
         "cdn_unavailable",
         "media_validation_failed",
+        "browser_unavailable",
         "no_content",
         "artifact_persistence_failed",
         "acquisition_dependency_unavailable",

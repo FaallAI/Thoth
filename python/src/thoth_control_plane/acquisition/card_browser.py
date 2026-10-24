@@ -21,6 +21,7 @@ from thoth_control_plane.acquisition.browser import (
     FETCH_OPTIONS,
     HeadlessBrowserError,
     _classify_fetch_error,
+    _classify_launch_error,
     _default_session_factory,
     _increment_active_sessions,
 )
@@ -203,7 +204,7 @@ class CardBrowser:
             try:
                 active = await session.__aenter__()
             except Exception as error:
-                raise HeadlessBrowserError(_classify_fetch_error(error)) from None
+                raise HeadlessBrowserError(_classify_launch_error(error)) from None
             self._session, self._active = session, active
             _increment_active_sessions()
         return self._active

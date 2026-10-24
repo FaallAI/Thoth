@@ -62,6 +62,7 @@ SoakFailureCode: TypeAlias = Literal[
     "cdn_rate_limited",
     "cdn_unavailable",
     "media_validation_failed",
+    "browser_unavailable",
     "artifact_persistence_failed",
     "acquisition_dependency_unavailable",
     "acquisition_runner_failed",
