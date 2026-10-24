@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-24 - Scripts' Pillow pin moved to 13.0.0 (Dependabot)
+
+**Why:** GitHub reported 46 open Dependabot alerts after the repository went public. 41 of them are Pillow alerts against the root `requirements.txt`:
+- 5 critical, 23 high and 13 medium;
+- all fixed in 13.0.0.
+
+That file only serves the legacy `scripts/` tooling of the frozen Rust engine. The deployed control plane resolves Pillow from `python/uv.lock`, already 13.0.0, so production was not exposed.
+
+**Change:** `requirements.txt` pins `pillow==13.0.0`.
+
+**Verification:** every `Image`/`ImageDraw`/`ImageFont`/`ImageFilter` attribute used by `scripts/render/render_cover.py`, `scripts/render/render_headline.py` and `scripts/vision/embed_platform_logos.py` exists in Pillow 13.0.0. `textlength`, `textbbox`, `resize(..., Image.LANCZOS)` and `save` ran on 13.0.0.
+
+**Left open (operator decision; the Rust engine is frozen):** five alerts sit in the Rust lockfiles:
+- `quinn-proto` (high, 0.11.15) in `Cargo.lock` and `test/scraper/Cargo.lock`;
+- `rustls` (medium, 0.23.45) in both;
+- `tar` (medium, 0.4.46) in `Cargo.lock`.
+
+No Rust service runs in the deployed stack.
+
 ## 2026-10-24 - Deployed master 3703f33 (`browser_unavailable`)
 
 **Deployed:** PR #55 on `master` 3703f33, after its PR checks passed, including "Validate image build" and its browser launch smoke. The images:

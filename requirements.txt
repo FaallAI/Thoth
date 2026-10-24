@@ -16,7 +16,7 @@ edge-tts==7.2.8
 mutagen==1.47.0        # optional — precise MP3 duration; script degrades without it
 
 # scripts/render/{render_cover,render_headline}.py — Pillow compositing (via THOTH_PYTHON)
-pillow==12.3.0
+pillow==13.0.0
 numpy==2.4.6            # optional — render_cover.py degrades gracefully without it
 rembg                   # optional — render_cover.py subject cutout; falls back to no-subject
 
