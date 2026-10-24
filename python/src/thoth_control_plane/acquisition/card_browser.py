@@ -37,6 +37,24 @@ from thoth_control_plane.acquisition.threads_service import exit_session, save_c
 logger = logging.getLogger(__name__)
 
 COMMENT_ROW_ATTRIBUTE = "data-thoth-comment"
+# True when something else lies over the row (live gate 2026-10-24: X's "See all the replies"
+# gate covered the last page replies, and their crops showed the gate). Checked by position, so
+# it holds in any page language; points outside the viewport are not checked.
+COVERED_JS = """
+(selector) => {
+  const row = document.querySelector(selector);
+  if (!row) return true;
+  const box = row.getBoundingClientRect();
+  for (const share of [0.2, 0.5, 0.8]) {
+    const x = box.left + box.width / 2;
+    const y = box.top + box.height * share;
+    if (y < 0 || y >= window.innerHeight || x < 0 || x >= window.innerWidth) continue;
+    const hit = document.elementFromPoint(x, y);
+    if (hit && !row.contains(hit)) return true;
+  }
+  return false;
+}
+"""
 COMMENT_PREFIX_CHARS = 30
 DIALOG_TIMEOUT_MS = 3_000
 SHOT_TIMEOUT_MS = 10_000
@@ -123,6 +141,17 @@ async def _crop(page: Any, selector: str) -> bytes | None:
     return None
 
 
+async def _crop_row(page: Any, selector: str) -> bytes | None:
+    """A comment row's crop, unless something covers it; a covered row stays uncarded."""
+    with contextlib.suppress(Exception):
+        element = page.locator(selector).first
+        await element.scroll_into_view_if_needed(timeout=5_000)
+        if await page.evaluate(COVERED_JS, selector) is True:
+            return None
+        return await element.screenshot(timeout=10_000)
+    return None
+
+
 def _on_post(
     cards: Cards, want_post: bool, targets: list[CommentTarget], layout: CardLayout
 ) -> Callable[[Any], Awaitable[None]]:
@@ -148,7 +177,7 @@ def _on_post(
         for comment_id in tagged if isinstance(tagged, list) else []:
             # Only ids we sent (validated `[A-Za-z0-9_-]`) ever reach a selector.
             if comment_id in known and comment_id not in cards.comment_pngs:
-                png = await _crop(page, f'[{COMMENT_ROW_ATTRIBUTE}="{comment_id}"]')
+                png = await _crop_row(page, f'[{COMMENT_ROW_ATTRIBUTE}="{comment_id}"]')
                 if png is not None:
                     cards.comment_pngs[comment_id] = png
 

@@ -126,6 +126,7 @@ async def test_cards_use_the_x_layout_with_no_dialog() -> None:
         (HIDE_OVERLAYS_JS, None),
         (MEDIA_BOX_JS, post_selector),
         (TAG_REPLIES_JS, [{"comment_id": C1, "author": "fan_001", "prefix": "a reply"}]),
+        (card_browser.COVERED_JS, f'[{COMMENT_ROW_ATTRIBUTE}="{C1}"]'),
     ]
     # The header is tagged by shape for this owner first, then cropped by the tag (G5).
     assert PROFILE_CARD_SELECTOR == '[data-thoth-profile-card="1"]'
@@ -272,8 +273,8 @@ async def test_x_pages_block_heavy_hosts_and_embeds_do_not() -> None:
     await browser.close()
 
     post, profile, embed = session.active.options
+    # Video segments load: blocking them left the post card's tiles on an error (live gate).
     expected = {
-        "video.twimg.com",
         "fonts.gstatic.com",
         "fonts.googleapis.com",
         "analytics.twitter.com",
@@ -326,3 +327,20 @@ async def test_past_the_card_step_budget_no_embed_starts(
     assert session.active.visits == [POST, PROFILE]
     assert C2 not in cards.comment_pngs
     assert any("skipped=1" in record.getMessage() for record in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_a_covered_page_reply_falls_back_to_its_embed() -> None:
+    post_page = FakeCardPage(POST, tagged=[C1], results={card_browser.COVERED_JS: True})
+    pages = {POST: post_page, PROFILE: FakeCardPage(PROFILE), _embed(C1): _embed_page(C1)}
+    session = card_session(pages)
+    browser = XHeadlessBrowser(lambda **kwargs: session)
+
+    cards = await browser.cards(
+        POST, PROFILE, want_post=True, targets=TARGETS, embeds=[CommentTarget(C1, "fan_001", "a")]
+    )
+    await browser.close()
+
+    assert session.active.visits == [POST, PROFILE, _embed(C1)]
+    assert list(cards.comment_pngs) == [C1]
+    assert pages[_embed(C1)].shots == ["article"]
