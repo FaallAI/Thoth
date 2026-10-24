@@ -1,9 +1,11 @@
 """Durability tests for the source-investigation workflow."""
 
 import asyncio
+import json
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import httpx
 import pytest
@@ -2199,6 +2201,176 @@ async def test_a_history_recorded_before_metering_still_replays(
     assert len(recorded["events"]) - len(events) == 3
     for number, event in enumerate(events, start=1):
         event["eventId"] = str(number)
+    recorded["events"] = events
+    await Replayer(
+        workflows=[SourceInvestigationWorkflow], data_converter=pydantic_data_converter
+    ).replay_workflow(WorkflowHistory.from_json(workflow_id, recorded))
+
+
+# Spec 2026-10-24: an approved produce_video runs the production chain; reject runs nothing.
+def _produce_chain() -> SourceInvestigationWorkflowInput:
+    return workflow_input(VALID_PRODUCE_REQUEST).model_copy(
+        update={"attribute_source": True, "assemble_content": True, "build_footage": True}
+    )
+
+
+@activity.defn(name="attribute_source")
+async def ordered_attribute(
+    input_: SourceAttributionActivityInput,
+) -> SourceAttributionActivityResult:
+    ORDER.append("attribution")
+    return await fake_attribute(input_)
+
+
+async def _decide(handle: Any, decision: str) -> None:
+    await wait_for_status(handle, "awaiting_approval")
+    awaiting = await handle.query(SourceInvestigationWorkflow.summary)
+    assert ORDER == []  # nothing of the chain runs before the approval
+    await handle.signal(
+        SourceInvestigationWorkflow.record_approval,
+        ApprovalSignal(
+            approval_id=awaiting.approval.approval_id,
+            decision=ApprovalDecision(decision=decision),
+            actor=ACTOR_SNAPSHOT,
+            decided_at=datetime(2026, 10, 24, tzinfo=UTC),
+        ),
+    )
+
+
+@pytest.mark.asyncio
+async def test_an_approved_produce_video_runs_the_production_chain(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    ORDER.clear()
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[
+            record_workflow_completed,
+            fake_inspect,
+            ordered_attribute,
+            fake_footage,
+            ordered_assemble,
+        ],
+    ):
+        handle = await workflow_env.client.start_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_produce_chain()],
+            id="wf_test_produce_chain",
+            task_queue="test",
+        )
+        await _decide(handle, "approve")
+        result = await handle.result()
+
+    assert result.status == "succeeded"
+    assert ORDER == ["attribution", "footage", "assembly"]
+    kinds = [artifact.kind for artifact in result.artifacts]
+    assert "source_attribution" in kinds and "content_set" in kinds
+
+
+@pytest.mark.asyncio
+async def test_a_rejected_produce_video_runs_nothing(workflow_env: WorkflowEnvironment) -> None:
+    ORDER.clear()
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[
+            record_workflow_completed,
+            fake_inspect,
+            ordered_attribute,
+            fake_footage,
+            ordered_assemble,
+        ],
+    ):
+        handle = await workflow_env.client.start_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_produce_chain()],
+            id="wf_test_produce_reject",
+            task_queue="test",
+        )
+        await _decide(handle, "reject")
+        result = await handle.result()
+
+    assert result.status == "failed"
+    assert result.failure is not None and result.failure.code == "approval_rejected"
+    assert ORDER == []
+
+
+@pytest.mark.asyncio
+async def test_a_produce_video_chain_failure_fails_like_identify_original(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    ORDER.clear()
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[
+            record_workflow_completed,
+            fake_inspect,
+            ordered_attribute,
+            fake_footage,
+            failing_assemble,
+        ],
+    ):
+        handle = await workflow_env.client.start_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_produce_chain()],
+            id="wf_test_produce_chain_fails",
+            task_queue="test",
+        )
+        await _decide(handle, "approve")
+        result = await handle.result()
+
+    assert result.status == "failed"
+    assert result.failure is not None
+    assert (result.failure.code, result.failure.failed_stage) == (
+        "content_assembly_failed",
+        "assembly",
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_produce_video_history_from_before_the_chain_still_replays(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    """A produce_video run recorded before the chain existed: approved, then succeeded at once,
+    with the chain flags on in production. Without the patch, replaying it would schedule
+    attribution where the history has none."""
+    import base64
+
+    from temporalio.client import WorkflowHistory
+    from temporalio.worker import Replayer
+
+    ORDER.clear()
+    workflow_id = "wf_test_pre_chain_replay"
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[record_workflow_completed, fake_inspect],
+    ):
+        handle = await workflow_env.client.start_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[workflow_input(VALID_PRODUCE_REQUEST)],  # chain flags off: no chain activity
+            id=workflow_id,
+            task_queue="test",
+        )
+        await _decide(handle, "approve")
+        await handle.result()
+        history = await handle.fetch_history()
+    recorded = history.to_json_dict()
+    added = ("MARKER_RECORDED", "UPSERT_WORKFLOW_SEARCH_ATTRIBUTES")
+    events = [e for e in recorded["events"] if not str(e.get("eventType")).endswith(added)]
+    for number, event in enumerate(events, start=1):
+        event["eventId"] = str(number)
+    # The old production run had the chain flags on.
+    payload = events[0]["workflowExecutionStartedEventAttributes"]["input"]["payloads"][0]
+    started = json.loads(base64.b64decode(payload["data"]))
+    started.update(attribute_source=True, assemble_content=True, build_footage=True)
+    payload["data"] = base64.b64encode(json.dumps(started).encode()).decode()
     recorded["events"] = events
     await Replayer(
         workflows=[SourceInvestigationWorkflow], data_converter=pydantic_data_converter

@@ -63,6 +63,9 @@ with workflow.unsafe.imports_passed_through():
 
 
 COMPLETION_PATCH = "usage-workflow-completed"
+# Spec 2026-10-24: an approved produce_video runs the production chain. Histories recorded
+# before it (approved, then succeeded at once) replay unchanged.
+PRODUCE_CHAIN_PATCH = "produce-video-chain"
 
 
 @workflow.defn
@@ -194,46 +197,8 @@ class SourceInvestigationWorkflow:
             return self._summary()
 
         if input_.intent == "identify_original":
-            # Legacy Scout writes no v3 report, so there is nothing to attribute or assemble.
-            if not self._report_from_legacy:
-                if input_.attribute_source:
-                    attributed = await self._attribute()
-                    if self._cancel_requested:
-                        self._transition(WorkflowStatus.CANCELLED)
-                        self._record_event(EventKind.WORKFLOW_CANCELLED)
-                        return self._summary()
-                    if not attributed:
-                        self._failure = WorkflowFailure(
-                            code="source_attribution_failed",
-                            message="Source attribution failed",
-                            failed_stage="attribution",
-                            retryable=True,
-                        )
-                        self._transition(WorkflowStatus.FAILED)
-                        self._record_event(EventKind.WORKFLOW_FAILED)
-                        return self._summary()
-                if input_.assemble_content and input_.build_footage:
-                    await self._footage()
-                    if self._cancel_requested:
-                        self._transition(WorkflowStatus.CANCELLED)
-                        self._record_event(EventKind.WORKFLOW_CANCELLED)
-                        return self._summary()
-                if input_.assemble_content:
-                    assembled = await self._assemble()
-                    if self._cancel_requested:
-                        self._transition(WorkflowStatus.CANCELLED)
-                        self._record_event(EventKind.WORKFLOW_CANCELLED)
-                        return self._summary()
-                    if not assembled:
-                        self._failure = WorkflowFailure(
-                            code="content_assembly_failed",
-                            message="Content assembly failed",
-                            failed_stage="assembly",
-                            retryable=True,
-                        )
-                        self._transition(WorkflowStatus.FAILED)
-                        self._record_event(EventKind.WORKFLOW_FAILED)
-                        return self._summary()
+            if (stopped := await self._production_chain(input_)) is not None:
+                return stopped
             self._transition(WorkflowStatus.SUCCEEDED)
             self._record_event(EventKind.WORKFLOW_COMPLETED)
             return self._summary()
@@ -256,6 +221,11 @@ class SourceInvestigationWorkflow:
             self._record_event(EventKind.WORKFLOW_CANCELLED)
         elif self._approval_decision == "approve":
             self._approval = None
+            # The approval gates the production work; a reject or cancel spends nothing.
+            if workflow.patched(PRODUCE_CHAIN_PATCH):
+                self._transition(WorkflowStatus.RUNNING)
+                if (stopped := await self._production_chain(input_)) is not None:
+                    return stopped
             self._transition(WorkflowStatus.SUCCEEDED)
             self._record_event(EventKind.WORKFLOW_COMPLETED)
         else:
@@ -269,6 +239,54 @@ class SourceInvestigationWorkflow:
             self._transition(WorkflowStatus.FAILED)
             self._record_event(EventKind.WORKFLOW_FAILED)
         return self._summary()
+
+    async def _production_chain(
+        self, input_: SourceInvestigationWorkflowInput
+    ) -> WorkflowSummary | None:
+        """Attribution, footage, and assembly, each behind its flag; the terminal summary when
+        the run stops (failed or cancelled), None when the chain finished."""
+        # Legacy Scout writes no v3 report, so there is nothing to attribute or assemble.
+        if self._report_from_legacy:
+            return None
+        if input_.attribute_source:
+            attributed = await self._attribute()
+            if self._cancel_requested:
+                self._transition(WorkflowStatus.CANCELLED)
+                self._record_event(EventKind.WORKFLOW_CANCELLED)
+                return self._summary()
+            if not attributed:
+                self._failure = WorkflowFailure(
+                    code="source_attribution_failed",
+                    message="Source attribution failed",
+                    failed_stage="attribution",
+                    retryable=True,
+                )
+                self._transition(WorkflowStatus.FAILED)
+                self._record_event(EventKind.WORKFLOW_FAILED)
+                return self._summary()
+        if input_.assemble_content and input_.build_footage:
+            await self._footage()
+            if self._cancel_requested:
+                self._transition(WorkflowStatus.CANCELLED)
+                self._record_event(EventKind.WORKFLOW_CANCELLED)
+                return self._summary()
+        if input_.assemble_content:
+            assembled = await self._assemble()
+            if self._cancel_requested:
+                self._transition(WorkflowStatus.CANCELLED)
+                self._record_event(EventKind.WORKFLOW_CANCELLED)
+                return self._summary()
+            if not assembled:
+                self._failure = WorkflowFailure(
+                    code="content_assembly_failed",
+                    message="Content assembly failed",
+                    failed_stage="assembly",
+                    retryable=True,
+                )
+                self._transition(WorkflowStatus.FAILED)
+                self._record_event(EventKind.WORKFLOW_FAILED)
+                return self._summary()
+        return None
 
     async def _execute_source_activity(
         self, input_: SourceInvestigationWorkflowInput
