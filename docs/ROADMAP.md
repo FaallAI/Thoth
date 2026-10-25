@@ -51,7 +51,7 @@ The operator started this on 2026-10-24/25, because a dashboard run now takes 6 
 |---|---|---|
 | 1. Design | Dashboard and Studio design reference, pen.dev screens (Prompts 0-30), Studio research and §13 | Done 2026-10-25 (PR #68, #70, #71, #72) |
 | 2. Run progress, phase 1: stage plan | Every planned stage in the summary from the start, `skipped` with a reason, stage timings, new stage ids | Done 2026-10-25 (branch `feat/run-progress-stage-plan`), awaiting review |
-| 3. Run progress, phase 2: steps | `workflow_steps` (migration 0019), the step recorder in activities, `GET /workflows/{id}/steps`, `current_step` | After step 2 |
+| 3. Run progress, phase 2: steps | `workflow_steps` (migration 0019), the step recorder in activities, `GET /workflows/{id}/steps`, `current_step` | Done 2026-10-25 (branch `feat/run-progress-steps`), awaiting review |
 | 4. Run progress, phase 3: instrumentation | The step catalogue in the X, TikTok, Instagram, YouTube and Threads acquirers, attribution, footage and assembly | After step 3 |
 | 5. Run progress, phase 4: estimates and inbox | `estimate_seconds_remaining`, `GET /inbox`, acknowledging failed runs | After step 3 |
 | 6. Run progress, phase 5: render frames | Rendered and encoded frames and the render stage from the renderer | After step 2 |

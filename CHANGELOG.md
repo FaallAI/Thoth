@@ -52,6 +52,31 @@ All notable changes to this project will be documented in this file.
 **Next steps:**
 - **Operator gates:** push and PR, merge, deploy, all separate from the run-progress stack.
 - **Then:** rebase the run-progress stack onto this, move the phase 5 frame columns into `RenderJobRow`, and keep the parity test green.
+## 2026-10-25 - Run progress phase 2: steps
+
+**Spec/plan:** spec G2, G3 and §3-§5, and `docs/superpowers/plans/2026-10-25-run-progress-phase2-steps.md` (roadmap "Dashboard redesign track", step 3). Branch `feat/run-progress-steps`, stacked on `feat/run-progress-stage-plan`.
+
+**What changed:**
+- Migration `0019_workflow_steps` (SQL plus Alembic): the `workflow_steps` table — `workflow_id` with no foreign key (the first activity can record a step before the `workflow_runs` row exists), `seq` bigserial, closed `stage` and `kind` CHECKs, `params` limited to 1 kB, index `(workflow_id, seq)`. The `workflow_runs.acknowledged_at` and `render_jobs` frame columns stay out; they are phases 4 and 5.
+- New `progress.py`: the closed step catalogue (spec §5, codes are `stage.name`), the step recorder mirroring metering (ContextVar scope, process-wide sink, `step()`/`step_sync()` never fail the work), the kind derivation (wait > warning > progress > info), the `verdict`/`platform`/`count` params whitelist that drops the whole map on any violation, and per-scope coalescing of progress repeats to one row per second (never at `n == total`).
+- `activities/progress_scope.py`: `ProgressScopeInterceptor` maps the four activity types (`inspect_source_candidates`, `attribute_source`, `build_footage`, `assemble_content`) to their stages and sets the `StepScope` (workflow id, stage, attempt); no network call. `worker.py` installs it beside `MeterScopeInterceptor` and the `StepStore` sink beside the usage sink.
+- `infrastructure/step_models.py` + `step_store.py`: the ORM row and the synchronous `StepStore` (`append`, `page` ordered by `seq`, `current_steps` = per stage the latest step of the highest attempt).
+- API (D6): `GET /workflows/{id}/steps?after=0&limit=200` (bounds 422), authorized from the run row only — no Temporal query, because the dashboard polls every second; a missing or foreign run is 404; no run store or no step store degrades to an empty page. `WorkflowRunService.get` fills each running or waiting stage's `current_step` after settle, so stored summaries never hold it; a step-store error costs only the field.
+- Domain: `WorkflowStep`, `WorkflowStepPage`, `StepKind`, and `StageSummary.current_step` (optional, API-filled). `python/openapi.json` and `dashboard/src/api/generated/control-plane.ts` regenerated with only these additions. No dashboard UI change in this phase.
+
+**Evidence:**
+- Full Python suite (WSL, final tree): 4582 passed, 116 skipped; `make lint` clean (ruff check + format).
+- Postgres suite (`make test-postgres`): 23 passed — migration 0019 applies on Postgres, the fresh-database chain is 19 revisions, and the closed CHECKs reject a bad stage or kind.
+- Dashboard: full suite 751 pass, 0 fail across 53 files; `bun run build` (tsc -b + vite) succeeds with only the pre-existing >500 kB chunk warning. Only the generated types changed.
+- Replay (D8): `git diff 8a7a3af -- python/src/thoth_control_plane/workflows/` is empty; the two phase 1 fixture histories and the two older replay tests pass unchanged (6 replays). The workflow is untouched.
+- Retention (D5): no code deletes `workflow_runs` rows — steps are kept as long as the run row by construction.
+
+**Why:** nothing was visible inside an activity: source acquisition (~2.5 min), footage and assembly reported only when they ended. Steps are written straight to Postgres by the activities (spec §3), because Temporal throttles heartbeats by 30-60 s and a step would reach the UI half a minute late.
+
+**Next steps:**
+- Claude reviews `feat/run-progress-steps`; the push, PR, merge and deploy gates stay with the operator for the stack.
+- Roadmap step 4: run progress phase 3 (instrumentation — the acquirers, attribution, footage and assembly emit the catalogue codes).
+
 ## 2026-10-25 - Run progress phase 1: the stage plan
 
 **Spec/plan:** spec G1 and `docs/superpowers/plans/2026-10-25-run-progress-phase1-stage-plan.md` (roadmap "Dashboard redesign track", step 2). Branch `feat/run-progress-stage-plan`.
