@@ -6,6 +6,7 @@ names the stage, and `activity.info()` carries the workflow id and the attempt.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from temporalio import activity
@@ -29,8 +30,12 @@ class _ScopedActivity(ActivityInboundInterceptor):
         stage = STAGE_OF_ACTIVITY.get(info.activity_type)
         if stage is None:
             return await super().execute_activity(input)
-        with progress.scoped(StepScope(info.workflow_id, stage, info.attempt)):
-            return await super().execute_activity(input)
+        scope = StepScope(info.workflow_id, stage, info.attempt, loop=asyncio.get_running_loop())
+        with progress.scoped(scope):
+            try:
+                return await super().execute_activity(input)
+            finally:
+                await progress.flush(scope)  # an update held by coalescing is never lost
 
 
 class ProgressScopeInterceptor(Interceptor):

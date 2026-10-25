@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -197,3 +198,47 @@ async def test_the_recorder_stamps_the_time_and_carries_the_scope(sink: Sink) ->
     (scope, record) = sink.records[0]
     assert scope is not None and scope.workflow_id == "wf_1"
     assert record.at.tzinfo is not None and record.at >= before
+
+
+async def test_a_held_update_is_written_before_the_next_code(sink: Sink, clock) -> None:
+    scope = StepScope(workflow_id="wf_held", stage="source", attempt=1)
+    with progress.scoped(scope):
+        await progress.step("source.download_media", n=1, total=9)  # written
+        clock.append(0.2)
+        await progress.step("source.download_media", n=2, total=9)  # held
+        clock.append(0.3)
+        await progress.step("source.download_media", n=3, total=9)  # replaces the held one
+        clock.append(0.4)
+        await progress.step("source.fetch_post")  # the held update goes first, in order
+    assert [(record.code, record.n) for _, record in sink.records] == [
+        ("source.download_media", 1),
+        ("source.download_media", 3),
+        ("source.fetch_post", None),
+    ]
+
+
+async def test_a_held_update_is_written_when_its_window_ends(
+    sink: Sink, clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A quiet activity never leaves the current step one update behind (review N1)."""
+    monkeypatch.setattr(progress, "COALESCE_SECONDS", 0.05)
+    scope = StepScope(
+        workflow_id="wf_quiet", stage="source", attempt=1, loop=asyncio.get_running_loop()
+    )
+    with progress.scoped(scope):
+        await progress.step("source.capture_comment_cards", n=4, total=10)  # written
+        clock.append(0.01)
+        await progress.step("source.capture_comment_cards", n=5, total=10)  # held
+        await asyncio.sleep(0.3)  # the activity goes quiet
+    assert [record.n for _, record in sink.records] == [4, 5]
+
+
+async def test_flush_writes_the_held_update_when_the_scope_ends(sink: Sink, clock) -> None:
+    scope = StepScope(workflow_id="wf_end", stage="source", attempt=1)
+    with progress.scoped(scope):
+        await progress.step("source.download_media", n=1, total=9)
+        clock.append(0.1)
+        await progress.step("source.download_media", n=2, total=9)  # held
+    await progress.flush(scope)
+    await progress.flush(scope)  # idempotent
+    assert [record.n for _, record in sink.records] == [1, 2]

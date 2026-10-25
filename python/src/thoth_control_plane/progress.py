@@ -12,6 +12,7 @@ import asyncio
 import contextlib
 import logging
 import re
+import threading
 import time
 from collections.abc import Iterator, Mapping
 from contextvars import ContextVar
@@ -57,7 +58,9 @@ CATALOGUE: dict[str, StepKind] = {
 PARAM_KEYS = frozenset({"verdict", "platform", "count"})
 PARAM_VALUE_PATTERN = re.compile(r"^[a-z0-9_.-]{1,40}$")
 
-#: Progress updates of one code coalesce to at most one written row per this window.
+#: Progress updates of one code coalesce to at most one written row per this window. An update
+#: inside the window is held, not dropped: it is written before the next step of another code,
+#: when the window ends, or when the activity ends, so the current step never lags behind.
 COALESCE_SECONDS = 1.0
 
 #: Tests patch this clock; production reads the process-wide monotonic time.
@@ -69,8 +72,13 @@ class StepScope:
     workflow_id: str
     stage: str
     attempt: int
-    # The last written code and when it was written, so coalescing stays inside this scope.
+    # The last written code and when, the held update and its timer: all inside this scope.
     coalesce: dict[str, Any] = field(default_factory=dict, compare=False, repr=False)
+    # The activity's event loop, which runs the timer that writes a held update; without
+    # one, a held update waits for the next step or `flush`.
+    loop: asyncio.AbstractEventLoop | None = field(default=None, compare=False, repr=False)
+    # Steps may come from several threads (`to_thread`); writes stay in order per scope.
+    lock: threading.Lock = field(default_factory=threading.Lock, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -89,6 +97,8 @@ class StepSink(Protocol):
 
 
 _scope: ContextVar[StepScope | None] = ContextVar("thoth_step_scope", default=None)
+# Strong references to running timer writes, so they are not collected mid-flight.
+_flushes: set[asyncio.Task[None]] = set()
 # ponytail: one process-wide sink; the worker installs the editor database's.
 _sink: StepSink | None = None
 
@@ -177,8 +187,6 @@ def step_sync(
         logger.warning("step outside its scope's stage dropped code=%s", code)
         return
     kind = _kind_of(code, n=n, wait_until=wait_until)
-    if kind == "progress" and _coalesced(scope, code, n=n, total=total):
-        return
     record = StepRecord(
         at=datetime.now(UTC),
         kind=kind,
@@ -188,13 +196,64 @@ def step_sync(
         wait_until=wait_until,
         params=_safe_params(params, code=code),
     )
+    with scope.lock:
+        held = kind == "progress" and _coalesced(scope, code, n=n, total=total)
+        if held:
+            scope.coalesce["pending"] = record  # the newest update of this code wins
+        else:
+            pending = scope.coalesce.pop("pending", None)
+            if pending is not None and pending.code != code:
+                _write(sink, scope, pending)  # older, so it goes first
+            _write(sink, scope, record)  # a held update of this code is superseded
+    if held and scope.loop is not None:
+        scope.loop.call_soon_threadsafe(_arm, scope)
+
+
+def _write(sink: StepSink, scope: StepScope, record: StepRecord) -> None:
+    """Write one step; the caller holds the scope's lock."""
     try:
         sink.append(scope, record)
     except Exception:
-        logger.warning("step not recorded code=%s", code)
+        logger.warning("step not recorded code=%s", record.code)
     else:
-        scope.coalesce["code"] = code
+        scope.coalesce["code"] = record.code
         scope.coalesce["at"] = _monotonic()
+
+
+def _arm(scope: StepScope) -> None:
+    """On the loop: write the held update when the window ends, unless a timer already will."""
+    if scope.loop is None or scope.coalesce.get("timer") is not None:
+        return
+    written_at = scope.coalesce.get("at", _monotonic())
+    delay = max(0.0, COALESCE_SECONDS - (_monotonic() - written_at))
+    scope.coalesce["timer"] = scope.loop.call_later(delay, _fire, scope)
+
+
+def _fire(scope: StepScope) -> None:
+    scope.coalesce["timer"] = None
+    task = asyncio.ensure_future(asyncio.to_thread(flush_sync, scope))
+    _flushes.add(task)
+    task.add_done_callback(_flushes.discard)
+
+
+def flush_sync(scope: StepScope) -> None:
+    """Write the scope's held update, if any."""
+    sink = _sink
+    if sink is None:
+        return
+    with scope.lock:
+        pending = scope.coalesce.pop("pending", None)
+        if pending is not None:
+            _write(sink, scope, pending)
+
+
+async def flush(scope: StepScope) -> None:
+    """Called when the activity ends: cancel the timer and write the held update now."""
+    timer = scope.coalesce.pop("timer", None)
+    if timer is not None:
+        timer.cancel()
+    if scope.coalesce.get("pending") is not None:
+        await asyncio.to_thread(flush_sync, scope)
 
 
 async def step(

@@ -119,3 +119,22 @@ def test_the_source_worker_carries_both_scope_interceptors(
     worker.build_source_investigation_worker(object(), settings, reports=object(), media=object())
     names = [type(interceptor).__name__ for interceptor in recorded["interceptors"]]
     assert names == ["MeterScopeInterceptor", "ProgressScopeInterceptor"]
+
+
+async def test_an_update_held_by_coalescing_is_written_before_the_activity_returns(
+    info, sink
+) -> None:
+    info("build_footage", attempt=1, workflow_id="wf_flush")
+
+    class Screens:
+        async def execute_activity(self, input):
+            await progress.step("footage.screen_clips", n=1, total=8)
+            await progress.step("footage.screen_clips", n=2, total=8)  # held: same second
+            return "done"
+
+    await (
+        progress_scope.ProgressScopeInterceptor()
+        .intercept_activity(Screens())
+        .execute_activity(object())
+    )
+    assert [record.n for _, record in sink.records] == [1, 2]
