@@ -15,7 +15,7 @@
 
 import { resolve } from "node:path";
 
-import type { EngineRequest, RenderEngine } from "./server";
+import type { EngineProgress, EngineRequest, RenderEngine } from "./server";
 
 /**
  * The one server-owned preset, `standard_vertical_mp4_v1`. Frame geometry comes
@@ -167,9 +167,23 @@ export function createRemotionEngine(): RenderEngine {
         muted: RENDER_PRESET.muted,
         chromiumOptions: RENDER_CHROMIUM_OPTIONS,
         cancelSignal: toCancelSignal(request.signal),
-        onProgress: ({ progress }) => request.onProgress(Math.round(progress * 100)),
+        onProgress: (update) =>
+          request.onProgress(engineProgress(update, composition.durationInFrames)),
       });
     },
+  };
+}
+
+/** One Remotion progress update, counted against the composition's own length. */
+export function engineProgress(
+  update: { progress: number; renderedFrames: number; encodedFrames: number },
+  totalFrames: number,
+): EngineProgress {
+  return {
+    percent: Math.round(update.progress * 100),
+    renderedFrames: update.renderedFrames,
+    encodedFrames: update.encodedFrames,
+    totalFrames,
   };
 }
 
