@@ -29,6 +29,7 @@ from thoth_control_plane.domain import (
     ArtifactRef,
     WorkflowRequest,
     WorkflowStatus,
+    WorkflowStepPage,
     WorkflowSummary,
 )
 from thoth_control_plane.domain.workflow_runs import (
@@ -67,12 +68,14 @@ class WorkflowRunService:
         workflows: WorkflowService,
         gateway: Any,
         billing: Any = None,
+        steps: Any = None,
     ) -> None:
         self._runs = runs
         self._billing = billing
         self._projects = projects
         self._workflows = workflows
         self._gateway = gateway
+        self._steps = steps
 
     def _store(self) -> Any:
         if self._runs is None:
@@ -203,6 +206,22 @@ class WorkflowRunService:
             history_expired=True,
         )
 
+    async def steps(
+        self, workflow_id: str, *, actor: Actor, after: int, limit: int
+    ) -> WorkflowStepPage:
+        """The run's recorded steps, in order. The dashboard polls this every second, so
+        authorization comes from the run row and never queries Temporal (spec G3)."""
+        if self._runs is None:
+            return WorkflowStepPage(steps=[])
+        run = await asyncio.to_thread(self._runs.get, workflow_id)
+        if run is None or not run.owned_by(actor):
+            raise WorkflowNotFound
+        if self._steps is None:
+            return WorkflowStepPage(steps=[])
+        return WorkflowStepPage(
+            steps=await asyncio.to_thread(self._steps.page, workflow_id, after, limit)
+        )
+
     async def get(self, workflow_id: str, *, actor: Actor) -> WorkflowSummary:
         try:
             summary = await self._workflows.get(workflow_id, actor=actor)
@@ -213,7 +232,9 @@ class WorkflowRunService:
             if run is None or not run.owned_by(actor):
                 raise
             stored = run.summary or await self._synthesized(run)
-            return stored.model_copy(update={"history_expired": True, **_known_status(run)})
+            return await self._with_current_steps(
+                stored.model_copy(update={"history_expired": True, **_known_status(run)})
+            )
         if self._runs is not None:
             try:
                 await asyncio.to_thread(
@@ -225,7 +246,36 @@ class WorkflowRunService:
                 )
             except WorkflowRunsUnavailable:
                 logger.warning("run summary not saved workflow_id=%s", workflow_id)
-        return summary
+        return await self._with_current_steps(summary)
+
+    async def _with_current_steps(self, summary: WorkflowSummary) -> WorkflowSummary:
+        """Fill each running or waiting stage's current step, after settle, so a stored
+        summary never holds it (spec G3). A step-store error costs only the field."""
+        if self._steps is None or not any(
+            stage.status in ("running", "waiting") for stage in summary.stages
+        ):
+            return summary
+        try:
+            current = await asyncio.to_thread(self._steps.current_steps, summary.workflow_id)
+        except Exception as error:
+            logger.warning(
+                "current steps unavailable workflow_id=%s reason=%s",
+                summary.workflow_id,
+                type(error).__name__,
+            )
+            return summary
+        return summary.model_copy(
+            update={
+                "stages": [
+                    (
+                        stage.model_copy(update={"current_step": current.get(stage.id)})
+                        if stage.status in ("running", "waiting")
+                        else stage
+                    )
+                    for stage in summary.stages
+                ]
+            }
+        )
 
     async def get_artifact(
         self, workflow_id: str, artifact_id: str, *, actor: Actor

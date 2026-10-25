@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from pathlib import PurePosixPath
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from thoth_control_plane.api.dependencies import current_actor
@@ -21,6 +21,7 @@ from thoth_control_plane.application import (
     WorkflowEvent,
     WorkflowRequest,
     WorkflowService,
+    WorkflowStepPage,
     WorkflowSummary,
 )
 from thoth_control_plane.application.workflow_runs import WorkflowRunService
@@ -67,6 +68,18 @@ async def get_workflow(
     runs: Annotated[WorkflowRunService, Depends(get_run_service)],
 ) -> WorkflowSummary:
     return await runs.get(workflow_id, actor=actor)
+
+
+@router.get("/workflows/{workflow_id}/steps", response_model=WorkflowStepPage)
+async def list_workflow_steps(
+    workflow_id: str,
+    actor: Annotated[Actor, Depends(current_actor)],
+    runs: Annotated[WorkflowRunService, Depends(get_run_service)],
+    after: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=500)] = 200,
+) -> WorkflowStepPage:
+    """The run's steps in order; the dashboard polls this in its event-stream loop."""
+    return await runs.steps(workflow_id, actor=actor, after=after, limit=limit)
 
 
 @router.get(

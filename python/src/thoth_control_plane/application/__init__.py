@@ -33,6 +33,7 @@ from thoth_control_plane.domain import (
     StylePreset,
     WorkflowEvent,
     WorkflowRequest,
+    WorkflowStepPage,
     WorkflowSummary,
 )
 
@@ -60,6 +61,7 @@ __all__ = [
     "WorkflowNotReady",
     "WorkflowRequest",
     "WorkflowService",
+    "WorkflowStepPage",
     "WorkflowSummary",
     "build_edit_document",
 ]

@@ -22,6 +22,7 @@ def get_run_service(request: Request) -> WorkflowRunService:
         state.workflow_service,
         state.workflow_gateway,
         getattr(state, "billing_store", None),
+        getattr(state, "step_store", None),
     )
 
 

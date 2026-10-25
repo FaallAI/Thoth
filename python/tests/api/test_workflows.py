@@ -648,6 +648,7 @@ def test_openapi_exposes_exact_required_path_method_pairs(gateway) -> None:
         ("/api/v1/workflows/{workflow_id}", "get"),
         ("/api/v1/workflows/{workflow_id}/artifacts/{artifact_id}", "get"),
         ("/api/v1/workflows/{workflow_id}/events", "get"),
+        ("/api/v1/workflows/{workflow_id}/steps", "get"),
         ("/api/v1/workflows/{workflow_id}/cancel", "post"),
         ("/api/v1/workflows/{workflow_id}/retry", "post"),
         ("/api/v1/workflows/{workflow_id}/approve", "post"),

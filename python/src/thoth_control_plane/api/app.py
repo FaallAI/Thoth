@@ -115,6 +115,7 @@ from thoth_control_plane.infrastructure.renderer_gateway import (
 )
 from thoth_control_plane.infrastructure.report_store import Reports, ReportStore
 from thoth_control_plane.infrastructure.source_account_store import SourceAccountStore
+from thoth_control_plane.infrastructure.step_store import StepStore
 from thoth_control_plane.infrastructure.studio_import_repository import (
     PostgresStudioImportRepository,
 )
@@ -246,6 +247,7 @@ def create_app(
     mailer: Mailer | None = None,
     identity_providers: dict[str, IdentityProvider] | None = None,
     usage_store: UsageStore | None = None,
+    step_store: StepStore | None = None,
     billing_store: BillingStore | None = None,
 ) -> FastAPI:
     """Create an isolated v1 API application for the supplied workflow gateway."""
@@ -403,6 +405,11 @@ def create_app(
     if usage_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
         usage_store = UsageStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
     app.state.usage_store = usage_store
+    # The step store reads the same editor database; building it does no I/O, so the steps
+    # endpoint degrades to an empty page when the database is unconfigured.
+    if step_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
+        step_store = StepStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
+    app.state.step_store = step_store
     app.state.billing_store = billing_store
     app.state.payments = (
         XenditInvoices(settings.THOTH_XENDIT_SECRET_KEY.get_secret_value())  # type: ignore[union-attr]
