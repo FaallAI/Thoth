@@ -2375,3 +2375,274 @@ async def test_a_produce_video_history_from_before_the_chain_still_replays(
     await Replayer(
         workflows=[SourceInvestigationWorkflow], data_converter=pydantic_data_converter
     ).replay_workflow(WorkflowHistory.from_json(workflow_id, recorded))
+
+
+# Run progress, phase 1: the stage plan (spec 2026-10-25, G1). The whole plan is in
+# WorkflowSummary.stages from the first snapshot, with real statuses and timestamps.
+
+
+def _stages_by_id(snapshot: WorkflowSummary) -> dict[str, Any]:
+    return {stage.id: stage for stage in snapshot.stages}
+
+
+@pytest.mark.asyncio
+async def test_the_plan_is_whole_from_the_first_snapshot_and_tracks_the_run(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    ORDER.clear()
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[
+            record_workflow_completed,
+            fake_inspect,
+            ordered_attribute,
+            fake_footage,
+            ordered_assemble,
+        ],
+    ):
+        handle = await workflow_env.client.start_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_produce_chain()],
+            id="wf_test_stage_plan_approved",
+            task_queue="test",
+        )
+        await wait_for_status(handle, "awaiting_approval")
+        awaiting = _stages_by_id(await handle.query(SourceInvestigationWorkflow.summary))
+        assert list(awaiting) == ["source", "approval", "attribution", "footage", "assembly"]
+        assert awaiting["source"].status == "completed"
+        assert awaiting["source"].progress == 1.0
+        assert awaiting["source"].started_at is not None
+        assert awaiting["source"].finished_at is not None
+        assert awaiting["approval"].status == "waiting"
+        assert awaiting["approval"].started_at is not None
+        for stage_id in ("attribution", "footage", "assembly"):
+            assert awaiting[stage_id].status == "queued"
+            assert awaiting[stage_id].started_at is None
+
+        await _decide(handle, "approve")
+        result = await handle.result()
+
+    assert result.status == "succeeded"
+    by_id = _stages_by_id(result)
+    assert {stage_id: stage.status for stage_id, stage in by_id.items()} == {
+        "source": "completed",
+        "approval": "completed",
+        "attribution": "completed",
+        "footage": "completed",
+        "assembly": "completed",
+    }
+    times = [
+        (stage.started_at, stage.finished_at)
+        for stage in (
+            by_id["source"],
+            by_id["approval"],
+            by_id["attribution"],
+            by_id["footage"],
+            by_id["assembly"],
+        )
+    ]
+    for started_at, finished_at in times:
+        assert started_at is not None and finished_at is not None
+        assert started_at <= finished_at
+    for earlier, later in zip(times, times[1:]):
+        assert earlier[1] <= later[0]
+
+
+@pytest.mark.asyncio
+async def test_a_rejected_produce_video_skips_the_chain_with_its_reason(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    ORDER.clear()
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[
+            record_workflow_completed,
+            fake_inspect,
+            ordered_attribute,
+            fake_footage,
+            ordered_assemble,
+        ],
+    ):
+        handle = await workflow_env.client.start_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_produce_chain()],
+            id="wf_test_stage_plan_rejected",
+            task_queue="test",
+        )
+        await _decide(handle, "reject")
+        result = await handle.result()
+
+    assert result.status == "failed"
+    by_id = _stages_by_id(result)
+    assert by_id["source"].status == "completed"
+    # The run stopped at the approval gate: the approval stage reports the failure.
+    assert by_id["approval"].status == "failed"
+    for stage_id in ("attribution", "footage", "assembly"):
+        assert by_id[stage_id].status == "skipped"
+        assert by_id[stage_id].skip_reason == "approval_rejected"
+        assert by_id[stage_id].started_at is None
+
+
+FOOTAGE_RELEASE: asyncio.Event | None = None
+
+
+@activity.defn(name="build_footage")
+async def blocking_footage(input_: FootageActivityInput) -> FootageActivityResult:
+    assert FOOTAGE_RELEASE is not None
+    await FOOTAGE_RELEASE.wait()
+    return await fake_footage(input_)
+
+
+@pytest.mark.asyncio
+async def test_a_cancel_during_footage_cancels_the_open_stage_and_skips_the_rest(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    global FOOTAGE_RELEASE
+    FOOTAGE_RELEASE = asyncio.Event()
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[
+            record_workflow_completed,
+            fake_inspect,
+            fake_attribute,
+            blocking_footage,
+            ordered_assemble,
+        ],
+    ):
+        handle = await workflow_env.client.start_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_produce_chain()],
+            id="wf_test_stage_plan_cancel_footage",
+            task_queue="test",
+        )
+        await _decide(handle, "approve")
+        for _ in range(100):
+            events = await handle.query(SourceInvestigationWorkflow.workflow_events)
+            if any(event.stage and event.stage.name == "footage" for event in events):
+                break
+            await asyncio.sleep(0.01)
+        await handle.signal(SourceInvestigationWorkflow.request_cancel)
+        await wait_for_status(handle, "cancelled")
+        FOOTAGE_RELEASE.set()
+        result = await handle.result()
+
+    by_id = _stages_by_id(result)
+    assert result.status == "cancelled"
+    assert by_id["source"].status == "completed"
+    assert by_id["approval"].status == "completed"
+    assert by_id["attribution"].status == "completed"
+    assert by_id["footage"].status == "cancelled"
+    assert by_id["footage"].finished_at is not None
+    assert by_id["assembly"].status == "skipped"
+    assert by_id["assembly"].skip_reason == "run_cancelled"
+
+
+@pytest.mark.asyncio
+async def test_an_assembly_failure_marks_the_assembly_stage_failed(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    ORDER.clear()
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[
+            record_workflow_completed,
+            fake_inspect,
+            fake_attribute,
+            fake_footage,
+            failing_assemble,
+        ],
+    ):
+        handle = await workflow_env.client.start_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_produce_chain()],
+            id="wf_test_stage_plan_assembly_failed",
+            task_queue="test",
+        )
+        await _decide(handle, "approve")
+        result = await handle.result()
+
+    assert result.status == "failed"
+    by_id = _stages_by_id(result)
+    assert by_id["source"].status == "completed"
+    assert by_id["approval"].status == "completed"
+    assert by_id["attribution"].status == "completed"
+    assert by_id["footage"].status == "completed"
+    assert by_id["assembly"].status == "failed"
+    assert by_id["assembly"].finished_at is not None
+
+
+@pytest.mark.asyncio
+async def test_identify_original_with_the_flags_off_skips_the_chain_stages(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[record_workflow_completed, fake_inspect],
+    ):
+        result = await workflow_env.client.execute_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[workflow_input(VALID_IDENTIFY_REQUEST)],
+            id="wf_test_stage_plan_flags_off",
+            task_queue="test",
+        )
+
+    assert result.status == "succeeded"
+    by_id = _stages_by_id(result)
+    assert list(by_id) == ["source", "attribution", "footage", "assembly"]
+    assert by_id["source"].status == "completed"
+    assert by_id["source"].progress == 1.0
+    assert {
+        stage_id: (stage.status, stage.skip_reason)
+        for stage_id, stage in by_id.items()
+        if stage_id != "source"
+    } == {
+        "attribution": ("skipped", "attribution_off"),
+        "footage": ("skipped", "footage_off"),
+        "assembly": ("skipped", "assembly_off"),
+    }
+
+
+@pytest.mark.asyncio
+async def test_a_legacy_report_skips_the_chain_with_legacy_source(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    legacy = _tiktok_fallback_input("legacy_scout").model_copy(
+        update={"attribute_source": True, "assemble_content": True, "build_footage": True}
+    )
+    async with (
+        Worker(
+            workflow_env.client,
+            task_queue="test",
+            workflows=[SourceInvestigationWorkflow],
+            activities=[record_workflow_completed],
+        ),
+        Worker(
+            workflow_env.client,
+            task_queue=LEGACY_ADAPTER_TASK_QUEUE,
+            activities=[fake_legacy_inspect],
+        ),
+    ):
+        result = await workflow_env.client.execute_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[legacy],
+            id="wf_test_stage_plan_legacy",
+            task_queue="test",
+        )
+
+    assert result.status == "succeeded"
+    by_id = _stages_by_id(result)
+    assert list(by_id) == ["source", "attribution", "footage", "assembly"]
+    assert by_id["source"].status == "completed"
+    for stage_id in ("attribution", "footage", "assembly"):
+        assert by_id[stage_id].status == "skipped"
+        assert by_id[stage_id].skip_reason == "legacy_source"

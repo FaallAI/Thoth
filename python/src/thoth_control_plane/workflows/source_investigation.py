@@ -54,8 +54,8 @@ with workflow.unsafe.imports_passed_through():
         SafeActivityError,
         SourceProgressEvent,
         StageProgress,
-        StageSummary,
     )
+    from thoth_control_plane.workflows.stage_plan import StagePlan, build_plan
 
 # `LEGACY_FALLBACK_ELIGIBLE_CODES` is domain-owned (see
 # `thoth_control_plane.domain.models`) so the workflow's routing and the
@@ -81,6 +81,7 @@ class SourceInvestigationWorkflow:
         self._created_at = None
         self._updated_at = None
         self._source = None
+        self._plan: StagePlan | None = None
         self._artifacts: list[ArtifactRef] = []
         self._approval: ApprovalRequest | None = None
         self._approval_decision: str | None = None
@@ -119,6 +120,15 @@ class SourceInvestigationWorkflow:
         self._created_at = workflow.now()
         self._updated_at = self._created_at
         self._source = input_.source
+        # Spec 2026-10-25 (run progress, G1): the whole plan is built from the intent and
+        # the flags before anything runs, so the first snapshot already shows every stage.
+        # Plan updates never issue Temporal commands, so replay is unaffected.
+        self._plan = build_plan(
+            input_.intent,
+            attribute_source=input_.attribute_source,
+            assemble_content=input_.assemble_content,
+            build_footage=input_.build_footage,
+        )
         self._record_event(EventKind.WORKFLOW_QUEUED)
         self._transition(WorkflowStatus.RUNNING)
         self._record_event(EventKind.WORKFLOW_STARTED)
@@ -149,6 +159,7 @@ class SourceInvestigationWorkflow:
                 failed_stage="source",
                 retryable=True,
             )
+            self._fail_plan("source")
             self._transition(WorkflowStatus.FAILED)
             self._record_event(EventKind.WORKFLOW_FAILED)
             return self._summary()
@@ -167,6 +178,7 @@ class SourceInvestigationWorkflow:
                 failed_stage="source",
                 retryable=result.failure.retryable,
             )
+            self._fail_plan("source")
             self._transition(WorkflowStatus.FAILED)
             self._record_event(EventKind.WORKFLOW_FAILED)
             return self._summary()
@@ -178,6 +190,7 @@ class SourceInvestigationWorkflow:
                 failed_stage="source",
                 retryable=False,
             )
+            self._fail_plan("source")
             self._transition(WorkflowStatus.FAILED)
             self._record_event(EventKind.WORKFLOW_FAILED)
             return self._summary()
@@ -221,15 +234,21 @@ class SourceInvestigationWorkflow:
             self._record_event(EventKind.WORKFLOW_CANCELLED)
         elif self._approval_decision == "approve":
             self._approval = None
+            self._plan_complete("approval")
             # The approval gates the production work; a reject or cancel spends nothing.
             if workflow.patched(PRODUCE_CHAIN_PATCH):
                 self._transition(WorkflowStatus.RUNNING)
                 if (stopped := await self._production_chain(input_)) is not None:
                     return stopped
+            else:
+                # A history from before the chain: the stages simply do not exist in it.
+                self._plan_skip("not_in_this_version")
             self._transition(WorkflowStatus.SUCCEEDED)
             self._record_event(EventKind.WORKFLOW_COMPLETED)
         else:
             self._approval = None
+            self._plan_fail("approval")
+            self._plan_skip("approval_rejected")
             self._failure = WorkflowFailure(
                 code="approval_rejected",
                 message="Acquisition approval was rejected",
@@ -247,6 +266,7 @@ class SourceInvestigationWorkflow:
         the run stops (failed or cancelled), None when the chain finished."""
         # Legacy Scout writes no v3 report, so there is nothing to attribute or assemble.
         if self._report_from_legacy:
+            self._plan_skip("legacy_source")
             return None
         if input_.attribute_source:
             attributed = await self._attribute()
@@ -261,6 +281,7 @@ class SourceInvestigationWorkflow:
                     failed_stage="attribution",
                     retryable=True,
                 )
+                self._fail_plan("attribution")
                 self._transition(WorkflowStatus.FAILED)
                 self._record_event(EventKind.WORKFLOW_FAILED)
                 return self._summary()
@@ -283,6 +304,7 @@ class SourceInvestigationWorkflow:
                     failed_stage="assembly",
                     retryable=True,
                 )
+                self._fail_plan("assembly")
                 self._transition(WorkflowStatus.FAILED)
                 self._record_event(EventKind.WORKFLOW_FAILED)
                 return self._summary()
@@ -576,6 +598,19 @@ class SourceInvestigationWorkflow:
         stage: StageProgress | None = None,
         artifact: ArtifactRef | None = None,
     ) -> None:
+        at = workflow.now()
+        if self._plan is not None:
+            # Spec 2026-10-25 (run progress, D3): stage transitions and the approval wait
+            # are driven from the same events the history already records, with the event
+            # timestamp, so no new command is issued and replays are unaffected.
+            if kind == EventKind.STAGE_STARTED and stage is not None:
+                self._plan.start(stage.name, at)
+            elif kind == EventKind.STAGE_COMPLETED and stage is not None:
+                self._plan.complete(stage.name, at)
+            elif kind == EventKind.APPROVAL_REQUIRED:
+                self._plan.wait("approval", at)
+            elif kind == EventKind.WORKFLOW_CANCELLED:
+                self._plan.cancel_open(at)
         sequence = len(self._workflow_events) + 1
         self._workflow_events.append(
             WorkflowEvent(
@@ -583,37 +618,44 @@ class SourceInvestigationWorkflow:
                 event_id=f"evt_{sequence}",
                 sequence=sequence,
                 kind=kind,
-                occurred_at=workflow.now(),
+                occurred_at=at,
                 stage=stage,
                 artifact=artifact,
             )
         )
 
+    def _plan_complete(self, stage_id: str) -> None:
+        if self._plan is not None:
+            self._plan.complete(stage_id, workflow.now())
+
+    def _plan_fail(self, stage_id: str) -> None:
+        if self._plan is not None:
+            self._plan.fail(stage_id, workflow.now())
+
+    def _fail_plan(self, failed_stage: str) -> None:
+        """Mark the failed stage and skip whatever the run will now never reach (D2)."""
+        self._plan_fail(failed_stage)
+        self._plan_skip("run_failed")
+
+    def _plan_skip(self, reason: str) -> None:
+        if self._plan is not None:
+            self._plan.skip_queued(reason)
+
     def _summary(self) -> WorkflowSummary:
-        if self._created_at is None or self._updated_at is None or self._source is None:
+        if (
+            self._created_at is None
+            or self._updated_at is None
+            or self._source is None
+            or self._plan is None
+        ):
             raise RuntimeError("workflow has not started")
-        stage_status = {
-            WorkflowStatus.QUEUED: "queued",
-            WorkflowStatus.RUNNING: "running",
-            WorkflowStatus.AWAITING_APPROVAL: "waiting",
-            WorkflowStatus.SUCCEEDED: "completed",
-            WorkflowStatus.FAILED: "failed",
-            WorkflowStatus.CANCELLED: "cancelled",
-        }[self._status]
         return WorkflowSummary(
             workflow_id=self._workflow_id,
             status=self._status,
             created_at=self._created_at,
             updated_at=self._updated_at,
             source=self._source,
-            stages=[
-                StageSummary(
-                    id="source",
-                    label="Investigate original source",
-                    status=stage_status,
-                    progress=1.0 if self._artifacts else None,
-                )
-            ],
+            stages=self._plan.snapshot(),
             artifacts=list(self._artifacts),
             approval=self._approval,
             failure=self._failure,
