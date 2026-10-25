@@ -387,6 +387,159 @@ bar "Approve and continue" / "Stop here". Then re-export ONLY the screens change
 as PNG to design/exports/v2/ (overwrite same names; new screens get new names) and list them.
 ```
 
+## Studio (2026-10-25)
+
+These follow `docs/DESIGN.md` §13 (approved 2026-10-25). Run them after Prompts 13-19, only in `design/thoth-dashboard-v2.pen`. They reuse its tokens and components, including the card-crop components from Prompt 15.
+
+**Sample story throughout:** "Kualitas udara di Kalimantan Tengah terus memburuk", the X post by @namelesid, with its real-looking card crops (Prompt 15 components), footage of orange haze, and the figures Sabran (Governor), BMKG and Warga Palangka Raya.
+
+## Prompt 20: Studio components
+
+```text
+Work only in design/thoth-dashboard-v2.pen, using its variables. Add a "Studio components" frame:
+1. Studio top bar (64h): back chevron + "Studio", document title "Kabut asap Kalteng" with an
+   "Original" chip (status-done text on raised), a 3-option mode switch "Story | Script | Timeline",
+   destination tabs "Edit · Review · Render" (active: 2px copper underline), undo/redo icons,
+   save state ("Saved" with status-done dot; variants Unsaved changes hollow, Saving pulsing,
+   Failed status-failed, Conflict copper, Offline muted), an "Assist" toggle (purple accent) and a
+   primary button "Request review".
+2. Beat card (for the beat strip): beat name 13/600 (Hook, Main, Evidence, Reactions, Footage,
+   Outro), duration mono "0:06", a row of 1-4 small material chips (thumbnails), an issue dot
+   variant, selected state (copper border), drop-target state (dashed copper).
+3. Material tile: 72x72 thumbnail + title + provenance line 12 muted ("X · @konoholicx · embed",
+   "TikTok · @warga.plk · story 0.62"), a "Used in Reactions" chip variant, and a "why" info icon.
+4. Inspector section header (11 mono uppercase muted label, e.g. "TIMING"), field rows, and a
+   segmented "Position" preset control (Top, Middle, Lower third) with a "Safe zone" note.
+5. Timeline track row (40h on well): label column, video lane with thumbnail strip, audio lane
+   with a waveform, caption cues, the playhead (playhead color) and a selected clip (copper border).
+Screenshot.
+```
+
+## Prompt 21: Studio documents list
+
+```text
+Work only in design/thoth-dashboard-v2.pen. Screen "Studio - documents" 1440 with the App shell
+(Studio active in the sidebar). Header "Studio" + "New from a run" (primary) + "Blank" (ghost).
+Filters: state (All, Draft, In review, Approved, Rendering, Rendered), search. Grid of 8 document
+cards: 9:16 thumbnail, title, source run link ("from run · X · @namelesid"), state pill (Rendering
+uses status-running with "62%"), revision "Rev 4", updated "2 h ago", owner avatar.
+Add "New from a run - dialog": list of done runs (title, platform, finished time) with radio
+selection and "Open in Studio". Add "Studio - empty": "Finish a run, then open it in Studio."
+Screenshot all three.
+```
+
+## Prompt 22: import progress and inventory
+
+```text
+Work only in design/thoth-dashboard-v2.pen. From "Run - done", the "Open in Studio" flow:
+1. "Studio import - progress": a dialog 560w titled "Opening in Studio" with the Stage stepper
+   (compact vertical): Copy media (running, "7 of 12 files"), Probe media, Place materials,
+   Draft ready; one line "You can keep working; we'll notify you when the draft is ready." and a
+   ghost "Run in background".
+2. "Studio import - inventory": the F3 source inventory restyled - table rows (index, role, title,
+   status word + dot: Attached status-done, Unresolved status-failed, Excluded status-idle,
+   actions Attach... / Exclude / Undo exclude), counts footer "1 of 14 items need media before
+   render" and primary "Continue in Studio". Include rows for Main, Post card, Profile page,
+   Comment cards (10), Footage (8), Figures (context only).
+Screenshot both.
+```
+
+## Prompt 23: Story mode (the main Studio screen)
+
+```text
+Work only in design/thoth-dashboard-v2.pen. Screen "Studio - Story" 1440x900, Studio top bar
+(mode Story, destination Edit). Layout:
+- Left 280w "Materials" with tabs/sections: Main, Cards (Post, Profile, Profile page, Comments 10),
+  Footage 8, Photos, Figures 3, Comments (judged) 12, Uploads; each a list of Material tiles with
+  provenance; comment items show "card" or "text only" and a relevance value "0.97".
+- Center: the 9:16 preview on well showing the post card with the haze video playing inside its
+  media box, a safe-zone overlay toggle (top-right of the preview) and transport (play, time
+  "0:14 / 0:48").
+- Bottom: the beat strip - Hook 0:04, Main 0:16, Evidence 0:08, Reactions 0:09, Footage 0:07,
+  Outro 0:04 - using Beat cards; Reactions selected.
+- Right 320w Inspector for the selected Reactions beat: "SHOWN COMMENTS" (3 comment card chips
+  with order arrows and "Add from materials"), "TIMING" (each card 3.0 s, reading-speed hint
+  "15 chars/s"), "POSITION" preset (Lower third) with safe-zone note, "MOTION" (None / Slow zoom /
+  Pan), "EMPHASIS" (Highlight box, Arrow).
+Screenshot.
+```
+
+## Prompt 24: Story mode states
+
+```text
+Work only in design/thoth-dashboard-v2.pen. Copies of "Studio - Story":
+1. "drag": a footage tile being dragged with the Footage beat in drop-target state.
+2. "missing material": the Evidence beat with a status-failed issue dot and the inspector line
+   "Profile page was not captured - X showed a login wall. Remove from beat / Use profile card".
+3. "conflict": the in-flow banner under the top bar "Someone saved a newer revision" with
+   "Reload latest" / "Keep editing locally".
+4. "assist": the Assist panel open on the right (purple left border) with a proposal
+   "Shorter hook: 'Udara Kalteng tembus ISPU 1.533'" and Apply / Dismiss, plus its "Thinking"
+   loading state.
+Screenshot.
+```
+
+## Prompt 25: Script mode
+
+```text
+Work only in design/thoth-dashboard-v2.pen. Screen "Studio - Script" 1440: Studio top bar (mode
+Script). Left: the preview (9:16). Right (wide): the narration as one editable paragraph per beat
+(Hook, Main, Evidence, Reactions, Footage, Outro), Indonesian sample text; each paragraph shows
+voice status - "Voice ready" (status-done), "Voice out of date" (status-waiting) with a small
+"Re-voice" button, or "Re-voicing - beat 3 of 6" (status-running progress). Figures appear as
+inline name tokens (Sabran, BMKG). Below each paragraph, word-level caption preview chips with one
+word highlighted at the playhead. Screenshot.
+```
+
+## Prompt 26: Timeline mode
+
+```text
+Work only in design/thoth-dashboard-v2.pen. Screen "Studio - Timeline" 1440: Studio top bar (mode
+Timeline). Preview top-center with canvas handles around a selected comment card overlay;
+Materials collapsed to a 56w icon rail on the left; Inspector right (selected clip: in/out,
+position x/y, scale, opacity, volume for audio). Bottom 360h timeline: ruler (mono 12, second
+ticks), playhead, tracks main_video (thumbnail strip), b_roll, overlay (cards), caption (cues),
+narration (waveform), music (waveform), sfx; zoom -/+ and snap toggle; an Issues bar
+"0 blocking · 2 warnings". Add a note frame "Timeline is desktop only". Screenshot.
+```
+
+## Prompt 27: Review
+
+```text
+Work only in design/thoth-dashboard-v2.pen. Screen "Studio - Review" 1440 (destination Review):
+preview with the chip "Reviewing saved revision 4" and 3 comment pins on the progress bar; right
+panel: threaded comments, each with mono timecode + beat ("0:21 · Reactions"), author, text,
+replies, resolved state; composer "Comment at 0:21"; decision bar "Approve for render" (primary)
+and "Request changes"; a "Revisions" list: Rev 4 (current) "Swapped comment card · Re-voiced
+beat 3", Rev 3, Rev 2. Screenshot.
+```
+
+## Prompt 28: Render
+
+```text
+Work only in design/thoth-dashboard-v2.pen. Screen "Studio - Render" 1440 (destination Render):
+left "Readiness" checklist with words + icons: Saved revision 4 ✓, Media resolved ✓, Captions
+present ✓, Credit line in outro ✓, Safe zones respected ⚠ "Comment card 2 crosses the bottom safe
+margin - Fix", Duration 0:48 within limits ✓; primary "Render revision 4". Right: a running render
+using the Stage stepper - Queue done, Prepare assets done, Render frames running "862 of 1440
+frames · 41 fps", Encode, Upload; "about 20 s left". Below: Outputs list (Rev 3 MP4 1080x1920
+12.4 MB Download; a failed job with "Renderer unavailable - Retry"). Also a copy where the render
+is done: video preview + Download + "Render again". Screenshot both.
+```
+
+## Prompt 29: narrow Studio, Indonesian and export
+
+```text
+Work only in design/thoth-dashboard-v2.pen. 430-wide screens: "Studio - documents (narrow)" as a
+1-column card list; "Studio - review (narrow)": preview on top, comments below, sticky "Approve for
+render"; "Studio - quick edit (narrow)": preview + a list "Hook text", "Captions", "Swap comment
+card" (opens a bottom sheet of comment card tiles); "Studio - render monitor (narrow)": stepper +
+Download, no start/retry. Then an Indonesian copy of "Studio - Story" (Materi, Kartu, Footage,
+Tokoh, Komentar; beats Pembuka, Utama, Bukti, Reaksi, Footage, Penutup; Inspector labels
+translated; durations "0:16"). Run the QA checklist (resting states, honest data, no raw hex,
+no clipping), then export the new Studio screens to design/exports/v2/ and list them.
+```
+
 ---
 
 ## After pen.dev

@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-25 - Studio design: research, DESIGN.md §13, pen.dev Prompts 20-29
+
+**Research:** `docs/research/2026-10-25-studio-design-research.md`, done directly at the operator's request. It draws on the F3 specs, the 5c and workflow-to-Studio specs, the auto-video research, the Studio code, the Remotion docs through Context7, and web benchmarks (Descript, CapCut, Opus Clip, Submagic, Frame.io / VEED, Remotion Editor Starter).
+- **Finding:** F3's model is a generic scene slideshow (the "A Day in Kyoto" mockup), designed before the Content Set existed.
+
+**`docs/DESIGN.md` §13 Studio** (all five decisions approved by the operator):
+- **Modes:**
+  - Story (beats plus Materials; the default for imports);
+  - Script (narration as text with per-beat re-voice; the default for auto-drafts);
+  - Timeline (multitrack; desktop only).
+- **Navigation:**
+  - destinations stay Edit · Review · Render;
+  - Prompt Lab moves to a project-level "Presets & prompts" page;
+  - Assist is a toggle.
+- **Evidence:** card pixels are never edited or redrawn; text-only comments are quoted, never turned into cards.
+- **Progress:** import, render and re-voice use the §7 progress model.
+- **Review:** frame and beat pins, approve or request changes, revision change list.
+- **Render:** readiness adds publish checks; render and download only (publishing is out of scope).
+- **Phone:** watch, comment, approve, monitor and download, plus light edits (hook, captions, swap a card or clip).
+
+**`docs/design/pen-dev-prompts.md`:** Prompts 20-29 build the Studio screens in `design/thoth-dashboard-v2.pen`:
+- components;
+- documents list;
+- import;
+- Story and its states;
+- Script;
+- Timeline;
+- Review;
+- Render;
+- narrow screens and Indonesian.
+
+**Next steps:**
+- The operator runs Prompts 13-29 in pen.dev.
+- Review round 2 of the exports.
+- Then the backend progress spec (§7.7) and the dashboard restyle with the token migration (§5.1).
+
 ## 2026-10-25 - Design review round 1: canonical tokens, file rules, fix prompts 13-19
 
 **Context:** a review of the 34 exports of `design/thoth-dashboard-v2.pen` against `docs/DESIGN.md`.
