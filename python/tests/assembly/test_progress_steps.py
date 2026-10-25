@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 
 from tests.activities.test_content_assembly import FakeAssembler, persist, run
+from tests.assembly.support import comment, report
 from tests.assembly.test_comment_judge import Judge
 from tests.assembly.test_service import Figures, build
-from tests.assembly.support import comment, report
 from thoth_control_plane import progress
 from thoth_control_plane.assembly.figures import FigureAnswer
 from thoth_control_plane.progress import StepRecord, StepScope
@@ -42,7 +42,9 @@ def test_a_build_reads_subtitles_finds_figures_then_judges_comments(
     figures = Figures(
         FigureAnswer.model_validate({"figures": [{"name": "Pramono Anung", "type": "person"}]})
     )
-    main = report(comments=[comment("a", "ini video aslinya ternyata", 9), comment("b", "promo", 1)])
+    main = report(
+        comments=[comment("a", "ini video aslinya ternyata", 9), comment("b", "promo", 1)]
+    )
 
     with progress.scoped(ASSEMBLY_SCOPE):
         content = build(

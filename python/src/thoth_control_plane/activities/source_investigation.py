@@ -14,6 +14,7 @@ import httpx
 from pydantic import HttpUrl, TypeAdapter
 from temporalio import activity
 
+from thoth_control_plane import progress
 from thoth_control_plane.acquisition.accounts.access import SessionAccess
 from thoth_control_plane.acquisition.accounts.profiles import AccountProfiles
 from thoth_control_plane.acquisition.accounts.runner import account_runner
@@ -35,7 +36,6 @@ from thoth_control_plane.acquisition.models import (
 )
 from thoth_control_plane.acquisition.platforms import platform_of
 from thoth_control_plane.acquisition.registry import acquirer_for
-from thoth_control_plane import progress
 from thoth_control_plane.activities.media_scratch import MediaScratch, report_media_locations
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain import (

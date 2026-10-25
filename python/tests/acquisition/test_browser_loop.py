@@ -118,9 +118,7 @@ async def test_the_step_scope_reaches_the_browser_loop() -> None:
     finally:
         thoth_progress.install(None)
 
-    assert [(scope, record.code) for scope, record in records] == [
-        (scope, "source.read_link")
-    ]
+    assert [(scope, record.code) for scope, record in records] == [(scope, "source.read_link")]
 
 
 async def work() -> None:
@@ -142,6 +140,4 @@ async def test_step_sync_from_a_thread_inside_the_scope_is_recorded() -> None:
     finally:
         thoth_progress.install(None)
 
-    assert [(scope, record.code) for scope, record in records] == [
-        (scope, "source.read_link")
-    ]
+    assert [(scope, record.code) for scope, record in records] == [(scope, "source.read_link")]

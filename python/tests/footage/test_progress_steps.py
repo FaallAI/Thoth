@@ -9,10 +9,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from sqlalchemy import create_engine
 
-from tests.footage.test_service import Search
 from tests.footage.test_service import (
+    NOW,
     CreatorListing,
+    Search,
     _builder,
     _creator,
     _hits,
@@ -20,8 +22,9 @@ from tests.footage.test_service import (
     _own,
     _video,
 )
-from tests.footage.test_service import store  # noqa: F401  (pytest fixture)
 from thoth_control_plane import progress
+from thoth_control_plane.infrastructure.footage_store import FootageStore
+from thoth_control_plane.infrastructure.source_account_models import Base
 from thoth_control_plane.progress import StepRecord, StepScope
 
 FOOTAGE_SCOPE = StepScope(workflow_id="wf_a", stage="footage", attempt=1)
@@ -40,6 +43,14 @@ def sink() -> StepSink:
     installed = StepSink()
     progress.install(installed)
     return installed
+
+
+@pytest.fixture
+def store(tmp_path: Path) -> FootageStore:
+    """The service-test store: a file database, because the builder calls it from threads."""
+    engine = create_engine(f"sqlite:///{tmp_path / 'footage.db'}")
+    Base.metadata.create_all(engine)
+    return FootageStore(engine, clock=lambda: NOW)
 
 
 def sequence(sink: StepSink) -> list[tuple[str, int | None, int | None, dict | None]]:

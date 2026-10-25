@@ -13,6 +13,15 @@ from typing import Any
 import pytest
 
 from tests.acquisition.fakes import FakeCardPage, card_session
+from tests.acquisition.test_instagram_acquirer import (
+    FakeHeadless as IgHeadless,
+)
+from tests.acquisition.test_instagram_acquirer import (
+    FakeMaterializer as IgMaterializer,
+)
+from tests.acquisition.test_instagram_acquirer import (
+    FakeRequest as IgRequest,
+)
 from tests.acquisition.test_instagram_acquirer import _cards as _ig_cards
 from tests.acquisition.test_instagram_acquirer import (
     _image as _ig_image,
@@ -23,29 +32,33 @@ from tests.acquisition.test_instagram_acquirer import (
 from tests.acquisition.test_instagram_acquirer import (
     _texts as _ig_texts,
 )
-from tests.acquisition.test_instagram_acquirer import (
-    FakeHeadless as IgHeadless,
-    FakeMaterializer as IgMaterializer,
-    FakeRequest as IgRequest,
-)
+from tests.acquisition.test_service import SOURCE_URL as TIKTOK_URL
 from tests.acquisition.test_service import (
     FakeBrowser as TikTokBrowser,
+)
+from tests.acquisition.test_service import (
     FakeMaterializer as TikTokMaterializer,
+)
+from tests.acquisition.test_service import (
     FakeResolver as TikTokResolver,
 )
 from tests.acquisition.test_service import complete_snapshot
-from tests.acquisition.test_service import SOURCE_URL as TIKTOK_URL
+from tests.acquisition.test_threads_service import (
+    FakeHeadless as ThreadsHeadless,
+)
+from tests.acquisition.test_threads_service import (
+    FakeMaterializer as ThreadsMaterializer,
+)
+from tests.acquisition.test_threads_service import (
+    FakeRequest as ThreadsRequest,
+)
 from tests.acquisition.test_threads_service import _card_page as _threads_card_page
 from tests.acquisition.test_threads_service import _images as _threads_images
 from tests.acquisition.test_threads_service import _node as _threads_node
 from tests.acquisition.test_threads_service import _texts as _threads_texts
-from tests.acquisition.test_threads_service import (
-    FakeHeadless as ThreadsHeadless,
-    FakeMaterializer as ThreadsMaterializer,
-    FakeRequest as ThreadsRequest,
-)
 from tests.acquisition.test_x_acquirer import FakeFx, FakeHeadless, FakeRequest
-from tests.acquisition.test_youtube_acquirer import FakeClient, FakeHeadless as YtHeadless
+from tests.acquisition.test_youtube_acquirer import FakeClient
+from tests.acquisition.test_youtube_acquirer import FakeHeadless as YtHeadless
 from thoth_control_plane import progress
 from thoth_control_plane.acquisition import card_browser, x_service
 from thoth_control_plane.acquisition.card_browser import CardBrowser, CardLayout, CommentTarget
@@ -56,6 +69,7 @@ from thoth_control_plane.acquisition.instagram_service import (
 from thoth_control_plane.acquisition.models import AcquisitionResult
 from thoth_control_plane.acquisition.service import TikTokAcquisitionService
 from thoth_control_plane.acquisition.threads_service import (
+    RequestFetchError,
     ThreadsAcquirer,
     ThreadsRequestFetcher,
 )
@@ -281,7 +295,9 @@ async def test_instagram_fetches_the_post_then_downloads_the_carousel(
     sink: StepSink, tmp_path: Path
 ) -> None:
     node = _ig_node(carousel_media=[_ig_image(1), _ig_image(2)])
-    acquirer = InstagramAcquirer(IgRequest(_ig_texts(node)), IgHeadless(_ig_cards()), IgMaterializer())
+    acquirer = InstagramAcquirer(
+        IgRequest(_ig_texts(node)), IgHeadless(_ig_cards()), IgMaterializer()
+    )
     with progress.scoped(SOURCE_SCOPE):
         result = await acquirer.inspect(
             workflow_id="wf_steps",
@@ -296,9 +312,7 @@ async def test_instagram_fetches_the_post_then_downloads_the_carousel(
     ]
 
 
-async def test_x_fetches_the_post_then_downloads_its_media(
-    sink: StepSink, tmp_path: Path
-) -> None:
+async def test_x_fetches_the_post_then_downloads_its_media(sink: StepSink, tmp_path: Path) -> None:
     from tests.acquisition.fakes import FakeMaterializer
 
     acquirer = XAcquirer(FakeRequest(), FakeHeadless(), FakeMaterializer(), FakeFx())
@@ -345,11 +359,11 @@ async def test_a_login_wall_on_a_request_fetcher_warns(sink: StepSink) -> None:
         return SimpleNamespace(status=200, url="https://www.instagram.com/accounts/login")
 
     with progress.scoped(SOURCE_SCOPE):
-        with pytest.raises(Exception):
+        with pytest.raises(RequestFetchError):
             await XRequestFetcher(x_get).syndication("1800000000000000001")
-        with pytest.raises(Exception):
+        with pytest.raises(RequestFetchError):
             await ThreadsRequestFetcher(threads_get).fetch("https://www.threads.net/@u/p/x/")
-        with pytest.raises(Exception):
+        with pytest.raises(RequestFetchError):
             await InstagramRequestFetcher(instagram_get).fetch("https://www.instagram.com/p/x/")
     assert sequence(sink) == [
         ("source.login_wall", None, None, None),

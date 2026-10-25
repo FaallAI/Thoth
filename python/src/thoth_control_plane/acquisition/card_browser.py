@@ -19,7 +19,6 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from thoth_control_plane import progress
-
 from thoth_control_plane.acquisition.browser import (
     FETCH_OPTIONS,
     HeadlessBrowserError,
