@@ -268,6 +268,7 @@ class XRequestFetcher:
         if missing_ok and status == 404:
             return None
         if is_login_path(response.url, SIGN_IN_PATHS):
+            await progress.step("source.login_wall")
             raise RequestFetchError(AcquisitionReason.LOGIN_WALL)
         if status != 200 or is_login_path(response.url, LOGIN_PATHS):
             raise RequestFetchError(AcquisitionReason.REQUEST_BLOCKED)
@@ -428,6 +429,7 @@ class XAcquirer:
                 )
             start = time.monotonic()
             reason: AcquisitionReason | None = None
+            await progress.step("source.fetch_post", params={"platform": "x"})
             try:
                 data = await self._request.syndication(identity.post_id)
             except RequestFetchError as error:

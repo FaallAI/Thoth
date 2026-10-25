@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
+from thoth_control_plane import progress
 from thoth_control_plane.acquisition.adapters.instagram import (
     CANONICAL_BASE,
     POST_PATH,
@@ -154,6 +155,7 @@ class InstagramRequestFetcher:
             )
             raise RequestFetchError(reason) from None
         if is_login_path(response.url, SIGN_IN_PATHS):
+            await progress.step("source.login_wall")
             raise RequestFetchError(AcquisitionReason.LOGIN_WALL)
         if getattr(response, "status", None) != 200 or _blocked(response.url):
             raise RequestFetchError(AcquisitionReason.REQUEST_BLOCKED)
@@ -267,6 +269,7 @@ class InstagramAcquirer:
                     )
                 )
             start = time.monotonic()
+            await progress.step("source.fetch_post", params={"platform": "instagram"})
             parsed, reason = await self._content(identity)
             if parsed is not None and not parsed.post.text.strip() and not parsed.media:
                 attempt = _make_attempt(strategy, None, _elapsed_ms(start))
