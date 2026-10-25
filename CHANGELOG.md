@@ -64,6 +64,10 @@ All notable changes to this project will be documented in this file.
 
 **N3:** `WorkflowRunService.inbox` settles an actor's stale rows at most once per 15 s (`INBOX_SETTLE_SECONDS`). Polls in between re-read the stored rows, so a fast-polling client cannot turn the inbox into a Temporal call storm. `docs/DESIGN.md` §7.6 now states the polling cadence: the run snapshot and steps every second; the inbox on focus, after an action, and at most every 15 s otherwise.
 
+**N4: the estimate minimum counts only timed runs.** The 5-run minimum now counts only succeeded runs that recorded stage timings.
+- **Before:** runs from before phase 1 carry no stage timestamps, yet hundreds of them would have met the minimum at deploy. The dashboard would then have shown a number built from defaults instead of "a few minutes" (DESIGN §7.3).
+- **Commit:** `4aab06c`. The test now pins 20 untimed plus 3 timed runs to `None`, and 5 timed runs to the median.
+
 **Next steps:** roadmap step 6 (phase 5, render frames). The push, merge and deploy gates for the stacked branches stay with the operator.
 
 ## 2026-10-26 - Run progress phase 4: estimates and inbox
