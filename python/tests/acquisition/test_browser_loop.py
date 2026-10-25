@@ -9,8 +9,9 @@ from typing import Any
 
 import pytest
 
+from thoth_control_plane import progress as thoth_progress
 from thoth_control_plane.acquisition import browser, instagram_reels
-from thoth_control_plane.acquisition.browser_loop import LoopBoundSession
+from thoth_control_plane.acquisition.browser_loop import LoopBoundSession, on_browser_loop
 
 
 class _Session:
@@ -97,3 +98,50 @@ async def test_errors_and_cancellation_cross_the_loop_boundary() -> None:
 def test_the_default_browser_session_is_loop_bound() -> None:
     assert isinstance(browser._default_session_factory(headless=True), LoopBoundSession)
     assert instagram_reels._default_session_factory is browser._default_session_factory
+
+
+async def test_the_step_scope_reaches_the_browser_loop() -> None:
+    """Run-progress guard (phase 3, task 1): a step recorded from a page action that runs
+    on the browser loop still carries the activity's scope, so the card emissions there
+    are recorded. If this ever fails, the card instrumentation must stop relying on it."""
+    records: list[tuple[thoth_progress.StepScope, thoth_progress.StepRecord]] = []
+
+    class Sink:
+        def append(self, scope, record) -> None:
+            records.append((scope, record))
+
+    thoth_progress.install(Sink())
+    try:
+        scope = thoth_progress.StepScope(workflow_id="wf_loop", stage="source", attempt=1)
+        with thoth_progress.scoped(scope):
+            await on_browser_loop(work())
+    finally:
+        thoth_progress.install(None)
+
+    assert [(scope, record.code) for scope, record in records] == [
+        (scope, "source.read_link")
+    ]
+
+
+async def work() -> None:
+    await thoth_progress.step("source.read_link")
+
+
+async def test_step_sync_from_a_thread_inside_the_scope_is_recorded() -> None:
+    records: list[tuple[thoth_progress.StepScope, thoth_progress.StepRecord]] = []
+
+    class Sink:
+        def append(self, scope, record) -> None:
+            records.append((scope, record))
+
+    thoth_progress.install(Sink())
+    try:
+        scope = thoth_progress.StepScope(workflow_id="wf_thread", stage="source", attempt=1)
+        with thoth_progress.scoped(scope):
+            await asyncio.to_thread(thoth_progress.step_sync, "source.read_link")
+    finally:
+        thoth_progress.install(None)
+
+    assert [(scope, record.code) for scope, record in records] == [
+        (scope, "source.read_link")
+    ]
