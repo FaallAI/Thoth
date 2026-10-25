@@ -39,12 +39,20 @@ def _tables() -> set[str]:
 
 
 def test_fresh_database_applies_every_revision_and_a_rerun_applies_none() -> None:
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 19
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 20
     assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 0
     assert {"alembic_version", "studio_import_drafts", "studio_import_decisions"} <= _tables()
     assert {"source_account_policies", "source_proxies", "source_accounts"} <= _tables()
     assert "workflow_reports" in _tables()
     assert {"projects", "workflow_runs"} <= _tables()
+    with psycopg.connect(DATABASE_URL) as connection:
+        index = connection.execute(
+            "SELECT indexdef FROM pg_indexes "
+            "WHERE indexname = 'workflow_runs_unacknowledged_failures'"
+        ).fetchone()
+    # The inbox failure list: failed runs not yet acknowledged, newest first per caller.
+    assert index is not None
+    assert "workflow_runs" in index[0] and "acknowledged_at IS NULL" in index[0]
 
 
 def test_database_migrated_before_alembic_is_adopted_and_only_the_rest_applied() -> None:
@@ -52,7 +60,7 @@ def test_database_migrated_before_alembic_is_adopted_and_only_the_rest_applied()
         for migration in sorted(MIGRATIONS.glob("*.sql"))[:6]:
             connection.execute(migration.read_text(encoding="utf-8"))
 
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 13
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 14
     assert {"studio_import_drafts", "studio_import_decisions"} <= _tables()
 
 
@@ -330,10 +338,12 @@ def test_existing_projects_move_to_the_bootstrap_workspace(tmp_path: Path) -> No
     (before / "alembic" / "versions" / "0018_footage_creator.py").unlink()
     (before / "0019_workflow_steps.sql").unlink()
     (before / "alembic" / "versions" / "0019_workflow_steps.py").unlink()
+    (before / "0020_workflow_run_acknowledged.sql").unlink()
+    (before / "alembic" / "versions" / "0020_workflow_run_acknowledged.py").unlink()
     assert apply_editor_migrations(DATABASE_URL, before) == 13
     with psycopg.connect(DATABASE_URL) as connection:
         connection.execute("INSERT INTO projects (project_id, name) VALUES ('p-legacy', 'Legacy')")
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 6
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 7
     with psycopg.connect(DATABASE_URL) as connection:
         assert connection.execute(
             "SELECT workspace_id FROM projects WHERE project_id = 'p-legacy'"

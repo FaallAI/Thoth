@@ -67,6 +67,12 @@ class ProjectNotFound(WorkflowApplicationError):
     default_detail = "project_not_found"
 
 
+class RunNotFailed(WorkflowApplicationError):
+    """The run is not in the failed state, so there is nothing to acknowledge."""
+
+    default_detail = "run_not_failed"
+
+
 class WorkflowRunService:
     def __init__(
         self,
@@ -325,6 +331,20 @@ class WorkflowRunService:
         if estimate is None:
             return summary
         return summary.model_copy(update={"estimate_seconds_remaining": estimate})
+
+    async def acknowledge(self, workflow_id: str, *, actor: Actor) -> None:
+        """Clear a failed run from the inbox. Opening a run never acknowledges it; only
+        this explicit action does (spec G5). A still-unsettled row is settled first, so a
+        run that just failed can be acknowledged at once."""
+        store = self._store()
+        run = await asyncio.to_thread(store.get, workflow_id)
+        if run is None or not run.owned_by(actor):
+            raise WorkflowNotFound
+        if run.status in UNSETTLED and not run.history_expired:
+            run = await self._settle(run)
+        if run.status != "failed":
+            raise RunNotFailed
+        await asyncio.to_thread(store.acknowledge, workflow_id)
 
     async def get_artifact(
         self, workflow_id: str, artifact_id: str, *, actor: Actor

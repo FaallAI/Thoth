@@ -232,3 +232,17 @@ def test_recent_succeeded_is_capped_at_twenty_newest(stores) -> None:
 
     assert len(histories) == 20
     assert histories[0].workflow_id == "wf_24" and histories[-1].workflow_id == "wf_05"
+
+
+def test_acknowledge_stamps_a_failed_run_once_and_keeps_the_first_time(stores) -> None:
+    _, runs, _ = stores
+    runs.record_start(summary("wf_a"), project_id=None, actor=OWNER)
+    runs.settle("wf_a", status="failed", summary=None, history_expired=False)
+
+    first = runs.acknowledge("wf_a")
+    assert first is not None and first.acknowledged_at is not None
+
+    runs.acknowledge("wf_a")  # the store clock ticks between calls; the stamp survives
+    again = runs.get("wf_a")
+    assert again is not None and again.acknowledged_at == first.acknowledged_at
+    assert runs.acknowledge("wf_missing") is None

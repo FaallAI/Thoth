@@ -79,3 +79,12 @@ async def move_workflow(
     runs: Annotated[WorkflowRunService, Depends(get_run_service)],
 ) -> WorkflowRun:
     return await runs.assign(workflow_id, body.project_id, actor=actor)
+
+
+@router.post("/workflows/{workflow_id}/acknowledge", status_code=status.HTTP_204_NO_CONTENT)
+async def acknowledge_workflow(
+    workflow_id: str,
+    actor: Annotated[Actor, Depends(current_actor)],
+    runs: Annotated[WorkflowRunService, Depends(get_run_service)],
+) -> None:
+    await runs.acknowledge(workflow_id, actor=actor)

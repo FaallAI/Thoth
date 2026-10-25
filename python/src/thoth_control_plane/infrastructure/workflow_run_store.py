@@ -57,6 +57,7 @@ def _stored(row: WorkflowRunRow) -> StoredRun:
         summary=_summary(row.summary),
         created_at=row.created_at,
         updated_at=row.updated_at,
+        acknowledged_at=row.acknowledged_at,
     )
 
 
@@ -215,6 +216,20 @@ class WorkflowRunStore:
                 row.summary = stored
                 # The run's own time, not the moment someone looked at it.
                 row.updated_at = summary.updated_at if summary is not None else self._clock()
+        except SQLAlchemyError as error:
+            raise self._unavailable(error) from None
+
+    def acknowledge(self, workflow_id: str) -> StoredRun | None:
+        """Stamp a failed run as acknowledged, once; the first stamp survives. The run's
+        own `updated_at` is untouched: an inbox action is not a run event."""
+        try:
+            with self._sessions.begin() as session:
+                row = session.get(WorkflowRunRow, workflow_id)
+                if row is None:
+                    return None
+                if row.acknowledged_at is None:
+                    row.acknowledged_at = self._clock()
+                return _stored(row)
         except SQLAlchemyError as error:
             raise self._unavailable(error) from None
 

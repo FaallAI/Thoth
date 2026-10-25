@@ -310,3 +310,64 @@ async def test_an_expired_detail_keeps_a_known_status(api, stores) -> None:
     body = (await api.get("/api/v1/workflows/wf_failed", headers=AUTH)).json()
     assert body["status"] == "failed"
     assert body["history_expired"] is True
+
+
+def failed_summary() -> WorkflowSummary:
+    return WorkflowSummary.model_validate_json(
+        json.dumps(
+            {
+                "workflow_id": "wf_001",
+                "status": "failed",
+                "created_at": T_OLD.isoformat(),
+                "updated_at": T_OLD.isoformat(),
+                "source": {"display_url": "https://x.test/v", "platform": "tiktok"},
+                "stages": [],
+                "failure": {"code": "source_failed", "message": "The source could not be read."},
+            }
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_acknowledging_a_failed_run_settles_first_and_stamps_once(
+    api, stores, gateway
+) -> None:
+    await api.post("/api/v1/workflows", json=REQUEST, headers={**AUTH, "Idempotency-Key": "ack1"})
+    # The row still reads queued; the live workflow has failed. Acknowledge settles first.
+    gateway.workflows["wf_001"] = failed_summary()
+
+    first = await api.post("/api/v1/workflows/wf_001/acknowledge", headers=AUTH)
+    assert first.status_code == 204
+    stamped = stores[1].get("wf_001")
+    assert stamped is not None and stamped.status == "failed"
+    assert stamped.acknowledged_at is not None
+
+    assert (await api.post("/api/v1/workflows/wf_001/acknowledge", headers=AUTH)).status_code == 204
+    again = stores[1].get("wf_001")
+    assert again is not None and again.acknowledged_at == stamped.acknowledged_at
+
+
+@pytest.mark.asyncio
+async def test_a_run_that_is_not_failed_is_not_acknowledgeable(api, gateway) -> None:
+    await api.post("/api/v1/workflows", json=REQUEST, headers={**AUTH, "Idempotency-Key": "ack2"})
+    gateway.workflows["wf_001"] = summary_with([])
+
+    refused = await api.post("/api/v1/workflows/wf_001/acknowledge", headers=AUTH)
+
+    assert refused.status_code == 409
+    assert refused.json() == {"detail": "run_not_failed"}
+
+
+@pytest.mark.asyncio
+async def test_a_foreign_or_missing_run_is_not_acknowledgeable(api, stores) -> None:
+    from dataclasses import replace
+
+    stores[1].insert_missing(
+        replace(old_run("wf_foreign", None, expired=False), actor_id="ws_other")
+    )
+
+    foreign = await api.post("/api/v1/workflows/wf_foreign/acknowledge", headers=AUTH)
+    missing = await api.post("/api/v1/workflows/wf_none/acknowledge", headers=AUTH)
+
+    assert foreign.status_code == 404
+    assert missing.status_code == 404

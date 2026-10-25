@@ -40,3 +40,5 @@ class WorkflowRunRow(Base):
     summary: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime)
+    # Editor migration 0020: set once by an explicit acknowledge, never by opening a run.
+    acknowledged_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)

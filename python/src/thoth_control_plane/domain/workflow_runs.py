@@ -57,6 +57,8 @@ class StoredRun:
     summary: WorkflowSummary | None
     created_at: datetime
     updated_at: datetime
+    # Editor migration 0020: set once by an explicit acknowledge (inbox spec G5).
+    acknowledged_at: datetime | None = None
 
     def owned_by(self, actor: Actor) -> bool:
         return (self.actor_type, self.actor_id) == (actor.actor_type, actor.actor_id)

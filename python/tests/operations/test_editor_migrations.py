@@ -50,6 +50,7 @@ def test_editor_migrations_stay_explicit_forward_only_sql_files() -> None:
         "0017_studio_import_decision_reason.sql",
         "0018_footage_creator.sql",
         "0019_workflow_steps.sql",
+        "0020_workflow_run_acknowledged.sql",
     ]
     for name in MIGRATION_FILES:
         sql = migration(name).lower()
@@ -481,6 +482,19 @@ def test_workflow_steps_table_is_closed_and_runs_without_a_run_row() -> None:
     assert "REFERENCES" not in sql
     for forbidden in ("secret", "token", "cookie", "http"):
         assert forbidden not in sql.lower()
+
+
+def test_workflow_run_acknowledged_adds_one_column_and_the_failure_partial_index() -> None:
+    sql = " ".join(migration("0020_workflow_run_acknowledged.sql").split())
+
+    assert "ALTER TABLE workflow_runs ADD COLUMN acknowledged_at TIMESTAMPTZ" in sql
+    assert (
+        "CREATE INDEX workflow_runs_unacknowledged_failures ON workflow_runs "
+        "(actor_type, actor_id, updated_at DESC) "
+        "WHERE status = 'failed' AND acknowledged_at IS NULL" in sql
+    )
+    assert sql.count("ALTER TABLE") == 1
+    assert "CREATE TABLE" not in sql
 
 
 def test_workflow_reports_keep_exact_content_and_a_queryable_body() -> None:

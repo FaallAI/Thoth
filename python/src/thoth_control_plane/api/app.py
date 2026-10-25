@@ -74,7 +74,7 @@ from thoth_control_plane.application.render_jobs import RenderJobService
 from thoth_control_plane.application.studio_imports import StudioImportService
 from thoth_control_plane.application.studio_review import StudioReviewService
 from thoth_control_plane.application.studio_review_ports import StudioReviewRepository
-from thoth_control_plane.application.workflow_runs import ProjectNotFound
+from thoth_control_plane.application.workflow_runs import ProjectNotFound, RunNotFailed
 from thoth_control_plane.application.workflow_studio_imports import WorkflowStudioImportService
 from thoth_control_plane.auth.mailer import Mailer, mailer_from
 from thoth_control_plane.auth.providers import IdentityProvider, build_providers
@@ -462,6 +462,7 @@ def create_app(
         ArtifactNotFound: status.HTTP_404_NOT_FOUND,
         IdempotencyConflict: status.HTTP_409_CONFLICT,
         ApprovalNotAllowed: status.HTTP_409_CONFLICT,
+        RunNotFailed: status.HTTP_409_CONFLICT,
         WorkflowNotFound: status.HTTP_404_NOT_FOUND,
         WorkflowNotReady: status.HTTP_503_SERVICE_UNAVAILABLE,
         ProjectNotFound: status.HTTP_404_NOT_FOUND,
