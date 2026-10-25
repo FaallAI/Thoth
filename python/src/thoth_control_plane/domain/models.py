@@ -250,11 +250,31 @@ class WorkflowSource(StrictModel):
 
 class StageSummary(StrictModel):
     id: Annotated[
-        str, Field(pattern=r"^(validation|source|assets|narration|render|review|delivery)$")
+        str,
+        Field(
+            pattern=r"^(validation|source|assets|narration|render|review|delivery"
+            r"|approval|attribution|footage|assembly)$"
+        ),
     ]
     label: Annotated[str, Field(min_length=1, max_length=500)]
-    status: Literal["queued", "running", "completed", "waiting", "failed", "cancelled"]
+    status: Literal[
+        "queued", "running", "completed", "waiting", "failed", "cancelled", "skipped"
+    ]
     progress: float | None = None
+    # Run-progress stage plan (spec 2026-10-25, G1). Optional with defaults so stored
+    # summaries and older clients stay valid.
+    started_at: datetime | None = Field(default=None)
+    finished_at: datetime | None = Field(default=None)
+    skip_reason: Literal[
+        "attribution_off",
+        "footage_off",
+        "assembly_off",
+        "legacy_source",
+        "approval_rejected",
+        "not_in_this_version",
+        "run_failed",
+        "run_cancelled",
+    ] | None = Field(default=None)
 
     @field_validator("progress")
     @classmethod
@@ -262,6 +282,13 @@ class StageSummary(StrictModel):
         if progress is not None and (not math.isfinite(progress) or not 0 <= progress <= 1):
             raise ValueError("stage progress must be finite and between 0 and 1")
         return progress
+
+    @field_validator("started_at", "finished_at", mode="before")
+    @classmethod
+    def validate_timestamp(cls, timestamp: datetime | str | None) -> datetime | None:
+        if timestamp is None:
+            return None
+        return _parse_rfc3339_timestamp(timestamp)
 
 
 class WorkflowSummary(StrictModel):
