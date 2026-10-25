@@ -49,6 +49,7 @@ from thoth_control_plane.domain import Actor
 from thoth_control_plane.domain.models import OpaqueId, ProjectId, StrictModel
 from thoth_control_plane.domain.render_jobs import (
     Fps,
+    NonNegativeInt,
     PositiveInt,
     PositiveSeconds,
     ProgressPercent,
@@ -56,6 +57,7 @@ from thoth_control_plane.domain.render_jobs import (
     RenderFailureCode,
     RenderJob,
     RenderJobPage,
+    RenderStage,
     RenderStatus,
     Timestamp,
 )
@@ -134,6 +136,10 @@ class RenderJobView(StrictModel):
     document_revision: PositiveInt
     status: RenderStatus
     progress_percent: ProgressPercent | None = None
+    render_stage: RenderStage | None = None
+    rendered_frames: NonNegativeInt | None = None
+    encoded_frames: NonNegativeInt | None = None
+    total_frames: PositiveInt | None = None
     failure_code: RenderFailureCode | None = None
     template_id: Literal["vertical_text_story"]
     template_version: Literal[1]

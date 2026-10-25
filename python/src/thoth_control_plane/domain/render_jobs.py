@@ -40,6 +40,8 @@ TrustedTemplateVersion: TypeAlias = Literal[1]
 #: The one server-owned output preset: MP4/H.264 at the document canvas.
 RenderPresetId: TypeAlias = Literal["standard_vertical_mp4_v1"]
 
+#: What the renderer is doing now (run-progress spec G6); `uploading` covers finalizing.
+RenderStage: TypeAlias = Literal["preparing", "rendering", "encoding", "uploading"]
 RenderStatus: TypeAlias = Literal[
     "preparing",
     "rendering",
@@ -149,6 +151,11 @@ class RenderJob(StrictModel):
     renderer_version: RendererVersion
     status: RenderStatus
     progress_percent: ProgressPercent | None = None
+    # Run-progress spec G6: what the renderer is doing and how far, in frames.
+    render_stage: RenderStage | None = None
+    rendered_frames: NonNegativeInt | None = None
+    encoded_frames: NonNegativeInt | None = None
+    total_frames: PositiveInt | None = None
     last_event_sequence: NonNegativeInt = 0
     retry_of_job_id: OpaqueId | None = None
     created_by: OpaqueId
@@ -191,6 +198,10 @@ class RenderJobEvent(StrictModel):
     sequence: PositiveInt
     status: RenderStatus
     progress_percent: ProgressPercent | None = None
+    render_stage: RenderStage | None = None
+    rendered_frames: NonNegativeInt | None = None
+    encoded_frames: NonNegativeInt | None = None
+    total_frames: PositiveInt | None = None
     failure_code: RenderFailureCode | None = None
     output_relative_path: RelativeArtifactLocation | None = None
     output: RenderOutputFacts | None = None
@@ -253,6 +264,12 @@ def apply_render_event(job: RenderJob, event: RenderJobEvent, now: datetime) -> 
     progress = _monotonic_progress(job.progress_percent, event.progress_percent)
     if progress is not None:
         changes["progress_percent"] = progress
+    if event.render_stage is not None:
+        changes["render_stage"] = event.render_stage
+    if event.total_frames is not None:
+        changes["total_frames"] = event.total_frames
+        for field in ("rendered_frames", "encoded_frames"):
+            changes[field] = _monotonic_progress(getattr(job, field), getattr(event, field))
     if event.status == "rendering" and job.started_at is None:
         changes["started_at"] = now
     if event.status in TERMINAL_RENDER_STATUSES:
@@ -283,6 +300,12 @@ def _validate_event_shape(event: RenderJobEvent) -> None:
         raise InvalidRenderEvent("only a completed render may report output")
     if (event.status == "failed") != (event.failure_code is not None):
         raise InvalidRenderEvent("only a failed render carries a safe failure code")
+    counted = (event.rendered_frames, event.encoded_frames)
+    if any(count is not None for count in counted) and (
+        event.total_frames is None
+        or any(count is not None and count > event.total_frames for count in counted)
+    ):
+        raise InvalidRenderEvent("frame counts need a total and must fit within it")
 
 
 def _monotonic_progress(current: int | None, reported: int | None) -> int | None:

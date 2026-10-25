@@ -481,3 +481,82 @@ def test_job_contract_never_accepts_an_absolute_or_secret_bearing_field() -> Non
         fixture_job(renderer_url="http://remotion-renderer:8080")
     with pytest.raises(ValidationError):
         fixture_job(output_relative_path="/var/lib/thoth/renders/rj_1/output.mp4")
+
+
+# --- frames and render stage (run-progress spec G6) ---------------------------
+
+
+def frames_event(sequence: int, rendered: int, encoded: int, stage: str) -> RenderJobEvent:
+    return fixture_event(
+        sequence=sequence,
+        status="rendering",
+        render_stage=stage,
+        rendered_frames=rendered,
+        encoded_frames=encoded,
+        total_frames=1440,
+    )
+
+
+def test_frames_and_the_render_stage_are_recorded_when_reported() -> None:
+    job = fixture_job(status="rendering", last_event_sequence=1)
+
+    updated = apply_render_event(job, frames_event(2, 862, 800, "rendering"), LATER)
+
+    assert (updated.rendered_frames, updated.encoded_frames, updated.total_frames) == (
+        862,
+        800,
+        1440,
+    )
+    assert updated.render_stage == "rendering"
+
+
+def test_frame_counts_never_decrease_and_the_stage_follows_the_latest_report() -> None:
+    job = apply_render_event(
+        fixture_job(status="rendering", last_event_sequence=1),
+        frames_event(2, 1440, 900, "encoding"),
+        LATER,
+    )
+
+    updated = apply_render_event(job, frames_event(3, 1000, 700, "rendering"), LATER)
+
+    assert (updated.rendered_frames, updated.encoded_frames) == (1440, 900)
+    assert updated.render_stage == "rendering"
+
+
+def test_frames_survive_an_event_without_frames() -> None:
+    job = apply_render_event(
+        fixture_job(status="rendering", last_event_sequence=1),
+        frames_event(2, 1440, 1440, "encoding"),
+        LATER,
+    )
+
+    updated = apply_render_event(
+        job, fixture_event(sequence=3, status="finalizing", render_stage="uploading"), LATER
+    )
+
+    assert (updated.rendered_frames, updated.encoded_frames, updated.total_frames) == (
+        1440,
+        1440,
+        1440,
+    )
+    assert updated.render_stage == "uploading"
+
+
+@pytest.mark.parametrize(
+    "frames",
+    [
+        {"rendered_frames": 1441, "encoded_frames": 0, "total_frames": 1440},
+        {"rendered_frames": 10, "encoded_frames": 1441, "total_frames": 1440},
+        {"rendered_frames": 10, "encoded_frames": 5},
+    ],
+)
+def test_frames_must_fit_a_reported_total(frames: dict[str, int]) -> None:
+    job = fixture_job(status="rendering", last_event_sequence=1)
+
+    with pytest.raises(InvalidRenderEvent):
+        apply_render_event(job, fixture_event(sequence=2, **frames), LATER)
+
+
+def test_an_unknown_render_stage_is_rejected_by_the_contract() -> None:
+    with pytest.raises(ValidationError):
+        fixture_event(render_stage="muxing")

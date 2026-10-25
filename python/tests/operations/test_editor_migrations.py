@@ -51,6 +51,7 @@ def test_editor_migrations_stay_explicit_forward_only_sql_files() -> None:
         "0018_footage_creator.sql",
         "0019_workflow_steps.sql",
         "0020_workflow_run_acknowledged.sql",
+        "0021_render_job_frames.sql",
     ]
     for name in MIGRATION_FILES:
         sql = migration(name).lower()
@@ -495,6 +496,17 @@ def test_workflow_run_acknowledged_adds_one_column_and_the_failure_partial_index
     )
     assert sql.count("ALTER TABLE") == 1
     assert "CREATE TABLE" not in sql
+
+
+def test_render_job_frames_add_four_bounded_nullable_columns() -> None:
+    sql = " ".join(migration("0021_render_job_frames.sql").split())
+
+    assert sql.count("ALTER TABLE") == 1
+    assert "ALTER TABLE render_jobs" in sql
+    for column in ("rendered_frames", "encoded_frames", "total_frames", "render_stage"):
+        assert f"ADD COLUMN {column}" in sql
+    assert "NOT NULL" not in sql  # an older renderer reports no frames at all
+    assert "render_stage IN ('preparing', 'rendering', 'encoding', 'uploading')" in sql
 
 
 def test_workflow_reports_keep_exact_content_and_a_queryable_body() -> None:
