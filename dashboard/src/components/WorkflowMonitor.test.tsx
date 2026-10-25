@@ -130,6 +130,36 @@ test("renders action summaries and errors, and averages all stage progress", asy
   expect(await screen.findByText("checkpoint is unavailable")).toBeDefined();
 });
 
+test("skipped stages are muted and left out of the progress count", async () => {
+  const running = summary({
+    stages: [
+      { id: "source", label: "Fetch the source", status: "completed", progress: 1 },
+      { id: "attribution", label: "Find the original", status: "skipped", progress: null, skip_reason: "attribution_off" },
+      { id: "assembly", label: "Build the content set", status: "running", progress: 0.5 },
+    ],
+  });
+  const client = {
+    getWorkflow: mock(async () => running),
+    streamWorkflow: mock((_id: string, accept: (value: WorkflowSummary) => void) => {
+      accept(running);
+      return () => {};
+    }),
+    cancelWorkflow: mock(async () => running),
+    retryWorkflow: mock(async () => running),
+    approveWorkflow: mock(async () => running),
+    downloadWorkflowArtifact: mock(async () => new Blob()),
+  };
+  render(<WorkflowMonitor workflowId="wf_001" client={client} />);
+
+  const stage = await screen.findByText("Find the original");
+  const row = stage.closest("li");
+  expect(row?.getAttribute("data-state")).toBe("skipped");
+  expect(row?.className).toContain("text-muted-foreground");
+  expect(screen.getByText("Skipped")).toBeDefined();
+  // The skipped stage is not in the denominator: (1 + 0.5) / 2, not / 3.
+  expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("75");
+});
+
 test("results download through the client and an expired history is announced", async () => {
   const blob = new Blob(["{}"]);
   const downloadWorkflowArtifact = mock(async () => blob);

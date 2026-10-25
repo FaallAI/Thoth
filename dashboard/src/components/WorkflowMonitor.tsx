@@ -13,7 +13,8 @@ type MonitorClient = Pick<
 >;
 
 function workflowProgress(workflow: WorkflowSummary | null): number {
-  const stages = workflow?.stages ?? [];
+  // Skipped stages never run, so they are not part of the run's progress.
+  const stages = (workflow?.stages ?? []).filter((stage) => stage.status !== "skipped");
   if (stages.length === 0) return 0;
   const completed = stages.reduce(
     (total, stage) => total + (stage.status === "completed" ? 1 : (stage.progress ?? 0)),
@@ -84,7 +85,7 @@ export function WorkflowMonitor({ workflowId, client, onSnapshot }: { workflowId
       <h2 title={workflowId}>{workflow?.source.display_url ?? `Workflow ${workflowId}`}</h2>
       <p className="pen-pipeline-progress-copy">Stage {Math.min((workflow?.stages.filter((stage) => stage.status === "completed").length ?? 0) + 1, workflow?.stages.length ?? 0)} of {workflow?.stages.length ?? 0} · {workflow?.stages.find((stage) => stage.status === "running")?.label ?? workflow?.status}</p>
       <p className="sr-only">Progress</p><Progress value={workflowProgress(workflow)} />
-      <ul className="pen-pipeline-stages">{workflow?.stages.map((stage) => { const Icon = stage.status === "completed" ? CircleCheck : stage.status === "running" ? LoaderCircle : Circle; return <li key={stage.id} data-state={stage.status}><Icon aria-hidden="true" /><span>{stage.label}</span><span className="sr-only"> — {stage.status}</span></li>; })}</ul>
+      <ul className="pen-pipeline-stages">{workflow?.stages.map((stage) => { const Icon = stage.status === "completed" ? CircleCheck : stage.status === "running" ? LoaderCircle : Circle; const skipped = stage.status === "skipped"; return <li key={stage.id} data-state={stage.status} className={skipped ? "text-muted-foreground" : undefined}><Icon aria-hidden="true" /><span>{stage.label}</span>{skipped && <span>Skipped</span>}<span className="sr-only"> — {stage.status}</span></li>; })}</ul>
     </CardContent></Card>
     <details className="pen-workflow-details"><summary>Actions & results</summary><div>
       {actionError && <p role="alert" className="text-sm text-destructive">{actionError}</p>}
