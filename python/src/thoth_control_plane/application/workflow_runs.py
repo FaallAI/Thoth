@@ -57,6 +57,9 @@ SETTLE_TIMEOUT_SECONDS = 3.0
 ESTIMATE_CACHE_SECONDS = 60.0
 #: One screen of attention per inbox list, not a ledger (spec G5).
 INBOX_LIMIT = 20
+#: The inbox asks Temporal about an actor's stale rows at most this often; polls in
+#: between read the rows as they are (review N3).
+INBOX_SETTLE_SECONDS = 15.0
 
 
 def _known_status(run: StoredRun) -> dict[str, WorkflowStatus]:
@@ -112,6 +115,8 @@ class WorkflowRunService:
         # ponytail: per-process estimate cache; the ceiling is one entry per
         # (actor, platform) in use, each at most 60 s stale.
         self._estimate_cache: dict[tuple[str, str, str], tuple[float, list[WorkflowSummary]]] = {}
+        # ponytail: per-process inbox settle clock; one entry per actor that opened the inbox.
+        self._inbox_settled_at: dict[tuple[str, str], float] = {}
 
     def _store(self) -> Any:
         if self._runs is None:
@@ -374,9 +379,14 @@ class WorkflowRunService:
         if self._runs is None:
             return Inbox()
         store = self._runs
-        due = await asyncio.to_thread(store.unsettled, actor, SETTLE_LIMIT)
-        if due:
-            await asyncio.gather(*(self._settle(run) for run in due))
+        key = (actor.actor_type, actor.actor_id)
+        now = self._monotonic()
+        last = self._inbox_settled_at.get(key)
+        if last is None or now - last >= INBOX_SETTLE_SECONDS:
+            self._inbox_settled_at[key] = now
+            due = await asyncio.to_thread(store.unsettled, actor, SETTLE_LIMIT)
+            if due:
+                await asyncio.gather(*(self._settle(run) for run in due))
         approvals = await asyncio.to_thread(store.awaiting_approval, actor, INBOX_LIMIT)
         failures = await asyncio.to_thread(store.unacknowledged_failures, actor, INBOX_LIMIT)
         return Inbox(
