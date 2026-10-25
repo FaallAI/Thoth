@@ -252,6 +252,14 @@ Each stage reports **steps**. A step is a short sentence, optionally with a coun
   - the browser tab title shows "(1) Thoth" while a decision waits;
   - optional desktop notification after the person opts in.
 - **Accessibility:** step updates go to an `aria-live="polite"` region at no more than one announcement per stage change, never per countdown tick.
+- **Polling cadence:**
+
+  | Endpoint | When to poll |
+  |---|---|
+  | Run snapshot and `/steps` of an open run | Every second |
+  | `GET /inbox` | On window focus, after an approve, reject or acknowledge, and otherwise at most every 15 s |
+
+  The server settles an actor's stale rows for the inbox at most once per 15 s, so faster polls only re-read the same rows.
 
 ### 7.7 Backend contract this needs
 
