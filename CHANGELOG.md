@@ -52,6 +52,62 @@ All notable changes to this project will be documented in this file.
 **Next steps:**
 - **Operator gates:** push and PR, merge, deploy, all separate from the run-progress stack.
 - **Then:** rebase the run-progress stack onto this, move the phase 5 frame columns into `RenderJobRow`, and keep the parity test green.
+## 2026-10-25 - Run progress phase 3: instrumentation (+F1)
+
+**Spec/plan:** spec §5 (the step catalogue) and G2, and
+`docs/superpowers/plans/2026-10-25-run-progress-phase3-instrumentation.md`
+(roadmap "Dashboard redesign track", step 4). Branch `feat/run-progress-instrumentation`,
+stacked on `feat/run-progress-steps` (`4f1aeea`).
+
+**What changed:**
+- The five acquirers, the attribution, footage and assembly services, and the two source
+  activities emit the phase 2 catalogue codes at their natural boundaries — no new codes,
+  observability only (no behavior, ordering, timeout or result change):
+  - **source:** `read_link`/`save_report` around the runner in the activity; `fetch_post`
+    (params `platform`) before each platform's first metadata request; `download_media`
+    (n/total) per materialized item (the shared `materialize_media` loop serves Threads,
+    Instagram and X; TikTok and YouTube are single-video 1 of 1); the card captures, the
+    covered-row warning and the login walls in the card browser and the request fetchers;
+    `page_gap` (a `wait_until` countdown) before every pacing sleep, including the X embed
+    loop; `capture_embed_cards` (n/total) per embed.
+  - **attribution:** `read_text` before the frame OCR; `ask_vision` before each vision or
+    credit model call (`read_cover`, `decide`, `assess`, `classify`); `search_candidates`
+    (count) after discovery; `compare_frames` (n/total) per finalist; `verdict`
+    (params `verdict`) from the single sync exit every verdict flows through.
+  - **footage:** `plan_queries` (count) once the run's queries exist (carousel included);
+    `search_platforms` (n/total, params `platform`) per platform searched;
+    `screen_clips` (n/total) per screened candidate; `creator_listing` before the listing;
+    `keep_clips` (count) at the result.
+  - **assembly:** `read_subtitles` before the main-video OCR; `judge_comments`
+    (count kept, total candidates); `find_figures` (count); `save_content_set` after the
+    content set is stored.
+- **F1 (phase 1 review):** a `build_footage` `ActivityError` now calls
+  `_plan_fail("footage")` before the stage-completed record, so the footage stage reads
+  `failed` while the run continues and can still succeed — a query-only state change, no
+  new Temporal command. This is the only workflow change; `git diff 4f1aeea` over
+  `workflows/` is exactly those three lines.
+- **Guard:** two tests pin that the step scope crosses `browser_loop.on_browser_loop` into
+  the browser thread and that `step_sync` from `asyncio.to_thread` inside the scope is
+  recorded — the card-browser emissions depend on both.
+
+**Evidence (final tree `8579e75`, WSL):**
+- **Python:** full suite **4605 passed, 116 skipped**; `make lint` clean
+  (ruff check + format, 522 files).
+- **Replay:** `-k 'before_the_stage_plan or replay'` -> 6 passed (both phase 1 fixture
+  histories x2 and the two older replay tests); `git diff 4f1aeea -- python/src/thoth_control_plane/workflows/`
+  is the F1 lines only.
+- **Contract:** `export_openapi.py` re-run, `git diff --exit-code python/openapi.json`
+  empty; `git diff 4f1aeea --stat -- dashboard/` empty.
+- **Emission audit:** `rg "progress.step" python/src` lists 40 emissions; every `params`
+  value is a platform name, a verdict, or a count.
+
+**Notes:** the concurrent footage platforms and the assembly figures/subtitles pair may
+interleave through the one-second coalescing window (N1) — the sequence tests assert the
+surviving records and the always-written `n == total` completion.
+
+**Next steps:** roadmap step 5 (phase 4, estimates and inbox). The push, merge and deploy
+gates for the stacked branches stay with the operator.
+
 ## 2026-10-25 - Run progress phase 2 review follow-ups (N1, N2, F2)
 
 **Done at the operator's request after the phase 2 review:**
