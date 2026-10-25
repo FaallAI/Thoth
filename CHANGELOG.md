@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-25 - Design review round 2: Studio approved with polish, Prompt 30
+
+**Review of 67 exports.** Every round-1 finding is fixed, and the Studio screens match §13:
+- Story;
+- Script;
+- Timeline;
+- Review;
+- Render;
+- import;
+- the documents list;
+- narrow quick edit.
+
+**Left for Prompt 30:**
+- The States board gives non-interactive pills hover, focus and pressed states, and contains an invented "30-day retention".
+- Comment thumbnails in Story are blank squares.
+- In Story, a selected beat does not move the playhead.
+- Script voice states are inconsistent.
+- The render duration limit is invented.
+- Two sample-data dates and names disagree.
+
+**`docs/DESIGN.md` §13.4** now separates blocking render checks (saved, media resolved, no unresolved import) from publish warnings. The duration limit comes from the style preset's target platform. Selecting a beat moves the playhead. Re-voice status is per beat.
+
+**Next steps:**
+- The operator runs Prompt 30.
+- Then the backend progress-contract spec (§7.7), then the dashboard and Studio restyle with the token migration.
+
 ## 2026-10-25 - Studio design: research, DESIGN.md §13, pen.dev Prompts 20-29
 
 **Research:** `docs/research/2026-10-25-studio-design-research.md`, done directly at the operator's request. It draws on the F3 specs, the 5c and workflow-to-Studio specs, the auto-video research, the Studio code, the Remotion docs through Context7, and web benchmarks (Descript, CapCut, Opus Clip, Submagic, Frame.io / VEED, Remotion Editor Starter).

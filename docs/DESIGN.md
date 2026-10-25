@@ -469,13 +469,13 @@ Uses the model of §7: stages, steps, estimates, the run tray, notifications.
   - comments pinned to a frame and a beat, with threads and resolve;
   - "Approve for render" or "Request changes" on one revision;
   - a revision list that shows what changed, taken from the operation log.
-- **Render readiness** adds publish checks:
-  - safe zones respected;
-  - the duration within the platform limit;
-  - captions present;
-  - the credit line present;
-  - no unresolved import item.
+- **Render readiness:**
+  - **Blocking checks:** the revision is saved, every media item is resolved, and no import item is unresolved.
+  - **Publish checks** are warnings that never block: safe zones respected, the duration within the limit **of the style preset's target platform** (read from the preset, never a fixed number), captions present, the credit line present.
 - **Render output:** Render and download only. Publishing straight to platforms is out of scope for now.
+- **Behaviour (design review round 2):**
+  - Selecting a beat moves the playhead to that beat's start, so the preview shows what the inspector edits.
+  - Re-voice status is per beat: "Re-voicing" names only that beat, and the header counts the beats that are out of date.
 
 ### 13.5 Screens and narrow scope
 
