@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 from sqlalchemy import create_engine
@@ -94,7 +94,7 @@ async def test_a_build_plans_searches_screens_and_keeps(
 class StaggeredSearch(Search):
     """X answers at once, the other platforms later, so X settles first."""
 
-    delays = {"tiktok": 0.30, "youtube": 0.15, "x": 0.0}
+    delays: ClassVar[dict[str, float]] = {"tiktok": 0.30, "youtube": 0.15, "x": 0.0}
 
     async def search(self, platform: str, queries: Any, limit: int) -> Any:
         await asyncio.sleep(self.delays[platform])

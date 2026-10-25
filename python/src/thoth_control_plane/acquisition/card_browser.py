@@ -193,9 +193,7 @@ def _on_post(
         )
         covered = 0
         for index, comment_id in enumerate(sent, start=1):
-            png, row_covered = await _crop_row(
-                page, f'[{COMMENT_ROW_ATTRIBUTE}="{comment_id}"]'
-            )
+            png, row_covered = await _crop_row(page, f'[{COMMENT_ROW_ATTRIBUTE}="{comment_id}"]')
             if png is not None:
                 cards.comment_pngs[comment_id] = png
             elif row_covered:

@@ -108,9 +108,7 @@ async def test_a_batch_reports_its_compared_frames_after_its_checks(sink: StepSi
 
     sink.append = recording_append
     with progress.scoped(ATTRIBUTION_SCOPE):
-        outcome = await SourceAttributor(ports).identify(
-            "wf_ref", parse_report(_report()), VIDEO
-        )
+        outcome = await SourceAttributor(ports).identify("wf_ref", parse_report(_report()), VIDEO)
 
     assert outcome.attribution.verdict == "replaced"
     # One step per batch — both finalists fit the default concurrency — and it lands

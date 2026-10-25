@@ -170,9 +170,7 @@ class SourceAttributor:
         outcome = await self._identify(workflow_id, report, video)
         # The verdict write leaves the event loop (`step` runs it on a worker thread):
         # on the loop thread the insert would block heartbeats and every other activity.
-        await progress.step(
-            "attribution.verdict", params={"verdict": outcome.attribution.verdict}
-        )
+        await progress.step("attribution.verdict", params={"verdict": outcome.attribution.verdict})
         return outcome
 
     async def _identify(
