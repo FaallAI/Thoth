@@ -167,6 +167,17 @@ class SourceAttributor:
     async def identify(
         self, workflow_id: str, report: SourceReport, video: Path | None
     ) -> AttributionOutcome:
+        outcome = await self._identify(workflow_id, report, video)
+        # The verdict write leaves the event loop (`step` runs it on a worker thread):
+        # on the loop thread the insert would block heartbeats and every other activity.
+        await progress.step(
+            "attribution.verdict", params={"verdict": outcome.attribution.verdict}
+        )
+        return outcome
+
+    async def _identify(
+        self, workflow_id: str, report: SourceReport, video: Path | None
+    ) -> AttributionOutcome:
         frames = await self._frames(video)
         if video is not None and not frames:
             # The video exists but sampling failed: no evidence, so no verdict on the source.
@@ -467,7 +478,7 @@ class SourceAttributor:
             batch = finalists[start : start + step]
             for n in range(start + 1, start + len(batch) + 1):
                 await progress.step("attribution.compare_frames", n=n, total=len(finalists))
-            # Every finalist settles before an error leaves, so the `finally` in `identify`
+            # Every finalist settles before an error leaves, so the `finally` in `_identify`
             # sees (and discards) each one it acquired.
             results = await asyncio.gather(
                 *(self._check(finalist, repost) for finalist in batch), return_exceptions=True
@@ -586,9 +597,6 @@ class SourceAttributor:
         reason: str | None = None,
         counts: Counter[str] | None = None,
     ) -> SourceAttribution:
-        # A sync single exit point: every verdict (all eight finishes) flows through here,
-        # so the step rides along without rewriting eight return statements.
-        progress.step_sync("attribution.verdict", params={"verdict": verdict})
         return SourceAttribution(
             workflow_id=workflow_id,
             input=AttributedPost(

@@ -6,6 +6,8 @@ real `identify` inside `progress.scoped` with a fake sink and assert the ordered
 
 from __future__ import annotations
 
+import threading
+
 import pytest
 
 from tests.attribution.test_service import _case, _identify
@@ -32,6 +34,24 @@ def sink() -> StepSink:
 
 def sequence(sink: StepSink) -> list[tuple[str, int | None, int | None, dict | None]]:
     return [(r.code, r.n, r.total, r.params) for r in sink.records]
+
+
+@pytest.mark.asyncio
+async def test_the_verdict_write_leaves_the_event_loop_thread(sink: StepSink) -> None:
+    threads: dict[str, int] = {}
+    plain_append = sink.append
+
+    def recording_append(scope: StepScope, record: StepRecord) -> None:
+        threads[record.code] = threading.get_ident()
+        plain_append(scope, record)
+
+    sink.append = recording_append
+    with progress.scoped(ATTRIBUTION_SCOPE):
+        await _identify(_case())
+
+    # The verdict write is a database insert; on the activity's loop thread it would
+    # block heartbeats and every other activity, so it must run on a worker thread.
+    assert threads["attribution.verdict"] != threading.get_ident()
 
 
 @pytest.mark.asyncio

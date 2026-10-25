@@ -172,6 +172,8 @@ def step_sync(
     wait_until: datetime | None = None,
     params: Mapping[str, str | int] | None = None,
 ) -> None:
+    """Record one step synchronously; the write blocks, so call it only from a worker
+    thread (`to_thread`), never from an event-loop thread — use `step` there."""
     sink = _sink
     if sink is None:
         logger.debug("step not recorded, no sink code=%s", code)
