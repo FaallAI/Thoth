@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from tests.acquisition.fakes import FakeCardPage, card_session
+from tests.acquisition.fakes import FakeCardPage, FakeLocator, card_session
 from tests.acquisition.test_instagram_acquirer import (
     FakeHeadless as IgHeadless,
 )
@@ -116,6 +116,29 @@ def sequence(sink: StepSink) -> list[tuple[str, int | None, int | None, dict | N
     return [(r.code, r.n, r.total, r.params) for r in sink.records]
 
 
+class _DetachedRowLocator(FakeLocator):
+    async def scroll_into_view_if_needed(self, timeout: int) -> None:
+        raise RuntimeError("row detached before the crop")
+
+
+class _MixedRowsPage(FakeCardPage):
+    """A post page where `covered_id` is covered by a gate and `broken_id` fails to crop."""
+
+    def __init__(self, url: str, covered_id: str, broken_id: str) -> None:
+        super().__init__(url, tagged=[covered_id, broken_id])
+        self._covered_id, self._broken_id = covered_id, broken_id
+
+    def locator(self, selector: str) -> Any:
+        if self._broken_id in selector:
+            return _DetachedRowLocator(self, selector)
+        return super().locator(selector)
+
+    async def evaluate(self, script: str, arg: object = None) -> object:
+        if script == card_browser.COVERED_JS and self._covered_id in str(arg):
+            return True
+        return await super().evaluate(script, arg)
+
+
 @pytest.fixture
 def tiktok_report(tmp_path: Path):
     fixture = Path(__file__).resolve().parent.parent / "fixtures" / "tiktok"
@@ -200,6 +223,32 @@ async def test_a_covered_row_counts_and_warns(sink: StepSink) -> None:
         ("source.capture_comment_cards", 1, 2, None),
         ("source.capture_comment_cards", 2, 2, None),
         ("source.gate_covered", None, None, {"count": 2}),
+        ("source.page_gap", None, None, None),
+        ("source.capture_profile", None, None, None),
+    ]
+
+
+async def test_a_failed_crop_is_not_a_covered_row(sink: StepSink) -> None:
+    pages = {
+        POST: _MixedRowsPage(POST, covered_id=C1, broken_id=C2),
+        PROFILE: FakeCardPage(PROFILE),
+    }
+    browser = CardBrowser(LAYOUT, lambda **kwargs: card_session(pages))
+
+    with progress.scoped(SOURCE_SCOPE):
+        cards = await browser.cards(
+            POST, PROFILE, want_post=True, targets=[*TARGETS, CommentTarget(C2, "fan_002", "b")]
+        )
+    await browser.close()
+
+    assert cards.comment_pngs == {}
+    # Only the gate-covered row counts; the row whose crop failed is an uncropped row,
+    # not a covered one.
+    assert sequence(sink) == [
+        ("source.capture_post_card", None, None, None),
+        ("source.capture_comment_cards", 1, 2, None),
+        ("source.capture_comment_cards", 2, 2, None),
+        ("source.gate_covered", None, None, {"count": 1}),
         ("source.page_gap", None, None, None),
         ("source.capture_profile", None, None, None),
     ]
