@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import { ControlPlaneClient, ControlPlaneUnavailable } from "./control-plane-client";
+import {
+  ControlPlaneClient,
+  ControlPlaneRejected,
+  ControlPlaneUnavailable,
+} from "./control-plane-client";
 
 const CREDENTIAL = "internal-credential-value";
 
@@ -48,6 +52,19 @@ describe("ControlPlaneClient", () => {
     }).publishEvent(EVENT);
 
     expect(bodies).toEqual([EVENT]);
+  });
+
+  test("tells a refused event shape apart from an unavailable control plane", async () => {
+    // A control plane older than the event's fields answers 422 for the unknown fields.
+    const refused = client(() => new Response("{}", { status: 422 }));
+    const rejection = await refused.publishEvent(EVENT).catch((error: unknown) => error);
+    expect(rejection).toBeInstanceOf(ControlPlaneRejected);
+    expect(rejection).toBeInstanceOf(ControlPlaneUnavailable);
+
+    const down = client(() => new Response("boom", { status: 500 }));
+    const failure = await down.publishEvent(EVENT).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(ControlPlaneUnavailable);
+    expect(failure).not.toBeInstanceOf(ControlPlaneRejected);
   });
 
   test("refuses an identity that is not a single safe URL segment", async () => {

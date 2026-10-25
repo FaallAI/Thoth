@@ -18,7 +18,7 @@ import type { RendererConfig } from "./config";
 import { loadRendererConfig } from "./config";
 import type { RenderBundleAsset } from "./contracts";
 import { expectedOutputOf, parseRenderBundle } from "./contracts";
-import { ControlPlaneClient } from "./control-plane-client";
+import { ControlPlaneClient, ControlPlaneRejected } from "./control-plane-client";
 import { compositionInputProps, createRemotionEngine } from "./remotion-adapter";
 
 export type RenderStatus =
@@ -150,6 +150,18 @@ const PROGRESS_INTERVAL_MS = 1_000;
 type AbortReason = "cancel" | "deadline";
 type Stage = "preparing" | "rendering" | "finalizing";
 
+/** The run-progress fields a control plane from before them refuses (spec G6). */
+const PROGRESS_FACTS = ["render_stage", "rendered_frames", "encoded_frames", "total_frames"] as const;
+
+function carriesProgressFacts(event: RenderEvent): boolean {
+  return PROGRESS_FACTS.some((field) => event[field] !== undefined);
+}
+
+function withoutProgressFacts(event: RenderEvent): RenderEvent {
+  const { render_stage, rendered_frames, encoded_frames, total_frames, ...older } = event;
+  return older;
+}
+
 export function createExecution(deps: ExecutionDeps): RendererExecution {
   let active: ActiveRender | null = null;
   let running: Promise<void> | null = null;
@@ -162,6 +174,7 @@ export function createExecution(deps: ExecutionDeps): RendererExecution {
     let reported = -1;
     let reportedAt = 0;
     let reportedStage: RenderStage = "rendering";
+    let factsRefused = false;
     let stage: Stage = "preparing";
     const signal = controller!.signal;
 
@@ -183,7 +196,22 @@ export function createExecution(deps: ExecutionDeps): RendererExecution {
       };
       // The control plane's own deadline closes a job it stops hearing about,
       // so an undeliverable report is warned about rather than raised.
-      await safely(deps, "render_event_publish_failed", () => deps.client.publishEvent(event));
+      await safely(deps, "render_event_publish_failed", async () => {
+        if (!factsRefused) {
+          try {
+            await deps.client.publishEvent(event);
+            return;
+          } catch (error) {
+            if (!(error instanceof ControlPlaneRejected) || !carriesProgressFacts(event)) {
+              throw error;
+            }
+            // A control plane older than the frame facts: every status still has to
+            // reach it, so this report and the rest of the job go without them.
+            factsRefused = true;
+          }
+        }
+        await deps.client.publishEvent(withoutProgressFacts(event));
+      });
     };
 
     try {

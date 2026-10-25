@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { ArtifactUnavailable } from "./artifact-root";
 import type { RendererConfig } from "./config";
 import { testBundle } from "./bundle-test-fixtures";
-import { ControlPlaneUnavailable } from "./control-plane-client";
+import { ControlPlaneRejected, ControlPlaneUnavailable } from "./control-plane-client";
 import { RenderBundleInvalid } from "./contracts";
 import {
   type EngineProgress,
@@ -56,6 +56,8 @@ function harness(
     uploadError?: Error;
     render?: (request: EngineRequest) => Promise<void>;
     config?: Partial<RendererConfig>;
+    /** A control plane from before the frame facts: it refuses their fields with 422. */
+    olderControlPlane?: boolean;
     /** The execution's clock; the default never moves. */
     now?: () => Date;
   } = {},
@@ -129,6 +131,9 @@ function harness(
         trace.push(`event:${event.status}`);
         if (options.publishError) {
           throw options.publishError;
+        }
+        if (options.olderControlPlane && PROGRESS_FACTS.some((field) => field in event)) {
+          throw new ControlPlaneRejected();
         }
         events.push(event);
       },
@@ -207,6 +212,8 @@ function harness(
     },
   };
 }
+
+const PROGRESS_FACTS = ["render_stage", "rendered_frames", "encoded_frames", "total_frames"];
 
 /** A clock a test moves by hand, starting at a fixed instant. */
 function steppingClock() {
@@ -336,6 +343,42 @@ describe("the one-slot renderer execution", () => {
       ["finalizing", "uploading", undefined, undefined, undefined, undefined],
       ["completed", undefined, undefined, undefined, undefined, undefined],
     ]);
+  });
+
+  test("an older control plane still gets every status, without the frame facts", async () => {
+    const clock = steppingClock();
+    const subject = harness({
+      olderControlPlane: true,
+      now: clock.now,
+      render: async (request) => {
+        clock.advance(1_000);
+        request.onProgress(frames(50, 500, 400));
+        clock.advance(1_000);
+        request.onProgress(frames(100, 1_000, 1_000));
+      },
+    });
+    await run(subject);
+
+    expect(statuses(subject)).toEqual([
+      "preparing",
+      "rendering",
+      "rendering",
+      "rendering",
+      "finalizing",
+      "completed",
+    ]);
+    expect(subject.events.map((event) => event.progress_percent)).toEqual([
+      undefined,
+      0,
+      50,
+      100,
+      undefined,
+      undefined,
+    ]);
+    for (const event of subject.events) {
+      expect(PROGRESS_FACTS.filter((field) => field in event)).toEqual([]);
+    }
+    expect(subject.warnings).toEqual([]);
   });
 
   test("turns each failure into its own fixed code and leaves no partial output", async () => {
