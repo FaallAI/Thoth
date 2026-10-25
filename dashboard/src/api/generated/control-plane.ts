@@ -1258,6 +1258,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workflows/{workflow_id}/steps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Workflow Steps
+         * @description The run's steps in order; the dashboard polls this in its event-stream loop.
+         */
+        get: operations["list_workflow_steps_api_v1_workflows__workflow_id__steps_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspace/tokens": {
         parameters: {
             query?: never;
@@ -3265,6 +3285,7 @@ export interface components {
         };
         /** StageSummary */
         StageSummary: {
+            current_step?: components["schemas"]["WorkflowStep"] | null;
             /** Finished At */
             finished_at?: string | null;
             /** Id */
@@ -4010,6 +4031,45 @@ export interface components {
          * @enum {string}
          */
         WorkflowStatus: "queued" | "running" | "awaiting_approval" | "succeeded" | "failed" | "cancelled";
+        /**
+         * WorkflowStep
+         * @description One recorded step of a running stage (run-progress spec 2026-10-25, G2).
+         */
+        WorkflowStep: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Attempt */
+            attempt: number;
+            /** Code */
+            code: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "info" | "progress" | "wait" | "done" | "warning" | "error";
+            /** N */
+            n?: number | null;
+            /** Params */
+            params?: {
+                [key: string]: string | number;
+            } | null;
+            /** Seq */
+            seq: number;
+            /** Stage */
+            stage: string;
+            /** Total */
+            total?: number | null;
+            /** Wait Until */
+            wait_until?: string | null;
+        };
+        /** WorkflowStepPage */
+        WorkflowStepPage: {
+            /** Steps */
+            steps: components["schemas"]["WorkflowStep"][];
+        };
         /**
          * WorkflowStudioImport
          * @description The draft a workflow opened into, at its latest revision, and each media item's outcome.
@@ -7195,6 +7255,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkflowSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_workflow_steps_api_v1_workflows__workflow_id__steps_get: {
+        parameters: {
+            query?: {
+                after?: number;
+                limit?: number;
+            };
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                workflow_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowStepPage"];
                 };
             };
             /** @description Validation Error */
