@@ -2,6 +2,57 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-26 - The seven editor repositories move to the SQLAlchemy ORM
+
+**Spec:** `docs/superpowers/specs/2026-10-26-editor-repositories-orm-design.md`, approved by the operator. It completes the 2026-09-25 direction: new persistence uses the full SQLAlchemy ORM plus Alembic.
+
+**Release:** this ships on its own branch from `master`, with its own PR and deploy, apart from the run-progress stack. The stack rebases onto it afterwards; phase 5's `render_jobs` frame columns then move into `RenderJobRow`.
+
+**Converted repositories:**
+- `editor_asset_repository`;
+- `studio_review_repository`;
+- `prompt_repository`;
+- `editor_repository` and `studio_import_repository` (in one commit, because the import repository wrote revisions through the editor's helpers);
+- `render_job_repository`;
+- `prompt_proposal_repository`.
+
+`src/` no longer imports psycopg; it remains only as SQLAlchemy's driver.
+
+**How they work now:**
+- **Same pattern as the other stores:** synchronous ORM sessions behind `asyncio.to_thread`. Every public async signature and typed error is unchanged, so the application, API and contract are untouched (`openapi.json` has no diff).
+- **One pooled engine per editor database** (`infrastructure/editor_database.py`). Before, every call opened a new connection.
+- **ORM rows** (`infrastructure/editor_models.py`, on their own declarative base) mirror migrations 0001-0007 and 0017.
+  - A Postgres parity test compares every table's columns, types, nullability and primary key with the migrated schema.
+  - A mutation check (one type and two nullability flips) failed as expected.
+- **Postgres semantics are preserved:**
+  - advisory transaction locks with the same keys (`hashtext(a), hashtext(b)`, and `hashtext('render-jobs'), 1`);
+  - `FOR UPDATE`;
+  - the active-slot unique index still maps to `RenderBusy`, and a unique violation on a revision to `EditDocumentConflict` (by SQLSTATE 23505);
+  - the insert order across referencing tables is kept with explicit flushes, because the models declare no foreign keys.
+
+**Tests:**
+- The fake-cursor tests that asserted on SQL text are replaced by behavior tests on the migrated Postgres schema (`tests/infrastructure/*_postgres.py`, on the shared `tests/postgres_support.py`).
+- **Old-versus-new equivalence:** every behavior test was run against the old psycopg implementation and the new ORM one.
+  - All passed on both, except four tests that only the ORM can run, because they monkeypatch an ORM name to force a failure (a refused decision rolling back its revision, a raced active-slot read).
+- **New concurrency proofs:**
+  - review, template, lock, render and apply writes each wait for the advisory lock their key names;
+  - two concurrent saves on one base land exactly once;
+  - an apply holds no proposal row lock while it waits.
+- `make test-postgres` now runs every `tests/*/*_postgres.py` file by default.
+
+**Pinned, pre-existing behavior** (kept, not fixed): `PromptProposalRepository.get_proposal_for_worker` of a missing proposal raises the store error instead of returning `None`.
+
+**Known difference** (spec D7): cancelling an awaiting coroutine no longer aborts an in-flight statement; the thread finishes its one short transaction, as every other ORM store here already does.
+
+**Evidence:**
+- **Python:** full suite 4326 passed, 247 skipped (Postgres-backed tests skip without a database); `make lint` clean.
+- **Postgres:** `make test-postgres` 185 passed.
+- **CI-like run:** the whole suite on Postgres (`pytest-postgres.sh tests -m 'not live'`) passed 4495, with 75 skipped.
+
+**Next steps:**
+- **Operator gates:** push and PR, merge, deploy, all separate from the run-progress stack.
+- **Then:** rebase the run-progress stack onto this, move the phase 5 frame columns into `RenderJobRow`, and keep the parity test green.
+
 ## 2026-10-25 - Plan: run progress phase 1 (the stage plan)
 
 **Plan:** `docs/superpowers/plans/2026-10-25-run-progress-phase1-stage-plan.md`, for spec G1 and roadmap "Dashboard redesign track" step 2.

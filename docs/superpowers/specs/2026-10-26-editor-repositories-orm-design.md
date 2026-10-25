@@ -1,6 +1,6 @@
 # Editor repositories on the SQLAlchemy ORM: design and plan
 
-Date: 2026-10-26. Status: approved by the operator on 2026-10-26 ("kerjakan terkait ini sekalian sekarang").
+Date: 2026-10-26. Status: approved by the operator on 2026-10-26 ("kerjakan terkait ini sekalian sekarang"); implemented the same day (see CHANGELOG).
 
 **Rule it completes:** the 2026-09-25 direction. New persistence uses the full SQLAlchemy ORM plus Alembic, and converting the existing psycopg repositories needs its own spec. This is that spec.
 

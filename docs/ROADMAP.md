@@ -130,7 +130,7 @@ projection helper stay in the code for item 2.
   - re-import the X cookies when an account shows `expired`;
   - the Camoufox layer's venv `chown` size.
 - **Persistence:**
-  - convert the seven psycopg editor repositories to the SQLAlchemy ORM. Spec: `docs/superpowers/specs/2026-10-26-editor-repositories-orm-design.md`. Started 2026-10-26 on `refactor/editor-repositories-orm`.
+  - convert the seven psycopg editor repositories to the SQLAlchemy ORM. Spec: `docs/superpowers/specs/2026-10-26-editor-repositories-orm-design.md`. Done 2026-10-26 on `refactor/editor-repositories-orm` (its own PR and deploy).
 
 ## Backlog after the migration
 
