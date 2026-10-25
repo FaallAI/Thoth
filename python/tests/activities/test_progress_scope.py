@@ -60,7 +60,9 @@ def info(monkeypatch: pytest.MonkeyPatch):
         ("assemble_content", "assembly"),
     ],
 )
-async def test_each_mapped_activity_runs_in_its_stage_scope(info, activity_type: str, stage: str) -> None:
+async def test_each_mapped_activity_runs_in_its_stage_scope(
+    info, activity_type: str, stage: str
+) -> None:
     info(activity_type, attempt=3)
     following = Next()
     interceptor = progress_scope.ProgressScopeInterceptor()
@@ -75,8 +77,10 @@ async def test_each_mapped_activity_runs_in_its_stage_scope(info, activity_type:
 async def test_an_unmapped_activity_runs_without_a_scope(info, activity_type: str) -> None:
     info(activity_type, attempt=2)
     following = Next()
-    await progress_scope.ProgressScopeInterceptor().intercept_activity(following).execute_activity(
-        object()
+    await (
+        progress_scope.ProgressScopeInterceptor()
+        .intercept_activity(following)
+        .execute_activity(object())
     )
     assert following.scope is None
 
@@ -84,9 +88,11 @@ async def test_an_unmapped_activity_runs_without_a_scope(info, activity_type: st
 async def test_a_step_inside_the_activity_reaches_the_sink_with_that_scope(info, sink) -> None:
     info("inspect_source_candidates", attempt=1, workflow_id="wf_steps")
     following = Next("source.read_link")
-    await progress_scope.ProgressScopeInterceptor().intercept_activity(
-        following
-    ).execute_activity(object())
+    await (
+        progress_scope.ProgressScopeInterceptor()
+        .intercept_activity(following)
+        .execute_activity(object())
+    )
     ((scope, record),) = sink.records
     assert scope.workflow_id == "wf_steps" and scope.stage == "source"
     assert record.code == "source.read_link" and record.kind == "info"
@@ -110,8 +116,6 @@ def test_the_source_worker_carries_both_scope_interceptors(
     ):
         monkeypatch.setattr(worker, name, lambda *args, **kwargs: object())
     settings = Settings(THOTH_CONTROL_PLANE_API_KEY="k")
-    worker.build_source_investigation_worker(
-        object(), settings, reports=object(), media=object()
-    )
+    worker.build_source_investigation_worker(object(), settings, reports=object(), media=object())
     names = [type(interceptor).__name__ for interceptor in recorded["interceptors"]]
     assert names == ["MeterScopeInterceptor", "ProgressScopeInterceptor"]

@@ -187,7 +187,7 @@ async def test_two_scopes_do_not_share_coalescing_state(sink: Sink, clock) -> No
         ("wf_2", 1),
     ]
     # The coalescing state never leaks into equality.
-    assert SCOPE == StepScope(workflow_id="wf_1", stage="source", attempt=1)
+    assert StepScope(workflow_id="wf_1", stage="source", attempt=1) == SCOPE
 
 
 async def test_the_recorder_stamps_the_time_and_carries_the_scope(sink: Sink) -> None:

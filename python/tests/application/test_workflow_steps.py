@@ -4,8 +4,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from thoth_control_plane.application.workflows import WorkflowNotFound
 from thoth_control_plane.application.workflow_runs import WorkflowRunService
+from thoth_control_plane.application.workflows import WorkflowNotFound
 from thoth_control_plane.domain import Actor
 from thoth_control_plane.domain.models import StageSummary, WorkflowStep, WorkflowSummary
 from thoth_control_plane.domain.workflow_runs import StoredRun
@@ -16,7 +16,9 @@ NOW = datetime(2026, 10, 25, 12, 0, tzinfo=UTC)
 
 
 def a_step(seq: int, **overrides) -> WorkflowStep:
-    values: dict = dict(seq=seq, stage="source", attempt=1, at=NOW, kind="info", code="source.read_link")
+    values: dict = dict(
+        seq=seq, stage="source", attempt=1, at=NOW, kind="info", code="source.read_link"
+    )
     values.update(overrides)
     return WorkflowStep(**values)
 

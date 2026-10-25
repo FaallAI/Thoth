@@ -94,7 +94,9 @@ def test_a_bad_timestamp_is_refused(overrides: dict) -> None:
 
 
 def test_a_step_page_holds_its_steps_in_order() -> None:
-    first = WorkflowStep.model_validate(step(code="source.read_link", kind="info", n=None, total=None))
+    first = WorkflowStep.model_validate(
+        step(code="source.read_link", kind="info", n=None, total=None)
+    )
     second = WorkflowStep.model_validate(step(seq=4, code="source.fetch_post"))
     page = WorkflowStepPage.model_validate({"steps": [first, second]})
     assert [s.code for s in page.steps] == ["source.read_link", "source.fetch_post"]

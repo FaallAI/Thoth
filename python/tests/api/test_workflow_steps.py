@@ -1,8 +1,8 @@
 """The steps endpoint over HTTP, and current_step inside the workflow detail (spec G3, D6)."""
 
+import httpx
 import pytest
 import pytest_asyncio
-import httpx
 
 from tests.sqlite_support import sqlite_engine
 from thoth_control_plane.api import create_app
@@ -66,13 +66,14 @@ def record(code: str, *, kind: str = "info", n: int | None = None, total: int | 
 @pytest.mark.asyncio
 async def test_the_steps_page_serves_the_run_in_order(api, stores) -> None:
     assert (
-        await api.post(
-            "/api/v1/workflows", json=REQUEST, headers={**AUTH, "Idempotency-Key": "k1"}
-        )
+        await api.post("/api/v1/workflows", json=REQUEST, headers={**AUTH, "Idempotency-Key": "k1"})
     ).status_code == 202
     steps = stores[3]
     steps.append(StepScope("wf_001", "source", 1), record("source.read_link"))
-    steps.append(StepScope("wf_001", "source", 1), record("source.download_media", kind="progress", n=1, total=4))
+    steps.append(
+        StepScope("wf_001", "source", 1),
+        record("source.download_media", kind="progress", n=1, total=4),
+    )
 
     response = await api.get("/api/v1/workflows/wf_001/steps", headers=AUTH)
     assert response.status_code == 200
@@ -89,9 +90,7 @@ async def test_the_steps_page_serves_the_run_in_order(api, stores) -> None:
 @pytest.mark.asyncio
 async def test_a_run_without_steps_or_a_unknown_run(api) -> None:
     assert (
-        await api.post(
-            "/api/v1/workflows", json=REQUEST, headers={**AUTH, "Idempotency-Key": "k2"}
-        )
+        await api.post("/api/v1/workflows", json=REQUEST, headers={**AUTH, "Idempotency-Key": "k2"})
     ).status_code == 202
     empty = await api.get("/api/v1/workflows/wf_001/steps", headers=AUTH)
     assert empty.status_code == 200 and empty.json() == {"steps": []}
@@ -148,7 +147,10 @@ async def test_the_detail_fills_current_step_of_a_running_stage(api, gateway, st
         ],
     )
     steps = stores[3]
-    steps.append(StepScope("wf_001", "source", 1), record("source.download_media", kind="progress", n=3, total=9))
+    steps.append(
+        StepScope("wf_001", "source", 1),
+        record("source.download_media", kind="progress", n=3, total=9),
+    )
 
     detail = await api.get("/api/v1/workflows/wf_001", headers=AUTH)
     assert detail.status_code == 200

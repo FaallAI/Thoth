@@ -471,13 +471,11 @@ def test_workflow_steps_table_is_closed_and_runs_without_a_run_row() -> None:
         in sql
     )
     assert (
-        "kind TEXT NOT NULL CHECK (kind IN ('info', 'progress', 'wait', 'done', 'warning', 'error'))"
-        in sql
+        "kind TEXT NOT NULL CHECK "
+        "(kind IN ('info', 'progress', 'wait', 'done', 'warning', 'error'))" in sql
     )
     assert "params JSONB CHECK (params IS NULL OR length(params::text) <= 1024)" in sql
-    assert (
-        "CREATE INDEX workflow_steps_workflow ON workflow_steps (workflow_id, seq)" in sql
-    )
+    assert "CREATE INDEX workflow_steps_workflow ON workflow_steps (workflow_id, seq)" in sql
     # The run row is written only after Temporal accepts the start, so a foreign key
     # would drop the first activity's step (spec 2026-10-25, section 4).
     assert "REFERENCES" not in sql

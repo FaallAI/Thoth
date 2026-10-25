@@ -20,9 +20,7 @@ def store() -> StepStore:
     return StepStore(engine)
 
 
-def scope(
-    stage: str = "source", workflow_id: str = "wf_1", attempt: int = 1
-) -> StepScope:
+def scope(stage: str = "source", workflow_id: str = "wf_1", attempt: int = 1) -> StepScope:
     return StepScope(workflow_id=workflow_id, stage=stage, attempt=attempt)
 
 

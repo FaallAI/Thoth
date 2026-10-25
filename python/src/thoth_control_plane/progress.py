@@ -209,6 +209,4 @@ async def step(
     if _sink is None:
         return
     # to_thread copies the context, so the scope travels with the write.
-    await asyncio.to_thread(
-        step_sync, code, n=n, total=total, wait_until=wait_until, params=params
-    )
+    await asyncio.to_thread(step_sync, code, n=n, total=total, wait_until=wait_until, params=params)
