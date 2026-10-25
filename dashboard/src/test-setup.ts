@@ -51,3 +51,19 @@ if (!("fonts" in globalThis.document)) {
     value: { add: () => undefined, ready: Promise.resolve() },
   });
 }
+
+// testing-library's findBy*/waitFor drain pending work with setTimeout(0), but
+// React's scheduler flushes passive effects (useEffect) with setImmediate, and Bun
+// does not order the two. Wait one setImmediate inside the wrapper too, so an effect
+// of the render that showed an element has run when findBy resolves. Imported after
+// the DOM registration above: testing-library binds `screen` to document.body on load.
+const { configure, getConfig } = await import("@testing-library/react");
+const drainWithTimeout = getConfig().asyncWrapper;
+configure({
+  asyncWrapper: (callback) =>
+    drainWithTimeout(async () => {
+      const result = await callback();
+      await new Promise((resolve) => setImmediate(resolve));
+      return result;
+    }),
+});
