@@ -20,7 +20,7 @@ from sqlalchemy.orm import sessionmaker
 from thoth_control_plane.application.ports import WorkflowRunsUnavailable
 from thoth_control_plane.domain import Actor, ArtifactRef, WorkflowSummary
 from thoth_control_plane.domain.cursors import decode_cursor, encode_cursor
-from thoth_control_plane.domain.workflow_runs import StoredRun
+from thoth_control_plane.domain.workflow_runs import UNSETTLED, StoredRun
 from thoth_control_plane.infrastructure.report_models import WorkflowReportRow
 from thoth_control_plane.infrastructure.run_models import WorkflowRunRow
 
@@ -191,6 +191,47 @@ class WorkflowRunStore:
             raise self._unavailable(error) from None
         return [summary for row in rows if (summary := _summary(row.summary)) is not None]
 
+    def _actor_rows(self, actor: Actor, *conditions: Any, limit: int) -> list[StoredRun]:
+        """The actor's rows, newest first, for the inbox queries."""
+        query = (
+            select(WorkflowRunRow)
+            .where(
+                WorkflowRunRow.actor_type == actor.actor_type,
+                WorkflowRunRow.actor_id == actor.actor_id,
+                *conditions,
+            )
+            .order_by(WorkflowRunRow.updated_at.desc(), WorkflowRunRow.workflow_id.desc())
+            .limit(limit)
+        )
+        try:
+            with self._sessions() as session:
+                return [_stored(row) for row in session.scalars(query).all()]
+        except SQLAlchemyError as error:
+            raise self._unavailable(error) from None
+
+    def unsettled(self, actor: Actor, limit: int) -> list[StoredRun]:
+        """Rows a listing may still settle; the inbox settles them before reading
+        approvals, so a run waiting for a person shows up without another reader."""
+        return self._actor_rows(
+            actor,
+            WorkflowRunRow.status.in_(UNSETTLED),
+            WorkflowRunRow.history_expired.is_(False),
+            limit=limit,
+        )
+
+    def awaiting_approval(self, actor: Actor, limit: int) -> list[StoredRun]:
+        return self._actor_rows(actor, WorkflowRunRow.status == "awaiting_approval", limit=limit)
+
+    def unacknowledged_failures(self, actor: Actor, limit: int) -> list[StoredRun]:
+        """Failed runs the caller has not acknowledged; migration 0020's partial index
+        serves exactly this shape."""
+        return self._actor_rows(
+            actor,
+            WorkflowRunRow.status == "failed",
+            WorkflowRunRow.acknowledged_at.is_(None),
+            limit=limit,
+        )
+
     def settle(
         self,
         workflow_id: str,
@@ -281,6 +322,7 @@ class WorkflowRunStore:
                         else run.summary.model_dump(mode="json"),
                         created_at=run.created_at,
                         updated_at=run.updated_at,
+                        acknowledged_at=run.acknowledged_at,
                     )
                 )
                 return True

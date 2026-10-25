@@ -25,6 +25,7 @@ from thoth_control_plane.api.routes.billing_webhooks import router as billing_we
 from thoth_control_plane.api.routes.edit_documents import router as edit_document_router
 from thoth_control_plane.api.routes.editor_assets import router as editor_asset_router
 from thoth_control_plane.api.routes.health import router as health_router
+from thoth_control_plane.api.routes.inbox import router as inbox_router
 from thoth_control_plane.api.routes.internal_render_jobs import router as internal_render_router
 from thoth_control_plane.api.routes.me import router as me_router
 from thoth_control_plane.api.routes.projects import router as project_router
@@ -585,6 +586,7 @@ def create_app(
     app.include_router(project_router, prefix="/api/v1")
     app.include_router(me_router, prefix="/api/v1")
     app.include_router(workflow_run_router, prefix="/api/v1")
+    app.include_router(inbox_router, prefix="/api/v1")
     app.include_router(workflow_router, prefix="/api/v1")
     app.include_router(edit_document_router, prefix="/api/v1")
     app.include_router(editor_asset_router, prefix="/api/v1")

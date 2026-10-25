@@ -16,6 +16,7 @@ from thoth_control_plane.domain.models import (
     WorkflowSource,
     WorkflowSummary,
 )
+from thoth_control_plane.domain.source_accounts import SourcePlatform
 
 WorkflowRunStatus = Literal[
     "queued", "running", "awaiting_approval", "succeeded", "failed", "cancelled", "unknown"
@@ -42,6 +43,36 @@ class WorkflowRunPage(StrictModel):
 
 class MoveWorkflow(StrictModel):
     project_id: ProjectId
+
+
+class InboxRun(StrictModel):
+    """One run awaiting the caller: an approval or an unacknowledged failure (spec G5)."""
+
+    workflow_id: OpaqueId
+    project_id: ProjectId | None
+    display_url: str
+    platform: str
+    status: WorkflowRunStatus
+    updated_at: datetime
+    failure_code: str | None = None
+
+
+class InboxAccount(StrictModel):
+    """A source account in cooldown or trouble, for platform admins only (spec G5).
+
+    Deliberately carries no cookie, cookie name or proxy data."""
+
+    account_id: str
+    platform: SourcePlatform
+    label: str
+    status: str
+    cooldown_until: datetime | None = None
+
+
+class Inbox(StrictModel):
+    approvals: list[InboxRun] = Field(default_factory=list)
+    failures: list[InboxRun] = Field(default_factory=list)
+    accounts: list[InboxAccount] = Field(default_factory=list)
 
 
 @dataclass(frozen=True)

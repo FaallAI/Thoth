@@ -38,6 +38,9 @@ from thoth_control_plane.domain import (
 )
 from thoth_control_plane.domain.workflow_runs import (
     UNSETTLED,
+    Inbox,
+    InboxAccount,
+    InboxRun,
     StoredRun,
     WorkflowRun,
     WorkflowRunPage,
@@ -52,6 +55,8 @@ SETTLE_TIMEOUT_SECONDS = 3.0
 #: The estimate's history input is cached this long per (actor, platform); the dashboard
 #: polls `get` about once a second (run-progress spec 2026-10-25, G4).
 ESTIMATE_CACHE_SECONDS = 60.0
+#: One screen of attention per inbox list, not a ledger (spec G5).
+INBOX_LIMIT = 20
 
 
 def _known_status(run: StoredRun) -> dict[str, WorkflowStatus]:
@@ -59,6 +64,19 @@ def _known_status(run: StoredRun) -> dict[str, WorkflowStatus]:
     if run.status in {status.value for status in WorkflowStatus}:
         return {"status": WorkflowStatus(run.status)}
     return {}
+
+
+def _inbox_run(run: StoredRun) -> InboxRun:
+    failure = run.summary.failure if run.summary is not None else None
+    return InboxRun(
+        workflow_id=run.workflow_id,
+        project_id=run.project_id,
+        display_url=run.display_url,
+        platform=run.platform,
+        status=run.status,
+        updated_at=run.updated_at,
+        failure_code=failure.code if failure is not None else None,
+    )
 
 
 class ProjectNotFound(WorkflowApplicationError):
@@ -345,6 +363,57 @@ class WorkflowRunService:
         if run.status != "failed":
             raise RunNotFailed
         await asyncio.to_thread(store.acknowledge, workflow_id)
+
+    async def inbox(
+        self, *, actor: Actor, platform_admin: bool = False, accounts: Any = None
+    ) -> Inbox:
+        """The caller's attention list (spec G5, plan D4): approvals — after settling the
+        actor's stale rows, like the run list — then unacknowledged failures, then source
+        accounts in cooldown or expired for platform admins only. Without a run store the
+        inbox is empty; without an account store the account list is."""
+        if self._runs is None:
+            return Inbox()
+        store = self._runs
+        due = await asyncio.to_thread(store.unsettled, actor, SETTLE_LIMIT)
+        if due:
+            await asyncio.gather(*(self._settle(run) for run in due))
+        approvals = await asyncio.to_thread(store.awaiting_approval, actor, INBOX_LIMIT)
+        failures = await asyncio.to_thread(store.unacknowledged_failures, actor, INBOX_LIMIT)
+        return Inbox(
+            approvals=[_inbox_run(run) for run in approvals],
+            failures=[_inbox_run(run) for run in failures],
+            accounts=await self._inbox_accounts(platform_admin, accounts),
+        )
+
+    async def _inbox_accounts(self, platform_admin: bool, accounts: Any) -> list[InboxAccount]:
+        """Accounts in cooldown or expired, or still inside a cooldown clock. `disabled`
+        is deliberate, so it never appears; no cookie, cookie name or proxy data leaves
+        the store (spec G5, operator decision 2)."""
+        if not platform_admin or accounts is None:
+            return []
+        try:
+            views = await asyncio.to_thread(accounts.accounts)
+        except Exception as error:
+            logger.warning("inbox accounts unavailable reason=%s", type(error).__name__)
+            return []
+        now = datetime.now(UTC)
+        listed: list[InboxAccount] = []
+        for view in views:
+            if view.status == "disabled":
+                continue
+            cooling = view.cooldown_until is not None and view.cooldown_until > now
+            if view.status not in ("cooldown", "expired") and not cooling:
+                continue
+            listed.append(
+                InboxAccount(
+                    account_id=view.id,
+                    platform=view.platform,
+                    label=view.label,
+                    status=view.status,
+                    cooldown_until=view.cooldown_until,
+                )
+            )
+        return listed
 
     async def get_artifact(
         self, workflow_id: str, artifact_id: str, *, actor: Actor

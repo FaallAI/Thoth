@@ -644,6 +644,7 @@ def test_openapi_exposes_exact_required_path_method_pairs(gateway) -> None:
         ("/api/v1/projects/{project_id}/prompt-lab/bindings/{stage_id}", "put"),
         ("/api/v1/projects/{project_id}/prompt-lab/resolved/{stage_id}", "get"),
         ("/api/v1/style-presets", "get"),
+        ("/api/v1/inbox", "get"),
         ("/api/v1/workflows", "post"),
         ("/api/v1/workflows/{workflow_id}", "get"),
         ("/api/v1/workflows/{workflow_id}/artifacts/{artifact_id}", "get"),
@@ -652,6 +653,7 @@ def test_openapi_exposes_exact_required_path_method_pairs(gateway) -> None:
         ("/api/v1/workflows/{workflow_id}/cancel", "post"),
         ("/api/v1/workflows/{workflow_id}/retry", "post"),
         ("/api/v1/workflows/{workflow_id}/approve", "post"),
+        ("/api/v1/workflows/{workflow_id}/acknowledge", "post"),
         ("/healthz", "get"),
         ("/readyz", "get"),
     }
