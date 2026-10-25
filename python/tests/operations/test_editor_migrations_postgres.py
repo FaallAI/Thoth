@@ -39,7 +39,7 @@ def _tables() -> set[str]:
 
 
 def test_fresh_database_applies_every_revision_and_a_rerun_applies_none() -> None:
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 18
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 19
     assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 0
     assert {"alembic_version", "studio_import_drafts", "studio_import_decisions"} <= _tables()
     assert {"source_account_policies", "source_proxies", "source_accounts"} <= _tables()
@@ -52,7 +52,7 @@ def test_database_migrated_before_alembic_is_adopted_and_only_the_rest_applied()
         for migration in sorted(MIGRATIONS.glob("*.sql"))[:6]:
             connection.execute(migration.read_text(encoding="utf-8"))
 
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 12
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 13
     assert {"studio_import_drafts", "studio_import_decisions"} <= _tables()
 
 
@@ -328,10 +328,12 @@ def test_existing_projects_move_to_the_bootstrap_workspace(tmp_path: Path) -> No
     (before / "alembic" / "versions" / "0017_studio_import_decision_reason.py").unlink()
     (before / "0018_footage_creator.sql").unlink()
     (before / "alembic" / "versions" / "0018_footage_creator.py").unlink()
+    (before / "0019_workflow_steps.sql").unlink()
+    (before / "alembic" / "versions" / "0019_workflow_steps.py").unlink()
     assert apply_editor_migrations(DATABASE_URL, before) == 13
     with psycopg.connect(DATABASE_URL) as connection:
         connection.execute("INSERT INTO projects (project_id, name) VALUES ('p-legacy', 'Legacy')")
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 5
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 6
     with psycopg.connect(DATABASE_URL) as connection:
         assert connection.execute(
             "SELECT workspace_id FROM projects WHERE project_id = 'p-legacy'"
@@ -432,6 +434,23 @@ def test_billing_tables_exist_with_the_free_plan() -> None:
                 "INSERT INTO allowance_uses (use_id, workspace_id, kind, ref, created_at)"
                 " VALUES (gen_random_uuid()::text, 'ws_bootstrap', 'workflow', 'r1', now())"
             )
+
+
+def test_workflow_steps_take_closed_kinds_and_stages_without_a_run_row() -> None:
+    apply_editor_migrations(DATABASE_URL, MIGRATIONS)
+    assert "workflow_steps" in _tables()
+    with psycopg.connect(DATABASE_URL) as connection:
+        connection.execute(
+            "INSERT INTO workflow_steps (workflow_id, attempt, stage, at, kind, code)"
+            " VALUES ('wf_none', 1, 'source', now(), 'info', 'source.read_link')"
+        )
+        for stage, kind in (("render", "info"), ("source", "bogus")):
+            with pytest.raises(psycopg.errors.CheckViolation):
+                connection.execute(
+                    "INSERT INTO workflow_steps (workflow_id, attempt, stage, at, kind, code)"
+                    " VALUES ('wf_none', 2, %s, now(), %s, 'source.read_link')",
+                    (stage, kind),
+                )
 
 
 def test_footage_takes_creator_videos_photos_and_the_page_card() -> None:

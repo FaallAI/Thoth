@@ -49,6 +49,7 @@ def test_editor_migrations_stay_explicit_forward_only_sql_files() -> None:
         "0016_billing.sql",
         "0017_studio_import_decision_reason.sql",
         "0018_footage_creator.sql",
+        "0019_workflow_steps.sql",
     ]
     for name in MIGRATION_FILES:
         sql = migration(name).lower()
@@ -456,6 +457,32 @@ def test_a_fresh_database_adopts_no_legacy_revision_across_the_whole_chain() -> 
 
     assert _legacy_revision(set(), chain) is None
     assert _legacy_revision({"edit_document_revisions"}, chain) == "0001"
+
+
+def test_workflow_steps_table_is_closed_and_runs_without_a_run_row() -> None:
+    sql = " ".join(migration("0019_workflow_steps.sql").split())
+
+    assert "CREATE TABLE workflow_steps" in sql
+    assert "workflow_id TEXT NOT NULL" in sql
+    assert "seq BIGSERIAL PRIMARY KEY" in sql
+    assert "attempt INTEGER NOT NULL CHECK (attempt >= 1)" in sql
+    assert (
+        "stage TEXT NOT NULL CHECK (stage IN ('source', 'attribution', 'footage', 'assembly'))"
+        in sql
+    )
+    assert (
+        "kind TEXT NOT NULL CHECK (kind IN ('info', 'progress', 'wait', 'done', 'warning', 'error'))"
+        in sql
+    )
+    assert "params JSONB CHECK (params IS NULL OR length(params::text) <= 1024)" in sql
+    assert (
+        "CREATE INDEX workflow_steps_workflow ON workflow_steps (workflow_id, seq)" in sql
+    )
+    # The run row is written only after Temporal accepts the start, so a foreign key
+    # would drop the first activity's step (spec 2026-10-25, section 4).
+    assert "REFERENCES" not in sql
+    for forbidden in ("secret", "token", "cookie", "http"):
+        assert forbidden not in sql.lower()
 
 
 def test_workflow_reports_keep_exact_content_and_a_queryable_body() -> None:
