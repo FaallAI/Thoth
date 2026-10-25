@@ -22,6 +22,7 @@ from typing import Annotated, Protocol
 from pydantic import Field, model_validator
 from temporalio import activity
 
+from thoth_control_plane import progress
 from thoth_control_plane.acquisition.models import SourceReport
 from thoth_control_plane.activities.media_scratch import (
     MediaScratch,
@@ -153,6 +154,7 @@ async def _run(
     content = content_set.model_dump_json(indent=2).encode("utf-8")
     location = folder / CONTENT_SET_FILE
     await asyncio.to_thread(reports.put, location.as_posix(), "content_set", content)
+    await progress.step("assembly.save_content_set")
     digest = sha256(content).hexdigest()
     ocr = content_set.main.ocr
     return ContentAssemblyActivityResult(

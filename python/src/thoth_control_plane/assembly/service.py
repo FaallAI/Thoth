@@ -18,6 +18,7 @@ from typing import Any, Literal, Protocol
 
 from pydantic import ValidationError
 
+from thoth_control_plane import progress
 from thoth_control_plane.acquisition.models import CardArtifact, MaterializedMedia, SourceReport
 from thoth_control_plane.assembly.comment_judge import MAX_CANDIDATES, judge_inputs, judged
 from thoth_control_plane.assembly.comments import card_ref, merge_comments, post_card_ref
@@ -233,6 +234,7 @@ class ContentAssembler:
             ocr: MainOcr | None = None
             if fields["kind"] == "video":
                 video: MediaRef = fields["video"]
+                await progress.step("assembly.read_subtitles")
                 ocr = await analyze_main_ocr(
                     _video_path(inputs.artifact_root, video),
                     video.duration_seconds,
@@ -330,6 +332,9 @@ class ContentAssembler:
             logger.warning("comment judge unavailable; the noise check alone decides")
             return candidates[:MAX_COMMENTS]
         kept = judged(candidates, probabilities)
+        await progress.step(
+            "assembly.judge_comments", params={"count": len(kept)}, total=len(candidates)
+        )
         logger.info("comment judge kept=%d of=%d", len(kept), len(candidates))
         return kept
 
@@ -349,4 +354,5 @@ class ContentAssembler:
         if answer is None:
             return [], "unavailable"
         figures = normalize_figures(answer)
+        await progress.step("assembly.find_figures", params={"count": len(figures)})
         return figures, "ok" if figures else "none"
