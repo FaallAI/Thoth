@@ -444,13 +444,16 @@ def test_workflow_steps_take_closed_kinds_and_stages_without_a_run_row() -> None
             "INSERT INTO workflow_steps (workflow_id, attempt, stage, at, kind, code)"
             " VALUES ('wf_none', 1, 'source', now(), 'info', 'source.read_link')"
         )
-        for stage, kind in (("render", "info"), ("source", "bogus")):
-            with pytest.raises(psycopg.errors.CheckViolation):
-                connection.execute(
-                    "INSERT INTO workflow_steps (workflow_id, attempt, stage, at, kind, code)"
-                    " VALUES ('wf_none', 2, %s, now(), %s, 'source.read_link')",
-                    (stage, kind),
-                )
+    for stage, kind in (("render", "info"), ("source", "bogus")):
+        with (
+            psycopg.connect(DATABASE_URL) as connection,
+            pytest.raises(psycopg.errors.CheckViolation),
+        ):
+            connection.execute(
+                "INSERT INTO workflow_steps (workflow_id, attempt, stage, at, kind, code)"
+                " VALUES ('wf_none', 2, %s, now(), %s, 'source.read_link')",
+                (stage, kind),
+            )
 
 
 def test_footage_takes_creator_videos_photos_and_the_page_card() -> None:
