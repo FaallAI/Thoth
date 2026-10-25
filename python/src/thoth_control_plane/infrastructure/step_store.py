@@ -83,6 +83,7 @@ class StepStore:
             rows = session.scalars(select(step).where(step.seq.in_(latest)))
             return {row.stage: _step(row) for row in rows}
 
+
 def _step(row: WorkflowStepRow) -> WorkflowStep:
     return WorkflowStep(
         seq=row.seq,
