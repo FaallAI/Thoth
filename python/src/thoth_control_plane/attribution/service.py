@@ -476,8 +476,6 @@ class SourceAttributor:
         step = max(1, self._tuning.finalist_concurrency)
         for start in range(0, len(finalists), step):
             batch = finalists[start : start + step]
-            for n in range(start + 1, start + len(batch) + 1):
-                await progress.step("attribution.compare_frames", n=n, total=len(finalists))
             # Every finalist settles before an error leaves, so the `finally` in `_identify`
             # sees (and discards) each one it acquired.
             results = await asyncio.gather(
@@ -486,6 +484,11 @@ class SourceAttributor:
             for result in results:
                 if isinstance(result, BaseException):
                     raise result
+            # One step per batch, after its checks: the count is finalists compared
+            # so far, never a finalist about to be compared.
+            await progress.step(
+                "attribution.compare_frames", n=start + len(batch), total=len(finalists)
+            )
             if any(f.rejected is None and f.inliers is not None for f in batch):
                 break
         accepted = [f for f in finalists if f.checked and f.rejected is None]

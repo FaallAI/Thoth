@@ -10,8 +10,10 @@ import threading
 
 import pytest
 
-from tests.attribution.test_service import _case, _identify
+from tests.attribution.replay import parse_report, replay_ports
+from tests.attribution.test_service import VIDEO, _case, _identify, _report
 from thoth_control_plane import progress
+from thoth_control_plane.attribution.service import SourceAttributor
 from thoth_control_plane.progress import StepRecord, StepScope
 
 ATTRIBUTION_SCOPE = StepScope(workflow_id="wf_steps", stage="attribution", attempt=1)
@@ -86,7 +88,33 @@ async def test_a_credited_replacement_searches_and_compares_before_the_verdict(
         ("attribution.ask_vision", None, None, None),
         ("attribution.ask_vision", None, None, None),
         ("attribution.search_candidates", None, None, {"count": 3}),
-        ("attribution.compare_frames", 1, 2, None),
+        # Both finalists fit the default concurrency, so one batch reports one step.
         ("attribution.compare_frames", 2, 2, None),
         ("attribution.verdict", None, None, {"verdict": "replaced"}),
     ]
+
+
+@pytest.mark.asyncio
+async def test_a_batch_reports_its_compared_frames_after_its_checks(sink: StepSink) -> None:
+    case = _case()
+    ports = replay_ports(case)
+    acquired_when_recorded: list[int] = []
+    plain_append = sink.append
+
+    def recording_append(scope: StepScope, record: StepRecord) -> None:
+        if record.code == "attribution.compare_frames":
+            acquired_when_recorded.append(len(ports.acquirer.acquired))
+        plain_append(scope, record)
+
+    sink.append = recording_append
+    with progress.scoped(ATTRIBUTION_SCOPE):
+        outcome = await SourceAttributor(ports).identify(
+            "wf_ref", parse_report(_report()), VIDEO
+        )
+
+    assert outcome.attribution.verdict == "replaced"
+    # One step per batch — both finalists fit the default concurrency — and it lands
+    # once the batch is compared, not before its acquisitions start.
+    comparisons = [record for record in sink.records if record.code == "attribution.compare_frames"]
+    assert [(record.n, record.total) for record in comparisons] == [(2, 2)]
+    assert acquired_when_recorded == [2]
