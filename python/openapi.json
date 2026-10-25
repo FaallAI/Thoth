@@ -5626,8 +5626,20 @@
       "StageSummary": {
         "additionalProperties": false,
         "properties": {
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
           "id": {
-            "pattern": "^(validation|source|assets|narration|render|review|delivery)$",
+            "pattern": "^(validation|source|assets|narration|render|review|delivery|approval|attribution|footage|assembly)$",
             "title": "Id",
             "type": "string"
           },
@@ -5648,6 +5660,39 @@
             ],
             "title": "Progress"
           },
+          "skip_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "attribution_off",
+                  "footage_off",
+                  "assembly_off",
+                  "legacy_source",
+                  "approval_rejected",
+                  "not_in_this_version",
+                  "run_failed",
+                  "run_cancelled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skip Reason"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
           "status": {
             "enum": [
               "queued",
@@ -5655,7 +5700,8 @@
               "completed",
               "waiting",
               "failed",
-              "cancelled"
+              "cancelled",
+              "skipped"
             ],
             "title": "Status",
             "type": "string"

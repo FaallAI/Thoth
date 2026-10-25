@@ -3265,17 +3265,23 @@ export interface components {
         };
         /** StageSummary */
         StageSummary: {
+            /** Finished At */
+            finished_at?: string | null;
             /** Id */
             id: string;
             /** Label */
             label: string;
             /** Progress */
             progress?: number | null;
+            /** Skip Reason */
+            skip_reason?: ("attribution_off" | "footage_off" | "assembly_off" | "legacy_source" | "approval_rejected" | "not_in_this_version" | "run_failed" | "run_cancelled") | null;
+            /** Started At */
+            started_at?: string | null;
             /**
              * Status
              * @enum {string}
              */
-            status: "queued" | "running" | "completed" | "waiting" | "failed" | "cancelled";
+            status: "queued" | "running" | "completed" | "waiting" | "failed" | "cancelled" | "skipped";
         };
         /** StatusCounts */
         StatusCounts: {
