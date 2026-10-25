@@ -52,6 +52,20 @@ All notable changes to this project will be documented in this file.
 **Next steps:**
 - **Operator gates:** push and PR, merge, deploy, all separate from the run-progress stack.
 - **Then:** rebase the run-progress stack onto this, move the phase 5 frame columns into `RenderJobRow`, and keep the parity test green.
+## 2026-10-26 - Phase 4 review follow-ups: dashboard test flakiness (N5) and inbox settle throttle (N3)
+
+**N5: the dashboard `bun test` flakiness on Bun 1.4.4.** One to three different tests failed in every full run; each file passed alone.
+- **Root cause:** testing-library's `findBy*`/`waitFor` turn the act environment off and drain pending work with `setTimeout(0)`. React's scheduler flushes passive effects (`useEffect`) with `setImmediate`, and Bun does not order the two. A test that asserted on an effect of the render that showed its element could therefore run before that effect.
+  - **Examples:** `listPromptTemplates` was called 0 times, and the preview mount counter read 0.
+  - **Ruled out:** cross-file DOM leakage. A diagnostic preload found only five empty containers, the same in every run.
+- **Fix:** `dashboard/src/test-setup.ts` wraps testing-library's `asyncWrapper` to also wait one `setImmediate` while act is off.
+- **Guard test:** `src/test-setup.test.tsx` runs the PromptLab pattern 500 times. Before the fix it failed 1 to 2 times per 300 iterations; after it, it passed 1500 of 1500.
+- **Full suite:** it failed in 4 of 4 runs before the fix, and passed in 5 of 5 after (1251 pass, 0 fail). `bun run build` is ok.
+
+**N3:** `WorkflowRunService.inbox` settles an actor's stale rows at most once per 15 s (`INBOX_SETTLE_SECONDS`). Polls in between re-read the stored rows, so a fast-polling client cannot turn the inbox into a Temporal call storm. `docs/DESIGN.md` §7.6 now states the polling cadence: the run snapshot and steps every second; the inbox on focus, after an action, and at most every 15 s otherwise.
+
+**Next steps:** roadmap step 6 (phase 5, render frames). The push, merge and deploy gates for the stacked branches stay with the operator.
+
 ## 2026-10-26 - Run progress phase 4: estimates and inbox
 
 **Spec/plan:** spec G4 (estimates) and G5 (inbox), operator decision 2, and
