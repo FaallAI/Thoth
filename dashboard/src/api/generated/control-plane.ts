@@ -2717,6 +2717,8 @@ export interface components {
             document_id: string;
             /** Document Revision */
             document_revision: number;
+            /** Encoded Frames */
+            encoded_frames?: number | null;
             /** Failure Code */
             failure_code?: ("render_asset_unavailable" | "render_bundle_invalid" | "render_deadline_exceeded" | "render_dispatch_failed" | "render_engine_failed" | "render_output_invalid" | "render_storage_failed" | "renderer_unavailable") | null;
             /** Finished At */
@@ -2733,6 +2735,10 @@ export interface components {
             project_id: string;
             /** Render Job Id */
             render_job_id: string;
+            /** Render Stage */
+            render_stage?: ("preparing" | "rendering" | "encoding" | "uploading") | null;
+            /** Rendered Frames */
+            rendered_frames?: number | null;
             /** Renderer Version */
             renderer_version: string;
             /** Retry Of Job Id */
@@ -2754,6 +2760,8 @@ export interface components {
              * @constant
              */
             template_version: 1;
+            /** Total Frames */
+            total_frames?: number | null;
         };
         /**
          * RenderOutputView

@@ -3936,6 +3936,18 @@
             "title": "Document Revision",
             "type": "integer"
           },
+          "encoded_frames": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Encoded Frames"
+          },
           "failure_code": {
             "anyOf": [
               {
@@ -4007,6 +4019,35 @@
             "title": "Render Job Id",
             "type": "string"
           },
+          "render_stage": {
+            "anyOf": [
+              {
+                "enum": [
+                  "preparing",
+                  "rendering",
+                  "encoding",
+                  "uploading"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Render Stage"
+          },
+          "rendered_frames": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rendered Frames"
+          },
           "renderer_version": {
             "title": "Renderer Version",
             "type": "string"
@@ -4056,6 +4097,18 @@
             "const": 1,
             "title": "Template Version",
             "type": "integer"
+          },
+          "total_frames": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Frames"
           }
         },
         "required": [
