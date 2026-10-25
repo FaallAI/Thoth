@@ -1,6 +1,6 @@
 # Run progress contract: design
 
-Date: 2026-10-25. Status: draft for operator approval.
+Date: 2026-10-25. Status: approved by the operator on 2026-10-25 (all four decisions in §8).
 Implements the backend contract of `docs/DESIGN.md` §7.7, as amended in §3 below.
 
 **Design sources:**
@@ -137,9 +137,11 @@ Each phase: the full Python suite, the dashboard tests and `make lint`. The rede
 - Auto-draft stages (they join the catalogue when auto-draft lands).
 - Desktop notifications (frontend, §12.3).
 
-## 8. Decisions for the operator
+## 8. Operator decisions (2026-10-25)
 
-1. Store steps in Postgres, written by activities, instead of heartbeats (§3)?
-2. Inbox "accounts": cooldown or unhealthy accounts for platform admins only (G5)?
-3. Include render frame progress (G6) in this spec, or later?
-4. Phase order: backend phases 1-5 first, then the dashboard restyle spec?
+1. Steps are stored in Postgres, written by activities, not sent as heartbeats (§3). **Approved.**
+2. Inbox "accounts" are accounts in cooldown or unhealthy, for platform admins only (G5). **Approved.**
+3. Render frame progress (G6) is part of this spec. **Approved.**
+4. Backend phases 1-5 come first, then the dashboard restyle spec. **Approved.**
+
+This is recorded in `docs/ROADMAP.md` under "Dashboard redesign track".

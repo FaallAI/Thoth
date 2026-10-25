@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-25 - Run progress contract approved; dashboard redesign track in the roadmap
+
+**Spec:** `docs/superpowers/specs/2026-10-25-run-progress-contract-design.md`, approved by the operator with all four decisions. It is the backend for the progress model of `docs/DESIGN.md` §7:
+- **G1:** the stage plan in the summary;
+- **G2, G3:** steps from activities into `workflow_steps`, and a steps endpoint;
+- **G4:** estimates;
+- **G5:** the inbox;
+- **G6:** render frames.
+
+**Amendment to `docs/DESIGN.md` §7.7:** steps go to Postgres, not heartbeats. The Temporal Python SDK throttles heartbeats by default: 30 s, at most 60 s (Context7).
+
+**`docs/ROADMAP.md`** gains a "Dashboard redesign track" section:
+1. design (done);
+2. stage plan;
+3. steps;
+4. instrumentation;
+5. estimates and inbox;
+6. render frames;
+7. the restyle;
+8. the live gate.
+
+The numbered priority items are unchanged.
+
+**Next steps:** the implementation plan for phase 1 (the stage plan).
+
 ## 2026-10-25 - Design review round 2: Studio approved with polish, Prompt 30
 
 **Review of 67 exports.** Every round-1 finding is fixed, and the Studio screens match §13:
