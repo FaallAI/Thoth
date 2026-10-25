@@ -52,6 +52,45 @@ All notable changes to this project will be documented in this file.
 **Next steps:**
 - **Operator gates:** push and PR, merge, deploy, all separate from the run-progress stack.
 - **Then:** rebase the run-progress stack onto this, move the phase 5 frame columns into `RenderJobRow`, and keep the parity test green.
+## 2026-10-26 - Run progress phase 5: render frames (spec G6)
+
+Executed by Claude at the operator's request, on `feat/run-progress-render-frames`, which is stacked on the phase 4 branch.
+
+**Renderer:**
+- **Frame facts:** `renderMedia`'s `onProgress` (Remotion 4, checked through Context7) now carries `renderedFrames` and `encodedFrames` against the composition's `durationInFrames`.
+- **The execution reports `render_stage`:**
+  - `preparing`;
+  - `rendering` while frames remain;
+  - `encoding` once every frame is rendered;
+  - `uploading` while finalizing.
+- **Reporting rate:** reports go out at most once a second, plus on a stage change and at 100%, instead of every 10%.
+
+**Compatibility with an older control plane.** An older control plane refuses the new fields with 422.
+- The client raises `ControlPlaneRejected`, a subclass of `ControlPlaneUnavailable`.
+- The execution then resends that event without the frame facts and keeps the older shape for the rest of the job.
+- So a new renderer next to a rolled-back Thoth still delivers every status; only the frame facts are lost.
+- An old renderer next to a new Thoth is fine, because the fields are optional.
+- After migration 0021, a rolled-back Thoth still works: its repository selects explicit columns.
+
+**Control plane:**
+- **Migration `0021_render_job_frames`:** four nullable, checked columns on `render_jobs`.
+- **`RenderJob` / `RenderJobEvent`:** the frames and the stage. Frame counts never decrease, and they must fit a reported total.
+- **The psycopg repository** reads and writes the new columns, appended at the end of its column list.
+- **`RenderJobView`:** exposes the four fields. The projection test was updated deliberately.
+- **Contract:** additions only (+53 OpenAPI, +8 TypeScript).
+
+**Evidence:**
+- **Python:** full suite 4649 passed, 116 skipped; `make lint` clean; `make test-postgres` 23 passed.
+- **Dashboard:** `bun test` 1251 pass and the build is ok.
+- **Renderer:**
+  - `server`, `control-plane-client` and `remotion-adapter` pass 59 tests, and `tsc` is clean;
+  - the full renderer suite has 27 failures in the release capsule and capture tests on Windows. They are identical before and after this phase.
+- **Pre-existing flake:** `tests/auth/test_sign_in_service.py::test_racing_guesses_get_at_most_five_evaluations` failed once in a full run and passes 3/3 alone. It is unrelated to this phase.
+
+**Next steps:**
+- roadmap step 7, the dashboard and Studio restyle spec;
+- the operator gates for the stacked branches (push, merge, deploy). Deploy and roll back the renderer and Thoth images as one package, even though each side now survives the other's older version.
+
 ## 2026-10-26 - Phase 4 review follow-ups: dashboard test flakiness (N5) and inbox settle throttle (N3)
 
 **N5: the dashboard `bun test` flakiness on Bun 1.4.4.** One to three different tests failed in every full run; each file passed alone.

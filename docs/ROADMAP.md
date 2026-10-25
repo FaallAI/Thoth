@@ -54,7 +54,7 @@ The operator started this on 2026-10-24/25, because a dashboard run now takes 6 
 | 3. Run progress, phase 2: steps | `workflow_steps` (migration 0019), the step recorder in activities, `GET /workflows/{id}/steps`, `current_step` | Done 2026-10-25 (branch `feat/run-progress-steps`), awaiting review |
 | 4. Run progress, phase 3: instrumentation | The step catalogue in the X, TikTok, Instagram, YouTube and Threads acquirers, attribution, footage and assembly | Done 2026-10-25 (branch `feat/run-progress-instrumentation`), awaiting review |
 | 5. Run progress, phase 4: estimates and inbox | `estimate_seconds_remaining`, `GET /inbox`, acknowledging failed runs | Done 2026-10-26 (branch `feat/run-progress-estimates-inbox`), awaiting review |
-| 6. Run progress, phase 5: render frames | Rendered and encoded frames and the render stage from the renderer | After step 2 |
+| 6. Run progress, phase 5: render frames | Rendered and encoded frames and the render stage from the renderer | Done 2026-10-26 (branch `feat/run-progress-render-frames`) |
 | 7. Dashboard and Studio restyle | Its own spec: the token migration (§5.1), the English/Indonesian switch, notifications, run tray, inbox, Studio Story / Script / Timeline (§13) | After steps 2-6 |
 | 8. Live gate (operator) | One dashboard `produce_video` run with a TikTok main. Check the progress model, the Content Set in Studio, the TikTok profile page, the comment filter, and the comment-card count | After step 7 |
 
