@@ -261,7 +261,7 @@ This is for the implementation spec, not the design file.
    - The workflow builds the list at start from the intent and flags, and updates each stage's `status`, `started_at`, `finished_at` and `current_step`.
    - This replaces the single hard-coded `source` stage.
    - It is a workflow-code change, so it goes behind a `workflow.patched` gate like `produce-video-chain`.
-2. **Steps from inside activities.**
+2. **Steps from inside activities.** *Amended 2026-10-25: steps are written by activities to Postgres (`workflow_steps`), not sent as heartbeats, because Temporal throttles heartbeats 30-60 s. See `docs/superpowers/specs/2026-10-25-run-progress-contract-design.md` §3. The heartbeat text below is superseded.*
    - Activities call `activity.heartbeat({"stage", "step", "done", "total", "wait_until"})` at each step.
    - The gateway reads the latest one through `handle.describe()`, from `raw_description.pending_activities[].heartbeat_details`, and merges it into the snapshot as the running stage's `current_step`.
    - No workflow-history writes happen per step, and steps are lost harmlessly on retry.
