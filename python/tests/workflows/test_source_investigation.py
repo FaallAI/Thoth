@@ -2646,3 +2646,54 @@ async def test_a_legacy_report_skips_the_chain_with_legacy_source(
     for stage_id in ("attribution", "footage", "assembly"):
         assert by_id[stage_id].status == "skipped"
         assert by_id[stage_id].skip_reason == "legacy_source"
+
+
+# Run progress, phase 1 (spec 2026-10-25, G1): real recorded histories from before the
+# stage-plan change must replay unchanged, because the plan issues no Temporal command.
+#
+# How the fixtures were made: on 2026-10-25, in a separate worktree checked out at
+# origin/master 0f744ce (the commit before this branch), a one-off script imported this
+# file's fakes (fake_inspect, fake_attribute, fake_footage, fake_assemble and
+# record_workflow_completed) and ran them against a time-skipping WorkflowEnvironment:
+# - wf_fixture_produce_video_chain: a produce_video run with the chain flags on,
+#   approved through the approval gate, the full chain, succeeded (41 events);
+# - wf_fixture_identify_original: an identify_original run with the chain flags off,
+#   succeeded (14 events).
+# Each `handle.fetch_history().to_json_dict()` was saved verbatim under fixtures/.
+
+FIXTURE_DIR = Path(__file__).parent / "fixtures"
+PRE_STAGE_PLAN_FIXTURES = [
+    ("wf_fixture_produce_video_chain", "produce_video_chain_approved.history.json"),
+    ("wf_fixture_identify_original", "identify_original.history.json"),
+]
+
+
+async def _replay_pre_stage_plan_history(workflow_id: str, fixture: str) -> None:
+    from temporalio.client import WorkflowHistory
+    from temporalio.worker import Replayer
+
+    recorded = json.loads((FIXTURE_DIR / fixture).read_text(encoding="utf-8"))
+    await Replayer(
+        workflows=[SourceInvestigationWorkflow], data_converter=pydantic_data_converter
+    ).replay_workflow(WorkflowHistory.from_json(workflow_id, recorded))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "workflow_id, fixture", PRE_STAGE_PLAN_FIXTURES, ids=[f[1] for f in PRE_STAGE_PLAN_FIXTURES]
+)
+async def test_a_history_recorded_before_the_stage_plan_replays(
+    workflow_id: str, fixture: str
+) -> None:
+    await _replay_pre_stage_plan_history(workflow_id, fixture)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "workflow_id, fixture", PRE_STAGE_PLAN_FIXTURES, ids=[f[1] for f in PRE_STAGE_PLAN_FIXTURES]
+)
+async def test_a_history_recorded_before_the_stage_plan_replays_a_second_time(
+    workflow_id: str, fixture: str
+) -> None:
+    # One more replay of each, from a fresh parse of the same file: replays are repeatable.
+    await _replay_pre_stage_plan_history(workflow_id, fixture)
