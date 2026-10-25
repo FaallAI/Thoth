@@ -161,13 +161,17 @@ def test_only_running_and_queued_runs_get_an_estimate(status: str) -> None:
     assert estimate_seconds_remaining(run, history, NOW) is None
 
 
-def test_histories_without_stage_timestamps_are_ignored() -> None:
-    history = [
+def test_histories_without_stage_timestamps_do_not_count_toward_the_minimum() -> None:
+    """Runs from before phase 1 carry no stage timestamps: hundreds of them must not
+    turn the estimate on, or the UI shows a number built from defaults (DESIGN 7.3)."""
+    untimed = [succeeded(f"wf_old_{n}", {"source": None}) for n in range(20)]
+    timed = [
         succeeded("wf_0", {"source": 100.0}),
         succeeded("wf_1", {"source": 200.0}),
         succeeded("wf_2", {"source": 300.0}),
-        succeeded("wf_3", {"source": None}),
-        succeeded("wf_4", {"source": None}),
     ]
     run = live("running", [stage("source", "running", started_at=NOW)])
-    assert estimate_seconds_remaining(run, history, NOW) == 200
+    assert estimate_seconds_remaining(run, untimed + timed, NOW) is None
+
+    timed += [succeeded("wf_3", {"source": 200.0}), succeeded("wf_4", {"source": 200.0})]
+    assert estimate_seconds_remaining(run, untimed + timed, NOW) == 200

@@ -43,16 +43,19 @@ def estimate_seconds_remaining(
 ) -> int | None:
     """The run's remaining whole seconds, or None when no estimate applies (D1).
 
-    None below `MIN_HISTORIES` succeeded runs and for any run that is not running or
-    queued; `awaiting_approval` gets None too, because a person is the wait. The approval
-    stage never counts. A non-approval stage left `waiting` still has all its work ahead,
-    so it counts like `queued`.
+    None below `MIN_HISTORIES` succeeded runs with stage timings, and for any run that is
+    not running or queued; `awaiting_approval` gets None too, because a person is the
+    wait. The approval stage never counts. A non-approval stage left `waiting` still has
+    all its work ahead, so it counts like `queued`.
     """
     if summary.status not in (WorkflowStatus.RUNNING, WorkflowStatus.QUEUED):
         return None
-    if len(histories) < MIN_HISTORIES:
+    # Only runs that recorded stage timings count: runs from before phase 1 carry none,
+    # and counting them would show a number built from defaults (DESIGN 7.3).
+    timed = [history for history in histories if _medians([history])]
+    if len(timed) < MIN_HISTORIES:
         return None
-    medians = _medians(histories)
+    medians = _medians(timed)
     remaining = 0.0
     for stage in summary.stages:
         if stage.id == NEVER_COUNTS:
