@@ -182,12 +182,15 @@ def _on_post(
         with contextlib.suppress(Exception):
             tagged = await page.evaluate(layout.tag_js, [asdict(t) for t in targets])
         known = {target.comment_id for target in targets}
-        # Only ids we sent (validated `[A-Za-z0-9_-]`) ever reach a selector.
-        sent = [
-            comment_id
-            for comment_id in (tagged if isinstance(tagged, list) else [])
-            if comment_id in known and comment_id not in cards.comment_pngs
-        ]
+        # Only ids we sent (validated `[A-Za-z0-9_-]`) ever reach a selector, and a tag
+        # script may list one twice: the first of each id is its one crop.
+        sent = list(
+            dict.fromkeys(
+                comment_id
+                for comment_id in (tagged if isinstance(tagged, list) else [])
+                if comment_id in known and comment_id not in cards.comment_pngs
+            )
+        )
         covered = 0
         for index, comment_id in enumerate(sent, start=1):
             png, row_covered = await _crop_row(
