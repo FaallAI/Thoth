@@ -6,7 +6,9 @@ real `FootageBuilder.build` inside `progress.scoped` with a fake sink.
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
+from typing import Any
 
 import pytest
 from sqlalchemy import create_engine
@@ -70,14 +72,16 @@ async def test_a_build_plans_searches_screens_and_keeps(
     assert result.status == "ok"
     steps = sequence(sink)
     assert steps[0] == ("footage.plan_queries", None, None, {"count": 2})
-    # The three platform searches run concurrently, so which intermediate updates survive
-    # the one-second coalescing window is timing; every survivor keeps its platform's n.
+    # The platforms search concurrently and each reports a completion count (1..3),
+    # never its index in SEARCH_PLATFORMS; which intermediate counts survive the
+    # one-second coalescing window is timing.
     searches = [step for step in steps if step[0] == "footage.search_platforms"]
-    of = {name: number for number, name in enumerate(("tiktok", "youtube", "x"), start=1)}
-    assert {2 <= len(searches) <= 3}
+    assert 2 <= len(searches) <= 3
     for _, n, total, params in searches:
-        assert (n, total) == (of[params["platform"]], 3)
-    assert (3, 3, {"platform": "x"}) in [(n, total, params) for _, n, total, params in searches]
+        assert total == 3
+        assert params is not None and params["platform"] in ("tiktok", "youtube", "x")
+        assert 1 <= n <= 3
+    assert searches[-1][1] == 3
     ordered = [code for code, *_ in steps]
     last_search = max(i for i, code in enumerate(ordered) if code == "footage.search_platforms")
     assert ordered.index("footage.creator_listing") > last_search
@@ -85,3 +89,34 @@ async def test_a_build_plans_searches_screens_and_keeps(
         ("footage.screen_clips", 2, 2, None),
         ("footage.keep_clips", None, None, {"count": 2}),
     ]
+
+
+class StaggeredSearch(Search):
+    """X answers at once, the other platforms later, so X settles first."""
+
+    delays = {"tiktok": 0.30, "youtube": 0.15, "x": 0.0}
+
+    async def search(self, platform: str, queries: Any, limit: int) -> Any:
+        await asyncio.sleep(self.delays[platform])
+        return await super().search(platform, queries, limit)
+
+
+@pytest.mark.asyncio
+async def test_a_platform_that_finishes_first_reports_the_first_completion(
+    sink: StepSink, store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # No coalescing holds: each platform's completion count is recorded as it lands.
+    monkeypatch.setattr(progress, "COALESCE_SECONDS", 0.0)
+    ports = _creator(CreatorListing(videos=[_own(1, "banjir kemang dari sisi lain")], photos=[]))
+    builder = _builder(store, search=StaggeredSearch(_hits(_video(1))), **ports)
+
+    with progress.scoped(FOOTAGE_SCOPE):
+        result = await builder.build(_inputs(tmp_path))
+
+    assert result.status == "ok"
+    searches = [step for step in sequence(sink) if step[0] == "footage.search_platforms"]
+    counts = {params["platform"]: n for _, n, _, params in searches}
+    # X is last in SEARCH_PLATFORMS but finishes first, so its n is a completion
+    # count, not the platform index.
+    assert counts == {"x": 1, "youtube": 2, "tiktok": 3}
+    assert searches[-1][1:3] == (3, 3)

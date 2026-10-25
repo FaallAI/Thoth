@@ -584,7 +584,9 @@ class FootageBuilder:
     async def _search(
         self, objects: Sequence[FootageObject]
     ) -> tuple[dict[str, list[tuple[str, DiscoveredVideo]]], bool]:
-        async def platform(name: str, index: int) -> dict[str, list[DiscoveredVideo]] | None:
+        searched = 0
+
+        async def platform(name: str) -> dict[str, list[DiscoveredVideo]] | None:
             found: dict[str, list[DiscoveredVideo]] = {}
             missing: list[str] = []
             for obj in objects:
@@ -615,9 +617,13 @@ class FootageBuilder:
                 sum(len(videos) for videos in found.values()),
                 failed,
             )
+            # A completion count, not the platform index: the searches run concurrently,
+            # so the last platform to finish reports the total, whichever it is.
+            nonlocal searched
+            searched += 1
             await progress.step(
                 "footage.search_platforms",
-                n=index,
+                n=searched,
                 total=len(SEARCH_PLATFORMS),
                 params={"platform": name},
             )
@@ -625,9 +631,7 @@ class FootageBuilder:
                 return None
             return found
 
-        results = await _together(
-            platform(name, index) for index, name in enumerate(SEARCH_PLATFORMS, start=1)
-        )
+        results = await _together(platform(name) for name in SEARCH_PLATFORMS)
         merged: dict[str, list[tuple[str, DiscoveredVideo]]] = {obj.query: [] for obj in objects}
         for name, result in zip(SEARCH_PLATFORMS, results, strict=True):
             for query, videos in (result or {}).items():
