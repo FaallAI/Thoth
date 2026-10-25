@@ -320,10 +320,7 @@ This is for the implementation spec, not the design file.
 - Each item: what, project, since when, and one action.
 - Empty: "Nothing needs you."
 
-**8.8 Studio.** Pending its own research (operator, 2026-10-25): `D:/thoth-tmp/research/studio-design/`.
-- The research produces this chapter and the pen.dev Studio prompts (Prompt 20 onward).
-- Until then, Studio keeps its F3 design and only the shared shell follows this document.
-- The import into Studio and the render use the progress model of §7.
+**8.8 Studio.** See §13. The research behind it is `docs/research/2026-10-25-studio-design-research.md`.
 
 **8.9 Accounts and proxies (admin).**
 - Restyled to the new components.
@@ -409,3 +406,90 @@ This is for the implementation spec, not the design file.
 ### 12.4 Cost hint
 
 The New run dialog shows a cost hint only after metering prices are set. Prices are deferred until every feature is done.
+
+## 13. Studio
+
+Approved by the operator on 2026-10-25 (research: `docs/research/2026-10-25-studio-design-research.md`).
+
+Studio turns a Content Set, or later an auto-draft, into a video.
+- **What it keeps from Creator Studio F3** (`docs/superpowers/specs/2026-09-25-creator-studio-f3-full-ui-ux-design.md`):
+  - one preview;
+  - honest revision-bound operations;
+  - the save-state vocabulary;
+  - the import inventory;
+  - the revision-bound render;
+  - review;
+  - keyboard parity;
+  - error summaries.
+- **What it replaces:** F3's generic scene model (heading, body, style) gives way to a story model built from **real evidence**.
+
+### 13.1 Modes
+
+| Mode | What it is | Default when |
+|---|---|---|
+| **Story** | Beat-based and Content-Set-aware: Materials on the left, the 9:16 preview with a safe-zone toggle, the beat strip below (Hook · Main · Evidence · Reactions · Footage · Outro), and a context inspector on the right (timing, position preset, motion, emphasis) | The draft came from Open in Studio |
+| **Script** | The narration as one paragraph per beat. Editing a line marks its beat "Voice out of date"; re-voicing runs per beat; captions follow the word timings; figures are inline name tokens | The draft came from auto-draft |
+| **Timeline** | The precise multitrack editor over the v2 tracks (`main_video`, `b_roll`, `overlay`, `caption`, `narration`, `music`, `sfx`): thumbnails, waveforms, zoom, snap, canvas handles on the preview, and the issues bar | Opened on demand; desktop only |
+
+- **Destinations** stay Edit · Review · Render.
+- **Prompt Lab** leaves the Studio navigation for a project-level "Presets & prompts" page, together with the auto-draft presets.
+- **Assist** (AI proposals) is a toggle in Edit with the `purple` accent: a proposal at the selection, "Apply" or "Dismiss".
+
+### 13.2 Evidence and what can be edited
+
+Card pixels are evidence: they are never edited and never redrawn. A comment without a card can be quoted in the narration or a caption, but a card is never drawn for it.
+
+| Object | Evidence | Editable |
+|---|---|---|
+| Main video | Source, owner, attribution verdict ("Original" / "Repost of @…"), OCR outcome | In and out (the OCR trim shown with its reason), subtitle blur and mute, volume |
+| Post card | Pixels, `media_box`, capture time | Placement, timing, motion; play the video inside the card |
+| Profile card / page | Pixels | Placement, timing, pan |
+| Comment card | Pixels, page or embed, author, likes | Which ones show, order, timing, emphasis |
+| Text-only comment | Text, author, likes, relevance | A quote in the narration or a caption only |
+| Footage clip | Platform, owner, query, story score, `shows_object`, OCR | In point, length, placement, mute |
+| Figure | Name, type, role | Name-label timing; a mention in the script |
+| Credit | Verdict and handle | Placement of the outro credit line (on by default) |
+
+**The Materials panel** lists every item with its provenance (platform, owner, capture time, page or embed) and a "why" popover (story score, relevance, verdict).
+
+### 13.3 Long-running work
+
+Uses the model of §7: stages, steps, estimates, the run tray, notifications.
+
+| Process | Stages and steps |
+|---|---|
+| Import | Copy media (n of m) · Probe · Place materials · Draft ready; then the inventory |
+| Render | Queue · Prepare assets · Render frames (n of total, fps) · Encode · Upload · Ready |
+| Re-voice | Synthesize (beat n of m) · Align words · Update captions |
+| AI proposal | Thinking · Proposal ready |
+
+### 13.4 Review and render
+
+- **Review:**
+  - comments pinned to a frame and a beat, with threads and resolve;
+  - "Approve for render" or "Request changes" on one revision;
+  - a revision list that shows what changed, taken from the operation log.
+- **Render readiness** adds publish checks:
+  - safe zones respected;
+  - the duration within the platform limit;
+  - captions present;
+  - the credit line present;
+  - no unresolved import item.
+- **Render output:** Render and download only. Publishing straight to platforms is out of scope for now.
+
+### 13.5 Screens and narrow scope
+
+- **Screens:**
+  1. `/studio` documents list (thumbnail, title, source run, state Draft / In review / Approved / Rendering / Rendered, revision, updated, owner; "New from a run", "Blank").
+  2. Import progress and inventory.
+  3. Story mode and its states (drag, missing material, conflict, Assist).
+  4. Script mode.
+  5. Timeline mode.
+  6. Review.
+  7. Render.
+- **Phone:** watch; comment and approve; monitor the render and download; edit the hook text and caption text; swap a card or clip from a list.
+  - No timeline on a phone.
+  - No reordering on a phone.
+  - No starting a render on a phone.
+
+**Tokens:** Studio follows §5.1. It keeps `purple` (AI) and `playhead`; the F3 tokens migrate as mapped there.
