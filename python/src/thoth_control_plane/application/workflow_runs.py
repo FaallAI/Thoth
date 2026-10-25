@@ -8,8 +8,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
+from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
 
+from thoth_control_plane.application.estimates import estimate_seconds_remaining
 from thoth_control_plane.application.ports import (
     RunClosed,
     RunLive,
@@ -45,6 +49,9 @@ logger = logging.getLogger(__name__)
 SETTLE_LIMIT = 20
 #: One slow settle must not hold the page: past this, the stored row is returned as is.
 SETTLE_TIMEOUT_SECONDS = 3.0
+#: The estimate's history input is cached this long per (actor, platform); the dashboard
+#: polls `get` about once a second (run-progress spec 2026-10-25, G4).
+ESTIMATE_CACHE_SECONDS = 60.0
 
 
 def _known_status(run: StoredRun) -> dict[str, WorkflowStatus]:
@@ -69,6 +76,7 @@ class WorkflowRunService:
         gateway: Any,
         billing: Any = None,
         steps: Any = None,
+        monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         self._runs = runs
         self._billing = billing
@@ -76,6 +84,10 @@ class WorkflowRunService:
         self._workflows = workflows
         self._gateway = gateway
         self._steps = steps
+        self._monotonic = monotonic
+        # ponytail: per-process estimate cache; the ceiling is one entry per
+        # (actor, platform) in use, each at most 60 s stale.
+        self._estimate_cache: dict[tuple[str, str, str], tuple[float, list[WorkflowSummary]]] = {}
 
     def _store(self) -> Any:
         if self._runs is None:
@@ -232,9 +244,10 @@ class WorkflowRunService:
             if run is None or not run.owned_by(actor):
                 raise
             stored = run.summary or await self._synthesized(run)
-            return await self._with_current_steps(
+            with_steps = await self._with_current_steps(
                 stored.model_copy(update={"history_expired": True, **_known_status(run)})
             )
+            return await self._with_estimate(with_steps, actor=actor)
         if self._runs is not None:
             try:
                 await asyncio.to_thread(
@@ -246,7 +259,8 @@ class WorkflowRunService:
                 )
             except WorkflowRunsUnavailable:
                 logger.warning("run summary not saved workflow_id=%s", workflow_id)
-        return await self._with_current_steps(summary)
+        with_steps = await self._with_current_steps(summary)
+        return await self._with_estimate(with_steps, actor=actor)
 
     async def _with_current_steps(self, summary: WorkflowSummary) -> WorkflowSummary:
         """Fill each running or waiting stage's current step, after settle, so a stored
@@ -276,6 +290,41 @@ class WorkflowRunService:
                 ]
             }
         )
+
+    async def _succeeded_histories(self, actor: Actor, platform: str) -> list[WorkflowSummary]:
+        """The estimate's history input, cached briefly so a one-second dashboard poll
+        does not hit the run store every time."""
+        key = (actor.actor_type, actor.actor_id, platform)
+        now = self._monotonic()
+        cached = self._estimate_cache.get(key)
+        if cached is not None and now - cached[0] < ESTIMATE_CACHE_SECONDS:
+            return cached[1]
+        histories = await asyncio.to_thread(self._store().recent_succeeded, actor, platform)
+        self._estimate_cache[key] = (now, histories)
+        return histories
+
+    async def _with_estimate(self, summary: WorkflowSummary, *, actor: Actor) -> WorkflowSummary:
+        """Fill the estimate after the current steps, never before them, and never inside
+        `settle` (plan D2): a wait step must reach the math. A history-store error costs
+        only the field."""
+        if self._runs is None or summary.status not in (
+            WorkflowStatus.RUNNING,
+            WorkflowStatus.QUEUED,
+        ):
+            return summary
+        try:
+            histories = await self._succeeded_histories(actor, summary.source.platform)
+        except Exception as error:
+            logger.warning(
+                "estimate histories unavailable workflow_id=%s reason=%s",
+                summary.workflow_id,
+                type(error).__name__,
+            )
+            return summary
+        estimate = estimate_seconds_remaining(summary, histories, datetime.now(UTC))
+        if estimate is None:
+            return summary
+        return summary.model_copy(update={"estimate_seconds_remaining": estimate})
 
     async def get_artifact(
         self, workflow_id: str, artifact_id: str, *, actor: Actor

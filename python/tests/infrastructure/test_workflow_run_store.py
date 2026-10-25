@@ -7,6 +7,8 @@ import pytest
 
 from tests.sqlite_support import sqlite_engine
 from thoth_control_plane.domain import Actor, WorkflowSummary
+from thoth_control_plane.domain.models import StageSummary
+from thoth_control_plane.domain.workflow_runs import StoredRun
 from thoth_control_plane.infrastructure import run_models  # noqa: F401
 from thoth_control_plane.infrastructure.project_store import ProjectStore
 from thoth_control_plane.infrastructure.report_store import ReportStore
@@ -14,6 +16,7 @@ from thoth_control_plane.infrastructure.source_account_models import Base
 from thoth_control_plane.infrastructure.workflow_run_store import WorkflowRunStore
 
 OWNER = Actor(actor_id="owner", actor_type="user")
+OTHER = Actor(actor_id="someone", actor_type="user")
 T0 = datetime(2026, 10, 18, 8, tzinfo=UTC)
 
 
@@ -145,3 +148,87 @@ def test_claim_assigns_only_an_unassigned_run(stores) -> None:
     assert claimed is not None and claimed.project_id == first
     assert again is not None and again.project_id == first  # never moved
     assert runs.claim("wf_missing", first) is None
+
+
+def _succeeded(
+    workflow_id: str, *, source_seconds: float, updated_at: datetime, platform: str = "example"
+) -> WorkflowSummary:
+    started = updated_at - timedelta(hours=1)
+    return WorkflowSummary(
+        workflow_id=workflow_id,
+        status="succeeded",
+        created_at=started,
+        updated_at=updated_at,
+        source={"display_url": "https://example.test/post", "platform": platform},
+        stages=[
+            StageSummary(
+                id="source",
+                label="Source",
+                status="completed",
+                started_at=started,
+                finished_at=started + timedelta(seconds=source_seconds),
+            )
+        ],
+    )
+
+
+def _seed_succeeded(runs: WorkflowRunStore, workflow_id: str, **changes: object) -> None:
+    runs.record_start(summary(workflow_id), project_id=None, actor=OWNER)
+    runs.settle(
+        workflow_id,
+        status="succeeded",
+        summary=_succeeded(workflow_id, **changes),
+        history_expired=False,
+    )
+
+
+def test_recent_succeeded_lists_newest_summaries_for_the_actor_and_platform(stores) -> None:
+    _, runs, _ = stores
+    for n in range(3):
+        _seed_succeeded(runs, f"wf_{n}", source_seconds=60.0, updated_at=T0 + timedelta(hours=n))
+    # A queued run, another platform, a foreign actor, and a succeeded row without a
+    # summary are all invisible to the estimate input.
+    runs.record_start(
+        _succeeded("wf_other_platform", source_seconds=60.0, updated_at=T0, platform="tiktok"),
+        project_id=None,
+        actor=OWNER,
+    )
+    runs.record_start(summary("wf_queued"), project_id=None, actor=OWNER)
+    runs.record_start(
+        _succeeded("wf_foreign", source_seconds=60.0, updated_at=T0), project_id=None, actor=OTHER
+    )
+    runs.insert_missing(
+        StoredRun(
+            workflow_id="wf_no_summary",
+            project_id=None,
+            actor_type=OWNER.actor_type,
+            actor_id=OWNER.actor_id,
+            display_url="https://example.test/post",
+            platform="example",
+            status="succeeded",
+            history_expired=False,
+            summary=None,
+            created_at=T0,
+            updated_at=T0,
+        )
+    )
+
+    histories = runs.recent_succeeded(OWNER, "example")
+
+    assert [history.workflow_id for history in histories] == ["wf_2", "wf_1", "wf_0"]
+    assert [stage.finished_at - stage.started_at for stage in histories[0].stages] == [
+        timedelta(seconds=60)
+    ]
+
+
+def test_recent_succeeded_is_capped_at_twenty_newest(stores) -> None:
+    _, runs, _ = stores
+    for n in range(25):
+        _seed_succeeded(
+            runs, f"wf_{n:02d}", source_seconds=60.0, updated_at=T0 + timedelta(hours=n)
+        )
+
+    histories = runs.recent_succeeded(OWNER, "example")
+
+    assert len(histories) == 20
+    assert histories[0].workflow_id == "wf_24" and histories[-1].workflow_id == "wf_05"

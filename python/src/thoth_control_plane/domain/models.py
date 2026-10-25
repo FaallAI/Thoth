@@ -336,6 +336,8 @@ class WorkflowSummary(StrictModel):
     failure: WorkflowFailure | None = None
     # default_factory keeps it optional in the generated TypeScript, like `artifacts`.
     history_expired: bool = Field(default_factory=lambda: False)
+    # Run-progress spec 2026-10-25, G4: filled by the API only, never stored.
+    estimate_seconds_remaining: Annotated[int | None, Field(ge=0)] = None
 
     @field_validator("status", mode="before")
     @classmethod

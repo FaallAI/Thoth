@@ -166,6 +166,30 @@ class WorkflowRunStore:
             raise self._unavailable(error) from None
         return None if row is None else _stored(row)
 
+    def recent_succeeded(
+        self, actor: Actor, platform: str, limit: int = 20
+    ) -> list[WorkflowSummary]:
+        """The actor's newest succeeded summaries for a platform, the estimate's input
+        (run-progress spec 2026-10-25, G4). Only rows with a stored summary qualify."""
+        query = (
+            select(WorkflowRunRow)
+            .where(
+                WorkflowRunRow.actor_type == actor.actor_type,
+                WorkflowRunRow.actor_id == actor.actor_id,
+                WorkflowRunRow.platform == platform,
+                WorkflowRunRow.status == "succeeded",
+                WorkflowRunRow.summary.is_not(None),
+            )
+            .order_by(WorkflowRunRow.updated_at.desc(), WorkflowRunRow.workflow_id.desc())
+            .limit(limit)
+        )
+        try:
+            with self._sessions() as session:
+                rows = session.scalars(query).all()
+        except SQLAlchemyError as error:
+            raise self._unavailable(error) from None
+        return [summary for row in rows if (summary := _summary(row.summary)) is not None]
+
     def settle(
         self,
         workflow_id: str,
