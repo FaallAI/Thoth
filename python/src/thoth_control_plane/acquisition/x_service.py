@@ -17,10 +17,12 @@ import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
+from thoth_control_plane import progress
 from thoth_control_plane.acquisition import card_browser
 from thoth_control_plane.acquisition.adapters.fxembed import fx_page
 from thoth_control_plane.acquisition.adapters.x import (
@@ -327,8 +329,13 @@ class XHeadlessBrowser(CardBrowser):
             gap = card_browser.PAGE_SPACING_SECONDS if index == 0 else EMBED_SPACING_SECONDS
             if time.monotonic() - started + gap > CARD_STEP_BUDGET_SECONDS:
                 break
+            await progress.step(
+                "source.page_gap",
+                wait_until=datetime.now(UTC) + timedelta(seconds=gap),
+            )
             await asyncio.sleep(gap)
             await self._embed(target, cards)
+            await progress.step("source.capture_embed_cards", n=index + 1, total=len(wanted))
             tried.append(target)
         if wanted:
             kept = sum(target.comment_id in cards.comment_pngs for target in tried)

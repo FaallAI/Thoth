@@ -35,6 +35,7 @@ from thoth_control_plane.acquisition.models import (
 )
 from thoth_control_plane.acquisition.platforms import platform_of
 from thoth_control_plane.acquisition.registry import acquirer_for
+from thoth_control_plane import progress
 from thoth_control_plane.activities.media_scratch import MediaScratch, report_media_locations
 from thoth_control_plane.config import Settings
 from thoth_control_plane.domain import (
@@ -282,6 +283,7 @@ async def _run(
         # The runner writes below the scratch root; cleanup evidence inspects it
         # before the scratch directory is removed.
         root = scratch.root
+        await progress.step("source.read_link")
         try:
             acquisition_result = await runner(
                 input_.workflow_id, str(input_.canonical_source_url), root
@@ -354,6 +356,7 @@ async def _run(
                     acquisition_result.account,
                 ),
             )
+        await progress.step("source.save_report")
 
         digest = sha256(content).hexdigest()
         artifact = ArtifactRef(
