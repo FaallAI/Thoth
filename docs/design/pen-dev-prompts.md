@@ -540,6 +540,34 @@ translated; durations "0:16"). Run the QA checklist (resting states, honest data
 no clipping), then export the new Studio screens to design/exports/v2/ and list them.
 ```
 
+## Review fixes, round 2 (2026-10-25)
+
+## Prompt 30: polish
+
+```text
+Work only in design/thoth-dashboard-v2.pen. Small fixes from the second review:
+1. "States": remove hover, focus and pressed from Status pill (pills are not interactive; keep
+   rest and a muted variant) and remove "pressed" from Input and Input / URL. Replace the table-row
+   disabled reason "Removed by the 30-day retention policy - its log is kept" with "Archived - its
+   results are kept".
+2. "Studio - Story" (and its drag, missing material, conflict, assist and Indonesian copies):
+   - In Materials > Comments (judged) and in the Inspector's "SHOWN COMMENTS", replace the black
+     squares and generic icons with small thumbnails of the Comment card crop component.
+   - The Reactions beat is selected, so move the playhead to its start (0:28) and show that frame
+     in the preview: the haze street with comment card 1 in the lower third; time "0:28 / 0:48".
+3. "Studio - Script": make the voice states consistent - Main "Voice out of date" with
+   "Re-voice", Evidence "Re-voicing this beat" (progress bar, no "beat 3 of 6"), and the header
+   button "Re-voice 1 out of date" (Main only; Evidence is already re-voicing).
+4. "Studio - Render" (and its done copy): the duration row reads "Duration 0:48 · within the
+   TikTok preset (up to 3:00)" instead of "Limit 0:15 - 3:00". Keep the safe-zone row as a
+   warning with "Does not block render".
+5. Sample data: in "Run - details expired" use a September post (card date "Sep 12, 2026",
+   footage and comments from September) so the dates agree with the run; in "Command palette -
+   open" use document names from "Studio - documents" (Kabut asap Kalteng, Sekolah libur karena
+   asap).
+Re-export only the changed screens to design/exports/v2/ and list them.
+```
+
 ---
 
 ## After pen.dev
