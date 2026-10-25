@@ -52,6 +52,65 @@ All notable changes to this project will be documented in this file.
 **Next steps:**
 - **Operator gates:** push and PR, merge, deploy, all separate from the run-progress stack.
 - **Then:** rebase the run-progress stack onto this, move the phase 5 frame columns into `RenderJobRow`, and keep the parity test green.
+## 2026-10-26 - Run progress phase 4: estimates and inbox
+
+**Spec/plan:** spec G4 (estimates) and G5 (inbox), operator decision 2, and
+`docs/superpowers/plans/2026-10-26-run-progress-phase4-estimates-inbox.md`
+(roadmap "Dashboard redesign track", step 5). Branch `feat/run-progress-estimates-inbox`,
+stacked on `feat/run-progress-instrumentation` (`8da3c2d`).
+
+**What changed:**
+- **Estimates (G4):** a pure `application/estimates.py` turns the run's summary, the
+  actor's last 20 succeeded stored summaries for the same platform, and `now` into
+  `WorkflowSummary.estimate_seconds_remaining` (whole seconds): per-stage medians over
+  completed stages with both timestamps, spec defaults (`source` 120, `attribution` 60,
+  `footage` 240, `assembly` 60) when a stage has no median, `None` below 5 histories (the
+  UI then says "a few minutes") and for any run that is not running or queued — a person
+  is the wait, so `awaiting_approval` and the approval stage never count. A running stage
+  counts `max(median − elapsed, wait_remaining, 0)`, so a `wait` step's countdown holds
+  the estimate up.
+- **Estimate wiring:** `WorkflowRunStore.recent_succeeded` (succeeded rows with a stored
+  summary, newest `updated_at` first, capped at 20); `WorkflowRunService.get` fills the
+  estimate **after** `_with_current_steps` and never inside `settle`, so no stored summary
+  carries it. The history input is cached per `(actor_type, actor_id, platform)` for 60 s
+  (per-process; the dashboard polls `get` about once a second). A history-store error is a
+  `warn` and costs only the field.
+- **Acknowledging failed runs (G5):** migration `0020_workflow_run_acknowledged` adds
+  `workflow_runs.acknowledged_at` and the partial index
+  `workflow_runs_unacknowledged_failures` (`WHERE status = 'failed' AND acknowledged_at IS
+  NULL`). `POST /workflows/{workflow_id}/acknowledge` answers 204, settles an unsettled
+  row first (a just-failed run can be acknowledged at once), refuses with 409
+  `run_not_failed` when the run is not failed, 404 for a foreign or missing run, and is
+  idempotent — the first `acknowledged_at` survives. Opening a run never acknowledges it.
+- **The inbox (G5):** `GET /inbox` returns `approvals`, `failures` and `accounts`. The
+  caller's unsettled rows are settled first (at most `SETTLE_LIMIT`, the run list's rule),
+  then approvals (`awaiting_approval`, newest first, at most 20), then failures (`failed`
+  and not acknowledged, newest first, at most 20, with `failure_code` from the stored
+  summary), and — only for a platform admin holding the `admin` scope, the
+  `platform_actor` rule — source accounts that are in `cooldown` or `expired` or still
+  inside a cooldown clock. `disabled` never appears; the payload carries no cookie,
+  cookie name or proxy data. Without a run store the inbox is empty; without an account
+  store the account list is.
+- **Contract:** `python/openapi.json` and `dashboard/src/api/generated/control-plane.ts`
+  regenerated: `WorkflowSummary.estimate_seconds_remaining`, the `Inbox`/`InboxRun`/
+  `InboxAccount` schemas, and the two new paths. Additions only.
+
+**Evidence (final tree `121e356`, WSL):**
+- **Python:** full suite **4639 passed, 116 skipped**; `make lint` clean (ruff check +
+  format, 527 files).
+- **Postgres:** `make test-postgres` -> **23 passed** (migration 0020 applies on a
+  throwaway PostgreSQL 16.4; the partial index exists).
+- **Workflow untouched:** `git diff 8da3c2d -- python/src/thoth_control_plane/workflows/`
+  is empty; the replay selection (`-k 'before_the_stage_plan or replay'`) -> 6 passed.
+- **Dashboard:** `bun run build` ok; `bun test` passes file-by-file — the full run flakes
+  on Bun 1.4.4 with varying names (the known `GuidedStudio.responsive` "keeps one preview
+  mounted across every viewport" among them); each such file passes alone, and the
+  phase 3 baseline `8da3c2d` flakes the same way, so it predates this work. The branch
+  adds no dashboard tests; only the generated types change.
+
+**Next steps:** roadmap step 6 (phase 5, render frames). The push, merge and deploy gates
+for the stacked branches stay with the operator.
+
 ## 2026-10-25 - Run progress phase 3: instrumentation (+F1)
 
 **Spec/plan:** spec §5 (the step catalogue) and G2, and
