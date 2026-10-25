@@ -1,0 +1,72 @@
+"""Attribution step emissions over the replay harness (phase 3, D3).
+
+Two representative verdicts — an uncredited original and a credited replacement — run the
+real `identify` inside `progress.scoped` with a fake sink and assert the ordered sequence.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from tests.attribution.test_service import _case, _identify
+from thoth_control_plane import progress
+from thoth_control_plane.progress import StepRecord, StepScope
+
+ATTRIBUTION_SCOPE = StepScope(workflow_id="wf_steps", stage="attribution", attempt=1)
+
+
+class StepSink:
+    def __init__(self) -> None:
+        self.records: list[StepRecord] = []
+
+    def append(self, scope: StepScope, record: StepRecord) -> None:
+        self.records.append(record)
+
+
+@pytest.fixture
+def sink() -> StepSink:
+    installed = StepSink()
+    progress.install(installed)
+    return installed
+
+
+def sequence(sink: StepSink) -> list[tuple[str, int | None, int | None, dict | None]]:
+    return [(r.code, r.n, r.total, r.params) for r in sink.records]
+
+
+@pytest.mark.asyncio
+async def test_an_uncredited_original_reads_asks_and_verdicts(sink: StepSink) -> None:
+    quiet = _case()
+    quiet["frames"]["repost"][0]["boxes"] = []
+    quiet["decisions"] = {**quiet["decisions"], "handle": None, "handle_probability": 0.0}
+    quiet["decisions"]["is_repost"] = 0.1
+
+    with progress.scoped(ATTRIBUTION_SCOPE):
+        outcome, _ = await _identify(quiet)
+
+    assert outcome.attribution.verdict == "original"
+    assert sequence(sink) == [
+        ("attribution.read_text", None, None, None),
+        ("attribution.ask_vision", None, None, None),
+        ("attribution.ask_vision", None, None, None),
+        ("attribution.verdict", None, None, {"verdict": "original"}),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_a_credited_replacement_searches_and_compares_before_the_verdict(
+    sink: StepSink,
+) -> None:
+    with progress.scoped(ATTRIBUTION_SCOPE):
+        outcome, _ = await _identify(_case())
+
+    assert outcome.attribution.verdict == "replaced"
+    assert sequence(sink) == [
+        ("attribution.read_text", None, None, None),
+        ("attribution.ask_vision", None, None, None),
+        ("attribution.ask_vision", None, None, None),
+        ("attribution.search_candidates", None, None, {"count": 3}),
+        ("attribution.compare_frames", 1, 2, None),
+        ("attribution.compare_frames", 2, 2, None),
+        ("attribution.verdict", None, None, {"verdict": "replaced"}),
+    ]
