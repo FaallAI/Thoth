@@ -472,6 +472,9 @@ class SourceInvestigationWorkflow:
         except ActivityError:
             # Spec section 4: a failure after all attempts warns, and the workflow goes on.
             result = None
+            # F1 (run progress phase 3): the stage reads failed, not completed; `complete`
+            # below ignores a failed stage, and the run still succeeds.
+            self._plan_fail("footage")
             self._source_events.append(
                 SourceProgressEvent(
                     kind="stage.failed",

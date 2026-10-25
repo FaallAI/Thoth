@@ -2079,6 +2079,36 @@ async def test_a_crashing_footage_stage_never_fails_the_workflow(
 
 
 @pytest.mark.asyncio
+async def test_a_crashing_footage_stage_reads_failed_while_the_run_succeeds(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    """F1 (phase 3, D2): the stage plan reports the footage stage as failed, not completed,
+    while assembly still runs and the run still succeeds."""
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[
+            record_workflow_completed,
+            fake_inspect,
+            fake_attribute,
+            crashing_footage,
+            fake_assemble,
+        ],
+    ):
+        result = await workflow_env.client.execute_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_with_footage()],
+            id="wf_test_footage_stage_failed",
+            task_queue="test",
+        )
+    stages = {stage.id: stage.status for stage in result.stages}
+    assert stages["footage"] == "failed"
+    assert stages["assembly"] == "completed"
+    assert result.status == "succeeded"
+
+
+@pytest.mark.asyncio
 async def test_footage_off_runs_no_footage_activity(workflow_env: WorkflowEnvironment) -> None:
     FOOTAGE_INPUTS.clear()
     async with Worker(
