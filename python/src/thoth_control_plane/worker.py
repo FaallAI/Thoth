@@ -30,6 +30,7 @@ from thoth_control_plane.activities.meter_scope import (
     MeterScopeInterceptor,
     record_workflow_completed,
 )
+from thoth_control_plane.activities.progress_scope import ProgressScopeInterceptor
 from thoth_control_plane.activities.prompt_proposal import (
     PROMPT_PROPOSAL_TASK_QUEUE,
     build_prompt_proposal_activity,
@@ -126,7 +127,7 @@ def build_source_investigation_worker(
             build_footage_activity(settings, reports=reports, media=media),
             record_workflow_completed,
         ],
-        interceptors=[MeterScopeInterceptor(client)],
+        interceptors=[MeterScopeInterceptor(client), ProgressScopeInterceptor()],
         max_concurrent_activities=1,
     )
 
