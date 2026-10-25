@@ -6,7 +6,7 @@ sink protocol is `append(scope, record)`, so the worker installs this store dire
 
 from __future__ import annotations
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import and_, create_engine, func, select
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import sessionmaker
 
@@ -61,20 +61,27 @@ class StepStore:
             return [_step(row) for row in rows]
 
     def current_steps(self, workflow_id: str) -> dict[str, WorkflowStep]:
-        """For each stage, the latest step of that stage's highest attempt."""
-        with self._sessions() as session:
-            rows = session.scalars(
-                select(WorkflowStepRow)
-                .where(WorkflowStepRow.workflow_id == workflow_id)
-                .order_by(WorkflowStepRow.seq)
-            )
-            latest: dict[str, WorkflowStepRow] = {}
-            for row in rows:
-                best = latest.get(row.stage)
-                if best is None or (row.attempt, row.seq) >= (best.attempt, best.seq):
-                    latest[row.stage] = row
-            return {stage: _step(row) for stage, row in latest.items()}
+        """For each stage, the latest step of that stage's highest attempt.
 
+        The database picks one row per stage, so a poll reads a handful of rows however
+        many steps the run recorded.
+        """
+        step = WorkflowStepRow
+        top = (
+            select(step.stage, func.max(step.attempt).label("attempt"))
+            .where(step.workflow_id == workflow_id)
+            .group_by(step.stage)
+            .subquery()
+        )
+        latest = (
+            select(func.max(step.seq))
+            .join(top, and_(step.stage == top.c.stage, step.attempt == top.c.attempt))
+            .where(step.workflow_id == workflow_id)
+            .group_by(step.stage)
+        )
+        with self._sessions() as session:
+            rows = session.scalars(select(step).where(step.seq.in_(latest)))
+            return {row.stage: _step(row) for row in rows}
 
 def _step(row: WorkflowStepRow) -> WorkflowStep:
     return WorkflowStep(

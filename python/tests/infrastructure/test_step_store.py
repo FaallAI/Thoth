@@ -62,6 +62,8 @@ def test_current_steps_picks_the_highest_attempt_then_the_latest_seq(store: Step
     store.append(scope(attempt=1), record("source.fetch_post"))
     store.append(scope(attempt=2), record("source.read_link"))
     store.append(scope(attempt=2), record("source.fetch_post"))
+    # A timed-out attempt 1 can still be running and write after attempt 2 started.
+    store.append(scope(attempt=1), record("source.save_report"))
     store.append(scope(stage="footage", attempt=1), record("footage.plan_queries"))
 
     current = store.current_steps("wf_1")
