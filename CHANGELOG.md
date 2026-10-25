@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-25 - Plan: run progress phase 1 (the stage plan)
+
+**Plan:** `docs/superpowers/plans/2026-10-25-run-progress-phase1-stage-plan.md`, for spec G1 and roadmap "Dashboard redesign track" step 2.
+
+**What the phase builds:**
+- the whole stage plan in `WorkflowSummary.stages` from the first snapshot;
+- real per-stage status, timings and skip reasons;
+- a pure `StagePlan` driven from the existing `_record_event` transitions, so no new Temporal command and no patch;
+- replay fixtures recorded from pre-change `master`, with a mutation check;
+- the OpenAPI and dashboard types regenerated;
+- a minimal `WorkflowMonitor` change.
+
+**Next step:** an executor agent implements it and appends a progress entry to the checkpoint after every task, for review.
+
 ## 2026-10-25 - Run progress contract approved; dashboard redesign track in the roadmap
 
 **Spec:** `docs/superpowers/specs/2026-10-25-run-progress-contract-design.md`, approved by the operator with all four decisions. It is the backend for the progress model of `docs/DESIGN.md` §7:
