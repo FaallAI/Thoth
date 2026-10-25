@@ -257,24 +257,25 @@ class StageSummary(StrictModel):
         ),
     ]
     label: Annotated[str, Field(min_length=1, max_length=500)]
-    status: Literal[
-        "queued", "running", "completed", "waiting", "failed", "cancelled", "skipped"
-    ]
+    status: Literal["queued", "running", "completed", "waiting", "failed", "cancelled", "skipped"]
     progress: float | None = None
     # Run-progress stage plan (spec 2026-10-25, G1). Optional with defaults so stored
     # summaries and older clients stay valid.
     started_at: datetime | None = Field(default=None)
     finished_at: datetime | None = Field(default=None)
-    skip_reason: Literal[
-        "attribution_off",
-        "footage_off",
-        "assembly_off",
-        "legacy_source",
-        "approval_rejected",
-        "not_in_this_version",
-        "run_failed",
-        "run_cancelled",
-    ] | None = Field(default=None)
+    skip_reason: (
+        Literal[
+            "attribution_off",
+            "footage_off",
+            "assembly_off",
+            "legacy_source",
+            "approval_rejected",
+            "not_in_this_version",
+            "run_failed",
+            "run_cancelled",
+        ]
+        | None
+    ) = Field(default=None)
 
     @field_validator("progress")
     @classmethod

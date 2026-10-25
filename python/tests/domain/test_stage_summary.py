@@ -66,7 +66,9 @@ def test_the_old_stage_ids_still_validate() -> None:
     ],
 )
 def test_skip_reason_accepts_exactly_the_planned_codes(reason: str) -> None:
-    stage = StageSummary(id="footage", label="Collect footage", status="skipped", skip_reason=reason)
+    stage = StageSummary(
+        id="footage", label="Collect footage", status="skipped", skip_reason=reason
+    )
     assert stage.skip_reason == reason
 
     with pytest.raises(ValidationError):
@@ -74,9 +76,7 @@ def test_skip_reason_accepts_exactly_the_planned_codes(reason: str) -> None:
 
 
 def test_an_old_stored_summary_without_the_new_fields_validates() -> None:
-    stage = StageSummary.model_validate(
-        json.loads(OLD_STORED_SUMMARY)["stages"][0]
-    )
+    stage = StageSummary.model_validate(json.loads(OLD_STORED_SUMMARY)["stages"][0])
     assert stage.started_at is None
     assert stage.finished_at is None
     assert stage.skip_reason is None
@@ -85,13 +85,9 @@ def test_an_old_stored_summary_without_the_new_fields_validates() -> None:
 def test_bad_stage_timestamps_are_refused() -> None:
     for bad in ("2026-08-28 08:00:00", "not-a-timestamp", "2026-08-28T08:00:00"):
         with pytest.raises(ValidationError):
-            StageSummary(
-                id="source", label="Fetch the source", status="running", started_at=bad
-            )
+            StageSummary(id="source", label="Fetch the source", status="running", started_at=bad)
         with pytest.raises(ValidationError):
-            StageSummary(
-                id="source", label="Fetch the source", status="completed", finished_at=bad
-            )
+            StageSummary(id="source", label="Fetch the source", status="completed", finished_at=bad)
 
     from datetime import datetime
 

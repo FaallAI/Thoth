@@ -96,7 +96,12 @@ def test_identify_original_plans_every_flag_combination(
 
 def test_build_plan_rejects_an_unknown_intent() -> None:
     with pytest.raises(ValueError):
-        build_plan("make_coffee", attribute_source=False, assemble_content=False, build_footage=False)
+        build_plan(
+            "make_coffee",
+            attribute_source=False,
+            assemble_content=False,
+            build_footage=False,
+        )
 
 
 def test_the_happy_path_records_ordered_timestamps() -> None:
@@ -139,7 +144,12 @@ def test_only_source_reports_progress_once_completed() -> None:
 
 
 def test_complete_is_idempotent_and_keeps_the_first_timestamp() -> None:
-    plan = build_plan("identify_original", attribute_source=True, assemble_content=False, build_footage=False)
+    plan = build_plan(
+        "identify_original",
+        attribute_source=True,
+        assemble_content=False,
+        build_footage=False,
+    )
     plan.start("source", T0)
     plan.complete("source", T1)
     plan.complete("source", T2)
@@ -150,7 +160,12 @@ def test_complete_is_idempotent_and_keeps_the_first_timestamp() -> None:
 
 
 def test_fail_overrides_a_completed_stage_and_skips_the_rest() -> None:
-    plan = build_plan("produce_video", attribute_source=True, assemble_content=True, build_footage=True)
+    plan = build_plan(
+        "produce_video",
+        attribute_source=True,
+        assemble_content=True,
+        build_footage=True,
+    )
     plan.start("source", T0)
     plan.complete("source", T1)
     plan.wait("approval", T1)
@@ -176,7 +191,12 @@ def test_fail_overrides_a_completed_stage_and_skips_the_rest() -> None:
 def test_fail_overrides_a_stage_that_recorded_its_completion_event() -> None:
     # `_attribute`/`_assemble` record STAGE_COMPLETED before the workflow decides the run
     # failed, so `fail` must win over an earlier `complete`.
-    plan = build_plan("identify_original", attribute_source=True, assemble_content=True, build_footage=True)
+    plan = build_plan(
+        "identify_original",
+        attribute_source=True,
+        assemble_content=True,
+        build_footage=True,
+    )
     plan.start("source", T0)
     plan.complete("source", T1)
     plan.start("assembly", T1)
@@ -188,7 +208,12 @@ def test_fail_overrides_a_stage_that_recorded_its_completion_event() -> None:
 
 
 def test_cancel_open_cancels_the_open_stage_and_skips_the_queue() -> None:
-    plan = build_plan("produce_video", attribute_source=True, assemble_content=True, build_footage=True)
+    plan = build_plan(
+        "produce_video",
+        attribute_source=True,
+        assemble_content=True,
+        build_footage=True,
+    )
     plan.start("source", T0)
     plan.complete("source", T1)
     plan.start("attribution", T1)
@@ -209,7 +234,12 @@ def test_cancel_open_cancels_the_open_stage_and_skips_the_queue() -> None:
 
 
 def test_cancel_open_cancels_a_waiting_stage() -> None:
-    plan = build_plan("produce_video", attribute_source=True, assemble_content=False, build_footage=False)
+    plan = build_plan(
+        "produce_video",
+        attribute_source=True,
+        assemble_content=False,
+        build_footage=False,
+    )
     plan.start("source", T0)
     plan.complete("source", T1)
     plan.wait("approval", T1)
@@ -222,7 +252,12 @@ def test_cancel_open_cancels_a_waiting_stage() -> None:
 
 
 def test_skip_queued_only_touches_queued_stages() -> None:
-    plan = build_plan("identify_original", attribute_source=False, assemble_content=True, build_footage=False)
+    plan = build_plan(
+        "identify_original",
+        attribute_source=False,
+        assemble_content=True,
+        build_footage=False,
+    )
     plan.start("source", T0)
     plan.complete("source", T1)
 
@@ -243,7 +278,12 @@ def test_skip_queued_only_touches_queued_stages() -> None:
 
 
 def test_transitions_never_resurrect_a_skipped_stage() -> None:
-    plan = build_plan("identify_original", attribute_source=True, assemble_content=False, build_footage=False)
+    plan = build_plan(
+        "identify_original",
+        attribute_source=True,
+        assemble_content=False,
+        build_footage=False,
+    )
     plan.skip_queued("run_failed")
 
     plan.start("attribution", T0)
@@ -260,7 +300,12 @@ def test_transitions_never_resurrect_a_skipped_stage() -> None:
 def test_a_snapshot_returns_fresh_validated_stage_summaries() -> None:
     from thoth_control_plane.domain.models import StageSummary
 
-    plan = build_plan("produce_video", attribute_source=True, assemble_content=True, build_footage=True)
+    plan = build_plan(
+        "produce_video",
+        attribute_source=True,
+        assemble_content=True,
+        build_footage=True,
+    )
     plan.start("source", T0)
     first = plan.snapshot()
     second = plan.snapshot()
@@ -271,7 +316,12 @@ def test_a_snapshot_returns_fresh_validated_stage_summaries() -> None:
 
 
 def test_unknown_stage_ids_raise() -> None:
-    plan = build_plan("identify_original", attribute_source=False, assemble_content=False, build_footage=False)
+    plan = build_plan(
+        "identify_original",
+        attribute_source=False,
+        assemble_content=False,
+        build_footage=False,
+    )
     with pytest.raises(KeyError):
         plan.start("approval", T0)  # identify_original has no approval stage
     with pytest.raises(KeyError):
@@ -283,7 +333,12 @@ def test_unknown_stage_ids_raise() -> None:
 
 
 def test_labels_follow_the_design_table() -> None:
-    plan = build_plan("produce_video", attribute_source=True, assemble_content=True, build_footage=True)
+    plan = build_plan(
+        "produce_video",
+        attribute_source=True,
+        assemble_content=True,
+        build_footage=True,
+    )
     labels = {stage.id: stage.label for stage in plan.snapshot()}
     assert labels == {
         "source": "Fetch the source",

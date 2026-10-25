@@ -4,6 +4,7 @@ import asyncio
 import json
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -2446,7 +2447,7 @@ async def test_the_plan_is_whole_from_the_first_snapshot_and_tracks_the_run(
     for started_at, finished_at in times:
         assert started_at is not None and finished_at is not None
         assert started_at <= finished_at
-    for earlier, later in zip(times, times[1:]):
+    for earlier, later in pairwise(times):
         assert earlier[1] <= later[0]
 
 

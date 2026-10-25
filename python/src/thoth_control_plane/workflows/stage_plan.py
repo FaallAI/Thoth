@@ -25,7 +25,7 @@ _LABELS: dict[str, str] = {
 class _Stage:
     """Mutable per-stage state; `StagePlan.snapshot()` turns it into `StageSummary`."""
 
-    __slots__ = ("stage_id", "status", "started_at", "finished_at", "skip_reason")
+    __slots__ = ("finished_at", "skip_reason", "stage_id", "started_at", "status")
 
     def __init__(self, stage_id: str) -> None:
         self.stage_id = stage_id
@@ -104,7 +104,9 @@ class StagePlan:
                 status=stage.status,  # type: ignore[arg-type]
                 # D5: only `source` ever reports progress, and only once it completed;
                 # steps arrive for the other stages in phase 2.
-                progress=1.0 if stage.stage_id == "source" and stage.status == "completed" else None,
+                progress=(
+                    1.0 if stage.stage_id == "source" and stage.status == "completed" else None
+                ),
                 started_at=stage.started_at,
                 finished_at=stage.finished_at,
                 skip_reason=stage.skip_reason,  # type: ignore[arg-type]
