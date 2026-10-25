@@ -177,6 +177,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Inbox
+         * @description The caller's workspace attention list. The account section follows the
+         *     `platform_actor` rule: a platform admin holding the admin scope.
+         */
+        get: operations["read_inbox_api_v1_inbox_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -1167,6 +1188,23 @@ export interface paths {
         patch: operations["move_workflow_api_v1_workflows__workflow_id__patch"];
         trace?: never;
     };
+    "/api/v1/workflows/{workflow_id}/acknowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Acknowledge Workflow */
+        post: operations["acknowledge_workflow_api_v1_workflows__workflow_id__acknowledge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workflows/{workflow_id}/approve": {
         parameters: {
             query?: never;
@@ -1992,6 +2030,62 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** Inbox */
+        Inbox: {
+            /** Accounts */
+            accounts?: components["schemas"]["InboxAccount"][];
+            /** Approvals */
+            approvals?: components["schemas"]["InboxRun"][];
+            /** Failures */
+            failures?: components["schemas"]["InboxRun"][];
+        };
+        /**
+         * InboxAccount
+         * @description A source account in cooldown or trouble, for platform admins only (spec G5).
+         *
+         *     Deliberately carries no cookie, cookie name or proxy data.
+         */
+        InboxAccount: {
+            /** Account Id */
+            account_id: string;
+            /** Cooldown Until */
+            cooldown_until?: string | null;
+            /** Label */
+            label: string;
+            /**
+             * Platform
+             * @enum {string}
+             */
+            platform: "tiktok" | "threads" | "instagram" | "x" | "youtube";
+            /** Status */
+            status: string;
+        };
+        /**
+         * InboxRun
+         * @description One run awaiting the caller: an approval or an unacknowledged failure (spec G5).
+         */
+        InboxRun: {
+            /** Display Url */
+            display_url: string;
+            /** Failure Code */
+            failure_code?: string | null;
+            /** Platform */
+            platform: string;
+            /** Project Id */
+            project_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "awaiting_approval" | "succeeded" | "failed" | "cancelled" | "unknown";
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Workflow Id */
+            workflow_id: string;
         };
         /** InvoiceOut */
         InvoiceOut: {
@@ -4089,6 +4183,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Estimate Seconds Remaining */
+            estimate_seconds_remaining?: number | null;
             failure?: components["schemas"]["WorkflowFailure"] | null;
             /** History Expired */
             history_expired?: boolean;
@@ -4509,6 +4605,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CheckoutView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_inbox_api_v1_inbox_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Inbox"];
                 };
             };
             /** @description Validation Error */
@@ -7080,6 +7207,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["WorkflowRun"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    acknowledge_workflow_api_v1_workflows__workflow_id__acknowledge_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                workflow_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

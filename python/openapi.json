@@ -2016,6 +2016,153 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "Inbox": {
+        "additionalProperties": false,
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/InboxAccount"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "approvals": {
+            "items": {
+              "$ref": "#/components/schemas/InboxRun"
+            },
+            "title": "Approvals",
+            "type": "array"
+          },
+          "failures": {
+            "items": {
+              "$ref": "#/components/schemas/InboxRun"
+            },
+            "title": "Failures",
+            "type": "array"
+          }
+        },
+        "title": "Inbox",
+        "type": "object"
+      },
+      "InboxAccount": {
+        "additionalProperties": false,
+        "description": "A source account in cooldown or trouble, for platform admins only (spec G5).\n\nDeliberately carries no cookie, cookie name or proxy data.",
+        "properties": {
+          "account_id": {
+            "title": "Account Id",
+            "type": "string"
+          },
+          "cooldown_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cooldown Until"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "platform": {
+            "enum": [
+              "tiktok",
+              "threads",
+              "instagram",
+              "x",
+              "youtube"
+            ],
+            "title": "Platform",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "platform",
+          "label",
+          "status"
+        ],
+        "title": "InboxAccount",
+        "type": "object"
+      },
+      "InboxRun": {
+        "additionalProperties": false,
+        "description": "One run awaiting the caller: an approval or an unacknowledged failure (spec G5).",
+        "properties": {
+          "display_url": {
+            "title": "Display Url",
+            "type": "string"
+          },
+          "failure_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Code"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "pattern": "^(?:[A-Za-z][A-Za-z0-9_-]{0,127}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "awaiting_approval",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "unknown"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "workflow_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Workflow Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow_id",
+          "project_id",
+          "display_url",
+          "platform",
+          "status",
+          "updated_at"
+        ],
+        "title": "InboxRun",
+        "type": "object"
+      },
       "InvoiceOut": {
         "additionalProperties": false,
         "properties": {
@@ -7763,6 +7910,18 @@
             "title": "Created At",
             "type": "string"
           },
+          "estimate_seconds_remaining": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimate Seconds Remaining"
+          },
           "failure": {
             "anyOf": [
               {
@@ -8632,6 +8791,53 @@
         "tags": [
           "billing"
         ]
+      }
+    },
+    "/api/v1/inbox": {
+      "get": {
+        "description": "The caller's workspace attention list. The account section follows the\n`platform_actor` rule: a platform admin holding the admin scope.",
+        "operationId": "read_inbox_api_v1_inbox_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Inbox"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Inbox"
       }
     },
     "/api/v1/me": {
@@ -13504,6 +13710,54 @@
           }
         },
         "summary": "Move Workflow"
+      }
+    },
+    "/api/v1/workflows/{workflow_id}/acknowledge": {
+      "post": {
+        "operationId": "acknowledge_workflow_api_v1_workflows__workflow_id__acknowledge_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Acknowledge Workflow"
       }
     },
     "/api/v1/workflows/{workflow_id}/approve": {
