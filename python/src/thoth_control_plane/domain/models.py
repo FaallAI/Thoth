@@ -248,6 +248,35 @@ class WorkflowSource(StrictModel):
     platform: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")]
 
 
+StepKind = Literal["info", "progress", "wait", "done", "warning", "error"]
+
+
+class WorkflowStep(StrictModel):
+    """One recorded step of a running stage (run-progress spec 2026-10-25, G2)."""
+
+    seq: Annotated[int, Field(ge=1)]
+    stage: Annotated[str, Field(pattern=r"^(source|attribution|footage|assembly)$")]
+    attempt: Annotated[int, Field(ge=1)]
+    at: datetime
+    kind: StepKind
+    code: Annotated[str, Field(pattern=r"^(source|attribution|footage|assembly)\.[a-z_]+$")]
+    n: Annotated[int | None, Field(ge=0)] = None
+    total: Annotated[int | None, Field(ge=0)] = None
+    wait_until: datetime | None = Field(default=None)
+    params: dict[str, str | int] | None = Field(default=None)
+
+    @field_validator("at", "wait_until", mode="before")
+    @classmethod
+    def validate_timestamp(cls, timestamp: datetime | str | None) -> datetime | None:
+        if timestamp is None:
+            return None
+        return _parse_rfc3339_timestamp(timestamp)
+
+
+class WorkflowStepPage(StrictModel):
+    steps: list[WorkflowStep]
+
+
 class StageSummary(StrictModel):
     id: Annotated[
         str,
@@ -276,6 +305,9 @@ class StageSummary(StrictModel):
         ]
         | None
     ) = Field(default=None)
+    # The API fills it from the latest step of the current attempt; it never reaches a
+    # stored summary (run-progress spec 2026-10-25, G3).
+    current_step: WorkflowStep | None = Field(default=None)
 
     @field_validator("progress")
     @classmethod
