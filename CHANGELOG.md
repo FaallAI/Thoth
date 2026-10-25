@@ -52,6 +52,26 @@ All notable changes to this project will be documented in this file.
 **Next steps:**
 - **Operator gates:** push and PR, merge, deploy, all separate from the run-progress stack.
 - **Then:** rebase the run-progress stack onto this, move the phase 5 frame columns into `RenderJobRow`, and keep the parity test green.
+## 2026-10-25 - Run progress phase 1: the stage plan
+
+**Spec/plan:** spec G1 and `docs/superpowers/plans/2026-10-25-run-progress-phase1-stage-plan.md` (roadmap "Dashboard redesign track", step 2). Branch `feat/run-progress-stage-plan`.
+
+**What changed:**
+- `WorkflowSummary.stages` now carries the run's whole plan from the first snapshot: `source`, `approval` (produce_video only), `attribution`, `footage` and `assembly`, each with its real status, `started_at`/`finished_at`, and a `skip_reason` code when it will not run (`*_off`, `legacy_source`, `approval_rejected`, `not_in_this_version`, `run_failed`, `run_cancelled`). This replaces the single hard-coded `source` stage that mirrored the run status.
+- `StageSummary` (D4, backward compatible): the new stage ids, the `skipped` status, and the three optional new fields; old stored summaries stay valid. `python/openapi.json` and `dashboard/src/api/generated/control-plane.ts` regenerated with only these changes.
+- New pure module `workflows/stage_plan.py` (`StagePlan`): builds the plan from the intent and flags, and applies the transitions. The workflow drives it from the events the history already records (`stage.started`/`stage.completed`, `approval.required`, `workflow.cancelled`) plus the approve/reject/legacy/failure branches, always with `workflow.now()`. No new Temporal command, so replay is unaffected and no `workflow.patched` gate is needed.
+- `WorkflowMonitor` (D6, no restyle): progress is counted over the non-skipped stages; skipped stages render muted with a "Skipped" label and keep the server label.
+
+**Evidence:**
+- Full Python suite: 4524 passed, 115 skipped; `make lint` clean (ruff check + format).
+- Dashboard: full suite 750 pass, 0 fail; `bun run build` (tsc -b + vite) succeeds.
+- Replay safety: two histories recorded from `origin/master` at `0f744ce` (a produce_video chain run and an identify_original run) replay unchanged under the new code (`tests/workflows/fixtures/*.history.json`, four replays); the pre-metering and pre-chain replay tests stay green. A mutation check (a temporary `workflow.sleep(1)` after the source stage) fails all four new replays with `[TMPRL1100] Nondeterminism error`, then passes again after the revert.
+
+**Why:** a dashboard run lasts 6-10 minutes and the operator could not see what the run was doing, what was skipped, or how long each stage took; this is the backend contract of `docs/DESIGN.md` §7.1.
+
+**Next steps:**
+- Claude reviews `feat/run-progress-stage-plan`, then the operator gates: push and PR, merge, deploy.
+- Roadmap step 3: run progress phase 2 (steps, `workflow_steps` migration 0019, `GET /workflows/{id}/steps`, `current_step`).
 
 ## 2026-10-25 - Plan: run progress phase 1 (the stage plan)
 
