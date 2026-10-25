@@ -4,6 +4,13 @@ Date: 2026-10-26. Status: approved by the operator on 2026-10-26 ("kerjakan terk
 
 **Rule it completes:** the 2026-09-25 direction. New persistence uses the full SQLAlchemy ORM plus Alembic, and converting the existing psycopg repositories needs its own spec. This is that spec.
 
+## Release
+
+This work is its own branch from `master`, with its own PR and deploy, so it can be traced and rolled back on its own (operator, 2026-10-26).
+- It is **not** part of the run-progress stack.
+- Whichever lands second adapts. The plan is for this to land first, then the run-progress stack rebases onto it.
+- At that rebase, phase 5's four `render_jobs` frame columns move into the ORM model. The schema-parity test catches a miss.
+
 ## Scope
 
 The seven repositories that still use raw psycopg, all from the editor and Creator Studio era:
@@ -33,7 +40,7 @@ The seven repositories that still use raw psycopg, all from the editor and Creat
 - The converted repositories share one engine per URL (`infrastructure/editor_database.py`, cached), with `pool_pre_ping`, a small pool and `hide_parameters`, like the other stores.
 
 **D3. Models mirror the migrations.**
-- The ORM rows (`infrastructure/editor_models.py`) declare the same tables, columns, keys and types as migrations 0001-0007 and 0021.
+- The ORM rows (`infrastructure/editor_models.py`) declare the same tables, columns, keys and types as migrations 0001-0007 and 0017.
 - JSONB columns use `JSON().with_variant(JSONB(), "postgresql")`.
 - **A Postgres parity test** compares every mapped table's columns, types and nullability with the migrated schema, so a model can never drift from the SQL.
 
