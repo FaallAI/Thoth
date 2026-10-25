@@ -52,6 +52,29 @@ All notable changes to this project will be documented in this file.
 **Next steps:**
 - **Operator gates:** push and PR, merge, deploy, all separate from the run-progress stack.
 - **Then:** rebase the run-progress stack onto this, move the phase 5 frame columns into `RenderJobRow`, and keep the parity test green.
+## 2026-10-25 - Run progress phase 2 review follow-ups (N1, N2, F2)
+
+**Done at the operator's request after the phase 2 review:**
+- **N1, `f241162`..`615e745`:** a coalesced progress update is no longer dropped. It is held and written in one of three cases:
+  - before the next step of another code;
+  - when its one-second window ends, through a timer on the activity's event loop;
+  - when the activity ends, as the interceptor flushes it.
+
+  The current step never lags a quiet activity.
+- **N2, `f241162`:** `StepStore.current_steps` picks one row per stage in the database (highest attempt, then latest seq) instead of loading every step of the run on each poll. The test now covers a timed-out attempt that still writes after its retry started.
+- **F2, `23ca579`:** `generate:control-plane-types` works with the dashboard's TypeScript 7.
+  - **Cause:** TypeScript 7's package exports no JavaScript API, while `openapi-typescript` 7.13 (the latest) imports `typescript`.
+  - **Fix:** the devDependency `@typescript/typescript6` (the official TypeScript 6 API package), plus the Node resolve hook `dashboard/scripts/typescript6.mjs`, which applies to the generator only. `tsc` stays on TypeScript 7.
+  - **Proof:** the generated file is byte-identical to the committed one; without the hook the generator fails on `ts.factory`; `bun install --frozen-lockfile` with Bun 1.4.4 (the CI and `Dockerfile.web` version) reports no changes.
+
+**Evidence:**
+- **Python:** full suite 4586 passed, 116 skipped; `make lint` clean.
+- **Dashboard:** `bun test` 751 pass with the local Bun, and `bun run build` ok.
+
+**Found on the way:** with Bun 1.4.4 on Windows, 1 to 3 different dashboard UI tests fail at random on every run. The same happens on the phase 1 branch without these changes, so it predates them and needs its own ticket.
+
+**Next steps:** roadmap step 4 (phase 3, instrumentation). The push, merge and deploy gates for the stacked branches stay with the operator.
+
 ## 2026-10-25 - Run progress phase 2: steps
 
 **Spec/plan:** spec G2, G3 and §3-§5, and `docs/superpowers/plans/2026-10-25-run-progress-phase2-steps.md` (roadmap "Dashboard redesign track", step 3). Branch `feat/run-progress-steps`, stacked on `feat/run-progress-stage-plan`.
