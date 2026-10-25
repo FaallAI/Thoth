@@ -160,6 +160,34 @@ test("skipped stages are muted and left out of the progress count", async () => 
   expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("75");
 });
 
+test("the stage line counts only the stages that are not skipped", async () => {
+  const succeeded = summary({
+    status: "succeeded",
+    stages: [
+      { id: "source", label: "Fetch the source", status: "completed", progress: 1 },
+      { id: "approval", label: "Your review", status: "completed", progress: null },
+      { id: "attribution", label: "Find the original", status: "completed", progress: null },
+      { id: "footage", label: "Collect footage", status: "skipped", progress: null, skip_reason: "footage_off" },
+      { id: "assembly", label: "Build the content set", status: "skipped", progress: null, skip_reason: "assembly_off" },
+    ],
+  });
+  const client = {
+    getWorkflow: mock(async () => succeeded),
+    streamWorkflow: mock((_id: string, accept: (value: WorkflowSummary) => void) => {
+      accept(succeeded);
+      return () => {};
+    }),
+    cancelWorkflow: mock(async () => succeeded),
+    retryWorkflow: mock(async () => succeeded),
+    approveWorkflow: mock(async () => succeeded),
+    downloadWorkflowArtifact: mock(async () => new Blob()),
+  };
+  render(<WorkflowMonitor workflowId="wf_001" client={client} />);
+
+  await screen.findByText("Fetch the source");
+  expect(screen.getByText("Stage 3 of 3 · succeeded")).toBeDefined();
+});
+
 test("results download through the client and an expired history is announced", async () => {
   const blob = new Blob(["{}"]);
   const downloadWorkflowArtifact = mock(async () => blob);

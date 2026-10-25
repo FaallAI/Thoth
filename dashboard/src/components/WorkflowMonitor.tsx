@@ -80,10 +80,13 @@ export function WorkflowMonitor({ workflowId, client, onSnapshot }: { workflowId
 
   const approval = workflow?.approval;
   const artifacts = workflow?.artifacts ?? [];
+  // Skipped stages never run, so the stage line counts the planned stages only.
+  const plannedStages = (workflow?.stages ?? []).filter((stage) => stage.status !== "skipped");
+  const stageNumber = Math.min(plannedStages.filter((stage) => stage.status === "completed").length + 1, plannedStages.length);
   return <div className="workflow-monitor flex flex-col gap-3">
     <Card className="pen-pipeline-card"><CardHeader><CardTitle>Live pipeline</CardTitle><span className="pen-pipeline-badge">{workflow?.status ?? "Loading"}</span></CardHeader><CardContent>
       <h2 title={workflowId}>{workflow?.source.display_url ?? `Workflow ${workflowId}`}</h2>
-      <p className="pen-pipeline-progress-copy">Stage {Math.min((workflow?.stages.filter((stage) => stage.status === "completed").length ?? 0) + 1, workflow?.stages.length ?? 0)} of {workflow?.stages.length ?? 0} · {workflow?.stages.find((stage) => stage.status === "running")?.label ?? workflow?.status}</p>
+      <p className="pen-pipeline-progress-copy">Stage {stageNumber} of {plannedStages.length} · {workflow?.stages.find((stage) => stage.status === "running")?.label ?? workflow?.status}</p>
       <p className="sr-only">Progress</p><Progress value={workflowProgress(workflow)} />
       <ul className="pen-pipeline-stages">{workflow?.stages.map((stage) => { const Icon = stage.status === "completed" ? CircleCheck : stage.status === "running" ? LoaderCircle : Circle; const skipped = stage.status === "skipped"; return <li key={stage.id} data-state={stage.status} className={skipped ? "text-muted-foreground" : undefined}><Icon aria-hidden="true" /><span>{stage.label}</span>{skipped && <span>Skipped</span>}<span className="sr-only"> — {stage.status}</span></li>; })}</ul>
     </CardContent></Card>
