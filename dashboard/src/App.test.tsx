@@ -173,7 +173,7 @@ test("no page reaches the retired Rust server: only control-plane routes are req
   const { default: App } = await import("./App");
   render(<App />);
   const nav = await screen.findByRole("navigation", { name: "Main navigation" });
-  expect(within(nav).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/workflows", "/inbox", "/studio", "/usage", "/billing", "/accounts", "/settings/tokens"]);
+  expect(within(nav).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/workflows", "/inbox", "/studio", "/usage", "/billing", "/accounts", "/settings"]);
   const user = userEvent.setup();
   await user.click(within(nav).getByRole("link", { name: "Studio" }));
   await screen.findByRole("button", { name: /Heading/ });

@@ -18,7 +18,7 @@ import { InboxBell, RunTray } from "@/features/activity/TopBarActivity";
 import { authClient } from "@/api/auth";
 import { AuthGate } from "@/features/auth/AuthGate";
 import { useAuth } from "@/features/auth/auth-context";
-import { TokensPage } from "@/features/settings/TokensPage";
+import { SettingsPage } from "@/features/settings/SettingsPage";
 import { UsagePage } from "@/features/usage/UsagePage";
 import { BillingPage } from "@/features/billing/BillingPage";
 import { LoginPage } from "@/features/auth/LoginPage";
@@ -37,7 +37,7 @@ const PAGES: { path: string; title: MessageKey; project?: boolean }[] = [
   { path: "/billing", title: "nav.billing" },
   { path: "/accounts/proxies", title: "page.proxies" },
   { path: "/accounts", title: "nav.accounts" },
-  { path: "/settings/tokens", title: "page.tokens" },
+  { path: "/settings", title: "page.settings" },
 ];
 
 function pageFor(pathname: string) {
@@ -134,7 +134,8 @@ function Shell() {
           <Route path="/accounts/proxies" element={me.platform_admin ? <SourceProxies client={sourceAccountsClient} onBack={() => navigate("/accounts")} /> : platformOnly} />
           <Route path="/usage" element={<UsagePage />} />
           <Route path="/billing" element={<BillingPage />} />
-          <Route path="/settings/tokens" element={<TokensPage />} />
+          <Route path="/settings" element={<SettingsPage me={me} />} />
+          <Route path="/settings/tokens" element={<Navigate to="/settings" replace />} />
           <Route path="*" element={<Navigate to="/workflows" replace />} />
         </Routes>
       </main>

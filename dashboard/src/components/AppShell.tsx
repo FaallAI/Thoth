@@ -34,7 +34,7 @@ export type NavItem = {
   section?: boolean;
 };
 
-/** Sidebar order (§4). Settings is the tokens page until R4. */
+/** Sidebar order (§4). */
 export const NAV: NavItem[] = [
   { path: "/workflows", label: "nav.runs", icon: ListVideo },
   { path: "/inbox", label: "nav.inbox", icon: Inbox },
@@ -42,7 +42,7 @@ export const NAV: NavItem[] = [
   { path: "/usage", label: "nav.usage", icon: Gauge, section: true },
   { path: "/billing", label: "nav.billing", icon: CreditCard },
   { path: "/accounts", label: "nav.accounts", icon: Users, admin: true },
-  { path: "/settings/tokens", label: "nav.settings", icon: Settings },
+  { path: "/settings", label: "nav.settings", icon: Settings },
 ];
 
 const COLLAPSED_KEY = "thoth.sidebarCollapsed";
@@ -144,7 +144,7 @@ function AvatarMenu({ me, onSignOut }: { me: Me; onSignOut: (forgetBrowser: bool
             </div>
             <hr className="my-2 border-hairline" />
             <NavLink
-              to="/settings/tokens"
+              to="/settings"
               onClick={() => setOpen(false)}
               className="flex items-center gap-3 rounded-md px-3 py-2 text-ink hover:bg-surface"
             >
