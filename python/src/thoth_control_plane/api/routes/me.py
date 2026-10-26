@@ -10,6 +10,7 @@ from thoth_control_plane.api.dependencies import current_principal, require_writ
 from thoth_control_plane.auth.models import (
     CreatedToken,
     CreateToken,
+    MeUpdate,
     MeView,
     Principal,
     TokenView,
@@ -63,6 +64,18 @@ async def me(request: Request, principal: Caller) -> MeView:
     if service is None:
         return accountless_me(principal)
     return await service.describe(principal)
+
+
+@router.patch("/me", response_model=MeView)
+async def update_me(body: MeUpdate, request: Request, principal: Caller) -> MeView:
+    """Save the caller's own preferences: today, the dashboard language."""
+    require_write(request, principal)
+    try:
+        return await _service(request).set_locale(principal, body.locale)
+    except UserRequired:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "user_required") from None
+    except AuthUnavailable:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "auth_unavailable") from None
 
 
 @router.get("/me/tokens", response_model=list[TokenView])

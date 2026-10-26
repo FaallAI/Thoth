@@ -1,6 +1,6 @@
 # Dashboard and Studio restyle: design and plan
 
-Date: 2026-10-29. Status: draft for operator approval.
+Date: 2026-10-29. Status: approved by the operator on 2026-10-29 (D1-D6).
 
 | Item | Where |
 |---|---|

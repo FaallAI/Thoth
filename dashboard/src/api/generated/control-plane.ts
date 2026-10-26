@@ -212,7 +212,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Me
+         * @description Save the caller's own preferences: today, the dashboard language.
+         */
+        patch: operations["update_me_api_v1_me_patch"];
         trace?: never;
     };
     "/api/v1/me/tokens": {
@@ -2143,12 +2147,22 @@ export interface components {
              */
             start: string;
         };
+        /** MeUpdate */
+        MeUpdate: {
+            /**
+             * Locale
+             * @enum {string}
+             */
+            locale: "en" | "id";
+        };
         /** MeView */
         MeView: {
             /** Display Name */
             display_name: string | null;
             /** Email */
             email: string | null;
+            /** Locale */
+            locale?: ("en" | "id") | null;
             /** Platform Admin */
             platform_admin: boolean;
             /** Scopes */
@@ -4667,6 +4681,41 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_me_api_v1_me_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MeUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

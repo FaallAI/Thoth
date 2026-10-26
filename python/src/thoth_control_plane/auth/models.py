@@ -87,6 +87,10 @@ class WorkspaceView(StrictModel):
     role: str | None
 
 
+#: The dashboard's languages (restyle spec D1); None until the user chooses one.
+Locale = Literal["en", "id"]
+
+
 class MeView(StrictModel):
     user_id: str | None
     email: str | None
@@ -95,6 +99,11 @@ class MeView(StrictModel):
     scopes: list[Scope]
     workspace: WorkspaceView
     platform_admin: bool
+    locale: Locale | None = None
+
+
+class MeUpdate(StrictModel):
+    locale: Locale
 
 
 def accountless_me(principal: Principal) -> MeView:

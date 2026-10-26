@@ -2319,6 +2319,24 @@
         "title": "MarginView",
         "type": "object"
       },
+      "MeUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "locale": {
+            "enum": [
+              "en",
+              "id"
+            ],
+            "title": "Locale",
+            "type": "string"
+          }
+        },
+        "required": [
+          "locale"
+        ],
+        "title": "MeUpdate",
+        "type": "object"
+      },
       "MeView": {
         "additionalProperties": false,
         "properties": {
@@ -2343,6 +2361,21 @@
               }
             ],
             "title": "Email"
+          },
+          "locale": {
+            "anyOf": [
+              {
+                "enum": [
+                  "en",
+                  "id"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locale"
           },
           "platform_admin": {
             "title": "Platform Admin",
@@ -8937,6 +8970,64 @@
           }
         },
         "summary": "Me",
+        "tags": [
+          "account"
+        ]
+      },
+      "patch": {
+        "description": "Save the caller's own preferences: today, the dashboard language.",
+        "operationId": "update_me_api_v1_me_patch",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Me",
         "tags": [
           "account"
         ]

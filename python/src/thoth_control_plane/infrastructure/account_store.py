@@ -45,6 +45,7 @@ class AccountUser:
     workspace_id: str
     role: str
     disabled: bool
+    locale: str | None = None
 
 
 @dataclass(frozen=True)
@@ -185,6 +186,16 @@ class AccountStore:
             with self._sessions() as session:
                 user = session.get(UserRow, user_id)
                 return None if user is None else self._account(session, user)
+        except SQLAlchemyError as error:
+            raise _unavailable(error) from None
+
+    def set_locale(self, user_id: str, locale: str) -> None:
+        """Save the UI language the user chose (restyle spec D1)."""
+        try:
+            with self._sessions.begin() as session:
+                user = session.get(UserRow, user_id)
+                if user is not None:
+                    user.locale = locale
         except SQLAlchemyError as error:
             raise _unavailable(error) from None
 
@@ -592,4 +603,5 @@ class AccountStore:
             role=member.role if member else "member",
             # No membership means no workspace to sign in to: refuse like a disabled user.
             disabled=user.disabled_at is not None or member is None,
+            locale=user.locale,
         )
