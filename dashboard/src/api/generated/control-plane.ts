@@ -4318,12 +4318,20 @@ export interface components {
             /** Estimate Seconds Remaining */
             estimate_seconds_remaining?: number | null;
             failure?: components["schemas"]["WorkflowFailure"] | null;
+            /** Has Post Card */
+            has_post_card?: boolean;
             /** History Expired */
             history_expired?: boolean;
+            /** Owner Handle */
+            owner_handle?: string | null;
+            /** Project Id */
+            project_id?: string | null;
             source: components["schemas"]["WorkflowSource"];
             /** Stages */
             stages: components["schemas"]["StageSummary"][];
             status: components["schemas"]["WorkflowStatus"];
+            /** Title */
+            title?: string | null;
             /**
              * Updated At
              * Format: date-time

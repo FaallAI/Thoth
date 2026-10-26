@@ -327,3 +327,40 @@ async def test_media_the_run_stored_is_served_only_from_its_own_folder(served, t
             "/api/v1/workflows/wf_missing/media/reports/wf_missing/a.png", headers=AUTH
         )
     ).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_the_run_detail_names_its_project_post_and_creator(api, stores, gateway) -> None:
+    project = stores[0].create("News", "ws_bootstrap")
+    started = await api.post(
+        f"/api/v1/projects/{project.project_id}/workflows",
+        json={
+            "source": {"url": "https://www.tiktok.com/@a/video/1", "intent": "identify_original"},
+            "style": {"preset_id": "news-vertical"},
+            "output": {"format": "vertical_video", "language": "id"},
+            "review": {"require_publish_approval": True},
+        },
+        headers={**AUTH, "Idempotency-Key": "k1"},
+    )
+    workflow_id = started.json()["workflow_id"]
+    stores[2].put(
+        f"reports/{workflow_id}/source-report.json",
+        "source_report",
+        json.dumps(
+            {
+                "schema_version": 3,
+                "post": {"text": "Smoke closes schools", "owner_handle": "kalteng"},
+                "post_card": {"location": f"reports/{workflow_id}/cards/post.png"},
+            }
+        ).encode(),
+    )
+
+    detail = (await api.get(f"/api/v1/workflows/{workflow_id}", headers=AUTH)).json()
+
+    assert detail["project_id"] == project.project_id
+    assert detail["title"] == "Smoke closes schools"
+    assert detail["owner_handle"] == "kalteng"
+    assert detail["has_post_card"] is True
+    # Filled by the API on every read, never stored with the summary.
+    stored = stores[1].get(workflow_id)
+    assert stored.summary is not None and stored.summary.title is None

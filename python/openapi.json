@@ -8151,9 +8151,35 @@
               }
             ]
           },
+          "has_post_card": {
+            "title": "Has Post Card",
+            "type": "boolean"
+          },
           "history_expired": {
             "title": "History Expired",
             "type": "boolean"
+          },
+          "owner_handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Handle"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
           },
           "source": {
             "$ref": "#/components/schemas/WorkflowSource"
@@ -8167,6 +8193,17 @@
           },
           "status": {
             "$ref": "#/components/schemas/WorkflowStatus"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
           },
           "updated_at": {
             "format": "date-time",

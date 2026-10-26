@@ -338,6 +338,11 @@ class WorkflowSummary(StrictModel):
     history_expired: bool = Field(default_factory=lambda: False)
     # Run-progress spec 2026-10-25, G4: filled by the API only, never stored.
     estimate_seconds_remaining: Annotated[int | None, Field(ge=0)] = None
+    # Restyle B7: the run row's project and post details, filled by the API only, never stored.
+    project_id: str | None = None
+    title: str | None = None
+    owner_handle: str | None = None
+    has_post_card: bool = Field(default_factory=lambda: False)
 
     @field_validator("status", mode="before")
     @classmethod

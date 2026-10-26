@@ -321,7 +321,7 @@ class WorkflowRunService:
             with_steps = await self._with_current_steps(
                 stored.model_copy(update={"history_expired": True, **_known_status(run)})
             )
-            return await self._with_estimate(with_steps, actor=actor)
+            return await self._with_run_details(await self._with_estimate(with_steps, actor=actor))
         if self._runs is not None:
             try:
                 await asyncio.to_thread(
@@ -334,7 +334,29 @@ class WorkflowRunService:
             except WorkflowRunsUnavailable:
                 logger.warning("run summary not saved workflow_id=%s", workflow_id)
         with_steps = await self._with_current_steps(summary)
-        return await self._with_estimate(with_steps, actor=actor)
+        return await self._with_run_details(await self._with_estimate(with_steps, actor=actor))
+
+    async def _with_run_details(self, summary: WorkflowSummary) -> WorkflowSummary:
+        """The run row's project, title, creator and post card (restyle B7). A row that is
+        missing, or a store error, costs only these fields."""
+        if self._runs is None:
+            return summary
+        try:
+            run = await asyncio.to_thread(self._runs.get, summary.workflow_id)
+        except Exception as error:
+            logger.warning("run details unavailable reason=%s", type(error).__name__)
+            return summary
+        if run is None:
+            return summary
+        [run] = await self._with_listing([run])
+        return summary.model_copy(
+            update={
+                "project_id": run.project_id,
+                "title": run.title,
+                "owner_handle": run.owner_handle,
+                "has_post_card": run.post_card_location is not None,
+            }
+        )
 
     async def _with_current_steps(self, summary: WorkflowSummary) -> WorkflowSummary:
         """Fill each running or waiting stage's current step, after settle, so a stored
