@@ -71,6 +71,8 @@ function Shell() {
   const [runs, setRuns] = useState<WorkflowRun[]>([]);
   const inStudio = /^\/studio\/[^/]+\/[^/]+/.test(location.pathname);
   const page = pageFor(location.pathname);
+  // A run's own header names it; the shell's page title would repeat "Runs" above it.
+  const ownHeading = inStudio || /^\/workflows\/[^/]+/.test(location.pathname);
   const project = projects.find((item) => item.project_id === projectId);
   const switcher = (
     <ProjectSwitcher compact projectId={projectId} allLabel={t("project.all")} onSelect={setProjectId} onProjectsChanged={setProjects} />
@@ -104,7 +106,7 @@ function Shell() {
       onSignOut={(forget) => void authClient.logout(forget).finally(() => window.location.assign("/login"))}
     >
       <main id="workspace" tabIndex={-1} className={`dashboard-main min-w-0 flex-1 ${inStudio ? "dashboard-page-studio" : ""}`}>
-        {!inStudio && (
+        {!ownHeading && (
           <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl leading-tight font-semibold text-ink">{t(page.title)}</h1>

@@ -50,7 +50,7 @@ export function StatusPill({ status, muted = false }: { status: Status; muted?: 
   const { t } = useLocale();
   const shade = tone(status);
   return (
-    <span className="inline-flex h-6 items-center gap-1.5 rounded-full bg-raised px-2.5 text-[13px] font-medium text-ink">
+    <span className="inline-flex h-6 items-center gap-1.5 rounded-full bg-raised px-2.5 text-[13px] font-medium whitespace-nowrap text-ink">
       <span
         aria-hidden="true"
         className={cn("size-2 rounded-full", muted ? DOT.idle : DOT[shade], shade === "running" && !muted && "animate-pulse")}

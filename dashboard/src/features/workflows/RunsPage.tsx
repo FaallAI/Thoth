@@ -92,11 +92,11 @@ function RunRow({
             <Link
               to={`/workflows/${encodeURIComponent(run.workflow_id)}`}
               title={title}
-              className="block max-w-[52ch] truncate text-[15px] text-ink after:absolute after:inset-0 group-hover:underline"
+              className="block max-w-[52ch] truncate text-[15px] text-ink group-hover:underline after:absolute after:inset-0 max-md:max-w-[40vw]"
             >
               {title}
             </Link>
-            <p className="truncate text-[13px] text-muted-ink">
+            <p className="truncate text-[13px] text-muted-ink max-md:max-w-[40vw]">
               {displayHost(run.source.display_url)}
               {line && (
                 <span className={cn(run.status === "failed" ? "text-status-failed" : run.status === "awaiting_approval" && "text-status-waiting")}>
