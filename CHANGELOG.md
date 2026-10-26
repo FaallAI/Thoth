@@ -75,7 +75,7 @@ Executed by Claude at the operator's request, on `feat/run-progress-render-frame
 **Control plane:**
 - **Migration `0021_render_job_frames`:** four nullable, checked columns on `render_jobs`.
 - **`RenderJob` / `RenderJobEvent`:** the frames and the stage. Frame counts never decrease, and they must fit a reported total.
-- **The psycopg repository** reads and writes the new columns, appended at the end of its column list.
+- **The render job repository** (on the ORM since the editor repositories move, which this stack was rebased onto) maps the new columns on `RenderJobRow` and copies them with the other mutable fields; the schema-parity test covers them.
 - **`RenderJobView`:** exposes the four fields. The projection test was updated deliberately.
 - **Contract:** additions only (+53 OpenAPI, +8 TypeScript).
 
