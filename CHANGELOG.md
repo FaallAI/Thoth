@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-27 - Dashboard restyle, part A (R1-R4): two languages, live runs, inbox and management
+
+**Spec:** `docs/superpowers/specs/2026-10-29-dashboard-restyle-design.md`, decisions D1-D6 approved by the operator; the backend additions B1-B8 in its §6 were approved on 2026-10-26 ("ya boleh dan tolong pastikan semua update backend nya"). Executed by Claude on `feat/run-progress-render-frames`; part A ships with the run-progress stack (D6).
+
+**Backend:**
+- D1: `users.locale` (migration 0022) and `PATCH /me`.
+- B1: `GET /workflows` without `unassigned` lists the caller's runs across every project; both run lists take `status`, `platform` and `q`.
+- B2: run rows carry `title`, `owner_handle`, `has_post_card` (read once from the source report into migration 0023's columns), `stages` and `current_step`; inbox items carry `title`.
+- B3: `GET /workflows/{id}/cards/{card}` serves real card crops; B6: `GET /workflows/{id}/media/{location}` serves the run's own stored media, only under `reports/<id>/`.
+- B4: `GET /workflows/metrics`; B5: `UsageView.days`; B7: the run detail carries `project_id`, `title`, `owner_handle`, `has_post_card` (filled by the API, never stored); B8: `BillingView.checkout_available`.
+- Contract regenerated each time, additions only (`unassigned` relaxed from required to optional).
+
+**Dashboard:**
+- R1: canonical tokens and Geist; an English and Indonesian catalogue with plurals and formats (no i18n library, D2); the language saved per user; the new shell (collapsible sidebar, top bar, avatar menu with the language switch, bottom sheet, Cmd+K navigation); StatusPill, StageStepper, StepRow, SegmentedStageBar, MetricTile, EmptyState, Skeleton, ConfirmDialog; a sentence for each of the 25 step codes, in an ongoing and a finished form.
+- R2: the run list (live rows, filters in the URL, real metrics only, "All projects" with a Project column, moving unassigned runs) and the New run dialog (live platform detection); the run detail (1 s polling, stepper, activity log, approval card, cancel with confirmation, retry as a new run of the same link, results grid with real crops, footage and figures, aria-live stage announcements).
+- R3: the inbox, the run tray, the inbox bell, live sidebar counts, the "(n) Thoth" tab title, and app-wide desktop notifications: a shell watcher follows every active run, so waiting, done and failed are told from any page, once per run and event (operator requirement 2026-10-27).
+- R4: Usage with hand-drawn daily bars, Billing that states from the server that checkout is not live, a new Settings page (language, notification permission, developer tokens with a create dialog and confirmed revoke), translated sign-in, and translated, restyled source accounts and proxies.
+
+**Fixed on the way:** e0e5a387 left `PATCH /me` and `MeUpdate` out of the two exact OpenAPI set tests (9761285e).
+
+**Verification (aefce5c0):** Python suite 4526 passed / 251 skipped; `make test-postgres` 189 passed (after B1-B5); `make lint` clean; dashboard 1305 pass, build clean. Screens checked offline against the pen exports with a mock API, in both languages at 1440, 1024 and 430: `D:/thoth-tmp/restyle-shots/r1` to `r4`.
+
+**Known limits:**
+- Retry starts a new run with default options (Temporal retry is not available and the original request is not stored).
+- Usage shows workflows, videos, render time, storage and sessions; model calls and per-kind totals are not exposed to a workspace yet.
+- Studio pages (part B) keep their English copy and F3 styling until R5-R7.
+
+**Next steps:**
+- Roadmap step 8: the live gate, one dashboard `produce_video` run with a TikTok main watched end to end on the new screens (operator gate).
+- Push, PR, merge and deploy of the run-progress stack with part A, renderer and Thoth as one package (each an operator gate).
+- Part B (R5-R7, Studio) as its own release.
+
 ## 2026-10-26 - The seven editor repositories move to the SQLAlchemy ORM
 
 **Spec:** `docs/superpowers/specs/2026-10-26-editor-repositories-orm-design.md`, approved by the operator. It completes the 2026-09-25 direction: new persistence uses the full SQLAlchemy ORM plus Alembic.
