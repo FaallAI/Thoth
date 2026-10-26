@@ -36,7 +36,7 @@ const PAGES: { path: string; title: MessageKey; project?: boolean }[] = [
   { path: "/usage", title: "nav.usage" },
   { path: "/billing", title: "nav.billing" },
   { path: "/accounts/proxies", title: "page.proxies" },
-  { path: "/accounts", title: "nav.accounts" },
+  { path: "/accounts", title: "page.accounts" },
   { path: "/settings", title: "page.settings" },
 ];
 

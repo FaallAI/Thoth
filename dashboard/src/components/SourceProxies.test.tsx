@@ -1,8 +1,12 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, mock, test } from "bun:test";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render as rawRender, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/lib/locale";
+
+const render = (ui: ReactElement) => rawRender(<LocaleProvider serverLocale="en">{ui}</LocaleProvider>);
 import { SourceProxies } from "./SourceProxies";
 import type { SourceAccountsClient, SourceProxy } from "@/api/source-accounts";
 
@@ -34,7 +38,7 @@ test("lists the pool by host and port and blocks deleting an assigned proxy", as
   expect(client.removeProxy).not.toHaveBeenCalled();
   await userEvent.click(within(table).getByRole("button", { name: "Confirm delete proxy 2, eu-west.proxy.local:3128" }));
   expect(client.removeProxy).toHaveBeenCalledWith("p2");
-  expect(screen.getByText("02 proxies")).toBeDefined();
+  expect(screen.getByText("2 proxies")).toBeDefined();
 });
 
 test("importing shows the summary by line number only", async () => {

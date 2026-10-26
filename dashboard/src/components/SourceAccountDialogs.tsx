@@ -9,7 +9,7 @@ import {
   PLATFORMS,
   REQUIRED_COOKIES,
   SourceAccountsRequestError,
-  errorText,
+  errorKey,
   platformLabel,
   type CookieValidation,
   type SourceAccount,
@@ -17,29 +17,31 @@ import {
   type SourcePlatform,
   type SourceProxy,
 } from "@/api/source-accounts";
+import { useLocale } from "@/lib/locale";
 
 const DIRECT = "direct";
 const VALIDATE_DELAY_MS = 250;
 
-function requiredCopy(platform: SourcePlatform): string {
-  return `${platformLabel(platform)} requires ${REQUIRED_COOKIES[platform].join(" and ")}.`;
-}
+type Copy = ReturnType<typeof useLocale>;
+type T = Copy["t"];
 
-function failureText(error: unknown): string {
+function failureText(t: T, error: unknown): string {
   if (error instanceof SourceAccountsRequestError && error.missing.length) {
-    return `Missing ${error.missing.join(", ")}. Export cookies from a signed-in session.`;
+    return t("sa.missing", { names: error.missing.join(", ") });
   }
-  return errorText(error);
+  return t(errorKey(error));
 }
 
-function validationText(platform: SourcePlatform, result: CookieValidation): string {
+function validationText({ t, plural }: Copy, platform: SourcePlatform, result: CookieValidation): string {
   if (result.error === "missing_required_cookie") {
-    return `Missing ${result.missing.join(", ")}. Export cookies from a signed-in ${platformLabel(platform)} session.`;
+    return t("sa.missingFor", { names: result.missing.join(", "), platform: platformLabel(platform) });
   }
-  if (result.error === "all_cookies_expired") return "Every cookie in the export has expired.";
-  if (result.error) return "The file is not a cookie export this page can read.";
-  const expiry = result.earliest_expiry ? `; earliest expiry ${result.earliest_expiry.slice(0, 10)}` : "";
-  return `Found ${result.count} cookies; ${result.names.join(", ")}${expiry}.`;
+  if (result.error === "all_cookies_expired") return t("sa.allExpired");
+  if (result.error) return t("sa.unreadable");
+  const names = result.names.join(", ");
+  return result.earliest_expiry
+    ? plural("sa.foundExpiring", result.count, { names, date: result.earliest_expiry.slice(0, 10) })
+    : plural("sa.found", result.count, { names });
 }
 
 /** A cookie export from a file or a paste, validated by the server; values are never shown. */
@@ -48,6 +50,8 @@ function CookieInput({ platform, client, onChange }: {
   client: SourceAccountsClient;
   onChange: (text: string, valid: boolean) => void;
 }) {
+  const copy = useLocale();
+  const { t } = copy;
   const [mode, setMode] = useState<"file" | "paste">("file");
   const [text, setText] = useState("");
   const [fileName, setFileName] = useState("");
@@ -87,29 +91,29 @@ function CookieInput({ platform, client, onChange }: {
   }, [text, platform, client]);
 
   return <div className="sa-cookie-input">
-    <div className="sa-segmented" role="group" aria-label="Cookie source">
+    <div className="sa-segmented" role="group" aria-label={t("sa.cookieSource")}>
       {(["file", "paste"] as const).map((option) => <button key={option} type="button"
         aria-pressed={mode === option} onClick={() => setMode(option)}>
-        {option === "file" ? "File" : "Paste"}</button>)}
+        {t(option === "file" ? "sa.file" : "sa.paste")}</button>)}
     </div>
     {mode === "file" ? <label className="sa-dropzone">
       <Upload aria-hidden="true" />
-      <strong>{fileName || "Choose cookie export file"}</strong>
-      <small>JSON or Netscape format · cookie values stay hidden</small>
-      <input type="file" accept=".txt,.json,text/plain,application/json" aria-label="Cookie export file"
+      <strong>{fileName || t("sa.chooseFile")}</strong>
+      <small>{t("sa.fileHint")}</small>
+      <input type="file" accept=".txt,.json,text/plain,application/json" aria-label={t("sa.fileLabel")}
         onChange={async (event) => {
           const file = event.target.files?.[0];
           if (!file) return;
           setFileName(file.name);
           setText(await file.text());
         }} />
-    </label> : <Textarea aria-label="Cookie export" className="sa-secret-text" placeholder="Paste the cookie export"
+    </label> : <Textarea aria-label={t("sa.pasteLabel")} className="sa-secret-text" placeholder={t("sa.pastePlaceholder")}
       value={text} onChange={(event) => { setFileName(""); setText(event.target.value); }} />}
-    <p className="sa-field-hint">{requiredCopy(platform)}</p>
+    <p className="sa-field-hint">{t("sa.required", { platform: platformLabel(platform), cookies: REQUIRED_COOKIES[platform].join(" & ") })}</p>
     {result && <p role="status" className={result.valid ? "sa-validation sa-validation--ok" : "sa-validation sa-validation--error"}>
-      {validationText(platform, result)}</p>}
-    {failed && <p role="alert" className="sa-validation sa-validation--error">The export could not be checked. Try again.</p>}
-    <p className="sa-lock-note"><LockKeyhole aria-hidden="true" />Only cookie names and expiry are shown after import.</p>
+      {validationText(copy, platform, result)}</p>}
+    {failed && <p role="alert" className="sa-validation sa-validation--error">{t("sa.checkFailed")}</p>}
+    <p className="sa-lock-note"><LockKeyhole aria-hidden="true" />{t("sa.lockNote")}</p>
   </div>;
 }
 
@@ -122,26 +126,27 @@ function ProxySelect({ proxies, value, onChange, currentProxyId, currentDisplay,
   currentDisplay?: string | null;
   onImportProxies: () => void;
 }) {
+  const { t } = useLocale();
   const selected = proxies.find((proxy) => proxy.id === value);
   // A held proxy missing from the list (not loaded yet, or the list failed) still shows by name.
-  const shown = selected?.display ?? (value ? (value === currentProxyId && currentDisplay) || "Unlisted proxy" : "Direct");
+  const shown = selected?.display ?? (value ? (value === currentProxyId && currentDisplay) || t("sa.unlisted") : t("sa.direct"));
   return <div className="sa-field">
-    <label htmlFor="sa-proxy">Proxy</label>
+    <label htmlFor="sa-proxy">{t("sa.proxy")}</label>
     <Select value={value ?? DIRECT} onValueChange={(next) => onChange(next === DIRECT ? null : String(next))}>
-      <SelectTrigger id="sa-proxy" aria-label="Proxy" className="sa-select"><SelectValue>{shown}</SelectValue></SelectTrigger>
+      <SelectTrigger id="sa-proxy" aria-label={t("sa.proxy")} className="sa-select"><SelectValue>{shown}</SelectValue></SelectTrigger>
       <SelectContent>
-        <SelectItem value={DIRECT}><span className="sa-option"><strong>Direct</strong><small>No proxy</small></span></SelectItem>
+        <SelectItem value={DIRECT}><span className="sa-option"><strong>{t("sa.direct")}</strong><small>{t("sa.noProxy")}</small></span></SelectItem>
         {proxies.map((proxy) => {
           const held = proxy.account_label !== null && proxy.id !== currentProxyId;
           return <SelectItem key={proxy.id} value={proxy.id} disabled={held}>
             <span className="sa-option"><strong>{proxy.display}</strong>
-              <small>{held ? `in use by ${platformLabel(proxy.account_platform ?? "")} · ${proxy.account_label}` : "Available"}</small></span>
+              <small>{held ? t("sa.inUse", { platform: platformLabel(proxy.account_platform ?? ""), label: proxy.account_label ?? "" }) : t("sa.available")}</small></span>
           </SelectItem>;
         })}
       </SelectContent>
     </Select>
-    {proxies.length ? <p className="sa-field-hint">Choose from the pool. One proxy per account.</p>
-      : <p className="sa-field-hint">No proxies yet. <button type="button" className="sa-link" onClick={onImportProxies}>Import proxies first.</button></p>}
+    {proxies.length ? <p className="sa-field-hint">{t("sa.proxyHint")}</p>
+      : <p className="sa-field-hint">{t("sa.noProxies")} <button type="button" className="sa-link" onClick={onImportProxies}>{t("sa.importFirst")}</button></p>}
   </div>;
 }
 
@@ -158,6 +163,7 @@ export function AddAccountDialog({ open, onOpenChange, client, platform: initial
   onSaved: (account: SourceAccount) => void;
   onImportProxies: () => void;
 }) {
+  const { t } = useLocale();
   const [platform, setPlatform] = useState<SourcePlatform>(initialPlatform);
   const [label, setLabel] = useState("");
   const [proxyId, setProxyId] = useState<string | null>(null);
@@ -182,36 +188,36 @@ export function AddAccountDialog({ open, onOpenChange, client, platform: initial
       onSaved(await client.create({ platform, label: label.trim(), cookies: cookies.text, proxy_id: proxyId }));
       onOpenChange(false);
     } catch (failure) {
-      setError(failureText(failure));
+      setError(failureText(t, failure));
     } finally {
       setSaving(false);
     }
   }
 
-  return <PenDialog open={open} onOpenChange={onOpenChange} eyebrow="Source access" title="Add account"
-    description="Import browser cookies from a session you signed in to." className="sa-dialog">
+  return <PenDialog open={open} onOpenChange={onOpenChange} eyebrow={t("sa.sourceAccess")} title={t("sa.add")}
+    description={t("sa.addDescription")} className="sa-dialog">
     <div className="sa-dialog-body">
       <div className="sa-field">
-        <label htmlFor="sa-platform">Platform</label>
+        <label htmlFor="sa-platform">{t("sa.platform")}</label>
         <Select value={platform} onValueChange={(next) => setPlatform(next as SourcePlatform)}>
-          <SelectTrigger id="sa-platform" aria-label="Platform" className="sa-select"><SelectValue>{platformLabel(platform)}</SelectValue></SelectTrigger>
+          <SelectTrigger id="sa-platform" aria-label={t("sa.platform")} className="sa-select"><SelectValue>{platformLabel(platform)}</SelectValue></SelectTrigger>
           <SelectContent>{PLATFORMS.map((entry) => <SelectItem key={entry.id} value={entry.id}>{entry.label}</SelectItem>)}</SelectContent>
         </Select>
       </div>
       <div className="sa-field">
-        <label htmlFor="sa-label">Account label</label>
-        <Input id="sa-label" maxLength={64} placeholder="e.g. Cedar · primary" value={label} onChange={(event) => setLabel(event.target.value)} />
+        <label htmlFor="sa-label">{t("sa.label")}</label>
+        <Input id="sa-label" maxLength={64} placeholder={t("sa.labelPlaceholder")} value={label} onChange={(event) => setLabel(event.target.value)} />
       </div>
       <ProxySelect proxies={proxies} value={proxyId} onChange={setProxyId} onImportProxies={onImportProxies} />
       <div className="sa-field">
-        <span className="sa-field-label">Browser cookie export</span>
+        <span className="sa-field-label">{t("sa.cookieExport")}</span>
         <CookieInput key={`${open}`} platform={platform} client={client} onChange={(text, valid) => setCookies({ text, valid })} />
       </div>
       {error && <p role="alert" className="sa-validation sa-validation--error">{error}</p>}
     </div>
     <Footer>
-      <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-      <Button disabled={saving || !label.trim() || !cookies.valid} onClick={save}>Import account</Button>
+      <Button variant="ghost" onClick={() => onOpenChange(false)}>{t("common.cancel")}</Button>
+      <Button disabled={saving || !label.trim() || !cookies.valid} onClick={save}>{t("sa.import")}</Button>
     </Footer>
   </PenDialog>;
 }
@@ -222,6 +228,7 @@ export function ReimportDialog({ account, onOpenChange, client, onSaved }: {
   client: SourceAccountsClient;
   onSaved: (account: SourceAccount) => void;
 }) {
+  const { t } = useLocale();
   const [cookies, setCookies] = useState({ text: "", valid: false });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -239,27 +246,27 @@ export function ReimportDialog({ account, onOpenChange, client, onSaved }: {
       onSaved(await client.reimport(account.id, cookies.text));
       onOpenChange(false);
     } catch (failure) {
-      setError(failureText(failure));
+      setError(failureText(t, failure));
     } finally {
       setSaving(false);
     }
   }
 
-  return <PenDialog open onOpenChange={onOpenChange} eyebrow="Source access" title="Re-import cookies"
-    description="Replace cookies for this account after signing in again." className="sa-dialog">
+  return <PenDialog open onOpenChange={onOpenChange} eyebrow={t("sa.sourceAccess")} title={t("sa.reimportTitle")}
+    description={t("sa.reimportDescription")} className="sa-dialog">
     <div className="sa-dialog-body">
-      <div className="sa-field"><span className="sa-field-label">Account</span>
+      <div className="sa-field"><span className="sa-field-label">{t("sa.account")}</span>
         <p className="sa-readonly">{platformLabel(account.platform)} · {account.label}</p></div>
       <div className="sa-field">
-        <span className="sa-field-label">Browser cookie export</span>
+        <span className="sa-field-label">{t("sa.cookieExport")}</span>
         <CookieInput key={account.id} platform={account.platform} client={client} onChange={(text, valid) => setCookies({ text, valid })} />
       </div>
-      {cookies.valid && <p className="sa-field-hint">Validation passed. Existing session is replaced on save.</p>}
+      {cookies.valid && <p className="sa-field-hint">{t("sa.reimportReady")}</p>}
       {error && <p role="alert" className="sa-validation sa-validation--error">{error}</p>}
     </div>
     <Footer>
-      <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-      <Button disabled={saving || !cookies.valid} onClick={save}>Replace cookies</Button>
+      <Button variant="ghost" onClick={() => onOpenChange(false)}>{t("common.cancel")}</Button>
+      <Button disabled={saving || !cookies.valid} onClick={save}>{t("sa.replace")}</Button>
     </Footer>
   </PenDialog>;
 }
@@ -273,6 +280,7 @@ export function EditAccountDialog({ account, onOpenChange, client, proxies, onSa
   onDeleted: (accountId: string) => void;
   onImportProxies: () => void;
 }) {
+  const { t } = useLocale();
   const [label, setLabel] = useState(account?.label ?? "");
   const [proxyId, setProxyId] = useState<string | null>(account?.proxy_id ?? null);
   const [locale, setLocale] = useState(account?.locale ?? "");
@@ -301,7 +309,7 @@ export function EditAccountDialog({ account, onOpenChange, client, proxies, onSa
     try {
       await action();
     } catch (failure) {
-      setError(failureText(failure));
+      setError(failureText(t, failure));
     } finally {
       setSaving(false);
     }
@@ -334,45 +342,45 @@ export function EditAccountDialog({ account, onOpenChange, client, proxies, onSa
     onOpenChange(false);
   });
 
-  return <PenDialog open onOpenChange={onOpenChange} eyebrow="Account settings" title="Edit account"
-    description="Update the label or choose a dedicated proxy." className="sa-dialog">
+  return <PenDialog open onOpenChange={onOpenChange} eyebrow={t("sa.settings")} title={t("sa.editTitle")}
+    description={t("sa.editDescription")} className="sa-dialog">
     <div className="sa-dialog-body">
-      <div className="sa-field"><span className="sa-field-label">Platform</span>
+      <div className="sa-field"><span className="sa-field-label">{t("sa.platform")}</span>
         <p className="sa-readonly">{platformLabel(account.platform)}</p></div>
       <div className="sa-field">
-        <label htmlFor="sa-edit-label">Account label</label>
+        <label htmlFor="sa-edit-label">{t("sa.label")}</label>
         <Input id="sa-edit-label" maxLength={64} value={label} onChange={(event) => setLabel(event.target.value)} />
       </div>
       <ProxySelect proxies={proxies} value={proxyId} onChange={setProxyId} currentProxyId={account.proxy_id}
         currentDisplay={account.proxy_display} onImportProxies={onImportProxies} />
-      <p className="sa-field-hint">A proxy can serve one account at a time.</p>
+      <p className="sa-field-hint">{t("sa.oneProxy")}</p>
       <div className="sa-field">
-        <label htmlFor="sa-edit-locale">Locale</label>
+        <label htmlFor="sa-edit-locale">{t("sa.locale")}</label>
         <Input id="sa-edit-locale" maxLength={6} value={locale} onChange={(event) => setLocale(event.target.value)} />
       </div>
       <div className="sa-field">
-        <label htmlFor="sa-edit-timezone">Timezone</label>
+        <label htmlFor="sa-edit-timezone">{t("sa.timezone")}</label>
         <Input id="sa-edit-timezone" maxLength={64} value={timezone} onChange={(event) => setTimezone(event.target.value)} />
       </div>
-      <p className="sa-field-hint">Match the proxy's country, for example id-ID and Asia/Jakarta.</p>
-      <div className="sa-field"><span className="sa-field-label">Device fingerprint</span>
-        <p className="sa-readonly">{account.fingerprint_set ? "Set (Camoufox)" : "Not set"}</p></div>
+      <p className="sa-field-hint">{t("sa.matchProxy")}</p>
+      <div className="sa-field"><span className="sa-field-label">{t("sa.fingerprint")}</span>
+        <p className="sa-readonly">{t(account.fingerprint_set ? "sa.fingerprintSet" : "sa.fingerprintUnset")}</p></div>
       {resetting
-        ? <><p role="alert" className="sa-validation sa-validation--error">Reset the device of {account.label}? Its browser profiles and fingerprint are deleted, and its next lease shows the platform a new device.</p>
-          <Button variant="destructive" disabled={saving} onClick={resetFingerprint}>Confirm reset</Button></>
-        : <Button variant="ghost" disabled={saving} onClick={() => setResetting(true)}>Reset device fingerprint</Button>}
-      {confirming && <p role="alert" className="sa-validation sa-validation--error">Delete {account.label}? Its cookies are removed and its proxy returns to the pool.</p>}
+        ? <><p role="alert" className="sa-validation sa-validation--error">{t("sa.resetConfirmText", { label: account.label })}</p>
+          <Button variant="destructive" disabled={saving} onClick={resetFingerprint}>{t("sa.resetConfirm")}</Button></>
+        : <Button variant="ghost" disabled={saving} onClick={() => setResetting(true)}>{t("sa.reset")}</Button>}
+      {confirming && <p role="alert" className="sa-validation sa-validation--error">{t("sa.deleteConfirmText", { label: account.label })}</p>}
       {error && <p role="alert" className="sa-validation sa-validation--error">{error}</p>}
     </div>
     <Footer>
       <div className="sa-footer-secondary">
-        <Button variant="ghost" disabled={saving} onClick={toggle}>{disabled ? "Enable account" : "Disable account"}</Button>
+        <Button variant="ghost" disabled={saving} onClick={toggle}>{t(disabled ? "sa.enable" : "sa.disable")}</Button>
         {confirming
-          ? <Button variant="destructive" disabled={saving} onClick={remove}>Delete account</Button>
-          : <Button variant="ghost" disabled={saving} onClick={() => setConfirming(true)}>Delete</Button>}
+          ? <Button variant="destructive" disabled={saving} onClick={remove}>{t("sa.deleteAccount")}</Button>
+          : <Button variant="ghost" disabled={saving} onClick={() => setConfirming(true)}>{t("sa.delete")}</Button>}
       </div>
-      <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-      <Button disabled={saving || !label.trim()} onClick={save}>Save changes</Button>
+      <Button variant="ghost" onClick={() => onOpenChange(false)}>{t("common.cancel")}</Button>
+      <Button disabled={saving || !label.trim()} onClick={save}>{t("sa.save")}</Button>
     </Footer>
   </PenDialog>;
 }
