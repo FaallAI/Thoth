@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-29 - Deployed master 4a102c5 (PR #75, editor repositories on the ORM)
+
+**Deployed:** `master` 4a102c5 after the CI of PR #75 and of `master` went green (offline gates with Postgres, image build, non-live smoke).
+- `thoth@126a3281` (new); renderer `b2fe65ff` and web `9b530de0` unchanged.
+- No render or workflow was open; the previous image pins are backed up in `D:/thoth-tmp/bu/pins/pins-before-4a102c5.env`.
+
+**`make deploy` exit 0:**
+- migrate applied 0 revisions, as expected because the ORM move changes no schema;
+- every service healthy, with 0 restarts and no error lines in the api, worker, web, renderer or legacy-cdp logs.
+
+**Read smoke** through the API, from inside the api container (statuses and counts only):
+- **Answered 200:**
+  - projects;
+  - edit documents (3 real documents read from JSONB), a document by id, its review comments and decisions;
+  - editor assets;
+  - render capability and render jobs;
+  - Prompt Lab templates, locks and proposals.
+- **The expected 404s:**
+  - a Prompt Lab binding and preference that were never set;
+  - the Studio import manifest of a document that was not imported.
+
+**Next steps:**
+- the run-progress stack (rebased onto this, on `feat/run-progress-render-frames`) continues with roadmap step 7, the dashboard and Studio restyle;
+- the stack PR, merge and deploy wait until the track is done, with the renderer and Thoth deployed as one package.
+
 ## 2026-10-26 - The seven editor repositories move to the SQLAlchemy ORM
 
 **Spec:** `docs/superpowers/specs/2026-10-26-editor-repositories-orm-design.md`, approved by the operator. It completes the 2026-09-25 direction: new persistence uses the full SQLAlchemy ORM plus Alembic.
