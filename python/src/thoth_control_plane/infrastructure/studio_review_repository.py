@@ -4,20 +4,26 @@ Every write runs in one short-lived transaction that first takes the same
 per-document advisory lock as editor saves, so a review can never attach to a
 revision that a concurrent save is superseding. Rows are only ever inserted and
 read: a newer saved revision leaves earlier comments and decisions historical.
+
+SQLAlchemy ORM on the shared editor pool (ORM spec 2026-10-26); async callers reach the
+synchronous session through `asyncio.to_thread`.
 """
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import json
 import re
 import uuid
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any
+from typing import Any, TypeVar
 
-from psycopg import AsyncConnection
 from pydantic import TypeAdapter
+from sqlalchemy import select, tuple_
+from sqlalchemy.orm import Session
 
 from thoth_control_plane.application.studio_review_ports import (
     InvalidStudioReviewPage,
@@ -40,14 +46,15 @@ from thoth_control_plane.domain.studio_review import (
     ReviewDecisionPage,
     review_blocking_issues,
 )
+from thoth_control_plane.infrastructure.editor_database import advisory_xact_lock, editor_sessions
+from thoth_control_plane.infrastructure.editor_models import (
+    EditDocumentRevisionRow,
+    StudioReviewEventRow,
+)
+
+T = TypeVar("T")
 
 DOCUMENT_ADAPTER: TypeAdapter[EditDocument] = TypeAdapter(EditDocument)
-
-#: Selected in this exact order by every read and rebuilt by :func:`_row_to_event`.
-EVENT_COLUMNS = (
-    "event_id, project_id, document_id, revision, event_kind, actor_id, actor_type, "
-    "actor_display_name, comment_text, frame, decision, reason, created_at"
-)
 
 _CURSOR_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,256}$")
 _EVENT_ID_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,127}$")
@@ -72,32 +79,23 @@ def _request_hash(kind: str, request: CreateComment | CreateDecision, actor: Act
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
-def _row_to_event(row: tuple[Any, ...]) -> ReviewComment | ReviewDecision:
-    (
-        event_id,
-        project_id,
-        document_id,
-        revision,
-        kind,
-        actor_id,
-        actor_type,
-        display_name,
-        text,
-        frame,
-        decision,
-        reason,
-        created_at,
-    ) = row
+def _row_to_event(row: StudioReviewEventRow) -> ReviewComment | ReviewDecision:
     common = {
-        "project_id": project_id,
-        "document_id": document_id,
-        "document_revision": revision,
-        "actor": ActorSnapshot(actor_id=actor_id, actor_type=actor_type, display_name=display_name),
-        "created_at": created_at,
+        "project_id": row.project_id,
+        "document_id": row.document_id,
+        "document_revision": row.revision,
+        "actor": ActorSnapshot(
+            actor_id=row.actor_id, actor_type=row.actor_type, display_name=row.actor_display_name
+        ),
+        "created_at": row.created_at,
     }
-    if kind == "comment":
-        return ReviewComment(comment_id=event_id, text=text, frame=frame, **common)
-    return ReviewDecision(decision_id=event_id, decision=decision, reason=reason, **common)
+    if row.event_kind == "comment":
+        return ReviewComment(
+            comment_id=row.event_id, text=row.comment_text, frame=row.frame, **common
+        )
+    return ReviewDecision(
+        decision_id=row.event_id, decision=row.decision, reason=row.reason, **common
+    )
 
 
 def _encode_cursor(created_at: datetime, event_id: str) -> str:
@@ -125,10 +123,25 @@ def _page_bounds(limit: int, cursor: str | None) -> tuple[int, tuple[datetime, s
 
 
 class PostgresStudioReviewRepository:
-    """Open one short-lived async connection per review operation."""
+    """One short transaction per review operation, on the shared editor pool."""
 
     def __init__(self, database_url: str) -> None:
         self._database_url = database_url
+
+    async def _run(self, work: Callable[[Session], T]) -> T:
+        """Run `work(session)` in one transaction. Typed outcomes pass through; any other
+        failure is the safe persistence error."""
+
+        def unit() -> T:
+            with editor_sessions(self._database_url).begin() as session:
+                return work(session)
+
+        try:
+            return await asyncio.to_thread(unit)
+        except (*_PASSTHROUGH, StudioReviewPersistenceError):
+            raise
+        except Exception as error:
+            raise StudioReviewPersistenceError() from error
 
     async def create_comment(
         self,
@@ -175,102 +188,64 @@ class PostgresStudioReviewRepository:
         actor: ActorSnapshot,
     ) -> ReviewComment | ReviewDecision:
         request_hash = _request_hash(kind, request, actor)
-        try:
-            connection = await AsyncConnection.connect(self._database_url)
-            async with connection:
-                cursor = connection.cursor()
-                await cursor.execute(
-                    "SELECT pg_advisory_xact_lock(hashtext(%s), hashtext(%s))",
-                    (project_id, document_id),
-                )
-                # Replay wins over staleness: an identical retry of a request that
-                # already landed returns that record even after a newer save.
-                await cursor.execute(
-                    f"""
-                    SELECT request_hash, {EVENT_COLUMNS}
-                    FROM studio_review_events
-                    WHERE project_id = %s AND document_id = %s AND operation_id = %s
-                    """,
-                    (project_id, document_id, request.operation_id),
-                )
-                recorded = await cursor.fetchone()
-                if recorded is not None:
-                    if recorded[0] != request_hash:
-                        raise StudioReviewIdempotencyConflict()
-                    return _row_to_event(recorded[1:])
 
-                await cursor.execute(
-                    """
-                    SELECT revision, document_json
-                    FROM edit_document_revisions
-                    WHERE project_id = %s AND document_id = %s
-                    ORDER BY revision DESC LIMIT 1
-                    FOR UPDATE
-                    """,
-                    (project_id, document_id),
+        def write(session: Session) -> ReviewComment | ReviewDecision:
+            advisory_xact_lock(session, project_id, document_id)
+            # Replay wins over staleness: an identical retry of a request that
+            # already landed returns that record even after a newer save.
+            recorded = session.scalar(
+                select(StudioReviewEventRow).where(
+                    StudioReviewEventRow.project_id == project_id,
+                    StudioReviewEventRow.document_id == document_id,
+                    StudioReviewEventRow.operation_id == request.operation_id,
                 )
-                row = await cursor.fetchone()
-                if row is None:
-                    raise StudioReviewDocumentNotFound()
-                if row[0] != request.base_revision:
-                    raise StudioReviewRevisionConflict(latest_revision=row[0])
-                document = DOCUMENT_ADAPTER.validate_python(row[1])
-                self._check_eligible(document, request)
+            )
+            if recorded is not None:
+                if recorded.request_hash != request_hash:
+                    raise StudioReviewIdempotencyConflict()
+                return _row_to_event(recorded)
 
-                event_id = f"review_{uuid.uuid4().hex}"
-                comment = isinstance(request, CreateComment)
-                await cursor.execute(
-                    """
-                    INSERT INTO studio_review_events
-                        (event_id, project_id, document_id, revision, operation_id,
-                         request_hash, event_kind, actor_id, actor_type, actor_display_name,
-                         comment_text, frame, decision, reason)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    RETURNING created_at
-                    """,
-                    (
-                        event_id,
-                        project_id,
-                        document_id,
-                        request.base_revision,
-                        request.operation_id,
-                        request_hash,
-                        kind,
-                        actor.actor_id,
-                        actor.actor_type,
-                        actor.display_name,
-                        request.text if comment else None,
-                        request.frame if comment else None,
-                        None if comment else request.decision,
-                        None if comment else request.reason,
-                    ),
+            latest = session.scalar(
+                select(EditDocumentRevisionRow)
+                .where(
+                    EditDocumentRevisionRow.project_id == project_id,
+                    EditDocumentRevisionRow.document_id == document_id,
                 )
-                inserted = await cursor.fetchone()
-                if inserted is None:
-                    raise StudioReviewPersistenceError()
-                return _row_to_event(
-                    (
-                        event_id,
-                        project_id,
-                        document_id,
-                        request.base_revision,
-                        kind,
-                        actor.actor_id,
-                        actor.actor_type,
-                        actor.display_name,
-                        request.text if comment else None,
-                        request.frame if comment else None,
-                        None if comment else request.decision,
-                        None if comment else request.reason,
-                        inserted[0],
-                    )
-                )
-        except _PASSTHROUGH:
-            raise
-        except StudioReviewPersistenceError:
-            raise
-        except Exception as error:
-            raise StudioReviewPersistenceError() from error
+                .order_by(EditDocumentRevisionRow.revision.desc())
+                .limit(1)
+                .with_for_update()
+            )
+            if latest is None:
+                raise StudioReviewDocumentNotFound()
+            if latest.revision != request.base_revision:
+                raise StudioReviewRevisionConflict(latest_revision=latest.revision)
+            document = DOCUMENT_ADAPTER.validate_python(latest.document_json)
+            self._check_eligible(document, request)
+
+            comment = isinstance(request, CreateComment)
+            row = StudioReviewEventRow(
+                event_id=f"review_{uuid.uuid4().hex}",
+                project_id=project_id,
+                document_id=document_id,
+                revision=request.base_revision,
+                operation_id=request.operation_id,
+                request_hash=request_hash,
+                event_kind=kind,
+                actor_id=actor.actor_id,
+                actor_type=actor.actor_type,
+                actor_display_name=actor.display_name,
+                comment_text=request.text if comment else None,
+                frame=request.frame if comment else None,
+                decision=None if comment else request.decision,
+                reason=None if comment else request.reason,
+            )
+            session.add(row)
+            session.flush()
+            # The database stamps `created_at`, as the psycopg INSERT ... RETURNING did.
+            session.refresh(row, ["created_at"])
+            return _row_to_event(row)
+
+        return await self._run(write)
 
     @staticmethod
     def _check_eligible(document: EditDocument, request: CreateComment | CreateDecision) -> None:
@@ -287,29 +262,30 @@ class PostgresStudioReviewRepository:
         self, project_id: str, document_id: str, kind: str, limit: int, cursor: str | None
     ) -> tuple[tuple[Any, ...], str | None]:
         bounded, keyset = _page_bounds(limit, cursor)
-        # Comments read oldest-first, decisions newest-first; the project and
-        # document predicates always apply, so a cursor can only move a keyset.
-        direction, comparison = ("", ">") if kind == "comment" else (" DESC", "<")
-        keyset_sql = "" if keyset is None else f"AND (created_at, event_id) {comparison} (%s, %s)"
-        params: tuple[Any, ...] = (project_id, document_id, *(keyset or ()), bounded + 1)
-        try:
-            connection = await AsyncConnection.connect(self._database_url)
-            async with connection:
-                db_cursor = connection.cursor()
-                await db_cursor.execute(
-                    f"""
-                    SELECT {EVENT_COLUMNS}
-                    FROM studio_review_events
-                    WHERE project_id = %s AND document_id = %s AND event_kind = '{kind}'
-                    {keyset_sql}
-                    ORDER BY created_at{direction}, event_id{direction}
-                    LIMIT %s
-                    """,
-                    params,
+
+        def read(session: Session) -> tuple[tuple[Any, ...], str | None]:
+            # Comments read oldest-first, decisions newest-first; the project and
+            # document predicates always apply, so a cursor can only move a keyset.
+            key = tuple_(StudioReviewEventRow.created_at, StudioReviewEventRow.event_id)
+            query = select(StudioReviewEventRow).where(
+                StudioReviewEventRow.project_id == project_id,
+                StudioReviewEventRow.document_id == document_id,
+                StudioReviewEventRow.event_kind == kind,
+            )
+            if kind == "comment":
+                order = (StudioReviewEventRow.created_at, StudioReviewEventRow.event_id)
+                if keyset is not None:
+                    query = query.where(key > tuple_(*keyset))
+            else:
+                order = (
+                    StudioReviewEventRow.created_at.desc(),
+                    StudioReviewEventRow.event_id.desc(),
                 )
-                rows = await db_cursor.fetchall()
-        except Exception as error:
-            raise StudioReviewPersistenceError() from error
-        events = tuple(_row_to_event(row) for row in rows[:bounded])
-        last = rows[bounded - 1] if len(rows) > bounded else None
-        return events, None if last is None else _encode_cursor(last[12], last[0])
+                if keyset is not None:
+                    query = query.where(key < tuple_(*keyset))
+            rows = session.scalars(query.order_by(*order).limit(bounded + 1)).all()
+            events = tuple(_row_to_event(row) for row in rows[:bounded])
+            last = rows[bounded - 1] if len(rows) > bounded else None
+            return events, None if last is None else _encode_cursor(last.created_at, last.event_id)
+
+        return await self._run(read)

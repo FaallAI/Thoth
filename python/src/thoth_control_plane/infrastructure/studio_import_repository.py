@@ -1,12 +1,18 @@
-"""PostgreSQL persistence for Studio drafts, their source inventory, and item decisions."""
+"""PostgreSQL persistence for Studio drafts, their source inventory, and item decisions.
+
+SQLAlchemy ORM on the shared editor pool (ORM spec 2026-10-26); async callers reach the
+synchronous session through `asyncio.to_thread`.
+"""
 
 from __future__ import annotations
 
-from typing import Any
+import asyncio
+from collections.abc import Callable
+from typing import Any, TypeVar
 
-from psycopg import AsyncConnection
-from psycopg.types.json import Jsonb
 from pydantic import TypeAdapter
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 from thoth_control_plane.application.edit_documents import EditDocumentNotFound
 from thoth_control_plane.application.ports import (
@@ -43,11 +49,20 @@ from thoth_control_plane.domain.studio_layout import (
     reaction_beat,
 )
 from thoth_control_plane.domain.timeline_operations import AddClipFromAsset
+from thoth_control_plane.infrastructure.editor_database import advisory_xact_lock, editor_sessions
+from thoth_control_plane.infrastructure.editor_models import (
+    EditDocumentRevisionRow,
+    StudioImportDecisionRow,
+    StudioImportDraftRow,
+)
 from thoth_control_plane.infrastructure.editor_repository import (
     DOCUMENT_ADAPTER,
     EditDocumentPersistenceError,
     PostgresEditDocumentRepository,
+    latest_revision_for_update,
 )
+
+T = TypeVar("T")
 
 INVENTORY_ADAPTER: TypeAdapter[list[StudioImportItem]] = TypeAdapter(list[StudioImportItem])
 TYPED = (
@@ -59,12 +74,27 @@ TYPED = (
     StudioImportItemResolved,
 )
 
-# Every draft query reports the document's latest revision, never the first one.
-_DRAFT_COLUMNS = """
-    d.document_id, d.source_key, d.created_at,
-    (SELECT max(r.revision) FROM edit_document_revisions r
-     WHERE r.project_id = d.project_id AND r.document_id = d.document_id)
-"""
+
+def _latest_revision():  # type: ignore[no-untyped-def]
+    """Every draft query reports the document's latest revision, never the first one."""
+    return (
+        select(func.max(EditDocumentRevisionRow.revision))
+        .where(
+            EditDocumentRevisionRow.project_id == StudioImportDraftRow.project_id,
+            EditDocumentRevisionRow.document_id == StudioImportDraftRow.document_id,
+        )
+        .correlate(StudioImportDraftRow)
+        .scalar_subquery()
+    )
+
+
+def _drafts():  # type: ignore[no-untyped-def]
+    return select(
+        StudioImportDraftRow.document_id,
+        StudioImportDraftRow.source_key,
+        StudioImportDraftRow.created_at,
+        _latest_revision(),
+    )
 
 
 def _draft(row: Any) -> StudioDraft:
@@ -72,10 +102,25 @@ def _draft(row: Any) -> StudioDraft:
 
 
 class PostgresStudioImportRepository:
-    """Open one short-lived async connection per operation; rows are never updated."""
+    """One short transaction per operation, on the shared editor pool; rows are never updated."""
 
     def __init__(self, database_url: str) -> None:
         self._database_url = database_url
+
+    async def _run(self, work: Callable[[Session], T]) -> T:
+        """Run `work(session)` in one transaction. Typed outcomes pass through; any other
+        failure is the safe persistence error."""
+
+        def unit() -> T:
+            with editor_sessions(self._database_url).begin() as session:
+                return work(session)
+
+        try:
+            return await asyncio.to_thread(unit)
+        except (*TYPED, EditDocumentPersistenceError):
+            raise
+        except Exception as error:
+            raise EditDocumentPersistenceError() from error
 
     async def create_draft(
         self,
@@ -86,92 +131,66 @@ class PostgresStudioImportRepository:
         document: EditDocumentV2,
         inventory: list[StudioImportItem],
     ) -> StudioDraft:
-        try:
-            connection = await AsyncConnection.connect(self._database_url)
-            async with connection:
-                cursor = connection.cursor()
-                await cursor.execute(
-                    "SELECT pg_advisory_xact_lock(hashtext(%s), hashtext(%s))",
-                    (project_id, f"studio-import:{idempotency_key}"),
+        def write(session: Session) -> StudioDraft:
+            advisory_xact_lock(session, project_id, f"studio-import:{idempotency_key}")
+            recorded = session.execute(
+                _drafts().where(
+                    StudioImportDraftRow.project_id == project_id,
+                    StudioImportDraftRow.idempotency_key == idempotency_key,
                 )
-                await cursor.execute(
-                    f"""
-                    SELECT {_DRAFT_COLUMNS}
-                    FROM studio_import_drafts d
-                    WHERE d.project_id = %s AND d.idempotency_key = %s
-                    """,
-                    (project_id, idempotency_key),
-                )
-                recorded = await cursor.fetchone()
-                if recorded is not None:
-                    if recorded[1] != source_key:
-                        raise StudioImportConflict()
-                    return _draft(recorded)
+            ).first()
+            if recorded is not None:
+                if recorded[1] != source_key:
+                    raise StudioImportConflict()
+                return _draft(recorded)
 
-                await PostgresEditDocumentRepository._insert_revision(cursor, document)
-                await cursor.execute(
-                    """
-                    INSERT INTO studio_import_drafts
-                        (project_id, document_id, first_revision, source_key, idempotency_key,
-                         inventory)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    RETURNING created_at
-                    """,
-                    (
-                        project_id,
-                        document.document_id,
-                        document.revision,
-                        source_key,
-                        idempotency_key,
-                        Jsonb([entry.model_dump(mode="json") for entry in inventory]),
-                    ),
-                )
-                created = await cursor.fetchone()
-                if created is None:
-                    raise EditDocumentPersistenceError()
-                return StudioDraft(
-                    document_id=document.document_id,
-                    source_key=source_key,
-                    revision=document.revision,
-                    created_at=created[0],
-                )
-        except TYPED:
-            raise
-        except EditDocumentPersistenceError:
-            raise
-        except Exception as error:
-            raise EditDocumentPersistenceError() from error
+            PostgresEditDocumentRepository._insert_revision(session, document)
+            # The draft references its first revision, so the revision goes first.
+            session.flush()
+            draft = StudioImportDraftRow(
+                project_id=project_id,
+                document_id=document.document_id,
+                first_revision=document.revision,
+                source_key=source_key,
+                idempotency_key=idempotency_key,
+                inventory=[entry.model_dump(mode="json") for entry in inventory],
+            )
+            session.add(draft)
+            session.flush()
+            # The database stamps `created_at`, as the psycopg INSERT ... RETURNING did.
+            session.refresh(draft, ["created_at"])
+            return StudioDraft(
+                document_id=document.document_id,
+                source_key=source_key,
+                revision=document.revision,
+                created_at=draft.created_at,
+            )
+
+        return await self._run(write)
 
     async def list_drafts(
         self, *, project_id: str, source_key: str, limit: int
     ) -> list[StudioDraft]:
-        try:
-            connection = await AsyncConnection.connect(self._database_url)
-            async with connection:
-                cursor = connection.cursor()
-                await cursor.execute(
-                    f"""
-                    SELECT {_DRAFT_COLUMNS}
-                    FROM studio_import_drafts d
-                    WHERE d.project_id = %s AND d.source_key = %s
-                    ORDER BY d.created_at DESC, d.document_id DESC
-                    LIMIT %s
-                    """,
-                    (project_id, source_key, limit),
+        def read(session: Session) -> list[StudioDraft]:
+            rows = session.execute(
+                _drafts()
+                .where(
+                    StudioImportDraftRow.project_id == project_id,
+                    StudioImportDraftRow.source_key == source_key,
                 )
-                return [_draft(row) for row in await cursor.fetchall()]
-        except Exception as error:
-            raise EditDocumentPersistenceError() from error
+                .order_by(
+                    StudioImportDraftRow.created_at.desc(), StudioImportDraftRow.document_id.desc()
+                )
+                .limit(limit)
+            ).all()
+            return [_draft(row) for row in rows]
+
+        return await self._run(read)
 
     async def get_inventory(
         self, *, project_id: str, document_id: str
     ) -> StudioImportInventory | None:
-        try:
-            connection = await AsyncConnection.connect(self._database_url)
-            async with connection:
-                return await self._inventory(connection.cursor(), project_id, document_id)
-        except Exception as error:
-            raise EditDocumentPersistenceError() from error
+        return await self._run(lambda session: self._inventory(session, project_id, document_id))
 
     async def resolve_item(
         self,
@@ -182,98 +201,74 @@ class PostgresStudioImportRepository:
         base_revision: int,
         decision: ExcludeImportItem | AttachImportAsset,
     ) -> StudioImportInventory:
-        try:
-            connection = await AsyncConnection.connect(self._database_url)
-            async with connection:
-                cursor = connection.cursor()
-                # The editor's own lock: no patch can land between the check and the insert.
-                await cursor.execute(
-                    "SELECT pg_advisory_xact_lock(hashtext(%s), hashtext(%s))",
-                    (project_id, document_id),
-                )
-                current = await self._inventory(cursor, project_id, document_id)
-                if current is None:
-                    raise EditDocumentNotFound()
-                entry = next((item for item in current.items if item.item_id == item_id), None)
-                if entry is None:
-                    raise StudioImportItemNotFound()
-                if entry.disposition != "unresolved":
-                    raise StudioImportItemResolved()
-                asset_id = decision.asset_id if isinstance(decision, AttachImportAsset) else None
-                reason = decision.reason if isinstance(decision, ExcludeImportItem) else None
-                disposition = "excluded" if asset_id is None else "attached"
-                if asset_id and (entry.media_kind == "none" or entry.scene_id is None):
-                    raise StudioImportDecisionRejected("item_not_attachable")
+        def write(session: Session) -> StudioImportInventory:
+            # The editor's own lock: no patch can land between the check and the insert.
+            advisory_xact_lock(session, project_id, document_id)
+            current = self._inventory(session, project_id, document_id)
+            if current is None:
+                raise EditDocumentNotFound()
+            entry = next((item for item in current.items if item.item_id == item_id), None)
+            if entry is None:
+                raise StudioImportItemNotFound()
+            if entry.disposition != "unresolved":
+                raise StudioImportItemResolved()
+            asset_id = decision.asset_id if isinstance(decision, AttachImportAsset) else None
+            reason = decision.reason if isinstance(decision, ExcludeImportItem) else None
+            disposition = "excluded" if asset_id is None else "attached"
+            if asset_id and (entry.media_kind == "none" or entry.scene_id is None):
+                raise StudioImportDecisionRejected("item_not_attachable")
 
-                await cursor.execute(
-                    """
-                    SELECT document_json
-                    FROM edit_document_revisions
-                    WHERE project_id = %s AND document_id = %s
-                    ORDER BY revision DESC LIMIT 1
-                    FOR UPDATE
-                    """,
-                    (project_id, document_id),
+            latest = latest_revision_for_update(session, project_id, document_id)
+            if latest is None:
+                raise EditDocumentPersistenceError()
+            if latest.revision != base_revision:
+                raise EditDocumentRevisionConflict(latest)
+            # Excluding changes no content; the new revision records when it was decided.
+            updated = (
+                latest
+                if asset_id is None
+                else self._attached(session, latest, entry, asset_id, current)
+            )
+            result = DOCUMENT_ADAPTER.validate_python(
+                {**updated.model_dump(mode="json"), "revision": latest.revision + 1}
+            )
+            PostgresEditDocumentRepository._insert_revision(session, result)
+            # The decision references the new revision, so the revision goes first.
+            session.flush()
+            session.add(
+                StudioImportDecisionRow(
+                    project_id=project_id,
+                    document_id=document_id,
+                    item_id=item_id,
+                    revision=result.revision,
+                    disposition=disposition,
+                    asset_id=asset_id,
+                    reason=reason,
                 )
-                row = await cursor.fetchone()
-                if row is None:
-                    raise EditDocumentPersistenceError()
-                latest = DOCUMENT_ADAPTER.validate_python(row[0])
-                if latest.revision != base_revision:
-                    raise EditDocumentRevisionConflict(latest)
-                # Excluding changes no content; the new revision records when it was decided.
-                updated = (
-                    latest
-                    if asset_id is None
-                    else await self._attached(cursor, latest, entry, asset_id, current)
-                )
-                result = DOCUMENT_ADAPTER.validate_python(
-                    {**updated.model_dump(mode="json"), "revision": latest.revision + 1}
-                )
-                await PostgresEditDocumentRepository._insert_revision(cursor, result)
-                await cursor.execute(
-                    """
-                    INSERT INTO studio_import_decisions
-                        (project_id, document_id, item_id, revision, disposition, asset_id, reason)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    """,
-                    (
-                        project_id,
-                        document_id,
-                        item_id,
-                        result.revision,
-                        disposition,
-                        asset_id,
-                        reason,
-                    ),
-                )
-                return current.model_copy(
-                    update={
-                        "revision": result.revision,
-                        "items": [
-                            item.model_copy(
-                                update={
-                                    "disposition": disposition,
-                                    "asset_id": asset_id,
-                                    **({"reason": NOT_PLACED} if reason == "not_placed" else {}),
-                                }
-                            )
-                            if item.item_id == item_id
-                            else item
-                            for item in current.items
-                        ],
-                    }
-                )
-        except TYPED:
-            raise
-        except EditDocumentPersistenceError:
-            raise
-        except Exception as error:
-            raise EditDocumentPersistenceError() from error
+            )
+            return current.model_copy(
+                update={
+                    "revision": result.revision,
+                    "items": [
+                        item.model_copy(
+                            update={
+                                "disposition": disposition,
+                                "asset_id": asset_id,
+                                **({"reason": NOT_PLACED} if reason == "not_placed" else {}),
+                            }
+                        )
+                        if item.item_id == item_id
+                        else item
+                        for item in current.items
+                    ],
+                }
+            )
+
+        return await self._run(write)
 
     @staticmethod
-    async def _attached(
-        cursor: Any,
+    def _attached(
+        session: Session,
         latest: EditDocument,
         entry: StudioImportItem,
         asset_id: str,
@@ -285,8 +280,8 @@ class PostgresStudioImportRepository:
         A video plays from its trim to its end and its scene takes that length; main footage
         stays within the main scene, and a still fills its scene.
         """
-        asset = (
-            await PostgresEditDocumentRepository.ready_assets(cursor, latest.project_id, [asset_id])
+        asset = PostgresEditDocumentRepository.ready_assets(
+            session, latest.project_id, [asset_id]
         ).get(asset_id)
         if asset is None:
             raise StudioImportDecisionRejected("asset_unavailable")
@@ -372,33 +367,29 @@ class PostgresStudioImportRepository:
         return document
 
     @staticmethod
-    async def _inventory(
-        cursor: Any, project_id: str, document_id: str
+    def _inventory(
+        session: Session, project_id: str, document_id: str
     ) -> StudioImportInventory | None:
-        await cursor.execute(
-            """
-            SELECT d.source_key, d.inventory,
-                (SELECT max(r.revision) FROM edit_document_revisions r
-                 WHERE r.project_id = d.project_id AND r.document_id = d.document_id)
-            FROM studio_import_drafts d
-            WHERE d.project_id = %s AND d.document_id = %s
-            """,
-            (project_id, document_id),
-        )
-        row = await cursor.fetchone()
+        row = session.execute(
+            select(
+                StudioImportDraftRow.source_key,
+                StudioImportDraftRow.inventory,
+                _latest_revision(),
+            ).where(
+                StudioImportDraftRow.project_id == project_id,
+                StudioImportDraftRow.document_id == document_id,
+            )
+        ).first()
         if row is None:
             return None
-        await cursor.execute(
-            """
-            SELECT item_id, disposition, asset_id, reason
-            FROM studio_import_decisions
-            WHERE project_id = %s AND document_id = %s
-            """,
-            (project_id, document_id),
-        )
         decided = {
-            item_id: (disposition, asset_id, reason)
-            for item_id, disposition, asset_id, reason in await cursor.fetchall()
+            decision.item_id: (decision.disposition, decision.asset_id, decision.reason)
+            for decision in session.scalars(
+                select(StudioImportDecisionRow).where(
+                    StudioImportDecisionRow.project_id == project_id,
+                    StudioImportDecisionRow.document_id == document_id,
+                )
+            )
         }
         items = [
             item.model_copy(

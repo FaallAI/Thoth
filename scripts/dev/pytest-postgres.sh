@@ -18,7 +18,7 @@ for _ in $(seq 1 60); do
 done
 docker exec "$name" pg_isready -h 127.0.0.1 -U postgres >/dev/null
 
-[ "$#" -gt 0 ] || set -- tests/operations/test_editor_migrations_postgres.py
+[ "$#" -gt 0 ] || set -- $(cd "$root/python" && ls tests/*/*_postgres.py)
 THOTH_TEST_EDITOR_DATABASE_URL="postgresql://postgres:thoth@127.0.0.1:$port/postgres" \
 THOTH_REQUIRE_POSTGRES_TESTS=1 \
     bash "$root/scripts/dev/pytest-wsl.sh" "$@"
