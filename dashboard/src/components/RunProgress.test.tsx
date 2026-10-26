@@ -62,7 +62,7 @@ test("the vertical stepper shows each stage's duration, the elapsed time, and it
 });
 
 test("the compact stepper names the current stage and step, and the bar describes every stage", () => {
-  inLocale("en", <StageStepper stages={stages} variant="compact" />);
+  inLocale("en", <StageStepper stages={stages} variant="compact" now={now} />);
   expect(screen.getByText("Collect footage · Screening the clips")).toBeDefined();
   expect(screen.getByRole("img").getAttribute("aria-label")).toBe(
     "Fetch the source: Done, Your review: Skipped, Collect footage: Running, Build the content set: Queued, Render: Queued",

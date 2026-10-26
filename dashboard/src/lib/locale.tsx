@@ -60,13 +60,10 @@ export function LocaleProvider({
   save?: (locale: Locale) => Promise<void>;
   children: ReactNode;
 }) {
-  const [locale, setCurrent] = useState<Locale>(
-    () => serverLocale ?? stored() ?? browserLocale(navigator.languages ?? []),
-  );
-
-  useEffect(() => {
-    if (serverLocale) setCurrent(serverLocale);
-  }, [serverLocale]);
+  // A choice made here wins; until then the saved one, then this browser's.
+  const [chosen, setChosen] = useState<Locale | null>(null);
+  const [fallback] = useState<Locale>(() => stored() ?? browserLocale(navigator.languages ?? []));
+  const locale = chosen ?? serverLocale ?? fallback;
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -74,7 +71,7 @@ export function LocaleProvider({
 
   const setLocale = useCallback(
     async (next: Locale) => {
-      setCurrent(next);
+      setChosen(next);
       remember(next);
       if (!save) return;
       try {

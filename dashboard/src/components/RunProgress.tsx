@@ -102,11 +102,12 @@ function stageLine(locale: "en" | "id", t: (key: MessageKey) => string, stage: S
 export function StageStepper({
   stages,
   variant = "vertical",
-  now = new Date(),
+  now,
 }: {
   stages: Stage[];
   variant?: "vertical" | "compact";
-  now?: Date;
+  /** The caller's clock, ticking once a second while the run is live. */
+  now: Date;
 }) {
   const { locale, t, duration } = useLocale();
   if (variant === "compact") {
@@ -191,7 +192,7 @@ const ICON_TONE: Record<Step["kind"], string> = {
  * One line of the activity log: time, icon, sentence, and on the right the count with its bar
  * or the countdown of a wait (§7.4). `current` marks the step the stage is on now.
  */
-export function StepRow({ step, current = false, now = new Date() }: { step: Step; current?: boolean; now?: Date }) {
+export function StepRow({ step, current = false, now }: { step: Step; current?: boolean; now: Date }) {
   const { locale, t, duration } = useLocale();
   const Icon = current && (step.kind === "info" || step.kind === "progress") ? LoaderCircle : ICON[step.kind];
   const time = new Intl.DateTimeFormat(locale === "id" ? "id-ID" : "en-US", {
