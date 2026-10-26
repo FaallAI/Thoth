@@ -154,3 +154,17 @@ Each of these becomes a follow-up row in the roadmap when this ships.
 
 - **Part A:** merges and deploys with the run-progress stack after roadmap step 8. That is one dashboard `produce_video` run with a TikTok main, watched end to end on the new screens. Push, PR, merge and deploy are operator gates; the renderer and Thoth deploy as one package.
 - **Part B:** its own PR and deploy afterwards.
+
+## 6. Backend additions for part A (operator approval 2026-10-26)
+
+Building R1 showed that §1 undercounted the backend work: "All projects" and the R2-R4 screens need data the API does not return yet. The operator approved adding all of it to part A. Each addition is test first, regenerates the contract (additions only), and degrades gracefully: a missing field reads as absent, never as an error.
+
+| # | Addition | Needed by |
+|---|---|---|
+| B1 | `GET /workflows` without `unassigned` lists the caller's runs across every project (and unassigned ones). Both run lists take `status` (repeatable), `platform` and `q` (title or link, at most 100 characters). | "All projects", filters (§8.1), run tray (§7.6) |
+| B2 | Each `WorkflowRun` carries `title`, `owner_handle`, `has_post_card`, `stages` (from the stored summary) and `current_step` (the latest step). Title, owner and the post card location are read once from the source report and kept on the run row (migration 0023); older runs fill in lazily on their first listing. `InboxRun` gains `title`. | List rows (§6 table row), inbox items (§8.7) |
+| B3 | `GET /workflows/{id}/cards/{card}` serves one real card crop (`post`, `profile`, `profile_page`, `comment-<id>`) after the run-owner check, without asking Temporal. | Thumbnails, approval card (§8.4), results grid (§8.6) |
+| B4 | `GET /workflows/metrics` (optional `project_id`): runs in the last 7 days, the median run time and success rate of runs finished in that window, and Content Sets made. A figure with no data is `null`, so its tile is not shown. | Metrics (§8.1) |
+| B5 | `UsageView.days`: workflows and videos per day of the month, from `usage_events`. | Usage bar chart (§8.10) |
+
+Bulk archive stays out (D5). Retry starts a new run with the same link (§7.5), so it needs nothing new.
