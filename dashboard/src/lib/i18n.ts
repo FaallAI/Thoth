@@ -64,6 +64,9 @@ const en = {
   "stage.attribution": "Find the original",
   "stage.footage": "Collect footage",
   "stage.assembly": "Build the content set",
+  "stage.notStarted": "Not started",
+  "stage.elapsed": "{time} elapsed",
+  "stage.progress": "Run progress",
 
   "skip.attribution_off": "Attribution is off for this run",
   "skip.footage_off": "Footage is off for this run",
@@ -102,6 +105,7 @@ const en = {
   "step.assembly.judge_comments": "Comments kept: {count} of {total}",
   "step.assembly.find_figures": "People identified: {count}",
   "step.assembly.save_content_set": "Saving the content set",
+  "step.waitNext": "next in {time}",
 
   "time.today": "Today, {time}",
   "time.yesterday": "Yesterday, {time}",
@@ -177,6 +181,9 @@ const id: Messages = {
   "stage.attribution": "Cari yang asli",
   "stage.footage": "Kumpulkan footage",
   "stage.assembly": "Susun content set",
+  "stage.notStarted": "Belum dimulai",
+  "stage.elapsed": "{time} berjalan",
+  "stage.progress": "Progres run",
 
   "skip.attribution_off": "Atribusi dimatikan untuk run ini",
   "skip.footage_off": "Footage dimatikan untuk run ini",
@@ -214,6 +221,7 @@ const id: Messages = {
   "step.assembly.judge_comments": "Komentar dipertahankan: {count} dari {total}",
   "step.assembly.find_figures": "Tokoh dikenali: {count}",
   "step.assembly.save_content_set": "Menyimpan content set",
+  "step.waitNext": "lanjut dalam {time}",
 
   "time.today": "Hari ini, {time}",
   "time.yesterday": "Kemarin, {time}",
