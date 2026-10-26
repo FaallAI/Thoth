@@ -5,7 +5,7 @@ import { GuidedStudio } from "@/features/studio/GuidedStudio";
 import { StudioImportGate } from "@/features/studio/StudioImportGate";
 import { StudioDocumentsPage } from "@/features/studio/StudioDocumentsPage";
 import { RunsPage } from "@/features/workflows/RunsPage";
-import { WorkflowDetailPage } from "@/features/workflows/WorkflowDetailPage";
+import { RunDetailPage } from "@/features/workflows/RunDetailPage";
 import { SourceAccounts } from "@/components/SourceAccounts";
 import { SourceProxies } from "@/components/SourceProxies";
 import { sourceAccountsClient } from "@/api/source-accounts";
@@ -118,7 +118,7 @@ function Shell() {
         <Routes>
           <Route path="/" element={<Navigate to="/workflows" replace />} />
           <Route path="/workflows" element={<RunsPage client={controlPlaneClient} projectId={projectId} projects={projects} onRuns={setRuns} />} />
-          <Route path="/workflows/:workflowId" element={<WorkflowDetailRoute projectId={projectId} />} />
+          <Route path="/workflows/:workflowId" element={<WorkflowDetailRoute projects={projects} />} />
           <Route path="/studio" element={studioProject ? <StudioDocumentsPage client={controlPlaneClient} projectId={studioProject} /> : needsProject} />
           <Route path="/studio/:projectId/:documentId" element={<StudioDocumentRoute workspaceControls={switcher} projects={projects} />} />
           <Route path="/accounts" element={me.platform_admin ? <SourceAccounts client={sourceAccountsClient} onManageProxies={() => navigate("/accounts/proxies")} /> : platformOnly} />
@@ -133,14 +133,15 @@ function Shell() {
   );
 }
 
-function WorkflowDetailRoute({ projectId }: { projectId: string | null }) {
+function WorkflowDetailRoute({ projects }: { projects: Project[] }) {
   const { workflowId = "" } = useParams();
   const navigate = useNavigate();
   return (
-    <WorkflowDetailPage
+    <RunDetailPage
+      key={workflowId}
       client={controlPlaneClient}
       workflowId={workflowId}
-      projectId={projectId}
+      projects={projects}
       onOpenStudio={(project, document, resolve) =>
         navigate(`/studio/${encodeURIComponent(project)}/${encodeURIComponent(document)}${resolve ? "?resolve=1" : ""}`)
       }

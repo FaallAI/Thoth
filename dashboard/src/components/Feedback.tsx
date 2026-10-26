@@ -52,6 +52,7 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel,
+  cancelLabel,
   onConfirm,
   danger = false,
 }: {
@@ -60,6 +61,8 @@ export function ConfirmDialog({
   title: string;
   description: string;
   confirmLabel: string;
+  /** Names what staying means when "Cancel" would be ambiguous ("Keep running"). */
+  cancelLabel?: string;
   onConfirm: () => void;
   danger?: boolean;
 }) {
@@ -72,7 +75,7 @@ export function ConfirmDialog({
           <AlertDialog.Title className="text-base font-semibold text-ink">{title}</AlertDialog.Title>
           <AlertDialog.Description className="mt-2 text-sm text-muted-ink">{description}</AlertDialog.Description>
           <div className="mt-6 flex justify-end gap-2">
-            <AlertDialog.Close render={<Button variant="ghost" />}>{t("common.cancel")}</AlertDialog.Close>
+            <AlertDialog.Close render={<Button variant="ghost" />}>{cancelLabel ?? t("common.cancel")}</AlertDialog.Close>
             <Button
               variant={danger ? "destructive" : "default"}
               onClick={() => {
