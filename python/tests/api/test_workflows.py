@@ -555,6 +555,7 @@ def test_openapi_exposes_exact_required_path_method_pairs(gateway) -> None:
     assert actual == {
         ("/api/v1/projects", "get"),
         ("/api/v1/me", "get"),
+        ("/api/v1/me", "patch"),
         ("/api/v1/usage", "get"),
         ("/api/v1/billing/checkout", "post"),
         ("/api/v1/billing", "get"),
