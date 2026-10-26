@@ -2,6 +2,7 @@
 import type { components } from "@/api/generated/control-plane";
 
 export type Me = components["schemas"]["MeView"];
+export type MeUpdate = components["schemas"]["MeUpdate"];
 export type TokenView = components["schemas"]["TokenView"];
 export type CreateToken = components["schemas"]["CreateToken"];
 export type CreatedToken = components["schemas"]["CreatedToken"];
@@ -37,6 +38,11 @@ export function createAuthClient(doFetch: Fetch = (input, init) => fetch(input, 
       const response = await doFetch("/auth/me");
       if (response.status === 401) return null;
       if (!response.ok) throw await failure(response);
+      return (await response.json()) as Me;
+    },
+    /** Save the caller's own preferences: today, the dashboard language. */
+    async updateMe(update: MeUpdate): Promise<Me> {
+      const response = await send("/api/v1/me", { method: "PATCH", headers: JSON_BODY, body: JSON.stringify(update) });
       return (await response.json()) as Me;
     },
     async providers(): Promise<string[]> {

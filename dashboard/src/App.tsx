@@ -25,6 +25,7 @@ import { BillingPage } from "@/features/billing/BillingPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { VerifyPage } from "@/features/auth/VerifyPage";
 import { useActiveProject } from "@/lib/active-project";
+import { LocaleProvider } from "@/lib/locale";
 import { documentLabel } from "@/lib/document-label";
 
 const pages = {
@@ -52,12 +53,19 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/login/verify" element={<VerifyPage />} />
-        <Route path="*" element={<AuthGate><Shell /></AuthGate>} />
+        <Route path="/login" element={<LocaleProvider><LoginPage /></LocaleProvider>} />
+        <Route path="/login/verify" element={<LocaleProvider><VerifyPage /></LocaleProvider>} />
+        <Route path="*" element={<AuthGate><SignedInLocale><Shell /></SignedInLocale></AuthGate>} />
       </Routes>
     </BrowserRouter>
   );
+}
+
+/** The signed-in language: the user's saved choice, saved again on every change (spec D1). */
+function SignedInLocale({ children }: { children: ReactNode }) {
+  const { me } = useAuth();
+  const save = me.user_id ? async (locale: "en" | "id") => void (await authClient.updateMe({ locale })) : undefined;
+  return <LocaleProvider serverLocale={me.locale ?? null} save={save}>{children}</LocaleProvider>;
 }
 
 function Shell() {
