@@ -31,3 +31,13 @@ test("an unknown code reads as its stage label, and an unknown stage as itself",
     "Find the original",
   );
 });
+
+test("a finished step reads in the past tense when it has one", () => {
+  const fetched = { code: "source.fetch_post", stage: "source", params: { platform: "x" } };
+  expect(stepText("en", fetched, true)).toBe("Fetched the post from X");
+  expect(stepText("id", fetched, true)).toBe("Postingan diambil dari X");
+  // A count reads the same either way.
+  expect(stepText("en", { code: "footage.keep_clips", stage: "footage", params: { count: 3 } }, true)).toBe(
+    "Clips kept: 3",
+  );
+});

@@ -103,3 +103,10 @@ test("a skipped stage stays in the bar, dimmed", () => {
   expect(segments).toHaveLength(5);
   expect(segments[1].className).toContain("opacity-40");
 });
+
+test("a row the log has moved past reads in the past tense; the current one does not", () => {
+  const fetched = step({ code: "source.fetch_post", stage: "source", kind: "info", params: { platform: "tiktok" } });
+  inLocale("en", <ul><StepRow step={fetched} now={now} /><StepRow step={{ ...fetched, seq: 2 }} current now={now} /></ul>);
+  expect(screen.getByText("Fetched the post from TikTok")).toBeDefined();
+  expect(screen.getByText("Fetching the post from TikTok")).toBeDefined();
+});

@@ -89,7 +89,9 @@ function seconds(from: string, to: Date): number {
 /** The line under a stage: its current or last step, why it was skipped, or "not started". */
 function stageLine(locale: "en" | "id", t: (key: MessageKey) => string, stage: Stage): string {
   if (stage.status === "skipped" && stage.skip_reason) return t(`skip.${stage.skip_reason}`);
-  if (stage.current_step) return stepText(locale, stage.current_step);
+  if (stage.current_step) {
+    return stepText(locale, stage.current_step, stage.status !== "running" && stage.status !== "waiting");
+  }
   if (stage.status === "queued") return t("stage.notStarted");
   return t(LABEL[stage.status]);
 }
@@ -219,7 +221,7 @@ export function StepRow({ step, current = false, now }: { step: Step; current?: 
         aria-hidden="true"
         className={cn("size-4 shrink-0", current ? "animate-spin text-status-running" : ICON_TONE[step.kind])}
       />
-      <span className="min-w-0 flex-1 truncate text-ink">{stepText(locale, step)}</span>
+      <span className="min-w-0 flex-1 truncate text-ink">{stepText(locale, step, !current && left <= 0)}</span>
       {counted && (
         <span className="flex shrink-0 items-center gap-3 font-mono text-[12.5px] text-muted-ink">
           {step.n} / {step.total}
