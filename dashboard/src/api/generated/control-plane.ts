@@ -1663,6 +1663,8 @@ export interface components {
         };
         /** BillingView */
         BillingView: {
+            /** Checkout Available */
+            checkout_available?: boolean;
             /** Invoices */
             invoices: components["schemas"]["InvoiceOut"][];
             /** Period End */

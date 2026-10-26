@@ -7,6 +7,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import Field
 
 from thoth_control_plane.api.dependencies import (
     current_principal,
@@ -132,6 +133,8 @@ class BillingView(StrictModel):
     videos_allowed: int | None
     plans: list[PlanOut]
     invoices: list[InvoiceOut]
+    # Restyle B8: whether checkout is configured; until then the page says billing is not live.
+    checkout_available: bool = Field(default_factory=lambda: False)
 
 
 class PlanMargin(StrictModel):
@@ -164,6 +167,7 @@ async def my_billing(request: Request, principal: Caller) -> BillingView:
     return BillingView(
         workspace_id=principal.workspace_id,
         unlimited=view.unlimited,
+        checkout_available=getattr(request.app.state, "payments", None) is not None,
         plan=None if view.plan is None else PlanOut(**vars(view.plan)),
         period_start=view.period_start,
         period_end=view.period_end,

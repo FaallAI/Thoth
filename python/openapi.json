@@ -603,6 +603,10 @@
       "BillingView": {
         "additionalProperties": false,
         "properties": {
+          "checkout_available": {
+            "title": "Checkout Available",
+            "type": "boolean"
+          },
           "invoices": {
             "items": {
               "$ref": "#/components/schemas/InvoiceOut"
