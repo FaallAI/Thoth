@@ -168,5 +168,6 @@ Building R1 showed that §1 undercounted the backend work: "All projects" and th
 | B5 | `UsageView.days`: workflows and videos per day of the month, from `usage_events`. | Usage bar chart (§8.10) |
 | B6 | `GET /workflows/{id}/media/{location}` serves one media file the run stored (its main video, footage clips, card crops), only under the run's own `reports/<id>/` folder, after the run-owner check. Found while building R2's results grid. | Results grid (§8.6) |
 | B7 | `GET /workflows/{id}` also carries the run row's `project_id`, `title`, `owner_handle` and `has_post_card`, filled by the API like the estimate and never stored. | Run detail header, Open in Studio from "All projects" (§8.3-8.6) |
+| B8 | `BillingView.checkout_available`: whether checkout is configured, so the Billing page states "not live yet" from the server rather than from copy. Found while building R4. | Billing (§8.10) |
 
 Bulk archive stays out (D5). Retry starts a new run with the same link (§7.5), so it needs nothing new.
