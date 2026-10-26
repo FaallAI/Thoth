@@ -1,6 +1,7 @@
 """Versioned workflow lifecycle routes."""
 
 import asyncio
+import mimetypes
 import re
 from collections.abc import AsyncIterator
 from pathlib import PurePosixPath
@@ -175,6 +176,46 @@ async def download_workflow_card(
         size=size,
         read=lambda start, end: media.open_range(location, start, end),
         media_type="image/png",
+        range_header=request.headers.get("range"),
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
+
+
+@router.get(
+    "/workflows/{workflow_id}/media/{location:path}",
+    response_class=Response,
+    responses={
+        status.HTTP_200_OK: {
+            "content": {
+                "application/octet-stream": {"schema": {"type": "string", "format": "binary"}}
+            }
+        }
+    },
+)
+async def download_workflow_media(
+    workflow_id: str,
+    location: str,
+    request: Request,
+    actor: Annotated[Actor, Depends(current_actor)],
+    runs: Annotated[WorkflowRunService, Depends(get_run_service)],
+) -> Response:
+    """One media file the run stored, such as a footage clip of its Content Set (restyle
+    B6), with ranges so a video can seek. Stored media never changes under its location."""
+    location = await runs.media_location(workflow_id, location, actor=actor)
+    media = request.app.state.media_store
+    try:
+        size = await asyncio.to_thread(media.size, location)
+    except (MediaUnavailable, MediaLocatorInvalid):
+        raise ArtifactNotFound from None
+    except MediaStoreUnavailable as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="media_store_unavailable"
+        ) from error
+    media_type = mimetypes.guess_type(location)[0] or "application/octet-stream"
+    return ranged_response(
+        size=size,
+        read=lambda start, end: media.open_range(location, start, end),
+        media_type=media_type,
         range_header=request.headers.get("range"),
         headers={"Cache-Control": "private, max-age=86400"},
     )

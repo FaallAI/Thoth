@@ -492,6 +492,17 @@ class WorkflowRunService:
         runs = await asyncio.to_thread(self._store().since, actor, since, project_id=project_id)
         return run_metrics(runs)
 
+    async def media_location(self, workflow_id: str, location: str, *, actor: Actor) -> str:
+        """A media file the run stored, only inside its own folder (restyle B6). The owner
+        check reads the run row; a path outside `reports/<id>/` is simply not found."""
+        run = await asyncio.to_thread(self._store().get, workflow_id)
+        if run is None or not run.owned_by(actor):
+            raise WorkflowNotFound
+        parts = location.split("/")
+        if parts[:2] != ["reports", workflow_id] or len(parts) < 3 or ".." in parts:
+            raise ArtifactNotFound
+        return location
+
     async def card_location(self, workflow_id: str, card: str, *, actor: Actor) -> str:
         """Where one of the run's real card crops is stored (restyle B3). Authorized by the
         run row, never by Temporal, so a list of thumbnails costs no workflow queries."""

@@ -294,3 +294,36 @@ async def test_metrics_count_this_weeks_runs_and_only_real_figures(api, stores) 
     assert one["runs_this_week"] == 1 and one["success_rate"] == 1.0
     missing = await api.get("/api/v1/workflows/metrics?project_id=missing", headers=AUTH)
     assert missing.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_media_the_run_stored_is_served_only_from_its_own_folder(served, tmp_path) -> None:
+    clip = tmp_path / "store" / "reports" / "wf_cards" / "footage" / "clip.mp4"
+    clip.parent.mkdir(parents=True)
+    clip.write_bytes(b"0123456789")
+    other = tmp_path / "store" / "reports" / "wf_other" / "secret.png"
+    other.parent.mkdir(parents=True)
+    other.write_bytes(b"secret")
+
+    whole = await served.get(
+        "/api/v1/workflows/wf_cards/media/reports/wf_cards/footage/clip.mp4", headers=AUTH
+    )
+    assert whole.status_code == 200 and whole.headers["content-type"] == "video/mp4"
+    part = await served.get(
+        "/api/v1/workflows/wf_cards/media/reports/wf_cards/footage/clip.mp4",
+        headers={**AUTH, "Range": "bytes=2-4"},
+    )
+    assert part.status_code == 206 and part.content == b"234"
+    for path in (
+        "reports/wf_other/secret.png",
+        "reports/wf_cards/../wf_other/secret.png",
+        "reports/wf_cards",
+        "elsewhere/wf_cards/x.png",
+    ):
+        response = await served.get(f"/api/v1/workflows/wf_cards/media/{path}", headers=AUTH)
+        assert response.status_code == 404, path
+    assert (
+        await served.get(
+            "/api/v1/workflows/wf_missing/media/reports/wf_missing/a.png", headers=AUTH
+        )
+    ).status_code == 404

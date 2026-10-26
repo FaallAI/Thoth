@@ -1329,6 +1329,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workflows/{workflow_id}/media/{location}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Workflow Media
+         * @description One media file the run stored, such as a footage clip of its Content Set (restyle
+         *     B6), with ranges so a video can seek. Stored media never changes under its location.
+         */
+        get: operations["download_workflow_media_api_v1_workflows__workflow_id__media__location__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workflows/{workflow_id}/retry": {
         parameters: {
             query?: never;
@@ -7595,6 +7616,40 @@ export interface operations {
                 };
                 content: {
                     "text/event-stream": components["schemas"]["WorkflowEvent"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_workflow_media_api_v1_workflows__workflow_id__media__location__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                workflow_id: string;
+                location: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
                 };
             };
             /** @description Validation Error */

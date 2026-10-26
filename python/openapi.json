@@ -14562,6 +14562,72 @@
         "summary": "Stream Workflow Events"
       }
     },
+    "/api/v1/workflows/{workflow_id}/media/{location}": {
+      "get": {
+        "description": "One media file the run stored, such as a footage clip of its Content Set (restyle\nB6), with ranges so a video can seek. Stored media never changes under its location.",
+        "operationId": "download_workflow_media_api_v1_workflows__workflow_id__media__location__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "location",
+            "required": true,
+            "schema": {
+              "title": "Location",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Workflow Media"
+      }
+    },
     "/api/v1/workflows/{workflow_id}/retry": {
       "post": {
         "operationId": "retry_workflow_api_v1_workflows__workflow_id__retry_post",
