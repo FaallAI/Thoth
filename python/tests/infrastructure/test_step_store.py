@@ -90,3 +90,19 @@ def test_params_and_wait_until_round_trip(store: StepStore) -> None:
     assert step.kind == "wait"
     assert step.wait_until == wait_until
     assert step.params == {"count": 3, "verdict": "original"}
+
+
+def test_latest_reads_each_runs_newest_step_in_one_query(store: StepStore) -> None:
+    store.append(scope(workflow_id="wf_1"), record("source.read_link"))
+    store.append(
+        scope("footage", workflow_id="wf_1"), record("footage.screen_clips", n=6, total=12)
+    )
+    store.append(scope(workflow_id="wf_2"), record("source.fetch_post", params={"platform": "x"}))
+
+    latest = store.latest(["wf_1", "wf_2", "wf_none"])
+
+    assert {key: step.code for key, step in latest.items()} == {
+        "wf_1": "footage.screen_clips",
+        "wf_2": "source.fetch_post",
+    }
+    assert store.latest([]) == {}

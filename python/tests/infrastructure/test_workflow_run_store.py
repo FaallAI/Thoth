@@ -246,3 +246,144 @@ def test_acknowledge_stamps_a_failed_run_once_and_keeps_the_first_time(stores) -
     again = runs.get("wf_a")
     assert again is not None and again.acknowledged_at == first.acknowledged_at
     assert runs.acknowledge("wf_missing") is None
+
+
+def _run(workflow_id: str, *, platform: str = "example", url: str = "https://example.test/post"):
+    return WorkflowSummary.model_validate_json(
+        json.dumps(
+            {
+                "workflow_id": workflow_id,
+                "status": "running",
+                "created_at": T0.isoformat(),
+                "updated_at": T0.isoformat(),
+                "source": {"display_url": url, "platform": platform},
+                "stages": [],
+            }
+        )
+    )
+
+
+def test_the_list_across_projects_holds_every_project_and_the_unassigned_runs(stores) -> None:
+    projects, runs, _ = stores
+    news = projects.create("News", "ws_bootstrap")
+    haze = projects.create("Haze", "ws_bootstrap")
+    runs.record_start(summary("wf_a"), project_id=news.project_id, actor=OWNER)
+    runs.record_start(summary("wf_b"), project_id=haze.project_id, actor=OWNER)
+    runs.record_start(summary("wf_c"), project_id=None, actor=OWNER)
+    runs.record_start(summary("wf_foreign"), project_id=None, actor=OTHER)
+
+    every, _ = runs.page(project_id=None, unassigned=False, actor=OWNER, cursor=None, limit=50)
+
+    assert [r.workflow_id for r in every] == ["wf_c", "wf_b", "wf_a"]
+
+
+def test_lists_filter_by_status_platform_and_text(stores) -> None:
+    _, runs, reports = stores
+    runs.record_start(
+        _run("wf_x", platform="x", url="https://x.com/a/status/1"), project_id=None, actor=OWNER
+    )
+    runs.record_start(
+        _run("wf_tt", platform="tiktok", url="https://vt.tiktok.com/ZS1/"),
+        project_id=None,
+        actor=OWNER,
+    )
+    runs.record_start(
+        _run("wf_done", platform="x", url="https://x.com/b/status/2"), project_id=None, actor=OWNER
+    )
+    runs.settle("wf_done", status="succeeded", summary=None, history_expired=False)
+    reports.put(
+        "reports/wf_tt/source-report.json",
+        "source_report",
+        json.dumps(
+            {
+                "schema_version": 3,
+                "post": {"text": "Haze 50% worse in Palangka", "owner_handle": "kalteng"},
+            }
+        ).encode(),
+    )
+    runs.fill_listing(["wf_tt"])
+
+    def ids(**filters) -> list[str]:
+        page, _ = runs.page(
+            project_id=None, unassigned=False, actor=OWNER, cursor=None, limit=50, **filters
+        )
+        return [r.workflow_id for r in page]
+
+    assert ids(statuses=["running", "queued"]) == ["wf_tt", "wf_x"]
+    assert ids(platform="x") == ["wf_done", "wf_x"]
+    assert ids(text="HAZE") == ["wf_tt"]  # the title, any case
+    assert ids(text="b/status") == ["wf_done"]  # the link
+    assert ids(text="50%") == ["wf_tt"]  # a literal percent, not a wildcard
+    assert ids(text="5_%") == []
+
+
+def test_listing_details_come_once_from_the_source_report(stores) -> None:
+    _, runs, reports = stores
+    for name in ("wf_new", "wf_old", "wf_blank", "wf_none"):
+        runs.record_start(summary(name), project_id=None, actor=OWNER)
+    reports.put(
+        "reports/wf_new/source-report.json",
+        "source_report",
+        json.dumps(
+            {
+                "schema_version": 3,
+                "post": {
+                    "text": "\n  Gojek driver returns\n a lost wallet  \nmore",
+                    "owner_handle": "kind.id",
+                },
+                "post_card": {"location": "reports/wf_new/cards/post.png"},
+            }
+        ).encode(),
+    )
+    reports.put(
+        "reports/wf_old/source-report.json",
+        "source_report",
+        json.dumps(
+            {"schema_version": 2, "post": {"caption": "x" * 300, "owner_handle": "old"}}
+        ).encode(),
+    )
+    reports.put(
+        "reports/wf_blank/source-report.json",
+        "source_report",
+        json.dumps({"schema_version": 3, "post": {"text": "", "owner_handle": "quiet"}}).encode(),
+    )
+
+    runs.fill_listing(["wf_new", "wf_old", "wf_blank", "wf_none"])
+
+    new, old, blank, none = (runs.get(name) for name in ("wf_new", "wf_old", "wf_blank", "wf_none"))
+    assert (new.title, new.owner_handle, new.post_card_location) == (
+        "Gojek driver returns",
+        "kind.id",
+        "reports/wf_new/cards/post.png",
+    )
+    assert old.title == "x" * 139 + "…" and old.owner_handle == "old"
+    assert old.post_card_location is None
+    # Read, but the post has no text: never read again.
+    assert (blank.title, blank.owner_handle) == ("", "quiet")
+    # No report yet: stays unread, so a later listing tries again.
+    assert none.title is None
+    assert new.to_run().has_post_card and not old.to_run().has_post_card
+
+
+def test_a_broken_source_report_never_breaks_the_listing(stores) -> None:
+    _, runs, reports = stores
+    runs.record_start(summary("wf_a"), project_id=None, actor=OWNER)
+    reports.put("reports/wf_a/source-report.json", "source_report", b"[1, 2]")
+
+    runs.fill_listing(["wf_a"])
+
+    stored = runs.get("wf_a")
+    assert stored is not None and stored.title == ""
+
+
+def test_metric_rows_are_the_callers_runs_since_a_time(stores) -> None:
+    projects, runs, _ = stores
+    news = projects.create("News", "ws_bootstrap")
+    runs.record_start(summary("wf_early"), project_id=news.project_id, actor=OWNER)
+    runs.record_start(summary("wf_a"), project_id=news.project_id, actor=OWNER)
+    runs.record_start(summary("wf_b"), project_id=None, actor=OWNER)
+    runs.record_start(summary("wf_foreign"), project_id=None, actor=OTHER)
+    since = runs.get("wf_a").created_at
+
+    assert {r.workflow_id for r in runs.since(OWNER, since, project_id=None)} == {"wf_a", "wf_b"}
+    assert [r.workflow_id for r in runs.since(OWNER, since, project_id=news.project_id)] == ["wf_a"]

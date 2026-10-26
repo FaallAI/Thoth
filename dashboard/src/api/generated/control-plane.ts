@@ -1163,7 +1163,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Unassigned Workflows */
+        /**
+         * List Unassigned Workflows
+         * @description `unassigned=true` lists runs outside any project; without it, every run of the
+         *     caller across all projects (restyle B1).
+         */
         get: operations["list_unassigned_workflows_api_v1_workflows_get"];
         put?: never;
         /** Create Workflow */
@@ -2083,6 +2087,8 @@ export interface components {
              * @enum {string}
              */
             status: "queued" | "running" | "awaiting_approval" | "succeeded" | "failed" | "cancelled" | "unknown";
+            /** Title */
+            title?: string | null;
             /**
              * Updated At
              * Format: date-time
@@ -4107,16 +4113,25 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            current_step?: components["schemas"]["WorkflowStep"] | null;
+            /** Has Post Card */
+            has_post_card?: boolean;
             /** History Expired */
             history_expired: boolean;
+            /** Owner Handle */
+            owner_handle?: string | null;
             /** Project Id */
             project_id: string | null;
             source: components["schemas"]["WorkflowSource"];
+            /** Stages */
+            stages?: components["schemas"]["StageSummary"][];
             /**
              * Status
              * @enum {string}
              */
             status: "queued" | "running" | "awaiting_approval" | "succeeded" | "failed" | "cancelled" | "unknown";
+            /** Title */
+            title?: string | null;
             /**
              * Updated At
              * Format: date-time
@@ -6465,6 +6480,9 @@ export interface operations {
             query?: {
                 cursor?: string | null;
                 limit?: number;
+                status?: ("queued" | "running" | "awaiting_approval" | "succeeded" | "failed" | "cancelled" | "unknown")[] | null;
+                platform?: string | null;
+                q?: string | null;
             };
             header?: {
                 Authorization?: string | null;
@@ -7137,10 +7155,13 @@ export interface operations {
     };
     list_unassigned_workflows_api_v1_workflows_get: {
         parameters: {
-            query: {
-                unassigned: boolean;
+            query?: {
+                unassigned?: boolean | null;
                 cursor?: string | null;
                 limit?: number;
+                status?: ("queued" | "running" | "awaiting_approval" | "succeeded" | "failed" | "cancelled" | "unknown")[] | null;
+                platform?: string | null;
+                q?: string | null;
             };
             header?: {
                 Authorization?: string | null;

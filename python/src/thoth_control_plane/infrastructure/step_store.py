@@ -6,6 +6,8 @@ sink protocol is `append(scope, record)`, so the worker installs this store dire
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from sqlalchemy import and_, create_engine, func, select
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import sessionmaker
@@ -82,6 +84,20 @@ class StepStore:
         with self._sessions() as session:
             rows = session.scalars(select(step).where(step.seq.in_(latest)))
             return {row.stage: _step(row) for row in rows}
+
+    def latest(self, workflow_ids: Sequence[str]) -> dict[str, WorkflowStep]:
+        """Each run's newest step, for a page of list rows (restyle B2)."""
+        if not workflow_ids:
+            return {}
+        step = WorkflowStepRow
+        newest = (
+            select(func.max(step.seq))
+            .where(step.workflow_id.in_(workflow_ids))
+            .group_by(step.workflow_id)
+        )
+        with self._sessions() as session:
+            rows = session.scalars(select(step).where(step.seq.in_(newest)))
+            return {row.workflow_id: _step(row) for row in rows}
 
 
 def _step(row: WorkflowStepRow) -> WorkflowStep:

@@ -53,6 +53,7 @@ def test_editor_migrations_stay_explicit_forward_only_sql_files() -> None:
         "0020_workflow_run_acknowledged.sql",
         "0021_render_job_frames.sql",
         "0022_user_locale.sql",
+        "0023_run_listing.sql",
     ]
     for name in MIGRATION_FILES:
         sql = migration(name).lower()
@@ -517,6 +518,19 @@ def test_user_locale_adds_one_nullable_checked_column() -> None:
     assert "ALTER TABLE users ADD COLUMN locale TEXT" in sql
     assert "locale IN ('en', 'id')" in sql
     assert "NOT NULL" not in sql  # NULL until the user chooses: the browser language decides
+
+
+def test_run_listing_adds_three_nullable_columns_and_the_actor_index() -> None:
+    sql = " ".join(migration("0023_run_listing.sql").split())
+
+    assert sql.count("ALTER TABLE") == 1
+    for column in ("title", "owner_handle", "post_card_location"):
+        assert f"ADD COLUMN {column} TEXT" in sql
+    assert "NOT NULL" not in sql  # NULL until the source report is read
+    assert (
+        "CREATE INDEX workflow_runs_actor ON workflow_runs"
+        " (actor_type, actor_id, created_at DESC, workflow_id DESC)" in sql
+    )
 
 
 def test_workflow_reports_keep_exact_content_and_a_queryable_body() -> None:

@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -33,6 +33,7 @@ from thoth_control_plane.domain import (
     ArtifactRef,
     WorkflowRequest,
     WorkflowStatus,
+    WorkflowStep,
     WorkflowStepPage,
     WorkflowSummary,
 )
@@ -79,6 +80,7 @@ def _inbox_run(run: StoredRun) -> InboxRun:
         status=run.status,
         updated_at=run.updated_at,
         failure_code=failure.code if failure is not None else None,
+        title=run.title,
     )
 
 
@@ -178,7 +180,12 @@ class WorkflowRunService:
         actor: Actor,
         cursor: str | None,
         limit: int,
+        statuses: Sequence[str] = (),
+        platform: str | None = None,
+        text: str | None = None,
     ) -> WorkflowRunPage:
+        """A project's runs, the unassigned ones, or every run of the caller (restyle B1),
+        each with what its list row shows (B2)."""
         store = self._store()
         if project_id is not None:
             await self._require_project(project_id, actor)
@@ -189,16 +196,50 @@ class WorkflowRunService:
             actor=actor,
             cursor=cursor,
             limit=limit,
+            statuses=statuses,
+            platform=platform,
+            text=text,
         )
         due = [r for r in rows if r.status in UNSETTLED and not r.history_expired]
         settled = {
             run.workflow_id: run
             for run in await asyncio.gather(*(self._settle(r) for r in due[:SETTLE_LIMIT]))
         }
+        runs = await self._with_listing([settled.get(r.workflow_id, r) for r in rows])
+        steps = await self._latest_steps(runs)
         return WorkflowRunPage(
-            items=[settled.get(r.workflow_id, r).to_run() for r in rows],
+            items=[run.to_run(steps.get(run.workflow_id)) for run in runs],
             next_cursor=next_cursor,
         )
+
+    async def _with_listing(self, runs: list[StoredRun]) -> list[StoredRun]:
+        """Fill title, owner and post card from source reports not read yet. A store error
+        costs only those fields; the next listing tries again."""
+        unread = [run.workflow_id for run in runs if run.title is None]
+        if not unread:
+            return runs
+        try:
+            filled = await asyncio.to_thread(self._store().fill_listing, unread)
+        except Exception as error:
+            logger.warning("run listing details unavailable reason=%s", type(error).__name__)
+            return runs
+        return [
+            run.with_(title=details[0], owner_handle=details[1], post_card_location=details[2])
+            if (details := filled.get(run.workflow_id))
+            else run
+            for run in runs
+        ]
+
+    async def _latest_steps(self, runs: list[StoredRun]) -> dict[str, WorkflowStep]:
+        """The newest step of each unfinished run in one query; a finished row shows none."""
+        live = [run.workflow_id for run in runs if run.status in UNSETTLED]
+        if self._steps is None or not live:
+            return {}
+        try:
+            return await asyncio.to_thread(self._steps.latest, live)
+        except Exception as error:
+            logger.warning("latest steps unavailable reason=%s", type(error).__name__)
+            return {}
 
     async def _settle(self, run: StoredRun) -> StoredRun:
         try:
@@ -387,8 +428,12 @@ class WorkflowRunService:
             due = await asyncio.to_thread(store.unsettled, actor, SETTLE_LIMIT)
             if due:
                 await asyncio.gather(*(self._settle(run) for run in due))
-        approvals = await asyncio.to_thread(store.awaiting_approval, actor, INBOX_LIMIT)
-        failures = await asyncio.to_thread(store.unacknowledged_failures, actor, INBOX_LIMIT)
+        approvals = await self._with_listing(
+            await asyncio.to_thread(store.awaiting_approval, actor, INBOX_LIMIT)
+        )
+        failures = await self._with_listing(
+            await asyncio.to_thread(store.unacknowledged_failures, actor, INBOX_LIMIT)
+        )
         return Inbox(
             approvals=[_inbox_run(run) for run in approvals],
             failures=[_inbox_run(run) for run in failures],

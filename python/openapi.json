@@ -2141,6 +2141,17 @@
             "title": "Status",
             "type": "string"
           },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -7702,9 +7713,34 @@
             "title": "Created At",
             "type": "string"
           },
+          "current_step": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkflowStep"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "has_post_card": {
+            "title": "Has Post Card",
+            "type": "boolean"
+          },
           "history_expired": {
             "title": "History Expired",
             "type": "boolean"
+          },
+          "owner_handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Handle"
           },
           "project_id": {
             "anyOf": [
@@ -7721,6 +7757,13 @@
           "source": {
             "$ref": "#/components/schemas/WorkflowSource"
           },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/StageSummary"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
           "status": {
             "enum": [
               "queued",
@@ -7733,6 +7776,17 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
           },
           "updated_at": {
             "format": "date-time",
@@ -12454,6 +12508,69 @@
             }
           },
           {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "queued",
+                      "running",
+                      "awaiting_approval",
+                      "succeeded",
+                      "failed",
+                      "cancelled",
+                      "unknown"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "platform",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Platform"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
             "in": "header",
             "name": "Authorization",
             "required": false,
@@ -13593,15 +13710,23 @@
     },
     "/api/v1/workflows": {
       "get": {
+        "description": "`unassigned=true` lists runs outside any project; without it, every run of the\ncaller across all projects (restyle B1).",
         "operationId": "list_unassigned_workflows_api_v1_workflows_get",
         "parameters": [
           {
             "in": "query",
             "name": "unassigned",
-            "required": true,
+            "required": false,
             "schema": {
-              "title": "Unassigned",
-              "type": "boolean"
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Unassigned"
             }
           },
           {
@@ -13630,6 +13755,69 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "queued",
+                      "running",
+                      "awaiting_approval",
+                      "succeeded",
+                      "failed",
+                      "cancelled",
+                      "unknown"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "platform",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Platform"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
             }
           },
           {

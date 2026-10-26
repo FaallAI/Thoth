@@ -7,11 +7,20 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, s
 from thoth_control_plane.api.dependencies import current_actor
 from thoth_control_plane.application import Actor, WorkflowRequest, WorkflowSummary
 from thoth_control_plane.application.workflow_runs import WorkflowRunService
-from thoth_control_plane.domain.workflow_runs import MoveWorkflow, WorkflowRun, WorkflowRunPage
+from thoth_control_plane.domain.workflow_runs import (
+    MoveWorkflow,
+    WorkflowRun,
+    WorkflowRunPage,
+    WorkflowRunStatus,
+)
 
 router = APIRouter()
 
 Limit = Annotated[int, Query(ge=1, le=50)]
+#: Restyle B1: list filters. `status` repeats; `q` matches a title or a link.
+Statuses = Annotated[list[WorkflowRunStatus] | None, Query(alias="status")]
+Platform = Annotated[str | None, Query(pattern=r"^[a-z][a-z0-9_]{0,63}$")]
+Text = Annotated[str | None, Query(alias="q", min_length=1, max_length=100)]
 
 
 def get_run_service(request: Request) -> WorkflowRunService:
@@ -48,9 +57,19 @@ async def list_project_workflows(
     runs: Annotated[WorkflowRunService, Depends(get_run_service)],
     cursor: str | None = None,
     limit: Limit = 20,
+    statuses: Statuses = None,
+    platform: Platform = None,
+    text: Text = None,
 ) -> WorkflowRunPage:
     return await runs.page(
-        project_id=project_id, unassigned=False, actor=actor, cursor=cursor, limit=limit
+        project_id=project_id,
+        unassigned=False,
+        actor=actor,
+        cursor=cursor,
+        limit=limit,
+        statuses=statuses or (),
+        platform=platform,
+        text=text,
     )
 
 
@@ -58,16 +77,28 @@ async def list_project_workflows(
 async def list_unassigned_workflows(
     actor: Annotated[Actor, Depends(current_actor)],
     runs: Annotated[WorkflowRunService, Depends(get_run_service)],
-    unassigned: Annotated[bool, Query()],
+    unassigned: Annotated[bool | None, Query()] = None,
     cursor: str | None = None,
     limit: Limit = 20,
+    statuses: Statuses = None,
+    platform: Platform = None,
+    text: Text = None,
 ) -> WorkflowRunPage:
-    if not unassigned:
+    """`unassigned=true` lists runs outside any project; without it, every run of the
+    caller across all projects (restyle B1)."""
+    if unassigned is False:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="unassigned_must_be_true"
         )
     return await runs.page(
-        project_id=None, unassigned=True, actor=actor, cursor=cursor, limit=limit
+        project_id=None,
+        unassigned=bool(unassigned),
+        actor=actor,
+        cursor=cursor,
+        limit=limit,
+        statuses=statuses or (),
+        platform=platform,
+        text=text,
     )
 
 
