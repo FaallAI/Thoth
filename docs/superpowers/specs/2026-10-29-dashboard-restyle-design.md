@@ -167,5 +167,6 @@ Building R1 showed that §1 undercounted the backend work: "All projects" and th
 | B4 | `GET /workflows/metrics` (optional `project_id`): runs in the last 7 days, the median run time and success rate of runs finished in that window, and Content Sets made. A figure with no data is `null`, so its tile is not shown. | Metrics (§8.1) |
 | B5 | `UsageView.days`: workflows and videos per day of the month, from `usage_events`. | Usage bar chart (§8.10) |
 | B6 | `GET /workflows/{id}/media/{location}` serves one media file the run stored (its main video, footage clips, card crops), only under the run's own `reports/<id>/` folder, after the run-owner check. Found while building R2's results grid. | Results grid (§8.6) |
+| B7 | `GET /workflows/{id}` also carries the run row's `project_id`, `title`, `owner_handle` and `has_post_card`, filled by the API like the estimate and never stored. | Run detail header, Open in Studio from "All projects" (§8.3-8.6) |
 
 Bulk archive stays out (D5). Retry starts a new run with the same link (§7.5), so it needs nothing new.
