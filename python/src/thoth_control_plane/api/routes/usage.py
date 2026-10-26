@@ -31,6 +31,12 @@ class PlatformQuota(StrictModel):
     remaining_today: int | None
 
 
+class UsageDay(StrictModel):
+    day: date
+    workflows: int
+    videos: int
+
+
 class UsageView(StrictModel):
     workspace_id: str
     month: str
@@ -40,6 +46,8 @@ class UsageView(StrictModel):
     stored_bytes: int
     leases: dict[str, int]
     quotas: list[PlatformQuota]
+    # Restyle B5: the month's bars, only days with a workflow or a video (UTC days).
+    days: list[UsageDay] = Field(default_factory=list)
 
 
 class CostLineView(StrictModel):
@@ -144,6 +152,7 @@ async def my_usage(
     totals = await asyncio.to_thread(store.totals, workspace, start, end)
     today = await asyncio.to_thread(store.leases_today, workspace)
     quotas = await asyncio.to_thread(store.quotas, workspace)
+    days = await asyncio.to_thread(store.daily, workspace, start, end)
     exempt = workspace == BOOTSTRAP_WORKSPACE_ID
     leases: dict[str, int] = {}
     for total in totals:
@@ -166,6 +175,7 @@ async def my_usage(
             )
             for platform, limit in quotas.items()
         ],
+        days=[UsageDay(day=day, workflows=done, videos=made) for day, done, made in days],
     )
 
 

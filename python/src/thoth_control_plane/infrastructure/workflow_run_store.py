@@ -225,6 +225,19 @@ class WorkflowRunStore:
             raise self._unavailable(error) from None
         return filled
 
+    def source_report(self, workflow_id: str) -> str | None:
+        """The run's source report text, or None before it is written (restyle B3)."""
+        try:
+            with self._sessions() as session:
+                return session.scalar(
+                    select(WorkflowReportRow.content).where(
+                        WorkflowReportRow.workflow_id == workflow_id,
+                        WorkflowReportRow.kind == "source_report",
+                    )
+                )
+        except SQLAlchemyError as error:
+            raise self._unavailable(error) from None
+
     def since(
         self, actor: Actor, moment: datetime, *, project_id: str | None, limit: int = 1_000
     ) -> list[StoredRun]:

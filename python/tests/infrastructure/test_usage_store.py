@@ -116,3 +116,28 @@ def test_totals_tell_workflow_usage_apart(store: UsageStore) -> None:
 def test_a_quota_for_an_unknown_workspace_is_refused(store: UsageStore) -> None:
     with pytest.raises(LookupError):
         store.set_quota("ws_nope", "instagram", 1)
+
+
+def test_daily_counts_workflows_and_videos_per_utc_day(engine) -> None:
+    moments = iter(
+        [
+            datetime(2026, 10, 3, 23, 59, tzinfo=UTC),
+            datetime(2026, 10, 4, 0, 1, tzinfo=UTC),
+            datetime(2026, 10, 4, 9, 0, tzinfo=UTC),
+            datetime(2026, 10, 4, 10, 0, tzinfo=UTC),
+            datetime(2026, 10, 4, 11, 0, tzinfo=UTC),
+        ]
+    )
+    store = UsageStore(engine, lambda: next(moments))
+    store.record(UsageRecord("ws_a", "workflow_completed", "x", 1, "workflow", "wf_1"))
+    store.record(UsageRecord("ws_a", "workflow_completed", "x", 1, "workflow", "wf_2"))
+    store.record(UsageRecord("ws_a", "video_rendered", "p", 30, "second"))
+    store.record(UsageRecord("ws_a", "account_lease", "x", 1, "session"))  # not a bar
+    store.record(UsageRecord("ws_b", "video_rendered", "p", 30, "second"))  # another workspace
+
+    days = store.daily("ws_a", datetime(2026, 10, 1, tzinfo=UTC), datetime(2026, 11, 1, tzinfo=UTC))
+
+    assert [(day.isoformat(), workflows, videos) for day, workflows, videos in days] == [
+        ("2026-10-03", 1, 0),
+        ("2026-10-04", 1, 1),
+    ]

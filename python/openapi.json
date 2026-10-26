@@ -4682,6 +4682,53 @@
         "title": "ReviewRevisionConflictBody",
         "type": "object"
       },
+      "RunMetrics": {
+        "additionalProperties": false,
+        "description": "The run list's metric tiles (restyle B4). A rate or a median with nothing finished\nbehind it is null, so the dashboard shows no tile rather than a made-up number.",
+        "properties": {
+          "content_sets": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Content Sets",
+            "type": "integer"
+          },
+          "median_run_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Run Seconds"
+          },
+          "runs_this_week": {
+            "minimum": 0.0,
+            "title": "Runs This Week",
+            "type": "integer"
+          },
+          "success_rate": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Success Rate"
+          }
+        },
+        "required": [
+          "runs_this_week"
+        ],
+        "title": "RunMetrics",
+        "type": "object"
+      },
       "SaveProjectPromptBindingRequest": {
         "additionalProperties": false,
         "properties": {
@@ -7431,9 +7478,41 @@
         "title": "UpgradeTimelineRequest",
         "type": "object"
       },
+      "UsageDay": {
+        "additionalProperties": false,
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "videos": {
+            "title": "Videos",
+            "type": "integer"
+          },
+          "workflows": {
+            "title": "Workflows",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "workflows",
+          "videos"
+        ],
+        "title": "UsageDay",
+        "type": "object"
+      },
       "UsageView": {
         "additionalProperties": false,
         "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/UsageDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
           "leases": {
             "additionalProperties": {
               "type": "integer"
@@ -13926,6 +14005,69 @@
         "summary": "Create Workflow"
       }
     },
+    "/api/v1/workflows/metrics": {
+      "get": {
+        "description": "Runs this week, the median run time, the success rate and Content Sets made\n(restyle B4), in one project or across all of them.",
+        "operationId": "workflow_metrics_api_v1_workflows_metrics_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunMetrics"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Workflow Metrics"
+      }
+    },
     "/api/v1/workflows/{workflow_id}": {
       "get": {
         "operationId": "get_workflow_api_v1_workflows__workflow_id__get",
@@ -14279,6 +14421,73 @@
           }
         },
         "summary": "Cancel Workflow"
+      }
+    },
+    "/api/v1/workflows/{workflow_id}/cards/{card}": {
+      "get": {
+        "description": "One real card crop of the run (restyle B3): `post`, `profile`, `profile_page` or\n`comment-<id>`. A crop never changes once written, so the browser keeps it a day.",
+        "operationId": "download_workflow_card_api_v1_workflows__workflow_id__cards__card__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "card",
+            "required": true,
+            "schema": {
+              "pattern": "^(post|profile|profile_page|comment-[A-Za-z0-9_.:-]{1,64})$",
+              "title": "Card",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/png": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Workflow Card"
       }
     },
     "/api/v1/workflows/{workflow_id}/events": {

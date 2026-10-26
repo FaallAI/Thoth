@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import statistics
 from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Annotated, Any, Literal
@@ -154,4 +155,64 @@ def listing_details(content: str) -> tuple[str, str | None, str | None]:
         first,
         owner if isinstance(owner, str) and owner else None,
         card if isinstance(card, str) and card else None,
+    )
+
+
+#: The cards a run serves (restyle B3): the post, the profile, the profile page, or a comment.
+CARD_NAME = r"^(post|profile|profile_page|comment-[A-Za-z0-9_.:-]{1,64})$"
+
+
+def card_location(content: str, card: str) -> str | None:
+    """Where one real card crop of a source report is stored, or None when it was not captured."""
+    try:
+        report = json.loads(content)
+        if card.startswith("comment-"):
+            wanted = card.removeprefix("comment-")
+            comments = report.get("comments") or []
+            found = next(
+                (
+                    item.get("card")
+                    for item in comments
+                    if isinstance(item, dict) and str(item.get("comment_id")) == wanted
+                ),
+                None,
+            )
+        else:
+            found = report.get("profile_page" if card == "profile_page" else f"{card}_card")
+        location = (found or {}).get("location")
+    except (ValueError, AttributeError):
+        return None
+    return location if isinstance(location, str) and location else None
+
+
+#: The metrics window: "this week" is the last seven days (restyle B4).
+METRICS_DAYS = 7
+
+
+class RunMetrics(StrictModel):
+    """The run list's metric tiles (restyle B4). A rate or a median with nothing finished
+    behind it is null, so the dashboard shows no tile rather than a made-up number."""
+
+    runs_this_week: Annotated[int, Field(ge=0)]
+    median_run_seconds: Annotated[float, Field(ge=0)] | None = None
+    success_rate: Annotated[float, Field(ge=0, le=1)] | None = None
+    content_sets: Annotated[int, Field(ge=0)] = 0
+
+
+def run_metrics(runs: list[StoredRun]) -> RunMetrics:
+    """Metrics over the runs started inside the window. Finished means succeeded or
+    failed; a cancelled run is the person's choice, not an outcome."""
+    succeeded = [run for run in runs if run.status == "succeeded"]
+    finished = len(succeeded) + sum(1 for run in runs if run.status == "failed")
+    durations = [(run.updated_at - run.created_at).total_seconds() for run in succeeded]
+    return RunMetrics(
+        runs_this_week=len(runs),
+        median_run_seconds=statistics.median(durations) if durations else None,
+        success_rate=len(succeeded) / finished if finished else None,
+        content_sets=sum(
+            1
+            for run in runs
+            if run.summary is not None
+            and any(artifact.kind == "content_set" for artifact in run.summary.artifacts)
+        ),
     )

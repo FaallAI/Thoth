@@ -8,7 +8,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import create_engine, delete, func, select
@@ -136,6 +136,26 @@ class UsageStore:
         for row in self._grouped(start, end, None):
             found.setdefault(row[0], []).append(self._total(row))
         return found
+
+    def daily(
+        self, workspace_id: str, start: datetime, end: datetime
+    ) -> list[tuple[date, int, int]]:
+        """(UTC day, workflows completed, videos rendered) for each day with either, in order
+        (restyle B5). Grouped here, not in SQL, so SQLite and Postgres agree on the day."""
+        query = select(UsageEventRow.occurred_at, UsageEventRow.kind).where(
+            UsageEventRow.workspace_id == workspace_id,
+            UsageEventRow.kind.in_(("workflow_completed", "video_rendered")),
+            UsageEventRow.occurred_at >= start,
+            UsageEventRow.occurred_at < end,
+        )
+        with self._sessions() as session:
+            rows = session.execute(query).all()
+        days: dict[date, list[int]] = {}
+        for moment, kind in rows:
+            aware = moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)
+            counts = days.setdefault(aware.astimezone(UTC).date(), [0, 0])
+            counts[0 if kind == "workflow_completed" else 1] += 1
+        return [(day, counts[0], counts[1]) for day, counts in sorted(days.items())]
 
     def leases_today(self, workspace_id: str) -> dict[str, int]:
         start = day_start(self._clock())

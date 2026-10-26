@@ -53,9 +53,11 @@ def seed(
     url: str = "https://www.tiktok.com/@a/video/1",
     status: str = "succeeded",
     minute: int = 0,
+    at: datetime | None = None,
+    finished: datetime | None = None,
 ) -> None:
     """A stored row for the API key's actor; the fake gateway gives every start one ID."""
-    at = datetime(2026, 10, 26, 8, minute, tzinfo=UTC)
+    at = at or datetime(2026, 10, 26, 8, minute, tzinfo=UTC)
     stores[1].insert_missing(
         StoredRun(
             workflow_id=workflow_id,
@@ -68,7 +70,7 @@ def seed(
             history_expired=False,
             summary=None,
             created_at=at,
-            updated_at=at,
+            updated_at=finished or at,
         )
     )
 
@@ -188,3 +190,107 @@ async def test_inbox_items_carry_the_post_title(api, stores) -> None:
     inbox = (await api.get("/api/v1/inbox", headers=AUTH)).json()
 
     assert [item["title"] for item in inbox["approvals"]] == ["Firefighters dig peat trenches"]
+
+
+@pytest_asyncio.fixture
+async def served(gateway, stores, tmp_path):
+    """The API with a local media store holding two card crops of `wf_cards`."""
+    from thoth_control_plane.infrastructure.media_store import LocalMediaStore
+
+    projects, runs, reports, steps = stores
+    app = create_app(
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"),
+        gateway,
+        project_store=projects,
+        workflow_run_store=runs,
+        report_store=reports,
+        step_store=steps,
+    )
+    cards = tmp_path / "store" / "reports" / "wf_cards" / "cards"
+    cards.mkdir(parents=True)
+    (cards / "post.png").write_bytes(b"post-png")
+    (cards / "comment-77.png").write_bytes(b"comment-png")
+    app.state.media_store = LocalMediaStore(tmp_path / "store")
+    seed(stores, "wf_cards")
+    reports.put(
+        "reports/wf_cards/source-report.json",
+        "source_report",
+        json.dumps(
+            {
+                "schema_version": 3,
+                "post": {"text": "A post", "owner_handle": "a"},
+                "post_card": {"location": "reports/wf_cards/cards/post.png"},
+                "comments": [
+                    {
+                        "comment_id": "77",
+                        "card": {"location": "reports/wf_cards/cards/comment-77.png"},
+                    },
+                    {"comment_id": "78", "card": None},
+                ],
+            }
+        ).encode(),
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
+
+
+@pytest.mark.asyncio
+async def test_a_runs_real_card_crops_are_served_by_name(served) -> None:
+    post = await served.get("/api/v1/workflows/wf_cards/cards/post", headers=AUTH)
+    assert post.status_code == 200
+    assert post.content == b"post-png"
+    assert post.headers["content-type"] == "image/png"
+    assert "max-age" in post.headers["cache-control"]
+    comment = await served.get("/api/v1/workflows/wf_cards/cards/comment-77", headers=AUTH)
+    assert comment.content == b"comment-png"
+
+
+@pytest.mark.asyncio
+async def test_a_card_not_captured_or_a_bad_name_is_refused(served) -> None:
+    async def status(path: str) -> int:
+        return (await served.get(path, headers=AUTH)).status_code
+
+    assert await status("/api/v1/workflows/wf_cards/cards/profile") == 404
+    assert await status("/api/v1/workflows/wf_cards/cards/comment-78") == 404
+    assert await status("/api/v1/workflows/wf_cards/cards/banner") == 422
+    assert await status("/api/v1/workflows/wf_missing/cards/post") == 404
+
+
+@pytest.mark.asyncio
+async def test_metrics_count_this_weeks_runs_and_only_real_figures(api, stores) -> None:
+    from datetime import timedelta
+
+    now = datetime.now(UTC)
+    project = stores[0].create("News", "ws_bootstrap")
+    empty = (await api.get("/api/v1/workflows/metrics", headers=AUTH)).json()
+    assert empty == {
+        "runs_this_week": 0,
+        "median_run_seconds": None,
+        "success_rate": None,
+        "content_sets": 0,
+    }
+
+    day = now - timedelta(days=1)
+    seed(
+        stores,
+        "wf_fast",
+        project_id=project.project_id,
+        at=day,
+        finished=day + timedelta(minutes=4),
+    )
+    seed(stores, "wf_slow", at=day, finished=day + timedelta(minutes=10))
+    seed(stores, "wf_fail", at=day, status="failed")
+    seed(stores, "wf_stop", at=day, status="cancelled")
+    seed(stores, "wf_old", at=now - timedelta(days=8))
+
+    every = (await api.get("/api/v1/workflows/metrics", headers=AUTH)).json()
+    assert every["runs_this_week"] == 4
+    assert every["median_run_seconds"] == 420.0  # 4 and 10 minutes
+    assert every["success_rate"] == pytest.approx(2 / 3)  # the cancelled run is not an outcome
+    one = (
+        await api.get(f"/api/v1/workflows/metrics?project_id={project.project_id}", headers=AUTH)
+    ).json()
+    assert one["runs_this_week"] == 1 and one["success_rate"] == 1.0
+    missing = await api.get("/api/v1/workflows/metrics?project_id=missing", headers=AUTH)
+    assert missing.status_code == 404

@@ -9,6 +9,7 @@ from thoth_control_plane.application import Actor, WorkflowRequest, WorkflowSumm
 from thoth_control_plane.application.workflow_runs import WorkflowRunService
 from thoth_control_plane.domain.workflow_runs import (
     MoveWorkflow,
+    RunMetrics,
     WorkflowRun,
     WorkflowRunPage,
     WorkflowRunStatus,
@@ -100,6 +101,19 @@ async def list_unassigned_workflows(
         platform=platform,
         text=text,
     )
+
+
+# This router is included before the workflow router, so `/workflows/metrics` is never
+# read as a workflow called "metrics" (workflow IDs start with `wf_`).
+@router.get("/workflows/metrics", response_model=RunMetrics)
+async def workflow_metrics(
+    actor: Annotated[Actor, Depends(current_actor)],
+    runs: Annotated[WorkflowRunService, Depends(get_run_service)],
+    project_id: str | None = None,
+) -> RunMetrics:
+    """Runs this week, the median run time, the success rate and Content Sets made
+    (restyle B4), in one project or across all of them."""
+    return await runs.metrics(actor=actor, project_id=project_id)
 
 
 @router.patch("/workflows/{workflow_id}", response_model=WorkflowRun)

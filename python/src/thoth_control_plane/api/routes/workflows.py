@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from pathlib import PurePosixPath
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request, status
 from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from thoth_control_plane.api.dependencies import current_actor
@@ -25,6 +25,7 @@ from thoth_control_plane.application import (
     WorkflowSummary,
 )
 from thoth_control_plane.application.workflow_runs import WorkflowRunService
+from thoth_control_plane.domain.workflow_runs import CARD_NAME
 from thoth_control_plane.infrastructure.media_store import (
     MediaLocatorInvalid,
     MediaStoreUnavailable,
@@ -139,6 +140,43 @@ async def download_workflow_artifact(
         media_type=artifact.media_type,
         range_header=request.headers.get("range"),
         headers={"Content-Disposition": f'attachment; filename="{artifact.artifact_id}{suffix}"'},
+    )
+
+
+@router.get(
+    "/workflows/{workflow_id}/cards/{card}",
+    response_class=Response,
+    responses={
+        status.HTTP_200_OK: {
+            "content": {"image/png": {"schema": {"type": "string", "format": "binary"}}}
+        }
+    },
+)
+async def download_workflow_card(
+    workflow_id: str,
+    card: Annotated[str, Path(pattern=CARD_NAME)],
+    request: Request,
+    actor: Annotated[Actor, Depends(current_actor)],
+    runs: Annotated[WorkflowRunService, Depends(get_run_service)],
+) -> Response:
+    """One real card crop of the run (restyle B3): `post`, `profile`, `profile_page` or
+    `comment-<id>`. A crop never changes once written, so the browser keeps it a day."""
+    location = await runs.card_location(workflow_id, card, actor=actor)
+    media = request.app.state.media_store
+    try:
+        size = await asyncio.to_thread(media.size, location)
+    except (MediaUnavailable, MediaLocatorInvalid):
+        raise ArtifactNotFound from None
+    except MediaStoreUnavailable as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="media_store_unavailable"
+        ) from error
+    return ranged_response(
+        size=size,
+        read=lambda start, end: media.open_range(location, start, end),
+        media_type="image/png",
+        range_header=request.headers.get("range"),
+        headers={"Cache-Control": "private, max-age=86400"},
     )
 
 

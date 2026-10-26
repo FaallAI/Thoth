@@ -10,7 +10,7 @@ import asyncio
 import logging
 import time
 from collections.abc import Callable, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from thoth_control_plane.application.estimates import estimate_seconds_remaining
@@ -38,13 +38,17 @@ from thoth_control_plane.domain import (
     WorkflowSummary,
 )
 from thoth_control_plane.domain.workflow_runs import (
+    METRICS_DAYS,
     UNSETTLED,
     Inbox,
     InboxAccount,
     InboxRun,
+    RunMetrics,
     StoredRun,
     WorkflowRun,
     WorkflowRunPage,
+    card_location,
+    run_metrics,
 )
 
 logger = logging.getLogger(__name__)
@@ -478,6 +482,30 @@ class WorkflowRunService:
             if artifact.artifact_id == artifact_id:
                 return artifact
         raise ArtifactNotFound
+
+    async def metrics(self, *, actor: Actor, project_id: str | None) -> RunMetrics:
+        """The caller's run metrics for the last seven days, in one project or all of them
+        (restyle B4). Rows are read as stored; listing a run settles it."""
+        if project_id is not None:
+            await self._require_project(project_id, actor)
+        since = datetime.now(UTC) - timedelta(days=METRICS_DAYS)
+        runs = await asyncio.to_thread(self._store().since, actor, since, project_id=project_id)
+        return run_metrics(runs)
+
+    async def card_location(self, workflow_id: str, card: str, *, actor: Actor) -> str:
+        """Where one of the run's real card crops is stored (restyle B3). Authorized by the
+        run row, never by Temporal, so a list of thumbnails costs no workflow queries."""
+        store = self._store()
+        run = await asyncio.to_thread(store.get, workflow_id)
+        if run is None or not run.owned_by(actor):
+            raise WorkflowNotFound
+        if card == "post" and run.post_card_location:
+            return run.post_card_location
+        content = await asyncio.to_thread(store.source_report, workflow_id)
+        location = card_location(content, card) if content else None
+        if location is None:
+            raise ArtifactNotFound
+        return location
 
     async def assign(self, workflow_id: str, project_id: str, *, actor: Actor) -> WorkflowRun:
         store = self._store()

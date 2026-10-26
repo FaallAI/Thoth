@@ -1178,6 +1178,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workflows/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Workflow Metrics
+         * @description Runs this week, the median run time, the success rate and Content Sets made
+         *     (restyle B4), in one project or across all of them.
+         */
+        get: operations["workflow_metrics_api_v1_workflows_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workflows/{workflow_id}": {
         parameters: {
             query?: never;
@@ -1261,6 +1282,27 @@ export interface paths {
         put?: never;
         /** Cancel Workflow */
         post: operations["cancel_workflow_api_v1_workflows__workflow_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workflows/{workflow_id}/cards/{card}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Workflow Card
+         * @description One real card crop of the run (restyle B3): `post`, `profile`, `profile_page` or
+         *     `comment-<id>`. A crop never changes once written, so the browser keeps it a day.
+         */
+        get: operations["download_workflow_card_api_v1_workflows__workflow_id__cards__card__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2987,6 +3029,24 @@ export interface components {
             /** Latest Revision */
             latest_revision: number;
         };
+        /**
+         * RunMetrics
+         * @description The run list's metric tiles (restyle B4). A rate or a median with nothing finished
+         *     behind it is null, so the dashboard shows no tile rather than a made-up number.
+         */
+        RunMetrics: {
+            /**
+             * Content Sets
+             * @default 0
+             */
+            content_sets: number;
+            /** Median Run Seconds */
+            median_run_seconds?: number | null;
+            /** Runs This Week */
+            runs_this_week: number;
+            /** Success Rate */
+            success_rate?: number | null;
+        };
         /** SaveProjectPromptBindingRequest */
         SaveProjectPromptBindingRequest: {
             /** Base Revision */
@@ -4014,8 +4074,22 @@ export interface components {
             /** Base Revision */
             base_revision: number;
         };
+        /** UsageDay */
+        UsageDay: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Videos */
+            videos: number;
+            /** Workflows */
+            workflows: number;
+        };
         /** UsageView */
         UsageView: {
+            /** Days */
+            days?: components["schemas"]["UsageDay"][];
             /** Leases */
             leases: {
                 [key: string]: number;
@@ -7227,6 +7301,39 @@ export interface operations {
             };
         };
     };
+    workflow_metrics_api_v1_workflows_metrics_get: {
+        parameters: {
+            query?: {
+                project_id?: string | null;
+            };
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunMetrics"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_workflow_api_v1_workflows__workflow_id__get: {
         parameters: {
             query?: never;
@@ -7420,6 +7527,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkflowSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_workflow_card_api_v1_workflows__workflow_id__cards__card__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                workflow_id: string;
+                card: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": string;
                 };
             };
             /** @description Validation Error */
