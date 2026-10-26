@@ -6,6 +6,7 @@ import {
   CreditCard,
   Feather,
   Gauge,
+  Inbox,
   ListVideo,
   LogOut,
   Menu,
@@ -18,6 +19,7 @@ import { useState, type ComponentType, type ReactNode } from "react";
 import { NavLink } from "react-router";
 
 import type { Me } from "@/api/auth";
+import { useActivity } from "@/features/activity/activity";
 import { LOCALES, type MessageKey } from "@/lib/i18n";
 import { initials } from "@/lib/initials";
 import { useLocale } from "@/lib/locale";
@@ -32,9 +34,10 @@ export type NavItem = {
   section?: boolean;
 };
 
-/** Sidebar order (§4). Inbox joins with R3; Settings is the tokens page until R4. */
+/** Sidebar order (§4). Settings is the tokens page until R4. */
 export const NAV: NavItem[] = [
   { path: "/workflows", label: "nav.runs", icon: ListVideo },
+  { path: "/inbox", label: "nav.inbox", icon: Inbox },
   { path: "/studio", label: "nav.studio", icon: Clapperboard },
   { path: "/usage", label: "nav.usage", icon: Gauge, section: true },
   { path: "/billing", label: "nav.billing", icon: CreditCard },
@@ -55,7 +58,15 @@ function storedCollapsed(): boolean {
 /** In the sidebar the labels give way to icons when collapsed or at 1024 px and below; the sheet keeps them. */
 function NavLinks({ items, collapsed = false, sheet = false, onPick }: { items: NavItem[]; collapsed?: boolean; sheet?: boolean; onPick?: () => void }) {
   const { t } = useLocale();
+  const activity = useActivity();
   const iconOnly = sheet ? "" : collapsed ? "sr-only" : "max-[1024px]:sr-only";
+  // Live counts (§4): running runs beside Runs, decisions waiting beside Inbox.
+  const running = activity ? activity.active.filter((run) => run.status !== "awaiting_approval").length : 0;
+  const counts: Record<string, string | null> = {
+    "/workflows": running > 0 ? t("nav.countRunning", { count: running }) : null,
+    "/inbox": activity && activity.waiting > 0 ? t("nav.countWaiting", { count: activity.waiting }) : null,
+  };
+  const numbers: Record<string, number> = { "/workflows": running, "/inbox": activity?.waiting ?? 0 };
   return (
     <ul className="flex flex-col gap-1">
       {items.map((item) => (
@@ -73,6 +84,14 @@ function NavLinks({ items, collapsed = false, sheet = false, onPick }: { items: 
           >
             <item.icon className="size-5 shrink-0 stroke-[1.75]" />
             <span className={cn("flex-1 truncate", iconOnly)}>{t(item.label)}</span>
+            {counts[item.path] && (
+              <>
+                <span aria-hidden="true" className={cn("rounded-full bg-raised px-2 text-xs text-ink", iconOnly && "hidden", !collapsed && !sheet && "min-[1025px]:inline")}>
+                  {numbers[item.path]}
+                </span>
+                <span className="sr-only">{`, ${counts[item.path]}`}</span>
+              </>
+            )}
             {item.admin && (
               <span className={cn("rounded-full border border-hairline px-2 text-xs text-muted-ink", iconOnly && "hidden", !collapsed && !sheet && "min-[1025px]:inline")}>
                 {t("nav.admin")}
@@ -192,6 +211,7 @@ export function AppShell({
   me,
   switcher,
   palette,
+  activity,
   onSignOut,
   chrome = true,
   children,
@@ -199,6 +219,8 @@ export function AppShell({
   me: Me;
   switcher: ReactNode;
   palette: ReactNode;
+  /** The run tray and the inbox bell, beside the avatar (§4). */
+  activity?: ReactNode;
   onSignOut: (forgetBrowser: boolean) => void;
   chrome?: boolean;
   children: ReactNode;
@@ -232,6 +254,7 @@ export function AppShell({
         <div className="hidden sm:block">{switcher}</div>
         <div className="hidden flex-1 justify-center md:flex">{palette}</div>
         <div className="ml-auto flex items-center gap-3 md:ml-0">
+          {activity}
           <AvatarMenu me={me} onSignOut={onSignOut} />
         </div>
       </header>

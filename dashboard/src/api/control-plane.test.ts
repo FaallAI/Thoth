@@ -1127,6 +1127,8 @@ test("project, workflow-run, and Studio document calls hit the new routes", asyn
   await client.runMetrics(null);
   await client.runMetrics("p1");
   await client.listWorkflowSteps("wf_1", 7);
+  await client.getInbox();
+  await client.acknowledgeWorkflow("wf_1");
   await client.moveWorkflow("wf_1", "p1");
   await client.listEditDocuments("p1");
   expect(await (await client.downloadWorkflowArtifact("wf_1", "clip")).text()).toBe("BYTES");
@@ -1141,6 +1143,8 @@ test("project, workflow-run, and Studio document calls hit the new routes", asyn
     "GET /api/v1/workflows/metrics",
     "GET /api/v1/workflows/metrics?project_id=p1",
     "GET /api/v1/workflows/wf_1/steps?after=7",
+    "GET /api/v1/inbox",
+    "POST /api/v1/workflows/wf_1/acknowledge",
     "PATCH /api/v1/workflows/wf_1",
     "GET /api/v1/projects/p1/edit-documents?limit=20",
     "GET /api/v1/workflows/wf_1/artifacts/clip",

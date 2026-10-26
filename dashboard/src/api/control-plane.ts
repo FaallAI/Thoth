@@ -11,6 +11,9 @@ export type WorkflowStep = components["schemas"]["WorkflowStep"];
 export type WorkflowStepPage = components["schemas"]["WorkflowStepPage"];
 export type RunMetrics = components["schemas"]["RunMetrics"];
 export type RunStatus = WorkflowRun["status"];
+export type Inbox = components["schemas"]["Inbox"];
+export type InboxRun = components["schemas"]["InboxRun"];
+export type InboxAccount = components["schemas"]["InboxAccount"];
 /** Run list filters (restyle B1); `projectId: null` lists every project. */
 export type RunQuery = { projectId: string | null; status?: RunStatus[]; platform?: string; q?: string };
 export type EditDocumentListItem = components["schemas"]["EditDocumentListItem"];
@@ -229,6 +232,8 @@ export type ControlPlaneClient = {
   listRuns: (query: RunQuery, cursor?: string) => Promise<WorkflowRunPage>;
   runMetrics: (projectId: string | null) => Promise<RunMetrics>;
   listWorkflowSteps: (workflowId: string, after: number) => Promise<WorkflowStepPage>;
+  getInbox: () => Promise<Inbox>;
+  acknowledgeWorkflow: (workflowId: string) => Promise<void>;
   /** Image and video addresses: the browser's session cookie authorizes them. */
   cardUrl: (workflowId: string, card: string) => string;
   mediaUrl: (workflowId: string, location: string) => string;
@@ -593,6 +598,14 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
       ),
     listWorkflowSteps: (workflowId, after) =>
       request<WorkflowStepPage>(`/api/v1/workflows/${encodeURIComponent(workflowId)}/steps?after=${after}`),
+    getInbox: () => request<Inbox>("/api/v1/inbox"),
+    acknowledgeWorkflow: async (workflowId) => {
+      const response = await doFetch(`${baseUrl}/api/v1/workflows/${encodeURIComponent(workflowId)}/acknowledge`, {
+        method: "POST",
+        headers: headers(),
+      });
+      if (!response.ok) throw new Error(`Control plane request failed (${response.status})`);
+    },
     cardUrl: (workflowId, card) =>
       `${baseUrl}/api/v1/workflows/${encodeURIComponent(workflowId)}/cards/${encodeURIComponent(card)}`,
     mediaUrl: (workflowId, location) =>

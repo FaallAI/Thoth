@@ -12,6 +12,9 @@ import { sourceAccountsClient } from "@/api/source-accounts";
 import { controlPlaneClient, type Project, type WorkflowRun } from "@/api/control-plane";
 import { AppShell, NAV } from "@/components/AppShell";
 import { CommandPalette } from "@/components/CommandPalette";
+import { ActivityProvider } from "@/features/activity/activity";
+import { InboxPage } from "@/features/activity/InboxPage";
+import { InboxBell, RunTray } from "@/features/activity/TopBarActivity";
 import { authClient } from "@/api/auth";
 import { AuthGate } from "@/features/auth/AuthGate";
 import { useAuth } from "@/features/auth/auth-context";
@@ -29,6 +32,7 @@ import { documentLabel } from "@/lib/document-label";
 const PAGES: { path: string; title: MessageKey; project?: boolean }[] = [
   { path: "/workflows", title: "nav.runs", project: true },
   { path: "/studio", title: "nav.studio", project: true },
+  { path: "/inbox", title: "nav.inbox" },
   { path: "/usage", title: "nav.usage" },
   { path: "/billing", title: "nav.billing" },
   { path: "/accounts/proxies", title: "page.proxies" },
@@ -98,10 +102,12 @@ function Shell() {
   const platformOnly = notice([t("page.platformOnly")]);
 
   return (
+    <ActivityProvider client={controlPlaneClient}>
     <AppShell
       me={me}
       switcher={switcher}
       palette={palette}
+      activity={<><RunTray projects={projects} /><InboxBell /></>}
       chrome={!inStudio}
       onSignOut={(forget) => void authClient.logout(forget).finally(() => window.location.assign("/login"))}
     >
@@ -121,6 +127,7 @@ function Shell() {
           <Route path="/" element={<Navigate to="/workflows" replace />} />
           <Route path="/workflows" element={<RunsPage client={controlPlaneClient} projectId={projectId} projects={projects} onRuns={setRuns} />} />
           <Route path="/workflows/:workflowId" element={<WorkflowDetailRoute projects={projects} />} />
+          <Route path="/inbox" element={<InboxPage projects={projects} />} />
           <Route path="/studio" element={studioProject ? <StudioDocumentsPage client={controlPlaneClient} projectId={studioProject} /> : needsProject} />
           <Route path="/studio/:projectId/:documentId" element={<StudioDocumentRoute workspaceControls={switcher} projects={projects} />} />
           <Route path="/accounts" element={me.platform_admin ? <SourceAccounts client={sourceAccountsClient} onManageProxies={() => navigate("/accounts/proxies")} /> : platformOnly} />
@@ -132,6 +139,7 @@ function Shell() {
         </Routes>
       </main>
     </AppShell>
+    </ActivityProvider>
   );
 }
 

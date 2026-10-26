@@ -14,6 +14,7 @@ import { useLocale } from "@/lib/locale";
 import { askPermission, dismissOffer, notifyOnce, offerWanted, type RunEvent } from "@/lib/notifications";
 import { PLATFORM_NAMES } from "@/lib/platforms";
 import { useNow } from "@/lib/use-now";
+import { useActivity } from "@/features/activity/activity";
 
 import { OpenInStudio, type OpenInStudioClient } from "./OpenInStudio";
 import { RunResults, type ContentSet } from "./RunResults";
@@ -72,6 +73,7 @@ export function RunDetailPage({
   const [offer, setOffer] = useState(offerWanted);
   const [announcement, setAnnouncement] = useState("");
   const seen = useRef<{ status?: string; stages: Record<string, string> }>({ stages: {} });
+  const activity = useActivity();
 
   // Stage changes go to the live region, one sentence each, never per tick (§7.6); run events
   // become a desktop notification when the person has allowed them and looks elsewhere (§12.3).
@@ -106,6 +108,7 @@ export function RunDetailPage({
     setActionError(null);
     try {
       setSummary(await action());
+      activity?.refresh();
     } catch {
       setActionError("detail.actionFailed");
     } finally {
