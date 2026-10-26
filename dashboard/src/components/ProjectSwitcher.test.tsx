@@ -1,8 +1,16 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, mock, test } from "bun:test";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render as rawRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/lib/locale";
+
+const inLocale = (ui: ReactElement) => <LocaleProvider serverLocale="en">{ui}</LocaleProvider>;
+const render = (ui: ReactElement) => {
+  const result = rawRender(inLocale(ui));
+  return { ...result, rerender: (next: ReactElement) => result.rerender(inLocale(next)) };
+};
 
 import { ProjectSwitcher } from "./ProjectSwitcher";
 
@@ -58,7 +66,7 @@ test("shows an inline error when create fails", async () => {
   await user.type(screen.getByLabelText(/new project name/i), "Alpha");
   await user.click(screen.getByRole("button", { name: /^create$/i }));
 
-  expect(await screen.findByText("project already exists")).toBeDefined();
+  expect(await screen.findByText("The project could not be created. Its name may already be in use.")).toBeDefined();
 });
 
 test("a remembered project that no longer exists falls back to the first one", async () => {

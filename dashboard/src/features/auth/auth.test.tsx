@@ -28,7 +28,7 @@ function gate(me: () => Promise<Me | null>, path = "/studio") {
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/login" element={<p>login page</p>} />
-        <Route path="*" element={<AuthGate client={{ me: mock(me) }}><Who /></AuthGate>} />
+        <Route path="*" element={<LocaleProvider serverLocale="en"><AuthGate client={{ me: mock(me) }}><Who /></AuthGate></LocaleProvider>} />
       </Routes>
     </MemoryRouter>,
   );

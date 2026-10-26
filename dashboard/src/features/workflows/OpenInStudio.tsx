@@ -7,6 +7,8 @@ import {
   type WorkflowSummary,
 } from "@/api/control-plane";
 import { Button } from "@/components/ui/button";
+import type { MessageKey } from "@/lib/i18n";
+import { useLocale } from "@/lib/locale";
 
 export type OpenInStudioClient = Pick<
   ControlPlaneClient,
@@ -23,19 +25,14 @@ type Props = {
 };
 
 // Fixed words per known refusal; the server's own text never reaches the page.
-const MESSAGES: Record<string, string> = {
-  content_set_unavailable: "This run has no Content Set to open yet.",
-  content_set_invalid: "Studio cannot read this run's Content Set.",
-  workflow_in_other_project: "This run belongs to another project. Switch to that project to open it.",
-};
-const FALLBACK = "Studio could not open this run. Try again.";
+const CODES = new Set(["content_set_unavailable", "content_set_invalid", "workflow_in_other_project"]);
 
-function failure(error: unknown): string {
-  if (!(error instanceof StudioImportRequestError)) return FALLBACK;
-  if (error.status === null) return "Offline — reconnect and try again.";
-  if (error.status === 404) return "This run was not found in this workspace.";
-  if (error.status === 503) return "Studio is not available right now. Try again later.";
-  return (error.code && MESSAGES[error.code]) || FALLBACK;
+function failure(error: unknown): MessageKey {
+  if (!(error instanceof StudioImportRequestError)) return "studio.error.failed";
+  if (error.status === null) return "studio.error.offline";
+  if (error.status === 404) return "studio.error.not_found";
+  if (error.status === 503) return "studio.error.unavailable";
+  return error.code && CODES.has(error.code) ? (`studio.error.${error.code}` as MessageKey) : "studio.error.failed";
 }
 
 // Inventory entries with no media and a reason are the fields Studio leaves out.
@@ -68,10 +65,11 @@ const leftOut = (found: StudioSourceInspection) => found.items.filter((item) => 
 
 /** "Open in Studio" for a finished run: import its Content Set, or resume a draft made from it. */
 export function OpenInStudio({ client, projectId, workflowId, summary, onOpen }: Props) {
+  const { t, locale } = useLocale();
   const [inspection, setInspection] = useState<StudioSourceInspection | null>(null);
   // What the button is doing: reading the run (or a draft), or importing its media.
   const [busy, setBusy] = useState<"opening" | "importing" | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<MessageKey | null>(null);
   // The import a POST started but never confirmed: the next click (also after a reload, via
   // `recall`) replays its key, so the server finishes that draft instead of leaving it half done.
   const pending = useRef<Unfinished | null>(null);
@@ -122,16 +120,16 @@ export function OpenInStudio({ client, projectId, workflowId, summary, onOpen }:
     });
 
   return (
-    <section className="open-in-studio" aria-label="Open in Studio">
+    <section className="open-in-studio" aria-label={t("studio.open")}>
       <Button disabled={!projectId || busy !== null} onClick={() => projectId && void start(projectId)}>
-        {busy === "importing" ? "Importing media…" : busy ? "Opening…" : "Open in Studio"}
+        {t(busy === "importing" ? "studio.importing" : busy ? "studio.opening" : "studio.open")}
       </Button>
-      {!projectId && <p className="text-sm text-muted-foreground">Choose a project first.</p>}
+      {!projectId && <p className="text-sm text-muted-foreground">{t("studio.chooseProject")}</p>}
       {inspection && projectId && (
         <div className="open-in-studio-choice">
           {leftOut(inspection).length > 0 && (
             <>
-              <p className="text-sm">Studio will not include:</p>
+              <p className="text-sm">{t("studio.leftOut")}</p>
               <ul className="text-sm">
                 {leftOut(inspection).map((item) => (
                   <li key={item.item_id}>{`${item.label}: ${item.reason}`}</li>
@@ -141,13 +139,13 @@ export function OpenInStudio({ client, projectId, workflowId, summary, onOpen }:
           )}
           {(inspection.drafts ?? []).map((draft) => (
             <Button key={draft.document_id} variant="outline" disabled={busy !== null} onClick={() => void resume(projectId, draft.document_id)}>
-              {`Resume draft from ${new Date(draft.created_at).toLocaleString()}`}
+              {t("studio.resume", { date: new Date(draft.created_at).toLocaleString(locale === "id" ? "id-ID" : "en-US") })}
             </Button>
           ))}
-          <Button disabled={busy !== null} onClick={() => void attempt(() => create(projectId, crypto.randomUUID(), leftOut(inspection).length > 0))}>Create new draft</Button>
+          <Button disabled={busy !== null} onClick={() => void attempt(() => create(projectId, crypto.randomUUID(), leftOut(inspection).length > 0))}>{t("studio.newDraft")}</Button>
         </div>
       )}
-      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="text-sm text-destructive">{t(error)}</p>}
     </section>
   );
 }

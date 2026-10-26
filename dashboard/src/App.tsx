@@ -51,7 +51,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LocaleProvider><LoginPage /></LocaleProvider>} />
         <Route path="/login/verify" element={<LocaleProvider><VerifyPage /></LocaleProvider>} />
-        <Route path="*" element={<AuthGate><SignedInLocale><Shell /></SignedInLocale></AuthGate>} />
+        <Route path="*" element={<LocaleProvider><AuthGate><SignedInLocale><Shell /></SignedInLocale></AuthGate></LocaleProvider>} />
       </Routes>
     </BrowserRouter>
   );

@@ -1,8 +1,16 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, mock, test } from "bun:test";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render as rawRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/lib/locale";
+
+const inLocale = (ui: ReactElement) => <LocaleProvider serverLocale="en">{ui}</LocaleProvider>;
+const render = (ui: ReactElement) => {
+  const result = rawRender(inLocale(ui));
+  return { ...result, rerender: (next: ReactElement) => result.rerender(inLocale(next)) };
+};
 
 import {
   StudioImportRequestError,
