@@ -75,7 +75,8 @@ export function UsagePage({ client = usageClient, now }: { client?: Pick<UsageCl
 
   if (error) return <EmptyState>{t("usage.error")}</EmptyState>;
   if (!usage) return <Skeleton rows={4} />;
-  const megabytes = `${number(Math.round(usage.stored_bytes / 100_000) / 10)} MB`;
+  const gigabytes = usage.stored_bytes >= 1_000_000_000;
+  const stored = `${number(Math.round(usage.stored_bytes / (gigabytes ? 100_000_000 : 100_000)) / 10)} ${gigabytes ? "GB" : "MB"}`;
   const workflows = monthDays(usage.month, usage.days, (item) => item.workflows, today);
   const videos = monthDays(usage.month, usage.days, (item) => item.videos, today);
   return (
@@ -85,7 +86,7 @@ export function UsagePage({ client = usageClient, now }: { client?: Pick<UsageCl
         <MetricTile value={number(usage.workflows)} label={t("usage.workflows")} />
         <MetricTile value={number(usage.videos)} label={t("usage.videos")} />
         <MetricTile value={duration(usage.rendered_seconds)} label={t("usage.renderTime")} />
-        <MetricTile value={megabytes} label={t("usage.stored")} />
+        <MetricTile value={stored} label={t("usage.stored")} />
       </div>
       {(usage.days ?? []).length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2">

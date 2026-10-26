@@ -139,8 +139,8 @@ function AccountRow({ account, budget, now, testing, onTest, onReimport, onEdit 
       <div className="flex items-center gap-3">
         <PlatformIcon platform={account.platform} className="size-5 text-ink" />
         <div>
-          <p className="text-ink">{account.label}</p>
-          <p className="text-xs text-muted-ink">{account.cookie_names.join(", ")}</p>
+          <p className="whitespace-nowrap text-ink">{account.label}</p>
+          <p className="text-xs text-muted-ink">{platformLabel(account.platform)}</p>
         </div>
       </div>
     </td>
@@ -151,9 +151,9 @@ function AccountRow({ account, budget, now, testing, onTest, onReimport, onEdit 
       </span>
     </td>
     <td className="py-3 font-mono text-[13px] text-status-waiting max-lg:hidden">{left > 0 ? formatClock(left) : <span className="text-faint">—</span>}</td>
-    <td className="py-3 font-mono text-[13px] text-ink max-lg:hidden">{account.proxy_display ?? t("sa.direct")}</td>
+    <td className="py-3 font-mono text-[13px] whitespace-nowrap text-ink max-lg:hidden">{account.proxy_display ?? t("sa.direct")}</td>
     <td className="py-3 max-md:hidden">
-      <span className="flex items-center gap-2 font-mono text-[13px] text-ink">
+      <span className="flex items-center gap-2 font-mono text-[13px] whitespace-nowrap text-ink">
         {budget ? `${account.uses_today} / ${budget}` : String(account.uses_today)}
         {budget > 0 && <span aria-hidden="true" className="h-1 w-14 overflow-hidden rounded-full bg-well">
           <span className="block h-full rounded-full bg-copper" style={{ width: `${Math.min(100, (100 * account.uses_today) / budget)}%` }} />
@@ -163,7 +163,7 @@ function AccountRow({ account, budget, now, testing, onTest, onReimport, onEdit 
     <td className={cn("py-3 text-[13px] max-md:hidden", bad ? "text-status-failed" : "text-ink")}>
       {outcome}{account.last_used_at ? ` · ${day(account.last_used_at)}` : ""}
     </td>
-    <td className="py-3 text-[13px] text-muted-ink max-lg:hidden">
+    <td className="py-3 text-[13px] text-muted-ink max-xl:hidden">
       {expiry === null ? t("sa.sessionOnly") : expiry <= 0 ? t("sa.cookiesExpired") : plural("sa.expiresIn", expiry)}
     </td>
     <td className="py-3 pr-3"><div className="sa-row-actions">
@@ -260,7 +260,7 @@ export function SourceAccounts({ client, onManageProxies }: {
       </section>
       <section className="sa-card sa-table" aria-label={t("sa.rotation")}>
         <header><h2>{t("sa.rotation")}</h2><span>{plural("sa.accountCount", group.accounts.length)}</span></header>
-        {group.accounts.length ? <table className="w-full border-collapse text-left text-sm">
+        {group.accounts.length ? <table className="sa-rotation-table w-full border-collapse text-left text-sm">
           <thead><tr className="border-b border-hairline text-[13px] text-muted-ink">
             <th className="py-3 pl-3 font-medium">{t("sa.col.label")}</th>
             <th className="py-3 font-medium">{t("sa.col.health")}</th>
@@ -268,7 +268,7 @@ export function SourceAccounts({ client, onManageProxies }: {
             <th className="py-3 font-medium max-lg:hidden">{t("sa.col.proxy")}</th>
             <th className="py-3 font-medium max-md:hidden">{t("sa.col.leases")}</th>
             <th className="py-3 font-medium max-md:hidden">{t("sa.col.outcome")}</th>
-            <th className="py-3 font-medium max-lg:hidden">{t("sa.col.cookies")}</th>
+            <th className="py-3 font-medium max-xl:hidden">{t("sa.col.cookies")}</th>
             <th className="py-3 pr-3 font-medium">{t("sa.col.actions")}</th>
           </tr></thead>
           <tbody>{group.accounts.map((account) => <AccountRow key={account.id} account={account} budget={group.daily_budget}
