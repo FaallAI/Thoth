@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   browserLocale,
+  formatClock,
   formatDay,
   formatDuration,
   formatNumber,
@@ -73,4 +74,10 @@ describe("the first language", () => {
     expect(browserLocale(["en-GB", "id-ID"])).toBe("en");
     expect(browserLocale([])).toBe("en");
   });
+});
+
+test("the duration column is a clock", () => {
+  expect(formatClock(408)).toBe("06:48");
+  expect(formatClock(3_723)).toBe("1:02:03");
+  expect(formatClock(-4)).toBe("00:00");
 });

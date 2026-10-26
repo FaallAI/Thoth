@@ -73,3 +73,16 @@ test("with no projects at all, a remembered project is cleared", async () => {
   render(<ProjectSwitcher projectId="deleted" onSelect={onSelect} client={client} />);
   await waitFor(() => expect(onSelect).toHaveBeenCalledWith(null));
 });
+
+test("All projects is offered first and survives the project list", async () => {
+  const onSelect = mock((_id: string | null) => {});
+  const user = userEvent.setup();
+  render(<ProjectSwitcher compact projectId="all" allLabel="All projects" onSelect={onSelect} client={fakeClient()} />);
+  expect(await screen.findByText("All projects")).toBeDefined();
+  await waitFor(() => expect(onSelect).not.toHaveBeenCalled());
+  await user.click(screen.getByRole("combobox", { name: "Project" }));
+  const options = await screen.findAllByRole("option");
+  expect(options[0].textContent).toContain("All projects");
+  await user.click(options[1]);
+  expect(onSelect).toHaveBeenCalledWith("p1");
+});

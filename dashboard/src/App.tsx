@@ -4,7 +4,7 @@ import { ProjectSwitcher } from "@/components/ProjectSwitcher";
 import { GuidedStudio } from "@/features/studio/GuidedStudio";
 import { StudioImportGate } from "@/features/studio/StudioImportGate";
 import { StudioDocumentsPage } from "@/features/studio/StudioDocumentsPage";
-import { WorkflowsPage } from "@/features/workflows/WorkflowsPage";
+import { RunsPage } from "@/features/workflows/RunsPage";
 import { WorkflowDetailPage } from "@/features/workflows/WorkflowDetailPage";
 import { SourceAccounts } from "@/components/SourceAccounts";
 import { SourceProxies } from "@/components/SourceProxies";
@@ -20,7 +20,7 @@ import { UsagePage } from "@/features/usage/UsagePage";
 import { BillingPage } from "@/features/billing/BillingPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { VerifyPage } from "@/features/auth/VerifyPage";
-import { useActiveProject } from "@/lib/active-project";
+import { ALL_PROJECTS, useActiveProject } from "@/lib/active-project";
 import type { MessageKey } from "@/lib/i18n";
 import { LocaleProvider, useLocale } from "@/lib/locale";
 import { documentLabel } from "@/lib/document-label";
@@ -72,7 +72,11 @@ function Shell() {
   const inStudio = /^\/studio\/[^/]+\/[^/]+/.test(location.pathname);
   const page = pageFor(location.pathname);
   const project = projects.find((item) => item.project_id === projectId);
-  const switcher = <ProjectSwitcher compact projectId={projectId} onSelect={setProjectId} onProjectsChanged={setProjects} />;
+  const switcher = (
+    <ProjectSwitcher compact projectId={projectId} allLabel={t("project.all")} onSelect={setProjectId} onProjectsChanged={setProjects} />
+  );
+  // Studio works inside one project; "All projects" is for the run list (DESIGN §9).
+  const studioProject = projectId === ALL_PROJECTS ? null : projectId;
   const palette = (
     <CommandPalette
       pages={NAV.filter((item) => !item.admin || me.platform_admin).map((item) => ({ path: item.path, label: t(item.label), icon: item.icon }))}
@@ -104,16 +108,18 @@ function Shell() {
           <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl leading-tight font-semibold text-ink">{t(page.title)}</h1>
-              {page.project && project && <p className="mt-1 text-sm text-muted-ink">{t("project.current", { name: project.name })}</p>}
+              {page.project && (project || projectId === ALL_PROJECTS) && (
+                <p className="mt-1 text-sm text-muted-ink">{project ? t("project.current", { name: project.name }) : t("project.all")}</p>
+              )}
             </div>
             <div id="dashboard-page-actions" className="pen-page-actions" />
           </header>
         )}
         <Routes>
           <Route path="/" element={<Navigate to="/workflows" replace />} />
-          <Route path="/workflows" element={<WorkflowsPage client={controlPlaneClient} projectId={projectId} projects={projects} onRuns={setRuns} />} />
+          <Route path="/workflows" element={<RunsPage client={controlPlaneClient} projectId={projectId} projects={projects} onRuns={setRuns} />} />
           <Route path="/workflows/:workflowId" element={<WorkflowDetailRoute projectId={projectId} />} />
-          <Route path="/studio" element={projectId ? <StudioDocumentsPage client={controlPlaneClient} projectId={projectId} /> : needsProject} />
+          <Route path="/studio" element={studioProject ? <StudioDocumentsPage client={controlPlaneClient} projectId={studioProject} /> : needsProject} />
           <Route path="/studio/:projectId/:documentId" element={<StudioDocumentRoute workspaceControls={switcher} projects={projects} />} />
           <Route path="/accounts" element={me.platform_admin ? <SourceAccounts client={sourceAccountsClient} onManageProxies={() => navigate("/accounts/proxies")} /> : platformOnly} />
           <Route path="/accounts/proxies" element={me.platform_admin ? <SourceProxies client={sourceAccountsClient} onBack={() => navigate("/accounts")} /> : platformOnly} />

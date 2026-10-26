@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FolderOpen, Plus } from "lucide-react";
+import { ALL_PROJECTS } from "@/lib/active-project";
 import { PenDialog } from "./PenDialog";
 import {
   Select,
@@ -22,12 +23,15 @@ export function ProjectSwitcher({
   compact = false,
   onProjectsChanged,
   client = controlPlaneClient,
+  allLabel,
 }: {
   projectId: string | null;
   onSelect: (id: string | null) => void;
   compact?: boolean;
   onProjectsChanged?: (projects: Project[]) => void;
   client?: Pick<ControlPlaneClient, "listProjects" | "createProject">;
+  /** With a label, the menu offers "All projects" first (DESIGN §9). */
+  allLabel?: string;
 }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [creating, setCreating] = useState(false);
@@ -42,6 +46,7 @@ export function ProjectSwitcher({
         setProjects(ps);
         onProjectsChanged?.(ps);
         // A remembered project that no longer exists falls back to the first one.
+        if (allLabel && projectId === ALL_PROJECTS) return;
         if (ps.length && !ps.some((p) => p.project_id === projectId)) onSelect(ps[0].project_id);
         else if (!ps.length && projectId) onSelect(null);
       },
@@ -98,13 +103,18 @@ export function ProjectSwitcher({
   return (
     <div className={compact ? "pen-project-picker" : "flex items-center gap-2"}>
       {!compact && <Label htmlFor="project" className="text-xs text-muted-foreground">Project</Label>}
-      <Select open={menuOpen} onOpenChange={setMenuOpen} items={projects.map((project) => ({ value: project.project_id, label: project.name }))} value={projectId ?? null} onValueChange={(v) => v && onSelect(String(v))}>
+      <Select open={menuOpen} onOpenChange={setMenuOpen} items={[...(allLabel ? [{ value: ALL_PROJECTS, label: allLabel }] : []), ...projects.map((project) => ({ value: project.project_id, label: project.name }))]} value={projectId ?? null} onValueChange={(v) => v && onSelect(String(v))}>
         <SelectTrigger id="project" aria-label="Project" className={compact ? "pen-project-trigger" : "w-44"}>
           {compact && <span className="pen-project-dot" aria-hidden="true" />}
           <SelectValue placeholder="No projects" />
         </SelectTrigger>
         <SelectContent className={compact ? "pen-project-dropdown" : undefined} align="end" alignItemWithTrigger={!compact} sideOffset={8}>
           {compact && <div className="pen-project-heading"><p>Switch project</p><small>Choose the active workspace</small></div>}
+          {allLabel && (
+            <SelectItem value={ALL_PROJECTS} className={compact ? "pen-project-option" : undefined}>
+              <span>{allLabel}</span>
+            </SelectItem>
+          )}
           {projects.map((p, index) => (
             <SelectItem key={p.project_id} value={p.project_id} className={compact ? "pen-project-option" : undefined}>
               {compact && <span className={`pen-project-dot pen-dot-${index % 3}`} aria-hidden="true" />}

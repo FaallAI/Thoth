@@ -573,3 +573,12 @@ export function formatDay(locale: Locale, iso: string, now: Date = new Date(), t
 export function browserLocale(preferences: readonly string[]): Locale {
   return preferences[0]?.toLowerCase().startsWith("id") ? "id" : "en";
 }
+
+/** A list's duration column: "06:48", or "1:02:03" past an hour; the same in both languages. */
+export function formatClock(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.round(totalSeconds));
+  const hours = Math.floor(seconds / 3_600);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const clock = `${pad(Math.floor((seconds % 3_600) / 60))}:${pad(seconds % 60)}`;
+  return hours > 0 ? `${hours}:${clock}` : clock;
+}
