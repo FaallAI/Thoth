@@ -71,10 +71,10 @@ test("search navigates to the selected workspace page and closes its dialog", as
   const { default: App } = await import("./App");
   render(<App />);
   const user = userEvent.setup();
-  await user.click(await screen.findByRole("button", { name: "Search projects, workflows…" }));
+  await user.click(await screen.findByRole("button", { name: /Search runs, documents/ }));
   const dialog = await screen.findByRole("dialog");
-  await user.click(within(dialog).getByRole("button", { name: /Creator Studio/ }));
-  expect(await screen.findByRole("heading", { level: 1, name: "Creator Studio" })).toBeDefined();
+  await user.click(within(dialog).getByRole("option", { name: "Studio" }));
+  expect(await screen.findByRole("heading", { level: 1, name: "Studio" })).toBeDefined();
   expect(Boolean(screen.queryByRole("dialog"))).toBe(false);
   expect(apiWrites).toHaveLength(0);
 });
@@ -91,13 +91,13 @@ test("workspace navigation identifies the active page and Creator Studio lists t
   stubFetch();
   const { default: App } = await import("./App");
   render(<App />);
-  const nav = await screen.findByRole("navigation", { name: "Workspace" });
+  const nav = await screen.findByRole("navigation", { name: "Main navigation" });
   // The gate renders the shell at "/" first; its redirect to /workflows lands a tick later.
-  await waitFor(() => expect(within(nav).getByRole("link", { name: "Workflows" }).getAttribute("aria-current")).toBe("page"));
-  await userEvent.setup().click(within(nav).getByRole("link", { name: "Creator Studio" }));
+  await waitFor(() => expect(within(nav).getByRole("link", { name: "Runs" }).getAttribute("aria-current")).toBe("page"));
+  await userEvent.setup().click(within(nav).getByRole("link", { name: "Studio" }));
   expect(await screen.findByRole("button", { name: /Heading/ })).toBeDefined();
   expect(window.location.pathname).toBe("/studio");
-  expect(within(nav).getByRole("link", { name: "Creator Studio" }).getAttribute("aria-current")).toBe("page");
+  expect(within(nav).getByRole("link", { name: "Studio" }).getAttribute("aria-current")).toBe("page");
   expect(createCalls).toBe(0);
   expect(inspectBodies).toHaveLength(0);
 });
@@ -164,7 +164,7 @@ test("an unknown path lands on Workflows", async () => {
   window.history.replaceState(null, "", "/no-such-page");
   const { default: App } = await import("./App");
   render(<App />);
-  expect(await screen.findByRole("heading", { level: 1, name: "Workflows" })).toBeDefined();
+  expect(await screen.findByRole("heading", { level: 1, name: "Runs" })).toBeDefined();
   expect(window.location.pathname).toBe("/workflows");
 });
 
@@ -172,13 +172,13 @@ test("no page reaches the retired Rust server: only control-plane routes are req
   stubFetch();
   const { default: App } = await import("./App");
   render(<App />);
-  const nav = await screen.findByRole("navigation", { name: "Workspace" });
-  expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["Workflows", "Creator Studio", "Usage", "Billing", "Source Accounts"]);
+  const nav = await screen.findByRole("navigation", { name: "Main navigation" });
+  expect(within(nav).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/workflows", "/studio", "/usage", "/billing", "/accounts", "/settings/tokens"]);
   const user = userEvent.setup();
-  await user.click(within(nav).getByRole("link", { name: "Creator Studio" }));
+  await user.click(within(nav).getByRole("link", { name: "Studio" }));
   await screen.findByRole("button", { name: /Heading/ });
-  await user.click(within(nav).getByRole("link", { name: "Workflows" }));
-  await screen.findByRole("heading", { level: 1, name: "Workflows" });
+  await user.click(within(nav).getByRole("link", { name: "Runs" }));
+  await screen.findByRole("heading", { level: 1, name: "Runs" });
   expect(requested.length).toBeGreaterThan(0);
   expect(requested.filter((path) => !path.startsWith("/api/v1/") && path !== "/auth/me")).toEqual([]);
 });
@@ -189,7 +189,7 @@ for (const retired of ["/discovery", "/content-set", "/profiles", "/legacy"]) {
     window.history.replaceState(null, "", retired);
     const { default: App } = await import("./App");
     render(<App />);
-    expect(await screen.findByRole("heading", { level: 1, name: "Workflows" })).toBeDefined();
+    expect(await screen.findByRole("heading", { level: 1, name: "Runs" })).toBeDefined();
     expect(window.location.pathname).toBe("/workflows");
   });
 }
@@ -224,8 +224,8 @@ test("Source Accounts is only in the navigation of a platform admin", async () =
   stubFetch();
   const { default: App } = await import("./App");
   render(<App />);
-  expect(await screen.findByRole("heading", { level: 1, name: "Workflows" })).toBeDefined();
-  expect(Boolean(screen.queryByRole("link", { name: /Source Accounts/ }))).toBe(false);
+  expect(await screen.findByRole("heading", { level: 1, name: "Runs" })).toBeDefined();
+  expect(Boolean(screen.queryByRole("link", { name: /Accounts/ }))).toBe(false);
   cleanup();
   window.history.replaceState(null, "", "/accounts");
   render(<App />);

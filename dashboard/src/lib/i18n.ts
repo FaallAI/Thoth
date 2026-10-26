@@ -20,6 +20,7 @@ const en = {
   "nav.collapse": "Collapse the sidebar",
   "nav.expand": "Expand the sidebar",
   "nav.menu": "Menu",
+  "nav.skip": "Skip to content",
 
   "topbar.search": "Search runs, documents…",
   "topbar.inbox": "Inbox",
@@ -35,12 +36,21 @@ const en = {
   "avatar.language": "Language",
   "avatar.settings": "Settings",
   "avatar.signOut": "Sign out",
+  "avatar.signOutForget": "Sign out and forget this browser",
   "language.en": "English",
   "language.id": "Bahasa Indonesia",
 
   "project.all": "All projects",
   "project.switch": "Switch project",
   "project.current": "Project: {name}",
+  "project.label": "Project",
+  "project.first": "Create your first project",
+  "project.choose": "Select or create a project to begin.",
+  "project.hint": "Use “New project” in the project switcher.",
+
+  "page.proxies": "Proxies",
+  "page.tokens": "Developer tokens",
+  "page.platformOnly": "Source accounts are managed by the platform administrators.",
 
   "palette.title": "Go to",
   "palette.placeholder": "Go to a page, project, run or document…",
@@ -48,7 +58,9 @@ const en = {
   "palette.pages": "Pages",
   "palette.projects": "Projects",
   "palette.runs": "Recent runs",
-  "palette.documents": "Studio documents",
+  "palette.actions": "Actions",
+  "palette.switchLanguage": "Switch language",
+  "palette.footer": "↑ ↓ to move · ↵ to open · Esc to close",
 
   "status.queued": "Queued",
   "status.running": "Running",
@@ -137,6 +149,7 @@ const id: Messages = {
   "nav.collapse": "Ciutkan bilah samping",
   "nav.expand": "Bentangkan bilah samping",
   "nav.menu": "Menu",
+  "nav.skip": "Lewati ke konten",
 
   "topbar.search": "Cari run, dokumen…",
   "topbar.inbox": "Kotak masuk",
@@ -152,12 +165,21 @@ const id: Messages = {
   "avatar.language": "Bahasa",
   "avatar.settings": "Pengaturan",
   "avatar.signOut": "Keluar",
+  "avatar.signOutForget": "Keluar dan lupakan peramban ini",
   "language.en": "English",
   "language.id": "Bahasa Indonesia",
 
   "project.all": "Semua proyek",
   "project.switch": "Ganti proyek",
   "project.current": "Proyek: {name}",
+  "project.label": "Proyek",
+  "project.first": "Buat proyek pertama Anda",
+  "project.choose": "Pilih atau buat proyek untuk memulai.",
+  "project.hint": "Gunakan “Proyek baru” di pemilih proyek.",
+
+  "page.proxies": "Proxy",
+  "page.tokens": "Token developer",
+  "page.platformOnly": "Akun sumber dikelola oleh administrator platform.",
 
   "palette.title": "Buka",
   "palette.placeholder": "Buka halaman, proyek, run, atau dokumen…",
@@ -165,7 +187,9 @@ const id: Messages = {
   "palette.pages": "Halaman",
   "palette.projects": "Proyek",
   "palette.runs": "Run terbaru",
-  "palette.documents": "Dokumen Studio",
+  "palette.actions": "Aksi",
+  "palette.switchLanguage": "Ganti bahasa",
+  "palette.footer": "↑ ↓ pindah · ↵ buka · Esc tutup",
 
   "status.queued": "Antre",
   "status.running": "Berjalan",
