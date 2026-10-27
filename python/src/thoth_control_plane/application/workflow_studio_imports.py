@@ -15,6 +15,7 @@ import asyncio
 import contextlib
 import hashlib
 import logging
+import re
 from typing import Any, Literal, Protocol
 from uuid import uuid4
 
@@ -43,8 +44,11 @@ from thoth_control_plane.domain.models import Actor
 from thoth_control_plane.domain.studio_imports import (
     AttachImportAsset,
     ExcludeImportItem,
+    MaterialFigure,
     ResolveStudioImportItem,
     StudioImportInventory,
+    StudioMaterial,
+    StudioMaterials,
     StudioSourceInspection,
     WorkflowImportItem,
     WorkflowStudioImport,
@@ -173,6 +177,57 @@ class WorkflowStudioImportService:
         if run.project_id not in (None, project_id):
             raise WorkflowInOtherProject()
         return run
+
+    async def materials(self, project_id: str, document_id: str) -> StudioMaterials:
+        """The draft's inventory with its run's provenance; any gap degrades, never fails."""
+        inventory = await self._imports.get_inventory(project_id, document_id)
+        source = await self._readable_source(project_id, inventory.source_workflow_id)
+        provenance = source.provenance if source else {}
+        known = {item.item_id for item in inventory.items}
+        # Judged comments carry no media, so the inventory never lists them: they are quotes.
+        quotes = [
+            StudioMaterial(
+                item_id=item_id, role="comment", media_kind="none", disposition="excluded", **why
+            )
+            for item_id, why in provenance.items()
+            if re.fullmatch(r"comment_\d{3}", item_id) and item_id not in known
+        ]
+        return StudioMaterials(
+            document_id=document_id,
+            provenance_available=source is not None,
+            items=[
+                StudioMaterial(
+                    item_id=item.item_id,
+                    role=item.role,
+                    label=item.label,
+                    media_kind=item.media_kind,
+                    disposition=item.disposition,
+                    asset_id=item.asset_id,
+                    **{
+                        key: value
+                        for key, value in provenance.get(item.item_id, {}).items()
+                        if value is not None and key != "label"
+                    },
+                )
+                for item in inventory.items
+            ]
+            + quotes,
+            figures=[MaterialFigure(**figure) for figure in source.figures] if source else [],
+        )
+
+    async def _readable_source(
+        self, project_id: str, workflow_id: str | None
+    ) -> WorkflowProjection | None:
+        """The run's Content Set when the run still lives in this project (B9: any member)."""
+        if workflow_id is None or self._runs is None:
+            return None
+        try:
+            run = await asyncio.to_thread(self._runs.get, workflow_id)
+            if run is None or run.project_id != project_id:
+                return None
+            return (await self._source(workflow_id))[1]
+        except (ContentSetUnavailable, ContentSetInvalid, WorkflowStudioUnavailable):
+            return None
 
     async def _source(self, workflow_id: str) -> tuple[str, WorkflowProjection]:
         """The Content Set row is the only gate: the stored run status lags Temporal."""

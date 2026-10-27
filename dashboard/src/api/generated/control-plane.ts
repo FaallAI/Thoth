@@ -827,6 +827,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/studio-imports/documents/{document_id}/materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Studio Materials
+         * @description Story mode's Materials: the draft's inventory with its run's provenance (spec 2026-10-27,
+         *     6.1). Read on every call; a run or Content Set that is gone leaves the provenance out.
+         */
+        get: operations["get_studio_materials_api_v1_projects__project_id__studio_imports_documents__document_id__materials_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/studio-imports/inspect": {
         parameters: {
             query?: never;
@@ -2289,6 +2310,18 @@ export interface components {
              */
             start: string;
         };
+        /**
+         * MaterialFigure
+         * @description A person or organisation the run named: context for the editor, never media.
+         */
+        MaterialFigure: {
+            /** Name */
+            name: string;
+            /** Role */
+            role: string;
+            /** Type */
+            type: string;
+        };
         /** MeUpdate */
         MeUpdate: {
             /**
@@ -3708,6 +3741,8 @@ export interface components {
             revision: number;
             /** Source Key */
             source_key: string;
+            /** Source Workflow Id */
+            source_workflow_id?: string | null;
         };
         /**
          * StudioImportItem
@@ -3751,6 +3786,74 @@ export interface components {
             scene_id: string | null;
             /** Trim Start Seconds */
             trim_start_seconds?: number | null;
+        };
+        /**
+         * StudioMaterial
+         * @description One inventory item and, when the run's Content Set is readable, where it came from.
+         *
+         *     Provenance carries a host, never a full address, and never a storage location.
+         */
+        StudioMaterial: {
+            /** Asset Id */
+            asset_id?: string | null;
+            /** Author */
+            author?: string | null;
+            /**
+             * Disposition
+             * @enum {string}
+             */
+            disposition: "unresolved" | "attached" | "excluded";
+            /** Engagement */
+            engagement?: {
+                [key: string]: number;
+            } | null;
+            /** Host */
+            host?: string | null;
+            /** Item Id */
+            item_id: string;
+            /** Label */
+            label: string;
+            /** Likes */
+            likes?: number | null;
+            /**
+             * Media Kind
+             * @enum {string}
+             */
+            media_kind: "video" | "image" | "none";
+            /** Ocr Outcome */
+            ocr_outcome?: ("clean" | "cover" | "subtitle" | "overlay") | null;
+            /** Owner Handle */
+            owner_handle?: string | null;
+            /** Platform */
+            platform?: string | null;
+            /** Published At */
+            published_at?: string | null;
+            /** Query */
+            query?: string | null;
+            /** Role */
+            role: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment") | null;
+            /** Shows Object */
+            shows_object?: ("yes" | "partly") | null;
+            /** Story Score */
+            story_score?: number | null;
+            /** Trim Start Seconds */
+            trim_start_seconds?: number | null;
+            /** Verdict */
+            verdict?: ("original" | "replaced" | "unresolved" | "none") | null;
+        };
+        /**
+         * StudioMaterials
+         * @description Story mode's Materials panel (spec 2026-10-27, 6.1); read on every call, never stored.
+         */
+        StudioMaterials: {
+            /** Document Id */
+            document_id: string;
+            /** Figures */
+            figures?: components["schemas"]["MaterialFigure"][];
+            /** Items */
+            items: components["schemas"]["StudioMaterial"][];
+            /** Provenance Available */
+            provenance_available: boolean;
         };
         /**
          * StudioSourceInspection
@@ -6647,6 +6750,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentRevisionConflictBody"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_studio_materials_api_v1_projects__project_id__studio_imports_documents__document_id__materials_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudioMaterials"];
                 };
             };
             /** @description Validation Error */

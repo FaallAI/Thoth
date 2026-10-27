@@ -2572,6 +2572,31 @@
         "title": "MarginView",
         "type": "object"
       },
+      "MaterialFigure": {
+        "additionalProperties": false,
+        "description": "A person or organisation the run named: context for the editor, never media.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "role"
+        ],
+        "title": "MaterialFigure",
+        "type": "object"
+      },
       "MeUpdate": {
         "additionalProperties": false,
         "properties": {
@@ -6513,6 +6538,18 @@
             "pattern": "^[0-9a-f]{64}$",
             "title": "Source Key",
             "type": "string"
+          },
+          "source_workflow_id": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Workflow Id"
           }
         },
         "required": [
@@ -6694,6 +6731,281 @@
           "disposition"
         ],
         "title": "StudioImportItem",
+        "type": "object"
+      },
+      "StudioMaterial": {
+        "additionalProperties": false,
+        "description": "One inventory item and, when the run's Content Set is readable, where it came from.\n\nProvenance carries a host, never a full address, and never a storage location.",
+        "properties": {
+          "asset_id": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Id"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "disposition": {
+            "enum": [
+              "unresolved",
+              "attached",
+              "excluded"
+            ],
+            "title": "Disposition",
+            "type": "string"
+          },
+          "engagement": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engagement"
+          },
+          "host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Host"
+          },
+          "item_id": {
+            "title": "Item Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "likes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Likes"
+          },
+          "media_kind": {
+            "enum": [
+              "video",
+              "image",
+              "none"
+            ],
+            "title": "Media Kind",
+            "type": "string"
+          },
+          "ocr_outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "clean",
+                  "cover",
+                  "subtitle",
+                  "overlay"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocr Outcome"
+          },
+          "owner_handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Handle"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "enum": [
+                  "main",
+                  "main_footage",
+                  "slide",
+                  "post_card",
+                  "profile_page",
+                  "creator_footage",
+                  "creator_photo",
+                  "footage",
+                  "profile_card",
+                  "comment_card",
+                  "comment"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "shows_object": {
+            "anyOf": [
+              {
+                "enum": [
+                  "yes",
+                  "partly"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shows Object"
+          },
+          "story_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Story Score"
+          },
+          "trim_start_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trim Start Seconds"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "enum": [
+                  "original",
+                  "replaced",
+                  "unresolved",
+                  "none"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verdict"
+          }
+        },
+        "required": [
+          "item_id",
+          "role",
+          "label",
+          "media_kind",
+          "disposition"
+        ],
+        "title": "StudioMaterial",
+        "type": "object"
+      },
+      "StudioMaterials": {
+        "additionalProperties": false,
+        "description": "Story mode's Materials panel (spec 2026-10-27, 6.1); read on every call, never stored.",
+        "properties": {
+          "document_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "figures": {
+            "items": {
+              "$ref": "#/components/schemas/MaterialFigure"
+            },
+            "title": "Figures",
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StudioMaterial"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "provenance_available": {
+            "title": "Provenance Available",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "document_id",
+          "provenance_available",
+          "items"
+        ],
+        "title": "StudioMaterials",
         "type": "object"
       },
       "StudioSourceInspection": {
@@ -12972,6 +13284,71 @@
           }
         },
         "summary": "Resolve Studio Import Item"
+      }
+    },
+    "/api/v1/projects/{project_id}/studio-imports/documents/{document_id}/materials": {
+      "get": {
+        "description": "Story mode's Materials: the draft's inventory with its run's provenance (spec 2026-10-27,\n6.1). Read on every call; a run or Content Set that is gone leaves the provenance out.",
+        "operationId": "get_studio_materials_api_v1_projects__project_id__studio_imports_documents__document_id__materials_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioMaterials"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Studio Materials"
       }
     },
     "/api/v1/projects/{project_id}/studio-imports/inspect": {

@@ -619,3 +619,102 @@ async def test_overlay_items_stay_unresolved_until_the_main_attaches(tmp_path: P
     item = {item.item_id: item for item in opened.items}["comment_card_000"]
     assert (item.outcome, item.reason) == ("unresolved", "main_not_attached")
     assert not [d for d in imports.decisions if d[0] == "comment_card_000"]
+
+
+# Story mode materials (spec 2026-10-27, 6.1): the inventory joined with the run's provenance.
+
+
+def materialized() -> dict[str, Any]:
+    plain = {"text": "keren", "author": "fan", "likes": 9, "source": "input"}
+    data = carded()
+    data["main"].update(ocr=COVER, engagement={"likes": 10, "views": 200})
+    data["comments"].append(plain)
+    data["figures"] = [{"name": "Ani", "type": "person", "role": "warga", "description": "x"}]
+    data["figures_status"] = "ok"
+    return data
+
+
+@pytest.mark.asyncio
+async def test_materials_join_provenance(tmp_path: Path) -> None:
+    built = world(tmp_path, data=materialized())
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+
+    materials = await built.service.materials(PROJECT, opened.draft.document_id)
+
+    assert materials.provenance_available is True
+    items = {item.item_id: item for item in materials.items}
+    main = items["main_000"]
+    assert (main.platform, main.owner_handle, main.host, main.verdict) == (
+        "tiktok",
+        "creator",
+        "www.tiktok.com",
+        "none",
+    )
+    assert (main.ocr_outcome, main.trim_start_seconds) == ("cover", 1.0)
+    assert main.engagement == {"likes": 10, "views": 200}
+    footage = items["footage_001"]
+    assert (footage.query, footage.story_score, footage.shows_object) == (
+        "banjir jakarta",
+        0.61,
+        "yes",
+    )
+    assert (footage.owner_handle, footage.host) == ("kreator", "www.tiktok.com")
+    card = items["comment_card_000"]
+    assert (card.author, card.likes, card.media_kind) == ("viewer", 3, "image")
+    assert [(figure.name, figure.type, figure.role) for figure in materials.figures] == [
+        ("Ani", "person", "warga")
+    ]
+    # Only the host leaves the server: never a full address or a storage location.
+    assert (
+        "location" not in materials.model_dump_json()
+        and "/video/" not in materials.model_dump_json()
+    )
+
+
+@pytest.mark.asyncio
+async def test_comment_without_card_is_quote(tmp_path: Path) -> None:
+    built = world(tmp_path, data=materialized())
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+
+    materials = await built.service.materials(PROJECT, opened.draft.document_id)
+
+    quote = {item.item_id: item for item in materials.items}["comment_000"]
+    assert (quote.media_kind, quote.author, quote.likes) == ("none", "fan", 9)
+    assert quote.disposition != "attached"
+
+
+@pytest.mark.asyncio
+async def test_materials_without_content_set(tmp_path: Path) -> None:
+    built = world(tmp_path)
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+    built.service._reports = MemoryReports(None)  # the run's Content Set is gone
+
+    materials = await built.service.materials(PROJECT, opened.draft.document_id)
+
+    assert materials.provenance_available is False
+    assert {item.item_id for item in materials.items} == {"main_000", "footage_000", "footage_001"}
+    assert all(item.platform is None and item.story_score is None for item in materials.items)
+
+
+@pytest.mark.asyncio
+async def test_materials_without_source_run(tmp_path: Path) -> None:
+    built = world(tmp_path)
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+    for row in built.imports.rows:
+        row["source_workflow_id"] = None  # a draft made before B9 or from a blank document
+
+    materials = await built.service.materials(PROJECT, opened.draft.document_id)
+
+    assert materials.provenance_available is False
+    assert len(materials.items) == 3
+
+
+@pytest.mark.asyncio
+async def test_materials_other_project_run(tmp_path: Path) -> None:
+    built = world(tmp_path)
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+    built.runs.runs[WF] = dataclasses.replace(built.runs.runs[WF], project_id="project_999")
+
+    materials = await built.service.materials(PROJECT, opened.draft.document_id)
+
+    assert materials.provenance_available is False

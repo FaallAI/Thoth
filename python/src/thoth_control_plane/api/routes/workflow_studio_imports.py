@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from thoth_control_plane.api.dependencies import current_actor
 from thoth_control_plane.application.edit_documents import (
     IDEMPOTENCY_KEY_ADAPTER,
+    EditDocumentNotFound,
     EditorUnavailable,
 )
 from thoth_control_plane.application.ports import StudioImportConflict
@@ -20,13 +21,19 @@ from thoth_control_plane.application.workflow_studio_imports import (
 )
 from thoth_control_plane.application.workflows import WorkflowNotFound
 from thoth_control_plane.domain.models import Actor
-from thoth_control_plane.domain.studio_imports import StudioSourceInspection, WorkflowStudioImport
+from thoth_control_plane.domain.studio_imports import (
+    StudioMaterials,
+    StudioSourceInspection,
+    WorkflowStudioImport,
+)
 
 router = APIRouter()
 PATH = "/projects/{project_id}/workflows/{workflow_id}/studio-import"
+MATERIALS = "/projects/{project_id}/studio-imports/documents/{document_id}/materials"
 #: Each refusal and its fixed code, in the `{detail: {code}}` shape the Studio import routes use.
 REFUSALS: tuple[tuple[type[Exception], int, str | None], ...] = (
     (WorkflowNotFound, status.HTTP_404_NOT_FOUND, None),
+    (EditDocumentNotFound, status.HTTP_404_NOT_FOUND, None),
     (WorkflowInOtherProject, status.HTTP_409_CONFLICT, "workflow_in_other_project"),
     (ContentSetUnavailable, status.HTTP_409_CONFLICT, "content_set_unavailable"),
     (ContentSetInvalid, status.HTTP_409_CONFLICT, "content_set_invalid"),
@@ -81,6 +88,24 @@ async def open_workflow_in_studio(
         raise HTTPException(status_code=422, detail={"code": "invalid_idempotency_key"}) from error
     try:
         return await service.open(project_id, workflow_id, actor, idempotency_key)
+    except Exception as error:
+        refusal = _refused(error)
+        if refusal is None:
+            raise
+        raise refusal from error
+
+
+@router.get(MATERIALS, response_model=StudioMaterials)
+async def get_studio_materials(
+    project_id: str,
+    document_id: str,
+    _: Annotated[Actor, Depends(current_actor)],
+    service: Annotated[WorkflowStudioImportService, Depends(get_workflow_studio_service)],
+) -> StudioMaterials:
+    """Story mode's Materials: the draft's inventory with its run's provenance (spec 2026-10-27,
+    6.1). Read on every call; a run or Content Set that is gone leaves the provenance out."""
+    try:
+        return await service.materials(project_id, document_id)
     except Exception as error:
         refusal = _refused(error)
         if refusal is None:

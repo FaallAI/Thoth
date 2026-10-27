@@ -378,6 +378,7 @@ class PostgresStudioImportRepository:
                 StudioImportDraftRow.source_key,
                 StudioImportDraftRow.inventory,
                 _latest_revision(),
+                StudioImportDraftRow.source_workflow_id,
             ).where(
                 StudioImportDraftRow.project_id == project_id,
                 StudioImportDraftRow.document_id == document_id,
@@ -407,7 +408,11 @@ class PostgresStudioImportRepository:
             for item in INVENTORY_ADAPTER.validate_python(row[1])
         ]
         return StudioImportInventory(
-            document_id=document_id, source_key=row[0], revision=row[2], items=items
+            document_id=document_id,
+            source_key=row[0],
+            revision=row[2],
+            items=items,
+            source_workflow_id=row[3],
         )
 
 

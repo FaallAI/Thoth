@@ -86,6 +86,11 @@ async def test_a_workflow_opens_in_studio_on_the_real_tables(database: str, tmp_
     inventory = await imports.get_inventory(project, opened.draft.document_id)
     attached = {i.item_id: i.asset_id for i in inventory.items if i.disposition == "attached"}
     assert set(attached) == {"main_000", "footage_000", "footage_001"}
+    # Story mode reads the run's provenance through the draft's source run.
+    assert inventory.source_workflow_id == WF
+    materials = await service.materials(project, opened.draft.document_id)
+    assert materials.provenance_available is True
+    assert {item.item_id for item in materials.items} == {"main_000", "footage_000", "footage_001"}
     record = await assets.get_ready_record(project_id=project, asset_id=attached["main_000"])
     assert record is not None and record.provenance == "workflow_import"
     assert record.artifact_location == f"uploads/{project}/{attached['main_000']}.mp4"
