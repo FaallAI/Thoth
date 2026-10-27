@@ -111,7 +111,7 @@ test("keeps Back disabled for an unsaved draft and enables it only after save", 
     />,
   );
   const heading = await screen.findByLabelText("Heading");
-  const back = screen.getByRole("button", { name: "Back" }) as HTMLButtonElement;
+  const back = screen.getByRole("button", { name: "Back to Studio" }) as HTMLButtonElement;
 
   jest.useFakeTimers();
   expect(back.disabled).toBe(false);
@@ -153,7 +153,7 @@ test("keeps Back disabled until an in-flight offline save reconnects", async () 
     />,
   );
   const heading = await screen.findByLabelText("Heading");
-  const back = screen.getByRole("button", { name: "Back" }) as HTMLButtonElement;
+  const back = screen.getByRole("button", { name: "Back to Studio" }) as HTMLButtonElement;
 
   jest.useFakeTimers();
   fireEvent.change(heading, { target: { value: "Edited heading" } });

@@ -1032,3 +1032,19 @@ test("Studio offers no rename control it cannot honour", async () => {
   // Boolean(): a failing toBeNull() makes Bun print the whole element and crash (exit 127).
   expect(Boolean(screen.queryByRole("button", { name: "Rename document unavailable" }))).toBe(false);
 });
+
+test("the top bar reads in Indonesian", async () => {
+  const { GuidedStudio } = await import("./GuidedStudio");
+  const client = {
+    ...promptClientBase,
+    getEditDocument: mock(async () => document),
+    patchEditDocument: mock(async () => ({ kind: "saved" as const, document })),
+  };
+
+  render(<GuidedStudio client={client} projectId="project_001" documentId="document_001" onBack={() => {}} />, { locale: "id" });
+
+  expect(await screen.findByRole("button", { name: "Kembali ke Studio" })).toBeDefined();
+  expect(screen.getByText("Tersimpan")).toBeDefined();
+  expect(screen.getByRole("button", { name: "Urungkan" })).toBeDefined();
+  expect(within(screen.getByRole("navigation", { name: "Bagian Studio" })).getByRole("button", { name: "Tinjau" })).toBeDefined();
+});

@@ -15,7 +15,7 @@ export function StudioJobNav({ selected, onSelect }: { selected: StudioJob; onSe
           type="button"
           aria-current={selected === id ? "page" : undefined}
           onClick={() => onSelect(id)}
-          className="min-h-11 rounded-md px-3 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-accent aria-[current=page]:font-semibold"
+          className="min-h-11 px-3 text-sm text-muted-ink transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-copper aria-[current=page]:font-semibold aria-[current=page]:text-ink aria-[current=page]:shadow-[inset_0_-2px_0_var(--copper)]"
         >
           {t(`studio.job.${id}`)}
         </button>

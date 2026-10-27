@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { ArrowLeft, Feather, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, SlidersHorizontal } from "lucide-react";
 
 import type { ControlPlaneClient, EditDocument, EditDocumentOperation, EditorAsset } from "@/api/control-plane";
 import { useLocale } from "@/lib/locale";
@@ -334,139 +334,178 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
       });
   };
 
-  const statusLabel: Record<EditorState["saveStatus"], string> = {
-    saved: "Saved",
-    dirty: "Unsaved changes",
-    saving: "Saving",
-    failed: "Failed",
-    conflict: "Conflict",
-    offline: "Offline",
+  const saveDot: Record<EditorState["saveStatus"], string> = {
+    saved: "bg-status-done",
+    dirty: "bg-status-waiting",
+    saving: "bg-status-waiting animate-pulse",
+    failed: "bg-status-failed",
+    conflict: "bg-status-failed",
+    offline: "bg-status-idle",
   };
+  const banner = "flex flex-wrap items-center gap-3 border-b border-hairline px-4 py-2 text-sm";
 
   return (
     <section className={`studio-shell pen-studio studio-job-${job} ${advanced ? "studio-advanced" : "studio-simple"} flex min-h-0 flex-1 flex-col bg-background text-foreground`} aria-label="Guided Studio">
-      <header className="studio-topbar flex flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-2">
+      {/* DESIGN §13: back to the documents, the title, the destinations, and where saving stands. */}
+      <header className="studio-topbar relative flex min-h-14 flex-wrap items-center gap-x-4 gap-y-1 border-b border-hairline bg-bg px-4 py-1">
         <button
           type="button"
-          className={`studio-back ${toolbarButton}`}
+          className="inline-flex h-9 items-center gap-1.5 rounded-md px-2 text-sm text-muted-ink hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-copper disabled:cursor-not-allowed disabled:opacity-40"
           onClick={onBack}
           disabled={backDisabled}
+          aria-label={t("studio.editor.backLabel")}
           aria-describedby={backDisabled ? backDescriptionId : undefined}
         >
-          <ArrowLeft size={15} /> Back
+          <ArrowLeft aria-hidden="true" size={16} /> {t("studio.editor.back")}
         </button>
         <span id={backDescriptionId} className="sr-only">
-          Back is available after changes are saved and Studio is online.
+          {t("studio.editor.backDisabled")}
         </span>
-        <Feather className="studio-brand-icon" size={22} />
-        <strong className="studio-brand">Thoth</strong>
-        <span className="studio-title">Creator Studio</span>
-        <span className="studio-document-title" title={documentTitle ?? documentId}>{documentTitle ?? documentId}</span>
-        <StudioJobNav selected={job} onSelect={selectJob} />
+        <span aria-hidden="true" className="h-5 w-px bg-hairline" />
+        <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-ink md:max-w-[16rem] md:flex-none" title={documentTitle ?? documentId}>
+          {documentTitle ?? documentId}
+        </span>
+        <div className="flex min-w-0 flex-1 justify-center max-md:order-last max-md:basis-full">
+          <StudioJobNav selected={job} onSelect={selectJob} />
+        </div>
 
         {!compact && timeline ? (
-          <div role="group" aria-label="Editor mode" id={modeGroupId} className="studio-mode-switch flex gap-1">
+          <div role="group" aria-label={t("studio.editor.mode")} id={modeGroupId} className="flex rounded-md bg-well p-0.5">
             {(["simple", "advanced"] as const).map((mode) => (
               <button
                 key={mode}
                 type="button"
-                className={`${toolbarButton} ${state.mode === mode ? "bg-accent" : ""}`}
+                className="rounded px-2.5 py-1 text-[13px] text-muted-ink aria-[pressed=true]:bg-raised aria-[pressed=true]:text-ink focus-visible:outline-2 focus-visible:outline-copper"
                 aria-pressed={state.mode === mode}
                 onClick={() => dispatch({ type: "set_editor_mode", mode })}
               >
-                {mode === "simple" ? "Simple" : "Advanced"}
+                {t(mode === "simple" ? "studio.editor.simple" : "studio.editor.advanced")}
               </button>
             ))}
           </div>
         ) : null}
-        {!compact && !timeline ? <div className="studio-mode-switch" role="group" aria-label="Editor mode"><button type="button" aria-pressed="true">Simple</button><button type="button" disabled title="Enable the advanced timeline in Workspace controls to use this mode.">Advanced</button></div> : null}
-        {compact && ((timeline && state.mode === "advanced") || (!timeline && client.upgradeEditDocument)) ? (
-          <p className="text-xs text-muted-foreground">
-            {timeline
-              ? "Advanced timeline editing needs a desktop-width screen. Your Advanced workspace returns on a wider screen."
-              : "Enabling the advanced timeline needs a desktop-width screen."}
-          </p>
-        ) : null}
-        <div className="studio-save-status flex min-w-0 flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
-          {/* The document's own project, which the global project switcher may no longer show. */}
-          <span aria-live="polite">{statusLabel[state.saveStatus]}</span><span aria-hidden="true"> · rev {base.revision}</span>
-          <span className="sr-only">Saved revision {base.revision}</span>
-        </div>
-        <details className="studio-avatar-menu">
-          <summary className="studio-avatar" aria-label="Studio workspace menu">MF</summary>
-          <div className="studio-avatar-popover"><span>Project {projectName ?? base.project_id}</span>{workspaceControls ?? <p>Workspace switching is unavailable in this session.</p>}
-        <details className="studio-workspace-controls">
-        <summary aria-label="Workspace controls"><SlidersHorizontal size={16} /></summary>
-        <div className="studio-workspace-menu">
-        <button
-          type="button"
-          className={toolbarButton}
-          disabled={!state.history.length || state.inFlightOperationIds.length > 0 || upgrading}
-          onClick={() => dispatch({ type: "undo" })}
-        >
-          Undo
-        </button>
-        <button
-          type="button"
-          className={toolbarButton}
-          disabled={!state.future.length || state.inFlightOperationIds.length > 0 || upgrading}
-          onClick={() => dispatch({ type: "redo" })}
-        >
-          Redo
-        </button>
-        {!compact && !timeline && client.upgradeEditDocument ? (
-          <>
+        {!compact && !timeline ? (
+          <div className="flex rounded-md bg-well p-0.5" role="group" aria-label={t("studio.editor.mode")}>
+            <button type="button" aria-pressed="true" className="rounded bg-raised px-2.5 py-1 text-[13px] text-ink">
+              {t("studio.editor.simple")}
+            </button>
             <button
               type="button"
-              className={toolbarButton}
-              disabled={!canStartUpgrade(state)}
-              aria-describedby={canStartUpgrade(state) ? undefined : upgradeReasonId}
-              onClick={upgradeDocument}
+              disabled
+              title={t("studio.editor.advancedDisabled")}
+              className="rounded px-2.5 py-1 text-[13px] text-faint"
             >
-              Enable advanced timeline
+              {t("studio.editor.advanced")}
             </button>
-            <span id={upgradeReasonId} className="sr-only">
-              Enabling the advanced timeline is available once your changes are saved and Studio is online.
-            </span>
-            <span className="text-xs text-muted-foreground">
-              Your scenes, text, and history stay as they are.
-            </span>
-          </>
-        ) : null}
-        {compact || !editing ? null : (
-          <div className="flex flex-wrap items-center gap-3 px-2 text-xs text-muted-foreground" aria-label="Workspace layout">
-            {collapsible ? <>
-              <button type="button" className={toolbarButton} aria-expanded={sceneBoardOpen} aria-controls="studio-region-scenes" onClick={() => setSceneBoardOpen((open) => !open)}>Scene board panel</button>
-              <button type="button" className={toolbarButton} aria-expanded={inspectorOpen} aria-controls="studio-region-inspector" onClick={() => setInspectorOpen((open) => !open)}>Inspector panel</button>
-            </> : null}
-            {sceneRegionOpen && !stripLayout ? <><label htmlFor={sceneWidthId}>Scene board width</label><input id={sceneWidthId} type="range" min={12} max={22} step={1} value={sceneBoardWidth} onChange={(event) => setSceneBoardWidth(event.target.valueAsNumber)} /></> : null}
-            {inspectorRegionOpen ? <><label htmlFor={inspectorWidthId}>Inspector width</label><input id={inspectorWidthId} type="range" min={16} max={28} step={0.25} value={inspectorWidth} onChange={(event) => setInspectorWidth(event.target.valueAsNumber)} /></> : null}
           </div>
-        )}
+        ) : null}
+        {compact && ((timeline && state.mode === "advanced") || (!timeline && client.upgradeEditDocument)) ? (
+          <p className="text-xs text-muted-ink max-md:order-last">
+            {t(timeline ? "studio.editor.compactAdvanced" : "studio.editor.compactEnable")}
+          </p>
+        ) : null}
+        <div className="flex min-w-0 items-center gap-2 text-[13px] whitespace-nowrap text-muted-ink">
+          <span aria-hidden="true" className={`size-2 rounded-full ${saveDot[state.saveStatus]}`} />
+          {/* The document's own project, which the global project switcher may no longer show. */}
+          <span aria-live="polite">{t(`studio.editor.status.${state.saveStatus}`)}</span>
+          <span aria-hidden="true" className="font-mono text-faint max-md:hidden">
+            · {t("studio.editor.rev", { revision: base.revision })}
+          </span>
+          <span className="sr-only">{t("studio.editor.savedRevision", { revision: base.revision })}</span>
         </div>
-        </details>
-</div>
+        <details className="relative">
+          <summary
+            aria-label={t("studio.editor.menu")}
+            className="grid size-9 cursor-pointer list-none place-items-center rounded-md text-muted-ink hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-copper [&::-webkit-details-marker]:hidden"
+          >
+            <SlidersHorizontal aria-hidden="true" size={16} />
+          </summary>
+          <div className="absolute top-11 right-0 z-40 flex w-80 flex-col gap-3 rounded-[10px] border border-hairline bg-raised p-4 text-sm shadow-xl">
+            <span className="text-muted-ink">{t("studio.editor.project", { name: projectName ?? base.project_id })}</span>
+            {workspaceControls ?? <p className="text-muted-ink">{t("studio.editor.noSwitch")}</p>}
+            <div className="flex flex-wrap gap-2 border-t border-hairline pt-3">
+              <button
+                type="button"
+                className={toolbarButton}
+                disabled={!state.history.length || state.inFlightOperationIds.length > 0 || upgrading}
+                onClick={() => dispatch({ type: "undo" })}
+              >
+                {t("studio.editor.undo")}
+              </button>
+              <button
+                type="button"
+                className={toolbarButton}
+                disabled={!state.future.length || state.inFlightOperationIds.length > 0 || upgrading}
+                onClick={() => dispatch({ type: "redo" })}
+              >
+                {t("studio.editor.redo")}
+              </button>
+            </div>
+            {!compact && !timeline && client.upgradeEditDocument ? (
+              <div className="flex flex-col gap-1">
+                <button
+                  type="button"
+                  className={`${toolbarButton} self-start`}
+                  disabled={!canStartUpgrade(state)}
+                  aria-describedby={canStartUpgrade(state) ? undefined : upgradeReasonId}
+                  onClick={upgradeDocument}
+                >
+                  {t("studio.editor.enableAdvanced")}
+                </button>
+                <span id={upgradeReasonId} className="sr-only">
+                  {t("studio.editor.enableReason")}
+                </span>
+                <span className="text-xs text-muted-ink">{t("studio.editor.enableNote")}</span>
+              </div>
+            ) : null}
+            {compact || !editing ? null : (
+              <div className="flex flex-col gap-2 text-xs text-muted-ink" aria-label={t("studio.editor.layout")}>
+                {collapsible ? (
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" className={toolbarButton} aria-expanded={sceneBoardOpen} aria-controls="studio-region-scenes" onClick={() => setSceneBoardOpen((open) => !open)}>
+                      {t("studio.editor.scenePanel")}
+                    </button>
+                    <button type="button" className={toolbarButton} aria-expanded={inspectorOpen} aria-controls="studio-region-inspector" onClick={() => setInspectorOpen((open) => !open)}>
+                      {t("studio.editor.inspectorPanel")}
+                    </button>
+                  </div>
+                ) : null}
+                {sceneRegionOpen && !stripLayout ? (
+                  <>
+                    <label htmlFor={sceneWidthId}>{t("studio.editor.sceneWidth")}</label>
+                    <input id={sceneWidthId} type="range" min={12} max={22} step={1} value={sceneBoardWidth} onChange={(event) => setSceneBoardWidth(event.target.valueAsNumber)} />
+                  </>
+                ) : null}
+                {inspectorRegionOpen ? (
+                  <>
+                    <label htmlFor={inspectorWidthId}>{t("studio.editor.inspectorWidth")}</label>
+                    <input id={inspectorWidthId} type="range" min={16} max={28} step={0.25} value={inspectorWidth} onChange={(event) => setInspectorWidth(event.target.valueAsNumber)} />
+                  </>
+                ) : null}
+              </div>
+            )}
+          </div>
         </details>
       </header>
 
       {state.upgradeStatus === "failed" && (
-        <div role="alert" className="border-b border-destructive/50 bg-destructive/10 px-4 py-2 text-sm">
-          <p>Could not enable the advanced timeline. Your document is unchanged.</p>
+        <div role="alert" className={`${banner} bg-status-failed/10`}>
+          <p>{t("studio.editor.upgradeFailed")}</p>
         </div>
       )}
       {state.saveStatus === "failed" && (
-        <div role="alert" className="flex flex-wrap items-center gap-3 border-b border-destructive/50 bg-destructive/10 px-4 py-2 text-sm">
-          <p>Your edits are still here. Check your connection and retry saving.</p>
+        <div role="alert" className={`${banner} bg-status-failed/10`}>
+          <p>{t("studio.editor.saveFailed")}</p>
           <button type="button" className={toolbarButton} onClick={() => dispatch({ type: "retry_save" })}>
-            Retry
+            {t("studio.editor.retry")}
           </button>
         </div>
       )}
       {state.saveStatus === "conflict" && (
-        <div role="alert" className="flex flex-wrap items-center gap-3 border-b border-primary/40 bg-primary/10 px-4 py-2 text-sm">
-          <p>A newer version exists. Choose which work to continue with.</p>
+        <div role="alert" className={`${banner} bg-copper/10`}>
+          <p>{t("studio.editor.conflict")}</p>
           <button type="button" className={toolbarButton} onClick={() => dispatch({ type: "reload_latest" })}>
-            Reload Latest
+            {t("studio.editor.reloadLatest")}
           </button>
           <button
             type="button"
@@ -476,13 +515,13 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
               operationIdPrefix: `op_rebase_${makeOperationId()}`,
             })}
           >
-            Keep Editing Locally
+            {t("studio.editor.keepLocal")}
           </button>
         </div>
       )}
       {state.saveStatus === "offline" && (
-        <div role="status" className="flex flex-wrap items-center gap-3 border-b border-border bg-muted px-4 py-2 text-sm">
-          <p>Offline. Your edits are still here and will save when connection returns.</p>
+        <div role="status" className={`${banner} bg-surface`}>
+          <p>{t("studio.editor.offline")}</p>
         </div>
       )}
 
