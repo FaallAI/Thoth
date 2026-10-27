@@ -1,16 +1,20 @@
-import { useCallback, useEffect, useId, useReducer, useRef, useState } from "react";
-import { CheckCircle2, Film, Info } from "lucide-react";
+import { useCallback, useEffect, useId, useReducer, useRef, useState, type ReactNode } from "react";
+import { CircleAlert, CircleCheck, Film, Info, X } from "lucide-react";
 
 import {
   StudioImportRequestError,
   type ControlPlaneClient,
   type CreateRenderJobPayload,
-  type RenderCapability,
-  type RenderErrorCode,
   type RenderJob,
   type RenderJobStatus,
   type StudioImportInventory,
 } from "@/api/control-plane";
+import { StageStepper } from "@/components/RunProgress";
+import { Button } from "@/components/ui/button";
+import { formatDay, formatDuration, type MessageKey } from "@/lib/i18n";
+import { useLocale } from "@/lib/locale";
+import { useNow } from "@/lib/use-now";
+import { cn } from "@/lib/utils";
 
 import {
   canCancel,
@@ -23,7 +27,6 @@ import {
   selectedRenderJob,
   type ImportBlock,
   type RenderEditorFacts,
-  type RenderGateReason,
 } from "./render_job_state";
 
 /** Only the render half of the control plane: the panel can reach nothing else. */
@@ -41,8 +44,6 @@ export type RenderPanelClient = Pick<
   // A draft opened from a source also answers whether every source item is decided.
   Partial<Pick<ControlPlaneClient, "getStudioImportInventory">>;
 
-type RenderUnavailableReason = NonNullable<RenderCapability["reason"]>;
-type RenderFailureCode = NonNullable<RenderJob["failure_code"]>;
 
 /**
  * What the editor knows about whether the saved version can be rendered: the
@@ -84,79 +85,6 @@ const RUNNING_STATUSES: ReadonlySet<RenderJobStatus> = new Set([
   "finalizing",
 ]);
 
-const statusCopy: Record<RenderJobStatus, string> = {
-  preparing: "Preparing",
-  rendering: "Rendering",
-  finalizing: "Finalizing",
-  completed: "Completed",
-  failed: "Failed",
-  cancelled: "Cancelled",
-};
-
-const gateCopy: Record<RenderGateReason, string> = {
-  offline: "You are offline. Rendering resumes when the connection returns.",
-  saving: "Rendering starts once your changes finish saving.",
-  conflict: "A newer version exists. Resolve it before rendering.",
-  dirty: "Save your changes before rendering.",
-  document_invalid: "Fix the issues in your document before rendering.",
-  import_unresolved: "Resolve every source item before rendering.",
-  import_stale: "This draft changed elsewhere since this version. Reopen it to render the latest version.",
-  import_unknown: "The source import status could not be checked.",
-  renderer_unavailable: "Rendering is not available right now.",
-  render_busy: "Another render is already running.",
-  mutation_in_progress: "A render request is already in progress.",
-};
-
-const unavailableCopy: Record<RenderUnavailableReason, string> = {
-  renderer_not_configured: "Rendering is not set up on this installation.",
-  render_busy: "Another render is already running. You can start a new one when it finishes.",
-};
-
-/**
- * Every fixed code the client can end a request with, mapped to copy a person
- * can act on. Nothing else is representable, so no message, path, provider
- * detail, or exception can reach the screen through an error.
- */
-const errorCopy: Record<RenderErrorCode, string> = {
-  render_job_not_found: "That render is no longer available.",
-  render_busy: "A render is already running. Try again when it finishes.",
-  idempotency_conflict: "That request was already used for a different render.",
-  render_job_not_active: "That render has already finished.",
-  render_job_not_cancellable: "That render can no longer be cancelled.",
-  render_job_not_retryable: "That render cannot be retried.",
-  render_job_not_cleanable: "Those render files cannot be deleted.",
-  render_preparation_failed: "This version could not be prepared for rendering.",
-  render_import_unresolved: "Resolve every source item before rendering this draft.",
-  render_revision_stale: "This draft changed elsewhere. Reopen it to render the latest version.",
-  render_output_unavailable: "The rendered video is no longer available to download.",
-  invalid_render_cursor: "The render history could not be loaded.",
-  render_document_invalid: "This version cannot be rendered as it is.",
-  renderer_not_configured: "Rendering is not available on this installation.",
-  render_dispatch_failed: "The render could not be started. Try again.",
-  render_unavailable: "Rendering is unavailable right now. Try again later.",
-  render_request_failed: "Something went wrong. Try again.",
-  plan_limit_reached: "This month's video allowance is used up. Open Billing to choose a plan.",
-};
-
-/** How a render ended, in the same fixed-code spirit as the request errors. */
-const failureCopy: Record<RenderFailureCode, string> = {
-  render_asset_unavailable: "A file this render needs was not available.",
-  render_bundle_invalid: "This version could not be packaged for rendering.",
-  render_deadline_exceeded: "The render took too long and was stopped.",
-  render_dispatch_failed: "The render never started.",
-  render_engine_failed: "The renderer could not finish this video.",
-  render_output_invalid: "The rendered video did not come out usable.",
-  render_storage_failed: "The rendered video could not be saved.",
-  renderer_unavailable: "The renderer was unavailable while this render ran.",
-};
-
-const GENERIC_FAILURE = "The render did not finish.";
-
-function failureText(job: RenderJob): string {
-  const code = job.failure_code;
-  return (code && failureCopy[code as RenderFailureCode]) || GENERIC_FAILURE;
-}
-
 /**
  * Read the fixed code off a rejection and nothing else: the reducer narrows
  * whatever this returns, so an arbitrary throw becomes the generic code.
@@ -180,8 +108,22 @@ type RenderConfirmation = {
   presetId: string;
 };
 
-const actionButton =
-  "rounded-md border border-border px-3 py-1.5 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
+const FAILURES = new Set<string>([
+  "render_asset_unavailable",
+  "render_bundle_invalid",
+  "render_deadline_exceeded",
+  "render_dispatch_failed",
+  "render_engine_failed",
+  "render_output_invalid",
+  "render_storage_failed",
+  "renderer_unavailable",
+]);
+
+/** How a render ended, from its fixed code only; an unknown code reads as the generic line. */
+const failureKey = (job: RenderJob): MessageKey =>
+  job.failure_code && FAILURES.has(job.failure_code)
+    ? (`studio.render.failure.${job.failure_code}` as MessageKey)
+    : "studio.render.failure.generic";
 
 /**
  * The render context is one identity, not five props: a different project,
@@ -205,7 +147,6 @@ function RenderSurface({
   documentId,
   documentRevision,
   documentTitle,
-  canvas,
   templateId,
   templateVersion,
   facts,
@@ -214,6 +155,7 @@ function RenderSurface({
   onResolveImports,
   monitorOnly = false,
 }: Props) {
+  const { t, plural, locale } = useLocale();
   const [state, dispatch] = useReducer(renderJobReducer, undefined, createRenderJobState);
   // undefined while loading; null when the draft was not opened from a source.
   const [imports, setImports] = useState<StudioImportInventory | null | "failed">();
@@ -467,15 +409,15 @@ function RenderSurface({
   );
   const itemName = (item: (typeof unresolved)[number]) => {
     const scene = item.scene_id ? sceneOrder.indexOf(item.scene_id) : -1;
-    return scene < 0 ? item.label : `${item.label} · Scene ${scene + 1}`;
+    return scene < 0 ? item.label : t("studio.render.itemScene", { label: item.label, scene: scene + 1 });
   };
   // A structural problem is nameable, so the guidance says how many stand in
   // the way instead of repeating the generic invalid-document sentence.
   const gateText =
     gate.reason === "document_invalid" && blockingIssues > 0
-      ? `Fix ${blockingIssues} timeline issue${blockingIssues === 1 ? "" : "s"} before rendering.`
+      ? plural("studio.render.gate.issues", blockingIssues)
       : gate.reason
-        ? gateCopy[gate.reason]
+        ? t(`studio.render.gate.${gate.reason}`)
         : null;
   const offline = state.isOffline || !facts.online;
 
@@ -547,255 +489,386 @@ function RenderSurface({
     void runPlain("cleanup", () => client.cleanupRenderArtifacts(projectId, renderJobId));
   };
 
+  const running = selected !== null && RUNNING_STATUSES.has(selected.status);
+  const now = useNow(1_000, running);
+  const readinessId = useId();
+  const outputsId = useId();
+  const statusLabel = (status: RenderJobStatus) => t(`studio.render.status.${status}`);
+  const tag = locale === "id" ? "id-ID" : "en-US";
+  const size = (bytes: number) =>
+    bytes >= 1_000_000
+      ? new Intl.NumberFormat(tag, { style: "unit", unit: "megabyte", maximumFractionDigits: 1 }).format(bytes / 1_000_000)
+      : new Intl.NumberFormat(tag, { style: "unit", unit: "kilobyte", maximumFractionDigits: 0 }).format(bytes / 1_000);
+  const clock = (seconds: number) =>
+    `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}`;
+  const outputMeta = (job: RenderJob) =>
+    job.output
+      ? t("studio.render.outputMeta", {
+          width: job.output.width,
+          height: job.output.height,
+          size: size(job.output.size_bytes),
+          duration: clock(job.output.duration_seconds),
+        })
+      : null;
+  const when = (iso: string | null | undefined) => (iso && !Number.isNaN(Date.parse(iso)) ? formatDay(locale, iso) : "");
+  // ponytail: average speed since the job started, so preparation time lowers it slightly; sample deltas if it misleads.
+  const speed = (job: RenderJob) => {
+    if (!job.started_at || !job.rendered_frames) return null;
+    const seconds = (now.getTime() - Date.parse(job.started_at)) / 1_000;
+    return seconds > 0 ? job.rendered_frames / seconds : null;
+  };
+  const fps = selected ? speed(selected) : null;
+  const secondsLeft =
+    selected && running && fps && selected.total_frames && selected.rendered_frames !== null && selected.rendered_frames !== undefined
+      ? Math.max(0, (selected.total_frames - selected.rendered_frames) / fps)
+      : null;
+  // The renderer reports which stage it is in; a job that has not said yet is preparing.
+  const STAGES = ["preparing", "rendering", "encoding", "uploading"] as const;
+  const stageNames = {
+    preparing: "studio.render.step.prepare",
+    rendering: "studio.render.step.frames",
+    encoding: "studio.render.step.encode",
+    uploading: "studio.render.step.upload",
+  } as const;
+  const steps = (job: RenderJob) => {
+    const at = STAGES.indexOf(job.render_stage ?? (job.status === "finalizing" ? "uploading" : job.status === "rendering" ? "rendering" : "preparing"));
+    return STAGES.map((stage, index) => {
+      const detail =
+        stage === "rendering" && index <= at && job.rendered_frames != null && job.total_frames
+          ? fps && index === at
+            ? t("studio.render.step.framesLine", { done: job.rendered_frames, total: job.total_frames, fps: Math.round(fps) })
+            : t("studio.render.step.framesCount", { done: job.rendered_frames, total: job.total_frames })
+          : stage === "encoding" && index === at && job.encoded_frames != null && job.total_frames
+            ? t("studio.render.step.framesCount", { done: job.encoded_frames, total: job.total_frames })
+            : undefined;
+      return {
+        id: stage,
+        label: t(stageNames[stage]),
+        status: index < at ? ("completed" as const) : index === at ? ("running" as const) : ("queued" as const),
+        started_at: index === at ? (job.started_at ?? null) : null,
+        finished_at: null,
+        detail,
+      };
+    });
+  };
+  const heading = (job: RenderJob) =>
+    RUNNING_STATUSES.has(job.status)
+      ? t("studio.render.heading.running", { revision: job.document_revision })
+      : t(`studio.render.heading.${job.status as "completed" | "failed" | "cancelled"}`, { revision: job.document_revision });
+  const card = "rounded-[10px] bg-surface p-6";
+  const check = (ok: boolean, label: string, detail: string | null, extra?: ReactNode) => (
+    <li className="flex gap-3 border-b border-hairline py-3 last:border-0">
+      {ok ? (
+        <CircleCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-status-done" />
+      ) : (
+        <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-status-failed" />
+      )}
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <p className="text-[15px] text-ink">{label}</p>
+        {ok ? <p className="text-[13px] text-muted-ink">{t("studio.render.check.passed")}</p> : detail ? <p className="text-[13px] text-muted-ink">{detail}</p> : null}
+        {extra}
+      </div>
+    </li>
+  );
+
   return (
-    <section className="studio-render-workspace flex flex-col gap-3 border-t border-border px-4 py-3" aria-label="Render">
-      <div className="studio-render-preparation">
-      <header><span className="studio-render-eyebrow">Final output</span><h2>Render your video</h2><p>Create a downloadable video from the saved version of {documentTitle ?? documentId}.</p></header>
-      <div className="studio-render-revision"><div><strong>{documentTitle ?? documentId}</strong><p>Saved revision {documentRevision} · {templateId} v{templateVersion}</p></div><span><CheckCircle2 size={14} />{facts.saveStatus === "saved" ? "Saved" : "Saved version"}</span></div>
-      <div className="studio-render-source-card">
-        <div className="studio-render-thumbnail"><Film size={32} /><strong>{documentTitle ?? documentId}</strong><span>Saved version</span>{canvas ? <small>{canvas.width} × {canvas.height}</small> : null}</div>
-        <div className="studio-render-source-details"><h3>Ready to render</h3><p>Rendering uses saved revision {documentRevision}.</p><dl>{state.capability?.preset_id ? <div><dt>Format</dt><dd>{state.capability.preset_id}</dd></div> : null}<div><dt>Canvas</dt><dd>{canvas ? `${canvas.width} × ${canvas.height}` : "—"}</dd></div><div><dt>Duration</dt><dd>{canvas ? `${(canvas.duration_in_frames / canvas.fps).toFixed(1)}s` : "—"}</dd></div><div><dt>Frame rate</dt><dd>{canvas ? `${canvas.fps} fps` : "—"}</dd></div></dl>
-      <div className="flex flex-wrap items-center gap-2">
+    <section
+      className="studio-render-workspace grid min-w-0 grid-cols-[minmax(0,1fr)] gap-6 p-4 text-ink md:p-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]"
+      aria-label={t("studio.render.title")}
+    >
+      <section aria-labelledby={readinessId} className={cn(card, "flex flex-col gap-4 self-start")}>
+        <header>
+          <h2 id={readinessId} className="text-lg font-semibold">
+            {t("studio.render.readiness")}
+          </h2>
+          <p className="mt-1 text-sm text-muted-ink">{documentTitle ?? t("studio.render.readinessIntro", { revision: documentRevision })}</p>
+        </header>
+        <ul className="flex flex-col">
+          {check(facts.saveStatus === "saved", t("studio.render.check.saved", { revision: documentRevision }), t("studio.render.check.savedNo"))}
+          {check(
+            !importBlock,
+            t("studio.render.check.media"),
+            null,
+            importBlock ? (
+              <div role="status" aria-label="Source import" className="mt-1 flex flex-col gap-2 text-sm">
+                <p className="text-status-failed">
+                  {importBlock === "import_unresolved"
+                    ? plural("studio.render.resolveCount", unresolved.length)
+                    : t(`studio.render.gate.${importBlock}`)}
+                </p>
+                {importBlock === "import_unresolved" ? (
+                  <ul className="list-disc pl-5 text-[13px] text-muted-ink">
+                    {unresolved.map((item) => (
+                      <li key={item.item_id}>{itemName(item)}</li>
+                    ))}
+                  </ul>
+                ) : null}
+                <div>
+                  {importBlock === "import_unknown" ? (
+                    <Button variant="secondary" size="sm" disabled={offline} onClick={() => void load()}>
+                      {t("studio.render.checkAgain")}
+                    </Button>
+                  ) : onResolveImports ? (
+                    // Leaving remounts Studio from the server, so only a saved draft may go.
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={offline || facts.saveStatus !== "saved"}
+                      onClick={onResolveImports}
+                    >
+                      {t(importBlock === "import_stale" ? "studio.render.reopen" : "studio.render.resolve")}
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            ) : undefined,
+          )}
+          {check(
+            validation.textValid && blockingIssues === 0,
+            t("studio.render.check.document"),
+            t("studio.render.check.documentNo"),
+          )}
+          {check(
+            state.capability?.available === true,
+            t("studio.render.check.renderer"),
+            null,
+            state.capability === null ? (
+              <p className="text-[13px] text-muted-ink">{t("studio.render.check.rendererLoading")}</p>
+            ) : !state.capability.available && state.capability.reason ? (
+              <p role="status" className="text-[13px] text-muted-ink">
+                {t(`studio.render.unavailable.${state.capability.reason}`)}
+              </p>
+            ) : undefined,
+          )}
+        </ul>
         {monitorOnly ? (
-          <p className="text-xs text-muted-foreground">
-            Starting, retrying, cancelling, and deleting renders need a wider screen.
-          </p>
+          <p className="text-[13px] text-muted-ink">{t("studio.render.monitorOnly")}</p>
         ) : (
-          <button
-            type="button"
-            className={actionButton}
+          <Button
+            size="lg"
+            className="w-full"
             disabled={!gate.allowed}
             aria-describedby={gateText !== null ? gateReasonId : undefined}
             onClick={openConfirm}
           >
-            Render video
-          </button>
+            {t("studio.render.start", { revision: documentRevision })}
+          </Button>
         )}
         {!monitorOnly && gateText !== null ? (
-          <span id={gateReasonId} className="sr-only">
-            {gateText}
-          </span>
-        ) : null}
-        {state.capability === null ? (
-          <span className="text-xs text-muted-foreground">Loading render options…</span>
-        ) : null}
-      </div>
-
-      {state.capability !== null && !state.capability.available && state.capability.reason ? (
-        <p role="status" className="text-sm text-muted-foreground">
-          {unavailableCopy[state.capability.reason]}
-        </p>
-      ) : null}
-
-      {monitorOnly && offline ? (
-        <p role="status" className="text-sm text-muted-foreground">
-          You are offline. Render status updates when the connection returns.
-        </p>
-      ) : null}
-
-      {importBlock ? (
-        <div
-          role="status"
-          aria-label="Source import"
-          className="flex flex-col gap-2 rounded-md border border-border p-3 text-sm"
-        >
-          <p>
-            {importBlock === "import_unresolved"
-              ? `Resolve ${unresolved.length} source item${unresolved.length === 1 ? "" : "s"} before rendering.`
-              : gateCopy[importBlock]}
+          <p className="flex items-start gap-2 text-[13px] text-muted-ink">
+            <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+            <span id={gateReasonId}>{gateText}</span>
           </p>
-          {importBlock === "import_unresolved" ? (
-            <ul className="list-disc pl-5 text-xs text-muted-foreground">
-              {unresolved.map((item) => (
-                <li key={item.item_id}>{itemName(item)}</li>
-              ))}
-            </ul>
-          ) : null}
-          <div>
-            {importBlock === "import_unknown" ? (
-              <button type="button" className={actionButton} disabled={offline} onClick={() => void load()}>
-                Check again
-              </button>
-            ) : onResolveImports ? (
-              // Leaving remounts Studio from the server, so only a saved draft may go.
-              <button
-                type="button"
-                className={actionButton}
-                disabled={offline || facts.saveStatus !== "saved"}
-                onClick={onResolveImports}
+        ) : null}
+        {monitorOnly && offline ? (
+          <p role="status" className="text-sm text-muted-ink">
+            {t("studio.render.monitorOffline")}
+          </p>
+        ) : null}
+        {state.lastError !== null ? (
+          <p role="alert" className="text-sm text-status-failed">
+            {t(`studio.render.error.${state.lastError}`)}
+          </p>
+        ) : null}
+        {state.lastError === "plan_limit_reached" ? (
+          <a className="text-sm text-accent underline" href="/billing">
+            {t("studio.render.openBilling")}
+          </a>
+        ) : null}
+        {!monitorOnly && confirmCreate ? (
+          <div role="group" aria-labelledby={confirmTitleId} className="flex flex-col gap-3 rounded-[10px] border border-hairline bg-raised p-4 text-sm">
+            <h3 id={confirmTitleId} className="font-semibold">
+              {t("studio.render.confirm.title")}
+            </h3>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[13px] text-muted-ink">
+              <dt>{t("studio.render.confirm.project")}</dt>
+              <dd className="truncate font-mono">{confirmCreate.projectId}</dd>
+              <dt>{t("studio.render.confirm.document")}</dt>
+              <dd className="truncate font-mono">{confirmCreate.documentId}</dd>
+              <dt>{t("studio.render.confirm.revision")}</dt>
+              <dd className="font-mono">{confirmCreate.documentRevision}</dd>
+              <dt>{t("studio.render.confirm.template")}</dt>
+              <dd className="font-mono">
+                {confirmCreate.templateId} v{confirmCreate.templateVersion}
+              </dd>
+              <dt>{t("studio.render.confirm.preset")}</dt>
+              <dd className="font-mono">{confirmCreate.presetId}</dd>
+            </dl>
+            <p className="text-[13px] text-muted-ink">{t("studio.render.confirm.note")}</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setConfirmCreate(null)}>
+                {t("studio.render.confirm.keep")}
+              </Button>
+              <Button size="sm" onClick={startCreate}>
+                {t("studio.render.confirm.start")}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+        <p className="flex items-start gap-2 text-[13px] text-faint">
+          <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+          {t("studio.render.scope")}
+        </p>
+      </section>
+
+      <div className="flex min-w-0 flex-col gap-8">
+        {selected ? (
+          <div className="flex flex-col gap-4" aria-label={t("studio.render.current")}>
+            <header className="flex flex-wrap items-center gap-3">
+              <h2 className="text-lg font-semibold">{heading(selected)}</h2>
+              <p
+                role="status"
+                className="inline-flex h-6 items-center gap-1.5 rounded-full bg-raised px-2.5 text-[13px] font-medium text-ink"
               >
-                {importBlock === "import_stale" ? "Reopen draft" : "Resolve source items"}
-              </button>
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "size-2 rounded-full",
+                    running
+                      ? "animate-pulse bg-status-running"
+                      : selected.status === "completed"
+                        ? "bg-status-done"
+                        : selected.status === "failed"
+                          ? "bg-status-failed"
+                          : "bg-status-idle",
+                  )}
+                />
+                {statusLabel(selected.status)}
+                {typeof selected.progress_percent === "number" ? ` · ${selected.progress_percent}%` : ""}
+              </p>
+              {secondsLeft !== null ? (
+                <span className="ml-auto text-sm text-muted-ink">
+                  {t("studio.render.left", { time: formatDuration(locale, secondsLeft) })}
+                </span>
+              ) : null}
+            </header>
+            {running && typeof selected.progress_percent === "number" ? (
+              <div className="h-1 overflow-hidden rounded-full bg-raised" aria-hidden="true">
+                <div className="h-full bg-status-running" style={{ width: `${selected.progress_percent}%` }} />
+              </div>
+            ) : null}
+            {running ? <StageStepper label={t("studio.render.stepsLabel")} now={now} stages={steps(selected)} /> : null}
+            {selected.status === "failed" ? (
+              <p className="text-sm text-status-failed">{t(failureKey(selected))}</p>
+            ) : null}
+            {selected.status === "completed" && outputMeta(selected) ? (
+              <p className="text-sm text-muted-ink">{outputMeta(selected)}</p>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              {canDownload(selected) ? (
+                <Button disabled={state.mutation !== null || offline} onClick={() => startDownload(selected)}>
+                  {t("studio.render.download")}
+                </Button>
+              ) : null}
+              {!monitorOnly && selected.status === "completed" ? (
+                <Button variant="secondary" disabled={!gate.allowed} onClick={openConfirm}>
+                  {t("studio.render.again")}
+                </Button>
+              ) : null}
+              {!monitorOnly && canCancel(selected) ? (
+                <Button variant="secondary" disabled={state.mutation !== null || offline} onClick={() => startCancel(selected)}>
+                  {t("studio.render.cancel")}
+                </Button>
+              ) : null}
+              {!monitorOnly && canRetry(selected) ? (
+                <Button variant="secondary" disabled={!gate.allowed} onClick={() => startRetry(selected)}>
+                  {t("studio.render.retry")}
+                </Button>
+              ) : null}
+              {!monitorOnly && canCleanup(selected) ? (
+                <Button
+                  variant="ghost"
+                  disabled={state.mutation !== null || offline}
+                  onClick={() => {
+                    if (offlineRef.current) return;
+                    setConfirmCleanup(selected.render_job_id);
+                  }}
+                >
+                  {t("studio.render.delete")}
+                </Button>
+              ) : null}
+            </div>
+            {!monitorOnly && confirmCleanup !== null ? (
+              <div
+                role="group"
+                aria-label={t("studio.render.delete")}
+                className="flex flex-col gap-3 rounded-[10px] bg-status-failed/10 p-4 text-sm"
+              >
+                <p>{t("studio.render.cleanup.note")}</p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={state.mutation !== null || offline}
+                    onClick={() => startCleanup(confirmCleanup)}
+                  >
+                    {t("studio.render.cleanup.delete")}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setConfirmCleanup(null)}>
+                    {t("studio.render.cleanup.keep")}
+                  </Button>
+                </div>
+              </div>
             ) : null}
           </div>
-        </div>
-      ) : null}
-
-      {state.lastError !== null ? (
-        <p role="alert" className="text-sm text-destructive">
-          {errorCopy[state.lastError]}
-        </p>
-      ) : null}
-      {state.lastError === "plan_limit_reached" ? (
-        <a className="text-sm underline" href="/billing">Open Billing</a>
-      ) : null}
-
-      </div></div>
-      <p className="studio-render-scope"><Info size={15} />Rendering creates an output file. It does not publish the video.</p>
-      </div>
-      <aside className="studio-render-activity">
-      <header><span className="studio-render-eyebrow">Render activity</span><h2>Output queue</h2><p>Track rendering and download completed videos here.</p></header>
-      <h3 className="studio-render-section-heading">Current render</h3>
-      {!selected ? <div className="studio-render-no-current"><Film size={20} /><strong>No active render</strong><p>Start a render from the saved version when you are ready.</p></div> : null}
-
-      {selected ? (
-        <div className="flex flex-col gap-2" aria-label="Current render">
-          <p role="status" className="text-sm">
-            {statusCopy[selected.status]}
-            {typeof selected.progress_percent === "number"
-              ? ` · ${selected.progress_percent}%`
-              : ""}
-          </p>
-          {selected.status === "failed" ? (
-            <p className="text-sm text-muted-foreground">{failureText(selected)}</p>
-          ) : null}
-          <div className="flex flex-wrap gap-2">
-            {!monitorOnly && canCancel(selected) ? (
-              <button
-                type="button"
-                className={actionButton}
-                disabled={state.mutation !== null || offline}
-                onClick={() => startCancel(selected)}
-              >
-                Cancel render
-              </button>
-            ) : null}
-            {!monitorOnly && canRetry(selected) ? (
-              <button
-                type="button"
-                className={actionButton}
-                disabled={!gate.allowed}
-                onClick={() => startRetry(selected)}
-              >
-                Retry render
-              </button>
-            ) : null}
-            {canDownload(selected) ? (
-              <button
-                type="button"
-                className={actionButton}
-                disabled={state.mutation !== null || offline}
-                onClick={() => startDownload(selected)}
-              >
-                Download video
-              </button>
-            ) : null}
-            {!monitorOnly && canCleanup(selected) ? (
-              <button
-                type="button"
-                className={actionButton}
-                disabled={state.mutation !== null || offline}
-                onClick={() => {
-                  if (offlineRef.current) return;
-                  setConfirmCleanup(selected.render_job_id);
-                }}
-              >
-                Delete render files
-              </button>
-            ) : null}
+        ) : (
+          <div className="flex flex-col items-center gap-2 rounded-[10px] bg-surface px-6 py-12 text-center">
+            <Film aria-hidden="true" className="size-6 text-faint" />
+            <p className="font-medium">{t("studio.render.noActive")}</p>
+            <p className="text-sm text-muted-ink">{t("studio.render.noActiveHint")}</p>
           </div>
-        </div>
-      ) : null}
+        )}
 
-      <div className="studio-render-lifecycle"><h3>What happens next</h3>{[["Preparing", "Checks the saved document and source media."], ["Rendering", "Creates the video from this saved revision."], ["Finalizing", "Prepares the output for download."]].map(([label, description], index) => <div key={label}><span>{index + 1}</span><p><strong>{label}</strong><small>{description}</small></p></div>)}</div>
-      <h3 className="studio-render-section-heading">Render history</h3>
-      {!state.history.length ? <p className="studio-render-history-empty">Your completed and failed renders will appear here.</p> : null}
-      <ol className="flex flex-col gap-1" aria-label="Render history">
-        {state.history.map((entry) => (
-          <li key={entry.render_job_id}>
-            <button
-              type="button"
-              className="w-full rounded-md px-2 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label={`Render started ${entry.created_at}, ${statusCopy[entry.status]}`}
-              aria-current={entry.render_job_id === state.selectedJobId}
-              onClick={() =>
-                dispatch({ type: "job_selected", renderJobId: entry.render_job_id })
-              }
-            >
-              {statusCopy[entry.status]} · {entry.created_at}
-            </button>
-          </li>
-        ))}
-      </ol>
-      </aside>
-
-      {!monitorOnly && confirmCreate ? (
-        <div
-          role="group"
-          aria-labelledby={confirmTitleId}
-          className="flex flex-col gap-2 rounded-md border border-border bg-card p-3 text-sm"
-        >
-          <h3 id={confirmTitleId} className="font-medium">
-            Render this version?
+        <section aria-labelledby={outputsId} className="flex flex-col gap-2">
+          <h3 id={outputsId} className="text-[13px] font-semibold tracking-[0.06em] text-muted-ink uppercase">
+            {t("studio.render.outputs")}
           </h3>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 text-xs text-muted-foreground">
-            <dt>Project</dt>
-            <dd className="font-mono">{confirmCreate.projectId}</dd>
-            <dt>Document</dt>
-            <dd className="font-mono">{confirmCreate.documentId}</dd>
-            <dt>Revision</dt>
-            <dd className="font-mono">{confirmCreate.documentRevision}</dd>
-            <dt>Template</dt>
-            <dd className="font-mono">
-              {confirmCreate.templateId} v{confirmCreate.templateVersion}
-            </dd>
-            <dt>Preset</dt>
-            <dd className="font-mono">{confirmCreate.presetId}</dd>
-          </dl>
-          <p className="text-xs text-muted-foreground">
-            This renders the saved version exactly as it is now.
-          </p>
-          <div className="flex gap-2">
-            <button type="button" className={actionButton} onClick={startCreate}>
-              Start render
-            </button>
-            <button
-              type="button"
-              className={actionButton}
-              onClick={() => setConfirmCreate(null)}
-            >
-              Keep editing
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {!monitorOnly && confirmCleanup !== null ? (
-        <div
-          role="group"
-          aria-label="Delete render files"
-          className="flex flex-col gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm"
-        >
-          <p>This permanently deletes the rendered video. It cannot be undone.</p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className={actionButton}
-              disabled={state.mutation !== null || offline}
-              onClick={() => startCleanup(confirmCleanup)}
-            >
-              Delete files
-            </button>
-            <button
-              type="button"
-              className={actionButton}
-              onClick={() => setConfirmCleanup(null)}
-            >
-              Keep files
-            </button>
-          </div>
-        </div>
-      ) : null}
+          {!state.history.length ? <p className="text-sm text-muted-ink">{t("studio.render.noOutputs")}</p> : null}
+          <ol className="flex flex-col divide-y divide-hairline" aria-label={t("studio.render.history")}>
+            {state.history.map((entry) => {
+              const output = entry.status === "completed" ? entry.output : null;
+              return (
+                <li key={entry.render_job_id}>
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-md px-2 py-3 text-left transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-accent",
+                      entry.render_job_id === state.selectedJobId && "bg-surface",
+                    )}
+                    aria-label={t("studio.render.historyItem", { when: entry.created_at, status: statusLabel(entry.status) })}
+                    aria-current={entry.render_job_id === state.selectedJobId}
+                    onClick={() => dispatch({ type: "job_selected", renderJobId: entry.render_job_id })}
+                  >
+                    <span className="flex h-12 w-9 shrink-0 items-center justify-center rounded-md bg-raised">
+                      {entry.status === "failed" ? (
+                        <X aria-hidden="true" className="size-4 text-status-failed" />
+                      ) : (
+                        <Film aria-hidden="true" className="size-4 text-faint" />
+                      )}
+                    </span>
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate text-[15px] text-ink">
+                        {output
+                          ? t("studio.render.rowOutput", { revision: entry.document_revision, width: output.width, height: output.height })
+                          : t("studio.render.rowTitle", { revision: entry.document_revision, status: statusLabel(entry.status) })}
+                      </span>
+                      <span className={cn("truncate text-[13px]", entry.status === "failed" ? "text-status-failed" : "text-muted-ink")}>
+                        {[
+                          output ? `${size(output.size_bytes)} · ${clock(output.duration_seconds)}` : null,
+                          entry.status === "failed" ? t(failureKey(entry)) : null,
+                          when(entry.created_at),
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      </div>
     </section>
   );
 }

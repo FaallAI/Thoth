@@ -823,7 +823,7 @@ test("offers render controls only where the control plane supports rendering", a
     <GuidedStudio client={base} projectId="project_001" documentId="document_001" onBack={() => {}} />,
   );
   expect(await screen.findByLabelText("Heading")).toBeDefined();
-  expect(screen.queryByRole("button", { name: "Render video" })).toBeNull();
+  expect(screen.queryByRole("button", { name: /^Render revision \d+$/ })).toBeNull();
   unmount();
 
   render(
@@ -836,7 +836,7 @@ test("offers render controls only where the control plane supports rendering", a
   );
   expect(await screen.findByLabelText("Heading")).toBeDefined();
   job("Render");
-  expect(await screen.findByRole("button", { name: "Render video" })).toBeDefined();
+  expect(await screen.findByRole("button", { name: /^Render revision \d+$/ })).toBeDefined();
   // The editor, Prompt job, and preview are untouched by the new surface.
   expect(screen.getByLabelText("Heading")).toBeDefined();
   expect(jobButton("Prompt")).toBeDefined();
@@ -857,7 +857,7 @@ test("an unsaved draft cannot be rendered and says so", async () => {
   );
   const heading = await screen.findByLabelText("Heading");
   job("Render");
-  const button = await screen.findByRole("button", { name: "Render video" });
+  const button = await screen.findByRole("button", { name: /^Render revision \d+$/ });
   expect(button).toHaveProperty("disabled", false);
 
   fireEvent.change(heading, { target: { value: "Edited heading" } });
@@ -910,7 +910,7 @@ test("a saved revision is what gets rendered, and the draft never leaves the edi
   await waitFor(() => expect(client.listRenderJobs).toHaveBeenCalledTimes(2));
 
   job("Render");
-  fireEvent.click(screen.getByRole("button", { name: "Render video" }));
+  fireEvent.click(screen.getByRole("button", { name: /^Render revision \d+$/ }));
   const confirmation = screen.getByRole("group", { name: "Render this version?" });
   expect(confirmation.textContent).not.toContain("Edited heading");
   await act(async () => {
@@ -945,7 +945,7 @@ test("the render confirmation names the template the saved document carries", as
   );
   await screen.findByLabelText("Draft preview");
   job("Render");
-  const button = await screen.findByRole("button", { name: "Render video" });
+  const button = await screen.findByRole("button", { name: /^Render revision \d+$/ });
   await waitFor(() => expect(button).toHaveProperty("disabled", false));
   fireEvent.click(button);
 
@@ -978,7 +978,7 @@ test("a blocking timeline issue stops a render whose text is valid", async () =>
   );
   await screen.findByLabelText("Draft preview");
   job("Render");
-  const button = await screen.findByRole("button", { name: "Render video" });
+  const button = await screen.findByRole("button", { name: /^Render revision \d+$/ });
 
   expect(button).toHaveProperty("disabled", true);
   const reason = button.getAttribute("aria-describedby");

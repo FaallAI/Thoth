@@ -87,7 +87,8 @@ function seconds(from: string, to: Date): number {
 }
 
 /** The line under a stage: its current or last step, why it was skipped, or "not started". */
-function stageLine(locale: "en" | "id", t: (key: MessageKey) => string, stage: Stage): string {
+function stageLine(locale: "en" | "id", t: (key: MessageKey) => string, stage: Stage & { detail?: string }): string {
+  if (stage.detail) return stage.detail;
   if (stage.status === "skipped" && stage.skip_reason) return t(`skip.${stage.skip_reason}`);
   if (stage.current_step) {
     return stepText(locale, stage.current_step, stage.status !== "running" && stage.status !== "waiting");
@@ -107,7 +108,8 @@ export function StageStepper({
   now,
   label,
 }: {
-  stages: Stage[];
+  /** `detail` replaces the stage's one-line step, for progress the step catalogue does not cover. */
+  stages: (Stage & { detail?: string })[];
   variant?: "vertical" | "compact";
   /** The list's name for assistive tech; a run's progress by default. */
   label?: string;

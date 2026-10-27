@@ -174,45 +174,7 @@
 .studio-shell.pen-studio.studio-job-review .studio-preview-hint { display:none; }
 .studio-shell.pen-studio .studio-review-panel-region { grid-column:2; grid-row:1 / 4; height:100%; min-height:0; overflow-y:auto; background:#242628; border-left:1px solid #47494a; }
 .studio-shell.pen-studio .studio-review-preview-footer { grid-column:1; grid-row:3; display:flex; align-items:center; padding:0 28px; background:#242628; font-size:10px; color:#c5c6c7; }
-.studio-shell.pen-studio .studio-render-workspace { display:grid; grid-template-columns:minmax(0,950px) minmax(0,490px); gap:0; padding:0; border:0; flex:1; min-height:0; overflow:auto; }
-.studio-shell.pen-studio .studio-render-preparation { padding:33px 38px; display:flex; flex-direction:column; gap:25px; }
-.studio-shell.pen-studio .studio-render-eyebrow { font-size:10px; text-transform:uppercase; letter-spacing:1.5px; color:#d49a79; }
-.studio-shell.pen-studio .studio-render-preparation > header h2 { font-size:30px; font-weight:500; margin-top:10px; }
-.studio-shell.pen-studio .studio-render-preparation > header p { font-size:12px; margin-top:10px; color:#c5c6c7; }
-.studio-shell.pen-studio .studio-render-revision { height:82px; display:flex; align-items:center; justify-content:space-between; padding:0 20px; border:1px solid #47494a; background:#242628; border-radius:6px; }
-.studio-shell.pen-studio .studio-render-revision strong { font-size:14px; font-weight:600; }
-.studio-shell.pen-studio .studio-render-revision p { font-size:11px; color:#c5c6c7; margin-top:6px; }
-.studio-shell.pen-studio .studio-render-revision > span { display:flex; align-items:center; gap:7px; padding:7px 10px; border-radius:5px; font-size:10px; background:#282a2c; color:#d6b25e; }
-.studio-shell.pen-studio .studio-render-source-card { min-height:433px; display:flex; gap:31px; padding:19px 20px; border:1px solid #47494a; border-radius:6px; background:#242628; }
-.studio-shell.pen-studio .studio-render-thumbnail { width:220px; height:391px; flex-shrink:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:14px; border:1px solid #47494a; background:#101113; border-radius:5px; text-align:center; padding:18px; }
-.studio-shell.pen-studio .studio-render-thumbnail svg { color:#d49a79; }
-.studio-shell.pen-studio .studio-render-thumbnail strong { font-size:17px; }
-.studio-shell.pen-studio .studio-render-thumbnail span,.studio-shell.pen-studio .studio-render-thumbnail small { font-size:10px; color:#c5c6c7; }
-.studio-shell.pen-studio .studio-render-source-details { flex:1; min-width:0; padding-top:18px; }
-.studio-shell.pen-studio .studio-render-source-details h3 { font-size:20px; font-weight:600; }
-.studio-shell.pen-studio .studio-render-source-details > p { font-size:12px; color:#c5c6c7; margin-top:10px; }
-.studio-shell.pen-studio .studio-render-source-details dl { display:flex; flex-direction:column; gap:12px; padding:22px 0; margin-top:18px; border-block:1px solid #47494a; }
-.studio-shell.pen-studio .studio-render-source-details dl > div { display:flex; justify-content:space-between; gap:12px; font-size:11px; }
-.studio-shell.pen-studio .studio-render-source-details dt { color:#c5c6c7; }
-.studio-shell.pen-studio .studio-render-source-details > div.flex-wrap { margin-top:20px; }
-.studio-shell.pen-studio .studio-render-source-details button { padding:11px 16px; background:#d49a79; color:#101113; border:0; font-size:12px; font-weight:600; }
-.studio-shell.pen-studio .studio-render-scope { display:flex; gap:10px; font-size:11px; color:#c5c6c7; }
-.studio-shell.pen-studio .studio-render-activity { padding:32px 30px; border-left:1px solid #47494a; background:#242628; }
-.studio-shell.pen-studio .studio-render-activity > header h2 { font-size:24px; margin-top:9px; }
-.studio-shell.pen-studio .studio-render-activity > header p { margin-top:9px; padding-bottom:25px; border-bottom:1px solid #47494a; font-size:12px; color:#c5c6c7; }
-.studio-shell.pen-studio .studio-render-section-heading { margin:25px 0 14px; font-size:12px; font-weight:600; }
-.studio-shell.pen-studio .studio-render-no-current { display:flex; flex-direction:column; gap:9px; padding:20px 18px; background:#101113; border:1px solid #47494a; border-radius:5px; }
-.studio-shell.pen-studio .studio-render-no-current strong { font-size:13px; }
-.studio-shell.pen-studio .studio-render-no-current p { font-size:11px; color:#c5c6c7; }
-.studio-shell.pen-studio .studio-render-lifecycle { display:flex; flex-direction:column; gap:17px; margin-top:25px; padding:24px 0; border-block:1px solid #47494a; }
-.studio-shell.pen-studio .studio-render-lifecycle h3 { font-size:10px; letter-spacing:1.3px; text-transform:uppercase; color:#c5c6c7; }
-.studio-shell.pen-studio .studio-render-lifecycle > div { display:flex; gap:16px; align-items:center; }
-.studio-shell.pen-studio .studio-render-lifecycle > div > span { display:grid; place-items:center; width:28px; height:28px; background:#101113; border-radius:50%; font-size:10px; color:#d49a79; }
-.studio-shell.pen-studio .studio-render-lifecycle strong { font-size:12px; font-weight:600; }
-.studio-shell.pen-studio .studio-render-lifecycle small { display:block; margin-top:4px; font-size:10px; color:#c5c6c7; }
-.studio-shell.pen-studio .studio-render-history-empty { font-size:11px; color:#c5c6c7; }
-.studio-shell.pen-studio .studio-render-workspace > [role="group"] { grid-column:1 / -1; margin:16px 38px; }
-@media (max-width:1023px) { .studio-shell.pen-studio .studio-prompt-columns { grid-template-columns:1fr; overflow:auto; } .studio-shell.pen-studio .studio-prompt-template-editor { overflow:visible; } .studio-shell.pen-studio .studio-prompt-columns > aside { border-left:0; } .studio-shell.pen-studio [aria-label="Prompt stages"] button { min-height:44px; } .studio-shell.pen-studio.studio-job-review [aria-label="Guided editing workstation"] > main { display:flex; height:auto; min-height:600px; padding:0; } .studio-shell.pen-studio .studio-review-preview-header { min-height:66px; } .studio-shell.pen-studio.studio-job-review [aria-label="Studio preview"] { min-height:480px; } .studio-shell.pen-studio.studio-job-review [aria-label="Studio preview"] > div { height:445px; width:250px; } .studio-shell.pen-studio .studio-review-panel-region { height:auto; overflow:visible; border-left:0; } .studio-shell.pen-studio .studio-review-preview-footer { min-height:50px; } .studio-shell.pen-studio .studio-render-workspace { display:flex; flex-direction:column; overflow:auto; } .studio-shell.pen-studio .studio-render-preparation { padding:24px 20px; } .studio-shell.pen-studio .studio-render-source-card { flex-wrap:wrap; } .studio-shell.pen-studio .studio-render-thumbnail { width:148px; height:263px; } .studio-shell.pen-studio .studio-render-activity { border-left:0; } .studio-shell.pen-studio .studio-render-source-details { min-width:180px; } .studio-shell.pen-studio .studio-review-panel button,.studio-shell.pen-studio .studio-render-workspace button { min-height:44px; } }
+@media (max-width:1023px) { .studio-shell.pen-studio .studio-prompt-columns { grid-template-columns:1fr; overflow:auto; } .studio-shell.pen-studio .studio-prompt-template-editor { overflow:visible; } .studio-shell.pen-studio .studio-prompt-columns > aside { border-left:0; } .studio-shell.pen-studio [aria-label="Prompt stages"] button { min-height:44px; } .studio-shell.pen-studio.studio-job-review [aria-label="Guided editing workstation"] > main { display:flex; height:auto; min-height:600px; padding:0; } .studio-shell.pen-studio .studio-review-preview-header { min-height:66px; } .studio-shell.pen-studio.studio-job-review [aria-label="Studio preview"] { min-height:480px; } .studio-shell.pen-studio.studio-job-review [aria-label="Studio preview"] > div { height:445px; width:250px; } .studio-shell.pen-studio .studio-review-panel-region { height:auto; overflow:visible; border-left:0; } .studio-shell.pen-studio .studio-review-preview-footer { min-height:50px; } .studio-shell.pen-studio .studio-review-panel button { min-height:44px; } }
 .studio-shell.pen-studio button:focus-visible,.studio-shell.pen-studio summary:focus-visible { outline:2px solid #d49a79; outline-offset:3px; }
 @media (max-width:1023px) { .studio-shell.pen-studio button { min-width:44px; min-height:44px; } .studio-shell.pen-studio .studio-caption-rows summary { min-height:44px; } }
 @media (min-width:1440px) { .studio-shell.pen-studio.studio-advanced [aria-label="Guided editing workstation"] { grid-template-columns:224px minmax(0,1fr) 304px!important; } }

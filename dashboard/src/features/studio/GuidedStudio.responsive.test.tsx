@@ -408,13 +408,13 @@ test("monitors renders on a phone without offering render mutations", async () =
   job("Render");
   await screen.findByText("Starting, retrying, cancelling, and deleting renders need a wider screen.");
   expect(window.document.activeElement === trigger).toBe(true);
-  expect(screen.queryByRole("button", { name: "Render video" }) === null).toBe(true);
+  expect(screen.queryByRole("button", { name: /^Render revision \d+$/ }) === null).toBe(true);
   // The empty workstation must not push render status off the first screen.
   expect(isHidden(screen.getByLabelText("Guided editing workstation"))).toBe(true);
   expect(screen.getAllByLabelText("Draft preview").length).toBe(1);
 
   resize(900);
-  expect(screen.getByRole("button", { name: "Render video" })).toBeDefined();
+  expect(screen.getByRole("button", { name: /^Render revision \d+$/ })).toBeDefined();
 });
 
 function reviewClient() {

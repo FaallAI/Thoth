@@ -136,7 +136,8 @@ test("Resolve source items in Studio reopens the draft's inventory and reloads t
   await user.click(await within(dialog).findByRole("button", { name: "Exclude" }));
   await user.click(within(dialog).getByRole("button", { name: "Continue in Studio" }));
 
-  expect(await screen.findByText("Saved revision 2")).toBeDefined();
+  // The editor's save state, and the render readiness check that names the same revision.
+  expect((await screen.findAllByText("Saved revision 2")).length).toBeGreaterThan(0);
   expect(createCalls).toBe(0);
   await user.click(screen.getByRole("button", { name: "Render" }));
   await waitFor(() => expect(screen.queryByRole("status", { name: "Source import" })).toBeNull());
