@@ -12,6 +12,14 @@ type Op<K extends EditDocumentOperation["kind"]> = Extract<EditDocumentOperation
 export type PositionPreset = "top" | "middle" | "lower";
 export type Motion = Op<"set_clip_motion">["motion"];
 
+/** The role a dropped upload, or a material from another group, takes in a beat. */
+export const BEAT_ROLE: Partial<Record<Beat["id"], StoryRole>> = {
+  main: "main_footage",
+  evidence: "post_card",
+  reactions: "comment_card",
+  footage: "footage",
+};
+
 /** Top, Middle and Lower third as stored y offsets (spec §5.2). */
 export const PRESET_Y: Record<PositionPreset, number> = { top: -0.24, middle: 0, lower: 0.22 };
 // The importer's card layout (python domain/studio_layout.py).

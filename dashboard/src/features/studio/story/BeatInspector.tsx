@@ -4,6 +4,8 @@ import { ArrowDown, ArrowUp, Plus, X } from "lucide-react";
 import type { EditDocumentOperation, EditDocumentV2, EditorAsset, StudioImportItem, StudioMaterials } from "@/api/control-plane";
 import { useLocale } from "@/lib/locale";
 
+import { reasonText } from "@/features/workflows/OpenInStudio";
+
 import type { EditorAction } from "../editor_state";
 import { ROLE_BEAT, type Beat } from "./story_beats";
 import {
@@ -29,7 +31,12 @@ type Props = {
   dispatch: Dispatch<EditorAction>;
   /** The editor asset for one run material (spec §6.2); absent where the route is. */
   attachMaterial?: (itemId: string) => Promise<EditorAsset>;
+  /** Exclude a missing material, as the import gate does; absent while the draft is unsaved. */
+  onRemoveMissing?: (itemId: string) => Promise<void>;
 };
+
+/** A material that can stand in for a missing one (spec §9: "Use profile card"). */
+const ALTERNATIVE: Partial<Record<string, string>> = { profile_page: "profile_card" };
 
 type Clip = NonNullable<EditDocumentV2["clips"]>[number];
 const CARD_BEATS = new Set(["evidence", "reactions"]);
@@ -42,10 +49,11 @@ const choice =
 const field = "h-9 w-24 rounded-md border border-hairline bg-well px-2 text-sm text-ink focus-visible:outline-2 focus-visible:outline-copper";
 
 /** Spec 2026-10-27 §9: the selected beat's cards, timing, position, motion and emphasis. */
-export function BeatInspector({ beat, beats, document, inventory, materials, dispatch, attachMaterial }: Props) {
+export function BeatInspector({ beat, beats, document, inventory, materials, dispatch, attachMaterial, onRemoveMissing }: Props) {
   const { t } = useLocale();
   const [picking, setPicking] = useState(false);
   const [addFailed, setAddFailed] = useState(false);
+  const [removeFailed, setRemoveFailed] = useState(false);
   const fps = document.canvas.fps;
   const commit = (operations: EditDocumentOperation[]) =>
     operations.length && dispatch({ type: "commit_operations", operations });
@@ -107,6 +115,42 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
         <h2 className="text-[17px] font-semibold text-ink">{t(`studio.story.beat.${beat.id}`)}</h2>
         <p className="font-mono text-xs text-muted-ink">{header}</p>
       </header>
+
+      {beat.missing.map((entry) => {
+        const stand = (materials?.items ?? []).find(
+          (item) => entry.role && item.role === ALTERNATIVE[entry.role] && !beat.clipIds.includes(`clip_${item.item_id}`),
+        );
+        return (
+          <div key={entry.item_id} role="alert" className="flex flex-col gap-2 rounded-md border border-status-failed/50 bg-status-failed/10 p-3 text-sm text-ink">
+            <p className="font-medium">{t("studio.inspector.missingTitle", { label: entry.label })}</p>
+            {entry.reason ? <p className="text-xs text-muted-ink">{reasonText(t, entry.label, entry.reason)}</p> : null}
+            <div className="flex flex-wrap gap-2">
+              {stand && attachMaterial ? (
+                <button type="button" className={choice} onClick={() => void add(stand.item_id, stand.role!)}>
+                  {t("studio.inspector.useProfileCard")}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className={choice}
+                disabled={!onRemoveMissing}
+                onClick={async () => {
+                  setRemoveFailed(false);
+                  try {
+                    await onRemoveMissing?.(entry.item_id);
+                  } catch {
+                    setRemoveFailed(true);
+                  }
+                }}
+              >
+                {t("studio.inspector.removeMissing")}
+              </button>
+            </div>
+            {!onRemoveMissing ? <p className="text-xs text-muted-ink">{t("studio.inspector.removeMissingNote")}</p> : null}
+            {removeFailed ? <p className="text-xs text-status-failed">{t("studio.inspector.removeFailed")}</p> : null}
+          </div>
+        );
+      })}
 
       <section aria-label={t("studio.inspector.shown")} className={section}>
         <h3 className={heading}>{t("studio.inspector.shown")}</h3>

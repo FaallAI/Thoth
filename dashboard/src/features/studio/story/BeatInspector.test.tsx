@@ -136,3 +136,32 @@ test("the inspector speaks Indonesian", () => {
   expect(screen.getByRole("heading", { name: "Reaksi" })).toBeDefined();
   expect(screen.getByRole("group", { name: "Posisi" })).toBeDefined();
 });
+
+test("a missing profile page offers the profile card, and leaves the beat on request", async () => {
+  const missing = [...inventory, { ...inventory[0]!, item_id: "profile_page_000", role: "profile_page" as const, label: "Profile page", disposition: "unresolved" as const }];
+  const evidence = computeBeats(storyDocument(), missing).find((beat) => beat.id === "evidence")!;
+  const dispatch = mock((_action: EditorAction) => {});
+  const attach = mock(async () => fresh);
+  const onRemoveMissing = mock(async (_itemId: string) => {});
+  render(
+    <BeatInspector
+      beat={evidence}
+      beats={beats}
+      document={storyDocument()}
+      inventory={missing}
+      materials={{ ...materials, items: [...materials.items, { item_id: "profile_card_000", role: "profile_card", label: "@creator", media_kind: "image", disposition: "excluded" }] }}
+      dispatch={dispatch}
+      attachMaterial={attach}
+      onRemoveMissing={onRemoveMissing}
+    />,
+  );
+
+  const alert = screen.getByRole("alert");
+  expect(alert.textContent).toContain("Profile page is missing");
+  await act(async () => fireEvent.click(within(alert).getByRole("button", { name: "Use profile card" })));
+  expect(attach).toHaveBeenCalledWith("profile_card_000");
+  expect(dispatch.mock.calls.at(-1)![0]).toMatchObject({ type: "commit_operations" });
+
+  await act(async () => fireEvent.click(within(alert).getByRole("button", { name: "Remove from beat" })));
+  expect(onRemoveMissing).toHaveBeenCalledWith("profile_page_000");
+});

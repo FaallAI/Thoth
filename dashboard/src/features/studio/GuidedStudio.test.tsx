@@ -282,7 +282,7 @@ test("shows the conflict choice instead of upgrading over a newer revision", asy
   );
 
   fireEvent.click(await screen.findByRole("button", { name: "Enable advanced timeline" }));
-  expect(await screen.findByText(/A newer version exists/)).toBeDefined();
+  expect(await screen.findByText(/A newer revision \d+ was saved/)).toBeDefined();
   expect(screen.getByRole("button", { name: "Reload Latest" })).toBeDefined();
 });
 

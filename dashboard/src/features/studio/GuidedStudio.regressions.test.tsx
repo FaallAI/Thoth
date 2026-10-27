@@ -436,7 +436,7 @@ test("keeps the version 1 draft editable after an upgrade conflict", async () =>
   );
   fireEvent.click(await screen.findByRole("button", { name: "Enable advanced timeline" }));
 
-  expect(await screen.findByText(/A newer version exists/)).toBeDefined();
+  expect(await screen.findByText(/A newer revision \d+ was saved/)).toBeDefined();
   const heading = screen.getByLabelText("Heading") as HTMLInputElement;
   expect(heading.value).toBe("Original heading");
   fireEvent.change(heading, { target: { value: "Still local" } });

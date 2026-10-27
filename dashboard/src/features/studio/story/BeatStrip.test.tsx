@@ -58,3 +58,34 @@ test("a tile shows thumbnails of its first clips", () => {
   const reactions = container.querySelector('[data-beat="reactions"]')!;
   expect([...reactions.querySelectorAll("img")].map((image) => image.getAttribute("src"))).toEqual(["/p/card0.png", "/p/card1.png"]);
 });
+
+const dragged = (data: Record<string, string>) => ({
+  dataTransfer: { types: Object.keys(data), getData: (type: string) => data[type] ?? "", dropEffect: "" },
+});
+
+test("a material dragged over a tile shows where it will land, and drops there", () => {
+  const onDrop = mock((_beat: string, _data: string) => {});
+  const { container } = render(
+    <BeatStrip beats={beats} fps={30} totalFrames={300} selected={null} onSelect={() => {}} onDropMaterial={onDrop} />,
+  );
+  const reactions = container.querySelector('[data-beat="reactions"]')!;
+  const material = { "application/x-thoth-material": "comment_card_003" };
+
+  fireEvent.dragOver(reactions, dragged(material));
+  expect(reactions.className).toContain("border-dashed");
+  expect(reactions.textContent).toContain("+ Add to Reactions");
+
+  fireEvent.drop(reactions, dragged(material));
+  expect(onDrop).toHaveBeenCalledWith("reactions", "comment_card_003");
+  expect(reactions.className).not.toContain("border-dashed");
+});
+
+test("text beats take no dropped media", () => {
+  const { container } = render(
+    <BeatStrip beats={beats} fps={30} totalFrames={300} selected={null} onSelect={() => {}} onDropMaterial={() => {}} />,
+  );
+  const hook = container.querySelector('[data-beat="hook"]')!;
+
+  fireEvent.dragOver(hook, dragged({ "application/x-thoth-material": "comment_card_003" }));
+  expect(hook.className).not.toContain("border-dashed");
+});

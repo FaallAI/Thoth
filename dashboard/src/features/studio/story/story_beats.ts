@@ -98,5 +98,13 @@ export function computeBeats(document: EditDocumentV2, inventory: StudioImportIt
       ),
     };
   });
+  // A beat whose material is missing and that has no clip still shows, so the gap is seen.
+  for (const entry of inventory) {
+    const id = entry.role ? ROLE_BEAT[entry.role] : undefined;
+    if (!id || entry.disposition !== "unresolved" || entry.media_kind === "none" || grouped.has(id)) continue;
+    const empty = result.find((beat) => beat.id === id);
+    if (empty) empty.missing.push(entry);
+    else result.push({ id, clipIds: [], startFrame: 0, durationInFrames: 0, missing: [entry] });
+  }
   return result.sort((a, b) => a.startFrame - b.startFrame || BEAT_ORDER.indexOf(a.id) - BEAT_ORDER.indexOf(b.id));
 }

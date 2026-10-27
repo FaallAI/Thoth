@@ -34,7 +34,7 @@ afterEach(() => {
   player.seeks.length = 0;
 });
 
-async function mountStory(locale: Locale = "en") {
+async function mountStory(locale: Locale = "en", overrides: Record<string, unknown> = {}) {
   const { GuidedStudio } = await import("../GuidedStudio");
   const document = storyDocument() as EditDocument;
   render(
@@ -60,6 +60,13 @@ async function mountStory(locale: Locale = "en") {
               disposition: "attached" as const,
               asset_id: "asset_clip_footage_000",
             },
+            {
+              item_id: "comment_card_003",
+              role: "comment_card" as const,
+              label: "@late",
+              media_kind: "image" as const,
+              disposition: "excluded" as const,
+            },
           ],
           figures: [],
         })),
@@ -73,6 +80,7 @@ async function mountStory(locale: Locale = "en") {
         createStudioReviewDecision: mock(async () => {
           throw new Error("unused");
         }),
+        ...overrides,
       }}
       projectId="project_001"
       documentId="edoc_story"
@@ -166,4 +174,56 @@ test("a chosen beat opens its inspector, and its edits save through the patch", 
 
   expect(screen.getByText("Unsaved changes")).toBeDefined();
   expect(screen.getByRole("button", { name: "Slow zoom" }).getAttribute("aria-pressed")).toBe("true");
+});
+
+test("a material dropped on a beat tile joins that beat", async () => {
+  const attachStudioMaterial = mock(async () => ({
+    asset_id: "asset_late",
+    project_id: "project_001",
+    kind: "image" as const,
+    media_type: "image/png",
+    width: 1080,
+    height: 400,
+    has_audio: false,
+    validation_state: "ready" as const,
+  }));
+  await mountStory("en", { attachStudioMaterial });
+  const reactions = await screen.findByRole("button", { name: /^Reactions/ });
+  const dataTransfer = { types: ["application/x-thoth-material"], getData: () => "comment_card_003", dropEffect: "" };
+
+  fireEvent.dragOver(reactions, { dataTransfer });
+  await act(async () => fireEvent.drop(reactions, { dataTransfer }));
+
+  expect(attachStudioMaterial).toHaveBeenCalledWith("project_001", "edoc_story", "comment_card_003");
+  expect(screen.getByText("Unsaved changes")).toBeDefined();
+});
+
+test("Remove from beat excludes the missing material and adopts the decided revision", async () => {
+  const resolveStudioImportItem = mock(async () => ({
+    document_id: "edoc_story",
+    source_key: "a".repeat(64),
+    revision: 4,
+    items: storyInventory().map((entry) => (entry.item_id === "comment_card_002" ? { ...entry, disposition: "excluded" as const } : entry)),
+  }));
+  await mountStory("en", { resolveStudioImportItem });
+  fireEvent.click(await screen.findByRole("button", { name: /^Reactions/ }));
+
+  await act(async () => fireEvent.click(within(screen.getByRole("alert")).getByRole("button", { name: "Remove from beat" })));
+
+  expect(resolveStudioImportItem).toHaveBeenCalledWith("project_001", "edoc_story", "comment_card_002", {
+    base_revision: 3,
+    decision: { kind: "exclude" },
+  });
+  await waitFor(() => expect(screen.getByRole("button", { name: /^Reactions/ }).textContent).not.toContain("missing"));
+});
+
+test("a newer revision names itself and keeps the edits on this device", async () => {
+  const latest = { ...storyDocument(), revision: 7 } as EditDocument;
+  await mountStory("en", { patchEditDocument: mock(async () => ({ kind: "conflict" as const, latest })) });
+  fireEvent.click(await screen.findByRole("button", { name: /^Reactions/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Slow zoom" }));
+
+  expect(await screen.findByText("A newer revision 7 was saved · your changes are kept on this device", {}, { timeout: 3000 })).toBeDefined();
+  expect(screen.getByRole("button", { name: "Keep Editing Locally" })).toBeDefined();
+  expect(screen.getByRole("button", { name: "Reload Latest" })).toBeDefined();
 });

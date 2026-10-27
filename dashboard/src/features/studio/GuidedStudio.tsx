@@ -45,7 +45,8 @@ import { BeatInspector } from "./story/BeatInspector";
 import { BeatStrip } from "./story/BeatStrip";
 import { MaterialsPanel } from "./story/MaterialsPanel";
 import { SafeZoneOverlay } from "./story/SafeZone";
-import { computeBeats, type BeatId } from "./story/story_beats";
+import { ROLE_BEAT, computeBeats, type BeatId } from "./story/story_beats";
+import { BEAT_ROLE, addMaterialToBeat } from "./story/story_edits";
 import "./studio.css";
 
 type Props = {
@@ -68,6 +69,7 @@ type Props = {
         | "getStudioImportInventory"
         | "getStudioMaterials"
         | "attachStudioMaterial"
+        | "resolveStudioImportItem"
         | "listStudioReviewComments"
         | "createStudioReviewComment"
         | "listStudioReviewDecisions"
@@ -371,6 +373,41 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   );
   const shownBeat = beats.find((beat) => beat.id === selectedBeat);
 
+  // Spec 9: a material dropped on a tile joins that beat, taking the beat's role.
+  const dropMaterial = async (beatId: BeatId, data: string) => {
+    const beat = beats.find((entry) => entry.id === beatId);
+    if (!beat || !timeline || !data) return;
+    const upload = data.startsWith("upload:") ? state.assets[data.slice("upload:".length)] : undefined;
+    const item = upload ? undefined : materials?.items.find((entry) => entry.item_id === data);
+    const role = item?.role && ROLE_BEAT[item.role] === beatId ? item.role : BEAT_ROLE[beatId];
+    if (!role || (!upload && !(item && attachMaterial))) return;
+    try {
+      const asset = upload ?? (await attachMaterial!(item!.item_id));
+      if (!upload) dispatch({ type: "assets_loaded", assets: [asset], replace: false });
+      dispatch({ type: "commit_operations", operations: [addMaterialToBeat(timeline, beat, asset, role)] });
+    } catch {
+      // The material stays in the panel; dropping it again retries.
+    }
+  };
+
+  // Excluding is an import decision on the saved revision, as the import gate makes it.
+  const { resolveStudioImportItem } = client;
+  const removeMissing =
+    resolveStudioImportItem && saveStatus === "saved"
+      ? async (itemId: string) => {
+          const requestGeneration = generation.current;
+          const decided = await resolveStudioImportItem(projectId, documentId, itemId, {
+            base_revision: base.revision,
+            decision: { kind: "exclude" },
+          });
+          if (requestGeneration !== generation.current) return;
+          setInventory(decided.items);
+          // The decision recorded a new revision with the same content; adopt it.
+          const latest = await client.getEditDocument(projectId, documentId);
+          if (requestGeneration === generation.current) dispatch({ type: "save_succeeded", document: latest, operationIds: [] });
+        }
+      : undefined;
+
   const requestReview = () => {
     setJob("review");
     setCommentFocusRequest((value) => value + 1);
@@ -600,7 +637,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
       )}
       {state.saveStatus === "conflict" && (
         <div role="alert" className={`${banner} bg-copper/10`}>
-          <p>{t("studio.editor.conflict")}</p>
+          <p>{t("studio.editor.conflict", { revision: state.latestConflict?.revision ?? "" })}</p>
           <button type="button" className={toolbarButton} onClick={() => dispatch({ type: "reload_latest" })}>
             {t("studio.editor.reloadLatest")}
           </button>
@@ -745,6 +782,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 onSelect={selectBeat}
                 document={timeline}
                 previews={previewSources}
+                onDropMaterial={(beatId, data) => void dropMaterial(beatId, data)}
               />
             ) : null}
             {advanced && timeline ? (
@@ -815,6 +853,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                       materials={materials}
                       dispatch={dispatch}
                       attachMaterial={attachMaterial}
+                      onRemoveMissing={removeMissing}
                     />
                   ) : (
                     <p className="p-4 text-sm text-muted-ink">{t("studio.inspector.empty")}</p>

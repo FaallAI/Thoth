@@ -4,7 +4,7 @@ import { expect, test } from "bun:test";
 
 import { ROLE_BEAT, beatOfClip, computeBeats } from "./story_beats";
 
-import { draft, storyDocument, storyInventory } from "./story-test-fixtures";
+import { draft, item, storyDocument, storyInventory } from "./story-test-fixtures";
 
 const story = storyDocument();
 const inventory = storyInventory();
@@ -64,4 +64,13 @@ test("an unresolved material is missing from its beat; a quote never is", () => 
 
 test("a draft with no clips has no beats", () => {
   expect(computeBeats(draft([]), [])).toEqual([]);
+});
+
+test("a material missing from a beat with no clips still shows that beat", () => {
+  const missing = [...inventory, item("profile_page_000", "profile_page", "unresolved")];
+
+  const evidence = computeBeats(story, missing).find((beat) => beat.id === "evidence");
+
+  expect(evidence).toMatchObject({ clipIds: [], durationInFrames: 0 });
+  expect(evidence?.missing.map((entry) => entry.item_id)).toEqual(["profile_page_000"]);
 });
