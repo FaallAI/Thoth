@@ -12,6 +12,8 @@ import { typedTimelineDocument } from "./timeline-test-fixtures";
 /** Props the media primitives received, in render order, per test. */
 const mediaProps: { audio: Record<string, unknown>[] } = { audio: [] };
 
+/** The frame `useCurrentFrame` reports inside a clip's sequence. */
+const currentFrame = { value: 0 };
 /** Every composition the server root registered, in registration order. */
 const registrations: Record<string, unknown>[] = [];
 
@@ -58,6 +60,7 @@ mock.module("remotion", () => ({
   registerRoot: () => undefined,
   // A render delay is the composition's decision to make, so the scope is
   // recorded rather than reimplemented; the real one throws out of the page.
+  useCurrentFrame: () => currentFrame.value,
   useDelayRender: () => ({
     delayRender: (label?: string) => {
       renderDelay.delayed.push(label ?? "");
@@ -83,6 +86,7 @@ const { AdvancedTimelineComposition, COMPOSITION_ID } = await import("@thoth/rem
 const { RenderRoot } = await import("@thoth/remotion-composition/register");
 
 afterEach(() => {
+  currentFrame.value = 0;
   mediaProps.audio.length = 0;
   registrations.length = 0;
   renderDelay.delayed.length = 0;
@@ -619,4 +623,66 @@ test("an image clip ignores blur", () => {
   document.asset_refs![0]!.kind = "image";
   render(<AdvancedTimelineComposition document={document} previewSources={SOURCES} />);
   expect(screen.queryByTestId("blur-region")).toBeNull();
+});
+
+// Story mode (spec 2026-10-27 5.3): motion and emphasis, drawn alike in preview and render.
+type StoryClip = { motion?: string; emphasis?: { highlight: boolean; arrow: boolean } };
+
+function storyDocument(fields: StoryClip): EditDocumentV2 {
+  const document = typedTimelineDocument();
+  Object.assign(document.clips![1]!, fields);
+  return document;
+}
+
+test("a clip without motion or emphasis draws exactly what it drew before", () => {
+  render(<AdvancedTimelineComposition document={storyDocument({})} previewSources={TYPED_SOURCES} />);
+  expect(screen.getAllByTestId("clip-frame")[1]!.style.transform).toBe("translate(25%, -50%) scale(1.5)");
+  expect(screen.queryByTestId("clip-highlight")).toBeNull();
+  expect(screen.queryByTestId("clip-arrow")).toBeNull();
+});
+
+test("slow zoom starts at the stored placement and ends 8% larger", () => {
+  const document = storyDocument({ motion: "slow_zoom" });
+  const last = document.clips![1]!.duration_in_frames - 1;
+  render(<AdvancedTimelineComposition document={document} previewSources={TYPED_SOURCES} />);
+  expect(screen.getAllByTestId("clip-frame")[1]!.style.transform).toBe("translate(25%, -50%) scale(1.5)");
+  cleanup();
+
+  currentFrame.value = last;
+  render(<AdvancedTimelineComposition document={document} previewSources={TYPED_SOURCES} />);
+  expect(screen.getAllByTestId("clip-frame")[1]!.style.transform).toBe(`translate(25%, -50%) scale(${1.5 * 1.08})`);
+});
+
+test("pan starts 3% of the canvas width to the left", () => {
+  render(<AdvancedTimelineComposition document={storyDocument({ motion: "pan" })} previewSources={TYPED_SOURCES} />);
+  expect(screen.getAllByTestId("clip-frame")[1]!.style.transform).toBe("translate(22%, -50%) scale(1.5)");
+});
+
+test("highlight draws a 6px copper outline and arrow a 120px copper arrow", () => {
+  render(
+    <AdvancedTimelineComposition
+      document={storyDocument({ emphasis: { highlight: true, arrow: true } })}
+      previewSources={TYPED_SOURCES}
+    />,
+  );
+  const highlight = screen.getByTestId("clip-highlight") as HTMLElement;
+  expect([highlight.style.outlineWidth, highlight.style.outlineStyle, highlight.style.outlineColor]).toEqual([
+    "6px",
+    "solid",
+    "#d49a79",
+  ]);
+  const arrow = screen.getByTestId("clip-arrow");
+  expect(arrow.getAttribute("width")).toBe("120");
+  expect(arrow.getAttribute("fill")).toBe("#d49a79");
+});
+
+test("a hidden-arrow emphasis draws the highlight only", () => {
+  render(
+    <AdvancedTimelineComposition
+      document={storyDocument({ emphasis: { highlight: true, arrow: false } })}
+      previewSources={TYPED_SOURCES}
+    />,
+  );
+  expect(screen.getByTestId("clip-highlight")).toBeDefined();
+  expect(screen.queryByTestId("clip-arrow")).toBeNull();
 });

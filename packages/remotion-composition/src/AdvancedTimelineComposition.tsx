@@ -1,5 +1,5 @@
 import { Video } from "@remotion/media";
-import { AbsoluteFill, Audio, Img, Sequence } from "remotion";
+import { AbsoluteFill, Audio, Img, Sequence, useCurrentFrame } from "remotion";
 import type { CSSProperties, ReactNode } from "react";
 
 import type { EditDocumentV2, TimelineClip } from "./timeline";
@@ -7,10 +7,20 @@ import { blurBoxes } from "./blur";
 import { visibleLanes } from "./timeline";
 import { safePreviewSource } from "./media";
 import { COMPOSITION_FONT_FAMILY, useCompositionFonts } from "./fonts";
+import {
+  ARROW_SIZE,
+  HIGHLIGHT,
+  STILL,
+  contentBox,
+  emphasisBox,
+  motionTransform,
+  type MotionState,
+} from "./story_effects";
 
 type OverlayClip = Extract<TimelineClip, { kind: "overlay" }>;
 type AssetRef = NonNullable<EditDocumentV2["asset_refs"]>[number];
 type AudioClip = Extract<TimelineClip, { kind: "audio" }>;
+type VideoClip = Extract<TimelineClip, { kind: "video" }>;
 
 /** A style the document may select by name, resolved to a local style object. */
 type TrustedStyle = { name: string; style: CSSProperties };
@@ -238,81 +248,10 @@ function renderClip(
       );
     }
     case "video": {
-      const kind = refs.get(clip.asset_id)?.kind;
-      if (kind !== "video" && kind !== "image") {
-        return <PreviewUnavailable label="Video preview unavailable" />;
-      }
-      const source = resolve(clip.asset_id, sources, onPreviewUnavailable);
-      if (!source) return <PreviewUnavailable label="Video preview unavailable" />;
-      const crop = clip.crop ?? FULL_CROP;
-      const position = clip.position ?? NO_POSITION;
-      const media: CSSProperties = {
-        position: "absolute",
-        width: percent(1 / span(crop.width)),
-        height: percent(1 / span(crop.height)),
-        left: percent(-crop.left / span(crop.width)),
-        top: percent(-crop.top / span(crop.height)),
-      };
-      return (
-        // The frame clips the crop and carries the placement; the media itself
-        // is enlarged and offset so the kept region fills that frame.
-        <AbsoluteFill
-          data-testid="clip-frame"
-          style={{
-            overflow: "hidden",
-            // Offsets are canvas fractions, not pixels, so they project as percentages.
-            transform: `translate(${percent(position.x)}, ${percent(position.y)}) scale(${position.scale})`,
-          }}
-        >
-          {/* A still has no source timeline, so only a movie carries a trim. */}
-          {kind === "image" ? (
-            <Img src={source} style={{ ...media, objectFit: clip.fit }} />
-          ) : (
-            // One WebCodecs decoder for the preview and the render: the HTML5 element mis-seeks
-            // under load (parity frame 90, 2026-10-21). A source headless Chrome cannot decode
-            // (HEVC) falls back to the FFmpeg frame extractor, which renders a few levels off
-            // the preview's colours rather than cancelling the whole render.
-            <Video
-              src={source}
-              trimBefore={clip.source_from_frame}
-              muted={muted}
-              objectFit={clip.fit}
-              style={media}
-            />
-          )}
-          {kind === "video" && clip.blur_enabled
-            ? blurBoxes(clip, refs.get(clip.asset_id), canvas).map((box, index) => {
-                const region = (
-                  <div
-                    key={`${clip.clip_id}_blur_${index}`}
-                    data-testid="blur-region"
-                    style={{
-                      position: "absolute",
-                      left: box.left,
-                      top: box.top,
-                      width: box.width,
-                      height: box.height,
-                      backdropFilter: `blur(${box.sigma}px)`,
-                    }}
-                  />
-                );
-                // A windowed region shows only between its source frames, clip-relative here.
-                return box.from === null || box.to === null ? (
-                  region
-                ) : (
-                  <Sequence
-                    key={`${clip.clip_id}_blur_${index}`}
-                    name={`${clip.clip_id}_blur_${index}`}
-                    from={box.from}
-                    durationInFrames={Math.max(1, box.to - box.from)}
-                  >
-                    {region}
-                  </Sequence>
-                );
-              })
-            : null}
-        </AbsoluteFill>
-      );
+      const draw = (motion: MotionState) =>
+        videoClip(clip, muted, refs, canvas, sources, motion, onPreviewUnavailable);
+      // Only a moving clip reads the frame, so a still clip draws exactly as before Story mode.
+      return clip.motion && clip.motion !== "none" ? <MovingClip clip={clip} draw={draw} /> : draw(STILL);
     }
     case "audio": {
       const source = resolve(clip.asset_id, sources, onPreviewUnavailable);
@@ -328,6 +267,137 @@ function renderClip(
     default:
       return null;
   }
+}
+
+function MovingClip({ clip, draw }: { clip: VideoClip; draw: (motion: MotionState) => ReactNode }) {
+  // Inside the clip's sequence, so the motion runs across the clip's own duration.
+  const frame = useCurrentFrame();
+  return <>{draw(motionTransform(clip.motion ?? "none", frame, clip.duration_in_frames))}</>;
+}
+
+function videoClip(
+  clip: VideoClip,
+  muted: boolean,
+  refs: Map<string, AssetRef>,
+  canvas: EditDocumentV2["canvas"],
+  sources: PreviewSources,
+  motion: MotionState,
+  onPreviewUnavailable?: (assetId: string) => void,
+): ReactNode {
+  const kind = refs.get(clip.asset_id)?.kind;
+  if (kind !== "video" && kind !== "image") {
+    return <PreviewUnavailable label="Video preview unavailable" />;
+  }
+  const source = resolve(clip.asset_id, sources, onPreviewUnavailable);
+  if (!source) return <PreviewUnavailable label="Video preview unavailable" />;
+  const crop = clip.crop ?? FULL_CROP;
+  const position = clip.position ?? NO_POSITION;
+  const media: CSSProperties = {
+    position: "absolute",
+    width: percent(1 / span(crop.width)),
+    height: percent(1 / span(crop.height)),
+    left: percent(-crop.left / span(crop.width)),
+    top: percent(-crop.top / span(crop.height)),
+  };
+  const frame = (
+    // The frame clips the crop and carries the placement; the media itself
+    // is enlarged and offset so the kept region fills that frame.
+    <AbsoluteFill
+      data-testid="clip-frame"
+      style={{
+        overflow: "hidden",
+        // Offsets are canvas fractions, not pixels, so they project as percentages.
+        transform: `translate(${percent(position.x + motion.translateX)}, ${percent(position.y)}) scale(${position.scale * motion.scale})`,
+      }}
+    >
+      {/* A still has no source timeline, so only a movie carries a trim. */}
+      {kind === "image" ? (
+        <Img src={source} style={{ ...media, objectFit: clip.fit }} />
+      ) : (
+        // One WebCodecs decoder for the preview and the render: the HTML5 element mis-seeks
+        // under load (parity frame 90, 2026-10-21). A source headless Chrome cannot decode
+        // (HEVC) falls back to the FFmpeg frame extractor, which renders a few levels off
+        // the preview's colours rather than cancelling the whole render.
+        <Video
+          src={source}
+          trimBefore={clip.source_from_frame}
+          muted={muted}
+          objectFit={clip.fit}
+          style={media}
+        />
+      )}
+      {kind === "video" && clip.blur_enabled
+        ? blurBoxes(clip, refs.get(clip.asset_id), canvas).map((box, index) => {
+            const region = (
+              <div
+                key={`${clip.clip_id}_blur_${index}`}
+                data-testid="blur-region"
+                style={{
+                  position: "absolute",
+                  left: box.left,
+                  top: box.top,
+                  width: box.width,
+                  height: box.height,
+                  backdropFilter: `blur(${box.sigma}px)`,
+                }}
+              />
+            );
+            // A windowed region shows only between its source frames, clip-relative here.
+            return box.from === null || box.to === null ? (
+              region
+            ) : (
+              <Sequence
+                key={`${clip.clip_id}_blur_${index}`}
+                name={`${clip.clip_id}_blur_${index}`}
+                from={box.from}
+                durationInFrames={Math.max(1, box.to - box.from)}
+              >
+                {region}
+              </Sequence>
+            );
+          })
+        : null}
+    </AbsoluteFill>
+  );
+  const emphasis = clip.emphasis;
+  if (!emphasis?.highlight && !emphasis?.arrow) return frame;
+  const box = emphasisBox(clip.position, contentBox(clip.fit, refs.get(clip.asset_id), canvas), motion);
+  return (
+    <>
+      {frame}
+      {emphasis.highlight ? (
+        <div
+          data-testid="clip-highlight"
+          style={{
+            position: "absolute",
+            left: percent(box.left),
+            top: percent(box.top),
+            width: percent(box.width),
+            height: percent(box.height),
+            outline: `${HIGHLIGHT.width}px solid ${HIGHLIGHT.color}`,
+          }}
+        />
+      ) : null}
+      {emphasis.arrow ? (
+        // A fixed arrow pointing down at the top edge, centred on the media.
+        <svg
+          data-testid="clip-arrow"
+          width={ARROW_SIZE}
+          height={ARROW_SIZE}
+          viewBox="0 0 120 120"
+          fill={HIGHLIGHT.color}
+          style={{
+            position: "absolute",
+            left: percent(box.left + box.width / 2),
+            top: percent(box.top),
+            transform: "translate(-50%, -100%)",
+          }}
+        >
+          <path d="M48 0h24v70h28L60 120 20 70h28z" />
+        </svg>
+      ) : null}
+    </>
+  );
 }
 
 /** A CSS percentage with enough precision to survive a fractional crop. */
