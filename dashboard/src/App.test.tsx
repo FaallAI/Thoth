@@ -95,7 +95,7 @@ test("workspace navigation identifies the active page and Creator Studio lists t
   // The gate renders the shell at "/" first; its redirect to /workflows lands a tick later.
   await waitFor(() => expect(within(nav).getByRole("link", { name: "Runs" }).getAttribute("aria-current")).toBe("page"));
   await userEvent.setup().click(within(nav).getByRole("link", { name: "Studio" }));
-  expect(await screen.findByRole("button", { name: /Heading/ })).toBeDefined();
+  expect(await screen.findByRole("link", { name: "Heading" })).toBeDefined();
   expect(window.location.pathname).toBe("/studio");
   expect(within(nav).getByRole("link", { name: "Studio" }).getAttribute("aria-current")).toBe("page");
   expect(createCalls).toBe(0);
@@ -176,7 +176,7 @@ test("no page reaches the retired Rust server: only control-plane routes are req
   expect(within(nav).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/workflows", "/inbox", "/studio", "/usage", "/billing", "/accounts", "/settings"]);
   const user = userEvent.setup();
   await user.click(within(nav).getByRole("link", { name: "Studio" }));
-  await screen.findByRole("button", { name: /Heading/ });
+  await screen.findByRole("link", { name: "Heading" });
   await user.click(within(nav).getByRole("link", { name: "Runs" }));
   await screen.findByRole("heading", { level: 1, name: "Runs" });
   expect(requested.length).toBeGreaterThan(0);
@@ -199,7 +199,7 @@ test("the Studio draft list keeps the ordinary page layout; only the editor goes
   window.history.replaceState(null, "", "/studio");
   const { default: App } = await import("./App");
   render(<App />);
-  await screen.findByRole("button", { name: /Heading/ });
+  await screen.findByRole("link", { name: "Heading" });
   const main = globalThis.document.getElementById("workspace")!;
   expect(main.className).not.toContain("dashboard-page-studio");
 });

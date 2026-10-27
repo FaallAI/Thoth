@@ -239,6 +239,8 @@ export type ControlPlaneClient = {
   mediaUrl: (workflowId: string, location: string) => string;
   downloadWorkflowArtifact: (workflowId: string, artifactId: string) => Promise<Blob>;
   listEditDocuments: (projectId: string, cursor?: string) => Promise<EditDocumentListPage>;
+  /** A text-only draft with no source: the documents page's "Blank". */
+  createBlankDocument: (projectId: string) => Promise<EditDocument>;
   getWorkflow: (workflowId: string) => Promise<WorkflowSummary>;
   streamWorkflow: (
     workflowId: string,
@@ -632,6 +634,12 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
         `/api/v1/projects/${encodeURIComponent(projectId)}/edit-documents?${query.toString()}`,
       );
     },
+    createBlankDocument: (projectId) =>
+      request<EditDocument>(`/api/v1/projects/${encodeURIComponent(projectId)}/edit-documents/import-content-set`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ main: {}, footage: [] }),
+      }),
     approveWorkflow: (workflowId, approval) =>
       request<WorkflowSummary>(`/api/v1/workflows/${workflowId}/approve`, {
         method: "POST",
