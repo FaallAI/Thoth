@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-27 - Deployed master 86f7c3e (PR #78, run progress and dashboard restyle part A)
+
+**Deployed:** `master` 86f7c3e after the CI of PR #78 and of `master` went green (offline gates, template parity, image publish, non-live smoke). Approved by the operator after the live gate passed ("lanjut next step dan saya izinkan", "ya di izinkan").
+- `thoth@5e733c69`, renderer `3b75b06f`, web `321b2151`; it carries the yt-dlp 2026.10.26 bump (#77) that the branch images lacked.
+- No workflow was running and no render was open; the previous pins (`ed11ab3e`) are backed up in `D:/thoth-tmp/bu/pins/pins-ed11ab3e.env`.
+
+**`make deploy` exit 0:**
+- The first attempt was stopped by the local agent's memory guard during preflight, so nothing changed. The images were then pulled ahead (one GHCR connection reset, retried), and the deploy was run again.
+- migrate applied 0 revisions (0022 and 0023 were applied with the branch images); backfill present=266 invalid=2.
+- Every service is healthy, with 0 restarts and no error lines in the api, worker, web or renderer logs.
+
+**Read smoke** through the API, from inside the api container:
+- 200 for the run list and its filters, metrics, inbox, usage (`days`), billing (`checkout_available`), `/me` (`locale`), run detail (project, title, owner), steps and `cards/post`.
+- The worker reports yt-dlp 2026.10.26; the served dashboard bundle carries the new Open in Studio dialog.
+
+**Rollback:** restore the three pins from the backup and run `compose up -d --wait`, without migrate.
+
+**Next steps:**
+- Part B of the restyle (R5-R7, Studio) as its own release.
+- Parked options to offer at the next "what's next": interactive login, login-only capabilities, vault key rotation, the Creator Studio backlog.
+
 ## 2026-10-27 - Dashboard restyle, part A (R1-R4): two languages, live runs, inbox and management
 
 **Spec:** `docs/superpowers/specs/2026-10-29-dashboard-restyle-design.md`, decisions D1-D6 approved by the operator; the backend additions B1-B8 in its §6 were approved on 2026-10-26 ("ya boleh dan tolong pastikan semua update backend nya"). Executed by Claude on `feat/run-progress-render-frames`; part A ships with the run-progress stack (D6).
