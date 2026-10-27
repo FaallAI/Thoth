@@ -155,3 +155,15 @@ test("Story shows the run's materials beside the preview, with the draft's media
   // The preview needs every video and still the draft draws, not only Timeline's library.
   await waitFor(() => expect(preview.mock.calls.map((call) => call[1])).toContain("asset_clip_footage_000"));
 });
+
+test("a chosen beat opens its inspector, and its edits save through the patch", async () => {
+  await mountStory();
+  expect(screen.getByText("Choose a beat in the strip below the preview.")).toBeDefined();
+
+  fireEvent.click(await screen.findByRole("button", { name: /^Reactions/ }));
+  expect(screen.getByRole("heading", { name: "Reactions" })).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "Slow zoom" }));
+
+  expect(screen.getByText("Unsaved changes")).toBeDefined();
+  expect(screen.getByRole("button", { name: "Slow zoom" }).getAttribute("aria-pressed")).toBe("true");
+});

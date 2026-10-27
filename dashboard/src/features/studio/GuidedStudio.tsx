@@ -41,6 +41,7 @@ import { StudioJobNav } from "./StudioJobNav";
 import { StudioReviewPanel, type StudioReviewClient } from "./StudioReviewPanel";
 import { useStudioViewport, type StudioEditPane, type StudioJob } from "./studio_viewport";
 import { usePlayerTimeline, type PlayerTimelineRef } from "./usePlayerTimeline";
+import { BeatInspector } from "./story/BeatInspector";
 import { BeatStrip } from "./story/BeatStrip";
 import { MaterialsPanel } from "./story/MaterialsPanel";
 import { SafeZoneOverlay } from "./story/SafeZone";
@@ -359,7 +360,16 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     setSelectedBeat(id);
     player.seekTo(beat.startFrame);
     dispatch({ type: "set_playhead", frame: beat.startFrame });
+    // The text and captions below the beat follow the beat's own scene.
+    const sceneId = timeline?.clips?.find((clip) => clip.clip_id === beat.clipIds[0])?.scene_id;
+    if (sceneId) dispatch({ type: "select_scene", sceneId });
   };
+  const { attachStudioMaterial } = client;
+  const attachMaterial = useMemo(
+    () => (attachStudioMaterial ? (itemId: string) => attachStudioMaterial(projectId, documentId, itemId) : undefined),
+    [attachStudioMaterial, projectId, documentId],
+  );
+  const shownBeat = beats.find((beat) => beat.id === selectedBeat);
 
   const requestReview = () => {
     setJob("review");
@@ -795,6 +805,21 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
               <div
                 className={`studio-simple-inspector flex min-h-0 flex-col overflow-auto ${stripLayout ? "col-start-2 row-start-1" : ""}`}
               >
+                {story && timeline ? (
+                  shownBeat ? (
+                    <BeatInspector
+                      beat={shownBeat}
+                      beats={beats}
+                      document={timeline}
+                      inventory={inventory}
+                      materials={materials}
+                      dispatch={dispatch}
+                      attachMaterial={attachMaterial}
+                    />
+                  ) : (
+                    <p className="p-4 text-sm text-muted-ink">{t("studio.inspector.empty")}</p>
+                  )
+                ) : null}
                 <Inspector
                   scene={selectedScene}
                   clip={selectedClip}
