@@ -29,10 +29,40 @@ All notable changes to this project will be documented in this file.
 - Usage shows workflows, videos, render time, storage and sessions; model calls and per-kind totals are not exposed to a workspace yet.
 - Studio pages (part B) keep their English copy and F3 styling until R5-R7.
 
+**Live gate (roadmap step 8), passed 2026-10-27:**
+- The branch images were deployed to stage1 before merge (`d7d7f433`: thoth `3eb56d20`, renderer `12b929ca`, web `7d955ebd`; migrations 0022 and 0023 applied).
+- Run `wf_9fe5cf449eb84149005d2e5f` succeeded on the new screens, but "Open in Studio" showed only "Studio will not include: figures: Figures are context, not scenes" with no clear way on. `ed11ab3e` asks in a dialog instead: the left-out items with translated reasons, the drafts to resume, and "Create new draft".
+- `ed11ab3e` deployed (thoth `515e104e`, renderer `b29192f8`, web `19d91b48`; migrate 0, every service healthy, 0 restarts); the operator opened the run in Studio and confirmed it works.
+- Rollback past 0023 restores the three image pins and runs `compose up -d --wait`; `make deploy` with old pins stops at migrate, because the old chain refuses the newer head.
+
 **Next steps:**
-- Roadmap step 8: the live gate, one dashboard `produce_video` run with a TikTok main watched end to end on the new screens (operator gate).
-- Push, PR, merge and deploy of the run-progress stack with part A, renderer and Thoth as one package (each an operator gate).
+- Merge of the run-progress stack with part A (operator gate), then a deploy of the merged `master` and its deploy record (each an operator gate).
 - Part B (R5-R7, Studio) as its own release.
+
+## 2026-10-29 - Deployed master 4a102c5 (PR #75, editor repositories on the ORM)
+
+**Deployed:** `master` 4a102c5 after the CI of PR #75 and of `master` went green (offline gates with Postgres, image build, non-live smoke).
+- `thoth@126a3281` (new); renderer `b2fe65ff` and web `9b530de0` unchanged.
+- No render or workflow was open; the previous image pins are backed up in `D:/thoth-tmp/bu/pins/pins-before-4a102c5.env`.
+
+**`make deploy` exit 0:**
+- migrate applied 0 revisions, as expected because the ORM move changes no schema;
+- every service healthy, with 0 restarts and no error lines in the api, worker, web, renderer or legacy-cdp logs.
+
+**Read smoke** through the API, from inside the api container (statuses and counts only):
+- **Answered 200:**
+  - projects;
+  - edit documents (3 real documents read from JSONB), a document by id, its review comments and decisions;
+  - editor assets;
+  - render capability and render jobs;
+  - Prompt Lab templates, locks and proposals.
+- **The expected 404s:**
+  - a Prompt Lab binding and preference that were never set;
+  - the Studio import manifest of a document that was not imported.
+
+**Next steps:**
+- the run-progress stack (rebased onto this, on `feat/run-progress-render-frames`) continues with roadmap step 7, the dashboard and Studio restyle;
+- the stack PR, merge and deploy wait until the track is done, with the renderer and Thoth deployed as one package.
 
 ## 2026-10-26 - The seven editor repositories move to the SQLAlchemy ORM
 
