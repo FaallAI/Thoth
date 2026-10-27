@@ -583,3 +583,16 @@ describe("the tracked release capsule", () => {
     );
   });
 });
+
+describe("the Story mode release capsule", () => {
+  test("draws motion and emphasis and waits for the operator's golden approval", async () => {
+    const capsule = await loadReleaseCapsule("story_mode-v1");
+    const clips = capsule.document.clips as { motion?: string; emphasis?: { highlight: boolean; arrow: boolean } }[];
+
+    expect(capsule.template_id).toBe("vertical_text_story");
+    expect(new Set(clips.map((clip) => clip.motion).filter(Boolean))).toEqual(new Set(["slow_zoom", "pan"]));
+    expect(clips.some((clip) => clip.emphasis?.highlight && clip.emphasis.arrow)).toBe(true);
+    // Approving a golden set is the operator's gate (spec 2026-10-27 §11).
+    expect(capsule.goldens).toBeNull();
+  });
+});
