@@ -53,6 +53,17 @@ async function mountStory(locale: Locale = "en", overrides: Record<string, unkno
           provenance_available: true,
           items: [
             {
+              item_id: "main_000",
+              role: "main" as const,
+              label: "Kabut asap Kalteng",
+              media_kind: "video" as const,
+              disposition: "attached" as const,
+              asset_id: "asset_clip_main_000",
+              owner_handle: "creator",
+              platform: "x",
+              verdict: "original" as const,
+            },
+            {
               item_id: "footage_000",
               role: "footage" as const,
               label: "Banjir footage",
@@ -245,4 +256,17 @@ test("the Assist toggle opens the panel for the open beat, in Story only", async
 
   fireEvent.click(within(screen.getByRole("group", { name: "Editor mode" })).getByRole("button", { name: "Timeline" }));
   expect(screen.queryByRole("button", { name: "Assist" })).toBeNull();
+});
+
+test("Add beat makes the missing Outro with the credit line", async () => {
+  await mountStory();
+
+  fireEvent.click(await screen.findByRole("button", { name: "Add beat" }));
+  const menu = screen.getByRole("menu", { name: "Add beat" });
+  expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Outro"]);
+  fireEvent.click(within(menu).getByRole("menuitem", { name: "Outro" }));
+
+  expect(screen.getByText("Unsaved changes")).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: /^Outro/ }));
+  expect((screen.getByLabelText("Text") as HTMLInputElement).value).toBe("Video: @creator · X");
 });

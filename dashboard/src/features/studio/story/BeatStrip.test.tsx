@@ -1,7 +1,7 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, mock, test } from "bun:test";
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 
 import { render } from "@/test-render";
 
@@ -88,4 +88,22 @@ test("text beats take no dropped media", () => {
 
   fireEvent.dragOver(hook, dragged({ "application/x-thoth-material": "comment_card_003" }));
   expect(hook.className).not.toContain("border-dashed");
+});
+
+test("Add beat offers the text beats the draft lacks", () => {
+  const onAddBeat = mock((_id: string) => {});
+  render(<BeatStrip beats={beats} fps={30} totalFrames={300} selected={null} onSelect={() => {}} addable={["outro"]} onAddBeat={onAddBeat} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Add beat" }));
+  const menu = screen.getByRole("menu", { name: "Add beat" });
+  expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Outro"]);
+  fireEvent.click(within(menu).getByRole("menuitem", { name: "Outro" }));
+  expect(onAddBeat).toHaveBeenCalledWith("outro");
+  expect(screen.queryByRole("menu")).toBeNull();
+});
+
+test("with nothing to add there is no Add beat", () => {
+  render(<BeatStrip beats={beats} fps={30} totalFrames={300} selected={null} onSelect={() => {}} addable={[]} onAddBeat={() => {}} />);
+
+  expect(screen.queryByRole("button", { name: "Add beat" })).toBeNull();
 });

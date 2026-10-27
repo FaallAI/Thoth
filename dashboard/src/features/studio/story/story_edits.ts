@@ -136,5 +136,44 @@ export function longestReading(beat: Beat, inventory: StudioImportItem[]): numbe
   return times.length ? Math.max(...times) : null;
 }
 
+const TEXT_BEAT_SECONDS = 4;
+const HEADING_LIMIT = 120;
+const PLATFORM_NAME: Record<string, string> = {
+  tiktok: "TikTok",
+  x: "X",
+  instagram: "Instagram",
+  youtube: "YouTube",
+  threads: "Threads",
+};
+
+function textBeat(document: EditDocumentV2, role: "hook" | "outro", heading: string): Op<"add_text_clip"> {
+  const canvas = document.canvas.duration_in_frames;
+  const duration = Math.min(TEXT_BEAT_SECONDS * document.canvas.fps, canvas);
+  return {
+    kind: "add_text_clip",
+    operation_id: id(),
+    clip_id: `clip_${role}_${crypto.randomUUID().replaceAll("-", "")}`,
+    track_id: "track_overlay",
+    from_frame: role === "hook" ? 0 : canvas - duration,
+    duration_in_frames: duration,
+    heading: heading.slice(0, HEADING_LIMIT),
+    body: "",
+    style_slot: "title",
+    source_role: role,
+  };
+}
+
+/** Spec §8: the hook opens the video for 4 s with the run's title, over what is there. */
+export const addHook = (document: EditDocumentV2, title: string) => textBeat(document, "hook", title);
+
+/** Spec §8: the outro ends at the canvas end, 4 s, with the credit line. */
+export const addOutro = (document: EditDocumentV2, credit: string) => textBeat(document, "outro", credit);
+
+/** DESIGN §13.2's credit line, when the run names the original creator. */
+export function creditLine(owner: string | null | undefined, platform: string | null | undefined): string {
+  if (!owner) return "";
+  return platform ? `Video: @${owner} · ${PLATFORM_NAME[platform] ?? platform}` : `Video: @${owner}`;
+}
+
 /** Seconds a text needs at the reading speed the importer uses. */
 export const readingSeconds = (text: string) => text.length / READING_CPS;

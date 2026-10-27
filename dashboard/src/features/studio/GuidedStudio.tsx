@@ -47,7 +47,7 @@ import { BeatStrip } from "./story/BeatStrip";
 import { MaterialsPanel } from "./story/MaterialsPanel";
 import { SafeZoneOverlay } from "./story/SafeZone";
 import { ROLE_BEAT, computeBeats, type BeatId } from "./story/story_beats";
-import { BEAT_ROLE, addMaterialToBeat } from "./story/story_edits";
+import { BEAT_ROLE, addHook, addMaterialToBeat, addOutro, creditLine } from "./story/story_edits";
 import "./studio.css";
 
 type Props = {
@@ -376,6 +376,20 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   );
   // The first beat is open until another is chosen, as the design shows.
   const shownBeat = beats.find((beat) => beat.id === selectedBeat) ?? beats[0];
+  // Spec 8: Hook takes the run's title, Outro the credit line; each only while the draft lacks it.
+  const mainMaterial = materials?.items.find((item) => item.role === "main");
+  const hookTitle = mainMaterial?.label || documentTitle || "";
+  const credit = mainMaterial?.verdict && mainMaterial.verdict !== "none"
+    ? creditLine(mainMaterial.owner_handle, mainMaterial.platform)
+    : "";
+  const addable = (["hook", "outro"] as const).filter(
+    (id) => !beats.some((beat) => beat.id === id) && (id === "hook" ? hookTitle : credit),
+  );
+  const addBeat = (id: "hook" | "outro") => {
+    if (!timeline) return;
+    const operation = id === "hook" ? addHook(timeline, hookTitle) : addOutro(timeline, credit);
+    dispatch({ type: "commit_operations", operations: [operation] });
+  };
   const { requestStoryAssist } = client;
   const askAssist = useMemo(
     () =>
@@ -921,6 +935,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 document={timeline}
                 previews={previewSources}
                 onDropMaterial={(beatId, data) => void dropMaterial(beatId, data)}
+                addable={[...addable]}
+                onAddBeat={addBeat}
               />
             </div>
           ) : null}

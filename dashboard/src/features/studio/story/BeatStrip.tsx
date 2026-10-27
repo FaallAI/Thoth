@@ -1,4 +1,5 @@
 import { useState, type DragEvent } from "react";
+import { Plus } from "lucide-react";
 
 import type { EditDocumentV2 } from "@/api/control-plane";
 import { useLocale } from "@/lib/locale";
@@ -18,14 +19,29 @@ type Props = {
   previews?: Record<string, string>;
   /** A material dropped on a media beat: its item id, or `upload:<asset_id>`. */
   onDropMaterial?: (beat: BeatId, data: string) => void;
+  /** The text beats "Add beat" may make: Hook and Outro, each only while the draft lacks it. */
+  addable?: ("hook" | "outro")[];
+  onAddBeat?: (id: "hook" | "outro") => void;
 };
 
 const THUMBS = 3;
 
 /** DESIGN §13.1: one tile per beat in time order; beats may overlap, so tiles show order and length. */
-export function BeatStrip({ beats, fps, totalFrames, selected, onSelect, document, previews = {}, onDropMaterial }: Props) {
+export function BeatStrip({
+  beats,
+  fps,
+  totalFrames,
+  selected,
+  onSelect,
+  document,
+  previews = {},
+  onDropMaterial,
+  addable = [],
+  onAddBeat,
+}: Props) {
   const { t } = useLocale();
   const [over, setOver] = useState<BeatId | null>(null);
+  const [adding, setAdding] = useState(false);
   // Hook and Outro are text; media goes to the other beats.
   const accepts = (id: BeatId, event: DragEvent) =>
     Boolean(onDropMaterial) && id !== "hook" && id !== "outro" && [...event.dataTransfer.types].includes(MATERIAL_DRAG_TYPE);
@@ -94,6 +110,36 @@ export function BeatStrip({ beats, fps, totalFrames, selected, onSelect, documen
           ) : null}
         </button>
       ))}
+      {onAddBeat && addable.length ? (
+        <div className="relative ml-auto shrink-0 self-center">
+          <button
+            type="button"
+            aria-expanded={adding}
+            onClick={() => setAdding((open) => !open)}
+            className="inline-flex h-10 items-center gap-1.5 rounded-md border border-hairline px-3 text-[13px] text-ink hover:bg-surface focus-visible:outline-2 focus-visible:outline-copper"
+          >
+            <Plus aria-hidden="true" size={14} /> {t("studio.story.addBeat")}
+          </button>
+          {adding ? (
+            <div role="menu" aria-label={t("studio.story.addBeat")} className="absolute right-0 bottom-12 z-30 flex w-40 flex-col rounded-md border border-hairline bg-raised p-1 shadow-xl">
+              {addable.map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setAdding(false);
+                    onAddBeat(id);
+                  }}
+                  className="rounded px-2 py-1.5 text-left text-sm text-ink hover:bg-surface focus-visible:outline-2 focus-visible:outline-copper"
+                >
+                  {t(`studio.story.beat.${id}`)}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

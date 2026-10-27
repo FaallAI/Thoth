@@ -6,7 +6,10 @@ import type { EditorAsset } from "@/api/control-plane";
 
 import { computeBeats } from "./story_beats";
 import {
+  addHook,
   addMaterialToBeat,
+  addOutro,
+  creditLine,
   cardPosition,
   longestReading,
   removeFromBeat,
@@ -101,4 +104,42 @@ test("the longest card's reading time comes from the import", () => {
     entry.item_id === "comment_card_001" ? { ...entry, reading_seconds: 3.2 } : entry,
   );
   expect(longestReading(reactions(), inventory)).toBe(3.2);
+});
+
+test("a hook opens the video for four seconds with the run's title", () => {
+  expect(addHook(storyDocument(), "Kabut asap Kalteng")).toMatchObject({
+    kind: "add_text_clip",
+    track_id: "track_overlay",
+    from_frame: 0,
+    duration_in_frames: 120,
+    heading: "Kabut asap Kalteng",
+    body: "",
+    style_slot: "title",
+    source_role: "hook",
+  });
+  expect(addHook(storyDocument(), "x".repeat(200)).heading).toHaveLength(120);
+});
+
+test("an outro closes the video for four seconds with the credit line", () => {
+  expect(addOutro(storyDocument(), "Video: @cat · TikTok")).toMatchObject({
+    kind: "add_text_clip",
+    from_frame: 180,
+    duration_in_frames: 120,
+    heading: "Video: @cat · TikTok",
+    source_role: "outro",
+  });
+});
+
+test("a canvas shorter than four seconds holds the whole beat", () => {
+  const short = storyDocument();
+  short.canvas.duration_in_frames = 90;
+  expect(addHook(short, "t")).toMatchObject({ from_frame: 0, duration_in_frames: 90 });
+  expect(addOutro(short, "c")).toMatchObject({ from_frame: 0, duration_in_frames: 90 });
+});
+
+test("the credit line names the original creator and platform, when known", () => {
+  expect(creditLine("cat", "tiktok")).toBe("Video: @cat · TikTok");
+  expect(creditLine("bmkg", "youtube")).toBe("Video: @bmkg · YouTube");
+  expect(creditLine("cat", undefined)).toBe("Video: @cat");
+  expect(creditLine(undefined, "x")).toBe("");
 });
