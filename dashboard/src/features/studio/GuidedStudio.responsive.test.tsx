@@ -254,6 +254,7 @@ test("keeps Advanced mode, a pending timeline edit, and the selection through a 
     document: timelineDocument() as EditDocument,
   }));
   await renderStudio(1440, timelineDocument() as EditDocument, saved);
+  fireEvent.click(await screen.findByRole("button", { name: "Timeline" }));
   await screen.findByLabelText("Timeline");
   jest.useFakeTimers();
   fireEvent.click(screen.getByRole("button", { name: "Music clip" }));
@@ -272,7 +273,7 @@ test("keeps Advanced mode, a pending timeline edit, and the selection through a 
   expect(screen.queryByLabelText("Asset library") === null).toBe(true);
 
   resize(1440);
-  expect(screen.getByRole("button", { name: "Advanced" }).getAttribute("aria-pressed")).toBe("true");
+  expect(screen.getByRole("button", { name: "Timeline" }).getAttribute("aria-pressed")).toBe("true");
   expect(screen.getByRole("button", { name: "Unmute Music" })).toBeDefined();
   expect(screen.getByRole("button", { name: "Music clip" }).getAttribute("aria-pressed")).toBe("true");
 

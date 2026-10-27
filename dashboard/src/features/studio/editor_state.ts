@@ -108,7 +108,8 @@ export function createEditorState(
     selectedTrackId: "",
     selectedClipId: "",
     selectedIssueId: "",
-    mode: isTimelineDocument(document) ? "advanced" : "simple",
+    // DESIGN 13.1: a draft opens in Story ("simple"); Timeline is opened on demand.
+    mode: "simple",
     playheadFrame: 0,
     playing: false,
     zoom: 1,
@@ -547,7 +548,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "upgrade_succeeded": {
       if (state.upgradeStatus !== "running") return state;
       const upgraded = createEditorState(action.document, state.assets);
-      return { ...upgraded, isOffline: state.isOffline };
+      // The person asked for the timeline, so it opens in Timeline.
+      return { ...upgraded, mode: "advanced", isOffline: state.isOffline };
     }
     case "upgrade_conflicted":
       return state.upgradeStatus === "running"

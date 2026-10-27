@@ -1,5 +1,5 @@
 import { Player } from "@remotion/player";
-import { useEffect, useState, type ComponentProps } from "react";
+import { useEffect, useState, type ComponentProps, type ReactNode } from "react";
 import { Maximize, Minimize, Pause, Play, Volume2, VolumeX } from "lucide-react";
 
 import type { ControlPlaneClient, EditDocument } from "@/api/control-plane";
@@ -19,6 +19,8 @@ type Props = {
   /** Receives the Player React commits, and null when it goes away. */
   onPlayer?: (player: PlayerTimelineRef | null) => void;
   onPreviewUnavailable?: (assetId: string) => void;
+  /** Drawn over the canvas itself (Story's safe zone); the player then keeps the canvas's shape. */
+  overlay?: ReactNode;
 };
 
 export function StudioPreview({
@@ -31,6 +33,7 @@ export function StudioPreview({
   previewSources,
   onPlayer,
   onPreviewUnavailable,
+  overlay,
 }: Props) {
   const [loadedDocument, setLoadedDocument] = useState<EditDocument | null>(null);
   const [failed, setFailed] = useState(false);
@@ -59,6 +62,23 @@ export function StudioPreview({
   const preview = currentDocument ? (
     <div className="min-h-0 flex-1 overflow-auto rounded border border-border bg-black p-4">
       {embedded ? <span className="studio-preview-badge">{currentDocument.canvas.width === 1080 && currentDocument.canvas.height === 1920 ? "9:16" : `${currentDocument.canvas.width}:${currentDocument.canvas.height}`} · {currentDocument.canvas.width}×{currentDocument.canvas.height}</span> : null}
+      {overlay === undefined ? player() : (
+        <div
+          className="relative mx-auto h-full max-w-full"
+          style={{ aspectRatio: `${currentDocument.canvas.width} / ${currentDocument.canvas.height}` }}
+        >
+          {player()}
+          {overlay}
+        </div>
+      )}
+    </div>
+  ) : (
+    <p className="text-sm text-muted-foreground">Loading Studio preview…</p>
+  );
+
+  function player() {
+    if (!currentDocument) return null;
+    return (
       <Player
         ref={ref}
         // The Player ties component and inputProps together through one generic;
@@ -76,10 +96,8 @@ export function StudioPreview({
         style={{ width: "100%", height: "100%" }}
         {...getPlayerConfig(currentDocument)}
       />
-    </div>
-  ) : (
-    <p className="text-sm text-muted-foreground">Loading Studio preview…</p>
-  );
+    );
+  }
 
   if (embedded) return <section className="flex h-full min-h-0 flex-col" aria-label="Studio preview">{preview}<p className="studio-preview-hint">Space to play/pause · Click scenes to jump</p></section>;
 

@@ -1,7 +1,13 @@
 import { useEffect, useId, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { ArrowLeft, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, Redo2, SlidersHorizontal, Undo2 } from "lucide-react";
 
-import type { ControlPlaneClient, EditDocument, EditDocumentOperation, EditorAsset } from "@/api/control-plane";
+import type {
+  ControlPlaneClient,
+  EditDocument,
+  EditDocumentOperation,
+  EditorAsset,
+  StudioImportItem,
+} from "@/api/control-plane";
 import { useLocale } from "@/lib/locale";
 import type { PreviewSources } from "./AdvancedTimelineComposition";
 import { AssetLibrary } from "./AssetLibrary";
@@ -34,6 +40,9 @@ import { StudioJobNav } from "./StudioJobNav";
 import { StudioReviewPanel, type StudioReviewClient } from "./StudioReviewPanel";
 import { useStudioViewport, type StudioEditPane, type StudioJob } from "./studio_viewport";
 import { usePlayerTimeline, type PlayerTimelineRef } from "./usePlayerTimeline";
+import { BeatStrip } from "./story/BeatStrip";
+import { SafeZoneOverlay } from "./story/SafeZone";
+import { computeBeats, type BeatId } from "./story/story_beats";
 import "./studio.css";
 
 type Props = {
@@ -99,6 +108,11 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   // wider screen brings the Advanced workspace back.
   const effectiveMode = compact ? "simple" : state.mode;
   const advanced = Boolean(timeline) && effectiveMode === "advanced";
+  const story = Boolean(timeline) && !advanced && !compact;
+  const [safeZone, setSafeZone] = useState(false);
+  const [selectedBeat, setSelectedBeat] = useState<BeatId | null>(null);
+  const [inventory, setInventory] = useState<StudioImportItem[]>([]);
+  const [commentFocusRequest, setCommentFocusRequest] = useState(0);
   const selectedClip = sceneTextClip(state.draft, selectedScene);
   const [previewSources, setPreviewSources] = useState<PreviewSources>({});
   const upgradeReasonId = useId();
@@ -121,7 +135,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const upgrading = state.upgradeStatus === "running";
   const editing = job === "edit";
   // Simple desktop editing lays the scenes out as a strip under the preview.
-  const stripLayout = editing && !compact && !advanced;
+  const stripLayout = editing && !compact && !advanced && !story;
   const workstationStyle = compact
     ? undefined
     : ({
@@ -129,7 +143,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         "--inspector-width": `${inspectorWidth}rem`,
         gridTemplateRows: stripLayout ? "minmax(0,1fr) 228px" : undefined,
         gridTemplateColumns: [
-          editing && sceneRegionOpen && !stripLayout && "var(--scene-board-width)",
+          editing && sceneRegionOpen && !stripLayout && !story && "var(--scene-board-width)",
           "minmax(0,1fr)",
           editing && inspectorRegionOpen && "var(--inspector-width)",
         ]
@@ -290,6 +304,31 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     );
   }, [hasTimeline, advanced, assetClient, projectId]);
 
+  // Beats fall back to the import inventory for clips saved before Story mode (spec 4).
+  useEffect(() => {
+    if (!hasTimeline || !getStudioImportInventory) return;
+    const requestGeneration = generation.current;
+    void getStudioImportInventory(projectId, documentId).then(
+      (loaded) => requestGeneration === generation.current && setInventory(loaded.items),
+      // A draft made in Studio has no inventory; beats then come from `source_role` alone.
+      () => {},
+    );
+  }, [hasTimeline, getStudioImportInventory, projectId, documentId]);
+  const beats = useMemo(() => (timeline ? computeBeats(timeline, inventory) : []), [timeline, inventory]);
+
+  const selectBeat = (id: BeatId) => {
+    const beat = beats.find((entry) => entry.id === id);
+    if (!beat) return;
+    setSelectedBeat(id);
+    player.seekTo(beat.startFrame);
+    dispatch({ type: "set_playhead", frame: beat.startFrame });
+  };
+
+  const requestReview = () => {
+    setJob("review");
+    setCommentFocusRequest((value) => value + 1);
+  };
+
   const commitSceneOperation = (operation: EditDocumentOperation) => {
     dispatch({ type: "commit_timeline_operation", operation });
     if (operation.kind !== "add_clip_from_asset" || !assetClient) return;
@@ -343,6 +382,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     offline: "bg-status-idle",
   };
   const banner = "flex flex-wrap items-center gap-3 border-b border-hairline px-4 py-2 text-sm";
+  const iconButton =
+    "grid size-9 place-items-center rounded-md text-muted-ink hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-copper disabled:cursor-not-allowed disabled:opacity-40";
 
   return (
     <section className={`studio-shell pen-studio studio-job-${job} ${advanced ? "studio-advanced" : "studio-simple"} flex min-h-0 flex-1 flex-col bg-background text-foreground`} aria-label="Guided Studio">
@@ -379,7 +420,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 aria-pressed={state.mode === mode}
                 onClick={() => dispatch({ type: "set_editor_mode", mode })}
               >
-                {t(mode === "simple" ? "studio.editor.simple" : "studio.editor.advanced")}
+                {t(mode === "simple" ? "studio.editor.story" : "studio.editor.timeline")}
               </button>
             ))}
           </div>
@@ -387,7 +428,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         {!compact && !timeline ? (
           <div className="flex rounded-md bg-well p-0.5" role="group" aria-label={t("studio.editor.mode")}>
             <button type="button" aria-pressed="true" className="rounded bg-raised px-2.5 py-1 text-[13px] text-ink">
-              {t("studio.editor.simple")}
+              {t("studio.editor.story")}
             </button>
             <button
               type="button"
@@ -395,7 +436,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
               title={t("studio.editor.advancedDisabled")}
               className="rounded px-2.5 py-1 text-[13px] text-faint"
             >
-              {t("studio.editor.advanced")}
+              {t("studio.editor.timeline")}
             </button>
           </div>
         ) : null}
@@ -404,6 +445,26 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             {t(timeline ? "studio.editor.compactAdvanced" : "studio.editor.compactEnable")}
           </p>
         ) : null}
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            className={iconButton}
+            aria-label={t("studio.editor.undo")}
+            disabled={!state.history.length || state.inFlightOperationIds.length > 0 || upgrading}
+            onClick={() => dispatch({ type: "undo" })}
+          >
+            <Undo2 aria-hidden="true" size={16} />
+          </button>
+          <button
+            type="button"
+            className={iconButton}
+            aria-label={t("studio.editor.redo")}
+            disabled={!state.future.length || state.inFlightOperationIds.length > 0 || upgrading}
+            onClick={() => dispatch({ type: "redo" })}
+          >
+            <Redo2 aria-hidden="true" size={16} />
+          </button>
+        </div>
         <div className="flex min-w-0 items-center gap-2 text-[13px] whitespace-nowrap text-muted-ink">
           <span aria-hidden="true" className={`size-2 rounded-full ${saveDot[state.saveStatus]}`} />
           {/* The document's own project, which the global project switcher may no longer show. */}
@@ -413,6 +474,13 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           </span>
           <span className="sr-only">{t("studio.editor.savedRevision", { revision: base.revision })}</span>
         </div>
+        <button
+          type="button"
+          onClick={requestReview}
+          className="h-9 rounded-md border border-hairline px-3 text-[13px] text-ink hover:bg-surface focus-visible:outline-2 focus-visible:outline-copper"
+        >
+          {t("studio.editor.requestReview")}
+        </button>
         <details className="relative">
           <summary
             aria-label={t("studio.editor.menu")}
@@ -423,24 +491,6 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           <div className="absolute top-11 right-0 z-40 flex w-80 flex-col gap-3 rounded-[10px] border border-hairline bg-raised p-4 text-sm shadow-xl">
             <span className="text-muted-ink">{t("studio.editor.project", { name: projectName ?? base.project_id })}</span>
             {workspaceControls ?? <p className="text-muted-ink">{t("studio.editor.noSwitch")}</p>}
-            <div className="flex flex-wrap gap-2 border-t border-hairline pt-3">
-              <button
-                type="button"
-                className={toolbarButton}
-                disabled={!state.history.length || state.inFlightOperationIds.length > 0 || upgrading}
-                onClick={() => dispatch({ type: "undo" })}
-              >
-                {t("studio.editor.undo")}
-              </button>
-              <button
-                type="button"
-                className={toolbarButton}
-                disabled={!state.future.length || state.inFlightOperationIds.length > 0 || upgrading}
-                onClick={() => dispatch({ type: "redo" })}
-              >
-                {t("studio.editor.redo")}
-              </button>
-            </div>
             {!compact && !timeline && client.upgradeEditDocument ? (
               <div className="flex flex-col gap-1">
                 <button
@@ -548,9 +598,9 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           <div
             id="studio-region-scenes"
             className={stripLayout ? "col-span-2 col-start-1 row-start-2 min-w-0" : "contents"}
-            hidden={!editing || (compact ? editPane !== "scenes" : !sceneRegionOpen)}
+            hidden={!editing || story || (compact ? editPane !== "scenes" : !sceneRegionOpen)}
           >
-            {advanced ? (
+            {story ? null : advanced ? (
               assetClient ? (
                 <AssetLibrary
                   client={assetClient}
@@ -602,7 +652,20 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 <span>{t("studio.review.preview.readOnly")}</span>
               </header>
             ) : null}
+            {story && !reviewing ? (
+              <div className="flex items-center justify-end">
+                <button
+                  type="button"
+                  aria-pressed={safeZone}
+                  onClick={() => setSafeZone((value) => !value)}
+                  className="rounded-md border border-hairline px-2.5 py-1 text-[13px] text-muted-ink aria-[pressed=true]:border-copper aria-[pressed=true]:text-ink focus-visible:outline-2 focus-visible:outline-copper"
+                >
+                  {t("studio.story.safeZone")}
+                </button>
+              </div>
+            ) : null}
             <StudioPreview
+              overlay={story && !reviewing ? (safeZone ? <SafeZoneOverlay /> : null) : undefined}
               // Review shows what was saved; Edit shows the draft.
               document={reviewing ? base : state.draft}
               onPlayer={setAttachedPlayer}
@@ -618,6 +681,15 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 })
               }
             />
+            {story && timeline && !reviewing ? (
+              <BeatStrip
+                beats={beats}
+                fps={timeline.canvas.fps}
+                totalFrames={timeline.canvas.duration_in_frames}
+                selected={selectedBeat}
+                onSelect={selectBeat}
+              />
+            ) : null}
             {advanced && timeline ? (
               <div className="contents" hidden={reviewing}>
                 <Timeline
@@ -649,6 +721,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                   blockingIssues={(isTimelineDocument(base) ? timelineIssues(base).length : 0) + (hasValidText(base) ? 0 : 1)}
                   currentFrame={state.playheadFrame}
                   onLoadRevision={loadNewerRevision}
+                  commentFocusRequest={commentFocusRequest}
                 />
               </div>
             ) : (

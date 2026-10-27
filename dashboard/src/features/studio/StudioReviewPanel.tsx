@@ -46,6 +46,8 @@ type Props = {
   currentFrame: number;
   /** Asks the editor to bring a newer saved revision in, through its own conflict choice. */
   onLoadRevision?: (revision: number) => void;
+  /** Bumped by "Request review": the comment box takes the focus. */
+  commentFocusRequest?: number;
 };
 
 const field =
@@ -63,6 +65,7 @@ export function StudioReviewPanel({
   blockingIssues,
   currentFrame,
   onLoadRevision,
+  commentFocusRequest = 0,
 }: Props) {
   const [state, dispatch] = useReducer(reviewReducer, undefined, createReviewState);
   const savedRevision = savedDocument.revision;
@@ -76,6 +79,10 @@ export function StudioReviewPanel({
   const reasonId = useId();
   const confirmTitleId = useId();
   const approveRef = useRef<HTMLButtonElement>(null);
+  const commentRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (commentFocusRequest) commentRef.current?.focus();
+  }, [commentFocusRequest]);
   const requestRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
   /** Bumped when the project or document changes, and on unmount, so a late answer is dropped. */
@@ -323,6 +330,7 @@ export function StudioReviewPanel({
           {t("studio.review.comment")}
         </label>
         <textarea
+          ref={commentRef}
           id={commentId}
           className={field}
           rows={3}
