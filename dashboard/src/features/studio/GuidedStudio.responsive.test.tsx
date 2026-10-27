@@ -310,7 +310,7 @@ function captionDocument(): EditDocument {
   return document;
 }
 
-test("edits caption text on a tablet through the shared draft and keeps phone edits to copy", async () => {
+test("edits caption text on a tablet through the shared draft and keeps it in the phone quick edit", async () => {
   const saved = mock(async (_projectId: string, _documentId: string, _patch: EditDocumentPatch) => ({
     kind: "saved" as const,
     document: captionDocument(),
@@ -322,9 +322,9 @@ test("edits caption text on a tablet through the shared draft and keeps phone ed
   expect(screen.getByText("Unsaved changes")).toBeDefined();
 
   resize(375);
-  expect(screen.queryByLabelText("Caption cue 1 text") === null).toBe(true);
-  expect(isHidden(screen.getByLabelText("Heading"))).toBe(false);
-  expect(isHidden(screen.getByLabelText("Body"))).toBe(false);
+  // DESIGN 13.5: a phone edits a timeline draft through the quick edit (hook text, captions, swap).
+  expect(screen.getByRole("heading", { name: /^Quick edit · Rev \d+$/ })).toBeDefined();
+  expect((screen.getByLabelText("Caption cue 1 text") as HTMLTextAreaElement).value).toBe("New subtitle");
   expect(screen.queryByLabelText("Ownership") === null).toBe(true);
   expect(screen.queryByLabelText("Duration (seconds)") === null).toBe(true);
 

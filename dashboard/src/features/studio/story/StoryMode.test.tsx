@@ -270,3 +270,31 @@ test("Add beat makes the missing Outro with the credit line", async () => {
   fireEvent.click(screen.getByRole("button", { name: /^Outro/ }));
   expect((screen.getByLabelText("Text") as HTMLInputElement).value).toBe("Video: @creator · X");
 });
+
+test("a phone gets the quick edit, without beats or timeline", async () => {
+  const width = window.innerWidth;
+  Object.defineProperty(window, "innerWidth", { configurable: true, value: 375 });
+  try {
+    const { GuidedStudio } = await import("../GuidedStudio");
+    const document = storyDocument() as EditDocument;
+    render(
+      <GuidedStudio
+        client={{
+          getEditDocument: mock(async () => document),
+          patchEditDocument: mock(async () => ({ kind: "saved" as const, document })),
+          getStudioImportInventory: mock(async () => ({ document_id: "edoc_story", source_key: "a".repeat(64), revision: 3, items: storyInventory() })),
+        }}
+        projectId="project_001"
+        documentId="edoc_story"
+        onBack={() => {}}
+      />,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Quick edit · Rev 3" })).toBeDefined();
+    expect(screen.queryByRole("toolbar", { name: "Story beats" })).toBeNull();
+    expect(screen.queryByLabelText("Timeline")).toBeNull();
+    expect(screen.getByLabelText("Draft preview")).toBeDefined();
+  } finally {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+  }
+});

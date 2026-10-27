@@ -45,6 +45,7 @@ import { AssistPanel } from "./story/AssistPanel";
 import { BeatInspector } from "./story/BeatInspector";
 import { BeatStrip } from "./story/BeatStrip";
 import { MaterialsPanel } from "./story/MaterialsPanel";
+import { QuickEdit } from "./story/QuickEdit";
 import { SafeZoneOverlay } from "./story/SafeZone";
 import { ROLE_BEAT, computeBeats, type BeatId } from "./story/story_beats";
 import { BEAT_ROLE, addHook, addMaterialToBeat, addOutro, creditLine } from "./story/story_edits";
@@ -118,6 +119,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const effectiveMode = compact ? "simple" : state.mode;
   const advanced = Boolean(timeline) && effectiveMode === "advanced";
   const story = Boolean(timeline) && !advanced && !compact;
+  // DESIGN 13.5: a phone edits a timeline draft through the quick edit only.
+  const quick = viewport === "phone" && Boolean(timeline);
   const [safeZone, setSafeZone] = useState(false);
   const [selectedBeat, setSelectedBeat] = useState<BeatId | null>(null);
   const [inventory, setInventory] = useState<StudioImportItem[]>([]);
@@ -162,7 +165,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           .join(" "),
       } as CSSProperties);
   const reviewing = job === "review";
-  const previewVisible = reviewing || (editing && (!compact || editPane === "preview"));
+  const previewVisible = reviewing || (editing && (!compact || quick || editPane === "preview"));
   const { pause } = player;
 
   // A hidden preview must not keep playing; showing it again never resumes it.
@@ -329,14 +332,14 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
 
   const { getStudioMaterials } = client;
   useEffect(() => {
-    if (!story || !getStudioMaterials) return;
+    if (!(story || quick) || !getStudioMaterials) return;
     const requestGeneration = generation.current;
     void getStudioMaterials(projectId, documentId).then(
       (loaded) => requestGeneration === generation.current && setMaterials(loaded),
       // A draft made in Studio has no materials route answer; the panel lists uploads only.
       () => {},
     );
-  }, [story, getStudioMaterials, projectId, documentId]);
+  }, [story, quick, getStudioMaterials, projectId, documentId]);
 
   // Story previews the draft's own videos and stills; Timeline's library is not mounted here.
   const mediaIds = useMemo(
@@ -344,7 +347,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     [timeline],
   );
   useEffect(() => {
-    if (!story || !assetClient || !mediaIds) return;
+    if (!(story || quick) || !assetClient || !mediaIds) return;
     const requestGeneration = generation.current;
     for (const assetId of mediaIds.split(" ")) {
       if (assetId in previewSources) continue;
@@ -357,7 +360,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     }
     // previewSources is read, not watched: each asset is asked for once per change of the media set.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [story, assetClient, mediaIds, projectId]);
+  }, [story, quick, assetClient, mediaIds, projectId]);
 
   const selectBeat = (id: BeatId) => {
     const beat = beats.find((entry) => entry.id === id);
@@ -555,7 +558,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             {t(timeline ? "studio.editor.compactAdvanced" : "studio.editor.compactEnable")}
           </p>
         ) : null}
-        <div className="flex items-center gap-0.5">
+        {/* DESIGN 13.5: a phone's top bar keeps the title, the save state and the menu. */}
+        <div className="flex items-center gap-0.5 max-md:hidden">
           <button
             type="button"
             className={iconButton}
@@ -597,7 +601,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         <button
           type="button"
           onClick={requestReview}
-          className="h-9 rounded-md border border-hairline px-3 text-[13px] text-ink hover:bg-surface focus-visible:outline-2 focus-visible:outline-copper"
+          className="h-9 rounded-md border max-md:hidden border-hairline px-3 text-[13px] text-ink hover:bg-surface focus-visible:outline-2 focus-visible:outline-copper"
         >
           {t("studio.editor.requestReview")}
         </button>
@@ -695,7 +699,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         </div>
       )}
 
-      {compact && editing ? (
+      {compact && editing && !quick ? (
         <CompactStudioNav
           panes={[
             { id: "scenes", label: "Scenes" },
@@ -718,7 +722,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           <div
             id="studio-region-scenes"
             className={stripLayout ? "col-span-2 col-start-1 row-start-2 min-w-0" : "contents"}
-            hidden={!editing || (compact ? editPane !== "scenes" : !sceneRegionOpen)}
+            hidden={!editing || quick || (compact ? editPane !== "scenes" : !sceneRegionOpen)}
           >
             {story && timeline ? (
               <MaterialsPanel
@@ -853,9 +857,28 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           <div
             id="studio-region-inspector"
             className="contents"
-            hidden={!editing || (compact ? editPane !== "controls" : !inspectorRegionOpen)}
+            hidden={!editing || (quick ? false : compact ? editPane !== "controls" : !inspectorRegionOpen)}
           >
-            {advanced && timeline ? (
+            {quick && timeline ? (
+              <QuickEdit
+                document={timeline}
+                beats={beats}
+                materials={materials}
+                revision={base.revision}
+                playheadFrame={state.playheadFrame}
+                dispatch={dispatch}
+                attachMaterial={attachMaterial}
+                captions={
+                  <CaptionTextInspector
+                    document={timeline}
+                    selectedSceneId={state.selectedSceneId}
+                    disabled={upgrading}
+                    compact
+                    onOperation={(operation) => dispatch({ type: "commit_timeline_operation", operation })}
+                  />
+                }
+              />
+            ) : advanced && timeline ? (
               <TimelineInspector
                 document={timeline}
                 selectedClipId={state.selectedClipId}
