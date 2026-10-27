@@ -1,3 +1,4 @@
+import { Dialog } from "@base-ui/react/dialog";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -59,6 +60,16 @@ function keep(project: string, workflow: string, value: Unfinished | null) {
   } catch {
     // memory still holds it for this page
   }
+}
+
+/** The server's fixed reasons in the chosen language; another reason shows as it came. */
+function reasonText(t: ReturnType<typeof useLocale>["t"], label: string, reason: string): string {
+  if (reason === "Figures are context, not scenes") return t("studio.reason.figures");
+  if (reason === "Not captured: post card") return t("studio.reason.postCard");
+  if (reason === "Not captured: profile page") return t("studio.reason.profilePage");
+  const long = /^Longer than (\d+) characters$/.exec(reason);
+  if (long) return t("studio.reason.tooLong", { label, limit: long[1] });
+  return `${label}: ${reason}`;
 }
 
 const leftOut = (found: StudioSourceInspection) => found.items.filter((item) => item.media_kind === "none" && item.reason);
@@ -125,27 +136,47 @@ export function OpenInStudio({ client, projectId, workflowId, summary, onOpen }:
         {t(busy === "importing" ? "studio.importing" : busy ? "studio.opening" : "studio.open")}
       </Button>
       {!projectId && <p className="text-sm text-muted-foreground">{t("studio.chooseProject")}</p>}
-      {inspection && projectId && (
-        <div className="open-in-studio-choice">
-          {leftOut(inspection).length > 0 && (
-            <>
-              <p className="text-sm">{t("studio.leftOut")}</p>
-              <ul className="text-sm">
-                {leftOut(inspection).map((item) => (
-                  <li key={item.item_id}>{`${item.label}: ${item.reason}`}</li>
-                ))}
-              </ul>
-            </>
-          )}
-          {(inspection.drafts ?? []).map((draft) => (
-            <Button key={draft.document_id} variant="outline" disabled={busy !== null} onClick={() => void resume(projectId, draft.document_id)}>
-              {t("studio.resume", { date: new Date(draft.created_at).toLocaleString(locale === "id" ? "id-ID" : "en-US") })}
-            </Button>
-          ))}
-          <Button disabled={busy !== null} onClick={() => void attempt(() => create(projectId, crypto.randomUUID(), leftOut(inspection).length > 0))}>{t("studio.newDraft")}</Button>
-        </div>
-      )}
-      {error && <p role="alert" className="text-sm text-destructive">{t(error)}</p>}
+      <Dialog.Root open={Boolean(inspection && projectId)} onOpenChange={(open) => !open && setInspection(null)}>
+        <Dialog.Portal>
+          <Dialog.Backdrop className="fixed inset-0 bg-black/60" />
+          <Dialog.Popup className="fixed top-1/2 left-1/2 w-[min(520px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-[10px] bg-raised p-6 shadow-xl">
+            <Dialog.Title className="text-base font-semibold text-ink">{t("studio.open")}</Dialog.Title>
+            <Dialog.Description className="mt-1 text-sm text-muted-ink">{t("studio.dialogIntro")}</Dialog.Description>
+            {inspection && projectId && (
+              <div className="mt-5 flex flex-col gap-4 text-sm">
+                {leftOut(inspection).length > 0 && (
+                  <div>
+                    <p className="text-ink">{t("studio.leftOut")}</p>
+                    <ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-muted-ink">
+                      {leftOut(inspection).map((item) => (
+                        <li key={item.item_id}>{reasonText(t, item.label, item.reason ?? "")}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {(inspection.drafts ?? []).length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-ink">{t("studio.drafts")}</p>
+                    {(inspection.drafts ?? []).map((draft) => (
+                      <Button key={draft.document_id} variant="secondary" disabled={busy !== null} onClick={() => void resume(projectId, draft.document_id)}>
+                        {t("studio.resume", { date: new Date(draft.created_at).toLocaleString(locale === "id" ? "id-ID" : "en-US") })}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+                {error && <p role="alert" className="text-status-failed">{t(error)}</p>}
+                <div className="flex justify-end gap-2 border-t border-hairline pt-4">
+                  <Dialog.Close render={<Button variant="ghost" />}>{t("common.cancel")}</Dialog.Close>
+                  <Button disabled={busy !== null} onClick={() => void attempt(() => create(projectId, crypto.randomUUID(), leftOut(inspection).length > 0))}>
+                    {t(busy === "importing" ? "studio.importing" : "studio.newDraft")}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Dialog.Popup>
+        </Dialog.Portal>
+      </Dialog.Root>
+      {error && !inspection && <p role="alert" className="text-sm text-destructive">{t(error)}</p>}
     </section>
   );
 }

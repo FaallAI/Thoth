@@ -1,7 +1,7 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, mock, test } from "bun:test";
-import { cleanup, render as rawRender, screen, waitFor } from "@testing-library/react";
+import { cleanup, render as rawRender, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { LocaleProvider } from "@/lib/locale";
@@ -301,4 +301,34 @@ test("a not-placed card does not count as unfinished", async () => {
   render(<OpenInStudio client={c} projectId="p1" workflowId="wf_1" summary={done()} onOpen={onOpen} />);
   await open();
   await waitFor(() => expect(onOpen).toHaveBeenCalledWith("p1", "edoc_1", false));
+});
+
+test("figures left out ask in a dialog whose new draft opens Studio, in the chosen language", async () => {
+  // The live gate run wf_9fe5cf449eb84149005d2e5f: every Content Set with figures reaches this.
+  const figures = {
+    item_id: "figures",
+    role: null,
+    order: null,
+    label: "figures",
+    platform: null,
+    media_kind: "none",
+    scene_id: null,
+    reason: "Figures are context, not scenes",
+    disposition: "unresolved",
+  } as unknown as StudioSourceInspection["items"][number];
+  const c = client(inspection({ items: [figures] }));
+  const onOpen = mock((_project: string, _document: string, _resolve: boolean) => {});
+  rawRender(
+    <LocaleProvider serverLocale="id">
+      <OpenInStudio client={c} projectId="p1" workflowId="wf_1" summary={done()} onOpen={onOpen} />
+    </LocaleProvider>,
+  );
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Buka di Studio" }));
+
+  const dialog = await screen.findByRole("dialog");
+  expect(within(dialog).getByText("Tokoh tetap sebagai konteks: orang dan organisasi tidak menjadi scene.")).toBeDefined();
+  await user.click(within(dialog).getByRole("button", { name: "Buat draf baru" }));
+  await waitFor(() => expect(onOpen).toHaveBeenCalledWith("p1", "edoc_1", true));
+  expect(c.openWorkflowInStudio).toHaveBeenCalledTimes(1);
 });
