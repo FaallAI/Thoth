@@ -93,6 +93,8 @@ export type EditorAction =
   | { type: "upgrade_failed" }
   | { type: "preview_timeline_operation"; operation: EditDocumentOperation }
   | { type: "commit_timeline_operation"; operation: EditDocumentOperation }
+  /** Several operations as one undo step; one refusal discards them all (Story mode). */
+  | { type: "commit_operations"; operations: EditDocumentOperation[] }
   | { type: "cancel_timeline_preview" };
 
 export function createEditorState(
@@ -153,6 +155,7 @@ const DOCUMENT_ACTIONS = new Set<EditorAction["type"]>([
   "keep_editing_locally",
   "preview_timeline_operation",
   "commit_timeline_operation",
+  "commit_operations",
   "cancel_timeline_preview",
 ]);
 
@@ -391,6 +394,23 @@ function sessionAfterSave(
   };
 }
 
+function batchDraft(state: EditorState, operations: EditDocumentOperation[]): EditDocument | undefined {
+  if (!isTimelineDocument(state.draft)) return undefined;
+  try {
+    return operations.reduce((document, operation) => {
+      if (operation.kind !== "replace_text") return applyTimelineOperation(document, operation, state.assets);
+      if (!findTextClip(document, operation.clip_id)) throw new Error("operation references an unknown clip");
+      return replaceClip(document, operation.clip_id, (clip) => ({
+        ...clip,
+        [operation.field]: operation.value,
+        ownership: "user_edited",
+      })) as EditDocumentV2;
+    }, state.draft);
+  } catch {
+    return undefined;
+  }
+}
+
 function gestureOrigin(state: EditorState): EditorSnapshot {
   return state.preview ?? { draft: state.draft, pendingOperations: state.pendingOperations };
 }
@@ -611,6 +631,18 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const draft = timelineDraft(origin, action.operation, state.assets);
       if (!draft) return { ...state, ...origin, preview: undefined };
       return { ...edited({ ...state, ...origin }, draft, action.operation), preview: undefined };
+    }
+    case "commit_operations": {
+      const draft = batchDraft(state, action.operations);
+      if (!draft || !action.operations.length) return state;
+      return {
+        ...state,
+        draft,
+        history: [...state.history, { draft: state.draft, pendingOperations: state.pendingOperations }],
+        future: [],
+        pendingOperations: [...state.pendingOperations, ...action.operations],
+        saveStatus: saveStatusAfterLocalChange(state),
+      };
     }
   }
 }

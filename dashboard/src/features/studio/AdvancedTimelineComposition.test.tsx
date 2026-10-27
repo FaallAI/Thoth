@@ -200,6 +200,8 @@ function documentV2(): EditDocumentV2 {
         locked: true,
         fit: "cover",
         blur_enabled: false,
+        motion: "none",
+        emphasis: { highlight: false, arrow: false },
       },
       {
         kind: "audio",

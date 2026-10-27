@@ -325,6 +325,8 @@ function timelineDocument(): EditDocumentV2 {
         locked: false,
         fit: "cover",
         blur_enabled: false,
+        motion: "none",
+        emphasis: { highlight: false, arrow: false },
       },
       {
         kind: "audio",

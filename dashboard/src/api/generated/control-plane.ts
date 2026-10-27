@@ -1506,6 +1506,8 @@ export interface components {
             clip_id: string;
             /** Duration In Frames */
             duration_in_frames: number;
+            /** Fit */
+            fit?: ("cover" | "contain" | "fill") | null;
             /** From Frame */
             from_frame: number;
             /**
@@ -1515,6 +1517,7 @@ export interface components {
             kind: "add_clip_from_asset";
             /** Operation Id */
             operation_id: string;
+            position?: components["schemas"]["Position"] | null;
             /** Scene Id */
             scene_id?: string | null;
             /**
@@ -1522,6 +1525,40 @@ export interface components {
              * @default 0
              */
             source_from_frame: number;
+            /** Source Role */
+            source_role?: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment" | "hook" | "outro") | null;
+            /** Track Id */
+            track_id: string;
+        };
+        /**
+         * AddTextClip
+         * @description A Hook or Outro text over the overlay track, bound to no scene (Story mode, spec 8).
+         */
+        AddTextClip: {
+            /** Body */
+            body: string;
+            /** Clip Id */
+            clip_id: string;
+            /** Duration In Frames */
+            duration_in_frames: number;
+            /** From Frame */
+            from_frame: number;
+            /** Heading */
+            heading: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "add_text_clip";
+            /** Operation Id */
+            operation_id: string;
+            /**
+             * Source Role
+             * @enum {string}
+             */
+            source_role: "hook" | "outro";
+            /** Style Slot */
+            style_slot: string;
             /** Track Id */
             track_id: string;
         };
@@ -1997,7 +2034,7 @@ export interface components {
             /** Base Revision */
             base_revision: number;
             /** Operations */
-            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
+            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
         };
         /**
          * EditDocumentV1
@@ -2097,6 +2134,19 @@ export interface components {
             assets: components["schemas"]["EditorAsset"][];
             /** Next Cursor */
             next_cursor?: string | null;
+        };
+        /** Emphasis */
+        Emphasis: {
+            /**
+             * Arrow
+             * @default false
+             */
+            arrow: boolean;
+            /**
+             * Highlight
+             * @default false
+             */
+            highlight: boolean;
         };
         /**
          * EventKind
@@ -2922,6 +2972,23 @@ export interface components {
             /** Track Id */
             track_id: string;
         };
+        /**
+         * ReplaceClipAsset
+         * @description Swap the media behind a clip; its timing, framing and Story styling stay.
+         */
+        ReplaceClipAsset: {
+            /** Asset Id */
+            asset_id: string;
+            /** Clip Id */
+            clip_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "replace_clip_asset";
+            /** Operation Id */
+            operation_id: string;
+        };
         /** ReplaceText */
         ReplaceText: {
             /** Clip Id */
@@ -3227,6 +3294,22 @@ export interface components {
             /** Operation Id */
             operation_id: string;
         };
+        /** SetClipEmphasis */
+        SetClipEmphasis: {
+            /** Arrow */
+            arrow: boolean;
+            /** Clip Id */
+            clip_id: string;
+            /** Highlight */
+            highlight: boolean;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_clip_emphasis";
+            /** Operation Id */
+            operation_id: string;
+        };
         /** SetClipHidden */
         SetClipHidden: {
             /** Clip Id */
@@ -3254,6 +3337,36 @@ export interface components {
             locked: boolean;
             /** Operation Id */
             operation_id: string;
+        };
+        /** SetClipMotion */
+        SetClipMotion: {
+            /** Clip Id */
+            clip_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_clip_motion";
+            /**
+             * Motion
+             * @enum {string}
+             */
+            motion: "none" | "slow_zoom" | "pan";
+            /** Operation Id */
+            operation_id: string;
+        };
+        /** SetClipPosition */
+        SetClipPosition: {
+            /** Clip Id */
+            clip_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_clip_position";
+            /** Operation Id */
+            operation_id: string;
+            position: components["schemas"]["Position"];
         };
         /** SetClipVolume */
         SetClipVolume: {
@@ -3827,6 +3940,8 @@ export interface components {
              * @default 0
              */
             source_from_frame: number;
+            /** Source Role */
+            source_role?: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment" | "hook" | "outro") | null;
             /** Track Id */
             track_id: string;
             /**
@@ -3867,6 +3982,8 @@ export interface components {
             ownership: "ai_managed" | "user_edited" | "locked";
             /** Scene Id */
             scene_id?: string | null;
+            /** Source Role */
+            source_role?: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment" | "hook" | "outro") | null;
             /** Style Slot */
             style_slot: string;
             /** Track Id */
@@ -3908,6 +4025,8 @@ export interface components {
             preset_id: "lower_third" | "badge" | "progress_bar";
             /** Scene Id */
             scene_id?: string | null;
+            /** Source Role */
+            source_role?: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment" | "hook" | "outro") | null;
             /** Track Id */
             track_id: string;
         };
@@ -3945,6 +4064,8 @@ export interface components {
             ownership: "ai_managed" | "user_edited" | "locked";
             /** Scene Id */
             scene_id?: string | null;
+            /** Source Role */
+            source_role?: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment" | "hook" | "outro") | null;
             /** Style Slot */
             style_slot: string;
             /** Track Id */
@@ -3997,6 +4118,7 @@ export interface components {
             crop?: components["schemas"]["Crop"] | null;
             /** Duration In Frames */
             duration_in_frames: number;
+            emphasis?: components["schemas"]["Emphasis"];
             /**
              * Fit
              * @default cover
@@ -4021,6 +4143,12 @@ export interface components {
              */
             locked: boolean;
             /**
+             * Motion
+             * @default none
+             * @enum {string}
+             */
+            motion: "none" | "slow_zoom" | "pan";
+            /**
              * Ownership
              * @enum {string}
              */
@@ -4033,6 +4161,8 @@ export interface components {
              * @default 0
              */
             source_from_frame: number;
+            /** Source Role */
+            source_role?: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment" | "hook" | "outro") | null;
             /** Track Id */
             track_id: string;
         };
