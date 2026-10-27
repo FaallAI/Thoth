@@ -352,6 +352,7 @@ class PostgresStudioImportRepository:
                 duration_in_frames=duration,
                 source_from_frame=source_from,
                 scene_id=scene.scene_id,
+                source_role=entry.role,
             )
         )
         try:
@@ -473,14 +474,11 @@ def _overlay(
         duration_in_frames=max(1, round(length * canvas.fps)),
         source_from_frame=0,
         scene_id=scene.scene_id,
+        fit="contain",
+        position=position,
+        source_role=entry.role,
     )
     try:
-        document = apply_edit_operations(
-            latest, [operation], resolved_assets={asset.asset_id: asset}
-        )
+        return apply_edit_operations(latest, [operation], resolved_assets={asset.asset_id: asset})
     except ValueError as error:
         raise StudioImportDecisionRejected("attach_rejected") from error
-    clip = _clip(document, clip_id)
-    clip.fit = "contain"
-    clip.position = position
-    return document

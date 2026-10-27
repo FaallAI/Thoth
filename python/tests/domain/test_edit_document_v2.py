@@ -55,6 +55,11 @@ def test_version_two_round_trips_without_coercion() -> None:
     document = EditDocumentV2.model_validate(payload)
 
     assert EditDocumentV2.model_validate_json(document.model_dump_json()) == document
+    # Story mode's fields read back at their defaults, which draw nothing new.
+    for clip in payload["clips"]:
+        clip["source_role"] = None
+        if clip["kind"] == "video":
+            clip.update(motion="none", emphasis={"highlight": False, "arrow": False})
     assert document.model_dump(mode="json") == payload
 
 

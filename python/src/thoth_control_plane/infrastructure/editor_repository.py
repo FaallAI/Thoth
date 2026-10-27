@@ -34,7 +34,7 @@ from thoth_control_plane.domain.edit_document_operations import (
 from thoth_control_plane.domain.edit_document_upgrade import upgrade_edit_document_v1
 from thoth_control_plane.domain.edit_document_v2 import AssetRef, EditDocument, EditDocumentV2
 from thoth_control_plane.domain.edit_documents import EditDocumentV1
-from thoth_control_plane.domain.timeline_operations import AddClipFromAsset
+from thoth_control_plane.domain.timeline_operations import AddClipFromAsset, ReplaceClipAsset
 from thoth_control_plane.infrastructure.editor_database import advisory_xact_lock, editor_sessions
 from thoth_control_plane.infrastructure.editor_models import (
     EditDocumentRevisionRow,
@@ -384,7 +384,7 @@ class PostgresEditDocumentRepository:
             {
                 operation.asset_id
                 for operation in operations
-                if isinstance(operation, AddClipFromAsset)
+                if isinstance(operation, AddClipFromAsset | ReplaceClipAsset)
             }
         )
         return PostgresEditDocumentRepository.ready_assets(session, project_id, asset_ids)

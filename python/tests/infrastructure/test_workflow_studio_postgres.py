@@ -202,6 +202,8 @@ async def test_cards_and_blur_land_where_the_layout_says(database: str, tmp_path
     )
     assert profile["fit"] == "contain"
     assert profile["position"]["y"] == pytest.approx(CARD_CENTER_Y - 0.5)
+    # Story mode: every attached clip names the inventory role it came from.
+    assert profile["source_role"] == "profile_card"
     reading = [reading_seconds(text) for text in TEXTS]
     slots = reaction_beat(30.0, reading, not_before=start + length + CARD_GAP)
     for index in range(3):
@@ -212,9 +214,12 @@ async def test_cards_and_blur_land_where_the_layout_says(database: str, tmp_path
             round(at * fps),
             round(seconds * fps),
         )
+    assert {clips[f"clip_comment_card_00{i}"]["source_role"] for i in range(3)} == {"comment_card"}
+    assert {clips[f"clip_comment_card_00{i}"]["fit"] for i in range(3)} == {"contain"}
     main = clips["clip_main_000"]
     assert [(r["from_frame"], r["to_frame"]) for r in main["blur_regions"]] == [(204, 1314)]
     assert main["blur_enabled"] is False
+    assert main["source_role"] == "main"
     assert tracks["track_main_video"]["muted"] is False
 
 
