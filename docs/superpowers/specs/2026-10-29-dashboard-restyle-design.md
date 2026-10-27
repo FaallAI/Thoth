@@ -125,6 +125,7 @@ Each of these becomes a follow-up row in the roadmap when this ships.
 - Prompt Lab moves to a project "Presets & prompts" page; the route stays reachable from Studio.
 
 **R6. Story mode (D3).**
+- **Revised (2026-10-27):** built in full, with the backend it needs, per `docs/superpowers/specs/2026-10-27-studio-story-mode-design.md` (operator: "jalankan opsi 2"); that spec revises D3.
 - **Materials panel:** with provenance and a "why" popover.
 - **Preview:** the 9:16 preview with a safe-zone toggle.
 - **Beat strip:** selecting a beat moves the playhead.

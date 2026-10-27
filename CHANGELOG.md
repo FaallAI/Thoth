@@ -2,6 +2,50 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-28 - Studio Story mode (restyle part B, R6 in full)
+
+**Spec:** `docs/superpowers/specs/2026-10-27-studio-story-mode-design.md`, approved by the operator on 2026-10-27 ("ya setuju") after choosing the full Story mode with its backend ("jalankan opsi 2"); it revises D3 of the restyle spec. **Plan:** `docs/superpowers/plans/2026-10-27-studio-story-mode.md`, executed by Claude inline ("eksekusi secara native") on `feat/dashboard-restyle-studio`, commits `cb023ea1..407bad10`. Rulings are in the plan's ledger.
+
+**Document and operations (S1):**
+- Clip fields, all optional with defaults that draw nothing new: `source_role` (every clip), `motion` and `emphasis` (video clips). No migration; documents are JSONB.
+- Five revision-bound operations, mirrored in Python and TypeScript and checked by one shared case file (`python/tests/fixtures/story_operation_cases.json`): `set_clip_position`, `set_clip_motion`, `set_clip_emphasis`, `replace_clip_asset`, `add_text_clip`. `add_clip_from_asset` gains optional `fit`, `position` and `source_role`; the importer records `source_role`.
+- The editor commits several operations as one undo step (`commit_operations`, atomic).
+
+**Composition and parity (S2):**
+- `slow_zoom` (1.00 to 1.08) and `pan` (±3 % of the width) fold into the stored transform, so still clips draw byte-identical strings; `highlight` (6 px `#d49a79`) and a 120 px arrow sit beside the clip frame on the media's visible box.
+- New parity capsule `story_mode-v1`. Offline in a fresh F1 reference image: `vertical_text_story-v1` still passes its approved golden set (run `run_06ef5a12a2d7c6b5`); `story_mode-v1` is `golden_missing` with every frame preview = render (candidate `run_3d1345dc54a9a093`, contact sheet `D:/thoth-tmp/restyle-shots/r6/golden-candidate/contact-sheet.png`). Not promoted; no CI step yet.
+
+**Materials (S3):**
+- `GET /projects/{p}/studio-imports/documents/{d}/materials`: the inventory joined with the run's provenance (platform, owner, host only, engagement, story score, query, verdict, OCR trim, likes, author; figures as context; judged comments as quotes). Read on every call; a missing run or Content Set answers without provenance.
+- `POST …/materials/{item}/asset`: the editor asset for one material, copied on first use through the importer's idempotent copy; an item the draft already holds needs no Content Set.
+
+**Story screen (S4-S6):**
+- Drafts open in Story on desktop (Timeline on demand; enabling the timeline opens Timeline). The top bar gains Story · Timeline, Undo/Redo icons, Assist and Request review.
+- Materials panel (groups, counts, search, "Show n more", "why" popover, "Used in" chips, thumbnails from preview capabilities, drag), the 9:16 preview with a TikTok safe zone, a full-width beat strip (Hook, Main, Evidence, Reactions, Footage, Outro; computed, never stored), and the beat inspector (shown cards with ↑↓ and remove, Add from materials, timing with the reading check, position presets, motion, emphasis; missing-material alert with "Use profile card" and "Remove from beat"; Hook/Outro text).
+- Assist (S5): `POST /projects/{p}/edit-documents/{d}/assist` runs one `StoryAssistWorkflow` on the prompt worker (the provider credentials stay there), with the new `story_assist` Prompt Lab stage and an English starter, metered for the project's workspace; text only, never stored, applied through the normal patch.
+- Add beat (Hook with the run title, Outro with "Video: @owner · Platform" when the run confirms the original) and the phone quick edit (hook text, captions, comment-card swap sheet). Tablets keep the compact scene editor.
+
+**Final review** (one fresh reviewer on the whole branch): one Critical and five Important findings fixed in one pass (`407bad10`), each with a test that failed first:
+- Story additions went on taken tracks and made drafts unrenderable; they now use a free track of their kind or open one in the same batch.
+- "Each card" re-lays the cards one after another inside the scene.
+- ↑↓ trades scenes only between neighbouring scene-filling clips.
+- The Outro credit needs a confirmed original.
+- Phones keep Undo/Redo in the menu.
+- Without the Content Set, held materials still attach and only they are offered.
+Ten minors are deferred and listed in the ledger.
+
+**Verification (`407bad10`):** Python 4594 passed / 252 skipped; `make test-postgres` 190 passed; `make lint` clean; dashboard 1422 pass, build clean; renderer 229 pass / 5 skip. The contract changed by additions only. Screens against the exports with an offline mock: `D:/thoth-tmp/restyle-shots/r6/story-en-1440.png`, `story-en-1024.png`, `quick-en-430.png`, `quick-swap-en-430.png`.
+
+**Known limits:**
+- Tile lengths read seconds ("4.0 s"), not "0:04"; no Script mode (D4); the safe zone is always TikTok.
+- The Outro is offered only with a known creator (a heading cannot be empty).
+- Motion and emphasis apply to Evidence and Reactions cards only.
+
+**Next steps:**
+- R7: Timeline restyle and clean-up (F3 aliases, dead `pen-studio` and `studio-prompt-*` CSS, `content_set_import.ts`, StudioPreview's "Back to Content Set", the temporary `dashboard/vite.shots.config.ts`).
+- Operator gates, each separate: approve the `story_mode-v1` golden set (then promote it and add its CI verify step); push, PR, merge and deploy of part B (renderer and Thoth as one package); a live Assist check against the real provider after deploy.
+- Follow-ups: the deferred minors in the ledger; motion on Footage photos (operator question); a publish-check endpoint and review threads (from Tasks 4-5).
+
 ## 2026-10-27 - Deployed master 86f7c3e (PR #78, run progress and dashboard restyle part A)
 
 **Deployed:** `master` 86f7c3e after the CI of PR #78 and of `master` went green (offline gates, template parity, image publish, non-live smoke). Approved by the operator after the live gate passed ("lanjut next step dan saya izinkan", "ya di izinkan").
