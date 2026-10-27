@@ -82,6 +82,8 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
   const candidates = (materials?.items ?? []).filter(
     (item) =>
       item.media_kind !== "none" &&
+      // Without the run's Content Set only materials that already have an asset can be added.
+      (materials?.provenance_available || item.asset_id) &&
       item.role &&
       ROLE_BEAT[item.role] === beat.id &&
       !beat.clipIds.includes(`clip_${item.item_id}`) &&
@@ -93,7 +95,7 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
     try {
       const asset = await attachMaterial(itemId);
       dispatch({ type: "assets_loaded", assets: [asset], replace: false });
-      commit([addMaterialToBeat(document, beat, asset, role)]);
+      commit(addMaterialToBeat(document, beat, asset, role));
       setPicking(false);
     } catch {
       setAddFailed(true);
@@ -160,14 +162,14 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
               <span className="min-w-0 flex-1 truncate">{label(clip)}</span>
               <IconButton
                 label={t("studio.inspector.earlier", { label: label(clip) })}
-                disabled={index === 0}
+                disabled={index === 0 || !swapClips(document, clips[index - 1]!.clip_id, clip.clip_id).length}
                 onClick={() => commit(swapClips(document, clips[index - 1]!.clip_id, clip.clip_id))}
               >
                 <ArrowUp size={14} />
               </IconButton>
               <IconButton
                 label={t("studio.inspector.later", { label: label(clip) })}
-                disabled={index === clips.length - 1}
+                disabled={index === clips.length - 1 || !swapClips(document, clip.clip_id, clips[index + 1]!.clip_id).length}
                 onClick={() => commit(swapClips(document, clip.clip_id, clips[index + 1]!.clip_id))}
               >
                 <ArrowDown size={14} />

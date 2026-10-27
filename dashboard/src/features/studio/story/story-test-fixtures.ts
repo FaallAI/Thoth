@@ -66,6 +66,8 @@ export function draft(clips: Clip[]): EditDocumentV2 {
       track("track_main_video", "main_video", 0, on("track_main_video")),
       track("track_b_roll", "b_roll", 1, on("track_b_roll")),
       track("track_overlay", "overlay", 2, on("track_overlay")),
+      // Story's own text track, as Add beat opens it over the scene titles.
+      track("track_text", "overlay", 3, on("track_text")),
     ],
     clips,
     // Cards are stills; every other media clip is a video long enough for its clip.
@@ -108,7 +110,7 @@ export const storyDocument = (): EditDocumentV2 => draft([
   // No source_role: a draft made before Story mode, found through its inventory item.
   video("clip_comment_card_001", "track_b_roll", 100, 40, { scene_id: "scene_001" }),
   video("clip_comment_card_009", "track_b_roll", 20, 20, { source_role: "comment_card", hidden: true }),
-  text("clip_hook", 0, 120, { source_role: "hook" }),
+  text("clip_hook", 0, 120, { source_role: "hook", track_id: "track_text" }),
   video("clip_x", "track_b_roll", 10, 10),
 ]);
 export const storyInventory = (): StudioImportItem[] => [

@@ -172,6 +172,16 @@ class MemoryAssets:
             None,
         )
 
+    async def get_ready_record(self, *, project_id: str, asset_id: str) -> EditorAssetRecord | None:
+        return next(
+            (
+                record
+                for record in self.records
+                if (record.asset.project_id, record.asset.asset_id) == (project_id, asset_id)
+            ),
+            None,
+        )
+
     async def register_ready(self, record: EditorAssetRecord) -> None:
         if self.fail_register:
             raise EditorAssetPersistenceError()
@@ -765,13 +775,15 @@ async def test_material_asset_not_attachable(tmp_path: Path, item_id: str) -> No
 
 @pytest.mark.asyncio
 async def test_material_asset_without_run(tmp_path: Path) -> None:
-    built = world(tmp_path)
+    imports = AttachingImports(refuse={"comment_card_000": "no_room_in_reaction_beat"})
+    built = world(tmp_path, data=carded(), imports=imports)
     opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
     for row in built.imports.rows:
         row["source_workflow_id"] = None
 
+    # A material the draft does not hold yet needs the run's media.
     with pytest.raises(ContentSetUnavailable):
-        await built.service.material_asset(PROJECT, opened.draft.document_id, "footage_001")
+        await built.service.material_asset(PROJECT, opened.draft.document_id, "comment_card_000")
 
 
 @pytest.mark.asyncio
@@ -785,3 +797,16 @@ async def test_story_context_is_the_runs_title_and_description(tmp_path: Path) -
     )
     built.service._reports = MemoryReports(None)
     assert await built.service.story_context(PROJECT, opened.draft.document_id) is None
+
+
+@pytest.mark.asyncio
+async def test_material_asset_of_an_attached_item_needs_no_content_set(tmp_path: Path) -> None:
+    built = world(tmp_path)
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+    inventory = await built.service._imports.get_inventory(PROJECT, opened.draft.document_id)
+    attached = {item.item_id: item.asset_id for item in inventory.items}["footage_001"]
+    built.service._reports = MemoryReports(None)  # the run's Content Set is gone
+
+    asset = await built.service.material_asset(PROJECT, opened.draft.document_id, "footage_001")
+
+    assert asset.asset_id == attached

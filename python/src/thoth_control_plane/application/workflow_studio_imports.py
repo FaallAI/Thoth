@@ -103,6 +103,10 @@ class WorkflowAssets(Protocol):
 
     async def register_ready(self, record: EditorAssetRecord) -> None: ...
 
+    async def get_ready_record(
+        self, *, project_id: str, asset_id: str
+    ) -> EditorAssetRecord | None: ...
+
 
 def content_set_location(workflow_id: str) -> str:
     return f"reports/{workflow_id}/content-set.json"
@@ -227,6 +231,19 @@ class WorkflowStudioImportService:
         inventory = await self._imports.get_inventory(project_id, document_id)
         if self._assets is None or self._runs is None:
             raise WorkflowStudioUnavailable()
+        # An item the import already holds an asset for needs no Content Set (final review I1).
+        held = next(
+            (
+                item.asset_id
+                for item in inventory.items
+                if item.item_id == item_id and item.asset_id
+            ),
+            None,
+        )
+        if held is not None:
+            record = await self._assets.get_ready_record(project_id=project_id, asset_id=held)
+            if record is not None:
+                return record.asset
         workflow_id = inventory.source_workflow_id
         run = None if workflow_id is None else await asyncio.to_thread(self._runs.get, workflow_id)
         if workflow_id is None or run is None or run.project_id != project_id:

@@ -65,9 +65,16 @@ export function swapClips(document: EditDocumentV2, firstId: string, secondId: s
     (x, y) => (x?.from_frame ?? 0) - (y?.from_frame ?? 0),
   );
   if (!a || !b) return [];
-  if (a.scene_id && b.scene_id && a.scene_id !== b.scene_id) {
-    const index = document.scenes.findIndex((scene) => scene.scene_id === b.scene_id);
-    return [{ kind: "reorder_scene", operation_id: id(), scene_id: a.scene_id, to_index: index }];
+  if (a.scene_id !== b.scene_id) {
+    // Only clips that fill their own scenes trade them, and only with the neighbouring scene;
+    // a card inside the main scene never moves the whole scene.
+    const indexOf = (clip: Clip) => document.scenes.findIndex((scene) => scene.scene_id === clip.scene_id);
+    const fills = (clip: Clip) => {
+      const scene = document.scenes[indexOf(clip)];
+      return Boolean(scene) && clip.from_frame === scene!.start_frame && clip.duration_in_frames === scene!.duration_in_frames;
+    };
+    if (!fills(a) || !fills(b) || indexOf(b) !== indexOf(a) + 1) return [];
+    return [{ kind: "reorder_scene", operation_id: id(), scene_id: a.scene_id!, to_index: indexOf(b) }];
   }
   return [
     { kind: "move_clip", operation_id: id(), clip_id: b.clip_id, target_track_id: b.track_id, from_frame: a.from_frame, ripple: false },
@@ -97,7 +104,69 @@ export function setClipSeconds(document: EditDocumentV2, clipIds: string[], seco
     return [{ kind: "trim_clip_end", operation_id: id(), clip_id: clipId, end_frame: end }];
   });
 }
-export const setEachCardSeconds = setClipSeconds;
+/** The importer's gap between cards (python domain/studio_layout.CARD_GAP). */
+const CARD_GAP_SECONDS = 0.5;
+
+/**
+ * Every card of a beat lasts the chosen length, one after another from the first card's
+ * start with the importer's gap, inside the first card's scene (or the canvas). When they
+ * do not fit, each gets the share that does.
+ */
+export function setEachCardSeconds(document: EditDocumentV2, clipIds: string[], seconds: number): EditDocumentOperation[] {
+  const clips = clipIds
+    .map((clipId) => clipOf(document, clipId))
+    .filter((clip): clip is Clip => Boolean(clip))
+    .sort((a, b) => a.from_frame - b.from_frame);
+  if (!clips.length) return [];
+  const fps = document.canvas.fps;
+  const gap = Math.round(CARD_GAP_SECONDS * fps);
+  const start = clips[0]!.from_frame;
+  const space = lastFrame(document, clips[0]!) - start - gap * (clips.length - 1);
+  const each = Math.max(1, Math.min(Math.round(seconds * fps), Math.floor(space / clips.length)));
+  return clips.flatMap((clip, index) => {
+    const from = start + index * (each + gap);
+    return [
+      { kind: "move_clip", operation_id: id(), clip_id: clip.clip_id, target_track_id: clip.track_id, from_frame: from, ripple: false },
+      { kind: "trim_clip_end", operation_id: id(), clip_id: clip.clip_id, end_frame: from + each },
+    ] satisfies EditDocumentOperation[];
+  });
+}
+
+/**
+ * The first track of `kind` with nothing visible in [from, to), else a new one opened in the
+ * same batch, so an added clip never overlaps another (an overlap blocks render and review).
+ */
+function trackFor(
+  document: EditDocumentV2,
+  kind: "overlay" | "b_roll",
+  from: number,
+  to: number,
+): { trackId: string; operations: EditDocumentOperation[] } {
+  const clips = document.clips ?? [];
+  const free = document.tracks
+    .filter((track) => track.kind === kind && !track.locked && !track.hidden)
+    .sort((a, b) => a.order - b.order)
+    .find((track) =>
+      clips.every(
+        (clip) => clip.track_id !== track.track_id || clip.hidden || clip.from_frame + clip.duration_in_frames <= from || clip.from_frame >= to,
+      ),
+    );
+  if (free) return { trackId: free.track_id, operations: [] };
+  const trackId = `track_story_${kind}_${crypto.randomUUID().replaceAll("-", "").slice(0, 12)}`;
+  return {
+    trackId,
+    operations: [
+      {
+        kind: "add_track",
+        operation_id: id(),
+        track_id: trackId,
+        track_kind: kind,
+        label: kind === "overlay" ? "Story text" : "Story media",
+        order: Math.max(...document.tracks.map((track) => track.order)) + 1,
+      },
+    ],
+  };
+}
 
 /** The importer's placement for a contained card, CARD_WIDTH of the canvas wide. */
 export function cardPosition(width: number | null | undefined, height: number | null | undefined, canvas: { width: number; height: number }) {
@@ -109,24 +178,30 @@ export function cardPosition(width: number | null | undefined, height: number | 
  * A material joins its beat right after the beat's last clip, lasting as long as the
  * beat's longest clip. It is bound to no scene, and pulled back inside the canvas.
  */
-export function addMaterialToBeat(document: EditDocumentV2, beat: Beat, asset: EditorAsset, role: StoryRole): Op<"add_clip_from_asset"> {
+export function addMaterialToBeat(document: EditDocumentV2, beat: Beat, asset: EditorAsset, role: StoryRole): EditDocumentOperation[] {
   const fps = document.canvas.fps;
   const lengths = beat.clipIds.map((clipId) => clipOf(document, clipId)?.duration_in_frames ?? 0);
-  const duration = Math.min(Math.max(...lengths, 0) || 3 * fps, document.canvas.duration_in_frames);
+  const longest = Math.min(Math.max(...lengths, 0) || 3 * fps, document.canvas.duration_in_frames);
+  const duration = asset.kind === "video" && asset.duration_in_frames ? Math.min(longest, asset.duration_in_frames) : longest;
   const end = beat.startFrame + beat.durationInFrames;
-  return {
-    kind: "add_clip_from_asset",
-    operation_id: id(),
-    clip_id: `clip_${crypto.randomUUID().replaceAll("-", "")}`,
-    track_id: "track_b_roll",
-    asset_id: asset.asset_id,
-    from_frame: Math.max(0, Math.min(end, document.canvas.duration_in_frames - duration)),
-    duration_in_frames: asset.kind === "video" && asset.duration_in_frames ? Math.min(duration, asset.duration_in_frames) : duration,
-    source_from_frame: 0,
-    fit: "contain",
-    position: cardPosition(asset.width, asset.height, document.canvas),
-    source_role: role,
-  };
+  const from = Math.max(0, Math.min(end, document.canvas.duration_in_frames - duration));
+  const { trackId, operations } = trackFor(document, "b_roll", from, from + duration);
+  return [
+    ...operations,
+    {
+      kind: "add_clip_from_asset",
+      operation_id: id(),
+      clip_id: `clip_${crypto.randomUUID().replaceAll("-", "")}`,
+      track_id: trackId,
+      asset_id: asset.asset_id,
+      from_frame: from,
+      duration_in_frames: duration,
+      source_from_frame: 0,
+      fit: "contain",
+      position: cardPosition(asset.width, asset.height, document.canvas),
+      source_role: role,
+    },
+  ];
 }
 
 /** The longest reading time among the beat's cards, from the import (spec 5c-1 reading speed). */
@@ -146,21 +221,27 @@ const PLATFORM_NAME: Record<string, string> = {
   threads: "Threads",
 };
 
-function textBeat(document: EditDocumentV2, role: "hook" | "outro", heading: string): Op<"add_text_clip"> {
+function textBeat(document: EditDocumentV2, role: "hook" | "outro", heading: string): EditDocumentOperation[] {
   const canvas = document.canvas.duration_in_frames;
   const duration = Math.min(TEXT_BEAT_SECONDS * document.canvas.fps, canvas);
-  return {
-    kind: "add_text_clip",
-    operation_id: id(),
-    clip_id: `clip_${role}_${crypto.randomUUID().replaceAll("-", "")}`,
-    track_id: "track_overlay",
-    from_frame: role === "hook" ? 0 : canvas - duration,
-    duration_in_frames: duration,
-    heading: heading.slice(0, HEADING_LIMIT),
-    body: "",
-    style_slot: "title",
-    source_role: role,
-  };
+  const from = role === "hook" ? 0 : canvas - duration;
+  // The importer's scene titles fill the overlay track, so the beat usually opens its own.
+  const { trackId, operations } = trackFor(document, "overlay", from, from + duration);
+  return [
+    ...operations,
+    {
+      kind: "add_text_clip",
+      operation_id: id(),
+      clip_id: `clip_${role}_${crypto.randomUUID().replaceAll("-", "")}`,
+      track_id: trackId,
+      from_frame: from,
+      duration_in_frames: duration,
+      heading: heading.slice(0, HEADING_LIMIT),
+      body: "",
+      style_slot: "title",
+      source_role: role,
+    },
+  ];
 }
 
 /** Spec §8: the hook opens the video for 4 s with the run's title, over what is there. */

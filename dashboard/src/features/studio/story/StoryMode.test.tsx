@@ -298,3 +298,43 @@ test("a phone gets the quick edit, without beats or timeline", async () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
   }
 });
+
+test("an unconfirmed original gets no credit line", async () => {
+  await mountStory("en", {
+    getStudioMaterials: mock(async () => ({
+      document_id: "edoc_story",
+      provenance_available: true,
+      items: [
+        { item_id: "main_000", role: "main" as const, label: "Kabut", media_kind: "video" as const, disposition: "attached" as const, owner_handle: "reposter", platform: "x", verdict: "unresolved" as const },
+      ],
+      figures: [],
+    })),
+  });
+  await act(async () => {});
+
+  // The draft already has its Hook, and a possible reposter is never credited as the creator.
+  expect(screen.queryByRole("button", { name: "Add beat" })).toBeNull();
+});
+
+test("a phone keeps Undo and Redo in the menu", async () => {
+  const width = window.innerWidth;
+  Object.defineProperty(window, "innerWidth", { configurable: true, value: 375 });
+  try {
+    const { GuidedStudio } = await import("../GuidedStudio");
+    const document = storyDocument() as EditDocument;
+    render(
+      <GuidedStudio
+        client={{ getEditDocument: mock(async () => document), patchEditDocument: mock(async () => ({ kind: "saved" as const, document })) }}
+        projectId="project_001"
+        documentId="edoc_story"
+        onBack={() => {}}
+      />,
+    );
+    const menu = (await screen.findByLabelText("Studio workspace menu")).closest("details")!;
+    expect(screen.getAllByRole("button", { name: "Undo" })).toHaveLength(1);
+    expect(within(menu).getByRole("button", { name: "Undo" })).toBeDefined();
+    expect(within(menu).getByRole("button", { name: "Redo" })).toBeDefined();
+  } finally {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+  }
+});

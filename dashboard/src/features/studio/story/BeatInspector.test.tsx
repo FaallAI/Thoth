@@ -127,7 +127,8 @@ test("add from materials offers what the beat does not show, and attaches it", a
 
   expect(attach).toHaveBeenCalledWith("comment_card_003");
   expect(dispatch.mock.calls.map(([action]) => action.type)).toEqual(["assets_loaded", "commit_operations"]);
-  expect(committed()[0]![0]![0]).toBe("add_clip_from_asset");
+  // The card opens its own b-roll track when the beat's slot is taken (final review C1).
+  expect(committed()[0]!.at(-1)![0]).toBe("add_clip_from_asset");
 });
 
 test("the inspector speaks Indonesian", () => {
@@ -164,4 +165,28 @@ test("a missing profile page offers the profile card, and leaves the beat on req
 
   await act(async () => fireEvent.click(within(alert).getByRole("button", { name: "Remove from beat" })));
   expect(onRemoveMissing).toHaveBeenCalledWith("profile_page_000");
+});
+
+test("without the run's provenance, Add from materials offers only what already has an asset", () => {
+  render(
+    <BeatInspector
+      beat={beats.find((beat) => beat.id === "reactions")!}
+      beats={beats}
+      document={storyDocument()}
+      inventory={inventory}
+      materials={{
+        ...materials,
+        provenance_available: false,
+        items: [
+          ...materials.items,
+          { item_id: "comment_card_004", role: "comment_card", label: "@kept", media_kind: "image", disposition: "excluded", asset_id: "asset_kept" },
+        ],
+      }}
+      dispatch={mock(() => {})}
+      attachMaterial={mock(async () => fresh)}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Add from materials" }));
+  expect(within(screen.getByRole("listbox", { name: "Add from materials" })).getAllByRole("option").map((option) => option.textContent)).toEqual(["@kept"]);
 });

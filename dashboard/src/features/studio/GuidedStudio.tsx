@@ -382,16 +382,18 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   // Spec 8: Hook takes the run's title, Outro the credit line; each only while the draft lacks it.
   const mainMaterial = materials?.items.find((item) => item.role === "main");
   const hookTitle = mainMaterial?.label || documentTitle || "";
-  const credit = mainMaterial?.verdict && mainMaterial.verdict !== "none"
-    ? creditLine(mainMaterial.owner_handle, mainMaterial.platform)
-    : "";
+  // Only a confirmed original names its creator; "unresolved" may be a reposter (final review I2).
+  const credit =
+    mainMaterial?.verdict === "original" || mainMaterial?.verdict === "replaced"
+      ? creditLine(mainMaterial.owner_handle, mainMaterial.platform)
+      : "";
   const addable = (["hook", "outro"] as const).filter(
     (id) => !beats.some((beat) => beat.id === id) && (id === "hook" ? hookTitle : credit),
   );
   const addBeat = (id: "hook" | "outro") => {
     if (!timeline) return;
-    const operation = id === "hook" ? addHook(timeline, hookTitle) : addOutro(timeline, credit);
-    dispatch({ type: "commit_operations", operations: [operation] });
+    const operations = id === "hook" ? addHook(timeline, hookTitle) : addOutro(timeline, credit);
+    dispatch({ type: "commit_operations", operations });
   };
   const { requestStoryAssist } = client;
   const askAssist = useMemo(
@@ -413,7 +415,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     try {
       const asset = upload ?? (await attachMaterial!(item!.item_id));
       if (!upload) dispatch({ type: "assets_loaded", assets: [asset], replace: false });
-      dispatch({ type: "commit_operations", operations: [addMaterialToBeat(timeline, beat, asset, role)] });
+      dispatch({ type: "commit_operations", operations: addMaterialToBeat(timeline, beat, asset, role) });
     } catch {
       // The material stays in the panel; dropping it again retries.
     }
@@ -559,7 +561,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           </p>
         ) : null}
         {/* DESIGN 13.5: a phone's top bar keeps the title, the save state and the menu. */}
-        <div className="flex items-center gap-0.5 max-md:hidden">
+        {viewport === "phone" ? null : (
+        <div className="flex items-center gap-0.5">
           <button
             type="button"
             className={iconButton}
@@ -579,6 +582,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             <Redo2 aria-hidden="true" size={16} />
           </button>
         </div>
+        )}
         <div className="flex min-w-0 items-center gap-2 text-[13px] whitespace-nowrap text-muted-ink">
           <span aria-hidden="true" className={`size-2 rounded-full ${saveDot[state.saveStatus]}`} />
           {/* The document's own project, which the global project switcher may no longer show. */}
@@ -615,6 +619,27 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           <div className="absolute top-11 right-0 z-40 flex w-80 flex-col gap-3 rounded-[10px] border border-hairline bg-raised p-4 text-sm shadow-xl">
             <span className="text-muted-ink">{t("studio.editor.project", { name: projectName ?? base.project_id })}</span>
             {workspaceControls ?? <p className="text-muted-ink">{t("studio.editor.noSwitch")}</p>}
+            {/* Phones hide the top bar's Undo and Redo; they stay reachable here (final review I5). */}
+            {viewport === "phone" ? (
+            <div className="flex flex-wrap gap-2 border-t border-hairline pt-3">
+              <button
+                type="button"
+                className={toolbarButton}
+                disabled={!state.history.length || state.inFlightOperationIds.length > 0 || upgrading}
+                onClick={() => dispatch({ type: "undo" })}
+              >
+                {t("studio.editor.undo")}
+              </button>
+              <button
+                type="button"
+                className={toolbarButton}
+                disabled={!state.future.length || state.inFlightOperationIds.length > 0 || upgrading}
+                onClick={() => dispatch({ type: "redo" })}
+              >
+                {t("studio.editor.redo")}
+              </button>
+            </div>
+            ) : null}
             {!compact && !timeline && client.upgradeEditDocument ? (
               <div className="flex flex-col gap-1">
                 <button
