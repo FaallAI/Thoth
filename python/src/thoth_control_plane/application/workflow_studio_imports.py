@@ -39,7 +39,7 @@ from thoth_control_plane.assembly.studio import (
     project_content_set,
     workflow_source_key,
 )
-from thoth_control_plane.domain.editor_assets import EditorAssetRecord
+from thoth_control_plane.domain.editor_assets import EditorAsset, EditorAssetRecord
 from thoth_control_plane.domain.models import Actor
 from thoth_control_plane.domain.studio_imports import (
     AttachImportAsset,
@@ -72,6 +72,10 @@ class ContentSetInvalid(ValueError):
 
 class WorkflowInOtherProject(Exception):
     """The run already belongs to another project; moving it is out of scope."""
+
+
+class MaterialNotAttachable(LookupError):
+    """A material without media of its own: a figure, a comment without a card."""
 
 
 class _ItemFailed(Exception):
@@ -214,6 +218,27 @@ class WorkflowStudioImportService:
             + quotes,
             figures=[MaterialFigure(**figure) for figure in source.figures] if source else [],
         )
+
+    async def material_asset(self, project_id: str, document_id: str, item_id: str) -> EditorAsset:
+        """The editor asset for one of the run's materials, copied on first use (spec 6.2).
+
+        The workflow importer's own copy: the same media is always the same asset.
+        """
+        inventory = await self._imports.get_inventory(project_id, document_id)
+        if self._assets is None or self._runs is None:
+            raise WorkflowStudioUnavailable()
+        workflow_id = inventory.source_workflow_id
+        run = None if workflow_id is None else await asyncio.to_thread(self._runs.get, workflow_id)
+        if workflow_id is None or run is None or run.project_id != project_id:
+            raise ContentSetUnavailable()
+        ref = (await self._source(workflow_id))[1].media.get(item_id)
+        if ref is None:
+            raise MaterialNotAttachable()
+        try:
+            record, _ = await self._asset_for(project_id, ref)
+        except _ItemFailed as error:
+            raise WorkflowStudioUnavailable(error.code) from error
+        return record.asset
 
     async def _readable_source(
         self, project_id: str, workflow_id: str | None

@@ -29,6 +29,7 @@ from thoth_control_plane.application.studio_imports import StudioImportService
 from thoth_control_plane.application.workflow_studio_imports import (
     ContentSetInvalid,
     ContentSetUnavailable,
+    MaterialNotAttachable,
     WorkflowInOtherProject,
     WorkflowStudioImportService,
     WorkflowStudioUnavailable,
@@ -718,3 +719,56 @@ async def test_materials_other_project_run(tmp_path: Path) -> None:
     materials = await built.service.materials(PROJECT, opened.draft.document_id)
 
     assert materials.provenance_available is False
+
+
+# Story mode: a material's editor asset on demand (spec 2026-10-27, 6.2).
+
+
+@pytest.mark.asyncio
+async def test_material_asset_copies_once(tmp_path: Path) -> None:
+    built = world(tmp_path)
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+    built.assets.records.clear()  # as if the import had left this footage out
+
+    first = await built.service.material_asset(PROJECT, opened.draft.document_id, "footage_001")
+    second = await built.service.material_asset(PROJECT, opened.draft.document_id, "footage_001")
+
+    assert first.asset_id == second.asset_id
+    assert [record.asset.asset_id for record in built.assets.records] == [first.asset_id]
+    assert first.checksum == "sha256:" + "d" * 64
+
+
+@pytest.mark.asyncio
+async def test_material_asset_reuses_comment_card(tmp_path: Path) -> None:
+    imports = AttachingImports(refuse={"comment_card_000": "no_room_in_reaction_beat"})
+    built = world(tmp_path, data=carded(), imports=imports)
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+    copied = len(built.assets.records)
+
+    asset = await built.service.material_asset(
+        PROJECT, opened.draft.document_id, "comment_card_000"
+    )
+
+    assert asset.checksum == CARD["checksum"]
+    assert len(built.assets.records) == copied
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("item_id", ["comment_000", "footage_009"])
+async def test_material_asset_not_attachable(tmp_path: Path, item_id: str) -> None:
+    built = world(tmp_path, data=materialized())
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+
+    with pytest.raises(MaterialNotAttachable):
+        await built.service.material_asset(PROJECT, opened.draft.document_id, item_id)
+
+
+@pytest.mark.asyncio
+async def test_material_asset_without_run(tmp_path: Path) -> None:
+    built = world(tmp_path)
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+    for row in built.imports.rows:
+        row["source_workflow_id"] = None
+
+    with pytest.raises(ContentSetUnavailable):
+        await built.service.material_asset(PROJECT, opened.draft.document_id, "footage_001")

@@ -169,3 +169,20 @@ async def test_materials_route_serves_provenance_without_addresses(tmp_path, mon
     assert (main["platform"], main["host"]) == ("tiktok", "www.tiktok.com")
     assert "location" not in found.text and "https://" not in found.text
     assert missing.status_code == 404
+
+
+async def test_material_asset_route_answers_the_asset_or_not_attachable(
+    tmp_path, monkeypatch
+) -> None:
+    async with client(tmp_path, monkeypatch) as api:
+        opened = await api.post(PATH, headers=AUTH | {"Idempotency-Key": "open-asset"})
+        document = opened.json()["draft"]["document_id"]
+        base = f"/api/v1/projects/project_001/studio-imports/documents/{document}/materials"
+
+        found = await api.post(f"{base}/footage_001/asset", headers=AUTH)
+        refused = await api.post(f"{base}/figure_000/asset", headers=AUTH)
+
+    assert found.status_code == 200
+    assert found.json()["kind"] == "video"
+    assert "location" not in found.text and "uploads/" not in found.text
+    assert (refused.status_code, code_of(refused)) == (409, "item_not_attachable")

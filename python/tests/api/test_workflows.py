@@ -601,6 +601,10 @@ def test_openapi_exposes_exact_required_path_method_pairs(gateway) -> None:
         ("/api/v1/projects/{project_id}/studio-imports/documents/{document_id}", "get"),
         ("/api/v1/projects/{project_id}/studio-imports/documents/{document_id}/materials", "get"),
         (
+            "/api/v1/projects/{project_id}/studio-imports/documents/{document_id}/materials/{item_id}/asset",
+            "post",
+        ),
+        (
             "/api/v1/projects/{project_id}/studio-imports/documents/{document_id}/items/{item_id}"
             "/resolve",
             "post",

@@ -848,6 +848,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/studio-imports/documents/{document_id}/materials/{item_id}/asset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Attach Studio Material
+         * @description The editor asset for one run material, copied from the run's media on first use
+         *     (spec 2026-10-27, 6.2): Add from materials, drag and Swap card all need one.
+         */
+        post: operations["attach_studio_material_api_v1_projects__project_id__studio_imports_documents__document_id__materials__item_id__asset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/studio-imports/inspect": {
         parameters: {
             query?: never;
@@ -6784,6 +6805,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StudioMaterials"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    attach_studio_material_api_v1_projects__project_id__studio_imports_documents__document_id__materials__item_id__asset_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                document_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditorAsset"];
                 };
             };
             /** @description Validation Error */

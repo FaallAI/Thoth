@@ -13351,6 +13351,80 @@
         "summary": "Get Studio Materials"
       }
     },
+    "/api/v1/projects/{project_id}/studio-imports/documents/{document_id}/materials/{item_id}/asset": {
+      "post": {
+        "description": "The editor asset for one run material, copied from the run's media on first use\n(spec 2026-10-27, 6.2): Add from materials, drag and Swap card all need one.",
+        "operationId": "attach_studio_material_api_v1_projects__project_id__studio_imports_documents__document_id__materials__item_id__asset_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditorAsset"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Attach Studio Material"
+      }
+    },
     "/api/v1/projects/{project_id}/studio-imports/inspect": {
       "post": {
         "description": "Read-only: the inventory to import and the drafts already made from this source.",
