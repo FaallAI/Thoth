@@ -286,7 +286,8 @@ test("the button says what it is doing", async () => {
   await open();
   expect(await screen.findByRole("button", { name: "Opening…" })).toBeDefined();
   answer(inspection());
-  expect(await screen.findByRole("button", { name: "Importing media…" })).toBeDefined();
+  // Behind the progress dialog, which is modal while the import runs.
+  expect(await screen.findByRole("button", { name: "Importing media…", hidden: true })).toBeDefined();
 });
 
 
@@ -331,4 +332,26 @@ test("figures left out ask in a dialog whose new draft opens Studio, in the chos
   await user.click(within(dialog).getByRole("button", { name: "Buat draf baru" }));
   await waitFor(() => expect(onOpen).toHaveBeenCalledWith("p1", "edoc_1", true));
   expect(c.openWorkflowInStudio).toHaveBeenCalledTimes(1);
+});
+
+test("while the import runs a dialog shows its steps until Studio opens", async () => {
+  let finish: (value: WorkflowStudioImport) => void = () => {};
+  const c = {
+    ...client(),
+    openWorkflowInStudio: mock(() => new Promise<WorkflowStudioImport>((resolve) => { finish = resolve; })),
+  };
+  const onOpen = mock(() => {});
+  const summary = { ...done(), title: "Kabut asap Kalteng" } as WorkflowSummary;
+  render(<OpenInStudio client={c} projectId="p1" workflowId="wf_1" summary={summary} onOpen={onOpen} />);
+  await open();
+
+  const dialog = await screen.findByRole("dialog", { name: "Opening in Studio" });
+  expect(dialog.textContent).toContain("Kabut asap Kalteng · Content Set from the run");
+  const steps = within(within(dialog).getByRole("list", { name: "Import progress" }));
+  expect(steps.getByText("Copy, probe and place media")).toBeDefined();
+  expect(steps.getByText("Draft ready")).toBeDefined();
+  finish(opened());
+
+  await waitFor(() => expect(onOpen).toHaveBeenCalledWith("p1", "edoc_1", false));
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Opening in Studio" })).toBeNull());
 });

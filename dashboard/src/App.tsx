@@ -196,7 +196,7 @@ function StudioDocumentRoute({ workspaceControls, projects }: { workspaceControl
         onResolveImports={() => setResolving(true)}
       />
       {resolving ? (
-        <StudioImportGate client={controlPlaneClient} projectId={projectId} resumeDocumentId={documentId} onClose={reopen} onOpen={reopen} />
+        <StudioImportGate client={controlPlaneClient} projectId={projectId} documentId={documentId} onClose={reopen} onOpen={reopen} />
       ) : null}
     </>
   );

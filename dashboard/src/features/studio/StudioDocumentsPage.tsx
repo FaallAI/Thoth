@@ -112,7 +112,7 @@ function NewFromRunDialog({
   projectId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onPick: (workflowId: string) => void;
+  onPick: (workflowId: string, title: string | null) => void;
 }) {
   const { t, locale } = useLocale();
   const [query, setQuery] = useState("");
@@ -189,7 +189,7 @@ function NewFromRunDialog({
           </div>
           <div className="mt-4 flex justify-end gap-2 border-t border-hairline pt-4">
             <Dialog.Close render={<Button variant="ghost" />}>{t("common.cancel")}</Dialog.Close>
-            <Button disabled={!chosen} onClick={() => chosen && onPick(chosen)}>
+            <Button disabled={!chosen} onClick={() => chosen && onPick(chosen, runs?.find((run) => run.workflow_id === chosen)?.title ?? null)}>
               {t("studio.open")}
             </Button>
           </div>
@@ -305,9 +305,9 @@ export function StudioDocumentsPage({ client, projectId }: { client: DocumentsCl
         projectId={projectId}
         open={picking}
         onOpenChange={setPicking}
-        onPick={(workflowId) => {
+        onPick={(workflowId, title) => {
           setPicking(false);
-          void opener.start(projectId, workflowId);
+          void opener.start(projectId, workflowId, title);
         }}
       />
       {opener.dialog}

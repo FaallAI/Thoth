@@ -105,9 +105,12 @@ export function StageStepper({
   stages,
   variant = "vertical",
   now,
+  label,
 }: {
   stages: Stage[];
   variant?: "vertical" | "compact";
+  /** The list's name for assistive tech; a run's progress by default. */
+  label?: string;
   /** The caller's clock, ticking once a second while the run is live. */
   now: Date;
 }) {
@@ -127,7 +130,7 @@ export function StageStepper({
     );
   }
   return (
-    <ol aria-label={t("stage.progress")} className="flex flex-col">
+    <ol aria-label={label ?? t("stage.progress")} className="flex flex-col">
       {stages.map((stage, index) => {
         const shade = tone(stage.status);
         const time = stage.started_at

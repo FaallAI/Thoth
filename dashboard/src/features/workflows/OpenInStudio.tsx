@@ -7,9 +7,11 @@ import {
   type StudioSourceInspection,
   type WorkflowSummary,
 } from "@/api/control-plane";
+import { StageStepper } from "@/components/RunProgress";
 import { Button } from "@/components/ui/button";
 import type { MessageKey } from "@/lib/i18n";
 import { useLocale } from "@/lib/locale";
+import { useNow } from "@/lib/use-now";
 
 export type OpenInStudioClient = Pick<
   ControlPlaneClient,
@@ -62,14 +64,15 @@ function keep(project: string, workflow: string, value: Unfinished | null) {
   }
 }
 
-/** The server's fixed reasons in the chosen language; another reason shows as it came. */
-function reasonText(t: ReturnType<typeof useLocale>["t"], label: string, reason: string): string {
+/** The server's fixed reasons in the chosen language; another reason shows as it came (after its label, unless the row already shows it). */
+export function reasonText(t: ReturnType<typeof useLocale>["t"], label: string, reason: string, named = false): string {
   if (reason === "Figures are context, not scenes") return t("studio.reason.figures");
+  if (reason === "Not placed: no room in the reaction beat") return t("studio.reason.notPlaced");
   if (reason === "Not captured: post card") return t("studio.reason.postCard");
   if (reason === "Not captured: profile page") return t("studio.reason.profilePage");
   const long = /^Longer than (\d+) characters$/.exec(reason);
   if (long) return t("studio.reason.tooLong", { label, limit: long[1] });
-  return `${label}: ${reason}`;
+  return named ? reason : `${label}: ${reason}`;
 }
 
 const leftOut = (found: StudioSourceInspection) => found.items.filter((item) => item.media_kind === "none" && item.reason);
@@ -87,7 +90,10 @@ export function useStudioOpener(
 ) {
   const { t, locale } = useLocale();
   // The run being opened, and what opening it would import when that needs a question first.
-  const [target, setTarget] = useState<{ project: string; workflow: string } | null>(null);
+  const [target, setTarget] = useState<{ project: string; workflow: string; title?: string | null } | null>(null);
+  // When the import POST started: the progress dialog counts from it.
+  const [importing, setImporting] = useState<Date | null>(null);
+  const now = useNow(1_000, importing !== null);
   const [inspection, setInspection] = useState<StudioSourceInspection | null>(null);
   // What the opener is doing: reading the run (or a draft), or importing its media.
   const [busy, setBusy] = useState<Busy>(null);
@@ -118,9 +124,15 @@ export function useStudioOpener(
   // `shownLeftOut`: the person saw fields Studio leaves out; they wait in the gate as decisions.
   const create = async (project: string, workflow: string, key: string, shownLeftOut: boolean) => {
     setBusy("importing");
+    setImporting(new Date());
     pending.current = { key, leftOut: shownLeftOut };
     keep(project, workflow, pending.current);
-    const result = await client.openWorkflowInStudio(project, workflow, key);
+    let result: Awaited<ReturnType<typeof client.openWorkflowInStudio>>;
+    try {
+      result = await client.openWorkflowInStudio(project, workflow, key);
+    } finally {
+      setImporting(null);
+    }
     pending.current = null;
     keep(project, workflow, null);
     onOpen(project, result.draft.document_id, shownLeftOut || result.items.some((item) => item.outcome === "unresolved"));
@@ -131,9 +143,9 @@ export function useStudioOpener(
       const draft = await client.getStudioImportInventory(project, documentId);
       onOpen(project, documentId, draft.items.some((item) => item.disposition === "unresolved"));
     });
-  const start = (project: string, workflow: string) => {
+  const start = (project: string, workflow: string, title?: string | null) => {
     if (target && (target.project !== project || target.workflow !== workflow)) pending.current = null;
-    setTarget({ project, workflow });
+    setTarget({ project, workflow, title });
     return attempt(async () => {
       const unfinished = pending.current ?? recall(project, workflow);
       if (unfinished) return create(project, workflow, unfinished.key, unfinished.leftOut);
@@ -191,8 +203,48 @@ export function useStudioOpener(
     </Dialog.Root>
   );
 
+  // The import is one request that copies, probes and places every media item: the server
+  // reports no per-file progress, so the dialog shows that step running and its elapsed time.
+  const progress = (
+    <Dialog.Root open={importing !== null}>
+      <Dialog.Portal>
+        <Dialog.Backdrop className="fixed inset-0 bg-black/60" />
+        <Dialog.Popup className="fixed top-1/2 left-1/2 w-[min(520px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-[10px] bg-raised p-6 shadow-xl">
+          <Dialog.Title className="text-lg font-semibold text-ink">{t("studio.progress.title")}</Dialog.Title>
+          <Dialog.Description className="mt-1 text-sm text-muted-ink">
+            {target?.title ? t("studio.progress.intro", { title: target.title }) : t("studio.progress.introUntitled")}
+          </Dialog.Description>
+          {importing && (
+            <div className="mt-5">
+              <StageStepper
+                label={t("studio.progress.label")}
+                now={now}
+                stages={[
+                  { id: "import_media", label: t("studio.progress.media"), status: "running", started_at: importing.toISOString(), finished_at: null },
+                  { id: "import_ready", label: t("studio.progress.ready"), status: "queued", started_at: null, finished_at: null },
+                ]}
+              />
+            </div>
+          )}
+          <p className="mt-6 border-t border-hairline pt-4 text-sm text-muted-ink">{t("studio.progress.note")}</p>
+        </Dialog.Popup>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+
   // The error outside the dialog: shown only while the dialog is not.
-  return { start, reset, busy, error: inspection ? null : error, dialog };
+  return {
+    start,
+    reset,
+    busy,
+    error: inspection ? null : error,
+    dialog: (
+      <>
+        {dialog}
+        {progress}
+      </>
+    ),
+  };
 }
 
 /** "Open in Studio" for a finished run: import its Content Set, or resume a draft made from it. */
@@ -208,7 +260,7 @@ export function OpenInStudio({ client, projectId, workflowId, summary, onOpen }:
 
   return (
     <section className="open-in-studio" aria-label={t("studio.open")}>
-      <Button disabled={!projectId || busy !== null} onClick={() => projectId && void opener.start(projectId, workflowId)}>
+      <Button disabled={!projectId || busy !== null} onClick={() => projectId && void opener.start(projectId, workflowId, summary.title)}>
         {t(busy === "importing" ? "studio.importing" : busy ? "studio.opening" : "studio.open")}
       </Button>
       {!projectId && <p className="text-sm text-muted-foreground">{t("studio.chooseProject")}</p>}

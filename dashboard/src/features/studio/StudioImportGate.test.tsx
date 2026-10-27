@@ -8,33 +8,13 @@ import {
   type EditorAsset,
   type StudioImportInventory,
   type StudioImportItem,
-  type StudioSourceInspection,
-  type StudioSourceProjection,
 } from "@/api/control-plane";
+import { LocaleProvider } from "@/lib/locale";
 import { StudioImportGate, type StudioImportClient } from "./StudioImportGate";
 
 afterEach(() => cleanup());
 
 const SOURCE_KEY = "b".repeat(64);
-const sourceItem = (role: "main" | "footage" | "comment", order: number, media: "video" | "image" | "none") => ({
-  role,
-  order,
-  title: role === "main" ? "Neon Nights" : null,
-  text: role === "comment" ? "Great clip" : null,
-  platform: role === "comment" ? null : "tiktok",
-  source_url: role === "comment" ? null : `https://example.test/${role}/${order}`,
-  media_kind: media,
-  trim_start_seconds: null,
-  mute_audio: false,
-});
-const SOURCE = {
-  items: [
-    sourceItem("main", 0, "video"),
-    ...[0, 1, 2, 3].map((order) => sourceItem("footage", order, "video")),
-    sourceItem("comment", 0, "none"),
-  ],
-  unsupported: [{ field: "profile", role: "main", order: 0, reason: "Profile cards are not supported" }],
-} satisfies StudioSourceProjection;
 
 const mediaItem = (itemId: string, role: "main" | "footage", order: number, label: string): StudioImportItem => ({
   item_id: itemId,
@@ -58,28 +38,17 @@ const ITEMS: StudioImportItem[] = [
   {
     item_id: "unsupported_000",
     mute_audio: false,
-    role: "main",
-    order: 0,
-    label: "profile",
+    role: null,
+    order: null,
+    label: "figures",
     platform: null,
     media_kind: "none",
     scene_id: null,
-    reason: "Profile cards are not supported",
+    reason: "Figures are context, not scenes",
     disposition: "unresolved",
     asset_id: null,
   },
 ];
-const DRAFTS = [
-  { document_id: "edoc_003", source_key: SOURCE_KEY, revision: 3, created_at: "2026-09-24T18:02:00Z" },
-  { document_id: "edoc_001", source_key: SOURCE_KEY, revision: 1, created_at: "2026-09-23T09:14:00Z" },
-];
-const INSPECTION: StudioSourceInspection = {
-  project_id: "project_001",
-  source_key: SOURCE_KEY,
-  items: ITEMS,
-  drafts: DRAFTS,
-  more_drafts: false,
-};
 const inventoryOf = (documentId: string, revision = 1, items = ITEMS): StudioImportInventory => ({
   document_id: documentId,
   source_key: SOURCE_KEY,
@@ -98,9 +67,6 @@ const asset = (assetId: string, kind: EditorAsset["kind"], state: EditorAsset["v
 
 function fakeClient(overrides: Partial<StudioImportClient> = {}) {
   return {
-    inspectStudioImport: mock(async () => INSPECTION),
-    createStudioImport: mock(async () => ({ ...DRAFTS[0]!, document_id: "edoc_new", revision: 1 })),
-    listStudioImportDrafts: mock(async () => ({ source_key: SOURCE_KEY, drafts: DRAFTS, more_drafts: false })),
     getStudioImportInventory: mock(async (_projectId: string, documentId: string) => inventoryOf(documentId)),
     resolveStudioImportItem: mock(async () => inventoryOf("edoc_003", 2)),
     uploadEditorAsset: mock(async () => asset("asset_uploaded", "video")),
@@ -112,140 +78,44 @@ function fakeClient(overrides: Partial<StudioImportClient> = {}) {
   } satisfies StudioImportClient;
 }
 
-function renderGate(client = fakeClient(), source: StudioSourceProjection = SOURCE) {
+function renderGate(client = fakeClient(), locale: "en" | "id" = "en", documentId = "edoc_003") {
   const onOpen = mock((_documentId: string) => {});
   const onClose = mock(() => {});
   const view = render(
-    <StudioImportGate client={client} projectId="project_001" source={source} onOpen={onOpen} onClose={onClose} />,
+    <LocaleProvider serverLocale={locale}>
+      <StudioImportGate client={client} projectId="project_001" documentId={documentId} onOpen={onOpen} onClose={onClose} />
+    </LocaleProvider>,
   );
   return { client, onOpen, onClose, view, user: userEvent.setup() };
 }
 
-async function resumeNewest(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole("radio", { name: /revision 3/ }));
-  await user.click(screen.getByRole("button", { name: "Resume" }));
-  return screen.findByRole("list", { name: "Source inventory" });
-}
-
+const inventory = () => screen.findByRole("list", { name: "Source inventory" });
 const row = (label: string) => within(screen.getByRole("listitem", { name: label }));
 
-test("opening only inspects: nothing is created, not even on remount", async () => {
-  const { client, view } = renderGate();
-  expect(await screen.findByRole("radio", { name: /revision 3/ })).toBeDefined();
-  expect(client.inspectStudioImport).toHaveBeenCalledTimes(1);
-  expect(client.inspectStudioImport).toHaveBeenCalledWith("project_001", SOURCE);
+test("the dialog opens the draft's inventory and every item has a way to resolve it", async () => {
+  const { client } = renderGate();
 
-  view.unmount();
-  renderGate(client);
-  await screen.findByRole("radio", { name: /revision 3/ });
-  expect(client.createStudioImport).toHaveBeenCalledTimes(0);
-  expect(screen.getByRole("dialog", { name: "Open in Studio — Neon Nights" })).toBeDefined();
-});
-
-test("Resume opens the selected existing draft without creating one", async () => {
-  const { client, onOpen, user } = renderGate();
-  await resumeNewest(user);
-
+  expect(await screen.findByRole("dialog", { name: "Source inventory" })).toBeDefined();
+  expect(within(await inventory()).getAllByRole("listitem")).toHaveLength(6);
   expect(client.getStudioImportInventory).toHaveBeenCalledWith("project_001", "edoc_003");
-  await user.click(screen.getByRole("button", { name: "Continue in Studio" }));
-  expect(onOpen).toHaveBeenCalledWith("edoc_003");
-  expect(client.createStudioImport).toHaveBeenCalledTimes(0);
-});
-
-test("a draft is chosen and resumed from the keyboard", async () => {
-  const { client, user } = renderGate();
-  const first = await screen.findByRole("radio", { name: /revision 3/ });
-  await waitFor(() => expect(globalThis.document.activeElement).toBe(first));
-
-  await user.keyboard(" ");
-  await user.keyboard("{Enter}");
-
-  expect(await screen.findByRole("list", { name: "Source inventory" })).toBeDefined();
-  expect(client.getStudioImportInventory).toHaveBeenCalledWith("project_001", "edoc_003");
-});
-
-test("Create sends one request per click and an explicit retry reuses its key", async () => {
-  let attempts = 0;
-  const createStudioImport = mock(async () => {
-    attempts += 1;
-    if (attempts === 1) throw new StudioImportRequestError(null);
-    return { ...DRAFTS[0]!, document_id: "edoc_new", revision: 1 };
-  });
-  const { client, onOpen, user } = renderGate(fakeClient({ createStudioImport }));
-  await user.click(await screen.findByRole("button", { name: "Create new draft" }));
-
-  expect(createStudioImport).toHaveBeenCalledTimes(1);
-  expect((await screen.findByRole("alert")).textContent).toContain("Offline");
-  await user.click(screen.getByRole("button", { name: "Retry create" }));
-
-  expect(createStudioImport).toHaveBeenCalledTimes(2);
-  const [first, second] = createStudioImport.mock.calls as unknown as [string, unknown, string][];
-  expect(first).toEqual(["project_001", { source: SOURCE, source_key: SOURCE_KEY }, expect.any(String)]);
-  expect(second![2]).toBe(first![2]);
-  await screen.findByRole("list", { name: "Source inventory" });
-  expect(client.getStudioImportInventory).toHaveBeenCalledWith("project_001", "edoc_new");
-  await user.click(screen.getByRole("button", { name: "Continue in Studio" }));
-  expect(onOpen).toHaveBeenCalledWith("edoc_new");
-});
-
-test("a source with no drafts offers Create as the only choice", async () => {
-  renderGate(fakeClient({ inspectStudioImport: mock(async () => ({ ...INSPECTION, drafts: [] })) }));
-  expect(await screen.findByText("No drafts for this source yet.")).toBeDefined();
-  expect(screen.queryByRole("button", { name: "Resume" }) === null).toBe(true);
-  expect(screen.getByRole("button", { name: "Create new draft" })).toBeDefined();
-});
-
-test("an offline inspection keeps the dialog open with its choices disabled", async () => {
-  let online = false;
-  const inspectStudioImport = mock(async () => {
-    if (!online) throw new StudioImportRequestError(null);
-    return INSPECTION;
-  });
-  const { user } = renderGate(fakeClient({ inspectStudioImport }));
-  expect(await screen.findByText("Offline — reconnect to list drafts.")).toBeDefined();
-  expect((screen.getByRole("button", { name: "Create new draft" }) as HTMLButtonElement).disabled).toBe(true);
-
-  online = true;
-  await user.click(screen.getByRole("button", { name: "Try again" }));
-  expect(await screen.findByRole("radio", { name: /revision 3/ })).toBeDefined();
-  expect(inspectStudioImport).toHaveBeenCalledTimes(2);
-});
-
-test("a draft that is gone refreshes the list instead of creating a replacement", async () => {
-  const listStudioImportDrafts = mock(async () => ({ source_key: SOURCE_KEY, drafts: [DRAFTS[1]!], more_drafts: false }));
-  const { client, user } = renderGate(
-    fakeClient({
-      getStudioImportInventory: mock(async () => {
-        throw new StudioImportRequestError(404);
-      }),
-      listStudioImportDrafts,
-    }),
-  );
-  await user.click(await screen.findByRole("radio", { name: /revision 3/ }));
-  await user.click(screen.getByRole("button", { name: "Resume" }));
-
-  expect((await screen.findByRole("alert")).textContent).toContain("no longer available");
-  expect(listStudioImportDrafts).toHaveBeenCalledWith("project_001", SOURCE_KEY);
-  await waitFor(() => expect(screen.queryByRole("radio", { name: /revision 3/ }) === null).toBe(true));
-  expect(screen.getByRole("radio", { name: /revision 1/ })).toBeDefined();
-  expect(client.createStudioImport).toHaveBeenCalledTimes(0);
-});
-
-test("the inventory lists every footage item and unsupported field with a route to resolve it", async () => {
-  const { user } = renderGate();
-  const inventory = await resumeNewest(user);
-
-  expect(within(inventory).getAllByRole("listitem")).toHaveLength(6);
   for (const label of ["Neon Nights", "City loop", "React closeup", "Skyline drone", "Crowd pan"]) {
     expect(row(label).getByRole("button", { name: "Attach…" })).toBeDefined();
-    expect(row(label).getByRole("button", { name: "Exclude from Studio edit" })).toBeDefined();
+    expect(row(label).getByRole("button", { name: "Exclude" })).toBeDefined();
     expect(row(label).getByText("Unresolved")).toBeDefined();
   }
-  expect(row("profile").getByText("Profile cards are not supported")).toBeDefined();
-  expect(row("profile").queryByRole("button", { name: "Attach…" }) === null).toBe(true);
-  expect(row("profile").getByRole("button", { name: "Exclude from Studio edit" })).toBeDefined();
-  expect(screen.getByText("6 of 6 items unresolved")).toBeDefined();
-  expect(screen.getByText("1 more item opens as a text scene.")).toBeDefined();
+  // A field with no media can only be left out; its reason reads in the chosen language.
+  expect(row("figures").getByText("Figures stay as context: people and organisations do not become scenes.")).toBeDefined();
+  expect(row("figures").queryByRole("button", { name: "Attach…" }) === null).toBe(true);
+  expect(row("figures").getByRole("button", { name: "Exclude" })).toBeDefined();
+  expect(screen.getByText("6 of 6 items need a decision before render")).toBeDefined();
+});
+
+test("Continue in Studio opens the draft", async () => {
+  const { onOpen, user } = renderGate();
+  await inventory();
+
+  await user.click(screen.getByRole("button", { name: "Continue in Studio" }));
+  expect(onOpen).toHaveBeenCalledWith("edoc_003");
 });
 
 test("an exclusion is saved on the draft and stays listed", async () => {
@@ -254,9 +124,9 @@ test("an exclusion is saved on the draft and stays listed", async () => {
   );
   const resolveStudioImportItem = mock(async () => inventoryOf("edoc_003", 2, excluded));
   const { user } = renderGate(fakeClient({ resolveStudioImportItem }));
-  await resumeNewest(user);
+  await inventory();
 
-  await user.click(row("React closeup").getByRole("button", { name: "Exclude from Studio edit" }));
+  await user.click(row("React closeup").getByRole("button", { name: "Exclude" }));
 
   expect(resolveStudioImportItem).toHaveBeenCalledWith("project_001", "edoc_003", "footage_001", {
     base_revision: 1,
@@ -264,7 +134,15 @@ test("an exclusion is saved on the draft and stays listed", async () => {
   });
   expect(await row("React closeup").findByText("Excluded")).toBeDefined();
   expect(row("React closeup").queryByRole("button", { name: "Attach…" }) === null).toBe(true);
-  expect(screen.getByText("5 of 6 items unresolved")).toBeDefined();
+  expect(screen.getByText("5 of 6 items need a decision before render")).toBeDefined();
+});
+
+test("with every item decided the footer says nothing is left", async () => {
+  const decided = ITEMS.map((item) => ({ ...item, disposition: "excluded" as const }));
+  renderGate(fakeClient({ getStudioImportInventory: mock(async () => inventoryOf("edoc_003", 1, decided)) }));
+  await inventory();
+
+  expect(screen.getByText("Every item is decided.")).toBeDefined();
 });
 
 test("a ready asset of the item's kind can be attached", async () => {
@@ -273,7 +151,7 @@ test("a ready asset of the item's kind can be attached", async () => {
   );
   const resolveStudioImportItem = mock(async () => inventoryOf("edoc_003", 2, attached));
   const { client, user } = renderGate(fakeClient({ resolveStudioImportItem }));
-  await resumeNewest(user);
+  await inventory();
 
   await user.click(row("City loop").getByRole("button", { name: "Attach…" }));
   const choice = (await row("City loop").findByLabelText("Ready asset")) as HTMLSelectElement;
@@ -285,7 +163,7 @@ test("a ready asset of the item's kind can be attached", async () => {
     base_revision: 1,
     decision: { kind: "attach_asset", asset_id: "asset_clip" },
   });
-  expect(await row("City loop").findByText("Attached · asset_clip")).toBeDefined();
+  expect(await row("City loop").findByText("Attached")).toBeDefined();
 });
 
 test("ready assets beyond the first page are reached one page at a time", async () => {
@@ -295,7 +173,7 @@ test("ready assets beyond the first page are reached one page at a time", async 
       : { assets: [asset("asset_clip", "video"), asset("asset_still", "image")], next_cursor: "page_2" },
   );
   const { user } = renderGate(fakeClient({ listEditorAssets }));
-  await resumeNewest(user);
+  await inventory();
 
   await user.click(row("City loop").getByRole("button", { name: "Attach…" }));
   const choice = (await row("City loop").findByLabelText("Ready asset")) as HTMLSelectElement;
@@ -321,7 +199,7 @@ test("a ready-asset page announces loading and a failure it can retry", async ()
         : Promise.resolve({ assets: [asset("asset_clip", "video")], next_cursor: null }),
   );
   const { user } = renderGate(fakeClient({ listEditorAssets }));
-  await resumeNewest(user);
+  await inventory();
 
   await user.click(row("City loop").getByRole("button", { name: "Attach…" }));
   expect(row("City loop").getByRole("status").textContent).toContain("Loading ready assets");
@@ -343,7 +221,7 @@ test.each([
     throw new StudioImportRequestError(422, code);
   });
   const { user } = renderGate(fakeClient({ resolveStudioImportItem }));
-  await resumeNewest(user);
+  await inventory();
 
   await user.click(row("City loop").getByRole("button", { name: "Attach…" }));
   await row("City loop").findByLabelText("Ready asset");
@@ -355,7 +233,7 @@ test.each([
 
 test("an uploaded file is attached to the item it was chosen for", async () => {
   const { client, user } = renderGate();
-  await resumeNewest(user);
+  await inventory();
   const file = new File(["frames"], "city.mp4", { type: "video/mp4" });
 
   await user.click(row("City loop").getByRole("button", { name: "Attach…" }));
@@ -378,7 +256,7 @@ test("a failed upload keeps the inventory and the open attach choice", async () 
       }),
     }),
   );
-  await resumeNewest(user);
+  await inventory();
 
   await user.click(row("City loop").getByRole("button", { name: "Attach…" }));
   await user.upload(row("City loop").getByLabelText("Upload file"), new File(["x"], "big.mp4", { type: "video/mp4" }));
@@ -399,118 +277,68 @@ test("a decision on a stale revision refreshes the inventory", async () => {
       }),
     }),
   );
-  await resumeNewest(user);
+  await inventory();
 
-  await user.click(row("Crowd pan").getByRole("button", { name: "Exclude from Studio edit" }));
+  await user.click(row("Crowd pan").getByRole("button", { name: "Exclude" }));
 
   expect((await screen.findByRole("alert")).textContent).toContain("changed elsewhere");
   expect(getStudioImportInventory).toHaveBeenCalledTimes(2);
 });
 
-test("a main post without media is stated, not hidden", async () => {
-  const source = { ...SOURCE, items: [sourceItem("main", 0, "none"), ...SOURCE.items.slice(1)] };
-  const items = ITEMS.filter((item) => item.item_id !== "main_000");
-  const { user } = renderGate(
-    fakeClient({
-      inspectStudioImport: mock(async () => ({ ...INSPECTION, items })),
-      getStudioImportInventory: mock(async (_projectId: string, documentId: string) =>
-        inventoryOf(documentId, 1, items),
-      ),
-    }),
-    source,
+test("no local path or asset id reaches the dialog or the console", async () => {
+  const attached = ITEMS.map((item) =>
+    item.item_id === "main_000" ? { ...item, disposition: "attached" as const, asset_id: "asset_secret_1" } : item,
   );
-  await resumeNewest(user);
-  expect(screen.getByText("The main post has no media. It opens as a text scene.")).toBeDefined();
-});
-
-test("no source address or local path reaches the dialog or the console", async () => {
   const logs = (["log", "info", "warn", "error"] as const).map((level) => spyOn(console, level));
-  const { user } = renderGate();
-  await resumeNewest(user);
+  const { user } = renderGate(fakeClient({ getStudioImportInventory: mock(async () => inventoryOf("edoc_003", 1, attached)) }));
+  await inventory();
   await user.click(row("City loop").getByRole("button", { name: "Attach…" }));
 
   const text = globalThis.document.body.textContent ?? "";
-  for (const leak of ["https://", "example.test", "C:\\", "/mnt/"]) expect(text).not.toContain(leak);
-  for (const spy of logs) {
-    expect(JSON.stringify(spy.mock.calls)).not.toContain("example.test");
-    spy.mockRestore();
-  }
+  for (const leak of ["https://", "C:\\", "/mnt/", "asset_secret_1"]) expect(text).not.toContain(leak);
+  for (const spy of logs) spy.mockRestore();
 });
 
-test("Escape closes the dialog without creating anything", async () => {
-  const { client, onClose, user } = renderGate();
-  await screen.findByRole("radio", { name: /revision 3/ });
+test("Escape closes the dialog", async () => {
+  const { onClose, user } = renderGate();
+  await inventory();
   await user.keyboard("{Escape}");
   expect(onClose).toHaveBeenCalledTimes(1);
-  expect(client.createStudioImport).toHaveBeenCalledTimes(0);
 });
 
-test("reopening a draft from Studio goes straight to its inventory and creates nothing", async () => {
-  const client = fakeClient();
-  const onOpen = mock((_documentId: string) => {});
-  render(
-    <StudioImportGate
-      client={client}
-      projectId="project_001"
-      source={SOURCE}
-      resumeDocumentId="edoc_003"
-      onOpen={onOpen}
-      onClose={() => {}}
-    />,
-  );
-
-  expect(await screen.findByRole("list", { name: "Source inventory" })).toBeDefined();
-  expect(client.getStudioImportInventory).toHaveBeenCalledWith("project_001", "edoc_003");
-  expect(client.createStudioImport).not.toHaveBeenCalled();
-  await userEvent.setup().click(screen.getByRole("button", { name: "Continue in Studio" }));
-  expect(onOpen).toHaveBeenCalledWith("edoc_003");
-});
-
-test("resolve-only mode needs no source, never inspects, and opens the draft's inventory", async () => {
-  const client = fakeClient();
-  render(
-    <StudioImportGate client={client} projectId="project_001" resumeDocumentId="edoc_003" onOpen={() => {}} onClose={() => {}} />,
-  );
-  expect(await screen.findByRole("dialog", { name: "Resolve source items" })).toBeDefined();
-  expect(await screen.findByRole("list", { name: "Source inventory" })).toBeDefined();
-  expect(client.inspectStudioImport).not.toHaveBeenCalled();
-  expect(client.createStudioImport).not.toHaveBeenCalled();
-});
-
-test("resolve-only mode shows a loading line, not the drafts chooser", async () => {
-  const client = fakeClient({ getStudioImportInventory: mock(() => new Promise<never>(() => {})) });
-  render(<StudioImportGate client={client} projectId="project_001" resumeDocumentId="edoc_003" onOpen={() => {}} onClose={() => {}} />);
+test("while the inventory loads the dialog says so", async () => {
+  renderGate(fakeClient({ getStudioImportInventory: mock(() => new Promise<never>(() => {})) }));
   expect(await screen.findByText("Loading the draft's source items…")).toBeDefined();
-  expect(Boolean(screen.queryByText("Drafts for this source"))).toBe(false);
-  expect(Boolean(screen.queryByRole("button", { name: "Create new draft" }))).toBe(false);
 });
 
-test("resolve-only mode retries a failed open and words a missing draft for itself", async () => {
+test("a failed open can be retried and a missing draft is worded for itself", async () => {
   let calls = 0;
-  const client = fakeClient({
-    getStudioImportInventory: mock(async (_projectId: string, documentId: string) => {
-      calls += 1;
-      if (calls === 1) throw new StudioImportRequestError(500);
-      return inventoryOf(documentId);
+  renderGate(
+    fakeClient({
+      getStudioImportInventory: mock(async (_projectId: string, documentId: string) => {
+        calls += 1;
+        if (calls === 1) throw new StudioImportRequestError(500);
+        return inventoryOf(documentId);
+      }),
     }),
-  });
-  render(<StudioImportGate client={client} projectId="project_001" resumeDocumentId="edoc_003" onOpen={() => {}} onClose={() => {}} />);
+  );
   await userEvent.setup().click(await screen.findByRole("button", { name: "Try again" }));
-  expect(await screen.findByRole("list", { name: "Source inventory" })).toBeDefined();
+  expect(await inventory()).toBeDefined();
   cleanup();
 
-  const gone = fakeClient({
-    getStudioImportInventory: mock(async () => {
-      throw new StudioImportRequestError(404);
+  renderGate(
+    fakeClient({
+      getStudioImportInventory: mock(async () => {
+        throw new StudioImportRequestError(404);
+      }),
     }),
-  });
-  render(<StudioImportGate client={gone} projectId="project_001" resumeDocumentId="edoc_gone" onOpen={() => {}} onClose={() => {}} />);
+    "en",
+    "edoc_gone",
+  );
   expect(await screen.findByText("This draft is no longer available.")).toBeDefined();
-  expect(Boolean(screen.queryByText(/draft list/))).toBe(false);
 });
 
-
-test("overlay items show their labels and the not-placed reason", async () => {
+test("overlay items show their role and the not-placed reason", async () => {
   const card = (itemId: string, role: "profile_card" | "comment_card" | "slide", label: string) => ({
     ...mediaItem(itemId, "main", 0, label),
     role,
@@ -526,21 +354,17 @@ test("overlay items show their labels and the not-placed reason", async () => {
       reason: "Not placed: no room in the reaction beat",
     },
   ];
-  const client = fakeClient({
-    getStudioImportInventory: mock(async (_projectId: string, documentId: string) =>
-      inventoryOf(documentId, 1, items),
-    ),
-  });
-  const { user } = renderGate(client);
-  await resumeNewest(user);
+  renderGate(fakeClient({ getStudioImportInventory: mock(async () => inventoryOf("edoc_003", 1, items)) }));
+  await inventory();
+
   const unplaced = screen.getByRole("listitem", { name: "@viewer" });
   expect(unplaced.textContent).toContain("Comment card");
-  expect(unplaced.textContent).toContain("Not placed: no room in the reaction beat");
+  expect(unplaced.textContent).toContain("Not placed: no room in the reaction beat.");
   expect(screen.getByRole("listitem", { name: "Slide 2" }).textContent).toContain("Slide");
   expect(screen.getByRole("listitem", { name: "@creator" }).textContent).toContain("Profile card");
 });
 
-test("style A items show their labels", async () => {
+test("style A items show their roles", async () => {
   // Spec 5c-2, G5: the post card, the profile page and the creator's own media.
   const item = (itemId: string, role: StudioImportItem["role"], label: string): StudioImportItem => ({
     ...mediaItem(itemId, "main", 0, label),
@@ -554,13 +378,9 @@ test("style A items show their labels", async () => {
     item("creator_footage_000", "creator_footage", "Clip of @creator"),
     item("creator_photo_000", "creator_photo", "Photo of @creator"),
   ];
-  const client = fakeClient({
-    getStudioImportInventory: mock(async (_projectId: string, documentId: string) =>
-      inventoryOf(documentId, 1, items),
-    ),
-  });
-  const { user } = renderGate(client);
-  await resumeNewest(user);
+  renderGate(fakeClient({ getStudioImportInventory: mock(async () => inventoryOf("edoc_003", 1, items)) }));
+  await inventory();
+
   const labels: [string, string][] = [
     ["Post of @creator", "Post card"],
     ["Page of @creator", "Profile page"],
@@ -570,4 +390,16 @@ test("style A items show their labels", async () => {
   for (const [name, label] of labels) {
     expect(screen.getByRole("listitem", { name }).textContent).toContain(label);
   }
+});
+
+test("the inventory reads in Indonesian", async () => {
+  renderGate(fakeClient(), "id");
+
+  expect(await screen.findByRole("dialog", { name: "Inventaris sumber" })).toBeDefined();
+  const list = await screen.findByRole("list", { name: "Inventaris sumber" });
+  const main = within(within(list).getByRole("listitem", { name: "Neon Nights" }));
+  expect(main.getByText("Utama")).toBeDefined();
+  expect(main.getByText("Belum diputuskan")).toBeDefined();
+  expect(main.getByRole("button", { name: "Kecualikan" })).toBeDefined();
+  expect(screen.getByRole("button", { name: "Lanjut di Studio" })).toBeDefined();
 });

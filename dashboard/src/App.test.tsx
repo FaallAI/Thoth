@@ -132,8 +132,8 @@ test("Resolve source items in Studio reopens the draft's inventory and reloads t
   const blocked = await screen.findByRole("status", { name: "Source import" });
   expect(blocked.textContent).toContain("Crowd reaction · Scene 1");
   await user.click(within(blocked).getByRole("button", { name: "Resolve source items" }));
-  const dialog = await screen.findByRole("dialog", { name: "Resolve source items" });
-  await user.click(await within(dialog).findByRole("button", { name: "Exclude from Studio edit" }));
+  const dialog = await screen.findByRole("dialog", { name: "Source inventory" });
+  await user.click(await within(dialog).findByRole("button", { name: "Exclude" }));
   await user.click(within(dialog).getByRole("button", { name: "Continue in Studio" }));
 
   expect(await screen.findByText("Saved revision 2")).toBeDefined();
