@@ -275,9 +275,11 @@ class SignInService:
 
     async def describe(self, principal: Principal) -> MeView:
         name = None
+        locale = None
         if principal.user_id is not None:
             account = await self._run(self._store.account, principal.user_id)
             name = account.display_name if account else None
+            locale = account.locale if account else None
         workspace_name = await self._run(self._store.workspace_name, principal.workspace_id)
         return MeView(
             user_id=principal.user_id,
@@ -291,7 +293,15 @@ class SignInService:
                 role=principal.role,
             ),
             platform_admin=is_platform_admin(principal),
+            locale=locale,  # type: ignore[arg-type]
         )
+
+    async def set_locale(self, principal: Principal, locale: str) -> MeView:
+        """Save the caller's UI language; a caller without a user has none to save."""
+        if principal.user_id is None:
+            raise UserRequired()
+        await self._run(self._store.set_locale, principal.user_id, locale)
+        return await self.describe(principal)
 
     async def note_service_key(self) -> None:
         await self._event("service_key", "ok")

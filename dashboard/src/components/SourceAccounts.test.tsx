@@ -1,8 +1,12 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, mock, test } from "bun:test";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render as rawRender, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/lib/locale";
+
+const render = (ui: ReactElement) => rawRender(<LocaleProvider serverLocale="en">{ui}</LocaleProvider>);
 import { SourceAccounts } from "./SourceAccounts";
 import {
   SourceAccountsRequestError,
@@ -93,12 +97,13 @@ test("shows the platform's access, counts, and accounts without any cookie value
   expect(screen.getByRole("tab", { name: "TikTok", selected: true })).toBeDefined();
   expect(screen.getByRole("radio", { name: "fallback", checked: true })).toBeDefined();
   const table = screen.getByRole("table");
-  expect(within(table).getByText("cooldown")).toBeDefined();
-  expect(within(table).getByText("re-import needed")).toBeDefined();
+  // The column header and the cooling account's health both read "Cooldown".
+  expect(within(table).getAllByText("Cooldown")).toHaveLength(2);
+  expect(within(table).getByText("Needs login")).toBeDefined();
   expect(within(table).getByText("proxy.thoth.local:8080")).toBeDefined();
   expect(within(table).getAllByText("Direct").length).toBe(2);
-  expect(within(table).getAllByText("in 12 days").length).toBe(3);
-  expect(screen.getByText("03 accounts")).toBeDefined();
+  expect(within(table).getAllByText("In 12 days").length).toBe(3);
+  expect(screen.getByText("3 accounts")).toBeDefined();
 });
 
 test("changing the access mode saves the platform's policy", async () => {
@@ -144,7 +149,7 @@ test("adding an account validates the export before it can be imported", async (
   expect(importButton.disabled).toBe(true);
   await userEvent.clear(within(dialog).getByLabelText("Cookie export"));
   await userEvent.type(within(dialog).getByLabelText("Cookie export"), ".tiktok.com sessionid secret");
-  expect(await within(dialog).findByText(/Found 1 cookies; sessionid/)).toBeDefined();
+  expect(await within(dialog).findByText(/Found 1 cookie: sessionid/)).toBeDefined();
   await waitFor(() => expect(importButton.disabled).toBe(false));
   await userEvent.click(importButton);
   expect(client.create).toHaveBeenCalledWith({
@@ -289,7 +294,7 @@ test("an out-of-range budget is never sent", async () => {
 test("the table shows today's uses against the budget", async () => {
   render(<SourceAccounts client={fakeClient()} onManageProxies={() => {}} />);
   const table = await screen.findByRole("table");
-  expect(within(table).getByRole("columnheader", { name: "Today" })).toBeDefined();
+  expect(within(table).getByRole("columnheader", { name: "Leases today" })).toBeDefined();
   expect(within(table).getAllByText("3 / 40").length).toBe(3);
 });
 
@@ -322,4 +327,22 @@ test("resetting the device fingerprint asks first", async () => {
   expect(within(dialog).getByText(/its next lease shows the platform a new device/)).toBeDefined();
   await userEvent.click(within(dialog).getByRole("button", { name: "Confirm reset" }));
   expect(client.update).toHaveBeenCalledWith(ROWS[0].id, { reset_fingerprint: true });
+});
+
+test("a row counts its cooldown down and names its last outcome, in the chosen language", async () => {
+  const cooling = account({
+    status: "cooldown",
+    cooldown_until: new Date(Date.now() + 2 * 3_600_000).toISOString(),
+    last_outcome: "rate_limited",
+    last_used_at: new Date(NOW).toISOString(),
+  });
+  rawRender(
+    <LocaleProvider serverLocale="id">
+      <SourceAccounts client={fakeClient(overview(true, [cooling]))} onManageProxies={() => {}} />
+    </LocaleProvider>,
+  );
+  const table = await screen.findByRole("table");
+  expect(within(table).getByText(/^(1:59:5\d|2:00:00)$/)).toBeDefined();
+  expect(within(table).getByText(/^Dibatasi · /)).toBeDefined();
+  expect(within(table).getByText("3 / 40")).toBeDefined();
 });

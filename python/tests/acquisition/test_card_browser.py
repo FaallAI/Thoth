@@ -62,6 +62,20 @@ async def test_cards_follow_the_layout() -> None:
 
 
 @pytest.mark.asyncio
+async def test_a_tagged_id_listed_twice_is_cropped_once() -> None:
+    post_page, profile_page = FakeCardPage(POST, tagged=[C1, C1]), FakeCardPage(PROFILE)
+    session = card_session({POST: post_page, PROFILE: profile_page})
+    browser = CardBrowser(LAYOUT, lambda **kwargs: session)
+
+    cards = await browser.cards(POST, PROFILE, want_post=True, targets=TARGETS)
+    await browser.close()
+
+    row = f'[{COMMENT_ROW_ATTRIBUTE}="{C1}"]'
+    assert list(cards.comment_pngs) == [C1]
+    assert post_page.shots == [".post", row]
+
+
+@pytest.mark.asyncio
 async def test_the_two_card_pages_wait_for_the_pacing_gap(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -21,6 +21,7 @@ from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, TypeVar
 
+from thoth_control_plane import progress
 from thoth_control_plane.acquisition.cards import CardRejected, write_card
 from thoth_control_plane.acquisition.models import (
     DiscoveredPhoto,
@@ -322,6 +323,7 @@ class FootageBuilder:
 
         slides = _carousel(main)
         if slides:
+            await progress.step("footage.plan_queries", params={"count": 1})
             await asyncio.to_thread(self._store.start_run, workflow, [])
             await asyncio.to_thread(
                 self._store.add_candidates,
@@ -349,6 +351,7 @@ class FootageBuilder:
                 await asyncio.to_thread(self._store.start_run, workflow, [])
                 await asyncio.to_thread(self._store.finish_run, workflow, "unavailable")
                 return FootageResult(status="unavailable")
+            await progress.step("footage.plan_queries", params={"count": len(found)})
             run = await asyncio.to_thread(self._store.start_run, workflow, found)
         objects = run.objects
         if not objects:
@@ -397,6 +400,7 @@ class FootageBuilder:
         known = await asyncio.to_thread(self._store.candidates, workflow)
         if any(c.source == "creator" for c in known):
             return sum(1 for c in known if c.source == "creator" and c.status != "rejected")
+        await progress.step("footage.creator_listing")
         try:
             listing = await self._ports.creator.listing_of(platform, handle, CREATOR_LISTING)
         except ToolMissing:
@@ -580,6 +584,8 @@ class FootageBuilder:
     async def _search(
         self, objects: Sequence[FootageObject]
     ) -> tuple[dict[str, list[tuple[str, DiscoveredVideo]]], bool]:
+        searched = 0
+
         async def platform(name: str) -> dict[str, list[DiscoveredVideo]] | None:
             found: dict[str, list[DiscoveredVideo]] = {}
             missing: list[str] = []
@@ -610,6 +616,16 @@ class FootageBuilder:
                 name,
                 sum(len(videos) for videos in found.values()),
                 failed,
+            )
+            # A completion count, not the platform index: the searches run concurrently,
+            # so the last platform to finish reports the total, whichever it is.
+            nonlocal searched
+            searched += 1
+            await progress.step(
+                "footage.search_platforms",
+                n=searched,
+                total=len(SEARCH_PLATFORMS),
+                params={"platform": name},
             )
             if failed and not found:
                 return None
@@ -708,6 +724,7 @@ class FootageBuilder:
         }
         per_query = MAX_FOOTAGE if carousel else PER_QUERY
         total = sum(admitted.values())
+        screened = 0
         while total < MAX_FOOTAGE and time.monotonic() - started < self._deadline:
             batch = select_batch(queues, admitted, total, self._concurrency, per_query)
             if not batch:
@@ -730,6 +747,8 @@ class FootageBuilder:
                 if ok:
                     admitted[candidate.query] += 1
                     total += 1
+                screened += 1
+                await progress.step("footage.screen_clips", n=screened, total=len(pending))
         photos = await asyncio.to_thread(self._store.admitted, workflow, "image")
         status: FootageStatus = "ok" if total or photos else "none"
         if inputs.publish is not None:
@@ -966,6 +985,7 @@ class FootageBuilder:
         reasons = Counter(c.reason for c in candidates if c.reason)
         admitted = sum(1 for c in candidates if c.status == "admitted" and c.media_kind == "video")
         photos = sum(1 for c in candidates if c.status == "admitted" and c.media_kind == "image")
+        await progress.step("footage.keep_clips", params={"count": admitted})
         logger.info(
             "footage finished status=%s admitted=%d photos=%d rejected=%s",
             status,

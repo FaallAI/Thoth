@@ -13,7 +13,7 @@ from temporalio.contrib.pydantic import pydantic_data_converter
 from temporalio.worker import Worker
 from temporalio.worker._worker import load_default_build_id
 
-from thoth_control_plane import metering
+from thoth_control_plane import metering, progress
 from thoth_control_plane.acquisition.accounts.profiles import sweep_unsealed
 from thoth_control_plane.acquisition.browser import ScraplingCapability, check_scrapling_capability
 from thoth_control_plane.activities import (
@@ -30,6 +30,7 @@ from thoth_control_plane.activities.meter_scope import (
     MeterScopeInterceptor,
     record_workflow_completed,
 )
+from thoth_control_plane.activities.progress_scope import ProgressScopeInterceptor
 from thoth_control_plane.activities.prompt_proposal import (
     PROMPT_PROPOSAL_TASK_QUEUE,
     build_prompt_proposal_activity,
@@ -46,6 +47,7 @@ from thoth_control_plane.infrastructure.prompt_proposal_repository import (
 )
 from thoth_control_plane.infrastructure.prompt_provider import OpenAICompatiblePromptProvider
 from thoth_control_plane.infrastructure.report_store import Reports, connect_reports
+from thoth_control_plane.infrastructure.step_store import StepStore
 from thoth_control_plane.infrastructure.temporal_gateway import TASK_QUEUE
 from thoth_control_plane.infrastructure.usage_store import UsageStore
 from thoth_control_plane.observability import (
@@ -126,7 +128,7 @@ def build_source_investigation_worker(
             build_footage_activity(settings, reports=reports, media=media),
             record_workflow_completed,
         ],
-        interceptors=[MeterScopeInterceptor(client)],
+        interceptors=[MeterScopeInterceptor(client), ProgressScopeInterceptor()],
         max_concurrent_activities=1,
     )
 
@@ -231,6 +233,9 @@ async def run_worker(settings: Settings | None = None) -> None:
     # check_media_tools refused to start without the editor database.
     metering.install(
         UsageStore.connect(runtime_settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())  # type: ignore[union-attr]
+    )
+    progress.install(
+        StepStore.connect(runtime_settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())  # type: ignore[union-attr]
     )
     sweep_unsealed()  # a killed worker may have left account profiles decrypted
     configure_provider_logging()

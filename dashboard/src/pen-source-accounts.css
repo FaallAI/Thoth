@@ -123,3 +123,9 @@
   .sa-dialog-body, .sa-dialog-footer { padding-left: 18px; padding-right: 18px; }
   .sa-dialog-footer { flex-wrap: wrap; }
 }
+
+/* Restyle R4 (DESIGN §8.9): the rotation table sizes to its content, with sentence-case headers. */
+.sa-table .sa-rotation-table { table-layout: auto; }
+.sa-table .sa-rotation-table th { height: auto; padding: 12px; font-family: inherit; font-size: 13px; font-weight: 500; letter-spacing: 0; text-transform: none; background: none; color: var(--muted-ink); }
+.sa-table .sa-rotation-table td { height: auto; padding: 12px; font-size: 13px; color: var(--ink); }
+.sa-table .sa-rotation-table tbody tr:nth-child(even) { background: none; }

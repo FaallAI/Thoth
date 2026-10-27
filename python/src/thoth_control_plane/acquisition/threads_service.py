@@ -17,6 +17,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
+from thoth_control_plane import progress
 from thoth_control_plane.acquisition.adapters.threads import (
     POST_PATH,
     SHARE_PATH,
@@ -136,6 +137,7 @@ class ThreadsRequestFetcher:
             )
             raise RequestFetchError(reason) from None
         if _blocked(response.url):
+            await progress.step("source.login_wall")
             raise RequestFetchError(AcquisitionReason.LOGIN_WALL)
         if getattr(response, "status", None) != 200:
             raise RequestFetchError(AcquisitionReason.REQUEST_BLOCKED)
@@ -311,8 +313,9 @@ async def materialize_media(
 ) -> list[MaterializedMedia]:
     """Materialize `media` in order as `<name>-<index>`; a failure removes what this wrote."""
     done: list[MaterializedMedia] = []
+    limited = media[:MAX_MEDIA_ITEMS]
     try:
-        for index, candidate in enumerate(media[:MAX_MEDIA_ITEMS], start=1):
+        for index, candidate in enumerate(limited, start=1):
             location = PurePosixPath("reports") / workflow_id / "media" / f"{name}-{index}"
             done.append(
                 await materializer.materialize(
@@ -324,6 +327,7 @@ async def materialize_media(
                     index=index,
                 )
             )
+            await progress.step("source.download_media", n=index, total=len(limited))
     except BaseException:
         # A partial carousel is never reported; remove what this call wrote.
         for item in done:
@@ -391,6 +395,7 @@ class ThreadsAcquirer:
                     )
                 )
             start = time.monotonic()
+            await progress.step("source.fetch_post", params={"platform": "threads"})
             parsed, reason, card = await self._content(identity)
             if parsed is not None and not parsed.post.text.strip() and not parsed.media:
                 attempt = _make_attempt(strategy, None, _elapsed_ms(start))

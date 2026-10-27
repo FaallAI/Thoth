@@ -1122,6 +1122,13 @@ test("project, workflow-run, and Studio document calls hit the new routes", asyn
   await client.startProjectWorkflow("p1", {} as never, "key-1");
   await client.listProjectWorkflows("p1", "c1");
   await client.listUnassignedWorkflows();
+  await client.listRuns({ projectId: null, status: ["running", "queued"], platform: "x", q: "haze smoke" });
+  await client.listRuns({ projectId: "p1" }, "c2");
+  await client.runMetrics(null);
+  await client.runMetrics("p1");
+  await client.listWorkflowSteps("wf_1", 7);
+  await client.getInbox();
+  await client.acknowledgeWorkflow("wf_1");
   await client.moveWorkflow("wf_1", "p1");
   await client.listEditDocuments("p1");
   expect(await (await client.downloadWorkflowArtifact("wf_1", "clip")).text()).toBe("BYTES");
@@ -1131,6 +1138,13 @@ test("project, workflow-run, and Studio document calls hit the new routes", asyn
     "POST /api/v1/projects/p1/workflows",
     "GET /api/v1/projects/p1/workflows?limit=20&cursor=c1",
     "GET /api/v1/workflows?unassigned=true&limit=50",
+    "GET /api/v1/workflows?limit=20&status=running&status=queued&platform=x&q=haze+smoke",
+    "GET /api/v1/projects/p1/workflows?limit=20&cursor=c2",
+    "GET /api/v1/workflows/metrics",
+    "GET /api/v1/workflows/metrics?project_id=p1",
+    "GET /api/v1/workflows/wf_1/steps?after=7",
+    "GET /api/v1/inbox",
+    "POST /api/v1/workflows/wf_1/acknowledge",
     "PATCH /api/v1/workflows/wf_1",
     "GET /api/v1/projects/p1/edit-documents?limit=20",
     "GET /api/v1/workflows/wf_1/artifacts/clip",
@@ -1181,4 +1195,12 @@ test("workflow import routes encode both ids", async () => {
     [path, "POST"],
   ]);
   expect(new Headers(calls[1].init?.headers).get("Idempotency-Key")).toBe("open_001");
+});
+
+test("card and media addresses stay inside the run and encode each part", () => {
+  const client = createControlPlaneClient({ baseUrl: "https://thoth.test" });
+  expect(client.cardUrl("wf_1", "comment-77")).toBe("https://thoth.test/api/v1/workflows/wf_1/cards/comment-77");
+  expect(client.mediaUrl("wf_1", "reports/wf_1/footage/a b.mp4")).toBe(
+    "https://thoth.test/api/v1/workflows/wf_1/media/reports/wf_1/footage/a%20b.mp4",
+  );
 });

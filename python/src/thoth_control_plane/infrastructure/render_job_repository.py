@@ -81,6 +81,11 @@ _MUTABLE = (
     "artifacts_cleaned_at",
     "failure_code",
     "output_relative_path",
+    # Editor migration 0021, run-progress spec G6: what the renderer is doing, in frames.
+    "render_stage",
+    "rendered_frames",
+    "encoded_frames",
+    "total_frames",
 )
 
 
@@ -110,6 +115,10 @@ def _job(row: RenderJobRow) -> RenderJob:
             "artifacts_cleaned_at": row.artifacts_cleaned_at,
             "failure_code": row.failure_code,
             "output_relative_path": row.output_relative_path,
+            "render_stage": row.render_stage,
+            "rendered_frames": row.rendered_frames,
+            "encoded_frames": row.encoded_frames,
+            "total_frames": row.total_frames,
             "output": provenance.get("output"),
             "provenance": provenance,
         }

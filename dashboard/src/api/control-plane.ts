@@ -7,6 +7,15 @@ export type ArtifactRef = components["schemas"]["ArtifactRef"];
 export type Project = components["schemas"]["Project"];
 export type WorkflowRun = components["schemas"]["WorkflowRun"];
 export type WorkflowRunPage = components["schemas"]["WorkflowRunPage"];
+export type WorkflowStep = components["schemas"]["WorkflowStep"];
+export type WorkflowStepPage = components["schemas"]["WorkflowStepPage"];
+export type RunMetrics = components["schemas"]["RunMetrics"];
+export type RunStatus = WorkflowRun["status"];
+export type Inbox = components["schemas"]["Inbox"];
+export type InboxRun = components["schemas"]["InboxRun"];
+export type InboxAccount = components["schemas"]["InboxAccount"];
+/** Run list filters (restyle B1); `projectId: null` lists every project. */
+export type RunQuery = { projectId: string | null; status?: RunStatus[]; platform?: string; q?: string };
 export type EditDocumentListItem = components["schemas"]["EditDocumentListItem"];
 export type EditDocumentListPage = components["schemas"]["EditDocumentListPage"];
 export type StylePreset = components["schemas"]["StylePreset"];
@@ -220,6 +229,14 @@ export type ControlPlaneClient = {
   listProjectWorkflows: (projectId: string, cursor?: string) => Promise<WorkflowRunPage>;
   listUnassignedWorkflows: (cursor?: string) => Promise<WorkflowRunPage>;
   moveWorkflow: (workflowId: string, projectId: string) => Promise<WorkflowRun>;
+  listRuns: (query: RunQuery, cursor?: string) => Promise<WorkflowRunPage>;
+  runMetrics: (projectId: string | null) => Promise<RunMetrics>;
+  listWorkflowSteps: (workflowId: string, after: number) => Promise<WorkflowStepPage>;
+  getInbox: () => Promise<Inbox>;
+  acknowledgeWorkflow: (workflowId: string) => Promise<void>;
+  /** Image and video addresses: the browser's session cookie authorizes them. */
+  cardUrl: (workflowId: string, card: string) => string;
+  mediaUrl: (workflowId: string, location: string) => string;
   downloadWorkflowArtifact: (workflowId: string, artifactId: string) => Promise<Blob>;
   listEditDocuments: (projectId: string, cursor?: string) => Promise<EditDocumentListPage>;
   getWorkflow: (workflowId: string) => Promise<WorkflowSummary>;
@@ -566,6 +583,33 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
       if (cursor) query.set("cursor", cursor);
       return request<WorkflowRunPage>(`/api/v1/workflows?${query.toString()}`);
     },
+    listRuns: ({ projectId, status = [], platform, q }, cursor) => {
+      const query = new URLSearchParams({ limit: "20" });
+      for (const value of status) query.append("status", value);
+      if (platform) query.set("platform", platform);
+      if (q) query.set("q", q);
+      if (cursor) query.set("cursor", cursor);
+      const path = projectId ? `/api/v1/projects/${encodeURIComponent(projectId)}/workflows` : "/api/v1/workflows";
+      return request<WorkflowRunPage>(`${path}?${query.toString()}`);
+    },
+    runMetrics: (projectId) =>
+      request<RunMetrics>(
+        `/api/v1/workflows/metrics${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ""}`,
+      ),
+    listWorkflowSteps: (workflowId, after) =>
+      request<WorkflowStepPage>(`/api/v1/workflows/${encodeURIComponent(workflowId)}/steps?after=${after}`),
+    getInbox: () => request<Inbox>("/api/v1/inbox"),
+    acknowledgeWorkflow: async (workflowId) => {
+      const response = await doFetch(`${baseUrl}/api/v1/workflows/${encodeURIComponent(workflowId)}/acknowledge`, {
+        method: "POST",
+        headers: headers(),
+      });
+      if (!response.ok) throw new Error(`Control plane request failed (${response.status})`);
+    },
+    cardUrl: (workflowId, card) =>
+      `${baseUrl}/api/v1/workflows/${encodeURIComponent(workflowId)}/cards/${encodeURIComponent(card)}`,
+    mediaUrl: (workflowId, location) =>
+      `${baseUrl}/api/v1/workflows/${encodeURIComponent(workflowId)}/media/${location.split("/").map(encodeURIComponent).join("/")}`,
     moveWorkflow: (workflowId, projectId) =>
       request<WorkflowRun>(`/api/v1/workflows/${encodeURIComponent(workflowId)}`, {
         method: "PATCH",

@@ -18,6 +18,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal, TypeVar
 
+from thoth_control_plane import progress
 from thoth_control_plane.acquisition.models import DiscoveredVideo, SourceReport
 from thoth_control_plane.attribution import credit
 from thoth_control_plane.attribution.adapters.frames import ToolMissing
@@ -166,11 +167,22 @@ class SourceAttributor:
     async def identify(
         self, workflow_id: str, report: SourceReport, video: Path | None
     ) -> AttributionOutcome:
+        outcome = await self._identify(workflow_id, report, video)
+        # The verdict write leaves the event loop (`step` runs it on a worker thread):
+        # on the loop thread the insert would block heartbeats and every other activity.
+        await progress.step("attribution.verdict", params={"verdict": outcome.attribution.verdict})
+        return outcome
+
+    async def _identify(
+        self, workflow_id: str, report: SourceReport, video: Path | None
+    ) -> AttributionOutcome:
         frames = await self._frames(video)
         if video is not None and not frames:
             # The video exists but sampling failed: no evidence, so no verdict on the source.
             return self._finish(workflow_id, report, "unresolved", [], reason="frames_failed")
         lines: list[str] = []
+        if frames:
+            await progress.step("attribution.read_text")
         for frame in frames:
             if frame.second < self._tuning.credit_seconds:
                 lines += [box.text for box in await self._read(frame)]
@@ -230,6 +242,7 @@ class SourceAttributor:
                     videos = found
                     break
         counts["discovered"] = len(videos)
+        await progress.step("attribution.search_candidates", params={"count": len(videos)})
         kept, dropped = shortlist(
             videos,
             repost_owner=owner,
@@ -321,6 +334,7 @@ class SourceAttributor:
             "reposting_platform": report.source.platform,
             "handles_found": list(options),
         }
+        await progress.step("attribution.ask_vision")
         decided = await self._ports.decisions.decide(state, options)
         evidence.append(
             AttributionEvidence(
@@ -391,6 +405,7 @@ class SourceAttributor:
         transcript = await self._ports.transcriber.transcribe(video, seconds=seconds)
         speech = split_speech(transcript, turns, labelled)
         comments = [comment.text for comment in report.comments][:12]
+        await progress.step("attribution.ask_vision")
         assessment = await self._ports.decisions.assess(
             {
                 "caption": report.post.text[:2000],
@@ -459,7 +474,7 @@ class SourceAttributor:
         step = max(1, self._tuning.finalist_concurrency)
         for start in range(0, len(finalists), step):
             batch = finalists[start : start + step]
-            # Every finalist settles before an error leaves, so the `finally` in `identify`
+            # Every finalist settles before an error leaves, so the `finally` in `_identify`
             # sees (and discards) each one it acquired.
             results = await asyncio.gather(
                 *(self._check(finalist, repost) for finalist in batch), return_exceptions=True
@@ -467,6 +482,11 @@ class SourceAttributor:
             for result in results:
                 if isinstance(result, BaseException):
                     raise result
+            # One step per batch, after its checks: the count is finalists compared
+            # so far, never a finalist about to be compared.
+            await progress.step(
+                "attribution.compare_frames", n=start + len(batch), total=len(finalists)
+            )
             if any(f.rejected is None and f.inliers is not None for f in batch):
                 break
         accepted = [f for f in finalists if f.checked and f.rejected is None]
@@ -507,6 +527,7 @@ class SourceAttributor:
             # originals "commentary", so the genre checks below run only when unmeasured.
             return
         if frames:
+            await progress.step("attribution.ask_vision")
             kind = await self._ports.vision.classify(frames[:3])
             if kind == "commentary":
                 finalist.rejected = "commentary"
@@ -537,6 +558,7 @@ class SourceAttributor:
         end = frames[-1].second + 1.0 / self._tuning.frame_fps
         cut = shots(await self._guard_tool(self._ports.scenes.cuts(video)), end)
         sent = vision_frames(frames, cut)
+        await progress.step("attribution.ask_vision")
         cover = await self._ports.vision.read_cover(sent)
         return cover, label(cut, sent, cover.shows)
 

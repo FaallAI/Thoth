@@ -248,13 +248,66 @@ class WorkflowSource(StrictModel):
     platform: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")]
 
 
+StepKind = Literal["info", "progress", "wait", "done", "warning", "error"]
+
+
+class WorkflowStep(StrictModel):
+    """One recorded step of a running stage (run-progress spec 2026-10-25, G2)."""
+
+    seq: Annotated[int, Field(ge=1)]
+    stage: Annotated[str, Field(pattern=r"^(source|attribution|footage|assembly)$")]
+    attempt: Annotated[int, Field(ge=1)]
+    at: datetime
+    kind: StepKind
+    code: Annotated[str, Field(pattern=r"^(source|attribution|footage|assembly)\.[a-z_]+$")]
+    n: Annotated[int | None, Field(ge=0)] = None
+    total: Annotated[int | None, Field(ge=0)] = None
+    wait_until: datetime | None = Field(default=None)
+    params: dict[str, str | int] | None = Field(default=None)
+
+    @field_validator("at", "wait_until", mode="before")
+    @classmethod
+    def validate_timestamp(cls, timestamp: datetime | str | None) -> datetime | None:
+        if timestamp is None:
+            return None
+        return _parse_rfc3339_timestamp(timestamp)
+
+
+class WorkflowStepPage(StrictModel):
+    steps: list[WorkflowStep]
+
+
 class StageSummary(StrictModel):
     id: Annotated[
-        str, Field(pattern=r"^(validation|source|assets|narration|render|review|delivery)$")
+        str,
+        Field(
+            pattern=r"^(validation|source|assets|narration|render|review|delivery"
+            r"|approval|attribution|footage|assembly)$"
+        ),
     ]
     label: Annotated[str, Field(min_length=1, max_length=500)]
-    status: Literal["queued", "running", "completed", "waiting", "failed", "cancelled"]
+    status: Literal["queued", "running", "completed", "waiting", "failed", "cancelled", "skipped"]
     progress: float | None = None
+    # Run-progress stage plan (spec 2026-10-25, G1). Optional with defaults so stored
+    # summaries and older clients stay valid.
+    started_at: datetime | None = Field(default=None)
+    finished_at: datetime | None = Field(default=None)
+    skip_reason: (
+        Literal[
+            "attribution_off",
+            "footage_off",
+            "assembly_off",
+            "legacy_source",
+            "approval_rejected",
+            "not_in_this_version",
+            "run_failed",
+            "run_cancelled",
+        ]
+        | None
+    ) = Field(default=None)
+    # The API fills it from the latest step of the current attempt; it never reaches a
+    # stored summary (run-progress spec 2026-10-25, G3).
+    current_step: WorkflowStep | None = Field(default=None)
 
     @field_validator("progress")
     @classmethod
@@ -262,6 +315,13 @@ class StageSummary(StrictModel):
         if progress is not None and (not math.isfinite(progress) or not 0 <= progress <= 1):
             raise ValueError("stage progress must be finite and between 0 and 1")
         return progress
+
+    @field_validator("started_at", "finished_at", mode="before")
+    @classmethod
+    def validate_timestamp(cls, timestamp: datetime | str | None) -> datetime | None:
+        if timestamp is None:
+            return None
+        return _parse_rfc3339_timestamp(timestamp)
 
 
 class WorkflowSummary(StrictModel):
@@ -276,6 +336,13 @@ class WorkflowSummary(StrictModel):
     failure: WorkflowFailure | None = None
     # default_factory keeps it optional in the generated TypeScript, like `artifacts`.
     history_expired: bool = Field(default_factory=lambda: False)
+    # Run-progress spec 2026-10-25, G4: filled by the API only, never stored.
+    estimate_seconds_remaining: Annotated[int | None, Field(ge=0)] = None
+    # Restyle B7: the run row's project and post details, filled by the API only, never stored.
+    project_id: str | None = None
+    title: str | None = None
+    owner_handle: str | None = None
+    has_post_card: bool = Field(default_factory=lambda: False)
 
     @field_validator("status", mode="before")
     @classmethod

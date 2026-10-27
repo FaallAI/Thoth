@@ -25,6 +25,7 @@ from thoth_control_plane.api.routes.billing_webhooks import router as billing_we
 from thoth_control_plane.api.routes.edit_documents import router as edit_document_router
 from thoth_control_plane.api.routes.editor_assets import router as editor_asset_router
 from thoth_control_plane.api.routes.health import router as health_router
+from thoth_control_plane.api.routes.inbox import router as inbox_router
 from thoth_control_plane.api.routes.internal_render_jobs import router as internal_render_router
 from thoth_control_plane.api.routes.me import router as me_router
 from thoth_control_plane.api.routes.projects import router as project_router
@@ -74,7 +75,7 @@ from thoth_control_plane.application.render_jobs import RenderJobService
 from thoth_control_plane.application.studio_imports import StudioImportService
 from thoth_control_plane.application.studio_review import StudioReviewService
 from thoth_control_plane.application.studio_review_ports import StudioReviewRepository
-from thoth_control_plane.application.workflow_runs import ProjectNotFound
+from thoth_control_plane.application.workflow_runs import ProjectNotFound, RunNotFailed
 from thoth_control_plane.application.workflow_studio_imports import WorkflowStudioImportService
 from thoth_control_plane.auth.mailer import Mailer, mailer_from
 from thoth_control_plane.auth.providers import IdentityProvider, build_providers
@@ -115,6 +116,7 @@ from thoth_control_plane.infrastructure.renderer_gateway import (
 )
 from thoth_control_plane.infrastructure.report_store import Reports, ReportStore
 from thoth_control_plane.infrastructure.source_account_store import SourceAccountStore
+from thoth_control_plane.infrastructure.step_store import StepStore
 from thoth_control_plane.infrastructure.studio_import_repository import (
     PostgresStudioImportRepository,
 )
@@ -246,6 +248,7 @@ def create_app(
     mailer: Mailer | None = None,
     identity_providers: dict[str, IdentityProvider] | None = None,
     usage_store: UsageStore | None = None,
+    step_store: StepStore | None = None,
     billing_store: BillingStore | None = None,
 ) -> FastAPI:
     """Create an isolated v1 API application for the supplied workflow gateway."""
@@ -403,6 +406,11 @@ def create_app(
     if usage_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
         usage_store = UsageStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
     app.state.usage_store = usage_store
+    # The step store reads the same editor database; building it does no I/O, so the steps
+    # endpoint degrades to an empty page when the database is unconfigured.
+    if step_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
+        step_store = StepStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
+    app.state.step_store = step_store
     app.state.billing_store = billing_store
     app.state.payments = (
         XenditInvoices(settings.THOTH_XENDIT_SECRET_KEY.get_secret_value())  # type: ignore[union-attr]
@@ -455,6 +463,7 @@ def create_app(
         ArtifactNotFound: status.HTTP_404_NOT_FOUND,
         IdempotencyConflict: status.HTTP_409_CONFLICT,
         ApprovalNotAllowed: status.HTTP_409_CONFLICT,
+        RunNotFailed: status.HTTP_409_CONFLICT,
         WorkflowNotFound: status.HTTP_404_NOT_FOUND,
         WorkflowNotReady: status.HTTP_503_SERVICE_UNAVAILABLE,
         ProjectNotFound: status.HTTP_404_NOT_FOUND,
@@ -577,6 +586,7 @@ def create_app(
     app.include_router(project_router, prefix="/api/v1")
     app.include_router(me_router, prefix="/api/v1")
     app.include_router(workflow_run_router, prefix="/api/v1")
+    app.include_router(inbox_router, prefix="/api/v1")
     app.include_router(workflow_router, prefix="/api/v1")
     app.include_router(edit_document_router, prefix="/api/v1")
     app.include_router(editor_asset_router, prefix="/api/v1")

@@ -13,6 +13,7 @@ import asyncio
 import time
 from pathlib import Path, PurePosixPath
 
+from thoth_control_plane import progress
 from thoth_control_plane.acquisition.adapters.tiktok import (
     TikTokPostIdentity,
     TikTokUrlError,
@@ -190,9 +191,11 @@ class TikTokAcquisitionService:
             PurePosixPath("reports") / workflow_id / "media" / f"tiktok-{post_id}.mp4"
         )
         destination = artifact_root / relative_location
-        return await self._materializer.materialize(
+        materialized = await self._materializer.materialize(
             candidate, destination, relative_location, strategy
         )
+        await progress.step("source.download_media", n=1, total=1)
+        return materialized
 
     async def inspect(
         self, *, workflow_id: str, source_url: str, artifact_root: Path
@@ -212,6 +215,7 @@ class TikTokAcquisitionService:
         materialized: MaterializedMedia | None = None
 
         headless_start = time.monotonic()
+        await progress.step("source.fetch_post", params={"platform": "tiktok"})
         try:
             snapshot = await self._browser.fetch(source_url)
         except HeadlessBrowserError as error:

@@ -8,12 +8,13 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "test": "bun test",
-    "generate:control-plane-types": "openapi-typescript ../python/openapi.json -o src/api/generated/control-plane.ts",
+    "generate:control-plane-types": "node --import ./scripts/typescript6.mjs node_modules/openapi-typescript/bin/cli.js ../python/openapi.json -o src/api/generated/control-plane.ts",
     "preview": "vite preview"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
     "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/geist-mono": "^5",
     "@remotion/media": "4.0.538",
     "@remotion/player": "4.0.538",
     "@tailwindcss/vite": "^4.3.3",
@@ -38,6 +39,7 @@
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@typescript/typescript6": "~6.0.2",
     "@vitejs/plugin-react": "^6.1.2",
     "openapi-typescript": "^7.13.0",
     "oxlint": "^1.89.0",

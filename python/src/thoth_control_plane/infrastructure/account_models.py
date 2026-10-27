@@ -26,6 +26,8 @@ class UserRow(Base):
     display_name: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)
     disabled_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    # Editor migration 0022 (restyle spec D1): the UI language the user chose, if any.
+    locale: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class UserIdentityRow(Base):

@@ -106,6 +106,11 @@ def test_public_render_job_schema_exposes_only_safe_projection_fields(schema) ->
         "document_revision",
         "status",
         "progress_percent",
+        # Run-progress spec G6: frame counts and the render stage, never a path or a secret.
+        "render_stage",
+        "rendered_frames",
+        "encoded_frames",
+        "total_frames",
         "failure_code",
         "template_id",
         "template_version",

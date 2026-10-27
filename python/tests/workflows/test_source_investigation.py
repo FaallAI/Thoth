@@ -4,6 +4,7 @@ import asyncio
 import json
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -686,8 +687,12 @@ async def test_production_worker_registration_binds_source_activity_to_configure
     )
 
     from thoth_control_plane.activities.meter_scope import MeterScopeInterceptor
+    from thoth_control_plane.activities.progress_scope import ProgressScopeInterceptor
 
-    assert [type(i) for i in registered["interceptors"]] == [MeterScopeInterceptor]
+    assert [type(i) for i in registered["interceptors"]] == [
+        MeterScopeInterceptor,
+        ProgressScopeInterceptor,
+    ]
     activities = registered["activities"]
     assert isinstance(activities, list)
     result = await activities[0](
@@ -2074,6 +2079,36 @@ async def test_a_crashing_footage_stage_never_fails_the_workflow(
 
 
 @pytest.mark.asyncio
+async def test_a_crashing_footage_stage_reads_failed_while_the_run_succeeds(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    """F1 (phase 3, D2): the stage plan reports the footage stage as failed, not completed,
+    while assembly still runs and the run still succeeds."""
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[
+            record_workflow_completed,
+            fake_inspect,
+            fake_attribute,
+            crashing_footage,
+            fake_assemble,
+        ],
+    ):
+        result = await workflow_env.client.execute_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_with_footage()],
+            id="wf_test_footage_stage_failed",
+            task_queue="test",
+        )
+    stages = {stage.id: stage.status for stage in result.stages}
+    assert stages["footage"] == "failed"
+    assert stages["assembly"] == "completed"
+    assert result.status == "succeeded"
+
+
+@pytest.mark.asyncio
 async def test_footage_off_runs_no_footage_activity(workflow_env: WorkflowEnvironment) -> None:
     FOOTAGE_INPUTS.clear()
     async with Worker(
@@ -2375,3 +2410,325 @@ async def test_a_produce_video_history_from_before_the_chain_still_replays(
     await Replayer(
         workflows=[SourceInvestigationWorkflow], data_converter=pydantic_data_converter
     ).replay_workflow(WorkflowHistory.from_json(workflow_id, recorded))
+
+
+# Run progress, phase 1: the stage plan (spec 2026-10-25, G1). The whole plan is in
+# WorkflowSummary.stages from the first snapshot, with real statuses and timestamps.
+
+
+def _stages_by_id(snapshot: WorkflowSummary) -> dict[str, Any]:
+    return {stage.id: stage for stage in snapshot.stages}
+
+
+@pytest.mark.asyncio
+async def test_the_plan_is_whole_from_the_first_snapshot_and_tracks_the_run(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    ORDER.clear()
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[
+            record_workflow_completed,
+            fake_inspect,
+            ordered_attribute,
+            fake_footage,
+            ordered_assemble,
+        ],
+    ):
+        handle = await workflow_env.client.start_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_produce_chain()],
+            id="wf_test_stage_plan_approved",
+            task_queue="test",
+        )
+        await wait_for_status(handle, "awaiting_approval")
+        awaiting = _stages_by_id(await handle.query(SourceInvestigationWorkflow.summary))
+        assert list(awaiting) == ["source", "approval", "attribution", "footage", "assembly"]
+        assert awaiting["source"].status == "completed"
+        assert awaiting["source"].progress == 1.0
+        assert awaiting["source"].started_at is not None
+        assert awaiting["source"].finished_at is not None
+        assert awaiting["approval"].status == "waiting"
+        assert awaiting["approval"].started_at is not None
+        for stage_id in ("attribution", "footage", "assembly"):
+            assert awaiting[stage_id].status == "queued"
+            assert awaiting[stage_id].started_at is None
+
+        await _decide(handle, "approve")
+        result = await handle.result()
+
+    assert result.status == "succeeded"
+    by_id = _stages_by_id(result)
+    assert {stage_id: stage.status for stage_id, stage in by_id.items()} == {
+        "source": "completed",
+        "approval": "completed",
+        "attribution": "completed",
+        "footage": "completed",
+        "assembly": "completed",
+    }
+    times = [
+        (stage.started_at, stage.finished_at)
+        for stage in (
+            by_id["source"],
+            by_id["approval"],
+            by_id["attribution"],
+            by_id["footage"],
+            by_id["assembly"],
+        )
+    ]
+    for started_at, finished_at in times:
+        assert started_at is not None and finished_at is not None
+        assert started_at <= finished_at
+    for earlier, later in pairwise(times):
+        assert earlier[1] <= later[0]
+
+
+@pytest.mark.asyncio
+async def test_a_rejected_produce_video_skips_the_chain_with_its_reason(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    ORDER.clear()
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[
+            record_workflow_completed,
+            fake_inspect,
+            ordered_attribute,
+            fake_footage,
+            ordered_assemble,
+        ],
+    ):
+        handle = await workflow_env.client.start_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_produce_chain()],
+            id="wf_test_stage_plan_rejected",
+            task_queue="test",
+        )
+        await _decide(handle, "reject")
+        result = await handle.result()
+
+    assert result.status == "failed"
+    by_id = _stages_by_id(result)
+    assert by_id["source"].status == "completed"
+    # The run stopped at the approval gate: the approval stage reports the failure.
+    assert by_id["approval"].status == "failed"
+    for stage_id in ("attribution", "footage", "assembly"):
+        assert by_id[stage_id].status == "skipped"
+        assert by_id[stage_id].skip_reason == "approval_rejected"
+        assert by_id[stage_id].started_at is None
+
+
+FOOTAGE_RELEASE: asyncio.Event | None = None
+
+
+@activity.defn(name="build_footage")
+async def blocking_footage(input_: FootageActivityInput) -> FootageActivityResult:
+    assert FOOTAGE_RELEASE is not None
+    await FOOTAGE_RELEASE.wait()
+    return await fake_footage(input_)
+
+
+@pytest.mark.asyncio
+async def test_a_cancel_during_footage_cancels_the_open_stage_and_skips_the_rest(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    global FOOTAGE_RELEASE
+    FOOTAGE_RELEASE = asyncio.Event()
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[
+            record_workflow_completed,
+            fake_inspect,
+            fake_attribute,
+            blocking_footage,
+            ordered_assemble,
+        ],
+    ):
+        handle = await workflow_env.client.start_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_produce_chain()],
+            id="wf_test_stage_plan_cancel_footage",
+            task_queue="test",
+        )
+        await _decide(handle, "approve")
+        for _ in range(100):
+            events = await handle.query(SourceInvestigationWorkflow.workflow_events)
+            if any(event.stage and event.stage.name == "footage" for event in events):
+                break
+            await asyncio.sleep(0.01)
+        await handle.signal(SourceInvestigationWorkflow.request_cancel)
+        await wait_for_status(handle, "cancelled")
+        FOOTAGE_RELEASE.set()
+        result = await handle.result()
+
+    by_id = _stages_by_id(result)
+    assert result.status == "cancelled"
+    assert by_id["source"].status == "completed"
+    assert by_id["approval"].status == "completed"
+    assert by_id["attribution"].status == "completed"
+    assert by_id["footage"].status == "cancelled"
+    assert by_id["footage"].finished_at is not None
+    assert by_id["assembly"].status == "skipped"
+    assert by_id["assembly"].skip_reason == "run_cancelled"
+
+
+@pytest.mark.asyncio
+async def test_an_assembly_failure_marks_the_assembly_stage_failed(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    ORDER.clear()
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[
+            record_workflow_completed,
+            fake_inspect,
+            fake_attribute,
+            fake_footage,
+            failing_assemble,
+        ],
+    ):
+        handle = await workflow_env.client.start_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[_produce_chain()],
+            id="wf_test_stage_plan_assembly_failed",
+            task_queue="test",
+        )
+        await _decide(handle, "approve")
+        result = await handle.result()
+
+    assert result.status == "failed"
+    by_id = _stages_by_id(result)
+    assert by_id["source"].status == "completed"
+    assert by_id["approval"].status == "completed"
+    assert by_id["attribution"].status == "completed"
+    assert by_id["footage"].status == "completed"
+    assert by_id["assembly"].status == "failed"
+    assert by_id["assembly"].finished_at is not None
+
+
+@pytest.mark.asyncio
+async def test_identify_original_with_the_flags_off_skips_the_chain_stages(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[record_workflow_completed, fake_inspect],
+    ):
+        result = await workflow_env.client.execute_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[workflow_input(VALID_IDENTIFY_REQUEST)],
+            id="wf_test_stage_plan_flags_off",
+            task_queue="test",
+        )
+
+    assert result.status == "succeeded"
+    by_id = _stages_by_id(result)
+    assert list(by_id) == ["source", "attribution", "footage", "assembly"]
+    assert by_id["source"].status == "completed"
+    assert by_id["source"].progress == 1.0
+    assert {
+        stage_id: (stage.status, stage.skip_reason)
+        for stage_id, stage in by_id.items()
+        if stage_id != "source"
+    } == {
+        "attribution": ("skipped", "attribution_off"),
+        "footage": ("skipped", "footage_off"),
+        "assembly": ("skipped", "assembly_off"),
+    }
+
+
+@pytest.mark.asyncio
+async def test_a_legacy_report_skips_the_chain_with_legacy_source(
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    legacy = _tiktok_fallback_input("legacy_scout").model_copy(
+        update={"attribute_source": True, "assemble_content": True, "build_footage": True}
+    )
+    async with (
+        Worker(
+            workflow_env.client,
+            task_queue="test",
+            workflows=[SourceInvestigationWorkflow],
+            activities=[record_workflow_completed],
+        ),
+        Worker(
+            workflow_env.client,
+            task_queue=LEGACY_ADAPTER_TASK_QUEUE,
+            activities=[fake_legacy_inspect],
+        ),
+    ):
+        result = await workflow_env.client.execute_workflow(
+            SourceInvestigationWorkflow.run,
+            args=[legacy],
+            id="wf_test_stage_plan_legacy",
+            task_queue="test",
+        )
+
+    assert result.status == "succeeded"
+    by_id = _stages_by_id(result)
+    assert list(by_id) == ["source", "attribution", "footage", "assembly"]
+    assert by_id["source"].status == "completed"
+    for stage_id in ("attribution", "footage", "assembly"):
+        assert by_id[stage_id].status == "skipped"
+        assert by_id[stage_id].skip_reason == "legacy_source"
+
+
+# Run progress, phase 1 (spec 2026-10-25, G1): real recorded histories from before the
+# stage-plan change must replay unchanged, because the plan issues no Temporal command.
+#
+# How the fixtures were made: on 2026-10-25, in a separate worktree checked out at
+# origin/master 0f744ce (the commit before this branch), a one-off script imported this
+# file's fakes (fake_inspect, fake_attribute, fake_footage, fake_assemble and
+# record_workflow_completed) and ran them against a time-skipping WorkflowEnvironment:
+# - wf_fixture_produce_video_chain: a produce_video run with the chain flags on,
+#   approved through the approval gate, the full chain, succeeded (41 events);
+# - wf_fixture_identify_original: an identify_original run with the chain flags off,
+#   succeeded (14 events).
+# Each `handle.fetch_history().to_json_dict()` was saved verbatim under fixtures/.
+
+FIXTURE_DIR = Path(__file__).parent / "fixtures"
+PRE_STAGE_PLAN_FIXTURES = [
+    ("wf_fixture_produce_video_chain", "produce_video_chain_approved.history.json"),
+    ("wf_fixture_identify_original", "identify_original.history.json"),
+]
+
+
+async def _replay_pre_stage_plan_history(workflow_id: str, fixture: str) -> None:
+    from temporalio.client import WorkflowHistory
+    from temporalio.worker import Replayer
+
+    recorded = json.loads((FIXTURE_DIR / fixture).read_text(encoding="utf-8"))
+    await Replayer(
+        workflows=[SourceInvestigationWorkflow], data_converter=pydantic_data_converter
+    ).replay_workflow(WorkflowHistory.from_json(workflow_id, recorded))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "workflow_id, fixture", PRE_STAGE_PLAN_FIXTURES, ids=[f[1] for f in PRE_STAGE_PLAN_FIXTURES]
+)
+async def test_a_history_recorded_before_the_stage_plan_replays(
+    workflow_id: str, fixture: str
+) -> None:
+    await _replay_pre_stage_plan_history(workflow_id, fixture)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "workflow_id, fixture", PRE_STAGE_PLAN_FIXTURES, ids=[f[1] for f in PRE_STAGE_PLAN_FIXTURES]
+)
+async def test_a_history_recorded_before_the_stage_plan_replays_a_second_time(
+    workflow_id: str, fixture: str
+) -> None:
+    # One more replay of each, from a fresh parse of the same file: replays are repeatable.
+    await _replay_pre_stage_plan_history(workflow_id, fixture)

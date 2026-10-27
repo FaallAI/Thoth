@@ -19,6 +19,7 @@ from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from thoth_control_plane import progress
 from thoth_control_plane.acquisition.adapters.youtube import (
     MAX_DOWNLOAD_BYTES,
     FormatChoice,
@@ -340,13 +341,15 @@ class YouTubeAcquirer:
             raise MediaMaterializationError() from None
         try:
             merged = await self._client.download(str(identity.canonical_url), choice, work)
-            return await self._materializer.adopt(
+            adopted = await self._materializer.adopt(
                 merged,
                 artifact_root / location,
                 location,
                 AcquisitionStrategy.YT_DLP,
                 duration_seconds=parsed.duration_seconds,
             )
+            await progress.step("source.download_media", n=1, total=1)
+            return adopted
         except OSError:
             raise MediaMaterializationError() from None
         finally:
@@ -366,6 +369,7 @@ class YouTubeAcquirer:
             start = time.monotonic()
             reason: AcquisitionReason | None = None
             info: dict[str, Any] | None = None
+            await progress.step("source.fetch_post", params={"platform": "youtube"})
             try:
                 info = await self._client.extract(str(identity.canonical_url), comments=True)
             except YtDlpError as error:

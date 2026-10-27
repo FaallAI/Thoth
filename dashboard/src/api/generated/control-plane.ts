@@ -177,6 +177,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Inbox
+         * @description The caller's workspace attention list. The account section follows the
+         *     `platform_actor` rule: a platform admin holding the admin scope.
+         */
+        get: operations["read_inbox_api_v1_inbox_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -191,7 +212,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Me
+         * @description Save the caller's own preferences: today, the dashboard language.
+         */
+        patch: operations["update_me_api_v1_me_patch"];
         trace?: never;
     };
     "/api/v1/me/tokens": {
@@ -1138,11 +1163,36 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Unassigned Workflows */
+        /**
+         * List Unassigned Workflows
+         * @description `unassigned=true` lists runs outside any project; without it, every run of the
+         *     caller across all projects (restyle B1).
+         */
         get: operations["list_unassigned_workflows_api_v1_workflows_get"];
         put?: never;
         /** Create Workflow */
         post: operations["create_workflow_api_v1_workflows_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workflows/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Workflow Metrics
+         * @description Runs this week, the median run time, the success rate and Content Sets made
+         *     (restyle B4), in one project or across all of them.
+         */
+        get: operations["workflow_metrics_api_v1_workflows_metrics_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1165,6 +1215,23 @@ export interface paths {
         head?: never;
         /** Move Workflow */
         patch: operations["move_workflow_api_v1_workflows__workflow_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workflows/{workflow_id}/acknowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Acknowledge Workflow */
+        post: operations["acknowledge_workflow_api_v1_workflows__workflow_id__acknowledge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/workflows/{workflow_id}/approve": {
@@ -1221,6 +1288,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workflows/{workflow_id}/cards/{card}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Workflow Card
+         * @description One real card crop of the run (restyle B3): `post`, `profile`, `profile_page` or
+         *     `comment-<id>`. A crop never changes once written, so the browser keeps it a day.
+         */
+        get: operations["download_workflow_card_api_v1_workflows__workflow_id__cards__card__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workflows/{workflow_id}/events": {
         parameters: {
             query?: never;
@@ -1241,6 +1329,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workflows/{workflow_id}/media/{location}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Workflow Media
+         * @description One media file the run stored, such as a footage clip of its Content Set (restyle
+         *     B6), with ranges so a video can seek. Stored media never changes under its location.
+         */
+        get: operations["download_workflow_media_api_v1_workflows__workflow_id__media__location__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workflows/{workflow_id}/retry": {
         parameters: {
             query?: never;
@@ -1252,6 +1361,26 @@ export interface paths {
         put?: never;
         /** Retry Workflow */
         post: operations["retry_workflow_api_v1_workflows__workflow_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workflows/{workflow_id}/steps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Workflow Steps
+         * @description The run's steps in order; the dashboard polls this in its event-stream loop.
+         */
+        get: operations["list_workflow_steps_api_v1_workflows__workflow_id__steps_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1534,6 +1663,8 @@ export interface components {
         };
         /** BillingView */
         BillingView: {
+            /** Checkout Available */
+            checkout_available?: boolean;
             /** Invoices */
             invoices: components["schemas"]["InvoiceOut"][];
             /** Period End */
@@ -1973,6 +2104,64 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** Inbox */
+        Inbox: {
+            /** Accounts */
+            accounts?: components["schemas"]["InboxAccount"][];
+            /** Approvals */
+            approvals?: components["schemas"]["InboxRun"][];
+            /** Failures */
+            failures?: components["schemas"]["InboxRun"][];
+        };
+        /**
+         * InboxAccount
+         * @description A source account in cooldown or trouble, for platform admins only (spec G5).
+         *
+         *     Deliberately carries no cookie, cookie name or proxy data.
+         */
+        InboxAccount: {
+            /** Account Id */
+            account_id: string;
+            /** Cooldown Until */
+            cooldown_until?: string | null;
+            /** Label */
+            label: string;
+            /**
+             * Platform
+             * @enum {string}
+             */
+            platform: "tiktok" | "threads" | "instagram" | "x" | "youtube";
+            /** Status */
+            status: string;
+        };
+        /**
+         * InboxRun
+         * @description One run awaiting the caller: an approval or an unacknowledged failure (spec G5).
+         */
+        InboxRun: {
+            /** Display Url */
+            display_url: string;
+            /** Failure Code */
+            failure_code?: string | null;
+            /** Platform */
+            platform: string;
+            /** Project Id */
+            project_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "awaiting_approval" | "succeeded" | "failed" | "cancelled" | "unknown";
+            /** Title */
+            title?: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Workflow Id */
+            workflow_id: string;
+        };
         /** InvoiceOut */
         InvoiceOut: {
             /** Amount Idr */
@@ -2029,12 +2218,22 @@ export interface components {
              */
             start: string;
         };
+        /** MeUpdate */
+        MeUpdate: {
+            /**
+             * Locale
+             * @enum {string}
+             */
+            locale: "en" | "id";
+        };
         /** MeView */
         MeView: {
             /** Display Name */
             display_name: string | null;
             /** Email */
             email: string | null;
+            /** Locale */
+            locale?: ("en" | "id") | null;
             /** Platform Admin */
             platform_admin: boolean;
             /** Scopes */
@@ -2603,6 +2802,8 @@ export interface components {
             document_id: string;
             /** Document Revision */
             document_revision: number;
+            /** Encoded Frames */
+            encoded_frames?: number | null;
             /** Failure Code */
             failure_code?: ("render_asset_unavailable" | "render_bundle_invalid" | "render_deadline_exceeded" | "render_dispatch_failed" | "render_engine_failed" | "render_output_invalid" | "render_storage_failed" | "renderer_unavailable") | null;
             /** Finished At */
@@ -2619,6 +2820,10 @@ export interface components {
             project_id: string;
             /** Render Job Id */
             render_job_id: string;
+            /** Render Stage */
+            render_stage?: ("preparing" | "rendering" | "encoding" | "uploading") | null;
+            /** Rendered Frames */
+            rendered_frames?: number | null;
             /** Renderer Version */
             renderer_version: string;
             /** Retry Of Job Id */
@@ -2640,6 +2845,8 @@ export interface components {
              * @constant
              */
             template_version: 1;
+            /** Total Frames */
+            total_frames?: number | null;
         };
         /**
          * RenderOutputView
@@ -2844,6 +3051,24 @@ export interface components {
             code: "review_revision_conflict";
             /** Latest Revision */
             latest_revision: number;
+        };
+        /**
+         * RunMetrics
+         * @description The run list's metric tiles (restyle B4). A rate or a median with nothing finished
+         *     behind it is null, so the dashboard shows no tile rather than a made-up number.
+         */
+        RunMetrics: {
+            /**
+             * Content Sets
+             * @default 0
+             */
+            content_sets: number;
+            /** Median Run Seconds */
+            median_run_seconds?: number | null;
+            /** Runs This Week */
+            runs_this_week: number;
+            /** Success Rate */
+            success_rate?: number | null;
         };
         /** SaveProjectPromptBindingRequest */
         SaveProjectPromptBindingRequest: {
@@ -3265,17 +3490,24 @@ export interface components {
         };
         /** StageSummary */
         StageSummary: {
+            current_step?: components["schemas"]["WorkflowStep"] | null;
+            /** Finished At */
+            finished_at?: string | null;
             /** Id */
             id: string;
             /** Label */
             label: string;
             /** Progress */
             progress?: number | null;
+            /** Skip Reason */
+            skip_reason?: ("attribution_off" | "footage_off" | "assembly_off" | "legacy_source" | "approval_rejected" | "not_in_this_version" | "run_failed" | "run_cancelled") | null;
+            /** Started At */
+            started_at?: string | null;
             /**
              * Status
              * @enum {string}
              */
-            status: "queued" | "running" | "completed" | "waiting" | "failed" | "cancelled";
+            status: "queued" | "running" | "completed" | "waiting" | "failed" | "cancelled" | "skipped";
         };
         /** StatusCounts */
         StatusCounts: {
@@ -3865,8 +4097,22 @@ export interface components {
             /** Base Revision */
             base_revision: number;
         };
+        /** UsageDay */
+        UsageDay: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Videos */
+            videos: number;
+            /** Workflows */
+            workflows: number;
+        };
         /** UsageView */
         UsageView: {
+            /** Days */
+            days?: components["schemas"]["UsageDay"][];
             /** Leases */
             leases: {
                 [key: string]: number;
@@ -3964,16 +4210,25 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            current_step?: components["schemas"]["WorkflowStep"] | null;
+            /** Has Post Card */
+            has_post_card?: boolean;
             /** History Expired */
             history_expired: boolean;
+            /** Owner Handle */
+            owner_handle?: string | null;
             /** Project Id */
             project_id: string | null;
             source: components["schemas"]["WorkflowSource"];
+            /** Stages */
+            stages?: components["schemas"]["StageSummary"][];
             /**
              * Status
              * @enum {string}
              */
             status: "queued" | "running" | "awaiting_approval" | "succeeded" | "failed" | "cancelled" | "unknown";
+            /** Title */
+            title?: string | null;
             /**
              * Updated At
              * Format: date-time
@@ -4005,6 +4260,45 @@ export interface components {
          */
         WorkflowStatus: "queued" | "running" | "awaiting_approval" | "succeeded" | "failed" | "cancelled";
         /**
+         * WorkflowStep
+         * @description One recorded step of a running stage (run-progress spec 2026-10-25, G2).
+         */
+        WorkflowStep: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Attempt */
+            attempt: number;
+            /** Code */
+            code: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "info" | "progress" | "wait" | "done" | "warning" | "error";
+            /** N */
+            n?: number | null;
+            /** Params */
+            params?: {
+                [key: string]: string | number;
+            } | null;
+            /** Seq */
+            seq: number;
+            /** Stage */
+            stage: string;
+            /** Total */
+            total?: number | null;
+            /** Wait Until */
+            wait_until?: string | null;
+        };
+        /** WorkflowStepPage */
+        WorkflowStepPage: {
+            /** Steps */
+            steps: components["schemas"]["WorkflowStep"][];
+        };
+        /**
          * WorkflowStudioImport
          * @description The draft a workflow opened into, at its latest revision, and each media item's outcome.
          */
@@ -4023,13 +4317,23 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Estimate Seconds Remaining */
+            estimate_seconds_remaining?: number | null;
             failure?: components["schemas"]["WorkflowFailure"] | null;
+            /** Has Post Card */
+            has_post_card?: boolean;
             /** History Expired */
             history_expired?: boolean;
+            /** Owner Handle */
+            owner_handle?: string | null;
+            /** Project Id */
+            project_id?: string | null;
             source: components["schemas"]["WorkflowSource"];
             /** Stages */
             stages: components["schemas"]["StageSummary"][];
             status: components["schemas"]["WorkflowStatus"];
+            /** Title */
+            title?: string | null;
             /**
              * Updated At
              * Format: date-time
@@ -4456,6 +4760,37 @@ export interface operations {
             };
         };
     };
+    read_inbox_api_v1_inbox_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Inbox"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     me_api_v1_me_get: {
         parameters: {
             query?: never;
@@ -4466,6 +4801,41 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_me_api_v1_me_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MeUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -6215,6 +6585,9 @@ export interface operations {
             query?: {
                 cursor?: string | null;
                 limit?: number;
+                status?: ("queued" | "running" | "awaiting_approval" | "succeeded" | "failed" | "cancelled" | "unknown")[] | null;
+                platform?: string | null;
+                q?: string | null;
             };
             header?: {
                 Authorization?: string | null;
@@ -6887,10 +7260,13 @@ export interface operations {
     };
     list_unassigned_workflows_api_v1_workflows_get: {
         parameters: {
-            query: {
-                unassigned: boolean;
+            query?: {
+                unassigned?: boolean | null;
                 cursor?: string | null;
                 limit?: number;
+                status?: ("queued" | "running" | "awaiting_approval" | "succeeded" | "failed" | "cancelled" | "unknown")[] | null;
+                platform?: string | null;
+                q?: string | null;
             };
             header?: {
                 Authorization?: string | null;
@@ -6943,6 +7319,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkflowSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    workflow_metrics_api_v1_workflows_metrics_get: {
+        parameters: {
+            query?: {
+                project_id?: string | null;
+            };
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunMetrics"];
                 };
             };
             /** @description Validation Error */
@@ -7014,6 +7423,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["WorkflowRun"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    acknowledge_workflow_api_v1_workflows__workflow_id__acknowledge_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                workflow_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -7131,6 +7571,40 @@ export interface operations {
             };
         };
     };
+    download_workflow_card_api_v1_workflows__workflow_id__cards__card__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                workflow_id: string;
+                card: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     stream_workflow_events_api_v1_workflows__workflow_id__events_get: {
         parameters: {
             query?: never;
@@ -7152,6 +7626,40 @@ export interface operations {
                 };
                 content: {
                     "text/event-stream": components["schemas"]["WorkflowEvent"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_workflow_media_api_v1_workflows__workflow_id__media__location__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                workflow_id: string;
+                location: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
                 };
             };
             /** @description Validation Error */
@@ -7189,6 +7697,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkflowSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_workflow_steps_api_v1_workflows__workflow_id__steps_get: {
+        parameters: {
+            query?: {
+                after?: number;
+                limit?: number;
+            };
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                workflow_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowStepPage"];
                 };
             };
             /** @description Validation Error */

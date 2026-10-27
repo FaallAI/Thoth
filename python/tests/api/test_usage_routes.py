@@ -69,6 +69,8 @@ async def test_a_workspace_sees_its_own_usage_and_quota_without_money(setup) -> 
         "remaining_today": 1,
     }
     assert "usd" not in str(body)
+    # Restyle B5: the bars per day, here one day with one video.
+    assert [(day["workflows"], day["videos"]) for day in body["days"]] == [(0, 1)]
 
 
 async def test_the_operators_workspace_has_no_quota(setup) -> None:

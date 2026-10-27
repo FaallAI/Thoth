@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -20,7 +20,7 @@ from sqlalchemy.orm import sessionmaker
 from thoth_control_plane.application.ports import WorkflowRunsUnavailable
 from thoth_control_plane.domain import Actor, ArtifactRef, WorkflowSummary
 from thoth_control_plane.domain.cursors import decode_cursor, encode_cursor
-from thoth_control_plane.domain.workflow_runs import StoredRun
+from thoth_control_plane.domain.workflow_runs import UNSETTLED, StoredRun, listing_details
 from thoth_control_plane.infrastructure.report_models import WorkflowReportRow
 from thoth_control_plane.infrastructure.run_models import WorkflowRunRow
 
@@ -57,7 +57,16 @@ def _stored(row: WorkflowRunRow) -> StoredRun:
         summary=_summary(row.summary),
         created_at=row.created_at,
         updated_at=row.updated_at,
+        acknowledged_at=row.acknowledged_at,
+        title=row.title,
+        owner_handle=row.owner_handle,
+        post_card_location=row.post_card_location,
     )
+
+
+def _literal(text: str) -> str:
+    """A LIKE pattern that matches `text` literally, escaped with a backslash."""
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 class WorkflowRunStore:
@@ -125,14 +134,33 @@ class WorkflowRunStore:
         actor: Actor,
         cursor: str | None,
         limit: int,
+        statuses: Sequence[str] = (),
+        platform: str | None = None,
+        text: str | None = None,
     ) -> tuple[list[StoredRun], str | None]:
-        query = select(WorkflowRunRow).where(
+        """One project's runs, the unassigned ones, or with neither every run of the caller
+        (restyle B1); optionally only some statuses, one platform, or a title or link."""
+        conditions: list[Any] = [
             WorkflowRunRow.actor_type == actor.actor_type,
             WorkflowRunRow.actor_id == actor.actor_id,
-            WorkflowRunRow.project_id.is_(None)
-            if unassigned
-            else WorkflowRunRow.project_id == project_id,
-        )
+        ]
+        if unassigned:
+            conditions.append(WorkflowRunRow.project_id.is_(None))
+        elif project_id is not None:
+            conditions.append(WorkflowRunRow.project_id == project_id)
+        if statuses:
+            conditions.append(WorkflowRunRow.status.in_(statuses))
+        if platform:
+            conditions.append(WorkflowRunRow.platform == platform)
+        if text:
+            pattern = f"%{_literal(text)}%"
+            conditions.append(
+                or_(
+                    WorkflowRunRow.title.ilike(pattern, escape="\\"),
+                    WorkflowRunRow.display_url.ilike(pattern, escape="\\"),
+                )
+            )
+        query = select(WorkflowRunRow).where(*conditions)
         if cursor:
             created_at, workflow_id = decode_cursor(cursor)
             query = query.where(
@@ -158,6 +186,67 @@ class WorkflowRunStore:
         )
         return page, next_cursor
 
+    def fill_listing(
+        self, workflow_ids: Sequence[str]
+    ) -> dict[str, tuple[str, str | None, str | None]]:
+        """Read title, owner and post card once from each run's source report (restyle B2),
+        and return what was read, by run.
+
+        Only runs not read yet, and only those with a report; the rest wait for a later
+        listing. A report that does not parse settles to an empty title."""
+        filled: dict[str, tuple[str, str | None, str | None]] = {}
+        if not workflow_ids:
+            return filled
+        try:
+            with self._sessions.begin() as session:
+                unread = {
+                    row.workflow_id: row
+                    for row in session.scalars(
+                        select(WorkflowRunRow).where(
+                            WorkflowRunRow.workflow_id.in_(workflow_ids),
+                            WorkflowRunRow.title.is_(None),
+                        )
+                    )
+                }
+                if not unread:
+                    return filled
+                reports = session.execute(
+                    select(WorkflowReportRow.workflow_id, WorkflowReportRow.content).where(
+                        WorkflowReportRow.workflow_id.in_(unread),
+                        WorkflowReportRow.kind == "source_report",
+                    )
+                ).all()
+                for workflow_id, content in reports:
+                    row = unread[workflow_id]
+                    details = listing_details(content)
+                    row.title, row.owner_handle, row.post_card_location = details
+                    filled[workflow_id] = details
+        except SQLAlchemyError as error:
+            raise self._unavailable(error) from None
+        return filled
+
+    def source_report(self, workflow_id: str) -> str | None:
+        """The run's source report text, or None before it is written (restyle B3)."""
+        try:
+            with self._sessions() as session:
+                return session.scalar(
+                    select(WorkflowReportRow.content).where(
+                        WorkflowReportRow.workflow_id == workflow_id,
+                        WorkflowReportRow.kind == "source_report",
+                    )
+                )
+        except SQLAlchemyError as error:
+            raise self._unavailable(error) from None
+
+    def since(
+        self, actor: Actor, moment: datetime, *, project_id: str | None, limit: int = 1_000
+    ) -> list[StoredRun]:
+        """The caller's runs started at or after `moment`, newest first (restyle B4)."""
+        conditions: list[Any] = [WorkflowRunRow.created_at >= moment]
+        if project_id is not None:
+            conditions.append(WorkflowRunRow.project_id == project_id)
+        return self._actor_rows(actor, *conditions, limit=limit)
+
     def get(self, workflow_id: str) -> StoredRun | None:
         try:
             with self._sessions() as session:
@@ -165,6 +254,71 @@ class WorkflowRunStore:
         except SQLAlchemyError as error:
             raise self._unavailable(error) from None
         return None if row is None else _stored(row)
+
+    def recent_succeeded(
+        self, actor: Actor, platform: str, limit: int = 20
+    ) -> list[WorkflowSummary]:
+        """The actor's newest succeeded summaries for a platform, the estimate's input
+        (run-progress spec 2026-10-25, G4). Only rows with a stored summary qualify."""
+        query = (
+            select(WorkflowRunRow)
+            .where(
+                WorkflowRunRow.actor_type == actor.actor_type,
+                WorkflowRunRow.actor_id == actor.actor_id,
+                WorkflowRunRow.platform == platform,
+                WorkflowRunRow.status == "succeeded",
+                WorkflowRunRow.summary.is_not(None),
+            )
+            .order_by(WorkflowRunRow.updated_at.desc(), WorkflowRunRow.workflow_id.desc())
+            .limit(limit)
+        )
+        try:
+            with self._sessions() as session:
+                rows = session.scalars(query).all()
+        except SQLAlchemyError as error:
+            raise self._unavailable(error) from None
+        return [summary for row in rows if (summary := _summary(row.summary)) is not None]
+
+    def _actor_rows(self, actor: Actor, *conditions: Any, limit: int) -> list[StoredRun]:
+        """The actor's rows, newest first, for the inbox queries."""
+        query = (
+            select(WorkflowRunRow)
+            .where(
+                WorkflowRunRow.actor_type == actor.actor_type,
+                WorkflowRunRow.actor_id == actor.actor_id,
+                *conditions,
+            )
+            .order_by(WorkflowRunRow.updated_at.desc(), WorkflowRunRow.workflow_id.desc())
+            .limit(limit)
+        )
+        try:
+            with self._sessions() as session:
+                return [_stored(row) for row in session.scalars(query).all()]
+        except SQLAlchemyError as error:
+            raise self._unavailable(error) from None
+
+    def unsettled(self, actor: Actor, limit: int) -> list[StoredRun]:
+        """Rows a listing may still settle; the inbox settles them before reading
+        approvals, so a run waiting for a person shows up without another reader."""
+        return self._actor_rows(
+            actor,
+            WorkflowRunRow.status.in_(UNSETTLED),
+            WorkflowRunRow.history_expired.is_(False),
+            limit=limit,
+        )
+
+    def awaiting_approval(self, actor: Actor, limit: int) -> list[StoredRun]:
+        return self._actor_rows(actor, WorkflowRunRow.status == "awaiting_approval", limit=limit)
+
+    def unacknowledged_failures(self, actor: Actor, limit: int) -> list[StoredRun]:
+        """Failed runs the caller has not acknowledged; migration 0020's partial index
+        serves exactly this shape."""
+        return self._actor_rows(
+            actor,
+            WorkflowRunRow.status == "failed",
+            WorkflowRunRow.acknowledged_at.is_(None),
+            limit=limit,
+        )
 
     def settle(
         self,
@@ -191,6 +345,20 @@ class WorkflowRunStore:
                 row.summary = stored
                 # The run's own time, not the moment someone looked at it.
                 row.updated_at = summary.updated_at if summary is not None else self._clock()
+        except SQLAlchemyError as error:
+            raise self._unavailable(error) from None
+
+    def acknowledge(self, workflow_id: str) -> StoredRun | None:
+        """Stamp a failed run as acknowledged, once; the first stamp survives. The run's
+        own `updated_at` is untouched: an inbox action is not a run event."""
+        try:
+            with self._sessions.begin() as session:
+                row = session.get(WorkflowRunRow, workflow_id)
+                if row is None:
+                    return None
+                if row.acknowledged_at is None:
+                    row.acknowledged_at = self._clock()
+                return _stored(row)
         except SQLAlchemyError as error:
             raise self._unavailable(error) from None
 
@@ -242,6 +410,7 @@ class WorkflowRunStore:
                         else run.summary.model_dump(mode="json"),
                         created_at=run.created_at,
                         updated_at=run.updated_at,
+                        acknowledged_at=run.acknowledged_at,
                     )
                 )
                 return True

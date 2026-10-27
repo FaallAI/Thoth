@@ -127,3 +127,28 @@ async def test_me_answers_without_an_account_store(gateway) -> None:
                 "role": None,
             }
             assert body["platform_admin"] is True
+
+
+async def test_a_user_saves_their_language_and_both_me_routes_report_it(api) -> None:
+    assert (await api.get("/api/v1/me")).json()["locale"] is None
+
+    saved = await api.patch("/api/v1/me", json={"locale": "id"}, headers=SAME_SITE)
+
+    assert (saved.status_code, saved.json()["locale"]) == (200, "id")
+    for path in ("/api/v1/me", "/auth/me"):
+        assert (await api.get(path)).json()["locale"] == "id", path
+
+
+async def test_only_english_and_indonesian_are_accepted(api) -> None:
+    refused = await api.patch("/api/v1/me", json={"locale": "fr"}, headers=SAME_SITE)
+
+    assert refused.status_code == 422
+    assert (await api.get("/api/v1/me")).json()["locale"] is None
+
+
+async def test_a_caller_without_a_user_has_no_language_to_save(api) -> None:
+    service = await api.patch(
+        "/api/v1/me", json={"locale": "en"}, headers={"Authorization": "Bearer test-key"}
+    )
+
+    assert (service.status_code, service.json()) == (403, {"detail": "user_required"})

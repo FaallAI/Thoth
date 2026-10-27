@@ -39,12 +39,45 @@ def _tables() -> set[str]:
 
 
 def test_fresh_database_applies_every_revision_and_a_rerun_applies_none() -> None:
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 18
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 23
     assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 0
     assert {"alembic_version", "studio_import_drafts", "studio_import_decisions"} <= _tables()
     assert {"source_account_policies", "source_proxies", "source_accounts"} <= _tables()
     assert "workflow_reports" in _tables()
     assert {"projects", "workflow_runs"} <= _tables()
+    with psycopg.connect(DATABASE_URL) as connection:
+        index = connection.execute(
+            "SELECT indexdef FROM pg_indexes "
+            "WHERE indexname = 'workflow_runs_unacknowledged_failures'"
+        ).fetchone()
+    # The inbox failure list: failed runs not yet acknowledged, newest first per caller.
+    assert index is not None
+    assert "workflow_runs" in index[0] and "acknowledged_at IS NULL" in index[0]
+    with psycopg.connect(DATABASE_URL) as connection:
+        frames = connection.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'render_jobs' AND column_name IN "
+            "('rendered_frames', 'encoded_frames', 'total_frames', 'render_stage')"
+        ).fetchall()
+    # Run-progress phase 5: what the renderer is doing and how far, in frames.
+    assert {row[0] for row in frames} == {
+        "rendered_frames",
+        "encoded_frames",
+        "total_frames",
+        "render_stage",
+    }
+    with psycopg.connect(DATABASE_URL) as connection:
+        listing = connection.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'workflow_runs' AND column_name IN "
+            "('title', 'owner_handle', 'post_card_location')"
+        ).fetchall()
+        actor_index = connection.execute(
+            "SELECT 1 FROM pg_indexes WHERE indexname = 'workflow_runs_actor'"
+        ).fetchone()
+    # Restyle B1-B2: what a run row shows, and the caller's list across every project.
+    assert {row[0] for row in listing} == {"title", "owner_handle", "post_card_location"}
+    assert actor_index is not None
 
 
 def test_database_migrated_before_alembic_is_adopted_and_only_the_rest_applied() -> None:
@@ -52,7 +85,7 @@ def test_database_migrated_before_alembic_is_adopted_and_only_the_rest_applied()
         for migration in sorted(MIGRATIONS.glob("*.sql"))[:6]:
             connection.execute(migration.read_text(encoding="utf-8"))
 
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 12
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 17
     assert {"studio_import_drafts", "studio_import_decisions"} <= _tables()
 
 
@@ -328,10 +361,20 @@ def test_existing_projects_move_to_the_bootstrap_workspace(tmp_path: Path) -> No
     (before / "alembic" / "versions" / "0017_studio_import_decision_reason.py").unlink()
     (before / "0018_footage_creator.sql").unlink()
     (before / "alembic" / "versions" / "0018_footage_creator.py").unlink()
+    (before / "0019_workflow_steps.sql").unlink()
+    (before / "alembic" / "versions" / "0019_workflow_steps.py").unlink()
+    (before / "0020_workflow_run_acknowledged.sql").unlink()
+    (before / "alembic" / "versions" / "0020_workflow_run_acknowledged.py").unlink()
+    (before / "0021_render_job_frames.sql").unlink()
+    (before / "alembic" / "versions" / "0021_render_job_frames.py").unlink()
+    (before / "0022_user_locale.sql").unlink()
+    (before / "alembic" / "versions" / "0022_user_locale.py").unlink()
+    (before / "0023_run_listing.sql").unlink()
+    (before / "alembic" / "versions" / "0023_run_listing.py").unlink()
     assert apply_editor_migrations(DATABASE_URL, before) == 13
     with psycopg.connect(DATABASE_URL) as connection:
         connection.execute("INSERT INTO projects (project_id, name) VALUES ('p-legacy', 'Legacy')")
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 5
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 10
     with psycopg.connect(DATABASE_URL) as connection:
         assert connection.execute(
             "SELECT workspace_id FROM projects WHERE project_id = 'p-legacy'"
@@ -431,6 +474,26 @@ def test_billing_tables_exist_with_the_free_plan() -> None:
             connection.execute(
                 "INSERT INTO allowance_uses (use_id, workspace_id, kind, ref, created_at)"
                 " VALUES (gen_random_uuid()::text, 'ws_bootstrap', 'workflow', 'r1', now())"
+            )
+
+
+def test_workflow_steps_take_closed_kinds_and_stages_without_a_run_row() -> None:
+    apply_editor_migrations(DATABASE_URL, MIGRATIONS)
+    assert "workflow_steps" in _tables()
+    with psycopg.connect(DATABASE_URL) as connection:
+        connection.execute(
+            "INSERT INTO workflow_steps (workflow_id, attempt, stage, at, kind, code)"
+            " VALUES ('wf_none', 1, 'source', now(), 'info', 'source.read_link')"
+        )
+    for stage, kind in (("render", "info"), ("source", "bogus")):
+        with (
+            psycopg.connect(DATABASE_URL) as connection,
+            pytest.raises(psycopg.errors.CheckViolation),
+        ):
+            connection.execute(
+                "INSERT INTO workflow_steps (workflow_id, attempt, stage, at, kind, code)"
+                " VALUES ('wf_none', 2, %s, now(), %s, 'source.read_link')",
+                (stage, kind),
             )
 
 

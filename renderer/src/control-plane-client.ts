@@ -22,6 +22,17 @@ export class ControlPlaneUnavailable extends Error {
   }
 }
 
+/**
+ * The control plane refused the request's shape (422): an older control plane does not
+ * know a newer event field. Still an unavailability to every caller that does not care.
+ */
+export class ControlPlaneRejected extends ControlPlaneUnavailable {
+  constructor() {
+    super();
+    this.name = "ControlPlaneRejected";
+  }
+}
+
 export type FetchImpl = (request: Request) => Promise<Response>;
 
 export class ControlPlaneClient {
@@ -130,6 +141,9 @@ export class ControlPlaneClient {
       );
     } catch {
       throw new ControlPlaneUnavailable();
+    }
+    if (response.status === 422) {
+      throw new ControlPlaneRejected();
     }
     if (!response.ok) {
       throw new ControlPlaneUnavailable();

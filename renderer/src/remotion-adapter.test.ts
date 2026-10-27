@@ -10,6 +10,7 @@ import {
   assertCompositionGeometry,
   assetSourceUrl,
   compositionInputProps,
+  engineProgress,
   rendererWebpackOverride,
 } from "./remotion-adapter";
 
@@ -73,5 +74,13 @@ describe("the server render adapter", () => {
       "remotion-composition",
     );
     expect(overridden.resolve.modules.some((entry) => entry.includes("node_modules"))).toBe(true);
+  });
+});
+
+describe("engine progress from Remotion", () => {
+  test("carries the frame counts against the composition's own length", () => {
+    expect(
+      engineProgress({ progress: 0.5994, renderedFrames: 862, encodedFrames: 800 }, 1_440),
+    ).toEqual({ percent: 60, renderedFrames: 862, encodedFrames: 800, totalFrames: 1_440 });
   });
 });

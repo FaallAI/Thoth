@@ -3,9 +3,10 @@ import { describe, expect, test } from "bun:test";
 import { ArtifactUnavailable } from "./artifact-root";
 import type { RendererConfig } from "./config";
 import { testBundle } from "./bundle-test-fixtures";
-import { ControlPlaneUnavailable } from "./control-plane-client";
+import { ControlPlaneRejected, ControlPlaneUnavailable } from "./control-plane-client";
 import { RenderBundleInvalid } from "./contracts";
 import {
+  type EngineProgress,
   type EngineRequest,
   type RenderEvent,
   createExecution,
@@ -55,6 +56,10 @@ function harness(
     uploadError?: Error;
     render?: (request: EngineRequest) => Promise<void>;
     config?: Partial<RendererConfig>;
+    /** A control plane from before the frame facts: it refuses their fields with 422. */
+    olderControlPlane?: boolean;
+    /** The execution's clock; the default never moves. */
+    now?: () => Date;
   } = {},
 ) {
   const events: RenderEvent[] = [];
@@ -90,7 +95,7 @@ function harness(
 
   const execution = createExecution({
     config: { ...CONFIG, ...options.config },
-    now: () => new Date("2026-09-20T10:00:00.000Z"),
+    now: options.now ?? (() => new Date("2026-09-20T10:00:00.000Z")),
     warn: (code: string) => {
       warnings.push(code);
     },
@@ -126,6 +131,9 @@ function harness(
         trace.push(`event:${event.status}`);
         if (options.publishError) {
           throw options.publishError;
+        }
+        if (options.olderControlPlane && PROGRESS_FACTS.some((field) => field in event)) {
+          throw new ControlPlaneRejected();
         }
         events.push(event);
       },
@@ -205,6 +213,27 @@ function harness(
   };
 }
 
+const PROGRESS_FACTS = ["render_stage", "rendered_frames", "encoded_frames", "total_frames"];
+
+/** A clock a test moves by hand, starting at a fixed instant. */
+function steppingClock() {
+  const start = Date.parse("2026-09-20T10:00:00.000Z");
+  let offset = 0;
+  return {
+    now: () => new Date(start + offset),
+    advance: (ms: number) => {
+      offset += ms;
+    },
+    set: (ms: number) => {
+      offset = ms;
+    },
+  };
+}
+
+function frames(percent: number, rendered: number, encoded: number): EngineProgress {
+  return { percent, renderedFrames: rendered, encodedFrames: encoded, totalFrames: 1_000 };
+}
+
 async function run(subject: Harness, job = "rj_001", dispatch = "dsp_001"): Promise<void> {
   subject.bindTo(dispatch);
   await subject.execution.start(job, dispatch);
@@ -261,13 +290,14 @@ describe("the one-slot renderer execution", () => {
   });
 
   test("reports bounded progress that never moves backwards", async () => {
+    const clock = steppingClock();
     const subject = harness({
+      now: clock.now,
       render: async (request) => {
-        request.onProgress(40);
-        request.onProgress(10);
-        request.onProgress(41);
-        request.onProgress(90);
-        request.onProgress(500);
+        for (const percent of [40, 10, 41, 90, 500]) {
+          clock.advance(1_000);
+          request.onProgress(frames(percent, 0, 0));
+        }
       },
     });
     await run(subject);
@@ -275,7 +305,80 @@ describe("the one-slot renderer execution", () => {
     const progress = subject.events
       .filter((event) => event.status === "rendering")
       .map((event) => event.progress_percent);
-    expect(progress).toEqual([0, 40, 90]);
+    expect(progress).toEqual([0, 40, 41, 90]);
+  });
+
+  test("reports frames and the render stage at most once a second", async () => {
+    const clock = steppingClock();
+    const subject = harness({
+      now: clock.now,
+      render: async (request) => {
+        const at = (ms: number, update: EngineProgress) => {
+          clock.set(ms);
+          request.onProgress(update);
+        };
+        at(500, frames(10, 100, 80)); // under a second since the last report
+        at(1_200, frames(20, 200, 180));
+        at(1_500, frames(60, 1_000, 500)); // every frame rendered: encoding starts
+        at(1_800, frames(70, 1_000, 700)); // under a second, same stage
+        at(1_900, frames(100, 1_000, 1_000)); // done is always reported
+      },
+    });
+    await run(subject);
+
+    const reported = subject.events.map((event) => [
+      event.status,
+      event.render_stage,
+      event.progress_percent,
+      event.rendered_frames,
+      event.encoded_frames,
+      event.total_frames,
+    ]);
+    expect(reported).toEqual([
+      ["preparing", "preparing", undefined, undefined, undefined, undefined],
+      ["rendering", "rendering", 0, undefined, undefined, undefined],
+      ["rendering", "rendering", 20, 200, 180, 1_000],
+      ["rendering", "encoding", 60, 1_000, 500, 1_000],
+      ["rendering", "encoding", 100, 1_000, 1_000, 1_000],
+      ["finalizing", "uploading", undefined, undefined, undefined, undefined],
+      ["completed", undefined, undefined, undefined, undefined, undefined],
+    ]);
+  });
+
+  test("an older control plane still gets every status, without the frame facts", async () => {
+    const clock = steppingClock();
+    const subject = harness({
+      olderControlPlane: true,
+      now: clock.now,
+      render: async (request) => {
+        clock.advance(1_000);
+        request.onProgress(frames(50, 500, 400));
+        clock.advance(1_000);
+        request.onProgress(frames(100, 1_000, 1_000));
+      },
+    });
+    await run(subject);
+
+    expect(statuses(subject)).toEqual([
+      "preparing",
+      "rendering",
+      "rendering",
+      "rendering",
+      "finalizing",
+      "completed",
+    ]);
+    expect(subject.events.map((event) => event.progress_percent)).toEqual([
+      undefined,
+      0,
+      50,
+      100,
+      undefined,
+      undefined,
+    ]);
+    for (const event of subject.events) {
+      expect(PROGRESS_FACTS.filter((field) => field in event)).toEqual([]);
+    }
+    expect(subject.warnings).toEqual([]);
   });
 
   test("turns each failure into its own fixed code and leaves no partial output", async () => {
@@ -379,7 +482,7 @@ describe("the one-slot renderer execution", () => {
   });
 
   test("a late report from a finished render is never published", async () => {
-    let late: ((percent: number) => void) | null = null;
+    let late: ((progress: EngineProgress) => void) | null = null;
     const subject = harness({
       render: async (request) => {
         late = request.onProgress;
@@ -388,7 +491,7 @@ describe("the one-slot renderer execution", () => {
     await run(subject);
 
     const published = subject.events.length;
-    late!(99);
+    late!(frames(99, 990, 990));
     expect(subject.events).toHaveLength(published);
   });
 

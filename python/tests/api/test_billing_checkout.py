@@ -81,6 +81,8 @@ async def _call(app, method, path, headers=None, body=None):
 
 async def test_checkout_opens_an_invoice_and_the_paid_webhook_starts_the_plan(world) -> None:
     app, billing, payments, bob, bob_ws = world
+    # Restyle B8: with Xendit configured the page offers checkout.
+    assert (await _call(app, "GET", "/api/v1/billing", bob)).json()["checkout_available"] is True
     made = await _call(app, "POST", "/api/v1/billing/checkout", bob, {"plan_id": "pro"})
     assert made.status_code == 200 and made.json()["invoice_url"] == "https://checkout.x/1"
     invoice_id = made.json()["invoice_id"]

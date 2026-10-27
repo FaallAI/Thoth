@@ -88,6 +88,16 @@ def _no_usage_sink():
 
 
 @pytest.fixture(autouse=True)
+def _no_step_sink():
+    """The step recorder's sink is process-wide too: every test starts and ends without one."""
+    from thoth_control_plane import progress
+
+    progress.install(None)
+    yield
+    progress.install(None)
+
+
+@pytest.fixture(autouse=True)
 def _offline_unless_live(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch):
     """Refuse every non-loopback connection outside tests marked ``live``.
 

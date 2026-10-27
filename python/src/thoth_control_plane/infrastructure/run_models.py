@@ -40,3 +40,9 @@ class WorkflowRunRow(Base):
     summary: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime)
+    # Editor migration 0020: set once by an explicit acknowledge, never by opening a run.
+    acknowledged_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    # Editor migration 0023 (restyle B2): read once from the source report; NULL until then.
+    title: Mapped[str | None] = mapped_column(String, nullable=True)
+    owner_handle: Mapped[str | None] = mapped_column(String, nullable=True)
+    post_card_location: Mapped[str | None] = mapped_column(String, nullable=True)

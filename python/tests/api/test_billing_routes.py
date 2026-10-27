@@ -82,6 +82,8 @@ async def test_a_workspace_sees_its_plan_allowance_and_invoices(world) -> None:
     )
     assert [p["plan_id"] for p in body["plans"]] == ["free", "pro"]
     assert body["invoices"] == []
+    # Restyle B8: without Xendit the page says billing is not live yet.
+    assert body["checkout_available"] is False
 
 
 async def test_the_operator_workspace_is_unlimited(world) -> None:

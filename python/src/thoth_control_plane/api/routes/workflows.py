@@ -1,12 +1,13 @@
 """Versioned workflow lifecycle routes."""
 
 import asyncio
+import mimetypes
 import re
 from collections.abc import AsyncIterator
 from pathlib import PurePosixPath
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request, status
 from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from thoth_control_plane.api.dependencies import current_actor
@@ -21,9 +22,11 @@ from thoth_control_plane.application import (
     WorkflowEvent,
     WorkflowRequest,
     WorkflowService,
+    WorkflowStepPage,
     WorkflowSummary,
 )
 from thoth_control_plane.application.workflow_runs import WorkflowRunService
+from thoth_control_plane.domain.workflow_runs import CARD_NAME
 from thoth_control_plane.infrastructure.media_store import (
     MediaLocatorInvalid,
     MediaStoreUnavailable,
@@ -67,6 +70,18 @@ async def get_workflow(
     runs: Annotated[WorkflowRunService, Depends(get_run_service)],
 ) -> WorkflowSummary:
     return await runs.get(workflow_id, actor=actor)
+
+
+@router.get("/workflows/{workflow_id}/steps", response_model=WorkflowStepPage)
+async def list_workflow_steps(
+    workflow_id: str,
+    actor: Annotated[Actor, Depends(current_actor)],
+    runs: Annotated[WorkflowRunService, Depends(get_run_service)],
+    after: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=500)] = 200,
+) -> WorkflowStepPage:
+    """The run's steps in order; the dashboard polls this in its event-stream loop."""
+    return await runs.steps(workflow_id, actor=actor, after=after, limit=limit)
 
 
 @router.get(
@@ -126,6 +141,83 @@ async def download_workflow_artifact(
         media_type=artifact.media_type,
         range_header=request.headers.get("range"),
         headers={"Content-Disposition": f'attachment; filename="{artifact.artifact_id}{suffix}"'},
+    )
+
+
+@router.get(
+    "/workflows/{workflow_id}/cards/{card}",
+    response_class=Response,
+    responses={
+        status.HTTP_200_OK: {
+            "content": {"image/png": {"schema": {"type": "string", "format": "binary"}}}
+        }
+    },
+)
+async def download_workflow_card(
+    workflow_id: str,
+    card: Annotated[str, Path(pattern=CARD_NAME)],
+    request: Request,
+    actor: Annotated[Actor, Depends(current_actor)],
+    runs: Annotated[WorkflowRunService, Depends(get_run_service)],
+) -> Response:
+    """One real card crop of the run (restyle B3): `post`, `profile`, `profile_page` or
+    `comment-<id>`. A crop never changes once written, so the browser keeps it a day."""
+    location = await runs.card_location(workflow_id, card, actor=actor)
+    media = request.app.state.media_store
+    try:
+        size = await asyncio.to_thread(media.size, location)
+    except (MediaUnavailable, MediaLocatorInvalid):
+        raise ArtifactNotFound from None
+    except MediaStoreUnavailable as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="media_store_unavailable"
+        ) from error
+    return ranged_response(
+        size=size,
+        read=lambda start, end: media.open_range(location, start, end),
+        media_type="image/png",
+        range_header=request.headers.get("range"),
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
+
+
+@router.get(
+    "/workflows/{workflow_id}/media/{location:path}",
+    response_class=Response,
+    responses={
+        status.HTTP_200_OK: {
+            "content": {
+                "application/octet-stream": {"schema": {"type": "string", "format": "binary"}}
+            }
+        }
+    },
+)
+async def download_workflow_media(
+    workflow_id: str,
+    location: str,
+    request: Request,
+    actor: Annotated[Actor, Depends(current_actor)],
+    runs: Annotated[WorkflowRunService, Depends(get_run_service)],
+) -> Response:
+    """One media file the run stored, such as a footage clip of its Content Set (restyle
+    B6), with ranges so a video can seek. Stored media never changes under its location."""
+    location = await runs.media_location(workflow_id, location, actor=actor)
+    media = request.app.state.media_store
+    try:
+        size = await asyncio.to_thread(media.size, location)
+    except (MediaUnavailable, MediaLocatorInvalid):
+        raise ArtifactNotFound from None
+    except MediaStoreUnavailable as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="media_store_unavailable"
+        ) from error
+    media_type = mimetypes.guess_type(location)[0] or "application/octet-stream"
+    return ranged_response(
+        size=size,
+        read=lambda start, end: media.open_range(location, start, end),
+        media_type=media_type,
+        range_header=request.headers.get("range"),
+        headers={"Cache-Control": "private, max-age=86400"},
     )
 
 

@@ -8,11 +8,31 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Dashboard visual tokens from design/DESIGN.md; existing status semantics are retained. */
+/* Utilities over the canonical tokens of docs/DESIGN.md §5.1 (restyle spec R1). */
 @theme inline {
     --font-heading: var(--font-sans);
-    --font-sans: 'Inter', sans-serif;
-    --font-mono: ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+    /* Canonical surfaces, text and the accent. */
+    --color-bg: var(--bg);
+    --color-well: var(--well);
+    --color-surface: var(--surface);
+    --color-raised: var(--raised);
+    --color-hairline: var(--hairline);
+    --color-ink: var(--ink);
+    --color-muted-ink: var(--muted-ink);
+    --color-faint: var(--faint);
+    --color-copper: var(--copper);
+    /* Status colours: pills, stage dots, step icons and progress fills only (§5.1). */
+    --color-status-running: var(--status-running);
+    --color-status-waiting: var(--status-waiting);
+    --color-status-done: var(--status-done);
+    --color-status-failed: var(--status-failed);
+    --color-status-idle: var(--status-idle);
+    /* Studio only. */
+    --color-studio-ai: var(--studio-ai);
+    --color-playhead: var(--playhead);
+    /* shadcn roles, mapped onto the canonical tokens in :root. */
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -45,75 +65,109 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
-    /* status semantics — reused across badges, progress bars, the log pane */
+    /* F3 status names, kept as aliases until R7 removes them. */
     --color-status-queued: var(--status-queued);
-    --color-status-running: var(--status-running);
     --color-status-succeeded: var(--status-succeeded);
-    --color-status-failed: var(--status-failed);
     --color-status-cancelled: var(--status-cancelled);
     --color-spine: var(--spine);
+    /* Radius 6 for controls, 10 for panels (§5.3). */
     --radius-sm: calc(var(--radius) * 0.6);
-    --radius-md: calc(var(--radius) * 0.8);
+    --radius-md: calc(var(--radius) * 0.6);
     --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) * 1.4);
-    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-xl: var(--radius);
+    --radius-2xl: calc(var(--radius) * 1.6);
     --radius-3xl: calc(var(--radius) * 2.2);
     --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* The dashboard ships one dark theme (DESIGN §12.2). Every colour is a semantic token, so a
+   light theme later redefines this block and nothing else. */
 :root {
-    --background: #18191b;
-    --foreground: #f5f3ee;
-    --card: #242628;
-    --card-foreground: #f5f3ee;
-    --popover: #2a2c2e;
-    --popover-foreground: #f5f3ee;
-    --primary: #d49a79;
-    --primary-foreground: #1b1918;
-    --secondary: #2a2c2e;
-    --secondary-foreground: #f5f3ee;
-    --muted: #2a2c2e;
-    --muted-foreground: #c5c6c7;
-    --accent: #3b3532;
-    --accent-foreground: #f5f3ee;
-    --destructive: #ef4444;
-    --destructive-foreground: #f0ede4;
-    --border: #47494a;
-    --input: #47494a;
-    --ring: #efb28e;
-    --chart-1: #d7af5f;
-    --chart-2: #af87ff;
-    --chart-3: #22d3ee;
-    --chart-4: #f2a93b;
-    --chart-5: #ef4444;
-    --radius: 0.5rem;
-    --sidebar: #242628;
-    --sidebar-foreground: #f0ede4;
-    --sidebar-primary: #d49a79;
-    --sidebar-primary-foreground: #16130a;
-    --sidebar-accent: #2a2c2e;
-    --sidebar-accent-foreground: #f0ede4;
-    --sidebar-border: #47494a;
-    --sidebar-ring: #efb28e;
-    /* CLI-mirrored job status colors: queued=dim, running=cyan, succeeded=gold, failed=red, cancelled=muted */
-    --status-queued: #8b8794;
+    color-scheme: dark;
+    /* Canonical tokens (DESIGN §5.1). `hairline` is the design's `border` and `muted-ink` its
+       `muted`: shadcn already owns `--border` and `--muted` for other roles. */
+    --bg: #18191b;
+    --well: #101113;
+    --surface: #242628;
+    --raised: #2a2c2e;
+    --hairline: #47494a;
+    --ink: #f5f3ee;
+    --muted-ink: #c5c6c7;
+    --faint: #8e9092;
+    --copper: #d49a79;
     --status-running: #22d3ee;
-    --status-succeeded: #d7af5f;
-    --status-failed: #ef4444;
-    --status-cancelled: #6f6b78;
-    --spine: #af87ff;
+    --status-waiting: #d7af5f;
+    --status-done: #78c69b;
+    --status-failed: #e8918f;
+    --status-idle: #6b6e70;
+    --studio-ai: #af87ff;
+    --playhead: #82b1e8;
+
+    /* shadcn roles. */
+    --background: var(--bg);
+    --foreground: var(--ink);
+    --card: var(--surface);
+    --card-foreground: var(--ink);
+    --popover: var(--raised);
+    --popover-foreground: var(--ink);
+    --primary: var(--copper);
+    --primary-foreground: #1b1918;
+    --secondary: var(--surface);
+    --secondary-foreground: var(--ink);
+    --muted: var(--raised);
+    --muted-foreground: var(--muted-ink);
+    --accent: var(--raised);
+    --accent-foreground: var(--ink);
+    --destructive: var(--status-failed);
+    --destructive-foreground: var(--bg);
+    --border: var(--hairline);
+    --input: var(--hairline);
+    --ring: var(--copper);
+    --chart-1: var(--copper);
+    --chart-2: var(--studio-ai);
+    --chart-3: var(--status-running);
+    --chart-4: var(--status-waiting);
+    --chart-5: var(--status-done);
+    --radius: 10px;
+    --sidebar: var(--bg);
+    --sidebar-foreground: var(--ink);
+    --sidebar-primary: var(--copper);
+    --sidebar-primary-foreground: #1b1918;
+    --sidebar-accent: var(--raised);
+    --sidebar-accent-foreground: var(--ink);
+    --sidebar-border: var(--hairline);
+    --sidebar-ring: var(--copper);
+
+    /* F3 names (Creator Studio), migrated to the canonical meaning (DESIGN §5.1 table);
+       removed in R7 once no screen uses them. Succeeded is done (green); gold now means waiting. */
+    --status-queued: var(--status-idle);
+    --status-succeeded: var(--status-done);
+    --status-cancelled: var(--status-idle);
+    --spine: var(--studio-ai);
 }
 
-/* The dashboard ships one dark theme. */
-
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
+    * {
+        @apply border-border;
     }
-  body {
-    @apply bg-background text-foreground;
+    body {
+        @apply bg-background text-foreground;
     }
-  html {
-    @apply font-sans;
+    html {
+        @apply font-sans;
+    }
+    /* Focus is a 2 px copper ring with a 2 px gap on every focusable element (DESIGN §10). */
+    :focus-visible {
+        outline: 2px solid var(--copper);
+        outline-offset: 2px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+        }
     }
 }

@@ -14,6 +14,7 @@ import httpx
 from pydantic import HttpUrl, TypeAdapter
 from temporalio import activity
 
+from thoth_control_plane import progress
 from thoth_control_plane.acquisition.accounts.access import SessionAccess
 from thoth_control_plane.acquisition.accounts.profiles import AccountProfiles
 from thoth_control_plane.acquisition.accounts.runner import account_runner
@@ -282,6 +283,7 @@ async def _run(
         # The runner writes below the scratch root; cleanup evidence inspects it
         # before the scratch directory is removed.
         root = scratch.root
+        await progress.step("source.read_link")
         try:
             acquisition_result = await runner(
                 input_.workflow_id, str(input_.canonical_source_url), root
@@ -354,6 +356,7 @@ async def _run(
                     acquisition_result.account,
                 ),
             )
+        await progress.step("source.save_report")
 
         digest = sha256(content).hexdigest()
         artifact = ArtifactRef(

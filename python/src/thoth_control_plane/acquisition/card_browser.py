@@ -13,10 +13,12 @@ import contextlib
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime, timedelta
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import urlsplit
 
+from thoth_control_plane import progress
 from thoth_control_plane.acquisition.browser import (
     FETCH_OPTIONS,
     HeadlessBrowserError,
@@ -141,15 +143,19 @@ async def _crop(page: Any, selector: str) -> bytes | None:
     return None
 
 
-async def _crop_row(page: Any, selector: str) -> bytes | None:
-    """A comment row's crop, unless something covers it; a covered row stays uncarded."""
+async def _crop_row(page: Any, selector: str) -> tuple[bytes | None, bool]:
+    """A comment row's crop, unless something covers it; a covered row stays uncarded.
+
+    Returns the crop and whether a gate covered the row; a swallowed crop error is
+    (None, False) — an uncropped row, not a covered one.
+    """
     with contextlib.suppress(Exception):
         element = page.locator(selector).first
         await element.scroll_into_view_if_needed(timeout=5_000)
         if await page.evaluate(COVERED_JS, selector) is True:
-            return None
-        return await element.screenshot(timeout=10_000)
-    return None
+            return None, True
+        return await element.screenshot(timeout=10_000), False
+    return None, False
 
 
 def _on_post(
@@ -158,11 +164,13 @@ def _on_post(
     async def action(page: Any) -> None:
         if is_login_path(page.url, layout.login_paths):
             cards.problems.append(AcquisitionReason.HEADLESS_BLOCKED.value)
+            await progress.step("source.login_wall")
             return
         await _dismiss(page, layout.dismiss_selector)
         await _hide_overlays(page, layout)
         if want_post:
             cards.post_png = await _crop(page, layout.post_selector)
+            await progress.step("source.capture_post_card")
         if cards.post_png is not None and layout.measure_media:
             with contextlib.suppress(Exception):
                 boxes = await page.evaluate(MEDIA_BOX_JS, layout.post_selector)
@@ -174,12 +182,25 @@ def _on_post(
         with contextlib.suppress(Exception):
             tagged = await page.evaluate(layout.tag_js, [asdict(t) for t in targets])
         known = {target.comment_id for target in targets}
-        for comment_id in tagged if isinstance(tagged, list) else []:
-            # Only ids we sent (validated `[A-Za-z0-9_-]`) ever reach a selector.
-            if comment_id in known and comment_id not in cards.comment_pngs:
-                png = await _crop_row(page, f'[{COMMENT_ROW_ATTRIBUTE}="{comment_id}"]')
-                if png is not None:
-                    cards.comment_pngs[comment_id] = png
+        # Only ids we sent (validated `[A-Za-z0-9_-]`) ever reach a selector, and a tag
+        # script may list one twice: the first of each id is its one crop.
+        sent = list(
+            dict.fromkeys(
+                comment_id
+                for comment_id in (tagged if isinstance(tagged, list) else [])
+                if comment_id in known and comment_id not in cards.comment_pngs
+            )
+        )
+        covered = 0
+        for index, comment_id in enumerate(sent, start=1):
+            png, row_covered = await _crop_row(page, f'[{COMMENT_ROW_ATTRIBUTE}="{comment_id}"]')
+            if png is not None:
+                cards.comment_pngs[comment_id] = png
+            elif row_covered:
+                covered += 1
+            await progress.step("source.capture_comment_cards", n=index, total=len(sent))
+        if covered:
+            await progress.step("source.gate_covered", params={"count": covered})
 
     return action
 
@@ -188,6 +209,7 @@ def _on_profile(cards: Cards, layout: CardLayout) -> Callable[[Any], Awaitable[N
     async def action(page: Any) -> None:
         if is_login_path(page.url, layout.login_paths):
             cards.problems.append(AcquisitionReason.HEADLESS_BLOCKED.value)
+            await progress.step("source.login_wall")
             return
         await _dismiss(page, layout.dismiss_selector)
         await _hide_overlays(page, layout)
@@ -197,6 +219,7 @@ def _on_profile(cards: Cards, layout: CardLayout) -> Callable[[Any], Awaitable[N
         cards.profile_png = await _crop(page, layout.profile_selector)
         if layout.page_items is not None:
             cards.profile_page_png = await _crop_page(page, layout)
+        await progress.step("source.capture_profile")
 
     return action
 
@@ -272,6 +295,10 @@ class CardBrowser:
         if want_post or targets:
             action = _on_post(cards, want_post, targets, self._layout)
             await self._card_visit(post_url, action, cards)
+            await progress.step(
+                "source.page_gap",
+                wait_until=datetime.now(UTC) + timedelta(seconds=PAGE_SPACING_SECONDS),
+            )
             await asyncio.sleep(PAGE_SPACING_SECONDS)
         await self._card_visit(profile_url, _on_profile(cards, self._layout), cards)
         return cards

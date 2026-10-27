@@ -1,6 +1,6 @@
 @font-face { font-family: Inter; src: url('/fonts/Inter-Variable.ttf') format('truetype'); font-weight: 100 900; font-style: normal; font-display: swap; }
 /* Measured source: design/thoth-dashboard.pen, 1440 x 900 desktop frames. */
-.dashboard-shell { font-family: Inter, sans-serif; font-size: 13px; font-optical-sizing: none; }
+/* The shell font is Geist from index.css (restyle R1). */
 .dashboard-topbar { height: 66px; min-height: 66px; padding: 0 32px; gap: 14px; flex-wrap: nowrap; }
 .dashboard-topbar[hidden] { display: none; }
 .dashboard-brand { gap: 14px; font-size: 19px; font-weight: 600; }
@@ -55,7 +55,7 @@
 .pen-page-actions [data-slot="button"] { height: 39px; min-height: 39px; padding: 0 17px; font-size: 12px; font-weight: 600; border-radius: 6px; }
 .pen-page-actions svg { width: 15px; height: 15px; }
 .dashboard-page-workflows .pen-page-actions [data-slot="button"] { font-size: 13px; }
-.dashboard-shell [data-slot="button"] { font-family: Inter, sans-serif; }
+
 .dashboard-shell button:focus-visible, .pen-dialog button:focus-visible, .pen-project-actions button:focus-visible { outline: 2px solid #efb28e; outline-offset: 3px; }
 .pen-workflow-metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); height: 92px; background: #242628; border-radius: 8px; margin-bottom: 24px; }
 .pen-workflow-metrics > div { display: flex; flex-direction: column; gap: 3px; padding: 17px 22px; }

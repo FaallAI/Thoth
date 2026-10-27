@@ -3,11 +3,13 @@ import { Navigate, useLocation } from "react-router";
 
 import { authClient, type AuthClient, type Me } from "@/api/auth";
 import { authEvents } from "@/lib/auth-events";
+import { useLocale } from "@/lib/locale";
 
 import { AuthContext } from "./auth-context";
 
 /** Renders its children only for a signed-in caller; a session that ends sends them to /login. */
 export function AuthGate({ client = authClient, children }: { client?: Pick<AuthClient, "me">; children: ReactNode }) {
+  const { t } = useLocale();
   const location = useLocation();
   const [state, setState] = useState<"loading" | "signed_out" | "unreachable" | Me>("loading");
   const check = useCallback(async () => {
@@ -27,12 +29,12 @@ export function AuthGate({ client = authClient, children }: { client?: Pick<Auth
     return () => authEvents.removeEventListener("forbidden", recheck);
   }, [check]);
 
-  if (state === "loading") return <p role="status" className="dashboard-auth-status">Checking your session…</p>;
+  if (state === "loading") return <p role="status" className="dashboard-auth-status">{t("auth.checking")}</p>;
   if (state === "unreachable") {
     return (
       <div role="alert" className="dashboard-auth-status">
-        <p>The control plane could not be reached.</p>
-        <button type="button" onClick={() => void check()}>Try again</button>
+        <p>{t("auth.unreachable")}</p>
+        <button type="button" onClick={() => void check()}>{t("common.retry")}</button>
       </div>
     );
   }

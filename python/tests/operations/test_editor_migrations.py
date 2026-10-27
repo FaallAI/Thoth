@@ -49,6 +49,11 @@ def test_editor_migrations_stay_explicit_forward_only_sql_files() -> None:
         "0016_billing.sql",
         "0017_studio_import_decision_reason.sql",
         "0018_footage_creator.sql",
+        "0019_workflow_steps.sql",
+        "0020_workflow_run_acknowledged.sql",
+        "0021_render_job_frames.sql",
+        "0022_user_locale.sql",
+        "0023_run_listing.sql",
     ]
     for name in MIGRATION_FILES:
         sql = migration(name).lower()
@@ -456,6 +461,76 @@ def test_a_fresh_database_adopts_no_legacy_revision_across_the_whole_chain() -> 
 
     assert _legacy_revision(set(), chain) is None
     assert _legacy_revision({"edit_document_revisions"}, chain) == "0001"
+
+
+def test_workflow_steps_table_is_closed_and_runs_without_a_run_row() -> None:
+    sql = " ".join(migration("0019_workflow_steps.sql").split())
+
+    assert "CREATE TABLE workflow_steps" in sql
+    assert "workflow_id TEXT NOT NULL" in sql
+    assert "seq BIGSERIAL PRIMARY KEY" in sql
+    assert "attempt INTEGER NOT NULL CHECK (attempt >= 1)" in sql
+    assert (
+        "stage TEXT NOT NULL CHECK (stage IN ('source', 'attribution', 'footage', 'assembly'))"
+        in sql
+    )
+    assert (
+        "kind TEXT NOT NULL CHECK "
+        "(kind IN ('info', 'progress', 'wait', 'done', 'warning', 'error'))" in sql
+    )
+    assert "params JSONB CHECK (params IS NULL OR length(params::text) <= 1024)" in sql
+    assert "CREATE INDEX workflow_steps_workflow ON workflow_steps (workflow_id, seq)" in sql
+    # The run row is written only after Temporal accepts the start, so a foreign key
+    # would drop the first activity's step (spec 2026-10-25, section 4).
+    assert "REFERENCES" not in sql
+    for forbidden in ("secret", "token", "cookie", "http"):
+        assert forbidden not in sql.lower()
+
+
+def test_workflow_run_acknowledged_adds_one_column_and_the_failure_partial_index() -> None:
+    sql = " ".join(migration("0020_workflow_run_acknowledged.sql").split())
+
+    assert "ALTER TABLE workflow_runs ADD COLUMN acknowledged_at TIMESTAMPTZ" in sql
+    assert (
+        "CREATE INDEX workflow_runs_unacknowledged_failures ON workflow_runs "
+        "(actor_type, actor_id, updated_at DESC) "
+        "WHERE status = 'failed' AND acknowledged_at IS NULL" in sql
+    )
+    assert sql.count("ALTER TABLE") == 1
+    assert "CREATE TABLE" not in sql
+
+
+def test_render_job_frames_add_four_bounded_nullable_columns() -> None:
+    sql = " ".join(migration("0021_render_job_frames.sql").split())
+
+    assert sql.count("ALTER TABLE") == 1
+    assert "ALTER TABLE render_jobs" in sql
+    for column in ("rendered_frames", "encoded_frames", "total_frames", "render_stage"):
+        assert f"ADD COLUMN {column}" in sql
+    assert "NOT NULL" not in sql  # an older renderer reports no frames at all
+    assert "render_stage IN ('preparing', 'rendering', 'encoding', 'uploading')" in sql
+
+
+def test_user_locale_adds_one_nullable_checked_column() -> None:
+    sql = " ".join(migration("0022_user_locale.sql").split())
+
+    assert sql.count("ALTER TABLE") == 1
+    assert "ALTER TABLE users ADD COLUMN locale TEXT" in sql
+    assert "locale IN ('en', 'id')" in sql
+    assert "NOT NULL" not in sql  # NULL until the user chooses: the browser language decides
+
+
+def test_run_listing_adds_three_nullable_columns_and_the_actor_index() -> None:
+    sql = " ".join(migration("0023_run_listing.sql").split())
+
+    assert sql.count("ALTER TABLE") == 1
+    for column in ("title", "owner_handle", "post_card_location"):
+        assert f"ADD COLUMN {column} TEXT" in sql
+    assert "NOT NULL" not in sql  # NULL until the source report is read
+    assert (
+        "CREATE INDEX workflow_runs_actor ON workflow_runs"
+        " (actor_type, actor_id, created_at DESC, workflow_id DESC)" in sql
+    )
 
 
 def test_workflow_reports_keep_exact_content_and_a_queryable_body() -> None:

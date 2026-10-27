@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM rows for the editor tables (editor migrations 0001-0007 and 0017).
+"""SQLAlchemy ORM rows for the editor tables (editor migrations 0001-0007, 0017 and 0021).
 
 They mirror the shipped SQL exactly; the migrations stay the source of truth, and a Postgres
 parity test compares every table here with the migrated schema. Constraints the database
@@ -217,6 +217,11 @@ class RenderJobRow(EditorBase):
     output_size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     output_checksum: Mapped[str | None] = mapped_column(Text, nullable=True)
     provenance: Mapped[Any] = mapped_column(JSONB)
+    # Editor migration 0021 (run-progress spec G6): the renderer's stage and frame counts.
+    rendered_frames: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    encoded_frames: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_frames: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    render_stage: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class RenderJobIdempotencyRow(EditorBase):

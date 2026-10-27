@@ -88,6 +88,28 @@ async def test_the_yt_dlp_check_runs_in_the_background_and_stops_with_the_worker
     assert cancelled == [True]
 
 
+@pytest.mark.asyncio
+async def test_run_worker_installs_the_step_sink_beside_the_usage_sink(monkeypatch) -> None:
+    from thoth_control_plane import progress
+    from thoth_control_plane.infrastructure.step_store import StepStore
+
+    async def capability():
+        raise _StopWorker
+
+    monkeypatch.setattr(worker, "configure_logging", lambda: None)
+    monkeypatch.setattr(worker, "preload_heavy_modules", lambda: None)
+    monkeypatch.setattr(worker, "warm_up", lambda settings: None)
+    monkeypatch.setattr(worker, "check_media_store", lambda settings: None)
+    monkeypatch.setattr(worker, "watch_event_loop", _no_watch)
+    monkeypatch.setattr(worker, "configure_provider_logging", lambda: None)
+    monkeypatch.setattr(worker, "check_scrapling_capability", capability)
+    with pytest.raises(_StopWorker):
+        await worker.run_worker(
+            Settings(THOTH_CONTROL_PLANE_API_KEY="test-key", THOTH_SOURCE_ATTRIBUTION_ENABLED=False)
+        )
+    assert isinstance(progress.installed(), StepStore)
+
+
 def test_assembly_refuses_to_start_without_ffmpeg() -> None:
     from thoth_control_plane.config import SettingsValidationError
 

@@ -18,7 +18,7 @@ import type { RendererConfig } from "./config";
 import { loadRendererConfig } from "./config";
 import type { RenderBundleAsset } from "./contracts";
 import { expectedOutputOf, parseRenderBundle } from "./contracts";
-import { ControlPlaneClient } from "./control-plane-client";
+import { ControlPlaneClient, ControlPlaneRejected } from "./control-plane-client";
 import { compositionInputProps, createRemotionEngine } from "./remotion-adapter";
 
 export type RenderStatus =
@@ -43,9 +43,24 @@ export type RenderEvent = {
   sequence: number;
   status: RenderStatus;
   progress_percent?: number;
+  /** What the job is doing now; run-progress spec G6. */
+  render_stage?: RenderStage;
+  rendered_frames?: number;
+  encoded_frames?: number;
+  total_frames?: number;
   failure_code?: RenderFailureCode;
   output?: OutputFacts;
   occurred_at: string;
+};
+
+export type RenderStage = "preparing" | "rendering" | "encoding" | "uploading";
+
+/** One engine progress report: the overall percent and the frame counts behind it. */
+export type EngineProgress = {
+  readonly percent: number;
+  readonly renderedFrames: number;
+  readonly encodedFrames: number;
+  readonly totalFrames: number;
 };
 
 export type EngineRequest = {
@@ -55,7 +70,7 @@ export type EngineRequest = {
   readonly compositionId: string;
   readonly inputProps: Record<string, unknown>;
   readonly expected: ExpectedOutput;
-  readonly onProgress: (percent: number) => void;
+  readonly onProgress: (progress: EngineProgress) => void;
   readonly signal: AbortSignal;
 };
 
@@ -130,10 +145,22 @@ export class RendererBusy extends Error {
 
 /** Identical to the control plane's `OpaqueId`: one safe segment, never a path. */
 const IDENTIFIER = /^[A-Za-z][A-Za-z0-9_-]{0,127}$/;
-/** Report a step, not every frame: progress is a signal, not a stream. */
-const PROGRESS_STEP = 10;
+/** Report at most once a second, not every frame: progress is a signal, not a stream. */
+const PROGRESS_INTERVAL_MS = 1_000;
 type AbortReason = "cancel" | "deadline";
 type Stage = "preparing" | "rendering" | "finalizing";
+
+/** The run-progress fields a control plane from before them refuses (spec G6). */
+const PROGRESS_FACTS = ["render_stage", "rendered_frames", "encoded_frames", "total_frames"] as const;
+
+function carriesProgressFacts(event: RenderEvent): boolean {
+  return PROGRESS_FACTS.some((field) => event[field] !== undefined);
+}
+
+function withoutProgressFacts(event: RenderEvent): RenderEvent {
+  const { render_stage, rendered_frames, encoded_frames, total_frames, ...older } = event;
+  return older;
+}
 
 export function createExecution(deps: ExecutionDeps): RendererExecution {
   let active: ActiveRender | null = null;
@@ -145,6 +172,9 @@ export function createExecution(deps: ExecutionDeps): RendererExecution {
     let sequence = 0;
     let terminal = false;
     let reported = -1;
+    let reportedAt = 0;
+    let reportedStage: RenderStage = "rendering";
+    let factsRefused = false;
     let stage: Stage = "preparing";
     const signal = controller!.signal;
 
@@ -166,14 +196,29 @@ export function createExecution(deps: ExecutionDeps): RendererExecution {
       };
       // The control plane's own deadline closes a job it stops hearing about,
       // so an undeliverable report is warned about rather than raised.
-      await safely(deps, "render_event_publish_failed", () => deps.client.publishEvent(event));
+      await safely(deps, "render_event_publish_failed", async () => {
+        if (!factsRefused) {
+          try {
+            await deps.client.publishEvent(event);
+            return;
+          } catch (error) {
+            if (!(error instanceof ControlPlaneRejected) || !carriesProgressFacts(event)) {
+              throw error;
+            }
+            // A control plane older than the frame facts: every status still has to
+            // reach it, so this report and the rest of the job go without them.
+            factsRefused = true;
+          }
+        }
+        await deps.client.publishEvent(withoutProgressFacts(event));
+      });
     };
 
     try {
       // A cancellation that landed while the dispatch was still being claimed
       // is already final: nothing is fetched and no browser is ever launched.
       signal.throwIfAborted();
-      await publish("preparing");
+      await publish("preparing", { render_stage: "preparing" });
 
       // The bundle must be this job's, this dispatch's, and this build's, or
       // nothing is prepared, no browser is launched, and no output is written.
@@ -200,7 +245,8 @@ export function createExecution(deps: ExecutionDeps): RendererExecution {
 
       stage = "rendering";
       reported = 0;
-      await publish("rendering", { progress_percent: 0 });
+      reportedAt = deps.now().getTime();
+      await publish("rendering", { progress_percent: 0, render_stage: "rendering" });
 
       // A cancel that arrived during preparation must not start a browser.
       if (signal.aborted) {
@@ -214,16 +260,35 @@ export function createExecution(deps: ExecutionDeps): RendererExecution {
         inputProps: compositionInputProps(bundle),
         expected,
         signal,
-        onProgress: (percent: number) => {
-          if (terminal || !Number.isFinite(percent)) {
+        onProgress: (progress: EngineProgress) => {
+          if (terminal || !Number.isFinite(progress.percent)) {
             return;
           }
-          const bounded = Math.round(percent);
-          if (bounded < 0 || bounded > 100 || bounded < reported + PROGRESS_STEP) {
+          const bounded = Math.round(progress.percent);
+          if (bounded < 0 || bounded > 100 || bounded <= reported) {
+            return;
+          }
+          // Every frame is rendered once the encoder is the one still catching up.
+          const renderStage: RenderStage =
+            progress.renderedFrames < progress.totalFrames ? "rendering" : "encoding";
+          const at = deps.now().getTime();
+          const due =
+            at - reportedAt >= PROGRESS_INTERVAL_MS ||
+            renderStage !== reportedStage ||
+            bounded === 100;
+          if (!due) {
             return;
           }
           reported = bounded;
-          void publish("rendering", { progress_percent: bounded });
+          reportedAt = at;
+          reportedStage = renderStage;
+          void publish("rendering", {
+            progress_percent: bounded,
+            render_stage: renderStage,
+            rendered_frames: progress.renderedFrames,
+            encoded_frames: progress.encodedFrames,
+            total_frames: progress.totalFrames,
+          });
         },
       });
       if (signal.aborted) {
@@ -231,7 +296,8 @@ export function createExecution(deps: ExecutionDeps): RendererExecution {
       }
 
       stage = "finalizing";
-      await publish("finalizing");
+      // Finalizing verifies the file and uploads it to the control plane.
+      await publish("finalizing", { render_stage: "uploading" });
       const output = await deps.artifacts.verifyTemporaryOutput(renderJobId, expected);
       // The control plane stores the file and checks it against these facts on publish;
       // a failed upload stays in this stage, so it closes as render_output_invalid.

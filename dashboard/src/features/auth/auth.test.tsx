@@ -5,6 +5,8 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 
+import { LocaleProvider } from "@/lib/locale";
+
 import { AuthRequestError, type Me } from "@/api/auth";
 import { notifyForbidden } from "@/lib/auth-events";
 
@@ -26,7 +28,7 @@ function gate(me: () => Promise<Me | null>, path = "/studio") {
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/login" element={<p>login page</p>} />
-        <Route path="*" element={<AuthGate client={{ me: mock(me) }}><Who /></AuthGate>} />
+        <Route path="*" element={<LocaleProvider serverLocale="en"><AuthGate client={{ me: mock(me) }}><Who /></AuthGate></LocaleProvider>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -65,7 +67,7 @@ test("an unreachable control plane offers a retry instead of the login page", as
 test("the login page offers the configured providers and carries next", async () => {
   render(
     <MemoryRouter initialEntries={["/login?next=%2Fstudio%2Fp%2Fd&error=not_allowed"]}>
-      <LoginPage client={{ providers: mock(async () => ["github", "google"]) }} />
+      <LocaleProvider serverLocale="en"><LoginPage client={{ providers: mock(async () => ["github", "google"]) }} /></LocaleProvider>
     </MemoryRouter>,
   );
   expect(await screen.findByText("This account is not allowed to sign in to this workspace.")).toBeDefined();
@@ -75,7 +77,7 @@ test("the login page offers the configured providers and carries next", async ()
 });
 
 test("with no provider configured the login page says so", async () => {
-  render(<MemoryRouter initialEntries={["/login"]}><LoginPage client={{ providers: mock(async () => []) }} /></MemoryRouter>);
+  render(<MemoryRouter initialEntries={["/login"]}><LocaleProvider serverLocale="en"><LoginPage client={{ providers: mock(async () => []) }} /></LocaleProvider></MemoryRouter>);
   expect(await screen.findByText("Sign-in is not configured on this server.")).toBeDefined();
 });
 
@@ -87,7 +89,7 @@ test("the verify page signs in with the code and reports a wrong one", async () 
   const onSignedIn = mock((_target: string) => {});
   render(
     <MemoryRouter initialEntries={["/login/verify?next=%2Fstudio"]}>
-      <VerifyPage client={{ verify, resend: mock(async () => {}) }} onSignedIn={onSignedIn} />
+      <LocaleProvider serverLocale="en"><VerifyPage client={{ verify, resend: mock(async () => {}) }} onSignedIn={onSignedIn} /></LocaleProvider>
     </MemoryRouter>,
   );
   const user = userEvent.setup();
@@ -108,7 +110,7 @@ test("the verify page never leaves the site, whatever the server echoes", async 
   const onSignedIn = mock((_target: string) => {});
   render(
     <MemoryRouter initialEntries={["/login/verify"]}>
-      <VerifyPage client={{ verify: mock(async () => "/\t/evil.example"), resend: mock(async () => {}) }} onSignedIn={onSignedIn} />
+      <LocaleProvider serverLocale="en"><VerifyPage client={{ verify: mock(async () => "/\t/evil.example"), resend: mock(async () => {}) }} onSignedIn={onSignedIn} /></LocaleProvider>
     </MemoryRouter>,
   );
   const user = userEvent.setup();

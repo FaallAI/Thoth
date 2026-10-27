@@ -1,5 +1,6 @@
 import { notifyForbidden } from "@/lib/auth-events";
 import type { components } from "@/api/generated/control-plane";
+import type { MessageKey } from "@/lib/i18n";
 
 export type SourcePlatform = components["schemas"]["SourceAccountCreate"]["platform"];
 export type AccessMode = components["schemas"]["AccessPolicyUpdate"]["mode"];
@@ -123,23 +124,23 @@ export function createSourceAccountsClient(options: ClientOptions = {}): SourceA
 
 export const sourceAccountsClient = createSourceAccountsClient();
 
-const ERROR_TEXT: Record<string, string> = {
-  source_accounts_unavailable: "Source accounts are not configured on this server.",
-  label_taken: "Another account on this platform already uses that label.",
-  proxy_in_use: "That proxy already serves another account.",
-  proxy_not_found: "That proxy is no longer in the pool.",
-  not_found: "That account no longer exists.",
-  invalid_cookie_file: "The file is not a cookie export this page can read.",
-  all_cookies_expired: "Every cookie in the export has expired. Sign in again and export.",
-  missing_required_cookie: "The export is missing a required login cookie.",
-  invalid_proxy_file: "The proxy list is too large. Import at most 500 lines.",
-  undecryptable: "This account can no longer be read. Re-import its cookies.",
-  invalid_request: "Some fields are not valid.",
-  engine_unsupported: "Camoufox runs only for Instagram.",
-};
+const ERROR_CODES = new Set([
+  "source_accounts_unavailable",
+  "label_taken",
+  "proxy_in_use",
+  "proxy_not_found",
+  "not_found",
+  "invalid_cookie_file",
+  "all_cookies_expired",
+  "missing_required_cookie",
+  "invalid_proxy_file",
+  "undecryptable",
+  "invalid_request",
+  "engine_unsupported",
+]);
 
-/** Fixed, safe copy for an error; never the server's own words. */
-export function errorText(error: unknown): string {
+/** The catalogue key of an error's fixed, safe copy; never the server's own words. */
+export function errorKey(error: unknown): MessageKey {
   const code = error instanceof SourceAccountsRequestError ? error.code : null;
-  return (code && ERROR_TEXT[code]) || "The request did not complete. Try again.";
+  return code && ERROR_CODES.has(code) ? (`sa.error.${code}` as MessageKey) : "sa.error.unknown";
 }

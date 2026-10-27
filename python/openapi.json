@@ -603,6 +603,10 @@
       "BillingView": {
         "additionalProperties": false,
         "properties": {
+          "checkout_available": {
+            "title": "Checkout Available",
+            "type": "boolean"
+          },
           "invoices": {
             "items": {
               "$ref": "#/components/schemas/InvoiceOut"
@@ -2016,6 +2020,164 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "Inbox": {
+        "additionalProperties": false,
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/InboxAccount"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "approvals": {
+            "items": {
+              "$ref": "#/components/schemas/InboxRun"
+            },
+            "title": "Approvals",
+            "type": "array"
+          },
+          "failures": {
+            "items": {
+              "$ref": "#/components/schemas/InboxRun"
+            },
+            "title": "Failures",
+            "type": "array"
+          }
+        },
+        "title": "Inbox",
+        "type": "object"
+      },
+      "InboxAccount": {
+        "additionalProperties": false,
+        "description": "A source account in cooldown or trouble, for platform admins only (spec G5).\n\nDeliberately carries no cookie, cookie name or proxy data.",
+        "properties": {
+          "account_id": {
+            "title": "Account Id",
+            "type": "string"
+          },
+          "cooldown_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cooldown Until"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "platform": {
+            "enum": [
+              "tiktok",
+              "threads",
+              "instagram",
+              "x",
+              "youtube"
+            ],
+            "title": "Platform",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "platform",
+          "label",
+          "status"
+        ],
+        "title": "InboxAccount",
+        "type": "object"
+      },
+      "InboxRun": {
+        "additionalProperties": false,
+        "description": "One run awaiting the caller: an approval or an unacknowledged failure (spec G5).",
+        "properties": {
+          "display_url": {
+            "title": "Display Url",
+            "type": "string"
+          },
+          "failure_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Code"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "pattern": "^(?:[A-Za-z][A-Za-z0-9_-]{0,127}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "awaiting_approval",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "unknown"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "workflow_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Workflow Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow_id",
+          "project_id",
+          "display_url",
+          "platform",
+          "status",
+          "updated_at"
+        ],
+        "title": "InboxRun",
+        "type": "object"
+      },
       "InvoiceOut": {
         "additionalProperties": false,
         "properties": {
@@ -2172,6 +2334,24 @@
         "title": "MarginView",
         "type": "object"
       },
+      "MeUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "locale": {
+            "enum": [
+              "en",
+              "id"
+            ],
+            "title": "Locale",
+            "type": "string"
+          }
+        },
+        "required": [
+          "locale"
+        ],
+        "title": "MeUpdate",
+        "type": "object"
+      },
       "MeView": {
         "additionalProperties": false,
         "properties": {
@@ -2196,6 +2376,21 @@
               }
             ],
             "title": "Email"
+          },
+          "locale": {
+            "anyOf": [
+              {
+                "enum": [
+                  "en",
+                  "id"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locale"
           },
           "platform_admin": {
             "title": "Platform Admin",
@@ -3789,6 +3984,18 @@
             "title": "Document Revision",
             "type": "integer"
           },
+          "encoded_frames": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Encoded Frames"
+          },
           "failure_code": {
             "anyOf": [
               {
@@ -3860,6 +4067,35 @@
             "title": "Render Job Id",
             "type": "string"
           },
+          "render_stage": {
+            "anyOf": [
+              {
+                "enum": [
+                  "preparing",
+                  "rendering",
+                  "encoding",
+                  "uploading"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Render Stage"
+          },
+          "rendered_frames": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rendered Frames"
+          },
           "renderer_version": {
             "title": "Renderer Version",
             "type": "string"
@@ -3909,6 +4145,18 @@
             "const": 1,
             "title": "Template Version",
             "type": "integer"
+          },
+          "total_frames": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Frames"
           }
         },
         "required": [
@@ -4436,6 +4684,53 @@
           "latest_revision"
         ],
         "title": "ReviewRevisionConflictBody",
+        "type": "object"
+      },
+      "RunMetrics": {
+        "additionalProperties": false,
+        "description": "The run list's metric tiles (restyle B4). A rate or a median with nothing finished\nbehind it is null, so the dashboard shows no tile rather than a made-up number.",
+        "properties": {
+          "content_sets": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Content Sets",
+            "type": "integer"
+          },
+          "median_run_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Run Seconds"
+          },
+          "runs_this_week": {
+            "minimum": 0.0,
+            "title": "Runs This Week",
+            "type": "integer"
+          },
+          "success_rate": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Success Rate"
+          }
+        },
+        "required": [
+          "runs_this_week"
+        ],
+        "title": "RunMetrics",
         "type": "object"
       },
       "SaveProjectPromptBindingRequest": {
@@ -5626,8 +5921,30 @@
       "StageSummary": {
         "additionalProperties": false,
         "properties": {
+          "current_step": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkflowStep"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
           "id": {
-            "pattern": "^(validation|source|assets|narration|render|review|delivery)$",
+            "pattern": "^(validation|source|assets|narration|render|review|delivery|approval|attribution|footage|assembly)$",
             "title": "Id",
             "type": "string"
           },
@@ -5648,6 +5965,39 @@
             ],
             "title": "Progress"
           },
+          "skip_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "attribution_off",
+                  "footage_off",
+                  "assembly_off",
+                  "legacy_source",
+                  "approval_rejected",
+                  "not_in_this_version",
+                  "run_failed",
+                  "run_cancelled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skip Reason"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
           "status": {
             "enum": [
               "queued",
@@ -5655,7 +6005,8 @@
               "completed",
               "waiting",
               "failed",
-              "cancelled"
+              "cancelled",
+              "skipped"
             ],
             "title": "Status",
             "type": "string"
@@ -7131,9 +7482,41 @@
         "title": "UpgradeTimelineRequest",
         "type": "object"
       },
+      "UsageDay": {
+        "additionalProperties": false,
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "videos": {
+            "title": "Videos",
+            "type": "integer"
+          },
+          "workflows": {
+            "title": "Workflows",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "workflows",
+          "videos"
+        ],
+        "title": "UsageDay",
+        "type": "object"
+      },
       "UsageView": {
         "additionalProperties": false,
         "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/UsageDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
           "leases": {
             "additionalProperties": {
               "type": "integer"
@@ -7413,9 +7796,34 @@
             "title": "Created At",
             "type": "string"
           },
+          "current_step": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkflowStep"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "has_post_card": {
+            "title": "Has Post Card",
+            "type": "boolean"
+          },
           "history_expired": {
             "title": "History Expired",
             "type": "boolean"
+          },
+          "owner_handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Handle"
           },
           "project_id": {
             "anyOf": [
@@ -7432,6 +7840,13 @@
           "source": {
             "$ref": "#/components/schemas/WorkflowSource"
           },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/StageSummary"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
           "status": {
             "enum": [
               "queued",
@@ -7444,6 +7859,17 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
           },
           "updated_at": {
             "format": "date-time",
@@ -7533,6 +7959,133 @@
         "title": "WorkflowStatus",
         "type": "string"
       },
+      "WorkflowStep": {
+        "additionalProperties": false,
+        "description": "One recorded step of a running stage (run-progress spec 2026-10-25, G2).",
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "attempt": {
+            "minimum": 1.0,
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "code": {
+            "pattern": "^(source|attribution|footage|assembly)\\.[a-z_]+$",
+            "title": "Code",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "info",
+              "progress",
+              "wait",
+              "done",
+              "warning",
+              "error"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "n": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N"
+          },
+          "params": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Params"
+          },
+          "seq": {
+            "minimum": 1.0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "stage": {
+            "pattern": "^(source|attribution|footage|assembly)$",
+            "title": "Stage",
+            "type": "string"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          },
+          "wait_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wait Until"
+          }
+        },
+        "required": [
+          "seq",
+          "stage",
+          "attempt",
+          "at",
+          "kind",
+          "code"
+        ],
+        "title": "WorkflowStep",
+        "type": "object"
+      },
+      "WorkflowStepPage": {
+        "additionalProperties": false,
+        "properties": {
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "steps"
+        ],
+        "title": "WorkflowStepPage",
+        "type": "object"
+      },
       "WorkflowStudioImport": {
         "additionalProperties": false,
         "description": "The draft a workflow opened into, at its latest revision, and each media item's outcome.",
@@ -7580,6 +8133,18 @@
             "title": "Created At",
             "type": "string"
           },
+          "estimate_seconds_remaining": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimate Seconds Remaining"
+          },
           "failure": {
             "anyOf": [
               {
@@ -7590,9 +8155,35 @@
               }
             ]
           },
+          "has_post_card": {
+            "title": "Has Post Card",
+            "type": "boolean"
+          },
           "history_expired": {
             "title": "History Expired",
             "type": "boolean"
+          },
+          "owner_handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Handle"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
           },
           "source": {
             "$ref": "#/components/schemas/WorkflowSource"
@@ -7606,6 +8197,17 @@
           },
           "status": {
             "$ref": "#/components/schemas/WorkflowStatus"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
           },
           "updated_at": {
             "format": "date-time",
@@ -8451,6 +9053,53 @@
         ]
       }
     },
+    "/api/v1/inbox": {
+      "get": {
+        "description": "The caller's workspace attention list. The account section follows the\n`platform_actor` rule: a platform admin holding the admin scope.",
+        "operationId": "read_inbox_api_v1_inbox_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Inbox"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Inbox"
+      }
+    },
     "/api/v1/me": {
       "get": {
         "operationId": "me_api_v1_me_get",
@@ -8495,6 +9144,64 @@
           }
         },
         "summary": "Me",
+        "tags": [
+          "account"
+        ]
+      },
+      "patch": {
+        "description": "Save the caller's own preferences: today, the dashboard language.",
+        "operationId": "update_me_api_v1_me_patch",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Me",
         "tags": [
           "account"
         ]
@@ -11921,6 +12628,69 @@
             }
           },
           {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "queued",
+                      "running",
+                      "awaiting_approval",
+                      "succeeded",
+                      "failed",
+                      "cancelled",
+                      "unknown"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "platform",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Platform"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
             "in": "header",
             "name": "Authorization",
             "required": false,
@@ -13060,15 +13830,23 @@
     },
     "/api/v1/workflows": {
       "get": {
+        "description": "`unassigned=true` lists runs outside any project; without it, every run of the\ncaller across all projects (restyle B1).",
         "operationId": "list_unassigned_workflows_api_v1_workflows_get",
         "parameters": [
           {
             "in": "query",
             "name": "unassigned",
-            "required": true,
+            "required": false,
             "schema": {
-              "title": "Unassigned",
-              "type": "boolean"
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Unassigned"
             }
           },
           {
@@ -13097,6 +13875,69 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "queued",
+                      "running",
+                      "awaiting_approval",
+                      "succeeded",
+                      "failed",
+                      "cancelled",
+                      "unknown"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "platform",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Platform"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
             }
           },
           {
@@ -13203,6 +14044,69 @@
           }
         },
         "summary": "Create Workflow"
+      }
+    },
+    "/api/v1/workflows/metrics": {
+      "get": {
+        "description": "Runs this week, the median run time, the success rate and Content Sets made\n(restyle B4), in one project or across all of them.",
+        "operationId": "workflow_metrics_api_v1_workflows_metrics_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunMetrics"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Workflow Metrics"
       }
     },
     "/api/v1/workflows/{workflow_id}": {
@@ -13321,6 +14225,54 @@
           }
         },
         "summary": "Move Workflow"
+      }
+    },
+    "/api/v1/workflows/{workflow_id}/acknowledge": {
+      "post": {
+        "operationId": "acknowledge_workflow_api_v1_workflows__workflow_id__acknowledge_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Acknowledge Workflow"
       }
     },
     "/api/v1/workflows/{workflow_id}/approve": {
@@ -13512,6 +14464,73 @@
         "summary": "Cancel Workflow"
       }
     },
+    "/api/v1/workflows/{workflow_id}/cards/{card}": {
+      "get": {
+        "description": "One real card crop of the run (restyle B3): `post`, `profile`, `profile_page` or\n`comment-<id>`. A crop never changes once written, so the browser keeps it a day.",
+        "operationId": "download_workflow_card_api_v1_workflows__workflow_id__cards__card__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "card",
+            "required": true,
+            "schema": {
+              "pattern": "^(post|profile|profile_page|comment-[A-Za-z0-9_.:-]{1,64})$",
+              "title": "Card",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/png": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Workflow Card"
+      }
+    },
     "/api/v1/workflows/{workflow_id}/events": {
       "get": {
         "description": "Stream the current workflow snapshot and replay only unseen typed events.",
@@ -13584,6 +14603,72 @@
         "summary": "Stream Workflow Events"
       }
     },
+    "/api/v1/workflows/{workflow_id}/media/{location}": {
+      "get": {
+        "description": "One media file the run stored, such as a footage clip of its Content Set (restyle\nB6), with ranges so a video can seek. Stored media never changes under its location.",
+        "operationId": "download_workflow_media_api_v1_workflows__workflow_id__media__location__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "location",
+            "required": true,
+            "schema": {
+              "title": "Location",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Workflow Media"
+      }
+    },
     "/api/v1/workflows/{workflow_id}/retry": {
       "post": {
         "operationId": "retry_workflow_api_v1_workflows__workflow_id__retry_post",
@@ -13647,6 +14732,85 @@
           }
         },
         "summary": "Retry Workflow"
+      }
+    },
+    "/api/v1/workflows/{workflow_id}/steps": {
+      "get": {
+        "description": "The run's steps in order; the dashboard polls this in its event-stream loop.",
+        "operationId": "list_workflow_steps_api_v1_workflows__workflow_id__steps_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "After",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowStepPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Workflow Steps"
       }
     },
     "/api/v1/workspace/tokens": {

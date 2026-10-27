@@ -1,6 +1,8 @@
 import { useCallback, useState } from "react";
 
 const KEY = "thoth.activeProject";
+/** "All projects" (DESIGN §9): the run list across every project; Studio still needs one. */
+export const ALL_PROJECTS = "all";
 
 function stored(): string | null {
   try {

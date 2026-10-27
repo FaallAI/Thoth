@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-27 - Dashboard restyle, part A (R1-R4): two languages, live runs, inbox and management
+
+**Spec:** `docs/superpowers/specs/2026-10-29-dashboard-restyle-design.md`, decisions D1-D6 approved by the operator; the backend additions B1-B8 in its §6 were approved on 2026-10-26 ("ya boleh dan tolong pastikan semua update backend nya"). Executed by Claude on `feat/run-progress-render-frames`; part A ships with the run-progress stack (D6).
+
+**Backend:**
+- D1: `users.locale` (migration 0022) and `PATCH /me`.
+- B1: `GET /workflows` without `unassigned` lists the caller's runs across every project; both run lists take `status`, `platform` and `q`.
+- B2: run rows carry `title`, `owner_handle`, `has_post_card` (read once from the source report into migration 0023's columns), `stages` and `current_step`; inbox items carry `title`.
+- B3: `GET /workflows/{id}/cards/{card}` serves real card crops; B6: `GET /workflows/{id}/media/{location}` serves the run's own stored media, only under `reports/<id>/`.
+- B4: `GET /workflows/metrics`; B5: `UsageView.days`; B7: the run detail carries `project_id`, `title`, `owner_handle`, `has_post_card` (filled by the API, never stored); B8: `BillingView.checkout_available`.
+- Contract regenerated each time, additions only (`unassigned` relaxed from required to optional).
+
+**Dashboard:**
+- R1: canonical tokens and Geist; an English and Indonesian catalogue with plurals and formats (no i18n library, D2); the language saved per user; the new shell (collapsible sidebar, top bar, avatar menu with the language switch, bottom sheet, Cmd+K navigation); StatusPill, StageStepper, StepRow, SegmentedStageBar, MetricTile, EmptyState, Skeleton, ConfirmDialog; a sentence for each of the 25 step codes, in an ongoing and a finished form.
+- R2: the run list (live rows, filters in the URL, real metrics only, "All projects" with a Project column, moving unassigned runs) and the New run dialog (live platform detection); the run detail (1 s polling, stepper, activity log, approval card, cancel with confirmation, retry as a new run of the same link, results grid with real crops, footage and figures, aria-live stage announcements).
+- R3: the inbox, the run tray, the inbox bell, live sidebar counts, the "(n) Thoth" tab title, and app-wide desktop notifications: a shell watcher follows every active run, so waiting, done and failed are told from any page, once per run and event (operator requirement 2026-10-27).
+- R4: Usage with hand-drawn daily bars, Billing that states from the server that checkout is not live, a new Settings page (language, notification permission, developer tokens with a create dialog and confirmed revoke), translated sign-in, and translated, restyled source accounts and proxies.
+
+**Fixed on the way:** e0e5a387 left `PATCH /me` and `MeUpdate` out of the two exact OpenAPI set tests (9761285e).
+
+**Verification (aefce5c0):** Python suite 4526 passed / 251 skipped; `make test-postgres` 189 passed (after B1-B5); `make lint` clean; dashboard 1305 pass, build clean. Screens checked offline against the pen exports with a mock API, in both languages at 1440, 1024 and 430: `D:/thoth-tmp/restyle-shots/r1` to `r4`.
+
+**Known limits:**
+- Retry starts a new run with default options (Temporal retry is not available and the original request is not stored).
+- Usage shows workflows, videos, render time, storage and sessions; model calls and per-kind totals are not exposed to a workspace yet.
+- Studio pages (part B) keep their English copy and F3 styling until R5-R7.
+
+**Live gate (roadmap step 8), passed 2026-10-27:**
+- The branch images were deployed to stage1 before merge (`d7d7f433`: thoth `3eb56d20`, renderer `12b929ca`, web `7d955ebd`; migrations 0022 and 0023 applied).
+- Run `wf_9fe5cf449eb84149005d2e5f` succeeded on the new screens, but "Open in Studio" showed only "Studio will not include: figures: Figures are context, not scenes" with no clear way on. `ed11ab3e` asks in a dialog instead: the left-out items with translated reasons, the drafts to resume, and "Create new draft".
+- `ed11ab3e` deployed (thoth `515e104e`, renderer `b29192f8`, web `19d91b48`; migrate 0, every service healthy, 0 restarts); the operator opened the run in Studio and confirmed it works.
+- Rollback past 0023 restores the three image pins and runs `compose up -d --wait`; `make deploy` with old pins stops at migrate, because the old chain refuses the newer head.
+
+**Next steps:**
+- Merge of the run-progress stack with part A (operator gate), then a deploy of the merged `master` and its deploy record (each an operator gate).
+- Part B (R5-R7, Studio) as its own release.
+
 ## 2026-10-29 - Deployed master 4a102c5 (PR #75, editor repositories on the ORM)
 
 **Deployed:** `master` 4a102c5 after the CI of PR #75 and of `master` went green (offline gates with Postgres, image build, non-live smoke).
@@ -77,6 +114,246 @@ All notable changes to this project will be documented in this file.
 **Next steps:**
 - **Operator gates:** push and PR, merge, deploy, all separate from the run-progress stack.
 - **Then:** rebase the run-progress stack onto this, move the phase 5 frame columns into `RenderJobRow`, and keep the parity test green.
+## 2026-10-26 - Run progress phase 5: render frames (spec G6)
+
+Executed by Claude at the operator's request, on `feat/run-progress-render-frames`, which is stacked on the phase 4 branch.
+
+**Renderer:**
+- **Frame facts:** `renderMedia`'s `onProgress` (Remotion 4, checked through Context7) now carries `renderedFrames` and `encodedFrames` against the composition's `durationInFrames`.
+- **The execution reports `render_stage`:**
+  - `preparing`;
+  - `rendering` while frames remain;
+  - `encoding` once every frame is rendered;
+  - `uploading` while finalizing.
+- **Reporting rate:** reports go out at most once a second, plus on a stage change and at 100%, instead of every 10%.
+
+**Compatibility with an older control plane.** An older control plane refuses the new fields with 422.
+- The client raises `ControlPlaneRejected`, a subclass of `ControlPlaneUnavailable`.
+- The execution then resends that event without the frame facts and keeps the older shape for the rest of the job.
+- So a new renderer next to a rolled-back Thoth still delivers every status; only the frame facts are lost.
+- An old renderer next to a new Thoth is fine, because the fields are optional.
+- After migration 0021, a rolled-back Thoth still works: its repository selects explicit columns.
+
+**Control plane:**
+- **Migration `0021_render_job_frames`:** four nullable, checked columns on `render_jobs`.
+- **`RenderJob` / `RenderJobEvent`:** the frames and the stage. Frame counts never decrease, and they must fit a reported total.
+- **The render job repository** (on the ORM since the editor repositories move, which this stack was rebased onto) maps the new columns on `RenderJobRow` and copies them with the other mutable fields; the schema-parity test covers them.
+- **`RenderJobView`:** exposes the four fields. The projection test was updated deliberately.
+- **Contract:** additions only (+53 OpenAPI, +8 TypeScript).
+
+**Evidence:**
+- **Python:** full suite 4649 passed, 116 skipped; `make lint` clean; `make test-postgres` 23 passed.
+- **Dashboard:** `bun test` 1251 pass and the build is ok.
+- **Renderer:**
+  - `server`, `control-plane-client` and `remotion-adapter` pass 59 tests, and `tsc` is clean;
+  - the full renderer suite has 27 failures in the release capsule and capture tests on Windows. They are identical before and after this phase.
+- **Pre-existing flake:** `tests/auth/test_sign_in_service.py::test_racing_guesses_get_at_most_five_evaluations` failed once in a full run and passes 3/3 alone. It is unrelated to this phase.
+
+**Next steps:**
+- roadmap step 7, the dashboard and Studio restyle spec;
+- the operator gates for the stacked branches (push, merge, deploy). Deploy and roll back the renderer and Thoth images as one package, even though each side now survives the other's older version.
+
+## 2026-10-26 - Phase 4 review follow-ups: dashboard test flakiness (N5) and inbox settle throttle (N3)
+
+**N5: the dashboard `bun test` flakiness on Bun 1.4.4.** One to three different tests failed in every full run; each file passed alone.
+- **Root cause:** testing-library's `findBy*`/`waitFor` turn the act environment off and drain pending work with `setTimeout(0)`. React's scheduler flushes passive effects (`useEffect`) with `setImmediate`, and Bun does not order the two. A test that asserted on an effect of the render that showed its element could therefore run before that effect.
+  - **Examples:** `listPromptTemplates` was called 0 times, and the preview mount counter read 0.
+  - **Ruled out:** cross-file DOM leakage. A diagnostic preload found only five empty containers, the same in every run.
+- **Fix:** `dashboard/src/test-setup.ts` wraps testing-library's `asyncWrapper` to also wait one `setImmediate` while act is off.
+- **Guard test:** `src/test-setup.test.tsx` runs the PromptLab pattern 500 times. Before the fix it failed 1 to 2 times per 300 iterations; after it, it passed 1500 of 1500.
+- **Full suite:** it failed in 4 of 4 runs before the fix, and passed in 5 of 5 after (1251 pass, 0 fail). `bun run build` is ok.
+
+**N3:** `WorkflowRunService.inbox` settles an actor's stale rows at most once per 15 s (`INBOX_SETTLE_SECONDS`). Polls in between re-read the stored rows, so a fast-polling client cannot turn the inbox into a Temporal call storm. `docs/DESIGN.md` §7.6 now states the polling cadence: the run snapshot and steps every second; the inbox on focus, after an action, and at most every 15 s otherwise.
+
+**N4: the estimate minimum counts only timed runs.** The 5-run minimum now counts only succeeded runs that recorded stage timings.
+- **Before:** runs from before phase 1 carry no stage timestamps, yet hundreds of them would have met the minimum at deploy. The dashboard would then have shown a number built from defaults instead of "a few minutes" (DESIGN §7.3).
+- **Commit:** `4aab06c`. The test now pins 20 untimed plus 3 timed runs to `None`, and 5 timed runs to the median.
+
+**Next steps:** roadmap step 6 (phase 5, render frames). The push, merge and deploy gates for the stacked branches stay with the operator.
+
+## 2026-10-26 - Run progress phase 4: estimates and inbox
+
+**Spec/plan:** spec G4 (estimates) and G5 (inbox), operator decision 2, and
+`docs/superpowers/plans/2026-10-26-run-progress-phase4-estimates-inbox.md`
+(roadmap "Dashboard redesign track", step 5). Branch `feat/run-progress-estimates-inbox`,
+stacked on `feat/run-progress-instrumentation` (`8da3c2d`).
+
+**What changed:**
+- **Estimates (G4):** a pure `application/estimates.py` turns the run's summary, the
+  actor's last 20 succeeded stored summaries for the same platform, and `now` into
+  `WorkflowSummary.estimate_seconds_remaining` (whole seconds): per-stage medians over
+  completed stages with both timestamps, spec defaults (`source` 120, `attribution` 60,
+  `footage` 240, `assembly` 60) when a stage has no median, `None` below 5 histories (the
+  UI then says "a few minutes") and for any run that is not running or queued — a person
+  is the wait, so `awaiting_approval` and the approval stage never count. A running stage
+  counts `max(median − elapsed, wait_remaining, 0)`, so a `wait` step's countdown holds
+  the estimate up.
+- **Estimate wiring:** `WorkflowRunStore.recent_succeeded` (succeeded rows with a stored
+  summary, newest `updated_at` first, capped at 20); `WorkflowRunService.get` fills the
+  estimate **after** `_with_current_steps` and never inside `settle`, so no stored summary
+  carries it. The history input is cached per `(actor_type, actor_id, platform)` for 60 s
+  (per-process; the dashboard polls `get` about once a second). A history-store error is a
+  `warn` and costs only the field.
+- **Acknowledging failed runs (G5):** migration `0020_workflow_run_acknowledged` adds
+  `workflow_runs.acknowledged_at` and the partial index
+  `workflow_runs_unacknowledged_failures` (`WHERE status = 'failed' AND acknowledged_at IS
+  NULL`). `POST /workflows/{workflow_id}/acknowledge` answers 204, settles an unsettled
+  row first (a just-failed run can be acknowledged at once), refuses with 409
+  `run_not_failed` when the run is not failed, 404 for a foreign or missing run, and is
+  idempotent — the first `acknowledged_at` survives. Opening a run never acknowledges it.
+- **The inbox (G5):** `GET /inbox` returns `approvals`, `failures` and `accounts`. The
+  caller's unsettled rows are settled first (at most `SETTLE_LIMIT`, the run list's rule),
+  then approvals (`awaiting_approval`, newest first, at most 20), then failures (`failed`
+  and not acknowledged, newest first, at most 20, with `failure_code` from the stored
+  summary), and — only for a platform admin holding the `admin` scope, the
+  `platform_actor` rule — source accounts that are in `cooldown` or `expired` or still
+  inside a cooldown clock. `disabled` never appears; the payload carries no cookie,
+  cookie name or proxy data. Without a run store the inbox is empty; without an account
+  store the account list is.
+- **Contract:** `python/openapi.json` and `dashboard/src/api/generated/control-plane.ts`
+  regenerated: `WorkflowSummary.estimate_seconds_remaining`, the `Inbox`/`InboxRun`/
+  `InboxAccount` schemas, and the two new paths. Additions only.
+
+**Evidence (final tree `121e356`, WSL):**
+- **Python:** full suite **4639 passed, 116 skipped**; `make lint` clean (ruff check +
+  format, 527 files).
+- **Postgres:** `make test-postgres` -> **23 passed** (migration 0020 applies on a
+  throwaway PostgreSQL 16.4; the partial index exists).
+- **Workflow untouched:** `git diff 8da3c2d -- python/src/thoth_control_plane/workflows/`
+  is empty; the replay selection (`-k 'before_the_stage_plan or replay'`) -> 6 passed.
+- **Dashboard:** `bun run build` ok; `bun test` passes file-by-file — the full run flakes
+  on Bun 1.4.4 with varying names (the known `GuidedStudio.responsive` "keeps one preview
+  mounted across every viewport" among them); each such file passes alone, and the
+  phase 3 baseline `8da3c2d` flakes the same way, so it predates this work. The branch
+  adds no dashboard tests; only the generated types change.
+
+**Next steps:** roadmap step 6 (phase 5, render frames). The push, merge and deploy gates
+for the stacked branches stay with the operator.
+
+## 2026-10-25 - Run progress phase 3: instrumentation (+F1)
+
+**Spec/plan:** spec §5 (the step catalogue) and G2, and
+`docs/superpowers/plans/2026-10-25-run-progress-phase3-instrumentation.md`
+(roadmap "Dashboard redesign track", step 4). Branch `feat/run-progress-instrumentation`,
+stacked on `feat/run-progress-steps` (`4f1aeea`).
+
+**What changed:**
+- The five acquirers, the attribution, footage and assembly services, and the two source
+  activities emit the phase 2 catalogue codes at their natural boundaries — no new codes,
+  observability only (no behavior, ordering, timeout or result change):
+  - **source:** `read_link`/`save_report` around the runner in the activity; `fetch_post`
+    (params `platform`) before each platform's first metadata request; `download_media`
+    (n/total) per materialized item (the shared `materialize_media` loop serves Threads,
+    Instagram and X; TikTok and YouTube are single-video 1 of 1); the card captures, the
+    covered-row warning and the login walls in the card browser and the request fetchers;
+    `page_gap` (a `wait_until` countdown) before every pacing sleep, including the X embed
+    loop; `capture_embed_cards` (n/total) per embed.
+  - **attribution:** `read_text` before the frame OCR; `ask_vision` before each vision or
+    credit model call (`read_cover`, `decide`, `assess`, `classify`); `search_candidates`
+    (count) after discovery; `compare_frames` (n/total) per finalist; `verdict`
+    (params `verdict`) from the single sync exit every verdict flows through.
+  - **footage:** `plan_queries` (count) once the run's queries exist (carousel included);
+    `search_platforms` (n/total, params `platform`) per platform searched;
+    `screen_clips` (n/total) per screened candidate; `creator_listing` before the listing;
+    `keep_clips` (count) at the result.
+  - **assembly:** `read_subtitles` before the main-video OCR; `judge_comments`
+    (count kept, total candidates); `find_figures` (count); `save_content_set` after the
+    content set is stored.
+- **F1 (phase 1 review):** a `build_footage` `ActivityError` now calls
+  `_plan_fail("footage")` before the stage-completed record, so the footage stage reads
+  `failed` while the run continues and can still succeed — a query-only state change, no
+  new Temporal command. This is the only workflow change; `git diff 4f1aeea` over
+  `workflows/` is exactly those three lines.
+- **Guard:** two tests pin that the step scope crosses `browser_loop.on_browser_loop` into
+  the browser thread and that `step_sync` from `asyncio.to_thread` inside the scope is
+  recorded — the card-browser emissions depend on both.
+
+**Evidence (final tree `8579e75`, WSL):**
+- **Python:** full suite **4605 passed, 116 skipped**; `make lint` clean
+  (ruff check + format, 522 files).
+- **Replay:** `-k 'before_the_stage_plan or replay'` -> 6 passed (both phase 1 fixture
+  histories x2 and the two older replay tests); `git diff 4f1aeea -- python/src/thoth_control_plane/workflows/`
+  is the F1 lines only.
+- **Contract:** `export_openapi.py` re-run, `git diff --exit-code python/openapi.json`
+  empty; `git diff 4f1aeea --stat -- dashboard/` empty.
+- **Emission audit:** `rg "progress.step" python/src` lists 40 emissions; every `params`
+  value is a platform name, a verdict, or a count.
+
+**Notes:** the concurrent footage platforms and the assembly figures/subtitles pair may
+interleave through the one-second coalescing window (N1) — the sequence tests assert the
+surviving records and the always-written `n == total` completion.
+
+**Next steps:** roadmap step 5 (phase 4, estimates and inbox). The push, merge and deploy
+gates for the stacked branches stay with the operator.
+
+## 2026-10-25 - Run progress phase 2 review follow-ups (N1, N2, F2)
+
+**Done at the operator's request after the phase 2 review:**
+- **N1, `f241162`..`615e745`:** a coalesced progress update is no longer dropped. It is held and written in one of three cases:
+  - before the next step of another code;
+  - when its one-second window ends, through a timer on the activity's event loop;
+  - when the activity ends, as the interceptor flushes it.
+
+  The current step never lags a quiet activity.
+- **N2, `f241162`:** `StepStore.current_steps` picks one row per stage in the database (highest attempt, then latest seq) instead of loading every step of the run on each poll. The test now covers a timed-out attempt that still writes after its retry started.
+- **F2, `23ca579`:** `generate:control-plane-types` works with the dashboard's TypeScript 7.
+  - **Cause:** TypeScript 7's package exports no JavaScript API, while `openapi-typescript` 7.13 (the latest) imports `typescript`.
+  - **Fix:** the devDependency `@typescript/typescript6` (the official TypeScript 6 API package), plus the Node resolve hook `dashboard/scripts/typescript6.mjs`, which applies to the generator only. `tsc` stays on TypeScript 7.
+  - **Proof:** the generated file is byte-identical to the committed one; without the hook the generator fails on `ts.factory`; `bun install --frozen-lockfile` with Bun 1.4.4 (the CI and `Dockerfile.web` version) reports no changes.
+
+**Evidence:**
+- **Python:** full suite 4586 passed, 116 skipped; `make lint` clean.
+- **Dashboard:** `bun test` 751 pass with the local Bun, and `bun run build` ok.
+
+**Found on the way:** with Bun 1.4.4 on Windows, 1 to 3 different dashboard UI tests fail at random on every run. The same happens on the phase 1 branch without these changes, so it predates them and needs its own ticket.
+
+**Next steps:** roadmap step 4 (phase 3, instrumentation). The push, merge and deploy gates for the stacked branches stay with the operator.
+
+## 2026-10-25 - Run progress phase 2: steps
+
+**Spec/plan:** spec G2, G3 and §3-§5, and `docs/superpowers/plans/2026-10-25-run-progress-phase2-steps.md` (roadmap "Dashboard redesign track", step 3). Branch `feat/run-progress-steps`, stacked on `feat/run-progress-stage-plan`.
+
+**What changed:**
+- Migration `0019_workflow_steps` (SQL plus Alembic): the `workflow_steps` table — `workflow_id` with no foreign key (the first activity can record a step before the `workflow_runs` row exists), `seq` bigserial, closed `stage` and `kind` CHECKs, `params` limited to 1 kB, index `(workflow_id, seq)`. The `workflow_runs.acknowledged_at` and `render_jobs` frame columns stay out; they are phases 4 and 5.
+- New `progress.py`: the closed step catalogue (spec §5, codes are `stage.name`), the step recorder mirroring metering (ContextVar scope, process-wide sink, `step()`/`step_sync()` never fail the work), the kind derivation (wait > warning > progress > info), the `verdict`/`platform`/`count` params whitelist that drops the whole map on any violation, and per-scope coalescing of progress repeats to one row per second (never at `n == total`).
+- `activities/progress_scope.py`: `ProgressScopeInterceptor` maps the four activity types (`inspect_source_candidates`, `attribute_source`, `build_footage`, `assemble_content`) to their stages and sets the `StepScope` (workflow id, stage, attempt); no network call. `worker.py` installs it beside `MeterScopeInterceptor` and the `StepStore` sink beside the usage sink.
+- `infrastructure/step_models.py` + `step_store.py`: the ORM row and the synchronous `StepStore` (`append`, `page` ordered by `seq`, `current_steps` = per stage the latest step of the highest attempt).
+- API (D6): `GET /workflows/{id}/steps?after=0&limit=200` (bounds 422), authorized from the run row only — no Temporal query, because the dashboard polls every second; a missing or foreign run is 404; no run store or no step store degrades to an empty page. `WorkflowRunService.get` fills each running or waiting stage's `current_step` after settle, so stored summaries never hold it; a step-store error costs only the field.
+- Domain: `WorkflowStep`, `WorkflowStepPage`, `StepKind`, and `StageSummary.current_step` (optional, API-filled). `python/openapi.json` and `dashboard/src/api/generated/control-plane.ts` regenerated with only these additions. No dashboard UI change in this phase.
+
+**Evidence:**
+- Full Python suite (WSL, final tree): 4582 passed, 116 skipped; `make lint` clean (ruff check + format).
+- Postgres suite (`make test-postgres`): 23 passed — migration 0019 applies on Postgres, the fresh-database chain is 19 revisions, and the closed CHECKs reject a bad stage or kind.
+- Dashboard: full suite 751 pass, 0 fail across 53 files; `bun run build` (tsc -b + vite) succeeds with only the pre-existing >500 kB chunk warning. Only the generated types changed.
+- Replay (D8): `git diff 8a7a3af -- python/src/thoth_control_plane/workflows/` is empty; the two phase 1 fixture histories and the two older replay tests pass unchanged (6 replays). The workflow is untouched.
+- Retention (D5): no code deletes `workflow_runs` rows — steps are kept as long as the run row by construction.
+
+**Why:** nothing was visible inside an activity: source acquisition (~2.5 min), footage and assembly reported only when they ended. Steps are written straight to Postgres by the activities (spec §3), because Temporal throttles heartbeats by 30-60 s and a step would reach the UI half a minute late.
+
+**Next steps:**
+- Claude reviews `feat/run-progress-steps`; the push, PR, merge and deploy gates stay with the operator for the stack.
+- Roadmap step 4: run progress phase 3 (instrumentation — the acquirers, attribution, footage and assembly emit the catalogue codes).
+
+## 2026-10-25 - Run progress phase 1: the stage plan
+
+**Spec/plan:** spec G1 and `docs/superpowers/plans/2026-10-25-run-progress-phase1-stage-plan.md` (roadmap "Dashboard redesign track", step 2). Branch `feat/run-progress-stage-plan`.
+
+**What changed:**
+- `WorkflowSummary.stages` now carries the run's whole plan from the first snapshot: `source`, `approval` (produce_video only), `attribution`, `footage` and `assembly`, each with its real status, `started_at`/`finished_at`, and a `skip_reason` code when it will not run (`*_off`, `legacy_source`, `approval_rejected`, `not_in_this_version`, `run_failed`, `run_cancelled`). This replaces the single hard-coded `source` stage that mirrored the run status.
+- `StageSummary` (D4, backward compatible): the new stage ids, the `skipped` status, and the three optional new fields; old stored summaries stay valid. `python/openapi.json` and `dashboard/src/api/generated/control-plane.ts` regenerated with only these changes.
+- New pure module `workflows/stage_plan.py` (`StagePlan`): builds the plan from the intent and flags, and applies the transitions. The workflow drives it from the events the history already records (`stage.started`/`stage.completed`, `approval.required`, `workflow.cancelled`) plus the approve/reject/legacy/failure branches, always with `workflow.now()`. No new Temporal command, so replay is unaffected and no `workflow.patched` gate is needed.
+- `WorkflowMonitor` (D6, no restyle): progress is counted over the non-skipped stages; skipped stages render muted with a "Skipped" label and keep the server label.
+
+**Evidence:**
+- Full Python suite: 4524 passed, 115 skipped; `make lint` clean (ruff check + format).
+- Dashboard: full suite 750 pass, 0 fail; `bun run build` (tsc -b + vite) succeeds.
+- Replay safety: two histories recorded from `origin/master` at `0f744ce` (a produce_video chain run and an identify_original run) replay unchanged under the new code (`tests/workflows/fixtures/*.history.json`, four replays); the pre-metering and pre-chain replay tests stay green. A mutation check (a temporary `workflow.sleep(1)` after the source stage) fails all four new replays with `[TMPRL1100] Nondeterminism error`, then passes again after the revert.
+
+**Why:** a dashboard run lasts 6-10 minutes and the operator could not see what the run was doing, what was skipped, or how long each stage took; this is the backend contract of `docs/DESIGN.md` §7.1.
+
+**Next steps:**
+- Claude reviews `feat/run-progress-stage-plan`, then the operator gates: push and PR, merge, deploy.
+- Roadmap step 3: run progress phase 2 (steps, `workflow_steps` migration 0019, `GET /workflows/{id}/steps`, `current_step`).
 
 ## 2026-10-25 - Plan: run progress phase 1 (the stage plan)
 

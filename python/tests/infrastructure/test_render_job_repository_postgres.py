@@ -359,6 +359,36 @@ async def test_an_event_persists_its_transition(renders: PostgresRenderJobReposi
 
 
 @needs_postgres
+async def test_an_event_persists_its_frames_and_render_stage(
+    renders: PostgresRenderJobRepository,
+) -> None:
+    await reserve(renders, job(status="rendering", last_event_sequence=1, started_at=NOW))
+
+    updated = await renders.apply_event(
+        render_job_id="rj_1",
+        event=event(
+            sequence=2,
+            status="rendering",
+            render_stage="encoding",
+            rendered_frames=1440,
+            encoded_frames=900,
+            total_frames=1440,
+        ),
+        now=LATER,
+    )
+
+    stored = await renders.get_internal(render_job_id="rj_1")
+    assert stored == updated
+    assert stored is not None
+    assert (stored.render_stage, stored.rendered_frames, stored.encoded_frames) == (
+        "encoding",
+        1440,
+        900,
+    )
+    assert stored.total_frames == 1440
+
+
+@needs_postgres
 async def test_an_event_that_changes_nothing_writes_nothing(
     renders: PostgresRenderJobRepository,
 ) -> None:
