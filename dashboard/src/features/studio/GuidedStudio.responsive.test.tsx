@@ -1,7 +1,8 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, jest, mock, test } from "bun:test";
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { render } from "@/test-render";
 import { useEffect } from "react";
 import {
   StudioReviewRequestError,
@@ -437,7 +438,7 @@ test("reviews the saved preview on a phone and blocks review while a draft is un
   expect(screen.getByText("Review applies to saved revision 1.")).toBeDefined();
   fireEvent.change(screen.getByLabelText("Review comment"), { target: { value: "Phone note" } });
   expect((screen.getByRole("button", { name: "Post comment" }) as HTMLButtonElement).disabled).toBe(true);
-  expect((screen.getByRole("button", { name: "Approve" }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole("button", { name: "Approve for render" }) as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getByText(/Wait for your changes to save/)).toBeDefined();
 });
 

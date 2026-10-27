@@ -174,19 +174,6 @@
 .studio-shell.pen-studio.studio-job-review .studio-preview-hint { display:none; }
 .studio-shell.pen-studio .studio-review-panel-region { grid-column:2; grid-row:1 / 4; height:100%; min-height:0; overflow-y:auto; background:#242628; border-left:1px solid #47494a; }
 .studio-shell.pen-studio .studio-review-preview-footer { grid-column:1; grid-row:3; display:flex; align-items:center; padding:0 28px; background:#242628; font-size:10px; color:#c5c6c7; }
-.studio-shell.pen-studio .studio-review-panel { height:auto; min-height:100%; padding:22px; gap:13px; border:0; border-radius:0; }
-.studio-shell.pen-studio .studio-review-panel-heading { display:flex; align-items:center; justify-content:space-between; }
-.studio-shell.pen-studio .studio-review-panel-heading h2 { font-size:20px; font-weight:600; }
-.studio-shell.pen-studio .studio-review-panel-heading p { font-size:11px; margin-top:5px; color:#c5c6c7; }
-.studio-shell.pen-studio .studio-review-panel-heading > span { background:#282a2c; border-radius:4px; font-size:10px; padding:7px 9px; }
-.studio-shell.pen-studio .studio-review-current { min-height:43px; padding:12px; background:#101113; border-radius:5px; font-size:12px; }
-.studio-shell.pen-studio .studio-review-panel > div.flex-col { padding-top:13px; border-top:1px solid #47494a; }
-.studio-shell.pen-studio .studio-review-panel textarea { padding:12px; font-size:12px; background:#101113; border-color:#47494a; }
-.studio-shell.pen-studio .studio-review-panel button { padding:9px 12px; font-size:11px; }
-.studio-shell.pen-studio .studio-review-panel button:enabled { background:#282a2c; }
-.studio-shell.pen-studio .studio-review-panel button:enabled:last-child { border-color:#d49a79; }
-.studio-shell.pen-studio .studio-review-history-heading { font-size:10px; color:#c5c6c7; letter-spacing:1.3px; text-transform:uppercase; padding-top:13px; border-top:1px solid #47494a; }
-.studio-shell.pen-studio .studio-review-empty { font-size:11px; color:#c5c6c7; }
 .studio-shell.pen-studio .studio-render-workspace { display:grid; grid-template-columns:minmax(0,950px) minmax(0,490px); gap:0; padding:0; border:0; flex:1; min-height:0; overflow:auto; }
 .studio-shell.pen-studio .studio-render-preparation { padding:33px 38px; display:flex; flex-direction:column; gap:25px; }
 .studio-shell.pen-studio .studio-render-eyebrow { font-size:10px; text-transform:uppercase; letter-spacing:1.5px; color:#d49a79; }

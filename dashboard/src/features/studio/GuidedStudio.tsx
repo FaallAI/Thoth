@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useReducer, useRef, useState, type CSSProper
 import { ArrowLeft, Feather, SlidersHorizontal } from "lucide-react";
 
 import type { ControlPlaneClient, EditDocument, EditDocumentOperation, EditorAsset } from "@/api/control-plane";
+import { useLocale } from "@/lib/locale";
 import type { PreviewSources } from "./AdvancedTimelineComposition";
 import { AssetLibrary } from "./AssetLibrary";
 import { CaptionTextInspector } from "./CaptionTextInspector";
@@ -75,6 +76,7 @@ const toolbarButton =
   "rounded-md border border-border px-3 py-1.5 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
 
 function Editor({ client, projectId, documentId, documentTitle, projectName, workspaceControls, onBack, onResolveImports, document }: Props & { document: EditDocument }) {
+  const { t } = useLocale();
   const [state, dispatch] = useReducer(editorReducer, document, createEditorState);
   // The job is the destination at every width; compact screens also pick one
   // Edit pane at a time.
@@ -559,7 +561,13 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             }`}
           >
             {reviewing ? (
-              <header className="studio-review-preview-header"><div><h2>Review video</h2><p>Reviewing saved revision {base.revision}</p></div><span>Read-only preview</span></header>
+              <header className="studio-review-preview-header">
+                <div>
+                  <h2>{t("studio.review.preview.title")}</h2>
+                  <p>{t("studio.review.preview.reviewing", { revision: base.revision })}</p>
+                </div>
+                <span>{t("studio.review.preview.readOnly")}</span>
+              </header>
             ) : null}
             <StudioPreview
               // Review shows what was saved; Edit shows the draft.
@@ -615,7 +623,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 Review is not available in this Studio session. Your draft is unaffected.
               </p>
             )}
-            {reviewing ? <p className="studio-review-preview-footer">Comments may be pinned to the current frame. Decisions apply to the saved revision.</p> : null}
+            {reviewing ? <p className="studio-review-preview-footer">{t("studio.review.preview.footer")}</p> : null}
           </main>
           <div
             id="studio-region-inspector"

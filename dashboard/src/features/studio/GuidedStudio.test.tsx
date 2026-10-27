@@ -1,7 +1,8 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, jest, mock, test } from "bun:test";
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { render } from "@/test-render";
 import { useEffect } from "react";
 import userEvent from "@testing-library/user-event";
 import type { EditDocument, EditDocumentPatch } from "@/api/control-plane";

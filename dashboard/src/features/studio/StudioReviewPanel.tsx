@@ -1,11 +1,15 @@
+import { MapPin } from "lucide-react";
 import { useCallback, useEffect, useId, useReducer, useRef } from "react";
 
 import {
   StudioReviewRequestError,
   type ControlPlaneClient,
   type EditDocument,
-  type ReviewErrorCode,
 } from "@/api/control-plane";
+import { Button } from "@/components/ui/button";
+import { formatDay } from "@/lib/i18n";
+import { useLocale } from "@/lib/locale";
+import { cn } from "@/lib/utils";
 import type { EditorSaveStatus } from "./editor_state";
 import {
   REVIEW_TEXT_LIMIT,
@@ -17,6 +21,7 @@ import {
   reviewReducer,
   type ReviewAction,
   type ReviewDecisionKind,
+  type ReviewMessage,
   type ReviewSubmission,
 } from "./studio_review_state";
 
@@ -43,26 +48,8 @@ type Props = {
   onLoadRevision?: (revision: number) => void;
 };
 
-const actionButton =
-  "rounded-md border border-border px-3 py-1.5 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
 const field =
-  "w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-
-const DECISION_LABEL: Record<ReviewDecisionKind, string> = {
-  approved: "Approved",
-  changes_requested: "Changes requested",
-};
-
-const ERROR_TEXT: Record<ReviewErrorCode, string> = {
-  review_revision_conflict: "A newer saved revision exists. Your text is kept.",
-  review_document_not_found: "This document is no longer available for review.",
-  idempotency_conflict: "That action clashed with an earlier one. Your text is kept; send it again.",
-  review_frame_out_of_range: "The pinned frame is outside the saved revision. Unpin it or pick another frame.",
-  review_not_eligible: "The saved revision has blocking issues, so it cannot be approved.",
-  invalid_review_page: "Could not load more review history.",
-  review_unavailable: "Review is unavailable right now. Your text is kept.",
-  review_request_failed: "Could not reach Studio. Your text is kept.",
-};
+  "w-full rounded-md border border-hairline bg-well px-3 py-2 text-sm text-ink placeholder:text-faint focus-visible:outline-2 focus-visible:outline-accent";
 
 const makeOperationId = () => `op_${crypto.randomUUID()}`;
 
@@ -198,66 +185,142 @@ export function StudioReviewPanel({
     trigger.current?.focus();
   };
 
+  const { t, plural, locale } = useLocale();
+  const say = (message: ReviewMessage) =>
+    "plural" in message ? plural(message.plural, message.count) : t(message.key, message.values);
   const actorName = (actor: { actor_id: string; display_name?: string | null }) => actor.display_name ?? actor.actor_id;
-  const when = (createdAt: string) => new Date(createdAt).toLocaleString();
+  const when = (createdAt: string) => (Number.isNaN(Date.parse(createdAt)) ? "" : formatDay(locale, createdAt));
+  const decisionLabel = (kind: ReviewDecisionKind) => t(`studio.review.decision.${kind}`);
+  const initials = (name: string) =>
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((word) => word[0]?.toUpperCase())
+      .join("");
+  const sectionHeading = "text-[13px] font-semibold tracking-[0.06em] text-muted-ink uppercase";
 
   return (
-    <section className="studio-review-panel flex flex-col gap-3 rounded-md border border-border bg-card p-3" aria-label="Review">
-      <header className="studio-review-panel-heading"><div><h2>Review</h2><p>Review applies to saved revision {savedRevision}.</p></div><span>rev {savedRevision}</span></header>
-      <p className="studio-review-current text-sm font-medium">
+    <section className="studio-review-panel flex flex-col gap-5 bg-surface p-5 text-ink" aria-label={t("studio.review.title")}>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">{t("studio.review.title")}</h2>
+          <p className="mt-1 text-sm text-muted-ink">{t("studio.review.appliesTo", { revision: savedRevision })}</p>
+        </div>
+        <span className="rounded-full bg-raised px-2.5 py-1 font-mono text-[12.5px] text-muted-ink">rev {savedRevision}</span>
+      </header>
+      <p className="text-sm font-medium">
         {current
-          ? `Current decision: ${DECISION_LABEL[current.decision]} on revision ${current.document_revision}`
-          : `No decision on revision ${savedRevision} yet.`}
+          ? t("studio.review.current", { decision: decisionLabel(current.decision), revision: current.document_revision })
+          : t("studio.review.none", { revision: savedRevision })}
       </p>
 
-      <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
+      <p role="status" aria-live="polite" className="text-sm text-muted-ink empty:hidden">
         {state.pending
-          ? state.pending.kind === "comment"
-            ? "Posting comment…"
-            : "Recording decision…"
-          : state.notice}
+          ? t(state.pending.kind === "comment" ? "studio.review.posting" : "studio.review.recording")
+          : state.notice
+            ? say(state.notice)
+            : null}
       </p>
-      {gate.blockedReason && !staleActive ? (
-        <p className="text-xs text-muted-foreground">{gate.blockedReason}</p>
-      ) : null}
+      {gate.blockedReason && !staleActive ? <p className="text-[13px] text-muted-ink">{say(gate.blockedReason)}</p> : null}
       {state.staleRevision !== null ? (
-        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-primary/40 bg-primary/10 p-2 text-sm">
+        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md bg-accent/10 p-3 text-sm">
           {staleActive ? (
             <>
-              <p>Revision {state.staleRevision} is now the latest saved revision. Your text is kept; load it, review it, then send again.</p>
+              <p>{t("studio.review.stale.newer", { revision: state.staleRevision })}</p>
               {onLoadRevision ? (
-                <button type="button" className={actionButton} onClick={() => onLoadRevision(state.staleRevision!)}>
-                  Load revision {state.staleRevision}
-                </button>
+                <Button variant="secondary" size="sm" onClick={() => onLoadRevision(state.staleRevision!)}>
+                  {t("studio.review.stale.load", { revision: state.staleRevision })}
+                </Button>
               ) : null}
             </>
           ) : (
-            <p>Revision {savedRevision} is loaded. Review it, then send again.</p>
+            <p>{t("studio.review.stale.loaded", { revision: savedRevision })}</p>
           )}
         </div>
       ) : null}
       {state.error ? (
-        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-2 text-sm">
-          <p>{ERROR_TEXT[state.error]}</p>
+        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md bg-status-failed/10 p-3 text-sm">
+          <p>{t(`studio.review.error.${state.error}`)}</p>
           {retryFrame !== null && retryFrame !== undefined ? (
-            <p>{`Retry resends this comment pinned at ${formatTimecode(retryFrame, savedDocument.canvas.fps)}, not the current frame.`}</p>
+            <p>{t("studio.review.retryPinned", { time: formatTimecode(retryFrame, savedDocument.canvas.fps) })}</p>
           ) : null}
           {state.retryable ? (
-            <button
-              type="button"
-              className={actionButton}
+            <Button
+              variant="secondary"
+              size="sm"
               disabled={!gate.canComment}
               onClick={() => state.retryable && submit(state.retryable)}
             >
-              Retry
-            </button>
+              {t("studio.review.retry")}
+            </Button>
           ) : null}
         </div>
       ) : null}
+      {state.historyFailed.comments || state.historyFailed.decisions ? (
+        <div role="alert" className="flex flex-wrap items-center gap-2 text-sm">
+          <p>{t("studio.review.historyFailed")}</p>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              if (state.historyFailed.comments) loadComments();
+              if (state.historyFailed.decisions) loadDecisions();
+            }}
+          >
+            {t("studio.review.reload")}
+          </Button>
+        </div>
+      ) : null}
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
+        <h3 className={sectionHeading}>{t("studio.review.comments")}</h3>
+        {!state.comments.length ? <p className="text-sm text-muted-ink">{t("studio.review.noComments")}</p> : null}
+        <ol className="flex flex-col gap-3" aria-label={t("studio.review.commentsList")}>
+          {state.comments.map((comment) => {
+            const name = actorName(comment.actor);
+            const earlier = comment.document_revision !== savedRevision;
+            return (
+              <li key={comment.comment_id} className={cn("rounded-[10px] border border-hairline bg-raised p-3", earlier && "opacity-70")}>
+                <p className="flex items-center gap-2 font-mono text-[12.5px] text-muted-ink">
+                  <MapPin aria-hidden="true" className="size-3.5" />
+                  {comment.frame == null
+                    ? t("studio.review.wholeVideo")
+                    : t("studio.review.at", { time: formatTimecode(comment.frame, savedDocument.canvas.fps) })}
+                  <span aria-hidden="true">·</span>
+                  {earlier
+                    ? t("studio.review.earlier", { revision: comment.document_revision })
+                    : t("studio.review.thisRevision", { revision: comment.document_revision })}
+                </p>
+                <div className="mt-2 flex gap-2.5">
+                  <span
+                    aria-hidden="true"
+                    className="flex size-7 shrink-0 items-center justify-center rounded-full bg-well text-[11px] font-semibold text-muted-ink"
+                  >
+                    {initials(name)}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm">
+                      <span className="font-semibold">{name}</span>
+                      <span className="ml-2 text-[13px] text-faint">{when(comment.created_at)}</span>
+                    </p>
+                    <p className="mt-1 text-sm break-words whitespace-pre-wrap">{comment.text}</p>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+        {state.commentCursor ? (
+          <Button variant="ghost" size="sm" className="self-start" onClick={() => loadComments(state.commentCursor!)}>
+            {t("studio.review.moreComments")}
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="flex flex-col gap-2 rounded-[10px] border border-hairline bg-raised p-3">
         <label htmlFor={commentId} className="text-sm font-medium">
-          Review comment
+          {t("studio.review.comment")}
         </label>
         <textarea
           id={commentId}
@@ -267,28 +330,25 @@ export function StudioReviewPanel({
           value={state.commentText}
           onChange={(event) => dispatch({ type: "comment_edited", text: event.target.value })}
         />
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="h-4 w-4 accent-primary"
-            checked={state.pinToFrame}
-            onChange={(event) => dispatch({ type: "pin_toggled", pinned: event.target.checked })}
-          />
-          Pin to current frame {timecode}
-        </label>
-        <button
-          type="button"
-          className={`${actionButton} self-start`}
-          disabled={!gate.canComment || !state.commentText.trim()}
-          onClick={postComment}
-        >
-          Post comment
-        </button>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <label className="flex items-center gap-2 font-mono text-[12.5px] text-muted-ink">
+            <input
+              type="checkbox"
+              className="size-4 accent-[var(--accent)]"
+              checked={state.pinToFrame}
+              onChange={(event) => dispatch({ type: "pin_toggled", pinned: event.target.checked })}
+            />
+            {t("studio.review.pin", { time: timecode })}
+          </label>
+          <Button variant="secondary" size="sm" disabled={!gate.canComment || !state.commentText.trim()} onClick={postComment}>
+            {t("studio.review.post")}
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-2">
         <label htmlFor={reasonId} className="text-sm font-medium">
-          Decision reason (optional)
+          {t("studio.review.reason")}
         </label>
         <textarea
           id={reasonId}
@@ -298,111 +358,76 @@ export function StudioReviewPanel({
           value={state.reason}
           onChange={(event) => dispatch({ type: "reason_edited", reason: event.target.value })}
         />
-        <div className="flex flex-wrap gap-2">
-          <button
-            ref={approveRef}
-            type="button"
-            className={actionButton}
-            disabled={!gate.canApprove}
-            onClick={() => dispatch({ type: "decision_confirming", decision: "approved" })}
-          >
-            Approve
-          </button>
-          <button
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
             ref={requestRef}
-            type="button"
-            className={actionButton}
+            variant="ghost"
             disabled={!gate.canComment}
             onClick={() => dispatch({ type: "decision_confirming", decision: "changes_requested" })}
           >
-            Request changes
-          </button>
+            {t("studio.review.requestChanges")}
+          </Button>
+          <Button
+            ref={approveRef}
+            disabled={!gate.canApprove}
+            onClick={() => dispatch({ type: "decision_confirming", decision: "approved" })}
+          >
+            {t("studio.review.approve")}
+          </Button>
         </div>
         {gate.approveBlockedReason ? (
-          <p className="text-xs text-muted-foreground">{gate.approveBlockedReason}</p>
+          <p className="text-right text-[13px] text-muted-ink">{say(gate.approveBlockedReason)}</p>
         ) : null}
         {state.confirming ? (
-          <div role="group" aria-labelledby={confirmTitleId} className="flex flex-col gap-2 rounded-md border border-border p-3 text-sm">
+          <div
+            role="group"
+            aria-labelledby={confirmTitleId}
+            className="flex flex-col gap-2 rounded-[10px] border border-hairline bg-raised p-3 text-sm"
+          >
             <p id={confirmTitleId} className="font-medium">
-              {state.confirming === "approved"
-                ? `Approve saved revision ${savedRevision}?`
-                : `Request changes on saved revision ${savedRevision}?`}
+              {t(`studio.review.confirm.${state.confirming}`, { revision: savedRevision })}
             </p>
-            <p className="text-xs text-muted-foreground">
-              This is an editorial decision only; it does not start a render or publish anything.
-            </p>
-            <div className="flex gap-2">
-              <button
+            <p className="text-[13px] text-muted-ink">{t("studio.review.confirm.note")}</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={cancelConfirmation}>
+                {t("common.cancel")}
+              </Button>
+              <Button
                 ref={confirmRef}
-                type="button"
-                className={actionButton}
+                size="sm"
                 disabled={state.confirming === "approved" ? !gate.canApprove : !gate.canComment}
                 onClick={() => state.confirming && decide(state.confirming)}
               >
-                {state.confirming === "approved" ? "Confirm approval" : "Confirm change request"}
-              </button>
-              <button type="button" className={actionButton} onClick={cancelConfirmation}>
-                Cancel
-              </button>
+                {t(`studio.review.confirm.${state.confirming}Button`)}
+              </Button>
             </div>
           </div>
         ) : null}
       </div>
 
-      {state.historyFailed.comments || state.historyFailed.decisions ? (
-        <div role="alert" className="flex flex-wrap items-center gap-2 text-sm">
-          <p>Could not load review history.</p>
-          <button
-            type="button"
-            className={actionButton}
-            onClick={() => {
-              if (state.historyFailed.comments) loadComments();
-              if (state.historyFailed.decisions) loadDecisions();
-            }}
-          >
-            Reload review
-          </button>
-        </div>
-      ) : null}
-
-      <h3 className="studio-review-history-heading">Comments</h3>
-      {!state.comments.length ? <p className="studio-review-empty">No comments on this revision yet.</p> : null}
-      <ol className="flex flex-col gap-2" aria-label="Review comments">
-        {state.comments.map((comment) => (
-          <li key={comment.comment_id} className="rounded-md border border-border p-2 text-sm">
-            <p className="whitespace-pre-wrap break-words">{comment.text}</p>
-            <p className="text-xs text-muted-foreground">
-              {actorName(comment.actor)} · {when(comment.created_at)} ·{" "}
-              {comment.document_revision === savedRevision
-                ? `Revision ${comment.document_revision}`
-                : `Earlier revision ${comment.document_revision}`}{" "}
-              · {comment.frame == null ? "Whole video" : `at ${formatTimecode(comment.frame, savedDocument.canvas.fps)}`}
-            </p>
-          </li>
-        ))}
-      </ol>
-      {state.commentCursor ? (
-        <button type="button" className={`${actionButton} self-start`} onClick={() => loadComments(state.commentCursor!)}>
-          Show more comments
-        </button>
-      ) : null}
-
-      <h3 className="studio-review-history-heading">Decision history</h3>
-      {!state.decisions.length ? <p className="studio-review-empty">No decision recorded.</p> : null}
-      <ol className="flex flex-col gap-1" aria-label="Decision history">
-        {state.decisions.map((decision) => (
-          <li key={decision.decision_id} className="text-xs text-muted-foreground">
-            {`${DECISION_LABEL[decision.decision]} on revision ${decision.document_revision}`} · {actorName(decision.actor)} ·{" "}
-            {when(decision.created_at)}
-            {decision.reason ? <span className="block whitespace-pre-wrap break-words">{decision.reason}</span> : null}
-          </li>
-        ))}
-      </ol>
-      {state.decisionCursor ? (
-        <button type="button" className={`${actionButton} self-start`} onClick={() => loadDecisions(state.decisionCursor!)}>
-          Show older decisions
-        </button>
-      ) : null}
+      <div className="flex flex-col gap-2">
+        <h3 className={sectionHeading}>{t("studio.review.decisions")}</h3>
+        {!state.decisions.length ? <p className="text-sm text-muted-ink">{t("studio.review.noDecisions")}</p> : null}
+        <ol className="flex flex-col divide-y divide-hairline" aria-label={t("studio.review.decisions")}>
+          {state.decisions.map((decision) => (
+            <li key={decision.decision_id} className="py-2 text-[13px] text-muted-ink">
+              <span className="text-ink">
+                {t("studio.review.decisionLine", {
+                  decision: decisionLabel(decision.decision),
+                  revision: decision.document_revision,
+                })}
+              </span>{" "}
+              · {actorName(decision.actor)} · {when(decision.created_at)}
+              {decision.reason ? <span className="block break-words whitespace-pre-wrap">{decision.reason}</span> : null}
+            </li>
+          ))}
+        </ol>
+        {state.decisionCursor ? (
+          <Button variant="ghost" size="sm" className="self-start" onClick={() => loadDecisions(state.decisionCursor!)}>
+            {t("studio.review.olderDecisions")}
+          </Button>
+        ) : null}
+      </div>
     </section>
   );
 }
