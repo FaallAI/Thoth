@@ -149,6 +149,7 @@ async def test_prompt_stages_require_auth_and_return_the_ordered_registry() -> N
         "narrative_plan",
         "visual_plan",
         "caption_copy",
+        "story_assist",
     ]
     assert all(stage["status"] == "proposal_ready" for stage in allowed.json())
 

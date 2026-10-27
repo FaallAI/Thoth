@@ -240,6 +240,20 @@ class WorkflowStudioImportService:
             raise WorkflowStudioUnavailable(error.code) from error
         return record.asset
 
+    async def story_context(self, project_id: str, document_id: str) -> tuple[str, str] | None:
+        """Story Assist's context: the run's title and post description, when still readable."""
+        try:
+            inventory = await self._imports.get_inventory(project_id, document_id)
+        except Exception:  # a draft made in Studio has no import, and the store may be down
+            return None
+        source = await self._readable_source(project_id, inventory.source_workflow_id)
+        main = (
+            next((item for item in source.projection.items if item.role == "main"), None)
+            if source
+            else None
+        )
+        return (main.title or "", main.text or "") if main else None
+
     async def _readable_source(
         self, project_id: str, workflow_id: str | None
     ) -> WorkflowProjection | None:

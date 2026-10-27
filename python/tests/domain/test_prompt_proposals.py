@@ -31,9 +31,20 @@ MODEL = {
 
 
 def test_every_prompt_stage_has_one_non_blank_starter() -> None:
-    assert set(PROMPT_STARTERS) == {"narrative_plan", "visual_plan", "caption_copy"}
+    assert set(PROMPT_STARTERS) == {
+        "narrative_plan",
+        "visual_plan",
+        "caption_copy",
+        "story_assist",
+    }
     assert all(starter.body.strip() for starter in PROMPT_STARTERS.values())
-    assert all(starter.language == "id-ID" for starter in PROMPT_STARTERS.values())
+    # Spec 2026-10-27, 12: the Assist prompt is written in English; the others in Indonesian.
+    assert {stage: starter.language for stage, starter in PROMPT_STARTERS.items()} == {
+        "narrative_plan": "id-ID",
+        "visual_plan": "id-ID",
+        "caption_copy": "id-ID",
+        "story_assist": "en-US",
+    }
 
 
 def test_all_registered_stages_are_proposal_ready() -> None:

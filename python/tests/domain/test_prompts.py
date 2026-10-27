@@ -47,12 +47,14 @@ def test_stage_registry_is_ordered_and_proposal_ready() -> None:
         "narrative_plan",
         "visual_plan",
         "caption_copy",
+        "story_assist",
     ]
     assert all(stage.status == "proposal_ready" for stage in PROMPT_STAGES)
     assert [stage.label for stage in PROMPT_STAGES] == [
         "Narrative plan",
         "Visual plan",
         "Caption and copy",
+        "Story Assist",
     ]
 
 

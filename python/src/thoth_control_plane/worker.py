@@ -35,6 +35,7 @@ from thoth_control_plane.activities.prompt_proposal import (
     PROMPT_PROPOSAL_TASK_QUEUE,
     build_prompt_proposal_activity,
 )
+from thoth_control_plane.activities.story_assist import StoryAssistActivity
 from thoth_control_plane.config import Settings, SettingsValidationError
 from thoth_control_plane.footage.adapters.embedder import load_model
 from thoth_control_plane.infrastructure.media_store import (
@@ -58,6 +59,7 @@ from thoth_control_plane.observability import (
 from thoth_control_plane.operations.yt_dlp_version import check_freshness
 from thoth_control_plane.workflows import SourceInvestigationWorkflow
 from thoth_control_plane.workflows.prompt_proposal import PromptProposalWorkflow
+from thoth_control_plane.workflows.story_assist import StoryAssistWorkflow
 
 # Adapters import these on first use, inside async activities, so the import runs on the event
 # loop. agno with openai alone takes 1.3 s idle and stalled the loop 2.3 s under footage load,
@@ -213,11 +215,13 @@ def build_prompt_proposal_worker(client: Client, settings: Settings) -> Worker:
         secrets=secrets,
     )
     activity = build_prompt_proposal_activity(repository=repository, provider=provider_adapter)
+    # Story Assist shares the queue and the credentials (spec 2026-10-27, 7).
+    assist = StoryAssistActivity(provider=provider_adapter)
     return Worker(
         client,
         task_queue=PROMPT_PROPOSAL_TASK_QUEUE,
-        workflows=[PromptProposalWorkflow],
-        activities=[activity.run],
+        workflows=[PromptProposalWorkflow, StoryAssistWorkflow],
+        activities=[activity.run, assist.run],
         max_concurrent_activities=1,
     )
 

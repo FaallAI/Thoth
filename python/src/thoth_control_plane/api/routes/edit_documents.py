@@ -22,10 +22,19 @@ from thoth_control_plane.application.ports import (
     EditDocumentRevisionConflict,
     EditDocumentUpgradeConflict,
 )
+from thoth_control_plane.application.prompt_proposal_ports import PromptProposalStoreUnavailable
+from thoth_control_plane.application.story_assist import (
+    StoryAssistInvalidOutput,
+    StoryAssistNotConfigured,
+    StoryAssistNoText,
+    StoryAssistService,
+    StoryAssistUnavailable,
+)
 from thoth_control_plane.domain import Actor, EditDocument
 from thoth_control_plane.domain.edit_document_list import EditDocumentListPage
 from thoth_control_plane.domain.edit_document_operations import EditDocumentPatch
 from thoth_control_plane.domain.edit_document_v2 import DocumentRevisionConflictBody
+from thoth_control_plane.domain.story_assist import StoryAssistProposal, StoryAssistRequest
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -179,6 +188,49 @@ async def upgrade_edit_document_timeline(
         ) from error
     except EditorUnavailable as error:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE) from error
+
+
+def get_story_assist_service(request: Request) -> StoryAssistService:
+    return request.app.state.story_assist_service
+
+
+#: Each Assist refusal and the code the editor explains it with (spec 2026-10-27, 7).
+ASSIST_REFUSALS: tuple[tuple[type[Exception] | tuple[type[Exception], ...], int, str], ...] = (
+    (StoryAssistNotConfigured, status.HTTP_409_CONFLICT, "assist_not_configured"),
+    (StoryAssistNoText, status.HTTP_422_UNPROCESSABLE_ENTITY, "assist_no_text"),
+    (StoryAssistInvalidOutput, status.HTTP_422_UNPROCESSABLE_ENTITY, "assist_invalid_output"),
+    (
+        (StoryAssistUnavailable, EditorUnavailable, PromptProposalStoreUnavailable),
+        status.HTTP_503_SERVICE_UNAVAILABLE,
+        "assist_unavailable",
+    ),
+)
+
+
+@router.post(
+    "/projects/{project_id}/edit-documents/{document_id}/assist",
+    response_model=StoryAssistProposal,
+    responses={status.HTTP_409_CONFLICT: {"model": DocumentRevisionConflictBody}},
+)
+async def propose_story_assist(
+    project_id: str,
+    document_id: str,
+    request: StoryAssistRequest,
+    _: Annotated[Actor, Depends(current_actor)],
+    service: Annotated[StoryAssistService, Depends(get_story_assist_service)],
+) -> StoryAssistProposal | JSONResponse:
+    """One text proposal for a beat; nothing changes until the editor applies it."""
+    try:
+        return await service.propose(project_id, document_id, request)
+    except EditDocumentNotFound as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND) from error
+    except EditDocumentRevisionConflict as error:
+        return _revision_conflict(error)
+    except Exception as error:
+        for kind, code_status, code in ASSIST_REFUSALS:
+            if isinstance(error, kind):
+                raise HTTPException(status_code=code_status, detail={"code": code}) from error
+        raise
 
 
 def _revision_conflict(error: EditDocumentRevisionConflict) -> JSONResponse:

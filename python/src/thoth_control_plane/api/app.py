@@ -72,6 +72,7 @@ from thoth_control_plane.application.prompt_proposal_ports import (
 from thoth_control_plane.application.prompt_proposals import PromptProposalService
 from thoth_control_plane.application.render_bundles import RenderPresetSettings
 from thoth_control_plane.application.render_jobs import RenderJobService
+from thoth_control_plane.application.story_assist import StoryAssistService
 from thoth_control_plane.application.studio_imports import StudioImportService
 from thoth_control_plane.application.studio_review import StudioReviewService
 from thoth_control_plane.application.studio_review_ports import StudioReviewRepository
@@ -117,6 +118,7 @@ from thoth_control_plane.infrastructure.renderer_gateway import (
 from thoth_control_plane.infrastructure.report_store import Reports, ReportStore
 from thoth_control_plane.infrastructure.source_account_store import SourceAccountStore
 from thoth_control_plane.infrastructure.step_store import StepStore
+from thoth_control_plane.infrastructure.story_assist_gateway import TemporalStoryAssistGateway
 from thoth_control_plane.infrastructure.studio_import_repository import (
     PostgresStudioImportRepository,
 )
@@ -227,6 +229,16 @@ def _account_profiles(settings: Settings) -> AccountProfiles | None:
     return None if vault is None else AccountProfiles(vault, settings.THOTH_ACCOUNT_PROFILE_DIR)
 
 
+def _story_assist_service(app: FastAPI, gateway: Any) -> StoryAssistService:
+    return StoryAssistService(
+        documents=app.state.edit_document_service,
+        preferences=app.state.prompt_proposal_service,
+        prompts=app.state.prompt_lab_service,
+        context=app.state.workflow_studio_service.story_context,
+        gateway=gateway,
+    )
+
+
 def create_app(
     settings: Settings | None = None,
     gateway: WorkflowGateway | None = None,
@@ -331,6 +343,12 @@ def create_app(
             catalog=effective_catalog,
             gateway=effective_gateway,
         )
+        app.state.story_assist_service = _story_assist_service(
+            app,
+            TemporalStoryAssistGateway(resolved_gateway.client)
+            if isinstance(resolved_gateway, TemporalWorkflowGateway)
+            else None,
+        )
         # One bounded pass first, so a job left active by a restart is closed
         # rather than resumed, then the same pass on a cancellable interval.
         with contextlib.suppress(Exception):
@@ -403,6 +421,8 @@ def create_app(
         imports=app.state.studio_import_service,
         probe=functools.partial(probe_media, settings.THOTH_FFPROBE),
     )
+    # Unavailable until the lifespan reaches Temporal; the worker holds the provider credentials.
+    app.state.story_assist_service = _story_assist_service(app, None)
     if usage_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
         usage_store = UsageStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
     app.state.usage_store = usage_store

@@ -772,3 +772,16 @@ async def test_material_asset_without_run(tmp_path: Path) -> None:
 
     with pytest.raises(ContentSetUnavailable):
         await built.service.material_asset(PROJECT, opened.draft.document_id, "footage_001")
+
+
+@pytest.mark.asyncio
+async def test_story_context_is_the_runs_title_and_description(tmp_path: Path) -> None:
+    built = world(tmp_path)
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+
+    assert await built.service.story_context(PROJECT, opened.draft.document_id) == (
+        "judul",
+        "judul panjang",
+    )
+    built.service._reports = MemoryReports(None)
+    assert await built.service.story_context(PROJECT, opened.draft.document_id) is None
