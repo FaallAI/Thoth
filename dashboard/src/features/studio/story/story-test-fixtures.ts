@@ -68,7 +68,21 @@ export function draft(clips: Clip[]): EditDocumentV2 {
       track("track_overlay", "overlay", 2, on("track_overlay")),
     ],
     clips,
-    asset_refs: [],
+    // Cards are stills; every other media clip is a video long enough for its clip.
+    asset_refs: clips
+      .filter((clip) => clip.kind === "video")
+      .map((clip) => ({
+        asset_id: (clip as { asset_id: string }).asset_id,
+        project_id: "project_001",
+        kind: clip.clip_id.includes("card") ? ("image" as const) : ("video" as const),
+        duration_in_frames: clip.clip_id.includes("card") ? null : 900,
+        width: 1080,
+        height: clip.clip_id.includes("card") ? 1350 : 1920,
+        fps: null,
+        has_audio: false,
+        validation_state: "ready" as const,
+        checksum: null,
+      })),
   } as EditDocumentV2;
 }
 

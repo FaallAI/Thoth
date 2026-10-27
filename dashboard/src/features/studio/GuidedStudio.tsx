@@ -7,6 +7,7 @@ import type {
   EditDocumentOperation,
   EditorAsset,
   StudioImportItem,
+  StudioMaterials,
 } from "@/api/control-plane";
 import { useLocale } from "@/lib/locale";
 import type { PreviewSources } from "./AdvancedTimelineComposition";
@@ -41,6 +42,7 @@ import { StudioReviewPanel, type StudioReviewClient } from "./StudioReviewPanel"
 import { useStudioViewport, type StudioEditPane, type StudioJob } from "./studio_viewport";
 import { usePlayerTimeline, type PlayerTimelineRef } from "./usePlayerTimeline";
 import { BeatStrip } from "./story/BeatStrip";
+import { MaterialsPanel } from "./story/MaterialsPanel";
 import { SafeZoneOverlay } from "./story/SafeZone";
 import { computeBeats, type BeatId } from "./story/story_beats";
 import "./studio.css";
@@ -63,6 +65,8 @@ type Props = {
         | "downloadRenderOutput"
         | "cleanupRenderArtifacts"
         | "getStudioImportInventory"
+        | "getStudioMaterials"
+        | "attachStudioMaterial"
         | "listStudioReviewComments"
         | "createStudioReviewComment"
         | "listStudioReviewDecisions"
@@ -112,6 +116,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const [safeZone, setSafeZone] = useState(false);
   const [selectedBeat, setSelectedBeat] = useState<BeatId | null>(null);
   const [inventory, setInventory] = useState<StudioImportItem[]>([]);
+  const [materials, setMaterials] = useState<StudioMaterials | null>(null);
   const [commentFocusRequest, setCommentFocusRequest] = useState(0);
   const selectedClip = sceneTextClip(state.draft, selectedScene);
   const [previewSources, setPreviewSources] = useState<PreviewSources>({});
@@ -143,7 +148,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         "--inspector-width": `${inspectorWidth}rem`,
         gridTemplateRows: stripLayout ? "minmax(0,1fr) 228px" : undefined,
         gridTemplateColumns: [
-          editing && sceneRegionOpen && !stripLayout && !story && "var(--scene-board-width)",
+          editing && sceneRegionOpen && !stripLayout && (story ? "18rem" : "var(--scene-board-width)"),
           "minmax(0,1fr)",
           editing && inspectorRegionOpen && "var(--inspector-width)",
         ]
@@ -315,6 +320,38 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     );
   }, [hasTimeline, getStudioImportInventory, projectId, documentId]);
   const beats = useMemo(() => (timeline ? computeBeats(timeline, inventory) : []), [timeline, inventory]);
+
+  const { getStudioMaterials } = client;
+  useEffect(() => {
+    if (!story || !getStudioMaterials) return;
+    const requestGeneration = generation.current;
+    void getStudioMaterials(projectId, documentId).then(
+      (loaded) => requestGeneration === generation.current && setMaterials(loaded),
+      // A draft made in Studio has no materials route answer; the panel lists uploads only.
+      () => {},
+    );
+  }, [story, getStudioMaterials, projectId, documentId]);
+
+  // Story previews the draft's own videos and stills; Timeline's library is not mounted here.
+  const mediaIds = useMemo(
+    () => (timeline?.asset_refs ?? []).filter((ref) => ref.kind !== "audio").map((ref) => ref.asset_id).join(" "),
+    [timeline],
+  );
+  useEffect(() => {
+    if (!story || !assetClient || !mediaIds) return;
+    const requestGeneration = generation.current;
+    for (const assetId of mediaIds.split(" ")) {
+      if (assetId in previewSources) continue;
+      void assetClient.createEditorPreviewCapability(projectId, assetId).then(
+        (capability) =>
+          requestGeneration === generation.current &&
+          setPreviewSources((current) => ({ ...current, [assetId]: capability.preview_url })),
+        () => {},
+      );
+    }
+    // previewSources is read, not watched: each asset is asked for once per change of the media set.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [story, assetClient, mediaIds, projectId]);
 
   const selectBeat = (id: BeatId) => {
     const beat = beats.find((entry) => entry.id === id);
@@ -598,9 +635,17 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           <div
             id="studio-region-scenes"
             className={stripLayout ? "col-span-2 col-start-1 row-start-2 min-w-0" : "contents"}
-            hidden={!editing || story || (compact ? editPane !== "scenes" : !sceneRegionOpen)}
+            hidden={!editing || (compact ? editPane !== "scenes" : !sceneRegionOpen)}
           >
-            {story ? null : advanced ? (
+            {story && timeline ? (
+              <MaterialsPanel
+                materials={materials}
+                uploads={Object.values(state.assets)}
+                beats={beats}
+                document={timeline}
+                previews={previewSources}
+              />
+            ) : advanced ? (
               assetClient ? (
                 <AssetLibrary
                   client={assetClient}
@@ -688,6 +733,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 totalFrames={timeline.canvas.duration_in_frames}
                 selected={selectedBeat}
                 onSelect={selectBeat}
+                document={timeline}
+                previews={previewSources}
               />
             ) : null}
             {advanced && timeline ? (

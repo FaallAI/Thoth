@@ -13,6 +13,10 @@ import type { PlayerTimelineRef } from "../usePlayerTimeline";
 import { storyDocument, storyInventory } from "./story-test-fixtures";
 
 const player = new FakePlayer();
+const preview = mock(async (_projectId: string, assetId: string) => ({
+  preview_url: `/api/v1/projects/project_001/editor-assets/${assetId}/preview`,
+  expires_at: "2026-10-30T00:00:00Z",
+}));
 
 // The real preview needs a Remotion Player; this one hands Studio a fake and shows the overlay.
 mock.module("../StudioPreview", () => ({
@@ -44,6 +48,23 @@ async function mountStory(locale: Locale = "en") {
           revision: 3,
           items: storyInventory(),
         })),
+        getStudioMaterials: mock(async () => ({
+          document_id: "edoc_story",
+          provenance_available: true,
+          items: [
+            {
+              item_id: "footage_000",
+              role: "footage" as const,
+              label: "Banjir footage",
+              media_kind: "video" as const,
+              disposition: "attached" as const,
+              asset_id: "asset_clip_footage_000",
+            },
+          ],
+          figures: [],
+        })),
+        createEditorPreviewCapability: preview,
+        listEditorAssets: mock(async () => ({ assets: [], next_cursor: null })),
         listStudioReviewComments: mock(async () => ({ comments: [], next_cursor: null })),
         listStudioReviewDecisions: mock(async () => ({ decisions: [], next_cursor: null })),
         createStudioReviewComment: mock(async () => {
@@ -123,4 +144,14 @@ test("the inventory's missing material reaches the strip", async () => {
   await mountStory();
 
   expect((await screen.findByRole("button", { name: /^Reactions/ })).textContent).toContain("1 missing");
+});
+
+test("Story shows the run's materials beside the preview, with the draft's media previewed", async () => {
+  await mountStory();
+
+  const panel = await screen.findByRole("complementary", { name: "Materials" });
+  expect(await within(panel).findByText("Banjir footage")).toBeDefined();
+  expect(within(panel).getByText("Used in Footage")).toBeDefined();
+  // The preview needs every video and still the draft draws, not only Timeline's library.
+  await waitFor(() => expect(preview.mock.calls.map((call) => call[1])).toContain("asset_clip_footage_000"));
 });

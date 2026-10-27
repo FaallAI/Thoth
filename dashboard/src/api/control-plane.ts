@@ -41,6 +41,8 @@ export type StudioImportItem = components["schemas"]["StudioImportItem"];
 export type StudioDraft = components["schemas"]["StudioDraft"];
 export type StudioDraftList = components["schemas"]["StudioDraftList"];
 export type StudioImportInventory = components["schemas"]["StudioImportInventory"];
+export type StudioMaterials = components["schemas"]["StudioMaterials"];
+export type StudioMaterial = StudioMaterials["items"][number];
 export type WorkflowStudioImport = components["schemas"]["WorkflowStudioImport"];
 export type CreateStudioImport = components["schemas"]["CreateStudioImport"];
 export type ResolveStudioImportItem = components["schemas"]["ResolveStudioImportItem"];
@@ -260,6 +262,10 @@ export type ControlPlaneClient = {
   inspectWorkflowStudioImport: (projectId: string, workflowId: string) => Promise<StudioSourceInspection>;
   openWorkflowInStudio: (projectId: string, workflowId: string, idempotencyKey: string) => Promise<WorkflowStudioImport>;
   getStudioImportInventory: (projectId: string, documentId: string) => Promise<StudioImportInventory>;
+  /** Story mode: the draft's materials with the run's provenance (spec 2026-10-27, 6.1). */
+  getStudioMaterials: (projectId: string, documentId: string) => Promise<StudioMaterials>;
+  /** The editor asset for one run material, copied on first use (spec 2026-10-27, 6.2). */
+  attachStudioMaterial: (projectId: string, documentId: string, itemId: string) => Promise<EditorAsset>;
   resolveStudioImportItem: (
     projectId: string,
     documentId: string,
@@ -667,6 +673,16 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
       }),
     getStudioImportInventory: (projectId, documentId) =>
       importCall(importPath(projectId, `/documents/${encodeURIComponent(documentId)}`)),
+    getStudioMaterials: (projectId, documentId) =>
+      importCall(importPath(projectId, `/documents/${encodeURIComponent(documentId)}/materials`)),
+    attachStudioMaterial: (projectId, documentId, itemId) =>
+      importCall(
+        importPath(
+          projectId,
+          `/documents/${encodeURIComponent(documentId)}/materials/${encodeURIComponent(itemId)}/asset`,
+        ),
+        { method: "POST" },
+      ),
     resolveStudioImportItem: (projectId, documentId, itemId, request) =>
       importPost(
         importPath(

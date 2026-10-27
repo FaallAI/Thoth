@@ -1066,6 +1066,19 @@ test("Studio import drafts, inventory, and decisions use their own routes", asyn
   expect(calls[2].init?.body).toBe(JSON.stringify(decision));
 });
 
+test("Story materials and a material's asset use their own routes", async () => {
+  const calls: RecordedCall[] = [];
+  const client = importClient(calls, ok({}));
+
+  await client.getStudioMaterials("project_001", "edoc / 1");
+  await client.attachStudioMaterial("project_001", "edoc_001", "footage_000");
+
+  expect(calls.map((call) => [call.url, call.init?.method ?? "GET"])).toEqual([
+    ["/api/v1/projects/project_001/studio-imports/documents/edoc%20%2F%201/materials", "GET"],
+    ["/api/v1/projects/project_001/studio-imports/documents/edoc_001/materials/footage_000/asset", "POST"],
+  ]);
+});
+
 test("an editor asset upload streams the file itself with its media type", async () => {
   const calls: RecordedCall[] = [];
   const file = new File(["frames"], "clip.mp4", { type: "video/mp4" });

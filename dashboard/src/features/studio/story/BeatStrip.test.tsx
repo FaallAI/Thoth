@@ -48,3 +48,13 @@ test("the strip speaks Indonesian", () => {
   expect(screen.getByRole("button", { name: /^Reaksi/ }).textContent).toContain("1 hilang");
   expect(screen.getByText("Total 10.0 dtk")).toBeDefined();
 });
+
+test("a tile shows thumbnails of its first clips", () => {
+  const previews = { asset_clip_comment_card_000: "/p/card0.png", asset_clip_comment_card_001: "/p/card1.png" };
+  const { container } = render(
+    <BeatStrip beats={beats} fps={30} totalFrames={300} selected={null} onSelect={() => {}} document={storyDocument()} previews={previews} />,
+  );
+
+  const reactions = container.querySelector('[data-beat="reactions"]')!;
+  expect([...reactions.querySelectorAll("img")].map((image) => image.getAttribute("src"))).toEqual(["/p/card0.png", "/p/card1.png"]);
+});
