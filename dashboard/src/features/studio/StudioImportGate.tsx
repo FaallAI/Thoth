@@ -175,7 +175,7 @@ export function StudioImportGate({ client, projectId, documentId, onOpen, onClos
     const chosen = choice ?? ready[0]?.asset_id;
     return (
       <div className="col-span-full mt-2 flex flex-col gap-3 rounded-md bg-well p-3 text-sm">
-        <label className="inline-flex h-9 w-fit cursor-pointer items-center rounded-md bg-raised px-3 text-ink focus-within:outline-2 focus-within:outline-accent">
+        <label className="inline-flex h-9 w-fit cursor-pointer items-center rounded-md bg-raised px-3 text-ink focus-within:outline-2 focus-within:outline-copper">
           {t("studio.inventory.upload")}
           <input
             type="file"

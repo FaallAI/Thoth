@@ -1,7 +1,8 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, mock, test } from "bun:test";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen } from "@testing-library/react";
+import { render } from "@/test-render";
 import userEvent from "@testing-library/user-event";import type {
   ProjectPromptBinding,
   PromptStageDefinition,

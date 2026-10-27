@@ -671,7 +671,7 @@ function RenderSurface({
           </p>
         ) : null}
         {state.lastError === "plan_limit_reached" ? (
-          <a className="text-sm text-accent underline" href="/billing">
+          <a className="text-sm text-copper underline" href="/billing">
             {t("studio.render.openBilling")}
           </a>
         ) : null}
@@ -832,7 +832,7 @@ function RenderSurface({
                   <button
                     type="button"
                     className={cn(
-                      "flex w-full items-center gap-3 rounded-md px-2 py-3 text-left transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-accent",
+                      "flex w-full items-center gap-3 rounded-md px-2 py-3 text-left transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-copper",
                       entry.render_job_id === state.selectedJobId && "bg-surface",
                     )}
                     aria-label={t("studio.render.historyItem", { when: entry.created_at, status: statusLabel(entry.status) })}

@@ -197,98 +197,6 @@ test("associates a safe inline validation message with a blank heading", async (
   }
 });
 
-test("switches between the Edit and Prompt jobs and preserves both drafts", async () => {
-  const { GuidedStudio } = await import("./GuidedStudio");
-  const user = userEvent.setup();
-  const patchEditDocument = mock(async (_projectId: string, _documentId: string, patch: EditDocumentPatch) => {
-    let saved: EditDocument = { ...document, revision: document.revision + 1 };
-    for (const op of patch.operations) {
-      if (op.kind === "replace_text") {
-        saved = {
-          ...saved,
-          clips: saved.clips.map((c) =>
-            c.clip_id === op.clip_id
-              ? { ...c, [op.field]: op.value, ownership: "user_edited" as const }
-              : c,
-          ),
-        };
-      }
-    }
-    return { kind: "saved" as const, document: saved };
-  });
-  render(
-    <GuidedStudio
-      client={{
-        ...promptClientBase,
-        getEditDocument: mock(async () => document),
-        patchEditDocument,
-      }}
-      projectId="project_001"
-      documentId="document_001"
-      onBack={() => {}}
-    />,
-  );
-  const heading = await screen.findByLabelText("Heading");
-  const scenesTab = jobButton("Edit");
-  const promptTab = jobButton("Prompt");
-
-  expect(scenesTab.getAttribute("aria-current")).toBe("page");
-  expect(promptTab.hasAttribute("aria-current")).toBe(false);
-  expect(scenesTab.tagName).toBe("BUTTON");
-  expect(promptTab.tagName).toBe("BUTTON");
-
-  await user.type(heading, "Kept heading");
-  await user.click(promptTab);
-
-  expect(promptTab.getAttribute("aria-current")).toBe("page");
-  expect(scenesTab.hasAttribute("aria-current")).toBe(false);
-  const override = (await screen.findByLabelText(
-    "Project override",
-  )) as HTMLTextAreaElement;
-  await user.clear(override);
-  await user.type(override, "Keep it concise");
-
-  await user.click(scenesTab);
-  expect((screen.getByLabelText("Heading") as HTMLInputElement).value).toBe("Original headingKept heading");
-
-  await user.click(promptTab);
-  expect((screen.getByLabelText("Project override") as HTMLTextAreaElement).value).toBe("Keep it concise");
-});
-
-test("keeps the Edit and Prompt destinations mounted and toggles only the native hidden attribute", async () => {
-  const { GuidedStudio } = await import("./GuidedStudio");
-  const user = userEvent.setup();
-  render(
-    <GuidedStudio
-      client={{
-        ...promptClientBase,
-        getEditDocument: mock(async () => document),
-        patchEditDocument: mock(async () => ({ kind: "saved" as const, document })),
-      }}
-      projectId="project_001"
-      documentId="document_001"
-      onBack={() => {}}
-    />,
-  );
-  await screen.findByLabelText("Heading");
-  const scenesPanel = globalThis.document.getElementById("studio-panel-scenes") as HTMLElement;
-  const promptPanel = globalThis.document.getElementById(
-    "studio-panel-prompts",
-  ) as HTMLElement;
-
-  expect(scenesPanel.hidden).toBe(false);
-  expect(promptPanel.hidden).toBe(true);
-  expect(globalThis.document.getElementById("studio-panel-scenes")).toBe(scenesPanel);
-  expect(globalThis.document.getElementById("studio-panel-prompts")).toBe(promptPanel);
-
-  await user.click(jobButton("Prompt"));
-
-  expect(scenesPanel.hidden).toBe(true);
-  expect(promptPanel.hidden).toBe(false);
-  expect(globalThis.document.getElementById("studio-panel-scenes")).toBe(scenesPanel);
-  expect(globalThis.document.getElementById("studio-panel-prompts")).toBe(promptPanel);
-});
-
 test("offers an explicit upgrade for a version 1 document and writes nothing on open", async () => {
   const { GuidedStudio } = await import("./GuidedStudio");
   const upgradeEditDocument = mock(async () => ({ kind: "saved" as const, document }));
@@ -405,33 +313,6 @@ test("keeps the version 1 document editable when the upgrade fails", async () =>
   expect(screen.getByRole("button", { name: "Enable advanced timeline" })).toBeDefined();
 });
 
-test("keeps Prompt Lab reachable from an advanced document", async () => {
-  const { GuidedStudio } = await import("./GuidedStudio");
-  const { timelineDocument } = await import("./timeline-test-fixtures");
-  render(
-    <GuidedStudio
-      client={{
-        ...promptClientBase,
-        getEditDocument: mock(async () => timelineDocument() as EditDocument),
-        patchEditDocument: mock(async () => ({ kind: "saved" as const, document })),
-        listEditorAssets: mock(async () => ({ assets: [], next_cursor: null })),
-        createEditorPreviewCapability: mock(async () => ({
-          preview_url: "/api/v1/projects/project_001/editor-assets/asset_video/preview",
-          expires_at: "2026-09-20T00:00:00Z",
-        })),
-      }}
-      projectId="project_001"
-      documentId="document_002"
-      onBack={() => {}}
-    />,
-  );
-
-  expect(await screen.findByLabelText("Timeline")).toBeDefined();
-  expect(screen.queryByRole("button", { name: "Enable advanced timeline" })).toBeNull();
-  job("Prompt");
-  expect((await screen.findByRole("region", { name: "Prompt Lab" })).closest("[hidden]") === null).toBe(true);
-});
-
 /** Mount an advanced document with a client that always answers. */
 async function mountAdvanced(overrides: Record<string, unknown> = {}) {
   const { GuidedStudio } = await import("./GuidedStudio");
@@ -479,10 +360,10 @@ test("autosaves a timeline edit through the same patch path", async () => {
   }
 });
 
-test("keeps an unsaved timeline edit across a Prompt Lab round trip", async () => {
+test("keeps an unsaved timeline edit across a Review round trip", async () => {
   await mountAdvanced();
   fireEvent.click(screen.getByRole("button", { name: "Mute Music" }));
-  job("Prompt");
+  job("Review");
   job("Edit");
 
   expect(screen.getByRole("button", { name: "Unmute Music" })).toBeDefined();
@@ -608,7 +489,7 @@ test("edits a version 2 text clip from Simple mode through the existing operatio
   expect(JSON.stringify(patch)).not.toContain("mode");
 });
 
-test("keeps unsaved version 2 edits across Simple, Advanced, and Prompt Lab", async () => {
+test("keeps unsaved version 2 edits across Simple, Advanced, and Review", async () => {
   const { upgradedTextDocument } = await import("./timeline-test-fixtures");
   const upgraded = upgradedTextDocument() as EditDocument;
   const patchEditDocument = mock(() => new Promise<{ kind: "saved"; document: EditDocument }>(() => {}));
@@ -619,7 +500,7 @@ test("keeps unsaved version 2 edits across Simple, Advanced, and Prompt Lab", as
   fireEvent.change(screen.getByLabelText("Heading"), { target: { value: "Round trip heading" } });
 
   fireEvent.click(screen.getByRole("button", { name: "Advanced" }));
-  job("Prompt");
+  job("Review");
   job("Edit");
   fireEvent.click(screen.getByRole("button", { name: "Simple" }));
 
@@ -837,9 +718,9 @@ test("offers render controls only where the control plane supports rendering", a
   expect(await screen.findByLabelText("Heading")).toBeDefined();
   job("Render");
   expect(await screen.findByRole("button", { name: /^Render revision \d+$/ })).toBeDefined();
-  // The editor, Prompt job, and preview are untouched by the new surface.
+  // The editor, the other destinations, and preview are untouched by the new surface.
   expect(screen.getByLabelText("Heading")).toBeDefined();
-  expect(jobButton("Prompt")).toBeDefined();
+  expect(jobButton("Review")).toBeDefined();
   expect(screen.getByLabelText("Draft preview")).toBeDefined();
 });
 
@@ -1008,7 +889,7 @@ test("names the document's own project and its saved revision in every job", asy
   const header = globalThis.document.querySelector<HTMLElement>('section[aria-label="Guided Studio"] > header')!;
   const shows = (text: string) => within(header).getByText(text).closest("[hidden]") === null;
 
-  for (const name of ["Edit", "Prompt", "Review", "Render"]) {
+  for (const name of ["Edit", "Review", "Render"]) {
     job(name);
     expect(shows("Project project_other")).toBe(true);
     expect(shows("Saved revision 1")).toBe(true);

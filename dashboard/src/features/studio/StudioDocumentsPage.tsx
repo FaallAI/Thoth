@@ -72,7 +72,7 @@ function DocumentCard({ item, projectId, client }: { item: EditDocumentListItem;
       to={`/studio/${encodeURIComponent(projectId)}/${encodeURIComponent(item.document_id)}`}
       aria-label={item.label}
       // A row with a small picture on a phone (DESIGN §13.5), a 9:16 card on wider screens.
-      className="group flex min-w-0 gap-3 rounded-[10px] bg-surface p-3 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent md:flex-col md:gap-2 md:bg-transparent md:p-0"
+      className="group flex min-w-0 gap-3 rounded-[10px] bg-surface p-3 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-copper md:flex-col md:gap-2 md:bg-transparent md:p-0"
     >
       <Thumbnail src={card} platform={item.source_platform} />
       <div className="flex min-w-0 flex-col gap-2">
@@ -167,7 +167,7 @@ function NewFromRunDialog({
                   value={run.workflow_id}
                   checked={chosen === run.workflow_id}
                   onChange={() => setChosen(run.workflow_id)}
-                  className="size-4 accent-[var(--accent)]"
+                  className="size-4 accent-[var(--copper)]"
                 />
                 {run.has_post_card ? (
                   <img src={client.cardUrl(run.workflow_id, "post")} alt="" className="size-12 shrink-0 rounded-md bg-well object-cover object-top" />
@@ -292,6 +292,12 @@ export function StudioDocumentsPage({ client, projectId }: { client: DocumentsCl
             </span>
           )}
           {/* A phone watches and makes light edits; a blank draft starts on a wider screen (§13.5). */}
+          <Link
+            to="/studio/presets"
+            className="inline-flex h-10 items-center rounded-md px-3 text-sm text-muted-ink hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-copper"
+          >
+            {t("studio.presets.title")}
+          </Link>
           <Button variant="ghost" size="lg" className="max-md:hidden" disabled={blankBusy} onClick={() => void blank()}>
             {t("studio.docs.blank")}
           </Button>

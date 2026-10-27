@@ -49,7 +49,7 @@ type Props = {
 };
 
 const field =
-  "w-full rounded-md border border-hairline bg-well px-3 py-2 text-sm text-ink placeholder:text-faint focus-visible:outline-2 focus-visible:outline-accent";
+  "w-full rounded-md border border-hairline bg-well px-3 py-2 text-sm text-ink placeholder:text-faint focus-visible:outline-2 focus-visible:outline-copper";
 
 const makeOperationId = () => `op_${crypto.randomUUID()}`;
 
@@ -224,7 +224,7 @@ export function StudioReviewPanel({
       </p>
       {gate.blockedReason && !staleActive ? <p className="text-[13px] text-muted-ink">{say(gate.blockedReason)}</p> : null}
       {state.staleRevision !== null ? (
-        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md bg-accent/10 p-3 text-sm">
+        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md bg-copper/10 p-3 text-sm">
           {staleActive ? (
             <>
               <p>{t("studio.review.stale.newer", { revision: state.staleRevision })}</p>
@@ -334,7 +334,7 @@ export function StudioReviewPanel({
           <label className="flex items-center gap-2 font-mono text-[12.5px] text-muted-ink">
             <input
               type="checkbox"
-              className="size-4 accent-[var(--accent)]"
+              className="size-4 accent-[var(--copper)]"
               checked={state.pinToFrame}
               onChange={(event) => dispatch({ type: "pin_toggled", pinned: event.target.checked })}
             />

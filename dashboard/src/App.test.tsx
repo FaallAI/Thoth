@@ -260,3 +260,15 @@ test("Usage is in the navigation of every user", async () => {
   render(<App />);
   expect(await screen.findByRole("link", { name: /Usage/ })).toBeDefined();
 });
+
+test("Presets & prompts is a project page linked from Studio, with Prompt Lab on it", async () => {
+  stubFetch();
+  window.history.replaceState(null, "", "/studio");
+  const { default: App } = await import("./App");
+  render(<App />);
+
+  await userEvent.setup().click(await screen.findByRole("link", { name: "Presets & prompts" }));
+  expect(window.location.pathname).toBe("/studio/presets");
+  expect(await screen.findByRole("heading", { level: 1, name: "Presets & prompts" })).toBeDefined();
+  expect(await screen.findByRole("region", { name: "Prompt Lab" })).toBeDefined();
+});

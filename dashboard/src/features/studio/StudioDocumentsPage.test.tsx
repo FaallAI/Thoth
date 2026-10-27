@@ -58,6 +58,9 @@ function client(items: EditDocumentListItem[], runs: WorkflowRun[] = [finished("
   } satisfies DocumentsClient;
 }
 
+/** The document cards: links into a draft, not the page's other links. */
+const cards = () => screen.getAllByRole("link").filter((link) => link.getAttribute("href")?.startsWith("/studio/p1/"));
+
 function show(fake: DocumentsClient, locale: "en" | "id" = "en"): ReactElement {
   return (
     <LocaleProvider serverLocale={locale}>
@@ -119,11 +122,11 @@ test("the state tabs and the search narrow the documents", async () => {
   await screen.findByRole("link", { name: /Kabut asap/ });
 
   await user.click(screen.getByRole("button", { name: "Rendered" }));
-  expect(screen.getAllByRole("link").map((link) => link.getAttribute("aria-label"))).toEqual(["Hotspot map"]);
+  expect(cards().map((link) => link.getAttribute("aria-label"))).toEqual(["Hotspot map"]);
 
   await user.click(screen.getByRole("button", { name: "All" }));
   await user.type(screen.getByRole("searchbox", { name: "Search documents" }), "warga");
-  expect(screen.getAllByRole("link").map((link) => link.getAttribute("aria-label"))).toEqual(["Free masks"]);
+  expect(cards().map((link) => link.getAttribute("aria-label"))).toEqual(["Free masks"]);
 
   await user.clear(screen.getByRole("searchbox", { name: "Search documents" }));
   await user.type(screen.getByRole("searchbox", { name: "Search documents" }), "nothing like it");

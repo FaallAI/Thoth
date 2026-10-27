@@ -11,6 +11,7 @@ import {
   type PromptLabSaveKind,
   type PromptLabState,
 } from "./prompt_lab_state";
+import { useLocale } from "@/lib/locale";
 import { PromptProposalPanel } from "./PromptProposalPanel";
 
 export type PromptLabClient = Pick<
@@ -42,24 +43,14 @@ type Props = {
 };
 
 const toolbarButton =
-  "rounded-md border border-border px-3 py-1.5 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
+  "rounded-md bg-raised px-3 py-1.5 text-sm text-ink transition-colors hover:bg-well focus-visible:outline-2 focus-visible:outline-copper disabled:cursor-not-allowed disabled:opacity-40 aria-[pressed=true]:bg-copper aria-[pressed=true]:text-primary-foreground";
 
 const LANGUAGE_PATTERN = /^[a-z]{2}(?:-[A-Z]{2})?$/;
 const PROMPT_TEXT_MAX_LENGTH = 12_000;
 
-const statusLabel: Record<PromptLabState["saveStatus"], string> = {
-  loading: "Loading",
-  ready: "Ready",
-  dirty: "Unsaved changes",
-  saving: "Saving",
-  saved: "Saved",
-  failed: "Failed",
-  conflict: "Conflict",
-  recovering: "Reconnecting",
-  offline: "Offline",
-};
 
 export function PromptLab({ client, projectId, compactTextOnly = false }: Props) {
+  const { t, plural } = useLocale();
   const [state, dispatch] = useReducer(
     promptLabReducer,
     undefined,
@@ -273,11 +264,14 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
   };
 
   return (
-    <section className="studio-prompt-lab flex min-h-0 flex-1 flex-col bg-background" aria-label="Prompt Lab">
+    <section className="studio-prompt-lab flex min-h-0 flex-1 flex-col text-ink" aria-label={t("studio.prompt.title")}>
       <header className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-2">
-        <div><h2 className="text-sm font-semibold">Prompt Lab</h2><p className="studio-prompt-subtitle">Stage templates, project overrides and resolved preview</p></div>
+        <div>
+          <h2 className="text-sm font-semibold">{t("studio.prompt.title")}</h2>
+          <p className="studio-prompt-subtitle">{t("studio.prompt.subtitle")}</p>
+        </div>
         <div className="ml-auto font-mono text-xs text-muted-foreground" aria-live="polite">
-          {statusLabel[state.saveStatus]}
+          {t(`studio.prompt.status.${state.saveStatus}`)}
         </div>
       </header>
 
@@ -286,9 +280,9 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
           role="alert"
           className="flex flex-wrap items-center gap-3 border-b border-destructive/50 bg-destructive/10 px-4 py-2 text-sm"
         >
-          <p>Your prompt text is still here. Check your connection and retry saving.</p>
+          <p>{t("studio.prompt.failed")}</p>
           <button type="button" className={toolbarButton} onClick={retry}>
-            Retry
+            {t("studio.prompt.retry")}
           </button>
         </div>
       )}
@@ -297,9 +291,9 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
           role="alert"
           className="flex flex-wrap items-center gap-3 border-b border-primary/40 bg-primary/10 px-4 py-2 text-sm"
         >
-          <p>A newer version exists. Reload it to continue from the latest revision.</p>
+          <p>{t("studio.prompt.conflict")}</p>
           <button type="button" className={toolbarButton} onClick={reloadLatest}>
-            Reload Latest
+            {t("studio.prompt.reloadLatest")}
           </button>
         </div>
       )}
@@ -310,8 +304,8 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
         >
           <p>
             {state.saveStatus === "recovering"
-              ? "Reconnecting to Prompt Lab."
-              : "Offline. Your prompt drafts are still here and will save when the connection returns."}
+              ? t("studio.prompt.reconnecting")
+              : t("studio.prompt.offline")}
           </p>
           <button
             type="button"
@@ -319,14 +313,14 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
             disabled={state.saveStatus === "recovering"}
             onClick={recover}
           >
-            {state.saveStatus === "recovering" ? "Retrying" : "Retry"}
+            {t(state.saveStatus === "recovering" ? "studio.prompt.retrying" : "studio.prompt.retry")}
           </button>
         </div>
       )}
 
       <div className="studio-prompt-columns grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-auto p-4 lg:grid-cols-[16rem_minmax(0,1fr)_24rem] lg:overflow-hidden">
-        <nav aria-label="Prompt stages" className="flex flex-col gap-2">
-          <h3>Prompt stages</h3>
+        <nav aria-label={t("studio.prompt.stages")} className="flex flex-col gap-2">
+          <h3>{t("studio.prompt.stages")}</h3>
           {state.stages.map((stage) => (
             <button
               key={stage.stage_id}
@@ -339,12 +333,15 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
               {stage.label}
             </button>
           ))}
-          <span className="studio-prompt-stage-count">{state.stages.length} stages available</span>
+          <span className="studio-prompt-stage-count">{plural("studio.prompt.stageCount", state.stages.length)}</span>
         </nav>
 
         <div className="studio-prompt-template-editor flex min-h-0 min-w-0 flex-col gap-4">
-          <header><h3>{state.stages.find((stage) => stage.stage_id === state.selectedStageId)?.label ?? "Select a stage"}</h3><p>Choose a template and edit its instructions for this project.</p></header>
-          <nav aria-label="Prompt templates" className="flex flex-wrap gap-2">
+          <header>
+            <h3>{state.stages.find((stage) => stage.stage_id === state.selectedStageId)?.label ?? t("studio.prompt.selectStage")}</h3>
+            <p>{t("studio.prompt.stageIntro")}</p>
+          </header>
+          <nav aria-label={t("studio.prompt.templates")} className="flex flex-wrap gap-2">
             {state.templates.map((template) => (
               <button
                 key={template.template_id}
@@ -355,7 +352,7 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
                   dispatch({ type: "select_template", templateId: template.template_id })
                 }
               >
-                {`${template.template_id} (revision ${template.revision})`}
+                {t("studio.prompt.templateRevision", { template: template.template_id, revision: template.revision })}
               </button>
             ))}
             <button
@@ -363,19 +360,19 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
               className={toolbarButton}
               onClick={() => dispatch({ type: "new_template" })}
             >
-              New template
+              {t("studio.prompt.newTemplate")}
             </button>
           </nav>
 
           <div className="flex flex-col gap-2">
-            <label htmlFor={languageId}>Language</label>
+            <label htmlFor={languageId}>{t("studio.prompt.language")}</label>
             <input
               id={languageId}
               className="rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               value={state.languageDraft}
               onChange={(event) => dispatch({ type: "edit_language", value: event.target.value })}
             />
-            <label htmlFor={bodyId}>Template body</label>
+            <label htmlFor={bodyId}>{t("studio.prompt.body")}</label>
             <textarea
               id={bodyId}
               className="min-h-32 rounded-md border border-border bg-background px-3 py-2 font-mono text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -389,12 +386,12 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
               disabled={!templateSavable}
               onClick={() => void saveTemplate()}
             >
-              Save template
+              {t("studio.prompt.saveTemplate")}
             </button>
           </div>
 
           <div className="flex flex-col gap-2">
-            <label htmlFor={overrideId}>Project override</label>
+            <label htmlFor={overrideId}>{t("studio.prompt.override")}</label>
             <textarea
               id={overrideId}
               className="min-h-24 rounded-md border border-border bg-background px-3 py-2 font-mono text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -410,17 +407,15 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
               disabled={!bindingSavable}
               onClick={() => void saveBinding()}
             >
-              {state.binding === null ? "Create binding" : "Save binding"}
+              {t(state.binding === null ? "studio.prompt.createBinding" : "studio.prompt.saveBinding")}
             </button>
             {state.binding === null && (
-              <p className="text-xs text-muted-foreground">No binding for this stage yet.</p>
+              <p className="text-xs text-muted-ink">{t("studio.prompt.noBinding")}</p>
             )}
           </div>
 
           {compactTextOnly ? (
-            <p className="text-xs text-muted-foreground">
-              AI proposals, locks, and provider settings need a wider screen.
-            </p>
+            <p className="text-xs text-muted-ink">{t("studio.prompt.compact")}</p>
           ) : null}
           <div className="contents" hidden={compactTextOnly}>
             <PromptProposalPanel
@@ -446,22 +441,23 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
         </div>
 
         <aside className="flex min-h-0 min-w-0 flex-col gap-2">
-          <span className="studio-prompt-eyebrow">Resolved draft</span>
-          <h3 className="text-sm font-semibold">Resolved prompt preview</h3>
-          <p className="studio-prompt-context">{state.stages.find((stage) => stage.stage_id === state.selectedStageId)?.label ?? "No stage"} · {state.binding ? "saved binding" : "no binding"}</p>
+          <span className="studio-prompt-eyebrow">{t("studio.prompt.resolvedEyebrow")}</span>
+          <h3 className="text-sm font-semibold">{t("studio.prompt.resolvedTitle")}</h3>
+          <p className="studio-prompt-context">
+            {state.stages.find((stage) => stage.stage_id === state.selectedStageId)?.label ?? t("studio.prompt.noStage")} ·{" "}
+            {t(state.binding ? "studio.prompt.savedBinding" : "studio.prompt.noBindingShort")}
+          </p>
           {state.resolved === null ? (
-            <p className="text-xs text-muted-foreground">
-              No resolved preview yet. Save a binding to see the resolved draft.
-            </p>
+            <p className="text-xs text-muted-ink">{t("studio.prompt.noResolved")}</p>
           ) : (
             <pre
-              aria-label="Resolved prompt preview"
+              aria-label={t("studio.prompt.resolvedTitle")}
               className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-card p-3 text-sm"
             >
               {state.resolved.visible_text}
             </pre>
           )}
-          <p className="studio-prompt-update-note">Updates after the template and project binding are saved.</p>
+          <p className="studio-prompt-update-note">{t("studio.prompt.updateNote")}</p>
         </aside>
       </div>
     </section>

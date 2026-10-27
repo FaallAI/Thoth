@@ -112,7 +112,7 @@ const job = (name: string) =>
 const pane = (name: string) =>
   fireEvent.click(within(screen.getByRole("navigation", { name: "Studio panes" })).getByRole("button", { name }));
 
-test("offers the four jobs at every width and compact Edit panes only below desktop width", async () => {
+test("offers the three destinations at every width and compact Edit panes only below desktop width", async () => {
   await renderStudio(375);
   expect(screen.getByRole("navigation", { name: "Studio jobs" })).toBeDefined();
   const panes = within(screen.getByRole("navigation", { name: "Studio panes" })).getAllByRole("button");
@@ -168,9 +168,6 @@ test("reaches every job at phone and desktop widths", async () => {
   await renderStudio(375);
   for (const width of [375, 1440]) {
     resize(width);
-    job("Prompt");
-    expect(isHidden(await screen.findByRole("region", { name: "Prompt Lab" }))).toBe(false);
-    expect(isHidden(screen.getByLabelText("Draft preview"))).toBe(true);
     job("Review");
     expect(isHidden(screen.getByText("Reviewing saved revision 1"))).toBe(false);
     expect(isHidden(screen.getByLabelText("Draft preview"))).toBe(false);
@@ -205,22 +202,6 @@ test("shows one pane at a time on a phone and keeps hidden panes out of the tab 
   pane("Controls");
   expect(isHidden(heading)).toBe(false);
   expect(isHidden(screen.getByLabelText("Draft preview"))).toBe(true);
-});
-
-test("keeps an unsaved Prompt Lab edit across pane and viewport changes", async () => {
-  await renderStudio(375);
-  job("Prompt");
-  const override = (await screen.findByLabelText("Project override")) as HTMLTextAreaElement;
-  fireEvent.change(override, { target: { value: "Local draft" } });
-
-  job("Edit");
-  job("Review");
-  job("Prompt");
-  expect((screen.getByLabelText("Project override") as HTMLTextAreaElement).value).toBe("Local draft");
-
-  resize(1440);
-  expect(screen.getByRole("button", { name: "Prompt" }).getAttribute("aria-current")).toBe("page");
-  expect((screen.getByLabelText("Project override") as HTMLTextAreaElement).value).toBe("Local draft");
 });
 
 test("pauses the preview when its pane is hidden and does not resume on return", async () => {
@@ -351,19 +332,6 @@ test("edits caption text on a tablet through the shared draft and keeps phone ed
   act(() => jest.advanceTimersByTime(500));
   expect(saved).toHaveBeenCalledTimes(1);
   expect(saved.mock.calls[0]![2].operations.map((operation) => operation.kind)).toEqual(["set_caption_cue_text"]);
-});
-
-test("offers only saved prompt text on a phone and keeps the draft when the screen widens", async () => {
-  await renderStudio(375);
-  job("Prompt");
-  const override = (await screen.findByLabelText("Project override")) as HTMLTextAreaElement;
-  fireEvent.change(override, { target: { value: "Phone draft" } });
-  expect(screen.queryByRole("button", { name: "Improve with AI" }) === null).toBe(true);
-  expect(screen.getByText(/AI proposals, locks, and provider settings need a wider screen/)).toBeDefined();
-
-  resize(900);
-  expect(screen.getByRole("button", { name: "Improve with AI" })).toBeDefined();
-  expect((screen.getByLabelText("Project override") as HTMLTextAreaElement).value).toBe("Phone draft");
 });
 
 test("collapses a compact-desktop side region from a trigger that keeps focus", async () => {

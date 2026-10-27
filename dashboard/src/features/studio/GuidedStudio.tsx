@@ -18,7 +18,6 @@ import {
 } from "./editor_state";
 import { Inspector } from "./Inspector";
 import { IssuesPanel } from "./IssuesPanel";
-import { PromptLab, type PromptLabClient } from "./PromptLab";
 import { RenderPanel, type RenderPanelClient } from "./RenderPanel";
 import { SceneAudioInspector } from "./SceneAudioInspector";
 import { SceneBoard } from "./SceneBoard";
@@ -38,8 +37,7 @@ import { usePlayerTimeline, type PlayerTimelineRef } from "./usePlayerTimeline";
 import "./studio.css";
 
 type Props = {
-  client: PromptLabClient &
-    Pick<ControlPlaneClient, "getEditDocument" | "patchEditDocument"> &
+  client: Pick<ControlPlaneClient, "getEditDocument" | "patchEditDocument"> &
     // Advanced editing degrades to guided editing wherever these are absent.
     Partial<
       Pick<
@@ -82,7 +80,6 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   // Edit pane at a time.
   const [job, setJob] = useState<StudioJob>("edit");
   const [editPane, setEditPane] = useState<StudioEditPane>("preview");
-  const [promptLabVisited, setPromptLabVisited] = useState(false);
   const viewport = useStudioViewport();
   const compact = viewport === "phone" || viewport === "tablet";
   const [sceneBoardOpen, setSceneBoardOpen] = useState(true);
@@ -148,10 +145,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     if (!previewVisible) pause();
   }, [pause, previewVisible]);
 
-  const selectJob = (next: StudioJob) => {
-    if (next === "prompt") setPromptLabVisited(true);
-    setJob(next);
-  };
+  const selectJob = (next: StudioJob) => setJob(next);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -504,7 +498,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         />
       ) : null}
 
-      <div id="studio-panel-scenes" hidden={job === "prompt"} className="flex min-h-0 flex-1 flex-col">
+      <div id="studio-panel-scenes" className="flex min-h-0 flex-1 flex-col">
         <div
           aria-label="Guided editing workstation"
           // Render shows nothing from the workstation, so it yields the space.
@@ -714,12 +708,6 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             Rendering is not available in this Studio session. Your draft is unaffected.
           </p>
         )}
-      </div>
-
-      <div id="studio-panel-prompts" hidden={job !== "prompt"} className="flex min-h-0 flex-1 flex-col">
-        {promptLabVisited ? (
-          <PromptLab client={client} projectId={projectId} compactTextOnly={viewport === "phone"} />
-        ) : null}
       </div>
     </section>
   );

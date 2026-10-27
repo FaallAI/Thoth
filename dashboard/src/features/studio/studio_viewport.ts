@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 export type StudioViewport = "phone" | "tablet" | "compact_desktop" | "full_desktop";
-export type StudioJob = "edit" | "prompt" | "review" | "render";
+export type StudioJob = "edit" | "review" | "render";
 export type StudioEditPane = "scenes" | "preview" | "controls";
 
 // CSS viewport widths, not device detection: orientation and zoom change the surface.
