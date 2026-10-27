@@ -43,6 +43,8 @@ export type StudioDraftList = components["schemas"]["StudioDraftList"];
 export type StudioImportInventory = components["schemas"]["StudioImportInventory"];
 export type StudioMaterials = components["schemas"]["StudioMaterials"];
 export type StudioMaterial = StudioMaterials["items"][number];
+export type StoryAssistRequest = components["schemas"]["StoryAssistRequest"];
+export type StoryAssistProposal = components["schemas"]["StoryAssistProposal"];
 export type WorkflowStudioImport = components["schemas"]["WorkflowStudioImport"];
 export type CreateStudioImport = components["schemas"]["CreateStudioImport"];
 export type ResolveStudioImportItem = components["schemas"]["ResolveStudioImportItem"];
@@ -266,6 +268,8 @@ export type ControlPlaneClient = {
   getStudioMaterials: (projectId: string, documentId: string) => Promise<StudioMaterials>;
   /** The editor asset for one run material, copied on first use (spec 2026-10-27, 6.2). */
   attachStudioMaterial: (projectId: string, documentId: string, itemId: string) => Promise<EditorAsset>;
+  /** Story Assist: one text proposal for a beat; nothing changes until it is applied (spec 7). */
+  requestStoryAssist: (projectId: string, documentId: string, request: StoryAssistRequest) => Promise<StoryAssistProposal>;
   resolveStudioImportItem: (
     projectId: string,
     documentId: string,
@@ -675,6 +679,11 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
       importCall(importPath(projectId, `/documents/${encodeURIComponent(documentId)}`)),
     getStudioMaterials: (projectId, documentId) =>
       importCall(importPath(projectId, `/documents/${encodeURIComponent(documentId)}/materials`)),
+    requestStoryAssist: (projectId, documentId, request) =>
+      importPost(
+        `/api/v1/projects/${encodeURIComponent(projectId)}/edit-documents/${encodeURIComponent(documentId)}/assist`,
+        request,
+      ),
     attachStudioMaterial: (projectId, documentId, itemId) =>
       importCall(
         importPath(

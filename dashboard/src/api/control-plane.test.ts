@@ -1079,6 +1079,16 @@ test("Story materials and a material's asset use their own routes", async () => 
   ]);
 });
 
+test("Story Assist posts the beat to its own route", async () => {
+  const calls: RecordedCall[] = [];
+  const body = { base_revision: 3, beat: "hook" as const, clip_ids: ["clip_hook"] };
+
+  await importClient(calls, ok({})).requestStoryAssist("project_001", "edoc_001", body);
+
+  expect([calls[0]!.url, calls[0]!.init?.method]).toEqual(["/api/v1/projects/project_001/edit-documents/edoc_001/assist", "POST"]);
+  expect(calls[0]!.init?.body).toBe(JSON.stringify(body));
+});
+
 test("an editor asset upload streams the file itself with its media type", async () => {
   const calls: RecordedCall[] = [];
   const file = new File(["frames"], "clip.mp4", { type: "video/mp4" });

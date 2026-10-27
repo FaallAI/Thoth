@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { ArrowLeft, Redo2, SlidersHorizontal, Undo2 } from "lucide-react";
+import { ArrowLeft, Redo2, SlidersHorizontal, Sparkles, Undo2 } from "lucide-react";
 
 import type {
   ControlPlaneClient,
@@ -41,6 +41,7 @@ import { StudioJobNav } from "./StudioJobNav";
 import { StudioReviewPanel, type StudioReviewClient } from "./StudioReviewPanel";
 import { useStudioViewport, type StudioEditPane, type StudioJob } from "./studio_viewport";
 import { usePlayerTimeline, type PlayerTimelineRef } from "./usePlayerTimeline";
+import { AssistPanel } from "./story/AssistPanel";
 import { BeatInspector } from "./story/BeatInspector";
 import { BeatStrip } from "./story/BeatStrip";
 import { MaterialsPanel } from "./story/MaterialsPanel";
@@ -70,6 +71,7 @@ type Props = {
         | "getStudioMaterials"
         | "attachStudioMaterial"
         | "resolveStudioImportItem"
+        | "requestStoryAssist"
         | "listStudioReviewComments"
         | "createStudioReviewComment"
         | "listStudioReviewDecisions"
@@ -121,6 +123,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const [inventory, setInventory] = useState<StudioImportItem[]>([]);
   const [materials, setMaterials] = useState<StudioMaterials | null>(null);
   const [commentFocusRequest, setCommentFocusRequest] = useState(0);
+  const [assistOn, setAssistOn] = useState(false);
   const selectedClip = sceneTextClip(state.draft, selectedScene);
   const [previewSources, setPreviewSources] = useState<PreviewSources>({});
   const upgradeReasonId = useId();
@@ -373,6 +376,14 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   );
   // The first beat is open until another is chosen, as the design shows.
   const shownBeat = beats.find((beat) => beat.id === selectedBeat) ?? beats[0];
+  const { requestStoryAssist } = client;
+  const askAssist = useMemo(
+    () =>
+      requestStoryAssist
+        ? (body: Parameters<typeof requestStoryAssist>[2]) => requestStoryAssist(projectId, documentId, body)
+        : undefined,
+    [requestStoryAssist, projectId, documentId],
+  );
 
   // Spec 9: a material dropped on a tile joins that beat, taking the beat's role.
   const dropMaterial = async (beatId: BeatId, data: string) => {
@@ -559,6 +570,16 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           </span>
           <span className="sr-only">{t("studio.editor.savedRevision", { revision: base.revision })}</span>
         </div>
+        {story && askAssist ? (
+          <button
+            type="button"
+            aria-pressed={assistOn}
+            onClick={() => setAssistOn((on) => !on)}
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-studio-ai/60 px-3 text-[13px] text-studio-ai aria-[pressed=true]:bg-studio-ai/15 focus-visible:outline-2 focus-visible:outline-copper"
+          >
+            <Sparkles aria-hidden="true" size={14} /> {t("studio.assist.toggle")}
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={requestReview}
@@ -847,6 +868,9 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                   ) : (
                     <p className="p-4 text-sm text-muted-ink">{t("studio.inspector.empty")}</p>
                   )
+                ) : null}
+                {story && shownBeat && assistOn && askAssist ? (
+                  <AssistPanel key={shownBeat.id} request={askAssist} baseRevision={base.revision} beat={shownBeat} dispatch={dispatch} />
                 ) : null}
                 <Inspector
                   scene={selectedScene}
