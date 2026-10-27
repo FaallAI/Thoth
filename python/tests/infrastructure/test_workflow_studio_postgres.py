@@ -90,6 +90,12 @@ async def test_a_workflow_opens_in_studio_on_the_real_tables(database: str, tmp_
     assert record is not None and record.provenance == "workflow_import"
     assert record.artifact_location == f"uploads/{project}/{attached['main_000']}.mp4"
     assert runs.get(WF).project_id == project
+    with psycopg.connect(database) as connection:
+        # Restyle B9: the documents list shows the run a draft came from.
+        assert connection.execute(
+            "SELECT source_workflow_id FROM studio_import_drafts WHERE document_id = %s",
+            (opened.draft.document_id,),
+        ).fetchone() == (WF,)
 
     second = await service.open(project, WF, ACTOR, "open-2")
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
@@ -26,6 +28,7 @@ from thoth_control_plane.domain.edit_document_operations import EditDocumentPatc
 from thoth_control_plane.domain.edit_document_v2 import DocumentRevisionConflictBody
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def get_edit_document_service(request: Request) -> EditDocumentService:
@@ -52,15 +55,54 @@ async def import_content_set(
 @router.get("/projects/{project_id}/edit-documents", response_model=EditDocumentListPage)
 async def list_edit_documents(
     project_id: str,
+    request: Request,
     _: Annotated[Actor, Depends(current_actor)],
     service: Annotated[EditDocumentService, Depends(get_edit_document_service)],
     cursor: str | None = None,
     limit: Annotated[int, Query(ge=1, le=50)] = 20,
 ) -> EditDocumentListPage:
     try:
-        return await service.list_documents(project_id, limit=limit, cursor=cursor)
+        page = await service.list_documents(project_id, limit=limit, cursor=cursor)
     except EditorUnavailable as error:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE) from error
+    return await _with_source_runs(request, project_id, page)
+
+
+async def _with_source_runs(
+    request: Request, project_id: str, page: EditDocumentListPage
+) -> EditDocumentListPage:
+    """Restyle B9: each draft's source run, when that run still lives in this project.
+
+    Read from the run rows on every call, never stored with the draft; a missing store or
+    a failed read leaves the source out rather than failing the list.
+    """
+    runs = getattr(request.app.state, "workflow_run_store", None)
+    wanted = {item.source_workflow_id for item in page.items if item.source_workflow_id}
+    if runs is None or not wanted:
+        return page
+    try:
+        # A run nobody has listed since B2 shipped has not read its title yet.
+        await asyncio.to_thread(runs.fill_listing, sorted(wanted))
+        found = {
+            workflow_id: await asyncio.to_thread(runs.get, workflow_id) for workflow_id in wanted
+        }
+    except Exception:
+        logger.warning("documents list: source runs unavailable", exc_info=True)
+        return page
+    items = []
+    for item in page.items:
+        run = found.get(item.source_workflow_id or "")
+        if run is not None and run.project_id == project_id:
+            item = item.model_copy(
+                update={
+                    "source_platform": run.platform,
+                    "source_title": run.title or None,
+                    "source_owner_handle": run.owner_handle,
+                    "source_has_post_card": bool(run.post_card_location),
+                }
+            )
+        items.append(item)
+    return page.model_copy(update={"items": items})
 
 
 @router.get("/projects/{project_id}/edit-documents/{document_id}", response_model=EditDocument)

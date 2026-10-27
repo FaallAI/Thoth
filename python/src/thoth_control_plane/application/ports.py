@@ -213,6 +213,7 @@ class StudioImportRepository(Protocol):
         idempotency_key: str,
         document: EditDocumentV2,
         inventory: list[StudioImportItem],
+        source_workflow_id: str | None = None,
     ) -> StudioDraft:
         """Write the first revision and its inventory together, or replay a known key."""
         ...

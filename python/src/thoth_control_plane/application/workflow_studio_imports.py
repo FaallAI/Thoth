@@ -147,7 +147,7 @@ class WorkflowStudioImportService:
             if claimed.project_id != project_id:
                 raise WorkflowInOtherProject()
         draft = await self._imports.create_keyed(
-            project_id, key, source.projection, idempotency_key
+            project_id, key, source.projection, idempotency_key, source_workflow_id=workflow_id
         )
         inventory = await self._imports.get_inventory(project_id, draft.document_id)
         items: list[WorkflowImportItem] = []

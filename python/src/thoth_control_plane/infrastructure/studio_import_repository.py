@@ -130,6 +130,7 @@ class PostgresStudioImportRepository:
         idempotency_key: str,
         document: EditDocumentV2,
         inventory: list[StudioImportItem],
+        source_workflow_id: str | None = None,
     ) -> StudioDraft:
         def write(session: Session) -> StudioDraft:
             advisory_xact_lock(session, project_id, f"studio-import:{idempotency_key}")
@@ -154,6 +155,7 @@ class PostgresStudioImportRepository:
                 source_key=source_key,
                 idempotency_key=idempotency_key,
                 inventory=[entry.model_dump(mode="json") for entry in inventory],
+                source_workflow_id=source_workflow_id,
             )
             session.add(draft)
             session.flush()

@@ -12,7 +12,7 @@ from collections.abc import Callable
 from typing import TypeVar
 
 from pydantic import TypeAdapter
-from sqlalchemy import exists, select, tuple_
+from sqlalchemy import exists, select, true, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -25,6 +25,7 @@ from thoth_control_plane.domain.edit_document_list import (
     EditDocumentListItem,
     EditDocumentListPage,
     document_label,
+    document_state,
 )
 from thoth_control_plane.domain.edit_document_operations import (
     EditDocumentOperation,
@@ -39,7 +40,9 @@ from thoth_control_plane.infrastructure.editor_models import (
     EditDocumentRevisionRow,
     EditDocumentUpgradeIdempotencyRow,
     EditorAssetRow,
+    RenderJobRow,
     StudioImportDraftRow,
+    StudioReviewEventRow,
 )
 
 T = TypeVar("T")
@@ -177,13 +180,50 @@ class PostgresEditDocumentRepository:
                 )
                 .label("imported")
             )
+            # Restyle B9: the newest render job, the latest revision's review, and the source run.
+            job = RenderJobRow
+            newest_job = (
+                select(job.status, job.progress_percent, job.document_revision)
+                .where(job.project_id == project_id, job.document_id == latest.c.document_id)
+                .order_by(job.created_at.desc(), job.render_job_id.desc())
+                .limit(1)
+                .lateral("newest_job")
+            )
+            event = StudioReviewEventRow
+            on_latest = (
+                event.project_id == project_id,
+                event.document_id == latest.c.document_id,
+                event.revision == latest.c.revision,
+            )
+            decision = (
+                select(event.decision)
+                .where(*on_latest, event.event_kind == "decision")
+                .order_by(event.created_at.desc(), event.event_id.desc())
+                .limit(1)
+                .scalar_subquery()
+            )
+            reviewed = exists().where(*on_latest)
+            source_run = (
+                select(StudioImportDraftRow.source_workflow_id)
+                .where(
+                    StudioImportDraftRow.project_id == project_id,
+                    StudioImportDraftRow.document_id == latest.c.document_id,
+                )
+                .scalar_subquery()
+            )
             query = select(
                 latest.c.document_id,
                 latest.c.revision,
                 latest.c.created_at,
                 latest.c.document_json,
                 imported,
-            )
+                newest_job.c.status,
+                newest_job.c.progress_percent,
+                newest_job.c.document_revision,
+                decision,
+                reviewed,
+                source_run,
+            ).outerjoin(newest_job, true())
             if keyset:
                 query = query.where(
                     tuple_(latest.c.created_at, latest.c.document_id) < tuple_(*keyset)
@@ -194,16 +234,28 @@ class PostgresEditDocumentRepository:
                 )
             ).all()
             page = rows[:clamped]
-            items = [
-                EditDocumentListItem(
-                    document_id=document_id,
-                    revision=number,
-                    updated_at=created_at,
-                    label=document_label(document_json),
-                    imported=was_imported,
+            items = []
+            for row in page:
+                document_id, number, created_at, document_json, was_imported = row[:5]
+                status, percent, job_revision, decided, was_reviewed, source = row[5:]
+                state = document_state(
+                    number,
+                    render=None if status is None else (status, job_revision),
+                    decision=decided,
+                    reviewed=was_reviewed,
                 )
-                for document_id, number, created_at, document_json, was_imported in page
-            ]
+                items.append(
+                    EditDocumentListItem(
+                        document_id=document_id,
+                        revision=number,
+                        updated_at=created_at,
+                        label=document_label(document_json),
+                        imported=was_imported,
+                        state=state,
+                        render_percent=percent if state == "rendering" else None,
+                        source_workflow_id=source,
+                    )
+                )
             next_cursor = encode_cursor(page[-1][2], page[-1][0]) if len(rows) > clamped else None
             return EditDocumentListPage(items=items, next_cursor=next_cursor)
 

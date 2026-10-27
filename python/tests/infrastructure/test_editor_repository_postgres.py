@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -22,6 +23,9 @@ from thoth_control_plane.infrastructure.editor_models import (
     EditDocumentRevisionRow,
     EditDocumentUpgradeIdempotencyRow,
     EditorAssetRow,
+    RenderJobRow,
+    StudioImportDraftRow,
+    StudioReviewEventRow,
 )
 from thoth_control_plane.infrastructure.editor_repository import (
     EditDocumentConflict,
@@ -374,6 +378,99 @@ async def test_a_listing_shows_each_documents_newest_revision_newest_first(
     assert [(item.document_id, item.revision) for item in second.items] == [("edoc_new", 1)]
     assert second.next_cursor is None
     assert not first.items[0].imported
+
+
+def render_job(job_id: str, document_id: str, status: str, **fields: Any) -> RenderJobRow:
+    done = status not in ("preparing", "rendering", "finalizing")
+    output = (
+        {
+            "output_relative_path": f"renders/{job_id}.mp4",
+            "output_media_type": "video/mp4",
+            "output_size_bytes": 10,
+            "output_checksum": "sha256:" + "0" * 64,
+        }
+        if status == "completed"
+        else {}
+    )
+    return RenderJobRow(
+        render_job_id=job_id,
+        project_id=PROJECT,
+        document_id=document_id,
+        document_revision=fields.pop("revision", 1),
+        dispatch_id=f"dispatch_{job_id}",
+        template_id="vertical_text_story",
+        template_version=1,
+        preset_id="standard_vertical_mp4_v1",
+        renderer_version="1.0.0",
+        status=status,
+        created_by="user_001",
+        provenance={},
+        finished_at=datetime.now(UTC) if done else None,
+        **output,
+        **fields,
+    )
+
+
+def review(event_id: str, document_id: str, decision: str | None = None) -> StudioReviewEventRow:
+    return StudioReviewEventRow(
+        event_id=event_id,
+        project_id=PROJECT,
+        document_id=document_id,
+        revision=1,
+        operation_id=f"op_{event_id}",
+        request_hash="0" * 64,
+        event_kind="decision" if decision else "comment",
+        actor_id="user_001",
+        actor_type="user",
+        comment_text=None if decision else "Tighter hook",
+        decision=decision,
+    )
+
+
+@needs_postgres
+async def test_a_listing_says_where_each_draft_stands_and_which_run_it_came_from(
+    documents: PostgresEditDocumentRepository,
+) -> None:
+    for document_id in ("edoc_draft", "edoc_review", "edoc_approved", "edoc_render", "edoc_done"):
+        await documents.insert_revision(document(document_id))
+    with editor_sessions(DATABASE_URL).begin() as session:
+        session.add_all(
+            [
+                review("ev_1", "edoc_review"),
+                review("ev_2", "edoc_approved", decision="changes_requested"),
+                review("ev_3", "edoc_approved", decision="approved"),
+                render_job("job_old", "edoc_render", "completed"),
+                StudioImportDraftRow(
+                    project_id=PROJECT,
+                    document_id="edoc_draft",
+                    first_revision=1,
+                    source_key="a" * 64,
+                    idempotency_key="key_001",
+                    inventory=[],
+                    source_workflow_id="wf_001",
+                ),
+            ]
+        )
+    with editor_sessions(DATABASE_URL).begin() as session:
+        # Newer than job_old: the newest job decides, and only one may be active.
+        session.add(render_job("job_now", "edoc_render", "rendering", progress_percent=62))
+        session.add(render_job("job_done", "edoc_done", "completed"))
+
+    page = await documents.list_documents(project_id=PROJECT, limit=10, cursor=None)
+    listed = {item.document_id: item for item in page.items}
+
+    assert {key: item.state for key, item in listed.items()} == {
+        "edoc_draft": "draft",
+        "edoc_review": "in_review",
+        "edoc_approved": "approved",
+        "edoc_render": "rendering",
+        "edoc_done": "rendered",
+    }
+    assert listed["edoc_render"].render_percent == 62
+    assert listed["edoc_done"].render_percent is None
+    assert listed["edoc_draft"].source_workflow_id == "wf_001"
+    assert listed["edoc_draft"].imported
+    assert listed["edoc_review"].source_workflow_id is None
 
 
 async def test_an_unreachable_store_is_the_safe_error_without_its_address() -> None:

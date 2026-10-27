@@ -1956,8 +1956,29 @@ export interface components {
             imported: boolean;
             /** Label */
             label: string;
+            /** Render Percent */
+            render_percent?: number | null;
             /** Revision */
             revision: number;
+            /**
+             * Source Has Post Card
+             * @default false
+             */
+            source_has_post_card: boolean;
+            /** Source Owner Handle */
+            source_owner_handle?: string | null;
+            /** Source Platform */
+            source_platform?: string | null;
+            /** Source Title */
+            source_title?: string | null;
+            /** Source Workflow Id */
+            source_workflow_id?: string | null;
+            /**
+             * State
+             * @default draft
+             * @enum {string}
+             */
+            state: "draft" | "in_review" | "approved" | "rendering" | "rendered";
             /**
              * Updated At
              * Format: date-time

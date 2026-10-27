@@ -1436,10 +1436,85 @@
             "title": "Label",
             "type": "string"
           },
+          "render_percent": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Render Percent"
+          },
           "revision": {
             "exclusiveMinimum": 0.0,
             "title": "Revision",
             "type": "integer"
+          },
+          "source_has_post_card": {
+            "default": false,
+            "title": "Source Has Post Card",
+            "type": "boolean"
+          },
+          "source_owner_handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Owner Handle"
+          },
+          "source_platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Platform"
+          },
+          "source_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Title"
+          },
+          "source_workflow_id": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Workflow Id"
+          },
+          "state": {
+            "default": "draft",
+            "enum": [
+              "draft",
+              "in_review",
+              "approved",
+              "rendering",
+              "rendered"
+            ],
+            "title": "State",
+            "type": "string"
           },
           "updated_at": {
             "format": "date-time",

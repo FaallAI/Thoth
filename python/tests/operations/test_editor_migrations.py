@@ -54,6 +54,7 @@ def test_editor_migrations_stay_explicit_forward_only_sql_files() -> None:
         "0021_render_job_frames.sql",
         "0022_user_locale.sql",
         "0023_run_listing.sql",
+        "0024_studio_draft_source_run.sql",
     ]
     for name in MIGRATION_FILES:
         sql = migration(name).lower()
@@ -531,6 +532,14 @@ def test_run_listing_adds_three_nullable_columns_and_the_actor_index() -> None:
         "CREATE INDEX workflow_runs_actor ON workflow_runs"
         " (actor_type, actor_id, created_at DESC, workflow_id DESC)" in sql
     )
+
+
+def test_studio_draft_source_run_adds_one_nullable_column() -> None:
+    sql = " ".join(migration("0024_studio_draft_source_run.sql").split())
+
+    assert sql.count("ALTER TABLE studio_import_drafts") == 1
+    assert "ADD COLUMN source_workflow_id TEXT" in sql
+    assert "NOT NULL" not in sql  # drafts made before it, or not from a run, have none
 
 
 def test_workflow_reports_keep_exact_content_and_a_queryable_body() -> None:
