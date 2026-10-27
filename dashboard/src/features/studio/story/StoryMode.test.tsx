@@ -166,7 +166,10 @@ test("Story shows the run's materials beside the preview, with the draft's media
 
 test("a chosen beat opens its inspector, and its edits save through the patch", async () => {
   await mountStory();
-  expect(screen.getByText("Choose a beat in the strip below the preview.")).toBeDefined();
+  // The first beat is open from the start, as the design shows.
+  expect(await screen.findByRole("heading", { name: "Hook" })).toBeDefined();
+  // The strip spans the whole workstation under the materials, preview and inspector.
+  expect(screen.getByRole("toolbar", { name: "Story beats" }).closest("main")).toBeNull();
 
   fireEvent.click(await screen.findByRole("button", { name: /^Reactions/ }));
   expect(screen.getByRole("heading", { name: "Reactions" })).toBeDefined();

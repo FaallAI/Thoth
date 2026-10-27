@@ -50,7 +50,7 @@ const field = "h-9 w-24 rounded-md border border-hairline bg-well px-2 text-sm t
 
 /** Spec 2026-10-27 §9: the selected beat's cards, timing, position, motion and emphasis. */
 export function BeatInspector({ beat, beats, document, inventory, materials, dispatch, attachMaterial, onRemoveMissing }: Props) {
-  const { t } = useLocale();
+  const { t, plural } = useLocale();
   const [picking, setPicking] = useState(false);
   const [addFailed, setAddFailed] = useState(false);
   const [removeFailed, setRemoveFailed] = useState(false);
@@ -74,7 +74,7 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
   const header = [
     t("studio.inspector.beatOf", { index: beats.indexOf(beat) + 1, count: beats.length }),
     seconds(beat.durationInFrames),
-    t("studio.inspector.materials", { count: clips.length }),
+    plural("studio.inspector.materials", clips.length),
     ...(beat.missing.length ? [t("studio.story.missing", { count: beat.missing.length })] : []),
   ].join(" · ");
 

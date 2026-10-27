@@ -3,6 +3,8 @@
 .studio-shell.pen-studio [aria-label="Guided editing workstation"] > main { position:relative; padding:30px 0 25px; gap:11px; background:#101113; }
 .studio-shell.pen-studio [aria-label="Studio preview"] { justify-content:center; align-items:center; }
 .studio-shell.pen-studio [aria-label="Studio preview"] > div { flex:none; position:relative; width:min(100%,274px); height:518px; padding:0; overflow:hidden; border-radius:7px; border:1px solid #47494a; }
+/* Story sizes the canvas from the column (StudioPreview overlay); the fixed F3 box would spill over the safe-zone row. */
+.studio-shell.pen-studio.studio-story [aria-label="Studio preview"] > div { flex:1 1 0; width:100%; height:auto; min-height:0; border:0; background:transparent; }
 .studio-shell.pen-studio .studio-preview-badge { position:absolute; z-index:2; top:10px; left:10px; padding:5px 7px; border-radius:3px; background:#101113; font-size:9px; pointer-events:none; }
 .studio-shell.pen-studio .studio-preview-hint { margin-top:11px; font-size:10px; color:#c5c6c7; }
 /* Keep Remotion's real controls, seek and fullscreen handlers; only match their presentation. */

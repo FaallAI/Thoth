@@ -149,7 +149,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     : ({
         "--scene-board-width": `${sceneBoardWidth}rem`,
         "--inspector-width": `${inspectorWidth}rem`,
-        gridTemplateRows: stripLayout ? "minmax(0,1fr) 228px" : undefined,
+        gridTemplateRows: stripLayout ? "minmax(0,1fr) 228px" : story && editing ? "minmax(0,1fr) auto" : undefined,
         gridTemplateColumns: [
           editing && sceneRegionOpen && !stripLayout && (story ? "18rem" : "var(--scene-board-width)"),
           "minmax(0,1fr)",
@@ -371,7 +371,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     () => (attachStudioMaterial ? (itemId: string) => attachStudioMaterial(projectId, documentId, itemId) : undefined),
     [attachStudioMaterial, projectId, documentId],
   );
-  const shownBeat = beats.find((beat) => beat.id === selectedBeat);
+  // The first beat is open until another is chosen, as the design shows.
+  const shownBeat = beats.find((beat) => beat.id === selectedBeat) ?? beats[0];
 
   // Spec 9: a material dropped on a tile joins that beat, taking the beat's role.
   const dropMaterial = async (beatId: BeatId, data: string) => {
@@ -470,7 +471,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     "grid size-9 place-items-center rounded-md text-muted-ink hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-copper disabled:cursor-not-allowed disabled:opacity-40";
 
   return (
-    <section className={`studio-shell pen-studio studio-job-${job} ${advanced ? "studio-advanced" : "studio-simple"} flex min-h-0 flex-1 flex-col bg-background text-foreground`} aria-label="Guided Studio">
+    <section className={`studio-shell pen-studio studio-job-${job} ${advanced ? "studio-advanced" : "studio-simple"}${story ? " studio-story" : ""} flex min-h-0 flex-1 flex-col bg-background text-foreground`} aria-label="Guided Studio">
       {/* DESIGN §13: back to the documents, the title, the destinations, and where saving stands. */}
       <header className="studio-topbar relative flex min-h-14 flex-wrap items-center gap-x-4 gap-y-1 border-b border-hairline bg-bg px-4 py-1">
         <button
@@ -773,18 +774,6 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 })
               }
             />
-            {story && timeline && !reviewing ? (
-              <BeatStrip
-                beats={beats}
-                fps={timeline.canvas.fps}
-                totalFrames={timeline.canvas.duration_in_frames}
-                selected={selectedBeat}
-                onSelect={selectBeat}
-                document={timeline}
-                previews={previewSources}
-                onDropMaterial={(beatId, data) => void dropMaterial(beatId, data)}
-              />
-            ) : null}
             {advanced && timeline ? (
               <div className="contents" hidden={reviewing}>
                 <Timeline
@@ -897,6 +886,20 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
               </div>
             )}
           </div>
+          {story && timeline && editing ? (
+            <div className="col-span-full border-t border-hairline bg-bg px-4 py-3">
+              <BeatStrip
+                beats={beats}
+                fps={timeline.canvas.fps}
+                totalFrames={timeline.canvas.duration_in_frames}
+                selected={shownBeat?.id ?? null}
+                onSelect={selectBeat}
+                document={timeline}
+                previews={previewSources}
+                onDropMaterial={(beatId, data) => void dropMaterial(beatId, data)}
+              />
+            </div>
+          ) : null}
         </div>
         {renderClient ? (
           <div className="contents" hidden={job !== "render"}>
