@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
 import { isPromptStageId, type ControlPlaneClient } from "@/api/control-plane";
+import type { MessageKey } from "@/lib/i18n";
+import { useLocale } from "@/lib/locale";
 import {
   canApplyProposal,
   canGenerateProposal,
@@ -42,50 +44,52 @@ type Props = {
 };
 
 const toolbarButton =
-  "rounded-md border border-border px-3 py-1.5 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
+  "rounded-md bg-raised px-3 py-1.5 text-sm text-ink transition-colors hover:bg-well focus-visible:outline-2 focus-visible:outline-copper disabled:cursor-not-allowed disabled:opacity-40 aria-[pressed=true]:bg-copper aria-[pressed=true]:text-primary-foreground";
 
 const POLL_INTERVAL_MS = 1_500;
 
 // Shared copy for a blocked generate gate's reason, computed once per button from
 // that button's own gate result so the visible text can never diverge from the
 // check that actually decided its disabled state.
-function generateReasonText(reason: GenerateBlockReason | undefined): string | null {
+function generateReasonKey(reason: GenerateBlockReason | undefined): MessageKey | null {
   switch (reason) {
     case "unsaved_changes":
     case "missing_saved_source":
-      return "Save changes first";
+      return "studio.prompt.reason.save";
     case "offline":
-      return "Offline";
+      return "studio.prompt.reason.offline";
     case "layer_locked":
-      return "Unlock the target layer first";
+      return "studio.prompt.reason.locked";
     case "proposal_in_flight":
-      return "A proposal is already in flight";
+      return "studio.prompt.reason.inFlight";
     case "no_provider":
     case "model_not_allowed":
-      return "Select a provider and model";
+      return "studio.prompt.reason.provider";
     case "resources_unavailable":
-      return "Reload failed - retry to continue";
+      return "studio.prompt.reason.reload";
     default:
       return null;
   }
 }
 
-function panelErrorMessage(code: string): string {
+function panelErrorKey(code: string): MessageKey {
   switch (code) {
     case "store_unavailable":
-      return "Storage is unavailable. Check your connection and retry.";
     case "unknown_stage_id":
-      return "Unrecognized prompt stage.";
     case "lock_conflict":
-      return "Lock settings were modified elsewhere. Please review and retry.";
     case "preference_conflict":
-      return "Model preferences were modified elsewhere. Please review and retry.";
+      return `studio.prompt.error.${code}`;
     default:
-      return "An unexpected error occurred. Please try again.";
+      return "studio.prompt.error.unknown";
   }
 }
 
 export function PromptProposalPanel(props: Props) {
+  const { t } = useLocale();
+  const generateReasonText = (reason: GenerateBlockReason | undefined) => {
+    const key = generateReasonKey(reason);
+    return key ? t(key) : null;
+  };
   const { client, projectId, stageId, formDirty, online, onApplied, onUseStarter, onCreateScratch } =
     props;
   const [instructions, setInstructions] = useState("");
@@ -418,17 +422,17 @@ export function PromptProposalPanel(props: Props) {
   };
 
   return (
-    <section aria-label="AI proposals" className="flex flex-col gap-3 border-t border-border pt-3">
-      <h3 className="text-sm font-semibold">AI proposals</h3>
+    <section aria-label={t("studio.prompt.ai.title")} className="flex flex-col gap-3 border-t border-hairline pt-3">
+      <h3 className="text-sm font-semibold">{t("studio.prompt.ai.title")}</h3>
 
       {!state.resourcesReady && state.lastError === "stage_load_failed" && (
         <div
           role="alert"
           className="flex flex-wrap items-center gap-3 border-b border-destructive/50 bg-destructive/10 px-3 py-2 text-sm"
         >
-          <p>Couldn't load AI proposal data. Check your connection and retry.</p>
+          <p>{t("studio.prompt.ai.loadFailed")}</p>
           <button type="button" className={toolbarButton} onClick={retryLoad} disabled={!online}>
-            Retry loading proposals
+            {t("studio.prompt.ai.retryLoad")}
           </button>
         </div>
       )}
@@ -438,23 +442,23 @@ export function PromptProposalPanel(props: Props) {
           role="alert"
           className="flex flex-wrap items-center gap-3 border-b border-destructive/50 bg-destructive/10 px-3 py-2 text-sm"
         >
-          <p>{panelErrorMessage(state.lastError)}</p>
+          <p>{t(panelErrorKey(state.lastError))}</p>
         </div>
       )}
 
       {!props.hasBinding && (
         <div className="flex flex-wrap gap-2">
           <button type="button" className={toolbarButton} onClick={useStarter}>
-            Use starter
+            {t("studio.prompt.ai.useStarter")}
           </button>
           <button type="button" className={toolbarButton} onClick={onCreateScratch}>
-            Create scratch
+            {t("studio.prompt.ai.scratch")}
           </button>
         </div>
       )}
 
       <div className="flex flex-wrap items-center gap-3 text-sm">
-        <label htmlFor="pp-provider">Provider</label>
+        <label htmlFor="pp-provider">{t("studio.prompt.ai.provider")}</label>
         <select
           id="pp-provider"
           className="rounded-md border border-border bg-background px-2 py-1"
@@ -476,7 +480,7 @@ export function PromptProposalPanel(props: Props) {
             </option>
           ))}
         </select>
-        <label htmlFor="pp-model">Model</label>
+        <label htmlFor="pp-model">{t("studio.prompt.ai.model")}</label>
         <select
           id="pp-model"
           className="rounded-md border border-border bg-background px-2 py-1"
@@ -524,7 +528,7 @@ export function PromptProposalPanel(props: Props) {
             }
           }}
         >
-          Save preference
+          {t("studio.prompt.ai.savePreference")}
         </button>
       </div>
 
@@ -537,7 +541,7 @@ export function PromptProposalPanel(props: Props) {
           }
           onClick={() => toggleLock("template", lockedTemplate)}
         >
-          {lockedTemplate ? "Unlock template" : "Lock template"}
+          {t(lockedTemplate ? "studio.prompt.ai.unlockTemplate" : "studio.prompt.ai.lockTemplate")}
         </button>
         <button
           type="button"
@@ -549,12 +553,12 @@ export function PromptProposalPanel(props: Props) {
           }
           onClick={() => toggleLock("project_override", lockedOverride)}
         >
-          {lockedOverride ? "Unlock project override" : "Lock project override"}
+          {t(lockedOverride ? "studio.prompt.ai.unlockOverride" : "studio.prompt.ai.lockOverride")}
         </button>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 text-sm">
-        <label htmlFor="pp-improve-layer">Improve target</label>
+        <label htmlFor="pp-improve-layer">{t("studio.prompt.ai.target")}</label>
         <select
           id="pp-improve-layer"
           className="rounded-md border border-border bg-background px-2 py-1"
@@ -563,10 +567,10 @@ export function PromptProposalPanel(props: Props) {
             setImproveLayer(event.target.value as "template" | "project_override")
           }
         >
-          <option value="template">Template</option>
-          <option value="project_override">Project override</option>
+          <option value="template">{t("studio.prompt.ai.targetTemplate")}</option>
+          <option value="project_override">{t("studio.prompt.ai.targetOverride")}</option>
         </select>
-        <label htmlFor="pp-instructions">Instructions (optional)</label>
+        <label htmlFor="pp-instructions">{t("studio.prompt.ai.instructions")}</label>
         <input
           id="pp-instructions"
           className="min-w-48 rounded-md border border-border bg-background px-2 py-1"
@@ -574,7 +578,7 @@ export function PromptProposalPanel(props: Props) {
           value={instructions}
           onChange={(event) => setInstructions(event.target.value)}
         />
-        <label htmlFor="pp-language">Target language</label>
+        <label htmlFor="pp-language">{t("studio.prompt.ai.language")}</label>
         <input
           id="pp-language"
           className="w-24 rounded-md border border-border bg-background px-2 py-1"
@@ -590,7 +594,7 @@ export function PromptProposalPanel(props: Props) {
           disabled={!improveGate.allowed || identityMissing}
           onClick={() => generate("improve", improveGate)}
         >
-          Improve with AI
+          {t("studio.prompt.ai.improve")}
         </button>
         <button
           type="button"
@@ -598,7 +602,7 @@ export function PromptProposalPanel(props: Props) {
           disabled={!translateGate.allowed || identityMissing}
           onClick={() => generate("translate", translateGate)}
         >
-          Translate with AI
+          {t("studio.prompt.ai.translate")}
         </button>
         {!improveGate.allowed && generateReasonText(improveGate.reason) && (
           <p className="text-xs text-muted-foreground">
@@ -613,26 +617,26 @@ export function PromptProposalPanel(props: Props) {
       </div>
 
       {proposal && (
-        <div className="flex flex-col gap-2 text-sm" aria-label="Proposal review">
+        <div className="flex flex-col gap-2 text-sm" aria-label={t("studio.prompt.ai.review")}>
           <div role="status" aria-atomic="true">
             {proposal.status === "queued" || proposal.status === "running"
-              ? "Proposal running"
+              ? t("studio.prompt.ai.running")
               : proposal.status === "succeeded"
-                ? "Proposal ready for review"
+                ? t("studio.prompt.ai.ready")
                 : proposal.status === "failed"
-                  ? `Proposal failed (${proposal.failure_code ?? "unknown"})`
-                  : `Proposal ${proposal.status}`}
+                  ? t("studio.prompt.ai.failed", { code: proposal.failure_code ?? t("studio.prompt.ai.unknown") })
+                  : t("studio.prompt.ai.status", { status: proposal.status })}
           </div>
           {proposal.kind === "translate" && (
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div>
-                <p className="font-semibold">Source template</p>
+                <p className="font-semibold">{t("studio.prompt.ai.sourceTemplate")}</p>
                 <pre className="whitespace-pre-wrap rounded-md border border-border bg-card p-2">
                   {proposal.source.template_body}
                 </pre>
               </div>
               <div>
-                <p className="font-semibold">Proposed template</p>
+                <p className="font-semibold">{t("studio.prompt.ai.proposedTemplate")}</p>
                 <pre className="whitespace-pre-wrap rounded-md border border-border bg-card p-2">
                   {proposal.translated_template_body ?? ""}
                 </pre>
@@ -640,13 +644,13 @@ export function PromptProposalPanel(props: Props) {
               {proposal.source.project_override !== null && (
                 <>
                   <div>
-                    <p className="font-semibold">Source override</p>
+                    <p className="font-semibold">{t("studio.prompt.ai.sourceOverride")}</p>
                     <pre className="whitespace-pre-wrap rounded-md border border-border bg-card p-2">
                       {proposal.source.project_override}
                     </pre>
                   </div>
                   <div>
-                    <p className="font-semibold">Proposed override</p>
+                    <p className="font-semibold">{t("studio.prompt.ai.proposedOverride")}</p>
                     <pre className="whitespace-pre-wrap rounded-md border border-border bg-card p-2">
                       {proposal.translated_project_override ?? ""}
                     </pre>
@@ -678,7 +682,7 @@ export function PromptProposalPanel(props: Props) {
                 disabled={!applyCheck.allowed}
                 onClick={apply}
               >
-                Apply selected
+                {t("studio.prompt.ai.applySelected")}
               </button>
             )}
             {proposal.kind === "translate" && (
@@ -688,7 +692,7 @@ export function PromptProposalPanel(props: Props) {
                 disabled={!applyCheck.allowed}
                 onClick={apply}
               >
-                Apply translation
+                {t("studio.prompt.ai.applyTranslation")}
               </button>
             )}
             <button
@@ -697,7 +701,7 @@ export function PromptProposalPanel(props: Props) {
               disabled={!online || proposal.status !== "succeeded"}
               onClick={reject}
             >
-              Reject proposal
+              {t("studio.prompt.ai.reject")}
             </button>
             <button
               type="button"
@@ -705,11 +709,11 @@ export function PromptProposalPanel(props: Props) {
               disabled={!regenerateGate.allowed || props.savedTemplateId === null}
               onClick={() => generate(proposal.kind, regenerateGate, proposal.target_layers[0])}
             >
-              Regenerate
+              {t("studio.prompt.ai.regenerate")}
             </button>
           </div>
           {!applyCheck.allowed && applyCheck.reason === "source_changed" && (
-            <p className="text-xs text-destructive">Source changed</p>
+            <p className="text-xs text-status-failed">{t("studio.prompt.ai.sourceChanged")}</p>
           )}
           {!regenerateGate.allowed && generateReasonText(regenerateGate.reason) && (
             <p className="text-xs text-muted-foreground">
@@ -721,14 +725,14 @@ export function PromptProposalPanel(props: Props) {
       )}
 
       {formDirty && !proposal && (
-        <p className="text-xs text-muted-foreground">Save changes first</p>
+        <p className="text-xs text-muted-ink">{t("studio.prompt.reason.save")}</p>
       )}
 
       <details
         open={historyOpen}
         onToggle={(event) => setHistoryOpen((event.target as HTMLDetailsElement).open)}
       >
-        <summary className="cursor-pointer text-sm font-semibold">Proposal history</summary>
+        <summary className="cursor-pointer text-sm font-semibold">{t("studio.prompt.ai.history")}</summary>
         <ul className="mt-1 flex flex-col gap-1 text-xs">
           {state.history.map((item) => (
             <li key={item.proposal_id}>

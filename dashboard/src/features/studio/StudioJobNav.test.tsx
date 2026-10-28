@@ -1,20 +1,21 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, mock, test } from "bun:test";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { render } from "@/test-render";
 import userEvent from "@testing-library/user-event";
 import { StudioJobNav } from "./StudioJobNav";
 import type { StudioJob } from "./studio_viewport";
 
 afterEach(cleanup);
 
-test("names the four jobs and marks only the selected one current", () => {
+test("names the three destinations and marks only the selected one current", () => {
   const onSelect = mock((_job: StudioJob) => {});
   render(<StudioJobNav selected="edit" onSelect={onSelect} />);
 
   const nav = screen.getByRole("navigation", { name: "Studio jobs" });
   const buttons = within(nav).getAllByRole("button");
-  expect(buttons.map((button) => button.textContent)).toEqual(["Edit", "Prompt", "Review", "Render"]);
+  expect(buttons.map((button) => button.textContent)).toEqual(["Edit", "Review", "Render"]);
   expect(buttons.filter((button) => button.getAttribute("aria-current") === "page").map((button) => button.textContent)).toEqual(["Edit"]);
   for (const button of buttons) {
     expect(button.getAttribute("type")).toBe("button");
@@ -36,5 +37,12 @@ test("selects a job from the keyboard", async () => {
   await userEvent.tab();
   await userEvent.keyboard(" ");
 
-  expect(onSelect.mock.calls).toEqual([["prompt"], ["review"]]);
+  expect(onSelect.mock.calls).toEqual([["review"], ["render"]]);
+});
+
+test("the destinations read in Indonesian", () => {
+  render(<StudioJobNav selected="review" onSelect={() => {}} />, { locale: "id" });
+
+  const nav = screen.getByRole("navigation", { name: "Bagian Studio" });
+  expect(within(nav).getAllByRole("button").map((button) => button.textContent)).toEqual(["Edit", "Tinjau", "Render"]);
 });

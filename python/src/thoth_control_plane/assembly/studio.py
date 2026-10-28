@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import parse_qs, urlsplit, urlunsplit
 
@@ -37,6 +37,10 @@ PROFILE_PAGE_PLATFORMS = frozenset({"tiktok", "instagram", "x", "youtube"})
 class WorkflowProjection:
     projection: StudioSourceProjection
     media: dict[str, MediaRef]
+    #: Story mode's "why" per item id (spec 2026-10-27, 6.1); never part of the source key.
+    provenance: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: The people and organisations the run named, as context (name, type, role).
+    figures: list[dict[str, str]] = field(default_factory=list)
 
 
 def workflow_source_key(workflow_id: str, content_sha256: str) -> str:
@@ -80,6 +84,7 @@ class _Builder:
         self.items: list[StudioSourceItem] = []
         self.unsupported: list[StudioUnsupportedField] = []
         self.media: dict[str, MediaRef] = {}
+        self.provenance: dict[str, dict[str, Any]] = {}
 
     def report(
         self, field: str, role: SourceRole | None, order: int | None, reason: str, value: Any
@@ -113,7 +118,13 @@ class _Builder:
         trim: float | None,
         ocr: MainOcr | None = None,
         reading: float | None = None,
+        why: dict[str, Any] | None = None,
     ) -> None:
+        self.provenance[f"{role}_{order:03d}"] = {
+            **({"host": urlsplit(str(url)).hostname} if url is not None else {}),
+            **({"ocr_outcome": ocr.outcome, "trim_start_seconds": _trim(ocr)} if ocr else {}),
+            **(why or {}),
+        }
         if media is None:
             kind = "none"
         else:
@@ -152,6 +163,15 @@ def _footage(built: _Builder, role: SourceRole, clips: list[Footage]) -> None:
             media=clip.video,
             trim=_trim(clip.ocr),
             ocr=clip.ocr,
+            why={
+                "platform": clip.platform,
+                "owner_handle": clip.owner_handle,
+                "published_at": clip.published_at,
+                "engagement": clip.engagement or None,
+                "story_score": clip.story_score,
+                "shows_object": clip.shows_object,
+                "query": clip.query,
+            },
         )
 
 
@@ -174,7 +194,20 @@ def project_content_set(content_set: ContentSet) -> WorkflowProjection:
         media=media,
         trim=_trim(main.ocr),
         ocr=main.ocr,
+        why={
+            "platform": str(main.platform),
+            "owner_handle": main.owner_handle,
+            "published_at": main.published_at,
+            "engagement": main.engagement or None,
+            "verdict": content_set.attribution_verdict,
+        },
     )
+    # Posts and profiles show who and where (spec 2026-10-27, 6.3).
+    owner = {
+        "platform": str(main.platform),
+        "owner_handle": main.owner_handle,
+        "published_at": main.published_at,
+    }
     for order, image in enumerate(main.images[1:]):
         # Slide numbers count the carousel's own images: the first slide item is image 2.
         built.add(
@@ -198,6 +231,7 @@ def project_content_set(content_set: ContentSet) -> WorkflowProjection:
             media=main.post_card,
             trim=None,
             reading=reading_seconds(main.description),
+            why=owner,
         )
     if main.profile_page is not None:
         built.add(
@@ -209,6 +243,7 @@ def project_content_set(content_set: ContentSet) -> WorkflowProjection:
             url=None,
             media=main.profile_page,
             trim=None,
+            why=owner,
         )
     creator = [clip for clip in content_set.footage if clip.source == "creator"]
     search = [clip for clip in content_set.footage if clip.source != "creator"]
@@ -223,6 +258,11 @@ def project_content_set(content_set: ContentSet) -> WorkflowProjection:
             url=photo.url,
             media=photo.image,
             trim=None,
+            why={
+                "platform": photo.platform,
+                "owner_handle": photo.owner_handle,
+                "story_score": photo.story_score,
+            },
         )
     _footage(built, "footage", search)
     if main.profile_card is not None:
@@ -235,6 +275,7 @@ def project_content_set(content_set: ContentSet) -> WorkflowProjection:
             url=None,
             media=main.profile_card,
             trim=None,
+            why=owner,
         )
     # Most-liked first: the reaction beat places cards in this order (spec 5c-1, 3.2).
     carded = sorted(
@@ -252,6 +293,7 @@ def project_content_set(content_set: ContentSet) -> WorkflowProjection:
             media=comment.card,
             trim=None,
             reading=reading_seconds(comment.text),
+            why={"author": comment.author, "likes": comment.likes},
         )
     plain = [comment for comment in content_set.comments if comment.card is None]
     for order, comment in enumerate(plain):
@@ -264,6 +306,8 @@ def project_content_set(content_set: ContentSet) -> WorkflowProjection:
             url=None,
             media=None,
             trim=None,
+            # Never an inventory item: the Materials panel lists it as a quote.
+            why={"author": comment.author, "likes": comment.likes, "label": comment.text[:300]},
         )
     if content_set.figures:
         figures = [figure.model_dump(mode="json") for figure in content_set.figures]
@@ -277,4 +321,10 @@ def project_content_set(content_set: ContentSet) -> WorkflowProjection:
         if main.profile_page is None and platform in PROFILE_PAGE_PLATFORMS:
             built.report("main.profile_page", "profile_page", 0, "Not captured: profile page", None)
     projection = StudioSourceProjection(items=built.items, unsupported=built.unsupported)
-    return WorkflowProjection(projection=projection, media=built.media)
+    figures = [
+        {"name": figure.name, "type": figure.type, "role": figure.role}
+        for figure in content_set.figures
+    ]
+    return WorkflowProjection(
+        projection=projection, media=built.media, provenance=built.provenance, figures=figures
+    )

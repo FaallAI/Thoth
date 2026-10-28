@@ -130,6 +130,7 @@ class PostgresStudioImportRepository:
         idempotency_key: str,
         document: EditDocumentV2,
         inventory: list[StudioImportItem],
+        source_workflow_id: str | None = None,
     ) -> StudioDraft:
         def write(session: Session) -> StudioDraft:
             advisory_xact_lock(session, project_id, f"studio-import:{idempotency_key}")
@@ -154,6 +155,7 @@ class PostgresStudioImportRepository:
                 source_key=source_key,
                 idempotency_key=idempotency_key,
                 inventory=[entry.model_dump(mode="json") for entry in inventory],
+                source_workflow_id=source_workflow_id,
             )
             session.add(draft)
             session.flush()
@@ -350,6 +352,7 @@ class PostgresStudioImportRepository:
                 duration_in_frames=duration,
                 source_from_frame=source_from,
                 scene_id=scene.scene_id,
+                source_role=entry.role,
             )
         )
         try:
@@ -375,6 +378,7 @@ class PostgresStudioImportRepository:
                 StudioImportDraftRow.source_key,
                 StudioImportDraftRow.inventory,
                 _latest_revision(),
+                StudioImportDraftRow.source_workflow_id,
             ).where(
                 StudioImportDraftRow.project_id == project_id,
                 StudioImportDraftRow.document_id == document_id,
@@ -404,7 +408,11 @@ class PostgresStudioImportRepository:
             for item in INVENTORY_ADAPTER.validate_python(row[1])
         ]
         return StudioImportInventory(
-            document_id=document_id, source_key=row[0], revision=row[2], items=items
+            document_id=document_id,
+            source_key=row[0],
+            revision=row[2],
+            items=items,
+            source_workflow_id=row[3],
         )
 
 
@@ -471,14 +479,11 @@ def _overlay(
         duration_in_frames=max(1, round(length * canvas.fps)),
         source_from_frame=0,
         scene_id=scene.scene_id,
+        fit="contain",
+        position=position,
+        source_role=entry.role,
     )
     try:
-        document = apply_edit_operations(
-            latest, [operation], resolved_assets={asset.asset_id: asset}
-        )
+        return apply_edit_operations(latest, [operation], resolved_assets={asset.asset_id: asset})
     except ValueError as error:
         raise StudioImportDecisionRejected("attach_rejected") from error
-    clip = _clip(document, clip_id)
-    clip.fit = "contain"
-    clip.position = position
-    return document

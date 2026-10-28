@@ -583,3 +583,18 @@ describe("the tracked release capsule", () => {
     );
   });
 });
+
+describe("the Story mode release capsule", () => {
+  test("draws motion and emphasis against the operator's approved golden set", async () => {
+    const capsule = await loadReleaseCapsule("story_mode-v1");
+    const clips = capsule.document.clips as { motion?: string; emphasis?: { highlight: boolean; arrow: boolean } }[];
+
+    expect(capsule.template_id).toBe("vertical_text_story");
+    expect(new Set(clips.map((clip) => clip.motion).filter(Boolean))).toEqual(new Set(["slow_zoom", "pan"]));
+    expect(clips.some((clip) => clip.emphasis?.highlight && clip.emphasis.arrow)).toBe(true);
+    // Approved by the operator on 2026-10-28 and promoted from run_fb36644e05aa3b5a.
+    const manifest = JSON.parse(readFileSync(join(capsule.directory, "golden-manifest.json"), "utf8"));
+    expect(capsule.goldens?.golden_set).toBe(manifest.golden_set);
+    expect(capsule.goldens?.frames.map((entry) => entry.frame)).toEqual([...capsule.frames]);
+  });
+});

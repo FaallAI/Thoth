@@ -125,6 +125,7 @@ Each of these becomes a follow-up row in the roadmap when this ships.
 - Prompt Lab moves to a project "Presets & prompts" page; the route stays reachable from Studio.
 
 **R6. Story mode (D3).**
+- **Revised (2026-10-27):** built in full, with the backend it needs, per `docs/superpowers/specs/2026-10-27-studio-story-mode-design.md` (operator: "jalankan opsi 2"); that spec revises D3.
 - **Materials panel:** with provenance and a "why" popover.
 - **Preview:** the 9:16 preview with a safe-zone toggle.
 - **Beat strip:** selecting a beat moves the playhead.
@@ -171,3 +172,11 @@ Building R1 showed that §1 undercounted the backend work: "All projects" and th
 | B8 | `BillingView.checkout_available`: whether checkout is configured, so the Billing page states "not live yet" from the server rather than from copy. Found while building R4. | Billing (§8.10) |
 
 Bulk archive stays out (D5). Retry starts a new run with the same link (§7.5), so it needs nothing new.
+
+## 7. Backend additions for part B
+
+Building R5 showed the same gap §6 found for part A: the Studio screens of DESIGN §13.5 need data the API does not return yet. Each addition is test first, regenerates the contract (additions only), and degrades gracefully: a missing field reads as absent, never as an error.
+
+| # | Addition | Needed by |
+|---|---|---|
+| B9 | Each `EditDocumentListItem` carries `state` (`draft`, `in_review`, `approved`, `rendering`, `rendered`: a render in progress, then a finished render of the latest revision, then the latest revision's approval, then any review event on it), `render_percent` while rendering, and `source_workflow_id`. Migration 0024 adds `studio_import_drafts.source_workflow_id`, written when a run is opened in Studio; older drafts have none. The API fills `source_platform`, `source_title`, `source_owner_handle` and `source_has_post_card` from that run's row when the run lives in the same project, never stored with the draft. | Documents list (§13.5 screen 1) |

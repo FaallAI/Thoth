@@ -48,6 +48,8 @@ export type EditorState = EditorSnapshot & {
   inFlightOperationIds: string[];
   latestConflict?: EditDocument;
   upgradeStatus: UpgradeStatus;
+  /** Counts Story batches the draft refused (a lock, a stale clip), so the editor can say so. */
+  refusedEdits: number;
 };
 
 export type EditorAction =
@@ -93,6 +95,8 @@ export type EditorAction =
   | { type: "upgrade_failed" }
   | { type: "preview_timeline_operation"; operation: EditDocumentOperation }
   | { type: "commit_timeline_operation"; operation: EditDocumentOperation }
+  /** Several operations as one undo step; one refusal discards them all (Story mode). */
+  | { type: "commit_operations"; operations: EditDocumentOperation[] }
   | { type: "cancel_timeline_preview" };
 
 export function createEditorState(
@@ -106,7 +110,8 @@ export function createEditorState(
     selectedTrackId: "",
     selectedClipId: "",
     selectedIssueId: "",
-    mode: isTimelineDocument(document) ? "advanced" : "simple",
+    // DESIGN 13.1: a draft opens in Story ("simple"); Timeline is opened on demand.
+    mode: "simple",
     playheadFrame: 0,
     playing: false,
     zoom: 1,
@@ -120,6 +125,7 @@ export function createEditorState(
     inFlightOperationIds: [],
     pendingOperations: [],
     upgradeStatus: "idle",
+    refusedEdits: 0,
   };
 }
 
@@ -153,6 +159,7 @@ const DOCUMENT_ACTIONS = new Set<EditorAction["type"]>([
   "keep_editing_locally",
   "preview_timeline_operation",
   "commit_timeline_operation",
+  "commit_operations",
   "cancel_timeline_preview",
 ]);
 
@@ -391,6 +398,24 @@ function sessionAfterSave(
   };
 }
 
+function batchDraft(state: EditorState, operations: EditDocumentOperation[]): EditDocument | undefined {
+  if (!isTimelineDocument(state.draft)) return undefined;
+  try {
+    return operations.reduce(
+      (document, operation) => applyTimelineOperation(document, operation, state.assets),
+      state.draft,
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+function isLocked(document: EditDocumentV2, clipId: string): boolean {
+  const clip = (document.clips ?? []).find((entry) => entry.clip_id === clipId);
+  const track = document.tracks.find((entry) => entry.track_id === clip?.track_id);
+  return Boolean(clip?.locked || track?.locked);
+}
+
 function gestureOrigin(state: EditorState): EditorSnapshot {
   return state.preview ?? { draft: state.draft, pendingOperations: state.pendingOperations };
 }
@@ -406,6 +431,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "edit_text": {
       const current = findTextClip(state.draft, action.clipId);
       if (!current || current[action.field] === action.value) return state;
+      // A locked clip or track keeps its text; the server refuses the edit too.
+      if (isTimelineDocument(state.draft) && isLocked(state.draft, action.clipId)) return state;
       const draft = replaceClip(state.draft, action.clipId, (clip) => ({
         ...clip,
         [action.field]: action.value,
@@ -527,7 +554,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "upgrade_succeeded": {
       if (state.upgradeStatus !== "running") return state;
       const upgraded = createEditorState(action.document, state.assets);
-      return { ...upgraded, isOffline: state.isOffline };
+      // The person asked for the timeline, so it opens in Timeline.
+      return { ...upgraded, mode: "advanced", isOffline: state.isOffline };
     }
     case "upgrade_conflicted":
       return state.upgradeStatus === "running"
@@ -611,6 +639,19 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const draft = timelineDraft(origin, action.operation, state.assets);
       if (!draft) return { ...state, ...origin, preview: undefined };
       return { ...edited({ ...state, ...origin }, draft, action.operation), preview: undefined };
+    }
+    case "commit_operations": {
+      if (!action.operations.length) return state;
+      const draft = batchDraft(state, action.operations);
+      if (!draft) return { ...state, refusedEdits: state.refusedEdits + 1 };
+      return {
+        ...state,
+        draft,
+        history: [...state.history, { draft: state.draft, pendingOperations: state.pendingOperations }],
+        future: [],
+        pendingOperations: [...state.pendingOperations, ...action.operations],
+        saveStatus: saveStatusAfterLocalChange(state),
+      };
     }
   }
 }

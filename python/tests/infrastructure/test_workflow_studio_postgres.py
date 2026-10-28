@@ -28,6 +28,7 @@ from thoth_control_plane.application.workflow_studio_imports import (
 from thoth_control_plane.domain.studio_layout import (
     CARD_CENTER_Y,
     CARD_GAP,
+    card_position,
     post_card_slot,
     profile_slot,
     reaction_beat,
@@ -86,10 +87,21 @@ async def test_a_workflow_opens_in_studio_on_the_real_tables(database: str, tmp_
     inventory = await imports.get_inventory(project, opened.draft.document_id)
     attached = {i.item_id: i.asset_id for i in inventory.items if i.disposition == "attached"}
     assert set(attached) == {"main_000", "footage_000", "footage_001"}
+    # Story mode reads the run's provenance through the draft's source run.
+    assert inventory.source_workflow_id == WF
+    materials = await service.materials(project, opened.draft.document_id)
+    assert materials.provenance_available is True
+    assert {item.item_id for item in materials.items} == {"main_000", "footage_000", "footage_001"}
     record = await assets.get_ready_record(project_id=project, asset_id=attached["main_000"])
     assert record is not None and record.provenance == "workflow_import"
     assert record.artifact_location == f"uploads/{project}/{attached['main_000']}.mp4"
     assert runs.get(WF).project_id == project
+    with psycopg.connect(database) as connection:
+        # Restyle B9: the documents list shows the run a draft came from.
+        assert connection.execute(
+            "SELECT source_workflow_id FROM studio_import_drafts WHERE document_id = %s",
+            (opened.draft.document_id,),
+        ).fetchone() == (WF,)
 
     second = await service.open(project, WF, ACTOR, "open-2")
 
@@ -195,7 +207,11 @@ async def test_cards_and_blur_land_where_the_layout_says(database: str, tmp_path
         round(length * fps),
     )
     assert profile["fit"] == "contain"
-    assert profile["position"]["y"] == pytest.approx(CARD_CENTER_Y - 0.5)
+    # A 4:5 card is too tall for the card line, so it starts just below the header instead.
+    assert profile["position"]["y"] == pytest.approx(card_position(1080, 1350, (1080, 1920)).y)
+    assert profile["position"]["y"] > CARD_CENTER_Y - 0.5
+    # Story mode: every attached clip names the inventory role it came from.
+    assert profile["source_role"] == "profile_card"
     reading = [reading_seconds(text) for text in TEXTS]
     slots = reaction_beat(30.0, reading, not_before=start + length + CARD_GAP)
     for index in range(3):
@@ -206,9 +222,12 @@ async def test_cards_and_blur_land_where_the_layout_says(database: str, tmp_path
             round(at * fps),
             round(seconds * fps),
         )
+    assert {clips[f"clip_comment_card_00{i}"]["source_role"] for i in range(3)} == {"comment_card"}
+    assert {clips[f"clip_comment_card_00{i}"]["fit"] for i in range(3)} == {"contain"}
     main = clips["clip_main_000"]
     assert [(r["from_frame"], r["to_frame"]) for r in main["blur_regions"]] == [(204, 1314)]
     assert main["blur_enabled"] is False
+    assert main["source_role"] == "main"
     assert tracks["track_main_video"]["muted"] is False
 
 

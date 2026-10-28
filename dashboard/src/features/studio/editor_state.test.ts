@@ -325,6 +325,8 @@ function timelineDocument(): EditDocumentV2 {
         locked: false,
         fit: "cover",
         blur_enabled: false,
+        motion: "none",
+        emphasis: { highlight: false, arrow: false },
       },
       {
         kind: "audio",
@@ -360,15 +362,16 @@ function timelineClip(state: { draft: EditDocument }, clipId: string) {
   return clip as Extract<NonNullable<EditDocumentV2["clips"]>[number], { from_frame: number }>;
 }
 
-test("a timeline document opens in advanced mode and mode switching is view-only", () => {
+test("every draft opens in Story and mode switching is view-only", () => {
+  // DESIGN 13.1: Story is stored as "simple"; Timeline ("advanced") is opened on demand.
   const state = createEditorState(timelineDocument());
-  expect(state.mode).toBe("advanced");
+  expect(state.mode).toBe("simple");
   expect(createEditorState(document).mode).toBe("simple");
 
-  const simple = editorReducer(state, { type: "set_editor_mode", mode: "simple" });
-  expect(simple.mode).toBe("simple");
-  expect(simple.draft).toBe(state.draft);
-  expect(simple.pendingOperations).toEqual([]);
+  const timeline = editorReducer(state, { type: "set_editor_mode", mode: "advanced" });
+  expect(timeline.mode).toBe("advanced");
+  expect(timeline.draft).toBe(state.draft);
+  expect(timeline.pendingOperations).toEqual([]);
 });
 
 test("selection, playhead, zoom, snapping, and ripple stay outside the saved draft", () => {

@@ -12,7 +12,7 @@ from pydantic import Field, field_validator, model_validator
 
 from thoth_control_plane.domain.models import OpaqueId, ProjectId, StrictModel
 
-PromptStageId: TypeAlias = Literal["narrative_plan", "visual_plan", "caption_copy"]
+PromptStageId: TypeAlias = Literal["narrative_plan", "visual_plan", "caption_copy", "story_assist"]
 
 PROMPT_LANGUAGE_PATTERN = r"^[a-z]{2}(?:-[A-Z]{2})?$"
 PROMPT_TEXT_MAX_LENGTH = 12_000
@@ -102,9 +102,23 @@ PROMPT_STAGES = (
     PromptStageDefinition(
         stage_id="caption_copy", label="Caption and copy", status="proposal_ready"
     ),
+    # Story mode's Assist (spec 2026-10-27, 7): the prompt and the model its proposals use.
+    PromptStageDefinition(stage_id="story_assist", label="Story Assist", status="proposal_ready"),
 )
 
 PROMPT_STARTERS: dict[PromptStageId, PromptStarterDefinition] = {
+    "story_assist": PromptStarterDefinition(
+        starter_id="starter_story_assist_v1",
+        label="Story Assist starter",
+        language="en-US",
+        body=(
+            "You help someone finish a short vertical video made from a social media post.\n"
+            "Rewrite the given text for the named story beat so it is shorter and clearer.\n"
+            "Keep every fact and every name as given; never invent a name, number or quote.\n"
+            # Story Assist appends the answer's JSON shape to every prompt, saved or starter.
+            "Write in the language of the given text."
+        ),
+    ),
     "narrative_plan": PromptStarterDefinition(
         starter_id="starter_narrative_plan_v1",
         label="Narrative plan starter",

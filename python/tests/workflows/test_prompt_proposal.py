@@ -73,3 +73,20 @@ def test_worker_builder_rejects_enabled_provider_without_worker_secret() -> None
         build_prompt_proposal_worker(client=None, settings=settings)
     assert "secret" not in str(error.value).lower() or str(error.value) == ""
     assert not isinstance(error.value, AssertionError) or True
+
+
+def test_the_prompt_worker_also_runs_story_assist(monkeypatch) -> None:
+    import thoth_control_plane.worker as worker
+    from thoth_control_plane.workflows.story_assist import StoryAssistWorkflow
+
+    built: dict = {}
+    monkeypatch.setattr(worker, "Worker", lambda client, **options: built.update(options))
+
+    worker.build_prompt_proposal_worker(
+        client=None, settings=Settings(THOTH_CONTROL_PLANE_API_KEY="k")
+    )
+
+    assert StoryAssistWorkflow in built["workflows"]
+    assert "run_story_assist" in {
+        activity.__temporal_activity_definition.name for activity in built["activities"]
+    }

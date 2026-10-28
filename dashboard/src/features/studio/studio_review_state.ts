@@ -6,7 +6,12 @@ import type {
   ReviewErrorCode,
 } from "@/api/control-plane";
 
+import type { MessageKey, PluralKey } from "@/lib/i18n";
+
 import type { EditorSaveStatus } from "./editor_state";
+
+/** A sentence for the panel to say in the chosen language. */
+export type ReviewMessage = { key: MessageKey; values?: Record<string, string | number> } | { plural: PluralKey; count: number };
 
 /** The longest comment or reason the control plane accepts. */
 export const REVIEW_TEXT_LIMIT = 2_000;
@@ -40,7 +45,7 @@ export type ReviewState = {
   /** A fixed code only; no server message ever lands here. */
   error: ReviewErrorCode | null;
   /** The last settled outcome, announced once. */
-  notice: string | null;
+  notice: ReviewMessage | null;
 };
 
 export type ReviewHistoryList = "comments" | "decisions";
@@ -70,8 +75,8 @@ export type ReviewFacts = {
 export type ReviewGate = {
   canComment: boolean;
   canApprove: boolean;
-  blockedReason: string | null;
-  approveBlockedReason: string | null;
+  blockedReason: ReviewMessage | null;
+  approveBlockedReason: ReviewMessage | null;
 };
 
 export function createReviewState(): ReviewState {
@@ -184,7 +189,7 @@ export function reviewReducer(state: ReviewState, action: ReviewAction): ReviewS
         comments: merge(state.comments, [action.comment], (item) => item.comment_id),
         commentText: draftMatches(state, state.pending) ? "" : state.commentText,
         pending: null,
-        notice: "Comment posted.",
+        notice: { key: "studio.review.notice.comment" },
       };
     case "decision_created":
       return {
@@ -193,7 +198,10 @@ export function reviewReducer(state: ReviewState, action: ReviewAction): ReviewS
         reason: draftMatches(state, state.pending) ? "" : state.reason,
         confirming: null,
         pending: null,
-        notice: `${action.decision.decision === "approved" ? "Approval" : "Change request"} recorded for revision ${action.decision.document_revision}.`,
+        notice: {
+          key: `studio.review.notice.${action.decision.decision}`,
+          values: { revision: action.decision.document_revision },
+        },
       };
     case "submit_failed": {
       const failed = { ...state, pending: null, confirming: null };
@@ -211,18 +219,16 @@ export function reviewReducer(state: ReviewState, action: ReviewAction): ReviewS
 
 /** Every disabled reason derives from the saved document and the editor, never the draft. */
 export function reviewGate(state: ReviewState, facts: ReviewFacts): ReviewGate {
-  let blockedReason: string | null = null;
-  if (facts.isOffline) blockedReason = "Review is unavailable while offline. Your text is kept.";
-  else if (facts.saveStatus === "conflict") blockedReason = "Resolve the save conflict before reviewing.";
-  else if (facts.saveStatus !== "saved") blockedReason = "Wait for your changes to save before reviewing.";
+  let blockedReason: ReviewMessage | null = null;
+  if (facts.isOffline) blockedReason = { key: "studio.review.blocked.offline" };
+  else if (facts.saveStatus === "conflict") blockedReason = { key: "studio.review.blocked.conflict" };
+  else if (facts.saveStatus !== "saved") blockedReason = { key: "studio.review.blocked.unsaved" };
   else if (state.staleRevision !== null && facts.savedRevision < state.staleRevision) {
-    blockedReason = `Load revision ${state.staleRevision} before reviewing again.`;
-  } else if (state.pending) blockedReason = "Waiting for the last review action to finish.";
+    blockedReason = { key: "studio.review.blocked.stale", values: { revision: state.staleRevision } };
+  } else if (state.pending) blockedReason = { key: "studio.review.blocked.pending" };
   const canComment = blockedReason === null;
-  const approveBlockedReason =
-    canComment && facts.blockingIssues > 0
-      ? `Fix ${facts.blockingIssues} blocking issue${facts.blockingIssues === 1 ? "" : "s"} in the saved revision before approving.`
-      : null;
+  const approveBlockedReason: ReviewMessage | null =
+    canComment && facts.blockingIssues > 0 ? { plural: "studio.review.blocked.issues", count: facts.blockingIssues } : null;
   return { canComment, canApprove: canComment && facts.blockingIssues === 0, blockedReason, approveBlockedReason };
 }
 

@@ -293,3 +293,84 @@ async def test_adapter_rejects_non_string_json_values() -> None:
 
         with pytest.raises(ProviderInvalidOutput):
             await adapter(handler=handler).propose(provider_request())
+
+
+# Story Assist (spec 2026-10-27, 7): one chat call that answers one JSON object.
+
+
+async def test_complete_json_sends_one_request_and_meters_it() -> None:
+    from tests.test_metering import Sink
+    from thoth_control_plane import metering
+
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"message": {"content": '{"title":"Shorter hook","reason":"r","text":"t"}'}}
+                ],
+                "usage": {"prompt_tokens": 40, "completion_tokens": 9},
+            },
+        )
+
+    sink = Sink()
+    metering.install(sink)
+    try:
+        parsed = await adapter(handler=handler).complete_json(
+            provider_id="novita",
+            model_id="deepseek/deepseek-v3.1",
+            system="system words",
+            user="user words",
+        )
+    finally:
+        metering.install(None)
+
+    assert parsed == {"title": "Shorter hook", "reason": "r", "text": "t"}
+    assert len(calls) == 1
+    body = calls[0].read().decode()
+    assert "system words" in body and "user words" in body
+    assert [
+        (event.unit, event.quantity)
+        for event in sink.events
+        if event.key == "deepseek/deepseek-v3.1"
+    ] == [
+        ("call", 1),
+        ("token_in", 40),
+        ("token_out", 9),
+    ]
+
+
+async def test_complete_json_requires_improve_capability() -> None:
+    from thoth_control_plane.application.prompt_proposal_ports import ProviderInvalidOutput
+
+    translate_only = {
+        **RUNTIME_PROVIDER,
+        "models": [{**RUNTIME_PROVIDER["models"][0], "capabilities": ["translate"]}],  # type: ignore[index]
+    }
+
+    def unused(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("the capability check comes before any request")
+
+    with pytest.raises(ProviderInvalidOutput):
+        await adapter(handler=unused, runtime_catalog=(translate_only,)).complete_json(
+            provider_id="novita", model_id="deepseek/deepseek-v3.1", system="s", user="u"
+        )
+    with pytest.raises(ProviderInvalidOutput):
+        await adapter(handler=unused).complete_json(
+            provider_id="novita", model_id="deepseek/deepseek-v3.1", system="s", user="u" * 12_001
+        )
+
+
+async def test_complete_json_rejects_a_non_object_answer() -> None:
+    from thoth_control_plane.application.prompt_proposal_ports import ProviderInvalidOutput
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"choices": [{"message": {"content": "[1, 2]"}}]})
+
+    with pytest.raises(ProviderInvalidOutput):
+        await adapter(handler=handler).complete_json(
+            provider_id="novita", model_id="deepseek/deepseek-v3.1", system="s", user="u"
+        )

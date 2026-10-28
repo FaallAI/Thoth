@@ -363,6 +363,23 @@
       "title": "EditDocumentV2",
       "type": "object"
     },
+    "Emphasis": {
+      "additionalProperties": false,
+      "properties": {
+        "arrow": {
+          "default": false,
+          "title": "Arrow",
+          "type": "boolean"
+        },
+        "highlight": {
+          "default": false,
+          "title": "Highlight",
+          "type": "boolean"
+        }
+      },
+      "title": "Emphasis",
+      "type": "object"
+    },
     "OverlayParameters": {
       "additionalProperties": false,
       "properties": {
@@ -570,6 +587,32 @@
           "title": "Source From Frame",
           "type": "integer"
         },
+        "source_role": {
+          "anyOf": [
+            {
+              "enum": [
+                "main",
+                "main_footage",
+                "slide",
+                "post_card",
+                "profile_page",
+                "creator_footage",
+                "creator_photo",
+                "footage",
+                "profile_card",
+                "comment_card",
+                "comment",
+                "hook",
+                "outro"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Role"
+        },
         "track_id": {
           "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
           "title": "Track Id",
@@ -657,6 +700,32 @@
             }
           ],
           "title": "Scene Id"
+        },
+        "source_role": {
+          "anyOf": [
+            {
+              "enum": [
+                "main",
+                "main_footage",
+                "slide",
+                "post_card",
+                "profile_page",
+                "creator_footage",
+                "creator_photo",
+                "footage",
+                "profile_card",
+                "comment_card",
+                "comment",
+                "hook",
+                "outro"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Role"
         },
         "style_slot": {
           "pattern": "^[a-z][a-z0-9_]{0,63}$",
@@ -748,6 +817,32 @@
           ],
           "title": "Scene Id"
         },
+        "source_role": {
+          "anyOf": [
+            {
+              "enum": [
+                "main",
+                "main_footage",
+                "slide",
+                "post_card",
+                "profile_page",
+                "creator_footage",
+                "creator_photo",
+                "footage",
+                "profile_card",
+                "comment_card",
+                "comment",
+                "hook",
+                "outro"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Role"
+        },
         "track_id": {
           "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
           "title": "Track Id",
@@ -830,6 +925,32 @@
             }
           ],
           "title": "Scene Id"
+        },
+        "source_role": {
+          "anyOf": [
+            {
+              "enum": [
+                "main",
+                "main_footage",
+                "slide",
+                "post_card",
+                "profile_page",
+                "creator_footage",
+                "creator_photo",
+                "footage",
+                "profile_card",
+                "comment_card",
+                "comment",
+                "hook",
+                "outro"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Role"
         },
         "style_slot": {
           "pattern": "^[a-z][a-z0-9_]{0,63}$",
@@ -963,6 +1084,9 @@
           "title": "Duration In Frames",
           "type": "integer"
         },
+        "emphasis": {
+          "$ref": "#/$defs/Emphasis"
+        },
         "fit": {
           "default": "cover",
           "enum": [
@@ -992,6 +1116,16 @@
           "default": false,
           "title": "Locked",
           "type": "boolean"
+        },
+        "motion": {
+          "default": "none",
+          "enum": [
+            "none",
+            "slow_zoom",
+            "pan"
+          ],
+          "title": "Motion",
+          "type": "string"
         },
         "ownership": {
           "enum": [
@@ -1029,6 +1163,32 @@
           "minimum": 0,
           "title": "Source From Frame",
           "type": "integer"
+        },
+        "source_role": {
+          "anyOf": [
+            {
+              "enum": [
+                "main",
+                "main_footage",
+                "slide",
+                "post_card",
+                "profile_page",
+                "creator_footage",
+                "creator_photo",
+                "footage",
+                "profile_card",
+                "comment_card",
+                "comment",
+                "hook",
+                "outro"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Role"
         },
         "track_id": {
           "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",

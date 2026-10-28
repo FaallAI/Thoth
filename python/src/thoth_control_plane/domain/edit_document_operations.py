@@ -17,6 +17,7 @@ from thoth_control_plane.domain.timeline_operations import (
     TimelineOperation,
     apply_timeline_operation,
     carry_scene_clips,
+    unlocked_clip,
 )
 
 
@@ -91,7 +92,12 @@ def apply_edit_operations(
 
 def _apply_scene_operation(document: EditDocument, operation: SceneOperation) -> None:
     if isinstance(operation, ReplaceText):
-        clip = _find_clip(document, operation.clip_id)
+        # A locked clip or track keeps its text, as every timeline operation does.
+        clip = (
+            unlocked_clip(document, operation.clip_id)
+            if isinstance(document, EditDocumentV2)
+            else _find_clip(document, operation.clip_id)
+        )
         setattr(clip, operation.field, operation.value)
         clip.ownership = "user_edited"
     elif isinstance(operation, SetOwnership):

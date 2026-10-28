@@ -587,6 +587,7 @@ def test_openapi_exposes_exact_required_path_method_pairs(gateway) -> None:
         ("/api/v1/projects/{project_id}/edit-documents/import-content-set", "post"),
         ("/api/v1/projects/{project_id}/edit-documents/{document_id}", "get"),
         ("/api/v1/projects/{project_id}/edit-documents/{document_id}", "patch"),
+        ("/api/v1/projects/{project_id}/edit-documents/{document_id}/assist", "post"),
         (
             "/api/v1/projects/{project_id}/edit-documents/{document_id}/upgrade-timeline",
             "post",
@@ -599,6 +600,11 @@ def test_openapi_exposes_exact_required_path_method_pairs(gateway) -> None:
         ("/api/v1/projects/{project_id}/studio-imports", "post"),
         ("/api/v1/projects/{project_id}/studio-imports/{source_key}", "get"),
         ("/api/v1/projects/{project_id}/studio-imports/documents/{document_id}", "get"),
+        ("/api/v1/projects/{project_id}/studio-imports/documents/{document_id}/materials", "get"),
+        (
+            "/api/v1/projects/{project_id}/studio-imports/documents/{document_id}/materials/{item_id}/asset",
+            "post",
+        ),
         (
             "/api/v1/projects/{project_id}/studio-imports/documents/{document_id}/items/{item_id}"
             "/resolve",

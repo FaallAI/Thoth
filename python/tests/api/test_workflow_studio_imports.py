@@ -148,3 +148,41 @@ async def test_the_routes_need_a_caller(tmp_path, monkeypatch) -> None:
     async with client(tmp_path, monkeypatch) as api:
         assert (await api.get(PATH)).status_code == 403
         assert (await api.post(PATH, headers={"Idempotency-Key": "k-1"})).status_code == 403
+
+
+async def test_materials_route_serves_provenance_without_addresses(tmp_path, monkeypatch) -> None:
+    async with client(tmp_path, monkeypatch) as api:
+        opened = await api.post(PATH, headers=AUTH | {"Idempotency-Key": "open-materials"})
+        document = opened.json()["draft"]["document_id"]
+        base = f"/api/v1/projects/project_001/studio-imports/documents/{document}"
+
+        found = await api.get(f"{base}/materials", headers=AUTH)
+        missing = await api.get(
+            "/api/v1/projects/project_001/studio-imports/documents/edoc_missing/materials",
+            headers=AUTH,
+        )
+
+    assert found.status_code == 200
+    body = found.json()
+    assert body["provenance_available"] is True
+    main = {item["item_id"]: item for item in body["items"]}["main_000"]
+    assert (main["platform"], main["host"]) == ("tiktok", "www.tiktok.com")
+    assert "location" not in found.text and "https://" not in found.text
+    assert missing.status_code == 404
+
+
+async def test_material_asset_route_answers_the_asset_or_not_attachable(
+    tmp_path, monkeypatch
+) -> None:
+    async with client(tmp_path, monkeypatch) as api:
+        opened = await api.post(PATH, headers=AUTH | {"Idempotency-Key": "open-asset"})
+        document = opened.json()["draft"]["document_id"]
+        base = f"/api/v1/projects/project_001/studio-imports/documents/{document}/materials"
+
+        found = await api.post(f"{base}/footage_001/asset", headers=AUTH)
+        refused = await api.post(f"{base}/figure_000/asset", headers=AUTH)
+
+    assert found.status_code == 200
+    assert found.json()["kind"] == "video"
+    assert "location" not in found.text and "uploads/" not in found.text
+    assert (refused.status_code, code_of(refused)) == (409, "item_not_attachable")

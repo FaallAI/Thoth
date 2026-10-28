@@ -1066,6 +1066,29 @@ test("Studio import drafts, inventory, and decisions use their own routes", asyn
   expect(calls[2].init?.body).toBe(JSON.stringify(decision));
 });
 
+test("Story materials and a material's asset use their own routes", async () => {
+  const calls: RecordedCall[] = [];
+  const client = importClient(calls, ok({}));
+
+  await client.getStudioMaterials("project_001", "edoc / 1");
+  await client.attachStudioMaterial("project_001", "edoc_001", "footage_000");
+
+  expect(calls.map((call) => [call.url, call.init?.method ?? "GET"])).toEqual([
+    ["/api/v1/projects/project_001/studio-imports/documents/edoc%20%2F%201/materials", "GET"],
+    ["/api/v1/projects/project_001/studio-imports/documents/edoc_001/materials/footage_000/asset", "POST"],
+  ]);
+});
+
+test("Story Assist posts the beat to its own route", async () => {
+  const calls: RecordedCall[] = [];
+  const body = { base_revision: 3, beat: "hook" as const, clip_ids: ["clip_hook"] };
+
+  await importClient(calls, ok({})).requestStoryAssist("project_001", "edoc_001", body);
+
+  expect([calls[0]!.url, calls[0]!.init?.method]).toEqual(["/api/v1/projects/project_001/edit-documents/edoc_001/assist", "POST"]);
+  expect(calls[0]!.init?.body).toBe(JSON.stringify(body));
+});
+
 test("an editor asset upload streams the file itself with its media type", async () => {
   const calls: RecordedCall[] = [];
   const file = new File(["frames"], "clip.mp4", { type: "video/mp4" });
@@ -1131,6 +1154,7 @@ test("project, workflow-run, and Studio document calls hit the new routes", asyn
   await client.acknowledgeWorkflow("wf_1");
   await client.moveWorkflow("wf_1", "p1");
   await client.listEditDocuments("p1");
+  await client.createBlankDocument("p1");
   expect(await (await client.downloadWorkflowArtifact("wf_1", "clip")).text()).toBe("BYTES");
   expect(calls).toEqual([
     "GET /api/v1/projects",
@@ -1147,6 +1171,7 @@ test("project, workflow-run, and Studio document calls hit the new routes", asyn
     "POST /api/v1/workflows/wf_1/acknowledge",
     "PATCH /api/v1/workflows/wf_1",
     "GET /api/v1/projects/p1/edit-documents?limit=20",
+    "POST /api/v1/projects/p1/edit-documents/import-content-set",
     "GET /api/v1/workflows/wf_1/artifacts/clip",
   ]);
 });

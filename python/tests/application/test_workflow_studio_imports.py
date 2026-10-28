@@ -29,6 +29,7 @@ from thoth_control_plane.application.studio_imports import StudioImportService
 from thoth_control_plane.application.workflow_studio_imports import (
     ContentSetInvalid,
     ContentSetUnavailable,
+    MaterialNotAttachable,
     WorkflowInOtherProject,
     WorkflowStudioImportService,
     WorkflowStudioUnavailable,
@@ -167,6 +168,16 @@ class MemoryAssets:
                 record
                 for record in self.records
                 if (record.asset.project_id, record.asset.checksum) == (project_id, checksum)
+            ),
+            None,
+        )
+
+    async def get_ready_record(self, *, project_id: str, asset_id: str) -> EditorAssetRecord | None:
+        return next(
+            (
+                record
+                for record in self.records
+                if (record.asset.project_id, record.asset.asset_id) == (project_id, asset_id)
             ),
             None,
         )
@@ -619,3 +630,200 @@ async def test_overlay_items_stay_unresolved_until_the_main_attaches(tmp_path: P
     item = {item.item_id: item for item in opened.items}["comment_card_000"]
     assert (item.outcome, item.reason) == ("unresolved", "main_not_attached")
     assert not [d for d in imports.decisions if d[0] == "comment_card_000"]
+
+
+# Story mode materials (spec 2026-10-27, 6.1): the inventory joined with the run's provenance.
+
+
+def materialized() -> dict[str, Any]:
+    plain = {"text": "keren", "author": "fan", "likes": 9, "source": "input"}
+    data = carded()
+    data["main"].update(ocr=COVER, engagement={"likes": 10, "views": 200})
+    data["comments"].append(plain)
+    data["figures"] = [{"name": "Ani", "type": "person", "role": "warga", "description": "x"}]
+    data["figures_status"] = "ok"
+    return data
+
+
+@pytest.mark.asyncio
+async def test_materials_join_provenance(tmp_path: Path) -> None:
+    built = world(tmp_path, data=materialized())
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+
+    materials = await built.service.materials(PROJECT, opened.draft.document_id)
+
+    assert materials.provenance_available is True
+    items = {item.item_id: item for item in materials.items}
+    main = items["main_000"]
+    assert (main.platform, main.owner_handle, main.host, main.verdict) == (
+        "tiktok",
+        "creator",
+        "www.tiktok.com",
+        "none",
+    )
+    assert (main.ocr_outcome, main.trim_start_seconds) == ("cover", 1.0)
+    assert main.engagement == {"likes": 10, "views": 200}
+    footage = items["footage_001"]
+    assert (footage.query, footage.story_score, footage.shows_object) == (
+        "banjir jakarta",
+        0.61,
+        "yes",
+    )
+    assert (footage.owner_handle, footage.host) == ("kreator", "www.tiktok.com")
+    card = items["comment_card_000"]
+    assert (card.author, card.likes, card.media_kind) == ("viewer", 3, "image")
+    assert [(figure.name, figure.type, figure.role) for figure in materials.figures] == [
+        ("Ani", "person", "warga")
+    ]
+    # Only the host leaves the server: never a full address or a storage location.
+    assert (
+        "location" not in materials.model_dump_json()
+        and "/video/" not in materials.model_dump_json()
+    )
+
+
+@pytest.mark.asyncio
+async def test_comment_without_card_is_quote(tmp_path: Path) -> None:
+    built = world(tmp_path, data=materialized())
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+
+    materials = await built.service.materials(PROJECT, opened.draft.document_id)
+
+    quote = {item.item_id: item for item in materials.items}["comment_000"]
+    assert (quote.media_kind, quote.author, quote.likes) == ("none", "fan", 9)
+    assert quote.disposition != "attached"
+
+
+@pytest.mark.asyncio
+async def test_materials_without_content_set(tmp_path: Path) -> None:
+    built = world(tmp_path)
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+    built.service._reports = MemoryReports(None)  # the run's Content Set is gone
+
+    materials = await built.service.materials(PROJECT, opened.draft.document_id)
+
+    assert materials.provenance_available is False
+    assert {item.item_id for item in materials.items} == {"main_000", "footage_000", "footage_001"}
+    assert all(item.platform is None and item.story_score is None for item in materials.items)
+
+
+@pytest.mark.asyncio
+async def test_materials_without_source_run(tmp_path: Path) -> None:
+    built = world(tmp_path)
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+    for row in built.imports.rows:
+        row["source_workflow_id"] = None  # a draft made before B9 or from a blank document
+
+    materials = await built.service.materials(PROJECT, opened.draft.document_id)
+
+    assert materials.provenance_available is False
+    assert len(materials.items) == 3
+
+
+@pytest.mark.asyncio
+async def test_materials_other_project_run(tmp_path: Path) -> None:
+    built = world(tmp_path)
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+    built.runs.runs[WF] = dataclasses.replace(built.runs.runs[WF], project_id="project_999")
+
+    materials = await built.service.materials(PROJECT, opened.draft.document_id)
+
+    assert materials.provenance_available is False
+
+
+# Story mode: a material's editor asset on demand (spec 2026-10-27, 6.2).
+
+
+@pytest.mark.asyncio
+async def test_material_asset_copies_once(tmp_path: Path) -> None:
+    built = world(tmp_path)
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+    built.assets.records.clear()  # as if the import had left this footage out
+
+    first = await built.service.material_asset(PROJECT, opened.draft.document_id, "footage_001")
+    second = await built.service.material_asset(PROJECT, opened.draft.document_id, "footage_001")
+
+    assert first.asset_id == second.asset_id
+    assert [record.asset.asset_id for record in built.assets.records] == [first.asset_id]
+    assert first.checksum == "sha256:" + "d" * 64
+
+
+@pytest.mark.asyncio
+async def test_material_asset_reuses_comment_card(tmp_path: Path) -> None:
+    imports = AttachingImports(refuse={"comment_card_000": "no_room_in_reaction_beat"})
+    built = world(tmp_path, data=carded(), imports=imports)
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+    copied = len(built.assets.records)
+
+    asset = await built.service.material_asset(
+        PROJECT, opened.draft.document_id, "comment_card_000"
+    )
+
+    assert asset.checksum == CARD["checksum"]
+    assert len(built.assets.records) == copied
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("item_id", ["comment_000", "footage_009"])
+async def test_material_asset_not_attachable(tmp_path: Path, item_id: str) -> None:
+    built = world(tmp_path, data=materialized())
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+
+    with pytest.raises(MaterialNotAttachable):
+        await built.service.material_asset(PROJECT, opened.draft.document_id, item_id)
+
+
+@pytest.mark.asyncio
+async def test_material_asset_without_run(tmp_path: Path) -> None:
+    imports = AttachingImports(refuse={"comment_card_000": "no_room_in_reaction_beat"})
+    built = world(tmp_path, data=carded(), imports=imports)
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+    for row in built.imports.rows:
+        row["source_workflow_id"] = None
+
+    # A material the draft does not hold yet needs the run's media.
+    with pytest.raises(ContentSetUnavailable):
+        await built.service.material_asset(PROJECT, opened.draft.document_id, "comment_card_000")
+
+
+@pytest.mark.asyncio
+async def test_story_context_is_the_runs_title_and_description(tmp_path: Path) -> None:
+    built = world(tmp_path)
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+
+    assert await built.service.story_context(PROJECT, opened.draft.document_id) == (
+        "judul",
+        "judul panjang",
+    )
+    built.service._reports = MemoryReports(None)
+    assert await built.service.story_context(PROJECT, opened.draft.document_id) is None
+
+
+@pytest.mark.asyncio
+async def test_material_asset_of_an_attached_item_needs_no_content_set(tmp_path: Path) -> None:
+    built = world(tmp_path)
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+    inventory = await built.service._imports.get_inventory(PROJECT, opened.draft.document_id)
+    attached = {item.item_id: item.asset_id for item in inventory.items}["footage_001"]
+    built.service._reports = MemoryReports(None)  # the run's Content Set is gone
+
+    asset = await built.service.material_asset(PROJECT, opened.draft.document_id, "footage_001")
+
+    assert asset.asset_id == attached
+
+
+@pytest.mark.asyncio
+async def test_materials_survive_an_unreadable_run_store(tmp_path: Path) -> None:
+    built = world(tmp_path)
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+
+    class Broken:
+        def get(self, workflow_id: str) -> None:
+            raise RuntimeError("database down")
+
+    built.service._runs = Broken()
+
+    materials = await built.service.materials(PROJECT, opened.draft.document_id)
+
+    assert materials.provenance_available is False
+    assert len(materials.items) == 3

@@ -1,8 +1,10 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, mock, test } from "bun:test";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ComponentProps } from "react";
+import { act, cleanup, fireEvent, render as rawRender, screen, waitFor } from "@testing-library/react";
+import type { ComponentProps, ReactElement } from "react";
+
+import { LocaleProvider } from "@/lib/locale";
 
 import {
   StudioReviewRequestError,
@@ -13,6 +15,13 @@ import {
   type ReviewDecision,
 } from "@/api/control-plane";
 import { StudioReviewPanel, type StudioReviewClient } from "./StudioReviewPanel";
+
+let language: "en" | "id" = "en";
+const inLocale = (ui: ReactElement) => <LocaleProvider serverLocale={language}>{ui}</LocaleProvider>;
+const render = (ui: ReactElement) => {
+  const result = rawRender(inLocale(ui));
+  return { ...result, rerender: (next: ReactElement) => result.rerender(inLocale(next)) };
+};
 
 const actor = { actor_id: "owner", actor_type: "user", display_name: "Owner" } as const;
 
@@ -114,7 +123,10 @@ const typeComment = (text: string) =>
   fireEvent.change(screen.getByLabelText("Review comment"), { target: { value: text } });
 const commentValue = () => (screen.getByLabelText("Review comment") as HTMLTextAreaElement).value;
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  language = "en";
+});
 
 test("posts a comment at the preview's current frame against the saved revision", async () => {
   const client = makeClient();
@@ -178,7 +190,7 @@ test.each([
   await renderPanel(client, overrides);
   typeComment("Keep this");
   expect(button("Post comment").disabled).toBe(true);
-  expect(button("Approve").disabled).toBe(true);
+  expect(button("Approve for render").disabled).toBe(true);
   expect(button("Request changes").disabled).toBe(true);
   expect(screen.getByText(reason)).toBeDefined();
 });
@@ -186,7 +198,7 @@ test.each([
 test("blocks approval, but not a change request, while the saved revision has blocking issues", async () => {
   const client = makeClient();
   await renderPanel(client, { blockingIssues: 2 });
-  expect(button("Approve").disabled).toBe(true);
+  expect(button("Approve for render").disabled).toBe(true);
   expect(button("Request changes").disabled).toBe(false);
   expect(screen.getByText(/Fix 2 blocking issues/)).toBeDefined();
 });
@@ -197,16 +209,16 @@ test("confirms the target revision before deciding and reports success from the 
   client.createStudioReviewDecision.mockImplementationOnce(() => pending.promise);
   await renderPanel(client);
 
-  const approve = button("Approve");
+  const approve = button("Approve for render");
   approve.focus();
   fireEvent.click(approve);
   expect(screen.getByText("Approve saved revision 3?")).toBeDefined();
   expect(document.activeElement === button("Confirm approval")).toBe(true);
   fireEvent.click(button("Cancel"));
-  expect(document.activeElement === button("Approve")).toBe(true);
+  expect(document.activeElement === button("Approve for render")).toBe(true);
   expect(client.createStudioReviewDecision).not.toHaveBeenCalled();
 
-  fireEvent.click(button("Approve"));
+  fireEvent.click(button("Approve for render"));
   fireEvent.click(button("Confirm approval"));
   expect(client.createStudioReviewDecision.mock.calls[0]![2]).toMatchObject({ base_revision: 3, decision: "approved" });
   expect(screen.queryByText(/Current decision/) === null).toBe(true);
@@ -346,7 +358,7 @@ test("a late history load keeps the comment and decision that landed after it be
   typeComment("Posted before history");
   fireEvent.click(button("Post comment"));
   await screen.findByText("Comment posted.");
-  fireEvent.click(button("Approve"));
+  fireEvent.click(button("Approve for render"));
   fireEvent.click(button("Confirm approval"));
   await screen.findByText("Approval recorded for revision 3.");
 
@@ -375,7 +387,7 @@ test("a draft edited while its request is pending survives success and is never 
 
   const reason = () => screen.getByLabelText("Decision reason (optional)") as HTMLTextAreaElement;
   fireEvent.change(reason(), { target: { value: "Ship it" } });
-  fireEvent.click(button("Approve"));
+  fireEvent.click(button("Approve for render"));
   fireEvent.click(button("Confirm approval"));
   fireEvent.change(reason(), { target: { value: "Ship it after the caption fix" } });
   await act(async () => decided.reject(new StudioReviewRequestError("review_request_failed")));
@@ -445,4 +457,17 @@ test("Retry of a pinned comment names the original frame after the playhead move
   const [first, second] = client.createStudioReviewComment.mock.calls.map((call) => call[2]);
   expect(second).toEqual(first!);
   expect(second!.frame).toBe(29);
+});
+
+test("the panel reads in Indonesian", async () => {
+  language = "id";
+  const client = makeClient({ comments: [comment("c1", 3, { frame: 29 })], decisions: [decision("d1", 3)] });
+  await renderPanel(client);
+
+  expect(screen.getByRole("region", { name: "Tinjauan" })).toBeDefined();
+  expect(screen.getByText("Keputusan saat ini: Disetujui pada revisi 3")).toBeDefined();
+  expect(screen.getByLabelText("Komentar tinjauan")).toBeDefined();
+  expect(button("Setujui untuk render")).toBeDefined();
+  expect(button("Minta perubahan")).toBeDefined();
+  expect(screen.getByText(/di 0:00:29/)).toBeDefined();
 });

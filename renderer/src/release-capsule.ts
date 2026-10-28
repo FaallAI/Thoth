@@ -28,12 +28,14 @@ export class ReleaseCapsuleInvalid extends Error {
 }
 
 /** The whole allowlist. A second release is a code change, not a parameter. */
-export type ReleaseIdentity = "vertical_text_story-v1";
-const RELEASE_IDENTITIES = ["vertical_text_story-v1"] as const;
+export type ReleaseIdentity = "vertical_text_story-v1" | "story_mode-v1";
+const RELEASE_IDENTITIES = ["vertical_text_story-v1", "story_mode-v1"] as const;
 
 /** What each allowlisted identity is, restated so neither side can drift. */
 const RELEASED_TEMPLATES: Record<ReleaseIdentity, { id: string; version: number }> = {
   "vertical_text_story-v1": { id: "vertical_text_story", version: 1 },
+  // Story mode's motion and emphasis on the one template the document contract allows.
+  "story_mode-v1": { id: "vertical_text_story", version: 1 },
 };
 
 /** The trusted composition, the same literal the render contract pins. */

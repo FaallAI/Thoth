@@ -134,6 +134,7 @@ class StudioImportService:
         key: str,
         projection: StudioSourceProjection,
         idempotency_key: str,
+        source_workflow_id: str | None = None,
     ) -> StudioDraft:
         """Create one draft per idempotency key under `key`; a replay returns the same draft."""
         IDEMPOTENCY_KEY_ADAPTER.validate_python(idempotency_key)
@@ -145,6 +146,7 @@ class StudioImportService:
                 idempotency_key=idempotency_key,
                 document=build_studio_draft(project_id, f"edoc_{uuid4().hex}", projection),
                 inventory=inventory(projection),
+                source_workflow_id=source_workflow_id,
             )
         except PASSTHROUGH:
             raise

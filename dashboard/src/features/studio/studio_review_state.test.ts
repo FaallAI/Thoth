@@ -130,12 +130,12 @@ test("every gate derives from the saved document and the editor, never the draft
 
   expect(reviewGate(idle, { ...facts, isOffline: true }).canComment).toBe(false);
   expect(reviewGate(idle, { ...facts, saveStatus: "dirty" }).canComment).toBe(false);
-  expect(reviewGate(idle, { ...facts, saveStatus: "conflict" }).blockedReason).toMatch(/save conflict/);
+  expect(reviewGate(idle, { ...facts, saveStatus: "conflict" }).blockedReason).toEqual({ key: "studio.review.blocked.conflict" });
 
   const blocked = reviewGate(idle, { ...facts, blockingIssues: 2 });
   expect(blocked.canComment).toBe(true);
   expect(blocked.canApprove).toBe(false);
-  expect(blocked.approveBlockedReason).toMatch(/2 blocking issues/);
+  expect(blocked.approveBlockedReason).toEqual({ plural: "studio.review.blocked.issues", count: 2 });
 
   const pending = reviewReducer(idle, { type: "submitted", submission: commentSubmission });
   expect(reviewGate(pending, facts).canComment).toBe(false);
@@ -148,7 +148,7 @@ test("a stale write blocks review until Studio holds the newer saved revision", 
     { type: "submit_failed", code: "review_revision_conflict", latestRevision: 4 },
   );
   expect(reviewGate(stale, facts).canComment).toBe(false);
-  expect(reviewGate(stale, facts).blockedReason).toMatch(/revision 4/);
+  expect(reviewGate(stale, facts).blockedReason).toEqual({ key: "studio.review.blocked.stale", values: { revision: 4 } });
   expect(reviewGate(stale, { ...facts, savedRevision: 4 }).canComment).toBe(true);
 });
 
@@ -206,7 +206,7 @@ test("a comment that lands keeps a newer draft typed while it was pending", () =
   state = reviewReducer(state, { type: "comment_edited", text: "Also fix the ending" });
   state = reviewReducer(state, { type: "comment_created", comment: comment("c9", 3) });
   expect(state.commentText).toBe("Also fix the ending");
-  expect(state.notice).toBe("Comment posted.");
+  expect(state.notice).toEqual({ key: "studio.review.notice.comment" });
 });
 
 test("a decision that lands keeps a newer reason typed while it was pending", () => {

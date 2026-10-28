@@ -425,6 +425,7 @@ def test_no_fastapi_request_model_exposes_activity_mode() -> None:
         "SavePromptTemplateRequest",
         "SourceAccountCreate",
         "SourceAccountUpdate",
+        "StoryAssistRequest",
         "StudioSourceProjection",
         "UpgradeTimelineRequest",
         "WorkflowRequest",

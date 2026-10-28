@@ -1,4 +1,8 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+// The source inventory of a Studio draft (DESIGN §13.3): every item a run collected, as it
+// arrives in Studio, each attached, excluded or still waiting for that decision.
+import { Dialog } from "@base-ui/react/dialog";
+import { CircleAlert, X } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import {
   StudioImportRequestError,
@@ -7,237 +11,99 @@ import {
   type ResolveStudioImportItem,
   type StudioImportInventory,
   type StudioImportItem,
-  type StudioSourceInspection,
-  type StudioSourceProjection,
 } from "@/api/control-plane";
-import "./studio.css";
+import { Button } from "@/components/ui/button";
+import { reasonText } from "@/features/workflows/OpenInStudio";
+import type { MessageKey } from "@/lib/i18n";
+import { useLocale } from "@/lib/locale";
+import { cn } from "@/lib/utils";
 
 export type StudioImportClient = Pick<
   ControlPlaneClient,
-  | "inspectStudioImport"
-  | "createStudioImport"
-  | "listStudioImportDrafts"
-  | "getStudioImportInventory"
-  | "resolveStudioImportItem"
-  | "uploadEditorAsset"
-  | "listEditorAssets"
+  "getStudioImportInventory" | "resolveStudioImportItem" | "uploadEditorAsset" | "listEditorAssets"
 >;
 
 type StudioImportGateProps = {
   client: StudioImportClient;
   projectId: string;
-  /** Absent in resolve-only mode: a draft reopened from Studio by URL, with no Content Set. */
-  source?: StudioSourceProjection;
-  /** Reopened from Studio: show this draft's inventory first instead of the draft choice. */
-  resumeDocumentId?: string;
+  documentId: string;
   onOpen: (documentId: string) => void;
   onClose: () => void;
 };
 
-const ROLE_LABELS = {
-  main: "Main",
-  main_footage: "Main footage",
-  slide: "Slide",
-  post_card: "Post card",
-  profile_page: "Profile page",
-  creator_footage: "Creator footage",
-  creator_photo: "Creator photo",
-  footage: "Footage",
-  profile_card: "Profile card",
-  comment_card: "Comment card",
-  comment: "Comment",
-} as const;
 const ASSET_PAGE = 50;
 // Pages may overlap: one asset keeps its first position.
 const uniqueAssets = (list: EditorAsset[]) => [...new Map(list.map((asset) => [asset.asset_id, asset])).values()];
 const UPLOAD_TYPES = { video: "video/mp4,video/webm", image: "image/jpeg,image/png,image/webp" } as const;
 
-// Fixed words for each known failure; the server's own text never reaches the page.
-const MESSAGES: Record<string, string> = {
-  upload_too_large: "That file is too large to upload.",
-  unsupported_media_type: "That file type is not supported.",
-  asset_unavailable: "That asset is not ready to use.",
-  asset_kind_mismatch: "That asset is the wrong kind for this item.",
-  attach_rejected: "Studio could not place that asset in its scene.",
-  item_not_attachable: "This item has no media to attach.",
-  trim_exceeds_asset: "This item's trim starts after that asset ends. Choose a longer asset or exclude the item.",
-  asset_duration_unknown: "The length of that asset is unknown, so its source range cannot be kept.",
-  main_not_attached: "Attach the main item first; cards and slides are placed over it.",
-  no_room_in_reaction_beat:
-    "There is no room left in the reaction beat for this card. Exclude it, or place it by hand in the timeline.",
-};
+// Fixed words for each known refusal; the server's own text never reaches the page.
+const CODES = new Set([
+  "upload_too_large",
+  "unsupported_media_type",
+  "asset_unavailable",
+  "asset_kind_mismatch",
+  "attach_rejected",
+  "item_not_attachable",
+  "trim_exceeds_asset",
+  "asset_duration_unknown",
+  "main_not_attached",
+  "no_room_in_reaction_beat",
+]);
+const known = (error: StudioImportRequestError): MessageKey | null =>
+  error.code && CODES.has(error.code) ? (`studio.inventory.error.${error.code}` as MessageKey) : null;
 
-function failure(error: unknown, fallback: string): string {
+function failure(error: unknown, fallback: MessageKey): MessageKey {
   if (!(error instanceof StudioImportRequestError)) return fallback;
-  if (error.status === null) return "Offline — reconnect and try again.";
-  return (error.code && MESSAGES[error.code]) || fallback;
+  if (error.status === null) return "studio.error.offline";
+  return known(error) ?? fallback;
 }
 
-const buttonClass =
-  "min-h-11 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
-const sectionLabel = "font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground";
+const DOT = { attached: "bg-status-done", excluded: "bg-status-idle", unresolved: "bg-status-failed" } as const;
 
 /**
- * The choice behind Open in Studio: resume a draft made from this source or
- * create a new one, then attach or exclude each source item the draft cannot
- * play yet. Inspecting never writes; every decision is saved on the draft.
+ * Attach or exclude each source item the draft cannot play yet. Every decision is saved on the
+ * draft at its revision; a stale revision refreshes the list instead of guessing.
  */
-export function StudioImportGate({ client, projectId, source, resumeDocumentId, onOpen, onClose }: StudioImportGateProps) {
+export function StudioImportGate({ client, projectId, documentId, onOpen, onClose }: StudioImportGateProps) {
+  const { t, plural } = useLocale();
   const id = useId();
-  const panel = useRef<HTMLDivElement>(null);
   const alertRef = useRef<HTMLParagraphElement>(null);
-  const inventoryHeading = useRef<HTMLHeadingElement>(null);
-  const placedFocus = useRef(false);
-  const [attempt, setAttempt] = useState(0);
-  const [inspection, setInspection] = useState<StudioSourceInspection>();
-  const [listFailure, setListFailure] = useState<string>();
-  // Resolve-only mode (no source): the open failed and can be retried.
-  const [openFailed, setOpenFailed] = useState(false);
-  const [selected, setSelected] = useState<string>();
-  // A create that failed keeps its key, so an explicit retry can never make a second draft.
-  const [pendingKey, setPendingKey] = useState<string>();
   const [inventory, setInventory] = useState<StudioImportInventory>();
+  const [openFailed, setOpenFailed] = useState(false);
   // Ready assets load one bounded page at a time; `next` is the cursor for the page after.
   const [assets, setAssets] = useState<{ list: EditorAsset[]; next: string | null }>();
   const [assetLoad, setAssetLoad] = useState<"loading" | "failed">();
   const [attaching, setAttaching] = useState<string>();
   const [choice, setChoice] = useState<string>();
-  const [alert, setAlert] = useState<string>();
+  const [alert, setAlert] = useState<MessageKey>();
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    if (!source) return;
-    let alive = true;
-    setListFailure(undefined);
-    client.inspectStudioImport(projectId, source).then(
-      (result) => {
-        if (alive) setInspection(result);
-      },
-      (error: unknown) => {
-        if (!alive) return;
-        setListFailure(
-          error instanceof StudioImportRequestError && error.status === null
-            ? "Offline — reconnect to list drafts."
-            : "Drafts could not be listed. Try again.",
-        );
-      },
-    );
-    return () => {
-      alive = false;
-    };
-  }, [client, projectId, source, attempt]);
-
-  useEffect(() => {
-    const trigger = globalThis.document.activeElement as HTMLElement | null;
-    panel.current?.focus();
-    return () => trigger?.focus?.();
-  }, []);
-
-  useEffect(() => {
-    if (placedFocus.current || !inspection) return;
-    placedFocus.current = true;
-    panel.current?.querySelector<HTMLElement>('input[type="radio"], [data-create]')?.focus();
-  }, [inspection]);
-
-  const documentId = inventory?.document_id;
-  useEffect(() => {
-    if (documentId) inventoryHeading.current?.focus();
-  }, [documentId]);
 
   useEffect(() => {
     if (alert) alertRef.current?.focus();
   }, [alert]);
 
-  const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key === "Escape") {
-      event.stopPropagation();
-      onClose();
-      return;
-    }
-    if (event.key !== "Tab" || !panel.current) return;
-    const focusable = [
-      ...panel.current.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), select:not(:disabled)"),
-    ];
-    const active = globalThis.document.activeElement;
-    if (event.shiftKey && (active === focusable[0] || active === panel.current)) {
-      event.preventDefault();
-      focusable.at(-1)?.focus();
-    } else if (!event.shiftKey && active === focusable.at(-1)) {
-      event.preventDefault();
-      focusable[0]?.focus();
-    }
-  };
-
-  const openDraft = async (draftId: string, sourceKey: string) => {
+  const open = async () => {
     setBusy(true);
     setAlert(undefined);
     setOpenFailed(false);
     try {
-      setInventory(await client.getStudioImportInventory(projectId, draftId));
+      setInventory(await client.getStudioImportInventory(projectId, documentId));
     } catch (error) {
-      if (!(error instanceof StudioImportRequestError && error.status === 404)) {
-        setAlert(failure(error, "The draft could not be opened. Try again."));
-        setOpenFailed(!source);
+      if (error instanceof StudioImportRequestError && error.status === 404) {
+        setAlert("studio.inventory.gone");
         return;
       }
-      if (!source) {
-        // Resolve-only mode has no draft list to refresh.
-        setAlert("This draft is no longer available.");
-        return;
-      }
-      // A draft that is gone is never replaced silently: the list is refreshed and the creator chooses again.
-      setAlert("That draft is no longer available. The draft list has been refreshed.");
-      setSelected(undefined);
-      if (!sourceKey) return; // reopened before the list loaded: the inspect under way refreshes it
-      try {
-        const list = await client.listStudioImportDrafts(projectId, sourceKey);
-        setInspection((current) => current && { ...current, drafts: list.drafts, more_drafts: list.more_drafts });
-      } catch {
-        // The alert already says what happened; the stale row stays until the next refresh.
-      }
+      setAlert(failure(error, "studio.inventory.openFailed"));
+      setOpenFailed(true);
     } finally {
       setBusy(false);
     }
   };
 
   useEffect(() => {
-    if (resumeDocumentId) void openDraft(resumeDocumentId, "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, for the draft the gate was reopened with.
+    void open();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, for the draft the dialog opened with.
   }, []);
-
-  const create = async () => {
-    if (!source || !inspection) return;
-    const key = pendingKey ?? crypto.randomUUID();
-    setPendingKey(key);
-    setBusy(true);
-    setAlert(undefined);
-    let draftId: string;
-    try {
-      const draft = await client.createStudioImport(projectId, { source, source_key: inspection.source_key }, key);
-      draftId = draft.document_id;
-      setInspection((current) =>
-        current && {
-          ...current,
-          drafts: [draft, ...(current.drafts ?? []).filter((entry) => entry.document_id !== draft.document_id)],
-        },
-      );
-    } catch (error) {
-      if (error instanceof StudioImportRequestError && error.status === 409) {
-        // The source moved since it was inspected: inspect again rather than create blind.
-        setPendingKey(undefined);
-        setInspection(undefined);
-        setAttempt((count) => count + 1);
-        setAlert("This source changed since it was inspected. Choose again.");
-      } else {
-        setAlert(failure(error, "The draft could not be created. Try again."));
-      }
-      setBusy(false);
-      return;
-    }
-    setPendingKey(undefined);
-    setSelected(draftId);
-    await openDraft(draftId, inspection.source_key);
-  };
 
   const resolve = async (item: StudioImportItem, decision: ResolveStudioImportItem["decision"]) => {
     if (!inventory) return;
@@ -253,13 +119,10 @@ export function StudioImportGate({ client, projectId, source, resumeDocumentId, 
       setAttaching(undefined);
     } catch (error) {
       if (!(error instanceof StudioImportRequestError && error.status === 409)) {
-        setAlert(failure(error, "The decision could not be saved. Try again."));
+        setAlert(failure(error, "studio.inventory.decideFailed"));
         return;
       }
-      setAlert(
-        (error.code && MESSAGES[error.code]) ||
-          "This draft changed elsewhere. The inventory has been refreshed; choose again.",
-      );
+      setAlert(known(error) ?? "studio.inventory.conflict");
       try {
         setInventory(await client.getStudioImportInventory(projectId, inventory.document_id));
       } catch {
@@ -277,7 +140,7 @@ export function StudioImportGate({ client, projectId, source, resumeDocumentId, 
     try {
       uploaded = await client.uploadEditorAsset(projectId, file);
     } catch (error) {
-      setAlert(failure(error, "The upload failed. Try again."));
+      setAlert(failure(error, "studio.inventory.uploadFailed"));
       setBusy(false);
       return;
     }
@@ -305,25 +168,15 @@ export function StudioImportGate({ client, projectId, source, resumeDocumentId, 
     if (!assets && assetLoad === undefined) loadAssets();
   };
 
-  const main = source?.items[0];
-  const title = !source
-    ? "Resolve source items"
-    : main?.title
-      ? `Open in Studio — ${main.title}`
-      : "Open in Studio";
-  const drafts = inspection?.drafts ?? [];
-  const textScenes = (source?.items ?? []).filter(
-    (item, index) => index > 0 && item.role !== "main_footage" && item.media_kind === "none" && (item.title || item.text),
-  ).length;
-
   const attachPanel = (item: StudioImportItem) => {
     const kind = item.media_kind === "image" ? "image" : "video";
+    const kindWord = t(`studio.inventory.kind.${kind}`);
     const ready = (assets?.list ?? []).filter((asset) => asset.validation_state === "ready" && asset.kind === kind);
     const chosen = choice ?? ready[0]?.asset_id;
     return (
-      <div className="col-span-full mt-2 space-y-2 rounded-md border border-border bg-background/60 p-3 text-sm">
-        <label className={`${buttonClass} inline-flex cursor-pointer items-center focus-within:ring-2 focus-within:ring-ring`}>
-          Upload file
+      <div className="col-span-full mt-2 flex flex-col gap-3 rounded-md bg-well p-3 text-sm">
+        <label className="inline-flex h-9 w-fit cursor-pointer items-center rounded-md bg-raised px-3 text-ink focus-within:outline-2 focus-within:outline-copper">
+          {t("studio.inventory.upload")}
           <input
             type="file"
             className="sr-only"
@@ -339,12 +192,12 @@ export function StudioImportGate({ client, projectId, source, resumeDocumentId, 
         {chosen ? (
           <div className="flex flex-wrap items-end gap-2">
             <div className="min-w-48 flex-1">
-              <label htmlFor={`${id}-${item.item_id}-asset`} className="block text-xs text-muted-foreground">
-                Ready asset
+              <label htmlFor={`${id}-${item.item_id}-asset`} className="block text-xs text-muted-ink">
+                {t("studio.inventory.readyAsset")}
               </label>
               <select
                 id={`${id}-${item.item_id}-asset`}
-                className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                className="mt-1 h-9 w-full rounded-md border border-hairline bg-bg px-3 text-sm text-ink"
                 value={chosen}
                 disabled={busy}
                 onChange={(event) => setChoice(event.target.value)}
@@ -356,248 +209,151 @@ export function StudioImportGate({ client, projectId, source, resumeDocumentId, 
                 ))}
               </select>
             </div>
-            <button
-              type="button"
-              className={buttonClass}
-              disabled={busy}
-              onClick={() => void resolve(item, { kind: "attach_asset", asset_id: chosen })}
-            >
-              Attach selected asset
-            </button>
+            <Button variant="secondary" disabled={busy} onClick={() => void resolve(item, { kind: "attach_asset", asset_id: chosen })}>
+              {t("studio.inventory.attachSelected")}
+            </Button>
           </div>
         ) : assets ? (
-          <p className="text-xs text-muted-foreground">
-            {assets.next ? `No ready ${kind} in the assets loaded so far.` : `No ready ${kind} in this project yet.`}
+          <p className="text-xs text-muted-ink">
+            {t(assets.next ? "studio.inventory.noneLoaded" : "studio.inventory.noneYet", { kind: kindWord })}
           </p>
         ) : null}
         {assetLoad === "loading" ? (
-          <p role="status" className="text-xs text-muted-foreground">
-            Loading ready assets…
+          <p role="status" className="text-xs text-muted-ink">
+            {t("studio.inventory.assetsLoading")}
           </p>
         ) : assetLoad === "failed" ? (
-          <div role="alert" className="space-y-2 text-xs text-destructive">
-            <p>Ready assets could not be loaded. Check your connection and try again.</p>
-            <button type="button" className={buttonClass} onClick={() => loadAssets(assets?.next ?? undefined)}>
-              Retry loading assets
-            </button>
+          <div role="alert" className="flex flex-col items-start gap-2 text-xs text-status-failed">
+            <p>{t("studio.inventory.assetsFailed")}</p>
+            <Button variant="secondary" size="sm" onClick={() => loadAssets(assets?.next ?? undefined)}>
+              {t("studio.inventory.assetsRetry")}
+            </Button>
           </div>
         ) : assets?.next ? (
-          <button type="button" className={buttonClass} onClick={() => loadAssets(assets.next ?? undefined)}>
-            Load more assets
-          </button>
+          <Button variant="ghost" size="sm" className="w-fit" onClick={() => loadAssets(assets.next ?? undefined)}>
+            {t("studio.inventory.moreAssets")}
+          </Button>
         ) : null}
       </div>
     );
   };
 
+  const remaining = inventory?.items.filter((item) => item.disposition === "unresolved").length ?? 0;
+  // Columns on a wide screen: number, role, item, status, actions; a phone stacks them.
+  const columns = "sm:grid-cols-[2rem_9rem_minmax(0,1fr)_9rem_12rem]";
+
   return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/70 sm:items-center sm:p-4">
-      <div
-        ref={panel}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={`${id}-title`}
-        tabIndex={-1}
-        onKeyDown={onKeyDown}
-        className="studio-shell flex h-full w-full flex-col overflow-hidden bg-card text-foreground outline-none sm:h-auto sm:max-h-[90vh] sm:max-w-3xl sm:rounded-lg sm:border sm:border-border"
-      >
-        <header className="flex items-center gap-3 border-b border-border px-4 py-3">
-          <h2 id={`${id}-title`} className="min-w-0 flex-1 truncate text-base font-semibold">
-            {title}
-          </h2>
-          <button type="button" className={buttonClass} onClick={onClose}>
-            Close
-          </button>
-        </header>
-        {alert ? (
-          <p
-            ref={alertRef}
-            role="alert"
-            tabIndex={-1}
-            className="mx-4 mt-3 rounded-md border border-destructive/60 bg-destructive/10 px-3 py-2 text-sm outline-none"
-          >
-            {alert}
-          </p>
-        ) : null}
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          {inventory ? (
-            <>
-              <h3 ref={inventoryHeading} tabIndex={-1} className={`${sectionLabel} outline-none`}>
-                Source inventory — what this Studio edit contains
-              </h3>
-              <ol aria-label="Source inventory" className="mt-2">
-                {inventory.items.map((item, index) => {
-                  const excluded = item.disposition === "excluded";
-                  return (
-                    <li
-                      key={item.item_id}
-                      aria-label={item.label}
-                      className="grid grid-cols-[2rem_1fr] items-center gap-x-3 gap-y-1 border-b border-border py-3 sm:grid-cols-[2rem_7rem_1fr_auto]"
-                    >
-                      <span className="font-mono text-xs text-muted-foreground">{index + 1}</span>
-                      <span className="text-xs text-muted-foreground">{item.role ? ROLE_LABELS[item.role] : "Source"}</span>
-                      <span className="col-start-2 min-w-0 sm:col-start-auto">
-                        <span className={`block truncate text-sm ${excluded ? "text-muted-foreground line-through" : ""}`}>
-                          {item.label}
-                        </span>
-                        {item.reason ? <span className="block text-xs text-muted-foreground">{item.reason}</span> : null}
-                      </span>
-                      <span className="col-start-2 flex flex-wrap items-center gap-2 sm:col-start-auto">
-                        <span className="flex items-center gap-1.5 text-xs">
-                          <span
-                            aria-hidden
-                            className={`size-2 rounded-full ${
-                              item.disposition === "unresolved" ? "bg-destructive" : "bg-muted-foreground"
-                            }`}
-                          />
-                          <span>
-                            {item.disposition === "attached"
-                              ? `Attached · ${item.asset_id}`
-                              : excluded
-                                ? "Excluded"
-                                : "Unresolved"}
-                          </span>
-                        </span>
-                        {item.disposition === "unresolved" ? (
-                          <>
-                            {item.media_kind !== "none" ? (
-                              <button
-                                type="button"
-                                className={buttonClass}
-                                aria-expanded={attaching === item.item_id}
-                                disabled={busy}
-                                onClick={() => toggleAttach(item.item_id)}
-                              >
-                                Attach…
-                              </button>
-                            ) : null}
-                            <button
-                              type="button"
-                              className={buttonClass}
-                              disabled={busy}
-                              onClick={() => void resolve(item, { kind: "exclude" })}
-                            >
-                              Exclude from Studio edit
-                            </button>
-                          </>
-                        ) : null}
-                      </span>
-                      {attaching === item.item_id && item.disposition === "unresolved" ? attachPanel(item) : null}
-                    </li>
-                  );
-                })}
-              </ol>
-              <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-                {main?.media_kind === "none" ? <p>The main post has no media. It opens as a text scene.</p> : null}
-                {textScenes ? (
-                  <p>{`${textScenes} more ${textScenes === 1 ? "item opens" : "items open"} as a text scene.`}</p>
-                ) : null}
-              </div>
-            </>
-          ) : !source ? (
-            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-              {openFailed && resumeDocumentId ? (
-                <button type="button" className={buttonClass} onClick={() => void openDraft(resumeDocumentId, "")}>
-                  Try again
-                </button>
-              ) : alert ? null : (
-                <p role="status">Loading the draft's source items…</p>
-              )}
+    <Dialog.Root open onOpenChange={(next) => !next && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/60" />
+        <Dialog.Popup className="fixed inset-0 z-50 flex flex-col bg-raised text-ink outline-none sm:inset-auto sm:top-1/2 sm:left-1/2 sm:max-h-[90vh] sm:w-[min(920px,calc(100vw-48px))] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[10px] sm:shadow-xl">
+          <header className="flex items-start gap-3 px-6 pt-6">
+            <div className="min-w-0 flex-1">
+              <Dialog.Title className="text-lg font-semibold text-ink">{t("studio.inventory.title")}</Dialog.Title>
+              <Dialog.Description className="mt-1 text-sm text-muted-ink">{t("studio.inventory.intro")}</Dialog.Description>
             </div>
-          ) : (
-            <fieldset disabled={busy}>
-              <legend className={sectionLabel}>Drafts for this source</legend>
-              {!inspection ? (
-                <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                  <p>{listFailure ?? "Listing drafts…"}</p>
-                  {listFailure ? (
-                    <button type="button" className={buttonClass} onClick={() => setAttempt((count) => count + 1)}>
-                      Try again
-                    </button>
-                  ) : null}
+            <Dialog.Close render={<Button variant="ghost" size="icon" aria-label={t("common.close")} />}>
+              <X aria-hidden="true" className="size-4" />
+            </Dialog.Close>
+          </header>
+          {alert ? (
+            <p
+              ref={alertRef}
+              role="alert"
+              tabIndex={-1}
+              className="mx-6 mt-4 rounded-md bg-status-failed/10 px-3 py-2 text-sm text-status-failed outline-none"
+            >
+              {t(alert)}
+            </p>
+          ) : null}
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-4 pb-2">
+            {inventory ? (
+              <>
+                <div aria-hidden="true" className={cn("hidden gap-x-4 border-b border-hairline pb-2 text-[13px] text-muted-ink sm:grid", columns)}>
+                  <span>#</span>
+                  <span>{t("studio.inventory.col.role")}</span>
+                  <span>{t("studio.inventory.col.item")}</span>
+                  <span>{t("studio.inventory.col.status")}</span>
+                  <span />
                 </div>
-              ) : drafts.length ? (
-                <div className="mt-2 space-y-1">
-                  {drafts.map((draft) => (
-                    <label
-                      key={draft.document_id}
-                      className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm hover:bg-accent has-[:checked]:bg-accent"
-                    >
-                      <input
-                        type="radio"
-                        name={`${id}-draft`}
-                        value={draft.document_id}
-                        checked={selected === draft.document_id}
-                        onChange={() => setSelected(draft.document_id)}
-                        onKeyDown={(event) => {
-                          if (event.key !== "Enter") return;
-                          event.preventDefault();
-                          setSelected(draft.document_id);
-                          void openDraft(draft.document_id, inspection.source_key);
-                        }}
-                      />
-                      <span>
-                        {`Draft · revision ${draft.revision} · created `}
-                        <span className="text-muted-foreground">
-                          {new Date(draft.created_at).toLocaleString(undefined, {
-                            dateStyle: "medium",
-                            timeStyle: "short",
-                          })}
+                <ol aria-label={t("studio.inventory.title")}>
+                  {inventory.items.map((item, index) => {
+                    const unresolved = item.disposition === "unresolved";
+                    return (
+                      <li
+                        key={item.item_id}
+                        aria-label={item.label}
+                        className={cn(
+                          "grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-4 gap-y-1 border-b border-hairline py-3",
+                          columns,
+                          unresolved && item.reason && "bg-status-failed/5",
+                        )}
+                      >
+                        <span className="font-mono text-[13px] text-faint">{index + 1}</span>
+                        <span className="text-sm text-muted-ink">
+                          {t(`studio.inventory.role.${item.role ?? "source"}` as MessageKey)}
                         </span>
-                      </span>
-                    </label>
-                  ))}
-                  {inspection.more_drafts ? (
-                    <p className="px-3 text-xs text-muted-foreground">{`Showing the newest ${drafts.length} drafts.`}</p>
-                  ) : null}
-                </div>
-              ) : (
-                <p className="mt-3 text-sm text-muted-foreground">No drafts for this source yet.</p>
-              )}
-            </fieldset>
-          )}
-        </div>
-        <footer className="flex flex-wrap items-center justify-end gap-3 border-t border-border px-4 py-3">
-          {inventory ? (
-            <>
-              <p className="mr-auto text-sm">
-                {inventory.items.length
-                  ? `${inventory.items.filter((item) => item.disposition === "unresolved").length} of ${inventory.items.length} items unresolved`
-                  : "Nothing to resolve."}
+                        <span className="col-start-2 min-w-0 sm:col-start-auto">
+                          <span className="block truncate text-sm text-ink">{item.label}</span>
+                          {item.reason ? (
+                            <span className={cn("block text-[13px]", unresolved ? "text-status-failed" : "text-muted-ink")}>
+                              {reasonText(t, item.label, item.reason, true)}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="col-start-2 flex items-center gap-1.5 text-sm sm:col-start-auto">
+                          <span aria-hidden="true" className={cn("size-2 rounded-full", DOT[item.disposition])} />
+                          {t(`studio.inventory.status.${item.disposition}`)}
+                        </span>
+                        <span className="col-start-2 flex flex-wrap justify-end gap-2 sm:col-start-auto">
+                          {unresolved ? (
+                            <>
+                              {item.media_kind !== "none" ? (
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  aria-expanded={attaching === item.item_id}
+                                  disabled={busy}
+                                  onClick={() => toggleAttach(item.item_id)}
+                                >
+                                  {t("studio.inventory.attach")}
+                                </Button>
+                              ) : null}
+                              <Button variant="ghost" size="sm" disabled={busy} onClick={() => void resolve(item, { kind: "exclude" })}>
+                                {t("studio.inventory.exclude")}
+                              </Button>
+                            </>
+                          ) : null}
+                        </span>
+                        {attaching === item.item_id && unresolved ? attachPanel(item) : null}
+                      </li>
+                    );
+                  })}
+                </ol>
+              </>
+            ) : openFailed ? (
+              <Button variant="secondary" onClick={() => void open()}>
+                {t("common.retry")}
+              </Button>
+            ) : alert ? null : (
+              <p role="status" className="text-sm text-muted-ink">
+                {t("studio.inventory.loading")}
               </p>
-              <button
-                type="button"
-                className={`${buttonClass} border-primary bg-primary text-primary-foreground hover:bg-primary/90`}
-                onClick={() => onOpen(inventory.document_id)}
-              >
-                Continue in Studio
-              </button>
-            </>
-          ) : !source ? null : (
-            <>
-              {drafts.length ? (
-                <button
-                  type="button"
-                  className={buttonClass}
-                  disabled={busy || !selected}
-                  onClick={() => selected && inspection && void openDraft(selected, inspection.source_key)}
-                >
-                  Resume
-                </button>
-              ) : null}
-              <button
-                type="button"
-                data-create
-                className={`${buttonClass} border-primary text-primary`}
-                disabled={busy || !inspection}
-                onClick={() => void create()}
-              >
-                {pendingKey && !busy ? "Retry create" : "Create new draft"}
-              </button>
-            </>
-          )}
-        </footer>
-      </div>
-    </div>
+            )}
+          </div>
+          {inventory ? (
+            <footer className="flex flex-wrap items-center justify-end gap-3 border-t border-hairline px-6 py-4">
+              <p className={cn("mr-auto flex items-center gap-2 text-sm", remaining ? "text-ink" : "text-muted-ink")}>
+                {remaining ? <CircleAlert aria-hidden="true" className="size-4 text-status-failed" /> : null}
+                {remaining
+                  ? plural("studio.inventory.remaining", remaining, { total: inventory.items.length })
+                  : t("studio.inventory.done")}
+              </p>
+              <Button onClick={() => onOpen(inventory.document_id)}>{t("studio.inventory.continue")}</Button>
+            </footer>
+          ) : null}
+        </Dialog.Popup>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

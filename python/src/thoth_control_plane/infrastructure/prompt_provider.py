@@ -79,10 +79,46 @@ class OpenAICompatiblePromptProvider:
     async def propose(self, request: ProviderPromptRequest) -> ProviderPromptResult:
         runtime = self._resolve_runtime(request.provider_id)
         self._enforce_catalog(runtime, request)
+        content = await self._chat(runtime, request.model_id, self._build_payload(request))
+        return self._validate_output(request, content)
+
+    async def complete_json(
+        self, *, provider_id: str, model_id: str, system: str, user: str
+    ) -> dict[str, Any]:
+        """Story Assist (spec 2026-10-27, 7): one call answered with one JSON object.
+
+        The model must offer `improve`, the capability Prompt Lab's rewrites use.
+        """
+        runtime = self._resolve_runtime(provider_id)
+        model = next((model for model in runtime.models if model.model_id == model_id), None)
+        if model is None:
+            raise ProviderUnavailable()
+        if "improve" not in model.capabilities or len(user) > model.max_input_chars:
+            raise ProviderInvalidOutput()
+        payload = {
+            "model": model_id,
+            "messages": [
+                {"role": "system", "content": f"{system}\nRespond with JSON only."},
+                {"role": "user", "content": user},
+            ],
+            "temperature": 0,
+        }
+        content = await self._chat(runtime, model_id, payload)
+        try:
+            parsed = json.loads(content)
+        except ValueError as error:
+            raise ProviderInvalidOutput() from error
+        if not isinstance(parsed, dict):
+            raise ProviderInvalidOutput()
+        return parsed
+
+    async def _chat(
+        self, runtime: PromptProviderRuntimeDefinition, model_id: str, payload: dict[str, Any]
+    ) -> str:
+        """Exactly one chat-completions request, metered; the answer's text content."""
         credential = self._secrets.get(runtime.credential_id)
         if credential is None or not credential.get_secret_value().strip():
             raise ProviderUnavailable()
-        payload = self._build_payload(request)
         try:
             async with httpx.AsyncClient(
                 timeout=self._timeout,
@@ -107,12 +143,11 @@ class OpenAICompatiblePromptProvider:
             raise ProviderUnavailable()
         usage = _usage(response)
         await metering.record_call(
-            request.model_id,
+            model_id,
             tokens_in=usage.get("prompt_tokens"),
             tokens_out=usage.get("completion_tokens"),
         )
-        content = self._extract_content(response)
-        return self._validate_output(request, content)
+        return self._extract_content(response)
 
     def _resolve_runtime(self, provider_id: str) -> PromptProviderRuntimeDefinition:
         for runtime in self._runtime_catalog:

@@ -6,6 +6,7 @@ import pytest
 
 from thoth_control_plane.domain.studio_imports import SourceBlurRegion
 from thoth_control_plane.domain.studio_layout import (
+    CARD_CENTER_Y,
     CARD_GAP,
     card_position,
     clip_regions,
@@ -114,3 +115,23 @@ def test_profile_card_keeps_three_seconds_without_a_post_card() -> None:
 
 def test_a_post_card_never_outlasts_its_scene() -> None:
     assert post_card_slot(4.0, 6.0) == (0.0, 4.0)
+
+
+def _visible_edges(width: int, height: int) -> tuple[float, float]:
+    """The contained card's top and bottom edges as fractions of the canvas height."""
+    position = card_position(width, height, CANVAS)
+    canvas_w, canvas_h = CANVAS
+    shown = min(1.0, (canvas_w / canvas_h) / (width / height)) * position.scale
+    centre = 0.5 + position.y
+    return centre - shown / 2, centre + shown / 2
+
+
+def test_a_tall_card_starts_below_the_platform_header() -> None:
+    # A 4:5 post card at the card line would start above the canvas (spec 2026-10-27, 9:
+    # TikTok's header covers the top 10 %); it moves down just enough instead.
+    top, bottom = _visible_edges(1080, 1350)
+    assert top == pytest.approx(0.10)
+    assert bottom <= 0.82
+    # Short cards keep the card line.
+    assert card_position(1080, 360, CANVAS).y == pytest.approx(CARD_CENTER_Y - 0.5)
+    assert card_position(1080, 520, CANVAS).y == pytest.approx(CARD_CENTER_Y - 0.5)

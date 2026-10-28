@@ -273,6 +273,32 @@ export function applyTimelineOperation(
       clip.blur_enabled = operation.blur_enabled;
       break;
     }
+    case "replace_text": {
+      // A locked clip or track keeps its text, as the server refuses it.
+      const clip = unlockedClip(next, operation.clip_id);
+      if (clip.kind !== "text") throw new Error("text applies only to text clips");
+      clip[operation.field] = operation.value;
+      clip.ownership = "user_edited";
+      break;
+    }
+    case "set_clip_position":
+      unlockedVideoClip(next, operation.clip_id).position = operation.position;
+      break;
+    case "set_clip_motion":
+      unlockedVideoClip(next, operation.clip_id).motion = operation.motion;
+      break;
+    case "set_clip_emphasis":
+      unlockedVideoClip(next, operation.clip_id).emphasis = {
+        highlight: operation.highlight,
+        arrow: operation.arrow,
+      };
+      break;
+    case "replace_clip_asset":
+      replaceClipAsset(next, operation, resolvedAssets);
+      break;
+    case "add_text_clip":
+      addTextClip(next, operation);
+      break;
     case "set_caption_cue_text": {
       const clip = unlockedClip(next, operation.clip_id);
       const cue = clip.kind === "caption" ? clip.cues[operation.cue_index] : undefined;
@@ -340,6 +366,15 @@ function unlockedClip(document: EditDocumentV2, clipId: string): TimelineClip {
   return clip;
 }
 
+function unlockedVideoClip(
+  document: EditDocumentV2,
+  clipId: string,
+): Extract<TimelineClip, { kind: "video" }> {
+  const clip = unlockedClip(document, clipId);
+  if (clip.kind !== "video") throw new Error("operation applies only to video clips");
+  return clip;
+}
+
 function removeClipId(entry: TimelineTrack, clipId: string): void {
   entry.clip_ids = (entry.clip_ids ?? []).filter((known) => known !== clipId);
 }
@@ -353,10 +388,7 @@ function addClipFromAsset(
   if ((document.clips ?? []).some((clip) => clip.clip_id === operation.clip_id)) {
     throw new Error("operation reuses an existing clip ID");
   }
-  const asset = resolvedAssets[operation.asset_id];
-  if (!asset) throw new Error("operation references an unavailable asset");
-  if (asset.project_id !== document.project_id) throw new Error("asset belongs to another project");
-  if (asset.validation_state !== "ready") throw new Error("asset is not ready for use");
+  const asset = usableAsset(document, operation.asset_id, resolvedAssets);
 
   const clipKind = asset.kind === "audio" ? "audio" : "video";
   if (!TRACK_CLIP_KINDS[target.kind].includes(clipKind)) {
@@ -365,9 +397,7 @@ function addClipFromAsset(
   if (!CLIP_ASSET_KINDS[clipKind].includes(asset.kind)) {
     throw new Error("clip kind is incompatible with asset");
   }
-  if (!(document.asset_refs ?? []).some((known) => known.asset_id === asset.asset_id)) {
-    document.asset_refs = [...(document.asset_refs ?? []), assetRef(asset)];
-  }
+  recordAsset(document, asset);
 
   const shared = {
     clip_id: operation.clip_id,
@@ -380,12 +410,99 @@ function addClipFromAsset(
     ownership: "user_edited" as const,
     hidden: false,
     locked: false,
+    source_role: operation.source_role ?? null,
   };
   document.clips = [
     ...(document.clips ?? []),
     clipKind === "audio"
       ? { ...shared, kind: "audio" as const, volume: 1, fade_in_frames: 0, fade_out_frames: 0 }
-      : { ...shared, kind: "video" as const, fit: "cover" as const, blur_enabled: false },
+      : {
+          ...shared,
+          kind: "video" as const,
+          fit: operation.fit ?? ("cover" as const),
+          position: operation.position ?? null,
+          blur_enabled: false,
+          motion: "none" as const,
+          emphasis: { highlight: false, arrow: false },
+        },
+  ];
+  target.clip_ids = [...(target.clip_ids ?? []), operation.clip_id];
+}
+
+function usableAsset(
+  document: EditDocumentV2,
+  assetId: string,
+  resolvedAssets: Record<string, EditorAsset>,
+): EditorAsset {
+  const asset = resolvedAssets[assetId];
+  if (!asset) throw new Error("operation references an unavailable asset");
+  if (asset.project_id !== document.project_id) throw new Error("asset belongs to another project");
+  if (asset.validation_state !== "ready") throw new Error("asset is not ready for use");
+  return asset;
+}
+
+function recordAsset(document: EditDocumentV2, asset: EditorAsset): void {
+  if (!(document.asset_refs ?? []).some((known) => known.asset_id === asset.asset_id)) {
+    document.asset_refs = [...(document.asset_refs ?? []), assetRef(asset)];
+  }
+}
+
+function replaceClipAsset(
+  document: EditDocumentV2,
+  operation: Extract<EditDocumentOperation, { kind: "replace_clip_asset" }>,
+  resolvedAssets: Record<string, EditorAsset>,
+): void {
+  const clip = unlockedVideoClip(document, operation.clip_id);
+  const current = (document.asset_refs ?? []).find((ref) => ref.asset_id === clip.asset_id);
+  const asset = usableAsset(document, operation.asset_id, resolvedAssets);
+  if (asset.kind !== current?.kind) {
+    throw new Error("a clip's media is replaced only by an asset of the same kind");
+  }
+  if (asset.kind === "video") {
+    if (asset.duration_in_frames == null) throw new Error("video asset duration is unknown");
+    // Only this clip shortens; its neighbours keep their frames.
+    clip.duration_in_frames = Math.min(clip.duration_in_frames, asset.duration_in_frames);
+  }
+  recordAsset(document, asset);
+  clip.asset_id = asset.asset_id;
+  clip.source_from_frame = 0;
+  // Crop and blur regions are fractions and frames of the old medium; they do not carry over.
+  clip.crop = null;
+  clip.blur_regions = [];
+  clip.blur_enabled = false;
+  clip.ownership = "user_edited";
+}
+
+function addTextClip(
+  document: EditDocumentV2,
+  operation: Extract<EditDocumentOperation, { kind: "add_text_clip" }>,
+): void {
+  const target = unlockedTrack(document, operation.track_id);
+  if (target.kind !== "overlay") throw new Error("text clips go on an overlay track");
+  if ((document.clips ?? []).some((clip) => clip.clip_id === operation.clip_id)) {
+    throw new Error("operation reuses an existing clip ID");
+  }
+  // The server refuses a clip past the canvas when it validates the document.
+  if (operation.from_frame + operation.duration_in_frames > document.canvas.duration_in_frames) {
+    throw new Error("clip range exceeds canvas");
+  }
+  document.clips = [
+    ...(document.clips ?? []),
+    {
+      kind: "text",
+      clip_id: operation.clip_id,
+      track_id: target.track_id,
+      scene_id: null,
+      from_frame: operation.from_frame,
+      duration_in_frames: operation.duration_in_frames,
+      ownership: "user_edited",
+      hidden: false,
+      locked: false,
+      heading: operation.heading,
+      body: operation.body,
+      style_slot: operation.style_slot,
+      source_role: operation.source_role,
+    },
   ];
   target.clip_ids = [...(target.clip_ids ?? []), operation.clip_id];
 }

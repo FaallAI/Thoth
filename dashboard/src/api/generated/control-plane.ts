@@ -341,6 +341,26 @@ export interface paths {
         patch: operations["apply_edit_document_patch_api_v1_projects__project_id__edit_documents__document_id__patch"];
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/assist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Propose Story Assist
+         * @description One text proposal for a beat; nothing changes until the editor applies it.
+         */
+        post: operations["propose_story_assist_api_v1_projects__project_id__edit_documents__document_id__assist_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/edit-documents/{document_id}/review-comments": {
         parameters: {
             query?: never;
@@ -821,6 +841,48 @@ export interface paths {
          * @description Record one explicit attach or exclude decision against the saved revision.
          */
         post: operations["resolve_studio_import_item_api_v1_projects__project_id__studio_imports_documents__document_id__items__item_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/studio-imports/documents/{document_id}/materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Studio Materials
+         * @description Story mode's Materials: the draft's inventory with its run's provenance (spec 2026-10-27,
+         *     6.1). Read on every call; a run or Content Set that is gone leaves the provenance out.
+         */
+        get: operations["get_studio_materials_api_v1_projects__project_id__studio_imports_documents__document_id__materials_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/studio-imports/documents/{document_id}/materials/{item_id}/asset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Attach Studio Material
+         * @description The editor asset for one run material, copied from the run's media on first use
+         *     (spec 2026-10-27, 6.2): Add from materials, drag and Swap card all need one.
+         */
+        post: operations["attach_studio_material_api_v1_projects__project_id__studio_imports_documents__document_id__materials__item_id__asset_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1506,6 +1568,8 @@ export interface components {
             clip_id: string;
             /** Duration In Frames */
             duration_in_frames: number;
+            /** Fit */
+            fit?: ("cover" | "contain" | "fill") | null;
             /** From Frame */
             from_frame: number;
             /**
@@ -1515,6 +1579,7 @@ export interface components {
             kind: "add_clip_from_asset";
             /** Operation Id */
             operation_id: string;
+            position?: components["schemas"]["Position"] | null;
             /** Scene Id */
             scene_id?: string | null;
             /**
@@ -1522,6 +1587,40 @@ export interface components {
              * @default 0
              */
             source_from_frame: number;
+            /** Source Role */
+            source_role?: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment" | "hook" | "outro") | null;
+            /** Track Id */
+            track_id: string;
+        };
+        /**
+         * AddTextClip
+         * @description A Hook or Outro text over the overlay track, bound to no scene (Story mode, spec 8).
+         */
+        AddTextClip: {
+            /** Body */
+            body: string;
+            /** Clip Id */
+            clip_id: string;
+            /** Duration In Frames */
+            duration_in_frames: number;
+            /** From Frame */
+            from_frame: number;
+            /** Heading */
+            heading: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "add_text_clip";
+            /** Operation Id */
+            operation_id: string;
+            /**
+             * Source Role
+             * @enum {string}
+             */
+            source_role: "hook" | "outro";
+            /** Style Slot */
+            style_slot: string;
             /** Track Id */
             track_id: string;
         };
@@ -1864,7 +1963,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
             /** Target Language */
             target_language?: string | null;
             /** Target Layer */
@@ -1956,8 +2055,29 @@ export interface components {
             imported: boolean;
             /** Label */
             label: string;
+            /** Render Percent */
+            render_percent?: number | null;
             /** Revision */
             revision: number;
+            /**
+             * Source Has Post Card
+             * @default false
+             */
+            source_has_post_card: boolean;
+            /** Source Owner Handle */
+            source_owner_handle?: string | null;
+            /** Source Platform */
+            source_platform?: string | null;
+            /** Source Title */
+            source_title?: string | null;
+            /** Source Workflow Id */
+            source_workflow_id?: string | null;
+            /**
+             * State
+             * @default draft
+             * @enum {string}
+             */
+            state: "draft" | "in_review" | "approved" | "rendering" | "rendered";
             /**
              * Updated At
              * Format: date-time
@@ -1976,7 +2096,7 @@ export interface components {
             /** Base Revision */
             base_revision: number;
             /** Operations */
-            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
+            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
         };
         /**
          * EditDocumentV1
@@ -2076,6 +2196,19 @@ export interface components {
             assets: components["schemas"]["EditorAsset"][];
             /** Next Cursor */
             next_cursor?: string | null;
+        };
+        /** Emphasis */
+        Emphasis: {
+            /**
+             * Arrow
+             * @default false
+             */
+            arrow: boolean;
+            /**
+             * Highlight
+             * @default false
+             */
+            highlight: boolean;
         };
         /**
          * EventKind
@@ -2217,6 +2350,18 @@ export interface components {
              * Format: date
              */
             start: string;
+        };
+        /**
+         * MaterialFigure
+         * @description A person or organisation the run named: context for the editor, never media.
+         */
+        MaterialFigure: {
+            /** Name */
+            name: string;
+            /** Role */
+            role: string;
+            /** Type */
+            type: string;
         };
         /** MeUpdate */
         MeUpdate: {
@@ -2464,7 +2609,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
             /** Template Id */
             template_id: string;
             /** Template Revision */
@@ -2487,7 +2632,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
             /**
              * Updated At
              * Format: date-time
@@ -2508,7 +2653,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
             /**
              * Updated At
              * Format: date-time
@@ -2562,7 +2707,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
             /** Started At */
             started_at?: string | null;
             /**
@@ -2657,7 +2802,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
             /**
              * Status
              * @enum {string}
@@ -2689,7 +2834,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
             /** Template Id */
             template_id: string;
         };
@@ -2901,6 +3046,23 @@ export interface components {
             /** Track Id */
             track_id: string;
         };
+        /**
+         * ReplaceClipAsset
+         * @description Swap the media behind a clip; its timing, framing and Story styling stay.
+         */
+        ReplaceClipAsset: {
+            /** Asset Id */
+            asset_id: string;
+            /** Clip Id */
+            clip_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "replace_clip_asset";
+            /** Operation Id */
+            operation_id: string;
+        };
         /** ReplaceText */
         ReplaceText: {
             /** Clip Id */
@@ -2938,7 +3100,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
             /** Visible Text */
             visible_text: string;
         };
@@ -3109,7 +3271,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
             /** Template Id */
             template_id?: string | null;
         };
@@ -3206,6 +3368,22 @@ export interface components {
             /** Operation Id */
             operation_id: string;
         };
+        /** SetClipEmphasis */
+        SetClipEmphasis: {
+            /** Arrow */
+            arrow: boolean;
+            /** Clip Id */
+            clip_id: string;
+            /** Highlight */
+            highlight: boolean;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_clip_emphasis";
+            /** Operation Id */
+            operation_id: string;
+        };
         /** SetClipHidden */
         SetClipHidden: {
             /** Clip Id */
@@ -3233,6 +3411,36 @@ export interface components {
             locked: boolean;
             /** Operation Id */
             operation_id: string;
+        };
+        /** SetClipMotion */
+        SetClipMotion: {
+            /** Clip Id */
+            clip_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_clip_motion";
+            /**
+             * Motion
+             * @enum {string}
+             */
+            motion: "none" | "slow_zoom" | "pan";
+            /** Operation Id */
+            operation_id: string;
+        };
+        /** SetClipPosition */
+        SetClipPosition: {
+            /** Clip Id */
+            clip_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_clip_position";
+            /** Operation Id */
+            operation_id: string;
+            position: components["schemas"]["Position"];
         };
         /** SetClipVolume */
         SetClipVolume: {
@@ -3532,6 +3740,29 @@ export interface components {
              */
             healthy: number;
         };
+        /** StoryAssistProposal */
+        StoryAssistProposal: {
+            /** Operations */
+            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
+            /** Proposal Id */
+            proposal_id: string;
+            /** Reason */
+            reason: string;
+            /** Title */
+            title: string;
+        };
+        /** StoryAssistRequest */
+        StoryAssistRequest: {
+            /** Base Revision */
+            base_revision: number;
+            /**
+             * Beat
+             * @enum {string}
+             */
+            beat: "hook" | "main" | "evidence" | "reactions" | "footage" | "outro";
+            /** Clip Ids */
+            clip_ids: string[];
+        };
         /**
          * StudioDraft
          * @description One Studio draft created from a source, with its latest saved revision.
@@ -3574,6 +3805,8 @@ export interface components {
             revision: number;
             /** Source Key */
             source_key: string;
+            /** Source Workflow Id */
+            source_workflow_id?: string | null;
         };
         /**
          * StudioImportItem
@@ -3617,6 +3850,74 @@ export interface components {
             scene_id: string | null;
             /** Trim Start Seconds */
             trim_start_seconds?: number | null;
+        };
+        /**
+         * StudioMaterial
+         * @description One inventory item and, when the run's Content Set is readable, where it came from.
+         *
+         *     Provenance carries a host, never a full address, and never a storage location.
+         */
+        StudioMaterial: {
+            /** Asset Id */
+            asset_id?: string | null;
+            /** Author */
+            author?: string | null;
+            /**
+             * Disposition
+             * @enum {string}
+             */
+            disposition: "unresolved" | "attached" | "excluded";
+            /** Engagement */
+            engagement?: {
+                [key: string]: number;
+            } | null;
+            /** Host */
+            host?: string | null;
+            /** Item Id */
+            item_id: string;
+            /** Label */
+            label: string;
+            /** Likes */
+            likes?: number | null;
+            /**
+             * Media Kind
+             * @enum {string}
+             */
+            media_kind: "video" | "image" | "none";
+            /** Ocr Outcome */
+            ocr_outcome?: ("clean" | "cover" | "subtitle" | "overlay") | null;
+            /** Owner Handle */
+            owner_handle?: string | null;
+            /** Platform */
+            platform?: string | null;
+            /** Published At */
+            published_at?: string | null;
+            /** Query */
+            query?: string | null;
+            /** Role */
+            role: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment") | null;
+            /** Shows Object */
+            shows_object?: ("yes" | "partly") | null;
+            /** Story Score */
+            story_score?: number | null;
+            /** Trim Start Seconds */
+            trim_start_seconds?: number | null;
+            /** Verdict */
+            verdict?: ("original" | "replaced" | "unresolved" | "none") | null;
+        };
+        /**
+         * StudioMaterials
+         * @description Story mode's Materials panel (spec 2026-10-27, 6.1); read on every call, never stored.
+         */
+        StudioMaterials: {
+            /** Document Id */
+            document_id: string;
+            /** Figures */
+            figures?: components["schemas"]["MaterialFigure"][];
+            /** Items */
+            items: components["schemas"]["StudioMaterial"][];
+            /** Provenance Available */
+            provenance_available: boolean;
         };
         /**
          * StudioSourceInspection
@@ -3806,6 +4107,8 @@ export interface components {
              * @default 0
              */
             source_from_frame: number;
+            /** Source Role */
+            source_role?: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment" | "hook" | "outro") | null;
             /** Track Id */
             track_id: string;
             /**
@@ -3846,6 +4149,8 @@ export interface components {
             ownership: "ai_managed" | "user_edited" | "locked";
             /** Scene Id */
             scene_id?: string | null;
+            /** Source Role */
+            source_role?: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment" | "hook" | "outro") | null;
             /** Style Slot */
             style_slot: string;
             /** Track Id */
@@ -3887,6 +4192,8 @@ export interface components {
             preset_id: "lower_third" | "badge" | "progress_bar";
             /** Scene Id */
             scene_id?: string | null;
+            /** Source Role */
+            source_role?: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment" | "hook" | "outro") | null;
             /** Track Id */
             track_id: string;
         };
@@ -3924,6 +4231,8 @@ export interface components {
             ownership: "ai_managed" | "user_edited" | "locked";
             /** Scene Id */
             scene_id?: string | null;
+            /** Source Role */
+            source_role?: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment" | "hook" | "outro") | null;
             /** Style Slot */
             style_slot: string;
             /** Track Id */
@@ -3976,6 +4285,7 @@ export interface components {
             crop?: components["schemas"]["Crop"] | null;
             /** Duration In Frames */
             duration_in_frames: number;
+            emphasis?: components["schemas"]["Emphasis"];
             /**
              * Fit
              * @default cover
@@ -4000,6 +4310,12 @@ export interface components {
              */
             locked: boolean;
             /**
+             * Motion
+             * @default none
+             * @enum {string}
+             */
+            motion: "none" | "slow_zoom" | "pan";
+            /**
              * Ownership
              * @enum {string}
              */
@@ -4012,6 +4328,8 @@ export interface components {
              * @default 0
              */
             source_from_frame: number;
+            /** Source Role */
+            source_role?: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment" | "hook" | "outro") | null;
             /** Track Id */
             track_id: string;
         };
@@ -5207,6 +5525,53 @@ export interface operations {
             };
         };
     };
+    propose_story_assist_api_v1_projects__project_id__edit_documents__document_id__assist_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StoryAssistRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoryAssistProposal"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentRevisionConflictBody"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_review_comments_api_v1_projects__project_id__edit_documents__document_id__review_comments_get: {
         parameters: {
             query?: {
@@ -5579,7 +5944,7 @@ export interface operations {
             };
             path: {
                 project_id: string;
-                stage_id: "narrative_plan" | "visual_plan" | "caption_copy";
+                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
             };
             cookie?: never;
         };
@@ -5613,7 +5978,7 @@ export interface operations {
             };
             path: {
                 project_id: string;
-                stage_id: "narrative_plan" | "visual_plan" | "caption_copy";
+                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
             };
             cookie?: never;
         };
@@ -6004,7 +6369,7 @@ export interface operations {
             };
             path: {
                 project_id: string;
-                stage_id: "narrative_plan" | "visual_plan" | "caption_copy";
+                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
             };
             cookie?: never;
         };
@@ -6033,7 +6398,7 @@ export interface operations {
     list_prompt_templates_api_v1_projects__project_id__prompt_lab_templates_get: {
         parameters: {
             query: {
-                stage_id: "narrative_plan" | "visual_plan" | "caption_copy";
+                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
             };
             header?: {
                 Authorization?: string | null;
@@ -6496,6 +6861,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentRevisionConflictBody"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_studio_materials_api_v1_projects__project_id__studio_imports_documents__document_id__materials_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudioMaterials"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    attach_studio_material_api_v1_projects__project_id__studio_imports_documents__document_id__materials__item_id__asset_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                document_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditorAsset"];
                 };
             };
             /** @description Validation Error */

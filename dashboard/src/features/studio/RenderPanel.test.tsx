@@ -1,7 +1,7 @@
 /// <reference types="bun-types" />
 
 import { afterEach, describe, expect, jest, mock, test } from "bun:test";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 
 import {
   RenderRequestError,
@@ -12,6 +12,7 @@ import {
   type StudioImportInventory,
   type StudioImportItem,
 } from "@/api/control-plane";
+import { render } from "@/test-render";
 import { RenderPanel, type RenderPanelClient, type RenderValidation } from "./RenderPanel";
 import type { RenderEditorFacts } from "./render_job_state";
 
@@ -114,6 +115,7 @@ function panel(
   facts: EditorFacts = SAVED,
   revision = 7,
   validation: RenderValidation = VALID,
+  locale: "en" | "id" = "en",
 ) {
   return render(
     <RenderPanel
@@ -126,6 +128,7 @@ function panel(
       facts={facts}
       validation={validation}
     />,
+    { locale },
   );
 }
 
@@ -138,7 +141,7 @@ async function settle() {
 /** Load, open the confirmation, and confirm it, settling the create request. */
 async function startRender() {
   await settle();
-  fireEvent.click(screen.getByRole("button", { name: "Render video" }));
+  fireEvent.click(screen.getByRole("button", { name: /^Render revision \d+$/ }));
   await act(async () => {
     fireEvent.click(screen.getByRole("button", { name: "Start render" }));
   });
@@ -158,11 +161,13 @@ describe("loading the render surface", () => {
     ]);
     panel(client);
 
-    expect(await screen.findByRole("button", { name: "Render video" })).toBeDefined();
+    expect(await screen.findByRole("button", { name: /^Render revision \d+$/ })).toBeDefined();
     expect(client.getRenderCapability).toHaveBeenCalledTimes(1);
     expect(client.listRenderJobs).toHaveBeenCalledTimes(1);
 
-    const entries = screen.getAllByRole("listitem").map((item) => item.textContent ?? "");
+    const entries = screen
+      .getAllByRole("button", { name: /^Render started/ })
+      .map((entry) => entry.getAttribute("aria-label") ?? "");
     expect(entries[0]).toContain("2026-09-21T12:00:00Z");
     expect(entries[1]).toContain("2026-09-21T09:00:00Z");
   });
@@ -178,7 +183,7 @@ describe("loading the render surface", () => {
     const { container } = panel(client);
 
     expect(await screen.findByText("Rendering is not set up on this installation.")).toBeDefined();
-    expect(screen.getByRole("button", { name: "Render video" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: /^Render revision \d+$/ })).toHaveProperty("disabled", true);
     expect(container.textContent).not.toContain("renderer_not_configured");
   });
 
@@ -252,7 +257,7 @@ describe("the render gate", () => {
       panel(makeClient(), facts, 7, validation);
       await settle();
 
-      const button = screen.getByRole("button", { name: "Render video" });
+      const button = screen.getByRole("button", { name: /^Render revision \d+$/ });
       expect(button).toHaveProperty("disabled", true);
       const reason = button.getAttribute("aria-describedby");
       expect(reason).not.toBeNull();
@@ -272,7 +277,7 @@ describe("the render gate", () => {
     panel(client);
     await settle();
 
-    const button = screen.getByRole("button", { name: "Render video" });
+    const button = screen.getByRole("button", { name: /^Render revision \d+$/ });
     expect(button).toHaveProperty("disabled", true);
     expect(
       screen.getByText(
@@ -288,7 +293,7 @@ describe("the render gate", () => {
     panel(client);
     await startRender();
 
-    const button = screen.getByRole("button", { name: "Render video" });
+    const button = screen.getByRole("button", { name: /^Render revision \d+$/ });
     expect(button).toHaveProperty("disabled", true);
     const reason = button.getAttribute("aria-describedby");
     expect(window.document.getElementById(reason as string)?.textContent).toBe(
@@ -300,7 +305,7 @@ describe("the render gate", () => {
     const client = makeClient();
     const { rerender } = panel(client);
     await settle();
-    fireEvent.click(screen.getByRole("button", { name: "Render video" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Render revision \d+$/ }));
     expect(screen.getByRole("group", { name: "Render this version?" })).toBeDefined();
 
     // The draft goes dirty while the confirmation is open: confirming must not render it.
@@ -329,7 +334,7 @@ describe("confirming a render", () => {
     const client = makeClient();
     const { container } = panel(client);
     await settle();
-    fireEvent.click(screen.getByRole("button", { name: "Render video" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Render revision \d+$/ }));
 
     const confirmation = screen.getByRole("group", { name: "Render this version?" });
     expect(confirmation.getAttribute("aria-modal")).toBeNull();
@@ -359,7 +364,7 @@ describe("confirming a render", () => {
     });
     panel(client);
     await settle();
-    fireEvent.click(screen.getByRole("button", { name: "Render video" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Render revision \d+$/ }));
 
     const confirm = screen.getByRole("button", { name: "Start render" });
     await act(async () => {
@@ -374,7 +379,7 @@ describe("confirming a render", () => {
     const client = makeClient();
     const { rerender } = panel(client);
     await settle();
-    fireEvent.click(screen.getByRole("button", { name: "Render video" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Render revision \d+$/ }));
 
     rerender(
       <RenderPanel
@@ -835,7 +840,7 @@ describe("replacing the render context", () => {
     await settle();
 
     // The replacement owes the old attempt nothing: it can render immediately.
-    expect(screen.getByRole("button", { name: "Render video" })).toHaveProperty("disabled", false);
+    expect(screen.getByRole("button", { name: /^Render revision \d+$/ })).toHaveProperty("disabled", false);
 
     await act(async () => {
       rejects[0](new Error("network"));
@@ -858,7 +863,7 @@ describe("replacing the render context", () => {
     const client = makeClient();
     const { rerender } = panel(client);
     await settle();
-    fireEvent.click(screen.getByRole("button", { name: "Render video" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Render revision \d+$/ }));
     expect(screen.getByRole("group", { name: "Render this version?" })).toBeDefined();
 
     rerender(
@@ -1097,7 +1102,7 @@ describe("document validation", () => {
     panel(client, SAVED, 7, { textValid: true, blockingIssues: 2 });
     await settle();
 
-    const button = screen.getByRole("button", { name: "Render video" });
+    const button = screen.getByRole("button", { name: /^Render revision \d+$/ });
     expect(button).toHaveProperty("disabled", true);
     const reason = button.getAttribute("aria-describedby");
     expect(window.document.getElementById(reason as string)?.textContent).toBe(
@@ -1112,7 +1117,7 @@ describe("document validation", () => {
     await settle();
 
     const reason = screen
-      .getByRole("button", { name: "Render video" })
+      .getByRole("button", { name: /^Render revision \d+$/ })
       .getAttribute("aria-describedby");
     expect(window.document.getElementById(reason as string)?.textContent).toBe(
       "Fix 1 timeline issue before rendering.",
@@ -1312,7 +1317,7 @@ describe("confirmation semantics", () => {
   test("the create confirmation is labelled and operable without claiming modality", async () => {
     const { container } = panel(makeClient());
     await settle();
-    fireEvent.click(screen.getByRole("button", { name: "Render video" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Render revision \d+$/ }));
 
     const confirmation = screen.getByRole("group", { name: "Render this version?" });
     expect(container.querySelector("[aria-modal]")).toBeNull();
@@ -1441,7 +1446,7 @@ describe("phone monitoring", () => {
     const client = makeClient();
     const { rerender } = panel(client);
     await settle();
-    fireEvent.click(screen.getByRole("button", { name: "Render video" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Render revision \d+$/ }));
     expect(screen.getByRole("button", { name: "Start render" })).toBeDefined();
 
     rerender(
@@ -1503,7 +1508,7 @@ describe("source import readiness", () => {
     const onResolve = linkedPanel(client);
     await settle();
 
-    const button = screen.getByRole("button", { name: "Render video" }) as HTMLButtonElement;
+    const button = screen.getByRole("button", { name: /^Render revision \d+$/ }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
     const status = screen.getByRole("status", { name: "Source import" });
     expect(status.textContent).toContain("Resolve 2 source items before rendering.");
@@ -1536,7 +1541,7 @@ describe("source import readiness", () => {
     linkedPanel(client);
     await settle();
 
-    expect((screen.getByRole("button", { name: "Render video" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: /^Render revision \d+$/ }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByRole("status", { name: "Source import" }).textContent).toContain(
       "This draft changed elsewhere since this version. Reopen it to render the latest version.",
     );
@@ -1551,7 +1556,7 @@ describe("source import readiness", () => {
     linkedPanel(client);
     await settle();
 
-    expect((screen.getByRole("button", { name: "Render video" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: /^Render revision \d+$/ }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByRole("status", { name: "Source import" }).textContent).toContain(
       "The source import status could not be checked.",
     );
@@ -1601,4 +1606,65 @@ test("the format row appears only for a real preset", async () => {
   const { container } = panel(client);
   expect(await screen.findByText("Rendering is not set up on this installation.")).toBeDefined();
   expect(container.textContent).not.toContain("Unavailable");
+});
+
+describe("the restyled surface", () => {
+  test("a render in progress shows its frames, speed and time left", async () => {
+    const started = new Date(Date.now() - 20_000).toISOString();
+    const running = job({
+      status: "rendering",
+      started_at: started,
+      render_stage: "rendering",
+      rendered_frames: 800,
+      total_frames: 1440,
+      progress_percent: 55,
+    } as Partial<RenderJob>);
+    const client = makeClient([running], {
+      getRenderCapability: mock(async () => ({ ...AVAILABLE, active_render_job_id: "rj_001" })),
+    });
+    panel(client);
+    await settle();
+
+    const current = screen.getByLabelText("Current render");
+    expect(current.textContent).toContain("Rendering revision 7");
+    const steps = current.querySelector('[aria-label="Render progress"]');
+    expect(steps?.textContent).toContain("Prepare assets");
+    // 800 frames in about 20 s is about 40 fps; 640 frames remain, about 16 s.
+    expect(steps?.textContent).toMatch(/800 of 1440 frames · (39|40|41) fps/);
+    expect(current.textContent).toMatch(/about 1[5-7]s left/);
+  });
+
+  test("a finished render names its output and offers download and a new render", async () => {
+    const client = makeClient([COMPLETED]);
+    panel(client);
+    await settle();
+    fireEvent.click(screen.getByRole("button", { name: /Render started 2026-09-21T09:00:00Z/ }));
+
+    const current = screen.getByLabelText("Current render");
+    expect(current.textContent).toContain("Revision 7 rendered");
+    expect(current.textContent).toContain("MP4 · 1080 × 1920 · 2 kB · 0:10");
+    expect(screen.getByRole("button", { name: "Download video" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Render again" })).toBeDefined();
+    const row = screen.getByRole("button", { name: /Render started 2026-09-21T09:00:00Z/ });
+    expect(row.textContent).toContain("Rev 7 · MP4 · 1080 × 1920");
+  });
+
+  test("the readiness checks say what passed", async () => {
+    panel(makeClient());
+    await settle();
+
+    const readiness = screen.getByRole("region", { name: "Readiness" });
+    for (const check of ["Saved revision 7", "No timeline issues", "Renderer ready"]) {
+      expect(readiness.textContent).toContain(check);
+    }
+  });
+
+  test("the panel reads in Indonesian", async () => {
+    panel(makeClient([COMPLETED]), SAVED, 7, VALID, "id");
+    await settle();
+
+    expect(screen.getByRole("button", { name: "Render revisi 7" })).toBeDefined();
+    expect(screen.getByRole("region", { name: "Kesiapan" }).textContent).toContain("Revisi 7 tersimpan");
+    expect(screen.getByRole("heading", { name: "Keluaran" })).toBeDefined();
+  });
 });

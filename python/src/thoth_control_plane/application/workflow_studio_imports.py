@@ -15,6 +15,7 @@ import asyncio
 import contextlib
 import hashlib
 import logging
+import re
 from typing import Any, Literal, Protocol
 from uuid import uuid4
 
@@ -38,13 +39,16 @@ from thoth_control_plane.assembly.studio import (
     project_content_set,
     workflow_source_key,
 )
-from thoth_control_plane.domain.editor_assets import EditorAssetRecord
+from thoth_control_plane.domain.editor_assets import EditorAsset, EditorAssetRecord
 from thoth_control_plane.domain.models import Actor
 from thoth_control_plane.domain.studio_imports import (
     AttachImportAsset,
     ExcludeImportItem,
+    MaterialFigure,
     ResolveStudioImportItem,
     StudioImportInventory,
+    StudioMaterial,
+    StudioMaterials,
     StudioSourceInspection,
     WorkflowImportItem,
     WorkflowStudioImport,
@@ -68,6 +72,10 @@ class ContentSetInvalid(ValueError):
 
 class WorkflowInOtherProject(Exception):
     """The run already belongs to another project; moving it is out of scope."""
+
+
+class MaterialNotAttachable(LookupError):
+    """A material without media of its own: a figure, a comment without a card."""
 
 
 class _ItemFailed(Exception):
@@ -94,6 +102,10 @@ class WorkflowAssets(Protocol):
     ) -> EditorAssetRecord | None: ...
 
     async def register_ready(self, record: EditorAssetRecord) -> None: ...
+
+    async def get_ready_record(
+        self, *, project_id: str, asset_id: str
+    ) -> EditorAssetRecord | None: ...
 
 
 def content_set_location(workflow_id: str) -> str:
@@ -147,7 +159,7 @@ class WorkflowStudioImportService:
             if claimed.project_id != project_id:
                 raise WorkflowInOtherProject()
         draft = await self._imports.create_keyed(
-            project_id, key, source.projection, idempotency_key
+            project_id, key, source.projection, idempotency_key, source_workflow_id=workflow_id
         )
         inventory = await self._imports.get_inventory(project_id, draft.document_id)
         items: list[WorkflowImportItem] = []
@@ -173,6 +185,109 @@ class WorkflowStudioImportService:
         if run.project_id not in (None, project_id):
             raise WorkflowInOtherProject()
         return run
+
+    async def materials(self, project_id: str, document_id: str) -> StudioMaterials:
+        """The draft's inventory with its run's provenance; any gap degrades, never fails."""
+        inventory = await self._imports.get_inventory(project_id, document_id)
+        source = await self._readable_source(project_id, inventory.source_workflow_id)
+        provenance = source.provenance if source else {}
+        known = {item.item_id for item in inventory.items}
+        # Judged comments carry no media, so the inventory never lists them: they are quotes.
+        quotes = [
+            StudioMaterial(
+                item_id=item_id, role="comment", media_kind="none", disposition="excluded", **why
+            )
+            for item_id, why in provenance.items()
+            if re.fullmatch(r"comment_\d{3}", item_id) and item_id not in known
+        ]
+        return StudioMaterials(
+            document_id=document_id,
+            provenance_available=source is not None,
+            items=[
+                StudioMaterial(
+                    item_id=item.item_id,
+                    role=item.role,
+                    label=item.label,
+                    media_kind=item.media_kind,
+                    disposition=item.disposition,
+                    asset_id=item.asset_id,
+                    **{
+                        key: value
+                        for key, value in provenance.get(item.item_id, {}).items()
+                        if value is not None and key != "label"
+                    },
+                )
+                for item in inventory.items
+            ]
+            + quotes,
+            figures=[MaterialFigure(**figure) for figure in source.figures] if source else [],
+        )
+
+    async def material_asset(self, project_id: str, document_id: str, item_id: str) -> EditorAsset:
+        """The editor asset for one of the run's materials, copied on first use (spec 6.2).
+
+        The workflow importer's own copy: the same media is always the same asset.
+        """
+        inventory = await self._imports.get_inventory(project_id, document_id)
+        if self._assets is None or self._runs is None:
+            raise WorkflowStudioUnavailable()
+        # An item the import already holds an asset for needs no Content Set (final review I1).
+        held = next(
+            (
+                item.asset_id
+                for item in inventory.items
+                if item.item_id == item_id and item.asset_id
+            ),
+            None,
+        )
+        if held is not None:
+            record = await self._assets.get_ready_record(project_id=project_id, asset_id=held)
+            if record is not None:
+                return record.asset
+        workflow_id = inventory.source_workflow_id
+        run = None if workflow_id is None else await asyncio.to_thread(self._runs.get, workflow_id)
+        if workflow_id is None or run is None or run.project_id != project_id:
+            raise ContentSetUnavailable()
+        ref = (await self._source(workflow_id))[1].media.get(item_id)
+        if ref is None:
+            raise MaterialNotAttachable()
+        try:
+            record, _ = await self._asset_for(project_id, ref)
+        except _ItemFailed as error:
+            raise WorkflowStudioUnavailable(error.code) from error
+        return record.asset
+
+    async def story_context(self, project_id: str, document_id: str) -> tuple[str, str] | None:
+        """Story Assist's context: the run's title and post description, when still readable."""
+        try:
+            inventory = await self._imports.get_inventory(project_id, document_id)
+        except Exception:  # a draft made in Studio has no import, and the store may be down
+            return None
+        source = await self._readable_source(project_id, inventory.source_workflow_id)
+        main = (
+            next((item for item in source.projection.items if item.role == "main"), None)
+            if source
+            else None
+        )
+        return (main.title or "", main.text or "") if main else None
+
+    async def _readable_source(
+        self, project_id: str, workflow_id: str | None
+    ) -> WorkflowProjection | None:
+        """The run's Content Set when the run still lives in this project (B9: any member)."""
+        if workflow_id is None or self._runs is None:
+            return None
+        try:
+            run = await asyncio.to_thread(self._runs.get, workflow_id)
+        except Exception:  # the run store is down: the materials degrade, they do not fail
+            logger.warning("run store unavailable; materials are listed without provenance")
+            return None
+        if run is None or run.project_id != project_id:
+            return None
+        try:
+            return (await self._source(workflow_id))[1]
+        except (ContentSetUnavailable, ContentSetInvalid, WorkflowStudioUnavailable):
+            return None
 
     async def _source(self, workflow_id: str) -> tuple[str, WorkflowProjection]:
         """The Content Set row is the only gate: the stored run status lags Temporal."""

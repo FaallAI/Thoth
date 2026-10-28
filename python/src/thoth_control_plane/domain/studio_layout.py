@@ -32,6 +32,9 @@ PROFILE_MIN = 0.5
 CARD_WIDTH = 0.76
 #: Cards sit high, clear of the bottom UI and of the original video's own subtitles.
 CARD_CENTER_Y = 0.26
+#: The platform's header covers the top 10 % and its buttons the bottom 18 % (spec 2026-10-27, 9).
+SAFE_TOP = 0.10
+SAFE_BOTTOM = 0.18
 SLIDE_SECONDS = 3.0
 
 
@@ -82,14 +85,25 @@ def reaction_beat(
 def card_position(
     image_width: int | None, image_height: int | None, canvas: tuple[int, int]
 ) -> Position:
-    """A `fit = "contain"` card drawn CARD_WIDTH of the canvas wide, centred on CARD_CENTER_Y."""
+    """A `fit = "contain"` card drawn CARD_WIDTH of the canvas wide, centred on CARD_CENTER_Y.
+
+    A card too tall for the card line moves down just enough to start below the platform's
+    header; one taller than the safe band keeps that top edge (Story's Top preset agrees).
+    """
     canvas_width, canvas_height = canvas
     drawn = (
         canvas_width
         if not image_width or not image_height
         else min(canvas_width, canvas_height * image_width / image_height)
     )
-    return Position(x=0.0, y=CARD_CENTER_Y - 0.5, scale=CARD_WIDTH * canvas_width / drawn)
+    scale = CARD_WIDTH * canvas_width / drawn
+    shown = (
+        min(1.0, (canvas_width / canvas_height) / (image_width / image_height))
+        if image_width and image_height
+        else 1.0
+    ) * scale
+    centre = max(CARD_CENTER_Y, SAFE_TOP + shown / 2)
+    return Position(x=0.0, y=centre - 0.5, scale=scale)
 
 
 def clip_regions(

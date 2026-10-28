@@ -20,6 +20,7 @@ from thoth_control_plane.domain.edit_documents import (
     TemplateRef,
 )
 from thoth_control_plane.domain.models import Checksum, OpaqueId, ProjectId, StrictModel
+from thoth_control_plane.domain.studio_imports import SourceRole
 
 TrackKind: TypeAlias = Literal[
     "main_video", "b_roll", "overlay", "caption", "narration", "music", "sfx"
@@ -30,6 +31,10 @@ FitMode: TypeAlias = Literal["cover", "contain", "fill"]
 OverlayPreset: TypeAlias = Literal["lower_third", "badge", "progress_bar"]
 #: The caption styles `CAPTION_STYLES` in @thoth/remotion-composition renders.
 CaptionStyle: TypeAlias = Literal["caption_default", "source"]
+#: The import's `SourceRole` plus the two beats only "Add beat" makes (Story mode, spec §5.1).
+StoryRole: TypeAlias = Literal[SourceRole, "hook", "outro"]
+#: Movement across a clip's own duration; "none" draws what was drawn before Story mode.
+Motion: TypeAlias = Literal["none", "slow_zoom", "pan"]
 
 PositiveInt = Annotated[int, Field(gt=0)]
 NormalizedUnit = Annotated[float, Field(ge=0.0, le=1.0)]
@@ -96,6 +101,8 @@ class TimelineClipBase(StrictModel):
     ownership: Ownership
     hidden: bool = False
     locked: bool = False
+    #: Where the clip came from, for Story mode's beats; drafts made earlier have none.
+    source_role: StoryRole | None = None
 
     @property
     def end_frame(self) -> int:
@@ -121,6 +128,11 @@ class Position(StrictModel):
     x: Offset = 0.0
     y: Offset = 0.0
     scale: Scale = 1.0
+
+
+class Emphasis(StrictModel):
+    highlight: bool = False
+    arrow: bool = False
 
 
 class ClipBlurRegion(StrictModel):
@@ -184,6 +196,8 @@ class TimelineVideoClip(TimelineClipBase):
     )
     # Imported subtitle regions stay off until narration replaces the speech (spec 5c-1, 6).
     blur_enabled: bool = False
+    motion: Motion = "none"
+    emphasis: Emphasis = Field(default_factory=Emphasis)
 
 
 class TimelineOverlayClip(TimelineClipBase):

@@ -47,6 +47,7 @@ class MemoryStudioImports:
         idempotency_key: str,
         document: EditDocumentV2,
         inventory: list[StudioImportItem],
+        source_workflow_id: str | None = None,
     ) -> StudioDraft:
         for row in self.rows:
             if (row["project_id"], row["idempotency_key"]) == (project_id, idempotency_key):
@@ -67,6 +68,7 @@ class MemoryStudioImports:
                 "draft": draft,
                 "document": document,
                 "inventory": inventory,
+                "source_workflow_id": source_workflow_id,
             }
         )
         return draft
@@ -94,6 +96,7 @@ class MemoryStudioImports:
                     source_key=row["draft"].source_key,
                     revision=row["draft"].revision,
                     items=row["inventory"],
+                    source_workflow_id=row.get("source_workflow_id"),
                 )
         return None
 

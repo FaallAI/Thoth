@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM rows for the editor tables (editor migrations 0001-0007, 0017 and 0021).
+"""SQLAlchemy ORM rows for the editor tables (editor migrations 0001-0007, 0017, 0021 and 0024).
 
 They mirror the shipped SQL exactly; the migrations stay the source of truth, and a Postgres
 parity test compares every table here with the migrated schema. Constraints the database
@@ -264,6 +264,8 @@ class StudioImportDraftRow(EditorBase):
     idempotency_key: Mapped[str] = mapped_column(Text)
     inventory: Mapped[Any] = mapped_column(JSONB)
     created_at: Mapped[datetime] = _created_at()
+    # Editor migration 0024 (restyle B9): the run the draft was opened from.
+    source_workflow_id: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class StudioImportDecisionRow(EditorBase):

@@ -41,6 +41,10 @@ export type StudioImportItem = components["schemas"]["StudioImportItem"];
 export type StudioDraft = components["schemas"]["StudioDraft"];
 export type StudioDraftList = components["schemas"]["StudioDraftList"];
 export type StudioImportInventory = components["schemas"]["StudioImportInventory"];
+export type StudioMaterials = components["schemas"]["StudioMaterials"];
+export type StudioMaterial = StudioMaterials["items"][number];
+export type StoryAssistRequest = components["schemas"]["StoryAssistRequest"];
+export type StoryAssistProposal = components["schemas"]["StoryAssistProposal"];
 export type WorkflowStudioImport = components["schemas"]["WorkflowStudioImport"];
 export type CreateStudioImport = components["schemas"]["CreateStudioImport"];
 export type ResolveStudioImportItem = components["schemas"]["ResolveStudioImportItem"];
@@ -239,6 +243,8 @@ export type ControlPlaneClient = {
   mediaUrl: (workflowId: string, location: string) => string;
   downloadWorkflowArtifact: (workflowId: string, artifactId: string) => Promise<Blob>;
   listEditDocuments: (projectId: string, cursor?: string) => Promise<EditDocumentListPage>;
+  /** A text-only draft with no source: the documents page's "Blank". */
+  createBlankDocument: (projectId: string) => Promise<EditDocument>;
   getWorkflow: (workflowId: string) => Promise<WorkflowSummary>;
   streamWorkflow: (
     workflowId: string,
@@ -258,6 +264,12 @@ export type ControlPlaneClient = {
   inspectWorkflowStudioImport: (projectId: string, workflowId: string) => Promise<StudioSourceInspection>;
   openWorkflowInStudio: (projectId: string, workflowId: string, idempotencyKey: string) => Promise<WorkflowStudioImport>;
   getStudioImportInventory: (projectId: string, documentId: string) => Promise<StudioImportInventory>;
+  /** Story mode: the draft's materials with the run's provenance (spec 2026-10-27, 6.1). */
+  getStudioMaterials: (projectId: string, documentId: string) => Promise<StudioMaterials>;
+  /** The editor asset for one run material, copied on first use (spec 2026-10-27, 6.2). */
+  attachStudioMaterial: (projectId: string, documentId: string, itemId: string) => Promise<EditorAsset>;
+  /** Story Assist: one text proposal for a beat; nothing changes until it is applied (spec 7). */
+  requestStoryAssist: (projectId: string, documentId: string, request: StoryAssistRequest) => Promise<StoryAssistProposal>;
   resolveStudioImportItem: (
     projectId: string,
     documentId: string,
@@ -632,6 +644,12 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
         `/api/v1/projects/${encodeURIComponent(projectId)}/edit-documents?${query.toString()}`,
       );
     },
+    createBlankDocument: (projectId) =>
+      request<EditDocument>(`/api/v1/projects/${encodeURIComponent(projectId)}/edit-documents/import-content-set`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ main: {}, footage: [] }),
+      }),
     approveWorkflow: (workflowId, approval) =>
       request<WorkflowSummary>(`/api/v1/workflows/${workflowId}/approve`, {
         method: "POST",
@@ -659,6 +677,21 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
       }),
     getStudioImportInventory: (projectId, documentId) =>
       importCall(importPath(projectId, `/documents/${encodeURIComponent(documentId)}`)),
+    getStudioMaterials: (projectId, documentId) =>
+      importCall(importPath(projectId, `/documents/${encodeURIComponent(documentId)}/materials`)),
+    requestStoryAssist: (projectId, documentId, request) =>
+      importPost(
+        `/api/v1/projects/${encodeURIComponent(projectId)}/edit-documents/${encodeURIComponent(documentId)}/assist`,
+        request,
+      ),
+    attachStudioMaterial: (projectId, documentId, itemId) =>
+      importCall(
+        importPath(
+          projectId,
+          `/documents/${encodeURIComponent(documentId)}/materials/${encodeURIComponent(itemId)}/asset`,
+        ),
+        { method: "POST" },
+      ),
     resolveStudioImportItem: (projectId, documentId, itemId, request) =>
       importPost(
         importPath(

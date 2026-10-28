@@ -159,6 +159,9 @@ def trim_end(clip_id: str, end_frame: int) -> TrimClipEnd:
             "duration_in_frames": 60,
             "source_from_frame": 0,
             "scene_id": None,
+            "fit": None,
+            "position": None,
+            "source_role": None,
         },
         {"kind": "reorder_scene", "operation_id": "op_1", "scene_id": "scene_001", "to_index": 0},
         {"kind": "remove_clip", "operation_id": "op_1", "clip_id": "clip_main"},
@@ -322,6 +325,9 @@ def test_timeline_operations_carry_no_locator_field_in_their_schema() -> None:
         "duration_in_frames",
         "source_from_frame",
         "scene_id",
+        "fit",
+        "position",
+        "source_role",
     }
 
 
@@ -1105,6 +1111,7 @@ def test_add_caption_clip_spans_its_scene_with_one_default_cue() -> None:
         "locked": False,
         "style_slot": "caption_default",
         "cues": [{"from_frame": 0, "duration_in_frames": 45, "text": "Hello"}],
+        "source_role": None,
     }
     assert find_track(result, "track_caption").clip_ids == ["clip_cap"]
 

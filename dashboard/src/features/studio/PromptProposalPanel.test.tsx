@@ -1,7 +1,8 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, mock, spyOn, test } from "bun:test";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
+import { render } from "@/test-render";
 import userEvent from "@testing-library/user-event";
 import type { PromptProposalPanelClient } from "./PromptProposalPanel";
 

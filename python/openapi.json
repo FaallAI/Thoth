@@ -165,6 +165,22 @@
             "title": "Duration In Frames",
             "type": "integer"
           },
+          "fit": {
+            "anyOf": [
+              {
+                "enum": [
+                  "cover",
+                  "contain",
+                  "fill"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fit"
+          },
           "from_frame": {
             "minimum": 0.0,
             "title": "From Frame",
@@ -179,6 +195,16 @@
             "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
             "title": "Operation Id",
             "type": "string"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Position"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "scene_id": {
             "anyOf": [
@@ -198,6 +224,32 @@
             "title": "Source From Frame",
             "type": "integer"
           },
+          "source_role": {
+            "anyOf": [
+              {
+                "enum": [
+                  "main",
+                  "main_footage",
+                  "slide",
+                  "post_card",
+                  "profile_page",
+                  "creator_footage",
+                  "creator_photo",
+                  "footage",
+                  "profile_card",
+                  "comment_card",
+                  "comment",
+                  "hook",
+                  "outro"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Role"
+          },
           "track_id": {
             "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
             "title": "Track Id",
@@ -214,6 +266,80 @@
           "duration_in_frames"
         ],
         "title": "AddClipFromAsset",
+        "type": "object"
+      },
+      "AddTextClip": {
+        "additionalProperties": false,
+        "description": "A Hook or Outro text over the overlay track, bound to no scene (Story mode, spec 8).",
+        "properties": {
+          "body": {
+            "maxLength": 2000,
+            "title": "Body",
+            "type": "string"
+          },
+          "clip_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "duration_in_frames": {
+            "exclusiveMinimum": 0.0,
+            "title": "Duration In Frames",
+            "type": "integer"
+          },
+          "from_frame": {
+            "minimum": 0.0,
+            "title": "From Frame",
+            "type": "integer"
+          },
+          "heading": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Heading",
+            "type": "string"
+          },
+          "kind": {
+            "const": "add_text_clip",
+            "title": "Kind",
+            "type": "string"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "source_role": {
+            "enum": [
+              "hook",
+              "outro"
+            ],
+            "title": "Source Role",
+            "type": "string"
+          },
+          "style_slot": {
+            "pattern": "^[a-z][a-z0-9_]{0,63}$",
+            "title": "Style Slot",
+            "type": "string"
+          },
+          "track_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Track Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "clip_id",
+          "track_id",
+          "from_frame",
+          "duration_in_frames",
+          "heading",
+          "body",
+          "style_slot",
+          "source_role"
+        ],
+        "title": "AddTextClip",
         "type": "object"
       },
       "AddTrack": {
@@ -1217,7 +1343,8 @@
             "enum": [
               "narrative_plan",
               "visual_plan",
-              "caption_copy"
+              "caption_copy",
+              "story_assist"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -1436,10 +1563,85 @@
             "title": "Label",
             "type": "string"
           },
+          "render_percent": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Render Percent"
+          },
           "revision": {
             "exclusiveMinimum": 0.0,
             "title": "Revision",
             "type": "integer"
+          },
+          "source_has_post_card": {
+            "default": false,
+            "title": "Source Has Post Card",
+            "type": "boolean"
+          },
+          "source_owner_handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Owner Handle"
+          },
+          "source_platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Platform"
+          },
+          "source_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Title"
+          },
+          "source_workflow_id": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Workflow Id"
+          },
+          "state": {
+            "default": "draft",
+            "enum": [
+              "draft",
+              "in_review",
+              "approved",
+              "rendering",
+              "rendered"
+            ],
+            "title": "State",
+            "type": "string"
           },
           "updated_at": {
             "format": "date-time",
@@ -1500,19 +1702,24 @@
                 "mapping": {
                   "add_caption_clip": "#/components/schemas/AddCaptionClip",
                   "add_clip_from_asset": "#/components/schemas/AddClipFromAsset",
+                  "add_text_clip": "#/components/schemas/AddTextClip",
                   "add_track": "#/components/schemas/AddTrack",
                   "move_clip": "#/components/schemas/MoveClip",
                   "remove_clip": "#/components/schemas/RemoveClip",
                   "remove_empty_track": "#/components/schemas/RemoveEmptyTrack",
                   "reorder_scene": "#/components/schemas/ReorderScene",
                   "reorder_track": "#/components/schemas/ReorderTrack",
+                  "replace_clip_asset": "#/components/schemas/ReplaceClipAsset",
                   "replace_text": "#/components/schemas/ReplaceText",
                   "set_caption_cue_text": "#/components/schemas/SetCaptionCueText",
                   "set_caption_cue_timing": "#/components/schemas/SetCaptionCueTiming",
                   "set_caption_style": "#/components/schemas/SetCaptionStyle",
                   "set_clip_blur": "#/components/schemas/SetClipBlur",
+                  "set_clip_emphasis": "#/components/schemas/SetClipEmphasis",
                   "set_clip_hidden": "#/components/schemas/SetClipHidden",
                   "set_clip_locked": "#/components/schemas/SetClipLocked",
+                  "set_clip_motion": "#/components/schemas/SetClipMotion",
+                  "set_clip_position": "#/components/schemas/SetClipPosition",
                   "set_clip_volume": "#/components/schemas/SetClipVolume",
                   "set_ownership": "#/components/schemas/SetOwnership",
                   "set_scene_duration": "#/components/schemas/SetSceneDuration",
@@ -1588,6 +1795,21 @@
                 },
                 {
                   "$ref": "#/components/schemas/SetCaptionStyle"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipPosition"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipMotion"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipEmphasis"
+                },
+                {
+                  "$ref": "#/components/schemas/ReplaceClipAsset"
+                },
+                {
+                  "$ref": "#/components/schemas/AddTextClip"
                 },
                 {
                   "$ref": "#/components/schemas/SetTrackVisibility"
@@ -1928,6 +2150,23 @@
           }
         },
         "title": "EditorAssetPage",
+        "type": "object"
+      },
+      "Emphasis": {
+        "additionalProperties": false,
+        "properties": {
+          "arrow": {
+            "default": false,
+            "title": "Arrow",
+            "type": "boolean"
+          },
+          "highlight": {
+            "default": false,
+            "title": "Highlight",
+            "type": "boolean"
+          }
+        },
+        "title": "Emphasis",
         "type": "object"
       },
       "EventKind": {
@@ -2332,6 +2571,31 @@
           "plans"
         ],
         "title": "MarginView",
+        "type": "object"
+      },
+      "MaterialFigure": {
+        "additionalProperties": false,
+        "description": "A person or organisation the run named: context for the editor, never media.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "role"
+        ],
+        "title": "MaterialFigure",
         "type": "object"
       },
       "MeUpdate": {
@@ -3025,7 +3289,8 @@
             "enum": [
               "narrative_plan",
               "visual_plan",
-              "caption_copy"
+              "caption_copy",
+              "story_assist"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -3080,7 +3345,8 @@
             "enum": [
               "narrative_plan",
               "visual_plan",
-              "caption_copy"
+              "caption_copy",
+              "story_assist"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -3129,7 +3395,8 @@
             "enum": [
               "narrative_plan",
               "visual_plan",
-              "caption_copy"
+              "caption_copy",
+              "story_assist"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -3291,7 +3558,8 @@
             "enum": [
               "narrative_plan",
               "visual_plan",
-              "caption_copy"
+              "caption_copy",
+              "story_assist"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -3592,7 +3860,8 @@
             "enum": [
               "narrative_plan",
               "visual_plan",
-              "caption_copy"
+              "caption_copy",
+              "story_assist"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -3677,7 +3946,8 @@
             "enum": [
               "narrative_plan",
               "visual_plan",
-              "caption_copy"
+              "caption_copy",
+              "story_assist"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -4298,6 +4568,40 @@
         "title": "ReorderTrack",
         "type": "object"
       },
+      "ReplaceClipAsset": {
+        "additionalProperties": false,
+        "description": "Swap the media behind a clip; its timing, framing and Story styling stay.",
+        "properties": {
+          "asset_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Asset Id",
+            "type": "string"
+          },
+          "clip_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "replace_clip_asset",
+            "title": "Kind",
+            "type": "string"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "clip_id",
+          "asset_id"
+        ],
+        "title": "ReplaceClipAsset",
+        "type": "object"
+      },
       "ReplaceText": {
         "additionalProperties": false,
         "properties": {
@@ -4389,7 +4693,8 @@
             "enum": [
               "narrative_plan",
               "visual_plan",
-              "caption_copy"
+              "caption_copy",
+              "story_assist"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -4867,7 +5172,8 @@
             "enum": [
               "narrative_plan",
               "visual_plan",
-              "caption_copy"
+              "caption_copy",
+              "story_assist"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -5117,6 +5423,43 @@
         "title": "SetClipBlur",
         "type": "object"
       },
+      "SetClipEmphasis": {
+        "additionalProperties": false,
+        "properties": {
+          "arrow": {
+            "title": "Arrow",
+            "type": "boolean"
+          },
+          "clip_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "highlight": {
+            "title": "Highlight",
+            "type": "boolean"
+          },
+          "kind": {
+            "const": "set_clip_emphasis",
+            "title": "Kind",
+            "type": "string"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "clip_id",
+          "highlight",
+          "arrow"
+        ],
+        "title": "SetClipEmphasis",
+        "type": "object"
+      },
       "SetClipHidden": {
         "additionalProperties": false,
         "properties": {
@@ -5179,6 +5522,74 @@
           "locked"
         ],
         "title": "SetClipLocked",
+        "type": "object"
+      },
+      "SetClipMotion": {
+        "additionalProperties": false,
+        "properties": {
+          "clip_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "set_clip_motion",
+            "title": "Kind",
+            "type": "string"
+          },
+          "motion": {
+            "enum": [
+              "none",
+              "slow_zoom",
+              "pan"
+            ],
+            "title": "Motion",
+            "type": "string"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "clip_id",
+          "motion"
+        ],
+        "title": "SetClipMotion",
+        "type": "object"
+      },
+      "SetClipPosition": {
+        "additionalProperties": false,
+        "properties": {
+          "clip_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "set_clip_position",
+            "title": "Kind",
+            "type": "string"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "position": {
+            "$ref": "#/components/schemas/Position"
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "clip_id",
+          "position"
+        ],
+        "title": "SetClipPosition",
         "type": "object"
       },
       "SetClipVolume": {
@@ -6047,6 +6458,199 @@
         "title": "StatusCounts",
         "type": "object"
       },
+      "StoryAssistProposal": {
+        "additionalProperties": false,
+        "properties": {
+          "operations": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "add_caption_clip": "#/components/schemas/AddCaptionClip",
+                  "add_clip_from_asset": "#/components/schemas/AddClipFromAsset",
+                  "add_text_clip": "#/components/schemas/AddTextClip",
+                  "add_track": "#/components/schemas/AddTrack",
+                  "move_clip": "#/components/schemas/MoveClip",
+                  "remove_clip": "#/components/schemas/RemoveClip",
+                  "remove_empty_track": "#/components/schemas/RemoveEmptyTrack",
+                  "reorder_scene": "#/components/schemas/ReorderScene",
+                  "reorder_track": "#/components/schemas/ReorderTrack",
+                  "replace_clip_asset": "#/components/schemas/ReplaceClipAsset",
+                  "replace_text": "#/components/schemas/ReplaceText",
+                  "set_caption_cue_text": "#/components/schemas/SetCaptionCueText",
+                  "set_caption_cue_timing": "#/components/schemas/SetCaptionCueTiming",
+                  "set_caption_style": "#/components/schemas/SetCaptionStyle",
+                  "set_clip_blur": "#/components/schemas/SetClipBlur",
+                  "set_clip_emphasis": "#/components/schemas/SetClipEmphasis",
+                  "set_clip_hidden": "#/components/schemas/SetClipHidden",
+                  "set_clip_locked": "#/components/schemas/SetClipLocked",
+                  "set_clip_motion": "#/components/schemas/SetClipMotion",
+                  "set_clip_position": "#/components/schemas/SetClipPosition",
+                  "set_clip_volume": "#/components/schemas/SetClipVolume",
+                  "set_ownership": "#/components/schemas/SetOwnership",
+                  "set_scene_duration": "#/components/schemas/SetSceneDuration",
+                  "set_track_locked": "#/components/schemas/SetTrackLocked",
+                  "set_track_muted": "#/components/schemas/SetTrackMuted",
+                  "set_track_visibility": "#/components/schemas/SetTrackVisibility",
+                  "split_clip": "#/components/schemas/SplitClip",
+                  "trim_clip_end": "#/components/schemas/TrimClipEnd",
+                  "trim_clip_start": "#/components/schemas/TrimClipStart"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ReplaceText"
+                },
+                {
+                  "$ref": "#/components/schemas/SetOwnership"
+                },
+                {
+                  "$ref": "#/components/schemas/SetSceneDuration"
+                },
+                {
+                  "$ref": "#/components/schemas/AddTrack"
+                },
+                {
+                  "$ref": "#/components/schemas/RemoveEmptyTrack"
+                },
+                {
+                  "$ref": "#/components/schemas/ReorderTrack"
+                },
+                {
+                  "$ref": "#/components/schemas/ReorderScene"
+                },
+                {
+                  "$ref": "#/components/schemas/AddClipFromAsset"
+                },
+                {
+                  "$ref": "#/components/schemas/RemoveClip"
+                },
+                {
+                  "$ref": "#/components/schemas/MoveClip"
+                },
+                {
+                  "$ref": "#/components/schemas/TrimClipStart"
+                },
+                {
+                  "$ref": "#/components/schemas/TrimClipEnd"
+                },
+                {
+                  "$ref": "#/components/schemas/SplitClip"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipHidden"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipLocked"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipVolume"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipBlur"
+                },
+                {
+                  "$ref": "#/components/schemas/SetCaptionCueText"
+                },
+                {
+                  "$ref": "#/components/schemas/AddCaptionClip"
+                },
+                {
+                  "$ref": "#/components/schemas/SetCaptionCueTiming"
+                },
+                {
+                  "$ref": "#/components/schemas/SetCaptionStyle"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipPosition"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipMotion"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipEmphasis"
+                },
+                {
+                  "$ref": "#/components/schemas/ReplaceClipAsset"
+                },
+                {
+                  "$ref": "#/components/schemas/AddTextClip"
+                },
+                {
+                  "$ref": "#/components/schemas/SetTrackVisibility"
+                },
+                {
+                  "$ref": "#/components/schemas/SetTrackMuted"
+                },
+                {
+                  "$ref": "#/components/schemas/SetTrackLocked"
+                }
+              ]
+            },
+            "title": "Operations",
+            "type": "array"
+          },
+          "proposal_id": {
+            "title": "Proposal Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id",
+          "title",
+          "reason",
+          "operations"
+        ],
+        "title": "StoryAssistProposal",
+        "type": "object"
+      },
+      "StoryAssistRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "base_revision": {
+            "exclusiveMinimum": 0.0,
+            "title": "Base Revision",
+            "type": "integer"
+          },
+          "beat": {
+            "enum": [
+              "hook",
+              "main",
+              "evidence",
+              "reactions",
+              "footage",
+              "outro"
+            ],
+            "title": "Beat",
+            "type": "string"
+          },
+          "clip_ids": {
+            "items": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Clip Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "base_revision",
+          "beat",
+          "clip_ids"
+        ],
+        "title": "StoryAssistRequest",
+        "type": "object"
+      },
       "StudioDraft": {
         "additionalProperties": false,
         "description": "One Studio draft created from a source, with its latest saved revision.",
@@ -6136,6 +6740,18 @@
             "pattern": "^[0-9a-f]{64}$",
             "title": "Source Key",
             "type": "string"
+          },
+          "source_workflow_id": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Workflow Id"
           }
         },
         "required": [
@@ -6317,6 +6933,281 @@
           "disposition"
         ],
         "title": "StudioImportItem",
+        "type": "object"
+      },
+      "StudioMaterial": {
+        "additionalProperties": false,
+        "description": "One inventory item and, when the run's Content Set is readable, where it came from.\n\nProvenance carries a host, never a full address, and never a storage location.",
+        "properties": {
+          "asset_id": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Id"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "disposition": {
+            "enum": [
+              "unresolved",
+              "attached",
+              "excluded"
+            ],
+            "title": "Disposition",
+            "type": "string"
+          },
+          "engagement": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engagement"
+          },
+          "host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Host"
+          },
+          "item_id": {
+            "title": "Item Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "likes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Likes"
+          },
+          "media_kind": {
+            "enum": [
+              "video",
+              "image",
+              "none"
+            ],
+            "title": "Media Kind",
+            "type": "string"
+          },
+          "ocr_outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "clean",
+                  "cover",
+                  "subtitle",
+                  "overlay"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocr Outcome"
+          },
+          "owner_handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Handle"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "enum": [
+                  "main",
+                  "main_footage",
+                  "slide",
+                  "post_card",
+                  "profile_page",
+                  "creator_footage",
+                  "creator_photo",
+                  "footage",
+                  "profile_card",
+                  "comment_card",
+                  "comment"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "shows_object": {
+            "anyOf": [
+              {
+                "enum": [
+                  "yes",
+                  "partly"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shows Object"
+          },
+          "story_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Story Score"
+          },
+          "trim_start_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trim Start Seconds"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "enum": [
+                  "original",
+                  "replaced",
+                  "unresolved",
+                  "none"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verdict"
+          }
+        },
+        "required": [
+          "item_id",
+          "role",
+          "label",
+          "media_kind",
+          "disposition"
+        ],
+        "title": "StudioMaterial",
+        "type": "object"
+      },
+      "StudioMaterials": {
+        "additionalProperties": false,
+        "description": "Story mode's Materials panel (spec 2026-10-27, 6.1); read on every call, never stored.",
+        "properties": {
+          "document_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "figures": {
+            "items": {
+              "$ref": "#/components/schemas/MaterialFigure"
+            },
+            "title": "Figures",
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StudioMaterial"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "provenance_available": {
+            "title": "Provenance Available",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "document_id",
+          "provenance_available",
+          "items"
+        ],
+        "title": "StudioMaterials",
         "type": "object"
       },
       "StudioSourceInspection": {
@@ -6822,6 +7713,32 @@
             "title": "Source From Frame",
             "type": "integer"
           },
+          "source_role": {
+            "anyOf": [
+              {
+                "enum": [
+                  "main",
+                  "main_footage",
+                  "slide",
+                  "post_card",
+                  "profile_page",
+                  "creator_footage",
+                  "creator_photo",
+                  "footage",
+                  "profile_card",
+                  "comment_card",
+                  "comment",
+                  "hook",
+                  "outro"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Role"
+          },
           "track_id": {
             "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
             "title": "Track Id",
@@ -6909,6 +7826,32 @@
               }
             ],
             "title": "Scene Id"
+          },
+          "source_role": {
+            "anyOf": [
+              {
+                "enum": [
+                  "main",
+                  "main_footage",
+                  "slide",
+                  "post_card",
+                  "profile_page",
+                  "creator_footage",
+                  "creator_photo",
+                  "footage",
+                  "profile_card",
+                  "comment_card",
+                  "comment",
+                  "hook",
+                  "outro"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Role"
           },
           "style_slot": {
             "pattern": "^[a-z][a-z0-9_]{0,63}$",
@@ -7000,6 +7943,32 @@
             ],
             "title": "Scene Id"
           },
+          "source_role": {
+            "anyOf": [
+              {
+                "enum": [
+                  "main",
+                  "main_footage",
+                  "slide",
+                  "post_card",
+                  "profile_page",
+                  "creator_footage",
+                  "creator_photo",
+                  "footage",
+                  "profile_card",
+                  "comment_card",
+                  "comment",
+                  "hook",
+                  "outro"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Role"
+          },
           "track_id": {
             "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
             "title": "Track Id",
@@ -7082,6 +8051,32 @@
               }
             ],
             "title": "Scene Id"
+          },
+          "source_role": {
+            "anyOf": [
+              {
+                "enum": [
+                  "main",
+                  "main_footage",
+                  "slide",
+                  "post_card",
+                  "profile_page",
+                  "creator_footage",
+                  "creator_photo",
+                  "footage",
+                  "profile_card",
+                  "comment_card",
+                  "comment",
+                  "hook",
+                  "outro"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Role"
           },
           "style_slot": {
             "pattern": "^[a-z][a-z0-9_]{0,63}$",
@@ -7215,6 +8210,9 @@
             "title": "Duration In Frames",
             "type": "integer"
           },
+          "emphasis": {
+            "$ref": "#/components/schemas/Emphasis"
+          },
           "fit": {
             "default": "cover",
             "enum": [
@@ -7244,6 +8242,16 @@
             "default": false,
             "title": "Locked",
             "type": "boolean"
+          },
+          "motion": {
+            "default": "none",
+            "enum": [
+              "none",
+              "slow_zoom",
+              "pan"
+            ],
+            "title": "Motion",
+            "type": "string"
           },
           "ownership": {
             "enum": [
@@ -7281,6 +8289,32 @@
             "minimum": 0.0,
             "title": "Source From Frame",
             "type": "integer"
+          },
+          "source_role": {
+            "anyOf": [
+              {
+                "enum": [
+                  "main",
+                  "main_footage",
+                  "slide",
+                  "post_card",
+                  "profile_page",
+                  "creator_footage",
+                  "creator_photo",
+                  "footage",
+                  "profile_card",
+                  "comment_card",
+                  "comment",
+                  "hook",
+                  "outro"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Role"
           },
           "track_id": {
             "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
@@ -9841,6 +10875,91 @@
         "summary": "Apply Edit Document Patch"
       }
     },
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/assist": {
+      "post": {
+        "description": "One text proposal for a beat; nothing changes until the editor applies it.",
+        "operationId": "propose_story_assist_api_v1_projects__project_id__edit_documents__document_id__assist_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StoryAssistRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryAssistProposal"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentRevisionConflictBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Propose Story Assist"
+      }
+    },
     "/api/v1/projects/{project_id}/edit-documents/{document_id}/review-comments": {
       "get": {
         "operationId": "list_review_comments_api_v1_projects__project_id__edit_documents__document_id__review_comments_get",
@@ -10640,7 +11759,8 @@
               "enum": [
                 "narrative_plan",
                 "visual_plan",
-                "caption_copy"
+                "caption_copy",
+                "story_assist"
               ],
               "title": "Stage Id",
               "type": "string"
@@ -10707,7 +11827,8 @@
               "enum": [
                 "narrative_plan",
                 "visual_plan",
-                "caption_copy"
+                "caption_copy",
+                "story_assist"
               ],
               "title": "Stage Id",
               "type": "string"
@@ -11467,7 +12588,8 @@
               "enum": [
                 "narrative_plan",
                 "visual_plan",
-                "caption_copy"
+                "caption_copy",
+                "story_assist"
               ],
               "title": "Stage Id",
               "type": "string"
@@ -11536,7 +12658,8 @@
               "enum": [
                 "narrative_plan",
                 "visual_plan",
-                "caption_copy"
+                "caption_copy",
+                "story_assist"
               ],
               "title": "Stage Id",
               "type": "string"
@@ -12452,6 +13575,145 @@
           }
         },
         "summary": "Resolve Studio Import Item"
+      }
+    },
+    "/api/v1/projects/{project_id}/studio-imports/documents/{document_id}/materials": {
+      "get": {
+        "description": "Story mode's Materials: the draft's inventory with its run's provenance (spec 2026-10-27,\n6.1). Read on every call; a run or Content Set that is gone leaves the provenance out.",
+        "operationId": "get_studio_materials_api_v1_projects__project_id__studio_imports_documents__document_id__materials_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioMaterials"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Studio Materials"
+      }
+    },
+    "/api/v1/projects/{project_id}/studio-imports/documents/{document_id}/materials/{item_id}/asset": {
+      "post": {
+        "description": "The editor asset for one run material, copied from the run's media on first use\n(spec 2026-10-27, 6.2): Add from materials, drag and Swap card all need one.",
+        "operationId": "attach_studio_material_api_v1_projects__project_id__studio_imports_documents__document_id__materials__item_id__asset_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditorAsset"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Attach Studio Material"
       }
     },
     "/api/v1/projects/{project_id}/studio-imports/inspect": {

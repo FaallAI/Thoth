@@ -210,6 +210,52 @@ class StudioImportInventory(StrictModel):
     source_key: SourceKey
     revision: Annotated[int, Field(gt=0)]
     items: list[StudioImportItem]
+    #: The run the draft was opened from (B9); none for a blank or pre-B9 draft.
+    source_workflow_id: OpaqueId | None = None
+
+
+class MaterialFigure(StrictModel):
+    """A person or organisation the run named: context for the editor, never media."""
+
+    name: str
+    type: str
+    role: str
+
+
+class StudioMaterial(StrictModel):
+    """One inventory item and, when the run's Content Set is readable, where it came from.
+
+    Provenance carries a host, never a full address, and never a storage location.
+    """
+
+    item_id: str
+    role: SourceRole | None
+    label: str
+    media_kind: MediaKind
+    disposition: Disposition
+    asset_id: OpaqueId | None = None
+    platform: str | None = None
+    owner_handle: str | None = None
+    published_at: str | None = None
+    host: str | None = None
+    engagement: dict[str, int] | None = None
+    story_score: float | None = None
+    shows_object: Literal["yes", "partly"] | None = None
+    query: str | None = None
+    likes: int | None = None
+    author: str | None = None
+    verdict: Literal["original", "replaced", "unresolved", "none"] | None = None
+    ocr_outcome: Literal["clean", "cover", "subtitle", "overlay"] | None = None
+    trim_start_seconds: float | None = None
+
+
+class StudioMaterials(StrictModel):
+    """Story mode's Materials panel (spec 2026-10-27, 6.1); read on every call, never stored."""
+
+    document_id: OpaqueId
+    provenance_available: bool
+    items: list[StudioMaterial]
+    figures: list[MaterialFigure] = Field(default_factory=list)
 
 
 class CreateStudioImport(StrictModel):

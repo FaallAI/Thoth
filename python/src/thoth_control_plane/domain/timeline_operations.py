@@ -22,15 +22,27 @@ from thoth_control_plane.domain.edit_document_v2 import (
     CaptionCue,
     CaptionStyle,
     EditDocumentV2,
+    Emphasis,
+    FitMode,
+    Motion,
+    Position,
+    StoryRole,
     TimelineAudioClip,
     TimelineCaptionClip,
     TimelineClip,
+    TimelineTextClip,
     TimelineTrack,
     TimelineVideoClip,
     TrackKind,
     Volume,
 )
-from thoth_control_plane.domain.edit_documents import Frame, FrameStart, ShortText
+from thoth_control_plane.domain.edit_documents import (
+    BodyText,
+    Frame,
+    FrameStart,
+    ShortText,
+    StyleSlot,
+)
 from thoth_control_plane.domain.models import OpaqueId, StrictModel
 
 
@@ -67,6 +79,10 @@ class AddClipFromAsset(StrictModel):
     source_from_frame: FrameStart = 0
     #: Binds the clip to a scene, so it moves with the scene and stays inside it.
     scene_id: OpaqueId | None = None
+    #: A card keeps its framing and placement from the moment it is added (Story mode).
+    fit: FitMode | None = None
+    position: Position | None = None
+    source_role: StoryRole | None = None
 
 
 class ReorderScene(StrictModel):
@@ -179,6 +195,52 @@ class SetCaptionStyle(StrictModel):
     style_slot: CaptionStyle
 
 
+class SetClipPosition(StrictModel):
+    kind: Literal["set_clip_position"]
+    operation_id: OpaqueId
+    clip_id: OpaqueId
+    position: Position
+
+
+class SetClipMotion(StrictModel):
+    kind: Literal["set_clip_motion"]
+    operation_id: OpaqueId
+    clip_id: OpaqueId
+    motion: Motion
+
+
+class SetClipEmphasis(StrictModel):
+    kind: Literal["set_clip_emphasis"]
+    operation_id: OpaqueId
+    clip_id: OpaqueId
+    highlight: bool
+    arrow: bool
+
+
+class ReplaceClipAsset(StrictModel):
+    """Swap the media behind a clip; its timing, framing and Story styling stay."""
+
+    kind: Literal["replace_clip_asset"]
+    operation_id: OpaqueId
+    clip_id: OpaqueId
+    asset_id: OpaqueId
+
+
+class AddTextClip(StrictModel):
+    """A Hook or Outro text over the overlay track, bound to no scene (Story mode, spec 8)."""
+
+    kind: Literal["add_text_clip"]
+    operation_id: OpaqueId
+    clip_id: OpaqueId
+    track_id: OpaqueId
+    from_frame: FrameStart
+    duration_in_frames: Frame
+    heading: ShortText
+    body: BodyText
+    style_slot: StyleSlot
+    source_role: Literal["hook", "outro"]
+
+
 class SetTrackVisibility(StrictModel):
     kind: Literal["set_track_visibility"]
     operation_id: OpaqueId
@@ -219,6 +281,11 @@ TimelineOperation: TypeAlias = Annotated[
     | AddCaptionClip
     | SetCaptionCueTiming
     | SetCaptionStyle
+    | SetClipPosition
+    | SetClipMotion
+    | SetClipEmphasis
+    | ReplaceClipAsset
+    | AddTextClip
     | SetTrackVisibility
     | SetTrackMuted
     | SetTrackLocked,
@@ -278,6 +345,18 @@ def apply_timeline_operation(
             if not isinstance(clip, TimelineCaptionClip):
                 raise ValueError("caption style applies only to caption clips")
             clip.style_slot = operation.style_slot
+        case SetClipPosition():
+            _unlocked_video_clip(document, operation.clip_id).position = operation.position
+        case SetClipMotion():
+            _unlocked_video_clip(document, operation.clip_id).motion = operation.motion
+        case SetClipEmphasis():
+            _unlocked_video_clip(document, operation.clip_id).emphasis = Emphasis(
+                highlight=operation.highlight, arrow=operation.arrow
+            )
+        case ReplaceClipAsset():
+            _replace_clip_asset(document, operation, resolved_assets)
+        case AddTextClip():
+            _add_text_clip(document, operation)
         case SetTrackVisibility():
             _unlocked_track(document, operation.track_id).hidden = operation.hidden
         case SetTrackMuted():
@@ -317,6 +396,18 @@ def _unlocked_clip(document: EditDocumentV2, clip_id: str) -> TimelineClip:
     if clip.locked:
         raise ValueError("clip is locked")
     _unlocked_track(document, clip.track_id)
+    return clip
+
+
+def unlocked_clip(document: EditDocumentV2, clip_id: str) -> TimelineClip:
+    """The clip, refused when it or its track is locked (shared with the scene operations)."""
+    return _unlocked_clip(document, clip_id)
+
+
+def _unlocked_video_clip(document: EditDocumentV2, clip_id: str) -> TimelineVideoClip:
+    clip = _unlocked_clip(document, clip_id)
+    if not isinstance(clip, TimelineVideoClip):
+        raise ValueError("operation applies only to video clips")
     return clip
 
 
@@ -453,15 +544,7 @@ def _add_clip_from_asset(
     if any(clip.clip_id == operation.clip_id for clip in document.clips):
         raise ValueError("operation reuses an existing clip ID")
 
-    asset = resolved_assets.get(operation.asset_id)
-    if asset is None:
-        raise ValueError("operation references an unavailable asset")
-    if asset.project_id != document.project_id:
-        raise ValueError("asset belongs to another project")
-    if asset.validation_state != "ready":
-        raise ValueError("asset is not ready for use")
-    if all(known.asset_id != asset.asset_id for known in document.asset_refs):
-        document.asset_refs.append(asset.model_copy(deep=True))
+    asset = _usable_asset(document, operation.asset_id, resolved_assets)
 
     fields = {
         "clip_id": operation.clip_id,
@@ -473,13 +556,79 @@ def _add_clip_from_asset(
         "asset_id": asset.asset_id,
         "source_from_frame": operation.source_from_frame,
     }
-    clip: TimelineClip = (
-        TimelineAudioClip(kind="audio", **fields)
-        if asset.kind == "audio"
-        else TimelineVideoClip(kind="video", **fields)
-    )
+    clip: TimelineClip
+    if asset.kind == "audio":
+        clip = TimelineAudioClip(kind="audio", **fields)
+    else:
+        layout = {"fit": operation.fit} if operation.fit is not None else {}
+        clip = TimelineVideoClip(kind="video", position=operation.position, **layout, **fields)
+    clip.source_role = operation.source_role
     document.clips.append(clip)
     track.clip_ids.append(clip.clip_id)
+
+
+def _usable_asset(
+    document: EditDocumentV2, asset_id: str, resolved_assets: dict[str, AssetRef]
+) -> AssetRef:
+    """The project's ready asset, recorded in the document's references."""
+    asset = resolved_assets.get(asset_id)
+    if asset is None:
+        raise ValueError("operation references an unavailable asset")
+    if asset.project_id != document.project_id:
+        raise ValueError("asset belongs to another project")
+    if asset.validation_state != "ready":
+        raise ValueError("asset is not ready for use")
+    if all(known.asset_id != asset.asset_id for known in document.asset_refs):
+        document.asset_refs.append(asset.model_copy(deep=True))
+    return asset
+
+
+def _replace_clip_asset(
+    document: EditDocumentV2,
+    operation: ReplaceClipAsset,
+    resolved_assets: dict[str, AssetRef],
+) -> None:
+    clip = _unlocked_video_clip(document, operation.clip_id)
+    current = next(ref for ref in document.asset_refs if ref.asset_id == clip.asset_id)
+    asset = resolved_assets.get(operation.asset_id)
+    if asset is None or asset.kind != current.kind:
+        raise ValueError("a clip's media is replaced only by an asset of the same kind")
+    _usable_asset(document, operation.asset_id, resolved_assets)
+    if asset.kind == "video":
+        if asset.duration_in_frames is None:
+            raise ValueError("video asset duration is unknown")
+        # Only this clip shortens; its neighbours keep their frames.
+        clip.duration_in_frames = min(clip.duration_in_frames, asset.duration_in_frames)
+    clip.asset_id = asset.asset_id
+    clip.source_from_frame = 0
+    # Crop and blur regions are fractions and frames of the old medium; they do not carry over.
+    clip.crop = None
+    clip.blur_regions = []
+    clip.blur_enabled = False
+    clip.ownership = "user_edited"
+
+
+def _add_text_clip(document: EditDocumentV2, operation: AddTextClip) -> None:
+    track = _unlocked_track(document, operation.track_id)
+    if track.kind != "overlay":
+        raise ValueError("text clips go on an overlay track")
+    if any(clip.clip_id == operation.clip_id for clip in document.clips):
+        raise ValueError("operation reuses an existing clip ID")
+    document.clips.append(
+        TimelineTextClip(
+            kind="text",
+            clip_id=operation.clip_id,
+            track_id=track.track_id,
+            from_frame=operation.from_frame,
+            duration_in_frames=operation.duration_in_frames,
+            ownership="user_edited",
+            heading=operation.heading,
+            body=operation.body,
+            style_slot=operation.style_slot,
+            source_role=operation.source_role,
+        )
+    )
+    track.clip_ids.append(operation.clip_id)
 
 
 def _remove_clip(document: EditDocumentV2, operation: RemoveClip) -> None:

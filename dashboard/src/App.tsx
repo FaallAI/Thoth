@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, usePa
 import { ProjectSwitcher } from "@/components/ProjectSwitcher";
 import { GuidedStudio } from "@/features/studio/GuidedStudio";
 import { StudioImportGate } from "@/features/studio/StudioImportGate";
+import { PresetsPage } from "@/features/studio/PresetsPage";
 import { StudioDocumentsPage } from "@/features/studio/StudioDocumentsPage";
 import { RunsPage } from "@/features/workflows/RunsPage";
 import { RunDetailPage } from "@/features/workflows/RunDetailPage";
@@ -31,6 +32,7 @@ import { documentLabel } from "@/lib/document-label";
 /** Each page's title, by path prefix; the longest prefix wins. Runs and Studio are project pages. */
 const PAGES: { path: string; title: MessageKey; project?: boolean }[] = [
   { path: "/workflows", title: "nav.runs", project: true },
+  { path: "/studio/presets", title: "studio.presets.title", project: true },
   { path: "/studio", title: "nav.studio", project: true },
   { path: "/inbox", title: "nav.inbox" },
   { path: "/usage", title: "nav.usage" },
@@ -129,6 +131,7 @@ function Shell() {
           <Route path="/workflows/:workflowId" element={<WorkflowDetailRoute projects={projects} />} />
           <Route path="/inbox" element={<InboxPage projects={projects} />} />
           <Route path="/studio" element={studioProject ? <StudioDocumentsPage client={controlPlaneClient} projectId={studioProject} /> : needsProject} />
+          <Route path="/studio/presets" element={studioProject ? <PresetsPage client={controlPlaneClient} projectId={studioProject} /> : needsProject} />
           <Route path="/studio/:projectId/:documentId" element={<StudioDocumentRoute workspaceControls={switcher} projects={projects} />} />
           <Route path="/accounts" element={me.platform_admin ? <SourceAccounts client={sourceAccountsClient} onManageProxies={() => navigate("/accounts/proxies")} /> : platformOnly} />
           <Route path="/accounts/proxies" element={me.platform_admin ? <SourceProxies client={sourceAccountsClient} onBack={() => navigate("/accounts")} /> : platformOnly} />
@@ -196,7 +199,7 @@ function StudioDocumentRoute({ workspaceControls, projects }: { workspaceControl
         onResolveImports={() => setResolving(true)}
       />
       {resolving ? (
-        <StudioImportGate client={controlPlaneClient} projectId={projectId} resumeDocumentId={documentId} onClose={reopen} onOpen={reopen} />
+        <StudioImportGate client={controlPlaneClient} projectId={projectId} documentId={documentId} onClose={reopen} onOpen={reopen} />
       ) : null}
     </>
   );

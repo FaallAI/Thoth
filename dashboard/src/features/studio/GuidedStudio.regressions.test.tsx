@@ -1,7 +1,8 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, jest, mock, test } from "bun:test";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen } from "@testing-library/react";
+import { render } from "@/test-render";
 import type { EditDocument, EditDocumentPatch, EditDocumentV1 } from "@/api/control-plane";
 import { createC2ClientFixtureBase } from "./prompt-proposal-test-fixtures";
 
@@ -110,7 +111,7 @@ test("keeps Back disabled for an unsaved draft and enables it only after save", 
     />,
   );
   const heading = await screen.findByLabelText("Heading");
-  const back = screen.getByRole("button", { name: "Back" }) as HTMLButtonElement;
+  const back = screen.getByRole("button", { name: "Back to Studio" }) as HTMLButtonElement;
 
   jest.useFakeTimers();
   expect(back.disabled).toBe(false);
@@ -152,7 +153,7 @@ test("keeps Back disabled until an in-flight offline save reconnects", async () 
     />,
   );
   const heading = await screen.findByLabelText("Heading");
-  const back = screen.getByRole("button", { name: "Back" }) as HTMLButtonElement;
+  const back = screen.getByRole("button", { name: "Back to Studio" }) as HTMLButtonElement;
 
   jest.useFakeTimers();
   fireEvent.change(heading, { target: { value: "Edited heading" } });
@@ -435,7 +436,7 @@ test("keeps the version 1 draft editable after an upgrade conflict", async () =>
   );
   fireEvent.click(await screen.findByRole("button", { name: "Enable advanced timeline" }));
 
-  expect(await screen.findByText(/A newer version exists/)).toBeDefined();
+  expect(await screen.findByText(/A newer revision \d+ was saved/)).toBeDefined();
   const heading = screen.getByLabelText("Heading") as HTMLInputElement;
   expect(heading.value).toBe("Original heading");
   fireEvent.change(heading, { target: { value: "Still local" } });
