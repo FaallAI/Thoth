@@ -379,9 +379,11 @@ function videoClip(
         />
       ) : null}
       {emphasis.arrow ? (
-        // A fixed arrow pointing down at the top edge, centred on the media.
+        // A fixed arrow pointing down at the top edge, centred on the media; a card with no
+        // room above it gets the arrow below, pointing up, so it never leaves the canvas.
         <svg
           data-testid="clip-arrow"
+          data-placement={box.top * canvas.height >= ARROW_SIZE ? "above" : "below"}
           width={ARROW_SIZE}
           height={ARROW_SIZE}
           viewBox="0 0 120 120"
@@ -389,8 +391,9 @@ function videoClip(
           style={{
             position: "absolute",
             left: percent(box.left + box.width / 2),
-            top: percent(box.top),
-            transform: "translate(-50%, -100%)",
+            ...(box.top * canvas.height >= ARROW_SIZE
+              ? { top: percent(box.top), transform: "translate(-50%, -100%)" }
+              : { top: percent(box.top + box.height), transform: "translate(-50%, 0) rotate(180deg)" }),
           }}
         >
           <path d="M48 0h24v70h28L60 120 20 70h28z" />

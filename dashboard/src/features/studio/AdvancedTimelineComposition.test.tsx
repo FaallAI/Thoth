@@ -686,3 +686,18 @@ test("a hidden-arrow emphasis draws the highlight only", () => {
   expect(screen.getByTestId("clip-highlight")).toBeDefined();
   expect(screen.queryByTestId("clip-arrow")).toBeNull();
 });
+
+test("the arrow points up from below when the card has no room above it", () => {
+  const document = storyDocument({ emphasis: { highlight: false, arrow: true } });
+  render(<AdvancedTimelineComposition document={document} previewSources={TYPED_SOURCES} />);
+  // This clip sits half a canvas up, so its top edge is above the canvas.
+  const below = screen.getByTestId("clip-arrow");
+  expect(below.getAttribute("data-placement")).toBe("below");
+  expect(below.style.transform).toContain("rotate(180deg)");
+  cleanup();
+
+  const low = storyDocument({ emphasis: { highlight: false, arrow: true } });
+  (low.clips![1] as { position: unknown }).position = { x: 0, y: 0.2, scale: 0.5 };
+  render(<AdvancedTimelineComposition document={low} previewSources={TYPED_SOURCES} />);
+  expect(screen.getByTestId("clip-arrow").getAttribute("data-placement")).toBe("above");
+});
