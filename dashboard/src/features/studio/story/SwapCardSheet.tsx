@@ -8,12 +8,14 @@ type Props = {
   index: number;
   cards: StudioMaterial[];
   inUse: string | null;
+  /** The last swap could not attach the card. */
+  failed?: boolean;
   onCancel: () => void;
   onSwap: (card: StudioMaterial) => void;
 };
 
 /** DESIGN §13.5: a bottom sheet of the run's comment cards; the one in use is marked. */
-export function SwapCardSheet({ index, cards, inUse, onCancel, onSwap }: Props) {
+export function SwapCardSheet({ index, cards, inUse, failed = false, onCancel, onSwap }: Props) {
   const { t } = useLocale();
   const [chosen, setChosen] = useState(inUse);
   const title = t("studio.quick.swapTitle", { index });
@@ -52,6 +54,7 @@ export function SwapCardSheet({ index, cards, inUse, onCancel, onSwap }: Props) 
           </label>
         ))}
       </div>
+      {failed ? <p role="alert" className="text-sm text-status-failed">{t("studio.quick.swapFailed")}</p> : null}
       <div className="flex gap-3 pt-1">
         <button type="button" onClick={onCancel} className="h-11 flex-1 rounded-md text-sm text-ink hover:bg-surface focus-visible:outline-2 focus-visible:outline-copper">
           {t("studio.quick.cancel")}

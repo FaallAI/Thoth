@@ -819,7 +819,9 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
               </header>
             ) : null}
             {story && !reviewing ? (
-              <div className="flex items-center justify-end">
+              <div className="flex items-center justify-end gap-2">
+                {/* No style preset names a target platform yet, so TikTok's areas are shown. */}
+                {safeZone ? <span className="text-xs text-muted-ink">{t("studio.story.safeZonePlatform")}</span> : null}
                 <button
                   type="button"
                   aria-pressed={safeZone}

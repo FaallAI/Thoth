@@ -351,3 +351,11 @@ test("a change a locked card refuses says why", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
   expect(screen.queryByRole("status", { name: "Change not made" })).toBeNull();
 });
+
+test("the safe zone names whose interface it shows", async () => {
+  await mountStory();
+
+  fireEvent.click(screen.getByRole("button", { name: "Safe zone" }));
+
+  expect(screen.getByText("TikTok's header and buttons")).toBeDefined();
+});

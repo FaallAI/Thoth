@@ -127,3 +127,29 @@ test("quick edit speaks Indonesian", () => {
 
   expect(screen.getByRole("heading", { name: "Edit cepat · Rev 3" })).toBeDefined();
 });
+
+test("a swap that cannot attach the card says so and keeps the sheet open", async () => {
+  const dispatch = mock((_action: EditorAction) => {});
+  const document = storyDocument();
+  render(
+    <QuickEdit
+      document={document}
+      beats={computeBeats(document, storyInventory())}
+      materials={materials}
+      revision={3}
+      playheadFrame={0}
+      dispatch={dispatch}
+      attachMaterial={mock(async () => {
+        throw new Error("offline");
+      })}
+      captions={null}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: /Swap comment card/ }));
+  fireEvent.click(screen.getByRole("radio", { name: /@bagas.wp/ }));
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Swap card" })));
+
+  expect(within(screen.getByRole("dialog")).getByRole("alert").textContent).toContain("could not be swapped");
+  expect(dispatch).not.toHaveBeenCalled();
+});

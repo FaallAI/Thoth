@@ -190,3 +190,21 @@ test("without the run's provenance, Add from materials offers only what already 
   fireEvent.click(screen.getByRole("button", { name: "Add from materials" }));
   expect(within(screen.getByRole("listbox", { name: "Add from materials" })).getAllByRole("option").map((option) => option.textContent)).toEqual(["@kept"]);
 });
+
+test("the timing fields follow the draft after an undo", () => {
+  const props = {
+    beats,
+    inventory,
+    materials,
+    dispatch: mock(() => {}),
+  };
+  const first = storyDocument();
+  const { rerender } = render(<BeatInspector {...props} beat={beats.find((beat) => beat.id === "reactions")!} document={first} />);
+  expect((screen.getByLabelText("Each card (seconds)") as HTMLInputElement).value).toBe("1.3");
+
+  const longer = storyDocument();
+  for (const clip of longer.clips!) if (clip.clip_id.startsWith("clip_comment_card_00")) clip.duration_in_frames = 90;
+  rerender(<BeatInspector {...props} beat={beats.find((beat) => beat.id === "reactions")!} document={longer} />);
+
+  expect((screen.getByLabelText("Each card (seconds)") as HTMLInputElement).value).toBe("3.0");
+});

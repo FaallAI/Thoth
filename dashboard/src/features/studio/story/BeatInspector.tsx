@@ -221,6 +221,8 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
             <label className="flex items-center justify-between gap-2 text-sm text-ink">
               {t("studio.inspector.eachCard")}
               <input
+                // Keyed by the stored value, so undo, Assist and a reload show the draft's own.
+                key={Math.max(...cards.map((clip) => clip.duration_in_frames))}
                 type="number"
                 min={0.5}
                 step={0.5}
@@ -242,6 +244,7 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
             <label className="flex flex-col gap-1 text-sm text-ink">
               {t("studio.inspector.text")}
               <input
+                key={text.kind === "text" ? text.heading : ""}
                 type="text"
                 className={`${field} w-full`}
                 defaultValue={text.kind === "text" ? text.heading : ""}
@@ -257,6 +260,7 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
             <label className="flex items-center justify-between gap-2 text-sm text-ink">
               {t("studio.inspector.length")}
               <input
+                key={text.duration_in_frames}
                 type="number"
                 min={0.5}
                 step={0.5}

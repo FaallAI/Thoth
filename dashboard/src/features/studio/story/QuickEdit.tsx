@@ -26,6 +26,7 @@ const row = "flex items-center gap-3 border-b border-hairline px-4 py-3 last:bor
 export function QuickEdit({ document, beats, materials, revision, playheadFrame, dispatch, attachMaterial, captions }: Props) {
   const { t, plural } = useLocale();
   const [swapping, setSwapping] = useState(false);
+  const [swapFailed, setSwapFailed] = useState(false);
   const clips = document.clips ?? [];
   const hook = clips.find(
     (clip) => clip.kind === "text" && beats.find((beat) => beat.id === "hook")?.clipIds.includes(clip.clip_id),
@@ -45,7 +46,14 @@ export function QuickEdit({ document, beats, materials, revision, playheadFrame,
 
   const swap = async (card: StudioMaterial) => {
     if (!target || !attachMaterial) return;
-    const asset = await attachMaterial(card.item_id);
+    setSwapFailed(false);
+    let asset: EditorAsset;
+    try {
+      asset = await attachMaterial(card.item_id);
+    } catch {
+      setSwapFailed(true);
+      return;
+    }
     dispatch({ type: "assets_loaded", assets: [asset], replace: false });
     dispatch({
       type: "commit_operations",
@@ -99,7 +107,17 @@ export function QuickEdit({ document, beats, materials, revision, playheadFrame,
         <Monitor aria-hidden="true" size={14} /> {t("studio.quick.larger")}
       </p>
       {swapping ? (
-        <SwapCardSheet index={targetIndex + 1} cards={cards} inUse={inUse} onCancel={() => setSwapping(false)} onSwap={(card) => void swap(card)} />
+        <SwapCardSheet
+          index={targetIndex + 1}
+          cards={cards}
+          inUse={inUse}
+          failed={swapFailed}
+          onCancel={() => {
+            setSwapping(false);
+            setSwapFailed(false);
+          }}
+          onSwap={(card) => void swap(card)}
+        />
       ) : null}
     </section>
   );

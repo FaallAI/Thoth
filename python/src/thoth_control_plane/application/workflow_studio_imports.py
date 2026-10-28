@@ -279,8 +279,12 @@ class WorkflowStudioImportService:
             return None
         try:
             run = await asyncio.to_thread(self._runs.get, workflow_id)
-            if run is None or run.project_id != project_id:
-                return None
+        except Exception:  # the run store is down: the materials degrade, they do not fail
+            logger.warning("run store unavailable; materials are listed without provenance")
+            return None
+        if run is None or run.project_id != project_id:
+            return None
+        try:
             return (await self._source(workflow_id))[1]
         except (ContentSetUnavailable, ContentSetInvalid, WorkflowStudioUnavailable):
             return None

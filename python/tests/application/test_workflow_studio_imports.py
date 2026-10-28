@@ -810,3 +810,20 @@ async def test_material_asset_of_an_attached_item_needs_no_content_set(tmp_path:
     asset = await built.service.material_asset(PROJECT, opened.draft.document_id, "footage_001")
 
     assert asset.asset_id == attached
+
+
+@pytest.mark.asyncio
+async def test_materials_survive_an_unreadable_run_store(tmp_path: Path) -> None:
+    built = world(tmp_path)
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+
+    class Broken:
+        def get(self, workflow_id: str) -> None:
+            raise RuntimeError("database down")
+
+    built.service._runs = Broken()
+
+    materials = await built.service.materials(PROJECT, opened.draft.document_id)
+
+    assert materials.provenance_available is False
+    assert len(materials.items) == 3
