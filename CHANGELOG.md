@@ -34,19 +34,29 @@ All notable changes to this project will be documented in this file.
 - Without the Content Set, held materials still attach and only they are offered.
 - Raised after the review: Top and Lower third now place each card by its visible size, so a tall card keeps its top edge below the top 10 % and its bottom edge above the bottom 18 %. Before this, a 4:5 post card at Lower third reached 98.7 % of the height, and at Top it started above the canvas. A card taller than the safe band (a 9:16 profile page) keeps only the preset's own edge.
 - The importer places cards by the same rule (`studio_layout.card_position`): a card too tall for the card line (a 4:5 post card started at -0.7 % of the height) moves down just enough to start below the top 10 %; comment and profile cards keep the card line. Only new imports change; saved drafts keep their stored positions.
-Ten minors are deferred and listed in the ledger.
+The reviewer's ten minors were fixed before push (operator, 2026-10-28), each with a test that failed first:
+- `replace_text` refuses locked clips and tracks, and the scene text fields of a locked clip are disabled with a reason.
+- A refused Story change says why.
+- Locked-track shared cases were added.
+- `replace_clip_asset` drops the old crop and blur.
+- The arrow moves below a card that has no room above it.
+- Assist waits for a saved draft, sends only text clips, skips clips too short to read, reports a model that cannot rewrite as not configured, and always asks for its JSON shape.
+- A failed phone swap says so.
+- The safe zone names TikTok.
+- Materials survive a failing run store.
+- Inspector fields follow undo.
 
 **Verification (`407bad10`):** Python 4594 passed / 252 skipped; `make test-postgres` 190 passed; `make lint` clean; dashboard 1422 pass, build clean; renderer 229 pass / 5 skip. The contract changed by additions only. Screens against the exports with an offline mock: `D:/thoth-tmp/restyle-shots/r6/story-en-1440.png`, `story-en-1024.png`, `quick-en-430.png`, `quick-swap-en-430.png`.
 
 **Known limits:**
-- Tile lengths read seconds ("4.0 s"), not "0:04"; no Script mode (D4); the safe zone is always TikTok.
+- Tile lengths read seconds ("4.0 s"), not "0:04"; no Script mode (D4); the safe zone shows TikTok's areas, because no style preset names a target platform yet.
 - The Outro is offered only with a known creator (a heading cannot be empty).
 - Motion and emphasis apply to Evidence and Reactions cards only.
 
 **Next steps:**
 - R7: Timeline restyle and clean-up (F3 aliases, dead `pen-studio` and `studio-prompt-*` CSS, `content_set_import.ts`, StudioPreview's "Back to Content Set", the temporary `dashboard/vite.shots.config.ts`).
 - Operator gates, each separate: approve the `story_mode-v1` golden set (then promote it and add its CI verify step); push, PR, merge and deploy of part B (renderer and Thoth as one package); a live Assist check against the real provider after deploy.
-- Follow-ups: the deferred minors in the ledger; motion on Footage photos (operator question); a publish-check endpoint and review threads (from Tasks 4-5).
+- Follow-ups: motion on Footage photos (operator question); a publish-check endpoint and review threads (from Tasks 4-5).
 
 ## 2026-10-27 - Deployed master 86f7c3e (PR #78, run progress and dashboard restyle part A)
 
