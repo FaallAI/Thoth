@@ -8,7 +8,9 @@ All notable changes to this project will be documented in this file.
 
 **Fix:** `run_worker` enters `build_prompt_proposal_worker` beside the source-investigation and legacy-adapter workers. An empty catalog still starts it; the activity answers with failure codes.
 
-**Verification:** `test_run_worker_serves_the_prompt_proposal_queue` RED (only `thoth-legacy-adapter` was opened) then GREEN; `tests/test_worker.py`, `tests/workflows/test_prompt_proposal.py` and the three Story Assist test files: 65 passed; `make lint` clean.
+**Degrades gracefully (side-agent note, operator: "ya tolong pastikan ini"):** the builder used to raise `SettingsValidationError` when an enabled provider lacked its worker credential. Now that it shares the main worker's process, that would stop every run, not only Assist. It now logs one `warning` (a count, never the provider or credential) and starts; the adapter already refuses that provider per call with `ProviderUnavailable`, so only its proposals answer `assist_unavailable`. `test_a_provider_without_its_worker_secret_warns_and_keeps_the_worker` replaces the old refusal test (RED, then GREEN).
+
+**Verification:** `test_run_worker_serves_the_prompt_proposal_queue` RED (only `thoth-legacy-adapter` was opened) then GREEN; `tests/test_worker.py`, `tests/workflows/test_prompt_proposal.py` the three Story Assist files and `tests/infrastructure/test_prompt_provider.py`: 86 passed; `make lint` clean.
 
 **Deploy `fea035b5` (PR #83), done before this fix:** thoth `d737199f`, renderer `6c3cff63`, web `aaff2bb7`; migrate applied 1 revision (head `0025`); every service up with 0 restarts. Previous pins in `D:/thoth-tmp/bu/pins/pins-61c853d9.env`.
 

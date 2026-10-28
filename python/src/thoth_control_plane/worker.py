@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import logging
 import shutil
 from collections.abc import Mapping
 from importlib.util import find_spec
@@ -60,6 +61,8 @@ from thoth_control_plane.operations.yt_dlp_version import check_freshness
 from thoth_control_plane.workflows import SourceInvestigationWorkflow
 from thoth_control_plane.workflows.prompt_proposal import PromptProposalWorkflow
 from thoth_control_plane.workflows.story_assist import StoryAssistWorkflow
+
+logger = logging.getLogger(__name__)
 
 # Adapters import these on first use, inside async activities, so the import runs on the event
 # loop. agno with openai alone takes 1.3 s idle and stalled the loop 2.3 s under footage load,
@@ -199,12 +202,11 @@ def build_prompt_proposal_worker(client: Client, settings: Settings) -> Worker:
     catalog = settings.THOTH_PROMPT_PROVIDER_CATALOG
     enabled = tuple(provider for provider in catalog if provider.enabled)
     secrets = settings.prompt_provider_secrets
-    for provider in enabled:
-        if provider.credential_id not in secrets:
-            # Safe startup failure: never name the provider, model, or credential value.
-            raise SettingsValidationError(
-                "prompt provider catalog is enabled without its worker credential"
-            )
+    missing = sum(provider.credential_id not in secrets for provider in enabled)
+    if missing:
+        # This worker shares the main worker's process, so a missing key must not stop every run:
+        # the adapter refuses that provider per call. Never name the provider or credential.
+        logger.warning("%d enabled prompt provider(s) lack a worker credential", missing)
     repository = PostgresPromptProposalRepository(
         settings.THOTH_EDITOR_DATABASE_URL.get_secret_value()
         if settings.THOTH_EDITOR_DATABASE_URL is not None

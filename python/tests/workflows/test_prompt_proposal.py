@@ -40,8 +40,16 @@ def test_worker_builder_registers_the_proposal_worker() -> None:
     assert callable(build_prompt_proposal_worker)
 
 
-def test_worker_builder_rejects_enabled_provider_without_worker_secret() -> None:
-    from thoth_control_plane.worker import build_prompt_proposal_worker
+def test_a_provider_without_its_worker_secret_warns_and_keeps_the_worker(
+    monkeypatch, caplog
+) -> None:
+    """The prompt worker shares the main worker's process: a missing key must not stop every run.
+
+    The adapter refuses that provider per call (ProviderUnavailable), so only its proposals fail.
+    """
+    import logging
+
+    import thoth_control_plane.worker as worker
 
     runtime_catalog = (
         {
@@ -66,13 +74,16 @@ def test_worker_builder_rejects_enabled_provider_without_worker_secret() -> None
         THOTH_PROMPT_PROVIDER_CATALOG=runtime_catalog,
         THOTH_PROMPT_PROVIDER_SECRETS={},
     )
+    built: dict = {}
+    monkeypatch.setattr(worker, "Worker", lambda client, **options: built.update(options))
 
-    import pytest
+    with caplog.at_level(logging.WARNING, logger="thoth_control_plane.worker"):
+        worker.build_prompt_proposal_worker(client=None, settings=settings)
 
-    with pytest.raises(Exception) as error:
-        build_prompt_proposal_worker(client=None, settings=settings)
-    assert "secret" not in str(error.value).lower() or str(error.value) == ""
-    assert not isinstance(error.value, AssertionError) or True
+    assert built["task_queue"] == "thoth-prompt-proposals"
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    assert "novita" not in warnings[0]  # never name the provider or its credential
 
 
 def test_the_prompt_worker_also_runs_story_assist(monkeypatch) -> None:
