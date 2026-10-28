@@ -941,7 +941,15 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                   )
                 ) : null}
                 {story && shownBeat && assistOn && askAssist ? (
-                  <AssistPanel key={shownBeat.id} request={askAssist} baseRevision={base.revision} beat={shownBeat} dispatch={dispatch} />
+                  <AssistPanel
+                    key={shownBeat.id}
+                    request={askAssist}
+                    baseRevision={base.revision}
+                    beat={shownBeat}
+                    document={timeline!}
+                    ready={saveStatus === "saved"}
+                    dispatch={dispatch}
+                  />
                 ) : null}
                 <Inspector
                   scene={selectedScene}

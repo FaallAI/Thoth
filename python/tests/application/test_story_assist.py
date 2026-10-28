@@ -71,13 +71,27 @@ def document() -> EditDocumentV2:
 
 
 class Documents:
+    def __init__(self, hook_frames: int = 120) -> None:
+        self.hook_frames = hook_frames
+
     async def get_latest(self, project_id: str, document_id: str) -> EditDocumentV2:
-        return document()
+        latest = document()
+        next(
+            clip for clip in latest.clips if clip.clip_id == "clip_hook"
+        ).duration_in_frames = self.hook_frames
+        return latest
 
 
 class Preferences:
-    def __init__(self, configured: bool = True) -> None:
+    def __init__(
+        self, configured: bool = True, capabilities: tuple[str, ...] = ("improve",)
+    ) -> None:
         self.configured = configured
+        self.capabilities = capabilities
+
+    def list_providers(self) -> Any:
+        model = type("Model", (), {"model_id": "m1", "capabilities": self.capabilities})()
+        return (type("Provider", (), {"provider_id": "novita", "models": (model,)})(),)
 
     async def get_preference(self, project_id: str, stage_id: str) -> Any:
         assert stage_id == "story_assist"
@@ -148,7 +162,7 @@ async def test_assist_builds_replace_text() -> None:
     }
     [sent] = gateway.inputs
     assert (sent.project_id, sent.provider_id, sent.model_id) == ("project_001", "novita", "m1")
-    assert sent.system == PROMPT_STARTERS["story_assist"].body
+    assert sent.system.startswith(PROMPT_STARTERS["story_assist"].body)
     assert "Beat: hook" in sent.user and "Kabut asap" in sent.user
     assert "Kabut asap Kalteng makin parah" in sent.user  # the run title
     assert "at most 60 characters" in sent.user  # 4 s at 15 chars/s
@@ -174,7 +188,9 @@ async def test_assist_uses_the_saved_prompt() -> None:
 
     await assist.propose("project_001", "edoc_abc123", ask("clip_hook"))
 
-    assert gateway.inputs[0].system == "Project's own assist prompt"
+    # The answer's shape is always asked for, whatever the saved prompt says (minor 6).
+    assert gateway.inputs[0].system.startswith("Project's own assist prompt")
+    assert '"title"' in gateway.inputs[0].system and '"text"' in gateway.inputs[0].system
 
 
 async def test_assist_rejects_overlong_text() -> None:
@@ -250,3 +266,19 @@ async def test_story_assist_stage_listed() -> None:
 
     assert "story_assist" in {stage.stage_id for stage in PROMPT_STAGES}
     assert PROMPT_STARTERS["story_assist"].language == "en-US"
+
+
+async def test_assist_on_a_clip_too_short_to_read_makes_no_call() -> None:
+    assist, gateway = service(answer("x"), documents=Documents(hook_frames=1))
+
+    with pytest.raises(StoryAssistNoText):
+        await assist.propose("project_001", "edoc_abc123", ask("clip_hook"))
+    assert gateway.inputs == []
+
+
+async def test_assist_with_a_model_that_cannot_rewrite_is_not_configured() -> None:
+    assist, gateway = service(answer("x"), preferences=Preferences(capabilities=("translate",)))
+
+    with pytest.raises(StoryAssistNotConfigured):
+        await assist.propose("project_001", "edoc_abc123", ask("clip_hook"))
+    assert gateway.inputs == []

@@ -115,9 +115,8 @@ PROMPT_STARTERS: dict[PromptStageId, PromptStarterDefinition] = {
             "You help someone finish a short vertical video made from a social media post.\n"
             "Rewrite the given text for the named story beat so it is shorter and clearer.\n"
             "Keep every fact and every name as given; never invent a name, number or quote.\n"
-            "Write in the language of the given text.\n"
-            'Answer with one JSON object: {"title": a few words naming the change, '
-            '"reason": one sentence on why it reads better, "text": the new text}.'
+            # Story Assist appends the answer's JSON shape to every prompt, saved or starter.
+            "Write in the language of the given text."
         ),
     ),
     "narrative_plan": PromptStarterDefinition(

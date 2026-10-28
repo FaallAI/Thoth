@@ -28,6 +28,11 @@ STAGE = "story_assist"
 DESCRIPTION_LIMIT = 500
 #: The longest heading or caption cue a document holds (edit_documents.ShortText).
 TEXT_LIMIT = 300
+#: Always asked for, whatever a project's saved prompt says, so the answer stays parseable.
+ANSWER_CONTRACT = (
+    'Answer with one JSON object: {"title": a few words naming the change, '
+    '"reason": one sentence on why it reads better, "text": the new text}.'
+)
 
 
 class StoryAssistUnavailable(RuntimeError):
@@ -87,14 +92,16 @@ class StoryAssistService:
         )
         if target is None:
             raise StoryAssistNoText()
+        seconds = target.duration_in_frames / document.canvas.fps
+        limit = min(TEXT_LIMIT, int(seconds * ASSIST_READING_CPS))
+        if limit < 1:
+            raise StoryAssistNoText()  # shown too briefly to read: no call is worth making
         preference = await self._preferences.get_preference(project_id, STAGE)
-        if preference is None:
+        if preference is None or not self._can_rewrite(preference):
             raise StoryAssistNotConfigured()
         if self._gateway is None:
             raise StoryAssistUnavailable()
 
-        seconds = target.duration_in_frames / document.canvas.fps
-        limit = min(TEXT_LIMIT, int(seconds * ASSIST_READING_CPS))
         current = target.heading if isinstance(target, TimelineTextClip) else target.cues[0].text
         title, description = (
             await self._context(project_id, document_id) if self._context else None
@@ -153,11 +160,26 @@ class StoryAssistService:
             operations=[operation],
         )
 
+    def _can_rewrite(self, preference: Any) -> bool:
+        """The chosen model offers `improve`, the capability Assist's rewrites need."""
+        providers = getattr(self._preferences, "list_providers", None)
+        if providers is None:
+            return True
+        return any(
+            provider.provider_id == preference.provider_id
+            and any(
+                model.model_id == preference.model_id and "improve" in model.capabilities
+                for model in provider.models
+            )
+            for provider in providers()
+        )
+
     async def _system(self, project_id: str) -> str:
-        """The project's saved prompt for the stage, else the starter."""
+        """The project's saved prompt for the stage, else the starter; the contract always."""
+        prompt = PROMPT_STARTERS[STAGE].body
         if self._prompts is not None:
             try:
-                return (await self._prompts.get_resolved_prompt(project_id, STAGE)).visible_text
+                prompt = (await self._prompts.get_resolved_prompt(project_id, STAGE)).visible_text
             except Exception:  # no binding saved, or the prompt store is down
                 pass
-        return PROMPT_STARTERS[STAGE].body
+        return f"{prompt}\n\n{ANSWER_CONTRACT}"

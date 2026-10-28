@@ -1,7 +1,12 @@
 import { useState, type Dispatch } from "react";
 import { Sparkles } from "lucide-react";
 
-import { StudioImportRequestError, type StoryAssistProposal, type StoryAssistRequest } from "@/api/control-plane";
+import {
+  StudioImportRequestError,
+  type EditDocumentV2,
+  type StoryAssistProposal,
+  type StoryAssistRequest,
+} from "@/api/control-plane";
 import { useLocale } from "@/lib/locale";
 
 import type { EditorAction } from "../editor_state";
@@ -11,8 +16,14 @@ type Props = {
   request: (body: StoryAssistRequest) => Promise<StoryAssistProposal>;
   baseRevision: number;
   beat: Beat;
+  document: EditDocumentV2;
+  /** The server reads the saved revision, so Assist waits until the draft is saved. */
+  ready: boolean;
   dispatch: Dispatch<EditorAction>;
 };
+
+/** The route takes at most this many clip ids (StoryAssistRequest.clip_ids). */
+const MAX_CLIPS = 20;
 
 type Failure = "notConfigured" | "invalid" | "noText" | "conflict" | "unavailable";
 const FAILURE_OF: Record<string, Failure> = {
@@ -23,19 +34,31 @@ const FAILURE_OF: Record<string, Failure> = {
 };
 
 /** Spec 2026-10-27 §7: one text proposal for the chosen beat; Apply or Dismiss. Never stored. */
-export function AssistPanel({ request, baseRevision, beat, dispatch }: Props) {
+export function AssistPanel({ request, baseRevision, beat, document, ready, dispatch }: Props) {
   const { t } = useLocale();
   const [thinking, setThinking] = useState(false);
   const [proposal, setProposal] = useState<StoryAssistProposal | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
   const beatName = t(`studio.story.beat.${beat.id}`);
 
+  // Assist rewrites text; only the beat's text and caption clips are worth sending.
+  const textIds = beat.clipIds
+    .filter((id) => {
+      const kind = (document.clips ?? []).find((clip) => clip.clip_id === id)?.kind;
+      return kind === "text" || kind === "caption";
+    })
+    .slice(0, MAX_CLIPS);
+
   const suggest = async () => {
-    setThinking(true);
     setFailure(null);
     setProposal(null);
+    if (!textIds.length) {
+      setFailure("noText");
+      return;
+    }
+    setThinking(true);
     try {
-      setProposal(await request({ base_revision: baseRevision, beat: beat.id, clip_ids: beat.clipIds }));
+      setProposal(await request({ base_revision: baseRevision, beat: beat.id, clip_ids: textIds }));
     } catch (error) {
       const code = error instanceof StudioImportRequestError ? error.code : null;
       setFailure((code && FAILURE_OF[code]) || "unavailable");
@@ -85,13 +108,17 @@ export function AssistPanel({ request, baseRevision, beat, dispatch }: Props) {
           {t("studio.assist.thinking")}
         </p>
       ) : (
-        <button
-          type="button"
-          onClick={() => void suggest()}
-          className="self-start rounded-md border border-studio-ai/60 px-3 py-1.5 text-[13px] text-studio-ai hover:bg-studio-ai/10 focus-visible:outline-2 focus-visible:outline-copper"
-        >
-          {t("studio.assist.suggest", { beat: beatName })}
-        </button>
+        <>
+          <button
+            type="button"
+            disabled={!ready}
+            onClick={() => void suggest()}
+            className="self-start rounded-md border border-studio-ai/60 px-3 py-1.5 text-[13px] text-studio-ai hover:bg-studio-ai/10 focus-visible:outline-2 focus-visible:outline-copper disabled:opacity-40"
+          >
+            {t("studio.assist.suggest", { beat: beatName })}
+          </button>
+          {ready ? null : <p className="text-xs text-muted-ink">{t("studio.assist.waitSave")}</p>}
+        </>
       )}
       {failure ? (
         <p role="alert" className="text-xs text-status-failed">

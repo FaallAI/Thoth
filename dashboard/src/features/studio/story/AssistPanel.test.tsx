@@ -24,7 +24,7 @@ const proposal: StoryAssistProposal = {
 function mount(request: (...args: unknown[]) => Promise<StoryAssistProposal>, locale: "en" | "id" = "en") {
   const dispatch = mock((_action: EditorAction) => {});
   const ask = mock(request);
-  render(<AssistPanel request={ask} baseRevision={3} beat={hook} dispatch={dispatch} />, { locale });
+  render(<AssistPanel request={ask} baseRevision={3} beat={hook} document={storyDocument()} ready dispatch={dispatch} />, { locale });
   return { dispatch, ask };
 }
 
@@ -89,4 +89,24 @@ test("the panel speaks Indonesian", () => {
   mount(async () => proposal, "id");
 
   expect(screen.getByRole("button", { name: "Sarankan untuk Hook" })).toBeDefined();
+});
+
+test("Assist waits for the draft to be saved", () => {
+  const ask = mock(async () => proposal);
+  render(<AssistPanel request={ask} baseRevision={3} beat={hook} document={storyDocument()} ready={false} dispatch={mock(() => {})} />);
+
+  const suggest = screen.getByRole("button", { name: "Suggest for Hook" }) as HTMLButtonElement;
+  expect(suggest.disabled).toBe(true);
+  expect(screen.getByText("Assist reads the saved draft; it starts once your changes are saved.")).toBeDefined();
+});
+
+test("Assist sends only the beat's text clips, and says so when there are none", async () => {
+  const ask = mock(async () => proposal);
+  const reactions = computeBeats(storyDocument(), storyInventory()).find((beat) => beat.id === "reactions")!;
+  render(<AssistPanel request={ask} baseRevision={3} beat={reactions} document={storyDocument()} ready dispatch={mock(() => {})} />);
+
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Suggest for Reactions" })));
+
+  expect(ask).not.toHaveBeenCalled();
+  expect(screen.getByRole("alert").textContent).toContain("This beat has no text to rewrite.");
 });
