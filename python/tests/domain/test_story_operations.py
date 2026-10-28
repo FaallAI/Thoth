@@ -1,6 +1,6 @@
 """Story mode's clip fields and operations (spec 2026-10-27 §5).
 
-The cases live in ``tests/fixtures/story_operation_cases.json`` so the dashboard's
+The cases live in ``dashboard/src/features/studio/story_operation_cases.json`` so the dashboard's
 ``applyTimelineOperation`` is held to exactly the same expectations.
 """
 
@@ -21,7 +21,9 @@ from thoth_control_plane.domain.edit_document_v2 import AssetRef, EditDocumentV2
 from thoth_control_plane.domain.studio_imports import SourceRole
 
 CASES = json.loads(
-    (Path(__file__).parents[1] / "fixtures" / "story_operation_cases.json").read_text("utf-8")
+    (
+        Path(__file__).parents[3] / "dashboard/src/features/studio/story_operation_cases.json"
+    ).read_text("utf-8")
 )
 OPERATIONS: TypeAdapter[list[Any]] = TypeAdapter(list[EditDocumentOperation])
 

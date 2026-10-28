@@ -30,7 +30,9 @@ from thoth_control_plane.domain.story_assist import (
 pytestmark = pytest.mark.asyncio
 
 CASES = json.loads(
-    (Path(__file__).parents[1] / "fixtures" / "story_operation_cases.json").read_text("utf-8")
+    (
+        Path(__file__).parents[3] / "dashboard/src/features/studio/story_operation_cases.json"
+    ).read_text("utf-8")
 )
 
 

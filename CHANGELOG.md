@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 **Document and operations (S1):**
 - Clip fields, all optional with defaults that draw nothing new: `source_role` (every clip), `motion` and `emphasis` (video clips). No migration; documents are JSONB.
-- Five revision-bound operations, mirrored in Python and TypeScript and checked by one shared case file (`python/tests/fixtures/story_operation_cases.json`): `set_clip_position`, `set_clip_motion`, `set_clip_emphasis`, `replace_clip_asset`, `add_text_clip`. `add_clip_from_asset` gains optional `fit`, `position` and `source_role`; the importer records `source_role`.
+- Five revision-bound operations, mirrored in Python and TypeScript and checked by one shared case file (`dashboard/src/features/studio/story_operation_cases.json`, inside the web image's build context): `set_clip_position`, `set_clip_motion`, `set_clip_emphasis`, `replace_clip_asset`, `add_text_clip`. `add_clip_from_asset` gains optional `fit`, `position` and `source_role`; the importer records `source_role`.
 - The editor commits several operations as one undo step (`commit_operations`, atomic).
 
 **Composition and parity (S2):**

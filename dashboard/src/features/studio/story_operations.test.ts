@@ -4,7 +4,8 @@ import { expect, test } from "bun:test";
 
 import type { EditDocumentOperation, EditDocumentV2, EditorAsset } from "@/api/control-plane";
 
-import cases from "../../../../python/tests/fixtures/story_operation_cases.json";
+// Inside the dashboard so the web image (which builds only dashboard/) type-checks it.
+import cases from "./story_operation_cases.json";
 import { createEditorState, editorReducer } from "./editor_state";
 import { applyTimelineOperation } from "./timeline_domain";
 
