@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-28 - Deployed master 61c853d (PR #80, Studio R5 and Story mode)
+
+**Deployed:** `master` 61c853d after the CI of PR #80 and of `master` went green (offline gates, template parity with both capsules, image validate and publish, non-live smoke). Approved by the operator ("untuk gate saya izinkan").
+- `thoth@c98914fc`, renderer `68f2c6a4`, web `7373e5b4`. Renderer and Thoth were deployed as one package.
+- No workflow was running in `thoth-stage1` and `render_jobs` was empty. The previous pins (86f7c3e) are backed up in `D:/thoth-tmp/bu/pins/pins-86f7c3ec.env`.
+- The three images were pulled ahead.
+
+**`make deploy` exit 0:**
+- migrate applied 1 revision; the head is `0024` (`studio_import_drafts.source_workflow_id`).
+- backfill: present=266, invalid=2.
+- Every service is healthy, with 0 restarts and no error lines in the api, worker, web or renderer logs.
+
+**Read smoke** through the API, from inside the api container:
+- 200 for the run list and `/prompt-stages`, which now lists `story_assist`.
+- The documents list carries `state`, `render_percent`, `source_workflow_id` and `source_title` (B9).
+- Materials on a draft made before B9 answer 200, with 15 items and `provenance_available: false`, as designed.
+- The served dashboard bundle carries the Story screen.
+
+**Live Assist check: not run.** The stage1 Prompt Lab provider catalog is empty (`THOTH_PROMPT_PROVIDER_CATALOG` and `THOTH_PROMPT_PROVIDER_SECRETS` were never set), so no project can choose an Assist model. Enabling it means choosing a paid provider and model and putting its key in the stack's secrets, which is the operator's decision.
+
+**Rollback:** restore the three pins from the backup and run `compose up -d --wait`, without migrate. Migration 0024 only adds a nullable column, so the old images run on it. `make deploy` with the old pins would stop at migrate, because the old chain refuses the newer head.
+
+**Next steps:**
+- Operator decision: configure a Prompt Lab provider for stage1 (catalog plus secret), then run the live Assist check.
+- Exercise materials provenance on a draft opened from a run after this deploy (drafts made before B9 carry no source run).
+- R7: Timeline restyle and clean-up, on the operator's word.
+
 ## 2026-10-28 - Studio Story mode (restyle part B, R6 in full)
 
 **Spec:** `docs/superpowers/specs/2026-10-27-studio-story-mode-design.md`, approved by the operator on 2026-10-27 ("ya setuju") after choosing the full Story mode with its backend ("jalankan opsi 2"); it revises D3 of the restyle spec. **Plan:** `docs/superpowers/plans/2026-10-27-studio-story-mode.md`, executed by Claude inline ("eksekusi secara native") on `feat/dashboard-restyle-studio`, commits `cb023ea1..407bad10`. Rulings are in the plan's ledger.
