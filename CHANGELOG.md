@@ -51,12 +51,12 @@ The reviewer's ten minors were fixed before push (operator, 2026-10-28), each wi
 **Known limits:**
 - Tile lengths read seconds ("4.0 s"), not "0:04"; no Script mode (D4); the safe zone shows TikTok's areas, because no style preset names a target platform yet.
 - The Outro is offered only with a known creator (a heading cannot be empty).
-- Motion and emphasis apply to Evidence and Reactions cards only.
+- Position and emphasis apply to Evidence and Reactions cards; motion applies to those cards and to photos in the Footage beat (operator, 2026-10-28), never to its videos.
 
 **Next steps:**
 - R7: Timeline restyle and clean-up (F3 aliases, dead `pen-studio` and `studio-prompt-*` CSS, `content_set_import.ts`, StudioPreview's "Back to Content Set", the temporary `dashboard/vite.shots.config.ts`).
 - Operator gates, each separate: approve the `story_mode-v1` golden set (then promote it and add its CI verify step); push, PR, merge and deploy of part B (renderer and Thoth as one package); a live Assist check against the real provider after deploy.
-- Follow-ups: motion on Footage photos (operator question); a publish-check endpoint and review threads (from Tasks 4-5).
+- Follow-ups: a publish-check endpoint and review threads (from Tasks 4-5).
 
 ## 2026-10-27 - Deployed master 86f7c3e (PR #78, run progress and dashboard restyle part A)
 

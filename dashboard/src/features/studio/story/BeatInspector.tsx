@@ -68,6 +68,13 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
     clip.kind === "text" ? clip.heading : labelled.get(clip.clip_id) ?? items.get(clip.clip_id)?.label ?? ("asset_id" in clip ? clip.asset_id : clip.clip_id);
   const cards = CARD_BEATS.has(beat.id) ? clips.filter((clip) => clip.kind === "video") : [];
   const cardIds = cards.map((clip) => clip.clip_id);
+  // Photos in the Footage beat may move too (operator, 2026-10-28); its videos already do.
+  const kindOf = new Map((document.asset_refs ?? []).map((ref) => [ref.asset_id, ref.kind]));
+  const photos =
+    beat.id === "footage"
+      ? clips.filter((clip) => clip.kind === "video" && kindOf.get(clip.asset_id) === "image")
+      : [];
+  const moving = cards.length ? cards : photos;
   const text = beat.id === "hook" || beat.id === "outro" ? clips.find((clip) => clip.kind === "text") : undefined;
   const reading = longestReading(beat, inventory);
 
@@ -282,8 +289,7 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
       </section>
 
       {cards.length ? (
-        <>
-          <section role="group" aria-label={t("studio.inspector.position")} className={section}>
+        <section role="group" aria-label={t("studio.inspector.position")} className={section}>
             <h3 className={heading}>{t("studio.inspector.position")}</h3>
             <div className="flex flex-wrap gap-1.5">
               {PRESETS.map((preset) => (
@@ -300,28 +306,31 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
             </div>
             <p className="text-xs text-muted-ink">{t("studio.inspector.safeNote")}</p>
           </section>
-          <section role="group" aria-label={t("studio.inspector.motion")} className={section}>
-            <h3 className={heading}>{t("studio.inspector.motion")}</h3>
-            <div className="flex flex-wrap gap-1.5">
-              {MOTIONS.map((motion) => (
-                <button
-                  key={motion}
-                  type="button"
-                  className={choice}
-                  aria-pressed={allCards(motionOf, motion)}
-                  onClick={() => commit(setMotion(cardIds, motion))}
-                >
-                  {t(`studio.inspector.motion.${motion}`)}
-                </button>
-              ))}
-            </div>
-          </section>
-          <section role="group" aria-label={t("studio.inspector.emphasis")} className={section}>
-            <h3 className={heading}>{t("studio.inspector.emphasis")}</h3>
-            <Switch label={t("studio.inspector.emphasis.highlight")} checked={highlight} onChange={(on) => commit(setEmphasis(cardIds, on, arrow))} />
-            <Switch label={t("studio.inspector.emphasis.arrow")} checked={arrow} onChange={(on) => commit(setEmphasis(cardIds, highlight, on))} />
-          </section>
-        </>
+      ) : null}
+      {moving.length ? (
+        <section role="group" aria-label={t("studio.inspector.motion")} className={section}>
+          <h3 className={heading}>{t("studio.inspector.motion")}</h3>
+          <div className="flex flex-wrap gap-1.5">
+            {MOTIONS.map((motion) => (
+              <button
+                key={motion}
+                type="button"
+                className={choice}
+                aria-pressed={moving.every((clip) => motionOf(clip) === motion)}
+                onClick={() => commit(setMotion(moving.map((clip) => clip.clip_id), motion))}
+              >
+                {t(`studio.inspector.motion.${motion}`)}
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      {cards.length ? (
+        <section role="group" aria-label={t("studio.inspector.emphasis")} className={section}>
+          <h3 className={heading}>{t("studio.inspector.emphasis")}</h3>
+          <Switch label={t("studio.inspector.emphasis.highlight")} checked={highlight} onChange={(on) => commit(setEmphasis(cardIds, on, arrow))} />
+          <Switch label={t("studio.inspector.emphasis.arrow")} checked={arrow} onChange={(on) => commit(setEmphasis(cardIds, highlight, on))} />
+        </section>
       ) : null}
     </div>
   );

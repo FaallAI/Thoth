@@ -208,3 +208,38 @@ test("the timing fields follow the draft after an undo", () => {
 
   expect((screen.getByLabelText("Each card (seconds)") as HTMLInputElement).value).toBe("3.0");
 });
+
+// Operator 2026-10-28 (option 2): photos in the Footage beat may move; its videos already do.
+test("a photo in the Footage beat offers Motion, and only Motion", () => {
+  const document = storyDocument();
+  document.asset_refs!.find((ref) => ref.asset_id === "asset_clip_footage_000")!.kind = "image";
+  const dispatch = mock((_action: EditorAction) => {});
+  render(
+    <BeatInspector beat={beats.find((beat) => beat.id === "footage")!} beats={beats} document={document} inventory={inventory} materials={materials} dispatch={dispatch} />,
+  );
+
+  expect(screen.getByRole("group", { name: "Motion" })).toBeDefined();
+  expect(screen.queryByRole("group", { name: "Position" })).toBeNull();
+  expect(screen.queryByRole("group", { name: "Emphasis" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Slow zoom" }));
+  expect(dispatch.mock.calls[0]![0]).toMatchObject({
+    type: "commit_operations",
+    operations: [{ kind: "set_clip_motion", clip_id: "clip_footage_000", motion: "slow_zoom" }],
+  });
+});
+
+test("a Footage beat of videos offers no Motion", () => {
+  render(
+    <BeatInspector beat={beats.find((beat) => beat.id === "footage")!} beats={beats} document={storyDocument()} inventory={inventory} materials={materials} dispatch={mock(() => {})} />,
+  );
+
+  expect(screen.queryByRole("group", { name: "Motion" })).toBeNull();
+});
+
+test("a card beat lists Position, Motion and Emphasis in that order", () => {
+  render(
+    <BeatInspector beat={beats.find((beat) => beat.id === "reactions")!} beats={beats} document={storyDocument()} inventory={inventory} materials={materials} dispatch={mock(() => {})} />,
+  );
+
+  expect(screen.getAllByRole("group").map((group) => group.getAttribute("aria-label"))).toEqual(["Position", "Motion", "Emphasis"]);
+});
