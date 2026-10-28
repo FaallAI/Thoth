@@ -346,3 +346,59 @@ def test_the_media_store_check_returns_the_checked_store(tmp_path: Path) -> None
         Settings(THOTH_CONTROL_PLANE_API_KEY="test-key", THOTH_CONTROL_PLANE_ARTIFACT_ROOT=tmp_path)
     )
     assert isinstance(store, LocalMediaStore)
+
+
+@pytest.mark.asyncio
+async def test_run_worker_serves_the_prompt_proposal_queue(monkeypatch) -> None:
+    """Prompt Lab proposals and Story Assist wait on this queue; without it they time out."""
+    from contextlib import asynccontextmanager
+
+    from thoth_control_plane.activities.prompt_proposal import PROMPT_PROPOSAL_TASK_QUEUE
+
+    queues: list[str] = []
+
+    class _Worker:
+        def __init__(self, client: object, *, task_queue: str, **kwargs: object) -> None:
+            queues.append(task_queue)
+
+        async def __aenter__(self) -> _Worker:
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+    @asynccontextmanager
+    async def source_worker(*args: object, **kwargs: object):
+        yield None
+
+    async def connect(*args: object, **kwargs: object) -> object:
+        return object()
+
+    async def nothing() -> None:
+        return None
+
+    monkeypatch.setattr(worker, "configure_logging", lambda: None)
+    monkeypatch.setattr(worker, "preload_heavy_modules", lambda: None)
+    monkeypatch.setattr(worker, "warm_up", lambda settings: None)
+    monkeypatch.setattr(worker, "check_media_store", lambda settings: None)
+    monkeypatch.setattr(worker, "watch_event_loop", _no_watch)
+    monkeypatch.setattr(worker, "configure_provider_logging", lambda: None)
+    monkeypatch.setattr(worker, "sweep_unsealed", lambda: None)
+    monkeypatch.setattr(worker, "check_scrapling_capability", nothing)
+    monkeypatch.setattr(worker, "check_freshness", nothing)
+    monkeypatch.setattr(worker, "connect_reports", lambda settings: None)
+    monkeypatch.setattr(worker, "build_source_investigation_worker", source_worker)
+    monkeypatch.setattr(worker, "build_legacy_scout_activity", lambda *args: None)
+    monkeypatch.setattr(worker.Client, "connect", connect)
+    monkeypatch.setattr(worker, "Worker", _Worker)
+
+    with pytest.raises(TimeoutError):
+        await asyncio.wait_for(
+            worker.run_worker(
+                Settings(
+                    THOTH_CONTROL_PLANE_API_KEY="test-key", THOTH_SOURCE_ATTRIBUTION_ENABLED=False
+                )
+            ),
+            timeout=0.5,
+        )
+    assert PROMPT_PROPOSAL_TASK_QUEUE in queues

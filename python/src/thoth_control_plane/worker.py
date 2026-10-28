@@ -268,6 +268,8 @@ async def run_worker(settings: Settings | None = None) -> None:
                 ],
                 max_concurrent_activities=LEGACY_ADAPTER_MAX_CONCURRENT_ACTIVITIES,
             ),
+            # Prompt Lab proposals and Story Assist; an empty catalog answers with failure codes.
+            build_prompt_proposal_worker(client, runtime_settings),
         ):
             await asyncio.Future()
     finally:
