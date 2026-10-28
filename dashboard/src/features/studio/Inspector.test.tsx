@@ -1,7 +1,8 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, mock, test } from "bun:test";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { render } from "@/test-render";
 import { Inspector } from "./Inspector";
 import type { EditableTextClip } from "./editor_state";
 

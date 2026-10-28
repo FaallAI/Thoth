@@ -958,6 +958,15 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                   clip={selectedClip}
                   fps={state.draft.canvas.fps}
                   disabled={upgrading}
+                  textLocked={Boolean(
+                    timeline &&
+                      selectedClip &&
+                      ((clip) =>
+                        clip?.locked ||
+                        timeline.tracks.find((track) => track.track_id === clip?.track_id)?.locked)(
+                        timeline.clips?.find((entry) => entry.clip_id === selectedClip.clip_id),
+                      ),
+                  )}
                   sceneIndex={state.draft.scenes.findIndex((scene) => scene.scene_id === state.selectedSceneId)}
                   sceneCount={state.draft.scenes.length}
                   textOnly={viewport === "phone"}

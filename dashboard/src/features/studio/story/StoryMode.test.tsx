@@ -359,3 +359,15 @@ test("the safe zone names whose interface it shows", async () => {
 
   expect(screen.getByText("TikTok's header and buttons")).toBeDefined();
 });
+
+test("a locked scene title cannot be typed into, so no save can stall on it", async () => {
+  const locked = storyDocument();
+  (locked.clips!.find((clip) => clip.clip_id === "clip_title") as { locked: boolean }).locked = true;
+  await mountStory("en", { getEditDocument: mock(async () => locked as EditDocument) });
+
+  const heading = screen.getByLabelText("Heading") as HTMLInputElement;
+  expect(heading.disabled).toBe(true);
+  expect(screen.getByText("This text is locked. Unlock it in Timeline to edit it.")).toBeDefined();
+  fireEvent.change(heading, { target: { value: "Edited anyway" } });
+  expect(screen.queryByText("Unsaved changes")).toBeNull();
+});

@@ -1,5 +1,7 @@
 import { useId, useState, type ReactNode } from "react";
 
+import { useLocale } from "@/lib/locale";
+
 import type { EditableTextClip } from "./editor_state";
 import { formatSceneSeconds, parseSceneSeconds } from "./studio_time";
 
@@ -18,6 +20,8 @@ type Props = {
   fps: number;
   /** True while another request owns the document, such as a running upgrade. */
   disabled?: boolean;
+  /** The text clip or its track is locked: the server refuses text edits, so the fields do too. */
+  textLocked?: boolean;
   /** Phone light edits: heading and body only. */
   textOnly?: boolean;
   children?: ReactNode;
@@ -36,11 +40,13 @@ export function Inspector({
   onDurationChange,
   fps,
   disabled = false,
+  textLocked = false,
   textOnly = false,
   children,
   sceneIndex,
   sceneCount,
 }: Props) {
+  const { t } = useLocale();
   const headingId = useId();
   const headingErrorId = useId();
   const bodyId = useId();
@@ -62,7 +68,7 @@ export function Inspector({
               value={clip?.heading ?? ""}
               maxLength={300}
               required={Boolean(clip)}
-              disabled={disabled || !clip}
+              disabled={disabled || textLocked || !clip}
               aria-invalid={headingInvalid}
               aria-describedby={headingInvalid ? headingErrorId : undefined}
               onChange={(event) => { if (clip) onTextChange(clip.clip_id, "heading", event.target.value); }}
@@ -80,10 +86,11 @@ export function Inspector({
               className={`${fieldClass} min-h-28 resize-y`}
               value={clip?.body ?? ""}
               maxLength={2_000}
-              disabled={disabled || !clip}
+              disabled={disabled || textLocked || !clip}
               onChange={(event) => { if (clip) onTextChange(clip.clip_id, "body", event.target.value); }}
             />
           </div>
+          {textLocked ? <p className="text-xs text-muted-foreground">{t("studio.editor.textLocked")}</p> : null}
           {children}
           {textOnly ? null : (
             <details className="studio-scene-settings" open={sceneIndex === undefined ? true : undefined}>
