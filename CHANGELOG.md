@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-28 - The worker serves the Prompt Lab proposal queue
+
+**Found by the live Assist check after deploying `fea035b5` (migration 0025):** the `story_assist` preference now saves (200), but Assist answered 503 `assist_unavailable`. Temporal showed `StoryAssistWorkflow` scheduled and then timed out with no worker ever picking it up: `build_prompt_proposal_worker` (added in `69a6f8ed`) was never started by `run_worker`, so nothing polled `thoth-prompt-proposals`. Prompt Lab AI proposals had the same gap since that commit.
+
+**Fix:** `run_worker` enters `build_prompt_proposal_worker` beside the source-investigation and legacy-adapter workers. An empty catalog still starts it; the activity answers with failure codes.
+
+**Degrades gracefully (side-agent note, operator: "ya tolong pastikan ini"):** the builder used to raise `SettingsValidationError` when an enabled provider lacked its worker credential. Now that it shares the main worker's process, that would stop every run, not only Assist. It now logs one `warning` (a count, never the provider or credential) and starts; the adapter already refuses that provider per call with `ProviderUnavailable`, so only its proposals answer `assist_unavailable`. `test_a_provider_without_its_worker_secret_warns_and_keeps_the_worker` replaces the old refusal test (RED, then GREEN).
+
+**Verification:** `test_run_worker_serves_the_prompt_proposal_queue` RED (only `thoth-legacy-adapter` was opened) then GREEN; `tests/test_worker.py`, `tests/workflows/test_prompt_proposal.py` the three Story Assist files and `tests/infrastructure/test_prompt_provider.py`: 86 passed; `make lint` clean.
+
+**Deploy `fea035b5` (PR #83), done before this fix:** thoth `d737199f`, renderer `6c3cff63`, web `aaff2bb7`; migrate applied 1 revision (head `0025`); every service up with 0 restarts. Previous pins in `D:/thoth-tmp/bu/pins/pins-61c853d9.env`.
+
+**Next steps:**
+- Operator gates: push and PR, merge, deploy, then the live Assist check.
+- Exercise materials provenance on a draft opened from a run after the deploy.
+- R7 on the operator's word.
+
 ## 2026-10-28 - Prompt Lab tables accept the story_assist stage (migration 0025)
 
 **Found by the live Assist check on stage1:** with the OpenRouter provider configured (operator choice: `deepseek/deepseek-chat-v3.1`), saving the `story_assist` model preference answered 503 `store_unavailable`. The six Prompt Lab tables (`prompt_template_revisions`, `project_prompt_bindings`, `prompt_provider_preferences`, `prompt_layer_locks`, `prompt_proposals`, `prompt_proposal_applications`) still carried `CHECK (stage_id IN ('narrative_plan', 'visual_plan', 'caption_copy'))`; Story mode registered the stage in code only, and its tests ran against the in-memory store.
