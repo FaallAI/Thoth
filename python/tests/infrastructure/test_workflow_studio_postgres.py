@@ -28,6 +28,7 @@ from thoth_control_plane.application.workflow_studio_imports import (
 from thoth_control_plane.domain.studio_layout import (
     CARD_CENTER_Y,
     CARD_GAP,
+    card_position,
     post_card_slot,
     profile_slot,
     reaction_beat,
@@ -206,7 +207,9 @@ async def test_cards_and_blur_land_where_the_layout_says(database: str, tmp_path
         round(length * fps),
     )
     assert profile["fit"] == "contain"
-    assert profile["position"]["y"] == pytest.approx(CARD_CENTER_Y - 0.5)
+    # A 4:5 card is too tall for the card line, so it starts just below the header instead.
+    assert profile["position"]["y"] == pytest.approx(card_position(1080, 1350, (1080, 1920)).y)
+    assert profile["position"]["y"] > CARD_CENTER_Y - 0.5
     # Story mode: every attached clip names the inventory role it came from.
     assert profile["source_role"] == "profile_card"
     reading = [reading_seconds(text) for text in TEXTS]

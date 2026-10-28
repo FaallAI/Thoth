@@ -33,6 +33,7 @@ All notable changes to this project will be documented in this file.
 - Phones keep Undo/Redo in the menu.
 - Without the Content Set, held materials still attach and only they are offered.
 - Raised after the review: Top and Lower third now place each card by its visible size, so a tall card keeps its top edge below the top 10 % and its bottom edge above the bottom 18 %. Before this, a 4:5 post card at Lower third reached 98.7 % of the height, and at Top it started above the canvas. A card taller than the safe band (a 9:16 profile page) keeps only the preset's own edge.
+- The importer places cards by the same rule (`studio_layout.card_position`): a card too tall for the card line (a 4:5 post card started at -0.7 % of the height) moves down just enough to start below the top 10 %; comment and profile cards keep the card line. Only new imports change; saved drafts keep their stored positions.
 Ten minors are deferred and listed in the ledger.
 
 **Verification (`407bad10`):** Python 4594 passed / 252 skipped; `make test-postgres` 190 passed; `make lint` clean; dashboard 1422 pass, build clean; renderer 229 pass / 5 skip. The contract changed by additions only. Screens against the exports with an offline mock: `D:/thoth-tmp/restyle-shots/r6/story-en-1440.png`, `story-en-1024.png`, `quick-en-430.png`, `quick-swap-en-430.png`.

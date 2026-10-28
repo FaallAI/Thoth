@@ -106,7 +106,8 @@ test("a material joins the beat after its last clip, placed as the importer plac
     from_frame: 140,
     duration_in_frames: 40,
     fit: "contain",
-    position: { x: 0, y: -0.24, scale: 0.76 },
+    // The importer's placement: a 4:5 card starts below the header (see the test below).
+    position: cardPosition(1080, 1350, { width: 1080, height: 1920 }),
     source_role: "comment_card",
   });
   expect((operation as { clip_id: string }).clip_id).toMatch(/^clip_/);
@@ -221,4 +222,11 @@ test("a card and a clip of another scene do not trade scenes", () => {
   const document = storyDocument();
   // The reaction card sits inside the main scene without filling it.
   expect(swapClips(document, "clip_comment_card_001", "clip_footage_000")).toEqual([]);
+});
+
+test("an added tall card starts below the header, as the importer places it", () => {
+  const position = cardPosition(1080, 1350, { width: 1080, height: 1920 });
+  const box = emphasisBox(position, contentBox("contain", { width: 1080, height: 1350 }, { width: 1080, height: 1920 }), { scale: 1, translateX: 0 });
+  expect(box.top).toBeCloseTo(0.1, 10);
+  expect(cardPosition(1080, 360, { width: 1080, height: 1920 }).y).toBeCloseTo(-0.24, 10);
 });

@@ -191,10 +191,15 @@ function trackFor(
   };
 }
 
-/** The importer's placement for a contained card, CARD_WIDTH of the canvas wide. */
+/**
+ * The importer's placement for a contained card (python studio_layout.card_position): CARD_WIDTH
+ * of the canvas wide on the card line, moved down just enough to start below the header.
+ */
 export function cardPosition(width: number | null | undefined, height: number | null | undefined, canvas: { width: number; height: number }) {
   const drawn = !width || !height ? canvas.width : Math.min(canvas.width, (canvas.height * width) / height);
-  return { x: 0, y: CARD_CENTER_Y - 0.5, scale: (CARD_WIDTH * canvas.width) / drawn };
+  const scale = (CARD_WIDTH * canvas.width) / drawn;
+  const shown = (width && height ? Math.min(1, canvas.width / canvas.height / (width / height)) : 1) * scale;
+  return { x: 0, y: Math.max(CARD_CENTER_Y, SAFE_ZONE.top + shown / 2) - 0.5, scale };
 }
 
 /**
