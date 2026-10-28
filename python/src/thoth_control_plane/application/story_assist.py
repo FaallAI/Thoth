@@ -7,6 +7,7 @@ and turns it into one revision-bound operation. Nothing is stored.
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 from uuid import uuid4
@@ -178,8 +179,7 @@ class StoryAssistService:
         """The project's saved prompt for the stage, else the starter; the contract always."""
         prompt = PROMPT_STARTERS[STAGE].body
         if self._prompts is not None:
-            try:
+            # No binding saved, or the prompt store is down: the starter stands.
+            with contextlib.suppress(Exception):
                 prompt = (await self._prompts.get_resolved_prompt(project_id, STAGE)).visible_text
-            except Exception:  # no binding saved, or the prompt store is down
-                pass
         return f"{prompt}\n\n{ANSWER_CONTRACT}"
