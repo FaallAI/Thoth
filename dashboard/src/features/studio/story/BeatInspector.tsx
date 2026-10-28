@@ -9,9 +9,9 @@ import { reasonText } from "@/features/workflows/OpenInStudio";
 import type { EditorAction } from "../editor_state";
 import { ROLE_BEAT, type Beat } from "./story_beats";
 import {
-  PRESET_Y,
   addMaterialToBeat,
   longestReading,
+  presetY,
   removeFromBeat,
   setClipSeconds,
   setEmphasis,
@@ -287,7 +287,7 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
                   key={preset}
                   type="button"
                   className={choice}
-                  aria-pressed={allCards(placement, PRESET_Y[preset])}
+                  aria-pressed={cards.length > 0 && cards.every((clip) => Math.abs(placement(clip) - presetY(document, clip, preset)) < 1e-6)}
                   onClick={() => commit(setPositionPreset(document, cardIds, preset))}
                 >
                   {t(`studio.inspector.position.${preset}`)}

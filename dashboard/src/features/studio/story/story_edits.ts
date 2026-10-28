@@ -5,6 +5,9 @@
 
 import type { EditDocumentOperation, EditDocumentV2, EditorAsset, StudioImportItem } from "@/api/control-plane";
 
+import { contentBox } from "@thoth/remotion-composition";
+
+import { SAFE_ZONE } from "./SafeZone";
 import type { Beat, StoryRole } from "./story_beats";
 
 type Clip = NonNullable<EditDocumentV2["clips"]>[number];
@@ -33,13 +36,33 @@ const clipOf = (document: EditDocumentV2, clipId: string) =>
 const positionOf = (clip: Clip | undefined) =>
   (clip && "position" in clip && clip.position) || { x: 0, y: 0, scale: 1 };
 
+/**
+ * The y a preset gives this clip. Top and Lower third keep the visible card clear of the
+ * platform's header (top 10%) and buttons (bottom 18%), so a tall card sits higher or lower
+ * than the preset's nominal offset; a card taller than the safe band keeps the preset's edge.
+ * ponytail: motion's 8% zoom is not counted; count it if zoomed cards graze the buttons.
+ */
+export function presetY(document: EditDocumentV2, clip: Clip | undefined, preset: PositionPreset): number {
+  const nominal = PRESET_Y[preset];
+  if (preset === "middle" || !clip || !("asset_id" in clip)) return nominal;
+  const ref = (document.asset_refs ?? []).find((entry) => entry.asset_id === clip.asset_id);
+  const fit = "fit" in clip ? clip.fit : "cover";
+  const half = (contentBox(fit, ref, document.canvas).height * positionOf(clip).scale) / 2;
+  return preset === "lower"
+    ? Math.min(nominal, 1 - SAFE_ZONE.bottom - half - 0.5)
+    : Math.max(nominal, SAFE_ZONE.top + half - 0.5);
+}
+
 export function setPositionPreset(document: EditDocumentV2, clipIds: string[], preset: PositionPreset): Op<"set_clip_position">[] {
-  return clipIds.map((clipId) => ({
-    kind: "set_clip_position",
-    operation_id: id(),
-    clip_id: clipId,
-    position: { ...positionOf(clipOf(document, clipId)), y: PRESET_Y[preset] },
-  }));
+  return clipIds.map((clipId) => {
+    const clip = clipOf(document, clipId);
+    return {
+      kind: "set_clip_position",
+      operation_id: id(),
+      clip_id: clipId,
+      position: { ...positionOf(clip), y: presetY(document, clip, preset) },
+    };
+  });
 }
 
 export const setMotion = (clipIds: string[], motion: Motion): Op<"set_clip_motion">[] =>

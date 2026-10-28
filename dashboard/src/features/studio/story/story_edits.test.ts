@@ -3,6 +3,7 @@
 import { expect, test } from "bun:test";
 
 import type { EditorAsset } from "@/api/control-plane";
+import { contentBox, emphasisBox } from "@thoth/remotion-composition";
 
 import { computeBeats } from "./story_beats";
 import {
@@ -27,15 +28,41 @@ const reactions = () => computeBeats(storyDocument(), storyInventory()).find((be
 
 test("a position preset moves y only and keeps x and scale", () => {
   const document = storyDocument();
-  const card = document.clips!.find((clip) => clip.clip_id === "clip_comment_card_000") as { position?: unknown };
+  const card = document.clips!.find((clip) => clip.clip_id === "clip_comment_card_000") as { position?: unknown; fit?: string };
   card.position = { x: 0.1, y: -0.24, scale: 0.76 };
+  card.fit = "contain";
+  // A short comment card fits every preset at its stored y.
+  document.asset_refs!.find((ref) => ref.asset_id === "asset_clip_comment_card_000")!.height = 360;
 
-  const [lower, plain] = setPositionPreset(document, cards, "lower");
+  const [lower] = setPositionPreset(document, ["clip_comment_card_000"], "lower");
 
   expect(lower).toMatchObject({ kind: "set_clip_position", clip_id: "clip_comment_card_000", position: { x: 0.1, y: 0.22, scale: 0.76 } });
-  expect(plain).toMatchObject({ clip_id: "clip_comment_card_001", position: { x: 0, y: 0.22, scale: 1 } });
-  expect(setPositionPreset(document, cards, "top")[0]).toMatchObject({ position: { y: -0.24 } });
-  expect(setPositionPreset(document, cards, "middle")[0]).toMatchObject({ position: { y: 0 } });
+  expect(setPositionPreset(document, ["clip_comment_card_000"], "top")[0]).toMatchObject({ position: { y: -0.24 } });
+  expect(setPositionPreset(document, ["clip_comment_card_000"], "middle")[0]).toMatchObject({ position: { y: 0 } });
+});
+
+// The platform's buttons cover the bottom 18% and its header the top 10% (spec 5.2, 9).
+function edgesAfter(height: number, preset: "top" | "lower") {
+  const document = storyDocument();
+  document.asset_refs!.find((ref) => ref.asset_id === "asset_clip_comment_card_000")!.height = height;
+  const card = document.clips!.find((clip) => clip.clip_id === "clip_comment_card_000") as { position?: unknown; fit?: string };
+  card.position = cardPosition(1080, height, document.canvas);
+  card.fit = "contain";
+  const [operation] = setPositionPreset(document, ["clip_comment_card_000"], preset);
+  const box = emphasisBox(
+    (operation as { position: { x: number; y: number; scale: number } }).position,
+    contentBox("contain", { width: 1080, height }, document.canvas),
+    { scale: 1, translateX: 0 },
+  );
+  return { top: box.top, bottom: box.top + box.height };
+}
+
+test("Lower third keeps every card's bottom edge above the bottom 18%", () => {
+  for (const height of [360, 520, 1350, 1920]) expect(edgesAfter(height, "lower").bottom).toBeLessThanOrEqual(0.82 + 1e-9);
+});
+
+test("Top keeps a tall card's top edge below the top 10%", () => {
+  for (const height of [360, 520, 1350]) expect(edgesAfter(height, "top").top).toBeGreaterThanOrEqual(0.1 - 1e-9);
 });
 
 test("swapping two cards keeps the pair's span", () => {

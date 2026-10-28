@@ -11,6 +11,8 @@ export {
   type PreviewSources,
 } from "./AdvancedTimelineComposition";
 export { safePreviewSource } from "./media";
+// The media box the composition draws, so Story places cards by what is actually visible.
+export { contentBox, emphasisBox } from "./story_effects";
 // One projection for both surfaces: Studio's Player and the parity harness are
 // only comparable while they take their props and geometry from here.
 export { playerConfig, timelineComposition, type PlayerProjection } from "./preview-projection";
