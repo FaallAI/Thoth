@@ -13,7 +13,7 @@ All notable changes to this project will be documented in this file.
 
 **Composition and parity (S2):**
 - `slow_zoom` (1.00 to 1.08) and `pan` (±3 % of the width) fold into the stored transform, so still clips draw byte-identical strings; `highlight` (6 px `#d49a79`) and a 120 px arrow sit beside the clip frame on the media's visible box.
-- New parity capsule `story_mode-v1`. Offline in a fresh F1 reference image: `vertical_text_story-v1` still passes its approved golden set (run `run_06ef5a12a2d7c6b5`); `story_mode-v1` is `golden_missing` with every frame preview = render (candidate `run_3d1345dc54a9a093`, contact sheet `D:/thoth-tmp/restyle-shots/r6/golden-candidate/contact-sheet.png`). Not promoted; no CI step yet.
+- New parity capsule `story_mode-v1`, approved by the operator on 2026-10-28 and promoted from `run_fb36644e05aa3b5a` (drawn at HEAD in a fresh reference image with no network, byte-identical to the reviewed candidate `run_3d1345dc54a9a093`): golden set `sha256-bb381d1b3293d376abb49156cde67968dbdba3e9ae315633f3c9609f2d21b4e3`. An image built with it verified `pass` for both capsules on two fresh roots; the parity job now verifies both in one step (`vertical_text_story-v1` still passes its approved set).
 
 **Materials (S3):**
 - `GET /projects/{p}/studio-imports/documents/{d}/materials`: the inventory joined with the run's provenance (platform, owner, host only, engagement, story score, query, verdict, OCR trim, likes, author; figures as context; judged comments as quotes). Read on every call; a missing run or Content Set answers without provenance.
