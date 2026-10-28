@@ -63,6 +63,8 @@ test("commit_operations is atomic", () => {
   expect(state.draft).toBe(base);
   expect(state.pendingOperations).toEqual([]);
   expect(state.history).toEqual([]);
+  // The editor says so instead of doing nothing silently (final review minor 1).
+  expect(state.refusedEdits).toBe(initial.refusedEdits + 1);
 });
 
 test("commit_operations applies replace_text alongside timeline operations", () => {

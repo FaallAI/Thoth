@@ -48,6 +48,8 @@ export type EditorState = EditorSnapshot & {
   inFlightOperationIds: string[];
   latestConflict?: EditDocument;
   upgradeStatus: UpgradeStatus;
+  /** Counts Story batches the draft refused (a lock, a stale clip), so the editor can say so. */
+  refusedEdits: number;
 };
 
 export type EditorAction =
@@ -123,6 +125,7 @@ export function createEditorState(
     inFlightOperationIds: [],
     pendingOperations: [],
     upgradeStatus: "idle",
+    refusedEdits: 0,
   };
 }
 
@@ -638,8 +641,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return { ...edited({ ...state, ...origin }, draft, action.operation), preview: undefined };
     }
     case "commit_operations": {
+      if (!action.operations.length) return state;
       const draft = batchDraft(state, action.operations);
-      if (!draft || !action.operations.length) return state;
+      if (!draft) return { ...state, refusedEdits: state.refusedEdits + 1 };
       return {
         ...state,
         draft,

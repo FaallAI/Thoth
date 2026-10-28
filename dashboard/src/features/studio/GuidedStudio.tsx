@@ -127,6 +127,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const [materials, setMaterials] = useState<StudioMaterials | null>(null);
   const [commentFocusRequest, setCommentFocusRequest] = useState(0);
   const [assistOn, setAssistOn] = useState(false);
+  const [refusalsSeen, setRefusalsSeen] = useState(0);
   const selectedClip = sceneTextClip(state.draft, selectedScene);
   const [previewSources, setPreviewSources] = useState<PreviewSources>({});
   const upgradeReasonId = useId();
@@ -715,6 +716,14 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             })}
           >
             {t("studio.editor.keepLocal")}
+          </button>
+        </div>
+      )}
+      {state.refusedEdits > refusalsSeen && (
+        <div role="status" aria-label={t("studio.editor.refusedTitle")} className={`${banner} bg-copper/10`}>
+          <p>{t("studio.editor.refused")}</p>
+          <button type="button" className={toolbarButton} onClick={() => setRefusalsSeen(state.refusedEdits)}>
+            {t("studio.editor.dismiss")}
           </button>
         </div>
       )}

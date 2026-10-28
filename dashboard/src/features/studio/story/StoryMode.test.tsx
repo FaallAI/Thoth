@@ -338,3 +338,16 @@ test("a phone keeps Undo and Redo in the menu", async () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
   }
 });
+
+test("a change a locked card refuses says why", async () => {
+  const locked = storyDocument();
+  (locked.clips!.find((clip) => clip.clip_id === "clip_comment_card_001") as { locked: boolean }).locked = true;
+  await mountStory("en", { getEditDocument: mock(async () => locked as EditDocument) });
+  fireEvent.click(await screen.findByRole("button", { name: /^Reactions/ }));
+
+  fireEvent.click(screen.getByRole("button", { name: "Slow zoom" }));
+
+  expect(screen.getByRole("status", { name: "Change not made" }).textContent).toContain("locked");
+  fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+  expect(screen.queryByRole("status", { name: "Change not made" })).toBeNull();
+});
