@@ -398,18 +398,19 @@ function sessionAfterSave(
 function batchDraft(state: EditorState, operations: EditDocumentOperation[]): EditDocument | undefined {
   if (!isTimelineDocument(state.draft)) return undefined;
   try {
-    return operations.reduce((document, operation) => {
-      if (operation.kind !== "replace_text") return applyTimelineOperation(document, operation, state.assets);
-      if (!findTextClip(document, operation.clip_id)) throw new Error("operation references an unknown clip");
-      return replaceClip(document, operation.clip_id, (clip) => ({
-        ...clip,
-        [operation.field]: operation.value,
-        ownership: "user_edited",
-      })) as EditDocumentV2;
-    }, state.draft);
+    return operations.reduce(
+      (document, operation) => applyTimelineOperation(document, operation, state.assets),
+      state.draft,
+    );
   } catch {
     return undefined;
   }
+}
+
+function isLocked(document: EditDocumentV2, clipId: string): boolean {
+  const clip = (document.clips ?? []).find((entry) => entry.clip_id === clipId);
+  const track = document.tracks.find((entry) => entry.track_id === clip?.track_id);
+  return Boolean(clip?.locked || track?.locked);
 }
 
 function gestureOrigin(state: EditorState): EditorSnapshot {
@@ -427,6 +428,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "edit_text": {
       const current = findTextClip(state.draft, action.clipId);
       if (!current || current[action.field] === action.value) return state;
+      // A locked clip or track keeps its text; the server refuses the edit too.
+      if (isTimelineDocument(state.draft) && isLocked(state.draft, action.clipId)) return state;
       const draft = replaceClip(state.draft, action.clipId, (clip) => ({
         ...clip,
         [action.field]: action.value,

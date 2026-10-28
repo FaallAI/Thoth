@@ -273,6 +273,14 @@ export function applyTimelineOperation(
       clip.blur_enabled = operation.blur_enabled;
       break;
     }
+    case "replace_text": {
+      // A locked clip or track keeps its text, as the server refuses it.
+      const clip = unlockedClip(next, operation.clip_id);
+      if (clip.kind !== "text") throw new Error("text applies only to text clips");
+      clip[operation.field] = operation.value;
+      clip.ownership = "user_edited";
+      break;
+    }
     case "set_clip_position":
       unlockedVideoClip(next, operation.clip_id).position = operation.position;
       break;
@@ -458,6 +466,10 @@ function replaceClipAsset(
   recordAsset(document, asset);
   clip.asset_id = asset.asset_id;
   clip.source_from_frame = 0;
+  // Crop and blur regions are fractions and frames of the old medium; they do not carry over.
+  clip.crop = null;
+  clip.blur_regions = [];
+  clip.blur_enabled = false;
   clip.ownership = "user_edited";
 }
 

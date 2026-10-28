@@ -399,6 +399,11 @@ def _unlocked_clip(document: EditDocumentV2, clip_id: str) -> TimelineClip:
     return clip
 
 
+def unlocked_clip(document: EditDocumentV2, clip_id: str) -> TimelineClip:
+    """The clip, refused when it or its track is locked (shared with the scene operations)."""
+    return _unlocked_clip(document, clip_id)
+
+
 def _unlocked_video_clip(document: EditDocumentV2, clip_id: str) -> TimelineVideoClip:
     clip = _unlocked_clip(document, clip_id)
     if not isinstance(clip, TimelineVideoClip):
@@ -596,6 +601,10 @@ def _replace_clip_asset(
         clip.duration_in_frames = min(clip.duration_in_frames, asset.duration_in_frames)
     clip.asset_id = asset.asset_id
     clip.source_from_frame = 0
+    # Crop and blur regions are fractions and frames of the old medium; they do not carry over.
+    clip.crop = None
+    clip.blur_regions = []
+    clip.blur_enabled = False
     clip.ownership = "user_edited"
 
 

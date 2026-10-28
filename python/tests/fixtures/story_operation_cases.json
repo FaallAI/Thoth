@@ -220,10 +220,24 @@
         "asset_id": "asset_vid_long",
         "source_from_frame": 90,
         "fit": "cover",
-        "crop": null,
+        "crop": {
+          "left": 0.1,
+          "top": 0.0,
+          "width": 0.8,
+          "height": 1.0
+        },
         "position": null,
-        "blur_regions": [],
-        "blur_enabled": false
+        "blur_regions": [
+          {
+            "x": 0.1,
+            "y": 0.8,
+            "w": 0.8,
+            "h": 0.1,
+            "from_frame": null,
+            "to_frame": null
+          }
+        ],
+        "blur_enabled": true
       },
       {
         "kind": "video",
@@ -699,6 +713,128 @@
         }
       },
       "refused": false
+    },
+    {
+      "name": "replace_clears_source_bound_framing",
+      "operations": [
+        {
+          "kind": "replace_clip_asset",
+          "operation_id": "op_1",
+          "clip_id": "clip_footage_000",
+          "asset_id": "asset_vid_short"
+        }
+      ],
+      "expect": {
+        "clip_footage_000": {
+          "crop": null,
+          "blur_regions": [],
+          "blur_enabled": false
+        }
+      },
+      "refused": false
+    },
+    {
+      "name": "motion_on_locked_track_refused",
+      "operations": [
+        {
+          "kind": "set_track_locked",
+          "operation_id": "op_1",
+          "track_id": "track_b_roll",
+          "locked": true
+        },
+        {
+          "kind": "set_clip_motion",
+          "operation_id": "op_2",
+          "clip_id": "clip_comment_card_000",
+          "motion": "pan"
+        }
+      ],
+      "expect": null,
+      "refused": true
+    },
+    {
+      "name": "add_text_on_locked_overlay_refused",
+      "operations": [
+        {
+          "kind": "set_track_locked",
+          "operation_id": "op_1",
+          "track_id": "track_overlay",
+          "locked": true
+        },
+        {
+          "kind": "add_text_clip",
+          "operation_id": "op_2",
+          "clip_id": "clip_hook",
+          "track_id": "track_overlay",
+          "from_frame": 0,
+          "duration_in_frames": 120,
+          "heading": "Hook",
+          "body": "",
+          "style_slot": "title",
+          "source_role": "hook"
+        }
+      ],
+      "expect": null,
+      "refused": true
+    },
+    {
+      "name": "replace_text_on_free_clip",
+      "operations": [
+        {
+          "kind": "replace_text",
+          "operation_id": "op_1",
+          "clip_id": "clip_001",
+          "field": "heading",
+          "value": "New"
+        }
+      ],
+      "expect": {
+        "clip_001": {
+          "heading": "New",
+          "ownership": "user_edited"
+        }
+      },
+      "refused": false
+    },
+    {
+      "name": "replace_text_on_locked_clip_refused",
+      "operations": [
+        {
+          "kind": "set_clip_locked",
+          "operation_id": "op_1",
+          "clip_id": "clip_001",
+          "locked": true
+        },
+        {
+          "kind": "replace_text",
+          "operation_id": "op_2",
+          "clip_id": "clip_001",
+          "field": "heading",
+          "value": "New"
+        }
+      ],
+      "expect": null,
+      "refused": true
+    },
+    {
+      "name": "replace_text_on_locked_track_refused",
+      "operations": [
+        {
+          "kind": "set_track_locked",
+          "operation_id": "op_1",
+          "track_id": "track_overlay",
+          "locked": true
+        },
+        {
+          "kind": "replace_text",
+          "operation_id": "op_2",
+          "clip_id": "clip_001",
+          "field": "heading",
+          "value": "New"
+        }
+      ],
+      "expect": null,
+      "refused": true
     },
     {
       "name": "batch_atomic_on_refusal",

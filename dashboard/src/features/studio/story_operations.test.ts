@@ -77,3 +77,13 @@ test("commit_operations applies replace_text alongside timeline operations", () 
   expect(heading).toMatchObject({ heading: "Shorter", ownership: "user_edited" });
   expect(state.pendingOperations).toHaveLength(2);
 });
+
+test("the scene inspector does not edit a locked text clip", () => {
+  const locked = structuredClone(base);
+  (locked.clips!.find((clip) => clip.clip_id === "clip_001") as { locked: boolean }).locked = true;
+  const state = createEditorState(locked, assets);
+
+  const next = editorReducer(state, { type: "edit_text", clipId: "clip_001", field: "heading", value: "New", operationId: "op_x" });
+
+  expect(next).toBe(state);
+});
