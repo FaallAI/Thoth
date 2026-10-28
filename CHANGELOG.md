@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-28 - Prompt Lab tables accept the story_assist stage (migration 0025)
+
+**Found by the live Assist check on stage1:** with the OpenRouter provider configured (operator choice: `deepseek/deepseek-chat-v3.1`), saving the `story_assist` model preference answered 503 `store_unavailable`. The six Prompt Lab tables (`prompt_template_revisions`, `project_prompt_bindings`, `prompt_provider_preferences`, `prompt_layer_locks`, `prompt_proposals`, `prompt_proposal_applications`) still carried `CHECK (stage_id IN ('narrative_plan', 'visual_plan', 'caption_copy'))`; Story mode registered the stage in code only, and its tests ran against the in-memory store.
+
+**Fix:** migration `0025_story_assist_prompt_stage` re-creates the six checks with `story_assist`. A Postgres test now asserts that every stage check accepts every `PromptStageId`, so a stage added without a migration fails CI.
+
+**Verification:** `make test-postgres` on the migration and Prompt Lab repository files (48 passed, the new test RED before the migration), `tests/operations/test_editor_migrations.py` (35 passed), `make lint` clean.
+
+**Stage1 config (outside git):** `.env.stage1.local` gained `THOTH_PROMPT_PROVIDER_CATALOG` (OpenRouter, one model with `improve` and `translate`) and `THOTH_PROMPT_PROVIDER_SECRETS` (worker only); backup of the previous file in `D:/thoth-tmp/bu/pins/env-stage1-before-prompt-provider.env`. api and worker were recreated on the same images; `/prompt-providers` lists the model.
+
+**Next steps:**
+- Operator gates: push and PR, merge, deploy (migrate to 0025), then the live Assist check.
+- Exercise materials provenance on a draft opened from a run after the deploy.
+- R7 on the operator's word.
+
 ## 2026-10-28 - Deployed master 61c853d (PR #80, Studio R5 and Story mode)
 
 **Deployed:** `master` 61c853d after the CI of PR #80 and of `master` went green (offline gates, template parity with both capsules, image validate and publish, non-live smoke). Approved by the operator ("untuk gate saya izinkan").

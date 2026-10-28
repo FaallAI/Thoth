@@ -55,6 +55,7 @@ def test_editor_migrations_stay_explicit_forward_only_sql_files() -> None:
         "0022_user_locale.sql",
         "0023_run_listing.sql",
         "0024_studio_draft_source_run.sql",
+        "0025_story_assist_prompt_stage.sql",
     ]
     for name in MIGRATION_FILES:
         sql = migration(name).lower()
@@ -540,6 +541,13 @@ def test_studio_draft_source_run_adds_one_nullable_column() -> None:
     assert sql.count("ALTER TABLE studio_import_drafts") == 1
     assert "ADD COLUMN source_workflow_id TEXT" in sql
     assert "NOT NULL" not in sql  # drafts made before it, or not from a run, have none
+
+
+def test_story_assist_joins_every_prompt_stage_check() -> None:
+    sql = " ".join(migration("0025_story_assist_prompt_stage.sql").split())
+
+    assert sql.count("DROP CONSTRAINT") == 6
+    assert sql.count("'caption_copy', 'story_assist'") == 6
 
 
 def test_workflow_reports_keep_exact_content_and_a_queryable_body() -> None:
