@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-30 - Agentic e2e trial on the dashboard (e2e 0.21.3, GLM 5.3)
+
+**What:** a standalone `e2e/` package with `e2e` 0.21.3, `@e2e-dev/web` 0.15.3, `@ai-sdk/anthropic` 4.0.81 and `ai` 7.0.142 (the AI SDK pins are the last releases older than two weeks; installed with `--ignore-scripts`; no package has install scripts). Three read-only tests in `e2e/tests/story-assist.e2e.ts`: a finished run opens its draft in Studio; Story mode shows the beats toolbar; the Assist panel opens for the shown beat. They never press suggest, apply or save.
+
+**Model path (operator-approved deviation):** the planned ACP route is not released (`@e2e-dev/acp` is 404 on npm, and the docs bundled in 0.21.3 list agent CLIs and ACP as unsupported providers). Agent steps use `@ai-sdk/anthropic` against `https://api.z.ai/api/anthropic/v1` with the GLM Coding Plan key (`ZAI_API_KEY`, root `.env`). `glm-5.3` answers text there but does not see images (a red PNG was answered "Blue", then "NO_IMAGE"), so the built-in agent runs on its text snapshot with vision off; no custom executor was needed.
+
+**Against stage1 (local):** `web({ headers })` sends a 7-day read-scope developer token (`e2e-trial`, minted with operator approval, stored in `D:/thoth-tmp/e2e-dev-token`) only to `http://127.0.0.1:8088`. Telemetry off.
+
+**Verification:** run 3: 3 passed, 6 model calls, 57.4k tokens (77% cached). Run 4: 3 passed, 3 steps replayed from the cache, 4 model calls; the two "switch to Story mode" steps still miss the cache. Neither run sent a request to `/assist`. The read-scope token makes the editor's `preview-capability` POSTs answer 403, so media previews do not load in these runs.
+
+**Next steps:**
+- Operator gates: push and PR for `chore/e2e-trial`, then merge.
+- Decide whether the trial becomes a CI job; that needs a paid key or another provider (Coding Plan use is accepted for this trial scale only).
+- Find why the Story-mode steps miss the replay cache.
+- Revoke the `e2e-trial` token when the trial ends.
+
 ## 2026-10-29 - Deployed master 5c30ba2 (PR #85, prompt answers in a markdown fence)
 
 **Deploy:** thoth `76ce7648`, renderer `e3d00906`, web `9b359802`, pulled ahead of `make deploy`; migrate applied 0 revisions (head stays `0025`); every service healthy, worker 0 restarts; Temporal lists the new worker polling `thoth-prompt-proposals`. Previous pins in `D:/thoth-tmp/bu/pins/pins-b38c15f4.env`. No workflow was running.
