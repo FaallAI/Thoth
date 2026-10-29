@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-30 - Stage 1 parity and controlled fallback tooling removed
+
+**Operator ruling:** remove the Stage 1 parity tooling, and with it the controlled fallback gates (ADR 0001 waived both; deployment rollback is the recovery mechanism). Scout and the Rust crates are being retired, so nothing was kept alive for them.
+
+**Removed:** `operations/tiktok_parity.py`, `stage1_parity_preflight.py`, `stage1_parity_attempt_summary.py`, `stage1_controlled_fallback.py`, `stage1_controlled_fallback_runner.py`; the `tiktok-stage1-parity-compare` and `stage1-controlled-fallback-preflight|run` commands; `compose.stage1.parity*.yml` and `compose.stage1.controlled-fallback*.yml`; `docker/start-parity-reference`, `test-parity-offline.sh`, `test-controlled-fallback-offline.sh`; the parity profile and launcher check in the `Dockerfile`; four CI steps; `make smoke-parity` and `smoke-fallback`; `docs/operations/stage1-parity-sampling.md` and the runbook sections for the `f1`-`f4` gates and parity samples; 4 test files and 15 contract tests. The live TikTok test lost its Python-vs-Scout comparison and keeps its own containment and checksum helpers. Template release parity (renderer) is unrelated and stays. `scout/` is untouched.
+
+**Kept:** the runtime legacy fallback (`python_tiktok_with_legacy_fallback`) and the soak evaluator `tiktok_soak`.
+
+**Verification:** `make lint` clean; `tests/deployment`, `tests/test_cli.py`, `tests/operations`, `tests/live` pass (2 live tests skipped); full collection imports cleanly; actionlint reports only findings master already has.
+
+**Next steps:**
+- Operator gates: push and PR, merge.
+- `tiktok_soak` still requires 2 Python-vs-Scout parity samples (`minimum_parity_samples`), which can no longer be produced: the final soak needs a Python-only policy.
+- Turn off the Scout runtime fallback on stage1 (operator 2026-10-30: "scout harus mati").
+
 ## 2026-10-29 - Deployed master 5c30ba2 (PR #85, prompt answers in a markdown fence)
 
 **Deploy:** thoth `76ce7648`, renderer `e3d00906`, web `9b359802`, pulled ahead of `make deploy`; migrate applied 0 revisions (head stays `0025`); every service healthy, worker 0 restarts; Temporal lists the new worker polling `thoth-prompt-proposals`. Previous pins in `D:/thoth-tmp/bu/pins/pins-b38c15f4.env`. No workflow was running.

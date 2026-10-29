@@ -39,6 +39,11 @@ Membangun pipeline otomatis yang memahami **gaya editing media sosial viral** (T
   `thoth-control operations stage1-local-preflight`, which enforces the digest form, an absolute
   data root outside the repository, an approved worker mode, and non-placeholder credentials.
   Final digest deployment, controlled live smoke and operational soak remain pending.
+- **Stage 1 parity and controlled fallback tooling removed (2026-10-30).** Stage 1 closed under
+  ADR 0001, so the parity reference, attempt summary and preflight, the controlled fallback gates
+  (`f1`-`f4`), their Compose files, offline harnesses, CI steps and CLI commands are deleted. The
+  dated entries below describe them as history. The runtime legacy fallback and the soak evaluator
+  stay.
 - **Stage 1 Scout runtime correction (2026-09-06): implemented offline, unpublished.** The image
   now pins `gallery-dl` 1.32.11 and `yt-dlp` 2026.8.19 as executables resolvable by its non-root
   user, and the CDP sidecar runs a private in-container relay so a sibling container can reach

@@ -105,17 +105,8 @@ Do not run either process as root and do not make the mounts world-writable.
 Before allowing a legacy-fallback activity, require
 `GET http://legacy-cdp:18800/json/version` to return 2xx and
 `GET http://legacy-cdp:18800/json` to contain a page target on `tiktok.com`. Restart an unhealthy
-sidecar. Treat an authentication or challenge page during the controlled fallback smoke as a
-release blocker; do not attempt bypass behavior.
-
-The controlled fallback smoke is the `f1` gate: `thoth-control operations
-stage1-controlled-fallback-preflight`, then, under its own single-use operator authorization,
-`stage1-controlled-fallback-run --gate-id f1`. It starts the production legacy supervisor once in
-a one-shot container from the deployed digest against the deployed sidecar, and it never retries.
-A pass proves supervisor activation and target isolation. It is not Python-routing evidence: it
-does not show that a Python workflow enters fallback or that Temporal routed a workflow through
-`LegacyScoutActivity`. The fixture, evidence layout, verdicts, and cleanup precedence are in
-"Controlled fallback gate (`f1`)" in `docs/operations/stage1-local-docker.md`.
+sidecar. Treat an authentication or challenge page during a legacy fallback as a release
+blocker; do not attempt bypass behavior.
 
 Both services must receive `THOTH_CONTROL_PLANE_API_KEY`, `THOTH_TEMPORAL_TARGET`,
 `THOTH_TEMPORAL_NAMESPACE`, `THOTH_CONTROL_PLANE_ARTIFACT_ROOT`, and the deployment-owned activity
