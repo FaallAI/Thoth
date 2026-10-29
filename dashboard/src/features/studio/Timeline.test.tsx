@@ -153,9 +153,9 @@ test("zoom, snapping, and ripple are controls, not document edits", () => {
   ]);
 });
 
-test("says the timeline needs a wider screen and promises no unsupported detail", () => {
+test("leaves the narrow-screen note to Studio and promises no unsupported detail", () => {
   const { state } = mount();
-  expect(screen.getByText(/wider screen/i)).toBeDefined();
+  expect(screen.queryByText(/wider screen/i)).toBeNull();
   expect(document.body.textContent).not.toMatch(/waveform|filmstrip/i);
   expect(state.draft).toEqual(timelineDocument());
 });

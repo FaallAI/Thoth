@@ -247,11 +247,7 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause }: Props) {
         onClipAction={clipAction}
       />
 
-      <p className="px-3 py-2 text-xs text-muted-foreground lg:hidden">
-        The timeline needs a wider screen. Use Guided mode on this device.
-      </p>
-
-      <div className="hidden min-h-0 overflow-auto lg:block">
+      <div className="min-h-0 overflow-auto">
         <div
           className="relative"
           style={{ width: `${framesToPixels(duration, state.zoom) + HEADER_WIDTH}px` }}
