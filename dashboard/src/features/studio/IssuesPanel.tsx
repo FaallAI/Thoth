@@ -21,6 +21,8 @@ export function IssuesBar({ document: doc, selectedIssueId, mode, dispatch }: Pr
   const { t, plural } = useLocale();
   const [open, setOpen] = useState(false);
   const issues = timelineIssues(doc);
+  // A cleared list closes, so a later warning from a background save never opens it unasked.
+  if (open && issues.length === 0) setOpen(false);
   const sentence = (issue: TimelineIssue) =>
     t(`studio.issues.${issue.code}`, {
       track: doc.tracks.find((track) => track.track_id === issue.target.track_id)?.label ?? issue.target.track_id,
@@ -28,6 +30,8 @@ export function IssuesBar({ document: doc, selectedIssueId, mode, dispatch }: Pr
 
   const select = (issue: TimelineIssue) => {
     const target = issueTarget(issue);
+    // Close first, so the clip the issue points at is not under the list.
+    setOpen(false);
     // Advanced mode first: the element to focus only exists there.
     if (mode !== "advanced") dispatch({ type: "set_editor_mode", mode: "advanced" });
     dispatch({ type: "select_issue", issueId: issue.issue_id });

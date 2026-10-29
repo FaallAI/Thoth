@@ -116,3 +116,19 @@ test("marks the selected issue without stealing focus in the background", () => 
   expect(selected.getAttribute("aria-current")).toBe("true");
   expect(document.activeElement).toBe(document.body);
 });
+
+test("choosing an issue closes the list so the clip it focused is in sight", () => {
+  mount();
+  review();
+  fireEvent.click(screen.getByRole("button", { name: /Main video/ }));
+  expect(screen.queryByRole("listitem")).toBeNull();
+});
+
+test("the list never reopens by itself after the issues clear", () => {
+  const props = { selectedIssueId: "", mode: "advanced" as EditorMode, dispatch: () => {} };
+  const view = render(<IssuesBar document={brokenDocument()} {...props} />);
+  review();
+  view.rerender(<IssuesBar document={timelineDocument()} {...props} />);
+  view.rerender(<IssuesBar document={brokenDocument()} {...props} />);
+  expect(screen.queryByRole("listitem")).toBeNull();
+});
