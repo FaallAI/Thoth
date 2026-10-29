@@ -519,11 +519,12 @@ test("drives and follows the preview player from the timeline", async () => {
   const player = previewPlayer;
 
   act(() => player.emit("frameupdate", { detail: { frame: 42 } }));
-  expect((screen.getByLabelText("Playhead") as HTMLInputElement).value).toBe("42");
+  const playhead = () => screen.getByRole("slider", { name: "Playhead" });
+  expect(playhead().getAttribute("aria-valuenow")).toBe("42");
 
-  fireEvent.change(screen.getByLabelText("Playhead"), { target: { value: "75" } });
-  expect(player.seeks).toEqual([75]);
-  expect((screen.getByLabelText("Playhead") as HTMLInputElement).value).toBe("75");
+  fireEvent.keyDown(playhead(), { key: "ArrowRight", shiftKey: true });
+  expect(player.seeks).toEqual([72]);
+  expect(playhead().getAttribute("aria-valuenow")).toBe("72");
 
   fireEvent.click(screen.getByRole("button", { name: "Play" }));
   act(() => player.emit("play"));

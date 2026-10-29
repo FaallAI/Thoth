@@ -80,6 +80,27 @@ export function framesToPixels(frame: number, zoom: number): number {
   return Math.round(frame * zoom);
 }
 
+/** Seconds between ruler labels, smallest first; a minute is the widest step. */
+const RULER_STEPS = [1, 2, 5, 10, 15, 30, 60];
+/** A label needs this many pixels before the next one. */
+const RULER_LABEL_WIDTH = 80;
+
+/** The ruler's labelled ticks: the smallest step that leaves room for a label, from 0 to the end. */
+export function rulerTicks(
+  durationInFrames: number,
+  fps: number,
+  zoom: number,
+): { frame: number; label: string }[] {
+  if (fps <= 0 || durationInFrames <= 0) return [{ frame: 0, label: "0:00" }];
+  const seconds =
+    RULER_STEPS.find((step) => framesToPixels(step * fps, zoom) >= RULER_LABEL_WIDTH) ?? 60;
+  const ticks = [];
+  for (let frame = 0; frame <= durationInFrames; frame += seconds * fps) {
+    ticks.push({ frame, label: formatTimecode(frame, fps).slice(0, -2) });
+  }
+  return ticks;
+}
+
 export function pixelsToFrames(pixels: number, zoom: number): number {
   return Math.max(0, Math.round(pixels / zoom));
 }

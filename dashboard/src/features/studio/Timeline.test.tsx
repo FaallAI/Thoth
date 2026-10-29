@@ -63,13 +63,48 @@ test("marks the selected clip and reports selection changes", () => {
   expect(actions).toEqual([{ type: "select_clip", clipId: "clip_main" }]);
 });
 
-test("scrubbing the playhead never edits the document", () => {
-  const { actions } = mount();
+test("the ruler is the playhead: it reads as a timecode and never edits the document", () => {
+  const { actions } = mount({ playheadFrame: 96 });
   const playhead = screen.getByRole("slider", { name: "Playhead" });
-  expect(playhead.getAttribute("max")).toBe("299");
+  expect(playhead.getAttribute("aria-valuemax")).toBe("299");
+  expect(playhead.getAttribute("aria-valuenow")).toBe("96");
+  expect(playhead.getAttribute("aria-valuetext")).toBe("0:03.2");
+  expect(screen.getByText("0:05")).toBeDefined();
 
-  fireEvent.change(playhead, { target: { value: "210" } });
-  expect(actions).toEqual([{ type: "set_playhead", frame: 210 }]);
+  fireEvent.keyDown(playhead, { key: "ArrowRight" });
+  fireEvent.keyDown(playhead, { key: "ArrowLeft" });
+  fireEvent.keyDown(playhead, { key: "ArrowRight", shiftKey: true });
+  fireEvent.keyDown(playhead, { key: "Home" });
+  fireEvent.keyDown(playhead, { key: "End" });
+  expect(actions).toEqual([
+    { type: "set_playhead", frame: 97 },
+    { type: "set_playhead", frame: 95 },
+    { type: "set_playhead", frame: 126 },
+    { type: "set_playhead", frame: 0 },
+    { type: "set_playhead", frame: 299 },
+  ]);
+});
+
+test("pressing and dragging on the ruler seeks the preview", () => {
+  const actions: EditorAction[] = [];
+  const seeks: number[] = [];
+  render(
+    <Timeline
+      state={{ ...createEditorState(timelineDocument()), zoom: 2 }}
+      dispatch={(action) => actions.push(action)}
+      onSeek={(frame) => seeks.push(frame)}
+    />,
+  );
+  const ruler = screen.getByRole("slider", { name: "Playhead" });
+  fireEvent.pointerDown(ruler, { clientX: 120, button: 0 });
+  fireEvent.pointerMove(window, { clientX: 200 });
+  fireEvent.pointerUp(window, { clientX: 200 });
+  fireEvent.pointerMove(window, { clientX: 260 });
+  expect(seeks).toEqual([60, 100]);
+  expect(actions).toEqual([
+    { type: "set_playhead", frame: 60 },
+    { type: "set_playhead", frame: 100 },
+  ]);
 });
 
 test("the transport reads the playhead and the length as timecodes", () => {
