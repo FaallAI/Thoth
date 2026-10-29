@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-30 - The final soak is Python-only
+
+**Operator ruling:** agreed to a Python-only soak policy. `tiktok_soak` required two Python-vs-Scout parity samples before `ready: true`; with Scout retired and the parity tooling removed, that blocker could never clear.
+
+**Change:** `TikTokSoakPolicy.minimum_parity_samples` defaults to 0 (`ge=0`). A recorded `parity_passed: false` still blocks, and an archived report keeps the parity minimum embedded in its own policy.
+
+**Verification:** `test_a_python_only_window_needs_no_parity_sample` RED then GREEN; `test_an_archived_policy_keeps_its_own_parity_minimum`; `tests/operations` and `tests/deployment` 489 passed; `make lint` clean.
+
 ## 2026-10-30 - Scout fallback switched off: acquisition is Python only
 
 **Operator ruling:** "scout harus mati, nanti jika gagal berarti dari sisi python nya perlu di perbaiki lagi". Stage1 ran `python_tiktok_with_legacy_fallback`, so a TikTok acquisition that failed in Python silently fell back to Scout through `legacy-cdp`.
@@ -29,7 +37,7 @@ All notable changes to this project will be documented in this file.
 
 **Next steps:**
 - Operator gates: push and PR, merge.
-- `tiktok_soak` still requires 2 Python-vs-Scout parity samples (`minimum_parity_samples`), which can no longer be produced: the final soak needs a Python-only policy.
+- `tiktok_soak` required 2 Python-vs-Scout parity samples: now 0, see "The final soak is Python-only".
 - Turn off the Scout runtime fallback on stage1: done in the next entry.
 
 ## 2026-10-29 - Deployed master 5c30ba2 (PR #85, prompt answers in a markdown fence)

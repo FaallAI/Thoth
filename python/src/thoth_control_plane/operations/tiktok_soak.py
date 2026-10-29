@@ -84,16 +84,18 @@ def _parse_utc(value: datetime | str) -> datetime:
 class TikTokSoakPolicy(StrictModel):
     """Fixed Stage 1 soak thresholds; not user-configurable at runtime.
 
-    The window, run-count, and parity defaults are the accelerated acceptance
-    values (24 hours, 12 valid completed runs, 2 in-window parity samples) from
-    `docs/superpowers/specs/2026-09-07-stage1-accelerated-acceptance-design.md`,
-    which supersedes only those three numbers. Every report embeds the policy it
-    was evaluated with, so an archived report keeps its own original thresholds.
+    The window and run-count defaults are the accelerated acceptance values
+    (24 hours, 12 valid completed runs) from
+    `docs/superpowers/specs/2026-09-07-stage1-accelerated-acceptance-design.md`.
+    Parity samples compared Python with Scout; Scout is retired (operator,
+    2026-10-30), so the soak is Python-only and needs none by default. Every
+    report embeds the policy it was evaluated with, so an archived report keeps
+    its own original thresholds, including its parity minimum.
     """
 
     minimum_window_days: Annotated[int, Field(ge=1)] = 1
     minimum_valid_completed_runs: Annotated[int, Field(ge=1)] = 12
-    minimum_parity_samples: Annotated[int, Field(ge=1)] = 2
+    minimum_parity_samples: Annotated[int, Field(ge=0)] = 0
     minimum_python_native_success_rate: Annotated[float, Field(ge=0, le=1)] = 0.95
     maximum_legacy_fallback_rate: Annotated[float, Field(ge=0, le=1)] = 0.05
     maximum_terminal_failure_rate: Annotated[float, Field(ge=0, le=1)] = 0.02

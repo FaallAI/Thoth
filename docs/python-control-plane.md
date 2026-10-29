@@ -270,7 +270,7 @@ never a cleanup PASS, and no route may have its cleanup result assumed.
 | --- | --- |
 | `minimum_window_days` | 1 |
 | `minimum_valid_completed_runs` | 12 |
-| `minimum_parity_samples` | 2 |
+| `minimum_parity_samples` | 0 (Scout is retired, so the soak is Python-only; archived reports keep their own 2) |
 | `minimum_python_native_success_rate` | 0.95 |
 | `maximum_legacy_fallback_rate` | 0.05 |
 | `maximum_terminal_failure_rate` | 0.02 |

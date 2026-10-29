@@ -468,7 +468,8 @@ def test_policy_defaults_match_fixed_stage1_thresholds() -> None:
     policy = TikTokSoakPolicy()
     assert policy.minimum_window_days == 1
     assert policy.minimum_valid_completed_runs == 12
-    assert policy.minimum_parity_samples == 2
+    # Scout is retired (2026-10-30): no Python-vs-Scout parity sample can be produced.
+    assert policy.minimum_parity_samples == 0
     assert policy.minimum_python_native_success_rate == 0.95
     assert policy.maximum_legacy_fallback_rate == 0.05
     assert policy.maximum_terminal_failure_rate == 0.02
@@ -1026,7 +1027,6 @@ def test_empty_dataset_raises_safe_finite_error() -> None:
     [
         (window_at(hours=23, minutes=59, seconds=59), "insufficient_window"),
         (completed_runs(11), "insufficient_valid_completed_runs"),
-        (parity_samples(1), "insufficient_parity_samples"),
         (route_mix(native=94, fallback=5, failed=1), "python_native_rate_below_minimum"),
         (route_mix(native=94, fallback=6, failed=0), "legacy_fallback_rate_above_maximum"),
         (route_mix(native=97, fallback=0, failed=3), "terminal_failure_rate_above_maximum"),
@@ -1187,7 +1187,6 @@ def test_blocker_order_is_deterministic_lexicographic_by_value() -> None:
     report = evaluate_tiktok_soak(dataset, generated_at=GENERATED_AT)
     assert [item.value for item in report.blockers] == [
         "artifact_persistence_failure_present",
-        "insufficient_parity_samples",
         "insufficient_valid_completed_runs",
         "insufficient_window",
         "python_native_rate_below_minimum",
@@ -1306,3 +1305,18 @@ def test_soak_contract_shares_the_domain_fallback_allowlist() -> None:
         domain_models.LEGACY_FALLBACK_ELIGIBLE_CODES
     )
     assert "unsupported_platform" not in domain_models.LEGACY_FALLBACK_ELIGIBLE_CODES
+
+
+def test_a_python_only_window_needs_no_parity_sample() -> None:
+    report = evaluate_tiktok_soak(parity_samples(0), generated_at=GENERATED_AT)
+    assert "insufficient_parity_samples" not in [item.value for item in report.blockers]
+    assert report.ready is True
+
+
+def test_an_archived_policy_keeps_its_own_parity_minimum() -> None:
+    report = evaluate_tiktok_soak(
+        parity_samples(1),
+        generated_at=GENERATED_AT,
+        policy=TikTokSoakPolicy(minimum_parity_samples=2),
+    )
+    assert "insufficient_parity_samples" in [item.value for item in report.blockers]
