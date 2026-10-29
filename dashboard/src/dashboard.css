@@ -1,26 +1,9 @@
 /* Layout from design/exports. Application state and service contracts stay in their existing components. */
 .dashboard-shell { min-height: 100dvh; color-scheme: dark; font-family: 'Geist Variable', sans-serif; font-size: 14px; }
-.dashboard-topbar { min-height: 66px; display: flex; align-items: center; flex-wrap: wrap; gap: 16px; padding: 12px 32px; background: var(--card); }
 .dashboard-brand { display: flex; align-items: center; gap: 16px; font-size: 20px; font-weight: 600; }
 .dashboard-brand svg { width: 24px; color: var(--primary); }
-.dashboard-brand-caption { padding-left: 16px; border-left: 1px solid var(--border); font-size: 10px; text-transform: uppercase; letter-spacing: .22em; }
-.dashboard-project { margin-left: auto; min-width: 0; }
-.dashboard-project > div, .dashboard-project > form { flex-wrap: wrap; }
-.dashboard-body { display: grid; grid-template-columns: 222px minmax(0, 1fr); min-height: calc(100dvh - 66px); }
-.dashboard-sidebar { display: flex; flex-direction: column; gap: 7px; padding: 28px 18px 20px; background: var(--sidebar); }
-.dashboard-nav-label { margin-bottom: 12px; font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted-foreground); }
-.dashboard-nav-item { position: relative; justify-content: flex-start; width: 100%; min-height: 42px; gap: 12px; padding: 10px 12px; border-radius: 6px; color: var(--muted-foreground); font-size: 13px; font-weight: 400; }
-.dashboard-nav-item svg { width: 17px; height: 17px; }
-.dashboard-nav-item[aria-current="page"] { background: var(--secondary); color: var(--foreground); font-weight: 500; }
-.dashboard-nav-item[aria-current="page"]::before { content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; background: var(--primary); border-radius: 2px; }
-.dashboard-nav-item[aria-current="page"] svg { color: var(--primary); }
-.dashboard-tools-start { margin-top: 32px; }
-.dashboard-sidebar-note { margin-top: auto; padding-top: 20px; border-top: 1px solid var(--border); color: var(--muted-foreground); font-size: 11px; line-height: 1.8; }
 .dashboard-main { min-width: 0; padding: 32px 42px; }
-.dashboard-page-heading { margin-bottom: 24px; }
 .dashboard-eyebrow { color: var(--primary); font-size: 10px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; }
-.dashboard-page-heading h1 { font-size: clamp(26px, 3vw, 36px); line-height: 1.2; letter-spacing: -.025em; font-weight: 600; margin: 8px 0; }
-.dashboard-page-heading > p:last-child { color: var(--muted-foreground); line-height: 1.6; }
 .dashboard-main [data-slot="card"] { box-shadow: none; border-color: transparent; border-radius: 8px; }
 .dashboard-main [data-slot="card-header"] { padding: 22px 24px 0; }
 .dashboard-main [data-slot="card-content"] { padding: 0 24px 24px; }
@@ -28,53 +11,20 @@
 .dashboard-shell [data-slot="input"], .dashboard-shell [data-slot="textarea"] { background: #101113; min-height: 40px; font-size: 13px; }
 .dashboard-shell [data-slot="button"] { min-height: 36px; }
 .dashboard-shell :where(button, a, input, textarea, select):focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
-.dashboard-skip { position: fixed; top: 8px; left: 8px; z-index: 100; padding: 12px; background: var(--primary); color: var(--primary-foreground); transform: translateY(-160%); }
-.dashboard-skip:focus { transform: translateY(0); }
-.dashboard-workflow-intro { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; background: var(--card); padding: 22px; border-radius: 8px; margin-bottom: 24px; }
-.dashboard-workflow-intro > div { display: flex; align-items: center; gap: 12px; }
-.dashboard-workflow-intro > div > span { display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; background: #101113; color: var(--primary); font-size: 11px; font-family: var(--font-mono); }
-.dashboard-workflow-intro small { display: block; color: var(--muted-foreground); font-size: 11px; margin-top: 3px; }
-.dashboard-workflow-columns { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, .9fr); gap: 18px; align-items: start; }
-.workflow-create, .workflow-monitor { margin: 0; max-width: none; min-width: 0; }
-.workflow-create [data-slot="card-title"] { margin-top: 6px; font-size: 23px; }
-.workflow-create form { gap: 24px; }
-.workflow-create label { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
-.workflow-create select { width: 100%; border: 1px solid var(--border); border-radius: 6px; padding: 12px; background: var(--secondary); font-size: 13px; }
-.workflow-create button[type="submit"] { align-self: flex-end; padding-inline: 20px; }
-.workflow-monitor-empty { min-height: 310px; }
-.workflow-monitor-empty > [data-slot="card-content"] { display: flex; flex: 1; flex-direction: column; justify-content: center; gap: 16px; line-height: 1.7; }
-.workflow-monitor-empty svg { color: var(--primary); width: 28px; height: 28px; }
-.dashboard-shell--studio .dashboard-body { display: block; }
-.dashboard-shell--studio .dashboard-sidebar { display: none; }
 .dashboard-page-studio { padding: 0; display: flex; height: calc(100dvh - 66px); min-height: 560px; }
 
 @media (max-width: 1199px) {
-  .dashboard-body { grid-template-columns: 184px minmax(0, 1fr); }
   .dashboard-main { padding: 28px 24px; }
   .dashboard-page-studio { padding: 0; }
-  .dashboard-workflow-columns { grid-template-columns: minmax(0, 1fr); }
-  .workflow-monitor-empty { min-height: 180px; }
 }
 @media (max-width: 1023px) {
-  .dashboard-topbar { padding: 12px 20px; }
-  .dashboard-brand-caption { display: none; }
-  .dashboard-body { display: block; }
-  .dashboard-sidebar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 8px 16px 16px; }
-  .dashboard-nav-label, .dashboard-sidebar-note { display: none; }
-  .dashboard-tools-start { margin: 0; }
-  .dashboard-nav-item { min-height: 44px; }
   .dashboard-main { padding: 24px 20px; }
   .dashboard-page-studio { padding: 0; }
   .dashboard-shell [data-slot="button"], .dashboard-shell [data-slot="input"], .dashboard-shell select { min-height: 44px; }
 }
 @media (max-width: 599px) {
-  .dashboard-topbar { gap: 12px; padding: 16px; }
-  .dashboard-project { width: 100%; margin-left: 0; }
-  .dashboard-project [data-slot="select-trigger"] { width: 140px; }
-  .dashboard-sidebar { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-inline: 12px; }
   .dashboard-main { padding: 24px 16px; }
   .dashboard-page-studio { padding: 0; height: auto; min-height: 80dvh; }
-  .dashboard-workflow-intro { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 16px; gap: 20px 12px; }
   .dashboard-main [data-slot="card-header"] { padding: 18px 16px 0; }
   .dashboard-main [data-slot="card-content"] { padding: 0 16px 18px; }
 }
@@ -88,6 +38,3 @@
 .dashboard-login-trust { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .dashboard-login-note, .dashboard-auth-status { font-size: 12px; color: var(--muted-foreground); }
 .dashboard-auth-status { padding: 24px; }
-.dashboard-tokens { display: grid; gap: 16px; }
-.dashboard-token-form, .dashboard-token-created { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px 14px; align-items: center; padding: 20px 22px; height: auto; }
-.dashboard-token-created p { grid-column: 1 / -1; font-size: 12px; color: var(--muted-foreground); }

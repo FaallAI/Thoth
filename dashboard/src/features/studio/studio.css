@@ -16,8 +16,6 @@
   --input: #47494a;
   --ring: #efb28e;
 }
-
-.studio-title { padding: 0 16px 0 6px; font-size: 14px; font-weight: 600; border-right: 1px solid var(--border); }
 .studio-shell > header { min-height: 70px; }
 .studio-shell [aria-label="Studio jobs"] button[aria-current="page"] { position: relative; background: transparent; color: var(--primary); }
 .studio-shell [aria-label="Studio jobs"] button[aria-current="page"]::after { content: ""; position: absolute; bottom: 5px; left: 12px; right: 12px; height: 2px; background: var(--primary); }
@@ -37,7 +35,6 @@
 .studio-scene-item > button[aria-pressed="true"] .studio-scene-symbol { background: var(--primary); color: var(--primary-foreground); }
 @media (max-width: 1023px) {
   .studio-shell button { min-height: 44px; }
-  .studio-title { border: 0; }
   .studio-scene-board { padding: 16px; }
 }
 
