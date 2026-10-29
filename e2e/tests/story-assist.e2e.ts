@@ -12,9 +12,13 @@ test('a finished run opens its draft in Studio', async ({ app, agent, screen }) 
   await expect(screen.getByRole('button', /^(Story|Cerita)$/)).toBeVisible();
 });
 
-test('Story mode lists the beats of a draft', async ({ app, agent, screen }) => {
+// A draft may already open in Story mode; an agent step that changes nothing is never recorded
+// and runs live every time, so the mode switch is a plain tap.
+const storyMode = /^(Story|Cerita)$/;
+
+test('Story mode lists the beats of a draft', async ({ app, screen }) => {
   await app.open(DRAFT);
-  await agent.act('switch the editor to Story mode');
+  await screen.getByRole('button', storyMode).tap();
   await expect(screen.getByRole('toolbar', /^(Story beats|Beat cerita)$/)).toBeVisible();
 });
 
@@ -22,7 +26,7 @@ test('Story mode lists the beats of a draft', async ({ app, agent, screen }) => 
 // read-scope token would refuse that POST anyway.
 test('Assist opens for the shown beat without sending a request', async ({ app, agent, screen }) => {
   await app.open(DRAFT);
-  await agent.act('switch the editor to Story mode');
+  await screen.getByRole('button', storyMode).tap();
   await agent.act('open the Assist panel, without asking it for a suggestion');
   await expect(screen.getByRole('region', 'Assist')).toBeVisible();
 });

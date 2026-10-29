@@ -10,12 +10,11 @@ All notable changes to this project will be documented in this file.
 
 **Against stage1 (local):** `web({ headers })` sends a 7-day read-scope developer token (`e2e-trial`, minted with operator approval, stored in `D:/thoth-tmp/e2e-dev-token`) only to `http://127.0.0.1:8088`. Telemetry off.
 
-**Verification:** run 3: 3 passed, 6 model calls, 57.4k tokens (77% cached). Run 4: 3 passed, 3 steps replayed from the cache, 4 model calls; the two "switch to Story mode" steps still miss the cache. Neither run sent a request to `/assist`. The read-scope token makes the editor's `preview-capability` POSTs answer 403, so media previews do not load in these runs.
+**Verification:** run 3: 3 passed, 6 model calls, 57.4k tokens (77% cached). Run 4: 3 passed, 3 steps replayed from the cache, 4 model calls; the two "switch to Story mode" steps missed the cache. The draft already opens in Story mode, so that step changed nothing, and e2e never records a no-change step (it runs live every time). It is now a plain tap on the Story button. Run 5: 3 passed, 3 steps replayed, 0 model calls, 4.6 s. Neither run sent a request to `/assist`. The read-scope token makes the editor's `preview-capability` POSTs answer 403, so media previews do not load in these runs.
 
 **Next steps:**
 - Operator gates: push and PR for `chore/e2e-trial`, then merge.
 - Decide whether the trial becomes a CI job; that needs a paid key or another provider (Coding Plan use is accepted for this trial scale only).
-- Find why the Story-mode steps miss the replay cache.
 - Revoke the `e2e-trial` token when the trial ends.
 
 ## 2026-10-29 - Deployed master 5c30ba2 (PR #85, prompt answers in a markdown fence)
