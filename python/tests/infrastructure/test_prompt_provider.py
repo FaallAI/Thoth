@@ -374,3 +374,29 @@ async def test_complete_json_rejects_a_non_object_answer() -> None:
         await adapter(handler=handler).complete_json(
             provider_id="novita", model_id="deepseek/deepseek-v3.1", system="s", user="u"
         )
+
+
+FENCED = '```json\n{\n    "title": "Shorter hook",\n    "reason": "r",\n    "text": "t"\n}\n```'
+
+
+async def test_complete_json_reads_an_answer_wrapped_in_a_markdown_fence() -> None:
+    """DeepSeek V3.1 on OpenRouter fences its JSON despite "Respond with JSON only" (stage1)."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"choices": [{"message": {"content": FENCED}}]})
+
+    parsed = await adapter(handler=handler).complete_json(
+        provider_id="novita", model_id="deepseek/deepseek-v3.1", system="s", user="u"
+    )
+
+    assert parsed == {"title": "Shorter hook", "reason": "r", "text": "t"}
+
+
+async def test_propose_reads_an_answer_wrapped_in_a_markdown_fence() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        content = '```\n{"template":"Improved text"}\n```'
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+    result = await adapter(handler=handler).propose(provider_request())
+
+    assert result.text_by_layer == {"template": "Improved text"}

@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-29 - Prompt answers wrapped in a markdown fence are read
+
+**Deployed `b38c15f4` (PR #84) first:** thoth `ec9ab5ab`, renderer `4e784b2f`, web `ad6b0cfc`; migrate applied 0 revisions (head stays `0025`); every service up with 0 restarts; Temporal lists workflow and activity pollers on `thoth-prompt-proposals`. Previous pins in `D:/thoth-tmp/bu/pins/pins-fea035b5.env`. WSL had just rebooted; the stack came back on the old pins before the deploy, with no workflow running.
+
+**Found by the live Assist check:** the call reached OpenRouter (one `provider_call`, 171 tokens in, 87 out), but Assist answered 422 `assist_invalid_output`. A probe with the same prompt showed `deepseek/deepseek-chat-v3.1` wraps its JSON in a markdown fence (three backticks plus `json`) despite "Respond with JSON only", so `json.loads` failed. The answer inside was valid and within the clip's reading limit.
+
+**Fix:** `_loads_answer` in `infrastructure/prompt_provider.py` unwraps one surrounding fence before parsing; both Story Assist (`complete_json`) and Prompt Lab proposals (`propose`) use it. Prose answers are still refused.
+
+**Verification:** `test_complete_json_reads_an_answer_wrapped_in_a_markdown_fence` and `test_propose_reads_an_answer_wrapped_in_a_markdown_fence` RED (`JSONDecodeError`) then GREEN; provider, Prompt Lab, worker and Story Assist tests: 160 passed; `make lint` clean.
+
+**Next steps:**
+- Operator gates: push and PR, merge, deploy, then the live Assist check.
+- Exercise materials provenance on a draft opened from a run after the deploy.
+- R7 on the operator's word.
+
 ## 2026-10-28 - The worker serves the Prompt Lab proposal queue
 
 **Found by the live Assist check after deploying `fea035b5` (migration 0025):** the `story_assist` preference now saves (200), but Assist answered 503 `assist_unavailable`. Temporal showed `StoryAssistWorkflow` scheduled and then timed out with no worker ever picking it up: `build_prompt_proposal_worker` (added in `69a6f8ed`) was never started by `run_worker`, so nothing polled `thoth-prompt-proposals`. Prompt Lab AI proposals had the same gap since that commit.

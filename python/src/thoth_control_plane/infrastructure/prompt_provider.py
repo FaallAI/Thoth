@@ -24,6 +24,19 @@ from thoth_control_plane.domain.prompt_proposals import (
 REQUEST_TIMEOUT_SECONDS = 120.0
 
 
+def _loads_answer(content: str) -> Any:
+    """The answer's JSON, unwrapped from one markdown code fence if the model added it.
+
+    DeepSeek V3.1 on OpenRouter fences its JSON even when told to answer with JSON only.
+    """
+    text = content.strip()
+    if text.startswith("```") and text.endswith("```"):
+        text = text[3:-3].strip()
+        if text.startswith("json"):
+            text = text[4:]
+    return json.loads(text)
+
+
 def public_prompt_provider_catalog(
     settings: Settings,
 ) -> tuple[PromptProviderDefinition, ...]:
@@ -105,7 +118,7 @@ class OpenAICompatiblePromptProvider:
         }
         content = await self._chat(runtime, model_id, payload)
         try:
-            parsed = json.loads(content)
+            parsed = _loads_answer(content)
         except ValueError as error:
             raise ProviderInvalidOutput() from error
         if not isinstance(parsed, dict):
@@ -218,7 +231,7 @@ class OpenAICompatiblePromptProvider:
         self, request: ProviderPromptRequest, content: str
     ) -> ProviderPromptResult:
         try:
-            parsed = json.loads(content)
+            parsed = _loads_answer(content)
             if not isinstance(parsed, dict):
                 raise ProviderInvalidOutput()
             if set(parsed) != set(request.text_by_layer):
