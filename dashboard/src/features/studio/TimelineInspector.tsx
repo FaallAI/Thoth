@@ -280,7 +280,7 @@ export function TimelineInspector({
               <label htmlFor={ids.ownership}>{t("studio.timeline.ownership")}</label>
               <select
                 id={ids.ownership}
-                className={input}
+                className="rounded-md border border-hairline bg-well px-2 py-1 text-xs text-ink focus-visible:outline-2 focus-visible:outline-copper disabled:opacity-40"
                 value={clip.ownership}
                 disabled={frozen}
                 onChange={(event) =>

@@ -74,24 +74,32 @@ export function TimelineTrack({
       id={`timeline-track-${track.track_id}`}
       className="flex border-b border-hairline"
     >
-      <div className="flex w-48 shrink-0 items-center gap-2 border-r border-hairline bg-surface px-3">
+      <div className="group relative flex w-48 shrink-0 items-center gap-2 border-r border-hairline bg-surface px-3">
         <Icon aria-hidden="true" size={15} className="shrink-0 text-muted-ink" />
         <span className="min-w-0 grow truncate font-mono text-xs text-ink" title={track.label}>
           {track.kind}
         </span>
-        {toggles.map(([field, value, label, ToggleIcon]) => (
-          <button
-            key={field}
-            type="button"
-            className={toggleClass}
-            disabled={field !== "locked" && track.locked === true}
-            aria-label={label}
-            title={label}
-            onClick={() => onToggle(field, !value)}
-          >
-            <ToggleIcon aria-hidden="true" size={13} />
-          </button>
-        ))}
+        {/* A state that is on stays in sight; the toggles themselves show on hover and focus. */}
+        {toggles
+          .filter(([, value]) => value)
+          .map(([field, , , StateIcon]) => (
+            <StateIcon key={field} aria-hidden="true" size={12} className="shrink-0 text-faint" />
+          ))}
+        <div className="absolute inset-y-0 right-1 flex items-center gap-0.5 bg-surface pl-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          {toggles.map(([field, value, label, ToggleIcon]) => (
+            <button
+              key={field}
+              type="button"
+              className={toggleClass}
+              disabled={field !== "locked" && track.locked === true}
+              aria-label={label}
+              title={label}
+              onClick={() => onToggle(field, !value)}
+            >
+              <ToggleIcon aria-hidden="true" size={13} />
+            </button>
+          ))}
+        </div>
       </div>
       <div
         className="relative h-11 grow bg-well"
