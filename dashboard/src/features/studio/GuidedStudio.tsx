@@ -24,7 +24,7 @@ import {
   type EditorState,
 } from "./editor_state";
 import { Inspector } from "./Inspector";
-import { IssuesPanel } from "./IssuesPanel";
+import { IssuesBar } from "./IssuesPanel";
 import { RenderPanel, type RenderPanelClient } from "./RenderPanel";
 import { SceneAudioInspector } from "./SceneAudioInspector";
 import { SceneBoard } from "./SceneBoard";
@@ -858,7 +858,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                   onPlay={player.play}
                   onPause={player.pause}
                 />
-                <IssuesPanel
+                <IssuesBar
                   document={timeline}
                   selectedIssueId={state.selectedIssueId}
                   mode={state.mode}
