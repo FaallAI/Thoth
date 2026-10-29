@@ -5,6 +5,7 @@ import { expect, test } from "bun:test";
 import type { EditDocumentV2, EditorAsset } from "@/api/control-plane";
 
 import {
+  formatTimecode,
   MAX_ZOOM,
   MIN_ZOOM,
   applyTimelineOperation,
@@ -767,4 +768,12 @@ test("split keeps blur regions", () => {
       { x: 0.1, y: 0.65, w: 0.8, h: 0.09, from_frame: 30, to_frame: 90 },
     ]);
   }
+});
+
+test("a timecode is minutes, seconds and tenths, and never divides by a zero frame rate", () => {
+  expect(formatTimecode(0, 30)).toBe("0:00.0");
+  expect(formatTimecode(906, 30)).toBe("0:30.2");
+  expect(formatTimecode(1440, 30)).toBe("0:48.0");
+  expect(formatTimecode(3600 * 30, 30)).toBe("60:00.0");
+  expect(formatTimecode(5, 0)).toBe("0:00.0");
 });

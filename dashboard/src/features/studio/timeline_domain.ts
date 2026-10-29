@@ -68,6 +68,14 @@ export function isTimelineDocument(document: EditDocument): document is EditDocu
   return document.schema_version === 2;
 }
 
+/** `m:ss.t` for a frame: minutes are never wrapped into hours, and a zero rate reads as 0. */
+export function formatTimecode(frame: number, fps: number): string {
+  const tenths = fps > 0 ? Math.floor((frame / fps) * 10) : 0;
+  const minutes = Math.floor(tenths / 600);
+  const seconds = Math.floor(tenths / 10) % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}.${tenths % 10}`;
+}
+
 export function framesToPixels(frame: number, zoom: number): number {
   return Math.round(frame * zoom);
 }

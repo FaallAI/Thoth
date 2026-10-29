@@ -1,7 +1,9 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, test } from "bun:test";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+
+import { render } from "@/test-render";
 
 import { createEditorState, type EditorAction, type EditorState } from "./editor_state";
 import { Timeline } from "./Timeline";
@@ -12,9 +14,17 @@ afterEach(cleanup);
 /** Render the timeline over a state and collect everything it dispatches. */
 function mount(overrides: Partial<EditorState> = {}) {
   const actions: EditorAction[] = [];
+  const transport: string[] = [];
   const state = { ...createEditorState(timelineDocument()), ...overrides };
-  render(<Timeline state={state} dispatch={(action) => actions.push(action)} />);
-  return { actions, state };
+  render(
+    <Timeline
+      state={state}
+      dispatch={(action) => actions.push(action)}
+      onPlay={() => transport.push("play")}
+      onPause={() => transport.push("pause")}
+    />,
+  );
+  return { actions, state, transport };
 }
 
 /** Strip the generated ID so two payloads can be compared for equality. */
@@ -62,15 +72,35 @@ test("scrubbing the playhead never edits the document", () => {
   expect(actions).toEqual([{ type: "set_playhead", frame: 210 }]);
 });
 
+test("the transport reads the playhead and the length as timecodes", () => {
+  mount({ playheadFrame: 96 });
+  expect(screen.getByText("0:03.2 / 0:10.0")).toBeDefined();
+});
+
+test("one button plays and pauses the preview", () => {
+  const { transport } = mount();
+  fireEvent.click(screen.getByRole("button", { name: "Play" }));
+  cleanup();
+  const playing = mount({ playing: true });
+  fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+  expect([...transport, ...playing.transport]).toEqual(["play", "pause"]);
+});
+
 test("zoom, snapping, and ripple are controls, not document edits", () => {
   const { actions } = mount();
+  const snap = screen.getByRole("switch", { name: "Snap" });
+  expect(snap.getAttribute("aria-checked")).toBe("true");
   fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
-  fireEvent.click(screen.getByRole("checkbox", { name: "Snapping" }));
-  fireEvent.click(screen.getByRole("checkbox", { name: "Ripple" }));
+  fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
+  fireEvent.click(snap);
+  fireEvent.click(screen.getByRole("switch", { name: "Ripple" }));
+  fireEvent.change(screen.getByRole("slider", { name: "Zoom" }), { target: { value: "1" } });
   expect(actions).toEqual([
     { type: "set_zoom", zoom: 2 },
+    { type: "set_zoom", zoom: 0.5 },
     { type: "set_snapping", snapping: false },
     { type: "set_ripple", ripple: true },
+    { type: "set_zoom", zoom: 2 },
   ]);
 });
 

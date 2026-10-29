@@ -525,10 +525,10 @@ test("drives and follows the preview player from the timeline", async () => {
   expect(player.seeks).toEqual([75]);
   expect((screen.getByLabelText("Playhead") as HTMLInputElement).value).toBe("75");
 
-  fireEvent.click(screen.getByRole("button", { name: "Play preview" }));
+  fireEvent.click(screen.getByRole("button", { name: "Play" }));
   act(() => player.emit("play"));
   expect(player.calls).toEqual(["play"]);
-  fireEvent.click(screen.getByRole("button", { name: "Pause preview" }));
+  fireEvent.click(screen.getByRole("button", { name: "Pause" }));
   act(() => player.emit("pause"));
   expect(player.calls).toEqual(["play", "pause"]);
 });

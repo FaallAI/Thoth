@@ -195,7 +195,13 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause }: Props) {
         zoom={state.zoom}
         snapping={state.snapping}
         ripple={state.ripple}
+        playheadFrame={state.playheadFrame}
+        durationInFrames={duration}
+        fps={timeline.canvas.fps}
+        playing={state.playing}
         selectionLocked={selectionLocked}
+        onPlay={onPlay}
+        onPause={onPause}
         onZoom={(zoom) => dispatch({ type: "set_zoom", zoom })}
         onSnapping={(snapping) => dispatch({ type: "set_snapping", snapping })}
         onRipple={(ripple) => dispatch({ type: "set_ripple", ripple })}
@@ -221,16 +227,6 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause }: Props) {
           }}
           className="h-2 w-full accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
-        <button
-          type="button"
-          className="rounded border border-border px-2 py-0.5 text-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          onClick={() => (state.playing ? onPause?.() : onPlay?.())}
-        >
-          {state.playing ? "Pause preview" : "Play preview"}
-        </button>
-        <span className="font-mono text-xs text-muted-foreground">
-          {state.playheadFrame}/{duration}f
-        </span>
       </div>
 
       <div className="hidden min-h-0 overflow-auto lg:block">
