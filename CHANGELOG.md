@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-29 - Deployed master 5c30ba2 (PR #85, prompt answers in a markdown fence)
+
+**Deploy:** thoth `76ce7648`, renderer `e3d00906`, web `9b359802`, pulled ahead of `make deploy`; migrate applied 0 revisions (head stays `0025`); every service healthy, worker 0 restarts; Temporal lists the new worker polling `thoth-prompt-proposals`. Previous pins in `D:/thoth-tmp/bu/pins/pins-b38c15f4.env`. No workflow was running.
+
+**Live Assist check:** on the stage1 draft (`edoc_2927f300...`, beat `main`, 8 text clips) Assist answered 200 with one `replace_text` proposal for `clip_001` (title "Condensed Main Beat", within the clip's reading limit); the document was unchanged until applied. Story Assist on OpenRouter `deepseek/deepseek-chat-v3.1` works end to end.
+
+**Next steps:**
+- Exercise materials provenance on a draft opened from a run after the deploy.
+- R7 on the operator's word.
+- `/understand --full` to rebuild the knowledge graph.
+
 ## 2026-10-29 - Prompt answers wrapped in a markdown fence are read
 
 **Deployed `b38c15f4` (PR #84) first:** thoth `ec9ab5ab`, renderer `4e784b2f`, web `ad6b0cfc`; migrate applied 0 revisions (head stays `0025`); every service up with 0 restarts; Temporal lists workflow and activity pollers on `thoth-prompt-proposals`. Previous pins in `D:/thoth-tmp/bu/pins/pins-fea035b5.env`. WSL had just rebooted; the stack came back on the old pins before the deploy, with no workflow running.
