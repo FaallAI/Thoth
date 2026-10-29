@@ -1,3 +1,21 @@
+import {
+  AudioLines,
+  Captions,
+  Clapperboard,
+  Eye,
+  EyeOff,
+  Film,
+  Layers,
+  Lock,
+  LockOpen,
+  Music,
+  Volume2,
+  VolumeX,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
+
+import { useLocale } from "@/lib/locale";
 import { TimelineClip, type GestureMode } from "./TimelineClip";
 import { framesToPixels, type TimelineLane } from "./timeline_domain";
 
@@ -12,8 +30,20 @@ type Props = {
   onNudge: (clipId: string, frames: number) => void;
 };
 
-const control =
-  "rounded border border-border px-2 py-0.5 text-[0.7rem] transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40";
+type TrackKind = TimelineLane["track"]["kind"];
+
+const TRACK_ICON: Record<TrackKind, LucideIcon> = {
+  main_video: Film,
+  b_roll: Clapperboard,
+  overlay: Layers,
+  caption: Captions,
+  narration: AudioLines,
+  music: Music,
+  sfx: Zap,
+};
+
+const toggleClass =
+  "grid size-6 place-items-center rounded text-faint transition-colors hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-copper disabled:cursor-not-allowed disabled:opacity-30";
 
 export function TimelineTrack({
   lane,
@@ -25,44 +55,53 @@ export function TimelineTrack({
   onGestureStart,
   onNudge,
 }: Props) {
+  const { t } = useLocale();
   const { track, clips } = lane;
+  const Icon = TRACK_ICON[track.kind];
+  const values = { track: track.label };
   // A locked track keeps its own lock button live; everything else waits for it.
-  const toggle = (field: "hidden" | "muted" | "locked", label: string, value: boolean) => (
-    <button
-      type="button"
-      className={control}
-      disabled={field !== "locked" && track.locked === true}
-      aria-label={`${label} ${track.label}`}
-      onClick={() => onToggle(field, !value)}
-    >
-      {label}
-    </button>
-  );
+  const toggles = [
+    ["hidden", track.hidden === true, t(track.hidden ? "studio.timeline.showTrack" : "studio.timeline.hideTrack", values), track.hidden ? EyeOff : Eye],
+    ["muted", track.muted === true, t(track.muted ? "studio.timeline.unmuteTrack" : "studio.timeline.muteTrack", values), track.muted ? VolumeX : Volume2],
+    ["locked", track.locked === true, t(track.locked ? "studio.timeline.unlockTrack" : "studio.timeline.lockTrack", values), track.locked ? Lock : LockOpen],
+  ] as const;
 
   return (
     <div
       role="group"
-      aria-label={`${track.label} track`}
+      aria-label={t("studio.timeline.track", values)}
       data-track-id={track.track_id}
       id={`timeline-track-${track.track_id}`}
-      className="flex border-b border-border last:border-b-0"
+      className="flex border-b border-hairline"
     >
-      <div className="flex w-48 shrink-0 flex-col gap-1 border-r border-border bg-card/60 p-2">
-        <span className="truncate text-xs font-medium text-foreground">{track.label}</span>
-        <div className="flex flex-wrap gap-1">
-          {toggle("hidden", track.hidden ? "Show" : "Hide", track.hidden === true)}
-          {toggle("muted", track.muted ? "Unmute" : "Mute", track.muted === true)}
-          {toggle("locked", track.locked ? "Unlock" : "Lock", track.locked === true)}
-        </div>
+      <div className="flex w-48 shrink-0 items-center gap-2 border-r border-hairline bg-surface px-3">
+        <Icon aria-hidden="true" size={15} className="shrink-0 text-muted-ink" />
+        <span className="min-w-0 grow truncate font-mono text-xs text-ink" title={track.label}>
+          {track.kind}
+        </span>
+        {toggles.map(([field, value, label, ToggleIcon]) => (
+          <button
+            key={field}
+            type="button"
+            className={toggleClass}
+            disabled={field !== "locked" && track.locked === true}
+            aria-label={label}
+            title={label}
+            onClick={() => onToggle(field, !value)}
+          >
+            <ToggleIcon aria-hidden="true" size={13} />
+          </button>
+        ))}
       </div>
       <div
-        className="relative h-12 grow bg-background/40"
+        className="relative h-11 grow bg-well"
         style={{ minWidth: `${framesToPixels(widthInFrames, zoom)}px` }}
       >
         {clips.map((clip) => (
           <TimelineClip
             key={clip.clip_id}
             clip={clip}
+            trackKind={track.kind}
             label={track.label}
             zoom={zoom}
             selected={clip.clip_id === selectedClipId}

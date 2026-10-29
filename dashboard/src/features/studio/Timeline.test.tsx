@@ -54,6 +54,20 @@ test("renders every track in order with its visibility, mute, and lock controls"
   expect(screen.getByRole("button", { name: "Unlock Captions" })).toBeDefined();
 });
 
+test("a track header names its kind in the editor's own words", () => {
+  mount();
+  const music = screen.getByRole("group", { name: "Music track" });
+  expect(music.textContent).toContain("music");
+  expect(screen.getByRole("group", { name: "Main video track" }).textContent).toContain("main_video");
+  expect(music.querySelector("svg.lucide-music")).not.toBeNull();
+});
+
+test("a clip shows what it is, not only where it sits", () => {
+  mount();
+  expect(screen.getByRole("button", { name: "Main video clip" }).textContent).toBe("Video");
+  expect(screen.getByRole("button", { name: "Music clip" }).textContent).toBe("Audio");
+});
+
 test("marks the selected clip and reports selection changes", () => {
   const { actions } = mount({ selectedClipId: "clip_music" });
   const selected = screen.getByRole("button", { name: "Music clip" });

@@ -68,6 +68,20 @@ export function isTimelineDocument(document: EditDocument): document is EditDocu
   return document.schema_version === 2;
 }
 
+export type SourceRole = NonNullable<Extract<TimelineClip, { source_role?: unknown }>["source_role"]>;
+
+/** What a clip reads as on the timeline: its own words, then its role in the story, then its kind. */
+export function clipLabelSource(
+  clip: TimelineClip,
+): { text: string } | { role: SourceRole } | { kind: TimelineClip["kind"] } {
+  const words =
+    clip.kind === "caption" ? clip.cues?.[0]?.text : clip.kind === "text" ? clip.heading : undefined;
+  if (words?.trim()) return { text: words.trim() };
+  const role = "source_role" in clip ? clip.source_role : undefined;
+  if (role) return { role };
+  return { kind: clip.kind };
+}
+
 /** `m:ss.t` for a frame: minutes are never wrapped into hours, and a zero rate reads as 0. */
 export function formatTimecode(frame: number, fps: number): string {
   const tenths = fps > 0 ? Math.floor((frame / fps) * 10) : 0;

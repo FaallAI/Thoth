@@ -5,6 +5,7 @@ import { expect, test } from "bun:test";
 import type { EditDocumentV2, EditorAsset } from "@/api/control-plane";
 
 import {
+  clipLabelSource,
   formatTimecode,
   rulerTicks,
   MAX_ZOOM,
@@ -794,4 +795,32 @@ test("ruler ticks take the smallest step that leaves room for a label", () => {
 test("an empty document or a zero frame rate still has one tick", () => {
   expect(rulerTicks(0, 30, 1)).toEqual([{ frame: 0, label: "0:00" }]);
   expect(rulerTicks(300, 0, 1)).toEqual([{ frame: 0, label: "0:00" }]);
+});
+
+type AnyClip = NonNullable<EditDocumentV2["clips"]>[number];
+const labelled = (extra: Record<string, unknown>) =>
+  ({ clip_id: "c", track_id: "t", kind: "video", from_frame: 0, duration_in_frames: 30, ...extra }) as AnyClip;
+
+test("a clip reads as its words, then its role in the story, then its kind", () => {
+  const cue = (text: string) => ({ from_frame: 0, duration_in_frames: 30, text });
+  expect(clipLabelSource(labelled({ kind: "caption", cues: [cue("Udara pekat"), cue("Next")] }))).toEqual({
+    text: "Udara pekat",
+  });
+  expect(clipLabelSource(labelled({ kind: "text", heading: "Kabut menyelimuti" }))).toEqual({
+    text: "Kabut menyelimuti",
+  });
+  expect(clipLabelSource(labelled({ kind: "overlay", source_role: "comment_card" }))).toEqual({
+    role: "comment_card",
+  });
+  expect(clipLabelSource(labelled({ kind: "audio" }))).toEqual({ kind: "audio" });
+});
+
+test("empty words fall through to the role", () => {
+  const blank = { from_frame: 0, duration_in_frames: 30, text: "  " };
+  expect(
+    clipLabelSource(labelled({ kind: "caption", cues: [blank], source_role: "hook" })),
+  ).toEqual({ role: "hook" });
+  expect(clipLabelSource(labelled({ kind: "text", heading: "", source_role: "outro" }))).toEqual({
+    role: "outro",
+  });
 });
