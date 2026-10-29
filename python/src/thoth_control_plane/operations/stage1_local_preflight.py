@@ -18,9 +18,8 @@ import re
 from pathlib import Path, PurePosixPath
 
 IMAGE_PATTERN = re.compile(r"ghcr\.io/faallai/thoth@sha256:[0-9a-f]{64}")
-DEFAULT_ACTIVITY_MODE = "python_tiktok_with_legacy_fallback"
-ROLLBACK_ACTIVITY_MODE = "legacy_scout"
-APPROVED_ACTIVITY_MODES = (DEFAULT_ACTIVITY_MODE, ROLLBACK_ACTIVITY_MODE)
+# Scout is retired (operator 2026-10-30), so neither Scout mode is approved any more.
+DEFAULT_ACTIVITY_MODE = "python"
 REQUIRED_SECRET_VARIABLES = (
     "THOTH_CONTROL_PLANE_API_KEY",
     "THOTH_POSTGRES_PASSWORD",
@@ -114,11 +113,8 @@ def _repository_host_paths(repository_root: Path) -> tuple[str, ...]:
 
 
 def _check_activity_mode(mode: str) -> None:
-    if mode not in APPROVED_ACTIVITY_MODES:
-        raise Stage1PreflightError(
-            "THOTH_STAGE1_ACTIVITY_MODE must be "
-            f"{DEFAULT_ACTIVITY_MODE} or {ROLLBACK_ACTIVITY_MODE}"
-        )
+    if mode != DEFAULT_ACTIVITY_MODE:
+        raise Stage1PreflightError(f"THOTH_STAGE1_ACTIVITY_MODE must be {DEFAULT_ACTIVITY_MODE}")
 
 
 def _check_secrets(values: dict[str, str]) -> None:

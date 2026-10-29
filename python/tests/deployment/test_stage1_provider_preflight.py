@@ -34,7 +34,7 @@ REPOSITORY_ROOT = Path("C:/Users/operator/checkouts/CLIPPER")
 VALID_LOCAL_ENVIRONMENT = {
     "THOTH_IMAGE": "ghcr.io/faallai/thoth@sha256:" + "a1" * 32,
     "THOTH_STAGE1_DATA_ROOT": "/home/operator/thoth-stage1",
-    "THOTH_STAGE1_ACTIVITY_MODE": "python_tiktok_with_legacy_fallback",
+    "THOTH_STAGE1_ACTIVITY_MODE": "python",
     "THOTH_CONTROL_PLANE_API_KEY": "local-api-key",
     "THOTH_POSTGRES_PASSWORD": "local-database-password",
     "THOTH_EDITOR_POSTGRES_PASSWORD": "local-editor-database-password",

@@ -158,7 +158,7 @@ services:
       THOTH_MEDIA_S3_BUCKET: thoth-media
       THOTH_MEDIA_S3_ACCESS_KEY: ${THOTH_MEDIA_S3_ACCESS_KEY:?set THOTH_MEDIA_S3_ACCESS_KEY}
       THOTH_MEDIA_S3_SECRET_KEY: ${THOTH_MEDIA_S3_SECRET_KEY:?set THOTH_MEDIA_S3_SECRET_KEY}
-      THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE: python_tiktok_with_legacy_fallback
+      THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE: ${THOTH_STAGE1_ACTIVITY_MODE:-python}
       THOTH_PROMPT_PROVIDER_CATALOG: ${THOTH_PROMPT_PROVIDER_CATALOG:-[]}
       # Stage 5a content assembly; the worker refuses to start with it on and no ffmpeg.
       THOTH_CONTENT_ASSEMBLY_ENABLED: ${THOTH_CONTENT_ASSEMBLY_ENABLED:-false}
@@ -227,7 +227,7 @@ services:
       THOTH_FFMPEG: /usr/bin/ffmpeg
       THOTH_FFPROBE: /usr/bin/ffprobe
       THOTH_CDP: http://legacy-cdp:18800
-      THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE: ${THOTH_STAGE1_ACTIVITY_MODE:-python_tiktok_with_legacy_fallback}
+      THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE: ${THOTH_STAGE1_ACTIVITY_MODE:-python}
       THOTH_EDITOR_DATABASE_URL: "postgresql://thoth_editor:${THOTH_EDITOR_POSTGRES_PASSWORD:?set THOTH_EDITOR_POSTGRES_PASSWORD}@editor-postgresql:5432/thoth_editor"
       # Optional Fernet key; empty keeps source accounts off and acquisition anonymous.
       THOTH_ACCOUNT_VAULT_KEY: "${THOTH_ACCOUNT_VAULT_KEY:-}"

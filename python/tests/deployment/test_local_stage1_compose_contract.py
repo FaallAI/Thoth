@@ -32,7 +32,7 @@ def test_local_stage1_secret_and_evidence_inputs_are_git_safe() -> None:
     assert "THOTH_STAGE1_DATA_ROOT=/absolute/path/outside/repository/thoth-stage1" in env_example
     assert "THOTH_CONTROL_PLANE_API_KEY=replace-with-local-secret" in env_example
     assert "THOTH_POSTGRES_PASSWORD=replace-with-local-secret" in env_example
-    assert "THOTH_STAGE1_ACTIVITY_MODE=python_tiktok_with_legacy_fallback" in env_example
+    assert "THOTH_STAGE1_ACTIVITY_MODE=python" in env_example
     assert "THOTH_LIVE_TIKTOK_URL=replace-with-approved-public-fixture" in env_example
     assert "https://www.tiktok.com/" not in env_example
     assert "4630917242bd9e3483c8f89ae4017438cadc23a1f699f5e516c2dc610beb18b1" not in env_example
@@ -90,9 +90,10 @@ def test_local_stage1_thoth_roles_share_one_digest_and_keep_cdp_private() -> Non
     assert "THOTH_TEMPORAL_NAMESPACE: thoth-stage1" in worker
     assert "THOTH_CDP: http://legacy-cdp:18800" in worker
     approved_mode = (
-        "THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE: "
-        "${THOTH_STAGE1_ACTIVITY_MODE:-python_tiktok_with_legacy_fallback}"
+        "THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE: ${THOTH_STAGE1_ACTIVITY_MODE:-python}"
     )
+    # The API picks the mode when it starts a workflow, so it reads the same setting.
+    assert approved_mode in api
     assert approved_mode in worker
     assert "/opt/thoth/bin/start-legacy-cdp" in cdp
     assert "/json/version" in cdp
@@ -163,8 +164,7 @@ def test_local_stage1_runbook_keeps_live_and_evidence_actions_operator_gated() -
         "127.0.0.1:8000/healthz",
         "127.0.0.1:8000/readyz",
         "temporal operator namespace describe --namespace thoth-stage1",
-        "python_tiktok_with_legacy_fallback",
-        "legacy_scout",
+        "the only approved value is `python`",
         "s3://clipper-stage1-soak-evidence-20260903-a1d22394/stage1/observations/",
         "s3://clipper-stage1-soak-evidence-20260903-a1d22394/stage1/reports/",
         "Do not run `docker compose up` for `legacy-cdp` or `worker` "
@@ -210,14 +210,14 @@ def test_local_stage1_runbook_inspects_topology_without_extra_tooling() -> None:
     assert "config --no-interpolate" in runbook
 
 
-def test_local_stage1_rollback_recreates_the_worker_with_the_selected_mode() -> None:
+def test_a_mode_change_recreates_the_api_and_the_worker() -> None:
     compose = _repo_text("compose.stage1.local.yml")
     runbook = _repo_text("docs/operations/stage1-local-docker.md")
     worker = _service_block(compose, "worker")
 
-    assert "${THOTH_STAGE1_ACTIVITY_MODE:-python_tiktok_with_legacy_fallback}" in worker
-    assert "up -d --no-deps --force-recreate worker" in runbook
-    assert "printenv THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE" in runbook
+    assert "${THOTH_STAGE1_ACTIVITY_MODE:-python}" in worker
+    assert "up -d --no-deps --force-recreate api worker" in runbook
+    assert "exec api printenv THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE" in runbook
     assert "docker compose restart` with the same digest" not in runbook
 
 

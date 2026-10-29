@@ -123,12 +123,15 @@ Publishing the image does not deploy it to AWS, restart a worker, configure Temp
 soak window, or approve the Python-only cutover. The soak begins only after the recorded digest is
 deployed and a controlled canary passes.
 
-`THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE` is a worker-owned migration control:
+`THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE` is a migration control. The API reads it when it starts
+a workflow. **Since 2026-10-30 the default and the only approved stage1 value is `python`:** Scout
+is retired, so an acquisition that fails is fixed in Python. The two Scout modes below are history
+until the legacy activity is removed.
 
 | Mode | Routing behavior |
 | --- | --- |
 | `python` | Use Python acquisition only; it never invokes the legacy activity. |
-| `python_tiktok_with_legacy_fallback` | Migration default. A TikTok post uses Python first; eligible safe failures may run the legacy activity once. Non-TikTok sources route directly to legacy during this slice. |
+| `python_tiktok_with_legacy_fallback` | Former migration default. A TikTok post uses Python first; eligible safe failures may run the legacy activity once. Non-TikTok sources route directly to legacy during this slice. |
 | `legacy_scout` | Route all source investigation through the isolated legacy activity. Use this as the rollback mode. |
 
 For an eligible TikTok post, the route order is **Scrapling headless -> TikWM/CDN -> legacy

@@ -351,8 +351,9 @@ def test_legacy_selection_is_explicit_worker_configuration() -> None:
 
 
 def test_source_activity_modes_are_worker_owned_and_strict() -> None:
-    assert Settings(THOTH_CONTROL_PLANE_API_KEY="key").source_investigation_activity_mode == (
-        "python_tiktok_with_legacy_fallback"
+    # Scout is retired (2026-10-30): Python is the default.
+    assert (
+        Settings(THOTH_CONTROL_PLANE_API_KEY="key").source_investigation_activity_mode == "python"
     )
     for mode in ("python", "python_tiktok_with_legacy_fallback", "legacy_scout"):
         settings = Settings(

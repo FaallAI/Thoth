@@ -439,7 +439,7 @@ jobs:
             echo "COMPOSE_PROJECT_NAME=thoth-stage1-ci"
             echo "THOTH_IMAGE=${THOTH_IMAGE_REF}"
             echo "THOTH_STAGE1_DATA_ROOT=${RUNNER_TEMP}/thoth-stage1"
-            echo "THOTH_STAGE1_ACTIVITY_MODE=python_tiktok_with_legacy_fallback"
+            echo "THOTH_STAGE1_ACTIVITY_MODE=python"
             echo "THOTH_CONTROL_PLANE_API_KEY=$(openssl rand -hex 24)"
             echo "THOTH_POSTGRES_PASSWORD=$(openssl rand -hex 24)"
             echo "THOTH_EDITOR_POSTGRES_PASSWORD=$(openssl rand -hex 24)"

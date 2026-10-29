@@ -57,9 +57,9 @@ record. The variables Compose requires are `THOTH_IMAGE`, `THOTH_STAGE1_DATA_ROO
 `THOTH_CONTROL_PLANE_API_KEY`, `THOTH_POSTGRES_PASSWORD`, and `THOTH_EDITOR_POSTGRES_PASSWORD`. Missing required variables make
 `docker compose config` fail before any pull or startup.
 
-`THOTH_STAGE1_ACTIVITY_MODE` selects the worker activity mode. It defaults to
-`python_tiktok_with_legacy_fallback` and may only be changed to `legacy_scout` during the approved
-rollback drill.
+`THOTH_STAGE1_ACTIVITY_MODE` selects the acquisition mode of the API, which picks it when it starts
+a workflow, and of the worker. Scout is retired (2026-10-30), so the only approved value is `python`:
+an acquisition that fails is fixed in Python, never routed to Scout.
 
 `THOTH_LIVE_TIKTOK_URL` is a host-side pytest variable and is never injected into a container. It is
 read only by `python/tests/live`, which is not part of the image. The fixture is referred to by
@@ -245,7 +245,7 @@ not health status. This proof remains offline and does not demonstrate a success
 
 ## Controlled live gate
 
-The approved mode is `python_tiktok_with_legacy_fallback`. Starting the CDP sidecar opens TikTok and
+The approved mode is `python`. Starting the CDP sidecar opens TikTok and
 requires explicit operator approval plus the locally supplied fixture. Stop on authentication wall,
 challenge, unexpected routing, redaction failure, or cleanup failure.
 
@@ -279,7 +279,7 @@ docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compo
   the sidecar is reachable outside the private network and the gate stops here. `docker compose
   port` is not a substitute: it reports an exposed port as `invalid IP:0` and exits `0` whether
   or not that port is published, so it cannot distinguish the two.
-- The worker mode must print `python_tiktok_with_legacy_fallback`.
+- The worker mode must print `python`.
 
 Stage 1 closed under ADR 0001, and its activation parity and controlled fallback tooling was
 removed on 2026-10-30. Window steps below that still name a parity pair or a fallback exercise
@@ -397,19 +397,18 @@ An ordinary restart keeps the same digest and the same environment:
 docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml restart worker
 ```
 
-The rollback mode is `legacy_scout` and may be applied only during the approved rollback drill. Set
-`THOTH_STAGE1_ACTIVITY_MODE` to that value in `.env.stage1.local`, then recreate only the worker.
-Restarting the container reuses the environment it was created with, so a restart alone would
-silently keep the previous mode:
+Scout is retired, so there is no Scout rollback mode; deployment rollback is the recovery
+mechanism. A change of `THOTH_STAGE1_ACTIVITY_MODE` in `.env.stage1.local` takes effect only when the
+API and the worker are recreated: the API picks the mode when it starts a workflow, and restarting
+a container reuses the environment it was created with:
 
 ```bash
-docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml up -d --no-deps --force-recreate worker
-docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml exec worker printenv THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE
+docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml up -d --no-deps --force-recreate api worker
+docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml exec api printenv THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE
 ```
 
-The mode command must print the mode that was just selected; if it prints the previous mode, the
-rollback has not taken effect and the drill stops. Recreating only the worker preserves Temporal
-history and artifacts for audit.
+The mode command must print the mode that was just selected. Recreating the two roles preserves
+Temporal history and artifacts for audit.
 
 Do not run `docker compose down -v` and do not delete `THOTH_STAGE1_DATA_ROOT` during restart or
 rollback. The rollback drill is not performed until the soak report is ready, and it remains subject

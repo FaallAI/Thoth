@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-30 - Scout fallback switched off: acquisition is Python only
+
+**Operator ruling:** "scout harus mati, nanti jika gagal berarti dari sisi python nya perlu di perbaiki lagi". Stage1 ran `python_tiktok_with_legacy_fallback`, so a TikTok acquisition that failed in Python silently fell back to Scout through `legacy-cdp`.
+
+**Change:** the default `THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE` is `python` (`config.py`, `.env.stage1.local.example`, CI). The stage1 preflight approves only `python`; both Scout modes, the fallback and the old `legacy_scout` rollback, are refused. In `python` mode a Scout-only platform answers `unsupported_platform` instead of running Scout.
+
+**Found on the way:** `compose.stage1.local.yml` hard-coded the fallback mode on the `api` service, and the API is what picks the mode when it starts a workflow; only the worker read `THOTH_STAGE1_ACTIVITY_MODE`. The runbook's mode change recreated only the worker, so it never changed the routing. Both roles now read the setting, and the runbook recreates `api` and `worker`.
+
+**Verification:** `make lint` clean; full Python suite 4371 passed, 252 skipped.
+
+**Next steps:**
+- Operator gates: push and PR, merge, deploy. Stage1 switches only when the new compose is deployed and `.env.stage1.local` sets `THOTH_STAGE1_ACTIVITY_MODE=python` (the current value would now fail the preflight).
+- Watch TikTok runs after the switch: a failure that Scout used to rescue now surfaces and is fixed in Python.
+- Remove the legacy activity, the `legacy-cdp` sidecar and `scout/` (Scout retirement) as its own task.
+
 ## 2026-10-30 - Stage 1 parity and controlled fallback tooling removed
 
 **Operator ruling:** remove the Stage 1 parity tooling, and with it the controlled fallback gates (ADR 0001 waived both; deployment rollback is the recovery mechanism). Scout and the Rust crates are being retired, so nothing was kept alive for them.
@@ -15,7 +30,7 @@ All notable changes to this project will be documented in this file.
 **Next steps:**
 - Operator gates: push and PR, merge.
 - `tiktok_soak` still requires 2 Python-vs-Scout parity samples (`minimum_parity_samples`), which can no longer be produced: the final soak needs a Python-only policy.
-- Turn off the Scout runtime fallback on stage1 (operator 2026-10-30: "scout harus mati").
+- Turn off the Scout runtime fallback on stage1: done in the next entry.
 
 ## 2026-10-29 - Deployed master 5c30ba2 (PR #85, prompt answers in a markdown fence)
 
