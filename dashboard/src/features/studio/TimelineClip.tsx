@@ -2,7 +2,7 @@ import type { PointerEvent } from "react";
 import { Lock } from "lucide-react";
 
 import type { EditDocumentV2 } from "@/api/control-plane";
-import { useLocale } from "@/lib/locale";
+import { useLocale, type LocaleState } from "@/lib/locale";
 import { clipLabelSource, framesToPixels } from "./timeline_domain";
 
 export type GestureMode = "move" | "trim_start" | "trim_end";
@@ -34,6 +34,16 @@ const FILL: Record<TrackKind, string> = {
   sfx: "bg-bg",
 };
 
+/** A clip in words: its own text, its role in the story, or its kind (`clipLabelSource`). */
+export function clipLabel(t: LocaleState["t"], clip: Clip): string {
+  const source = clipLabelSource(clip);
+  if ("text" in source) return source.text;
+  if ("kind" in source) return t(`studio.timeline.kind.${source.kind}`);
+  return source.role === "hook" || source.role === "outro"
+    ? t(`studio.story.beat.${source.role}`)
+    : t(`studio.inventory.role.${source.role}`);
+}
+
 const handle =
   "absolute top-0 h-full w-2 cursor-ew-resize focus-visible:outline-2 focus-visible:outline-copper disabled:cursor-not-allowed disabled:opacity-0";
 
@@ -50,15 +60,7 @@ export function TimelineClip({
 }: Props) {
   const { t } = useLocale();
   const name = t("studio.timeline.clip", { track: label });
-  const source = clipLabelSource(clip);
-  const text =
-    "text" in source
-      ? source.text
-      : "role" in source
-        ? source.role === "hook" || source.role === "outro"
-          ? t(`studio.story.beat.${source.role}`)
-          : t(`studio.inventory.role.${source.role}`)
-        : t(`studio.timeline.kind.${source.kind}`);
+  const text = clipLabel(t, clip);
   const start = (mode: GestureMode) => (event: PointerEvent) => {
     if (event.button !== 0) return;
     onSelect();
