@@ -126,15 +126,15 @@ async def test_reused_acquisition_steps_drop_quietly(
         with progress.scoped(FOOTAGE):
             await progress.step("source.capture_comment_cards")
     assert sink.records == []
-    assert [r.levelname for r in caplog.records if "dropped" in r.getMessage()] == ["DEBUG", "DEBUG"]
+    levels = [r.levelname for r in caplog.records if "dropped" in r.getMessage()]
+    assert levels == ["DEBUG", "DEBUG"]
 
 
 async def test_any_other_stage_mismatch_still_warns(
     sink: Sink, caplog: pytest.LogCaptureFixture
 ) -> None:
-    with caplog.at_level("DEBUG", logger="thoth_control_plane.progress"):
-        with progress.scoped(SCOPE):
-            await progress.step("footage.search_platforms")
+    with caplog.at_level("DEBUG", logger="thoth_control_plane.progress"), progress.scoped(SCOPE):
+        await progress.step("footage.search_platforms")
     assert sink.records == []
     assert [r.levelname for r in caplog.records if "dropped" in r.getMessage()] == ["WARNING"]
 
