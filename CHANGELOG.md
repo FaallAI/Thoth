@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-30 - Deployed master 5d9ee25 (PR #87): acquisition is Python only
+
+**Deploy:** thoth `c88c4abe`, renderer `b5a4d0c3`, web `83c0c3cc`, pulled ahead of `make deploy`; migrate applied 0 revisions (head stays `0025`); every service healthy, worker 0 restarts, a new worker polls `thoth-control-plane`. `.env.stage1.local` now sets `THOTH_STAGE1_ACTIVITY_MODE=python` (the new preflight refuses the old fallback mode and passed). Previous file in `D:/thoth-tmp/bu/pins/pins-5c30ba23.env`. No workflow was running.
+
+**Verified after deploy:** `printenv THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE` prints `python` on both `api` (which picks the mode at workflow start) and `worker`. Stage1 no longer falls back to Scout: a TikTok acquisition that fails in Python now fails visibly.
+
+**Next steps:**
+- Watch the next TikTok runs; a failure Scout used to rescue is now a Python fix.
+- Operator gates: PRs for `feat/studio-r7-timeline` (R7) and `fix/audit-findings` (audit fixes, migration 0026).
+
 ## 2026-10-30 - The final soak is Python-only
 
 **Operator ruling:** agreed to a Python-only soak policy. `tiktok_soak` required two Python-vs-Scout parity samples before `ready: true`; with Scout retired and the parity tooling removed, that blocker could never clear.
