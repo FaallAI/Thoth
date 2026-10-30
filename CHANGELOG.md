@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-30 - Deployed master 03741c3 (PRs #89 and #90: Studio R7 and the audit fixes)
+
+**Deploy:** thoth `df5aa6dd`, renderer `bba59ac3`, web `19396ca4`, pulled ahead of `make deploy`; migrate applied 1 revision (`0026_access_token_creator`, head `0026`); every service healthy, worker 0 restarts, a new worker polls `thoth-control-plane`. Acquisition stays `python` on `api` and `worker`. Previous file in `D:/thoth-tmp/bu/pins/pins-5d9ee252.env`. No workflow was running.
+
+**Checked after deploy:** `POST /api/v1/workflows/{id}/retry` now answers 404 (B3 removed it); `GET /api/v1/workspace/tokens` answers 403 `insufficient_scope` to a read-scope token, the same rule as `/me/tokens` (token management needs a session or an admin-scope token).
+
+**Next steps:**
+- Look at the Timeline mode on stage1 in a signed-in browser (the screens were checked through `vite dev` before the merge).
+- Follow-ups: the Studio header overflows at 430 px; the seven deferred R7 minors; audit B2 and B5; full Scout retirement.
+
 ## 2026-10-30 - Code audit fixes (A1-A3, B3, B4)
 
 From the read-only audit of 2026-10-30; the operator approved these five and deferred B2 and B5.
