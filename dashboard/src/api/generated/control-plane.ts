@@ -3701,7 +3701,7 @@ export interface components {
             /** Progress */
             progress?: number | null;
             /** Skip Reason */
-            skip_reason?: ("attribution_off" | "footage_off" | "assembly_off" | "legacy_source" | "approval_rejected" | "not_in_this_version" | "run_failed" | "run_cancelled") | null;
+            skip_reason?: ("attribution_off" | "footage_off" | "assembly_off" | "approval_rejected" | "not_in_this_version" | "run_failed" | "run_cancelled") | null;
             /** Started At */
             started_at?: string | null;
             /**
