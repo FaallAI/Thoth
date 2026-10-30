@@ -114,6 +114,31 @@ async def test_a_code_outside_the_scope_stage_is_dropped(sink: Sink) -> None:
     assert sink.records == []
 
 
+async def test_reused_acquisition_steps_drop_quietly(
+    sink: Sink, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Attribution and footage call the source acquisition code, which reports source.* steps;
+    # stage1 logged 27 warnings for one run (2026-10-30). Expected reuse is not a warning.
+    attribution = StepScope(workflow_id="wf_1", stage="attribution", attempt=1)
+    with caplog.at_level("DEBUG", logger="thoth_control_plane.progress"):
+        with progress.scoped(attribution):
+            await progress.step("source.fetch_post")
+        with progress.scoped(FOOTAGE):
+            await progress.step("source.capture_comment_cards")
+    assert sink.records == []
+    assert [r.levelname for r in caplog.records if "dropped" in r.getMessage()] == ["DEBUG", "DEBUG"]
+
+
+async def test_any_other_stage_mismatch_still_warns(
+    sink: Sink, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level("DEBUG", logger="thoth_control_plane.progress"):
+        with progress.scoped(SCOPE):
+            await progress.step("footage.search_platforms")
+    assert sink.records == []
+    assert [r.levelname for r in caplog.records if "dropped" in r.getMessage()] == ["WARNING"]
+
+
 async def test_whitelisted_params_survive_and_anything_else_drops_them_all(sink: Sink) -> None:
     with progress.scoped(SCOPE):
         await progress.step("source.fetch_post")
