@@ -1,7 +1,9 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, test } from "bun:test";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+
+import { render } from "@/test-render";
 
 import { createEditorState, type EditorAction, type EditorState } from "./editor_state";
 import { Timeline } from "./Timeline";
@@ -12,9 +14,17 @@ afterEach(cleanup);
 /** Render the timeline over a state and collect everything it dispatches. */
 function mount(overrides: Partial<EditorState> = {}) {
   const actions: EditorAction[] = [];
+  const transport: string[] = [];
   const state = { ...createEditorState(timelineDocument()), ...overrides };
-  render(<Timeline state={state} dispatch={(action) => actions.push(action)} />);
-  return { actions, state };
+  render(
+    <Timeline
+      state={state}
+      dispatch={(action) => actions.push(action)}
+      onPlay={() => transport.push("play")}
+      onPause={() => transport.push("pause")}
+    />,
+  );
+  return { actions, state, transport };
 }
 
 /** Strip the generated ID so two payloads can be compared for equality. */
@@ -44,6 +54,20 @@ test("renders every track in order with its visibility, mute, and lock controls"
   expect(screen.getByRole("button", { name: "Unlock Captions" })).toBeDefined();
 });
 
+test("a track header names its kind in the editor's own words", () => {
+  mount();
+  const music = screen.getByRole("group", { name: "Music track" });
+  expect(music.textContent).toContain("music");
+  expect(screen.getByRole("group", { name: "Main video track" }).textContent).toContain("main_video");
+  expect(music.querySelector("svg.lucide-music")).not.toBeNull();
+});
+
+test("a clip shows what it is, not only where it sits", () => {
+  mount();
+  expect(screen.getByRole("button", { name: "Main video clip" }).textContent).toBe("Video");
+  expect(screen.getByRole("button", { name: "Music clip" }).textContent).toBe("Audio");
+});
+
 test("marks the selected clip and reports selection changes", () => {
   const { actions } = mount({ selectedClipId: "clip_music" });
   const selected = screen.getByRole("button", { name: "Music clip" });
@@ -53,30 +77,85 @@ test("marks the selected clip and reports selection changes", () => {
   expect(actions).toEqual([{ type: "select_clip", clipId: "clip_main" }]);
 });
 
-test("scrubbing the playhead never edits the document", () => {
-  const { actions } = mount();
+test("the ruler is the playhead: it reads as a timecode and never edits the document", () => {
+  const { actions } = mount({ playheadFrame: 96 });
   const playhead = screen.getByRole("slider", { name: "Playhead" });
-  expect(playhead.getAttribute("max")).toBe("299");
+  expect(playhead.getAttribute("aria-valuemax")).toBe("299");
+  expect(playhead.getAttribute("aria-valuenow")).toBe("96");
+  expect(playhead.getAttribute("aria-valuetext")).toBe("0:03.2");
+  expect(screen.getByText("0:05")).toBeDefined();
 
-  fireEvent.change(playhead, { target: { value: "210" } });
-  expect(actions).toEqual([{ type: "set_playhead", frame: 210 }]);
+  fireEvent.keyDown(playhead, { key: "ArrowRight" });
+  fireEvent.keyDown(playhead, { key: "ArrowLeft" });
+  fireEvent.keyDown(playhead, { key: "ArrowRight", shiftKey: true });
+  fireEvent.keyDown(playhead, { key: "Home" });
+  fireEvent.keyDown(playhead, { key: "End" });
+  expect(actions).toEqual([
+    { type: "set_playhead", frame: 97 },
+    { type: "set_playhead", frame: 95 },
+    { type: "set_playhead", frame: 126 },
+    { type: "set_playhead", frame: 0 },
+    { type: "set_playhead", frame: 299 },
+  ]);
+});
+
+test("pressing and dragging on the ruler seeks the preview", () => {
+  const actions: EditorAction[] = [];
+  const seeks: number[] = [];
+  render(
+    <Timeline
+      state={{ ...createEditorState(timelineDocument()), zoom: 2 }}
+      dispatch={(action) => actions.push(action)}
+      onSeek={(frame) => seeks.push(frame)}
+    />,
+  );
+  const ruler = screen.getByRole("slider", { name: "Playhead" });
+  fireEvent.pointerDown(ruler, { clientX: 120, button: 0 });
+  fireEvent.pointerMove(window, { clientX: 200 });
+  fireEvent.pointerUp(window, { clientX: 200 });
+  fireEvent.pointerMove(window, { clientX: 260 });
+  expect(seeks).toEqual([60, 100]);
+  expect(actions).toEqual([
+    { type: "set_playhead", frame: 60 },
+    { type: "set_playhead", frame: 100 },
+  ]);
+});
+
+test("the transport reads the playhead and the length as timecodes", () => {
+  mount({ playheadFrame: 96 });
+  expect(screen.getByText("0:03.2 / 0:10.0")).toBeDefined();
+});
+
+test("one button plays and pauses the preview", () => {
+  const { transport } = mount();
+  fireEvent.click(screen.getByRole("button", { name: "Play" }));
+  cleanup();
+  const playing = mount({ playing: true });
+  fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+  expect([...transport, ...playing.transport]).toEqual(["play", "pause"]);
 });
 
 test("zoom, snapping, and ripple are controls, not document edits", () => {
   const { actions } = mount();
+  const snap = screen.getByRole("switch", { name: "Snap" });
+  expect(snap.getAttribute("aria-checked")).toBe("true");
   fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
-  fireEvent.click(screen.getByRole("checkbox", { name: "Snapping" }));
-  fireEvent.click(screen.getByRole("checkbox", { name: "Ripple" }));
+  fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
+  fireEvent.click(snap);
+  fireEvent.click(screen.getByRole("switch", { name: "Ripple" }));
+  fireEvent.change(screen.getByRole("slider", { name: "Zoom" }), { target: { value: "1" } });
   expect(actions).toEqual([
     { type: "set_zoom", zoom: 2 },
+    { type: "set_zoom", zoom: 0.5 },
     { type: "set_snapping", snapping: false },
     { type: "set_ripple", ripple: true },
+    { type: "set_zoom", zoom: 2 },
   ]);
 });
 
-test("says the timeline needs a wider screen and promises no unsupported detail", () => {
+test("leaves the narrow-screen note to Studio and promises no unsupported detail", () => {
   const { state } = mount();
-  expect(screen.getByText(/wider screen/i)).toBeDefined();
+  expect(screen.queryByText(/wider screen/i)).toBeNull();
   expect(document.body.textContent).not.toMatch(/waveform|filmstrip/i);
   expect(state.draft).toEqual(timelineDocument());
 });

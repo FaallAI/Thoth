@@ -5,6 +5,9 @@ import { expect, test } from "bun:test";
 import type { EditDocumentV2, EditorAsset } from "@/api/control-plane";
 
 import {
+  clipLabelSource,
+  formatTimecode,
+  rulerTicks,
   MAX_ZOOM,
   MIN_ZOOM,
   applyTimelineOperation,
@@ -767,4 +770,57 @@ test("split keeps blur regions", () => {
       { x: 0.1, y: 0.65, w: 0.8, h: 0.09, from_frame: 30, to_frame: 90 },
     ]);
   }
+});
+
+test("a timecode is minutes, seconds and tenths, and never divides by a zero frame rate", () => {
+  expect(formatTimecode(0, 30)).toBe("0:00.0");
+  expect(formatTimecode(906, 30)).toBe("0:30.2");
+  expect(formatTimecode(1440, 30)).toBe("0:48.0");
+  expect(formatTimecode(3600 * 30, 30)).toBe("60:00.0");
+  expect(formatTimecode(5, 0)).toBe("0:00.0");
+});
+
+test("ruler ticks take the smallest step that leaves room for a label", () => {
+  // At zoom 1 a second is 30 px, so 5 s (150 px) is the first step of at least 80 px.
+  expect(rulerTicks(300, 30, 1)).toEqual([
+    { frame: 0, label: "0:00" },
+    { frame: 150, label: "0:05" },
+    { frame: 300, label: "0:10" },
+  ]);
+  expect(rulerTicks(90, 30, 4).map((tick) => tick.label)).toEqual(["0:00", "0:01", "0:02", "0:03"]);
+  // Zoomed far out, the step stops at a minute.
+  expect(rulerTicks(30 * 150, 30, 0.01).map((tick) => tick.frame)).toEqual([0, 1800, 3600]);
+});
+
+test("an empty document or a zero frame rate still has one tick", () => {
+  expect(rulerTicks(0, 30, 1)).toEqual([{ frame: 0, label: "0:00" }]);
+  expect(rulerTicks(300, 0, 1)).toEqual([{ frame: 0, label: "0:00" }]);
+});
+
+type AnyClip = NonNullable<EditDocumentV2["clips"]>[number];
+const labelled = (extra: Record<string, unknown>) =>
+  ({ clip_id: "c", track_id: "t", kind: "video", from_frame: 0, duration_in_frames: 30, ...extra }) as AnyClip;
+
+test("a clip reads as its words, then its role in the story, then its kind", () => {
+  const cue = (text: string) => ({ from_frame: 0, duration_in_frames: 30, text });
+  expect(clipLabelSource(labelled({ kind: "caption", cues: [cue("Udara pekat"), cue("Next")] }))).toEqual({
+    text: "Udara pekat",
+  });
+  expect(clipLabelSource(labelled({ kind: "text", heading: "Kabut menyelimuti" }))).toEqual({
+    text: "Kabut menyelimuti",
+  });
+  expect(clipLabelSource(labelled({ kind: "overlay", source_role: "comment_card" }))).toEqual({
+    role: "comment_card",
+  });
+  expect(clipLabelSource(labelled({ kind: "audio" }))).toEqual({ kind: "audio" });
+});
+
+test("empty words fall through to the role", () => {
+  const blank = { from_frame: 0, duration_in_frames: 30, text: "  " };
+  expect(
+    clipLabelSource(labelled({ kind: "caption", cues: [blank], source_role: "hook" })),
+  ).toEqual({ role: "hook" });
+  expect(clipLabelSource(labelled({ kind: "text", heading: "", source_role: "outro" }))).toEqual({
+    role: "outro",
+  });
 });

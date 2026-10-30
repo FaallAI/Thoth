@@ -20,6 +20,29 @@ From the read-only audit of 2026-10-30; the operator approved these five and def
 - Operator gates: push and PR for `fix/audit-findings`, merge, deploy (migration 0026 applies on deploy).
 - Deferred: B2 (central error handlers), B5 (`UnavailableWorkflowGateway`, browser `apiKey`, duplicate fetch clients).
 
+## 2026-10-30 - Studio R7: Timeline mode and clean-up (restyle part B)
+
+**Plan:** `docs/superpowers/plans/2026-10-30-studio-r7-timeline.md`, executed natively; the operator approved it and its out-of-scope list.
+
+**Timeline mode (DESIGN §13.1):**
+- Transport: play/pause, `m:ss.t / m:ss.t` timecode (`formatTimecode`), Ripple and Snap switches, a log-scale zoom slider with − and +, and the four clip actions as icon buttons.
+- Ruler: labelled ticks at the smallest step that leaves 80 px per label (`rulerTicks`); it is the playhead slider (arrows move a frame, Shift a second, Home/End), and pressing or dragging on it seeks the preview. The playhead is the `--playhead` line.
+- Tracks show their kind in mono with an icon; hide/mute/lock toggles appear on hover and focus, and a state that is on stays in sight. Clips read as their words (caption cue, heading), then their story role, then their kind (`clipLabelSource`); the selection is copper.
+- The issues list became the issues bar: "No issues" or "n warnings", the first issue, and "Review issues" opening the list. Timeline issues never block a render, so the bar counts no blocking ones.
+- The inspector groups Timing (frames with timecodes), Transform (Story's position presets, fit, crop, position, subtitle blur), Audio, Content and Clip, under the clip's own label.
+- Below 1024 px Studio says "Open on a larger screen to edit the timeline."; every new string is in English and Indonesian.
+
+**Clean-up:** the four F3 aliases (`--status-queued|succeeded|cancelled`, `--spine`) are gone, and 282 lines of `pen*.css` / `dashboard.css` / `studio.css` rules no screen uses were removed. `css_usage.test.ts` now fails on any styled class without a user.
+
+**Out of scope (operator-approved):** clip thumbnails and audio waveforms (no frame strips or peaks exist yet), canvas drag handles, and Scale/Opacity fields (no operation).
+
+**Verification:** dashboard `bun test` 1467 passed; `bun run build` passes; screens at 1440, 1024 and 430 px in `en` and `id` through `vite dev` with the read-scope token against the stage1 draft (`D:/thoth-tmp/restyle-shots/r7/`). The screens found truncated track names and a clipped ownership select, both fixed. A 430 px page overflow (`scrollWidth` 985) also exists on master and is not R7's.
+
+**Next steps:**
+- Operator gates: push and PR for `feat/studio-r7-timeline`, merge, deploy (part B's release).
+- Studio header overflows at 430 px on master too: its own fix.
+- Thumbnails and waveforms need a backend that produces frame strips and audio peaks.
+
 ## 2026-10-30 - Deployed master 5d9ee25 (PR #87): acquisition is Python only
 
 **Deploy:** thoth `c88c4abe`, renderer `b5a4d0c3`, web `83c0c3cc`, pulled ahead of `make deploy`; migrate applied 0 revisions (head stays `0025`); every service healthy, worker 0 restarts, a new worker polls `thoth-control-plane`. `.env.stage1.local` now sets `THOTH_STAGE1_ACTIVITY_MODE=python` (the new preflight refuses the old fallback mode and passed). Previous file in `D:/thoth-tmp/bu/pins/pins-5c30ba23.env`. No workflow was running.

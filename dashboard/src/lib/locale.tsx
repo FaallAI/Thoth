@@ -18,7 +18,7 @@ import {
 /** This browser's last choice, for callers without a user and when the server is away. */
 export const STORAGE_KEY = "thoth.locale";
 
-type LocaleState = {
+export type LocaleState = {
   locale: Locale;
   setLocale: (locale: Locale) => Promise<void>;
   t: (key: MessageKey, values?: Values) => string;
