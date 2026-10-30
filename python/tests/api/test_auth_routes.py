@@ -128,11 +128,9 @@ async def test_the_first_sign_in_asks_for_the_emailed_code(api, mailer) -> None:
 async def test_the_code_signs_in_and_the_browser_is_then_trusted(api, mailer) -> None:
     await sign_in(api, mailer)
     me = (await api.get("/auth/me")).json()
-    assert (me["email"], me["display_name"], me["workspace_id"]) == (
-        "alice@acme.test",
-        "Alice",
-        BOOTSTRAP_WORKSPACE_ID,
-    )
+    assert (me["email"], me["display_name"]) == ("alice@acme.test", "Alice")
+    # A sign-in gets its own workspace; only the bootstrap CLI claims ws_bootstrap (audit A2).
+    assert me["workspace_id"] != BOOTSTRAP_WORKSPACE_ID
     api.cookies.delete("thoth_session")
     again = await callback(api)
     assert again.headers["location"] == "/studio" and len(mailer.bodies) == 1

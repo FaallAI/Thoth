@@ -443,7 +443,7 @@ to people you trust.
 | `THOTH_SMTP_USERNAME` | FastAPI | SMTP user. |
 | `THOTH_SMTP_PASSWORD` | FastAPI | SMTP password (secret). |
 | `THOTH_SMTP_FROM` | FastAPI | The sender, for example `Thoth <no-reply@example.com>`. |
-| `THOTH_AUTH_WORKSPACE_TOKENS` | FastAPI | `true` allows workspace tokens for external developers. Keep it off until multi-tenancy and billing exist. |
+| `THOTH_AUTH_WORKSPACE_TOKENS` | FastAPI | `true` allows minting workspace tokens for external developers. Keep it off until multi-tenancy and billing exist. A workspace token works only while its creator is an active owner or admin of that workspace; owners and admins list and revoke them at `GET`/`DELETE /api/v1/workspace/tokens`, with the flag on or off. |
 
 Every variable is optional, and an empty value means not configured:
 - a provider is offered only when its client ID, secret and rule are set, together with
@@ -494,7 +494,7 @@ The server stores only hashes of the tokens and an HMAC of each code.
   token.
 
 The first token, before OAuth is configured, comes from the operator command below. It needs
-database access, creates the user when missing (the first user owns the bootstrap workspace), and
+database access, creates the user when missing (the first user it creates owns the bootstrap workspace), and
 prints only the token:
 
 ```bash
@@ -524,9 +524,11 @@ the API.
 
 ### Workspaces
 
-Every user works in their own workspace. The first user of an installation owns the bootstrap
-workspace, which holds every record made before workspaces existed; every later user gets a
-personal workspace on their first sign-in.
+Every user works in their own workspace. The first user the operator command creates owns the
+bootstrap workspace, which holds every record made before workspaces existed, and owning it makes
+a platform admin. A sign-in never claims it, even on an empty database (audit 2026-10-30): run the
+operator command for the operator first. Every other user gets a personal workspace on their first
+sign-in.
 
 - Projects belong to a workspace, and every route under `/api/v1/projects/{project_id}` answers
   404 `project_not_found` for another workspace's project, exactly as for a missing one.

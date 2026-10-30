@@ -216,28 +216,6 @@ async def test_cancel_workflow_returns_the_latest_summary(client: httpx.AsyncCli
 
 
 @pytest.mark.asyncio
-async def test_retry_workflow_uses_the_requested_checkpoint(
-    client: httpx.AsyncClient,
-    gateway,
-) -> None:
-    await client.post(
-        "/api/v1/workflows",
-        headers={**AUTH_HEADERS, "Idempotency-Key": "create-001"},
-        json=VALID_REQUEST,
-    )
-
-    response = await client.post(
-        "/api/v1/workflows/wf_001/retry",
-        headers=AUTH_HEADERS,
-        json={"from_stage": "source"},
-    )
-
-    assert response.status_code == 200
-    assert response.json()["status"] == "queued"
-    assert gateway.last_from_stage == "source"
-
-
-@pytest.mark.asyncio
 async def test_approve_workflow_records_the_authenticated_actor(
     client: httpx.AsyncClient,
     gateway,
@@ -575,6 +553,8 @@ def test_openapi_exposes_exact_required_path_method_pairs(gateway) -> None:
         ("/api/v1/me/tokens", "post"),
         ("/api/v1/me/tokens/{token_id}", "delete"),
         ("/api/v1/workspace/tokens", "post"),
+        ("/api/v1/workspace/tokens", "get"),
+        ("/api/v1/workspace/tokens/{token_id}", "delete"),
         ("/api/v1/projects", "post"),
         ("/api/v1/projects/{project_id}", "get"),
         ("/api/v1/projects/{project_id}/workflows", "get"),
@@ -661,7 +641,6 @@ def test_openapi_exposes_exact_required_path_method_pairs(gateway) -> None:
         ("/api/v1/workflows/{workflow_id}/events", "get"),
         ("/api/v1/workflows/{workflow_id}/steps", "get"),
         ("/api/v1/workflows/{workflow_id}/cancel", "post"),
-        ("/api/v1/workflows/{workflow_id}/retry", "post"),
         ("/api/v1/workflows/{workflow_id}/approve", "post"),
         ("/api/v1/workflows/{workflow_id}/acknowledge", "post"),
         ("/healthz", "get"),
@@ -700,11 +679,10 @@ def test_openapi_declares_typed_workflow_event_stream(gateway) -> None:
     assert "WorkflowEvent" in document["components"]["schemas"]
 
 
-def test_openapi_approval_and_retry_inputs_are_narrow(gateway) -> None:
+def test_openapi_approval_input_is_narrow_and_no_workflow_retry_is_offered(gateway) -> None:
     document = create_app(Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"), gateway).openapi()
     schemas = document["components"]["schemas"]
     approval_operation = document["paths"]["/api/v1/workflows/{workflow_id}/approve"]["post"]
-    retry_operation = document["paths"]["/api/v1/workflows/{workflow_id}/retry"]["post"]
 
     assert approval_operation["requestBody"]["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/ApprovalSubmission"
@@ -716,11 +694,9 @@ def test_openapi_approval_and_retry_inputs_are_narrow(gateway) -> None:
     }
     assert schemas["ApprovalSubmission"]["additionalProperties"] is False
     assert set(schemas["ApprovalSubmission"]["required"]) == {"approval_id", "decision"}
-    assert retry_operation["requestBody"]["content"]["application/json"]["schema"] == {
-        "$ref": "#/components/schemas/RetryRequest"
-    }
-    assert set(schemas["RetryRequest"]["properties"]) == {"from_stage"}
-    assert schemas["RetryRequest"]["additionalProperties"] is False
+    # Audit B3: every gateway answered retry with WorkflowNotReady and no screen called it.
+    assert "/api/v1/workflows/{workflow_id}/retry" not in document["paths"]
+    assert "RetryRequest" not in schemas
 
 
 @pytest.mark.asyncio

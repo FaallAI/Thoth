@@ -82,24 +82,6 @@ class ApprovalSubmission(BaseModel):
     note: str | None = Field(default=None, max_length=2_000)
 
 
-class RetryRequest(BaseModel):
-    """Optional validated checkpoint for an explicit workflow retry."""
-
-    model_config = ConfigDict(extra="forbid", strict=True)
-    from_stage: (
-        Literal[
-            "validation",
-            "source",
-            "assets",
-            "narration",
-            "render",
-            "review",
-            "delivery",
-        ]
-        | None
-    ) = None
-
-
 class WorkflowGateway(Protocol):
     """Orchestration operations required by the application service."""
 
@@ -123,14 +105,6 @@ class WorkflowGateway(Protocol):
     ) -> AsyncIterator[WorkflowEvent]: ...
 
     async def cancel(self, workflow_id: str, *, actor: Actor) -> WorkflowSummary: ...
-
-    async def retry(
-        self,
-        workflow_id: str,
-        *,
-        from_stage: str | None,
-        actor: Actor,
-    ) -> WorkflowSummary: ...
 
     async def record_approval(
         self,

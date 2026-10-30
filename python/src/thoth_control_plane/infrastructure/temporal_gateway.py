@@ -195,16 +195,6 @@ class TemporalWorkflowGateway:
         await handle.signal(SourceInvestigationWorkflow.request_cancel)
         return await _query(handle, SourceInvestigationWorkflow.summary)
 
-    async def retry(
-        self,
-        workflow_id: str,
-        *,
-        from_stage: str | None,
-        actor: Actor,
-    ) -> WorkflowSummary:
-        del workflow_id, from_stage, actor
-        raise WorkflowNotReady("Durable workflow retry is not available")
-
     async def record_approval(
         self,
         workflow_id: str,

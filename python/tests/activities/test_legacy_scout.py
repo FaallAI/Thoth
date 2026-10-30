@@ -419,7 +419,6 @@ def test_no_fastapi_request_model_exposes_activity_mode() -> None:
         "RateEdit",
         "QuotaChange",
         "ResolveStudioImportItem",
-        "RetryRequest",
         "SaveProjectPromptBindingRequest",
         "SavePromptLayerLockRequest",
         "SavePromptModelPreferenceRequest",

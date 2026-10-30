@@ -936,3 +936,10 @@ def test_the_xendit_webhook_is_proxied_to_the_api() -> None:
     caddyfile = _repo_text("deploy/web/Caddyfile")
     backend = next(line for line in caddyfile.splitlines() if "@backend path" in line)
     assert "/billing/webhooks/*" in backend.split()
+
+
+def test_the_site_pins_browsers_to_https_once_they_reach_it() -> None:
+    """Audit A3: browsers ignore HSTS over plain HTTP, so a local site is unaffected, while a
+    domain deploy keeps every later visit, and its cookies, on HTTPS."""
+    caddyfile = _repo_text("deploy/web/Caddyfile")
+    assert 'Strict-Transport-Security "max-age=31536000"' in caddyfile

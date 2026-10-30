@@ -1412,23 +1412,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/workflows/{workflow_id}/retry": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Retry Workflow */
-        post: operations["retry_workflow_api_v1_workflows__workflow_id__retry_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/workflows/{workflow_id}/steps": {
         parameters: {
             query?: never;
@@ -1456,11 +1439,29 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List Workspace Tokens */
+        get: operations["list_workspace_tokens_api_v1_workspace_tokens_get"];
         put?: never;
         /** Create Workspace Token */
         post: operations["create_workspace_token_api_v1_workspace_tokens_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspace/tokens/{token_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke Workspace Token */
+        delete: operations["revoke_workspace_token_api_v1_workspace_tokens__token_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3115,14 +3116,6 @@ export interface components {
             label: string;
             /** Text */
             text: string;
-        };
-        /**
-         * RetryRequest
-         * @description Optional validated checkpoint for an explicit workflow retry.
-         */
-        RetryRequest: {
-            /** From Stage */
-            from_stage?: ("validation" | "source" | "assets" | "narration" | "render" | "review" | "delivery") | null;
         };
         /** ReviewComment */
         ReviewComment: {
@@ -8107,43 +8100,6 @@ export interface operations {
             };
         };
     };
-    retry_workflow_api_v1_workflows__workflow_id__retry_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                Authorization?: string | null;
-            };
-            path: {
-                workflow_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RetryRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkflowSummary"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     list_workflow_steps_api_v1_workflows__workflow_id__steps_get: {
         parameters: {
             query?: {
@@ -8180,6 +8136,37 @@ export interface operations {
             };
         };
     };
+    list_workspace_tokens_api_v1_workspace_tokens_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_workspace_token_api_v1_workspace_tokens_post: {
         parameters: {
             query?: never;
@@ -8203,6 +8190,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CreatedToken"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_workspace_token_api_v1_workspace_tokens__token_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                token_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

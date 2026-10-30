@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-30 - Code audit fixes (A1-A3, B3, B4)
+
+From the read-only audit of 2026-10-30; the operator approved these five and deferred B2 and B5.
+
+- **A3:** the preview capability cookie is `Secure` whenever the site origin is HTTPS (`settings.cookie_secure`, like the session cookie); behind Caddy the request scheme is always `http`, so it never was. Caddy now sends `Strict-Transport-Security "max-age=31536000"` (ignored over plain HTTP, so local stacks are unaffected).
+- **A2:** only the bootstrap CLI (`thoth-control tokens create`, `ensure_user`) may claim `ws_bootstrap`; a public sign-in always gets its own workspace, so a stranger who signs in first on an empty database is no platform admin. Stage1 already has its owner. A fresh install runs the CLI for the operator first.
+- **A1:** a workspace token records its creator (editor migration `0026_access_token_creator`, `access_tokens.created_by_user_id`) and works only while that person is an active owner or admin of the workspace; a token with no creator is refused. Owners and admins list and revoke workspace tokens at `GET`/`DELETE /api/v1/workspace/tokens`, with minting on or off.
+- **B3:** the workflow retry chain is gone (route, `RetryRequest`, port, service, Temporal gateway, CLI `retry`, dashboard `retryWorkflow`): every gateway answered it with `WorkflowNotReady`. Render-job retry and the dashboard's "Retry run" (a new run) are separate and stay.
+- **B4:** the dashboard's hand-rolled SSE client (`streamWorkflow`) had no caller (run pages poll every second), so it was removed instead of rewritten on `EventSource`. The server's event stream stays for the CLI `watch`.
+
+`python/openapi.json` and `dashboard/src/api/generated/control-plane.ts` are regenerated.
+
+**Verification:** each fix RED then GREEN; full Python suite 4376 passed, 252 skipped; Postgres migration tests 30 passed; dashboard `bun test` 1438 passed, `tsc -b` and `bun run build` pass; `make lint` clean.
+
+**Next steps:**
+- Operator gates: push and PR for `fix/audit-findings`, merge, deploy (migration 0026 applies on deploy).
+- Deferred: B2 (central error handlers), B5 (`UnavailableWorkflowGateway`, browser `apiKey`, duplicate fetch clients).
+
 ## 2026-10-30 - Studio R7: Timeline mode and clean-up (restyle part B)
 
 **Plan:** `docs/superpowers/plans/2026-10-30-studio-r7-timeline.md`, executed natively; the operator approved it and its out-of-scope list.

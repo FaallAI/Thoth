@@ -17,7 +17,6 @@ from thoth_control_plane.application import (
     Actor,
     ApprovalSubmission,
     ArtifactNotFound,
-    RetryRequest,
     StylePreset,
     WorkflowEvent,
     WorkflowRequest,
@@ -297,16 +296,6 @@ async def cancel_workflow(
     service: Annotated[WorkflowService, Depends(get_workflow_service)],
 ) -> WorkflowSummary:
     return await service.cancel(workflow_id, actor=actor)
-
-
-@router.post("/workflows/{workflow_id}/retry", response_model=WorkflowSummary)
-async def retry_workflow(
-    workflow_id: str,
-    retry: RetryRequest,
-    actor: Annotated[Actor, Depends(current_actor)],
-    service: Annotated[WorkflowService, Depends(get_workflow_service)],
-) -> WorkflowSummary:
-    return await service.retry(workflow_id, from_stage=retry.from_stage, actor=actor)
 
 
 @router.post("/workflows/{workflow_id}/approve", response_model=WorkflowSummary)

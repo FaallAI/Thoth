@@ -126,7 +126,6 @@ class InMemoryWorkflowGateway:
         self.actors: list[Actor] = []
         self.owners: dict[str, tuple[str, str]] = {}
         self.connection_available = True
-        self.last_from_stage: str | None = None
         self.last_approval: ApprovalSubmission | None = None
         self.approval_allowed = True
         timestamp = datetime(2026, 8, 28, 8, tzinfo=UTC)
@@ -225,21 +224,6 @@ class InMemoryWorkflowGateway:
         self.actors.append(actor)
         summary = self._owned(workflow_id, actor).model_copy(
             update={"status": WorkflowStatus.CANCELLED}
-        )
-        self.workflows[workflow_id] = summary
-        return summary
-
-    async def retry(
-        self,
-        workflow_id: str,
-        *,
-        from_stage: str | None,
-        actor: Actor,
-    ) -> WorkflowSummary:
-        self.actors.append(actor)
-        self.last_from_stage = from_stage
-        summary = self._owned(workflow_id, actor).model_copy(
-            update={"status": WorkflowStatus.QUEUED}
         )
         self.workflows[workflow_id] = summary
         return summary
@@ -388,14 +372,6 @@ class OfflineControlPlane:
             "GET",
             f"/api/v1/workflows/{workflow_id}/artifacts/{artifact_id}",
             api_key=api_key,
-        )
-        return response.status_code
-
-    async def retry_status(self, workflow_id: str, *, from_stage: str) -> int:
-        response = await self._request(
-            "POST",
-            f"/api/v1/workflows/{workflow_id}/retry",
-            json={"from_stage": from_stage},
         )
         return response.status_code
 

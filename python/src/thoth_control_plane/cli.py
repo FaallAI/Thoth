@@ -16,7 +16,7 @@ import typer
 from pydantic import ValidationError
 
 from thoth_control_plane import metering
-from thoth_control_plane.application import ApprovalSubmission, RetryRequest
+from thoth_control_plane.application import ApprovalSubmission
 from thoth_control_plane.auth.models import ALL_SCOPES, CreateToken, Principal
 from thoth_control_plane.auth.service import SignInService
 from thoth_control_plane.billing import InvalidPlan, UnknownPlan, UnknownWorkspace
@@ -598,22 +598,6 @@ def approve(
 def cancel(workflow_id: str) -> None:
     """Cancel a workflow."""
     _render(_request("POST", f"/api/v1/workflows/{workflow_id}/cancel"))
-
-
-@workflow_app.command("retry")
-def retry(
-    workflow_id: str,
-    from_stage: Annotated[str | None, typer.Option("--from-stage")] = None,
-) -> None:
-    """Retry a workflow from an optional safe checkpoint."""
-    request = RetryRequest.model_validate({"from_stage": from_stage})
-    _render(
-        _request(
-            "POST",
-            f"/api/v1/workflows/{workflow_id}/retry",
-            payload=request.model_dump(mode="json", exclude_none=True),
-        )
-    )
 
 
 @operations_app.command("tiktok-stage1-soak")

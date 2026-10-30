@@ -106,6 +106,10 @@ class TokenRow(Base):
     parent_token_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("access_tokens.token_id"), nullable=True
     )
+    # Editor migration 0026 (audit A1): who minted it; a workspace token dies with their access.
+    created_by_user_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("users.user_id"), nullable=True
+    )
 
 
 class AuthEventRow(Base):

@@ -275,8 +275,13 @@ async def test_capability_value_never_appears_in_the_url_the_body_or_the_log(
 
 
 @pytest.mark.asyncio
-async def test_capability_cookie_is_marked_secure_over_https(gateway, tmp_path: Path) -> None:
-    async with client_for(preview_app(gateway, tmp_path), "https://test") as client:
+async def test_capability_cookie_is_secure_on_an_https_site_behind_a_plain_http_proxy(
+    gateway, tmp_path: Path
+) -> None:
+    # Caddy terminates TLS and talks plain HTTP to the API, so the request scheme says nothing
+    # about the browser's; the site origin decides, as for the session cookie (audit A3).
+    app = preview_app(gateway, tmp_path, THOTH_SITE_ORIGIN="https://thoth.example")
+    async with client_for(app, "http://test") as client:
         issued = await client.post(CAPABILITY_URL, headers=AUTH_HEADERS)
 
     assert "Secure" in issued.headers["set-cookie"]
