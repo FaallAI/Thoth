@@ -230,6 +230,9 @@ class _Scroll:
     done: bool = False
     captcha: bool = False
     solves: int = 0
+    # How many list responses had arrived when a captcha was last solved: a refusal among
+    # them predates the solve and is stale, never a reason to stop.
+    solved_after: int = 0
     timed_out: bool = False
     stop: str = "none"
     page_png: bytes | None = None
@@ -247,6 +250,7 @@ class _Scroll:
         self.done = False
         self.captcha = False
         self.solves = 0
+        self.solved_after = 0
         self.timed_out = False
         self.stop = "none"
         self.page_png = None
@@ -261,6 +265,8 @@ class _Scroll:
             except Exception:
                 body = b""
             page = parse_discovery_page(self.kind, body, getattr(response, "status", None))
+            if _stale_refusal(page, self.parsed - 1, self.solved_after):
+                continue
             self.seen.update(video.post_id for video in page.videos)
             if page.reason is not None or not page.has_more:
                 self.done = True
@@ -271,7 +277,15 @@ async def _solve(page: Any, scroll: _Scroll) -> bool:
     if scroll.solves >= MAX_SOLVES:
         return False
     scroll.solves += 1
-    return await solve_captcha(page)
+    solved = await solve_captcha(page)
+    if solved:
+        scroll.solved_after = len(scroll.responses)
+    return solved
+
+
+def _stale_refusal(page: DiscoveryPage, index: int, solved_after: int) -> bool:
+    """A list response TikTok refused before a captcha was solved says nothing about after."""
+    return page.reason is DiscoveryReason.CAPTCHA and index < solved_after
 
 
 def _scroll_action(scroll: _Scroll) -> Callable[[Any], Awaitable[None]]:
@@ -316,6 +330,13 @@ async def _crop_profile_page(page: Any) -> bytes | None:
 async def _paginate(page: Any, scroll: _Scroll) -> None:
     idle = 0
     for _ in range(MAX_SCROLLS):
+        # The modal first: a list response refused while it shows is stale once it is solved.
+        if await page.query_selector(CAPTCHA_SELECTOR) is not None:
+            if not await _solve(page, scroll):
+                scroll.captcha = True
+                scroll.stop = "captcha"
+                return
+            idle = 0
         await scroll.absorb()
         if len(scroll.seen) >= scroll.limit:
             scroll.stop = "limit"
@@ -323,12 +344,6 @@ async def _paginate(page: Any, scroll: _Scroll) -> None:
         if scroll.done:
             scroll.stop = "done"
             return
-        if await page.query_selector(CAPTCHA_SELECTOR) is not None:
-            if not await _solve(page, scroll):
-                scroll.captcha = True
-                scroll.stop = "captcha"
-                return
-            idle = 0
         before = len(scroll.responses)
         await page.mouse.wheel(0, SCROLL_PX)
         if await _wait_for_new(page, scroll, before):
@@ -356,14 +371,18 @@ def _assemble(
     *,
     captcha: bool,
     timed_out: bool,
+    solved_after: int = 0,
 ) -> DiscoveryResult:
-    """Merge parsed pages in capture order; the first page reason stops assembly."""
+    """Merge parsed pages in capture order; the first page reason stops assembly, except a
+    refusal captured before a captcha was solved, which is stale."""
     videos: dict[str, DiscoveredVideo] = {}
     photos: dict[str, DiscoveredPhoto] = {}
     pages = ads = photo_posts = invalid = 0
     exhausted = False
     reason: DiscoveryReason | None = None
-    for page in parsed:
+    for index, page in enumerate(parsed):
+        if _stale_refusal(page, index, solved_after):
+            continue
         if page.reason is not None:
             reason = page.reason
             exhausted = False
@@ -487,5 +506,6 @@ class ScraplingDiscoveryBrowser:
             [_parse_entry(kind, entry) for entry in captured],
             captcha=scroll.captcha or _captcha_rendered(response),
             timed_out=scroll.timed_out,
+            solved_after=scroll.solved_after,
         )
         return result.model_copy(update={"page_png": scroll.page_png})

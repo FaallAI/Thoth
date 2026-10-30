@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-30 - A solved TikTok captcha no longer ends the listing as captcha
+
+**Seen in the stage1 worker log (run after the 98d7f42 deploy):** footage's creator listing for `@pojokbogor` went through a source account; the whirl captcha was solved (`tiktok captcha outcome subtype=whirl solved=true attempts=1`), yet four seconds later discovery finished `kind=profile pages=0 videos=0 reason=captcha`, the creator listing was "unavailable", and footage admitted nothing from that creator.
+
+**Cause:** the list response TikTok refused while the modal showed (a non-JSON body, parsed as `captcha`) was still in the capture. `absorb()` read it and marked the scroll done before any scroll after the solve, and `_assemble` stopped at that first page, so the solve bought nothing.
+
+**Fix (`acquisition/discovery.py`):** a successful solve records how many list responses had arrived (`solved_after`); a `captcha` refusal among those is stale and is skipped by both `absorb()` and `_assemble`. A refusal after the solve still ends the listing as `captcha`. The scroll now checks for the modal before reading responses, so the modal is solved first.
+
+**Verification:** `test_a_page_refused_before_a_solved_captcha_does_not_end_the_discovery` RED (captcha, 0 pages, 0 videos) then GREEN; `test_a_refusal_after_the_solve_is_still_captcha`; acquisition tests 1037 passed; full Python suite 4381 passed, 252 skipped; `make lint` clean.
+
+**Not covered offline:** whether TikTok re-sends the list request after a solve. If it does not, the listing now ends as `no_data`/`idle` instead of a false `captcha`; a live look at the next creator listing will tell.
+
+**Next steps:**
+- Operator gates: push and PR for `fix/discovery-solved-captcha`, merge, deploy; then watch the next creator listing that meets a captcha.
+
 ## 2026-10-30 - Deployed master 98d7f42 (PR #92, worker log errors)
 
 **Deploy:** thoth `90d05385`, renderer `87226857`, web `908dbe8d`, pulled ahead of `make deploy`; migrate applied 0 revisions (head stays `0026`); every service healthy, worker 0 restarts, a new worker polls `thoth-control-plane`; acquisition stays `python` on `api` and `worker`. Previous file in `D:/thoth-tmp/bu/pins/pins-03741c38.env`. No workflow was running.

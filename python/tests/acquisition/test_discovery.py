@@ -574,6 +574,40 @@ async def test_a_solved_captcha_lets_the_scroll_continue(monkeypatch) -> None:
     assert session.page.scrolls == 4  # kept scrolling past the solved captcha
 
 
+async def test_a_page_refused_before_a_solved_captcha_does_not_end_the_discovery(
+    monkeypatch,
+) -> None:
+    # Stage1, 2026-10-30: the whirl was solved (solved=true), yet the profile listing ended
+    # with reason=captcha, pages=0, videos=0; the list response TikTok refused before the
+    # solve stopped the scroll and the result.
+    async def fake_solve(page, attempts=2, rng=None):
+        page.captcha = False
+        return True
+
+    monkeypatch.setattr(discovery_module, "solve_captcha", fake_solve)
+    session = FakeSession("profile", [b"", *_pages("profile", 2)], captcha=True)
+
+    result = await _browser(session).discover(ProfileDiscovery(handle="creator", limit=100))
+
+    assert result.reason is None
+    assert result.pages == 2
+    assert len(result.videos) == 6
+
+
+async def test_a_refusal_after_the_solve_is_still_captcha(monkeypatch) -> None:
+    async def fake_solve(page, attempts=2, rng=None):
+        page.captcha = False
+        return True
+
+    monkeypatch.setattr(discovery_module, "solve_captcha", fake_solve)
+    session = FakeSession("profile", [b"", *_pages("profile", 1), b""], captcha=True)
+
+    result = await _browser(session).discover(ProfileDiscovery(handle="creator", limit=100))
+
+    assert result.reason is DiscoveryReason.CAPTCHA
+    assert len(result.videos) == 3  # the page between the two refusals still counts
+
+
 async def test_an_unsolved_captcha_still_stops_the_scroll(monkeypatch) -> None:
     async def fake_solve(page, attempts=2, rng=None):
         return False
