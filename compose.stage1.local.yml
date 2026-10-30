@@ -76,34 +76,6 @@ services:
     restart: unless-stopped
     networks: [stage1-private]
 
-  legacy-cdp:
-    image: ${THOTH_IMAGE:?set digest-qualified THOTH_IMAGE}
-    user: "10001:10001"
-    command: ["/opt/thoth/bin/start-legacy-cdp"]
-    security_opt:
-      - seccomp:unconfined
-    volumes:
-      - type: bind
-        source: ${THOTH_STAGE1_DATA_ROOT:?set THOTH_STAGE1_DATA_ROOT}/browser-profile
-        target: /var/lib/thoth/browser-profile
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - >-
-          /opt/thoth/python/.venv/bin/python -c "import json, urllib.parse, urllib.request;
-          version = urllib.request.urlopen('http://127.0.0.1:18800/json/version', timeout=2);
-          assert 200 <= version.status < 300;
-          targets = json.load(urllib.request.urlopen('http://127.0.0.1:18800/json', timeout=2));
-          pages = [urllib.parse.urlsplit(target.get('url', '')) for target in targets if target.get('type') == 'page'];
-          blocked = ('login', 'signup', 'captcha', 'challenge', 'verify', 'security-check');
-          assert any(page.scheme == 'https' and page.hostname in ('www.tiktok.com', 'tiktok.com', 'm.tiktok.com') and not any(marker in (page.path + '?' + page.query).lower() for marker in blocked) for page in pages)"
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
-    restart: unless-stopped
-    networks: [stage1-private]
-
   minio:
     # The official minio/minio image is no longer published; pgsty/minio rebuilds the same
     # server (operator, 2026-10-17). Workflow media lives here (spec 2026-10-17).
@@ -158,7 +130,6 @@ services:
       THOTH_MEDIA_S3_BUCKET: thoth-media
       THOTH_MEDIA_S3_ACCESS_KEY: ${THOTH_MEDIA_S3_ACCESS_KEY:?set THOTH_MEDIA_S3_ACCESS_KEY}
       THOTH_MEDIA_S3_SECRET_KEY: ${THOTH_MEDIA_S3_SECRET_KEY:?set THOTH_MEDIA_S3_SECRET_KEY}
-      THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE: ${THOTH_STAGE1_ACTIVITY_MODE:-python}
       THOTH_PROMPT_PROVIDER_CATALOG: ${THOTH_PROMPT_PROVIDER_CATALOG:-[]}
       # Stage 5a content assembly; the worker refuses to start with it on and no ffmpeg.
       THOTH_CONTENT_ASSEMBLY_ENABLED: ${THOTH_CONTENT_ASSEMBLY_ENABLED:-false}
@@ -208,8 +179,6 @@ services:
     depends_on:
       temporal:
         condition: service_healthy
-      legacy-cdp:
-        condition: service_healthy
       minio:
         condition: service_healthy
     environment:
@@ -226,8 +195,6 @@ services:
       THOTH_MEDIA_S3_SECRET_KEY: ${THOTH_MEDIA_S3_SECRET_KEY:?set THOTH_MEDIA_S3_SECRET_KEY}
       THOTH_FFMPEG: /usr/bin/ffmpeg
       THOTH_FFPROBE: /usr/bin/ffprobe
-      THOTH_CDP: http://legacy-cdp:18800
-      THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE: ${THOTH_STAGE1_ACTIVITY_MODE:-python}
       THOTH_EDITOR_DATABASE_URL: "postgresql://thoth_editor:${THOTH_EDITOR_POSTGRES_PASSWORD:?set THOTH_EDITOR_POSTGRES_PASSWORD}@editor-postgresql:5432/thoth_editor"
       # Optional Fernet key; empty keeps source accounts off and acquisition anonymous.
       THOTH_ACCOUNT_VAULT_KEY: "${THOTH_ACCOUNT_VAULT_KEY:-}"

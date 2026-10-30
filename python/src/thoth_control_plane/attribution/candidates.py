@@ -20,9 +20,8 @@ from thoth_control_plane.attribution.credit import normalize
 
 logger = logging.getLogger(__name__)
 
-# The same relative place in the repository and in the image (/opt/thoth/scout/config).
-# Stage 10 moves this list into Python when Scout retires.
-DEFAULT_CURATED_FILE = Path(__file__).resolve().parents[4] / "scout" / "config" / "ig_accounts.json"
+# Moved here from Scout's tree when Scout retired (operator, 2026-10-30).
+DEFAULT_CURATED_FILE = Path(__file__).with_name("curated_accounts.json")
 MAX_SOURCE_AGE = timedelta(days=14)
 
 

@@ -32,7 +32,7 @@ def test_local_stage1_secret_and_evidence_inputs_are_git_safe() -> None:
     assert "THOTH_STAGE1_DATA_ROOT=/absolute/path/outside/repository/thoth-stage1" in env_example
     assert "THOTH_CONTROL_PLANE_API_KEY=replace-with-local-secret" in env_example
     assert "THOTH_POSTGRES_PASSWORD=replace-with-local-secret" in env_example
-    assert "THOTH_STAGE1_ACTIVITY_MODE=python" in env_example
+    assert "THOTH_STAGE1_ACTIVITY_MODE" not in env_example
     assert "THOTH_LIVE_TIKTOK_URL=replace-with-approved-public-fixture" in env_example
     assert "https://www.tiktok.com/" not in env_example
     assert "4630917242bd9e3483c8f89ae4017438cadc23a1f699f5e516c2dc610beb18b1" not in env_example
@@ -68,50 +68,35 @@ def test_local_stage1_infrastructure_is_pinned_persistent_and_private() -> None:
     assert "ports:" not in temporal
 
 
-def test_local_stage1_thoth_roles_share_one_digest_and_keep_cdp_private() -> None:
+def test_local_stage1_thoth_roles_share_one_digest_and_run_no_scout() -> None:
     compose = _repo_text("compose.stage1.local.yml")
     api = _service_block(compose, "api")
     worker = _service_block(compose, "worker")
-    cdp = _service_block(compose, "legacy-cdp")
 
     required_image = "${THOTH_IMAGE:?set digest-qualified THOTH_IMAGE}"
     assert api.count(required_image) == 1
     assert worker.count(required_image) == 1
-    assert cdp.count(required_image) == 1
     assert 'user: "10001:10001"' in api
     assert 'user: "10001:10001"' in worker
-    assert 'user: "10001:10001"' in cdp
     assert '"127.0.0.1:8000:8000"' in api
     assert "ports:" not in worker
-    assert "ports:" not in cdp
     assert "THOTH_TEMPORAL_TARGET: temporal:7233" in api
     assert "THOTH_TEMPORAL_TARGET: temporal:7233" in worker
     assert "THOTH_TEMPORAL_NAMESPACE: thoth-stage1" in api
     assert "THOTH_TEMPORAL_NAMESPACE: thoth-stage1" in worker
-    assert "THOTH_CDP: http://legacy-cdp:18800" in worker
-    approved_mode = (
-        "THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE: ${THOTH_STAGE1_ACTIVITY_MODE:-python}"
-    )
-    # The API picks the mode when it starts a workflow, so it reads the same setting.
-    assert approved_mode in api
-    assert approved_mode in worker
-    assert "/opt/thoth/bin/start-legacy-cdp" in cdp
-    assert "/json/version" in cdp
-    assert "/json" in cdp
-    assert "tiktok.com" in cdp
+    # Scout and its CDP sidecar are retired (operator, 2026-10-30): no sidecar, no mode.
+    for retired in ("legacy-cdp", "THOTH_CDP", "ACTIVITY_MODE", "browser-profile", "seccomp"):
+        assert retired not in compose
     # No service shares the artifact volume (spec 2026-10-17, render storage).
     assert "THOTH_STAGE1_DATA_ROOT}/artifacts" not in api
     assert "THOTH_STAGE1_DATA_ROOT}/artifacts" not in worker
-    assert "/browser-profile" in cdp
-    assert "/browser-profile" not in api
-    assert "/browser-profile" not in worker
 
 
 def test_local_stage1_compose_requires_digest_qualified_thoth_image() -> None:
     compose = _repo_text("compose.stage1.local.yml")
     assert "latest" not in compose
     assert "sha-1c904a7" not in compose
-    assert compose.count("${THOTH_IMAGE:?set digest-qualified THOTH_IMAGE}") == 3
+    assert compose.count("${THOTH_IMAGE:?set digest-qualified THOTH_IMAGE}") == 2
 
 
 def test_local_stage1_creator_studio_uses_a_separate_editor_database() -> None:
@@ -164,11 +149,9 @@ def test_local_stage1_runbook_keeps_live_and_evidence_actions_operator_gated() -
         "127.0.0.1:8000/healthz",
         "127.0.0.1:8000/readyz",
         "temporal operator namespace describe --namespace thoth-stage1",
-        "the only approved value is `python`",
         "s3://clipper-stage1-soak-evidence-20260903-a1d22394/stage1/observations/",
         "s3://clipper-stage1-soak-evidence-20260903-a1d22394/stage1/reports/",
-        "Do not run `docker compose up` for `legacy-cdp` or `worker` "
-        "without explicit live approval.",
+        "Do not run `docker compose up` for `worker` without explicit live approval.",
         "Do not run `docker compose down -v`",
     }
     assert all(token in runbook for token in required)
@@ -210,17 +193,6 @@ def test_local_stage1_runbook_inspects_topology_without_extra_tooling() -> None:
     assert "config --no-interpolate" in runbook
 
 
-def test_a_mode_change_recreates_the_api_and_the_worker() -> None:
-    compose = _repo_text("compose.stage1.local.yml")
-    runbook = _repo_text("docs/operations/stage1-local-docker.md")
-    worker = _service_block(compose, "worker")
-
-    assert "${THOTH_STAGE1_ACTIVITY_MODE:-python}" in worker
-    assert "up -d --no-deps --force-recreate api worker" in runbook
-    assert "exec api printenv THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE" in runbook
-    assert "docker compose restart` with the same digest" not in runbook
-
-
 def test_local_stage1_runbook_verifies_the_deployment_before_any_live_action() -> None:
     runbook = _repo_text("docs/operations/stage1-local-docker.md")
     required = {
@@ -230,7 +202,7 @@ def test_local_stage1_runbook_verifies_the_deployment_before_any_live_action() -
         # `compose port` reports an exposed port as `invalid IP:0` whether or not it is
         # published, so the runbook must read the container's own bindings instead.
         "{{json .NetworkSettings.Ports}}",
-        "ps -q legacy-cdp",
+        "ps -q worker",
         "exec worker id -u",
     }
 
@@ -251,35 +223,18 @@ def test_local_stage1_runbook_freezes_the_digest_for_the_soak_window() -> None:
     assert "observation record carries no digest" in prose
 
 
-def test_local_stage1_runbook_explains_the_cdp_seccomp_relaxation() -> None:
-    """A committed sandbox relaxation needs its reason and its boundary written down."""
-    compose = _repo_text("compose.stage1.local.yml")
-    runbook = _repo_text("docs/operations/stage1-local-docker.md")
-    prose = " ".join(runbook.split())
-    assert compose.count("seccomp:unconfined") == 1
-    assert "seccomp:unconfined" in prose
-    assert "no other service may relax its sandbox" in prose
-
-
 def test_provider_override_only_configures_the_worker() -> None:
-    """The provider file is a live credential, so only the fallback worker receives it.
+    """The provider file is a live credential, so only the worker receives it.
 
     The override is a second `-f` file rather than an edit to the base stack: the
-    infrastructure smoke, the API, and the browser must keep starting without any
-    provider input at all.
+    infrastructure smoke and the API must keep starting without any provider input.
     """
     override = _repo_text("compose.stage1.providers.yml")
 
     assert re.findall(r"(?m)^  [a-z][a-z0-9-]*:$", override) == ["  worker:"]
     assert "${THOTH_STAGE1_PROVIDER_ENV_FILE:?" in override
     assert "required: true" in override
-    for role in (
-        "THOTH_SCOUT_PROVIDER",
-        "THOTH_SCOUT_CHAT_PROVIDER",
-        "THOTH_SCOUT_VISION_PROVIDER",
-        "THOTH_SCOUT_EMBED_PROVIDER",
-    ):
-        assert f"{role}: novita" in override
+    assert "THOTH_SCOUT_" not in override  # Scout's provider roles, retired with it
     assert "ports:" not in override
     assert "image:" not in override
 
@@ -336,7 +291,6 @@ def test_editor_preview_signing_key_reaches_the_api_only() -> None:
         "editor-postgresql",
         "temporal",
         "temporal-ui",
-        "legacy-cdp",
         "minio",
         "worker",
     ):
@@ -359,7 +313,6 @@ def test_editor_preview_adds_no_service_port_or_mount() -> None:
         "  editor-postgresql:",
         "  temporal:",
         "  temporal-ui:",
-        "  legacy-cdp:",
         "  minio:",
         "  api:",
         "  worker:",
@@ -584,7 +537,7 @@ def test_api_and_worker_share_the_account_profiles_directory() -> None:
         )
         assert "target: /var/lib/thoth/account-profiles" in block
     setup = _repo_text("docs/operations/stage1-local-docker.md")
-    assert "artifacts,browser-profile,account-profiles," in setup
+    assert "artifacts,account-profiles," in setup
     assert 'sudo chown -R 10001:10001 "$THOTH_STAGE1_DATA_ROOT"/account-profiles' in setup
 
 

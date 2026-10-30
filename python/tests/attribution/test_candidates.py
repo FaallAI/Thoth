@@ -103,8 +103,10 @@ def test_the_curated_list_reads_every_shape_and_degrades_to_empty(tmp_path: Path
     assert load_curated(tmp_path / "missing.json") == frozenset()
 
 
-def test_the_default_curated_file_is_the_scout_list() -> None:
-    repository = Path(__file__).resolve().parents[3]
+def test_the_default_curated_list_ships_inside_the_package() -> None:
+    # It lived in Scout's tree until Scout retired (operator, 2026-10-30); the image keeps
+    # only the Python source now, so the list must sit beside the code that reads it.
+    package = Path(__file__).resolve().parents[2] / "src" / "thoth_control_plane"
 
-    assert repository / "scout" / "config" / "ig_accounts.json" == DEFAULT_CURATED_FILE
-    assert DEFAULT_CURATED_FILE.is_file()
+    assert DEFAULT_CURATED_FILE.is_relative_to(package)
+    assert {"dagelan", "jktpop", "basevox"} <= load_curated()

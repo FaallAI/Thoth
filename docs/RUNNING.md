@@ -33,8 +33,8 @@ The short local sequence is:
 4. stop dashboard, API, worker, then Temporal with `Ctrl+C` in each terminal.
 
 Never print or commit the API keys while configuring these processes. The existing Rust worker
-uses the SQLite queue below; the Temporal Python worker uses `thoth-control-plane` and its isolated
-legacy-adapter queue. They are independent processes and queues.
+uses the SQLite queue below; the Temporal Python worker uses `thoth-control-plane`. They are
+independent processes and queues.
 
 ### Deploy with reports in PostgreSQL
 
