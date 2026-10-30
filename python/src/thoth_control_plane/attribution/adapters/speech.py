@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import multiprocessing
 from collections.abc import Sequence
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
 from typing import Any
 
@@ -114,53 +117,75 @@ class WhisperTranscriber:
 
 
 class SherpaDiarizer:
+    """Speaker turns, computed in a child process.
+
+    sherpa-onnx holds the GIL through `process()`; in a thread it stalled the worker's event loop
+    for 45.8 s on stage1 (2026-10-30), past Temporal's task deadlines. One spawned process keeps
+    the engine loaded between calls, and the worker's loop stays free.
+    """
+
     def __init__(self, model_dir: Path) -> None:
         self._dir = model_dir
-        self._engine: Any = None
         self._lock = asyncio.Lock()
+        self._pool: ProcessPoolExecutor | None = None
 
     async def turns(self, video: Path, *, seconds: float) -> list[Turn]:
         async with self._lock:
-            return await asyncio.to_thread(self._turns, video, seconds)
-
-    def _load(self) -> Any:
-        try:
-            import sherpa_onnx
-        except ImportError:
-            raise AttributionError("diarization_missing") from None
-        if missing(self._dir, DIARIZATION_FILES):
-            raise AttributionError("diarization_model_missing")
-        if self._engine is None:
-            config = sherpa_onnx.OfflineSpeakerDiarizationConfig(
-                segmentation=sherpa_onnx.OfflineSpeakerSegmentationModelConfig(
-                    pyannote=sherpa_onnx.OfflineSpeakerSegmentationPyannoteModelConfig(
-                        model=str(self._dir / "segmentation.onnx")
-                    )
-                ),
-                embedding=sherpa_onnx.SpeakerEmbeddingExtractorConfig(
-                    model=str(self._dir / "embedding.onnx")
-                ),
-                clustering=sherpa_onnx.FastClusteringConfig(
-                    num_clusters=-1, threshold=CLUSTER_THRESHOLD
-                ),
-                min_duration_on=0.3,
-                min_duration_off=0.5,
-            )
-            if not config.validate():
-                raise AttributionError("diarization_model_missing")
+            if self._pool is None:
+                # spawn, not fork: the worker runs threads, and a forked copy of them is unsafe.
+                self._pool = ProcessPoolExecutor(
+                    max_workers=1, mp_context=multiprocessing.get_context("spawn")
+                )
+            loop = asyncio.get_running_loop()
             try:
-                self._engine = sherpa_onnx.OfflineSpeakerDiarization(config)
-            except Exception as error:
-                raise AttributionError("diarization_model_missing") from error
-        return self._engine
+                return await loop.run_in_executor(
+                    self._pool, _diarize, str(self._dir), str(video), seconds
+                )
+            except BrokenProcessPool:
+                # The child died (out of memory, a native crash): start a fresh one next time.
+                self._pool = None
+                raise AttributionError("diarization_failed") from None
 
-    def _turns(self, video: Path, seconds: float) -> list[Turn]:
-        engine = self._load()
-        audio = load_audio(video, seconds, "diarization_failed", "diarization_missing")
-        if audio.size == 0:
-            return []
-        try:
-            result = engine.process(audio).sort_by_start_time()
-        except Exception as error:
-            raise AttributionError("diarization_failed") from error
-        return [Turn(item.start, item.end, int(item.speaker)) for item in result]
+
+@functools.cache
+def _diarization_engine(model_dir: str) -> Any:
+    """One engine per child process, built on its first call."""
+    try:
+        import sherpa_onnx
+    except ImportError:
+        raise AttributionError("diarization_missing") from None
+    directory = Path(model_dir)
+    if missing(directory, DIARIZATION_FILES):
+        raise AttributionError("diarization_model_missing")
+    config = sherpa_onnx.OfflineSpeakerDiarizationConfig(
+        segmentation=sherpa_onnx.OfflineSpeakerSegmentationModelConfig(
+            pyannote=sherpa_onnx.OfflineSpeakerSegmentationPyannoteModelConfig(
+                model=str(directory / "segmentation.onnx")
+            )
+        ),
+        embedding=sherpa_onnx.SpeakerEmbeddingExtractorConfig(
+            model=str(directory / "embedding.onnx")
+        ),
+        clustering=sherpa_onnx.FastClusteringConfig(num_clusters=-1, threshold=CLUSTER_THRESHOLD),
+        min_duration_on=0.3,
+        min_duration_off=0.5,
+    )
+    if not config.validate():
+        raise AttributionError("diarization_model_missing")
+    try:
+        return sherpa_onnx.OfflineSpeakerDiarization(config)
+    except Exception as error:
+        raise AttributionError("diarization_model_missing") from error
+
+
+def _diarize(model_dir: str, video: str, seconds: float) -> list[Turn]:
+    """Runs in the child process; arguments and results cross the process boundary pickled."""
+    engine = _diarization_engine(model_dir)
+    audio = load_audio(Path(video), seconds, "diarization_failed", "diarization_missing")
+    if audio.size == 0:
+        return []
+    try:
+        result = engine.process(audio).sort_by_start_time()
+    except Exception as error:
+        raise AttributionError("diarization_failed") from error
+    return [Turn(item.start, item.end, int(item.speaker)) for item in result]
