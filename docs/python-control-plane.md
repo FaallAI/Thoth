@@ -105,17 +105,8 @@ Do not run either process as root and do not make the mounts world-writable.
 Before allowing a legacy-fallback activity, require
 `GET http://legacy-cdp:18800/json/version` to return 2xx and
 `GET http://legacy-cdp:18800/json` to contain a page target on `tiktok.com`. Restart an unhealthy
-sidecar. Treat an authentication or challenge page during the controlled fallback smoke as a
-release blocker; do not attempt bypass behavior.
-
-The controlled fallback smoke is the `f1` gate: `thoth-control operations
-stage1-controlled-fallback-preflight`, then, under its own single-use operator authorization,
-`stage1-controlled-fallback-run --gate-id f1`. It starts the production legacy supervisor once in
-a one-shot container from the deployed digest against the deployed sidecar, and it never retries.
-A pass proves supervisor activation and target isolation. It is not Python-routing evidence: it
-does not show that a Python workflow enters fallback or that Temporal routed a workflow through
-`LegacyScoutActivity`. The fixture, evidence layout, verdicts, and cleanup precedence are in
-"Controlled fallback gate (`f1`)" in `docs/operations/stage1-local-docker.md`.
+sidecar. Treat an authentication or challenge page during a legacy fallback as a release
+blocker; do not attempt bypass behavior.
 
 Both services must receive `THOTH_CONTROL_PLANE_API_KEY`, `THOTH_TEMPORAL_TARGET`,
 `THOTH_TEMPORAL_NAMESPACE`, `THOTH_CONTROL_PLANE_ARTIFACT_ROOT`, and the deployment-owned activity
@@ -132,12 +123,15 @@ Publishing the image does not deploy it to AWS, restart a worker, configure Temp
 soak window, or approve the Python-only cutover. The soak begins only after the recorded digest is
 deployed and a controlled canary passes.
 
-`THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE` is a worker-owned migration control:
+`THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE` is a migration control. The API reads it when it starts
+a workflow. **Since 2026-10-30 the default and the only approved stage1 value is `python`:** Scout
+is retired, so an acquisition that fails is fixed in Python. The two Scout modes below are history
+until the legacy activity is removed.
 
 | Mode | Routing behavior |
 | --- | --- |
 | `python` | Use Python acquisition only; it never invokes the legacy activity. |
-| `python_tiktok_with_legacy_fallback` | Migration default. A TikTok post uses Python first; eligible safe failures may run the legacy activity once. Non-TikTok sources route directly to legacy during this slice. |
+| `python_tiktok_with_legacy_fallback` | Former migration default. A TikTok post uses Python first; eligible safe failures may run the legacy activity once. Non-TikTok sources route directly to legacy during this slice. |
 | `legacy_scout` | Route all source investigation through the isolated legacy activity. Use this as the rollback mode. |
 
 For an eligible TikTok post, the route order is **Scrapling headless -> TikWM/CDN -> legacy
@@ -276,7 +270,7 @@ never a cleanup PASS, and no route may have its cleanup result assumed.
 | --- | --- |
 | `minimum_window_days` | 1 |
 | `minimum_valid_completed_runs` | 12 |
-| `minimum_parity_samples` | 2 |
+| `minimum_parity_samples` | 0 (Scout is retired, so the soak is Python-only; archived reports keep their own 2) |
 | `minimum_python_native_success_rate` | 0.95 |
 | `maximum_legacy_fallback_rate` | 0.05 |
 | `maximum_terminal_failure_rate` | 0.02 |

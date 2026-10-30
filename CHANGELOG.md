@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-30 - The final soak is Python-only
+
+**Operator ruling:** agreed to a Python-only soak policy. `tiktok_soak` required two Python-vs-Scout parity samples before `ready: true`; with Scout retired and the parity tooling removed, that blocker could never clear.
+
+**Change:** `TikTokSoakPolicy.minimum_parity_samples` defaults to 0 (`ge=0`). A recorded `parity_passed: false` still blocks, and an archived report keeps the parity minimum embedded in its own policy.
+
+**Verification:** `test_a_python_only_window_needs_no_parity_sample` RED then GREEN; `test_an_archived_policy_keeps_its_own_parity_minimum`; `tests/operations` and `tests/deployment` 489 passed; `make lint` clean.
+
+## 2026-10-30 - Scout fallback switched off: acquisition is Python only
+
+**Operator ruling:** "scout harus mati, nanti jika gagal berarti dari sisi python nya perlu di perbaiki lagi". Stage1 ran `python_tiktok_with_legacy_fallback`, so a TikTok acquisition that failed in Python silently fell back to Scout through `legacy-cdp`.
+
+**Change:** the default `THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE` is `python` (`config.py`, `.env.stage1.local.example`, CI). The stage1 preflight approves only `python`; both Scout modes, the fallback and the old `legacy_scout` rollback, are refused. In `python` mode a Scout-only platform answers `unsupported_platform` instead of running Scout.
+
+**Found on the way:** `compose.stage1.local.yml` hard-coded the fallback mode on the `api` service, and the API is what picks the mode when it starts a workflow; only the worker read `THOTH_STAGE1_ACTIVITY_MODE`. The runbook's mode change recreated only the worker, so it never changed the routing. Both roles now read the setting, and the runbook recreates `api` and `worker`.
+
+**Verification:** `make lint` clean; full Python suite 4371 passed, 252 skipped.
+
+**Next steps:**
+- Operator gates: push and PR, merge, deploy. Stage1 switches only when the new compose is deployed and `.env.stage1.local` sets `THOTH_STAGE1_ACTIVITY_MODE=python` (the current value would now fail the preflight).
+- Watch TikTok runs after the switch: a failure that Scout used to rescue now surfaces and is fixed in Python.
+- Remove the legacy activity, the `legacy-cdp` sidecar and `scout/` (Scout retirement) as its own task.
+
+## 2026-10-30 - Stage 1 parity and controlled fallback tooling removed
+
+**Operator ruling:** remove the Stage 1 parity tooling, and with it the controlled fallback gates (ADR 0001 waived both; deployment rollback is the recovery mechanism). Scout and the Rust crates are being retired, so nothing was kept alive for them.
+
+**Removed:** `operations/tiktok_parity.py`, `stage1_parity_preflight.py`, `stage1_parity_attempt_summary.py`, `stage1_controlled_fallback.py`, `stage1_controlled_fallback_runner.py`; the `tiktok-stage1-parity-compare` and `stage1-controlled-fallback-preflight|run` commands; `compose.stage1.parity*.yml` and `compose.stage1.controlled-fallback*.yml`; `docker/start-parity-reference`, `test-parity-offline.sh`, `test-controlled-fallback-offline.sh`; the parity profile and launcher check in the `Dockerfile`; four CI steps; `make smoke-parity` and `smoke-fallback`; `docs/operations/stage1-parity-sampling.md` and the runbook sections for the `f1`-`f4` gates and parity samples; 4 test files and 15 contract tests. The live TikTok test lost its Python-vs-Scout comparison and keeps its own containment and checksum helpers. Template release parity (renderer) is unrelated and stays. `scout/` is untouched.
+
+**Kept:** the runtime legacy fallback (`python_tiktok_with_legacy_fallback`) and the soak evaluator `tiktok_soak`.
+
+**Verification:** `make lint` clean; `tests/deployment`, `tests/test_cli.py`, `tests/operations`, `tests/live` pass (2 live tests skipped); full collection imports cleanly; actionlint reports only findings master already has.
+
+**Next steps:**
+- Operator gates: push and PR, merge.
+- `tiktok_soak` required 2 Python-vs-Scout parity samples: now 0, see "The final soak is Python-only".
+- Turn off the Scout runtime fallback on stage1: done in the next entry.
+
 ## 2026-10-29 - Deployed master 5c30ba2 (PR #85, prompt answers in a markdown fence)
 
 **Deploy:** thoth `76ce7648`, renderer `e3d00906`, web `9b359802`, pulled ahead of `make deploy`; migrate applied 0 revisions (head stays `0025`); every service healthy, worker 0 restarts; Temporal lists the new worker polling `thoth-prompt-proposals`. Previous pins in `D:/thoth-tmp/bu/pins/pins-b38c15f4.env`. No workflow was running.

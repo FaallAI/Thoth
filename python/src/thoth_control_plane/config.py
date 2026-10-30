@@ -83,9 +83,8 @@ class Settings(BaseSettings):
     # Billing (spec 2026-10-20): both empty leave checkout and the webhook off.
     THOTH_XENDIT_SECRET_KEY: SecretStr | None = None
     THOTH_XENDIT_CALLBACK_TOKEN: SecretStr | None = None
-    THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE: SourceActivityMode = (
-        "python_tiktok_with_legacy_fallback"
-    )
+    # Scout is retired (operator 2026-10-30): a failed acquisition is fixed in Python.
+    THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE: SourceActivityMode = "python"
     THOTH_PROMPT_PROVIDER_CATALOG: tuple[PromptProviderRuntimeDefinition, ...] = ()
     THOTH_PROMPT_PROVIDER_SECRETS: dict[SafeIdentifier, SecretStr] = Field(default_factory=dict)
     THOTH_RENDERER_INTERNAL_URL: AnyHttpUrl | None = None

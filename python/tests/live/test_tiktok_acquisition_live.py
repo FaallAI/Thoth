@@ -3,17 +3,12 @@
 These tests are skipped unless the caller deliberately supplies an approved
 public TikTok post URL through ``THOTH_LIVE_TIKTOK_URL``. They never print or
 persist that environment value directly.
-
-The parity test additionally requires a *first-party* post: legacy Scout
-investigates provenance, so it rejects a repost as its own main candidate and
-traces it to the original creator instead. Supplying a repost URL fails the
-parity test inside legacy Scout, not in the Python acquisition path.
 """
 
 import asyncio
+import hashlib
 import json
 import os
-from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -22,25 +17,13 @@ from thoth_control_plane.acquisition.browser import (
     active_scrapling_session_count,
     check_scrapling_capability,
 )
-from thoth_control_plane.activities.legacy_scout import LegacyScoutActivity, LegacyScoutInput
 from thoth_control_plane.activities.source_investigation import (
     SourceInvestigationActivityInput,
     build_source_investigation_activity,
 )
 from thoth_control_plane.config import Settings
-from thoth_control_plane.operations.tiktok_parity import (
-    file_checksum as _file_checksum,
-)
-from thoth_control_plane.operations.tiktok_parity import (
-    normalize_legacy_tiktok,
-    normalize_python_tiktok,
-    resolve_artifact_path,
-)
 
 LIVE_URL = os.getenv("THOTH_LIVE_TIKTOK_URL")
-_SCOUT_ACQUISITION_MEDIA_ROOT = (
-    Path(__file__).resolve().parents[3] / "scout" / "output" / "acquisition-media"
-)
 
 _BANNED_PERSISTED_KEYS = frozenset(
     {
@@ -64,18 +47,16 @@ _BANNED_PERSISTED_KEYS = frozenset(
 )
 
 
-def _artifact_path(
-    artifact_root: Path, location: str, *, absolute_roots: tuple[Path, ...] = ()
-) -> Path:
-    """Resolve one location below its root, failing the test when it escapes.
-
-    Containment itself lives in `resolve_artifact_path`, which the offline
-    parity helper shares: this smoke and that helper must never disagree about
-    what an artifact root contains.
-    """
-    resolved_path = resolve_artifact_path(artifact_root, location, absolute_roots=absolute_roots)
-    assert resolved_path is not None
+def _artifact_path(artifact_root: Path, location: str) -> Path:
+    """Resolve one location below its root, failing the test when it escapes."""
+    resolved_path = (artifact_root / location).resolve()
+    assert resolved_path.is_relative_to(artifact_root.resolve())
     return resolved_path
+
+
+def _file_checksum(path: Path) -> str:
+    """Recompute one artifact's digest in the recorded `sha256:<hex>` form."""
+    return f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"
 
 
 def _persisted_keys(value: object) -> set[str]:
@@ -175,45 +156,3 @@ async def test_live_cancellation_closes_owned_browser_and_partial_files(tmp_path
         await task
     assert active_scrapling_session_count() == 0
     assert list(tmp_path.rglob("*.part")) == []
-
-
-@pytest.mark.live
-@pytest.mark.asyncio
-@pytest.mark.skipif(not LIVE_URL, reason="THOTH_LIVE_TIKTOK_URL is not configured")
-async def test_live_python_and_legacy_tiktok_contracts_match(tmp_path: Path) -> None:
-    url = LIVE_URL
-    assert url is not None
-    capability = await check_scrapling_capability()
-    assert capability.available is True
-    activity = _live_activity(tmp_path, capability)
-    python_result = await activity(
-        SourceInvestigationActivityInput(
-            workflow_id="wf_live_tiktok_parity_001",
-            request_snapshot_id="req_live_tiktok_parity_001",
-            canonical_source_url=url,
-        )
-    )
-    assert python_result.report is not None
-    python_payload = json.loads(
-        _artifact_path(tmp_path, python_result.report.location).read_text(encoding="utf-8")
-    )
-
-    legacy_root = tmp_path / "legacy"
-    legacy_result = await LegacyScoutActivity(artifact_root=legacy_root).inspect(
-        LegacyScoutInput(
-            workflow_id="wf_live_tiktok_legacy_001",
-            canonical_source_url=url,
-            output_package_id="pkg_live_tiktok_legacy_001",
-            timeout=timedelta(minutes=5),
-            cancellation_token="can_live_tiktok_legacy_001",
-        )
-    )
-    assert legacy_result.report is not None
-    assert not Path(legacy_result.report.location).is_absolute()
-    legacy_payload = json.loads(
-        _artifact_path(legacy_root, legacy_result.report.location).read_text(encoding="utf-8")
-    )
-
-    assert normalize_python_tiktok(python_payload, tmp_path) == normalize_legacy_tiktok(
-        legacy_payload, url, legacy_root, absolute_roots=(_SCOUT_ACQUISITION_MEDIA_ROOT,)
-    )
