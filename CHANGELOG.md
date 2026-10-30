@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-30 - Deployed master 98d7f42 (PR #92, worker log errors)
+
+**Deploy:** thoth `90d05385`, renderer `87226857`, web `908dbe8d`, pulled ahead of `make deploy`; migrate applied 0 revisions (head stays `0026`); every service healthy, worker 0 restarts, a new worker polls `thoth-control-plane`; acquisition stays `python` on `api` and `worker`. Previous file in `D:/thoth-tmp/bu/pins/pins-03741c38.env`. No workflow was running.
+
+**Verified in the live worker:** the diarization probe (120 s of audio through `SherpaDiarizer`) took 6.0 s with a worst event-loop lag of 0.01 s; before the fix the same probe stalled the loop 5.05 s.
+
+**Next steps:**
+- Watch the next TikTok run with speech: the worker log should show no `event loop stalled` and no source-step or MinIO pool warnings.
+
 ## 2026-10-30 - Worker log errors after the 03741c3 deploy
 
 **Reported by the operator:** many errors in `docker logs thoth-stage1-local-worker-1`. The first Python-only TikTok run (`wf_6ca4c298...`) still succeeded end to end; the 30-minute log held five kinds of lines.
