@@ -74,3 +74,44 @@ async def test_elevenlabs_records_the_characters_it_was_asked_to_speak() -> None
         ("elevenlabs/eleven_multilingual_v2", 1.0, "call"),
         ("elevenlabs/eleven_multilingual_v2", 12.0, "character"),
     ]
+
+
+async def test_an_agno_call_closes_the_http_client_it_used(monkeypatch) -> None:
+    """Stage1, 2026-10-30: agno builds a new AsyncOpenAI per request; left to the SDK, its httpx
+    client was closed by garbage collection on a Temporal workflow thread ("Task was destroyed
+    but it is pending! AsyncClient.aclose()"). The adapter owns the client and closes it."""
+    from thoth_control_plane.footage.adapters.queries import AgnoQueryModel
+    from thoth_control_plane.footage.queries import FootageQueryAnswer
+
+    metering.install(Sink())
+    models = []
+
+    class Agent:
+        def __init__(self, **kwargs) -> None:
+            models.append(kwargs["model"])
+
+        async def arun(self, **kwargs):
+            return SimpleNamespace(
+                content=FootageQueryAnswer.model_construct(),
+                metrics=SimpleNamespace(input_tokens=1, output_tokens=1),
+            )
+
+    monkeypatch.setattr("agno.agent.Agent", Agent)
+    await AgnoQueryModel("key", "qwen/q").read("prompt")
+    client = models[0].http_client
+    assert isinstance(client, httpx.AsyncClient)
+    assert client.is_closed
+
+
+def test_every_agno_model_is_given_a_client_the_adapter_closes() -> None:
+    from pathlib import Path
+
+    import thoth_control_plane
+
+    root = Path(thoth_control_plane.__file__).parent
+    for path in root.rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        for call in text.split("OpenAILike(")[1:]:
+            assert "http_client=" in call.split(")", 1)[0], (
+                f"{path.name} builds OpenAILike without http_client"
+            )
