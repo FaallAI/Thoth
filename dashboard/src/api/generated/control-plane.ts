@@ -1456,11 +1456,29 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List Workspace Tokens */
+        get: operations["list_workspace_tokens_api_v1_workspace_tokens_get"];
         put?: never;
         /** Create Workspace Token */
         post: operations["create_workspace_token_api_v1_workspace_tokens_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspace/tokens/{token_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke Workspace Token */
+        delete: operations["revoke_workspace_token_api_v1_workspace_tokens__token_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -8180,6 +8198,37 @@ export interface operations {
             };
         };
     };
+    list_workspace_tokens_api_v1_workspace_tokens_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_workspace_token_api_v1_workspace_tokens_post: {
         parameters: {
             query?: never;
@@ -8203,6 +8252,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CreatedToken"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_workspace_token_api_v1_workspace_tokens__token_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                token_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

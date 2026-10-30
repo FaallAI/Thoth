@@ -81,6 +81,7 @@ class TokenRecord:
     expires_at: datetime
     last_used_at: datetime | None
     parent_token_id: str | None = None
+    created_by_user_id: str | None = None
 
 
 def _unavailable(error: Exception) -> AccountStoreUnavailable:
@@ -112,6 +113,7 @@ def _token(row: TokenRow) -> TokenRecord:
         row.expires_at,
         row.last_used_at,
         row.parent_token_id,
+        row.created_by_user_id,
     )
 
 
@@ -445,6 +447,7 @@ class AccountStore:
             created_at=record.created_at,
             expires_at=record.expires_at,
             parent_token_id=record.parent_token_id,
+            created_by_user_id=record.created_by_user_id,
         )
         try:
             with self._sessions.begin() as session:

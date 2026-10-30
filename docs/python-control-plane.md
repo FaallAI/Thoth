@@ -443,7 +443,7 @@ to people you trust.
 | `THOTH_SMTP_USERNAME` | FastAPI | SMTP user. |
 | `THOTH_SMTP_PASSWORD` | FastAPI | SMTP password (secret). |
 | `THOTH_SMTP_FROM` | FastAPI | The sender, for example `Thoth <no-reply@example.com>`. |
-| `THOTH_AUTH_WORKSPACE_TOKENS` | FastAPI | `true` allows workspace tokens for external developers. Keep it off until multi-tenancy and billing exist. |
+| `THOTH_AUTH_WORKSPACE_TOKENS` | FastAPI | `true` allows minting workspace tokens for external developers. Keep it off until multi-tenancy and billing exist. A workspace token works only while its creator is an active owner or admin of that workspace; owners and admins list and revoke them at `GET`/`DELETE /api/v1/workspace/tokens`, with the flag on or off. |
 
 Every variable is optional, and an empty value means not configured:
 - a provider is offered only when its client ID, secret and rule are set, together with

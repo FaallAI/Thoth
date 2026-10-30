@@ -39,7 +39,7 @@ def _tables() -> set[str]:
 
 
 def test_fresh_database_applies_every_revision_and_a_rerun_applies_none() -> None:
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 25
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 26
     assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 0
     assert {"alembic_version", "studio_import_drafts", "studio_import_decisions"} <= _tables()
     assert {"source_account_policies", "source_proxies", "source_accounts"} <= _tables()
@@ -92,7 +92,7 @@ def test_database_migrated_before_alembic_is_adopted_and_only_the_rest_applied()
         for migration in sorted(MIGRATIONS.glob("*.sql"))[:6]:
             connection.execute(migration.read_text(encoding="utf-8"))
 
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 19
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 20
     assert {"studio_import_drafts", "studio_import_decisions"} <= _tables()
 
 
@@ -382,10 +382,12 @@ def test_existing_projects_move_to_the_bootstrap_workspace(tmp_path: Path) -> No
     (before / "alembic" / "versions" / "0024_studio_draft_source_run.py").unlink()
     (before / "0025_story_assist_prompt_stage.sql").unlink()
     (before / "alembic" / "versions" / "0025_story_assist_prompt_stage.py").unlink()
+    (before / "0026_access_token_creator.sql").unlink()
+    (before / "alembic" / "versions" / "0026_access_token_creator.py").unlink()
     assert apply_editor_migrations(DATABASE_URL, before) == 13
     with psycopg.connect(DATABASE_URL) as connection:
         connection.execute("INSERT INTO projects (project_id, name) VALUES ('p-legacy', 'Legacy')")
-    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 12
+    assert apply_editor_migrations(DATABASE_URL, MIGRATIONS) == 13
     with psycopg.connect(DATABASE_URL) as connection:
         assert connection.execute(
             "SELECT workspace_id FROM projects WHERE project_id = 'p-legacy'"

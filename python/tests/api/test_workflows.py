@@ -575,6 +575,8 @@ def test_openapi_exposes_exact_required_path_method_pairs(gateway) -> None:
         ("/api/v1/me/tokens", "post"),
         ("/api/v1/me/tokens/{token_id}", "delete"),
         ("/api/v1/workspace/tokens", "post"),
+        ("/api/v1/workspace/tokens", "get"),
+        ("/api/v1/workspace/tokens/{token_id}", "delete"),
         ("/api/v1/projects", "post"),
         ("/api/v1/projects/{project_id}", "get"),
         ("/api/v1/projects/{project_id}/workflows", "get"),

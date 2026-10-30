@@ -431,3 +431,47 @@ async def test_describe_names_the_workspace_and_the_admin_flag(service, mailer, 
     )
     assert bob_view.workspace.name == "Bob's workspace"
     assert bob_view.platform_admin is False
+
+
+async def _workspace_token(service, mailer):
+    """An owner signs in and mints a workspace token; returns the owner and the token secret."""
+    first = await signed_in(service, mailer)
+    owner = await service.authenticate_session(first.session_token)
+    created = await service.create_workspace_token(
+        owner, CreateToken(name="partner", scope="read", days=30)
+    )
+    return owner, created
+
+
+async def test_a_workspace_token_dies_when_its_creator_leaves_the_workspace(
+    service, mailer, store
+) -> None:
+    # Audit A1: a workspace token used to outlive the person who minted it for up to a year.
+    owner, created = await _workspace_token(service, mailer)
+    assert await service.authenticate_token(created.secret) is not None
+    with store._engine.begin() as connection:
+        connection.execute(
+            text("DELETE FROM workspace_members WHERE user_id = :user"), {"user": owner.user_id}
+        )
+    assert await service.authenticate_token(created.secret) is None
+
+
+async def test_a_workspace_token_dies_when_its_creator_is_disabled(service, mailer, store) -> None:
+    owner, created = await _workspace_token(service, mailer)
+    with store._engine.begin() as connection:
+        connection.execute(
+            text("UPDATE users SET disabled_at = created_at WHERE user_id = :user"),
+            {"user": owner.user_id},
+        )
+    assert await service.authenticate_token(created.secret) is None
+
+
+async def test_owners_list_and_revoke_the_workspace_tokens(service, mailer) -> None:
+    owner, created = await _workspace_token(service, mailer)
+    listed = await service.list_workspace_tokens(owner)
+    assert [token.token_id for token in listed] == [created.token.token_id]
+    with pytest.raises(ScopeTooBroad):
+        await service.list_workspace_tokens(replace(owner, role="member"))
+    assert await service.revoke_workspace_token(owner, created.token.token_id) is True
+    assert await service.authenticate_token(created.secret) is None
+    assert await service.revoke_workspace_token(owner, created.token.token_id) is False
