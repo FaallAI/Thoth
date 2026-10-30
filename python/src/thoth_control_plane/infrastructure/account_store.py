@@ -151,7 +151,9 @@ class AccountStore:
                     else session.scalar(select(UserRow).where(UserRow.email == identity.email))
                 )
                 if user is None:
-                    user = self._new_user(session, identity.email, identity.display_name, now)
+                    user = self._new_user(
+                        session, identity.email, identity.display_name, now, claim_bootstrap=False
+                    )
                 if link is None:
                     session.add(
                         UserIdentityRow(
@@ -176,7 +178,7 @@ class AccountStore:
             with self._sessions.begin() as session:
                 user = session.scalar(select(UserRow).where(UserRow.email == email))
                 if user is None:
-                    user = self._new_user(session, email, display_name, now)
+                    user = self._new_user(session, email, display_name, now, claim_bootstrap=True)
                 return self._account(session, user)
         except SQLAlchemyError as error:
             raise _unavailable(error) from None
@@ -210,7 +212,9 @@ class AccountStore:
     def workspace_name(self, workspace_id: str) -> str | None:
         return self._one(select(WorkspaceRow.name).where(WorkspaceRow.workspace_id == workspace_id))
 
-    def _new_user(self, session: Session, email: str, name: str, now: datetime) -> UserRow:
+    def _new_user(
+        self, session: Session, email: str, name: str, now: datetime, *, claim_bootstrap: bool
+    ) -> UserRow:
         user = UserRow(
             user_id=f"usr_{uuid4().hex}",
             email=email,
@@ -219,14 +223,18 @@ class AccountStore:
         )
         session.add(user)
         session.flush()
-        # Owning the bootstrap makes a platform admin, so racing first sign-ins must serialize:
-        # lock the bootstrap row, then count its members.
-        session.get(WorkspaceRow, BOOTSTRAP_WORKSPACE_ID, with_for_update=True)
-        taken = session.scalar(
-            select(func.count())
-            .select_from(MemberRow)
-            .where(MemberRow.workspace_id == BOOTSTRAP_WORKSPACE_ID)
-        )
+        # Owning the bootstrap makes a platform admin, so only the bootstrap CLI may claim it, never
+        # a public sign-in (audit A2). Racing claims serialize: lock the row, then count members.
+        taken = True
+        if claim_bootstrap:
+            session.get(WorkspaceRow, BOOTSTRAP_WORKSPACE_ID, with_for_update=True)
+            taken = bool(
+                session.scalar(
+                    select(func.count())
+                    .select_from(MemberRow)
+                    .where(MemberRow.workspace_id == BOOTSTRAP_WORKSPACE_ID)
+                )
+            )
         workspace_id = BOOTSTRAP_WORKSPACE_ID
         if taken:
             workspace_id = f"ws_{uuid4().hex}"

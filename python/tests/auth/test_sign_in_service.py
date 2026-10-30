@@ -106,9 +106,11 @@ async def test_a_first_sign_in_emails_a_code_and_the_code_opens_a_session(servic
     )
     assert done.device_token is not None
     principal = await service.authenticate_session(done.session_token)
+    # A sign-in gets a workspace of its own; only the bootstrap CLI claims ws_bootstrap (A2).
+    assert principal.workspace_id != BOOTSTRAP_WORKSPACE_ID
     assert principal == Principal(
         principal.user_id,
-        BOOTSTRAP_WORKSPACE_ID,
+        principal.workspace_id,
         SCOPE_SETS["admin"],
         "session",
         "alice@acme.test",
@@ -350,8 +352,18 @@ async def test_sign_ins_within_a_minute_send_one_code(service, mailer, clock) ->
 async def test_the_principal_carries_the_membership_role(service, mailer) -> None:
     first = await signed_in(service, mailer)
     principal = await service.authenticate_session(first.session_token)
-    assert principal.workspace_id == BOOTSTRAP_WORKSPACE_ID
     assert principal.role == "owner"
+    # Owning a workspace of one's own is not platform admin (audit A2).
+    assert not is_platform_admin(principal)
+
+
+async def test_the_operator_bootstrapped_by_the_cli_signs_in_as_platform_admin(
+    service, mailer, store
+) -> None:
+    store.ensure_user(ALICE.email, "Alice")
+    first = await signed_in(service, mailer)
+    principal = await service.authenticate_session(first.session_token)
+    assert principal.workspace_id == BOOTSTRAP_WORKSPACE_ID
     assert is_platform_admin(principal)
 
 
@@ -404,6 +416,7 @@ def test_who_is_a_platform_admin() -> None:
 
 
 async def test_describe_names_the_workspace_and_the_admin_flag(service, mailer, store) -> None:
+    store.ensure_user(ALICE.email, "Alice")  # the operator, bootstrapped by the CLI
     first = await signed_in(service, mailer)
     principal = await service.authenticate_session(first.session_token)
     view = await service.describe(principal)
