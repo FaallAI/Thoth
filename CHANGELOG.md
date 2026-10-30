@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-30 - An unreadable TikTok list body is no longer a captcha
+
+**Raised by a side agent before the 0418d84 deploy, confirmed in Scrapling's source:** for every captured XHR, Scrapling reads the body after the page action ends; when the browser has already discarded it (navigated away, a redirect) it logs `Error getting page content in async: Response.body: ...` and keeps `b""`. Discovery parsed that `b""` as a TikTok refusal (`captcha`), and its own in-page read did the same on an exception. A listing could end `captcha` while TikTok refused nothing, and PR #94 had just dropped those Scrapling lines from the log as noise.
+
+**Fix (`acquisition/discovery.py`):** the page's own read of each list response is kept; an exception there is `unreadable`, counted and skipped, not parsed. The result is assembled from those reads, falling back per response to Scrapling's copy when the page's read failed and Scrapling kept a non-empty body; with neither, the response is skipped. A body read in the page as `b""` is still a refusal. A listing with no readable page ends as `no_data`. The scroll no longer stops at an unreadable body. The count stays in our own log: `tiktok discovery list bodies unreadable kind=... unreadable=n` (Scrapling's lines stay dropped).
+
+**Verification:** `test_an_unreadable_list_body_is_not_a_captcha` and `test_only_unreadable_list_bodies_end_as_no_data_not_captcha` RED then GREEN; two older tests now pin the new meaning (a failed in-page read falls back to Scrapling's copy; a failed attempt's unreadable body is counted, not mistaken); acquisition tests 1040 passed; full Python suite and `make lint` clean.
+
 ## 2026-10-30 - Worker log: agno client leak and Scrapling body noise
 
 **`Task was destroyed but it is pending! AsyncClient.aclose()` (fixed):** agno 3.1.9 builds a new `AsyncOpenAI` per request; with no `http_client`, the SDK made its own httpx client and left it to `__del__`, which scheduled `aclose()` on whichever event loop ran at collection time, a Temporal workflow thread here. The four agno adapters (`captions`, `figures`, `vision`, `queries`) now pass their own `httpx.AsyncClient` and close it in `finally`. `test_an_agno_call_closes_the_http_client_it_used` and `test_every_agno_model_is_given_a_client_the_adapter_closes` (any new `OpenAILike(` without `http_client=` fails) were RED then GREEN.
