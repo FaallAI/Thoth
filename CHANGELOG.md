@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-30 - Worker log errors after the 03741c3 deploy
+
+**Reported by the operator:** many errors in `docker logs thoth-stage1-local-worker-1`. The first Python-only TikTok run (`wf_6ca4c298...`) still succeeded end to end; the 30-minute log held five kinds of lines.
+
+**1. A 45.8 s event-loop stall (fixed).** The watchdog's stack dump showed diarization (`attribution/adapters/speech.py`, sherpa-onnx `engine.process`) running in a thread: it holds the GIL through `process()`, so the worker could not answer Temporal (TMPRL1104, an expired query; a TMPRL1101 deadlock was one coincident activation away). A probe in the worker container measured a 5.05 s stall for 120 s of audio. `SherpaDiarizer` now runs diarization in one spawned child process that keeps the engine loaded; a dead child is `diarization_failed` and the next call starts a fresh one. The same probe on the deployed image with this code: 0.01 s worst lag for 120 s and 240 s of audio. `test_diarization_leaves_the_event_loop_free` was RED (2.24 s) then GREEN. Note: `spawn` re-imports the main module, which the worker (`python -m thoth_control_plane.worker`, guarded `main()`) satisfies.
+
+**2. 27 "step outside its scope's stage dropped" warnings (quietened).** Attribution and footage reuse the source acquisition code, which reports `source.*` steps; dropping them is expected, so they now log at debug. Any other stage mismatch still warns.
+
+**3. MinIO "Connection pool is full" (fixed).** The custom `urllib3.PoolManager` kept urllib3's default of one connection per host; it now keeps eight.
+
+**4. and 5. Left as they are:** Scrapling's own `ERROR ... No data found for resource` / redirect-body lines (the library logs them while a page navigates; acquisition succeeds) and TikTok captcha / first-attempt timeouts (external, retried).
+
+**Verification:** full Python suite 4379 passed, 252 skipped; `make lint` clean.
+
+**Next steps:**
+- Operator gates: push and PR for `fix/worker-log-errors`, merge, deploy.
+- After deploy, a TikTok run with long speech should log no `event loop stalled`.
+
 ## 2026-10-30 - Deployed master 03741c3 (PRs #89 and #90: Studio R7 and the audit fixes)
 
 **Deploy:** thoth `df5aa6dd`, renderer `bba59ac3`, web `19396ca4`, pulled ahead of `make deploy`; migrate applied 1 revision (`0026_access_token_creator`, head `0026`); every service healthy, worker 0 restarts, a new worker polls `thoth-control-plane`. Acquisition stays `python` on `api` and `worker`. Previous file in `D:/thoth-tmp/bu/pins/pins-5d9ee252.env`. No workflow was running.
