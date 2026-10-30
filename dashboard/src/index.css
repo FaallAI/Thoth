@@ -65,11 +65,6 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
-    /* F3 status names, kept as aliases until R7 removes them. */
-    --color-status-queued: var(--status-queued);
-    --color-status-succeeded: var(--status-succeeded);
-    --color-status-cancelled: var(--status-cancelled);
-    --color-spine: var(--spine);
     /* Radius 6 for controls, 10 for panels (§5.3). */
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.6);
@@ -137,13 +132,6 @@
     --sidebar-accent-foreground: var(--ink);
     --sidebar-border: var(--hairline);
     --sidebar-ring: var(--copper);
-
-    /* F3 names (Creator Studio), migrated to the canonical meaning (DESIGN §5.1 table);
-       removed in R7 once no screen uses them. Succeeded is done (green); gold now means waiting. */
-    --status-queued: var(--status-idle);
-    --status-succeeded: var(--status-done);
-    --status-cancelled: var(--status-idle);
-    --spine: var(--studio-ai);
 }
 
 @layer base {

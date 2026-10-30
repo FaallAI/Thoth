@@ -68,8 +68,51 @@ export function isTimelineDocument(document: EditDocument): document is EditDocu
   return document.schema_version === 2;
 }
 
+export type SourceRole = NonNullable<Extract<TimelineClip, { source_role?: unknown }>["source_role"]>;
+
+/** What a clip reads as on the timeline: its own words, then its role in the story, then its kind. */
+export function clipLabelSource(
+  clip: TimelineClip,
+): { text: string } | { role: SourceRole } | { kind: TimelineClip["kind"] } {
+  const words =
+    clip.kind === "caption" ? clip.cues?.[0]?.text : clip.kind === "text" ? clip.heading : undefined;
+  if (words?.trim()) return { text: words.trim() };
+  const role = "source_role" in clip ? clip.source_role : undefined;
+  if (role) return { role };
+  return { kind: clip.kind };
+}
+
+/** `m:ss.t` for a frame: minutes are never wrapped into hours, and a zero rate reads as 0. */
+export function formatTimecode(frame: number, fps: number): string {
+  const tenths = fps > 0 ? Math.floor((frame / fps) * 10) : 0;
+  const minutes = Math.floor(tenths / 600);
+  const seconds = Math.floor(tenths / 10) % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}.${tenths % 10}`;
+}
+
 export function framesToPixels(frame: number, zoom: number): number {
   return Math.round(frame * zoom);
+}
+
+/** Seconds between ruler labels, smallest first; a minute is the widest step. */
+const RULER_STEPS = [1, 2, 5, 10, 15, 30, 60];
+/** A label needs this many pixels before the next one. */
+const RULER_LABEL_WIDTH = 80;
+
+/** The ruler's labelled ticks: the smallest step that leaves room for a label, from 0 to the end. */
+export function rulerTicks(
+  durationInFrames: number,
+  fps: number,
+  zoom: number,
+): { frame: number; label: string }[] {
+  if (fps <= 0 || durationInFrames <= 0) return [{ frame: 0, label: "0:00" }];
+  const seconds =
+    RULER_STEPS.find((step) => framesToPixels(step * fps, zoom) >= RULER_LABEL_WIDTH) ?? 60;
+  const ticks = [];
+  for (let frame = 0; frame <= durationInFrames; frame += seconds * fps) {
+    ticks.push({ frame, label: formatTimecode(frame, fps).slice(0, -2) });
+  }
+  return ticks;
 }
 
 export function pixelsToFrames(pixels: number, zoom: number): number {

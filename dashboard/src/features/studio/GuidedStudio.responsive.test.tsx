@@ -184,6 +184,12 @@ test("reaches every job at phone and desktop widths", async () => {
   expect(previewMounts).toBe(1);
 });
 
+test("the Timeline option starts at 1024 px wide", async () => {
+  await renderStudio(1024, timelineDocument() as EditDocument);
+  const modes = await screen.findByRole("group", { name: "Editor mode" });
+  expect(within(modes).getByRole("button", { name: "Timeline" })).toBeDefined();
+});
+
 test("explains a missing review or render capability instead of hiding the job", async () => {
   await renderStudio(1440);
   job("Review");
@@ -264,7 +270,7 @@ test("keeps Advanced mode, a pending timeline edit, and the selection through a 
   resize(375);
   expect(screen.queryByLabelText("Timeline") === null).toBe(true);
   expect(screen.queryByRole("group", { name: "Editor mode" }) === null).toBe(true);
-  expect(screen.getByText(/Advanced timeline editing needs a desktop-width screen/)).toBeDefined();
+  expect(screen.getByText("Open on a larger screen to edit the timeline.")).toBeDefined();
   expect(screen.getByText("Unsaved changes")).toBeDefined();
 
   resize(900);

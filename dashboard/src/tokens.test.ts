@@ -69,20 +69,20 @@ describe("canonical tokens (DESIGN §5.1)", () => {
   });
 });
 
-describe("F3 names migrate to the canonical meaning", () => {
-  test("succeeded is done (green), never gold", () => {
-    expect(token("status-succeeded")).toBe("var(--status-done)");
-    expect(hex("status-succeeded")).not.toBe(hex("status-waiting"));
-  });
-
-  test("failure, idle and the shadcn roles point at the canonical tokens", () => {
+describe("the shadcn roles point at the canonical tokens", () => {
+  test("failure, focus, primary and the surfaces", () => {
     expect(token("destructive")).toBe("var(--status-failed)");
-    expect(token("status-queued")).toBe("var(--status-idle)");
-    expect(token("status-cancelled")).toBe("var(--status-idle)");
     expect(token("ring")).toBe("var(--copper)");
     expect(token("primary")).toBe("var(--copper)");
     expect(token("background")).toBe("var(--bg)");
     expect(token("card")).toBe("var(--surface)");
     expect(token("accent")).toBe("var(--raised)");
+  });
+});
+
+describe("the F3 aliases are gone (restyle R7)", () => {
+  test.each(["status-queued", "status-succeeded", "status-cancelled", "spine"])("--%s", (name) => {
+    expect(css).not.toContain(`--${name}:`);
+    expect(css).not.toContain(`--color-${name}:`);
   });
 });
