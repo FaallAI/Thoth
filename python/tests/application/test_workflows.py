@@ -60,7 +60,10 @@ class StartGateway:
             status="queued",
             created_at=timestamp,
             updated_at=timestamp,
-            source={"display_url": "https://example.test/post", "platform": "tiktok"},
+            source={
+                "display_url": "https://www.tiktok.com/@creator/video/1234567890",
+                "platform": "tiktok",
+            },
             stages=[],
         )
 
@@ -128,7 +131,7 @@ async def test_start_reuses_a_matching_idempotency_key() -> None:
     request = WorkflowRequest.model_validate(
         {
             "source": {
-                "url": "https://example.test/post",
+                "url": "https://www.tiktok.com/@creator/video/1234567890",
                 "intent": "identify_original",
             },
             "style": {"preset_id": "news-vertical"},
@@ -152,7 +155,7 @@ async def test_concurrent_matching_starts_create_only_one_workflow() -> None:
     request = WorkflowRequest.model_validate(
         {
             "source": {
-                "url": "https://example.test/post",
+                "url": "https://www.tiktok.com/@creator/video/1234567890",
                 "intent": "identify_original",
             },
             "style": {"preset_id": "news-vertical"},
@@ -185,7 +188,7 @@ async def test_concurrent_different_body_conflicts_without_a_second_start() -> N
     request = WorkflowRequest.model_validate(
         {
             "source": {
-                "url": "https://example.test/post",
+                "url": "https://www.tiktok.com/@creator/video/1234567890",
                 "intent": "identify_original",
             },
             "style": {"preset_id": "news-vertical"},
@@ -223,7 +226,7 @@ async def test_same_idempotency_key_with_a_different_body_conflicts() -> None:
     request = WorkflowRequest.model_validate(
         {
             "source": {
-                "url": "https://example.test/post",
+                "url": "https://www.tiktok.com/@creator/video/1234567890",
                 "intent": "identify_original",
             },
             "style": {"preset_id": "news-vertical"},

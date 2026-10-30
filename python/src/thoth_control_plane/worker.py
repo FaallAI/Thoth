@@ -18,11 +18,8 @@ from thoth_control_plane import metering, progress
 from thoth_control_plane.acquisition.accounts.profiles import sweep_unsealed
 from thoth_control_plane.acquisition.browser import ScraplingCapability, check_scrapling_capability
 from thoth_control_plane.activities import (
-    LEGACY_ADAPTER_MAX_CONCURRENT_ACTIVITIES,
-    LEGACY_ADAPTER_TASK_QUEUE,
     AcquisitionRunner,
     build_content_assembly_activity,
-    build_legacy_scout_activity,
     build_source_attribution_activity,
     build_source_investigation_activity,
 )
@@ -229,7 +226,7 @@ def build_prompt_proposal_worker(client: Client, settings: Settings) -> Worker:
 
 
 async def run_worker(settings: Settings | None = None) -> None:
-    """Run normal activities and the isolated single-concurrency legacy adapter."""
+    """Run the control-plane activities and the prompt workers."""
     runtime_settings = settings or Settings()  # type: ignore[call-arg]
     check_media_tools(runtime_settings)
     configure_logging()
@@ -259,16 +256,6 @@ async def run_worker(settings: Settings | None = None) -> None:
         async with (
             build_source_investigation_worker(
                 client, runtime_settings, capability=capability, reports=reports, media=media
-            ),
-            Worker(
-                client,
-                task_queue=LEGACY_ADAPTER_TASK_QUEUE,
-                activities=[
-                    build_legacy_scout_activity(
-                        runtime_settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT, reports
-                    )
-                ],
-                max_concurrent_activities=LEGACY_ADAPTER_MAX_CONCURRENT_ACTIVITIES,
             ),
             # Prompt Lab proposals and Story Assist; an empty catalog answers with failure codes.
             build_prompt_proposal_worker(client, runtime_settings),

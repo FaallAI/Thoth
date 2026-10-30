@@ -18,7 +18,6 @@ VALID_IMAGE = "ghcr.io/faallai/thoth@sha256:" + "a1" * 32
 VALID_ENVIRONMENT = {
     "THOTH_IMAGE": VALID_IMAGE,
     "THOTH_STAGE1_DATA_ROOT": "/home/operator/thoth-stage1",
-    "THOTH_STAGE1_ACTIVITY_MODE": "python",
     "THOTH_CONTROL_PLANE_API_KEY": "local-api-key",
     "THOTH_POSTGRES_PASSWORD": "local-database-password",
     "THOTH_EDITOR_POSTGRES_PASSWORD": "local-editor-database-password",
@@ -34,13 +33,6 @@ def _environment(**overrides: str) -> dict[str, str]:
 
 def test_approved_environment_passes() -> None:
     check_stage1_local_environment(_environment(), repository_root=REPOSITORY_ROOT)
-
-
-def test_activity_mode_is_optional_and_defaults_to_the_approved_fallback() -> None:
-    values = _environment()
-    del values["THOTH_STAGE1_ACTIVITY_MODE"]
-
-    check_stage1_local_environment(values, repository_root=REPOSITORY_ROOT)
 
 
 @pytest.mark.parametrize(
@@ -81,17 +73,6 @@ def test_relative_or_in_repository_data_root_is_rejected(data_root: str) -> None
     with pytest.raises(Stage1PreflightError):
         check_stage1_local_environment(
             _environment(THOTH_STAGE1_DATA_ROOT=data_root), repository_root=REPOSITORY_ROOT
-        )
-
-
-# Scout is retired: neither Scout mode is approved, the fallback nor the old rollback.
-@pytest.mark.parametrize(
-    "mode", ["python_tiktok_with_legacy_fallback", "legacy_scout", "legacy", "", "PYTHON"]
-)
-def test_unapproved_activity_mode_is_rejected(mode: str) -> None:
-    with pytest.raises(Stage1PreflightError):
-        check_stage1_local_environment(
-            _environment(THOTH_STAGE1_ACTIVITY_MODE=mode), repository_root=REPOSITORY_ROOT
         )
 
 

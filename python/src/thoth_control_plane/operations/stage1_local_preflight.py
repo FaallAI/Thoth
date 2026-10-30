@@ -4,8 +4,8 @@ Compose interpolation of the form `${VAR:?message}` only rejects an empty
 value. A mutable tag such as `:latest`, a foreign registry, a malformed
 digest, a relative data root, or a data root inside the repository worktree
 all render and start successfully. This module is the gate Compose cannot be:
-it validates release identity, the external data root, the approved activity
-mode, and the presence of local credentials before any image is pulled.
+it validates release identity, the external data root, and the presence of
+local credentials before any image is pulled.
 
 No failure message echoes a value. Messages name the offending variable only,
 so running the check in a shared terminal or pasting its output into a change
@@ -18,8 +18,6 @@ import re
 from pathlib import Path, PurePosixPath
 
 IMAGE_PATTERN = re.compile(r"ghcr\.io/faallai/thoth@sha256:[0-9a-f]{64}")
-# Scout is retired (operator 2026-10-30), so neither Scout mode is approved any more.
-DEFAULT_ACTIVITY_MODE = "python"
 REQUIRED_SECRET_VARIABLES = (
     "THOTH_CONTROL_PLANE_API_KEY",
     "THOTH_POSTGRES_PASSWORD",
@@ -68,12 +66,10 @@ def check_stage1_local_environment(values: dict[str, str], *, repository_root: P
     """Validate every operator-supplied deployment input, or raise.
 
     Checks run in a fixed order so the first failure is deterministic:
-    release identity, external data root, approved activity mode, then local
-    credentials.
+    release identity, external data root, then local credentials.
     """
     _check_image(values.get("THOTH_IMAGE", ""))
     _check_data_root(values.get("THOTH_STAGE1_DATA_ROOT", ""), repository_root)
-    _check_activity_mode(values.get("THOTH_STAGE1_ACTIVITY_MODE", DEFAULT_ACTIVITY_MODE))
     _check_secrets(values)
 
 
@@ -110,11 +106,6 @@ def _repository_host_paths(repository_root: Path) -> tuple[str, ...]:
     if not remainder:
         return (posix_root,)
     return (posix_root, f"/mnt/{drive}{remainder}")
-
-
-def _check_activity_mode(mode: str) -> None:
-    if mode != DEFAULT_ACTIVITY_MODE:
-        raise Stage1PreflightError(f"THOTH_STAGE1_ACTIVITY_MODE must be {DEFAULT_ACTIVITY_MODE}")
 
 
 def _check_secrets(values: dict[str, str]) -> None:

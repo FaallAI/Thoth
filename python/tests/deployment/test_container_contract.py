@@ -370,10 +370,7 @@ def test_dockerfile_pins_base_interpreter_and_editable_layout() -> None:
     `uv` prefers its own managed interpreters by default, so an unpinned `uv sync`
     can resolve a downloaded CPython under `/root` instead of the base image's
     3.12. That would both violate the `python:3.12-slim-bookworm` runtime line and
-    leave `.venv/bin/python` unreadable after dropping to `thoth`. A non-editable
-    install fails the same way silently: `LegacyScoutActivity` resolves its
-    repository root from `thoth_control_plane.__file__`, so the Scout fallback
-    would break at runtime while the build stayed green.
+    leave `.venv/bin/python` unreadable after dropping to `thoth`.
     """
     dockerfile = _repo_text("Dockerfile")
     assert "UV_PYTHON=/usr/local/bin/python3.12" in dockerfile
