@@ -252,8 +252,9 @@ def _pages(kind: str, count: int, per_page: int = 3, last_has_more: bool = True)
 
 
 class FakeNetworkResponse:
-    def __init__(self, url: str, body: bytes, fail: bool = False) -> None:
+    def __init__(self, url: str, body: bytes, fail: bool = False, status: int = 200) -> None:
         self.url = url
+        self.status = status
         self._body = body
         self._fail = fail
 
@@ -261,6 +262,11 @@ class FakeNetworkResponse:
         if self._fail:
             raise RuntimeError("Target closed")
         return self._body
+
+
+# A list response whose body the browser already discarded: the page's own read raises, and
+# Scrapling's late copy holds b"" (it logs "Error getting page content in async: Response.body").
+UNREADABLE = object()
 
 
 class FakePage:
@@ -272,6 +278,7 @@ class FakePage:
         self.emitted: list[bytes] = []
         self.captcha = flags.get("captcha", False)
         self.body_error = flags.get("body_error", False)
+        self.status = flags.get("status", 200)
         self.wheel_error = flags.get("wheel_error")
         self.hang = flags.get("hang", False)
         # The profile grid (spec 5c-2): with page_rect, grid items show and the page is cropped.
@@ -291,11 +298,19 @@ class FakePage:
         if not self.pending:
             return
         body = self.pending.pop(0)
-        self.emitted.append(body)
+        unreadable = body is UNREADABLE
+        self.emitted.append(b"" if unreadable else body)
         for handler in self.handlers:
             # An unrelated response must be ignored by the pattern filter.
             handler(FakeNetworkResponse("https://www.tiktok.com/api/user/detail/", b"{}"))
-            handler(FakeNetworkResponse(self.api_url, body, fail=bool(self.body_error)))
+            handler(
+                FakeNetworkResponse(
+                    self.api_url,
+                    b"" if unreadable else body,
+                    fail=bool(self.body_error) or unreadable,
+                    status=self.status,
+                )
+            )
 
     async def _wheel(self, delta_x: int, delta_y: int) -> None:
         if self.wheel_error is not None:
@@ -520,7 +535,7 @@ async def test_attach_resets_stale_scroll_state_from_a_session_retry() -> None:
     )
     await scroll.attach(failed_page)
     await discovery_module._paginate(failed_page, scroll)
-    assert scroll.done is True  # the failed attempt's stale response looked like captcha
+    assert scroll.unreadable == 1 and not scroll.seen  # nothing read, nothing mistaken
 
     retry_page = FakePage(API_URLS["profile"], _pages("profile", 1, last_has_more=False))
     await scroll.attach(retry_page)
@@ -606,6 +621,29 @@ async def test_a_refusal_after_the_solve_is_still_captcha(monkeypatch) -> None:
 
     assert result.reason is DiscoveryReason.CAPTCHA
     assert len(result.videos) == 3  # the page between the two refusals still counts
+
+
+async def test_an_unreadable_list_body_is_not_a_captcha(caplog) -> None:
+    # Stage1, 2026-10-30: Scrapling logged "Response.body: No data found for resource" for
+    # captured list responses and kept b"" for them, which parsed as a TikTok refusal: the
+    # listing could end as captcha while TikTok refused nothing.
+    session = FakeSession("profile", [UNREADABLE, *_pages("profile", 2)])
+
+    with caplog.at_level("INFO", logger="thoth_control_plane.acquisition.discovery"):
+        result = await _browser(session).discover(ProfileDiscovery(handle="creator", limit=100))
+
+    assert result.reason is None
+    assert result.pages == 2
+    assert len(result.videos) == 6
+    assert "unreadable=1" in caplog.text  # the evidence stays in our own log
+
+
+async def test_only_unreadable_list_bodies_end_as_no_data_not_captcha() -> None:
+    session = FakeSession("profile", [UNREADABLE])
+
+    result = await _browser(session).discover(ProfileDiscovery(handle="creator"))
+
+    assert result.reason is DiscoveryReason.NO_DATA
 
 
 async def test_an_unsolved_captcha_still_stops_the_scroll(monkeypatch) -> None:
@@ -836,14 +874,15 @@ async def test_a_failing_scroll_keeps_what_was_captured() -> None:
     assert result.reason is None
 
 
-async def test_a_failed_in_page_body_read_stops_scrolling_but_keeps_the_capture() -> None:
+async def test_a_failed_in_page_body_read_falls_back_to_scraplings_copy() -> None:
+    # Unreadable in the page is not a refusal: the scroll goes on, and Scrapling's copy of each
+    # body, when it kept one, stands in for the page's failed read.
     session = FakeSession("profile", _pages("profile", 3), body_error=True)
 
     result = await _browser(session).discover(ProfileDiscovery(handle="creator"))
 
-    assert session.page.scrolls == 0
-    assert result.pages == 1
-    assert len(result.videos) == 3
+    assert result.pages == 3
+    assert len(result.videos) == 9
     assert result.reason is None
 
 
