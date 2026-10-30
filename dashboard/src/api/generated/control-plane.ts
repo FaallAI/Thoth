@@ -1412,23 +1412,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/workflows/{workflow_id}/retry": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Retry Workflow */
-        post: operations["retry_workflow_api_v1_workflows__workflow_id__retry_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/workflows/{workflow_id}/steps": {
         parameters: {
             query?: never;
@@ -3133,14 +3116,6 @@ export interface components {
             label: string;
             /** Text */
             text: string;
-        };
-        /**
-         * RetryRequest
-         * @description Optional validated checkpoint for an explicit workflow retry.
-         */
-        RetryRequest: {
-            /** From Stage */
-            from_stage?: ("validation" | "source" | "assets" | "narration" | "render" | "review" | "delivery") | null;
         };
         /** ReviewComment */
         ReviewComment: {
@@ -8112,43 +8087,6 @@ export interface operations {
                 };
                 content: {
                     "application/octet-stream": string;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    retry_workflow_api_v1_workflows__workflow_id__retry_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                Authorization?: string | null;
-            };
-            path: {
-                workflow_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RetryRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkflowSummary"];
                 };
             };
             /** @description Validation Error */

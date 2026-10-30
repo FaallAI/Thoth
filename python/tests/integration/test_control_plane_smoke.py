@@ -104,7 +104,6 @@ async def test_source_workflow_survives_restart_and_never_uses_a_cli_route(
     failed_summary = await control_plane.wait_for_terminal(failed["workflow_id"])
     assert failed_summary["status"] == "failed"
     assert failed_summary["failure"]["retryable"] is True
-    assert await control_plane.retry_status(failed["workflow_id"], from_stage="source") == 503
 
     cancelled = await control_plane.create(
         {

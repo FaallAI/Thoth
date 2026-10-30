@@ -22,7 +22,6 @@ class StartGateway:
     def __init__(self) -> None:
         self.start_calls = 0
         self.last_actor: Actor | None = None
-        self.last_from_stage: str | None = None
         self.last_event_cursor: int | None = None
 
     async def start(
@@ -82,17 +81,6 @@ class StartGateway:
         self.last_actor = actor
         summary = await self.get(workflow_id, actor=actor)
         return summary.model_copy(update={"status": "cancelled"})
-
-    async def retry(
-        self,
-        workflow_id: str,
-        *,
-        from_stage: str | None,
-        actor: Actor,
-    ) -> WorkflowSummary:
-        self.last_from_stage = from_stage
-        self.last_actor = actor
-        return await self.get(workflow_id, actor=actor)
 
     async def record_approval(
         self,
@@ -306,19 +294,6 @@ async def test_cancel_records_the_actor_and_returns_the_latest_summary() -> None
     summary = await service.cancel("wf_001", actor=actor)
 
     assert summary.status == "cancelled"
-    assert gateway.last_actor == actor
-
-
-@pytest.mark.asyncio
-async def test_retry_records_the_actor_and_requested_checkpoint() -> None:
-    gateway = StartGateway()
-    service = WorkflowService(gateway)
-    actor = Actor(actor_id="owner", actor_type="user")
-
-    summary = await service.retry("wf_001", from_stage="source", actor=actor)
-
-    assert summary.workflow_id == "wf_001"
-    assert gateway.last_from_stage == "source"
     assert gateway.last_actor == actor
 
 

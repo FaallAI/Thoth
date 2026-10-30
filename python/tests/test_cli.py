@@ -116,11 +116,6 @@ def test_cli_watch_streams_and_renders_typed_v1_sse_events(
             {"approval_id": "approval_001", "decision": "approve", "note": "Looks good"},
         ),
         (["cancel", "wf_001"], "/api/v1/workflows/wf_001/cancel", None),
-        (
-            ["retry", "wf_001", "--from-stage", "source"],
-            "/api/v1/workflows/wf_001/retry",
-            {"from_stage": "source"},
-        ),
     ],
 )
 def test_cli_mutations_use_the_v1_http_api(

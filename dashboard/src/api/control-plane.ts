@@ -20,7 +20,6 @@ export type EditDocumentListItem = components["schemas"]["EditDocumentListItem"]
 export type EditDocumentListPage = components["schemas"]["EditDocumentListPage"];
 export type StylePreset = components["schemas"]["StylePreset"];
 export type ApprovalSubmission = components["schemas"]["ApprovalSubmission"];
-export type RetryRequest = components["schemas"]["RetryRequest"];
 export type EditDocumentV1 = components["schemas"]["EditDocumentV1"];
 export type EditDocumentV2 = components["schemas"]["EditDocumentV2"];
 export type EditDocument = EditDocumentV1 | EditDocumentV2;
@@ -253,7 +252,6 @@ export type ControlPlaneClient = {
   ) => () => void;
   approveWorkflow: (workflowId: string, approval: ApprovalSubmission) => Promise<WorkflowSummary>;
   cancelWorkflow: (workflowId: string) => Promise<WorkflowSummary>;
-  retryWorkflow: (workflowId: string, retry?: RetryRequest) => Promise<WorkflowSummary>;
   inspectStudioImport: (projectId: string, source: StudioSourceProjection) => Promise<StudioSourceInspection>;
   createStudioImport: (
     projectId: string,
@@ -658,12 +656,6 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
       }),
     cancelWorkflow: (workflowId) =>
       request<WorkflowSummary>(`/api/v1/workflows/${workflowId}/cancel`, { method: "POST" }),
-    retryWorkflow: (workflowId, retry = {}) =>
-      request<WorkflowSummary>(`/api/v1/workflows/${workflowId}/retry`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(retry),
-      }),
     inspectStudioImport: (projectId, source) => importPost(importPath(projectId, "/inspect"), source),
     createStudioImport: (projectId, request, idempotencyKey) =>
       importPost(importPath(projectId), request, { "Idempotency-Key": idempotencyKey }),

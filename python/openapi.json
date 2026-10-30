@@ -4744,34 +4744,6 @@
         "title": "ResolvedPromptSection",
         "type": "object"
       },
-      "RetryRequest": {
-        "additionalProperties": false,
-        "description": "Optional validated checkpoint for an explicit workflow retry.",
-        "properties": {
-          "from_stage": {
-            "anyOf": [
-              {
-                "enum": [
-                  "validation",
-                  "source",
-                  "assets",
-                  "narration",
-                  "render",
-                  "review",
-                  "delivery"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "From Stage"
-          }
-        },
-        "title": "RetryRequest",
-        "type": "object"
-      },
       "ReviewComment": {
         "additionalProperties": false,
         "properties": {
@@ -15929,71 +15901,6 @@
           }
         },
         "summary": "Download Workflow Media"
-      }
-    },
-    "/api/v1/workflows/{workflow_id}/retry": {
-      "post": {
-        "operationId": "retry_workflow_api_v1_workflows__workflow_id__retry_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "workflow_id",
-            "required": true,
-            "schema": {
-              "title": "Workflow Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RetryRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkflowSummary"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Retry Workflow"
       }
     },
     "/api/v1/workflows/{workflow_id}/steps": {
