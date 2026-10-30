@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 
+import httpx
 from pydantic import BaseModel, Field
 
 from thoth_control_plane import metering
@@ -42,6 +43,9 @@ class AgnoCaptionJudge:
         from agno.media import Image
         from agno.models.openai.like import OpenAILike
 
+        # agno builds an AsyncOpenAI per request; left to the SDK, its httpx client is
+        # closed by garbage collection, on whichever loop runs then (a workflow thread).
+        http = httpx.AsyncClient(timeout=TIMEOUT_SECONDS)
         agent = Agent(
             model=OpenAILike(
                 id=self._model,
@@ -49,6 +53,7 @@ class AgnoCaptionJudge:
                 base_url=self._base_url,
                 timeout=TIMEOUT_SECONDS,
                 max_retries=1,
+                http_client=http,
             ),
             output_schema=CaptionCheck,
             use_json_mode=True,
@@ -60,5 +65,7 @@ class AgnoCaptionJudge:
         except Exception:
             logger.warning("caption check unavailable; the rule-based verdict stands")
             return None
+        finally:
+            await http.aclose()
         await metering.record_model_run(self._model, run)
         return run.content.speech_captions if isinstance(run.content, CaptionCheck) else None

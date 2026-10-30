@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-30 - Worker log: agno client leak and Scrapling body noise
+
+**`Task was destroyed but it is pending! AsyncClient.aclose()` (fixed):** agno 3.1.9 builds a new `AsyncOpenAI` per request; with no `http_client`, the SDK made its own httpx client and left it to `__del__`, which scheduled `aclose()` on whichever event loop ran at collection time, a Temporal workflow thread here. The four agno adapters (`captions`, `figures`, `vision`, `queries`) now pass their own `httpx.AsyncClient` and close it in `finally`. `test_an_agno_call_closes_the_http_client_it_used` and `test_every_agno_model_is_given_a_client_the_adapter_closes` (any new `OpenAILike(` without `http_client=` fails) were RED then GREEN.
+
+**Scrapling `ERROR ... Response.body:` lines (dropped):** Scrapling logs one for every captured response whose body the browser already discarded (navigated away, redirect); the listing still succeeds. The provider log filter drops exactly those; other Scrapling errors stay (`test_scrapling_unreadable_response_body_errors_are_dropped`).
+
+**Left as is:** `x.com/search` first-attempt `ERR_INVALID_AUTH_CREDENTIALS` and timeouts before a successful search, and TikTok's anonymous captcha that hands the listing to a source account.
+
+**Verification:** full Python suite 4384 passed, 252 skipped; `make lint` clean.
+
+## 2026-10-30 - A solved TikTok captcha no longer ends the listing as captcha
+
+**Seen in the stage1 worker log (run after the 98d7f42 deploy):** footage's creator listing for `@pojokbogor` went through a source account; the whirl captcha was solved (`tiktok captcha outcome subtype=whirl solved=true attempts=1`), yet four seconds later discovery finished `kind=profile pages=0 videos=0 reason=captcha`, the creator listing was "unavailable", and footage admitted nothing from that creator.
+
+**Cause:** the list response TikTok refused while the modal showed (a non-JSON body, parsed as `captcha`) was still in the capture. `absorb()` read it and marked the scroll done before any scroll after the solve, and `_assemble` stopped at that first page, so the solve bought nothing.
+
+**Fix (`acquisition/discovery.py`):** a successful solve records how many list responses had arrived (`solved_after`); a `captcha` refusal among those is stale and is skipped by both `absorb()` and `_assemble`. A refusal after the solve still ends the listing as `captcha`. The scroll now checks for the modal before reading responses, so the modal is solved first.
+
+**Verification:** `test_a_page_refused_before_a_solved_captcha_does_not_end_the_discovery` RED (captcha, 0 pages, 0 videos) then GREEN; `test_a_refusal_after_the_solve_is_still_captcha`; acquisition tests 1037 passed; full Python suite 4381 passed, 252 skipped; `make lint` clean.
+
+**Not covered offline:** whether TikTok re-sends the list request after a solve. If it does not, the listing now ends as `no_data`/`idle` instead of a false `captcha`; a live look at the next creator listing will tell.
+
+**Next steps:**
+- Operator gates: push and PR for `fix/discovery-solved-captcha`, merge, deploy; then watch the next creator listing that meets a captcha.
+
 ## 2026-10-30 - Deployed master 98d7f42 (PR #92, worker log errors)
 
 **Deploy:** thoth `90d05385`, renderer `87226857`, web `908dbe8d`, pulled ahead of `make deploy`; migrate applied 0 revisions (head stays `0026`); every service healthy, worker 0 restarts, a new worker polls `thoth-control-plane`; acquisition stays `python` on `api` and `worker`. Previous file in `D:/thoth-tmp/bu/pins/pins-03741c38.env`. No workflow was running.

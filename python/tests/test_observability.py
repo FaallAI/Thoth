@@ -131,6 +131,33 @@ def test_scrapling_debug_is_dropped() -> None:
     assert records == []
 
 
+def test_scrapling_unreadable_response_body_errors_are_dropped() -> None:
+    """Stage1, 2026-10-30: Scrapling logs ERROR for every captured response whose body the
+    browser already discarded (a navigation or a redirect). The listing still succeeds, so
+    these lines are noise; every other Scrapling error stays."""
+    records: list[logging.LogRecord] = []
+    handler = _ListHandler(records)
+    logger = logging.getLogger("scrapling")
+    logger.handlers[:] = [handler]
+    logger.propagate = False
+    logger.setLevel(logging.DEBUG)
+
+    configure_provider_logging()
+    logger.error(
+        "Error getting page content in async: Response.body: Protocol error "
+        "(Network.getResponseBody): No data found for resource with given identifier"
+    )
+    logger.error(
+        "Error getting page content in async: Response.body: Response body is unavailable "
+        "for redirect responses"
+    )
+    logger.error("Error getting page content in async: Page.content: Target closed")
+
+    assert [record.getMessage() for record in records] == [
+        "Error getting page content in async: Page.content: Target closed"
+    ]
+
+
 def test_scrapling_warning_is_redacted_not_dropped() -> None:
     records: list[logging.LogRecord] = []
     handler = _ListHandler(records)
