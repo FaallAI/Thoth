@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-30 - Worker log: agno client leak and Scrapling body noise
+
+**`Task was destroyed but it is pending! AsyncClient.aclose()` (fixed):** agno 3.1.9 builds a new `AsyncOpenAI` per request; with no `http_client`, the SDK made its own httpx client and left it to `__del__`, which scheduled `aclose()` on whichever event loop ran at collection time, a Temporal workflow thread here. The four agno adapters (`captions`, `figures`, `vision`, `queries`) now pass their own `httpx.AsyncClient` and close it in `finally`. `test_an_agno_call_closes_the_http_client_it_used` and `test_every_agno_model_is_given_a_client_the_adapter_closes` (any new `OpenAILike(` without `http_client=` fails) were RED then GREEN.
+
+**Scrapling `ERROR ... Response.body:` lines (dropped):** Scrapling logs one for every captured response whose body the browser already discarded (navigated away, redirect); the listing still succeeds. The provider log filter drops exactly those; other Scrapling errors stay (`test_scrapling_unreadable_response_body_errors_are_dropped`).
+
+**Left as is:** `x.com/search` first-attempt `ERR_INVALID_AUTH_CREDENTIALS` and timeouts before a successful search, and TikTok's anonymous captcha that hands the listing to a source account.
+
+**Verification:** full Python suite 4384 passed, 252 skipped; `make lint` clean.
+
 ## 2026-10-30 - A solved TikTok captcha no longer ends the listing as captcha
 
 **Seen in the stage1 worker log (run after the 98d7f42 deploy):** footage's creator listing for `@pojokbogor` went through a source account; the whirl captcha was solved (`tiktok captcha outcome subtype=whirl solved=true attempts=1`), yet four seconds later discovery finished `kind=profile pages=0 videos=0 reason=captcha`, the creator listing was "unavailable", and footage admitted nothing from that creator.
