@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-30 - Deployed master 127cb0e (PRs #94 and #95: TikTok captcha and worker log fixes)
+
+**Deploy:** thoth `7e0b2cc2`, renderer `05e81b21`, web `d06550b5`, pulled ahead of `make deploy`; migrate applied 0 revisions (head stays `0026`); every service healthy, worker 0 restarts, a new worker polls `thoth-control-plane`; acquisition stays `python` on `api` and `worker`; the fresh worker log holds no ERROR or Traceback. Previous file in `D:/thoth-tmp/bu/pins/pins-98d7f427.env`. No workflow was running.
+
+`0418d84` (PR #94 alone) was built and pulled but never deployed: it dropped Scrapling's unreadable-body lines while those bodies still read as captcha, which PR #95 fixed first.
+
+**Next steps:**
+- Watch the next TikTok creator listing: videos, `no_data`, or a real `captcha`, never `captcha` after a solved whirl or over unreadable bodies; `tiktok discovery list bodies unreadable ... unreadable=n` shows how often bodies are lost.
+- The worker log should carry no `AsyncClient.aclose()` and no Scrapling `Response.body` errors.
+
 ## 2026-10-30 - An unreadable TikTok list body is no longer a captcha
 
 **Raised by a side agent before the 0418d84 deploy, confirmed in Scrapling's source:** for every captured XHR, Scrapling reads the body after the page action ends; when the browser has already discarded it (navigated away, a redirect) it logs `Error getting page content in async: Response.body: ...` and keeps `b""`. Discovery parsed that `b""` as a TikTok refusal (`captcha`), and its own in-page read did the same on an exception. A listing could end `captcha` while TikTok refused nothing, and PR #94 had just dropped those Scrapling lines from the log as noise.
