@@ -168,6 +168,12 @@ class NarrationScriptInput(NarrationStepInput):
     note: Annotated[str, Field(max_length=500)] | None = None
 
 
+class NarrationWriteInput(NarrationStepInput):
+    #: A narration (first or recreated) places its approved script's SFX; a re-voice keeps
+    #: the SFX the operator already arranged.
+    place_sfx: bool = True
+
+
 class NarrationRevoiceInput(NarrationStepInput):
     beat: BeatId
 

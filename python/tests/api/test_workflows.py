@@ -580,6 +580,7 @@ def test_openapi_exposes_exact_required_path_method_pairs(gateway) -> None:
         ("/api/v1/projects/{project_id}/edit-documents/{document_id}/narration", "get"),
         ("/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/decision", "post"),
         ("/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/cancel", "post"),
+        ("/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/restart", "post"),
         (
             "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/beats/{beat}",
             "put",

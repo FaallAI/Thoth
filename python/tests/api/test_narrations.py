@@ -474,3 +474,19 @@ async def test_a_library_sfx_can_be_added_to_the_draft_project() -> None:
         missing = await api.post("/api/v1/projects/project_001/sfx/airhorn/asset", headers=AUTH)
     assert response.status_code == 200 and response.json()["asset_id"] == "asset_sfx"
     assert added == [("project_001", "whoosh")] and missing.status_code == 404
+
+
+async def test_recreating_a_finished_narration_is_its_own_action() -> None:
+    """Operator 2026-10-31: a finished narration can be written again, deliberately."""
+    store, gateway = Store(), Gateway()
+    store.state = NarrationState(
+        document_id="edoc_abc123", workflow_id="narration/edoc_abc123/1", status="completed"
+    )
+    async with build(store, gateway) as api:
+        plain = await api.post(f"{DOC}/narration", headers=AUTH)
+        again = await api.post(f"{DOC}/narration/restart", headers=AUTH)
+        busy = await api.post(f"{DOC}/narration/restart", headers=AUTH)
+
+    assert (plain.status_code, code(plain)) == (409, "narration_exists")
+    assert again.status_code == 202 and gateway.started == ["narration/edoc_abc123/2"]
+    assert (busy.status_code, code(busy)) == (409, "narration_in_progress")

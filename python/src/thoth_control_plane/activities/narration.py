@@ -42,6 +42,7 @@ from thoth_control_plane.domain.narration import (
     NarrationScriptInput,
     NarrationStepInput,
     NarrationStepResult,
+    NarrationWriteInput,
     TranscriptSegment,
     VoiceRef,
     estimate_voice,
@@ -182,6 +183,8 @@ class NarrationActivities:
         """Voice the named beats, handing each voice over as soon as it exists, so a retry
         after a failure never pays for a beat twice (ElevenLabs bills per call)."""
         synthesizer = self._ports.voice()
+        # Request IDs stitch only beats voiced in this call: IDs must be under two hours old.
+        stitched: list[str] = []
         for index, beat in enumerate(script.beats):
             if beat.beat not in beats:
                 continue
@@ -195,8 +198,11 @@ class NarrationActivities:
                     next_text=script.beats[index + 1].text
                     if index + 1 < len(script.beats)
                     else None,
+                    previous_request_ids=stitched[-3:] or None,
                 )
             )
+            if result.request_id:
+                stitched.append(result.request_id)
             asset = await self._ports.upload_audio(project_id, result.audio, result.media_type)
             await on_voice(
                 VoiceRef(
@@ -240,7 +246,9 @@ class NarrationActivities:
                 raise  # retryable: the provider was unreachable or answered oddly
         return NarrationStepResult()
 
-    async def _write(self, step: NarrationStepInput, voices: list[VoiceRef]) -> None:
+    async def _write(
+        self, step: NarrationStepInput, voices: list[VoiceRef], *, place_sfx: bool
+    ) -> None:
         ports = self._ports
         script = await ports.store.get_script(step.document_id)
         preset = await ports.store.get_preset_of(step.document_id)
@@ -248,7 +256,7 @@ class NarrationActivities:
         materials = await ports.studio.materials(step.project_id, step.document_id)
         library = {entry.sfx_id: entry for entry in await ports.store.list_sfx()}
         placed = []
-        for cue in script.sfx_cues if script else []:
+        for cue in script.sfx_cues if script and place_sfx else []:
             entry = library.get(cue.sfx_id)
             if entry is None:
                 continue
@@ -268,17 +276,22 @@ class NarrationActivities:
             placed,
             preset,
             _roles(materials),
+            place_sfx=place_sfx,
         )
         await ports.documents.write_derived_revision(
             step.project_id, step.document_id, document.revision, narrated
         )
 
     @activity.defn(name="narration_write_draft")
-    async def write_draft(self, step: NarrationStepInput) -> NarrationStepResult:
+    async def write_draft(self, step: NarrationWriteInput) -> NarrationStepResult:
         scope = await asyncio.to_thread(metering.project_scope, step.project_id)
         with metering.scoped(scope):
             await self._ports.store.set_status(step.document_id, "writing")
-            await self._write(step, await self._ports.store.get_voices(step.document_id))
+            await self._write(
+                step,
+                await self._ports.store.get_voices(step.document_id),
+                place_sfx=step.place_sfx,
+            )
             await self._ports.store.set_status(step.document_id, "completed")
         return NarrationStepResult()
 

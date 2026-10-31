@@ -81,7 +81,12 @@ def narrate_document(
     sfx: Sequence[PlacedSfx],
     preset: NarrationPreset,
     roles_by_item: dict[str, str] | None = None,
+    *,
+    place_sfx: bool | None = None,
 ) -> EditDocumentV2:
+    """`place_sfx`: True places `sfx` and replaces earlier placed SFX (a narration, first or
+    recreated); False keeps the draft's SFX as the operator left them (a re-voice). None
+    places them only on a draft that has no narration yet."""
     fps = document.canvas.fps
     lead = math.ceil(preset.lead_in_seconds * fps)
     voices = {voice.beat: voice for voice in voiced}
@@ -93,7 +98,9 @@ def narrate_document(
     previous = {
         clip.clip_id: clip for clip in document.clips if clip.clip_id.startswith(_REBUILT_PREFIXES)
     }
-    base = [clip for clip in document.clips if not clip.clip_id.startswith(_REBUILT_PREFIXES)]
+    placing = (not narrated) if place_sfx is None else place_sfx
+    replaced = (*_REBUILT_PREFIXES, SFX_PREFIX) if placing else _REBUILT_PREFIXES
+    base = [clip for clip in document.clips if not clip.clip_id.startswith(replaced)]
     present = [beat for beat in BEAT_ORDER if beat in old_windows or beat in voices]
 
     new_windows: dict[str, Window] = {}
@@ -214,7 +221,7 @@ def narrate_document(
         speech.extend(_speech(voice.words, start, length, fps))
 
     # SFX are placed by the first narration only; afterwards they are the operator's clips.
-    for index, placed in enumerate(sfx if not narrated else []):
+    for index, placed in enumerate(sfx if placing else []):
         start = _sfx_start(placed.cue, starts, new_windows, voices, fps)
         if start is None or start >= total:
             continue

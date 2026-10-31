@@ -19,6 +19,7 @@ from thoth_control_plane.domain.narration import (
     NarrationRevoiceInput,
     NarrationScriptInput,
     NarrationStepInput,
+    NarrationWriteInput,
     SfxEntry,
     TranscriptSegment,
 )
@@ -279,7 +280,7 @@ def test_voicing_stitches_neighbours_and_writing_narrates_the_draft() -> None:
     run(activities.write_script(NarrationScriptInput(**STEP.model_dump())))
 
     run(activities.voice(STEP))
-    run(activities.write_draft(STEP))
+    run(activities.write_draft(NarrationWriteInput(**STEP.model_dump())))
 
     requests = seen["voice"].requests
     assert [request.previous_text for request in requests] == [
@@ -318,7 +319,7 @@ def test_re_voicing_one_beat_voices_only_that_beat_and_clears_it() -> None:
     activities = NarrationActivities(built)
     run(activities.write_script(NarrationScriptInput(**STEP.model_dump())))
     run(activities.voice(STEP))
-    run(activities.write_draft(STEP))
+    run(activities.write_draft(NarrationWriteInput(**STEP.model_dump())))
     before = len(seen["voice"].requests)
 
     run(activities.revoice(NarrationRevoiceInput(**STEP.model_dump(), beat="main")))
@@ -399,3 +400,26 @@ def test_transcription_is_metered_in_seconds(monkeypatch: pytest.MonkeyPatch) ->
     run(NarrationActivities(built).transcribe(STEP))
 
     assert recorded == [("transcription", "faster_whisper", 1.0, "second")]
+
+
+def test_beats_voiced_together_are_stitched_by_request_id() -> None:
+    built, seen = ports()
+    activities = NarrationActivities(built)
+    run(activities.write_script(NarrationScriptInput(**STEP.model_dump())))
+    counter = {"n": 0}
+    real = seen["voice"].synthesize
+
+    async def with_id(request):  # type: ignore[no-untyped-def]
+        result = await real(request)
+        counter["n"] += 1
+        return result.model_copy(update={"request_id": f"req_{counter['n']}"})
+
+    seen["voice"].synthesize = with_id
+    run(activities.voice(STEP))
+
+    requests = seen["voice"].requests
+    assert [request.previous_request_ids for request in requests] == [
+        None,
+        ["req_1"],
+        ["req_1", "req_2"],
+    ]

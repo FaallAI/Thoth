@@ -23,6 +23,7 @@ with workflow.unsafe.imports_passed_through():
         NarrationScriptInput,
         NarrationStepInput,
         NarrationStepResult,
+        NarrationWriteInput,
     )
     from thoth_control_plane.workflows.prompt_proposal import PROMPT_PROPOSAL_TASK_QUEUE
 
@@ -103,7 +104,7 @@ class NarrationWorkflow:
             return "failed"
         if self._cancel:
             return await self._cancelled(step)
-        await _step("narration_write_draft", step)
+        await _step("narration_write_draft", NarrationWriteInput(**step.model_dump()))
         return "completed"
 
     async def _cancelled(self, step: NarrationStepInput) -> str:
@@ -125,7 +126,9 @@ class NarrationWorkflow:
 class NarrationRevoiceWorkflow:
     @workflow.run
     async def run(self, step: NarrationRevoiceInput) -> str:
-        draft = NarrationStepInput(project_id=step.project_id, document_id=step.document_id)
+        draft = NarrationWriteInput(
+            project_id=step.project_id, document_id=step.document_id, place_sfx=False
+        )
         try:
             result = await _step("narration_revoice", step)
             if result.code:

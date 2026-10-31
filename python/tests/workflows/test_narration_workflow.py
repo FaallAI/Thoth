@@ -19,6 +19,7 @@ from thoth_control_plane.domain.narration import (
     NarrationScriptInput,
     NarrationStepInput,
     NarrationStepResult,
+    NarrationWriteInput,
 )
 from thoth_control_plane.workflows.narration import NarrationRevoiceWorkflow, NarrationWorkflow
 from thoth_control_plane.workflows.prompt_proposal import PROMPT_PROPOSAL_TASK_QUEUE
@@ -55,8 +56,8 @@ class Calls:
             return NarrationStepResult()
 
         @activity.defn(name="narration_write_draft")
-        async def write(_: NarrationStepInput) -> NarrationStepResult:
-            self.names.append("write")
+        async def write(step: NarrationWriteInput) -> NarrationStepResult:
+            self.names.append("write" if step.place_sfx else "write:keep_sfx")
             return NarrationStepResult()
 
         @activity.defn(name="narration_revoice")
@@ -204,4 +205,4 @@ async def test_a_re_voice_voices_one_beat_then_writes_the_draft(env: WorkflowEnv
             task_queue="main",
         )
     assert result == "completed"
-    assert calls.names == ["revoice:main", "write"]
+    assert calls.names == ["revoice:main", "write:keep_sfx"]

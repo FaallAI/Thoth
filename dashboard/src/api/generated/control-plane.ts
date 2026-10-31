@@ -453,6 +453,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/restart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restart Narration
+         * @description Write a finished narration again from the draft as it is now (a new script, approved
+         *     again before any voice); new beats such as an added Hook are included.
+         */
+        post: operations["restart_narration_api_v1_projects__project_id__edit_documents__document_id__narration_restart_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/edit-documents/{document_id}/review-comments": {
         parameters: {
             query?: never;
@@ -6102,6 +6123,40 @@ export interface operations {
                 "application/json": components["schemas"]["NarrationDecision"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NarrationState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restart_narration_api_v1_projects__project_id__edit_documents__document_id__narration_restart_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             202: {

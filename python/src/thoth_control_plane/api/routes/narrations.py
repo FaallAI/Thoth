@@ -82,6 +82,17 @@ async def start_narration(
     return await _answer(service.start(project_id, document_id))
 
 
+@router.post(
+    f"{DOCUMENT}/restart", response_model=NarrationState, status_code=status.HTTP_202_ACCEPTED
+)
+async def restart_narration(
+    project_id: str, document_id: str, _: Caller, service: Service
+) -> NarrationState:
+    """Write a finished narration again from the draft as it is now (a new script, approved
+    again before any voice); new beats such as an added Hook are included."""
+    return await _answer(service.start(project_id, document_id, restart=True))
+
+
 @router.get(DOCUMENT, response_model=NarrationState)
 async def read_narration(
     project_id: str, document_id: str, _: Caller, service: Service

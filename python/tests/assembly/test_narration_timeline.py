@@ -374,7 +374,10 @@ def test_re_voicing_keeps_a_deleted_sfx_deleted_and_blur_switched_off() -> None:
         track["clip_ids"] = [cid for cid in track["clip_ids"] if cid != "clip_sfx_0"]
     next(item for item in once["clips"] if item["clip_id"] == "clip_main")["blur_enabled"] = False
 
-    again = narrate_document(EditDocumentV2.model_validate(once), VOICES, sfx, PRESET, ROLES)
+    # A re-voice keeps the operator's SFX as they left them.
+    again = narrate_document(
+        EditDocumentV2.model_validate(once), VOICES, sfx, PRESET, ROLES, place_sfx=False
+    )
 
     assert "clip_sfx_0" not in {item.clip_id for item in again.clips}
     assert clip(again, "clip_main").blur_enabled is False
@@ -389,3 +392,29 @@ def test_a_clip_whose_beat_came_from_its_scene_keeps_that_beat_after_narration()
     again = narrate_document(once, [VOICES[0], voiced("main", 6.0), VOICES[2]], [], PRESET, ROLES)
     title = clip(again, "clip_001")
     assert 288 <= title.from_frame < 408  # still inside the reactions window after the shift
+
+
+def test_a_recreated_narration_places_the_new_scripts_sfx() -> None:
+    """Narration restarted (operator, 2026-10-31): the SFX shown at approval are the ones placed."""
+    old = SfxCue(sfx_id="impact", beat="main", moment="emphasis_word", word_index=2)
+    new = SfxCue(sfx_id="ding", beat="reactions", moment="comment_appear")
+    once = narrate_document(
+        draft(),
+        VOICES,
+        [PlacedSfx(cue=old, asset=audio("asset_sfx_impact", 1.0), duration_seconds=1.0)],
+        PRESET,
+        ROLES,
+    )
+
+    again = narrate_document(
+        once,
+        VOICES,
+        [PlacedSfx(cue=new, asset=audio("asset_sfx_ding", 1.0), duration_seconds=1.0)],
+        PRESET,
+        ROLES,
+        place_sfx=True,
+    )
+
+    sfx_clips = [item for item in again.clips if item.clip_id.startswith("clip_sfx_")]
+    assert [item.asset_id for item in sfx_clips] == ["asset_sfx_ding"]
+    assert sfx_clips[0].from_frame == 258

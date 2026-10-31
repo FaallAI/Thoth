@@ -99,7 +99,11 @@ class NarrationService:
         state = await self._store.get(project_id, document_id)
         return state is not None and state.status in ACTIVE_STATUSES
 
-    async def start(self, project_id: str, document_id: str) -> NarrationState:
+    async def start(
+        self, project_id: str, document_id: str, *, restart: bool = False
+    ) -> NarrationState:
+        """Create a narration; `restart` writes a finished one again from the current draft
+        (operator, 2026-10-31), with the same approval before any voice."""
         store = self._require()
         await self._documents.get_latest(project_id, document_id)  # 404 for an unknown draft
         try:
@@ -116,7 +120,7 @@ class NarrationService:
         previous = await store.get(project_id, document_id)
         if previous is not None and previous.status in ACTIVE_STATUSES:
             raise NarrationRefused("narration_in_progress")
-        if previous is not None and previous.status == "completed":
+        if previous is not None and previous.status == "completed" and not restart:
             # Spec 5: the button is for a draft with no narration yet; lines are re-voiced.
             raise NarrationRefused("narration_exists")
         workflow_id = _next_workflow_id(document_id, previous)
