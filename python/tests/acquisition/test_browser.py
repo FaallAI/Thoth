@@ -860,16 +860,13 @@ async def test_a_browser_that_never_launches_is_unavailable_not_blocked(site: in
     assert active_scrapling_session_count() == 0
 
 
-def test_an_unavailable_browser_keeps_retry_and_fallback_but_cools_no_account() -> None:
-    # Operator ruling 2026-10-24: a launch failure keeps the legacy CDP fallback it had as
-    # `headless_blocked`; it is never the site's doing, so no account is marked blocked.
+def test_an_unavailable_browser_keeps_retry_but_cools_no_account() -> None:
+    # Operator ruling 2026-10-24: a launch failure is retried like `headless_blocked`; it is
+    # never the site's doing, so no account is marked blocked.
     from thoth_control_plane.acquisition.accounts.runner import BLOCKED_CODES
     from thoth_control_plane.acquisition.service import RETRYABLE_FAILURES
-    from thoth_control_plane.domain.models import (
-        LEGACY_FALLBACK_ELIGIBLE_CODES,
-        SOURCE_EVENT_REASONS,
-    )
+    from thoth_control_plane.domain.models import SOURCE_EVENT_REASONS
 
     code = AcquisitionReason.BROWSER_UNAVAILABLE.value
-    assert code in RETRYABLE_FAILURES & LEGACY_FALLBACK_ELIGIBLE_CODES & SOURCE_EVENT_REASONS
+    assert code in RETRYABLE_FAILURES & SOURCE_EVENT_REASONS
     assert code not in BLOCKED_CODES

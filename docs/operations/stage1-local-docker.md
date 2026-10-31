@@ -30,23 +30,23 @@ operator change record.
 
 ## Prepare persistent storage
 
-Create `postgres`, `editor-postgres`, `artifacts`, `browser-profile`, `observations`, and `reports` below the absolute
-`THOTH_STAGE1_DATA_ROOT` outside this repository. Initialize `artifacts` and `browser-profile` as
-UID/GID `10001:10001`; keep the browser profile out of evidence and support output.
+Create `postgres`, `editor-postgres`, `artifacts`, `account-profiles`, `observations`, and `reports`
+below the absolute `THOTH_STAGE1_DATA_ROOT` outside this repository. Initialize `artifacts` and
+`account-profiles` as UID/GID `10001:10001`; keep the account profiles out of evidence and support
+output.
 
 Place the data root inside the WSL filesystem rather than under `/mnt/c`, because Linux UID/GID
 ownership is not reliable on the Windows drive mount.
 
 ```bash
-mkdir -p "$THOTH_STAGE1_DATA_ROOT"/{postgres,editor-postgres,artifacts,browser-profile,account-profiles,observations,reports}
-sudo chown -R 10001:10001 "$THOTH_STAGE1_DATA_ROOT"/artifacts "$THOTH_STAGE1_DATA_ROOT"/browser-profile
+mkdir -p "$THOTH_STAGE1_DATA_ROOT"/{postgres,editor-postgres,artifacts,account-profiles,observations,reports}
+sudo chown -R 10001:10001 "$THOTH_STAGE1_DATA_ROOT"/artifacts
 sudo chown -R 10001:10001 "$THOTH_STAGE1_DATA_ROOT"/account-profiles
-sudo chmod 750 "$THOTH_STAGE1_DATA_ROOT"/artifacts "$THOTH_STAGE1_DATA_ROOT"/browser-profile
+sudo chmod 750 "$THOTH_STAGE1_DATA_ROOT"/artifacts
 sudo chmod 700 "$THOTH_STAGE1_DATA_ROOT"/account-profiles
 ```
 
-Root is used only for this bounded ownership initialization. API, worker, and browser processes stay
-non-root. World-writable permissions are forbidden. PostgreSQL owns `postgres/` with the identity
+Root is used only for this bounded ownership initialization. API and worker processes stay non-root. World-writable permissions are forbidden. PostgreSQL owns `postgres/` with the identity
 expected by the pinned image; do not change its ownership manually.
 
 ## Configure the local environment
@@ -57,9 +57,9 @@ record. The variables Compose requires are `THOTH_IMAGE`, `THOTH_STAGE1_DATA_ROO
 `THOTH_CONTROL_PLANE_API_KEY`, `THOTH_POSTGRES_PASSWORD`, and `THOTH_EDITOR_POSTGRES_PASSWORD`. Missing required variables make
 `docker compose config` fail before any pull or startup.
 
-`THOTH_STAGE1_ACTIVITY_MODE` selects the acquisition mode of the API, which picks it when it starts
-a workflow, and of the worker. Scout is retired (2026-10-30), so the only approved value is `python`:
-an acquisition that fails is fixed in Python, never routed to Scout.
+Acquisition runs in Python only. Scout and its CDP sidecar are retired (operator, 2026-10-30), so
+there is no acquisition mode to choose: an acquisition that fails is fixed in Python. A leftover
+`THOTH_STAGE1_ACTIVITY_MODE` line in `.env.stage1.local` is read by nothing.
 
 `THOTH_LIVE_TIKTOK_URL` is a host-side pytest variable and is never injected into a container. It is
 read only by `python/tests/live`, which is not part of the image. The fixture is referred to by
@@ -68,9 +68,8 @@ URL to be selected silently.
 
 ## Configure the shared provider input
 
-Legacy Scout aborts its first pipeline step without a model provider key, so the digest alone is not
-fallback-ready: the worker and every one-off reference need the same provider input. Keep that input
-in a file outside the repository and give Compose only its absolute path.
+The worker's vision and subtitle OCR need a model provider key. Keep that input in a file outside
+the repository and give Compose only its absolute path.
 
 `.env.stage1.providers.example` shows the shape and is not a usable provider file. Create the real
 file on restricted storage, then export its path:
@@ -88,8 +87,8 @@ line of the file it names into that container, so the extra variables would beco
 environment. The preflight rejects a third variable, a placeholder key, a relative or
 in-repository path, and, on Linux, a group- or world-readable mode.
 
-`compose.stage1.providers.yml` attaches that file to the worker and to nothing else. The API, the
-browser sidecar, and the infrastructure preflight keep starting with no provider input at all.
+`compose.stage1.providers.yml` attaches that file to the worker and to nothing else. The API and the
+infrastructure preflight keep starting with no provider input at all.
 
 Providing credentials changes runtime configuration only. It does not change the image, its digest,
 or anything already recorded for a deployment that is already running, and a present key is not
@@ -99,7 +98,7 @@ evidence of authentication, quota, or model availability.
 
 Validate the operator-supplied values before pulling anything. Compose interpolation only rejects an
 empty variable, so the preflight is what actually enforces the immutable digest, an absolute data
-root outside the repository, an approved activity mode, and non-placeholder credentials. It names
+root outside the repository, and non-placeholder credentials. It names
 variables and never prints their values.
 
 ```bash
@@ -107,11 +106,11 @@ uv run --project python thoth-control operations stage1-local-preflight --env-fi
 ```
 
 Omitting `--provider-env-file` preserves the earlier non-live behaviour and validates the base
-environment only. Fallback-ready activation always supplies it.
+environment only. A deployment that runs the worker always supplies it.
 
 Then render with `--quiet` and inspect the topology through views that never resolve secrets. A bare
 `docker compose config` prints every resolved `environment:` block, including the database password
-and API key, into the terminal and the shell history. `--no-interpolate` shows the full seven-service
+and API key, into the terminal and the shell history. `--no-interpolate` shows the full
 topology with every `${VAR:?...}` left unresolved, which is the safe way to check `ports:`, `user:`,
 and mount targets.
 
@@ -122,7 +121,7 @@ docker compose --env-file .env.stage1.local -f compose.stage1.local.yml config -
 docker compose --env-file .env.stage1.local -f compose.stage1.local.yml pull
 ```
 
-For a fallback-ready deployment, validate the merged pair as well. `--no-interpolate` alone stops
+With the provider overlay, validate the merged pair as well. `--no-interpolate` alone stops
 being a safe diagnostic here: interpolation and service `env_file` resolution are separate steps, so
 an un-interpolated render still resolves the provider file into the worker's `environment:`. Use
 `--quiet`, `--images`, or the combination below. The current host reports Docker Compose v5.5.0;
@@ -142,7 +141,7 @@ command that omits the override and recreates the worker silently rebuilds it wi
 input, which is the same failure the override exists to prevent.
 
 Reject the rendered configuration if any image reference is mutable or missing a digest, if a host
-binding appears for PostgreSQL, Temporal, or the CDP sidecar, or if any application service resolves
+binding appears for PostgreSQL or Temporal, or if any application service resolves
 to a user other than `10001:10001`.
 
 ## Non-live infrastructure preflight
@@ -152,7 +151,7 @@ editor migration explicitly before starting API. Alembic records the schema revi
 is safe to rerun: it prints only the number of revisions it applied (`0` when already at head) and
 must not be replaced with startup-time schema creation. A database migrated before Alembic is adopted
 from its existing tables; a schema that is not a prefix of the chain is refused unchanged.
-Do not run `docker compose up` for `legacy-cdp` or `worker` without explicit live approval.
+Do not run `docker compose up` for `worker` without explicit live approval.
 
 ```bash
 docker compose --env-file .env.stage1.local -f compose.stage1.local.yml up -d --wait postgresql editor-postgresql temporal temporal-ui
@@ -192,98 +191,28 @@ docker compose --env-file .env.stage1.local -f compose.stage1.local.yml exec tem
 
 Then run the non-live control-plane smoke before any live gate is considered.
 
-## Scout runtime contents
-
-The legacy Scout fallback needs two things the earlier image did not provide, both corrected by
-[the Scout runtime corrective design](../superpowers/specs/2026-09-06-stage1-scout-runtime-corrective-design.md).
-Verify them against the digest actually deployed rather than assuming any image has them.
-
-| Requirement | State in a corrected image | How Scout uses it |
-| --- | --- | --- |
-| `yt-dlp` | pinned `2026.8.19`, which reports itself as `2026.08.19`, installed as `/opt/thoth/python/.venv/bin/yt-dlp` | video acquisition and thumbnail resolution in `trace_source` and `build_footage` |
-| `gallery-dl` | pinned `1.32.11`, installed as `/opt/thoth/python/.venv/bin/gallery-dl` | image-post acquisition where no video stream exists |
-| Sibling-reachable CDP | supervisor relay on `18800`, Chromium itself still on loopback | `THOTH_CDP` from the worker container |
-
-Scout resolves each downloader from `YTDLP` and `GALLERY_DL`, falling back to `PATH`; the image
-sets both to the absolute paths above and both also resolve on `PATH` for its non-root user. The
-build itself gates their presence and exact versions after switching to that user, so an image that
-builds cannot be missing them. The Python TikTok path stays headless-first with its CDN fallback
-and does not use either downloader, so their absence does not fail every direct-CDN branch; it
-fails the legacy Scout steps that shell out to them.
-
-The sidecar's healthcheck probes `127.0.0.1` from inside the container, so a `healthy` sidecar is
-not evidence that any other container can reach it. Chromium binds DevTools to loopback whatever
-address it is given; sibling reachability comes from the relay in front of it. The two-container
-smoke is what proves that transport:
-
-```bash
-bash docker/test-cdp-offline.sh <image-ref>
-```
-
-It starts the browser on a throwaway internal network with no published ports, then, from a second
-container, proves HTTP discovery, a browser-level WebSocket session, and a page session opened by
-Scout's own CDP client. It also proves the supervisor dies with Chromium and that it leaves nothing
-behind. CI runs the same script on the pull-request candidate and on the published digest. It
-targets `about:blank` and reaches no external site, so it is an offline transport proof and says
-nothing about live acquisition, parity, or provider acceptance.
-
-The page opened by `legacy-cdp` is owned exclusively by the sidecar health contract. A worker
-fallback must never select, navigate, restore, or close that page. Instead,
-`scout/runtime/legacy_fallback.ts` opens one temporary `about:blank` page through the private
-relay's browser-level WebSocket, passes its exact validated target ID only to the Scout child, and
-runs Scout with `--source-reference-only`. The supervisor reaps Scout and closes that leased target
-before returning. A target that cannot be proven closed produces status `70`, which outranks the
-child status; success cannot conceal failed cleanup.
-
-The CDP smoke also runs this production supervisor through both its synthetic success and injected
-child-failure paths. It passes only when the original health target retains the same ID and local
-URL, a distinct temporary target is observed, and no temporary target remains after either path.
-Its output contains fixed booleans only, never target IDs or URLs. This construction prevents a
-fallback from leaving the sidecar unhealthy while its container remains running. It does not rely
-on Docker to restart an unhealthy container: `restart: unless-stopped` responds to process exit,
-not health status. This proof remains offline and does not demonstrate a successful live fallback.
-
 ## Controlled live gate
 
-The approved mode is `python`. Starting the CDP sidecar opens TikTok and
-requires explicit operator approval plus the locally supplied fixture. Stop on authentication wall,
-challenge, unexpected routing, redaction failure, or cleanup failure.
+Starting the worker lets it acquire from live platforms and requires explicit operator approval
+plus the locally supplied fixture. Stop on authentication wall, challenge, unexpected routing,
+redaction failure, or cleanup failure.
 
-The CDP health check requires a responding `/json/version` endpoint and a page target served over
-HTTPS from an exact TikTok host whose path carries no authentication or challenge marker. A login
-wall, a captcha, or a look-alike host is unhealthy by design. A CDP failure blocks worker startup
-while legacy fallback mode is selected; that must not be worked around by relaxing the health check
-or publishing port `18800`.
-
-The sidecar runs with `seccomp:unconfined` because Chromium's own sandbox needs syscalls the
-default Docker profile blocks. The relaxation is deliberate, it is scoped to the single container
-that browses TikTok, and no other service may relax its sandbox. Replace it with a pinned Chromium
-seccomp profile once one is available. It is never a substitute for the health probe, which stays
-fail-closed.
-
-Once the sidecar and worker are approved and running, verify their identity and isolation:
+Once the worker is approved and running, verify its identity and isolation:
 
 ```bash
 docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml exec worker id -u
-docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml exec legacy-cdp id -u
-docker inspect -f '{{json .NetworkSettings.Ports}}' "$(docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml ps -q legacy-cdp)"
-docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml exec worker printenv THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE
-docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml run --rm --no-deps -T worker bun /opt/thoth/scout/runtime/provider_check.ts
+docker inspect -f '{{json .NetworkSettings.Ports}}' "$(docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml ps -q worker)"
 ```
 
-- Both identity commands must print `10001`.
-- The provider check prints one line per reference role and must report `chat_ready=true`,
-  `vision_ready=true`, `embed_ready=true`, and `ocr_model_ready=true`. It contacts no provider, so
-  it proves the configuration arrived, not that the account can serve a request.
-- The bindings command must print a map whose every value is `null`. A `HostPort` entry means
-  the sidecar is reachable outside the private network and the gate stops here. `docker compose
-  port` is not a substitute: it reports an exposed port as `invalid IP:0` and exits `0` whether
-  or not that port is published, so it cannot distinguish the two.
-- The worker mode must print `python`.
+- The identity command must print `10001`.
+- The bindings command must print `{}` or a map whose every value is `null`. A `HostPort` entry
+  means the worker is reachable outside the private network and the gate stops here. `docker
+  compose port` is not a substitute: it reports an exposed port as `invalid IP:0` and exits `0`
+  whether or not that port is published, so it cannot distinguish the two.
 
 Stage 1 closed under ADR 0001, and its activation parity and controlled fallback tooling was
-removed on 2026-10-30. Window steps below that still name a parity pair or a fallback exercise
-are history; deployment rollback is the recovery mechanism.
+removed on 2026-10-30, followed the same day by Scout and its CDP sidecar. Deployment rollback is
+the recovery mechanism.
 
 ## Accelerated acceptance target
 
@@ -291,17 +220,15 @@ A new dataset is evaluated against the accelerated acceptance policy in
 `docs/superpowers/specs/2026-09-07-stage1-accelerated-acceptance-design.md`:
 
 - at least 24 hours between the first and last valid completed run;
-- at least 12 valid completed runs;
-- at least 2 in-window evidence-backed parity samples, each from a distinct approved, public,
-  first-party TikTok post.
+- at least 12 valid completed runs.
 
-The success, fallback, and terminal-failure rates are unchanged at 0.95, 0.05, and 0.02, and the
+Parity samples compared Python with Scout; Scout is retired, so the soak needs none. The success
+and terminal-failure rates are unchanged at 0.95 and 0.02, and the
 zero-tolerance cleanup and audit rules still apply to every observation. Archived windows keep the
 policy embedded in their own reports; they are never re-evaluated under these defaults.
 
-An aggregate report of `ready: true` is necessary but not sufficient. The controlled fallback
-exercise, the restart-recovery check, the rollback drill, and explicit human approval all remain
-required, and a Python-default decision neither removes nor disables the TypeScript Scout path.
+An aggregate report of `ready: true` is necessary but not sufficient. The restart-recovery check,
+the rollback drill, and explicit human approval all remain required.
 
 ## Evidence identity of an aggregate report
 
@@ -339,9 +266,8 @@ Use host AWS authentication to sync observation JSONL and aggregate reports sepa
 - `s3://clipper-stage1-soak-evidence-20260903-a1d22394/stage1/observations/`
 - `s3://clipper-stage1-soak-evidence-20260903-a1d22394/stage1/reports/`
 
-Never upload browser-profile data. Upload is a separate operator action and is not performed by
-Compose. AWS credentials are not mounted into PostgreSQL, Temporal, API, worker, UI, or CDP
-containers. Export commands name directories and object prefixes only; they never print observation
+Never upload account-profile data. Upload is a separate operator action and is not performed by
+Compose. AWS credentials are not mounted into PostgreSQL, Temporal, API, worker, or UI containers. Export commands name directories and object prefixes only; they never print observation
 contents, fixture URLs, or workflow identifiers.
 
 Only the aggregate `tiktok-stage1-soak-report.json` may be attached to the change record. Raw JSONL
@@ -357,7 +283,7 @@ soak window in flight is frozen: do not apply any of this to it.
    pairing records exactly as recorded; do not re-label, re-run, or delete them. Record the closure
    of the old window with its digest, its start timestamp, and the reason it is closing.
 2. Publish the corrected image and wait for every gate on that push to pass, including the
-   published-digest infrastructure smoke and `docker/test-cdp-offline.sh`. A build that is green
+   published-digest infrastructure smoke. A build that is green
    locally is not a published artefact. Every push mints a new digest, so a digest read from an
    earlier run is the wrong artefact.
 3. Record the exact acquisition implementation commit, the digest from that commit's Actions
@@ -368,25 +294,22 @@ soak window in flight is frozen: do not apply any of this to it.
    of an aggregate report" above.
 4. Validate the operator inputs against that digest with `stage1-local-preflight --provider-env-file`
    before pulling, then render the merged Compose pair with `config --quiet`.
-5. Deploy every THOTH role — API, worker, and the CDP sidecar — on that one digest. A mixed
+5. Deploy every THOTH role — the API and the worker — on that one digest. A mixed
    deployment invalidates the window before it starts.
-6. Keep the existing persistent state: the artifact root, the browser profile, and the PostgreSQL
-   volume carry forward. Do not recreate them for a version change.
+6. Keep the existing persistent state: the artifact root, the account profiles, and the PostgreSQL
+   volumes carry forward. Do not recreate them for a version change.
 7. Reconcile in-flight workflows before accruing anything new. Let them finish, cancel them
    explicitly, or record them as carried over; a workflow that spans two digests belongs to neither
    window.
-8. Verify identity, isolation, provider readiness, and worker mode as in the controlled live gate
-   above, then run one explicitly approved parity pair and one controlled fallback exercise. Both
-   need their own approval; neither is implied by this document.
+8. Verify identity and isolation as in the controlled live gate above.
 9. Only after those pass, and only after the operator explicitly approves opening the window, start
    a separate new dataset with a new start timestamp. Do not merge it with the archived window's
-   observations, and do not carry the old window's parity results forward. That dataset is the one
-   evaluated against the accelerated acceptance target above; the activation pair from step 8 is not
-   one of its two in-window parity samples. Archived windows keep the policy embedded in their own
-   reports and are never reclassified under the accelerated defaults.
+   observations. That dataset is the one evaluated against the accelerated acceptance target above.
+   Archived windows keep the policy embedded in their own reports and are never reclassified under
+   the accelerated defaults.
 
 Every retry at any step is explicit and recorded. A failure is evidence and is recorded as such: a
-failed reference, a failed fallback exercise, or a failed smoke is a result, not something to retry
+failed reference or a failed smoke is a result, not something to retry
 until it succeeds.
 
 ## Restart and rollback preparation
@@ -397,18 +320,9 @@ An ordinary restart keeps the same digest and the same environment:
 docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml restart worker
 ```
 
-Scout is retired, so there is no Scout rollback mode; deployment rollback is the recovery
-mechanism. A change of `THOTH_STAGE1_ACTIVITY_MODE` in `.env.stage1.local` takes effect only when the
-API and the worker are recreated: the API picks the mode when it starts a workflow, and restarting
-a container reuses the environment it was created with:
-
-```bash
-docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml up -d --no-deps --force-recreate api worker
-docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml exec api printenv THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE
-```
-
-The mode command must print the mode that was just selected. Recreating the two roles preserves
-Temporal history and artifacts for audit.
+Scout is retired, so there is no rollback mode; deployment rollback is the recovery mechanism.
+Restarting a container reuses the environment it was created with, and recreating the API and the
+worker preserves Temporal history and artifacts for audit.
 
 Do not run `docker compose down -v` and do not delete `THOTH_STAGE1_DATA_ROOT` during restart or
 rollback. The rollback drill is not performed until the soak report is ready, and it remains subject

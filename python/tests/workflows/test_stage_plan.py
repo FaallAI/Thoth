@@ -261,7 +261,7 @@ def test_skip_queued_only_touches_queued_stages() -> None:
     plan.start("source", T0)
     plan.complete("source", T1)
 
-    plan.skip_queued("legacy_source")
+    plan.skip_queued("run_failed")
 
     assert statuses(plan) == {
         "source": "completed",
@@ -273,7 +273,7 @@ def test_skip_queued_only_touches_queued_stages() -> None:
         "source": None,
         "attribution": "attribution_off",  # the build-time reason is kept
         "footage": "footage_off",
-        "assembly": "legacy_source",
+        "assembly": "run_failed",
     }
 
 

@@ -84,7 +84,6 @@ def _live_activity(tmp_path: Path, capability: object):
         Settings(
             THOTH_CONTROL_PLANE_API_KEY="live-local-only",
             THOTH_CONTROL_PLANE_ARTIFACT_ROOT=tmp_path,
-            THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE="python",
         ),
         capability=capability,
     )

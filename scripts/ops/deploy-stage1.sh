@@ -86,6 +86,6 @@ if [ -d "$data_root/artifacts" ]; then
     done
 fi
 step up
-"${compose[@]}" up -d --wait 2>&1 | tail -12
+"${compose[@]}" up -d --wait --remove-orphans 2>&1 | tail -12
 step status
 "${compose[@]}" ps --format '{{.Service}} {{.Status}}'

@@ -9,7 +9,10 @@ from thoth_control_plane.config import Settings
 from thoth_control_plane.domain import ArtifactRef, EventKind
 
 VALID_REQUEST = {
-    "source": {"url": "https://example.test/post", "intent": "identify_original"},
+    "source": {
+        "url": "https://www.tiktok.com/@creator/video/1234567890",
+        "intent": "identify_original",
+    },
     "style": {"preset_id": "news-vertical"},
     "output": {"format": "vertical_video", "language": "id"},
     "review": {"require_publish_approval": True},
@@ -53,7 +56,12 @@ async def test_cors_preflight_allows_configured_dashboard_origin(gateway) -> Non
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "url", ["https://m.facebook.com/story.php?id=1", "https://www.reddit.com/r/x/comments/abc/"]
+    "url",
+    [
+        "https://m.facebook.com/story.php?id=1",
+        "https://www.reddit.com/r/x/comments/abc/",
+        "https://vimeo.com/123",
+    ],
 )
 async def test_unsupported_platform_is_rejected_before_any_workflow_starts(
     client: httpx.AsyncClient, gateway, url: str

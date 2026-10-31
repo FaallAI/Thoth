@@ -2,16 +2,10 @@
 
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
-from pathlib import Path
 
 from thoth_control_plane.acquisition.models import DiscoveredVideo
-from thoth_control_plane.attribution.candidates import (
-    DEFAULT_CURATED_FILE,
-    load_curated,
-    shortlist,
-)
+from thoth_control_plane.attribution.candidates import shortlist
 
 REPOST_TIME = datetime(2026, 8, 24, 7, 26, 32, tzinfo=UTC)
 SOURCE = "vincentius.christ76"
@@ -90,21 +84,3 @@ def test_the_reposting_and_curated_accounts_are_excluded() -> None:
 
     assert kept == [3]
     assert counts == {"excluded_account": 2}
-
-
-def test_the_curated_list_reads_every_shape_and_degrades_to_empty(tmp_path: Path) -> None:
-    listed = tmp_path / "list.json"
-    listed.write_text(json.dumps(["@One.Account", "https://www.instagram.com/two_acc/?hl=id"]))
-    keyed = tmp_path / "keyed.json"
-    keyed.write_text(json.dumps({"accounts": ["three"]}))
-
-    assert load_curated(listed) == frozenset({"oneaccount", "twoacc"})
-    assert load_curated(keyed) == frozenset({"three"})
-    assert load_curated(tmp_path / "missing.json") == frozenset()
-
-
-def test_the_default_curated_file_is_the_scout_list() -> None:
-    repository = Path(__file__).resolve().parents[3]
-
-    assert repository / "scout" / "config" / "ig_accounts.json" == DEFAULT_CURATED_FILE
-    assert DEFAULT_CURATED_FILE.is_file()

@@ -297,7 +297,6 @@ class StageSummary(StrictModel):
             "attribution_off",
             "footage_off",
             "assembly_off",
-            "legacy_source",
             "approval_rejected",
             "not_in_this_version",
             "run_failed",
@@ -355,6 +354,9 @@ class WorkflowSummary(StrictModel):
         return _parse_rfc3339_timestamp(timestamp)
 
 
+# Decode-only: workflows started before Scout's retirement (operator, 2026-10-30) carry the
+# Scout modes, and every run takes the Python path whatever it holds. Remove it once those
+# histories leave the 30-day retention, after 2026-11-29.
 SourceActivityMode = Literal[
     "python",
     "python_tiktok_with_legacy_fallback",
@@ -395,38 +397,6 @@ class SourceInvestigationResult(StrictModel):
         return self
 
 
-LEGACY_FALLBACK_ELIGIBLE_CODES = frozenset(
-    {
-        "headless_timeout",
-        "headless_blocked",
-        "headless_incomplete",
-        "request_timeout",
-        "request_blocked",
-        "request_incomplete",
-        "cdn_rate_limited",
-        "cdn_unavailable",
-        "media_validation_failed",
-        "browser_unavailable",
-    }
-)
-"""Domain-owned taxonomy of codes eligible for legacy-scout fallback.
-
-Imported by the deterministic workflow (routing) and the soak contract
-(allowlist assertions) so the two cannot drift apart.
-
-Eligible code families: `headless_*`, `request_*`, `cdn_*`, and
-`media_validation_failed`.
-
-Membership means "a Python provider attempt was made and failed in a way legacy
-might still recover from". Pre-provider rejections are therefore excluded:
-`invalid_tiktok_url` and `unsupported_platform` are decided before any provider
-or legacy attempt exists, and an observation for them is `route="invalid_input"`
-with zero attempts -- shape the `legacy_fallback` route rejects outright. Sending
-a non-TikTok platform to legacy in an explicit migration mode is a separate
-routing seam, decided by the activity mode and the platform before the Python
-activity runs, never by a failure code returned after it.
-"""
-
 SOURCE_EVENT_PAYLOAD_KEYS = frozenset(
     {
         "stage",
@@ -436,7 +406,6 @@ SOURCE_EVENT_PAYLOAD_KEYS = frozenset(
         "progress",
         "partial_cleanup_passed",
         "browser_cleanup_passed",
-        "fallback_from",
         "account_used",
         "account_outcome",
         "no_account_available",
@@ -543,11 +512,6 @@ class SourceProgressEvent(StrictModel):
             raise ValueError("source event verdict is unsupported")
         if "reason" in payload and payload["reason"] not in SOURCE_EVENT_REASONS:
             raise ValueError("source event reason is unsupported")
-        if (
-            "fallback_from" in payload
-            and payload["fallback_from"] not in LEGACY_FALLBACK_ELIGIBLE_CODES
-        ):
-            raise ValueError("source event fallback code is unsupported")
         if "ocr_outcome" in payload and payload["ocr_outcome"] not in OCR_OUTCOMES:
             raise ValueError("source event OCR outcome is unsupported")
         for count in ("comment_count", "figure_count", "footage_count"):
@@ -572,10 +536,6 @@ class SourceProgressEvent(StrictModel):
         ):
             raise ValueError("source event progress must be finite and between zero and one")
         return payload
-
-
-LegacyScoutProgressEvent = SourceProgressEvent
-"""Backward-compatible alias; import compatibility only, do not extend."""
 
 
 class SafeActivityError(StrictModel):

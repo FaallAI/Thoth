@@ -16,7 +16,6 @@ from temporalio.contrib.pydantic import pydantic_data_converter
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
-import thoth_control_plane.infrastructure.temporal_gateway as temporal_gateway
 from thoth_control_plane import worker
 from thoth_control_plane.acquisition.models import AcquisitionResult, SourceReport
 from thoth_control_plane.activities.content_assembly import (
@@ -24,7 +23,6 @@ from thoth_control_plane.activities.content_assembly import (
     ContentAssemblyActivityResult,
 )
 from thoth_control_plane.activities.footage import FootageActivityInput, FootageActivityResult
-from thoth_control_plane.activities.legacy_scout import LEGACY_ADAPTER_TASK_QUEUE, LegacyScoutInput
 from thoth_control_plane.activities.meter_scope import record_workflow_completed
 from thoth_control_plane.activities.source_attribution import (
     SourceAttributionActivityInput,
@@ -50,12 +48,10 @@ from thoth_control_plane.domain import (
     SourceInvestigationActivityResult,
     SourceInvestigationWorkflowInput,
     WorkflowRequest,
-    WorkflowStatus,
     WorkflowSummary,
     request_snapshot_id,
     safe_workflow_source,
 )
-from thoth_control_plane.domain.models import SafeActivityError, SourceProgressEvent
 from thoth_control_plane.infrastructure.temporal_gateway import (
     TASK_QUEUE,
     TemporalWorkflowGateway,
@@ -107,39 +103,8 @@ async def fake_inspect(input_: object) -> SourceInvestigationActivityResult:
     )
 
 
-@activity.defn(name="inspect_legacy_scout")
-async def fake_legacy_inspect(input_: LegacyScoutInput) -> SourceInvestigationActivityResult:
-    assert input_.workflow_id.startswith("wf_")
-    assert input_.output_package_id.startswith("pkg_")
-    assert input_.canonical_source_url.query is None
-    result = await fake_inspect(input_)
-    return result.model_copy(
-        update={
-            "events": [
-                {"kind": "stage.started", "payload": {"stage": "source"}},
-                {
-                    "kind": "stage.progress",
-                    "payload": {"stage": "source", "progress": 0.5},
-                },
-                {"kind": "stage.completed", "payload": {"stage": "source"}},
-            ]
-        }
-    )
-
-
-@activity.defn(name="inspect_legacy_scout")
-async def failed_legacy_inspect(input_: LegacyScoutInput) -> SourceInvestigationActivityResult:
-    del input_
-    return SourceInvestigationActivityResult(
-        failure={"code": LEGACY_FAILURE_CODE, "retryable": False}
-    )
-
-
 FAILING_ACTIVITY_ATTEMPTS = 0
 CANCELLING_ACTIVITY_RELEASE: asyncio.Event | None = None
-LEGACY_ACTIVITY_STARTED: asyncio.Event | None = None
-LEGACY_ACTIVITY_CANCELLED: asyncio.Event | None = None
-LEGACY_FAILURE_CODE = "legacy_scout_failed"
 
 
 @activity.defn(name="inspect_source_candidates")
@@ -166,19 +131,6 @@ async def cancelling_inspect(input_: object) -> SourceInvestigationActivityResul
     return SourceInvestigationActivityResult(
         failure={"code": "source_investigation_cancelled", "retryable": False}
     )
-
-
-@activity.defn(name="inspect_legacy_scout")
-async def cancelling_legacy_inspect(input_: LegacyScoutInput) -> SourceInvestigationActivityResult:
-    del input_
-    assert LEGACY_ACTIVITY_STARTED is not None
-    assert LEGACY_ACTIVITY_CANCELLED is not None
-    LEGACY_ACTIVITY_STARTED.set()
-    try:
-        await asyncio.Event().wait()
-    except asyncio.CancelledError:
-        LEGACY_ACTIVITY_CANCELLED.set()
-        raise
 
 
 @pytest_asyncio.fixture
@@ -222,38 +174,6 @@ async def test_identify_original_finishes_with_a_redacted_source_report(
     assert result.artifacts[0].kind == "source_report"
     assert "signature" not in str(result.model_dump(mode="json"))
     assert "candidate_001" not in str(result.model_dump(mode="json"))
-
-
-@pytest.mark.asyncio
-async def test_legacy_selection_runs_only_the_isolated_adapter_queue(
-    workflow_env: WorkflowEnvironment,
-) -> None:
-    legacy_input = workflow_input(VALID_IDENTIFY_REQUEST).model_copy(
-        update={"activity_mode": "legacy_scout"}
-    )
-    async with (
-        Worker(
-            workflow_env.client,
-            task_queue="test",
-            workflows=[SourceInvestigationWorkflow],
-            activities=[record_workflow_completed],
-        ),
-        Worker(
-            workflow_env.client,
-            task_queue=LEGACY_ADAPTER_TASK_QUEUE,
-            activities=[fake_legacy_inspect],
-            max_concurrent_activities=1,
-        ),
-    ):
-        result = await workflow_env.client.execute_workflow(
-            SourceInvestigationWorkflow.run,
-            args=[legacy_input],
-            id="wf_test_legacy_queue",
-            task_queue="test",
-        )
-
-    assert result.status == "succeeded"
-    assert result.artifacts[0].kind == "source_report"
 
 
 @pytest.mark.asyncio
@@ -339,82 +259,6 @@ async def test_cancel_signal_finishes_as_cancelled(
 
     assert result.status == "cancelled"
     assert result.approval is None
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("failure_code", ["legacy_scout_timeout", "legacy_scout_failed"])
-async def test_legacy_timeout_or_nonzero_failure_reaches_workflow_summary(
-    workflow_env: WorkflowEnvironment,
-    failure_code: str,
-) -> None:
-    global LEGACY_FAILURE_CODE
-    LEGACY_FAILURE_CODE = failure_code
-    legacy_input = workflow_input(VALID_IDENTIFY_REQUEST).model_copy(
-        update={"activity_mode": "legacy_scout"}
-    )
-    async with (
-        Worker(
-            workflow_env.client,
-            task_queue="test",
-            workflows=[SourceInvestigationWorkflow],
-            activities=[record_workflow_completed],
-        ),
-        Worker(
-            workflow_env.client,
-            task_queue=LEGACY_ADAPTER_TASK_QUEUE,
-            activities=[failed_legacy_inspect],
-            max_concurrent_activities=1,
-        ),
-    ):
-        result = await workflow_env.client.execute_workflow(
-            SourceInvestigationWorkflow.run,
-            args=[legacy_input],
-            id=f"wf_test_{failure_code}",
-            task_queue="test",
-        )
-
-    assert result.status == "failed"
-    assert result.failure is not None
-    assert result.failure.code == failure_code
-    assert result.artifacts == []
-
-
-@pytest.mark.asyncio
-async def test_legacy_cancellation_cancels_the_owned_activity_and_workflow(
-    workflow_env: WorkflowEnvironment,
-) -> None:
-    global LEGACY_ACTIVITY_STARTED, LEGACY_ACTIVITY_CANCELLED
-    LEGACY_ACTIVITY_STARTED = asyncio.Event()
-    LEGACY_ACTIVITY_CANCELLED = asyncio.Event()
-    legacy_input = workflow_input(VALID_IDENTIFY_REQUEST).model_copy(
-        update={"activity_mode": "legacy_scout"}
-    )
-    async with (
-        Worker(
-            workflow_env.client,
-            task_queue="test",
-            workflows=[SourceInvestigationWorkflow],
-            activities=[record_workflow_completed],
-        ),
-        Worker(
-            workflow_env.client,
-            task_queue=LEGACY_ADAPTER_TASK_QUEUE,
-            activities=[cancelling_legacy_inspect],
-            max_concurrent_activities=1,
-        ),
-    ):
-        handle = await workflow_env.client.start_workflow(
-            SourceInvestigationWorkflow.run,
-            args=[legacy_input],
-            id="wf_test_legacy_cancel",
-            task_queue="test",
-        )
-        await asyncio.wait_for(LEGACY_ACTIVITY_STARTED.wait(), timeout=3)
-        await handle.signal(SourceInvestigationWorkflow.request_cancel)
-        result = await asyncio.wait_for(handle.result(), timeout=3)
-
-    assert result.status == "cancelled"
-    assert LEGACY_ACTIVITY_CANCELLED.is_set()
 
 
 @pytest.mark.asyncio
@@ -640,7 +484,6 @@ async def test_source_investigation_activity_materializes_its_report(
         Settings(
             THOTH_CONTROL_PLANE_API_KEY="test-key",
             THOTH_CONTROL_PLANE_ARTIFACT_ROOT=tmp_path,
-            THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE="python",
         ),
         runner=_offline_successful_runner(),
         reports=report_store,
@@ -680,7 +523,6 @@ async def test_production_worker_registration_binds_source_activity_to_configure
         Settings(
             THOTH_CONTROL_PLANE_API_KEY="test-key",
             THOTH_CONTROL_PLANE_ARTIFACT_ROOT=configured_root,
-            THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE="python",
         ),
         runner=_offline_successful_runner(),
         reports=report_store,
@@ -867,7 +709,6 @@ async def test_gateway_cancellation_wins_when_the_running_activity_returns_an_er
 
 
 PYTHON_CALLS = 0
-LEGACY_CALLS = 0
 
 
 @activity.defn(name="inspect_source_candidates")
@@ -881,12 +722,7 @@ async def eligible_python_failure(input_: SourceInvestigationActivityInput):
 
 @activity.defn(name="inspect_source_candidates")
 async def cdn_unavailable_python_failure(input_: SourceInvestigationActivityInput):
-    """A real, service-producible eligible failure (see `TikWmError`).
-
-    Unlike `eligible_python_failure` (`headless_blocked`, a code
-    `TikTokAcquisitionService.inspect()` never actually returns), this pins
-    the fallback path a production run can really hit.
-    """
+    """A real, service-producible failure (see `TikWmError`)."""
     global PYTHON_CALLS
     PYTHON_CALLS += 1
     return SourceInvestigationActivityResult(failure={"code": "cdn_unavailable", "retryable": True})
@@ -899,56 +735,6 @@ async def unsafe_python_failure(input_: SourceInvestigationActivityInput):
     return SourceInvestigationActivityResult(
         failure={"code": "invalid_tiktok_url", "retryable": False}
     )
-
-
-@activity.defn(name="inspect_source_candidates")
-async def unsupported_platform_python_failure(input_: SourceInvestigationActivityInput):
-    """A pre-provider rejection, which must never reach the legacy activity.
-
-    The URL is a real TikTok post, so the pre-activity non-TikTok routing seam
-    does not fire and the Python activity genuinely runs. What is under test is
-    the failure code alone: `unsupported_platform` is not fallback-eligible, so
-    the workflow must fail closed rather than hand off to legacy.
-    """
-    global PYTHON_CALLS
-    PYTHON_CALLS += 1
-    return SourceInvestigationActivityResult(
-        failure={"code": "unsupported_platform", "retryable": False}
-    )
-
-
-@activity.defn(name="inspect_source_candidates")
-async def acquisition_runner_python_failure(input_: SourceInvestigationActivityInput):
-    global PYTHON_CALLS
-    PYTHON_CALLS += 1
-    return SourceInvestigationActivityResult(
-        failure={"code": "acquisition_runner_failed", "retryable": False}
-    )
-
-
-@activity.defn(name="inspect_source_candidates")
-async def acquisition_dependency_python_failure(input_: SourceInvestigationActivityInput):
-    global PYTHON_CALLS
-    PYTHON_CALLS += 1
-    return SourceInvestigationActivityResult(
-        failure={"code": "acquisition_dependency_unavailable", "retryable": False}
-    )
-
-
-@activity.defn(name="inspect_source_candidates")
-async def artifact_persistence_python_failure(input_: SourceInvestigationActivityInput):
-    global PYTHON_CALLS
-    PYTHON_CALLS += 1
-    return SourceInvestigationActivityResult(
-        failure={"code": "artifact_persistence_failed", "retryable": False}
-    )
-
-
-@activity.defn(name="inspect_legacy_scout")
-async def counted_legacy_success(input_: LegacyScoutInput):
-    global LEGACY_CALLS
-    LEGACY_CALLS += 1
-    return await fake_legacy_inspect(input_)
 
 
 @activity.defn(name="inspect_source_candidates")
@@ -966,290 +752,71 @@ async def request_blocked_python_failure(input_: SourceInvestigationActivityInpu
 
 
 async def run_routing_case(workflow_env, *, source_url: str, mode: str, python_activity):
-    global PYTHON_CALLS, LEGACY_CALLS
+    global PYTHON_CALLS
     PYTHON_CALLS = 0
-    LEGACY_CALLS = 0
     request = VALID_IDENTIFY_REQUEST.model_copy(
         update={"source": VALID_IDENTIFY_REQUEST.source.model_copy(update={"url": source_url})}
     )
     input_ = workflow_input(request).model_copy(update={"activity_mode": mode})
-    async with (
-        Worker(
-            workflow_env.client,
-            task_queue="test",
-            workflows=[SourceInvestigationWorkflow],
-            activities=[record_workflow_completed, python_activity],
-        ),
-        Worker(
-            workflow_env.client,
-            task_queue=LEGACY_ADAPTER_TASK_QUEUE,
-            activities=[counted_legacy_success],
-            max_concurrent_activities=1,
-        ),
+    async with Worker(
+        workflow_env.client,
+        task_queue="test",
+        workflows=[SourceInvestigationWorkflow],
+        activities=[record_workflow_completed, python_activity],
     ):
-        result = await workflow_env.client.execute_workflow(
-            SourceInvestigationWorkflow.run,
-            args=[input_],
-            id=f"wf_route_{mode}_{request_snapshot_id(request)}",
-            task_queue="test",
+        # A route to an activity nobody serves would wait forever; time out instead.
+        result = await asyncio.wait_for(
+            workflow_env.client.execute_workflow(
+                SourceInvestigationWorkflow.run,
+                args=[input_],
+                id=f"wf_route_{mode}_{request_snapshot_id(request)}",
+                task_queue="test",
+            ),
+            timeout=10,
         )
-    return result, PYTHON_CALLS, LEGACY_CALLS
+    return result, PYTHON_CALLS
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["python", "python_tiktok_with_legacy_fallback", "legacy_scout"])
 @pytest.mark.parametrize(
-    (
-        "source_url",
-        "mode",
-        "python_activity",
-        "expected_status",
-        "expected_failure",
-        "expected_python_calls",
-        "expected_legacy_calls",
-    ),
+    ("source_url", "python_activity", "expected_failure", "expected_python_calls"),
     [
-        (
-            "https://www.tiktok.com/@creator/video/1234567890",
-            "python_tiktok_with_legacy_fallback",
-            counted_python_success,
-            "succeeded",
-            None,
-            1,
-            0,
-        ),
-        (
-            "https://www.tiktok.com/@creator/video/1234567890",
-            "python_tiktok_with_legacy_fallback",
-            eligible_python_failure,
-            "succeeded",
-            None,
-            1,
-            1,
-        ),
-        (
-            "https://www.tiktok.com/@creator/video/1234567890",
-            "python_tiktok_with_legacy_fallback",
-            cdn_unavailable_python_failure,
-            "succeeded",
-            None,
-            1,
-            1,
-        ),
-        (
-            "https://www.tiktok.com/@creator/video/1234567890",
-            "python_tiktok_with_legacy_fallback",
-            unsafe_python_failure,
-            "failed",
-            "invalid_tiktok_url",
-            1,
-            0,
-        ),
-        (
-            "https://www.tiktok.com/@creator/video/1234567890",
-            "python_tiktok_with_legacy_fallback",
-            unsupported_platform_python_failure,
-            "failed",
-            "unsupported_platform",
-            1,
-            0,
-        ),
-        (
-            "https://www.tiktok.com/@creator/video/1234567890",
-            "python_tiktok_with_legacy_fallback",
-            acquisition_runner_python_failure,
-            "failed",
-            "acquisition_runner_failed",
-            1,
-            0,
-        ),
-        (
-            "https://www.tiktok.com/@creator/video/1234567890",
-            "python_tiktok_with_legacy_fallback",
-            acquisition_dependency_python_failure,
-            "failed",
-            "acquisition_dependency_unavailable",
-            1,
-            0,
-        ),
-        (
-            "https://www.tiktok.com/@creator/video/1234567890",
-            "python_tiktok_with_legacy_fallback",
-            artifact_persistence_python_failure,
-            "failed",
-            "artifact_persistence_failed",
-            1,
-            0,
-        ),
-        (
-            "https://example.test/post",
-            "python_tiktok_with_legacy_fallback",
-            counted_python_success,
-            "succeeded",
-            None,
-            0,
-            1,
-        ),
-        (
-            "https://www.tiktok.com/@creator/video/1234567890",
-            "python",
-            eligible_python_failure,
-            "failed",
-            "headless_blocked",
-            1,
-            0,
-        ),
-        (
-            "https://www.tiktok.com/@creator/video/1234567890",
-            "legacy_scout",
-            counted_python_success,
-            "succeeded",
-            None,
-            0,
-            1,
-        ),
-        (
-            "https://m.facebook.com/story.php?id=1",
-            "python_tiktok_with_legacy_fallback",
-            counted_python_success,
-            "failed",
-            "unsupported_platform",
-            0,
-            0,
-        ),
-        (
-            "https://m.facebook.com/story.php?id=1",
-            "python",
-            counted_python_success,
-            "failed",
-            "unsupported_platform",
-            0,
-            0,
-        ),
-        (
-            "https://m.facebook.com/story.php?id=1",
-            "legacy_scout",
-            counted_python_success,
-            "failed",
-            "unsupported_platform",
-            0,
-            0,
-        ),
-        (
-            "https://www.reddit.com/r/x/comments/abc/",
-            "python_tiktok_with_legacy_fallback",
-            counted_python_success,
-            "failed",
-            "unsupported_platform",
-            0,
-            0,
-        ),
+        (CANONICAL_TIKTOK_URL, counted_python_success, None, 1),
+        (CANONICAL_TIKTOK_URL, eligible_python_failure, "headless_blocked", 1),
+        (CANONICAL_TIKTOK_URL, cdn_unavailable_python_failure, "cdn_unavailable", 1),
+        (CANONICAL_TIKTOK_URL, unsafe_python_failure, "invalid_tiktok_url", 1),
         (
             "https://www.threads.com/@user_001/post/code_001",
-            "python_tiktok_with_legacy_fallback",
-            counted_python_success,
-            "succeeded",
-            None,
-            1,
-            0,
-        ),
-        (
-            "https://www.threads.com/@user_001/post/code_001",
-            "python_tiktok_with_legacy_fallback",
             request_blocked_python_failure,
-            "succeeded",
-            None,
-            1,
+            "request_blocked",
             1,
         ),
+        ("https://www.instagram.com/p/code_001/", counted_python_success, None, 1),
+        ("https://vimeo.com/123", counted_python_success, "unsupported_platform", 0),
+        ("https://example.test/post", counted_python_success, "unsupported_platform", 0),
         (
-            "https://vimeo.com/123",
-            "python_tiktok_with_legacy_fallback",
+            "https://m.facebook.com/story.php?id=1",
             counted_python_success,
-            "succeeded",
-            None,
-            0,
-            1,
-        ),
-        (
-            "https://vimeo.com/123",
-            "python",
-            counted_python_success,
-            "failed",
             "unsupported_platform",
-            0,
-            0,
-        ),
-        (
-            "https://www.instagram.com/p/code_001/",
-            "python_tiktok_with_legacy_fallback",
-            counted_python_success,
-            "succeeded",
-            None,
-            1,
-            0,
-        ),
-        (
-            "https://www.instagram.com/p/code_001/",
-            "python_tiktok_with_legacy_fallback",
-            request_blocked_python_failure,
-            "succeeded",
-            None,
-            1,
-            1,
-        ),
-        (
-            "https://www.instagram.com/p/code_001/",
-            "python",
-            counted_python_success,
-            "succeeded",
-            None,
-            1,
             0,
         ),
     ],
 )
-async def test_activity_mode_routing(
-    workflow_env,
-    source_url,
-    mode,
-    python_activity,
-    expected_status,
-    expected_failure,
-    expected_python_calls,
-    expected_legacy_calls,
+async def test_every_recorded_mode_routes_through_python_only(
+    workflow_env, mode, source_url, python_activity, expected_failure, expected_python_calls
 ):
-    result, python_calls, legacy_calls = await run_routing_case(
-        workflow_env,
-        source_url=source_url,
-        mode=mode,
-        python_activity=python_activity,
+    """Scout is retired (operator, 2026-10-30): a Python failure stands, never falls back.
+
+    Histories started before the retirement carry the old Scout modes; they still decode and
+    take the Python path, so replaying them schedules the commands they recorded.
+    """
+    result, python_calls = await run_routing_case(
+        workflow_env, source_url=source_url, mode=mode, python_activity=python_activity
     )
-    assert result.status == expected_status
+    assert result.status == ("succeeded" if expected_failure is None else "failed")
     assert (result.failure.code if result.failure is not None else None) == expected_failure
     assert python_calls == expected_python_calls
-    assert legacy_calls == expected_legacy_calls
-
-
-@pytest.mark.asyncio
-async def test_gateway_connect_propagates_source_investigation_activity_mode(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    fake_client = object()
-
-    async def fake_connect(*args: object, **kwargs: object) -> object:
-        del args, kwargs
-        return fake_client
-
-    monkeypatch.setattr(temporal_gateway.Client, "connect", fake_connect)
-
-    gateway = await TemporalWorkflowGateway.connect(
-        Settings(
-            THOTH_CONTROL_PLANE_API_KEY="test-key",
-            THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE="legacy_scout",
-        )
-    )
-
-    assert gateway._activity_mode == "legacy_scout"
 
 
 @pytest.mark.asyncio
@@ -1274,231 +841,6 @@ async def test_temporal_outage_fails_readiness_without_failing_liveness(
 
     assert health.status_code == 200
     assert readiness.status_code == 503
-
-
-@activity.defn(name="inspect_source_candidates")
-async def eligible_headless_failure_with_events(
-    input_: SourceInvestigationActivityInput,
-) -> SourceInvestigationActivityResult:
-    del input_
-    return SourceInvestigationActivityResult(
-        failure=SafeActivityError(code="headless_blocked", retryable=True),
-        events=[
-            SourceProgressEvent(kind="stage.started", payload={"stage": "tiktok_headless"}),
-            SourceProgressEvent(
-                kind="stage.failed",
-                payload={
-                    "stage": "tiktok_headless",
-                    "status": "failed",
-                    "elapsed_ms": 120,
-                    "reason": "headless_blocked",
-                },
-            ),
-            SourceProgressEvent(
-                kind="stage.completed",
-                payload={
-                    "stage": "tiktok_cleanup",
-                    "status": "succeeded",
-                    "partial_cleanup_passed": True,
-                    "browser_cleanup_passed": True,
-                },
-            ),
-        ],
-    )
-
-
-@activity.defn(name="inspect_legacy_scout")
-async def legacy_success_two_events(
-    input_: LegacyScoutInput,
-) -> SourceInvestigationActivityResult:
-    result = await fake_inspect(input_)
-    return result.model_copy(
-        update={
-            "events": [
-                SourceProgressEvent(kind="stage.started", payload={"stage": "source"}),
-                SourceProgressEvent(kind="stage.completed", payload={"stage": "source"}),
-            ]
-        }
-    )
-
-
-def _tiktok_fallback_input(mode: str) -> SourceInvestigationWorkflowInput:
-    request = VALID_IDENTIFY_REQUEST.model_copy(
-        update={
-            "source": VALID_IDENTIFY_REQUEST.source.model_copy(update={"url": CANONICAL_TIKTOK_URL})
-        }
-    )
-    return workflow_input(request).model_copy(update={"activity_mode": mode})
-
-
-async def run_fallback_case_and_query_events(
-    workflow_env: WorkflowEnvironment,
-) -> tuple[WorkflowSummary, list[SourceProgressEvent]]:
-    workflow_id = "wf_fallback_history_001"
-    async with (
-        Worker(
-            workflow_env.client,
-            task_queue="test",
-            workflows=[SourceInvestigationWorkflow],
-            activities=[record_workflow_completed, eligible_headless_failure_with_events],
-        ),
-        Worker(
-            workflow_env.client,
-            task_queue=LEGACY_ADAPTER_TASK_QUEUE,
-            activities=[legacy_success_two_events],
-            max_concurrent_activities=1,
-        ),
-    ):
-        result = await workflow_env.client.execute_workflow(
-            SourceInvestigationWorkflow.run,
-            args=[_tiktok_fallback_input("python_tiktok_with_legacy_fallback")],
-            id=workflow_id,
-            task_queue="test",
-        )
-        source_events = await workflow_env.client.get_workflow_handle(workflow_id).query(
-            SourceInvestigationWorkflow.source_events
-        )
-    return result, source_events
-
-
-async def run_mode_and_query_events(
-    workflow_env: WorkflowEnvironment, mode: str
-) -> tuple[WorkflowSummary, list[SourceProgressEvent]]:
-    workflow_id = f"wf_mode_history_{mode}"
-    async with (
-        Worker(
-            workflow_env.client,
-            task_queue="test",
-            workflows=[SourceInvestigationWorkflow],
-            activities=[record_workflow_completed, eligible_headless_failure_with_events],
-        ),
-        Worker(
-            workflow_env.client,
-            task_queue=LEGACY_ADAPTER_TASK_QUEUE,
-            activities=[legacy_success_two_events],
-            max_concurrent_activities=1,
-        ),
-    ):
-        result = await workflow_env.client.execute_workflow(
-            SourceInvestigationWorkflow.run,
-            args=[_tiktok_fallback_input(mode)],
-            id=workflow_id,
-            task_queue="test",
-        )
-        source_events = await workflow_env.client.get_workflow_handle(workflow_id).query(
-            SourceInvestigationWorkflow.source_events
-        )
-    return result, source_events
-
-
-async def run_ineligible_failure_and_query_events(
-    workflow_env: WorkflowEnvironment,
-) -> tuple[WorkflowSummary, list[SourceProgressEvent]]:
-    workflow_id = "wf_ineligible_history_001"
-    async with Worker(
-        workflow_env.client,
-        task_queue="test",
-        workflows=[SourceInvestigationWorkflow],
-        activities=[record_workflow_completed, acquisition_runner_python_failure],
-    ):
-        result = await workflow_env.client.execute_workflow(
-            SourceInvestigationWorkflow.run,
-            args=[_tiktok_fallback_input("python_tiktok_with_legacy_fallback")],
-            id=workflow_id,
-            task_queue="test",
-        )
-        source_events = await workflow_env.client.get_workflow_handle(workflow_id).query(
-            SourceInvestigationWorkflow.source_events
-        )
-    return result, source_events
-
-
-@pytest.mark.asyncio
-async def test_eligible_fallback_preserves_python_transition_and_legacy_events(
-    workflow_env: WorkflowEnvironment,
-) -> None:
-    result, source_events = await run_fallback_case_and_query_events(workflow_env)
-
-    assert result.status == WorkflowStatus.SUCCEEDED
-    assert [(event.kind, event.payload["stage"]) for event in source_events] == [
-        ("stage.started", "tiktok_headless"),
-        ("stage.failed", "tiktok_headless"),
-        ("stage.completed", "tiktok_cleanup"),
-        ("stage.started", "legacy_fallback"),
-        ("stage.started", "source"),
-        ("stage.completed", "source"),
-    ]
-    assert source_events[3].payload == {
-        "stage": "legacy_fallback",
-        "fallback_from": "headless_blocked",
-    }
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("mode", ["python", "legacy_scout"])
-async def test_non_fallback_modes_never_emit_transition(
-    workflow_env: WorkflowEnvironment, mode: str
-) -> None:
-    _, source_events = await run_mode_and_query_events(workflow_env, mode)
-    assert all(event.payload.get("stage") != "legacy_fallback" for event in source_events)
-
-
-@pytest.mark.asyncio
-async def test_ineligible_python_failure_does_not_emit_transition(
-    workflow_env: WorkflowEnvironment,
-) -> None:
-    _, source_events = await run_ineligible_failure_and_query_events(workflow_env)
-    assert all(event.payload.get("stage") != "legacy_fallback" for event in source_events)
-
-
-@activity.defn(name="inspect_legacy_scout")
-async def crashing_legacy_inspect(input_: LegacyScoutInput) -> SourceInvestigationActivityResult:
-    del input_
-    raise RuntimeError("legacy activity crashed; must not erase preserved python evidence")
-
-
-@pytest.mark.asyncio
-async def test_legacy_activity_failure_still_preserves_python_and_transition_evidence(
-    workflow_env: WorkflowEnvironment,
-) -> None:
-    workflow_id = "wf_fallback_legacy_crash_001"
-    async with (
-        Worker(
-            workflow_env.client,
-            task_queue="test",
-            workflows=[SourceInvestigationWorkflow],
-            activities=[record_workflow_completed, eligible_headless_failure_with_events],
-        ),
-        Worker(
-            workflow_env.client,
-            task_queue=LEGACY_ADAPTER_TASK_QUEUE,
-            activities=[crashing_legacy_inspect],
-            max_concurrent_activities=1,
-        ),
-    ):
-        result = await workflow_env.client.execute_workflow(
-            SourceInvestigationWorkflow.run,
-            args=[_tiktok_fallback_input("python_tiktok_with_legacy_fallback")],
-            id=workflow_id,
-            task_queue="test",
-        )
-        source_events = await workflow_env.client.get_workflow_handle(workflow_id).query(
-            SourceInvestigationWorkflow.source_events
-        )
-
-    assert result.status == WorkflowStatus.FAILED
-    assert result.failure is not None
-    assert result.failure.code == "source_investigation_failed"
-    assert [(event.kind, event.payload["stage"]) for event in source_events] == [
-        ("stage.started", "tiktok_headless"),
-        ("stage.failed", "tiktok_headless"),
-        ("stage.completed", "tiktok_cleanup"),
-        ("stage.started", "legacy_fallback"),
-    ]
-    assert source_events[3].payload == {
-        "stage": "legacy_fallback",
-        "fallback_from": "headless_blocked",
-    }
 
 
 ATTRIBUTION_RELEASE: asyncio.Event | None = None
@@ -1636,43 +978,6 @@ async def test_cancel_during_attribution_finishes_as_cancelled(
         await handle.signal(SourceInvestigationWorkflow.request_cancel)
         await wait_for_status(handle, "cancelled")
         ATTRIBUTION_RELEASE.set()
-
-
-@pytest.mark.asyncio
-async def test_a_legacy_fallback_report_is_not_attributed(
-    workflow_env: WorkflowEnvironment,
-) -> None:
-    fallback = _tiktok_fallback_input("python_tiktok_with_legacy_fallback").model_copy(
-        update={"attribute_source": True}
-    )
-    async with (
-        Worker(
-            workflow_env.client,
-            task_queue="test",
-            workflows=[SourceInvestigationWorkflow],
-            activities=[
-                record_workflow_completed,
-                eligible_headless_failure_with_events,
-                fake_attribute,
-            ],
-        ),
-        Worker(
-            workflow_env.client,
-            task_queue=LEGACY_ADAPTER_TASK_QUEUE,
-            activities=[legacy_success_two_events],
-            max_concurrent_activities=1,
-        ),
-    ):
-        result = await workflow_env.client.execute_workflow(
-            SourceInvestigationWorkflow.run,
-            args=[fallback],
-            id="wf_test_attribution_after_legacy",
-            task_queue="test",
-        )
-
-    # Legacy writes no v3 report, so attribution would only record a failed stage.
-    assert result.status == "succeeded"
-    assert [artifact.kind for artifact in result.artifacts] == ["source_report"]
 
 
 @pytest.mark.asyncio
@@ -2645,42 +1950,6 @@ async def test_identify_original_with_the_flags_off_skips_the_chain_stages(
         "footage": ("skipped", "footage_off"),
         "assembly": ("skipped", "assembly_off"),
     }
-
-
-@pytest.mark.asyncio
-async def test_a_legacy_report_skips_the_chain_with_legacy_source(
-    workflow_env: WorkflowEnvironment,
-) -> None:
-    legacy = _tiktok_fallback_input("legacy_scout").model_copy(
-        update={"attribute_source": True, "assemble_content": True, "build_footage": True}
-    )
-    async with (
-        Worker(
-            workflow_env.client,
-            task_queue="test",
-            workflows=[SourceInvestigationWorkflow],
-            activities=[record_workflow_completed],
-        ),
-        Worker(
-            workflow_env.client,
-            task_queue=LEGACY_ADAPTER_TASK_QUEUE,
-            activities=[fake_legacy_inspect],
-        ),
-    ):
-        result = await workflow_env.client.execute_workflow(
-            SourceInvestigationWorkflow.run,
-            args=[legacy],
-            id="wf_test_stage_plan_legacy",
-            task_queue="test",
-        )
-
-    assert result.status == "succeeded"
-    by_id = _stages_by_id(result)
-    assert list(by_id) == ["source", "attribution", "footage", "assembly"]
-    assert by_id["source"].status == "completed"
-    for stage_id in ("attribution", "footage", "assembly"):
-        assert by_id[stage_id].status == "skipped"
-        assert by_id[stage_id].skip_reason == "legacy_source"
 
 
 # Run progress, phase 1 (spec 2026-10-25, G1): real recorded histories from before the

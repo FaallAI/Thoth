@@ -6,41 +6,15 @@ ratios come from Scout's `lib/main_gate.ts` (`isPlausibleSource`).
 
 from __future__ import annotations
 
-import json
-import logging
 import math
-import re
 from collections import Counter
 from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 from thoth_control_plane.acquisition.models import DiscoveredVideo
 from thoth_control_plane.attribution.credit import normalize
 
-logger = logging.getLogger(__name__)
-
-# The same relative place in the repository and in the image (/opt/thoth/scout/config).
-# Stage 10 moves this list into Python when Scout retires.
-DEFAULT_CURATED_FILE = Path(__file__).resolve().parents[4] / "scout" / "config" / "ig_accounts.json"
 MAX_SOURCE_AGE = timedelta(days=14)
-
-
-def load_curated(path: Path = DEFAULT_CURATED_FILE) -> frozenset[str]:
-    """Curated aggregator accounts, normalized; an unreadable list excludes nobody."""
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        logger.warning("curated account list unavailable; no account is excluded as aggregator")
-        return frozenset()
-    entries = data.get("accounts", []) if isinstance(data, dict) else data
-    handles: set[str] = set()
-    for entry in entries if isinstance(entries, list) else []:
-        text = re.sub(r"^https?://(www\.)?instagram\.com/", "", str(entry).strip(), flags=re.I)
-        key = normalize(re.split(r"[/?#]", text, maxsplit=1)[0])
-        if key:
-            handles.add(key)
-    return frozenset(handles)
 
 
 def parse_time(value: str | None) -> datetime | None:

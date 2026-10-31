@@ -125,15 +125,6 @@ jobs:
           docker compose --env-file .env.stage1.local.example -f compose.stage1.local.yml -f compose.stage1.renderer.yml config --quiet
           docker compose --env-file .env.stage1.local.example -f compose.stage1.local.yml -f compose.stage1.web.yml config --quiet
 
-      - name: Install locked Scout dependencies
-        run: bun --cwd=scout install --frozen-lockfile
-
-      - name: Run Scout acquisition regressions
-        run: bun --cwd=scout run test:acquisition
-
-      - name: Run Scout runtime tests
-        run: bun --cwd=scout run test:runtime
-
   validate-image:
     name: Validate image build
     if: github.event_name == 'pull_request'
@@ -192,11 +183,6 @@ jobs:
           cache-from: type=gha,scope=thoth-web
           cache-to: type=gha,mode=max,scope=thoth-web
 
-      # Chromium answers on loopback even when no sibling container can reach it, so a
-      # build that succeeds proves nothing about the transport the worker depends on.
-      - name: Verify private CDP transport
-        run: bash docker/test-cdp-offline.sh "${CANDIDATE_IMAGE}"
-
       # The stealthy sessions launch through patchright's own Chromium revision while
       # `scrapling install` installs playwright's; the 2026-10-23 refresh shipped the
       # driver without its browser and every card visit failed as headless_blocked.
@@ -252,7 +238,7 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
           labels: |
             org.opencontainers.image.title=Thoth Stage 1 compatibility runtime
-            org.opencontainers.image.description=Python TikTok acquisition with temporary Scout fallback
+            org.opencontainers.image.description=Python acquisition and production workers
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
 
@@ -424,11 +410,11 @@ jobs:
         run: |
           set -euo pipefail
           root="${RUNNER_TEMP}/thoth-stage1"
-          mkdir -p "${root}"/postgres "${root}"/artifacts "${root}"/browser-profile "${root}"/minio
+          mkdir -p "${root}"/postgres "${root}"/artifacts "${root}"/minio
           mkdir -p "${root}"/observations "${root}"/reports "${root}"/account-profiles
-          sudo chown -R 10001:10001 "${root}/artifacts" "${root}/browser-profile"
+          sudo chown -R 10001:10001 "${root}/artifacts"
           sudo chown -R 10001:10001 "${root}/account-profiles"
-          sudo chmod 750 "${root}/artifacts" "${root}/browser-profile"
+          sudo chmod 750 "${root}/artifacts"
           sudo chmod 700 "${root}/account-profiles"
 
       - name: Write a throwaway local environment
@@ -439,7 +425,6 @@ jobs:
             echo "COMPOSE_PROJECT_NAME=thoth-stage1-ci"
             echo "THOTH_IMAGE=${THOTH_IMAGE_REF}"
             echo "THOTH_STAGE1_DATA_ROOT=${RUNNER_TEMP}/thoth-stage1"
-            echo "THOTH_STAGE1_ACTIVITY_MODE=python"
             echo "THOTH_CONTROL_PLANE_API_KEY=$(openssl rand -hex 24)"
             echo "THOTH_POSTGRES_PASSWORD=$(openssl rand -hex 24)"
             echo "THOTH_EDITOR_POSTGRES_PASSWORD=$(openssl rand -hex 24)"
@@ -485,9 +470,6 @@ jobs:
           docker compose ${COMPOSE_FILE_ARGS} up -d --wait postgresql temporal
           # shellcheck disable=SC2086
           docker compose ${COMPOSE_FILE_ARGS} ${describe}             --namespace thoth-stage1 --address temporal:7233
-
-      - name: Verify private CDP transport on the published digest
-        run: bash docker/test-cdp-offline.sh "${THOTH_IMAGE_REF}"
 
       - name: Verify the isolated render stack on the published digests
         run: bash docker/test-renderer-offline.sh "${THOTH_IMAGE_REF}" "${THOTH_RENDERER_IMAGE_REF}" "${THOTH_WEB_IMAGE_REF}"

@@ -19,12 +19,12 @@ Membangun pipeline otomatis yang memahami **gaya editing media sosial viral** (T
   artifact authorization, and typed SSE boundary; the React dashboard and `thoth-control` client
   consume that HTTP contract rather than constructing Scout commands.
 - **Temporal owns durable lifecycle state.** The Python worker owns source-investigation
-  activities. The temporary `thoth-legacy-adapter` queue is worker-only, single-concurrency,
-  cancellable, and must remain until the retirement gate in
-  [`docs/python-control-plane.md`](docs/python-control-plane.md) is proven.
-- **Ownership split:** the existing Rust server/worker and legacy Scout console stay in service for
-  their current media and discovery paths. This control plane neither replaces them nor exposes
-  Scout executor flags through its v1 API/dashboard.
+  activities.
+- **Scout retired (2026-10-30).** Acquisition is Python-only (operator: a failed acquisition is
+  fixed in Python). The legacy activity and its adapter queue, the activity modes, the
+  `legacy-cdp` sidecar, Scout and `gallery-dl` in the image, and the `scout/` tree are removed.
+  Workflow inputs still decode the old `activity_mode` values until the histories that carry
+  them leave the 30-day retention (2026-11-29). The Rust crates stay in the repository, unused.
 - **Stage 1 container checkpoint (2026-09-04): published, deployment pending.** One
   immutable `ghcr.io/faallai/thoth` digest serves the worker/API/CDP sidecar roles; the image
   includes Linux FFmpeg/FFprobe and the private headless CDP launcher required by temporary Scout
@@ -42,8 +42,7 @@ Membangun pipeline otomatis yang memahami **gaya editing media sosial viral** (T
 - **Stage 1 parity and controlled fallback tooling removed (2026-10-30).** Stage 1 closed under
   ADR 0001, so the parity reference, attempt summary and preflight, the controlled fallback gates
   (`f1`-`f4`), their Compose files, offline harnesses, CI steps and CLI commands are deleted. The
-  dated entries below describe them as history. The runtime legacy fallback and the soak evaluator
-  stay.
+  dated entries below describe them as history. The soak evaluator stays.
 - **Stage 1 Scout runtime correction (2026-09-06): implemented offline, unpublished.** The image
   now pins `gallery-dl` 1.32.11 and `yt-dlp` 2026.8.19 as executables resolvable by its non-root
   user, and the CDP sidecar runs a private in-container relay so a sibling container can reach
@@ -152,7 +151,7 @@ Membangun pipeline otomatis yang memahami **gaya editing media sosial viral** (T
 
 | Layer | Coverage | Keterangan |
 |-------|----------|-----------|
-| Stage 1 container + CI | ⚠️ 95% | Runtime image, local Linux/amd64 Docker verification, and GHCR publication are complete (`Dockerfile`, `docker/start-legacy-cdp`, `.github/workflows/container-image.yml`); the published digest is verified non-live in place. The Scout runtime correction (downloaders, sibling-reachable CDP relay, worker provider override, `docker/test-cdp-offline.sh`) is implemented and proven offline but not published. The parity browser isolation (standalone `compose.stage1.parity.yml`, `scout/runtime/parity_reference.ts`, `stage1_parity_preflight`, `docker/test-parity-offline.sh`) is implemented and proven offline on a locally built image, also unpublished. Safe parity diagnostics (`scout/lib/safe_runtime_diagnostic.ts`, `diagnostics_valid`/`diagnostic_events` on complete attempt records, `stage1_parity_attempt_summary`) are implemented and proven offline, also unpublished. The controlled fallback gate `f1` (`compose.stage1.controlled-fallback.yml`, `docker/test-controlled-fallback-offline.sh`) is implemented and proven offline, also unpublished and never run. Deployment, controlled fallback smoke, and the operational soak remain pending. |
+| Stage 1 container + CI | ⚠️ 95% | Runtime image, local Linux/amd64 Docker verification, and GHCR publication are complete (`Dockerfile`, `.github/workflows/container-image.yml`). Scout, its CDP sidecar, and every harness below were removed on 2026-10-30, so the image is Python-only. History: the published digest is verified non-live in place. The Scout runtime correction (downloaders, sibling-reachable CDP relay, worker provider override, `docker/test-cdp-offline.sh`) is implemented and proven offline but not published. The parity browser isolation (standalone `compose.stage1.parity.yml`, `scout/runtime/parity_reference.ts`, `stage1_parity_preflight`, `docker/test-parity-offline.sh`) is implemented and proven offline on a locally built image, also unpublished. Safe parity diagnostics (`scout/lib/safe_runtime_diagnostic.ts`, `diagnostics_valid`/`diagnostic_events` on complete attempt records, `stage1_parity_attempt_summary`) are implemented and proven offline, also unpublished. The controlled fallback gate `f1` (`compose.stage1.controlled-fallback.yml`, `docker/test-controlled-fallback-offline.sh`) is implemented and proven offline, also unpublished and never run. Deployment, controlled fallback smoke, and the operational soak remain pending. |
 | Ingest + transkrip | ✅ 100% | yt-dlp + Whisper word-level timestamps |
 | Visual scoring (post-analysis) | ✅ 80% | Frame extraction + vision LLM scoring |
 | LLM synthesis dari teks saja | ✅ 95% | Multi-provider, chunked, trending-aware; **LLM keyword extraction otomatis dari transcript** (gantikan word-frequency approach); `--keywords` CLI jadi optional override |

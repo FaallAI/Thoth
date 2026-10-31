@@ -22,11 +22,6 @@ with workflow.unsafe.imports_passed_through():
         assemble_content,
     )
     from thoth_control_plane.activities.footage import FootageActivityInput, build_footage
-    from thoth_control_plane.activities.legacy_scout import (
-        LEGACY_ADAPTER_TASK_QUEUE,
-        LegacyScoutInput,
-        inspect_legacy_scout,
-    )
     from thoth_control_plane.activities.source_attribution import (
         SourceAttributionActivityInput,
         attribute_source,
@@ -49,17 +44,11 @@ with workflow.unsafe.imports_passed_through():
         WorkflowSummary,
     )
     from thoth_control_plane.domain.models import (
-        LEGACY_FALLBACK_ELIGIBLE_CODES,
-        LegacyScoutProgressEvent,
         SafeActivityError,
         SourceProgressEvent,
         StageProgress,
     )
     from thoth_control_plane.workflows.stage_plan import StagePlan, build_plan
-
-# `LEGACY_FALLBACK_ELIGIBLE_CODES` is domain-owned (see
-# `thoth_control_plane.domain.models`) so the workflow's routing and the
-# payload validator that guards `fallback_from` can never drift apart.
 
 
 COMPLETION_PATCH = "usage-workflow-completed"
@@ -86,11 +75,10 @@ class SourceInvestigationWorkflow:
         self._approval: ApprovalRequest | None = None
         self._approval_decision: str | None = None
         self._cancel_requested = False
-        self._report_from_legacy = False
         self._attribution_location: str | None = None
         self._original_report: str | None = None
         self._failure: WorkflowFailure | None = None
-        self._source_events: list[LegacyScoutProgressEvent] = []
+        self._source_events: list[SourceProgressEvent] = []
         self._event_sequence = 0
         self._workflow_events: list[WorkflowEvent] = []
 
@@ -264,10 +252,6 @@ class SourceInvestigationWorkflow:
     ) -> WorkflowSummary | None:
         """Attribution, footage, and assembly, each behind its flag; the terminal summary when
         the run stops (failed or cancelled), None when the chain finished."""
-        # Legacy Scout writes no v3 report, so there is nothing to attribute or assemble.
-        if self._report_from_legacy:
-            self._plan_skip("legacy_source")
-            return None
         if input_.attribute_source:
             attributed = await self._attribute()
             if self._cancel_requested:
@@ -313,54 +297,15 @@ class SourceInvestigationWorkflow:
     async def _execute_source_activity(
         self, input_: SourceInvestigationWorkflowInput
     ) -> SourceInvestigationActivityResult:
-        """Route deterministically between the Python activity and legacy Scout.
+        """Run the Python activity; a platform it does not acquire is refused before it runs.
 
-        Fallback eligibility is a frozen, closed allowlist
-        (`LEGACY_FALLBACK_ELIGIBLE_CODES`): unsafe input, dependency,
-        configuration, and artifact failures never invoke legacy. When a
-        fallback fires, the Python evidence trail is preserved ahead of
-        exactly one `legacy_fallback` transition event, then the legacy
-        activity's own events, so the ordered history is always
-        `python events -> one fallback transition -> legacy events`. The
-        transition is recorded on `self._source_events` before awaiting the
-        legacy activity, so a query can still retrieve the Python and
-        transition evidence if the legacy activity itself raises.
-
-        Facebook and Reddit are refused in every mode before any activity
-        runs; a legacy-only platform in `python` mode is refused the same
-        way.
+        Scout is retired (operator, 2026-10-30): a Python failure stands and gets fixed in
+        Python. `activity_mode` is ignored; see `SourceInvestigationWorkflowInput`.
         """
-        support = platform_support(str(input_.source.display_url))
-        if support == "unsupported":
+        if platform_support(str(input_.source.display_url)) == "unsupported":
             return SourceInvestigationActivityResult(
                 failure=SafeActivityError(code="unsupported_platform", retryable=False)
             )
-        if input_.activity_mode == "legacy_scout":
-            return await self._execute_legacy_activity(input_)
-        if support == "legacy":
-            if input_.activity_mode == "python":
-                return SourceInvestigationActivityResult(
-                    failure=SafeActivityError(code="unsupported_platform", retryable=False)
-                )
-            return await self._execute_legacy_activity(input_)
-        result = await self._execute_python_activity(input_)
-        if (
-            input_.activity_mode == "python_tiktok_with_legacy_fallback"
-            and result.failure is not None
-            and result.failure.code in LEGACY_FALLBACK_ELIGIBLE_CODES
-        ):
-            python_events = list(result.events)
-            transition = _legacy_fallback_event(result.failure.code)
-            self._source_events = [*python_events, transition]
-            legacy_result = await self._execute_legacy_activity(input_)
-            return legacy_result.model_copy(
-                update={"events": [*self._source_events, *legacy_result.events]}
-            )
-        return result
-
-    async def _execute_python_activity(
-        self, input_: SourceInvestigationWorkflowInput
-    ) -> SourceInvestigationActivityResult:
         return await workflow.execute_activity(
             inspect_source_candidates,
             SourceInvestigationActivityInput(
@@ -370,24 +315,6 @@ class SourceInvestigationWorkflow:
             ),
             start_to_close_timeout=timedelta(minutes=5),
             retry_policy=RetryPolicy(maximum_attempts=3),
-        )
-
-    async def _execute_legacy_activity(
-        self, input_: SourceInvestigationWorkflowInput
-    ) -> SourceInvestigationActivityResult:
-        self._report_from_legacy = True
-        return await workflow.execute_activity(
-            inspect_legacy_scout,
-            LegacyScoutInput(
-                workflow_id=self._workflow_id,
-                canonical_source_url=input_.source.display_url,
-                output_package_id=f"pkg_{self._request_snapshot_id[4:]}",
-                timeout=timedelta(minutes=5),
-                cancellation_token=f"can_{self._workflow_id[3:]}",
-            ),
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=RetryPolicy(maximum_attempts=1),
-            task_queue=LEGACY_ADAPTER_TASK_QUEUE,
         )
 
     async def _attribute(self) -> bool:
@@ -581,7 +508,7 @@ class SourceInvestigationWorkflow:
         return self._request_snapshot_id
 
     @workflow.query
-    def source_events(self) -> list[LegacyScoutProgressEvent]:
+    def source_events(self) -> list[SourceProgressEvent]:
         return list(self._source_events)
 
     @workflow.query
@@ -668,19 +595,3 @@ class SourceInvestigationWorkflow:
 def _approval_id(workflow_id: str) -> str:
     digest = sha256(workflow_id.encode()).hexdigest()
     return f"apr_{digest[:24]}"
-
-
-def _legacy_fallback_event(failure_code: str) -> SourceProgressEvent:
-    """Build the single transition event marking a Python-to-legacy fallback.
-
-    Only ever called with a code already checked against
-    `LEGACY_FALLBACK_ELIGIBLE_CODES`; the redundant check here is a closed
-    guard so an ineligible code can never be recorded, even if a future
-    caller forgets to gate first.
-    """
-    if failure_code not in LEGACY_FALLBACK_ELIGIBLE_CODES:
-        raise ValueError("failure code is not eligible for legacy fallback")
-    return SourceProgressEvent(
-        kind="stage.started",
-        payload={"stage": "legacy_fallback", "fallback_from": failure_code},
-    )

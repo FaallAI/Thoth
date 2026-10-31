@@ -12,7 +12,7 @@ COMPOSE := docker compose --env-file .env.stage1.local -f compose.stage1.local.y
 T ?= tests
 SERVICE ?= worker
 
-.PHONY: help test lint format check test-postgres test-minio dashboard-test dashboard-build smoke-cdp smoke-browser smoke-renderer deploy status logs captcha-stats
+.PHONY: help test lint format check test-postgres test-minio dashboard-test dashboard-build smoke-browser smoke-renderer deploy status logs captcha-stats
 
 help: ## List the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -42,8 +42,6 @@ dashboard-test: ## Dashboard tests
 dashboard-build: ## Dashboard type check and build
 	cd dashboard && $(BUN) run build
 
-smoke-cdp: ## Offline CDP sidecar smoke; IMAGE=<image>
-	bash docker/test-cdp-offline.sh $(IMAGE)
 
 smoke-browser: ## Offline stealthy-browser launch smoke; IMAGE=<image>
 	bash docker/test-browser-offline.sh $(IMAGE)

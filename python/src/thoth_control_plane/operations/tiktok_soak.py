@@ -37,9 +37,7 @@ from thoth_control_plane.acquisition.models import (
     AttemptStatus,
 )
 from thoth_control_plane.domain.models import (
-    LEGACY_FALLBACK_ELIGIBLE_CODES,
     OpaqueId,
-    SourceActivityMode,
     StrictModel,
     _parse_rfc3339_timestamp,
 )
@@ -47,7 +45,6 @@ from thoth_control_plane.domain.models import (
 
 class TikTokSoakRoute(StrEnum):
     PYTHON_NATIVE = "python_native"
-    LEGACY_FALLBACK = "legacy_fallback"
     FAILED = "failed"
     INVALID_INPUT = "invalid_input"
     OPERATOR_CANCELLED = "operator_cancelled"
@@ -97,7 +94,6 @@ class TikTokSoakPolicy(StrictModel):
     minimum_valid_completed_runs: Annotated[int, Field(ge=1)] = 12
     minimum_parity_samples: Annotated[int, Field(ge=0)] = 0
     minimum_python_native_success_rate: Annotated[float, Field(ge=0, le=1)] = 0.95
-    maximum_legacy_fallback_rate: Annotated[float, Field(ge=0, le=1)] = 0.05
     maximum_terminal_failure_rate: Annotated[float, Field(ge=0, le=1)] = 0.02
 
 
@@ -105,16 +101,15 @@ class TikTokSoakObservation(StrictModel):
     """One evaluated Stage 1 acquisition run.
 
     Reuses `AcquisitionAttempt`/`AcquisitionStrategy`/`AttemptStatus` for the
-    attempt ladder rather than a parallel taxonomy, and reuses
-    `LEGACY_FALLBACK_ELIGIBLE_CODES` so the fallback allowlist cannot drift
-    from the one the workflow itself uses to route.
+    attempt ladder rather than a parallel taxonomy. Python is the only
+    acquisition path since Scout's retirement (operator, 2026-10-30).
     """
 
     schema_version: Literal[1] = 1
     observation_id: Annotated[str, Field(pattern=r"^obs_[a-f0-9]{16,64}$")]
     workflow_id: OpaqueId
     occurred_at: datetime
-    activity_mode: SourceActivityMode
+    activity_mode: Literal["python"]
     route: TikTokSoakRoute
     attempts: Annotated[list[AcquisitionAttempt], Field(max_length=3)] = Field(default_factory=list)
     failure_code: SoakFailureCode | None = None
@@ -141,13 +136,6 @@ class TikTokSoakObservation(StrictModel):
         ]
         if strategies not in valid_orders:
             raise ValueError("attempt strategies are not in headless-first order")
-        if self.activity_mode == "python" and self.route is TikTokSoakRoute.LEGACY_FALLBACK:
-            raise ValueError("python mode cannot use legacy fallback")
-        if self.activity_mode == "legacy_scout" and self.route in {
-            TikTokSoakRoute.PYTHON_NATIVE,
-            TikTokSoakRoute.LEGACY_FALLBACK,
-        }:
-            raise ValueError("legacy-only mode cannot report a Python route")
         if self.route is TikTokSoakRoute.PYTHON_NATIVE:
             if (
                 self.failure_code is not None
@@ -156,21 +144,6 @@ class TikTokSoakObservation(StrictModel):
                 or not self.artifact_validated
             ):
                 raise ValueError("python-native evidence is inconsistent")
-        elif self.route is TikTokSoakRoute.LEGACY_FALLBACK:
-            # The two guards above already reject activity_mode == "python" and
-            # activity_mode == "legacy_scout" for this route, so the check below
-            # is currently unreachable for both of them: it is mutually redundant
-            # with those earlier guards for today's closed `SourceActivityMode`
-            # set. Kept anyway as forward defense in case a fourth activity mode
-            # is ever added without updating the guards above.
-            if (
-                self.activity_mode != "python_tiktok_with_legacy_fallback"
-                or self.failure_code not in LEGACY_FALLBACK_ELIGIBLE_CODES
-                or not self.attempts
-                or self.attempts[-1].status is AttemptStatus.SUCCEEDED
-                or not self.artifact_validated
-            ):
-                raise ValueError("legacy-fallback evidence is inconsistent")
         elif self.route is TikTokSoakRoute.INVALID_INPUT:
             if (
                 self.failure_code not in {"invalid_tiktok_url", "unsupported_platform"}
@@ -216,7 +189,6 @@ class TikTokSoakCounts(StrictModel):
 
     valid_completed: Annotated[int, Field(ge=0)]
     python_native: Annotated[int, Field(ge=0)]
-    legacy_fallback: Annotated[int, Field(ge=0)]
     failed: Annotated[int, Field(ge=0)]
     invalid_input: Annotated[int, Field(ge=0)]
     operator_cancelled: Annotated[int, Field(ge=0)]
@@ -227,7 +199,6 @@ class TikTokSoakRates(StrictModel):
     """Aggregate rates only; always derived, never a per-run value."""
 
     python_native: Annotated[float, Field(ge=0, le=1)]
-    legacy_fallback: Annotated[float, Field(ge=0, le=1)]
     terminal_failure: Annotated[float, Field(ge=0, le=1)]
 
 
@@ -236,7 +207,6 @@ class TikTokSoakBlocker(StrEnum):
     INSUFFICIENT_VALID_COMPLETED_RUNS = "insufficient_valid_completed_runs"
     INSUFFICIENT_PARITY_SAMPLES = "insufficient_parity_samples"
     PYTHON_NATIVE_RATE_BELOW_MINIMUM = "python_native_rate_below_minimum"
-    LEGACY_FALLBACK_RATE_ABOVE_MAXIMUM = "legacy_fallback_rate_above_maximum"
     TERMINAL_FAILURE_RATE_ABOVE_MAXIMUM = "terminal_failure_rate_above_maximum"
     ARTIFACT_PERSISTENCE_FAILURE_PRESENT = "artifact_persistence_failure_present"
     ACQUISITION_DEPENDENCY_FAILURE_PRESENT = "acquisition_dependency_failure_present"
@@ -356,9 +326,7 @@ class TikTokSoakDatasetError(ValueError):
         super().__init__(_DATASET_ERROR_MESSAGES[code])
 
 
-_COMPLETED_ROUTES = frozenset(
-    {TikTokSoakRoute.PYTHON_NATIVE, TikTokSoakRoute.LEGACY_FALLBACK, TikTokSoakRoute.FAILED}
-)
+_COMPLETED_ROUTES = frozenset({TikTokSoakRoute.PYTHON_NATIVE, TikTokSoakRoute.FAILED})
 
 _ZERO_TOLERANCE_CODES: dict[SoakFailureCode, TikTokSoakBlocker] = {
     "artifact_persistence_failed": TikTokSoakBlocker.ARTIFACT_PERSISTENCE_FAILURE_PRESENT,
@@ -425,7 +393,6 @@ def evaluate_tiktok_soak(
     completed = [item for item in observations if item.route in _COMPLETED_ROUTES]
     denominator = len(completed)
     native = sum(item.route is TikTokSoakRoute.PYTHON_NATIVE for item in completed)
-    fallback = sum(item.route is TikTokSoakRoute.LEGACY_FALLBACK for item in completed)
     failed = sum(item.route is TikTokSoakRoute.FAILED for item in completed)
     invalid_input = sum(item.route is TikTokSoakRoute.INVALID_INPUT for item in observations)
     operator_cancelled = sum(
@@ -450,8 +417,6 @@ def evaluate_tiktok_soak(
         blockers.add(TikTokSoakBlocker.INSUFFICIENT_PARITY_SAMPLES)
     if Fraction(native, denominator or 1) < _fraction(policy.minimum_python_native_success_rate):
         blockers.add(TikTokSoakBlocker.PYTHON_NATIVE_RATE_BELOW_MINIMUM)
-    if Fraction(fallback, denominator or 1) > _fraction(policy.maximum_legacy_fallback_rate):
-        blockers.add(TikTokSoakBlocker.LEGACY_FALLBACK_RATE_ABOVE_MAXIMUM)
     if Fraction(failed, denominator or 1) > _fraction(policy.maximum_terminal_failure_rate):
         blockers.add(TikTokSoakBlocker.TERMINAL_FAILURE_RATE_ABOVE_MAXIMUM)
 
@@ -481,7 +446,6 @@ def evaluate_tiktok_soak(
         counts=TikTokSoakCounts(
             valid_completed=denominator,
             python_native=native,
-            legacy_fallback=fallback,
             failed=failed,
             invalid_input=invalid_input,
             operator_cancelled=operator_cancelled,
@@ -489,7 +453,6 @@ def evaluate_tiktok_soak(
         ),
         rates=TikTokSoakRates(
             python_native=_rate(native, denominator),
-            legacy_fallback=_rate(fallback, denominator),
             terminal_failure=_rate(failed, denominator),
         ),
         ready=not ordered_blockers,

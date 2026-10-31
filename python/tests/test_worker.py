@@ -388,7 +388,6 @@ async def test_run_worker_serves_the_prompt_proposal_queue(monkeypatch) -> None:
     monkeypatch.setattr(worker, "check_freshness", nothing)
     monkeypatch.setattr(worker, "connect_reports", lambda settings: None)
     monkeypatch.setattr(worker, "build_source_investigation_worker", source_worker)
-    monkeypatch.setattr(worker, "build_legacy_scout_activity", lambda *args: None)
     monkeypatch.setattr(worker.Client, "connect", connect)
     monkeypatch.setattr(worker, "Worker", _Worker)
 
@@ -401,4 +400,5 @@ async def test_run_worker_serves_the_prompt_proposal_queue(monkeypatch) -> None:
             ),
             timeout=0.5,
         )
-    assert PROMPT_PROPOSAL_TASK_QUEUE in queues
+    # No legacy Scout adapter queue: Scout is retired (operator, 2026-10-30).
+    assert queues == [PROMPT_PROPOSAL_TASK_QUEUE]

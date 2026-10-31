@@ -175,7 +175,6 @@ def build_production_footage(settings: Settings) -> FootageBuilder:
     )
     from thoth_control_plane.attribution.adapters.frames import FfmpegFrameSource, FfprobeDuration
     from thoth_control_plane.attribution.adapters.ocr import RapidOcrReader
-    from thoth_control_plane.attribution.candidates import load_curated
     from thoth_control_plane.footage.adapters.creator import CreatorListings
     from thoth_control_plane.footage.adapters.downloader import YtDlpClipDownloader
     from thoth_control_plane.footage.adapters.embedder import OnnxEmbedder
@@ -212,7 +211,8 @@ def build_production_footage(settings: Settings) -> FootageBuilder:
             creator=CreatorListings(ProfileDiscoverer(DEFAULT_FACTORIES, leases=leases)),
             photos=HttpPhotoFetcher(),
         ),
-        aggregators=load_curated(),
+        # The curated JSON list is not a filter (operator, 2026-10-31).
+        aggregators=frozenset(),
         story_min=settings.THOTH_FOOTAGE_STORY_MIN,
         max_frames=settings.THOTH_SUBTITLE_OCR_MAX_FRAMES,
     )

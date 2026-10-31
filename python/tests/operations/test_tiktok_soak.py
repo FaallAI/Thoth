@@ -15,7 +15,6 @@ from thoth_control_plane.acquisition.models import (
     AcquisitionStrategy,
     AttemptStatus,
 )
-from thoth_control_plane.operations import tiktok_soak as soak_module
 from thoth_control_plane.operations.tiktok_soak import (
     TikTokSoakBlocker,
     TikTokSoakDatasetError,
@@ -103,9 +102,15 @@ def test_observation_rejects_unsupported_schema_version(
         TikTokSoakObservation.model_validate({**valid_observation, "schema_version": 2})
 
 
-def test_observation_rejects_unknown_activity_mode(valid_observation: dict[str, object]) -> None:
+# Scout is retired (operator, 2026-10-30): its modes are no soak evidence either.
+@pytest.mark.parametrize(
+    "mode", ["not_a_mode", "legacy_scout", "python_tiktok_with_legacy_fallback"]
+)
+def test_observation_rejects_any_mode_but_python(
+    valid_observation: dict[str, object], mode: str
+) -> None:
     with pytest.raises(ValidationError):
-        TikTokSoakObservation.model_validate({**valid_observation, "activity_mode": "not_a_mode"})
+        TikTokSoakObservation.model_validate({**valid_observation, "activity_mode": mode})
 
 
 def test_observation_rejects_non_route_instance(valid_observation: dict[str, object]) -> None:
@@ -142,7 +147,6 @@ def test_attempts_field_declares_a_maximum_of_three(
     "changes",
     [
         {"route": TikTokSoakRoute.PYTHON_NATIVE, "failure_code": "cdn_unavailable"},
-        {"route": TikTokSoakRoute.LEGACY_FALLBACK, "failure_code": None},
         {"route": TikTokSoakRoute.INVALID_INPUT, "attempts": [HEADLESS_FAILED]},
         {"attempts": [TIKWM_FAILED, HEADLESS_FAILED]},
     ],
@@ -229,54 +233,6 @@ def test_python_native_route_rejects_unvalidated_artifact_in_isolation(
         TikTokSoakObservation.model_validate({**valid_observation, "artifact_validated": False})
 
 
-def test_legacy_fallback_route_rejects_empty_attempts_in_isolation(
-    valid_observation: dict[str, object],
-) -> None:
-    with pytest.raises(ValidationError):
-        TikTokSoakObservation.model_validate(
-            {
-                **valid_observation,
-                "activity_mode": "python_tiktok_with_legacy_fallback",
-                "route": TikTokSoakRoute.LEGACY_FALLBACK,
-                "failure_code": "cdn_unavailable",
-                "attempts": [],
-                "artifact_validated": True,
-            }
-        )
-
-
-def test_legacy_fallback_route_rejects_succeeded_last_attempt_in_isolation(
-    valid_observation: dict[str, object],
-) -> None:
-    with pytest.raises(ValidationError):
-        TikTokSoakObservation.model_validate(
-            {
-                **valid_observation,
-                "activity_mode": "python_tiktok_with_legacy_fallback",
-                "route": TikTokSoakRoute.LEGACY_FALLBACK,
-                "failure_code": "cdn_unavailable",
-                "attempts": [HEADLESS_SUCCEEDED],
-                "artifact_validated": True,
-            }
-        )
-
-
-def test_legacy_fallback_route_rejects_unvalidated_artifact_in_isolation(
-    valid_observation: dict[str, object],
-) -> None:
-    with pytest.raises(ValidationError):
-        TikTokSoakObservation.model_validate(
-            {
-                **valid_observation,
-                "activity_mode": "python_tiktok_with_legacy_fallback",
-                "route": TikTokSoakRoute.LEGACY_FALLBACK,
-                "failure_code": "cdn_unavailable",
-                "attempts": [HEADLESS_FAILED],
-                "artifact_validated": False,
-            }
-        )
-
-
 def test_operator_cancelled_route_rejects_validated_artifact_in_isolation(
     valid_observation: dict[str, object],
 ) -> None:
@@ -338,59 +294,6 @@ def test_observation_rejects_tikwm_before_scrapling_headless(
 ) -> None:
     with pytest.raises(ValidationError):
         TikTokSoakObservation.model_validate({**valid_observation, "attempts": [TIKWM_SUCCEEDED]})
-
-
-def test_python_mode_cannot_report_legacy_fallback_route(
-    valid_observation: dict[str, object],
-) -> None:
-    with pytest.raises(ValidationError):
-        TikTokSoakObservation.model_validate(
-            {
-                **valid_observation,
-                "route": TikTokSoakRoute.LEGACY_FALLBACK,
-                "failure_code": "cdn_unavailable",
-                "attempts": [HEADLESS_FAILED],
-            }
-        )
-
-
-def test_legacy_scout_mode_cannot_report_python_native_route(
-    valid_observation: dict[str, object],
-) -> None:
-    with pytest.raises(ValidationError):
-        TikTokSoakObservation.model_validate({**valid_observation, "activity_mode": "legacy_scout"})
-
-
-def test_legacy_fallback_route_accepts_eligible_failure_code(
-    valid_observation: dict[str, object],
-) -> None:
-    observation = TikTokSoakObservation.model_validate(
-        {
-            **valid_observation,
-            "activity_mode": "python_tiktok_with_legacy_fallback",
-            "route": TikTokSoakRoute.LEGACY_FALLBACK,
-            "failure_code": "cdn_unavailable",
-            "attempts": [HEADLESS_FAILED],
-            "artifact_validated": True,
-        }
-    )
-    assert observation.route is TikTokSoakRoute.LEGACY_FALLBACK
-
-
-def test_legacy_fallback_route_rejects_ineligible_failure_code(
-    valid_observation: dict[str, object],
-) -> None:
-    with pytest.raises(ValidationError):
-        TikTokSoakObservation.model_validate(
-            {
-                **valid_observation,
-                "activity_mode": "python_tiktok_with_legacy_fallback",
-                "route": TikTokSoakRoute.LEGACY_FALLBACK,
-                "failure_code": "invalid_tiktok_url",
-                "attempts": [HEADLESS_FAILED],
-                "artifact_validated": True,
-            }
-        )
 
 
 def test_operator_cancelled_route_accepts_neutral_evidence(
@@ -471,7 +374,6 @@ def test_policy_defaults_match_fixed_stage1_thresholds() -> None:
     # Scout is retired (2026-10-30): no Python-vs-Scout parity sample can be produced.
     assert policy.minimum_parity_samples == 0
     assert policy.minimum_python_native_success_rate == 0.95
-    assert policy.maximum_legacy_fallback_rate == 0.05
     assert policy.maximum_terminal_failure_rate == 0.02
 
 
@@ -494,13 +396,12 @@ def _valid_report_kwargs() -> dict[str, object]:
         "counts": {
             "valid_completed": 0,
             "python_native": 0,
-            "legacy_fallback": 0,
             "failed": 0,
             "invalid_input": 0,
             "operator_cancelled": 0,
             "parity_samples": 0,
         },
-        "rates": {"python_native": 0.0, "legacy_fallback": 0.0, "terminal_failure": 0.0},
+        "rates": {"python_native": 0.0, "terminal_failure": 0.0},
         "ready": False,
         "blockers": [TikTokSoakBlocker.INSUFFICIENT_VALID_COMPLETED_RUNS],
     }
@@ -586,13 +487,12 @@ def test_report_submodels_reject_extra_fields() -> None:
     valid_counts = {
         "valid_completed": 0,
         "python_native": 0,
-        "legacy_fallback": 0,
         "failed": 0,
         "invalid_input": 0,
         "operator_cancelled": 0,
         "parity_samples": 0,
     }
-    valid_rates = {"python_native": 0.0, "legacy_fallback": 0.0, "terminal_failure": 0.0}
+    valid_rates = {"python_native": 0.0, "terminal_failure": 0.0}
 
     with pytest.raises(ValidationError):
         TikTokSoakWindow.model_validate({**valid_window, "extra": 1})
@@ -667,23 +567,6 @@ def test_observation_rejects_malformed_workflow_id(
 ) -> None:
     with pytest.raises(ValidationError):
         TikTokSoakObservation.model_validate({**valid_observation, "workflow_id": "1_invalid"})
-
-
-def test_legacy_fallback_route_accepts_two_step_attempt_ladder(
-    valid_observation: dict[str, object],
-) -> None:
-    observation = TikTokSoakObservation.model_validate(
-        {
-            **valid_observation,
-            "activity_mode": "python_tiktok_with_legacy_fallback",
-            "route": TikTokSoakRoute.LEGACY_FALLBACK,
-            "failure_code": "cdn_unavailable",
-            "attempts": [HEADLESS_FAILED, TIKWM_FAILED],
-            "artifact_validated": True,
-        }
-    )
-    assert observation.route is TikTokSoakRoute.LEGACY_FALLBACK
-    assert observation.attempts == [HEADLESS_FAILED, TIKWM_FAILED]
 
 
 def test_report_ready_rejects_non_empty_blockers() -> None:
@@ -769,7 +652,7 @@ def _run(
             observation_id=_obs_id(n),
             workflow_id=_wf_id(n),
             occurred_at=occurred_at,
-            activity_mode="python_tiktok_with_legacy_fallback",
+            activity_mode="python",
             route=TikTokSoakRoute.PYTHON_NATIVE,
             attempts=[HEADLESS_SUCCEEDED],
             failure_code=None,
@@ -778,26 +661,12 @@ def _run(
             browser_cleanup_passed=True,
             parity_passed=parity_passed,
         )
-    if kind == "fallback":
-        return TikTokSoakObservation(
-            observation_id=_obs_id(n),
-            workflow_id=_wf_id(n),
-            occurred_at=occurred_at,
-            activity_mode="python_tiktok_with_legacy_fallback",
-            route=TikTokSoakRoute.LEGACY_FALLBACK,
-            attempts=[HEADLESS_FAILED],
-            failure_code="cdn_unavailable",
-            artifact_validated=True,
-            partial_cleanup_passed=True,
-            browser_cleanup_passed=True,
-            parity_passed=None,
-        )
     if kind == "failed":
         return TikTokSoakObservation(
             observation_id=_obs_id(n),
             workflow_id=_wf_id(n),
             occurred_at=occurred_at,
-            activity_mode="python_tiktok_with_legacy_fallback",
+            activity_mode="python",
             route=TikTokSoakRoute.FAILED,
             attempts=[],
             failure_code="cdn_unavailable",
@@ -824,8 +693,8 @@ def _dataset(
     return observations
 
 
-def route_mix(*, native: int, fallback: int, failed: int) -> list[TikTokSoakObservation]:
-    routes = ["native"] * native + ["fallback"] * fallback + ["failed"] * failed
+def route_mix(*, native: int, failed: int) -> list[TikTokSoakObservation]:
+    routes = ["native"] * native + ["failed"] * failed
     return _dataset(routes)
 
 
@@ -839,7 +708,7 @@ def parity_samples(count: int) -> list[TikTokSoakObservation]:
 
 def window_at(*, hours: int, minutes: int, seconds: int) -> list[TikTokSoakObservation]:
     duration = timedelta(hours=hours, minutes=minutes, seconds=seconds)
-    return _dataset(["native"] * 95 + ["fallback"] * 3 + ["failed"] * 2, duration=duration)
+    return _dataset(["native"] * 98 + ["failed"] * 2, duration=duration)
 
 
 def duplicate_observation_id(
@@ -883,7 +752,7 @@ def failure_observation(code: str) -> TikTokSoakObservation:
         observation_id=_obs_id(9000),
         workflow_id=_wf_id(9000),
         occurred_at=_BASE_TIME + _READY_WINDOW + timedelta(seconds=1),
-        activity_mode="python_tiktok_with_legacy_fallback",
+        activity_mode="python",
         route=TikTokSoakRoute.FAILED,
         attempts=[],
         failure_code=code,
@@ -899,7 +768,7 @@ def cleanup_failure(*, partial: bool = True, browser: bool = True) -> TikTokSoak
         observation_id=_obs_id(9001),
         workflow_id=_wf_id(9001),
         occurred_at=_BASE_TIME + _READY_WINDOW + timedelta(seconds=2),
-        activity_mode="python_tiktok_with_legacy_fallback",
+        activity_mode="python",
         route=TikTokSoakRoute.PYTHON_NATIVE,
         attempts=[HEADLESS_SUCCEEDED],
         failure_code=None,
@@ -915,7 +784,7 @@ def parity_failure() -> TikTokSoakObservation:
         observation_id=_obs_id(9002),
         workflow_id=_wf_id(9002),
         occurred_at=_BASE_TIME + _READY_WINDOW + timedelta(seconds=3),
-        activity_mode="python_tiktok_with_legacy_fallback",
+        activity_mode="python",
         route=TikTokSoakRoute.PYTHON_NATIVE,
         attempts=[HEADLESS_SUCCEEDED],
         failure_code=None,
@@ -931,7 +800,7 @@ def invalid_input() -> TikTokSoakObservation:
         observation_id=_obs_id(9003),
         workflow_id=_wf_id(9003),
         occurred_at=_BASE_TIME + _READY_WINDOW + timedelta(seconds=4),
-        activity_mode="python_tiktok_with_legacy_fallback",
+        activity_mode="python",
         route=TikTokSoakRoute.INVALID_INPUT,
         attempts=[],
         failure_code="invalid_tiktok_url",
@@ -947,7 +816,7 @@ def operator_cancelled() -> TikTokSoakObservation:
         observation_id=_obs_id(9004),
         workflow_id=_wf_id(9004),
         occurred_at=_BASE_TIME + _READY_WINDOW + timedelta(seconds=5),
-        activity_mode="python_tiktok_with_legacy_fallback",
+        activity_mode="python",
         route=TikTokSoakRoute.OPERATOR_CANCELLED,
         attempts=[],
         failure_code=None,
@@ -961,13 +830,13 @@ def operator_cancelled() -> TikTokSoakObservation:
 @pytest.fixture
 def ready_observations() -> list[TikTokSoakObservation]:
     """A dataset that lands on or above every accelerated Stage 1 threshold at
-    once: a 24-hour window, 100 completed runs, 2 parity samples, 95% native,
-    3% fallback, 2% terminal failure — every rate boundary that is a `<=`
-    or `>=` limit sits exactly at its edge, so this fixture alone proves the
-    evaluator treats `==` as passing, not failing. The run count deliberately
-    stays at 100 so the rate boundaries keep an exact-percentage denominator;
-    the 12-run count boundary is exercised by `completed_runs` instead."""
-    return route_mix(native=95, fallback=3, failed=2)
+    once: a 24-hour window, 100 completed runs, 2 parity samples, 98% native,
+    2% terminal failure — the terminal-failure limit sits exactly at its edge,
+    so this fixture alone proves the evaluator treats `==` as passing, not
+    failing. The run count deliberately stays at 100 so the rate boundaries
+    keep an exact-percentage denominator; the 12-run count boundary is
+    exercised by `completed_runs` instead."""
+    return route_mix(native=98, failed=2)
 
 
 def test_ready_observations_yield_a_ready_report(
@@ -982,17 +851,15 @@ def test_ready_observations_yield_a_ready_report(
     assert (
         report.counts.valid_completed,
         report.counts.python_native,
-        report.counts.legacy_fallback,
         report.counts.failed,
         report.counts.invalid_input,
         report.counts.operator_cancelled,
         report.counts.parity_samples,
-    ) == (100, 95, 3, 2, 0, 0, 2)
+    ) == (100, 98, 2, 0, 0, 2)
     assert (
         report.rates.python_native,
-        report.rates.legacy_fallback,
         report.rates.terminal_failure,
-    ) == (0.95, 0.03, 0.02)
+    ) == (0.98, 0.02)
 
 
 @pytest.mark.parametrize(
@@ -1027,9 +894,8 @@ def test_empty_dataset_raises_safe_finite_error() -> None:
     [
         (window_at(hours=23, minutes=59, seconds=59), "insufficient_window"),
         (completed_runs(11), "insufficient_valid_completed_runs"),
-        (route_mix(native=94, fallback=5, failed=1), "python_native_rate_below_minimum"),
-        (route_mix(native=94, fallback=6, failed=0), "legacy_fallback_rate_above_maximum"),
-        (route_mix(native=97, fallback=0, failed=3), "terminal_failure_rate_above_maximum"),
+        (route_mix(native=94, failed=6), "python_native_rate_below_minimum"),
+        (route_mix(native=97, failed=3), "terminal_failure_rate_above_maximum"),
     ],
 )
 def test_policy_boundary_below_or_above_limit_blocks(
@@ -1045,8 +911,7 @@ def test_policy_boundary_below_or_above_limit_blocks(
         window_at(hours=24, minutes=0, seconds=0),
         completed_runs(12),
         parity_samples(2),
-        route_mix(native=95, fallback=5, failed=0),
-        route_mix(native=96, fallback=2, failed=2),
+        route_mix(native=98, failed=2),
     ],
 )
 def test_policy_boundary_at_exact_limit_passes(
@@ -1174,7 +1039,7 @@ def test_blocker_order_is_deterministic_lexicographic_by_value() -> None:
             observation_id=_obs_id(1),
             workflow_id=_wf_id(1),
             occurred_at=_BASE_TIME,
-            activity_mode="python_tiktok_with_legacy_fallback",
+            activity_mode="python",
             route=TikTokSoakRoute.FAILED,
             attempts=[],
             failure_code="artifact_persistence_failed",
@@ -1218,7 +1083,7 @@ def test_blocker_order_is_stable_across_input_permutation(
         observation_id=_obs_id(9101),
         workflow_id=_wf_id(9101),
         occurred_at=tie_time,
-        activity_mode="python_tiktok_with_legacy_fallback",
+        activity_mode="python",
         route=TikTokSoakRoute.PYTHON_NATIVE,
         attempts=[HEADLESS_SUCCEEDED],
         failure_code=None,
@@ -1231,7 +1096,7 @@ def test_blocker_order_is_stable_across_input_permutation(
         observation_id=_obs_id(9102),
         workflow_id=_wf_id(9102),
         occurred_at=tie_time,
-        activity_mode="python_tiktok_with_legacy_fallback",
+        activity_mode="python",
         route=TikTokSoakRoute.FAILED,
         attempts=[],
         failure_code="redaction_audit_failed",
@@ -1253,7 +1118,7 @@ def test_blocker_order_is_stable_across_input_permutation(
 
 
 def test_dataset_error_from_evaluator_carries_no_raw_identifier() -> None:
-    dataset = route_mix(native=1, fallback=0, failed=0)
+    dataset = route_mix(native=1, failed=0)
     duplicated = [dataset[0], dataset[0].model_copy(update={"workflow_id": _wf_id(999)})]
     with pytest.raises(TikTokSoakDatasetError) as captured:
         evaluate_tiktok_soak(duplicated, generated_at=GENERATED_AT)
@@ -1267,10 +1132,9 @@ def test_invalid_input_route_accepts_unsupported_platform(
 ) -> None:
     """`unsupported_platform` stays a valid `invalid_input` failure code.
 
-    Removing it from the fallback-eligible set must not remove it from the
-    soak taxonomy: it is still a real pre-provider rejection an operator can
-    observe, and it is representable exactly as the route defines -- zero
-    attempts, no fallback transition, no validated artifact.
+    It is a real pre-provider rejection an operator can observe, and it is
+    representable exactly as the route defines -- zero attempts, no validated
+    artifact.
     """
     observation = TikTokSoakObservation.model_validate(
         {
@@ -1285,26 +1149,6 @@ def test_invalid_input_route_accepts_unsupported_platform(
     assert observation.route is TikTokSoakRoute.INVALID_INPUT
     assert observation.failure_code == "unsupported_platform"
     assert observation.attempts == []
-
-
-def test_soak_contract_shares_the_domain_fallback_allowlist() -> None:
-    """One allowlist, three consumers.
-
-    The soak contract must not carry its own copy of the fallback taxonomy.
-    Asserting object identity -- not equality -- is what makes a future
-    divergence impossible rather than merely unlikely: an equal-but-separate
-    frozenset would pass an equality check today and drift tomorrow.
-    """
-    from thoth_control_plane.domain import models as domain_models
-    from thoth_control_plane.workflows import source_investigation as workflow_module
-
-    assert soak_module.LEGACY_FALLBACK_ELIGIBLE_CODES is (
-        domain_models.LEGACY_FALLBACK_ELIGIBLE_CODES
-    )
-    assert workflow_module.LEGACY_FALLBACK_ELIGIBLE_CODES is (
-        domain_models.LEGACY_FALLBACK_ELIGIBLE_CODES
-    )
-    assert "unsupported_platform" not in domain_models.LEGACY_FALLBACK_ELIGIBLE_CODES
 
 
 def test_a_python_only_window_needs_no_parity_sample() -> None:

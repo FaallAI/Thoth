@@ -34,7 +34,6 @@ from thoth_control_plane.domain import (
     ActorSnapshot,
     ApprovalDecision,
     ApprovalSignal,
-    SourceActivityMode,
     SourceInvestigationWorkflowInput,
     StylePreset,
     WorkflowEvent,
@@ -58,13 +57,11 @@ class TemporalWorkflowGateway:
         self,
         client: Client,
         *,
-        activity_mode: SourceActivityMode = "python",
         attribute_source: bool = False,
         assemble_content: bool = False,
         build_footage: bool = False,
     ) -> None:
         self._client = client
-        self._activity_mode = activity_mode
         self._attribute_source = attribute_source
         self._assemble_content = assemble_content
         self._build_footage = build_footage
@@ -83,7 +80,6 @@ class TemporalWorkflowGateway:
         )
         return cls(
             client,
-            activity_mode=settings.source_investigation_activity_mode,
             attribute_source=settings.THOTH_SOURCE_ATTRIBUTION_ENABLED,
             assemble_content=settings.THOTH_CONTENT_ASSEMBLY_ENABLED,
             build_footage=settings.THOTH_FOOTAGE_ENABLED,
@@ -123,7 +119,6 @@ class TemporalWorkflowGateway:
                         source=safe_workflow_source(request),
                         intent=request.source.intent,
                         actor=ActorSnapshot.model_validate(actor.model_dump()),
-                        activity_mode=self._activity_mode,
                         attribute_source=self._attribute_source,
                         assemble_content=self._assemble_content,
                         build_footage=self._build_footage,

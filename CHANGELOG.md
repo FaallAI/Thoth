@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-30 - Scout retired: Python-only acquisition, no CDP sidecar, no `scout/` tree
+
+Operator rulings of 2026-10-30: "scout dan crates itu sudah tidak dipakai!!! karena nanti akan full ke python" and "ya scout harus mati, nanti jika gagal berarti dari sisi python nya perlu di perbaiki lagi". Stage1 had run `python` only since 5d9ee252 (PR #87); this removes the dormant paths. Plan: `docs/superpowers/plans/2026-10-30-scout-retirement.md`.
+
+- **Workflow:** every source run takes the Python activity; a platform Python does not acquire is `unsupported_platform` (now refused at `POST /workflows` too, as Facebook and Reddit were). The legacy branch, the fallback transition event, `LEGACY_FALLBACK_ELIGIBLE_CODES`, the `fallback_from` payload key, and the `legacy_source` skip reason are gone (contract regenerated; one enum value removed).
+- **Replay safety:** a scan of stage1 found 30 histories in the 30-day retention, 27 started with `python_tiktok_with_legacy_fallback`, none scheduled `inspect_legacy_scout`; no stored run summary carries `legacy_source` or `fallback_from` (269 rows). So `SourceInvestigationWorkflowInput.activity_mode` keeps its three values, decode-only and ignored, until 2026-11-29.
+- **Worker and config:** the legacy activity, its `thoth-legacy-adapter` worker, `THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE`, and the preflight's mode check are removed.
+- **Soak contract:** observations are `activity_mode: "python"` only; the `legacy_fallback` route, count, rate, policy maximum and blocker are removed (no soak evidence exists yet, ADR 0001).
+- **Image and stack:** no Scout tree, no `start-legacy-cdp`, no `gallery-dl` (`scout-runtime` extra and its lock entry), no `browser-profile`, `EXPOSE 8000` only; Compose has no `legacy-cdp` service and the worker no longer waits for it; the provider overlay drops the `THOTH_SCOUT_*` roles. `bun` stays: yt-dlp uses it for YouTube. `deploy-stage1.sh` brings the stack up with `--remove-orphans`, so the deploy removes the running `legacy-cdp` container. CI drops the Scout tests and both CDP transport smokes; `make smoke-cdp` is gone.
+- **Curated list out of Git:** attribution's curated Instagram aggregator list was read from `scout/config/ig_accounts.json` (in the image at `/opt/thoth/scout`). The operator ruled on 2026-10-31 that this JSON is not a filter: `load_curated` is removed, attribution and footage no longer exclude any account from it, and the file stays only as a local, gitignored copy until the operator decides its future.
+- **Docs:** the Stage 1 runbook, `docs/python-control-plane.md`, `docs/RUNNING.md` and BLUEPRINT describe the Python-only stack. The Rust-era docs (README, `.env.example`, CLI/INSTALL/MODELS/FEATURES, main-footage) still describe Scout with the Rust crates and go with them.
+
+**Verification:** the new routing test (every recorded mode, nine URLs) was RED on the old code (13 cases routed to Scout) then GREEN; full Python suite 4321 passed, 252 skipped; `make lint` clean; dashboard 1465 pass, `tsc -b` and build clean; the three CI Compose renders and the full deploy file set render (no `legacy-cdp`); actionlint and `bash -n` on the deploy script clean.
+
+**Next steps:**
+- Operator gates: push and PR for `chore/retire-scout`, merge, deploy (the deploy removes `legacy-cdp`; the post-deploy check no longer finds a mode variable on `api` or `worker`).
+- After deploy: `THOTH_STAGE1_ACTIVITY_MODE` in `.env.stage1.local` and `$THOTH_STAGE1_DATA_ROOT/browser-profile` are unused and can be removed by hand.
+- After 2026-11-29: drop `SourceActivityMode` and the `activity_mode` workflow input field.
+- Follow-ups: retire `crates/` and the Rust-era docs; the Studio header overflow at 430 px; the seven R7 minors; audit B2 and B5.
+
 ## 2026-10-30 - Deployed master 127cb0e (PRs #94 and #95: TikTok captcha and worker log fixes)
 
 **Deploy:** thoth `7e0b2cc2`, renderer `05e81b21`, web `d06550b5`, pulled ahead of `make deploy`; migrate applied 0 revisions (head stays `0026`); every service healthy, worker 0 restarts, a new worker polls `thoth-control-plane`; acquisition stays `python` on `api` and `worker`; the fresh worker log holds no ERROR or Traceback. Previous file in `D:/thoth-tmp/bu/pins/pins-98d7f427.env`. No workflow was running.

@@ -12,7 +12,7 @@ Run each process from its indicated directory in a separate terminal.
 | --- | --- | --- | --- |
 | Temporal development server | gRPC `127.0.0.1:7233`, UI `127.0.0.1:8233` | `temporal server start-dev --ip 127.0.0.1 --port 7233 --ui-port 8233` | `Ctrl+C` in its terminal |
 | FastAPI | `127.0.0.1:8000` | From `python/`: `uv run uvicorn thoth_control_plane.api:create_app --factory --host 127.0.0.1 --port 8000` | `Ctrl+C`; Uvicorn drains in-flight HTTP requests |
-| Temporal Python worker | `thoth-control-plane` and isolated `thoth-legacy-adapter` task queues | From `python/`: `uv run python -m thoth_control_plane.worker` | `Ctrl+C`; the worker asks Temporal to reschedule unfinished work |
+| Temporal Python worker | `thoth-control-plane` task queue | From `python/`: `uv run python -m thoth_control_plane.worker` | `Ctrl+C`; the worker asks Temporal to reschedule unfinished work |
 | React dashboard | `127.0.0.1:5173` | From `dashboard/`: `bun run dev --host 127.0.0.1` | `Ctrl+C` |
 
 Use Temporal's development server only for local work. It is separate from the existing Rust
@@ -45,7 +45,6 @@ the value.
 | `THOTH_SOURCE_ATTRIBUTION_ENABLED` | FastAPI | Default `true`. `false` starts `identify_original` workflows without the attribution stage. |
 | `THOTH_TEMPORAL_TARGET` | FastAPI, Python worker | Temporal gRPC target; default `localhost:7233`. |
 | `THOTH_TEMPORAL_NAMESPACE` | FastAPI, Python worker | Temporal namespace; default `default`. |
-| `THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE` | Python worker / workflow start wiring | Worker-owned implementation choice: `python`, `python_tiktok_with_legacy_fallback` (migration default), or `legacy_scout`. It is never accepted from HTTP. |
 | `VITE_CONTROL_PLANE_URL` | Dashboard build/dev server | FastAPI origin, normally `http://127.0.0.1:8000`. |
 
 For Vite development, leave `VITE_CONTROL_PLANE_URL` unset: the dev server proxies `/api/v1` to
@@ -90,28 +89,15 @@ FastAPI process from the exact same digest by overriding the command with
 `/opt/thoth/python/.venv/bin/uvicorn thoth_control_plane.api.app:create_app --factory --host
 0.0.0.0 --port 8000`.
 
-While legacy fallback remains enabled, run a third container from the exact same digest with the
-command `/opt/thoth/bin/start-legacy-cdp`. Give the sidecar the private service name `legacy-cdp`,
-set `THOTH_CDP=http://legacy-cdp:18800` on the worker, and set
-`THOTH_FFMPEG=/usr/bin/ffmpeg` plus `THOTH_FFPROBE=/usr/bin/ffprobe` on the worker. Port `18800` is
-an unauthenticated browser-control boundary: it must not have public ingress or a host-port mapping,
-and network policy must allow only the worker to reach it.
-
-The sidecar mounts its sensitive persistent profile at `/var/lib/thoth/browser-profile`; never
-archive that profile as soak evidence. Provision both that mount and `/var/lib/thoth/artifacts` as
-UID/GID `10001:10001`, or use an equivalent `fsGroup: 10001` or init-container ownership step.
-Do not run either process as root and do not make the mounts world-writable.
-
-Before allowing a legacy-fallback activity, require
-`GET http://legacy-cdp:18800/json/version` to return 2xx and
-`GET http://legacy-cdp:18800/json` to contain a page target on `tiktok.com`. Restart an unhealthy
-sidecar. Treat an authentication or challenge page during a legacy fallback as a release
-blocker; do not attempt bypass behavior.
+Scout and its CDP sidecar are retired (operator, 2026-10-30), so the API and the worker are the
+only THOTH roles. Set `THOTH_FFMPEG=/usr/bin/ffmpeg` plus `THOTH_FFPROBE=/usr/bin/ffprobe` on the
+worker. Provision `/var/lib/thoth/artifacts` and `/var/lib/thoth/account-profiles` as UID/GID
+`10001:10001`, or use an equivalent `fsGroup: 10001` or init-container ownership step. Do not run
+either process as root and do not make the mounts world-writable.
 
 Both services must receive `THOTH_CONTROL_PLANE_API_KEY`, `THOTH_TEMPORAL_TARGET`,
-`THOTH_TEMPORAL_NAMESPACE`, `THOTH_CONTROL_PLANE_ARTIFACT_ROOT`, and the deployment-owned activity
-mode at runtime through the approved environment or secret manager. During the soak the activity
-mode remains `python_tiktok_with_legacy_fallback`. Never bake these values or
+`THOTH_TEMPORAL_NAMESPACE`, and `THOTH_CONTROL_PLANE_ARTIFACT_ROOT` at runtime through the
+approved environment or secret manager. Never bake these values or
 `THOTH_LIVE_TIKTOK_URL` into an image, build argument, workflow, or command history.
 
 Mount persistent storage at `/var/lib/thoth/artifacts` and set
@@ -123,72 +109,36 @@ Publishing the image does not deploy it to AWS, restart a worker, configure Temp
 soak window, or approve the Python-only cutover. The soak begins only after the recorded digest is
 deployed and a controlled canary passes.
 
-`THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE` is a migration control. The API reads it when it starts
-a workflow. **Since 2026-10-30 the default and the only approved stage1 value is `python`:** Scout
-is retired, so an acquisition that fails is fixed in Python. The two Scout modes below are history
-until the legacy activity is removed.
+Acquisition is Python-only. Scout is retired (operator, 2026-10-30): an acquisition that fails is
+fixed in Python, and there is no mode to route around it. A URL on a platform Python does not
+acquire is refused as `unsupported_platform` when the workflow is requested.
 
-| Mode | Routing behavior |
-| --- | --- |
-| `python` | Use Python acquisition only; it never invokes the legacy activity. |
-| `python_tiktok_with_legacy_fallback` | Former migration default. A TikTok post uses Python first; eligible safe failures may run the legacy activity once. Non-TikTok sources route directly to legacy during this slice. |
-| `legacy_scout` | Route all source investigation through the isolated legacy activity. Use this as the rollback mode. |
+For a TikTok post the route order is **Scrapling headless -> TikWM/CDN**. A successful headless
+result materializes media locally and does not call TikWM. A headless failure never becomes the
+terminal failure code by itself: the service always continues to TikWM/CDN afterward.
 
-For an eligible TikTok post, the route order is **Scrapling headless -> TikWM/CDN -> legacy
-activity**. A successful headless result materializes media locally and does not call TikWM. A
-headless failure never becomes the terminal failure code by itself: the service always continues
-to TikWM/CDN afterward, so any actually-observed fallback trigger today is one of
-`cdn_rate_limited`, `cdn_unavailable`, or `media_validation_failed` — these are the only codes
-`python_tiktok_with_legacy_fallback` can invoke the legacy activity for in practice. The
-allowlist that gates the fallback (`LEGACY_FALLBACK_ELIGIBLE_CODES`) also accepts
-`headless_timeout`, `headless_blocked`, and `headless_incomplete`; these are attempt-reason codes
-— they can appear in an activity's `attempts[]` but never as the terminal failure code for a
-TikTok run, so a fallback debugged at the terminal-failure level will never show one of them. The
-exact non-fallback safe codes are `invalid_tiktok_url`, `unsupported_platform`,
-`artifact_persistence_failed`, `acquisition_dependency_unavailable`, and
-`acquisition_runner_failed`; unsafe input and internal/persistence/dependency failures do not
-silently fall back.
+The worker limits the Python acquisition queue to one concurrent activity. Scrapling fetches have
+a 45-second deadline, TikWM resolution has a 15-second deadline, media downloads have a 30-second
+deadline, and the source activity has a five-minute start-to-close deadline with up to three
+attempts. Reports are written atomically at `reports/<workflow-id>/source-report.json`, with media
+at `reports/<workflow-id>/media/tiktok-<post-id>.mp4`, all relative to
+`THOTH_CONTROL_PLANE_ARTIFACT_ROOT`.
 
-`unsupported_platform` is deliberately outside the allowlist. It is a pre-provider rejection:
-decided before any provider or legacy attempt exists, so its observation is `route="invalid_input"`
-with zero attempts and no fallback transition — the shape the `legacy_fallback` route rejects.
-Sending a non-TikTok platform to the legacy activity under an explicit migration mode is a
-separate routing seam, decided by the activity mode and the platform before the Python activity
-runs, never by a failure code returned after it.
-
-The worker limits both the Python acquisition queue and isolated legacy queue to one concurrent
-activity. Scrapling fetches have a 45-second deadline, TikWM resolution has a 15-second deadline,
-media downloads have a 30-second deadline, and the source and legacy Temporal activities have
-five-minute start-to-close deadlines; Python may retry up to three attempts while the legacy
-activity has one attempt. Reports are written atomically at
-`reports/<workflow-id>/source-report.json`, with media at
-`reports/<workflow-id>/media/tiktok-<post-id>.mp4`, all relative to
-`THOTH_CONTROL_PLANE_ARTIFACT_ROOT`. Legacy reports remain under
-`legacy-scout/<workflow-id>/source-report.json`.
-
-To roll back, set `THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE` to `legacy_scout` through the
-approved deployment environment and restart the Python worker. This preserves the isolated,
-single-concurrency legacy queue and process ownership; it does not expose a per-request or HTTP
-switch.
+Recovery is a deployment rollback to earlier pins; see
+[the Stage 1 runbook](operations/stage1-local-docker.md).
 
 ## TikTok Stage 1 operational soak
 
-The migration default, `python_tiktok_with_legacy_fallback`, is not changed by this section. It
-documents the evidence a future operator must gather and the approval a human must give before
-anyone proposes changing that default. Nothing here performs, simulates, or records that change.
+This section documents the evidence an operator must gather and the approval a human must give
+at the end of the migration (ADR 0001). Nothing here performs, simulates, or records that
+decision.
 
-1. Deploy with `THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE=python_tiktok_with_legacy_fallback`.
+1. Deploy the recorded digest.
 2. Export only completed workflow summaries plus safe source events through the approved Temporal
    operations channel; never export source/provider URLs or raw logs.
 3. Convert each exported run to the strict schema version 1 JSONL observation contract outside
-   Git (see "Observation contract" below), and designate at least two of the converted runs as
-   controlled parity samples, each from a distinct approved, public, first-party TikTok post. The
-   isolated activation parity pair is separate pre-window evidence: it is collected before the
-   window opens, it is not an observation, and it never counts toward those two samples. The
-   activation parity gate must pass before a window opens; read its current state from the operator
-   change record. An activation pair whose reference fails, produces no Scout media, or leaves any
-   Scout-side artifact-integrity check false is `evidence_incomparable`, and that failed evidence
-   stays in restricted evidence and the change record rather than satisfying the gate.
+   Git (see "Observation contract" below). Parity samples compared Python with Scout; Scout is
+   retired, so the soak needs none.
    Reconcile every workflow in the window to exactly one observation, each with a real source of
    cleanup evidence (see "Cleanup evidence per route").
 4. Collect at least 24 hours (1 day) and 12 valid completed runs before evaluating.
@@ -212,23 +162,19 @@ anyone proposes changing that default. Nothing here performs, simulates, or reco
    `c7b2def746e5f0cc27b71cb747db5d1e846329e4`; treat that as an example, not a fixed value.
    Archived reports keep their original embedded policy and recorded provenance.
 7. Require `ready: true` in that report, explicit human approval, and the rollback drill under
-   "Verification and smoke scope" below, in that order, before anyone proposes the default-mode
-   commit. A passing report is evidence for that decision, never the decision itself, and never a
+   "Verification and smoke scope" below, in that order, before anyone proposes the final cutover. A passing report is evidence for that decision, never the decision itself, and never a
    substitute for the human approval step. `ready: true` is necessary but not sufficient: the
-   controlled fallback exercise, the restart-recovery check, the rollback drill, and the human
-   approval all remain required, and approving Python as the default neither removes nor disables
-   the TypeScript Scout path, which stays available as the bounded rollback mechanism.
+   restart-recovery check, the rollback drill, and the human approval all remain required.
 
 ### Observation contract
 
 Each line of the JSONL input is one `TikTokSoakObservation` (schema version 1). Its `route` field
-is exactly one of five values:
+is exactly one of four values:
 
 | Route | Meaning |
 | --- | --- |
-| `python_native` | Python acquisition succeeded terminally; no legacy fallback was used. |
-| `legacy_fallback` | An eligible safe Python failure triggered the temporary legacy activity, which then succeeded. |
-| `failed` | A terminal failure with no eligible fallback (for example a persistence, dependency, or runner failure). |
+| `python_native` | Python acquisition succeeded terminally. |
+| `failed` | A terminal failure (for example a blocked request, a persistence, dependency, or runner failure). |
 | `invalid_input` | Rejected before any attempt: an invalid TikTok URL or an unsupported platform. |
 | `operator_cancelled` | The operator cancelled the run before a terminal outcome. |
 
@@ -241,8 +187,8 @@ extra fields.
 Every observation's cleanup booleans must come from measured evidence. Absence of evidence is
 never a cleanup PASS, and no route may have its cleanup result assumed.
 
-- Routes that reach a terminal activity result — `python_native`, `legacy_fallback`, `failed`,
-  and `invalid_input` — carry cleanup evidence from the activity's own `tiktok_cleanup` event.
+- Routes that reach a terminal activity result — `python_native`, `failed`, and
+  `invalid_input` — carry cleanup evidence from the activity's own `tiktok_cleanup` event.
   This includes `acquisition_dependency_unavailable`: that branch returns zero acquisition
   attempts and exactly one `tiktok_cleanup` event carrying both booleans, keeping those runs
   inside the terminal-failure denominator instead of silently disappearing from it.
@@ -272,15 +218,13 @@ never a cleanup PASS, and no route may have its cleanup result assumed.
 | `minimum_valid_completed_runs` | 12 |
 | `minimum_parity_samples` | 0 (Scout is retired, so the soak is Python-only; archived reports keep their own 2) |
 | `minimum_python_native_success_rate` | 0.95 |
-| `maximum_legacy_fallback_rate` | 0.05 |
 | `maximum_terminal_failure_rate` | 0.02 |
 
 The window, run-count, and parity values are the accelerated acceptance policy defined in
 `docs/superpowers/specs/2026-09-07-stage1-accelerated-acceptance-design.md`, which supersedes only
 those three numbers from the original Stage 1 cutover design. The three rate thresholds, the
 zero-tolerance cleanup and audit rules, the schema version, and every human gate are unchanged. At
-12 valid completed runs the unchanged rates leave no room for a single legacy fallback (one is
-8.33 percent against a 5 percent ceiling) or a single terminal failure.
+12 valid completed runs the unchanged rates leave no room for a single terminal failure.
 
 Each report embeds the policy it was evaluated with, so an archived report keeps its own original
 thresholds. Archived evidence is never re-evaluated or reclassified under the accelerated defaults;
@@ -290,16 +234,15 @@ and opened.
 The aggregate report carries only counts, rates, a window, `ready`, and blockers — never a
 per-run identity, URL, or timestamp.
 
-Counts (`valid_completed` is `python_native + legacy_fallback + failed`, the denominator for the
-rates below): `valid_completed`, `python_native`, `legacy_fallback`, `failed`, `invalid_input`,
+Counts (`valid_completed` is `python_native + failed`, the denominator for the rates below):
+`valid_completed`, `python_native`, `failed`, `invalid_input`,
 `operator_cancelled`, `parity_samples`.
 
-Rates, each a fraction of `valid_completed`: `python_native`, `legacy_fallback`,
-`terminal_failure`.
+Rates, each a fraction of `valid_completed`: `python_native`, `terminal_failure`.
 
 Blockers are sorted lexicographically by their fixed string value and are the closed set:
 `insufficient_window`, `insufficient_valid_completed_runs`, `insufficient_parity_samples`,
-`python_native_rate_below_minimum`, `legacy_fallback_rate_above_maximum`,
+`python_native_rate_below_minimum`,
 `terminal_failure_rate_above_maximum`, `artifact_persistence_failure_present`,
 `acquisition_dependency_failure_present`, `acquisition_runner_failure_present`,
 `redaction_audit_failure_present`, `absolute_path_audit_failure_present`,
@@ -618,44 +561,20 @@ Workflow history and events contain only small typed identifiers, safe source di
 stage state, stable error codes/messages, safe metrics, and `ArtifactRef` metadata. They must not
 contain bearer tokens, API keys, cookies, signed URLs, absolute paths, raw provider/model payloads,
 browser traces, media bytes, or unredacted stdout/stderr. Query strings and fragments are removed
-from stored display URLs. Legacy diagnostic text is redacted before persistence and never drives
-workflow state.
+from stored display URLs. Diagnostic text is redacted before persistence and never drives workflow
+state.
 
 Artifact locations are validated relative durable paths. The API resolves them beneath
 `THOTH_CONTROL_PLANE_ARTIFACT_ROOT` only after actor/workflow/artifact authorization; it never
 returns the storage path or a signed source URL.
 
-## Temporary Legacy Scout activity
+## Scout retirement
 
-`LegacyScoutActivity` is a worker-only compatibility seam. FastAPI routes and requests cannot
-select it. When `THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE=legacy_scout`, the Temporal gateway
-records the fixed worker configuration and the workflow dispatches only to
-`thoth-legacy-adapter`.
-
-That queue has maximum activity concurrency one to match the single-browser limit. The adapter
-launches the registered `bun scout/cli.ts run <canonical-source-url> --out <configured-report>`
-command from the repository root, without a shell. It creates the configured report directory
-first and returns an artifact only after the report exists below
-`THOTH_CONTROL_PLANE_ARTIFACT_ROOT`; otherwise it returns a typed safe failure. It heartbeats
-while waiting, owns its process group/tree, gives that tree a bounded graceful-stop interval, then
-escalates the full group/tree and reaps the original process. Typed events and safe artifact/error
-results cross the activity boundary; stdout and stderr do not.
-
-### Exact retirement gate
-
-Do not remove the adapter until the Python source activity:
-
-1. passes the same offline candidate fixture;
-2. completes a controlled live smoke with equivalent safe artifacts and stable failure codes;
-3. demonstrates equivalent cancellation and no orphaned browser/process tree;
-4. survives API and worker restart with the same retry/rate-limit behavior and performance budget;
-5. preserves safe artifact, error, event, and redaction semantics; and
-6. repository search plus production smoke prove there is no import, reference, or execution of
-   `scout/cli.ts` or Bun on the production source-investigation path.
-
-Only after all six proofs are recorded may the isolated adapter queue and its worker wiring be
-removed. A later migration plan must name one bounded replacement activity and its parity fixture;
-it must not begin a broad Scout TypeScript or Rust media rewrite.
+The legacy Scout activity, its `thoth-legacy-adapter` queue, the activity modes, and the CDP
+sidecar were removed on 2026-10-30 by operator decision: acquisition is Python-only, and a
+failure is fixed in Python. Stage 1 closed under ADR 0001, which waived the original six-proof
+retirement gate. Workflow inputs still decode the old `activity_mode` values until the histories
+that carry them leave the 30-day retention (2026-11-29); the workflow ignores them.
 
 ## Verification and smoke scope
 
@@ -668,25 +587,21 @@ cd python
 uv run pytest tests/integration/test_control_plane_smoke.py -q
 ```
 
-This is not a controlled live provider/Scout smoke. A live run additionally requires operator
+This is not a controlled live provider smoke. A live run additionally requires operator
 credentials, network/provider availability, and explicit selection of an approved fixture; never
 paste those credentials into the test command or report.
 
 ### Required rollback drill
 
-Run this drill before approving a cutover away from the migration default, and keep it as the
-standing emergency procedure afterward. It does not run automatically and a passing soak report
-does not substitute for it.
+Run this drill before approving the final cutover, and keep it as the standing emergency
+procedure afterward. It does not run automatically and a passing soak report does not substitute
+for it.
 
-1. Set `THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE=python_tiktok_with_legacy_fallback` for ordinary
-   recovery, or `legacy_scout` for full acquisition rollback, through the approved deployment
-   environment.
-2. Restart the Python worker; in-flight workflows retain their durable input mode from when they
-   started.
-3. Confirm newly gateway-started workflows carry the selected mode.
-4. Run one approved public TikTok post and verify exact Python/legacy activity counts against the
-   selected mode's expected routing.
-5. Audit logs and source events for zero source URLs, signed URLs, provider payloads, exception
+1. Restore the previous digest pins through the approved deployment environment, following the
+   rollback steps in [the Stage 1 runbook](operations/stage1-local-docker.md).
+2. Recreate the API and the worker; in-flight workflows replay on the restored code.
+3. Run one approved public TikTok post and verify it acquires through Python.
+4. Audit logs and source events for zero source URLs, signed URLs, provider payloads, exception
    text, and absolute paths.
 
 Do not include real workflow IDs, URLs, environment values, report paths, screenshots, or live

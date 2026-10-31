@@ -23,7 +23,7 @@ from thoth_control_plane.operations.tiktok_soak_cli import (
 
 runner = CliRunner()
 
-READY_OBSERVATIONS = route_mix(native=95, fallback=3, failed=2)
+READY_OBSERVATIONS = route_mix(native=98, failed=2)
 READY_REPORT = evaluate_tiktok_soak(READY_OBSERVATIONS, generated_at=GENERATED_AT)
 READY_JSONL = "\n".join(json.dumps(item.model_dump(mode="json")) for item in READY_OBSERVATIONS)
 
