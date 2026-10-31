@@ -327,3 +327,14 @@ def test_re_voicing_one_beat_voices_only_that_beat_and_clears_it() -> None:
     assert seen["voice"].requests[-1].text == "Ikan diambil dalam sekejap."
     assert seen["store"].cleared == ["main"]
     assert len(seen["documents"].written) == 2
+
+
+def test_a_missing_voice_key_stops_the_narration_before_any_spend() -> None:
+    """The API holds no provider key, so the worker checks it first (Task 9 ruling)."""
+    built, seen = ports(voice_missing=True)
+
+    result = run(NarrationActivities(built).transcribe(STEP))
+
+    assert result.code == "voice_not_configured"
+    assert seen["store"].status == [("failed", "voice_not_configured")]
+    assert seen["store"].transcript == [] and seen["provider_calls"] == 0

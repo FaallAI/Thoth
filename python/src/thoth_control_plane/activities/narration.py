@@ -95,6 +95,11 @@ class NarrationActivities:
 
     @activity.defn(name="narration_transcribe")
     async def transcribe(self, step: NarrationStepInput) -> NarrationStepResult:
+        try:
+            self._ports.voice()  # builds the adapter only; no call is made
+        except VoiceNotConfigured:
+            # Checked first: nothing is transcribed or written before a voice exists.
+            return await self._fail(step.document_id, "voice_not_configured")
         scope = await asyncio.to_thread(metering.project_scope, step.project_id)
         with metering.scoped(scope), tempfile.TemporaryDirectory() as work:
             document = await self._ports.documents.get_latest(step.project_id, step.document_id)
