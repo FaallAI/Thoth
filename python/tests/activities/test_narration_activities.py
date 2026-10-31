@@ -326,7 +326,7 @@ def test_re_voicing_one_beat_voices_only_that_beat_and_clears_it() -> None:
     assert len(seen["voice"].requests) == before + 1
     assert seen["voice"].requests[-1].text == "Ikan diambil dalam sekejap."
     assert seen["store"].cleared == ["main"]
-    assert len(seen["documents"].written) == 2
+    assert len(seen["documents"].written) == 1  # the workflow's write step writes the draft
 
 
 def test_a_missing_voice_key_stops_the_narration_before_any_spend() -> None:
@@ -338,3 +338,48 @@ def test_a_missing_voice_key_stops_the_narration_before_any_spend() -> None:
     assert result.code == "voice_not_configured"
     assert seen["store"].status == [("failed", "voice_not_configured")]
     assert seen["store"].transcript == [] and seen["provider_calls"] == 0
+
+
+def test_a_retried_voice_step_never_voices_a_beat_twice() -> None:
+    """ElevenLabs bills per call: a retry after beat 2 failed resumes at beat 2 (review I3)."""
+    from thoth_control_plane.voice.ports import VoiceUnavailable
+
+    built, seen = ports()
+    activities = NarrationActivities(built)
+    run(activities.write_script(NarrationScriptInput(**STEP.model_dump())))
+    voice = seen["voice"]
+    real = voice.synthesize
+    failed = {"once": False}
+
+    async def flaky(request):  # type: ignore[no-untyped-def]
+        if len(voice.requests) == 1 and not failed["once"]:
+            failed["once"] = True
+            raise VoiceUnavailable("elevenlabs_unreachable")
+        return await real(request)
+
+    voice.synthesize = flaky
+    with pytest.raises(VoiceUnavailable):
+        run(activities.voice(STEP))
+    run(activities.voice(STEP))
+
+    texts = [request.text for request in voice.requests]
+    assert texts == [
+        "Kucing ini bikin heboh.",
+        "Ikan diambil dalam sekejap.",
+        "Warganet tertawa, kata Andi.",
+    ]
+    assert [ref.beat for ref in seen["store"].voices] == ["hook", "main", "reactions"]
+
+
+def test_a_re_voice_replaces_one_stored_voice_without_writing_the_draft() -> None:
+    built, seen = ports()
+    activities = NarrationActivities(built)
+    run(activities.write_script(NarrationScriptInput(**STEP.model_dump())))
+    run(activities.voice(STEP))
+    before = {ref.beat: ref.asset.asset_id for ref in seen["store"].voices}
+
+    run(activities.revoice(NarrationRevoiceInput(**STEP.model_dump(), beat="main")))
+
+    after = {ref.beat: ref.asset.asset_id for ref in seen["store"].voices}
+    assert after["hook"] == before["hook"] and after["main"] != before["main"]
+    assert seen["documents"].written == [] and seen["store"].cleared == ["main"]

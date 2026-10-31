@@ -98,3 +98,12 @@ def test_an_sfx_upsert_is_idempotent_by_checksum(store: NarrationStore) -> None:
     assert run(store.upsert_sfx(entry)) is True
     assert run(store.upsert_sfx(entry)) is False
     assert run(store.list_sfx()) == [entry]
+
+
+def test_a_claim_moves_the_status_once(store: NarrationStore) -> None:
+    run(store.start("project_a", "edoc_1", "narration/edoc_1/1", NarrationPreset()))
+    run(store.set_status("edoc_1", "awaiting_approval"))
+
+    assert run(store.claim("edoc_1", {"awaiting_approval"}, "voicing")) is True
+    assert run(store.claim("edoc_1", {"awaiting_approval"}, "voicing")) is False
+    assert run(store.get("project_a", "edoc_1")).status == "voicing"

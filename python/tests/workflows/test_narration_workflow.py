@@ -167,3 +167,41 @@ async def test_a_voice_that_keeps_failing_ends_failed_without_writing(
     assert [(mark.status, mark.failure_code) for mark in calls.marks] == [
         ("failed", "narration_failed")
     ]
+
+
+# --- Final review fixes (C1, I3, I4) ---
+
+
+@pytest.mark.asyncio
+async def test_a_workflow_cancelled_from_temporal_still_closes_its_narration(
+    env: WorkflowEnvironment,
+) -> None:
+    calls = Calls()
+
+    async def drive(handle):  # type: ignore[no-untyped-def]
+        await wait_scripted(calls)
+        await handle.cancel()
+
+    with pytest.raises(Exception):  # noqa: B017 - the cancelled result itself raises
+        await run_with(env, calls, drive)
+    assert [(mark.status, mark.failure_code) for mark in calls.marks] == [("cancelled", None)]
+
+
+@pytest.mark.asyncio
+async def test_a_re_voice_voices_one_beat_then_writes_the_draft(env: WorkflowEnvironment) -> None:
+    calls = Calls()
+    activities = calls.activities()
+    async with Worker(
+        env.client,
+        task_queue="main",
+        workflows=[NarrationRevoiceWorkflow],
+        activities=activities[:-1],
+    ):
+        result = await env.client.execute_workflow(
+            NarrationRevoiceWorkflow.run,
+            NarrationRevoiceInput(project_id="project_001", document_id="edoc_1", beat="main"),
+            id="narration-revoice/edoc_1/main/1",
+            task_queue="main",
+        )
+    assert result == "completed"
+    assert calls.names == ["revoice:main", "write"]

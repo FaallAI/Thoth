@@ -46,6 +46,7 @@ class NarrationGateway(Protocol):
     async def start(self, workflow_id: str, step: NarrationStepInput) -> None: ...
     async def decide(self, workflow_id: str, decision: NarrationDecision) -> None: ...
     async def revoice(self, step: NarrationRevoiceInput) -> None: ...
+    async def cancel(self, workflow_id: str) -> None: ...
 
 
 SourceRun = Callable[[str, str], Awaitable[str | None]]
@@ -114,20 +115,48 @@ class NarrationService:
             state = await store.start(project_id, document_id, workflow_id, preset)
         except NarrationInProgress as error:
             raise NarrationRefused("narration_in_progress") from error
-        await self._gateway.start(
-            workflow_id, NarrationStepInput(project_id=project_id, document_id=document_id)
-        )
+        try:
+            await self._gateway.start(
+                workflow_id, NarrationStepInput(project_id=project_id, document_id=document_id)
+            )
+        except NarrationUnavailable:
+            # No workflow will ever move this row: close it so the draft stays editable.
+            await store.set_status(document_id, "failed", failure_code="narration_unavailable")
+            raise
         return state
 
     async def decide(
         self, project_id: str, document_id: str, decision: NarrationDecision
     ) -> NarrationState:
         state = await self.get(project_id, document_id)
-        if state.status != "awaiting_approval":
-            raise NarrationRefused("narration_not_awaiting_approval")
         if self._gateway is None:
             raise NarrationUnavailable()
-        await self._gateway.decide(state.workflow_id, decision)
+        # One decision per script: the claim moves the status, so a second click is refused
+        # and an approval can never land on a script the operator has not seen.
+        following = "voicing" if decision.decision == "approve" else "scripting"
+        if not await self._require().claim(document_id, {"awaiting_approval"}, following):
+            raise NarrationRefused("narration_not_awaiting_approval")
+        try:
+            await self._gateway.decide(state.workflow_id, decision)
+        except NarrationUnavailable:
+            await self._require().set_status(
+                document_id, "failed", failure_code="narration_unavailable"
+            )
+            raise
+        return state.model_copy(update={"status": following})
+
+    async def cancel(self, project_id: str, document_id: str) -> NarrationState:
+        state = await self.get(project_id, document_id)
+        if state.status not in ACTIVE_STATUSES:
+            raise NarrationRefused("narration_not_active")
+        if self._gateway is None:
+            raise NarrationUnavailable()
+        try:
+            await self._gateway.cancel(state.workflow_id)
+        except NarrationUnavailable:
+            # The workflow is gone (terminated, or never ran): nothing else will close it.
+            await self._require().set_status(document_id, "cancelled")
+            return state.model_copy(update={"status": "cancelled"})
         return state
 
     async def set_beat_text(
@@ -142,14 +171,21 @@ class NarrationService:
 
     async def revoice(self, project_id: str, document_id: str, beat: BeatId) -> NarrationState:
         state = await self.get(project_id, document_id)
-        if state.status != "completed" or beat not in state.stale_beats:
+        if beat not in state.stale_beats:
             raise NarrationRefused("beat_not_stale")
         if self._gateway is None:
             raise NarrationUnavailable()
-        await self._gateway.revoice(
-            NarrationRevoiceInput(project_id=project_id, document_id=document_id, beat=beat)
-        )
-        return state
+        # The claim locks the draft and starts Studio's polling; a second click is refused.
+        if not await self._require().claim(document_id, {"completed"}, "voicing"):
+            raise NarrationRefused("beat_not_stale")
+        try:
+            await self._gateway.revoice(
+                NarrationRevoiceInput(project_id=project_id, document_id=document_id, beat=beat)
+            )
+        except NarrationUnavailable:
+            await self._require().set_status(document_id, "completed")
+            raise
+        return state.model_copy(update={"status": "voicing"})
 
     async def get_preset(self, project_id: str) -> StoredPreset:
         return await self._require().get_preset(project_id)

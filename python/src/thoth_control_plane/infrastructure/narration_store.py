@@ -128,6 +128,20 @@ class NarrationStore:
     ) -> None:
         await self._update(document_id, status=status, failure_code=failure_code)
 
+    async def claim(self, document_id: str, expected: set[str], status: NarrationStatus) -> bool:
+        """Move the status only from one of `expected`, atomically; False when it was not."""
+
+        def work(session: Session) -> bool:
+            row = session.get(NarrationRow, document_id, with_for_update=True)
+            if row is None or row.status not in expected:
+                return False
+            row.status = status
+            row.failure_code = None
+            row.updated_at = func.current_timestamp()
+            return True
+
+        return await self._run(work)
+
     async def set_transcript(self, document_id: str, segments: list[TranscriptSegment]) -> None:
         await self._update(
             document_id, transcript=[segment.model_dump(mode="json") for segment in segments]

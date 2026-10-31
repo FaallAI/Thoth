@@ -97,6 +97,16 @@ async def decide_narration(
     return await _answer(service.decide(project_id, document_id, decision))
 
 
+@router.post(
+    f"{DOCUMENT}/cancel", response_model=NarrationState, status_code=status.HTTP_202_ACCEPTED
+)
+async def cancel_narration(
+    project_id: str, document_id: str, _: Caller, service: Service
+) -> NarrationState:
+    """Stop a running narration; nothing further is spent and the draft unlocks."""
+    return await _answer(service.cancel(project_id, document_id))
+
+
 @router.put(f"{DOCUMENT}/beats/{{beat}}", response_model=NarrationScript)
 async def edit_narration_beat(
     project_id: str, document_id: str, beat: BeatId, body: BeatText, _: Caller, service: Service

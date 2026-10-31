@@ -173,12 +173,14 @@ class NarrationActivities:
         project_id: str,
         script: NarrationScript,
         preset: NarrationPreset,
-        only: str | None = None,
-    ) -> list[VoiceRef]:
+        beats: set[str],
+        on_voice: Callable[[VoiceRef], Awaitable[None]],
+    ) -> None:
+        """Voice the named beats, handing each voice over as soon as it exists, so a retry
+        after a failure never pays for a beat twice (ElevenLabs bills per call)."""
         synthesizer = self._ports.voice()
-        voices = []
         for index, beat in enumerate(script.beats):
-            if only is not None and beat.beat != only:
+            if beat.beat not in beats:
                 continue
             result = await synthesizer.synthesize(
                 VoiceRequest(
@@ -193,7 +195,7 @@ class NarrationActivities:
                 )
             )
             asset = await self._ports.upload_audio(project_id, result.audio, result.media_type)
-            voices.append(
+            await on_voice(
                 VoiceRef(
                     beat=beat.beat,
                     asset=asset,
@@ -201,7 +203,6 @@ class NarrationActivities:
                     words=result.word_timings or [],
                 )
             )
-        return voices
 
     @activity.defn(name="narration_voice")
     async def voice(self, step: NarrationStepInput) -> NarrationStepResult:
@@ -211,15 +212,29 @@ class NarrationActivities:
             await ports.store.set_status(step.document_id, "voicing")
             script = await ports.store.get_script(step.document_id)
             preset = await ports.store.get_preset_of(step.document_id)
+            # A retry resumes: the voices an earlier attempt stored are kept, not bought again.
+            voices = await ports.store.get_voices(step.document_id)
+            done = {voice.beat for voice in voices}
+
+            async def keep(voice: VoiceRef) -> None:
+                voices.append(voice)
+                voices.sort(key=lambda item: BEAT_ORDER.index(item.beat))
+                await ports.store.set_voices(step.document_id, voices)
+
             try:
-                voices = await self._voice_beats(step.project_id, script, preset)
+                await self._voice_beats(
+                    step.project_id,
+                    script,
+                    preset,
+                    {beat.beat for beat in script.beats} - done,
+                    keep,
+                )
             except VoiceNotConfigured:
                 return await self._fail(step.document_id, "voice_not_configured")
             except VoiceRejected:
                 return await self._fail(step.document_id, "voice_rejected")
             except VoiceUnavailable:
                 raise  # retryable: the provider was unreachable or answered oddly
-            await ports.store.set_voices(step.document_id, voices)
         return NarrationStepResult()
 
     async def _write(self, step: NarrationStepInput, voices: list[VoiceRef]) -> None:
@@ -266,29 +281,30 @@ class NarrationActivities:
 
     @activity.defn(name="narration_revoice")
     async def revoice(self, step: NarrationRevoiceInput) -> NarrationStepResult:
-        """Voice one beat again after an edit, then rewrite the draft around it."""
+        """Voice one edited beat again and store it; the workflow's write step then rewrites
+        the draft, so a write that is retried never pays for the voice again."""
         ports = self._ports
         scope = await asyncio.to_thread(metering.project_scope, step.project_id)
         with metering.scoped(scope):
             script = await ports.store.get_script(step.document_id)
             preset = await ports.store.get_preset_of(step.document_id)
-            try:
-                fresh = await self._voice_beats(step.project_id, script, preset, only=step.beat)
-            except (VoiceNotConfigured, VoiceRejected) as error:
-                code = (
-                    "voice_not_configured"
-                    if isinstance(error, VoiceNotConfigured)
-                    else "voice_rejected"
-                )
-                return NarrationStepResult(code=code)
             voices = [
                 voice
                 for voice in await ports.store.get_voices(step.document_id)
                 if voice.beat != step.beat
-            ] + fresh
-            voices.sort(key=lambda voice: BEAT_ORDER.index(voice.beat))
-            await self._write(step, voices)
-            await ports.store.set_voices(step.document_id, voices)
+            ]
+
+            async def keep(voice: VoiceRef) -> None:
+                voices.append(voice)
+                voices.sort(key=lambda item: BEAT_ORDER.index(item.beat))
+                await ports.store.set_voices(step.document_id, voices)
+
+            try:
+                await self._voice_beats(step.project_id, script, preset, {step.beat}, keep)
+            except VoiceNotConfigured:
+                return NarrationStepResult(code="voice_not_configured")
+            except VoiceRejected:
+                return NarrationStepResult(code="voice_rejected")
             await ports.store.clear_stale(step.document_id, step.beat)
         return NarrationStepResult()
 

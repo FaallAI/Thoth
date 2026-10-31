@@ -31,6 +31,12 @@ class TemporalNarrationGateway:
         except Exception as error:
             raise NarrationUnavailable() from error
 
+    async def cancel(self, workflow_id: str) -> None:
+        try:
+            await self._client.get_workflow_handle(workflow_id).signal("cancel")
+        except Exception as error:
+            raise NarrationUnavailable() from error
+
     async def revoice(self, step: NarrationRevoiceInput) -> None:
         try:
             await self._client.start_workflow(

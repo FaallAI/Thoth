@@ -51,6 +51,18 @@ class Store:
         )
         return self.state
 
+    async def set_status(
+        self, document_id: str, status: str, *, failure_code: str | None = None
+    ) -> None:
+        assert self.state is not None
+        self.state = self.state.model_copy(update={"status": status, "failure_code": failure_code})
+
+    async def claim(self, document_id: str, expected: set[str], status: str) -> bool:
+        if self.state is None or self.state.status not in expected:
+            return False
+        self.state = self.state.model_copy(update={"status": status})
+        return True
+
     async def set_beat_text(self, document_id: str, beat: str, text: str) -> NarrationScript:
         assert self.state is not None and self.state.script is not None
         script = NarrationScript(
@@ -91,8 +103,15 @@ class Gateway:
         self.started: list[str] = []
         self.decisions: list[Any] = []
         self.revoiced: list[str] = []
+        self.cancelled: list[str] = []
+        self.gone = False
+        self.start_fails = False
 
     async def start(self, workflow_id: str, step: Any) -> None:
+        if self.start_fails:
+            from thoth_control_plane.application.narrations import NarrationUnavailable
+
+            raise NarrationUnavailable()
         self.started.append(workflow_id)
 
     async def decide(self, workflow_id: str, decision: Any) -> None:
@@ -100,6 +119,13 @@ class Gateway:
 
     async def revoice(self, step: Any) -> None:
         self.revoiced.append(step.beat)
+
+    async def cancel(self, workflow_id: str) -> None:
+        if self.gone:
+            from thoth_control_plane.application.narrations import NarrationUnavailable
+
+            raise NarrationUnavailable()
+        self.cancelled.append(workflow_id)
 
 
 class Preferences:
@@ -277,3 +303,73 @@ async def test_the_preset_saves_with_its_revision_and_the_sfx_library_hides_loca
             "labels": {"licence": "CC0-1.0"},
         }
     ]
+
+
+# --- Final review fixes (C1, I2, I4, re-graded minor 2) ---
+
+
+async def test_a_workflow_that_never_starts_leaves_the_draft_editable() -> None:
+    store, gateway = Store(), Gateway()
+    gateway.start_fails = True
+    async with build(store, gateway) as api:
+        response = await api.post(f"{DOC}/narration", headers=AUTH)
+
+    assert (response.status_code, code(response)) == (503, "narration_unavailable")
+    assert store.state is not None and (store.state.status, store.state.failure_code) == (
+        "failed",
+        "narration_unavailable",
+    )
+
+
+async def test_cancel_signals_a_running_narration_or_closes_one_whose_workflow_is_gone() -> None:
+    store, gateway = Store(), Gateway()
+    store.state = NarrationState(
+        document_id="edoc_abc123", workflow_id="narration/edoc_abc123/1", status="awaiting_approval"
+    )
+    async with build(store, gateway) as api:
+        first = await api.post(f"{DOC}/narration/cancel", headers=AUTH)
+        gateway.gone = True
+        second = await api.post(f"{DOC}/narration/cancel", headers=AUTH)
+        closed = store.state.status
+        store.state = store.state.model_copy(update={"status": "completed"})
+        idle = await api.post(f"{DOC}/narration/cancel", headers=AUTH)
+
+    assert first.status_code == 202 and gateway.cancelled == ["narration/edoc_abc123/1"]
+    assert second.status_code == 202 and closed == "cancelled"
+    assert (idle.status_code, code(idle)) == (409, "narration_not_active")
+
+
+async def test_a_decision_is_taken_once_and_the_answer_shows_the_next_step() -> None:
+    store, gateway = Store(), Gateway()
+    store.state = NarrationState(
+        document_id="edoc_abc123", workflow_id="narration/edoc_abc123/1", status="awaiting_approval"
+    )
+    async with build(store, gateway) as api:
+        rejected = await api.post(
+            f"{DOC}/narration/decision", json={"decision": "reject"}, headers=AUTH
+        )
+        again = await api.post(
+            f"{DOC}/narration/decision", json={"decision": "approve"}, headers=AUTH
+        )
+
+    assert rejected.json()["status"] == "scripting"
+    assert (again.status_code, code(again)) == (409, "narration_not_awaiting_approval")
+    assert len(gateway.decisions) == 1
+
+
+async def test_a_re_voice_runs_once_and_locks_the_draft_while_it_runs() -> None:
+    store, gateway = Store(), Gateway()
+    store.state = NarrationState(
+        document_id="edoc_abc123",
+        workflow_id="narration/edoc_abc123/1",
+        status="completed",
+        stale_beats=["main"],
+        script=NarrationScript(beats=[ScriptBeat(beat="main", text="Halo")]),
+    )
+    async with build(store, gateway) as api:
+        first = await api.post(f"{DOC}/narration/beats/main/revoice", headers=AUTH)
+        second = await api.post(f"{DOC}/narration/beats/main/revoice", headers=AUTH)
+
+    assert first.status_code == 202 and first.json()["status"] == "voicing"
+    assert (second.status_code, code(second)) == (409, "beat_not_stale")
+    assert gateway.revoiced == ["main"]

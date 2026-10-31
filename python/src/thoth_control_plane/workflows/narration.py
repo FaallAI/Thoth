@@ -8,6 +8,7 @@ provider credentials are.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import timedelta
 
 from temporalio import workflow
@@ -70,6 +71,10 @@ class NarrationWorkflow:
         except ActivityError:
             await _mark(step.document_id, "failed", "narration_failed")
             return "failed"
+        except asyncio.CancelledError:
+            # Cancelled from Temporal itself: still close the row, or the draft stays locked.
+            await _mark(step.document_id, "cancelled")
+            raise
 
     async def _narrate(self, step: NarrationStepInput) -> str:
         if (await _step("narration_transcribe", step)).code:
@@ -120,5 +125,15 @@ class NarrationWorkflow:
 class NarrationRevoiceWorkflow:
     @workflow.run
     async def run(self, step: NarrationRevoiceInput) -> str:
-        result = await _step("narration_revoice", step)
-        return "failed" if result.code else "completed"
+        draft = NarrationStepInput(project_id=step.project_id, document_id=step.document_id)
+        try:
+            result = await _step("narration_revoice", step)
+            if result.code:
+                await _mark(step.document_id, "completed", result.code)
+                return "failed"
+            await _step("narration_write_draft", draft)
+        except (ActivityError, asyncio.CancelledError):
+            # The draft keeps its earlier narration; only this beat stays out of date.
+            await _mark(step.document_id, "completed", "revoice_failed")
+            return "failed"
+        return "completed"

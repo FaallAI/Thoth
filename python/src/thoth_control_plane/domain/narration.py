@@ -192,5 +192,6 @@ class NarrationMark(StrictModel):
     """A terminal state the workflow records itself (cancelled, or failed after retries)."""
 
     document_id: str
-    status: Literal["failed", "cancelled"]
+    #: `completed` closes a re-voice that could not finish; the draft keeps its narration.
+    status: Literal["failed", "cancelled", "completed"]
     failure_code: str | None = None
