@@ -81,7 +81,8 @@ export THOTH_STAGE1_PROVIDER_ENV_FILE="$HOME/secrets/stage1.providers.env"
 ```
 
 The file holds exactly `THOTH_NOVITA_API_KEY` and `THOTH_SUBTITLE_OCR_MODEL`, plus the
-optional `THOTH_OPENROUTER_API_KEY` that source attribution uses. A wider file is
+optional `THOTH_OPENROUTER_API_KEY` that source attribution uses and the optional
+`THOTH_ELEVENLABS_API_KEY` that narration's voice uses (2026-10-31). A wider file is
 usually an accidental copy of the repository `.env`, and a service-level `env_file` injects every
 line of the file it names into that container, so the extra variables would become container
 environment. The preflight rejects a third variable, a placeholder key, a relative or
@@ -311,6 +312,24 @@ soak window in flight is frozen: do not apply any of this to it.
 Every retry at any step is explicit and recorded. A failure is evidence and is recorded as such: a
 failed reference or a failed smoke is a result, not something to retry
 until it succeeds.
+
+## Narration (auto-draft, 2026-10-31)
+
+A draft opened from a `produce_video` run gains a narration only when someone presses
+**Create narration** in Studio. It needs:
+
+- `THOTH_ELEVENLABS_API_KEY` in the provider file above (the worker refuses the narration with
+  `voice_not_configured` before any spend when it is missing);
+- a model for the `narration_script` Prompt Lab stage in the project's *Presets & prompts*;
+- the bundled sound effects seeded once after the deploy that brings migration 0027:
+
+```bash
+docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml   -f compose.stage1.renderer.yml -f compose.stage1.web.yml run --rm --no-deps api thoth-control sfx seed
+```
+
+Only files listed with a licence-free licence in `assets/sfx/LICENSES.json` are seeded
+(operator, 2026-10-31); the command prints `added=… unchanged=… skipped=…` and is safe to rerun.
+An empty licence file seeds nothing, and narration then places no sound effect.
 
 ## Restart and rollback preparation
 

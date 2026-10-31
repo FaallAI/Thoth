@@ -30,6 +30,11 @@ open.
 The backlog item "Scrapling in place of the CDP sidecar" is moot: the sidecar was removed with
 Scout on 2026-10-31.
 
+Item 6 (auto-draft), first milestone: the narrated draft is built on `feat/auto-draft-narration`
+(2026-10-31, not yet merged): Create narration, script approval in Studio with a TTS estimate,
+ElevenLabs voice per beat, word-highlight captions, ducking, licensed SFX, and re-voice per beat.
+Spec `docs/superpowers/specs/2026-10-31-auto-draft-narrated-draft-design.md`.
+
 ### Open follow-ups from the 2026-10-30 and 2026-10-31 deploys
 
 - **Security:** the 17 Dependabot alerts (2 critical, 4 high, 7 moderate, 4 low) were all in Rust
