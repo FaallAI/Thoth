@@ -105,6 +105,7 @@ component catalogs, shot detection with TransNetV2, LAVE / ExpressEdit / EditDue
 | 3. Reference video to template | Shot rhythm, OCR captions, transcript pace, keyframe layout and audio become a **proposed** template with per-field confidence; unsupported effects are flagged | Not started; needs slice 1 (transcript) |
 | 4. Template gallery | Templates are private to their workspace; the operator can see, use and copy every template; a template the operator verifies can be published to every workspace with its creator credited, **only after the creator approves**; published versions are frozen snapshots; reference videos are never published | Not started |
 | 5. Prompt editing of a draft | An LLM changes a draft only through the typed edit operations (`EditDocumentPatch`), with an editor-critic loop | Not started |
+| 6. Shared SFX and assets | SFX live in MinIO/S3 with labels; uploaded SFX follow the template gallery: private to the workspace, operator review, uploader notified and approving, then available to every workspace with the uploader credited | Bundled SFX in MinIO come with auto-draft's first milestone; uploads not started |
 
 ## UI phases
 
