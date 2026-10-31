@@ -12,7 +12,9 @@ from pydantic import Field, field_validator, model_validator
 
 from thoth_control_plane.domain.models import OpaqueId, ProjectId, StrictModel
 
-PromptStageId: TypeAlias = Literal["narrative_plan", "visual_plan", "caption_copy", "story_assist"]
+PromptStageId: TypeAlias = Literal[
+    "narrative_plan", "visual_plan", "caption_copy", "story_assist", "narration_script"
+]
 
 PROMPT_LANGUAGE_PATTERN = r"^[a-z]{2}(?:-[A-Z]{2})?$"
 PROMPT_TEXT_MAX_LENGTH = 12_000
@@ -104,9 +106,29 @@ PROMPT_STAGES = (
     ),
     # Story mode's Assist (spec 2026-10-27, 7): the prompt and the model its proposals use.
     PromptStageDefinition(stage_id="story_assist", label="Story Assist", status="proposal_ready"),
+    # Auto-draft narration (spec 2026-10-31): the script prompt and the model that writes it.
+    PromptStageDefinition(
+        stage_id="narration_script", label="Narration script", status="proposal_ready"
+    ),
 )
 
 PROMPT_STARTERS: dict[PromptStageId, PromptStarterDefinition] = {
+    "narration_script": PromptStarterDefinition(
+        starter_id="starter_narration_script_v1",
+        label="Narration script starter",
+        language="id-ID",
+        body=(
+            "Kamu menulis narasi voiceover untuk video vertikal dari sebuah post media sosial.\n"
+            "Susun narasi lintas beat yang diberikan: Hook (masalah atau kejutan di 3 detik "
+            "pertama), Tension (apa yang terjadi dan kenapa menarik), Solution (bukti dan "
+            "reaksi), Call-To-Value (alasan penonton peduli atau ikut).\n"
+            "Pakai hanya fakta yang diberikan: judul, deskripsi, pembuat, verdict atribusi, "
+            "figur, komentar dan transkrip. Jangan pernah mengarang nama, angka atau kutipan.\n"
+            "Sebut figur dengan namanya. Kalimat pendek, mudah diucapkan, bahasa sehari-hari.\n"
+            # The writer appends the answer's JSON shape to every prompt, saved or starter.
+            "Pilih efek suara hanya dari daftar yang diberikan, dan hanya bila benar-benar pas."
+        ),
+    ),
     "story_assist": PromptStarterDefinition(
         starter_id="starter_story_assist_v1",
         label="Story Assist starter",

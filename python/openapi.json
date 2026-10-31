@@ -1381,7 +1381,8 @@
               "narrative_plan",
               "visual_plan",
               "caption_copy",
-              "story_assist"
+              "story_assist",
+              "narration_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -3327,7 +3328,8 @@
               "narrative_plan",
               "visual_plan",
               "caption_copy",
-              "story_assist"
+              "story_assist",
+              "narration_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -3383,7 +3385,8 @@
               "narrative_plan",
               "visual_plan",
               "caption_copy",
-              "story_assist"
+              "story_assist",
+              "narration_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -3433,7 +3436,8 @@
               "narrative_plan",
               "visual_plan",
               "caption_copy",
-              "story_assist"
+              "story_assist",
+              "narration_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -3596,7 +3600,8 @@
               "narrative_plan",
               "visual_plan",
               "caption_copy",
-              "story_assist"
+              "story_assist",
+              "narration_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -3898,7 +3903,8 @@
               "narrative_plan",
               "visual_plan",
               "caption_copy",
-              "story_assist"
+              "story_assist",
+              "narration_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -3984,7 +3990,8 @@
               "narrative_plan",
               "visual_plan",
               "caption_copy",
-              "story_assist"
+              "story_assist",
+              "narration_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -4731,7 +4738,8 @@
               "narrative_plan",
               "visual_plan",
               "caption_copy",
-              "story_assist"
+              "story_assist",
+              "narration_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -5182,7 +5190,8 @@
               "narrative_plan",
               "visual_plan",
               "caption_copy",
-              "story_assist"
+              "story_assist",
+              "narration_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -11813,7 +11822,8 @@
                 "narrative_plan",
                 "visual_plan",
                 "caption_copy",
-                "story_assist"
+                "story_assist",
+                "narration_script"
               ],
               "title": "Stage Id",
               "type": "string"
@@ -11881,7 +11891,8 @@
                 "narrative_plan",
                 "visual_plan",
                 "caption_copy",
-                "story_assist"
+                "story_assist",
+                "narration_script"
               ],
               "title": "Stage Id",
               "type": "string"
@@ -12642,7 +12653,8 @@
                 "narrative_plan",
                 "visual_plan",
                 "caption_copy",
-                "story_assist"
+                "story_assist",
+                "narration_script"
               ],
               "title": "Stage Id",
               "type": "string"
@@ -12712,7 +12724,8 @@
                 "narrative_plan",
                 "visual_plan",
                 "caption_copy",
-                "story_assist"
+                "story_assist",
+                "narration_script"
               ],
               "title": "Stage Id",
               "type": "string"
