@@ -91,6 +91,21 @@ The operator started this on 2026-10-24/25, because a dashboard run now takes 6 
 | 7. Dashboard and Studio restyle | Its own spec: the token migration (§5.1), the English/Indonesian switch, notifications, run tray, inbox, Studio Story / Script / Timeline (§13) | After steps 2-6 |
 | 8. Live gate (operator) | One dashboard `produce_video` run with a TikTok main. Check the progress model, the Content Set in Studio, the TikTok profile page, the comment filter, and the comment-card count | After step 7 |
 
+## Style template track (added 2026-10-31)
+
+An additional feature, after the base roadmap items; the operator wants the base features first.
+Editing styles become **style templates**: one structured template schema that auto-draft turns
+into a Studio draft. Research: the 2026-10-31 session (reference-matching tools, LLM-filled
+component catalogs, shot detection with TransNetV2, LAVE / ExpressEdit / EditDuet).
+
+| Step | Scope | Status |
+|---|---|---|
+| 1. Template schema and built-in Style A | Replaces auto-draft slice 3 "presets": the preset is a template | With item 6, slice 3 |
+| 2. Prompt to template | An LLM fills the template's fields (pacing, caption style, hook, zoom, music mood) through Prompt Lab; validated, never a free-form timeline | Not started |
+| 3. Reference video to template | Shot rhythm, OCR captions, transcript pace, keyframe layout and audio become a **proposed** template with per-field confidence; unsupported effects are flagged | Not started; needs slice 1 (transcript) |
+| 4. Template gallery | Templates are private to their workspace; the operator can see, use and copy every template; a template the operator verifies can be published to every workspace with its creator credited, **only after the creator approves**; published versions are frozen snapshots; reference videos are never published | Not started |
+| 5. Prompt editing of a draft | An LLM changes a draft only through the typed edit operations (`EditDocumentPatch`), with an editor-critic loop | Not started |
+
 ## UI phases
 
 From the 2026-10-18 UI audit.
