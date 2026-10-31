@@ -106,6 +106,8 @@ def build_script_request(
             moments = entry.labels.get("moments") or []
             moment_text = ", ".join(str(moment) for moment in moments)
             lines.append(f"- {entry.sfx_id}: {description} ({moment_text})")
+    if not sfx:
+        lines.append("No sound effects are available: sfx_cues must be [].")
     if note:
         lines.append(f"Operator note on the previous script: {_clean(note, 500)}")
     return f"{prompt}\n\n{ANSWER_CONTRACT}", "\n".join(line for line in lines if line)
@@ -128,9 +130,15 @@ def parse_script(
         if not isinstance(item, dict) or item.get("beat") not in allowed:
             raise ScriptInvalid("unknown beat")
     ordered = sorted(raw_beats, key=lambda item: BEAT_ORDER.index(item["beat"]))
-    cues = answer.get("sfx_cues") or []
-    if not isinstance(cues, list) or len(cues) > preset.max_sfx_cues:
-        raise ScriptInvalid("too many sound effects")
+    # A sound effect is optional: one the draft cannot use is dropped, never fatal.
+    written_beats = {item["beat"] for item in ordered}
+    cues = [
+        cue
+        for cue in (answer.get("sfx_cues") or [])
+        if isinstance(cue, dict)
+        and cue.get("sfx_id") in sfx_ids
+        and cue.get("beat") in written_beats
+    ][: preset.max_sfx_cues]
     try:
         script = NarrationScript.model_validate(
             {
@@ -143,10 +151,6 @@ def parse_script(
         )
     except ValidationError as error:
         raise ScriptInvalid("not a script") from error
-    written = {beat.beat for beat in script.beats}
-    for cue in script.sfx_cues:
-        if cue.sfx_id not in sfx_ids or cue.beat not in written:
-            raise ScriptInvalid("unknown sound effect")
     words = sum(len(beat.text.split()) for beat in script.beats)
     if words > preset.target_seconds * preset.words_per_second * LENGTH_SLACK:
         raise ScriptInvalid("too long")

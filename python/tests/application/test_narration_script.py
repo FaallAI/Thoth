@@ -97,18 +97,12 @@ def test_a_valid_answer_becomes_a_script_in_story_order() -> None:
         "not json",
         answer(beats=[{"beat": "outro", "text": "Bukan beat draft ini."}]),
         answer(beats=[{"beat": "main", "text": ""}]),
-        answer(sfx_cues=[{"sfx_id": "airhorn", "beat": "main", "moment": "x"}]),
-        answer(sfx_cues=[{"sfx_id": "whoosh", "beat": "footage", "moment": "x"}]),
-        answer(sfx_cues=[{"sfx_id": "whoosh", "beat": "main", "moment": "x"}] * 4),
         answer(beats=[{"beat": "main", "text": "kata " * 200}]),
     ],
     ids=[
         "not-an-object",
         "unknown-beat",
         "empty-text",
-        "unknown-sfx",
-        "cue-off-script",
-        "too-many-cues",
         "too-long",
     ],
 )
@@ -174,3 +168,27 @@ def test_the_facts_come_from_the_materials_and_the_run_context() -> None:
         "original",
     )
     assert (facts.figures, facts.comments) == (["Budi Santoso"], ["itu kucing saya!"])
+
+
+def test_sound_effects_the_draft_cannot_use_are_dropped_not_fatal() -> None:
+    """An optional SFX never costs the whole script (final review, minor 11 re-graded)."""
+    cues = [
+        {"sfx_id": "airhorn", "beat": "main", "moment": "x"},
+        {"sfx_id": "whoosh", "beat": "footage", "moment": "x"},
+    ] + [{"sfx_id": "whoosh", "beat": "main", "moment": "x"}] * 4
+    script = parse_script(
+        answer(sfx_cues=cues), beats=BEATS, preset=NarrationPreset(), sfx_ids={"whoosh"}
+    )  # type: ignore[arg-type]
+    assert [cue.sfx_id for cue in script.sfx_cues] == ["whoosh"] * 3
+
+
+def test_an_empty_library_asks_for_no_sound_effects() -> None:
+    _system, user = build_script_request(
+        prompt="Tulis naskah.",
+        beats=BEATS,
+        facts=FACTS,
+        transcript=TRANSCRIPT,  # type: ignore[arg-type]
+        preset=NarrationPreset(),
+        sfx=[],
+    )
+    assert "sfx_cues must be []" in user
