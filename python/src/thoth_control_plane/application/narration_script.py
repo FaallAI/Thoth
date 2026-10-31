@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
+from typing import Any
 
 from pydantic import Field, ValidationError
 
@@ -194,3 +195,23 @@ def unsupported_tokens(
         if missing:
             found[beat.beat] = missing
     return found
+
+
+def facts_from_materials(materials: Any, context: tuple[str, str] | None) -> ScriptFacts:
+    """The script's facts from Story mode's materials and the run's title and description."""
+    main = next((item for item in materials.items if item.role == "main"), None)
+    comments = [
+        item.label
+        for item in materials.items
+        if item.role in {"comment", "comment_card"} and item.label
+    ]
+    title, description = context or ("", "")
+    return ScriptFacts(
+        title=title,
+        description=description,
+        owner_handle=(main.owner_handle or "") if main else "",
+        platform=(main.platform or "") if main else "",
+        verdict=(main.verdict or "") if main else "",
+        figures=[figure.name for figure in materials.figures],
+        comments=comments,
+    )

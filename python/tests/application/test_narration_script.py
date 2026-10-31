@@ -129,3 +129,48 @@ def test_tokens_the_evidence_lacks_are_listed_per_beat() -> None:
     )
     found = unsupported_tokens(script, FACTS, TRANSCRIPT)
     assert found == {"hook": ["12"], "main": ["Andi"]}
+
+
+def test_the_facts_come_from_the_materials_and_the_run_context() -> None:
+    from thoth_control_plane.application.narration_script import facts_from_materials
+    from thoth_control_plane.domain.studio_imports import (
+        MaterialFigure,
+        StudioMaterial,
+        StudioMaterials,
+    )
+
+    materials = StudioMaterials(
+        document_id="edoc_1",
+        provenance_available=True,
+        items=[
+            StudioMaterial(
+                item_id="main",
+                role="main",
+                label="Main",
+                media_kind="video",
+                disposition="attached",
+                owner_handle="pecintakucing.id",
+                platform="tiktok",
+                verdict="original",
+            ),
+            StudioMaterial(
+                item_id="comment_000",
+                role="comment",
+                label="itu kucing saya!",
+                media_kind="none",
+                disposition="excluded",
+            ),
+        ],
+        figures=[MaterialFigure(name="Budi Santoso", type="person", role="owner")],
+    )
+
+    facts = facts_from_materials(materials, ("Judul", "Deskripsi"))
+
+    assert (facts.title, facts.description, facts.owner_handle, facts.platform, facts.verdict) == (
+        "Judul",
+        "Deskripsi",
+        "pecintakucing.id",
+        "tiktok",
+        "original",
+    )
+    assert (facts.figures, facts.comments) == (["Budi Santoso"], ["itu kucing saya!"])

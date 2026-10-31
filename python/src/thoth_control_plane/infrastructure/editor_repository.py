@@ -296,6 +296,31 @@ class PostgresEditDocumentRepository:
 
         return await self._run(write, (EditDocumentRevisionConflict,))
 
+    async def write_derived_revision(
+        self,
+        project_id: str,
+        document_id: str,
+        base_revision: int,
+        document: EditDocument,
+    ) -> EditDocument:
+        """Save a whole document derived server side (narration) as the next revision of its
+        base; a newer save in between conflicts exactly as a patch would."""
+
+        def write(session: Session) -> EditDocument:
+            advisory_xact_lock(session, project_id, document_id)
+            latest = latest_revision_for_update(session, project_id, document_id)
+            if latest is None:
+                raise EditDocumentPersistenceError()
+            if latest.revision != base_revision:
+                raise EditDocumentRevisionConflict(latest)
+            result = DOCUMENT_ADAPTER.validate_python(
+                {**document.model_dump(mode="json"), "revision": latest.revision + 1}
+            )
+            self._insert_revision(session, result)
+            return result
+
+        return await self._run(write, (EditDocumentRevisionConflict,))
+
     async def upgrade_to_timeline(
         self,
         *,

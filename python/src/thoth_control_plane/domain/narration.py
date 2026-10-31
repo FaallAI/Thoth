@@ -11,7 +11,9 @@ from typing import Annotated, Literal, TypeAlias
 
 from pydantic import Field, model_validator
 
+from thoth_control_plane.domain.edit_document_v2 import AssetRef
 from thoth_control_plane.domain.models import StrictModel
+from thoth_control_plane.voice.ports import WordTiming
 
 BeatId: TypeAlias = Literal["hook", "main", "evidence", "reactions", "footage", "outro"]
 BEAT_ORDER: tuple[BeatId, ...] = ("hook", "main", "evidence", "reactions", "footage", "outro")
@@ -151,9 +153,29 @@ class VoiceRef(StrictModel):
     """One beat's synthesized voice as stored: its asset and the word timings it came with."""
 
     beat: BeatId
-    asset_id: str
+    asset: AssetRef
     duration_seconds: Annotated[float, Field(gt=0.0)]
-    words: list[dict[str, object]] = Field(default_factory=list)
+    words: list[WordTiming] = Field(default_factory=list)
+
+
+class NarrationStepInput(StrictModel):
+    project_id: str
+    document_id: str
+
+
+class NarrationScriptInput(NarrationStepInput):
+    #: The operator's note on a rejected script, for the next attempt.
+    note: Annotated[str, Field(max_length=500)] | None = None
+
+
+class NarrationRevoiceInput(NarrationStepInput):
+    beat: BeatId
+
+
+class NarrationStepResult(StrictModel):
+    """None when the step succeeded; otherwise the safe failure code already recorded."""
+
+    code: str | None = None
 
 
 class StoredPreset(StrictModel):

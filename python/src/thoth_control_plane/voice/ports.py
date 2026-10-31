@@ -15,6 +15,10 @@ class VoiceRequest(StrictModel):
     voice_id: Annotated[str, Field(min_length=1, max_length=200)]
     model: Annotated[str, Field(min_length=1, max_length=200)] | None = None
     speed: Annotated[float, Field(ge=0.7, le=1.5)] = 1.0
+    #: The text spoken just before and after this one, so separately voiced beats keep one
+    #: intonation (ElevenLabs request stitching); providers without it ignore them.
+    previous_text: Annotated[str, Field(max_length=5000)] | None = None
+    next_text: Annotated[str, Field(max_length=5000)] | None = None
 
 
 class WordTiming(StrictModel):

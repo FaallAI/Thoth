@@ -117,3 +117,21 @@ async def test_an_unreadable_success_body_is_unavailable(response) -> None:
             VoiceRequest(text="a", voice_id="v")
         )
     assert str(caught.value) == "elevenlabs_bad_response"
+
+
+async def test_neighbouring_text_is_sent_for_request_stitching() -> None:
+    seen: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        audio = base64.b64encode(b"MP3").decode()
+        return httpx.Response(200, json={"audio_base64": audio, "alignment": ALIGNMENT})
+
+    voice = ElevenLabsVoice("secret-key", transport=httpx.MockTransport(handler))
+    await voice.synthesize(
+        VoiceRequest(text="Tengah.", voice_id="v", previous_text="Awal.", next_text="Akhir.")
+    )
+    assert (seen["body"]["previous_text"], seen["body"]["next_text"]) == ("Awal.", "Akhir.")  # type: ignore[index]
+
+    await voice.synthesize(VoiceRequest(text="Sendiri.", voice_id="v"))
+    assert "previous_text" not in seen["body"] and "next_text" not in seen["body"]  # type: ignore[operator]

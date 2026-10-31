@@ -69,6 +69,10 @@ class ElevenLabsVoice:
             "model_id": request.model or DEFAULT_MODEL,
             "voice_settings": {"speed": request.speed},
         }
+        if request.previous_text:
+            body["previous_text"] = request.previous_text
+        if request.next_text:
+            body["next_text"] = request.next_text
         try:
             async with httpx.AsyncClient(
                 base_url=BASE_URL, transport=self._transport, timeout=120
