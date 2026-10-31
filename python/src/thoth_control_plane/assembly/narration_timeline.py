@@ -36,6 +36,9 @@ NARRATION_PREFIX = "clip_narration_"
 CAPTION_PREFIX = "clip_caption_narration_"
 SFX_PREFIX = "clip_sfx_"
 _LAYER_PREFIXES = (NARRATION_PREFIX, CAPTION_PREFIX, SFX_PREFIX)
+#: Rebuilt from the voices on every narration; SFX clips are placed once, then belong to
+#: the operator like any other clip.
+_REBUILT_PREFIXES = (NARRATION_PREFIX, CAPTION_PREFIX)
 #: The beats the main video plays under.
 BACKGROUND_BEATS: frozenset[str] = frozenset({"hook", "main", "evidence", "reactions"})
 #: A beat's clips carry a role Story mode maps back to the same beat.
@@ -86,7 +89,11 @@ def narrate_document(
 
     old_windows = _old_windows(document, lead, main_tracks, roles_by_item)
     beats = clip_beats(document, roles_by_item)
-    base = [clip for clip in document.clips if not clip.clip_id.startswith(_LAYER_PREFIXES)]
+    narrated = any(clip.clip_id.startswith(NARRATION_PREFIX) for clip in document.clips)
+    previous = {
+        clip.clip_id: clip for clip in document.clips if clip.clip_id.startswith(_REBUILT_PREFIXES)
+    }
+    base = [clip for clip in document.clips if not clip.clip_id.startswith(_REBUILT_PREFIXES)]
     present = [beat for beat in BEAT_ORDER if beat in old_windows or beat in voices]
 
     new_windows: dict[str, Window] = {}
@@ -119,7 +126,16 @@ def narrate_document(
             window = _map(clip.from_frame, clip.end_frame, old_windows[beat], new_windows[beat])
         else:
             window = _map(clip.from_frame, clip.end_frame, (0, old_total), (0, total))
-        clips.append(_retime(clip, window, assets, voiced_frames, keep_scene.clip_ids))
+        if window[1] > total:  # an offset-mapped clip never runs past the canvas
+            length = min(window[1] - window[0], total)
+            window = (total - length, total)
+        beat = beats.get(clip.clip_id)
+        if clip.source_role is None and beat is not None:
+            # The beat may come only from a scene this change removes: keep it as a role.
+            clip = clip.model_copy(update={"source_role": BEAT_ROLE[beat]})
+        clips.append(
+            _retime(clip, window, assets, voiced_frames, keep_scene.clip_ids, first=not narrated)
+        )
 
     tracks = {track.track_id: track for track in document.tracks}
     narration_track = _track(tracks, "narration", "Narration")
@@ -144,6 +160,14 @@ def narrate_document(
         assets[voice.asset.asset_id] = voice.asset
         role = BEAT_ROLE[beat]
         fade = EDGE_FADE_FRAMES if length >= 2 * EDGE_FADE_FRAMES else 0
+        # The operator's volume and fades on a voice survive a re-voice (spec 6).
+        before = previous.get(f"{NARRATION_PREFIX}{beat}")
+        volume = before.volume if isinstance(before, TimelineAudioClip) else 1.0
+        if isinstance(before, TimelineAudioClip):
+            fade_in = min(before.fade_in_frames, length // 2)
+            fade_out = min(before.fade_out_frames, length - fade_in)
+        else:
+            fade_in = fade_out = fade
         clips.append(
             TimelineAudioClip(
                 kind="audio",
@@ -154,11 +178,25 @@ def narrate_document(
                 ownership="ai_managed",
                 source_role=role,  # type: ignore[arg-type]
                 asset_id=voice.asset.asset_id,
-                fade_in_frames=fade,
-                fade_out_frames=fade,
+                volume=volume,
+                fade_in_frames=fade_in,
+                fade_out_frames=fade_out,
             )
         )
-        cues = _pages(voice.words, fps, length)
+        caption_before = previous.get(f"{CAPTION_PREFIX}{beat}")
+        same_voice = (
+            isinstance(before, TimelineAudioClip)
+            and before.asset_id == voice.asset.asset_id
+            and isinstance(caption_before, TimelineCaptionClip)
+            and caption_before.duration_in_frames == length
+        )
+        # An unchanged voice keeps the operator's caption fixes; a new one is paged again.
+        cues = caption_before.cues if same_voice else _pages(voice.words, fps, length)  # type: ignore[union-attr]
+        style = (
+            caption_before.style_slot
+            if isinstance(caption_before, TimelineCaptionClip)
+            else "word_highlight"
+        )
         if cues:
             clips.append(
                 TimelineCaptionClip(
@@ -169,13 +207,14 @@ def narrate_document(
                     duration_in_frames=length,
                     ownership="ai_managed",
                     source_role=role,  # type: ignore[arg-type]
-                    style_slot="word_highlight",
+                    style_slot=style,
                     cues=cues,
                 )
             )
         speech.extend(_speech(voice.words, start, length, fps))
 
-    for index, placed in enumerate(sfx):
+    # SFX are placed by the first narration only; afterwards they are the operator's clips.
+    for index, placed in enumerate(sfx if not narrated else []):
         start = _sfx_start(placed.cue, starts, new_windows, voices, fps)
         if start is None or start >= total:
             continue
@@ -304,6 +343,10 @@ def _union(windows: Sequence[Window]) -> Window | None:
 
 def _map(start: int, end: int, old: Window, new: Window) -> Window:
     """Map a clip's frames linearly from one window onto another; at least one frame long."""
+    if end <= old[0] or start >= old[1]:
+        # A clip the operator moved outside its beat keeps its length and its offset.
+        shifted = start + new[0] - old[0]
+        return (max(shifted, 0), max(shifted, 0) + (end - start))
     old_length = max(old[1] - old[0], 1)
     ratio = (new[1] - new[0]) / old_length
     mapped_start = new[0] + math.floor((start - old[0]) * ratio)
@@ -313,7 +356,15 @@ def _map(start: int, end: int, old: Window, new: Window) -> Window:
     return (mapped_start, mapped_end)
 
 
-def _retime(clip, window: Window, assets: dict[str, AssetRef], voiced: list[Window], scene_clips):
+def _retime(
+    clip,
+    window: Window,
+    assets: dict[str, AssetRef],
+    voiced: list[Window],
+    scene_clips,
+    *,
+    first: bool,
+):
     start, end = window
     length = end - start
     update: dict[str, object] = {
@@ -330,9 +381,15 @@ def _retime(clip, window: Window, assets: dict[str, AssetRef], voiced: list[Wind
         )
         update["hold_after_source"] = remaining is not None and length > remaining
         update["volume_keyframes"] = []
-        if clip.blur_regions and any(s < end and start < e for s, e in voiced):
+        # Blur turns on with the first narration only; the operator may switch it off after.
+        if first and clip.blur_regions and any(s < end and start < e for s, e in voiced):
             update["blur_enabled"] = True
     if isinstance(clip, TimelineAudioClip):
+        asset = assets.get(clip.asset_id)
+        if asset is not None and asset.duration_in_frames is not None:
+            # Audio cannot hold a frame: a stretched clip stops where its asset ends.
+            length = max(1, min(length, asset.duration_in_frames - clip.source_from_frame))
+            update["duration_in_frames"] = length
         fade_in = min(clip.fade_in_frames, length // 2)
         update.update(
             fade_in_frames=fade_in,
