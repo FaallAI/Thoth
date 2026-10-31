@@ -35,6 +35,7 @@ from thoth_control_plane.assembly.narration_timeline import (
 from thoth_control_plane.domain.edit_document_v2 import AssetRef, EditDocumentV2
 from thoth_control_plane.domain.narration import (
     BEAT_ORDER,
+    NarrationMark,
     NarrationPreset,
     NarrationRevoiceInput,
     NarrationScript,
@@ -84,6 +85,13 @@ class NarrationActivities:
     async def _fail(self, document_id: str, code: str) -> NarrationStepResult:
         await self._ports.store.set_status(document_id, "failed", failure_code=code)
         return NarrationStepResult(code=code)
+
+    @activity.defn(name="narration_mark")
+    async def mark(self, mark: NarrationMark) -> None:
+        """The workflow's own terminal state: cancelled, or failed after the retries ran out."""
+        await self._ports.store.set_status(
+            mark.document_id, mark.status, failure_code=mark.failure_code
+        )
 
     @activity.defn(name="narration_transcribe")
     async def transcribe(self, step: NarrationStepInput) -> NarrationStepResult:
@@ -278,3 +286,113 @@ class NarrationActivities:
             await ports.store.set_voices(step.document_id, voices)
             await ports.store.clear_stale(step.document_id, step.beat)
         return NarrationStepResult()
+
+
+def build_narration_activities(settings: Any, media: Any) -> NarrationActivities:
+    """The production ports, on the worker's editor database and media store."""
+    import functools
+
+    from thoth_control_plane.application.edit_documents import EditDocumentService
+    from thoth_control_plane.application.editor_asset_uploads import EditorAssetUploadService
+    from thoth_control_plane.application.prompt_lab import PromptLabService
+    from thoth_control_plane.application.sfx_library import SfxAssets
+    from thoth_control_plane.application.studio_imports import StudioImportService
+    from thoth_control_plane.application.workflow_studio_imports import (
+        WorkflowStudioImportService,
+    )
+    from thoth_control_plane.attribution.adapters.speech import WhisperTranscriber
+    from thoth_control_plane.infrastructure.artifact_root import LocalArtifactRoot
+    from thoth_control_plane.infrastructure.editor_asset_repository import (
+        PostgresEditorAssetRepository,
+    )
+    from thoth_control_plane.infrastructure.editor_repository import (
+        PostgresEditDocumentRepository,
+    )
+    from thoth_control_plane.infrastructure.media_probe import probe_media
+    from thoth_control_plane.infrastructure.narration_store import NarrationStore
+    from thoth_control_plane.infrastructure.prompt_proposal_repository import (
+        PostgresPromptProposalRepository,
+    )
+    from thoth_control_plane.infrastructure.prompt_provider import OpenAICompatiblePromptProvider
+    from thoth_control_plane.infrastructure.prompt_repository import PostgresPromptLabRepository
+    from thoth_control_plane.infrastructure.report_store import ReportStore
+    from thoth_control_plane.infrastructure.studio_import_repository import (
+        PostgresStudioImportRepository,
+    )
+    from thoth_control_plane.infrastructure.usage_store import UsageStore
+    from thoth_control_plane.infrastructure.workflow_run_store import WorkflowRunStore
+    from thoth_control_plane.voice.factory import build_voice
+
+    database = settings.THOTH_EDITOR_DATABASE_URL.get_secret_value()
+    probe = functools.partial(probe_media, settings.THOTH_FFPROBE)
+    assets = PostgresEditorAssetRepository(database)
+    studio = WorkflowStudioImportService(
+        runs=WorkflowRunStore.connect(database),
+        reports=ReportStore.connect(database),
+        media=media,
+        assets=assets,
+        imports=StudioImportService(PostgresStudioImportRepository(database)),
+        probe=probe,
+    )
+    uploads = EditorAssetUploadService(
+        assets, LocalArtifactRoot(settings.THOTH_CONTROL_PLANE_ARTIFACT_ROOT, media), probe
+    )
+    transcriber = WhisperTranscriber(settings.THOTH_WHISPER_MODEL_DIR)
+    usage = UsageStore.connect(database)
+
+    async def upload_audio(project_id: str, audio: bytes, media_type: str) -> AssetRef:
+        async def chunks():  # type: ignore[no-untyped-def]
+            yield audio
+
+        return (await uploads.upload(project_id, media_type, chunks())).to_asset_ref()
+
+    async def main_video(project_id: str, document: EditDocumentV2, directory: Path) -> Path | None:
+        main_tracks = {track.track_id for track in document.tracks if track.kind == "main_video"}
+        clip = next(
+            (
+                c
+                for c in document.clips
+                if c.track_id in main_tracks and getattr(c, "asset_id", None)
+            ),
+            None,
+        )
+        if clip is None:
+            return None
+        record = await assets.get_ready_record(project_id=project_id, asset_id=clip.asset_id)  # type: ignore[union-attr]
+        if record is None:
+            return None
+        target = directory / f"main{Path(record.artifact_location).suffix}"
+        await asyncio.to_thread(media.fetch, record.artifact_location, target)
+        return target
+
+    async def transcribe(video: Path) -> list[TranscriptSegment]:
+        # ponytail: the first 15 minutes; a longer main video is not a short-form source.
+        heard = await transcriber.transcribe(video, seconds=900.0)
+        return [
+            TranscriptSegment(text=s.text, start_seconds=s.start, end_seconds=s.end)
+            for s in heard.segments
+        ]
+
+    async def prices() -> dict[tuple[str, str, str], float]:
+        rows = await asyncio.to_thread(usage.prices)
+        return {(row.kind, row.key, row.unit): row.usd_per_unit for row in rows}
+
+    return NarrationActivities(
+        NarrationPorts(
+            store=NarrationStore(database),
+            studio=studio,
+            documents=EditDocumentService(PostgresEditDocumentRepository(database)),
+            main_video=main_video,
+            transcribe=transcribe,
+            voice=lambda: build_voice(settings, "elevenlabs"),
+            upload_audio=upload_audio,
+            sfx_assets=SfxAssets(assets=assets, media=media, probe=probe),
+            prompts=PromptLabService(PostgresPromptLabRepository(database)),
+            preferences=PostgresPromptProposalRepository(database),
+            provider=OpenAICompatiblePromptProvider(
+                runtime_catalog=settings.THOTH_PROMPT_PROVIDER_CATALOG,
+                secrets=settings.prompt_provider_secrets,
+            ),
+            prices=prices,
+        )
+    )

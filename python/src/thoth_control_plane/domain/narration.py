@@ -181,3 +181,16 @@ class NarrationStepResult(StrictModel):
 class StoredPreset(StrictModel):
     preset: NarrationPreset
     revision: Annotated[int, Field(ge=0)]
+
+
+class NarrationDecision(StrictModel):
+    decision: Literal["approve", "reject"]
+    note: Annotated[str, Field(max_length=500)] | None = None
+
+
+class NarrationMark(StrictModel):
+    """A terminal state the workflow records itself (cancelled, or failed after retries)."""
+
+    document_id: str
+    status: Literal["failed", "cancelled"]
+    failure_code: str | None = None
