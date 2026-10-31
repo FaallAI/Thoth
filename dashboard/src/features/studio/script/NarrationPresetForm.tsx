@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   StudioImportRequestError,
   type ControlPlaneClient,
+  type EditorAsset,
   type NarrationPreset,
   type SfxSummary,
 } from "@/api/control-plane";
@@ -98,7 +99,16 @@ export function NarrationPresetForm({
   );
 }
 
-export function SfxLibrary({ client }: { client: Pick<ControlPlaneClient, "listSfx"> }) {
+export function SfxLibrary({
+  client,
+  projectId,
+  onAdd,
+}: {
+  client: Pick<ControlPlaneClient, "listSfx"> & Partial<Pick<ControlPlaneClient, "addSfxToProject">>;
+  projectId?: string;
+  /** Places the added sound effect on the timeline; absent, the list is read-only. */
+  onAdd?: (asset: EditorAsset) => void;
+}) {
   const { t } = useLocale();
   const [entries, setEntries] = useState<SfxSummary[] | null>(null);
   // The function, not the wrapper object, is stable across renders.
@@ -120,6 +130,16 @@ export function SfxLibrary({ client }: { client: Pick<ControlPlaneClient, "listS
               <span className="text-xs text-muted-ink">{entry.duration_seconds.toFixed(1)} s</span>
               {typeof entry.labels.category === "string" ? (
                 <span className="text-xs text-muted-ink">{entry.labels.category}</span>
+              ) : null}
+              {onAdd && projectId && client.addSfxToProject ? (
+                <button
+                  type="button"
+                  aria-label={t("studio.sfx.add", { name: entry.sfx_id })}
+                  className="rounded bg-raised px-2 py-0.5 text-xs text-ink"
+                  onClick={() => void client.addSfxToProject!(projectId, entry.sfx_id).then(onAdd, () => {})}
+                >
+                  +
+                </button>
               ) : null}
               {typeof entry.labels.licence === "string" ? (
                 <span className="text-xs text-faint">{t("studio.sfx.licence", { licence: entry.labels.licence })}</span>

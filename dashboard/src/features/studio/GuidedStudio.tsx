@@ -84,6 +84,7 @@ type Props = {
         | "revoiceNarrationBeat"
         | "cancelNarration"
         | "listSfx"
+        | "addSfxToProject"
         | "listStudioReviewComments"
         | "createStudioReviewComment"
         | "listStudioReviewDecisions"
@@ -843,7 +844,16 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                   }
                 />
                 {/* The shared SFX library with its labels (spec 2026-10-31, decision 8). */}
-                {client.listSfx ? <SfxLibrary client={{ listSfx: client.listSfx }} /> : null}
+                {client.listSfx ? (
+                  <SfxLibrary
+                    client={{ listSfx: client.listSfx, addSfxToProject: client.addSfxToProject }}
+                    projectId={projectId}
+                    onAdd={(asset) => {
+                      dispatch({ type: "assets_loaded", assets: [asset], replace: false });
+                      addAsset(asset);
+                    }}
+                  />
+                ) : null}
                 </>
               ) : null
             ) : (

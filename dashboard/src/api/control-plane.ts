@@ -281,6 +281,7 @@ export type ControlPlaneClient = {
   getNarrationPreset: (projectId: string) => Promise<StoredNarrationPreset>;
   saveNarrationPreset: (projectId: string, preset: NarrationPreset, baseRevision: number) => Promise<StoredNarrationPreset>;
   listSfx: () => Promise<SfxSummary[]>;
+  addSfxToProject: (projectId: string, sfxId: string) => Promise<EditorAsset>;
   resolveStudioImportItem: (
     projectId: string,
     documentId: string,
@@ -704,6 +705,8 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
         body: JSON.stringify({ base_revision: baseRevision, preset }),
       }),
     listSfx: () => importCall("/api/v1/sfx"),
+    addSfxToProject: (projectId, sfxId) =>
+      importPost(`/api/v1/projects/${encodeURIComponent(projectId)}/sfx/${encodeURIComponent(sfxId)}/asset`, {}),
     attachStudioMaterial: (projectId, documentId, itemId) =>
       importCall(
         importPath(

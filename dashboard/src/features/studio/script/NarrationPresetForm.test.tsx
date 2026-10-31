@@ -53,3 +53,17 @@ test("the sound effect library lists each entry with its licence, or says it is 
   await act(async () => { render(<SfxLibrary client={{ listSfx: async () => [] } as never} />); });
   expect(screen.getByText("No licensed sound effects are in the library yet.")).toBeTruthy();
 });
+
+
+test("a library sound effect can be added to the draft", async () => {
+  const onAdd = mock((_asset: unknown) => {});
+  const asset = { asset_id: "asset_sfx" };
+  const client = {
+    listSfx: mock(async () => [{ sfx_id: "whoosh", file_name: "whoosh.mp3", duration_seconds: 1.2, labels: {} }]),
+    addSfxToProject: mock(async () => asset),
+  };
+  await act(async () => { render(<SfxLibrary client={client as never} projectId="p" onAdd={onAdd} />); });
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Add whoosh" })));
+  expect(client.addSfxToProject).toHaveBeenCalledWith("p", "whoosh");
+  expect(onAdd).toHaveBeenCalledWith(asset);
+});

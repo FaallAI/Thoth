@@ -38,7 +38,8 @@ export function NarrationButton({
       <button
         type="button"
         className="rounded-md bg-copper px-3 py-1.5 text-[13px] font-medium text-bg disabled:cursor-not-allowed disabled:opacity-40"
-        disabled={busy || isNarrationActive(state)}
+        // Spec 5: for a draft with no narration yet; a finished one re-voices its lines.
+        disabled={busy || isNarrationActive(state) || state?.status === "completed"}
         onClick={start}
       >
         {t("studio.narration.create")}

@@ -738,7 +738,7 @@ test("a video clip without keyframes passes no volume, and with keyframes follow
   expect(volume(10)).toBeCloseTo(0.12);
 });
 
-test("an audio clip's keyframes replace its stored volume and still fade", () => {
+test("an audio clip's keyframes scale its own volume and still fade", () => {
   const document = typedTimelineDocument();
   const audio = document.clips!.find((clip) => clip.kind === "audio")!;
   Object.assign(audio, { volume: 1, fade_in_frames: 0, fade_out_frames: 0, volume_keyframes: [{ frame: 0, volume: 0.45 }] });
@@ -790,4 +790,14 @@ test("a held clip freezes on its last source frame only past its source", () => 
   currentFrame.value = remaining + 5;
   render(<AdvancedTimelineComposition document={document} previewSources={TYPED_SOURCES} />);
   expect(screen.getByTestId("freeze").getAttribute("data-frame")).toBe(String(remaining - 1));
+});
+
+
+test("ducking keeps the operator's own audio volume", () => {
+  const document = typedTimelineDocument();
+  const audio = document.clips!.find((clip) => clip.kind === "audio")!;
+  Object.assign(audio, { volume: 0.5, fade_in_frames: 0, fade_out_frames: 0, volume_keyframes: [{ frame: 0, volume: 0.12 }] });
+  render(<AdvancedTimelineComposition document={document} previewSources={TYPED_SOURCES} />);
+  const volume = mediaProps.audio[0]!.volume as (f: number) => number;
+  expect(volume(5)).toBeCloseTo(0.06);
 });

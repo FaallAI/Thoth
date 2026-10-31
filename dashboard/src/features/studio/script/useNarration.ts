@@ -36,6 +36,8 @@ export function useNarration(
   intervalMs = 3000,
 ): [NarrationState | null, (state: NarrationState) => void] {
   const [state, setState] = useState<NarrationState | null>(null);
+  // A failed read changes no state, so it bumps this to schedule the next one.
+  const [retry, setRetry] = useState(0);
   const wasActive = useRef(false);
   const completed = useRef(onCompleted);
   useEffect(() => {
@@ -61,10 +63,10 @@ export function useNarration(
     }
     if (!active || !client) return;
     const timer = setTimeout(() => {
-      void client.getNarration(projectId, documentId).then(setState, () => {});
+      void client.getNarration(projectId, documentId).then(setState, () => setRetry((value) => value + 1));
     }, intervalMs);
     return () => clearTimeout(timer);
-  }, [active, state, client, projectId, documentId, intervalMs]);
+  }, [active, state, retry, client, projectId, documentId, intervalMs]);
 
   return [state, setState];
 }

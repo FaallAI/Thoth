@@ -132,3 +132,22 @@ test("adopting the narrated revision drops the edits queued during the lock", as
   adoptNarratedRevision((action) => actions.push(action), latest);
   expect(actions).toEqual([{ type: "save_conflicted", latest }, { type: "reload_latest" }]);
 });
+
+test("polling keeps going after a failed read", async () => {
+  const { renderHook, waitFor } = await import("@testing-library/react");
+  const { useNarration } = await import("./useNarration");
+  let calls = 0;
+  const getNarration = mock(async () => {
+    calls += 1;
+    if (calls === 1) return { ...awaiting, status: "writing" } as NarrationState;
+    if (calls === 2) throw new Error("503");
+    return { ...awaiting, status: "completed" } as NarrationState;
+  });
+  const { result } = renderHook(() => useNarration({ getNarration } as never, "p", "edoc_1", true, () => {}, 5));
+  await waitFor(() => expect(result.current[0]?.status).toBe("completed"));
+});
+
+test("a completed narration is not created again", () => {
+  render(<NarrationButton client={client() as never} projectId="p" documentId="edoc_1" state={{ ...awaiting, status: "completed" }} onChange={() => {}} />);
+  expect((screen.getByRole("button", { name: "Create narration" }) as HTMLButtonElement).disabled).toBe(true);
+});

@@ -252,7 +252,7 @@ class TimelineAudioClip(TimelineClipBase):
     volume: Volume = 1.0
     fade_in_frames: FadeFrames = 0
     fade_out_frames: FadeFrames = 0
-    #: When present, the curve replaces `volume` (the fades still apply).
+    #: When present, the curve scales `volume` (the fades still apply).
     volume_keyframes: VolumeKeyframes = Field(default_factory=list)
 
 

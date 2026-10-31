@@ -275,7 +275,8 @@ function renderClip(
           src={source}
           startFrom={clip.source_from_frame}
           volume={(frame) =>
-            muted ? 0 : volumeAt(frame, clip.volume_keyframes ?? [], clip.volume) * fadeMultiplier(frame, clip)
+            // Ducking scales the clip's own volume, so an operator's level survives it.
+            muted ? 0 : clip.volume * volumeAt(frame, clip.volume_keyframes ?? [], 1) * fadeMultiplier(frame, clip)
           }
         />
       );
