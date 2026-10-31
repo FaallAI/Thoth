@@ -1,0 +1,742 @@
+{
+  "note": "Story beats, shared by dashboard story_beats.ts (the reference) and Python domain/story_beats.py. Expected values are computed by the TS functions.",
+  "cases": [
+    {
+      "name": "imported draft with an added hook",
+      "document": {
+        "schema_version": 2,
+        "document_id": "edoc_abc123",
+        "project_id": "project_001",
+        "revision": 1,
+        "template": {
+          "template_id": "vertical_text_story",
+          "version": 1
+        },
+        "canvas": {
+          "width": 1080,
+          "height": 1920,
+          "fps": 30,
+          "duration_in_frames": 300
+        },
+        "scenes": [
+          {
+            "scene_id": "scene_001",
+            "role": "title",
+            "start_frame": 0,
+            "duration_in_frames": 150,
+            "clip_ids": [
+              "clip_001"
+            ]
+          },
+          {
+            "scene_id": "scene_002",
+            "role": "source",
+            "start_frame": 150,
+            "duration_in_frames": 150,
+            "clip_ids": [
+              "clip_002"
+            ]
+          }
+        ],
+        "tracks": [
+          {
+            "track_id": "track_main_video",
+            "kind": "main_video",
+            "label": "Main Video",
+            "order": 0,
+            "hidden": false,
+            "muted": false,
+            "locked": false,
+            "clip_ids": [
+              "clip_main"
+            ]
+          },
+          {
+            "track_id": "track_b_roll",
+            "kind": "b_roll",
+            "label": "B-Roll",
+            "order": 1,
+            "hidden": false,
+            "muted": false,
+            "locked": false,
+            "clip_ids": [
+              "clip_comment_card_000",
+              "clip_comment_card_001",
+              "clip_footage_000",
+              "clip_locked"
+            ]
+          },
+          {
+            "track_id": "track_overlay",
+            "kind": "overlay",
+            "label": "Overlay",
+            "order": 2,
+            "hidden": false,
+            "muted": false,
+            "locked": false,
+            "clip_ids": [
+              "clip_001",
+              "clip_002",
+              "clip_hook"
+            ]
+          },
+          {
+            "track_id": "track_caption",
+            "kind": "caption",
+            "label": "Captions",
+            "order": 3,
+            "hidden": false,
+            "muted": false,
+            "locked": false,
+            "clip_ids": []
+          },
+          {
+            "track_id": "track_narration",
+            "kind": "narration",
+            "label": "Narration",
+            "order": 4,
+            "hidden": false,
+            "muted": false,
+            "locked": false,
+            "clip_ids": []
+          },
+          {
+            "track_id": "track_music",
+            "kind": "music",
+            "label": "Music",
+            "order": 5,
+            "hidden": false,
+            "muted": false,
+            "locked": false,
+            "clip_ids": []
+          },
+          {
+            "track_id": "track_sfx",
+            "kind": "sfx",
+            "label": "SFX",
+            "order": 6,
+            "hidden": false,
+            "muted": false,
+            "locked": false,
+            "clip_ids": []
+          }
+        ],
+        "clips": [
+          {
+            "kind": "text",
+            "clip_id": "clip_001",
+            "track_id": "track_overlay",
+            "scene_id": "scene_001",
+            "from_frame": 0,
+            "duration_in_frames": 150,
+            "ownership": "ai_managed",
+            "hidden": false,
+            "locked": false,
+            "heading": "Title",
+            "body": "Summary",
+            "style_slot": "title"
+          },
+          {
+            "kind": "text",
+            "clip_id": "clip_002",
+            "track_id": "track_overlay",
+            "scene_id": "scene_002",
+            "from_frame": 150,
+            "duration_in_frames": 150,
+            "ownership": "ai_managed",
+            "hidden": false,
+            "locked": false,
+            "heading": "Source",
+            "body": "tiktok",
+            "style_slot": "source"
+          },
+          {
+            "kind": "video",
+            "clip_id": "clip_main",
+            "track_id": "track_main_video",
+            "scene_id": null,
+            "from_frame": 0,
+            "duration_in_frames": 300,
+            "ownership": "ai_managed",
+            "hidden": false,
+            "locked": false,
+            "asset_id": "asset_main",
+            "source_from_frame": 0,
+            "fit": "cover",
+            "crop": null,
+            "position": null,
+            "blur_regions": [],
+            "blur_enabled": false,
+            "source_role": "main"
+          },
+          {
+            "kind": "video",
+            "clip_id": "clip_comment_card_000",
+            "track_id": "track_b_roll",
+            "scene_id": "scene_001",
+            "from_frame": 60,
+            "duration_in_frames": 60,
+            "ownership": "ai_managed",
+            "hidden": false,
+            "locked": false,
+            "asset_id": "asset_card_a",
+            "source_from_frame": 0,
+            "fit": "contain",
+            "crop": null,
+            "position": {
+              "x": 0,
+              "y": -0.24,
+              "scale": 0.76
+            },
+            "blur_regions": [],
+            "blur_enabled": false,
+            "source_role": "comment_card"
+          },
+          {
+            "kind": "video",
+            "clip_id": "clip_comment_card_001",
+            "track_id": "track_b_roll",
+            "scene_id": null,
+            "from_frame": 130,
+            "duration_in_frames": 60,
+            "ownership": "ai_managed",
+            "hidden": false,
+            "locked": false,
+            "asset_id": "asset_card_a",
+            "source_from_frame": 0,
+            "fit": "contain",
+            "crop": null,
+            "position": {
+              "x": 0,
+              "y": -0.24,
+              "scale": 0.76
+            },
+            "blur_regions": [],
+            "blur_enabled": false,
+            "source_role": null
+          },
+          {
+            "kind": "video",
+            "clip_id": "clip_footage_000",
+            "track_id": "track_b_roll",
+            "scene_id": null,
+            "from_frame": 100,
+            "duration_in_frames": 200,
+            "ownership": "ai_managed",
+            "hidden": false,
+            "locked": false,
+            "asset_id": "asset_vid_long",
+            "source_from_frame": 90,
+            "fit": "cover",
+            "crop": {
+              "left": 0.1,
+              "top": 0,
+              "width": 0.8,
+              "height": 1
+            },
+            "position": null,
+            "blur_regions": [
+              {
+                "x": 0.1,
+                "y": 0.8,
+                "w": 0.8,
+                "h": 0.1,
+                "from_frame": null,
+                "to_frame": null
+              }
+            ],
+            "blur_enabled": true,
+            "source_role": "footage"
+          },
+          {
+            "kind": "video",
+            "clip_id": "clip_locked",
+            "track_id": "track_b_roll",
+            "scene_id": null,
+            "from_frame": 0,
+            "duration_in_frames": 30,
+            "ownership": "ai_managed",
+            "hidden": false,
+            "locked": true,
+            "asset_id": "asset_card_a",
+            "source_from_frame": 0,
+            "fit": "cover",
+            "crop": null,
+            "position": null,
+            "blur_regions": [],
+            "blur_enabled": false
+          },
+          {
+            "kind": "text",
+            "clip_id": "clip_hook",
+            "track_id": "track_overlay",
+            "scene_id": null,
+            "from_frame": 0,
+            "duration_in_frames": 90,
+            "ownership": "ai_managed",
+            "hidden": false,
+            "locked": false,
+            "heading": "Hook",
+            "body": "Summary",
+            "style_slot": "title",
+            "source_role": "hook"
+          }
+        ],
+        "asset_refs": [
+          {
+            "asset_id": "asset_main",
+            "project_id": "project_001",
+            "kind": "video",
+            "duration_in_frames": 900,
+            "width": 1080,
+            "height": 1920,
+            "fps": 30,
+            "has_audio": true,
+            "validation_state": "ready",
+            "checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "asset_id": "asset_card_a",
+            "project_id": "project_001",
+            "kind": "image",
+            "duration_in_frames": null,
+            "width": 1080,
+            "height": 1350,
+            "fps": null,
+            "has_audio": false,
+            "validation_state": "ready",
+            "checksum": null
+          },
+          {
+            "asset_id": "asset_vid_long",
+            "project_id": "project_001",
+            "kind": "video",
+            "duration_in_frames": 600,
+            "width": 1080,
+            "height": 1920,
+            "fps": 30,
+            "has_audio": true,
+            "validation_state": "ready",
+            "checksum": null
+          }
+        ]
+      },
+      "inventory_roles": {
+        "comment_card_001": "comment_card"
+      },
+      "expected_clip_beats": {
+        "clip_001": "reactions",
+        "clip_002": null,
+        "clip_main": "main",
+        "clip_comment_card_000": "reactions",
+        "clip_comment_card_001": "reactions",
+        "clip_footage_000": "footage",
+        "clip_locked": null,
+        "clip_hook": "hook"
+      },
+      "expected_spans": [
+        {
+          "beat": "hook",
+          "clip_ids": [
+            "clip_hook"
+          ],
+          "start_frame": 0,
+          "duration_in_frames": 90
+        },
+        {
+          "beat": "main",
+          "clip_ids": [
+            "clip_main"
+          ],
+          "start_frame": 0,
+          "duration_in_frames": 300
+        },
+        {
+          "beat": "reactions",
+          "clip_ids": [
+            "clip_001",
+            "clip_comment_card_000",
+            "clip_comment_card_001"
+          ],
+          "start_frame": 0,
+          "duration_in_frames": 190
+        },
+        {
+          "beat": "footage",
+          "clip_ids": [
+            "clip_footage_000"
+          ],
+          "start_frame": 100,
+          "duration_in_frames": 200
+        }
+      ]
+    },
+    {
+      "name": "hidden footage and a card moved to evidence",
+      "document": {
+        "schema_version": 2,
+        "document_id": "edoc_abc123",
+        "project_id": "project_001",
+        "revision": 1,
+        "template": {
+          "template_id": "vertical_text_story",
+          "version": 1
+        },
+        "canvas": {
+          "width": 1080,
+          "height": 1920,
+          "fps": 30,
+          "duration_in_frames": 300
+        },
+        "scenes": [
+          {
+            "scene_id": "scene_001",
+            "role": "title",
+            "start_frame": 0,
+            "duration_in_frames": 150,
+            "clip_ids": [
+              "clip_001"
+            ]
+          },
+          {
+            "scene_id": "scene_002",
+            "role": "source",
+            "start_frame": 150,
+            "duration_in_frames": 150,
+            "clip_ids": [
+              "clip_002"
+            ]
+          }
+        ],
+        "tracks": [
+          {
+            "track_id": "track_main_video",
+            "kind": "main_video",
+            "label": "Main Video",
+            "order": 0,
+            "hidden": false,
+            "muted": false,
+            "locked": false,
+            "clip_ids": [
+              "clip_main"
+            ]
+          },
+          {
+            "track_id": "track_b_roll",
+            "kind": "b_roll",
+            "label": "B-Roll",
+            "order": 1,
+            "hidden": false,
+            "muted": false,
+            "locked": false,
+            "clip_ids": [
+              "clip_comment_card_000",
+              "clip_comment_card_001",
+              "clip_footage_000",
+              "clip_locked"
+            ]
+          },
+          {
+            "track_id": "track_overlay",
+            "kind": "overlay",
+            "label": "Overlay",
+            "order": 2,
+            "hidden": false,
+            "muted": false,
+            "locked": false,
+            "clip_ids": [
+              "clip_001",
+              "clip_002",
+              "clip_hook"
+            ]
+          },
+          {
+            "track_id": "track_caption",
+            "kind": "caption",
+            "label": "Captions",
+            "order": 3,
+            "hidden": false,
+            "muted": false,
+            "locked": false,
+            "clip_ids": []
+          },
+          {
+            "track_id": "track_narration",
+            "kind": "narration",
+            "label": "Narration",
+            "order": 4,
+            "hidden": false,
+            "muted": false,
+            "locked": false,
+            "clip_ids": []
+          },
+          {
+            "track_id": "track_music",
+            "kind": "music",
+            "label": "Music",
+            "order": 5,
+            "hidden": false,
+            "muted": false,
+            "locked": false,
+            "clip_ids": []
+          },
+          {
+            "track_id": "track_sfx",
+            "kind": "sfx",
+            "label": "SFX",
+            "order": 6,
+            "hidden": false,
+            "muted": false,
+            "locked": false,
+            "clip_ids": []
+          }
+        ],
+        "clips": [
+          {
+            "kind": "text",
+            "clip_id": "clip_001",
+            "track_id": "track_overlay",
+            "scene_id": "scene_001",
+            "from_frame": 0,
+            "duration_in_frames": 150,
+            "ownership": "ai_managed",
+            "hidden": false,
+            "locked": false,
+            "heading": "Title",
+            "body": "Summary",
+            "style_slot": "title"
+          },
+          {
+            "kind": "text",
+            "clip_id": "clip_002",
+            "track_id": "track_overlay",
+            "scene_id": "scene_002",
+            "from_frame": 150,
+            "duration_in_frames": 150,
+            "ownership": "ai_managed",
+            "hidden": false,
+            "locked": false,
+            "heading": "Source",
+            "body": "tiktok",
+            "style_slot": "source"
+          },
+          {
+            "kind": "video",
+            "clip_id": "clip_main",
+            "track_id": "track_main_video",
+            "scene_id": null,
+            "from_frame": 0,
+            "duration_in_frames": 300,
+            "ownership": "ai_managed",
+            "hidden": false,
+            "locked": false,
+            "asset_id": "asset_main",
+            "source_from_frame": 0,
+            "fit": "cover",
+            "crop": null,
+            "position": null,
+            "blur_regions": [],
+            "blur_enabled": false,
+            "source_role": "main"
+          },
+          {
+            "kind": "video",
+            "clip_id": "clip_comment_card_000",
+            "track_id": "track_b_roll",
+            "scene_id": "scene_001",
+            "from_frame": 60,
+            "duration_in_frames": 60,
+            "ownership": "ai_managed",
+            "hidden": false,
+            "locked": false,
+            "asset_id": "asset_card_a",
+            "source_from_frame": 0,
+            "fit": "contain",
+            "crop": null,
+            "position": {
+              "x": 0,
+              "y": -0.24,
+              "scale": 0.76
+            },
+            "blur_regions": [],
+            "blur_enabled": false,
+            "source_role": "comment_card"
+          },
+          {
+            "kind": "video",
+            "clip_id": "clip_comment_card_001",
+            "track_id": "track_b_roll",
+            "scene_id": null,
+            "from_frame": 130,
+            "duration_in_frames": 60,
+            "ownership": "ai_managed",
+            "hidden": false,
+            "locked": false,
+            "asset_id": "asset_card_a",
+            "source_from_frame": 0,
+            "fit": "contain",
+            "crop": null,
+            "position": {
+              "x": 0,
+              "y": -0.24,
+              "scale": 0.76
+            },
+            "blur_regions": [],
+            "blur_enabled": false,
+            "source_role": "post_card"
+          },
+          {
+            "kind": "video",
+            "clip_id": "clip_footage_000",
+            "track_id": "track_b_roll",
+            "scene_id": null,
+            "from_frame": 100,
+            "duration_in_frames": 200,
+            "ownership": "ai_managed",
+            "hidden": true,
+            "locked": false,
+            "asset_id": "asset_vid_long",
+            "source_from_frame": 90,
+            "fit": "cover",
+            "crop": {
+              "left": 0.1,
+              "top": 0,
+              "width": 0.8,
+              "height": 1
+            },
+            "position": null,
+            "blur_regions": [
+              {
+                "x": 0.1,
+                "y": 0.8,
+                "w": 0.8,
+                "h": 0.1,
+                "from_frame": null,
+                "to_frame": null
+              }
+            ],
+            "blur_enabled": true,
+            "source_role": "footage"
+          },
+          {
+            "kind": "video",
+            "clip_id": "clip_locked",
+            "track_id": "track_b_roll",
+            "scene_id": null,
+            "from_frame": 0,
+            "duration_in_frames": 30,
+            "ownership": "ai_managed",
+            "hidden": false,
+            "locked": true,
+            "asset_id": "asset_card_a",
+            "source_from_frame": 0,
+            "fit": "cover",
+            "crop": null,
+            "position": null,
+            "blur_regions": [],
+            "blur_enabled": false
+          },
+          {
+            "kind": "text",
+            "clip_id": "clip_hook",
+            "track_id": "track_overlay",
+            "scene_id": null,
+            "from_frame": 0,
+            "duration_in_frames": 90,
+            "ownership": "ai_managed",
+            "hidden": false,
+            "locked": false,
+            "heading": "Hook",
+            "body": "Summary",
+            "style_slot": "title",
+            "source_role": "hook"
+          }
+        ],
+        "asset_refs": [
+          {
+            "asset_id": "asset_main",
+            "project_id": "project_001",
+            "kind": "video",
+            "duration_in_frames": 900,
+            "width": 1080,
+            "height": 1920,
+            "fps": 30,
+            "has_audio": true,
+            "validation_state": "ready",
+            "checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "asset_id": "asset_card_a",
+            "project_id": "project_001",
+            "kind": "image",
+            "duration_in_frames": null,
+            "width": 1080,
+            "height": 1350,
+            "fps": null,
+            "has_audio": false,
+            "validation_state": "ready",
+            "checksum": null
+          },
+          {
+            "asset_id": "asset_vid_long",
+            "project_id": "project_001",
+            "kind": "video",
+            "duration_in_frames": 600,
+            "width": 1080,
+            "height": 1920,
+            "fps": 30,
+            "has_audio": true,
+            "validation_state": "ready",
+            "checksum": null
+          }
+        ]
+      },
+      "inventory_roles": {},
+      "expected_clip_beats": {
+        "clip_001": "reactions",
+        "clip_002": null,
+        "clip_main": "main",
+        "clip_comment_card_000": "reactions",
+        "clip_comment_card_001": "evidence",
+        "clip_footage_000": "footage",
+        "clip_locked": null,
+        "clip_hook": "hook"
+      },
+      "expected_spans": [
+        {
+          "beat": "hook",
+          "clip_ids": [
+            "clip_hook"
+          ],
+          "start_frame": 0,
+          "duration_in_frames": 90
+        },
+        {
+          "beat": "main",
+          "clip_ids": [
+            "clip_main"
+          ],
+          "start_frame": 0,
+          "duration_in_frames": 300
+        },
+        {
+          "beat": "reactions",
+          "clip_ids": [
+            "clip_001",
+            "clip_comment_card_000"
+          ],
+          "start_frame": 0,
+          "duration_in_frames": 150
+        },
+        {
+          "beat": "evidence",
+          "clip_ids": [
+            "clip_comment_card_001"
+          ],
+          "start_frame": 130,
+          "duration_in_frames": 60
+        }
+      ]
+    }
+  ]
+}

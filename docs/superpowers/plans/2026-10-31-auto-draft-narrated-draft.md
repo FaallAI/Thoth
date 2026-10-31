@@ -254,10 +254,11 @@ Rules (each a test):
 - Test: `python/tests/application/test_sfx_library.py`
 
 **Interfaces:**
-- `seed_sfx(store: NarrationStore, media: MediaStore, catalog: Path, directory: Path, ffmpeg: Path) -> SeedReport(added, unchanged)` — every `assets/sfx` file in `assets/asset_catalog.json` is loudness-normalised with ffmpeg `loudnorm` in two passes (-16 LUFS integrated, -1 dBTP; the measured input loudness is kept in `labels`), then goes to `sfx/{checksum}{suffix}` with its catalog labels; idempotent by the source file's checksum.
+- Licence gate (operator, 2026-10-31): `assets/sfx/LICENSES.json` maps each file to `{source_url, licence}`; only licences in `ALLOWED_SFX_LICENCES = {"CC0-1.0", "Pixabay", "Mixkit-SFX"}` are seeded, and the licence and source travel in `labels`. A file without an entry is skipped and reported (`SeedReport.skipped`), never seeded.
+- `seed_sfx(store: NarrationStore, media: MediaStore, catalog: Path, directory: Path, ffmpeg: Path) -> SeedReport(added, unchanged, skipped)` — every licensed `assets/sfx` file in `assets/asset_catalog.json` is loudness-normalised with ffmpeg `loudnorm` in two passes (-16 LUFS integrated, -1 dBTP; the measured input loudness is kept in `labels`), then goes to `sfx/{checksum}{suffix}` with its catalog labels; idempotent by the source file's checksum.
 - `ensure_project_sfx(project_id, sfx_id) -> AssetRef` — the project's editor asset for one library SFX, copied on first use and reused by checksum after (the importer's reuse-by-checksum).
 - The image gains `assets/sfx` and `assets/asset_catalog.json` at `/opt/thoth/assets` (Dockerfile `COPY`; `.dockerignore` keeps `assets` excluded except these).
-- [ ] **Step 1:** Tests: seeding twice reports `added=21` then `unchanged=21` on the real catalog; a seeded file measures -16 ± 1.5 LUFS (ffmpeg `ebur128` on the output) for clips of at least 1 s; `ensure_project_sfx` copies once per project and is invisible to another project.
+- [ ] **Step 1:** Tests: with a temporary licence file naming two files, seeding twice reports `added=2, skipped=19` then `unchanged=2`; a file with a licence outside the allowed set is skipped; a seeded file measures -16 ± 1.5 LUFS (ffmpeg `ebur128` on the output) for clips of at least 1 s; `ensure_project_sfx` copies once per project and is invisible to another project.
 - [ ] **Step 2:** `make test T=tests/application/test_sfx_library.py` — Expected: FAIL.
 - [ ] **Step 3:** Implement; update `tests/deployment/test_container_contract.py` for the new `COPY`.
 - [ ] **Step 4:** Same plus `make test T=tests/deployment` — Expected: PASS.

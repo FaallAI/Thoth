@@ -55,8 +55,10 @@ highlight captions, volume keyframes for ducking, and SFX in the media store.
 5. **No editing at the approval.** Approve, or reject. Editing opens once every component is made.
 6. **Voice: ElevenLabs**, as in Rust. The key in the old root `.env` moves into the stage1
    provider file at deploy, under its own operator gate.
-7. **SFX are in; background music is out.** The bundled SFX may be used by everyone (operator:
-   open-source or widely used clips).
+7. **SFX are in; background music is out.** Revised 2026-10-31: every SFX Thoth bundles as a
+   default **must be licence-free** (operator: "yang disediakan dari kita itu atau default pastikan
+   terbebas lisensi nya"). A file whose source and licence are not recorded is not seeded. Files
+   users upload are theirs: Thoth only hosts them as an editing workspace, not as their provider.
 8. **The SFX live in MinIO/S3** and appear in Studio's asset library with their labels.
 9. **Uploaded SFX are later work** (see section 9).
 10. **Narration starts only when the operator presses "Create narration"** on a draft, never on
