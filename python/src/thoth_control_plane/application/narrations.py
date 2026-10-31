@@ -73,7 +73,9 @@ class NarrationService:
         source_run: SourceRun,
         preferences: Any,
         gateway: NarrationGateway | None,
+        sfx_assets: Any | None = None,
     ) -> None:
+        self._sfx_assets = sfx_assets
         self._store = store
         self._documents = documents
         self._source_run = source_run
@@ -100,15 +102,23 @@ class NarrationService:
     async def start(self, project_id: str, document_id: str) -> NarrationState:
         store = self._require()
         await self._documents.get_latest(project_id, document_id)  # 404 for an unknown draft
-        if await self._source_run(project_id, document_id) is None:
+        try:
+            run = await self._source_run(project_id, document_id)
+            preference = await self._preferences.get_preference(project_id, STAGE)
+        except Exception as error:  # a store outage is not a missing run or model
+            raise NarrationUnavailable() from error
+        if run is None:
             raise NarrationRefused("narration_not_available")
-        if await self._preferences.get_preference(project_id, STAGE) is None:
+        if preference is None:
             raise NarrationRefused("prompt_not_configured")
         if self._gateway is None:
             raise NarrationUnavailable()
         previous = await store.get(project_id, document_id)
         if previous is not None and previous.status in ACTIVE_STATUSES:
             raise NarrationRefused("narration_in_progress")
+        if previous is not None and previous.status == "completed":
+            # Spec 5: the button is for a draft with no narration yet; lines are re-voiced.
+            raise NarrationRefused("narration_exists")
         workflow_id = _next_workflow_id(document_id, previous)
         preset = (await store.get_preset(project_id)).preset
         try:
@@ -200,3 +210,15 @@ class NarrationService:
 
     async def list_sfx(self) -> list[Any]:
         return await self._require().list_sfx()
+
+    async def add_sfx(self, project_id: str, sfx_id: str) -> Any:
+        """The project's editor asset for one library sound effect, copied on first use."""
+        entry = next((item for item in await self.list_sfx() if item.sfx_id == sfx_id), None)
+        if entry is None:
+            raise NarrationNotFound()
+        if self._sfx_assets is None:
+            raise NarrationUnavailable()
+        try:
+            return await self._sfx_assets.ensure_project_asset(project_id, entry)
+        except Exception as error:
+            raise NarrationUnavailable() from error

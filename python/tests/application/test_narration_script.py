@@ -192,3 +192,13 @@ def test_an_empty_library_asks_for_no_sound_effects() -> None:
         sfx=[],
     )
     assert "sfx_cues must be []" in user
+
+
+def test_a_beat_the_model_leaves_empty_is_dropped_not_fatal() -> None:
+    """Review Focus 2: an empty beat keeps its visuals and simply has no voice."""
+    beats = [*answer()["beats"], {"beat": "main", "text": "   "}]  # type: ignore[misc]
+    beats = [beats[0], {"beat": "main", "text": "  "}, beats[2]]
+    script = parse_script(
+        answer(beats=beats), beats=BEATS, preset=NarrationPreset(), sfx_ids={"whoosh"}
+    )  # type: ignore[arg-type]
+    assert [beat.beat for beat in script.beats] == ["hook", "reactions"]

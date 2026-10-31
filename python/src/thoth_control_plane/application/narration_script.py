@@ -125,6 +125,14 @@ def parse_script(
     raw_beats = answer.get("beats")
     if not isinstance(raw_beats, list) or not raw_beats:
         raise ScriptInvalid("no beats")
+    # A beat the model left empty keeps its visuals and simply gets no voice.
+    raw_beats = [
+        item
+        for item in raw_beats
+        if not (isinstance(item, dict) and not str(item.get("text", "")).strip())
+    ]
+    if not raw_beats:
+        raise ScriptInvalid("no beats")
     allowed = set(beats)
     for item in raw_beats:
         if not isinstance(item, dict) or item.get("beat") not in allowed:

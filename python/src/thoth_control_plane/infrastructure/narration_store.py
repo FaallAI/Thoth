@@ -280,6 +280,12 @@ class NarrationStore:
             )
             if exists is not None:
                 return False
+            row = session.get(SfxLibraryRow, entry.sfx_id, with_for_update=True)
+            if row is not None:
+                # The same effect with a changed file: the entry follows the new file.
+                for name, value in entry.model_dump(mode="python").items():
+                    setattr(row, name, value)
+                return True
             session.add(SfxLibraryRow(**entry.model_dump(mode="python")))
             return True
 

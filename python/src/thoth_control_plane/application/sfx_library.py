@@ -169,10 +169,13 @@ class SfxAssets:
         self._probe = probe
 
     async def ensure_project_sfx(self, project_id: str, entry: SfxEntry) -> AssetRef:
+        return (await self.ensure_project_asset(project_id, entry)).to_asset_ref()
+
+    async def ensure_project_asset(self, project_id: str, entry: SfxEntry) -> Any:
         checksum = entry.checksum.lower()
         found = await self._assets.find_ready_by_checksum(project_id=project_id, checksum=checksum)
         if found is not None:
-            return found.asset.to_asset_ref()
+            return found.asset
         source = await asyncio.to_thread(self._media.probe_source, entry.location)
         asset = described_asset(
             asset_id=f"asset_{uuid4().hex}",
@@ -187,4 +190,4 @@ class SfxAssets:
         await self._assets.register_ready(
             EditorAssetRecord(asset=asset, artifact_location=destination, provenance=PROVENANCE)
         )
-        return asset.to_asset_ref()
+        return asset

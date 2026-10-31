@@ -105,6 +105,9 @@ class NarrationActivities:
             document = await self._ports.documents.get_latest(step.project_id, step.document_id)
             video = await self._ports.main_video(step.project_id, document, Path(work))
             segments = await self._ports.transcribe(video) if video is not None else []
+            heard = max((segment.end_seconds for segment in segments), default=0.0)
+            if heard > 0:
+                await metering.record("transcription", "faster_whisper", heard, "second")
             await self._ports.store.set_transcript(step.document_id, segments)
             await self._ports.store.set_status(step.document_id, "scripting")
         return NarrationStepResult()

@@ -383,3 +383,19 @@ def test_a_re_voice_replaces_one_stored_voice_without_writing_the_draft() -> Non
     after = {ref.beat: ref.asset.asset_id for ref in seen["store"].voices}
     assert after["hook"] == before["hook"] and after["main"] != before["main"]
     assert seen["documents"].written == [] and seen["store"].cleared == ["main"]
+
+
+def test_transcription_is_metered_in_seconds(monkeypatch: pytest.MonkeyPatch) -> None:
+    from thoth_control_plane import metering
+
+    recorded: list[tuple[str, str, float, str]] = []
+
+    async def record(kind: str, key: str, quantity: float, unit: str) -> None:
+        recorded.append((kind, key, quantity, unit))
+
+    monkeypatch.setattr(metering, "record", record)
+    built, _ = ports()
+
+    run(NarrationActivities(built).transcribe(STEP))
+
+    assert recorded == [("transcription", "faster_whisper", 1.0, "second")]

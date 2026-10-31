@@ -373,3 +373,104 @@ async def test_a_re_voice_runs_once_and_locks_the_draft_while_it_runs() -> None:
     assert first.status_code == 202 and first.json()["status"] == "voicing"
     assert (second.status_code, code(second)) == (409, "beat_not_stale")
     assert gateway.revoiced == ["main"]
+
+
+# --- Deferred minors fixed before push ---
+
+
+async def test_a_draft_that_already_has_a_narration_is_not_narrated_again() -> None:
+    store, gateway = Store(), Gateway()
+    store.state = NarrationState(
+        document_id="edoc_abc123", workflow_id="narration/edoc_abc123/1", status="completed"
+    )
+    async with build(store, gateway) as api:
+        response = await api.post(f"{DOC}/narration", headers=AUTH)
+    assert (response.status_code, code(response)) == (409, "narration_exists")
+    assert gateway.started == []
+
+
+async def test_a_line_cannot_be_edited_while_its_voice_is_being_made() -> None:
+    store, gateway = Store(), Gateway()
+    store.state = NarrationState(
+        document_id="edoc_abc123",
+        workflow_id="narration/edoc_abc123/1",
+        status="voicing",
+        script=NarrationScript(beats=[ScriptBeat(beat="main", text="Halo")]),
+    )
+    async with build(store, gateway) as api:
+        response = await api.put(f"{DOC}/narration/beats/main", json={"text": "Baru"}, headers=AUTH)
+    assert (response.status_code, code(response)) == (409, "narration_not_completed")
+
+
+async def test_store_outages_answer_unavailable_not_a_missing_run() -> None:
+    from thoth_control_plane.application.edit_documents import EditorUnavailable
+
+    store, gateway = Store(), Gateway()
+    client = build(store, gateway)
+    service = client._transport.app.state.narration_service  # type: ignore[attr-defined]
+
+    async def down(project_id: str, document_id: str) -> str | None:
+        raise EditorUnavailable()
+
+    service._source_run = down
+    async with client as api:
+        response = await api.post(f"{DOC}/narration", headers=AUTH)
+    assert (response.status_code, code(response)) == (503, "narration_unavailable")
+
+    class BrokenPreferences:
+        async def get_preference(self, project_id: str, stage_id: str) -> object:
+            raise RuntimeError("prompt store down")
+
+    async def present(project_id: str, document_id: str) -> str | None:
+        return "wf_run_1"
+
+    service._source_run = present
+    service._preferences = BrokenPreferences()
+    async with build(store, gateway) as api2:
+        api2._transport.app.state.narration_service = service  # type: ignore[attr-defined]
+        response = await api2.post(f"{DOC}/narration", headers=AUTH)
+    assert (response.status_code, code(response)) == (503, "narration_unavailable")
+
+
+async def test_resolving_an_import_item_waits_for_the_narration() -> None:
+    store, gateway = Store(), Gateway()
+    store.state = NarrationState(
+        document_id="edoc_abc123", workflow_id="narration/edoc_abc123/1", status="writing"
+    )
+    async with build(store, gateway) as api:
+        response = await api.post(
+            "/api/v1/projects/project_001/studio-imports/documents/edoc_abc123/items/main/resolve",
+            json={"base_revision": 1, "decision": {"kind": "exclude"}},
+            headers=AUTH,
+        )
+    assert (response.status_code, code(response)) == (409, "narration_in_progress")
+
+
+async def test_a_library_sfx_can_be_added_to_the_draft_project() -> None:
+    from thoth_control_plane.domain.editor_assets import EditorAsset
+
+    store, gateway = Store(), Gateway()
+    client = build(store, gateway)
+    service = client._transport.app.state.narration_service  # type: ignore[attr-defined]
+    added: list[tuple[str, str]] = []
+
+    class Assets:
+        async def ensure_project_asset(self, project_id: str, entry: SfxEntry) -> EditorAsset:
+            added.append((project_id, entry.sfx_id))
+            return EditorAsset(
+                asset_id="asset_sfx",
+                project_id=project_id,
+                kind="audio",
+                media_type="audio/mpeg",
+                validation_state="ready",
+                checksum=entry.checksum,
+                has_audio=True,
+                duration_in_frames=30,
+            )
+
+    service._sfx_assets = Assets()
+    async with client as api:
+        response = await api.post("/api/v1/projects/project_001/sfx/whoosh/asset", headers=AUTH)
+        missing = await api.post("/api/v1/projects/project_001/sfx/airhorn/asset", headers=AUTH)
+    assert response.status_code == 200 and response.json()["asset_id"] == "asset_sfx"
+    assert added == [("project_001", "whoosh")] and missing.status_code == 404

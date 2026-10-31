@@ -14422,6 +14422,74 @@
         "summary": "Retry Render Job"
       }
     },
+    "/api/v1/projects/{project_id}/sfx/{sfx_id}/asset": {
+      "post": {
+        "description": "A library sound effect as one of the project's assets, for the Timeline to place.",
+        "operationId": "add_sfx_to_project_api_v1_projects__project_id__sfx__sfx_id__asset_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sfx_id",
+            "required": true,
+            "schema": {
+              "title": "Sfx Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditorAsset"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Sfx To Project",
+        "tags": [
+          "narration"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/studio-imports": {
       "post": {
         "description": "Create one draft per key; replaying the key returns the same draft.",

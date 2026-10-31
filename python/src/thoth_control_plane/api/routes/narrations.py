@@ -16,6 +16,7 @@ from thoth_control_plane.application.narrations import (
     NarrationUnavailable,
 )
 from thoth_control_plane.domain import Actor
+from thoth_control_plane.domain.editor_assets import EditorAsset
 from thoth_control_plane.domain.models import StrictModel
 from thoth_control_plane.domain.narration import (
     BeatId,
@@ -135,6 +136,14 @@ async def save_narration_preset(
     project_id: str, body: SavePreset, _: Caller, service: Service
 ) -> StoredPreset:
     return await _answer(service.save_preset(project_id, body.preset, body.base_revision))
+
+
+@router.post("/projects/{project_id}/sfx/{sfx_id}/asset", response_model=EditorAsset)
+async def add_sfx_to_project(
+    project_id: str, sfx_id: str, _: Caller, service: Service
+) -> EditorAsset:
+    """A library sound effect as one of the project's assets, for the Timeline to place."""
+    return await _answer(service.add_sfx(project_id, sfx_id))
 
 
 @router.get("/sfx", response_model=list[SfxSummary])

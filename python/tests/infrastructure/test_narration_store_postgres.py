@@ -107,3 +107,18 @@ def test_a_claim_moves_the_status_once(store: NarrationStore) -> None:
     assert run(store.claim("edoc_1", {"awaiting_approval"}, "voicing")) is True
     assert run(store.claim("edoc_1", {"awaiting_approval"}, "voicing")) is False
     assert run(store.get("project_a", "edoc_1")).status == "voicing"
+
+
+def test_a_changed_file_replaces_its_library_entry(store: NarrationStore) -> None:
+    first = SfxEntry(
+        sfx_id="whoosh",
+        file_name="whoosh.mp3",
+        location="sfx/a.mp3",
+        checksum="sha256:" + "a" * 64,
+        duration_seconds=1.0,
+        labels={"licence": "CC0-1.0"},
+    )
+    changed = first.model_copy(update={"location": "sfx/b.mp3", "checksum": "sha256:" + "b" * 64})
+    assert run(store.upsert_sfx(first)) is True
+    assert run(store.upsert_sfx(changed)) is True
+    assert run(store.list_sfx()) == [changed]
