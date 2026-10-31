@@ -133,3 +133,29 @@ def estimate_voice(
         voice_id=preset.voice_id,
         usd=None if price is None else characters * price,
     )
+
+
+class NarrationInProgress(RuntimeError):
+    """The draft already has a narration that is not finished."""
+
+
+class NarrationPresetConflict(RuntimeError):
+    """The preset was saved by someone else since the given revision."""
+
+
+class NarrationStoreUnavailable(RuntimeError):
+    """The editor database could not be reached; nothing was written."""
+
+
+class VoiceRef(StrictModel):
+    """One beat's synthesized voice as stored: its asset and the word timings it came with."""
+
+    beat: BeatId
+    asset_id: str
+    duration_seconds: Annotated[float, Field(gt=0.0)]
+    words: list[dict[str, object]] = Field(default_factory=list)
+
+
+class StoredPreset(StrictModel):
+    preset: NarrationPreset
+    revision: Annotated[int, Field(ge=0)]
