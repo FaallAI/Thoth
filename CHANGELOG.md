@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-31 - Deployed master 716b580 (PR #97: Scout retired)
+
+**Deploy:** thoth `0768aa92`, renderer `53bda04f`, web `deec28a7`, pulled ahead of `make deploy` (exit 0); preflight and the browser capability check passed; migrate applied 0 revisions (head stays `0026`); every service healthy; `legacy-cdp` is gone (0 containers); `api` and `worker` carry no activity-mode variable and no `/opt/thoth/scout`; a new worker polls `thoth-control-plane`; the api, worker, web and renderer logs hold no ERROR or Traceback. Read smoke: the run list, metrics, prompt stages and one run detail answer 200, the dashboard 200. Previous file in `D:/thoth-tmp/bu/pins/pins-127cb0e0.env`. No workflow was running.
+
+**Before the deploy:** `temporal` had been unhealthy for about six hours. Its `/etc/resolv.conf`, written when the container was created on a corporate network, still searched `internal.ebdesk.com`, whose resolver is unreachable now, so the healthcheck's lookup of `temporal` timed out. `up --wait` would have stopped at it with the worker already stopped. With no workflow running, `temporal` was recreated alone (healthy, health call 0.6 s); the deploy recreated the other THOTH containers with the current resolver.
+
+**Curated list:** the deployed attribution and footage exclude no account from the old curated JSON (operator, 2026-10-31).
+
+**Next steps:**
+- Operator: remove `THOTH_STAGE1_ACTIVITY_MODE` from `.env.stage1.local` and `$THOTH_STAGE1_DATA_ROOT/browser-profile`; neither is read any more.
+- Operator decision: the curated aggregator list's future.
+- After 2026-11-29: drop `SourceActivityMode` and the decode-only `activity_mode` input.
+- Follow-ups: 17 Dependabot alerts on master; `crates/` and the Rust-era docs; the Studio header overflow at 430px; seven R7 minors; audit B2/B5.
+
 ## 2026-10-30 - Scout retired: Python-only acquisition, no CDP sidecar, no `scout/` tree
 
 Operator rulings of 2026-10-30: "scout dan crates itu sudah tidak dipakai!!! karena nanti akan full ke python" and "ya scout harus mati, nanti jika gagal berarti dari sisi python nya perlu di perbaiki lagi". Stage1 had run `python` only since 5d9ee252 (PR #87); this removes the dormant paths. Plan: `docs/superpowers/plans/2026-10-30-scout-retirement.md`.
