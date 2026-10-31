@@ -16,11 +16,19 @@ All notable changes to this project will be documented in this file.
 - **Studio:** Create narration, the Script panel (steps, read-only approval with estimate and unsupported words, then editable lines with Re-voice), the lock banner, the narration preset on *Presets & prompts*, and the SFX library under Timeline's assets; English and Indonesian.
 - **Stage1:** the provider preflight admits the optional `THOTH_ELEVENLABS_API_KEY`; the image carries `assets/sfx` and the catalog.
 
-**Verification:** full Python suite 4387+ passed (261 skipped) with the narration suites; the Postgres suites for the narration store, the editor repository and the migrations (0027) pass; `make lint` clean; dashboard 1482 pass, `tsc -b` clean, build clean, oxlint adds no warning; renderer 224 pass. The `narration-v1` parity capsule is not drawn yet.
+**Final review** (one fresh reviewer, whole branch): one Critical and six Important findings, plus two Minors re-graded Important by effect, fixed in one pass, each with a test that failed first:
+- A failed workflow start or a Temporal-side cancel no longer leaves the draft locked; `POST .../narration/cancel` closes a run, or a row whose workflow is gone.
+- Voices are stored per beat, so a retry never pays for a beat twice; re-voice is a voice step, then the draft write.
+- An atomic status claim makes a decision and a re-voice happen once; re-voice locks, polls and adopts like a narration.
+- An operator audio clip never outgrows its asset. Re-voicing keeps narration volume, caption fixes, deleted SFX and blur choices, and beats that came from scenes.
+- A narration-lock 409 is not read as a revision conflict, and queued edits are dropped, not replayed, when the narrated draft is adopted.
+- An SFX the draft cannot use is dropped instead of failing the script (the library ships empty).
+
+**Verification:** full Python suite 4402 passed (262 skipped) after the fix pass with the narration suites; the Postgres suites for the narration store, the editor repository and the migrations (0027) pass; `make lint` clean; dashboard 1482 pass, `tsc -b` clean, build clean, oxlint adds no warning; renderer 224 pass. The `narration-v1` parity capsule is not drawn yet.
 
 **Next steps:**
 - Operator gates, each separate: push and PR for `feat/auto-draft-narration`; merge; deploy (migration 0027 applies); put the ElevenLabs key from the old root `.env` into the stage1 provider file; record licence-free SFX in `assets/sfx/LICENSES.json` (or replace the files) and run `thoth-control sfx seed`; choose a model for the `narration_script` stage; one live narrated `produce_video` run as the acceptance; draw and approve the `narration-v1` golden capsule.
-- Deferred: a manual "add this SFX" route; transcription seconds in usage; client-side edit lock.
+- Deferred minors (final review): polling stops after one failed read until reload; an empty beat text fails the script; ducking replaces an audio clip's own volume instead of scaling it; the lock covers `PATCH` only (not the import attach/resolve routes); Create narration stays enabled after completion; transcription seconds are not metered; an edit made during a re-voice is cleared as voiced; re-seeding a changed SFX under the same id fails; a prompt-store outage at start answers 500; a manual "add this SFX" route.
 - Next roadmap: item 7 (Stage 6, enrichment); the style template track stays parked behind the base items.
 
 ## 2026-10-31 - Rust retired: no `crates/`, no Cargo, no Rust-era docs
