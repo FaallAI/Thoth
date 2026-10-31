@@ -27,7 +27,7 @@
 
 1. A draft the operator edited after import (cards removed, beats reordered, an added Hook) — narration must follow the draft's current beats, not the import's.
 2. A beat with no material left (empty after edits) or a beat the script leaves empty — no zero-length clip, no validation error; the beat keeps its length or is skipped.
-3. A main video shorter than its retimed beat — the video clip is capped at its source length and the document still validates.
+3. A main video shorter than its retimed beat — the clip holds its last frame (`hold_after_source`) instead of leaving a gap, and the document still validates.
 4. Approve or reject sent twice, or after cancel, or for an old workflow — idempotent, never a second voice spend.
 5. The provider returns a script naming an unknown beat or SFX, too long for the target, or invented text the facts don't support — refused as `invalid_provider_output`, the narration fails cleanly and "Create narration" is offered again.
 
@@ -46,11 +46,11 @@ Each line has a test in the task named below (Task 4: 1-3; Task 8: 4; Task 6: 5)
   - `NarrationPreset(StrictModel)`: `language: str = "id"`, `target_seconds: int = 45` (10..180), `words_per_second: float = 3.0`, `voice_provider: Literal["elevenlabs"] = "elevenlabs"`, `voice_id: str = "plgKUYgnlZ1DCNh54DwJ"`, `voice_model: str = "eleven_multilingual_v2"`, `duck_volume: float = 0.12`, `leak_volume: float = 0.45`, `lead_in_seconds: float = 1.6`, `max_sfx_cues: int = 3` (0..10).
   - `BeatId = Literal["hook", "main", "evidence", "reactions", "footage", "outro"]`, `BEAT_ORDER: tuple[BeatId, ...]`.
   - `ScriptBeat(beat: BeatId, text: str)`; `SfxCue(sfx_id: str, beat: BeatId, moment: str, word_index: int | None = None)`; `NarrationScript(beats: list[ScriptBeat], sfx_cues: list[SfxCue])` (beats unique and in `BEAT_ORDER`, at most `max_sfx_cues` checked by the writer, not here).
-  - `TranscriptWord(text: str, start_seconds: float, end_seconds: float)`.
+  - `TranscriptSegment(text: str, start_seconds: float, end_seconds: float)` (the script needs what was said, not word timing; captions are timed by the voice).
   - `NarrationStatus = Literal["transcribing", "scripting", "awaiting_approval", "voicing", "writing", "completed", "failed", "cancelled"]`.
   - `VoiceEstimate(characters: int, provider: str, voice_id: str, usd: float | None)`.
   - `SfxEntry(sfx_id: str, file_name: str, location: str, checksum: str, duration_seconds: float, labels: dict[str, object])` — `labels` holds the catalog row (category, intensity, beats, moments, description).
-  - `NarrationState(document_id, status, script: NarrationScript | None, estimate: VoiceEstimate | None, stale_beats: list[BeatId], failure_code: str | None, workflow_id: str)`.
+  - `NarrationState(document_id, status, script: NarrationScript | None, estimate: VoiceEstimate | None, unsupported: dict[BeatId, list[str]] = {}, stale_beats: list[BeatId], failure_code: str | None, workflow_id: str)` — `unsupported` lists, per beat, script tokens the evidence does not contain (Task 6).
   - `estimate_voice(script: NarrationScript, preset: NarrationPreset, prices: Mapping[tuple[str, str, str], float]) -> VoiceEstimate` — characters = sum of beat text lengths; price key `("provider_call", "elevenlabs", "character")`, falling back to `("provider_call", "*", "character")` as `metering.estimate` does; `None` when unpriced.
 
 - [ ] **Step 1: Write the failing tests**
@@ -106,6 +106,7 @@ The dashboard computes beats from `source_role` (`dashboard/src/features/studio/
   - `CaptionWord(from_frame: FrameStart, duration_in_frames: Frame, text: ShortText)`, relative to its cue; `CaptionCue.words: list[CaptionWord] = []` (max 40), each word inside its cue.
   - `CaptionStyle` gains `"word_highlight"`.
   - `VolumeKeyframe(frame: FrameStart, volume: Volume)`, relative to the clip; `volume_keyframes: list[VolumeKeyframe] = []` (max 500) on `TimelineVideoClip` and `TimelineAudioClip`; frames strictly increasing and inside the clip.
+  - `TimelineVideoClip.hold_after_source: bool = False`: when true the clip may run past its asset's remaining frames and holds the last frame; `_validate_clip_asset` skips the length check for it (video assets only).
 
 - [ ] **Step 1:** Tests: a v2 document from the existing fixtures validates unchanged and round-trips byte-identical JSON (`model_dump_json(exclude_defaults=False)` equal before/after); a word outside its cue, keyframes out of order or past the clip each raise `ValueError` with "caption words must stay inside their cue" / "volume keyframes must be increasing and inside the clip".
 - [ ] **Step 2:** `make test T=tests/domain/test_edit_document_v2.py` — Expected: FAIL.
@@ -128,15 +129,16 @@ The dashboard computes beats from `source_role` (`dashboard/src/features/studio/
 
 Rules (each a test):
 1. Beats with a voice get a new length: `voice + lead_in` for the first voiced beat, `voice` for the rest, in frames at `canvas.fps`, rounded up. Beats without a voice keep their length. Scenes in a beat share its new length in proportion to their old lengths; every clip in a scene keeps its relative start and scales with the scene. `canvas.duration_in_frames` becomes the sum.
-2. A video clip is capped at its asset's remaining frames (`asset.duration_in_frames - source_from_frame`); an image or card fills its scaled length.
+2. A video clip longer than its asset's remaining frames (`asset.duration_in_frames - source_from_frame`) sets `hold_after_source = True` and keeps its scaled length (the last frame holds); an image or card fills its scaled length.
 3. One `narration` track (reuse the draft's, else add one) with one audio clip per voiced beat, starting at the beat's start (+ lead-in for the first), `source_role` = the beat's first role.
 4. One `caption` clip per voiced beat with style `word_highlight`: cues are pages of at most 4 words or 1.2 s, each cue's `words` timed from the voice. Existing caption clips with style `source` are kept.
 5. Every `main_video` clip and every non-narration audio clip under narration gets `volume_keyframes`: full until the narration starts, `duck_volume` while a word sounds, `leak_volume` in gaps longer than 0.3 s, back to full after the last word; frames relative to each clip.
 6. SFX: one `sfx`-track audio clip per placed cue at the cue's word (`word_index`) or the beat start, never past the canvas.
 7. Blur: video clips with imported subtitle `blur_regions` get `blur_enabled = True` in voiced beats (spec 5c-1: blur waits for narration).
+9. Narration and SFX clips get 2-frame fades in and out (no click at a cut; video-use's rule).
 8. The result validates as `EditDocumentV2`; calling it twice with the same input gives the same document (no new IDs from randomness: IDs derive from the beat, e.g. `clip_narration_main`).
 
-- [ ] **Step 1:** Write tests for rules 1-8 and Review Focus 1-3 (an edited draft with an added Hook and a removed card; an empty beat; a main video shorter than its retimed beat), using the Story fixtures in `python/tests/fixtures` and fake `AssetRef`s.
+- [ ] **Step 1:** Write tests for rules 1-9 and Review Focus 1-3 (an edited draft with an added Hook and a removed card; an empty beat; a main video shorter than its retimed beat), using the Story fixtures in `python/tests/fixtures` and fake `AssetRef`s.
 - [ ] **Step 2:** `make test T=tests/assembly/test_narration_timeline.py` — Expected: FAIL.
 - [ ] **Step 3:** Implement. Also `revoice_beat(document, voiced: VoicedBeat, preset) -> EditDocumentV2`: the same rules applied to one beat (its narration clip, captions, the ducking around it, and the beats after it shifted).
 - [ ] **Step 4:** Same — Expected: PASS.
@@ -173,10 +175,11 @@ Rules (each a test):
 **Interfaces:**
 - `PromptStageId` gains `"narration_script"`; `PROMPT_STAGES` gains it (label "Narration script"); its starter (`id-ID`): Hook → Tension → Solution → Call-To-Value across the beats present, about `target_seconds × words_per_second` words, only facts given, figures by name.
 - `ANSWER_CONTRACT` (always appended): `{"beats": [{"beat": ..., "text": ...}], "sfx_cues": [{"sfx_id": ..., "beat": ..., "moment": ..., "word_index": ...}]}`.
-- Produces: `build_script_request(*, beats: list[BeatId], facts: ScriptFacts, transcript: list[TranscriptWord], preset: NarrationPreset, sfx: list[SfxEntry]) -> tuple[str, str]` (system, user) and `parse_script(answer: object, *, beats, preset, sfx_ids: set[str]) -> NarrationScript` raising `ScriptInvalid` when a beat is unknown or missing from `beats`, a cue names an unknown SFX or beat, there are more than `max_sfx_cues` cues, or the word count exceeds 1.25 × the target.
+- Produces: `build_script_request(*, beats: list[BeatId], facts: ScriptFacts, transcript: list[TranscriptSegment], preset: NarrationPreset, sfx: list[SfxEntry]) -> tuple[str, str]` (system, user) and `parse_script(answer: object, *, beats, preset, sfx_ids: set[str]) -> NarrationScript` raising `ScriptInvalid` when a beat is unknown or missing from `beats`, a cue names an unknown SFX or beat, there are more than `max_sfx_cues` cues, or the word count exceeds 1.25 × the target.
+- `unsupported_tokens(script: NarrationScript, facts: ScriptFacts, transcript: list[TranscriptSegment]) -> dict[BeatId, list[str]]` — every number, `@handle`, and capitalised word that does not open a sentence, missing (case-insensitive, after `credit.normalize`-style folding) from the facts and transcript. No LLM call; the result is shown, never a refusal.
 - `ScriptFacts(title, description, owner_handle, platform, verdict, figures: list[str], comments: list[str])`, built from the run's Content Set and attribution report (the materials endpoint's join, `application/studio_imports` materials).
 
-- [ ] **Step 1:** Tests for each `ScriptInvalid` case (Review Focus 5) and that the user prompt carries the facts, the transcript text and the SFX labels, and no URL.
+- [ ] **Step 1:** Tests for each `ScriptInvalid` case (Review Focus 5), for `unsupported_tokens` (an invented number and name are listed, a figure and a transcript word are not), and that the user prompt carries the facts, the transcript text and the SFX labels, and no URL.
 - [ ] **Step 2:** `make test T=tests/application/test_narration_script.py` — Expected: FAIL.
 - [ ] **Step 3:** Implement; prompt resolution reuses Story Assist's `_system` pattern (saved prompt, else starter, contract always).
 - [ ] **Step 4:** Same — Expected: PASS; `make test T=tests/domain/test_prompts.py` — Expected: PASS.
@@ -190,11 +193,12 @@ Rules (each a test):
 - Test: `python/tests/activities/test_narration.py`
 
 **Interfaces:**
-- `LocalSpeech.transcribe_words(video: Path) -> list[TranscriptWord]` (`word_timestamps=True`, VAD on, the same process pool and model as attribution).
+- The existing `LocalSpeech.transcribe(video, seconds=...)` over the whole main video (`seconds` = its duration), mapped to `list[TranscriptSegment]`; no new model, no word timestamps.
+- `VoiceRequest` gains `previous_text: str | None = None` and `next_text: str | None = None`; the ElevenLabs adapter sends them as `previous_text` / `next_text` (request stitching, so beats keep one intonation); the OpenAI-compatible adapter ignores them.
 - `NarrationActivities` with `@activity.defn` methods, each taking `NarrationStepInput(project_id, document_id)` and returning a small result; each meters under `metering.project_scope(project_id)`:
   - `narration_transcribe` → stores the transcript (records `("transcription", "faster_whisper", seconds, "second")`); a draft with no main video stores an empty transcript.
-  - `narration_write_script` (prompt queue; credentials there) → `NarrationScript` + estimate stored, status `awaiting_approval`; `ScriptInvalid` → status `failed`, code `invalid_provider_output`.
-  - `narration_voice` → one `build_voice(settings, "elevenlabs").synthesize(...)` per beat; each audio registered through `EditorAssetUploadService.upload(project_id, media_type, chunks)`; `metering.record_call("elevenlabs", characters=len(text))`; returns `list[VoicedBeatRef]` (beat, asset_id, duration, words); `narration_write_draft` turns each into Task 4's `VoicedBeat` with the asset's `AssetRef`. `VoiceNotConfigured` → `failed`, `voice_not_configured`.
+  - `narration_write_script` (prompt queue; credentials there) → `NarrationScript`, estimate and `unsupported_tokens` stored, status `awaiting_approval`; `ScriptInvalid` → status `failed`, code `invalid_provider_output`.
+  - `narration_voice` → one `build_voice(settings, "elevenlabs").synthesize(...)` per beat, with the neighbouring beats' text as `previous_text` / `next_text`; each audio registered through `EditorAssetUploadService.upload(project_id, media_type, chunks)`; `metering.record_call("elevenlabs", characters=len(text))`; returns `list[VoicedBeatRef]` (beat, asset_id, duration, words); `narration_write_draft` turns each into Task 4's `VoicedBeat` with the asset's `AssetRef`. `VoiceNotConfigured` → `failed`, `voice_not_configured`.
   - `narration_write_draft` → loads the latest revision, copies each cued SFX into the project (Task 10's `ensure_project_sfx`), runs `narrate_document`, saves revision n+1 through `EditDocumentService.write_derived_revision(project_id, document_id, base_revision, document)` (new: inserts via the repository with the revision check), status `completed`.
   - `narration_revoice(beat)` → voice for one beat + `revoice_beat` + save; clears the beat's stale flag.
 - [ ] **Step 1:** Tests with fakes (speech, provider, voice, upload service, store): metering lines recorded; no voice call happens in transcribe or script; a missing key fails with `voice_not_configured` and leaves the draft unchanged; the key never appears in a failure or log (capture logs, assert the fake key string absent).
@@ -250,10 +254,10 @@ Rules (each a test):
 - Test: `python/tests/application/test_sfx_library.py`
 
 **Interfaces:**
-- `seed_sfx(store: NarrationStore, media: MediaStore, catalog: Path, directory: Path) -> SeedReport(added, unchanged)` — every `assets/sfx` file in `assets/asset_catalog.json` goes to `sfx/{checksum}{suffix}` with its catalog labels; idempotent by checksum.
+- `seed_sfx(store: NarrationStore, media: MediaStore, catalog: Path, directory: Path, ffmpeg: Path) -> SeedReport(added, unchanged)` — every `assets/sfx` file in `assets/asset_catalog.json` is loudness-normalised with ffmpeg `loudnorm` in two passes (-16 LUFS integrated, -1 dBTP; the measured input loudness is kept in `labels`), then goes to `sfx/{checksum}{suffix}` with its catalog labels; idempotent by the source file's checksum.
 - `ensure_project_sfx(project_id, sfx_id) -> AssetRef` — the project's editor asset for one library SFX, copied on first use and reused by checksum after (the importer's reuse-by-checksum).
 - The image gains `assets/sfx` and `assets/asset_catalog.json` at `/opt/thoth/assets` (Dockerfile `COPY`; `.dockerignore` keeps `assets` excluded except these).
-- [ ] **Step 1:** Tests: seeding twice reports `added=21` then `unchanged=21` on the real catalog; `ensure_project_sfx` copies once per project and is invisible to another project.
+- [ ] **Step 1:** Tests: seeding twice reports `added=21` then `unchanged=21` on the real catalog; a seeded file measures -16 ± 1.5 LUFS (ffmpeg `ebur128` on the output) for clips of at least 1 s; `ensure_project_sfx` copies once per project and is invisible to another project.
 - [ ] **Step 2:** `make test T=tests/application/test_sfx_library.py` — Expected: FAIL.
 - [ ] **Step 3:** Implement; update `tests/deployment/test_container_contract.py` for the new `COPY`.
 - [ ] **Step 4:** Same plus `make test T=tests/deployment` — Expected: PASS.
@@ -268,8 +272,9 @@ Rules (each a test):
 
 **Interfaces:**
 - `CAPTION_STYLES.word_highlight`: the cue's words in one line, the word under the current frame drawn in the highlight colour (`#d49a79`, as Story emphasis), the others white; a cue with no `words` draws its `text` as `caption_default` does.
+- `hold_after_source`: past the asset's last frame the clip renders the video inside Remotion's `<Freeze frame={lastFrame}>` (video paused, its audio muted); before that it plays as today.
 - `volumeAt(frame, keyframes, fallback)`: linear between keyframes, the first value before the first, the last after; `Video` gets `volume={(f) => muted ? 0 : volumeAt(f, clip.volume_keyframes, 1)}` only when keyframes exist (no prop otherwise, so existing renders stay byte-identical); `Audio` multiplies its fade by `volumeAt(f, keyframes, clip.volume)` when keyframes exist.
-- [ ] **Step 1:** Tests: both existing parity capsules still verify `pass`; `volumeAt` interpolation cases; a `word_highlight` cue highlights the word whose window holds the frame.
+- [ ] **Step 1:** Tests: both existing parity capsules still verify `pass`; `volumeAt` interpolation cases; a held clip renders `Freeze` only past its source; a `word_highlight` cue highlights the word whose window holds the frame.
 - [ ] **Step 2:** `bun --cwd=packages/remotion-composition test` — Expected: FAIL for the new tests.
 - [ ] **Step 3:** Implement. Draw the `narration-v1` candidate (a document with narration, word cues, keyframes and an SFX) the way `story_mode-v1` was drawn, and stop: its golden set is an **operator gate**.
 - [ ] **Step 4:** Same plus `bun --cwd=renderer test` — Expected: PASS.
@@ -284,7 +289,7 @@ Rules (each a test):
 **Behaviour:**
 - **Create narration** in the top bar on a draft with a source run and no running narration; disabled with the API's reason (`voice_not_configured`, `prompt_not_configured`).
 - While running, the draft is read-only with the §13.3 steps (Transcribe · Write script · Awaiting approval · Voice beat n of m · Write draft); the GET is polled every 3 s until it settles.
-- **Script mode, awaiting approval:** beats as read-only paragraphs beside the 9:16 preview, the SFX cues per beat, the estimate (characters, provider, voice, price or "Unpriced"), Approve, Reject with an optional note.
+- **Script mode, awaiting approval:** beats as read-only paragraphs beside the 9:16 preview, with `unsupported` tokens underlined and a note "Not found in the evidence", the SFX cues per beat, the estimate (characters, provider, voice, price or "Unpriced"), Approve, Reject with an optional note.
 - **Script mode, completed:** editable paragraphs; a changed beat shows "Voice out of date" and Re-voice; the header counts stale beats.
 - **Presets & prompts:** the narration preset form (Task 1 fields) with revision-conflict handling; the `narration_script` stage appears in Prompt Lab by itself (registered stage).
 - **Asset library:** a Sound effects section listing the library with labels; "Add" copies it into the draft's project.
