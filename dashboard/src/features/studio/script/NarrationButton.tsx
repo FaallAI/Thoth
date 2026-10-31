@@ -4,11 +4,7 @@ import { useState } from "react";
 import { StudioImportRequestError, type ControlPlaneClient, type NarrationState } from "@/api/control-plane";
 import { useLocale } from "@/lib/locale";
 
-const ACTIVE = new Set(["transcribing", "scripting", "awaiting_approval", "voicing", "writing"]);
-
-export function isNarrationActive(state: NarrationState | null): boolean {
-  return state !== null && ACTIVE.has(state.status);
-}
+import { isNarrationActive } from "./useNarration";
 
 export function NarrationButton({
   client,

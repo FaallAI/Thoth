@@ -3,7 +3,12 @@ import { useEffect, useRef, useState } from "react";
 
 import type { ControlPlaneClient, NarrationState } from "@/api/control-plane";
 
-import { isNarrationActive } from "./NarrationButton";
+const ACTIVE = new Set(["transcribing", "scripting", "awaiting_approval", "voicing", "writing"]);
+
+/** While a narration is in one of these states it owns the draft. */
+export function isNarrationActive(state: NarrationState | null): boolean {
+  return state !== null && ACTIVE.has(state.status);
+}
 
 /**
  * `[state, setState]`: null until a narration exists. While one runs the state is read every
@@ -21,7 +26,9 @@ export function useNarration(
   const [state, setState] = useState<NarrationState | null>(null);
   const wasActive = useRef(false);
   const completed = useRef(onCompleted);
-  completed.current = onCompleted;
+  useEffect(() => {
+    completed.current = onCompleted;
+  }, [onCompleted]);
 
   useEffect(() => {
     if (!enabled || !client) return;

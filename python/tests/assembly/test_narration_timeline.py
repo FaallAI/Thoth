@@ -172,9 +172,14 @@ def test_captions_are_word_pages_timed_by_the_voice() -> None:
     assert caption.style_slot == "word_highlight"
     assert (caption.from_frame, caption.duration_in_frames) == (108, 150)
     assert all(1 <= len(cue.words) <= 4 for cue in caption.cues)
-    assert [
-        word.text for cue in caption.cues for word in cue.words
-    ] == ["satu", "dua", "tiga", "empat", "lima", "enam"]
+    assert [word.text for cue in caption.cues for word in cue.words] == [
+        "satu",
+        "dua",
+        "tiga",
+        "empat",
+        "lima",
+        "enam",
+    ]
     assert all(cue.text == " ".join(word.text for word in cue.words) for cue in caption.cues)
 
 
