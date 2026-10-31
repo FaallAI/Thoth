@@ -99,10 +99,6 @@ api_key.txt
 /biome.json
 /bun.lock
 
-# Committed Scout package fixture: real media and frames the Rust acceptance
-# suite imports, plans and renders. Must survive the *.mp4 / *.jpg rules above.
-!crates/thoth-core/tests/fixtures/scout_package/**
-
 # Committed template release capsule: the synthetic media the preview/render
 # parity gate renders. Must survive the *.mp4 / *.wav rules above.
 !packages/remotion-composition/releases/**

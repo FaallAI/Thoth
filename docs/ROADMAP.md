@@ -8,6 +8,39 @@ in `CHANGELOG.md`. Update this file when an item finishes or the operator change
 As of 2026-10-19. Nothing is in flight: every PR through #29 is merged, and the stack runs
 `master` at `08df791` from `ghcr.io/faallai/*`. The repository lives at `FaallAI/Thoth`.
 
+## Status as of 2026-10-31
+
+The stack runs `master` at `716b580` (PR #97). This section maps the items below to what has
+shipped since 2026-10-19; the items themselves keep their original wording and order.
+
+| Item | Status on 2026-10-31 |
+|---|---|
+| 4. Stage 5c | Done: 5c-1 deployed 2026-10-22 (PR #39), 5c-2 deployed 2026-10-23 (PR #41) |
+| 6. Auto-draft | Not started; the first open item, starting with slice 1 (transcript) |
+| 7. Stage 6: enrichment | Not started; waits on 6 |
+| 8. Stage 8: discovery in Python | Not started. The old curated Instagram account list (`attribution/curated_accounts.json`, local and gitignored) fed Scout's viral-content discovery; the operator decides its future with this item. Since 2026-10-31 it filters nothing |
+| 9. Stage 7: durable orchestration | Not started; waits on 8 |
+| 10. Stage 9: cutover and final live acceptance | Waits on 1-9; the final soak is Python-only (no parity samples) |
+| 11. Stage 10: retire Scout and Rust | Nearly done: Scout retired early and deployed 2026-10-31 (PR #97: no legacy activity, no `legacy-cdp`, no `scout/`); the Rust engine, its docs and Rust-only scripts removed 2026-10-31, which also clears the 17 Dependabot alerts (all were Rust crates). Left: dropping the decode-only `activity_mode` workflow input after 2026-11-29 |
+
+Dashboard redesign track: steps 1-7 are deployed (run progress phases 1-5, restyle part A
+R1-R4 and part B R5-R7, last on 2026-10-30 at `03741c3`). Step 8, the operator's live gate, is
+open.
+
+The backlog item "Scrapling in place of the CDP sidecar" is moot: the sidecar was removed with
+Scout on 2026-10-31.
+
+### Open follow-ups from the 2026-10-30 and 2026-10-31 deploys
+
+- **Security:** the 17 Dependabot alerts (2 critical, 4 high, 7 moderate, 4 low) were all in Rust
+  crates (`zip`, `quinn-proto`, `rustls`, `tar`); the Rust retirement removes them.
+- **Studio:** the header overflows at 430 px; the seven deferred R7 minors; Timeline thumbnails
+  and waveforms need a backend that produces frame strips and audio peaks.
+- **Audit:** B2 (central error handlers) and B5 (`UnavailableWorkflowGateway`, the browser
+  `apiKey`, duplicate fetch clients), deferred by the operator on 2026-10-30.
+- **Operations:** done 2026-10-31: `THOTH_STAGE1_ACTIVITY_MODE` left `.env.stage1.local` and the
+  1.4 GB `browser-profile` was deleted; the preflight still passes.
+
 ## Priority order
 
 | # | Item | Why it comes here | Blocked by |

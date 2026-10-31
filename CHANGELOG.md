@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-31 - Rust retired: no `crates/`, no Cargo, no Rust-era docs
+
+Operator, 2026-10-30: "scout dan crates itu sudah tidak dipakai!!! karena nanti akan full ke python"; approved on 2026-10-31. Nothing in the deployed images, the Compose stack or CI built or read any of it.
+
+- **Removed:** `crates/` (thoth, thoth-core, thoth-jobs, thoth-server, thoth-types), `Cargo.toml`, `Cargo.lock`, `.clippy.toml`, `build_cuda.bat`, `build_cuda.sh`, `test/scraper`, `tests/fixtures/main-footage`, `config.toml.example`, `.env.example`, `requirements.txt`, `environment.yml`, `SETUP.md`, and the Rust-only scripts (`scripts/deprecated`, `lib`, `media`, `narration`, `news`, `render`, `tts`, `vision`). `assets/platform_logos` went too: only Scout read its Supabase table.
+- **Docs removed:** `docs/CLI.md`, `INSTALL.md`, `CONFIGURATION.md`, `FEATURES.md`, `MODELS.md`, `PIPELINE.md`, `main-footage.md`. The `thoth-control` client section of `CLI.md` moved into `docs/RUNNING.md`, which now covers only the Python stack.
+- **Rewritten:** `README.md` describes the Python control plane, dashboard and renderer. `AGENTS.md`'s stack and mandatory verification are now the Python and dashboard checks (no CUDA build, no `cargo`), and its conventions name Python log levels and field defaults. BLUEPRINT notes the retirement; `docs/agents/domain.md`, the Makefile header, `.gitignore` and `.dockerignore` drop the crates.
+- **Kept:** `assets/` (fonts, BGM, SFX, logo, catalog) for auto-draft; the gitignored local `config.toml`, `ffmpeg.exe`, `target/` and the root `.env`.
+- **Security:** the 17 open Dependabot alerts (2 critical, 4 high, 7 moderate, 4 low) were all Rust crates (`zip`, `quinn-proto`, `rustls`, `tar`) in `Cargo.lock`, `crates/thoth-core` and `test/scraper`; removing them closes every one.
+- **Roadmap:** a dated status section maps items 4-11 and the dashboard track to what shipped; item 11 is left with only the `activity_mode` removal after 2026-11-29.
+
+**Verification:** full Python suite 4318 passed, 252 skipped, 1 failed only in this checkout: `test_the_image_and_its_workflow_carry_no_scout` finds the gitignored `scout/` leftovers (`node_modules`, `output`, `ckb.json`) that predate the Scout removal; a clean checkout has no `scout/`. `make lint` clean; `make help` runs.
+
+**Next steps:**
+- Operator gates: push and PR for `chore/retire-rust`, merge. No deploy is needed: no image changes.
+- Operator: delete the local ignored leftovers (`scout/`, `crates/`, `test/`, `target/`) when convenient.
+- After 2026-11-29: drop `SourceActivityMode` and the decode-only `activity_mode` input, which closes item 11.
+- Next roadmap item: 6, auto-draft slice 1 (transcript); the dashboard live gate (track step 8) runs in parallel.
+
 ## 2026-10-31 - Deployed master 716b580 (PR #97: Scout retired)
 
 **Deploy:** thoth `0768aa92`, renderer `53bda04f`, web `deec28a7`, pulled ahead of `make deploy` (exit 0); preflight and the browser capability check passed; migrate applied 0 revisions (head stays `0026`); every service healthy; `legacy-cdp` is gone (0 containers); `api` and `worker` carry no activity-mode variable and no `/opt/thoth/scout`; a new worker polls `thoth-control-plane`; the api, worker, web and renderer logs hold no ERROR or Traceback. Read smoke: the run list, metrics, prompt stages and one run detail answer 200, the dashboard 200. Previous file in `D:/thoth-tmp/bu/pins/pins-127cb0e0.env`. No workflow was running.

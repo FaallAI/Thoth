@@ -24,7 +24,11 @@ Membangun pipeline otomatis yang memahami **gaya editing media sosial viral** (T
   fixed in Python). The legacy activity and its adapter queue, the activity modes, the
   `legacy-cdp` sidecar, Scout and `gallery-dl` in the image, and the `scout/` tree are removed.
   Workflow inputs still decode the old `activity_mode` values until the histories that carry
-  them leave the 30-day retention (2026-11-29). The Rust crates stay in the repository, unused.
+  them leave the 30-day retention (2026-11-29).
+- **Rust retired (2026-10-31).** `crates/`, the Cargo workspace, `build_cuda`, `test/scraper`, the
+  Rust-era docs (CLI, INSTALL, CONFIGURATION, FEATURES, MODELS, PIPELINE, main-footage), the
+  Rust-only scripts, `config.toml.example` and `.env.example` are removed. The sections below
+  that describe the Rust pipeline are history.
 - **Stage 1 container checkpoint (2026-09-04): published, deployment pending.** One
   immutable `ghcr.io/faallai/thoth` digest serves the worker/API/CDP sidecar roles; the image
   includes Linux FFmpeg/FFprobe and the private headless CDP launcher required by temporary Scout
