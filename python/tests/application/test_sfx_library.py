@@ -76,7 +76,7 @@ def lufs(path: Path) -> float:
 def test_only_licensed_files_are_seeded_normalised_and_once(tmp_path: Path) -> None:
     licences = {
         "impact-hit.mp3": {"licence": "CC0-1.0", "source_url": "https://example.org/impact"},
-        "notification.mp3": {"licence": "Pixabay", "source_url": "https://example.org/ding"},
+        "notification.mp3": {"licence": "CC0-1.0", "source_url": "https://example.org/ding"},
         "vine-boom.mp3": {"licence": "All rights reserved", "source_url": "https://example.org/v"},
     }
     directory = sfx_dir(tmp_path, licences)
@@ -101,7 +101,8 @@ def test_only_licensed_files_are_seeded_normalised_and_once(tmp_path: Path) -> N
 
 
 def test_the_licence_gate_allows_only_free_licences() -> None:
-    assert frozenset({"CC0-1.0", "Pixabay", "Mixkit-SFX"}) == ALLOWED_SFX_LICENCES
+    # Pixabay and Mixkit forbid redistributing files as a library or inside a tool (2026-11-01).
+    assert frozenset({"CC0-1.0"}) == ALLOWED_SFX_LICENCES
 
 
 class Assets:

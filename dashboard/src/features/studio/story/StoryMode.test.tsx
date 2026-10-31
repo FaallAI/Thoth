@@ -371,3 +371,16 @@ test("a locked scene title cannot be typed into, so no save can stall on it", as
   fireEvent.change(heading, { target: { value: "Edited anyway" } });
   expect(screen.queryByText("Unsaved changes")).toBeNull();
 });
+
+
+test("a narrated draft's voices get a preview source in Story", async () => {
+  // A narration adds audio clips; without their sources Story cannot play the voices (2026-11-01).
+  const document = storyDocument() as EditDocument & { asset_refs: unknown[] };
+  document.asset_refs = [
+    ...(document.asset_refs ?? []),
+    { asset_id: "asset_voice_main", project_id: "project_001", kind: "audio", has_audio: true, validation_state: "ready" },
+  ];
+  await mountStory("en", { getEditDocument: mock(async () => document) });
+
+  await waitFor(() => expect(preview.mock.calls.map((call) => call[1])).toContain("asset_voice_main"));
+});

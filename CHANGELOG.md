@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-01 - Deployed master 10af895 (PR #100: the narrated draft); Story previews narration audio
+
+**Deploy:** thoth `3ce86e74`, renderer `71b71339`, web `295f36fb`, pulled ahead of `make deploy` (exit 0); preflight and browser capability passed; migrate applied 1 revision (head `0027`; `narrations`, `narration_presets`, `sfx_library` present); every service healthy; the api, worker, web and renderer logs hold no ERROR or Traceback. Read smoke: runs, `/sfx` (empty), the narration preset (Rust defaults) and `/prompt-stages` (now with `narration_script`) answer 200. Previous file in `D:/thoth-tmp/bu/pins/pins-716b5802.env`. No workflow was running.
+- **Provider and model:** the operator put `THOTH_ELEVENLABS_API_KEY` in the stage1 provider file (the preflight validated it; the recreated worker builds the ElevenLabs adapter). The Prompt Lab catalog gained `google/gemma-4-31b-it` (first on SEA-HELM Indonesian, 79.75; Apache-2.0; 14 live OpenRouter endpoints with JSON) and `qwen/qwen3.6-27b` (second, 77.96) beside DeepSeek V3.1; Gemma 4 31B is the project's `narration_script` model (operator: "untuk model saya ikuti saran mu").
+- **First live narration:** completed on `edoc_3aedc6af…` (4 voiced beats, revision 16, 1034 frames). Studio's Story preview then went blank with "Audio preview unavailable".
+
+**Fix (`fix/narration-audio-preview`):** Story asked preview sources only for videos and stills, so the narration's voices had none, and the composition drew a missing audio source as a full-frame placeholder over the picture. Story now previews every asset of the draft, and a missing audio source is reported but draws nothing (audio has no picture). Renders were unaffected: a render bundle resolves every asset.
+
+**SFX licences:** the seed gate is CC0 only. The Pixabay and Mixkit licences forbid redistributing files as a library or inside a tool, which a bundled SFX library is. `LICENSES.json` stays empty.
+
+**Next steps:**
+- Operator gates: push and PR for `fix/narration-audio-preview`; merge; deploy (web and renderer images change; no migration).
+- After the fix: watch and render the narrated draft; then a default CC0 SFX set (Kenney CC0 interface and impact packs, Freesound CC0 per file) with sources in `LICENSES.json`, on the operator's word.
+- Later: the `narration-v1` golden capsule; ElevenLabs request-id stitching across re-voices.
+
 ## 2026-10-31 - Auto-draft, first milestone: the narrated draft
 
 **Spec:** `docs/superpowers/specs/2026-10-31-auto-draft-narrated-draft-design.md`, approved by the operator on 2026-10-31 ("ya sesuai"). **Plan:** `docs/superpowers/plans/2026-10-31-auto-draft-narrated-draft.md`, executed natively on `feat/auto-draft-narration`. Operator rulings: a watchable narrated draft first; nothing hard-coded; the script is approved in Studio, with a TTS estimate, before any voice is made; no editing at the approval; ElevenLabs; SFX yes, BGM no; narration starts only from **Create narration**; bundled SFX must be licence-free (uploads are hosted, not provided).

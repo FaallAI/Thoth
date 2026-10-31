@@ -28,7 +28,9 @@ from thoth_control_plane.domain.edit_document_v2 import AssetRef
 from thoth_control_plane.domain.editor_assets import EditorAssetRecord
 from thoth_control_plane.domain.narration import SfxEntry
 
-ALLOWED_SFX_LICENCES = frozenset({"CC0-1.0", "Pixabay", "Mixkit-SFX"})
+#: CC0 only: the Pixabay and Mixkit licences forbid redistributing a file as a library or
+#: inside a tool, which a bundled SFX library is (research, 2026-11-01).
+ALLOWED_SFX_LICENCES = frozenset({"CC0-1.0"})
 LICENCE_FILE = "LICENSES.json"
 TARGET_LUFS = -16.0
 TRUE_PEAK = -1.0
