@@ -402,3 +402,21 @@ async def test_run_worker_serves_the_prompt_proposal_queue(monkeypatch) -> None:
         )
     # No legacy Scout adapter queue: Scout is retired (operator, 2026-10-30).
     assert queues == [PROMPT_PROPOSAL_TASK_QUEUE]
+
+
+def test_the_narration_registers_its_workflows_and_splits_its_activities_by_queue() -> None:
+    """The script step needs the provider credentials, so it runs on the prompt queue."""
+    from types import SimpleNamespace
+
+    from thoth_control_plane.workflows.narration import NarrationRevoiceWorkflow, NarrationWorkflow
+
+    fake = SimpleNamespace(
+        transcribe="t", write_script="s", voice="v", write_draft="w", revoice="r", mark="m"
+    )
+
+    workflows, main, prompt = worker.narration_registrations(fake)  # type: ignore[arg-type]
+
+    assert workflows == [NarrationWorkflow, NarrationRevoiceWorkflow]
+    assert main == ["t", "v", "w", "r", "m"]
+    assert prompt == ["s"]
+    assert worker.narration_registrations(None) == ([], [], [])

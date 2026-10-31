@@ -8,6 +8,7 @@ import logging
 import shutil
 from collections.abc import Mapping
 from importlib.util import find_spec
+from typing import Any
 
 from temporalio.client import Client
 from temporalio.contrib.pydantic import pydantic_data_converter
@@ -28,6 +29,7 @@ from thoth_control_plane.activities.meter_scope import (
     MeterScopeInterceptor,
     record_workflow_completed,
 )
+from thoth_control_plane.activities.narration import build_narration_activities
 from thoth_control_plane.activities.progress_scope import ProgressScopeInterceptor
 from thoth_control_plane.activities.prompt_proposal import (
     PROMPT_PROPOSAL_TASK_QUEUE,
@@ -105,6 +107,29 @@ def check_media_store(settings: Settings) -> MediaStore:
     return store
 
 
+def narration_registrations(narration: Any | None) -> tuple[list[Any], list[Any], list[Any]]:
+    """The narration's workflows, its main-queue activities, and its prompt-queue activity
+    (the script needs the provider credentials; spec 2026-10-31)."""
+    if narration is None:
+        return [], [], []
+    from thoth_control_plane.workflows.narration import (
+        NarrationRevoiceWorkflow,
+        NarrationWorkflow,
+    )
+
+    return (
+        [NarrationWorkflow, NarrationRevoiceWorkflow],
+        [
+            narration.transcribe,
+            narration.voice,
+            narration.write_draft,
+            narration.revoice,
+            narration.mark,
+        ],
+        [narration.write_script],
+    )
+
+
 def build_source_investigation_worker(
     client: Client,
     settings: Settings,
@@ -113,15 +138,18 @@ def build_source_investigation_worker(
     capability: ScraplingCapability | Mapping[str, object] | None = None,
     reports: Reports | None = None,
     media: MediaStore | None = None,
+    narration: Any | None = None,
 ) -> Worker:
     """Register the production source activity with its configured artifact root."""
     reports = reports or connect_reports(settings)
     media = media or build_media_store(settings)
+    narration_workflows, narration_activities, _ = narration_registrations(narration)
     return Worker(
         client,
         task_queue=TASK_QUEUE,
-        workflows=[SourceInvestigationWorkflow],
+        workflows=[SourceInvestigationWorkflow, *narration_workflows],
         activities=[
+            *narration_activities,
             build_source_investigation_activity(
                 settings, runner=runner, capability=capability, reports=reports, media=media
             ),
@@ -194,7 +222,9 @@ def check_media_tools(settings: Settings) -> None:
             raise SettingsValidationError("embedding_runtime_missing")
 
 
-def build_prompt_proposal_worker(client: Client, settings: Settings) -> Worker:
+def build_prompt_proposal_worker(
+    client: Client, settings: Settings, *, narration: Any | None = None
+) -> Worker:
     """Register the proposal activity on its dedicated queue with stored secrets."""
     catalog = settings.THOTH_PROMPT_PROVIDER_CATALOG
     enabled = tuple(provider for provider in catalog if provider.enabled)
@@ -220,7 +250,7 @@ def build_prompt_proposal_worker(client: Client, settings: Settings) -> Worker:
         client,
         task_queue=PROMPT_PROPOSAL_TASK_QUEUE,
         workflows=[PromptProposalWorkflow, StoryAssistWorkflow],
-        activities=[activity.run, assist.run],
+        activities=[activity.run, assist.run, *narration_registrations(narration)[2]],
         max_concurrent_activities=1,
     )
 
@@ -253,12 +283,23 @@ async def run_worker(settings: Settings | None = None) -> None:
             data_converter=pydantic_data_converter,
         )
         reports = connect_reports(runtime_settings)
+        # Auto-draft narration (spec 2026-10-31): one set of ports for both queues.
+        narration = (
+            build_narration_activities(runtime_settings, media)
+            if runtime_settings.THOTH_EDITOR_DATABASE_URL is not None
+            else None
+        )
         async with (
             build_source_investigation_worker(
-                client, runtime_settings, capability=capability, reports=reports, media=media
+                client,
+                runtime_settings,
+                capability=capability,
+                reports=reports,
+                media=media,
+                narration=narration,
             ),
             # Prompt Lab proposals and Story Assist; an empty catalog answers with failure codes.
-            build_prompt_proposal_worker(client, runtime_settings),
+            build_prompt_proposal_worker(client, runtime_settings, narration=narration),
         ):
             await asyncio.Future()
     finally:

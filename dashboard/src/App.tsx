@@ -131,7 +131,7 @@ function Shell() {
           <Route path="/workflows/:workflowId" element={<WorkflowDetailRoute projects={projects} />} />
           <Route path="/inbox" element={<InboxPage projects={projects} />} />
           <Route path="/studio" element={studioProject ? <StudioDocumentsPage client={controlPlaneClient} projectId={studioProject} /> : needsProject} />
-          <Route path="/studio/presets" element={studioProject ? <PresetsPage client={controlPlaneClient} projectId={studioProject} /> : needsProject} />
+          <Route path="/studio/presets" element={studioProject ? <PresetsPage client={controlPlaneClient} projectId={studioProject} narration={controlPlaneClient} /> : needsProject} />
           <Route path="/studio/:projectId/:documentId" element={<StudioDocumentRoute workspaceControls={switcher} projects={projects} />} />
           <Route path="/accounts" element={me.platform_admin ? <SourceAccounts client={sourceAccountsClient} onManageProxies={() => navigate("/accounts/proxies")} /> : platformOnly} />
           <Route path="/accounts/proxies" element={me.platform_admin ? <SourceProxies client={sourceAccountsClient} onBack={() => navigate("/accounts")} /> : platformOnly} />

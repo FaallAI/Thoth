@@ -639,3 +639,32 @@ def stage1_local_preflight(
         typer.echo(str(error), err=True)
         raise typer.Exit(code=1) from None
     typer.echo("stage 1 local preflight passed")
+
+
+sfx_app = typer.Typer(no_args_is_help=True)
+app.add_typer(sfx_app, name="sfx")
+
+
+@sfx_app.command("seed")
+def sfx_seed(
+    directory: Annotated[Path, typer.Option("--dir")] = Path("/opt/thoth/assets/sfx"),
+    catalog: Annotated[Path, typer.Option("--catalog")] = Path(
+        "/opt/thoth/assets/asset_catalog.json"
+    ),
+) -> None:
+    """Seed the licensed bundled SFX into object storage and the library (idempotent)."""
+    from thoth_control_plane.application.sfx_library import seed_sfx
+    from thoth_control_plane.infrastructure.media_store import build_media_store
+    from thoth_control_plane.infrastructure.narration_store import NarrationStore
+
+    settings = Settings()
+    if settings.THOTH_EDITOR_DATABASE_URL is None:
+        typer.echo("editor_database_not_configured")
+        raise typer.Exit(1)
+    store = NarrationStore(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
+    report = asyncio.run(
+        seed_sfx(
+            store, build_media_store(settings), catalog, directory, Path(settings.THOTH_FFMPEG)
+        )
+    )
+    typer.echo(f"added={report.added} unchanged={report.unchanged} skipped={len(report.skipped)}")

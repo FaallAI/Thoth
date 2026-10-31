@@ -117,3 +117,56 @@ async def test_an_unreadable_success_body_is_unavailable(response) -> None:
             VoiceRequest(text="a", voice_id="v")
         )
     assert str(caught.value) == "elevenlabs_bad_response"
+
+
+async def test_neighbouring_text_is_sent_for_request_stitching() -> None:
+    seen: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        audio = base64.b64encode(b"MP3").decode()
+        return httpx.Response(200, json={"audio_base64": audio, "alignment": ALIGNMENT})
+
+    voice = ElevenLabsVoice("secret-key", transport=httpx.MockTransport(handler))
+    await voice.synthesize(
+        VoiceRequest(text="Tengah.", voice_id="v", previous_text="Awal.", next_text="Akhir.")
+    )
+    assert (seen["body"]["previous_text"], seen["body"]["next_text"]) == ("Awal.", "Akhir.")  # type: ignore[index]
+
+    await voice.synthesize(VoiceRequest(text="Sendiri.", voice_id="v"))
+    assert "previous_text" not in seen["body"] and "next_text" not in seen["body"]  # type: ignore[operator]
+
+
+async def test_request_ids_stitch_and_the_billed_cost_comes_from_the_header(monkeypatch) -> None:
+    """ElevenLabs documents previous_request_ids (max 3) and a character-cost header."""
+    from thoth_control_plane import metering
+
+    seen: dict[str, object] = {}
+    billed: list[tuple[str, int | None]] = []
+
+    async def record_call(key: str, *, characters: int | None = None, **_: object) -> None:
+        billed.append((key, characters))
+
+    monkeypatch.setattr(metering, "record_call", record_call)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        audio = base64.b64encode(b"MP3").decode()
+        return httpx.Response(
+            200,
+            json={"audio_base64": audio, "alignment": ALIGNMENT},
+            headers={"request-id": "req_3", "character-cost": "9"},
+        )
+
+    voice = await ElevenLabsVoice("secret-key", transport=httpx.MockTransport(handler)).synthesize(
+        VoiceRequest(
+            text="Tengah.",
+            voice_id="v",
+            previous_text="Awal.",
+            previous_request_ids=["req_0", "req_1", "req_2", "req_x"],
+        )
+    )
+
+    assert seen["body"]["previous_request_ids"] == ["req_1", "req_2", "req_x"]  # type: ignore[index]
+    assert voice.request_id == "req_3"
+    assert billed == [("elevenlabs/eleven_multilingual_v2", 9)]

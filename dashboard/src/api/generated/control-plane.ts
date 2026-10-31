@@ -361,6 +361,119 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Narration */
+        get: operations["read_narration_api_v1_projects__project_id__edit_documents__document_id__narration_get"];
+        put?: never;
+        /**
+         * Start Narration
+         * @description Create narration: nothing is spent until the operator approves the script.
+         */
+        post: operations["start_narration_api_v1_projects__project_id__edit_documents__document_id__narration_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/beats/{beat}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Edit Narration Beat */
+        put: operations["edit_narration_beat_api_v1_projects__project_id__edit_documents__document_id__narration_beats__beat__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/beats/{beat}/revoice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoice Narration Beat */
+        post: operations["revoice_narration_beat_api_v1_projects__project_id__edit_documents__document_id__narration_beats__beat__revoice_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Narration
+         * @description Stop a running narration; nothing further is spent and the draft unlocks.
+         */
+        post: operations["cancel_narration_api_v1_projects__project_id__edit_documents__document_id__narration_cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Decide Narration */
+        post: operations["decide_narration_api_v1_projects__project_id__edit_documents__document_id__narration_decision_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/restart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restart Narration
+         * @description Write a finished narration again from the draft as it is now (a new script, approved
+         *     again before any voice); new beats such as an added Hook are included.
+         */
+        post: operations["restart_narration_api_v1_projects__project_id__edit_documents__document_id__narration_restart_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/edit-documents/{document_id}/review-comments": {
         parameters: {
             query?: never;
@@ -472,6 +585,24 @@ export interface paths {
          * @description Mint a short-lived capability for one ready asset of one project.
          */
         post: operations["issue_editor_asset_preview_capability_api_v1_projects__project_id__editor_assets__asset_id__preview_capability_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/narration-preset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Narration Preset */
+        get: operations["read_narration_preset_api_v1_projects__project_id__narration_preset_get"];
+        /** Save Narration Preset */
+        put: operations["save_narration_preset_api_v1_projects__project_id__narration_preset_put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -790,6 +921,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/sfx/{sfx_id}/asset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Sfx To Project
+         * @description A library sound effect as one of the project's assets, for the Timeline to place.
+         */
+        post: operations["add_sfx_to_project_api_v1_projects__project_id__sfx__sfx_id__asset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/studio-imports": {
         parameters: {
             query?: never;
@@ -1015,6 +1166,23 @@ export interface paths {
         };
         /** Get Prompt Starter */
         get: operations["get_prompt_starter_api_v1_prompt_stages__stage_id__starter_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sfx": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Sfx */
+        get: operations["list_sfx_api_v1_sfx_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1761,6 +1929,11 @@ export interface components {
              */
             kind: "attach_asset";
         };
+        /** BeatText */
+        BeatText: {
+            /** Text */
+            text: string;
+        };
         /** BillingView */
         BillingView: {
             /** Checkout Available */
@@ -1812,6 +1985,20 @@ export interface components {
          * @description Cue timing is relative to the start of its caption clip.
          */
         CaptionCue: {
+            /** Duration In Frames */
+            duration_in_frames: number;
+            /** From Frame */
+            from_frame: number;
+            /** Text */
+            text: string;
+            /** Words */
+            words?: components["schemas"]["CaptionWord"][];
+        };
+        /**
+         * CaptionWord
+         * @description One spoken word, timed relative to the start of its cue (word-highlight captions).
+         */
+        CaptionWord: {
             /** Duration In Frames */
             duration_in_frames: number;
             /** From Frame */
@@ -1964,7 +2151,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
             /** Target Language */
             target_language?: string | null;
             /** Target Layer */
@@ -2416,6 +2603,102 @@ export interface components {
             /** Project Id */
             project_id: string;
         };
+        /** NarrationDecision */
+        NarrationDecision: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "approve" | "reject";
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * NarrationPreset
+         * @description A project's narration settings; the defaults are the Rust `config.toml` values.
+         */
+        NarrationPreset: {
+            /**
+             * Duck Volume
+             * @default 0.12
+             */
+            duck_volume: number;
+            /**
+             * Language
+             * @default id
+             */
+            language: string;
+            /**
+             * Lead In Seconds
+             * @default 1.6
+             */
+            lead_in_seconds: number;
+            /**
+             * Leak Volume
+             * @default 0.45
+             */
+            leak_volume: number;
+            /**
+             * Max Sfx Cues
+             * @default 3
+             */
+            max_sfx_cues: number;
+            /**
+             * Target Seconds
+             * @default 45
+             */
+            target_seconds: number;
+            /**
+             * Voice Id
+             * @default plgKUYgnlZ1DCNh54DwJ
+             */
+            voice_id: string;
+            /**
+             * Voice Model
+             * @default eleven_multilingual_v2
+             */
+            voice_model: string;
+            /**
+             * Voice Provider
+             * @default elevenlabs
+             * @constant
+             */
+            voice_provider: "elevenlabs";
+            /**
+             * Words Per Second
+             * @default 3
+             */
+            words_per_second: number;
+        };
+        /** NarrationScript */
+        NarrationScript: {
+            /** Beats */
+            beats: components["schemas"]["ScriptBeat"][];
+            /** Sfx Cues */
+            sfx_cues?: components["schemas"]["SfxCue"][];
+        };
+        /** NarrationState */
+        NarrationState: {
+            /** Document Id */
+            document_id: string;
+            estimate?: components["schemas"]["VoiceEstimate"] | null;
+            /** Failure Code */
+            failure_code?: string | null;
+            script?: components["schemas"]["NarrationScript"] | null;
+            /** Stale Beats */
+            stale_beats?: ("hook" | "main" | "evidence" | "reactions" | "footage" | "outro")[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "transcribing" | "scripting" | "awaiting_approval" | "voicing" | "writing" | "completed" | "failed" | "cancelled";
+            /** Unsupported */
+            unsupported?: {
+                [key: string]: string[];
+            };
+            /** Workflow Id */
+            workflow_id: string;
+        };
         /** OutputRequest */
         OutputRequest: {
             /** Format */
@@ -2610,7 +2893,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
             /** Template Id */
             template_id: string;
             /** Template Revision */
@@ -2633,7 +2916,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
             /**
              * Updated At
              * Format: date-time
@@ -2654,7 +2937,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
             /**
              * Updated At
              * Format: date-time
@@ -2708,7 +2991,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
             /** Started At */
             started_at?: string | null;
             /**
@@ -2803,7 +3086,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
             /**
              * Status
              * @enum {string}
@@ -2835,7 +3118,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
             /** Template Id */
             template_id: string;
         };
@@ -3101,7 +3384,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
             /** Visible Text */
             visible_text: string;
         };
@@ -3225,6 +3508,12 @@ export interface components {
             /** Success Rate */
             success_rate?: number | null;
         };
+        /** SavePreset */
+        SavePreset: {
+            /** Base Revision */
+            base_revision: number;
+            preset: components["schemas"]["NarrationPreset"];
+        };
         /** SaveProjectPromptBindingRequest */
         SaveProjectPromptBindingRequest: {
             /** Base Revision */
@@ -3264,7 +3553,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
             /** Template Id */
             template_id?: string | null;
         };
@@ -3283,6 +3572,16 @@ export interface components {
             scene_id: string;
             /** Start Frame */
             start_frame: number;
+        };
+        /** ScriptBeat */
+        ScriptBeat: {
+            /**
+             * Beat
+             * @enum {string}
+             */
+            beat: "hook" | "main" | "evidence" | "reactions" | "footage" | "outro";
+            /** Text */
+            text: string;
         };
         /** SessionCheckResult */
         SessionCheckResult: {
@@ -3345,7 +3644,7 @@ export interface components {
              * Style Slot
              * @enum {string}
              */
-            style_slot: "caption_default" | "source";
+            style_slot: "caption_default" | "source" | "word_highlight";
         };
         /** SetClipBlur */
         SetClipBlur: {
@@ -3521,6 +3820,36 @@ export interface components {
             operation_id: string;
             /** Track Id */
             track_id: string;
+        };
+        /** SfxCue */
+        SfxCue: {
+            /**
+             * Beat
+             * @enum {string}
+             */
+            beat: "hook" | "main" | "evidence" | "reactions" | "footage" | "outro";
+            /** Moment */
+            moment: string;
+            /** Sfx Id */
+            sfx_id: string;
+            /** Word Index */
+            word_index?: number | null;
+        };
+        /**
+         * SfxSummary
+         * @description A library entry as Studio sees it: never its storage location.
+         */
+        SfxSummary: {
+            /** Duration Seconds */
+            duration_seconds: number;
+            /** File Name */
+            file_name: string;
+            /** Labels */
+            labels: {
+                [key: string]: unknown;
+            };
+            /** Sfx Id */
+            sfx_id: string;
         };
         /** SourceAccount */
         SourceAccount: {
@@ -3732,6 +4061,12 @@ export interface components {
              * @default 0
              */
             healthy: number;
+        };
+        /** StoredPreset */
+        StoredPreset: {
+            preset: components["schemas"]["NarrationPreset"];
+            /** Revision */
+            revision: number;
         };
         /** StoryAssistProposal */
         StoryAssistProposal: {
@@ -4109,6 +4444,8 @@ export interface components {
              * @default 1
              */
             volume: number;
+            /** Volume Keyframes */
+            volume_keyframes?: components["schemas"]["VolumeKeyframe"][];
         };
         /** TimelineCaptionClip */
         TimelineCaptionClip: {
@@ -4293,6 +4630,11 @@ export interface components {
              */
             hidden: boolean;
             /**
+             * Hold After Source
+             * @default false
+             */
+            hold_after_source: boolean;
+            /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
@@ -4325,6 +4667,8 @@ export interface components {
             source_role?: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment" | "hook" | "outro") | null;
             /** Track Id */
             track_id: string;
+            /** Volume Keyframes */
+            volume_keyframes?: components["schemas"]["VolumeKeyframe"][];
         };
         /** TokenView */
         TokenView: {
@@ -4455,6 +4799,27 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** VoiceEstimate */
+        VoiceEstimate: {
+            /** Characters */
+            characters: number;
+            /** Provider */
+            provider: string;
+            /** Usd */
+            usd?: number | null;
+            /** Voice Id */
+            voice_id: string;
+        };
+        /**
+         * VolumeKeyframe
+         * @description A volume at one frame, relative to the start of its clip; frames between interpolate.
+         */
+        VolumeKeyframe: {
+            /** Frame */
+            frame: number;
+            /** Volume */
+            volume: number;
         };
         /** WorkflowEvent */
         WorkflowEvent: {
@@ -5565,6 +5930,254 @@ export interface operations {
             };
         };
     };
+    read_narration_api_v1_projects__project_id__edit_documents__document_id__narration_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NarrationState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_narration_api_v1_projects__project_id__edit_documents__document_id__narration_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NarrationState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_narration_beat_api_v1_projects__project_id__edit_documents__document_id__narration_beats__beat__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                document_id: string;
+                beat: "hook" | "main" | "evidence" | "reactions" | "footage" | "outro";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BeatText"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NarrationScript"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoice_narration_beat_api_v1_projects__project_id__edit_documents__document_id__narration_beats__beat__revoice_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                document_id: string;
+                beat: "hook" | "main" | "evidence" | "reactions" | "footage" | "outro";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NarrationState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_narration_api_v1_projects__project_id__edit_documents__document_id__narration_cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NarrationState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decide_narration_api_v1_projects__project_id__edit_documents__document_id__narration_decision_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NarrationDecision"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NarrationState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restart_narration_api_v1_projects__project_id__edit_documents__document_id__narration_restart_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NarrationState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_review_comments_api_v1_projects__project_id__edit_documents__document_id__review_comments_get: {
         parameters: {
             query?: {
@@ -5929,6 +6542,76 @@ export interface operations {
             };
         };
     };
+    read_narration_preset_api_v1_projects__project_id__narration_preset_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoredPreset"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_narration_preset_api_v1_projects__project_id__narration_preset_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavePreset"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoredPreset"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_prompt_binding_api_v1_projects__project_id__prompt_lab_bindings__stage_id__get: {
         parameters: {
             query?: never;
@@ -5937,7 +6620,7 @@ export interface operations {
             };
             path: {
                 project_id: string;
-                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
+                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
             };
             cookie?: never;
         };
@@ -5971,7 +6654,7 @@ export interface operations {
             };
             path: {
                 project_id: string;
-                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
+                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
             };
             cookie?: never;
         };
@@ -6362,7 +7045,7 @@ export interface operations {
             };
             path: {
                 project_id: string;
-                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
+                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
             };
             cookie?: never;
         };
@@ -6391,7 +7074,7 @@ export interface operations {
     list_prompt_templates_api_v1_projects__project_id__prompt_lab_templates_get: {
         parameters: {
             query: {
-                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist";
+                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
             };
             header?: {
                 Authorization?: string | null;
@@ -6734,6 +7417,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RenderJobView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_sfx_to_project_api_v1_projects__project_id__sfx__sfx_id__asset_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                sfx_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditorAsset"];
                 };
             };
             /** @description Validation Error */
@@ -7235,6 +7952,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PromptStarterDefinition"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_sfx_api_v1_sfx_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SfxSummary"][];
                 };
             };
             /** @description Validation Error */

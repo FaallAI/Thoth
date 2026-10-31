@@ -113,8 +113,13 @@ async def resolve_studio_import_item(
     payload: ResolveStudioImportItem,
     _: Annotated[Actor, Depends(current_actor)],
     service: Annotated[StudioImportService, Depends(get_studio_import_service)],
+    request: Request,
 ) -> StudioImportInventory | JSONResponse:
     """Record one explicit attach or exclude decision against the saved revision."""
+    narration = getattr(request.app.state, "narration_service", None)
+    # A decision writes a revision; while a narration writes the draft it waits (2026-10-31).
+    if narration is not None and await narration.is_locked(project_id, document_id):
+        raise _error(status.HTTP_409_CONFLICT, "narration_in_progress")
     try:
         return await service.resolve(project_id, document_id, item_id, payload)
     except EditDocumentRevisionConflict as error:

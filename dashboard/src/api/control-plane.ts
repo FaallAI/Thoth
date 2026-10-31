@@ -43,6 +43,14 @@ export type StudioImportInventory = components["schemas"]["StudioImportInventory
 export type StudioMaterials = components["schemas"]["StudioMaterials"];
 export type StudioMaterial = StudioMaterials["items"][number];
 export type StoryAssistRequest = components["schemas"]["StoryAssistRequest"];
+// Auto-draft narration (spec 2026-10-31).
+export type NarrationState = components["schemas"]["NarrationState"];
+export type NarrationScript = components["schemas"]["NarrationScript"];
+export type NarrationDecision = components["schemas"]["NarrationDecision"];
+export type NarrationPreset = components["schemas"]["NarrationPreset"];
+export type StoredNarrationPreset = components["schemas"]["StoredPreset"];
+export type SfxSummary = components["schemas"]["SfxSummary"];
+export type BeatName = NonNullable<NarrationState["stale_beats"]>[number];
 export type StoryAssistProposal = components["schemas"]["StoryAssistProposal"];
 export type WorkflowStudioImport = components["schemas"]["WorkflowStudioImport"];
 export type CreateStudioImport = components["schemas"]["CreateStudioImport"];
@@ -263,6 +271,18 @@ export type ControlPlaneClient = {
   attachStudioMaterial: (projectId: string, documentId: string, itemId: string) => Promise<EditorAsset>;
   /** Story Assist: one text proposal for a beat; nothing changes until it is applied (spec 7). */
   requestStoryAssist: (projectId: string, documentId: string, request: StoryAssistRequest) => Promise<StoryAssistProposal>;
+  /** Narration: start, read, decide, edit a beat, re-voice; the preset; the SFX library. */
+  startNarration: (projectId: string, documentId: string) => Promise<NarrationState>;
+  getNarration: (projectId: string, documentId: string) => Promise<NarrationState>;
+  decideNarration: (projectId: string, documentId: string, decision: NarrationDecision) => Promise<NarrationState>;
+  editNarrationBeat: (projectId: string, documentId: string, beat: BeatName, text: string) => Promise<NarrationScript>;
+  revoiceNarrationBeat: (projectId: string, documentId: string, beat: BeatName) => Promise<NarrationState>;
+  cancelNarration: (projectId: string, documentId: string) => Promise<NarrationState>;
+  restartNarration: (projectId: string, documentId: string) => Promise<NarrationState>;
+  getNarrationPreset: (projectId: string) => Promise<StoredNarrationPreset>;
+  saveNarrationPreset: (projectId: string, preset: NarrationPreset, baseRevision: number) => Promise<StoredNarrationPreset>;
+  listSfx: () => Promise<SfxSummary[]>;
+  addSfxToProject: (projectId: string, sfxId: string) => Promise<EditorAsset>;
   resolveStudioImportItem: (
     projectId: string,
     documentId: string,
@@ -441,7 +461,12 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
       body: JSON.stringify(body),
     });
     if (response.status === 409) {
-      const conflict = (await response.json()) as DocumentRevisionConflictBody;
+      const conflict = (await response.json()) as DocumentRevisionConflictBody & { detail?: { code?: unknown } };
+      // A draft locked by its narration answers 409 too, but without a newer revision to adopt.
+      if (!conflict.latest) {
+        const code = conflict.detail?.code;
+        throw new Error(typeof code === "string" ? code : `Control plane request failed (409)`);
+      }
       return { kind: "conflict", latest: conflict.latest };
     }
     if (!response.ok) throw new Error(`Control plane request failed (${response.status})`);
@@ -474,6 +499,8 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
       headers: { "Content-Type": "application/json", ...extra },
       body: JSON.stringify(body),
     });
+  const narrationPath = (projectId: string, documentId: string, rest = "") =>
+    `/api/v1/projects/${encodeURIComponent(projectId)}/edit-documents/${encodeURIComponent(documentId)}/narration${rest}`;
   const workflowImportPath = (projectId: string, workflowId: string) =>
     `/api/v1/projects/${encodeURIComponent(projectId)}/workflows/${encodeURIComponent(workflowId)}/studio-import`;
 
@@ -657,6 +684,31 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
         `/api/v1/projects/${encodeURIComponent(projectId)}/edit-documents/${encodeURIComponent(documentId)}/assist`,
         request,
       ),
+    startNarration: (projectId, documentId) => importPost(narrationPath(projectId, documentId), {}),
+    getNarration: (projectId, documentId) => importCall(narrationPath(projectId, documentId)),
+    decideNarration: (projectId, documentId, decision) =>
+      importPost(narrationPath(projectId, documentId, "/decision"), decision),
+    editNarrationBeat: (projectId, documentId, beat, text) =>
+      importCall(narrationPath(projectId, documentId, `/beats/${beat}`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      }),
+    revoiceNarrationBeat: (projectId, documentId, beat) =>
+      importPost(narrationPath(projectId, documentId, `/beats/${beat}/revoice`), {}),
+    cancelNarration: (projectId, documentId) => importPost(narrationPath(projectId, documentId, "/cancel"), {}),
+    restartNarration: (projectId, documentId) => importPost(narrationPath(projectId, documentId, "/restart"), {}),
+    getNarrationPreset: (projectId) =>
+      importCall(`/api/v1/projects/${encodeURIComponent(projectId)}/narration-preset`),
+    saveNarrationPreset: (projectId, preset, baseRevision) =>
+      importCall(`/api/v1/projects/${encodeURIComponent(projectId)}/narration-preset`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base_revision: baseRevision, preset }),
+      }),
+    listSfx: () => importCall("/api/v1/sfx"),
+    addSfxToProject: (projectId, sfxId) =>
+      importPost(`/api/v1/projects/${encodeURIComponent(projectId)}/sfx/${encodeURIComponent(sfxId)}/asset`, {}),
     attachStudioMaterial: (projectId, documentId, itemId) =>
       importCall(
         importPath(

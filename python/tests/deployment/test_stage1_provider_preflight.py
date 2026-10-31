@@ -334,3 +334,26 @@ def test_provider_file_rejects_a_placeholder_openrouter_key(tmp_path: Path, key:
     assert "THOTH_OPENROUTER_API_KEY" in str(failure.value)
     if key:
         assert key not in str(failure.value)
+
+
+def test_provider_file_accepts_the_optional_elevenlabs_key(tmp_path: Path) -> None:
+    """Narration's voice (spec 2026-10-31) reads it in the worker, like OpenRouter's key."""
+    candidate = _provider_file(
+        _outside_repository(tmp_path),
+        VALID_CONTENT + "THOTH_ELEVENLABS_API_KEY=synthetic-elevenlabs-canary\n",
+    )
+
+    check_stage1_provider_file(candidate, repository_root=tmp_path / "repo")
+
+
+@pytest.mark.parametrize("key", ["", "replace-with-local-secret", "short"])
+def test_provider_file_rejects_a_placeholder_elevenlabs_key(tmp_path: Path, key: str) -> None:
+    candidate = _provider_file(
+        _outside_repository(tmp_path), VALID_CONTENT + f"THOTH_ELEVENLABS_API_KEY={key}\n"
+    )
+
+    with pytest.raises(Stage1PreflightError) as failure:
+        check_stage1_provider_file(candidate, repository_root=tmp_path / "repo")
+    assert "THOTH_ELEVENLABS_API_KEY" in str(failure.value)
+    if key:
+        assert key not in str(failure.value)

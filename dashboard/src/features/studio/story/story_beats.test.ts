@@ -74,3 +74,26 @@ test("a material missing from a beat with no clips still shows that beat", () =>
   expect(evidence).toMatchObject({ clipIds: [], durationInFrames: 0 });
   expect(evidence?.missing.map((entry) => entry.item_id)).toEqual(["profile_page_000"]);
 });
+
+// The server's narration reads beats with domain/story_beats.py; one case file holds both to it.
+import cases from "../story_beat_cases.json";
+
+for (const entry of cases.cases) {
+  test(`the shared beat case: ${entry.name}`, () => {
+    const document = entry.document as unknown as Parameters<typeof computeBeats>[0];
+    const items = Object.entries(entry.inventory_roles).map(
+      ([item_id, role]) => ({ item_id, role, disposition: "attached", media_kind: "image" }) as never,
+    );
+    for (const [clipId, beat] of Object.entries(entry.expected_clip_beats)) {
+      expect(beatOfClip(document, items, clipId)).toBe(beat as never);
+    }
+    expect(
+      computeBeats(document, items).map((beat) => ({
+        beat: beat.id,
+        clip_ids: beat.clipIds,
+        start_frame: beat.startFrame,
+        duration_in_frames: beat.durationInFrames,
+      })),
+    ).toEqual(entry.expected_spans as never);
+  });
+}

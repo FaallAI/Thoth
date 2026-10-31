@@ -726,6 +726,22 @@
         "title": "AttachImportAsset",
         "type": "object"
       },
+      "BeatText": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "BeatText",
+        "type": "object"
+      },
       "BillingView": {
         "additionalProperties": false,
         "properties": {
@@ -888,6 +904,14 @@
             "minLength": 1,
             "title": "Text",
             "type": "string"
+          },
+          "words": {
+            "items": {
+              "$ref": "#/components/schemas/CaptionWord"
+            },
+            "maxItems": 40,
+            "title": "Words",
+            "type": "array"
           }
         },
         "required": [
@@ -896,6 +920,35 @@
           "text"
         ],
         "title": "CaptionCue",
+        "type": "object"
+      },
+      "CaptionWord": {
+        "additionalProperties": false,
+        "description": "One spoken word, timed relative to the start of its cue (word-highlight captions).",
+        "properties": {
+          "duration_in_frames": {
+            "exclusiveMinimum": 0.0,
+            "title": "Duration In Frames",
+            "type": "integer"
+          },
+          "from_frame": {
+            "minimum": 0.0,
+            "title": "From Frame",
+            "type": "integer"
+          },
+          "text": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_frame",
+          "duration_in_frames",
+          "text"
+        ],
+        "title": "CaptionWord",
         "type": "object"
       },
       "CheckoutRequest": {
@@ -1344,7 +1397,8 @@
               "narrative_plan",
               "visual_plan",
               "caption_copy",
-              "story_assist"
+              "story_assist",
+              "narration_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -2762,6 +2816,240 @@
         "title": "MoveWorkflow",
         "type": "object"
       },
+      "NarrationDecision": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "enum": [
+              "approve",
+              "reject"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "title": "NarrationDecision",
+        "type": "object"
+      },
+      "NarrationPreset": {
+        "additionalProperties": false,
+        "description": "A project's narration settings; the defaults are the Rust `config.toml` values.",
+        "properties": {
+          "duck_volume": {
+            "default": 0.12,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Duck Volume",
+            "type": "number"
+          },
+          "language": {
+            "default": "id",
+            "maxLength": 8,
+            "minLength": 2,
+            "title": "Language",
+            "type": "string"
+          },
+          "lead_in_seconds": {
+            "default": 1.6,
+            "maximum": 10.0,
+            "minimum": 0.0,
+            "title": "Lead In Seconds",
+            "type": "number"
+          },
+          "leak_volume": {
+            "default": 0.45,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Leak Volume",
+            "type": "number"
+          },
+          "max_sfx_cues": {
+            "default": 3,
+            "maximum": 10.0,
+            "minimum": 0.0,
+            "title": "Max Sfx Cues",
+            "type": "integer"
+          },
+          "target_seconds": {
+            "default": 45,
+            "maximum": 180.0,
+            "minimum": 10.0,
+            "title": "Target Seconds",
+            "type": "integer"
+          },
+          "voice_id": {
+            "default": "plgKUYgnlZ1DCNh54DwJ",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Voice Id",
+            "type": "string"
+          },
+          "voice_model": {
+            "default": "eleven_multilingual_v2",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Voice Model",
+            "type": "string"
+          },
+          "voice_provider": {
+            "const": "elevenlabs",
+            "default": "elevenlabs",
+            "title": "Voice Provider",
+            "type": "string"
+          },
+          "words_per_second": {
+            "default": 3.0,
+            "exclusiveMinimum": 0.5,
+            "maximum": 6.0,
+            "title": "Words Per Second",
+            "type": "number"
+          }
+        },
+        "title": "NarrationPreset",
+        "type": "object"
+      },
+      "NarrationScript": {
+        "additionalProperties": false,
+        "properties": {
+          "beats": {
+            "items": {
+              "$ref": "#/components/schemas/ScriptBeat"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Beats",
+            "type": "array"
+          },
+          "sfx_cues": {
+            "items": {
+              "$ref": "#/components/schemas/SfxCue"
+            },
+            "maxItems": 10,
+            "title": "Sfx Cues",
+            "type": "array"
+          }
+        },
+        "required": [
+          "beats"
+        ],
+        "title": "NarrationScript",
+        "type": "object"
+      },
+      "NarrationState": {
+        "additionalProperties": false,
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "estimate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VoiceEstimate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Code"
+          },
+          "script": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NarrationScript"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stale_beats": {
+            "items": {
+              "enum": [
+                "hook",
+                "main",
+                "evidence",
+                "reactions",
+                "footage",
+                "outro"
+              ],
+              "type": "string"
+            },
+            "title": "Stale Beats",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "transcribing",
+              "scripting",
+              "awaiting_approval",
+              "voicing",
+              "writing",
+              "completed",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "unsupported": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "propertyNames": {
+              "enum": [
+                "hook",
+                "main",
+                "evidence",
+                "reactions",
+                "footage",
+                "outro"
+              ]
+            },
+            "title": "Unsupported",
+            "type": "object"
+          },
+          "workflow_id": {
+            "title": "Workflow Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id",
+          "workflow_id",
+          "status"
+        ],
+        "title": "NarrationState",
+        "type": "object"
+      },
       "OutputRequest": {
         "additionalProperties": false,
         "properties": {
@@ -3290,7 +3578,8 @@
               "narrative_plan",
               "visual_plan",
               "caption_copy",
-              "story_assist"
+              "story_assist",
+              "narration_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -3346,7 +3635,8 @@
               "narrative_plan",
               "visual_plan",
               "caption_copy",
-              "story_assist"
+              "story_assist",
+              "narration_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -3396,7 +3686,8 @@
               "narrative_plan",
               "visual_plan",
               "caption_copy",
-              "story_assist"
+              "story_assist",
+              "narration_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -3559,7 +3850,8 @@
               "narrative_plan",
               "visual_plan",
               "caption_copy",
-              "story_assist"
+              "story_assist",
+              "narration_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -3861,7 +4153,8 @@
               "narrative_plan",
               "visual_plan",
               "caption_copy",
-              "story_assist"
+              "story_assist",
+              "narration_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -3947,7 +4240,8 @@
               "narrative_plan",
               "visual_plan",
               "caption_copy",
-              "story_assist"
+              "story_assist",
+              "narration_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -4694,7 +4988,8 @@
               "narrative_plan",
               "visual_plan",
               "caption_copy",
-              "story_assist"
+              "story_assist",
+              "narration_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -5010,6 +5305,25 @@
         "title": "RunMetrics",
         "type": "object"
       },
+      "SavePreset": {
+        "additionalProperties": false,
+        "properties": {
+          "base_revision": {
+            "minimum": 0.0,
+            "title": "Base Revision",
+            "type": "integer"
+          },
+          "preset": {
+            "$ref": "#/components/schemas/NarrationPreset"
+          }
+        },
+        "required": [
+          "base_revision",
+          "preset"
+        ],
+        "title": "SavePreset",
+        "type": "object"
+      },
       "SaveProjectPromptBindingRequest": {
         "additionalProperties": false,
         "properties": {
@@ -5145,7 +5459,8 @@
               "narrative_plan",
               "visual_plan",
               "caption_copy",
-              "story_assist"
+              "story_assist",
+              "narration_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -5216,6 +5531,35 @@
           "clip_ids"
         ],
         "title": "Scene",
+        "type": "object"
+      },
+      "ScriptBeat": {
+        "additionalProperties": false,
+        "properties": {
+          "beat": {
+            "enum": [
+              "hook",
+              "main",
+              "evidence",
+              "reactions",
+              "footage",
+              "outro"
+            ],
+            "title": "Beat",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "beat",
+          "text"
+        ],
+        "title": "ScriptBeat",
         "type": "object"
       },
       "SessionCheckResult": {
@@ -5348,7 +5692,8 @@
           "style_slot": {
             "enum": [
               "caption_default",
-              "source"
+              "source",
+              "word_highlight"
             ],
             "title": "Style Slot",
             "type": "string"
@@ -5762,6 +6107,85 @@
           "hidden"
         ],
         "title": "SetTrackVisibility",
+        "type": "object"
+      },
+      "SfxCue": {
+        "additionalProperties": false,
+        "properties": {
+          "beat": {
+            "enum": [
+              "hook",
+              "main",
+              "evidence",
+              "reactions",
+              "footage",
+              "outro"
+            ],
+            "title": "Beat",
+            "type": "string"
+          },
+          "moment": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Moment",
+            "type": "string"
+          },
+          "sfx_id": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Sfx Id",
+            "type": "string"
+          },
+          "word_index": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Word Index"
+          }
+        },
+        "required": [
+          "sfx_id",
+          "beat",
+          "moment"
+        ],
+        "title": "SfxCue",
+        "type": "object"
+      },
+      "SfxSummary": {
+        "additionalProperties": false,
+        "description": "A library entry as Studio sees it: never its storage location.",
+        "properties": {
+          "duration_seconds": {
+            "title": "Duration Seconds",
+            "type": "number"
+          },
+          "file_name": {
+            "title": "File Name",
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": true,
+            "title": "Labels",
+            "type": "object"
+          },
+          "sfx_id": {
+            "title": "Sfx Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sfx_id",
+          "file_name",
+          "duration_seconds",
+          "labels"
+        ],
+        "title": "SfxSummary",
         "type": "object"
       },
       "SourceAccount": {
@@ -6427,6 +6851,25 @@
           }
         },
         "title": "StatusCounts",
+        "type": "object"
+      },
+      "StoredPreset": {
+        "additionalProperties": false,
+        "properties": {
+          "preset": {
+            "$ref": "#/components/schemas/NarrationPreset"
+          },
+          "revision": {
+            "minimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "preset",
+          "revision"
+        ],
+        "title": "StoredPreset",
         "type": "object"
       },
       "StoryAssistProposal": {
@@ -7721,6 +8164,14 @@
             "minimum": 0.0,
             "title": "Volume",
             "type": "number"
+          },
+          "volume_keyframes": {
+            "items": {
+              "$ref": "#/components/schemas/VolumeKeyframe"
+            },
+            "maxItems": 500,
+            "title": "Volume Keyframes",
+            "type": "array"
           }
         },
         "required": [
@@ -8204,6 +8655,11 @@
             "title": "Hidden",
             "type": "boolean"
           },
+          "hold_after_source": {
+            "default": false,
+            "title": "Hold After Source",
+            "type": "boolean"
+          },
           "kind": {
             "const": "video",
             "title": "Kind",
@@ -8291,6 +8747,14 @@
             "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
             "title": "Track Id",
             "type": "string"
+          },
+          "volume_keyframes": {
+            "items": {
+              "$ref": "#/components/schemas/VolumeKeyframe"
+            },
+            "maxItems": 500,
+            "title": "Volume Keyframes",
+            "type": "array"
           }
         },
         "required": [
@@ -8612,6 +9076,65 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "VoiceEstimate": {
+        "additionalProperties": false,
+        "properties": {
+          "characters": {
+            "minimum": 0.0,
+            "title": "Characters",
+            "type": "integer"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usd"
+          },
+          "voice_id": {
+            "title": "Voice Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "characters",
+          "provider",
+          "voice_id"
+        ],
+        "title": "VoiceEstimate",
+        "type": "object"
+      },
+      "VolumeKeyframe": {
+        "additionalProperties": false,
+        "description": "A volume at one frame, relative to the start of its clip; frames between interpolate.",
+        "properties": {
+          "frame": {
+            "minimum": 0.0,
+            "title": "Frame",
+            "type": "integer"
+          },
+          "volume": {
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Volume",
+            "type": "number"
+          }
+        },
+        "required": [
+          "frame",
+          "volume"
+        ],
+        "title": "VolumeKeyframe",
         "type": "object"
       },
       "WorkflowEvent": {
@@ -10931,6 +11454,530 @@
         "summary": "Propose Story Assist"
       }
     },
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration": {
+      "get": {
+        "operationId": "read_narration_api_v1_projects__project_id__edit_documents__document_id__narration_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Narration",
+        "tags": [
+          "narration"
+        ]
+      },
+      "post": {
+        "description": "Create narration: nothing is spent until the operator approves the script.",
+        "operationId": "start_narration_api_v1_projects__project_id__edit_documents__document_id__narration_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Narration",
+        "tags": [
+          "narration"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/beats/{beat}": {
+      "put": {
+        "operationId": "edit_narration_beat_api_v1_projects__project_id__edit_documents__document_id__narration_beats__beat__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "beat",
+            "required": true,
+            "schema": {
+              "enum": [
+                "hook",
+                "main",
+                "evidence",
+                "reactions",
+                "footage",
+                "outro"
+              ],
+              "title": "Beat",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BeatText"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationScript"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Edit Narration Beat",
+        "tags": [
+          "narration"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/beats/{beat}/revoice": {
+      "post": {
+        "operationId": "revoice_narration_beat_api_v1_projects__project_id__edit_documents__document_id__narration_beats__beat__revoice_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "beat",
+            "required": true,
+            "schema": {
+              "enum": [
+                "hook",
+                "main",
+                "evidence",
+                "reactions",
+                "footage",
+                "outro"
+              ],
+              "title": "Beat",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoice Narration Beat",
+        "tags": [
+          "narration"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/cancel": {
+      "post": {
+        "description": "Stop a running narration; nothing further is spent and the draft unlocks.",
+        "operationId": "cancel_narration_api_v1_projects__project_id__edit_documents__document_id__narration_cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Narration",
+        "tags": [
+          "narration"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/decision": {
+      "post": {
+        "operationId": "decide_narration_api_v1_projects__project_id__edit_documents__document_id__narration_decision_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarrationDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Decide Narration",
+        "tags": [
+          "narration"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/restart": {
+      "post": {
+        "description": "Write a finished narration again from the draft as it is now (a new script, approved\nagain before any voice); new beats such as an added Hook are included.",
+        "operationId": "restart_narration_api_v1_projects__project_id__edit_documents__document_id__narration_restart_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restart Narration",
+        "tags": [
+          "narration"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/edit-documents/{document_id}/review-comments": {
       "get": {
         "operationId": "list_review_comments_api_v1_projects__project_id__edit_documents__document_id__review_comments_get",
@@ -11709,6 +12756,130 @@
         "summary": "Issue Editor Asset Preview Capability"
       }
     },
+    "/api/v1/projects/{project_id}/narration-preset": {
+      "get": {
+        "operationId": "read_narration_preset_api_v1_projects__project_id__narration_preset_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredPreset"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Narration Preset",
+        "tags": [
+          "narration"
+        ]
+      },
+      "put": {
+        "operationId": "save_narration_preset_api_v1_projects__project_id__narration_preset_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavePreset"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredPreset"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Narration Preset",
+        "tags": [
+          "narration"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/prompt-lab/bindings/{stage_id}": {
       "get": {
         "operationId": "get_prompt_binding_api_v1_projects__project_id__prompt_lab_bindings__stage_id__get",
@@ -11731,7 +12902,8 @@
                 "narrative_plan",
                 "visual_plan",
                 "caption_copy",
-                "story_assist"
+                "story_assist",
+                "narration_script"
               ],
               "title": "Stage Id",
               "type": "string"
@@ -11799,7 +12971,8 @@
                 "narrative_plan",
                 "visual_plan",
                 "caption_copy",
-                "story_assist"
+                "story_assist",
+                "narration_script"
               ],
               "title": "Stage Id",
               "type": "string"
@@ -12560,7 +13733,8 @@
                 "narrative_plan",
                 "visual_plan",
                 "caption_copy",
-                "story_assist"
+                "story_assist",
+                "narration_script"
               ],
               "title": "Stage Id",
               "type": "string"
@@ -12630,7 +13804,8 @@
                 "narrative_plan",
                 "visual_plan",
                 "caption_copy",
-                "story_assist"
+                "story_assist",
+                "narration_script"
               ],
               "title": "Stage Id",
               "type": "string"
@@ -13313,6 +14488,74 @@
           }
         },
         "summary": "Retry Render Job"
+      }
+    },
+    "/api/v1/projects/{project_id}/sfx/{sfx_id}/asset": {
+      "post": {
+        "description": "A library sound effect as one of the project's assets, for the Timeline to place.",
+        "operationId": "add_sfx_to_project_api_v1_projects__project_id__sfx__sfx_id__asset_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sfx_id",
+            "required": true,
+            "schema": {
+              "title": "Sfx Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditorAsset"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Sfx To Project",
+        "tags": [
+          "narration"
+        ]
       }
     },
     "/api/v1/projects/{project_id}/studio-imports": {
@@ -14328,6 +15571,59 @@
           }
         },
         "summary": "Get Prompt Starter"
+      }
+    },
+    "/api/v1/sfx": {
+      "get": {
+        "operationId": "list_sfx_api_v1_sfx_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SfxSummary"
+                  },
+                  "title": "Response List Sfx Api V1 Sfx Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Sfx",
+        "tags": [
+          "narration"
+        ]
       }
     },
     "/api/v1/source-accounts": {

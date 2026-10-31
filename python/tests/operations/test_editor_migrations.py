@@ -57,6 +57,7 @@ def test_editor_migrations_stay_explicit_forward_only_sql_files() -> None:
         "0024_studio_draft_source_run.sql",
         "0025_story_assist_prompt_stage.sql",
         "0026_access_token_creator.sql",
+        "0027_narration.sql",
     ]
     for name in MIGRATION_FILES:
         sql = migration(name).lower()
@@ -569,3 +570,10 @@ def test_workflow_reports_keep_exact_content_and_a_queryable_body() -> None:
         in sql
     )
     assert "CREATE INDEX workflow_reports_workflow ON workflow_reports (workflow_id, kind)" in sql
+
+
+def test_narration_joins_every_prompt_stage_check() -> None:
+    sql = " ".join(migration("0027_narration.sql").split())
+
+    assert sql.count("DROP CONSTRAINT") == 6
+    assert sql.count("'story_assist', 'narration_script'") == 6

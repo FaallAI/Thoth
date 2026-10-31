@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-10-31 - Auto-draft, first milestone: the narrated draft
+
+**Spec:** `docs/superpowers/specs/2026-10-31-auto-draft-narrated-draft-design.md`, approved by the operator on 2026-10-31 ("ya sesuai"). **Plan:** `docs/superpowers/plans/2026-10-31-auto-draft-narrated-draft.md`, executed natively on `feat/auto-draft-narration`. Operator rulings: a watchable narrated draft first; nothing hard-coded; the script is approved in Studio, with a TTS estimate, before any voice is made; no editing at the approval; ElevenLabs; SFX yes, BGM no; narration starts only from **Create narration**; bundled SFX must be licence-free (uploads are hosted, not provided).
+
+- **Flow:** `NarrationWorkflow` per draft: transcribe (the voice key is checked first, so a missing key spends nothing), write the script on the prompt queue (`narration_script` Prompt Lab stage, Hook -> Tension -> Solution -> Call-To-Value starter, facts only), wait for Approve or Reject-with-note, voice each beat (ElevenLabs with request stitching), write the draft. `NarrationRevoiceWorkflow` re-voices one edited beat.
+- **The draft change** (`assembly/narration_timeline.py`): beats laid end to end in story order, each as long as its voice (the first with the 1.6 s lead-in), its clips mapped into the new window; the main video under Hook-Reactions, holding its last frame when it runs out; word-highlight caption pages (at most 4 words or 1.2 s); ducking keyframes (0.12 under speech, 0.45 in pauses over 0.3 s); SFX on their word; 2-frame fades; imported subtitle blur switched on. Re-narrating a narrated draft replaces its own layer, which is how a beat is re-voiced.
+- **Document and composition:** caption words, `word_highlight`, `volume_keyframes` on video and audio clips, `hold_after_source` (drawn with Remotion `Freeze`); all optional, existing renders unchanged.
+- **Storage:** editor migration 0027 (`narrations`, `narration_presets`, `sfx_library`, the stage CHECKs). Preset defaults are the Rust values: `id`, 45 s at 3 words/s, voice `plgKUYgnlZ1DCNh54DwJ` / `eleven_multilingual_v2`, 0.12 / 0.45 / 1.6 s, at most 3 SFX.
+- **Script check:** an answer naming an unknown beat or SFX, too many cues, or more than 1.25x the target words is refused (`invalid_provider_output`); numbers, @handles and names the evidence lacks are underlined on the approval screen.
+- **SFX:** `thoth-control sfx seed` loudness-normalises (EBU R128, -16 LUFS, -1 dBTP) and stores licensed files in object storage; `assets/sfx/LICENSES.json` ships empty, so nothing is seeded until licence-free files are recorded.
+- **API:** `/projects/{p}/edit-documents/{d}/narration` (start, read, `/decision`, `/beats/{beat}`, `/beats/{beat}/revoice`), `/projects/{p}/narration-preset`, `GET /sfx`; the draft's `PATCH` answers `409 narration_in_progress` while a narration runs.
+- **Studio:** Create narration, the Script panel (steps, read-only approval with estimate and unsupported words, then editable lines with Re-voice), the lock banner, the narration preset on *Presets & prompts*, and the SFX library under Timeline's assets; English and Indonesian.
+- **Stage1:** the provider preflight admits the optional `THOTH_ELEVENLABS_API_KEY`; the image carries `assets/sfx` and the catalog.
+
+**Final review** (one fresh reviewer, whole branch): one Critical and six Important findings, plus two Minors re-graded Important by effect, fixed in one pass, each with a test that failed first:
+- A failed workflow start or a Temporal-side cancel no longer leaves the draft locked; `POST .../narration/cancel` closes a run, or a row whose workflow is gone.
+- Voices are stored per beat, so a retry never pays for a beat twice; re-voice is a voice step, then the draft write.
+- An atomic status claim makes a decision and a re-voice happen once; re-voice locks, polls and adopts like a narration.
+- An operator audio clip never outgrows its asset. Re-voicing keeps narration volume, caption fixes, deleted SFX and blur choices, and beats that came from scenes.
+- A narration-lock 409 is not read as a revision conflict, and queued edits are dropped, not replayed, when the narrated draft is adopted.
+- An SFX the draft cannot use is dropped instead of failing the script (the library ships empty).
+
+**Verification:** full Python suite 4402 passed (262 skipped) after the fix pass with the narration suites; the Postgres suites for the narration store, the editor repository and the migrations (0027) pass; `make lint` clean; dashboard 1482 pass, `tsc -b` clean, build clean, oxlint adds no warning; renderer 224 pass. The `narration-v1` parity capsule is not drawn yet.
+
+**Next steps:**
+- Operator gates, each separate: push and PR for `feat/auto-draft-narration`; merge; deploy (migration 0027 applies); put the ElevenLabs key from the old root `.env` into the stage1 provider file; record licence-free SFX in `assets/sfx/LICENSES.json` (or replace the files) and run `thoth-control sfx seed`; choose a model for the `narration_script` stage; one live narrated `produce_video` run as the acceptance; draw and approve the `narration-v1` golden capsule.
+- Final-review minors, fixed before push at the operator's request (2026-10-31), each test-first: polling keeps going after a failed read; an empty beat is dropped, not fatal; ducking scales an audio clip's own volume; the import resolve route waits for a running narration; Create narration is refused once a narration is complete (`narration_exists`); transcription seconds are metered; an edit during a re-voice is refused (the status claim); a changed SFX file replaces its library entry; store outages answer 503 `narration_unavailable`; a library SFX can be added to the draft (`POST /projects/{p}/sfx/{id}/asset`).
+- Recreate narration (operator, 2026-10-31): a finished narration is refused by Create narration (`narration_exists`) but can be written again with **Recreate narration** (`POST .../narration/restart`, confirmed in Studio): a new script for every beat in the draft now, including beats added since, approved again before any voice. A narration (first or recreated) places its approved script's SFX and replaces earlier placed ones; a re-voice keeps the SFX as the operator arranged them, so the SFX shown at approval are the SFX placed.
+- From the Context7 research (Remotion v4.0.538 docs and installed source; ElevenLabs API reference): stitching sends `previous_request_ids` of the beats voiced in the same call (at most 3, IDs stay under two hours) with `previous_text` as the fallback; TTS is metered from the `character-cost` response header; a held clip stays inside one `Freeze` switched on through `active` (its callback receives the clip-local frame), so the decoder is never remounted. `Freeze` pausing `@remotion/media` `Video` is documented; the volume callback is supported though Remotion now prefers a numeric volume (left as is, proven by the `narration-v1` render).
+- Next roadmap: item 7 (Stage 6, enrichment); the style template track stays parked behind the base items.
+
 ## 2026-10-31 - Rust retired: no `crates/`, no Cargo, no Rust-era docs
 
 Operator, 2026-10-30: "scout dan crates itu sudah tidak dipakai!!! karena nanti akan full ke python"; approved on 2026-10-31. Nothing in the deployed images, the Compose stack or CI built or read any of it.

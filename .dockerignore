@@ -50,6 +50,9 @@ tiktok-stage1-soak-report.json*
 
 # Product trees not used by this compatibility image
 assets
+# except narration's bundled SFX, their catalog and licences
+!assets/sfx/**
+!assets/asset_catalog.json
 dashboard
 docs
 test

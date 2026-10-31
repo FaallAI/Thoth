@@ -568,6 +568,19 @@ Artifact locations are validated relative durable paths. The API resolves them b
 `THOTH_CONTROL_PLANE_ARTIFACT_ROOT` only after actor/workflow/artifact authorization; it never
 returns the storage path or a signed source URL.
 
+## Narration (auto-draft)
+
+Spec `docs/superpowers/specs/2026-10-31-auto-draft-narrated-draft-design.md`. `NarrationWorkflow`
+(`workflows/narration.py`) runs per draft: transcribe the main video, write the script on the
+prompt queue (`narration_script` stage), **wait for the operator's decision in Studio**, voice each
+beat with ElevenLabs, then write the draft (`assembly/narration_timeline.py`). Nothing is voiced
+before an approval; a rejection writes the script again with the operator's note. State lives in
+the `narrations` table (migration 0027) and is read through
+`/api/v1/projects/{project_id}/edit-documents/{document_id}/narration` (`/decision`,
+`/beats/{beat}`, `/beats/{beat}/revoice`). While a narration runs, the draft's `PATCH` answers
+`409 narration_in_progress`. The project preset is `/projects/{project_id}/narration-preset`; the
+shared SFX library is `GET /api/v1/sfx` and is seeded with `thoth-control sfx seed`.
+
 ## Scout retirement
 
 The legacy Scout activity, its `thoth-legacy-adapter` queue, the activity modes, and the CDP
