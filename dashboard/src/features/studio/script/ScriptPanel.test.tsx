@@ -35,6 +35,7 @@ function client(overrides: Record<string, unknown> = {}) {
     editNarrationBeat: mock(async () => awaiting.script!),
     revoiceNarrationBeat: mock(async () => awaiting),
     cancelNarration: mock(async () => ({ ...awaiting, status: "cancelled" }) as NarrationState),
+    restartNarration: mock(async () => ({ ...awaiting, status: "transcribing", script: null }) as NarrationState),
     ...overrides,
   };
 }
@@ -150,4 +151,17 @@ test("polling keeps going after a failed read", async () => {
 test("a completed narration is not created again", () => {
   render(<NarrationButton client={client() as never} projectId="p" documentId="edoc_1" state={{ ...awaiting, status: "completed" }} onChange={() => {}} />);
   expect((screen.getByRole("button", { name: "Create narration" }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+
+test("a finished narration is recreated only after a confirmation", async () => {
+  const api = client();
+  const onChange = mock((_state: NarrationState) => {});
+  render(<ScriptPanel client={api as never} projectId="p" documentId="edoc_1" state={{ ...awaiting, status: "completed" }} onChange={onChange} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Recreate narration" }));
+  expect(api.restartNarration).not.toHaveBeenCalled();
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Yes, write a new script" })));
+  expect(api.restartNarration).toHaveBeenCalledWith("p", "edoc_1");
+  expect(onChange.mock.calls[0]![0].status).toBe("transcribing");
 });

@@ -8,7 +8,7 @@ import type { MessageKey } from "@/lib/i18n";
 
 type Client = Pick<
   ControlPlaneClient,
-  "decideNarration" | "editNarrationBeat" | "revoiceNarrationBeat" | "cancelNarration"
+  "decideNarration" | "editNarrationBeat" | "revoiceNarrationBeat" | "cancelNarration" | "restartNarration"
 >;
 type Props = {
   client: Client;
@@ -49,6 +49,7 @@ export function ScriptPanel({ client, projectId, documentId, state, onChange }: 
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [lines, setLines] = useState<Record<string, string>>({});
+  const [confirmRestart, setConfirmRestart] = useState(false);
   const beatLabel = (beat: BeatName) => t(`studio.story.beat.${beat}` as MessageKey);
   const script = state.script;
 
@@ -148,6 +149,26 @@ export function ScriptPanel({ client, projectId, documentId, state, onChange }: 
   return (
     <section aria-label={t("studio.narration.script")} className="flex flex-col gap-3 text-sm">
       {stale.size > 0 ? <p className="text-xs text-copper">{t("studio.narration.staleCount", { count: stale.size })}</p> : null}
+      {/* A whole new script, approved again before any voice (operator, 2026-10-31). */}
+      {confirmRestart ? (
+        <div role="alert" className="flex flex-col gap-2 rounded-md bg-surface p-3 text-xs text-muted-ink">
+          {t("studio.narration.restartWarning")}
+          <div className="flex gap-2">
+            <button type="button" disabled={busy} className="rounded bg-copper px-2 py-1 text-bg disabled:opacity-40"
+              onClick={() => act(() => client.restartNarration(projectId, documentId))}>
+              {t("studio.narration.restartConfirm")}
+            </button>
+            <button type="button" className="rounded bg-raised px-2 py-1 text-ink" onClick={() => setConfirmRestart(false)}>
+              {t("common.cancel")}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" className="self-start rounded-md bg-surface px-3 py-1.5 text-[13px] text-muted-ink"
+          onClick={() => setConfirmRestart(true)}>
+          {t("studio.narration.restart")}
+        </button>
+      )}
       {(script?.beats ?? []).map((beat) => (
         <article key={beat.beat} className="flex flex-col gap-1 rounded-md bg-surface p-3">
           <label className="flex flex-col gap-1 text-xs uppercase text-muted-ink">

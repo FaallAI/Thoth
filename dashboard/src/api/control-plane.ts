@@ -278,6 +278,7 @@ export type ControlPlaneClient = {
   editNarrationBeat: (projectId: string, documentId: string, beat: BeatName, text: string) => Promise<NarrationScript>;
   revoiceNarrationBeat: (projectId: string, documentId: string, beat: BeatName) => Promise<NarrationState>;
   cancelNarration: (projectId: string, documentId: string) => Promise<NarrationState>;
+  restartNarration: (projectId: string, documentId: string) => Promise<NarrationState>;
   getNarrationPreset: (projectId: string) => Promise<StoredNarrationPreset>;
   saveNarrationPreset: (projectId: string, preset: NarrationPreset, baseRevision: number) => Promise<StoredNarrationPreset>;
   listSfx: () => Promise<SfxSummary[]>;
@@ -696,6 +697,7 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
     revoiceNarrationBeat: (projectId, documentId, beat) =>
       importPost(narrationPath(projectId, documentId, `/beats/${beat}/revoice`), {}),
     cancelNarration: (projectId, documentId) => importPost(narrationPath(projectId, documentId, "/cancel"), {}),
+    restartNarration: (projectId, documentId) => importPost(narrationPath(projectId, documentId, "/restart"), {}),
     getNarrationPreset: (projectId) =>
       importCall(`/api/v1/projects/${encodeURIComponent(projectId)}/narration-preset`),
     saveNarrationPreset: (projectId, preset, baseRevision) =>

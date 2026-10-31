@@ -316,10 +316,16 @@ function WordHighlightCue({
   );
 }
 
-/** Past the asset's last frame the clip shows that frame, paused and silent. */
+/**
+ * Past the asset's last frame the clip shows that frame, paused. Freeze stays mounted and
+ * switches on through `active` (Remotion v4.0.127+), so the decoder is never remounted.
+ */
 function HeldClip({ lastFrame, children }: { lastFrame: number; children: ReactNode }) {
-  const frame = useCurrentFrame();
-  return frame > lastFrame ? <Freeze frame={lastFrame}>{children}</Freeze> : <>{children}</>;
+  return (
+    <Freeze frame={lastFrame} active={(frame) => frame > lastFrame}>
+      {children}
+    </Freeze>
+  );
 }
 
 /**

@@ -83,6 +83,7 @@ type Props = {
         | "editNarrationBeat"
         | "revoiceNarrationBeat"
         | "cancelNarration"
+        | "restartNarration"
         | "listSfx"
         | "addSfxToProject"
         | "listStudioReviewComments"
@@ -357,8 +358,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   // Auto-draft narration (spec 2026-10-31): read and polled here; when it completes, the
   // revision the narration wrote is adopted like any newer saved revision.
   const narrationClient =
-    client.startNarration && client.getNarration && client.decideNarration && client.editNarrationBeat && client.revoiceNarrationBeat && client.cancelNarration
-      ? (client as Required<Pick<typeof client, "startNarration" | "getNarration" | "decideNarration" | "editNarrationBeat" | "revoiceNarrationBeat" | "cancelNarration">>)
+    client.startNarration && client.getNarration && client.decideNarration && client.editNarrationBeat && client.revoiceNarrationBeat && client.cancelNarration && client.restartNarration
+      ? (client as Required<Pick<typeof client, "startNarration" | "getNarration" | "decideNarration" | "editNarrationBeat" | "revoiceNarrationBeat" | "cancelNarration" | "restartNarration">>)
       : undefined;
   const [narration, setNarration] = useNarration(narrationClient, projectId, documentId, Boolean(timeline && narrationClient), () => {
     void client.getEditDocument(projectId, documentId).then(

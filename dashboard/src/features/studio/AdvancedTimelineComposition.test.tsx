@@ -52,11 +52,15 @@ mock.module("remotion", () => ({
   },
   Img: (props: Record<string, unknown>) => <div data-testid="img" {...props} />,
   // Narration (spec 2026-10-31): a held clip is drawn inside Freeze past its source.
-  Freeze: ({ frame, children }: { frame: number; children?: ReactNode }) => (
-    <div data-testid="freeze" data-frame={frame}>
-      {children}
-    </div>
-  ),
+  // Freeze stays mounted and switches on through `active`, so the clip never remounts.
+  Freeze: ({ frame, active, children }: { frame: number; active?: (f: number) => boolean; children?: ReactNode }) =>
+    typeof active === "function" && active(currentFrame.value) ? (
+      <div data-testid="freeze" data-frame={frame}>
+        {children}
+      </div>
+    ) : (
+      <div data-testid="freeze-idle">{children}</div>
+    ),
   // The server root registers compositions instead of rendering them, so the
   // registration itself is what the test inspects.
   Composition: (props: Record<string, unknown>) => {
@@ -785,6 +789,8 @@ test("a held clip freezes on its last source frame only past its source", () => 
   currentFrame.value = remaining - 1;
   render(<AdvancedTimelineComposition document={document} previewSources={TYPED_SOURCES} />);
   expect(screen.queryByTestId("freeze")).toBeNull();
+  // The same Freeze element before and after, so the decoder is never remounted.
+  expect(screen.getByTestId("freeze-idle")).toBeTruthy();
   cleanup();
 
   currentFrame.value = remaining + 5;
