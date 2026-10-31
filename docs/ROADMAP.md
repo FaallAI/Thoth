@@ -37,8 +37,8 @@ Scout on 2026-10-31.
   and waveforms need a backend that produces frame strips and audio peaks.
 - **Audit:** B2 (central error handlers) and B5 (`UnavailableWorkflowGateway`, the browser
   `apiKey`, duplicate fetch clients), deferred by the operator on 2026-10-30.
-- **Operations:** retire `THOTH_STAGE1_ACTIVITY_MODE` and `browser-profile` on stage1 (no longer
-  read).
+- **Operations:** done 2026-10-31: `THOTH_STAGE1_ACTIVITY_MODE` left `.env.stage1.local` and the
+  1.4 GB `browser-profile` was deleted; the preflight still passes.
 
 ## Priority order
 
