@@ -46,10 +46,15 @@ def test_dockerignore_excludes_sensitive_and_generated_inputs() -> None:
         "tiktok-stage1-soak-report.json*",
     }
     assert required_patterns <= patterns
-    # One exception, and only one: the tracked release capsule is media the
-    # parity image has to render, and the rules above would otherwise drop it.
+    # The tracked release capsule is media the parity image has to render, and
+    # narration seeds the bundled SFX from the image (spec 2026-10-31); the rules
+    # above would otherwise drop both.
     negations = {pattern for pattern in patterns if pattern.startswith("!")}
-    assert negations == {"!packages/remotion-composition/releases/**"}
+    assert negations == {
+        "!packages/remotion-composition/releases/**",
+        "!assets/sfx/**",
+        "!assets/asset_catalog.json",
+    }
 
 
 def test_dockerfile_uses_locked_full_compatibility_runtime() -> None:
@@ -781,3 +786,14 @@ def test_the_site_pins_browsers_to_https_once_they_reach_it() -> None:
     domain deploy keeps every later visit, and its cookies, on HTTPS."""
     caddyfile = _repo_text("deploy/web/Caddyfile")
     assert 'Strict-Transport-Security "max-age=31536000"' in caddyfile
+
+
+def test_the_image_carries_the_bundled_sfx_and_their_licences() -> None:
+    """Narration seeds the SFX from the image; only licensed files are ever seeded."""
+    dockerfile = _repo_text("Dockerfile")
+    assert "COPY --chown=thoth:thoth assets/sfx/ /opt/thoth/assets/sfx/" in dockerfile
+    assert (
+        "COPY --chown=thoth:thoth assets/asset_catalog.json /opt/thoth/assets/asset_catalog.json"
+        in dockerfile
+    )
+    assert (REPOSITORY_ROOT / "assets/sfx/LICENSES.json").is_file()
