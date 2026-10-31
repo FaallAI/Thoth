@@ -99,6 +99,7 @@ function documentV2(): EditDocumentV2 {
         fit: "cover",
         blur_enabled: false,
         motion: "none",
+        hold_after_source: false,
         emphasis: { highlight: false, arrow: false },
       },
       {

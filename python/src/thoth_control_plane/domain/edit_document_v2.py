@@ -30,7 +30,7 @@ ValidationState: TypeAlias = Literal["ready", "rejected", "pending"]
 FitMode: TypeAlias = Literal["cover", "contain", "fill"]
 OverlayPreset: TypeAlias = Literal["lower_third", "badge", "progress_bar"]
 #: The caption styles `CAPTION_STYLES` in @thoth/remotion-composition renders.
-CaptionStyle: TypeAlias = Literal["caption_default", "source"]
+CaptionStyle: TypeAlias = Literal["caption_default", "source", "word_highlight"]
 #: The import's `SourceRole` plus the two beats only "Add beat" makes (Story mode, spec §5.1).
 StoryRole: TypeAlias = Literal[SourceRole, "hook", "outro"]
 #: Movement across a clip's own duration; "none" draws what was drawn before Story mode.
@@ -169,12 +169,41 @@ class OverlayParameters(StrictModel):
     accent_slot: StyleSlot | None = None
 
 
+class CaptionWord(StrictModel):
+    """One spoken word, timed relative to the start of its cue (word-highlight captions)."""
+
+    from_frame: FrameStart
+    duration_in_frames: Frame
+    text: ShortText
+
+
 class CaptionCue(StrictModel):
     """Cue timing is relative to the start of its caption clip."""
 
     from_frame: FrameStart
     duration_in_frames: Frame
     text: ShortText
+    #: Narration's word timing; a cue without words draws its text as before.
+    words: Annotated[list[CaptionWord], Field(max_length=40)] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def words_inside_the_cue(self) -> CaptionCue:
+        if any(
+            word.from_frame + word.duration_in_frames > self.duration_in_frames
+            for word in self.words
+        ):
+            raise ValueError("caption words must stay inside their cue")
+        return self
+
+
+class VolumeKeyframe(StrictModel):
+    """A volume at one frame, relative to the start of its clip; frames between interpolate."""
+
+    frame: FrameStart
+    volume: Volume
+
+
+VolumeKeyframes = Annotated[list[VolumeKeyframe], Field(max_length=500)]
 
 
 class TimelineTextClip(TimelineClipBase):
@@ -198,6 +227,10 @@ class TimelineVideoClip(TimelineClipBase):
     blur_enabled: bool = False
     motion: Motion = "none"
     emphasis: Emphasis = Field(default_factory=Emphasis)
+    #: Narration's ducking curve; none plays the source audio as before.
+    volume_keyframes: VolumeKeyframes = Field(default_factory=list)
+    #: Past the asset's last frame, hold that frame instead of ending (narration retiming).
+    hold_after_source: bool = False
 
 
 class TimelineOverlayClip(TimelineClipBase):
@@ -219,6 +252,8 @@ class TimelineAudioClip(TimelineClipBase):
     volume: Volume = 1.0
     fade_in_frames: FadeFrames = 0
     fade_out_frames: FadeFrames = 0
+    #: When present, the curve replaces `volume` (the fades still apply).
+    volume_keyframes: VolumeKeyframes = Field(default_factory=list)
 
 
 TimelineClip: TypeAlias = Annotated[
@@ -310,6 +345,10 @@ class EditDocumentV2(StrictModel):
                 clip.fade_in_frames + clip.fade_out_frames > clip.duration_in_frames
             ):
                 raise ValueError("audio fades must stay inside their clip")
+            keyframes = getattr(clip, "volume_keyframes", [])
+            frames = [keyframe.frame for keyframe in keyframes]
+            if frames and (frames != sorted(set(frames)) or frames[-1] >= clip.duration_in_frames):
+                raise ValueError("volume keyframes must be increasing and inside the clip")
 
     @staticmethod
     def _validate_clip_scene(clip: TimelineClip, scenes_by_id: dict[str, Scene]) -> None:
@@ -333,6 +372,8 @@ class EditDocumentV2(StrictModel):
         if asset.kind not in CLIP_ASSET_KINDS[clip.kind]:
             raise ValueError("clip kind is incompatible with asset")
         source_from = getattr(clip, "source_from_frame", 0)
+        if getattr(clip, "hold_after_source", False) and asset.kind == "video":
+            return  # the composition holds the last frame past the source
         if (
             asset.duration_in_frames is not None
             and source_from + clip.duration_in_frames > asset.duration_in_frames

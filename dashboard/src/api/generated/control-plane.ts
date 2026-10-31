@@ -1818,6 +1818,20 @@ export interface components {
             from_frame: number;
             /** Text */
             text: string;
+            /** Words */
+            words?: components["schemas"]["CaptionWord"][];
+        };
+        /**
+         * CaptionWord
+         * @description One spoken word, timed relative to the start of its cue (word-highlight captions).
+         */
+        CaptionWord: {
+            /** Duration In Frames */
+            duration_in_frames: number;
+            /** From Frame */
+            from_frame: number;
+            /** Text */
+            text: string;
         };
         /** CheckoutRequest */
         CheckoutRequest: {
@@ -3345,7 +3359,7 @@ export interface components {
              * Style Slot
              * @enum {string}
              */
-            style_slot: "caption_default" | "source";
+            style_slot: "caption_default" | "source" | "word_highlight";
         };
         /** SetClipBlur */
         SetClipBlur: {
@@ -4109,6 +4123,8 @@ export interface components {
              * @default 1
              */
             volume: number;
+            /** Volume Keyframes */
+            volume_keyframes?: components["schemas"]["VolumeKeyframe"][];
         };
         /** TimelineCaptionClip */
         TimelineCaptionClip: {
@@ -4293,6 +4309,11 @@ export interface components {
              */
             hidden: boolean;
             /**
+             * Hold After Source
+             * @default false
+             */
+            hold_after_source: boolean;
+            /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
@@ -4325,6 +4346,8 @@ export interface components {
             source_role?: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment" | "hook" | "outro") | null;
             /** Track Id */
             track_id: string;
+            /** Volume Keyframes */
+            volume_keyframes?: components["schemas"]["VolumeKeyframe"][];
         };
         /** TokenView */
         TokenView: {
@@ -4455,6 +4478,16 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * VolumeKeyframe
+         * @description A volume at one frame, relative to the start of its clip; frames between interpolate.
+         */
+        VolumeKeyframe: {
+            /** Frame */
+            frame: number;
+            /** Volume */
+            volume: number;
         };
         /** WorkflowEvent */
         WorkflowEvent: {

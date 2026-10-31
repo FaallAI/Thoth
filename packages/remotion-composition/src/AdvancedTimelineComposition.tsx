@@ -148,6 +148,8 @@ const CAPTION_BASE: CSSProperties = {
 const CAPTION_STYLES: Record<string, CSSProperties> = {
   caption_default: { ...CAPTION_BASE, fontSize: 36 },
   source: { ...CAPTION_BASE, fontSize: 30, color: "#e4e4e7" },
+  // Narration's word-timed captions (spec 2026-10-31).
+  word_highlight: { ...CAPTION_BASE, fontSize: 40, fontWeight: 700 },
 };
 
 /** The caption styles a document may name; Studio offers exactly these. */

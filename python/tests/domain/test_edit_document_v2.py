@@ -60,6 +60,13 @@ def test_version_two_round_trips_without_coercion() -> None:
         clip["source_role"] = None
         if clip["kind"] == "video":
             clip.update(motion="none", emphasis={"highlight": False, "arrow": False})
+        # Narration's fields (2026-10-31) read back at their defaults too.
+        if clip["kind"] in {"video", "audio"}:
+            clip["volume_keyframes"] = []
+        if clip["kind"] == "video":
+            clip["hold_after_source"] = False
+        for cue in clip.get("cues", []):
+            cue["words"] = []
     assert document.model_dump(mode="json") == payload
 
 
@@ -195,3 +202,76 @@ def test_version_one_fixture_and_discriminator_still_work() -> None:
 
     with pytest.raises(ValidationError):
         DOCUMENT_ADAPTER.validate_python({**v1_payload, "schema_version": 3})
+
+
+# --- Narration fields (spec 2026-10-31 auto-draft): optional, defaults draw nothing new. ---
+
+
+def test_a_document_without_narration_fields_reads_back_at_their_defaults() -> None:
+    document = EditDocumentV2.model_validate(document_with_every_clip_kind())
+    caption = next(clip for clip in document.clips if clip.kind == "caption")
+    main = next(clip for clip in document.clips if clip.clip_id == "clip_main")
+    music = next(clip for clip in document.clips if clip.clip_id == "clip_music")
+    assert all(cue.words == [] for cue in caption.cues)
+    assert (main.volume_keyframes, main.hold_after_source) == ([], False)
+    assert music.volume_keyframes == []
+    assert EditDocumentV2.model_validate_json(document.model_dump_json()) == document
+
+
+def test_word_cues_keyframes_and_the_word_highlight_style_validate() -> None:
+    payload = document_with_every_clip_kind()
+    caption = clip_by_id(payload, "clip_caption")
+    caption["style_slot"] = "word_highlight"
+    caption["cues"][0]["words"] = [
+        {"from_frame": 0, "duration_in_frames": 10, "text": "Halo"},
+        {"from_frame": 10, "duration_in_frames": 10, "text": "semua"},
+    ]
+    clip_by_id(payload, "clip_main")["volume_keyframes"] = [
+        {"frame": 0, "volume": 1.0},
+        {"frame": 48, "volume": 0.12},
+    ]
+    clip_by_id(payload, "clip_music")["volume_keyframes"] = [{"frame": 0, "volume": 0.45}]
+
+    document = EditDocumentV2.model_validate(payload)
+
+    assert len(next(c for c in document.clips if c.kind == "caption").cues[0].words) == 2
+
+
+def test_a_caption_word_outside_its_cue_is_refused() -> None:
+    payload = document_with_every_clip_kind()
+    cue = clip_by_id(payload, "clip_caption")["cues"][0]
+    cue["words"] = [
+        {"from_frame": 0, "duration_in_frames": cue["duration_in_frames"] + 1, "text": "x"}
+    ]
+    with pytest.raises(ValidationError, match="caption words must stay inside their cue"):
+        EditDocumentV2.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    "keyframes",
+    [
+        [{"frame": 10, "volume": 1.0}, {"frame": 10, "volume": 0.5}],
+        [{"frame": 20, "volume": 1.0}, {"frame": 5, "volume": 0.5}],
+        [{"frame": 300, "volume": 1.0}],
+    ],
+)
+def test_volume_keyframes_must_be_increasing_and_inside_the_clip(
+    keyframes: list[dict[str, Any]],
+) -> None:
+    payload = document_with_every_clip_kind()
+    clip_by_id(payload, "clip_main")["volume_keyframes"] = keyframes
+    with pytest.raises(
+        ValidationError, match="volume keyframes must be increasing and inside the clip"
+    ):
+        EditDocumentV2.model_validate(payload)
+
+
+def test_a_held_video_clip_may_run_past_its_source() -> None:
+    payload = document_with_every_clip_kind()
+    main = clip_by_id(payload, "clip_main")
+    main["source_from_frame"] = 800  # the asset has 900 frames; the clip runs 300
+
+    with pytest.raises(ValidationError, match="clip range exceeds source asset duration"):
+        EditDocumentV2.model_validate(deepcopy(payload))
+    main["hold_after_source"] = True
+    assert EditDocumentV2.model_validate(payload)

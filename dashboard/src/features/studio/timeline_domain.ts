@@ -53,6 +53,7 @@ export const CAPTION_STYLE_LABELS: Record<
 > = {
   caption_default: "Standard",
   source: "Source quote",
+  word_highlight: "Word highlight",
 };
 
 /** Which asset kinds a media-backed clip kind accepts. */
@@ -466,6 +467,7 @@ function addClipFromAsset(
           position: operation.position ?? null,
           blur_enabled: false,
           motion: "none" as const,
+          hold_after_source: false,
           emphasis: { highlight: false, arrow: false },
         },
   ];
