@@ -45,6 +45,10 @@ import { AssistPanel } from "./story/AssistPanel";
 import { BeatInspector } from "./story/BeatInspector";
 import { BeatStrip } from "./story/BeatStrip";
 import { MaterialsPanel } from "./story/MaterialsPanel";
+import { NarrationButton, isNarrationActive } from "./script/NarrationButton";
+import { ScriptPanel } from "./script/ScriptPanel";
+import { SfxLibrary } from "./script/NarrationPresetForm";
+import { useNarration } from "./script/useNarration";
 import { QuickEdit } from "./story/QuickEdit";
 import { SafeZoneOverlay } from "./story/SafeZone";
 import { ROLE_BEAT, computeBeats, type BeatId } from "./story/story_beats";
@@ -73,6 +77,12 @@ type Props = {
         | "attachStudioMaterial"
         | "resolveStudioImportItem"
         | "requestStoryAssist"
+        | "startNarration"
+        | "getNarration"
+        | "decideNarration"
+        | "editNarrationBeat"
+        | "revoiceNarrationBeat"
+        | "listSfx"
         | "listStudioReviewComments"
         | "createStudioReviewComment"
         | "listStudioReviewDecisions"
@@ -342,6 +352,21 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     );
   }, [story, quick, getStudioMaterials, projectId, documentId]);
 
+  // Auto-draft narration (spec 2026-10-31): read and polled here; when it completes, the
+  // revision the narration wrote is adopted like any newer saved revision.
+  const narrationClient =
+    client.startNarration && client.getNarration && client.decideNarration && client.editNarrationBeat && client.revoiceNarrationBeat
+      ? (client as Required<Pick<typeof client, "startNarration" | "getNarration" | "decideNarration" | "editNarrationBeat" | "revoiceNarrationBeat">>)
+      : undefined;
+  const [narration, setNarration] = useNarration(narrationClient, projectId, documentId, Boolean(timeline && narrationClient), () => {
+    void client.getEditDocument(projectId, documentId).then(
+      (latest) => dispatch({ type: "save_succeeded", document: latest, operationIds: [] }),
+      () => {},
+    );
+  });
+  const [showScript, setShowScript] = useState(false);
+  const narrationLocked = isNarrationActive(narration);
+
   // Story previews the draft's own videos and stills; Timeline's library is not mounted here.
   const mediaIds = useMemo(
     () => (timeline?.asset_refs ?? []).filter((ref) => ref.kind !== "audio").map((ref) => ref.asset_id).join(" "),
@@ -541,6 +566,30 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             ))}
           </div>
         ) : null}
+        {story && timeline && narrationClient ? (
+          <>
+            <NarrationButton
+              client={narrationClient}
+              projectId={projectId}
+              documentId={documentId}
+              state={narration}
+              onChange={(next) => {
+                setNarration(next);
+                setShowScript(true);
+              }}
+            />
+            {narration ? (
+              <button
+                type="button"
+                aria-pressed={showScript}
+                className="rounded-md bg-well px-2.5 py-1 text-[13px] text-muted-ink aria-[pressed=true]:bg-raised aria-[pressed=true]:text-ink"
+                onClick={() => setShowScript((value) => !value)}
+              >
+                {t("studio.narration.script")}
+              </button>
+            ) : null}
+          </>
+        ) : null}
         {!compact && !timeline ? (
           <div className="flex rounded-md bg-well p-0.5" role="group" aria-label={t("studio.editor.mode")}>
             <button type="button" aria-pressed="true" className="rounded bg-raised px-2.5 py-1 text-[13px] text-ink">
@@ -687,6 +736,11 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           </div>
         </details>
       </header>
+      {narrationLocked ? (
+        <p role="status" className="border-b border-hairline bg-surface px-4 py-2 text-sm text-copper">
+          {t("studio.narration.locked")}
+        </p>
+      ) : null}
 
       {state.upgradeStatus === "failed" && (
         <div role="alert" className={`${banner} bg-status-failed/10`}>
@@ -758,7 +812,15 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             className={stripLayout ? "col-span-2 col-start-1 row-start-2 min-w-0" : "contents"}
             hidden={!editing || quick || (compact ? editPane !== "scenes" : !sceneRegionOpen)}
           >
-            {story && timeline ? (
+            {story && timeline && showScript && narration && narrationClient ? (
+              <ScriptPanel
+                client={narrationClient}
+                projectId={projectId}
+                documentId={documentId}
+                state={narration}
+                onChange={setNarration}
+              />
+            ) : story && timeline ? (
               <MaterialsPanel
                 materials={materials}
                 uploads={Object.values(state.assets)}
@@ -768,6 +830,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
               />
             ) : advanced ? (
               assetClient ? (
+                <>
                 <AssetLibrary
                   client={assetClient}
                   projectId={projectId}
@@ -778,6 +841,9 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                     setPreviewSources((current) => ({ ...current, [assetId]: previewUrl }))
                   }
                 />
+                {/* The shared SFX library with its labels (spec 2026-10-31, decision 8). */}
+                {client.listSfx ? <SfxLibrary client={{ listSfx: client.listSfx }} /> : null}
+                </>
               ) : null
             ) : (
               <SceneBoard
