@@ -59,12 +59,14 @@ highlight captions, volume keyframes for ducking, and SFX in the media store.
    open-source or widely used clips).
 8. **The SFX live in MinIO/S3** and appear in Studio's asset library with their labels.
 9. **Uploaded SFX are later work** (see section 9).
+10. **Narration starts only when the operator presses "Create narration"** on a draft, never on
+    import, so a draft that is never narrated spends no transcription or LLM tokens.
 
 ## 4. Flow
 
 ```text
 produce_video run (exists) -> operator opens it in Studio (exists: import + placement)
-  -> narration starts for that draft
+  -> the operator presses "Create narration" on that draft      <- nothing is spent before this
        1. transcribe the main video (word timings, whole video)
        2. write the script + SFX cues (LLM, Prompt Lab stage, Content Set + transcript facts)
        3. wait: "Script awaiting approval" in Studio, with the TTS estimate     <- no TTS spend yet
@@ -108,7 +110,9 @@ step. A cancelled or rejected narration spends no TTS.
   the lead-in; the imported visuals of that beat are retimed to fit (a card holds, a footage clip
   is trimmed or held). The beats keep the order and the materials the import chose.
 - **A rejection has no retry limit (my call);** each new script is metered like the first.
-- **Drafts imported before this milestone** stay visual only; they never start a narration.
+- **The button** shows on a draft opened from a `produce_video` run with no narration yet,
+  including drafts imported before this milestone; it is unavailable while a narration runs or
+  waits, and shows why when the voice key or prompt provider is missing.
 
 ## 6. Settings (the narration preset) and defaults
 
