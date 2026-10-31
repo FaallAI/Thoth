@@ -120,3 +120,6 @@ tiktok-stage1-soak-report.json.part
 /stage1.providers.env
 stage1-local-observations*.jsonl
 stage1-local-reports/
+
+# Curated IG aggregator list: local until the operator decides where it lives (2026-10-31)
+python/src/thoth_control_plane/attribution/curated_accounts.json

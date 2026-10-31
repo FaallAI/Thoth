@@ -20,7 +20,8 @@ from thoth_control_plane.attribution.credit import normalize
 
 logger = logging.getLogger(__name__)
 
-# Moved here from Scout's tree when Scout retired (operator, 2026-10-30).
+# Moved here from Scout's tree when Scout retired (operator, 2026-10-30). Gitignored until the
+# operator decides where the list lives (2026-10-31): an image built from Git has none.
 DEFAULT_CURATED_FILE = Path(__file__).with_name("curated_accounts.json")
 MAX_SOURCE_AGE = timedelta(days=14)
 
