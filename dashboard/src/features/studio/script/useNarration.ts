@@ -1,9 +1,21 @@
 // A draft's narration state, read once and polled while it runs (spec 2026-10-31).
 import { useEffect, useRef, useState } from "react";
 
-import type { ControlPlaneClient, NarrationState } from "@/api/control-plane";
+import type { ControlPlaneClient, EditDocument, NarrationState } from "@/api/control-plane";
+
+import type { EditorAction } from "../editor_state";
 
 const ACTIVE = new Set(["transcribing", "scripting", "awaiting_approval", "voicing", "writing"]);
+
+/**
+ * Adopt the revision a narration wrote. It is offered as a newer revision and then
+ * reloaded, so edits queued while the draft was locked are dropped, never replayed onto
+ * the retimed draft.
+ */
+export function adoptNarratedRevision(dispatch: (action: EditorAction) => void, latest: EditDocument): void {
+  dispatch({ type: "save_conflicted", latest });
+  dispatch({ type: "reload_latest" });
+}
 
 /** While a narration is in one of these states it owns the draft. */
 export function isNarrationActive(state: NarrationState | null): boolean {

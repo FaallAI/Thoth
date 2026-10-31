@@ -6,7 +6,10 @@ import type { BeatName, ControlPlaneClient, NarrationState } from "@/api/control
 import { useLocale } from "@/lib/locale";
 import type { MessageKey } from "@/lib/i18n";
 
-type Client = Pick<ControlPlaneClient, "decideNarration" | "editNarrationBeat" | "revoiceNarrationBeat">;
+type Client = Pick<
+  ControlPlaneClient,
+  "decideNarration" | "editNarrationBeat" | "revoiceNarrationBeat" | "cancelNarration"
+>;
 type Props = {
   client: Client;
   projectId: string;
@@ -69,8 +72,20 @@ export function ScriptPanel({ client, projectId, documentId, state, onChange }: 
     );
   }
 
+  const cancel = (
+    <button
+      type="button"
+      disabled={busy}
+      className="self-start rounded-md bg-surface px-3 py-1.5 text-[13px] text-muted-ink disabled:opacity-40"
+      onClick={() => act(() => client.cancelNarration(projectId, documentId))}
+    >
+      {t("studio.narration.cancel")}
+    </button>
+  );
+
   if (state.status !== "awaiting_approval" && state.status !== "completed") {
     return (
+      <div className="flex flex-col gap-3">
       <ol aria-label={t("studio.narration.script")} className="flex flex-col gap-1 text-sm">
         {STEPS.map((step) => (
           <li key={step} aria-current={step === state.status ? "step" : undefined} className="text-muted-ink aria-[current=step]:font-semibold aria-[current=step]:text-ink">
@@ -78,6 +93,8 @@ export function ScriptPanel({ client, projectId, documentId, state, onChange }: 
           </li>
         ))}
       </ol>
+      {cancel}
+      </div>
     );
   }
 
@@ -120,6 +137,7 @@ export function ScriptPanel({ client, projectId, documentId, state, onChange }: 
             onClick={() => act(() => client.decideNarration(projectId, documentId, { decision: "reject", note: note.trim() || null }))}>
             {t("studio.narration.reject")}
           </button>
+          {cancel}
         </div>
       </section>
     );

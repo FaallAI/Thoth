@@ -48,7 +48,7 @@ import { MaterialsPanel } from "./story/MaterialsPanel";
 import { NarrationButton } from "./script/NarrationButton";
 import { ScriptPanel } from "./script/ScriptPanel";
 import { SfxLibrary } from "./script/NarrationPresetForm";
-import { isNarrationActive, useNarration } from "./script/useNarration";
+import { adoptNarratedRevision, isNarrationActive, useNarration } from "./script/useNarration";
 import { QuickEdit } from "./story/QuickEdit";
 import { SafeZoneOverlay } from "./story/SafeZone";
 import { ROLE_BEAT, computeBeats, type BeatId } from "./story/story_beats";
@@ -82,6 +82,7 @@ type Props = {
         | "decideNarration"
         | "editNarrationBeat"
         | "revoiceNarrationBeat"
+        | "cancelNarration"
         | "listSfx"
         | "listStudioReviewComments"
         | "createStudioReviewComment"
@@ -355,12 +356,12 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   // Auto-draft narration (spec 2026-10-31): read and polled here; when it completes, the
   // revision the narration wrote is adopted like any newer saved revision.
   const narrationClient =
-    client.startNarration && client.getNarration && client.decideNarration && client.editNarrationBeat && client.revoiceNarrationBeat
-      ? (client as Required<Pick<typeof client, "startNarration" | "getNarration" | "decideNarration" | "editNarrationBeat" | "revoiceNarrationBeat">>)
+    client.startNarration && client.getNarration && client.decideNarration && client.editNarrationBeat && client.revoiceNarrationBeat && client.cancelNarration
+      ? (client as Required<Pick<typeof client, "startNarration" | "getNarration" | "decideNarration" | "editNarrationBeat" | "revoiceNarrationBeat" | "cancelNarration">>)
       : undefined;
   const [narration, setNarration] = useNarration(narrationClient, projectId, documentId, Boolean(timeline && narrationClient), () => {
     void client.getEditDocument(projectId, documentId).then(
-      (latest) => dispatch({ type: "save_succeeded", document: latest, operationIds: [] }),
+      (latest) => adoptNarratedRevision(dispatch, latest),
       () => {},
     );
   });

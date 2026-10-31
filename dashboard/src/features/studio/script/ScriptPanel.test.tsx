@@ -34,6 +34,7 @@ function client(overrides: Record<string, unknown> = {}) {
     decideNarration: mock(async () => awaiting),
     editNarrationBeat: mock(async () => awaiting.script!),
     revoiceNarrationBeat: mock(async () => awaiting),
+    cancelNarration: mock(async () => ({ ...awaiting, status: "cancelled" }) as NarrationState),
     ...overrides,
   };
 }
@@ -112,4 +113,22 @@ test("useNarration polls while the narration runs and reports when it completes"
   );
   await waitFor(() => expect(result.current[0]?.status).toBe("completed"));
   expect(onCompleted).toHaveBeenCalledTimes(1);
+});
+
+
+test("a running or waiting narration can be cancelled", async () => {
+  const api = client();
+  const onChange = mock((_state: NarrationState) => {});
+  render(<ScriptPanel client={api as never} projectId="p" documentId="edoc_1" state={awaiting} onChange={onChange} />);
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Cancel narration" })));
+  expect(api.cancelNarration).toHaveBeenCalledWith("p", "edoc_1");
+  expect(onChange.mock.calls[0]![0].status).toBe("cancelled");
+});
+
+test("adopting the narrated revision drops the edits queued during the lock", async () => {
+  const { adoptNarratedRevision } = await import("./useNarration");
+  const actions: unknown[] = [];
+  const latest = { revision: 7 } as never;
+  adoptNarratedRevision((action) => actions.push(action), latest);
+  expect(actions).toEqual([{ type: "save_conflicted", latest }, { type: "reload_latest" }]);
 });

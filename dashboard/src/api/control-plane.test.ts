@@ -1112,3 +1112,13 @@ test("card and media addresses stay inside the run and encode each part", () => 
     "https://thoth.test/api/v1/workflows/wf_1/media/reports/wf_1/footage/a%20b.mp4",
   );
 });
+
+test("a draft locked by its narration is a refused save, not a revision conflict", async () => {
+  const body = { detail: { code: "narration_in_progress" } };
+  globalThis.fetch = mock(async () => new Response(JSON.stringify(body), { status: 409 })) as unknown as typeof fetch;
+  const client = createControlPlaneClient({ baseUrl: "http://control-plane.test", apiKey: "secret" });
+
+  await expect(client.patchEditDocument("project_a", "edoc_1", { base_revision: 1, operations: [] })).rejects.toThrow(
+    "narration_in_progress",
+  );
+});

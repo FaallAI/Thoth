@@ -11765,6 +11765,74 @@
         ]
       }
     },
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/cancel": {
+      "post": {
+        "description": "Stop a running narration; nothing further is spent and the draft unlocks.",
+        "operationId": "cancel_narration_api_v1_projects__project_id__edit_documents__document_id__narration_cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Narration",
+        "tags": [
+          "narration"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/decision": {
       "post": {
         "operationId": "decide_narration_api_v1_projects__project_id__edit_documents__document_id__narration_decision_post",

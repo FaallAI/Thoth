@@ -277,6 +277,7 @@ export type ControlPlaneClient = {
   decideNarration: (projectId: string, documentId: string, decision: NarrationDecision) => Promise<NarrationState>;
   editNarrationBeat: (projectId: string, documentId: string, beat: BeatName, text: string) => Promise<NarrationScript>;
   revoiceNarrationBeat: (projectId: string, documentId: string, beat: BeatName) => Promise<NarrationState>;
+  cancelNarration: (projectId: string, documentId: string) => Promise<NarrationState>;
   getNarrationPreset: (projectId: string) => Promise<StoredNarrationPreset>;
   saveNarrationPreset: (projectId: string, preset: NarrationPreset, baseRevision: number) => Promise<StoredNarrationPreset>;
   listSfx: () => Promise<SfxSummary[]>;
@@ -458,7 +459,12 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
       body: JSON.stringify(body),
     });
     if (response.status === 409) {
-      const conflict = (await response.json()) as DocumentRevisionConflictBody;
+      const conflict = (await response.json()) as DocumentRevisionConflictBody & { detail?: { code?: unknown } };
+      // A draft locked by its narration answers 409 too, but without a newer revision to adopt.
+      if (!conflict.latest) {
+        const code = conflict.detail?.code;
+        throw new Error(typeof code === "string" ? code : `Control plane request failed (409)`);
+      }
       return { kind: "conflict", latest: conflict.latest };
     }
     if (!response.ok) throw new Error(`Control plane request failed (${response.status})`);
@@ -688,6 +694,7 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
       }),
     revoiceNarrationBeat: (projectId, documentId, beat) =>
       importPost(narrationPath(projectId, documentId, `/beats/${beat}/revoice`), {}),
+    cancelNarration: (projectId, documentId) => importPost(narrationPath(projectId, documentId, "/cancel"), {}),
     getNarrationPreset: (projectId) =>
       importCall(`/api/v1/projects/${encodeURIComponent(projectId)}/narration-preset`),
     saveNarrationPreset: (projectId, preset, baseRevision) =>
