@@ -10,7 +10,7 @@ import { applyTimelineOperation } from "./timeline_domain";
 import { typedTimelineDocument } from "./timeline-test-fixtures";
 
 /** Props the media primitives received, in render order, per test. */
-const mediaProps: { audio: Record<string, unknown>[] } = { audio: [] };
+const mediaProps: { audio: Record<string, unknown>[]; video: Record<string, unknown>[] } = { audio: [], video: [] };
 
 /** The frame `useCurrentFrame` reports inside a clip's sequence. */
 const currentFrame = { value: 0 };
@@ -51,6 +51,12 @@ mock.module("remotion", () => ({
     return <div data-testid="audio" {...rest} />;
   },
   Img: (props: Record<string, unknown>) => <div data-testid="img" {...props} />,
+  // Narration (spec 2026-10-31): a held clip is drawn inside Freeze past its source.
+  Freeze: ({ frame, children }: { frame: number; children?: ReactNode }) => (
+    <div data-testid="freeze" data-frame={frame}>
+      {children}
+    </div>
+  ),
   // The server root registers compositions instead of rendering them, so the
   // registration itself is what the test inspects.
   Composition: (props: Record<string, unknown>) => {
@@ -73,21 +79,25 @@ mock.module("remotion", () => ({
 
 // The WebCodecs video tag needs a real decoder; its props are what the composition decides.
 mock.module("@remotion/media", () => ({
-  Video: ({ disallowFallbackToOffthreadVideo, ...rest }: Record<string, unknown>) => (
-    <div
-      data-testid="video"
-      data-no-fallback={String(disallowFallbackToOffthreadVideo === true)}
-      {...rest}
-    />
-  ),
+  Video: ({ disallowFallbackToOffthreadVideo, volume, ...rest }: Record<string, unknown>) => {
+    mediaProps.video.push({ volume });
+    return (
+      <div
+        data-testid="video"
+        data-no-fallback={String(disallowFallbackToOffthreadVideo === true)}
+        {...rest}
+      />
+    );
+  },
 }));
 
-const { AdvancedTimelineComposition, COMPOSITION_ID } = await import("@thoth/remotion-composition");
+const { AdvancedTimelineComposition, COMPOSITION_ID, volumeAt } = await import("@thoth/remotion-composition");
 const { RenderRoot } = await import("@thoth/remotion-composition/register");
 
 afterEach(() => {
   currentFrame.value = 0;
   mediaProps.audio.length = 0;
+  mediaProps.video.length = 0;
   registrations.length = 0;
   renderDelay.delayed.length = 0;
   renderDelay.continued.length = 0;
@@ -701,4 +711,83 @@ test("the arrow points up from below when the card has no room above it", () => 
   (low.clips![1] as { position: unknown }).position = { x: 0, y: 0.2, scale: 0.5 };
   render(<AdvancedTimelineComposition document={low} previewSources={TYPED_SOURCES} />);
   expect(screen.getByTestId("clip-arrow").getAttribute("data-placement")).toBe("above");
+});
+
+// Narration (spec 2026-10-31): word-highlight captions, keyframed volume, held clips.
+test("volumeAt holds before the first keyframe, interpolates between, and holds after the last", () => {
+  const keys = [
+    { frame: 10, volume: 1 },
+    { frame: 20, volume: 0.2 },
+  ];
+  expect(volumeAt(0, keys, 0.5)).toBe(1);
+  expect(volumeAt(15, keys, 0.5)).toBeCloseTo(0.6);
+  expect(volumeAt(40, keys, 0.5)).toBe(0.2);
+  expect(volumeAt(5, [], 0.5)).toBe(0.5);
+});
+
+test("a video clip without keyframes passes no volume, and with keyframes follows the curve", () => {
+  render(<AdvancedTimelineComposition document={typedTimelineDocument()} previewSources={TYPED_SOURCES} />);
+  expect(mediaProps.video.every((props) => props.volume === undefined)).toBe(true);
+  cleanup();
+  mediaProps.video.length = 0;
+
+  const document = typedTimelineDocument();
+  Object.assign(document.clips![1]!, { volume_keyframes: [{ frame: 0, volume: 1 }, { frame: 10, volume: 0.12 }] });
+  render(<AdvancedTimelineComposition document={document} previewSources={TYPED_SOURCES} />);
+  const volume = mediaProps.video.find((props) => typeof props.volume === "function")!.volume as (f: number) => number;
+  expect(volume(10)).toBeCloseTo(0.12);
+});
+
+test("an audio clip's keyframes replace its stored volume and still fade", () => {
+  const document = typedTimelineDocument();
+  const audio = document.clips!.find((clip) => clip.kind === "audio")!;
+  Object.assign(audio, { volume: 1, fade_in_frames: 0, fade_out_frames: 0, volume_keyframes: [{ frame: 0, volume: 0.45 }] });
+  render(<AdvancedTimelineComposition document={document} previewSources={TYPED_SOURCES} />);
+  const volume = mediaProps.audio[0]!.volume as (f: number) => number;
+  expect(volume(5)).toBeCloseTo(0.45);
+});
+
+test("a word-highlight cue draws its words and marks the one being spoken", () => {
+  const document = typedTimelineDocument();
+  const caption = document.clips!.find((clip) => clip.kind === "caption")! as Extract<
+    NonNullable<EditDocumentV2["clips"]>[number],
+    { kind: "caption" }
+  >;
+  caption.style_slot = "word_highlight";
+  caption.cues = [
+    {
+      from_frame: 0,
+      duration_in_frames: 20,
+      text: "Halo semua",
+      words: [
+        { from_frame: 0, duration_in_frames: 10, text: "Halo" },
+        { from_frame: 10, duration_in_frames: 10, text: "semua" },
+      ],
+    },
+  ];
+  currentFrame.value = 12;
+  render(<AdvancedTimelineComposition document={document} previewSources={TYPED_SOURCES} />);
+  const words = screen.getAllByTestId("caption-word") as HTMLElement[];
+  expect(words.map((word) => [word.textContent, word.getAttribute("data-active")])).toEqual([
+    ["Halo", "false"],
+    ["semua", "true"],
+  ]);
+});
+
+test("a held clip freezes on its last source frame only past its source", () => {
+  const document = typedTimelineDocument();
+  const clip = document.clips![1]! as Extract<NonNullable<EditDocumentV2["clips"]>[number], { kind: "video" }>;
+  const asset = document.asset_refs!.find((ref) => ref.asset_id === clip.asset_id)!;
+  const remaining = 10;
+  asset.duration_in_frames = 200;
+  Object.assign(clip, { hold_after_source: true, source_from_frame: 200 - remaining });
+
+  currentFrame.value = remaining - 1;
+  render(<AdvancedTimelineComposition document={document} previewSources={TYPED_SOURCES} />);
+  expect(screen.queryByTestId("freeze")).toBeNull();
+  cleanup();
+
+  currentFrame.value = remaining + 5;
+  render(<AdvancedTimelineComposition document={document} previewSources={TYPED_SOURCES} />);
+  expect(screen.getByTestId("freeze").getAttribute("data-frame")).toBe(String(remaining - 1));
 });

@@ -9,6 +9,7 @@ export {
   AdvancedTimelineComposition,
   CAPTION_STYLE_IDS,
   type PreviewSources,
+  volumeAt,
 } from "./AdvancedTimelineComposition";
 export { safePreviewSource } from "./media";
 // The media box the composition draws, so Story places cards by what is actually visible.
