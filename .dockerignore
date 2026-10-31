@@ -50,7 +50,6 @@ tiktok-stage1-soak-report.json*
 
 # Product trees not used by this compatibility image
 assets
-crates
 dashboard
 docs
 test

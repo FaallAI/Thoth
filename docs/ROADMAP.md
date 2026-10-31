@@ -21,7 +21,7 @@ shipped since 2026-10-19; the items themselves keep their original wording and o
 | 8. Stage 8: discovery in Python | Not started. The old curated Instagram account list (`attribution/curated_accounts.json`, local and gitignored) fed Scout's viral-content discovery; the operator decides its future with this item. Since 2026-10-31 it filters nothing |
 | 9. Stage 7: durable orchestration | Not started; waits on 8 |
 | 10. Stage 9: cutover and final live acceptance | Waits on 1-9; the final soak is Python-only (no parity samples) |
-| 11. Stage 10: retire Scout and Rust | Half done: Scout retired early and deployed 2026-10-31 (PR #97: no legacy activity, no `legacy-cdp`, no `scout/`). Left: `crates/`, the Rust-era docs (README, `.env.example`, CLI/INSTALL/MODELS/FEATURES, main-footage), and dropping the decode-only `activity_mode` workflow input after 2026-11-29 |
+| 11. Stage 10: retire Scout and Rust | Nearly done: Scout retired early and deployed 2026-10-31 (PR #97: no legacy activity, no `legacy-cdp`, no `scout/`); the Rust engine, its docs and Rust-only scripts removed 2026-10-31, which also clears the 17 Dependabot alerts (all were Rust crates). Left: dropping the decode-only `activity_mode` workflow input after 2026-11-29 |
 
 Dashboard redesign track: steps 1-7 are deployed (run progress phases 1-5, restyle part A
 R1-R4 and part B R5-R7, last on 2026-10-30 at `03741c3`). Step 8, the operator's live gate, is
@@ -32,7 +32,8 @@ Scout on 2026-10-31.
 
 ### Open follow-ups from the 2026-10-30 and 2026-10-31 deploys
 
-- **Security:** 17 Dependabot alerts on `master` (2 critical, 4 high, 7 moderate, 4 low), untriaged.
+- **Security:** the 17 Dependabot alerts (2 critical, 4 high, 7 moderate, 4 low) were all in Rust
+  crates (`zip`, `quinn-proto`, `rustls`, `tar`); the Rust retirement removes them.
 - **Studio:** the header overflows at 430 px; the seven deferred R7 minors; Timeline thumbnails
   and waveforms need a backend that produces frame strips and audio peaks.
 - **Audit:** B2 (central error handlers) and B5 (`UnavailableWorkflowGateway`, the browser

@@ -1,5 +1,4 @@
 # Developer and operator commands. Run from WSL at the repository root: `make help`.
-# The Windows CUDA build of the Rust CLI stays on build_cuda.bat.
 
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
