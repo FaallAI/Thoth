@@ -33,7 +33,7 @@ Branch `fix/studio-audit-findings`, not pushed. Ledger: `.superpowers/sdd/2026-1
 - On a phone, Render scrolls the whole page, so its header moves with it.
 
 **Verification**
-- **Dashboard:** 1551 tests pass; `tsc -b`, the build and lint are clean (lint exit 0, its warnings are in files this work did not change for them). Python was not touched, so `make test` and `make lint` were not run.
+- **Dashboard:** 1551 tests pass; `tsc -b`, the build and lint pass (lint exit 0 with 45 warnings, none on a line this work added). Python was not touched, so `make test` and `make lint` were not run.
 - **e2e, model-free:** `tests/studio-audit-fixes.e2e.ts` on `chore/e2e-trial` (dae60422, unpushed). The first 7 checks failed on stage1 at `f061b3d`; all 8, plus the 5 in `tests/studio-shell-v2.e2e.ts`, pass on a local dev server of this branch against stage1 data.
 - **e2e, live over MCP, read only:** 24 screenshots in `D:/thoth-tmp/e2e-audit-2026-11-02-fixes/`, judged by Claude. Story at 1440 and 1024; Timeline and the Studio list at 1440; Story (Preview, Materials, Inspector, menu), Timeline (Timeline, Assets, empty Inspector), Review and Render at 430.
 - **Not covered:** Indonesian (locale comes from the server-side user), video and audio playback and thumbnails with real pictures (the read scope refuses preview capabilities), Space in a real browser (unit test only), the open Script panel, a screenshot of Timeline at 1024, and the deployed build.
