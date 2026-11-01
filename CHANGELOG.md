@@ -2,6 +2,56 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-01 - Studio shell v2: one-row header, phone panes, human labels, truthful beats, clickable issues
+
+Spec: `docs/superpowers/specs/2026-11-01-studio-shell-v2-design.md`. Plan: `docs/superpowers/plans/2026-11-01-studio-shell-v2.md` (7 tasks, executed natively). Ledger: `.superpowers/sdd/2026-11-01-studio-shell-v2/progress.md`. Branch `feat/studio-shell-v2`.
+
+**What changed**
+
+- **Labels.** Assets and clips read "kind · source" ("Narration · Main", "Comment card · @lailynisfa", "Upload · Image"), never an id. Repeated names are numbered. This covers asset rows, Materials uploads, the Story Shown list, the Timeline inspector title, clip names and the issue rows.
+- **Header.** The header is 56 px and one row from 1024 up. Script and Assist move into the overflow menu, and Assist now opens its panel instead of toggling. At 1024 the back button is an icon only and the menu carries an amber dot when a beat needs re-voice. The jobs and Request review never wrap.
+- **Narration status.** It replaces the dead-looking "Create narration" button with "Narrated · N beats" (and "N need re-voice"), plus Re-voice changed beats, Recreate narration… and Open script. A failed or cancelled narration offers Create again.
+  - **Every re-voice shows its cost first.** Both the bulk re-voice and the Script panel's per-beat re-voice show the beats' characters and their prorated price, and wait for "Yes, re-voice N beats". Operator ruling: the estimate shows before any voice.
+  - **Bulk re-voice runs one beat at a time.** It waits for each to finish, because the server takes one re-voice at a time. It stops at a failure code, when Studio closes, or after 10 minutes.
+- **Beat strip.** Each tile shows its own seconds, and the tiles sum to the canvas ("matches canvas"). A green mic marks a narrated beat, an amber mic a stale one, and only the selected tile is outlined.
+- **Inspectors.** The scene heading is clamped to two lines, with Edit heading. A narrated beat's timing reads "Cards follow the voice".
+- **Issues.** They are grouped by lane, and each row names its clip and its time. Choosing a row selects the clip and moves the playhead. The Timeline inspector lists the selected clip's issues.
+- **Phone and tablet (under 1024).** A v2 draft edits Story (Materials / Preview / Inspector, beats as chips) or Timeline (Assets / Preview / Timeline / Inspector) in panes.
+  - The Timeline is view-only: no drag, trim, clip actions, lane toggles or adds. Inspect opens a tapped clip's fields.
+  - The quick edit and its swap sheet are retired. DESIGN.md §13.5 is updated.
+- **Page width.** `.studio-shell` may shrink. A truncated title had set its min-content to 985 px at 430 wide.
+
+**Verification**
+- **Dashboard:** 1527 tests pass; `tsc -b`, the build and lint are clean.
+- **Python:** 4415 passed, 263 skipped; `make lint` is clean.
+- **Browser walk** on the narrated stage1 draft:
+  - the header is 56 px at 1440 and 1024;
+  - there is no horizontal scroll at 430, 1024 or 1440;
+  - no `asset_` or `clip_` text appears;
+  - the beat total is 34.5 s, equal to the canvas;
+  - the menu stays inside the viewport.
+- **Not covered:** the Indonesian frames rendered in English, because the read-token session ignores the stored locale. Indonesian widths stay covered by a unit test.
+- **Final review:** a fresh reviewer found no Critical issue. Its 4 Important findings were fixed test-first:
+  1. a failed re-voice ends "completed" with a failure code;
+  2. the wait loop had no stop or cap;
+  3. the compact Timeline still edited;
+  4. Timeline pane then Story left an empty workspace.
+
+  It also found 8 Minors, which are deferred and listed in the ledger.
+
+**Next steps**
+- **Operator gates:** push and PR for `feat/studio-shell-v2`; merge; deploy (web image; no migration).
+- **Deferred minors:**
+  - the Script panel reopens during a bulk re-voice;
+  - two pollers write the narration state;
+  - the menu dot shows while voicing and at full desktop;
+  - a failed narration's block stacks in the header at 1440;
+  - a non-numeric SFX clip id would read "NaN";
+  - an unlabelled lane shows its track id;
+  - `beatOwnFrames` is O(frames × beats);
+  - a single-beat re-voice failure is silent in the Script panel.
+- **Later:** new issue kinds (a gap before a beat, a clip running past its beat, captions too short); reopen `edoc_2927f300…` from its run before narrating it; the CC0 default SFX set; the `narration-v1` golden capsule.
+
 ## 2026-11-01 - Deployed d8b738a (PR #102); the narrated draft rebuilt without TTS; Studio shell v2 specified
 
 **Deploy:**
