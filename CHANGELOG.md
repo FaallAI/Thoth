@@ -2,6 +2,50 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-02 - Fixed every finding of the first e2e audit of Studio
+
+Branch `fix/studio-audit-findings`, not pushed. Ledger: `.superpowers/sdd/2026-11-02-studio-audit-fixes/progress.md`. Operator: "ya kerjakan semuanya". The findings are in the entry below.
+
+**Important findings fixed**
+1. Phone header: the title keeps the first row; jobs and mode share the second.
+2. Request review is in the phone menu.
+3. Scene media finds the main-track video under a scene that lists only text, and names it ("Main video · @kabinet_rakyat") instead of an id.
+4. A beat's inspector reads its own seconds, the same as its tile.
+5. Materials rows read "Post card · @kabinet_rakyat". A row keeps the material's own label as the source, so a titled row stays distinct; a judged comment stays its own words. The Add from materials picker uses the same names.
+6. Asset rows show a picture or a kind icon. Materials has a Narration group when the draft has narration clips.
+7. Lane names are sticky; a view-only Timeline gives them 96 px.
+8. The Studio list shows the whole post card. A wide card now reads small in its 9:16 box instead of cropped.
+9. Status `unknown` no longer counts as active, so the false "20 running" is gone.
+
+**Minor findings fixed**
+- Phone panes fill the screen, with the beats pinned under them. The cause was `height: auto` in `pen.css` as well as `dashboard.css`.
+- Play no longer takes focus: Studio handles Space itself in `usePlayerTimeline`, except where focus already uses Space. Play and volume have a gap.
+- The canvas label moved into the hint line under the preview.
+- One Open script / Close script button replaces the menu's duplicate; it also shows while a narration runs.
+- The side panel is named "Materials panel" or "Assets panel", and Story has no width slider for its fixed column.
+- The stray separator in the view-only toolbar is gone.
+- Handles read with "@" once.
+- Other drafts' uploads list last in Assets.
+- The empty inspector fills the phone screen.
+
+**Behaviour changes to know**
+- The canvas label does not show in Timeline or Review, because the hint line is hidden there.
+- On a phone, Render scrolls the whole page, so its header moves with it.
+
+**Verification**
+- **Dashboard:** 1551 tests pass; `tsc -b`, the build and lint are clean (lint exit 0, its warnings are in files this work did not change for them). Python was not touched, so `make test` and `make lint` were not run.
+- **e2e, model-free:** `tests/studio-audit-fixes.e2e.ts` on `chore/e2e-trial` (dae60422, unpushed). The first 7 checks failed on stage1 at `f061b3d`; all 8, plus the 5 in `tests/studio-shell-v2.e2e.ts`, pass on a local dev server of this branch against stage1 data.
+- **e2e, live over MCP, read only:** 24 screenshots in `D:/thoth-tmp/e2e-audit-2026-11-02-fixes/`, judged by Claude. Story at 1440 and 1024; Timeline and the Studio list at 1440; Story (Preview, Materials, Inspector, menu), Timeline (Timeline, Assets, empty Inspector), Review and Render at 430.
+- **Not covered:** Indonesian (locale comes from the server-side user), video and audio playback and thumbnails with real pictures (the read scope refuses preview capabilities), Space in a real browser (unit test only), the open Script panel, a screenshot of Timeline at 1024, and the deployed build.
+
+**New finding, not fixed:** while Studio loads, the narration state is still empty, so a narrated draft briefly shows "Create narration". Seen at 1440 on the dev server, which is slower than stage1. Clicking it in that moment would ask to start a narration. Scene media also reads "Upload · Video" until the materials arrive.
+
+**Next steps**
+- Next work: fix the "Create narration" flash, test-first, on this branch or the next.
+- Operator gates: push and PR, merge, deploy for this branch; merging `chore/e2e-trial`.
+- After deploy: run both e2e files against stage1 (`--target w1440`).
+- Carry forward: watch and render rev 18; reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; the 218 stored `unknown` rows stay in `workflow_runs`.
+
 ## 2026-11-02 - Deployed f061b3d (PR #103); first e2e audit of Studio; tester-army/e2e is the audit standard
 
 **Deploy:** master `f061b3d` (PR #103, Studio shell v2). Images: thoth `42cf2c0e`, renderer `f0277d98`, web `001229db`, pulled ahead. `make deploy` exit 0 with no workflow running; preflight passed; head stays `0027`; every service healthy; no ERROR or Traceback in the api, worker, web and renderer logs. Read smoke 200. Previous pins: `D:/thoth-tmp/bu/pins/pins-d8b738a3.env`.
