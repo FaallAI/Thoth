@@ -41,15 +41,7 @@ Spec: `docs/superpowers/specs/2026-11-01-studio-shell-v2-design.md`. Plan: `docs
 
 **Next steps**
 - **Operator gates:** push and PR for `feat/studio-shell-v2`; merge; deploy (web image; no migration).
-- **Deferred minors:**
-  - the Script panel reopens during a bulk re-voice;
-  - two pollers write the narration state;
-  - the menu dot shows while voicing and at full desktop;
-  - a failed narration's block stacks in the header at 1440;
-  - a non-numeric SFX clip id would read "NaN";
-  - an unlabelled lane shows its track id;
-  - `beatOwnFrames` is O(frames × beats);
-  - a single-beat re-voice failure is silent in the Script panel.
+- **Minors:** all 8 were fixed test-first on 2026-11-02 (operator: "lakukan perbaikan minor"). Dashboard suite: 1535 pass.
 - **Later:** new issue kinds (a gap before a beat, a clip running past its beat, captions too short); reopen `edoc_2927f300…` from its run before narrating it; the CC0 default SFX set; the `narration-v1` golden capsule.
 
 ## 2026-11-01 - Deployed d8b738a (PR #102); the narrated draft rebuilt without TTS; Studio shell v2 specified
