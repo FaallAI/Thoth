@@ -1,7 +1,7 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, test } from "bun:test";
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 
 import { render } from "@/test-render";
 
@@ -290,4 +290,20 @@ test("track controls dispatch their own typed operations", () => {
     track_id: "track_music",
     muted: true,
   });
+});
+
+test("lane names stay in sight while the lanes scroll, and take a quarter of a phone when view-only", () => {
+  // e2e audit 2026-11-02, finding 7: at 430 they scrolled away, and their 192 px took half the screen.
+  const header = () => within(screen.getByRole("group", { name: "Main video track" })).getByText("main_video").parentElement!;
+  mount();
+  expect(header().className).toContain("sticky");
+  expect(header().className).toContain("w-48");
+  expect(document.querySelector(".h-5.w-px")).not.toBeNull();
+  cleanup();
+
+  render(<Timeline state={createEditorState(timelineDocument())} dispatch={() => {}} onPlay={() => {}} onPause={() => {}} readOnly />);
+  expect(header().className).toContain("sticky");
+  expect(header().className).toContain("w-24");
+  // e2e audit 2026-11-02: no separator is left over from the switches a view hides.
+  expect(document.querySelector(".h-5.w-px")).toBeNull();
 });

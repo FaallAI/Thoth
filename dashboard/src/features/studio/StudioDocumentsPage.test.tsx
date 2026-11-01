@@ -4,12 +4,13 @@ import { afterEach, expect, mock, test } from "bun:test";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes, useParams } from "react-router";
 
 import type { EditDocumentListItem, WorkflowRun } from "@/api/control-plane";
 import { LocaleProvider } from "@/lib/locale";
 
-import { StudioDocumentsPage, type DocumentsClient } from "./StudioDocumentsPage";
+import { StudioDocumentsPage, Thumbnail, type DocumentsClient } from "./StudioDocumentsPage";
 
 afterEach(cleanup);
 
@@ -96,8 +97,6 @@ test("each document card shows its state, source run, revision and opens by URL"
   expect(card.textContent).toContain("Rev 4");
   // The picture is the run's post card; a card the browser cannot load falls back to a plain panel.
   expect(fake.cardUrl).toHaveBeenCalledWith("wf_1", "post");
-  // e2e audit 2026-11-02, finding 8: a wide card cropped to giant text ("AR PENJI"); the whole card shows.
-  expect(card.querySelector("img")!.className).toContain("object-contain");
   await userEvent.setup().click(card);
   expect(await screen.findByText("studio p1 edoc_1")).toBeDefined();
 });
@@ -200,4 +199,10 @@ test("a document whose time does not parse still shows its revision", async () =
 
   const card = await screen.findByRole("link", { name: /Kabut/ });
   expect(card.textContent).toContain("Rev 2");
+});
+
+test("a post card shows whole, not cropped", () => {
+  // e2e audit 2026-11-02, finding 8: a wide card cropped to giant text ("AR PENJI").
+  // Static markup: in a full run happy-dom may fail the image before a test can read it.
+  expect(renderToStaticMarkup(<Thumbnail src="/card" platform={null} />)).toContain("object-contain");
 });

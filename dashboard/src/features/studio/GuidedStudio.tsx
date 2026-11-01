@@ -165,7 +165,10 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   // Simple desktop editing lays the scenes out as a strip under the preview.
   const stripLayout = editing && !compact && !advanced && !story;
   const workstationStyle = compact
-    ? undefined
+    ? // A phone's Story pane takes the height; the beats sit under it.
+      story && editing
+      ? ({ gridTemplateRows: "minmax(0,1fr) auto" } as CSSProperties)
+      : undefined
     : ({
         "--scene-board-width": `${sceneBoardWidth}rem`,
         "--inspector-width": `${inspectorWidth}rem`,
@@ -658,6 +661,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
               onChange={setNarration}
               onStarted={() => setShowScript(true)}
               onOpenScript={() => setShowScript(true)}
+              onCloseScript={() => setShowScript(false)}
+              scriptOpen={showScript}
             />
           </>
         ) : null}
@@ -668,16 +673,6 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           <>
             {story && timeline && narrationClient ? (
               <div className="flex flex-wrap gap-2 border-b border-hairline pb-3">
-            {narration ? (
-              <button
-                type="button"
-                aria-pressed={showScript}
-                className="rounded-md bg-well px-2.5 py-1 text-[13px] text-muted-ink aria-[pressed=true]:bg-raised aria-[pressed=true]:text-ink"
-                onClick={() => setShowScript((value) => !value)}
-              >
-                {t("studio.narration.script")}
-              </button>
-            ) : null}
             {story && askAssist ? (
               <button
                 type="button"
@@ -746,14 +741,14 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 {collapsible ? (
                   <div className="flex flex-wrap gap-2">
                     <button type="button" className={toolbarButton} aria-expanded={sceneBoardOpen} aria-controls="studio-region-scenes" onClick={() => setSceneBoardOpen((open) => !open)}>
-                      {t("studio.editor.scenePanel")}
+                      {t(story ? "studio.editor.materialsPanel" : advanced ? "studio.editor.assetsPanel" : "studio.editor.scenePanel")}
                     </button>
                     <button type="button" className={toolbarButton} aria-expanded={inspectorOpen} aria-controls="studio-region-inspector" onClick={() => setInspectorOpen((open) => !open)}>
                       {t("studio.editor.inspectorPanel")}
                     </button>
                   </div>
                 ) : null}
-                {sceneRegionOpen && !stripLayout ? (
+                {sceneRegionOpen && !stripLayout && !story ? (
                   <>
                     <label htmlFor={sceneWidthId}>{t("studio.editor.sceneWidth")}</label>
                     <input id={sceneWidthId} type="range" min={12} max={22} step={1} value={sceneBoardWidth} onChange={(event) => setSceneBoardWidth(event.target.valueAsNumber)} />

@@ -292,7 +292,7 @@ test("exposes native labelled controls for the resizable simple workstation with
   await screen.findByLabelText("Heading");
   const workstation = screen.getByLabelText("Guided editing workstation");
   // The scene strip sits under the preview, so it has no column width to set.
-  expect(screen.queryByLabelText("Scene board width") === null).toBe(true);
+  expect(screen.queryByLabelText("Assets width") === null).toBe(true);
   const inspectorWidth = screen.getByLabelText("Inspector width") as HTMLInputElement;
   expect(inspectorWidth.type).toBe("range");
   expect(screen.getByLabelText("Draft preview")).toBeDefined();

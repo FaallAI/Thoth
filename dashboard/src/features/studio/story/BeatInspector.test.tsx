@@ -188,7 +188,7 @@ test("without the run's provenance, Add from materials offers only what already 
   );
 
   fireEvent.click(screen.getByRole("button", { name: "Add from materials" }));
-  expect(within(screen.getByRole("listbox", { name: "Add from materials" })).getAllByRole("option").map((option) => option.textContent)).toEqual(["@kept"]);
+  expect(within(screen.getByRole("listbox", { name: "Add from materials" })).getAllByRole("option").map((option) => option.textContent)).toEqual(["Comment card · @kept"]);
 });
 
 test("the timing fields follow the draft after an undo", () => {

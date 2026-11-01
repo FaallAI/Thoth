@@ -48,7 +48,7 @@ function StatePill({ item }: { item: EditDocumentListItem }) {
 }
 
 /** The run's post card when it has one; a plain panel otherwise (or when the card is not ours to see). */
-function Thumbnail({ src, platform }: { src: string | null; platform: string | null | undefined }) {
+export function Thumbnail({ src, platform }: { src: string | null; platform: string | null | undefined }) {
   const [broken, setBroken] = useState(false);
   return (
     <div className="flex aspect-[9/16] w-[88px] shrink-0 items-center justify-center overflow-hidden rounded-md bg-well md:w-full md:rounded-[10px] md:bg-surface">

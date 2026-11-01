@@ -23,6 +23,9 @@ type Props = {
   overlay?: ReactNode;
 };
 
+const canvasRatio = ({ canvas }: EditDocument) =>
+  canvas.width === 1080 && canvas.height === 1920 ? "9:16" : `${canvas.width}:${canvas.height}`;
+
 export function StudioPreview({
   document,
   embedded = false,
@@ -65,7 +68,6 @@ export function StudioPreview({
       // With an overlay the canvas box is sized from this box's own width and height.
       style={overlay === undefined ? undefined : { containerType: "size" }}
     >
-      {embedded ? <span className="studio-preview-badge">{currentDocument.canvas.width === 1080 && currentDocument.canvas.height === 1920 ? "9:16" : `${currentDocument.canvas.width}:${currentDocument.canvas.height}`} · {currentDocument.canvas.width}×{currentDocument.canvas.height}</span> : null}
       {overlay === undefined ? player() : (
         <div
           className="relative mx-auto"
@@ -96,7 +98,9 @@ export function StudioPreview({
           inputProps: never;
         })}
         controls
-        spaceKeyToPlayOrPause
+        // On true Remotion refocuses its Play button on load and on every play or pause; inside
+        // Studio, usePlayerTimeline handles Space instead.
+        spaceKeyToPlayOrPause={!embedded}
         renderPlayPauseButton={({ playing }) => playing ? <Pause size={15} /> : <Play size={15} />}
         renderMuteButton={({ muted }) => muted ? <VolumeX size={14} /> : <Volume2 size={14} />}
         renderFullscreenButton={({ isFullscreen }) => isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
@@ -107,7 +111,7 @@ export function StudioPreview({
     );
   }
 
-  if (embedded) return <section className="flex min-h-0 flex-1 flex-col" aria-label="Studio preview">{preview}<p className="studio-preview-hint">Space to play/pause · Click scenes to jump</p></section>;
+  if (embedded) return <section className="flex min-h-0 flex-1 flex-col" aria-label="Studio preview">{preview}<p className="studio-preview-hint">{currentDocument ? `${canvasRatio(currentDocument)} · ${currentDocument.canvas.width}×${currentDocument.canvas.height} · ` : ""}Space to play/pause · Click scenes to jump</p></section>;
 
   return (
     <section className="flex min-h-0 flex-1 flex-col gap-4 p-4" aria-label="Studio preview">

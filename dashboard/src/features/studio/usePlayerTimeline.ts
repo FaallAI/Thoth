@@ -14,6 +14,9 @@ export type PlayerTimelineRef = {
 
 type FrameEvent = { detail?: { frame?: number } };
 
+/** Where Space already does something; anywhere else in Studio it plays and pauses. */
+const SPACE_TAKEN = 'input,textarea,select,button,a,summary,dialog,[contenteditable="true"],[role="button"],[role="slider"],[role="option"]';
+
 /**
  * Keep the timeline and the Player in step.
  *
@@ -38,7 +41,18 @@ export function usePlayerTimeline(
       handlers.current.onFrameChange(
         (event as FrameEvent).detail?.frame ?? player.getCurrentFrame(),
       );
-    const playing = (value: boolean) => () => handlers.current.onPlayingChange?.(value);
+    let isPlaying = false;
+    const playing = (value: boolean) => () => {
+      isPlaying = value;
+      handlers.current.onPlayingChange?.(value);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== "Space" || event.repeat) return;
+      if (event.target instanceof Element && event.target.closest(SPACE_TAKEN)) return;
+      event.preventDefault();
+      if (isPlaying) player.pause();
+      else player.play();
+    };
     const listeners: [string, (event: unknown) => void][] = [
       ["frameupdate", frame],
       ["seeked", frame],
@@ -47,8 +61,10 @@ export function usePlayerTimeline(
     ];
 
     for (const [type, listener] of listeners) player.addEventListener(type, listener);
+    window.addEventListener("keydown", onKeyDown);
     return () => {
       for (const [type, listener] of listeners) player.removeEventListener(type, listener);
+      window.removeEventListener("keydown", onKeyDown);
     };
   }, [player]);
 

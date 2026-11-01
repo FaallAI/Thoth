@@ -19,6 +19,9 @@ type Props = {
   variant: "chip" | "block";
   onChange: (state: NarrationState) => void;
   onOpenScript: () => void;
+  /** The script panel is open: the same button closes it. */
+  scriptOpen?: boolean;
+  onCloseScript?: () => void;
   /** How often a running re-voice is read back; tests shorten it. */
   pollMs?: number;
   /** A new or recreated narration started: Studio opens its script. */
@@ -39,7 +42,7 @@ const REVOICE_WAIT_MS = 10 * 60 * 1000;
 const reasonOf = (error: unknown) =>
   error instanceof StudioImportRequestError ? (error.code ?? "narration_unavailable") : "narration_unavailable";
 
-export function NarrationStatus({ client, projectId, documentId, state, variant, onChange, onOpenScript, pollMs = 3000, onStarted }: Props) {
+export function NarrationStatus({ client, projectId, documentId, state, variant, onChange, onOpenScript, scriptOpen = false, onCloseScript, pollMs = 3000, onStarted }: Props) {
   const { t } = useLocale();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -140,7 +143,7 @@ export function NarrationStatus({ client, projectId, documentId, state, variant,
           {t("studio.narration.create")}
         </button>
       ) : null}
-      {state?.status === "awaiting_approval" ? (
+      {state?.status === "awaiting_approval" && !scriptOpen ? (
         <button type="button" className={action} onClick={onOpenScript}>
           {t("studio.narration.readyToApprove")}
         </button>
@@ -166,10 +169,12 @@ export function NarrationStatus({ client, projectId, documentId, state, variant,
               {t("studio.narration.restartMenu")}
             </button>
           )}
-          <button type="button" className={action} onClick={onOpenScript}>
-            {t("studio.narration.openScript")}
-          </button>
         </>
+      ) : null}
+      {state && (scriptOpen || state.status !== "awaiting_approval") ? (
+        <button type="button" className={action} onClick={scriptOpen ? onCloseScript : onOpenScript}>
+          {t(scriptOpen ? "studio.narration.closeScript" : "studio.narration.openScript")}
+        </button>
       ) : null}
       {problem ? (
         <p role="status" className="px-2 text-xs text-danger">
