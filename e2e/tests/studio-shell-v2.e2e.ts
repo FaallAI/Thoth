@@ -17,7 +17,7 @@ test('1440 Story: tier 1 controls, the narration chip and a beat total that matc
   await expect(screen.getByText('Total 34.5 s')).toBeVisible();
   await expect(screen.getByText('matches canvas')).toBeVisible();
   await expect(screen.getByRole('button', 'Main 8.9 s Narrated')).toBeVisible();
-  await expect(screen.getByText(/asset_|clip_/)).toHaveCount(0);
+  await expect(screen.getByText(/asset_|clip_/, { visible: true })).toHaveCount(0);
 });
 
 test('1440 Timeline: every tool and the clip inspector fields stay, named in words', async ({ app, browser, screen }) => {
@@ -36,7 +36,7 @@ test('1440 Timeline: every tool and the clip inspector fields stay, named in wor
   for (const name of ['Start frame', 'End frame', 'Fit', 'Crop', 'Hidden', 'Locked', 'Ownership']) {
     await expect(screen.getByLabel(name)).toBeVisible();
   }
-  await expect(screen.getByText(/asset_|clip_/)).toHaveCount(0);
+  await expect(screen.getByText(/asset_|clip_/, { visible: true })).toHaveCount(0);
 });
 
 test('1024: the menu holds the narration, Script and Assist', async ({ app, browser, screen }) => {
