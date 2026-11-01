@@ -152,6 +152,9 @@ export function ScriptPanel({ client, projectId, documentId, state, onChange }: 
   return (
     <section aria-label={t("studio.narration.script")} className="flex flex-col gap-3 text-sm">
       {stale.size > 0 ? <p className="text-xs text-copper">{t("studio.narration.staleCount", { count: stale.size })}</p> : null}
+      {state.status === "completed" && state.failure_code ? (
+        <p role="status" className="text-xs text-danger">{t("studio.narration.revoiceFailed", { code: state.failure_code })}</p>
+      ) : null}
       {/* A whole new script, approved again before any voice (operator, 2026-10-31). */}
       {confirmRestart ? (
         <div role="alert" className="flex flex-col gap-2 rounded-md bg-surface p-3 text-xs text-muted-ink">

@@ -47,7 +47,7 @@ import { AssistPanel } from "./story/AssistPanel";
 import { BeatInspector } from "./story/BeatInspector";
 import { BeatStrip } from "./story/BeatStrip";
 import { MaterialsPanel } from "./story/MaterialsPanel";
-import { NarrationStatus } from "./script/NarrationStatus";
+import { NarrationStatus, narrationAttention } from "./script/NarrationStatus";
 import { ScriptPanel } from "./script/ScriptPanel";
 import { SfxLibrary } from "./script/NarrationPresetForm";
 import { adoptNarratedRevision, isNarrationActive, useNarration } from "./script/useNarration";
@@ -654,17 +654,15 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
               documentId={documentId}
               state={narration}
               variant={viewport === "full_desktop" ? "chip" : "block"}
-              onChange={(next) => {
-                setNarration(next);
-                setShowScript(true);
-              }}
+              onChange={setNarration}
+              onStarted={() => setShowScript(true)}
               onOpenScript={() => setShowScript(true)}
             />
           </>
         ) : null}
           </>
         }
-        menuAttention={Boolean(narration?.stale_beats?.length)}
+        menuAttention={narrationAttention(narration, viewport)}
         menu={
           <>
             {story && timeline && narrationClient ? (

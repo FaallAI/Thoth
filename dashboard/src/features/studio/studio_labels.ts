@@ -29,7 +29,8 @@ function clipName(clip: Clip, ctx: LabelContext): { label: string; kind: AssetKi
     return { label: t("studio.label.narration", { beat }), kind: "voice" };
   }
   if (clip.clip_id.startsWith(SFX)) {
-    return { label: t("studio.label.sfx", { number: Number(clip.clip_id.slice(SFX.length)) + 1 }), kind: "sfx" };
+    const number = Number(clip.clip_id.slice(SFX.length)) + 1;
+    return { label: Number.isFinite(number) ? t("studio.label.sfx", { number }) : t("studio.label.sfxPlain"), kind: "sfx" };
   }
   const track = document.tracks.find((item) => item.track_id === clip.track_id);
   if (clip.kind === "audio" && track?.kind === "music") return { label: t("studio.label.music"), kind: "music" };

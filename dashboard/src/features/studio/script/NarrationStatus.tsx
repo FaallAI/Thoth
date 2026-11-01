@@ -7,6 +7,7 @@ import { StudioImportRequestError, type ControlPlaneClient, type NarrationState 
 import { useLocale } from "@/lib/locale";
 
 import { RevoiceConfirm } from "./RevoiceConfirm";
+import type { StudioViewport } from "../studio_viewport";
 import { isNarrationActive } from "./useNarration";
 
 type Props = {
@@ -20,7 +21,14 @@ type Props = {
   onOpenScript: () => void;
   /** How often a running re-voice is read back; tests shorten it. */
   pollMs?: number;
+  /** A new or recreated narration started: Studio opens its script. */
+  onStarted?: () => void;
 };
+
+/** The menu's amber dot: a completed narration has stale beats, and the menu (below 1440) holds the re-voice. */
+export function narrationAttention(state: NarrationState | null, viewport: StudioViewport): boolean {
+  return viewport !== "full_desktop" && state?.status === "completed" && (state.stale_beats ?? []).length > 0;
+}
 
 const action =
   "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-ink hover:bg-surface focus-visible:outline-2 focus-visible:outline-copper disabled:cursor-not-allowed disabled:opacity-40";
@@ -31,7 +39,7 @@ const REVOICE_WAIT_MS = 10 * 60 * 1000;
 const reasonOf = (error: unknown) =>
   error instanceof StudioImportRequestError ? (error.code ?? "narration_unavailable") : "narration_unavailable";
 
-export function NarrationStatus({ client, projectId, documentId, state, variant, onChange, onOpenScript, pollMs = 3000 }: Props) {
+export function NarrationStatus({ client, projectId, documentId, state, variant, onChange, onOpenScript, pollMs = 3000, onStarted }: Props) {
   const { t } = useLocale();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -59,7 +67,11 @@ export function NarrationStatus({ client, projectId, documentId, state, variant,
       setBusy(false);
     }
   };
-  const create = () => run(async () => onChange(await client.startNarration(projectId, documentId)));
+  const create = () =>
+    run(async () => {
+      onChange(await client.startNarration(projectId, documentId));
+      onStarted?.();
+    });
   // One beat at a time, in story order; the first refusal stops the rest.
   const revoiceChanged = () =>
     run(async () => {
@@ -75,9 +87,10 @@ export function NarrationStatus({ client, projectId, documentId, state, variant,
           await new Promise((resolve) => setTimeout(resolve, pollMs));
           if (!mounted.current) return;
           if (Date.now() > deadline) throw new StudioImportRequestError(null, "narration_unavailable");
+          // Studio's own poller reports the reads in between; this loop reports the end.
           current = await client.getNarration(projectId, documentId);
-          onChange(current);
         }
+        onChange(current);
         // A failed re-voice ends "completed" with a failure code (NarrationRevoiceWorkflow).
         if (current.status !== "completed" || current.failure_code) {
           throw new StudioImportRequestError(null, current.failure_code ?? current.status);
@@ -88,6 +101,7 @@ export function NarrationStatus({ client, projectId, documentId, state, variant,
     run(async () => {
       setConfirming(false);
       onChange(await client.restartNarration(projectId, documentId));
+      onStarted?.();
     });
 
   const summary =
@@ -165,12 +179,14 @@ export function NarrationStatus({ client, projectId, documentId, state, variant,
     </div>
   );
 
-  if (variant === "block" || summary === null) return block;
+  if (variant === "block" || state === null) return block;
+  // A stopped narration is one chip in the header; its reason and Create sit behind it.
+  const label = summary ?? t("studio.narration.stopped");
   return (
     <details className="relative shrink-0">
       <summary className="inline-flex h-9 cursor-pointer list-none items-center gap-2 rounded-md border border-hairline px-3 text-[13px] text-ink hover:bg-surface focus-visible:outline-2 focus-visible:outline-copper [&::-webkit-details-marker]:hidden">
-        <Mic aria-hidden="true" size={14} className={stale.length ? "text-status-waiting" : "text-status-done"} />
-        {summary}
+        <Mic aria-hidden="true" size={14} className={summary === null ? "text-status-failed" : stale.length ? "text-status-waiting" : "text-status-done"} />
+        {label}
         {stale.length ? <span aria-hidden="true" className="size-1.5 rounded-full bg-status-waiting" /> : null}
       </summary>
       <div className="absolute top-11 right-0 z-40 w-72 rounded-[10px] border border-hairline bg-raised p-2 shadow-xl">{block}</div>

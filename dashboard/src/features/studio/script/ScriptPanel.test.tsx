@@ -160,3 +160,10 @@ test("a finished narration is recreated only after a confirmation", async () => 
   expect(api.restartNarration).toHaveBeenCalledWith("p", "edoc_1");
   expect(onChange.mock.calls[0]![0].status).toBe("transcribing");
 });
+
+test("a re-voice that failed says so, and the beat keeps its earlier voice", () => {
+  // Final review, minor 8: a failed re-voice ends "completed" with a failure code.
+  render(<ScriptPanel client={client() as never} projectId="p" documentId="edoc_1" state={{ ...awaiting, status: "completed", stale_beats: ["main"], failure_code: "revoice_failed" }} onChange={() => {}} />);
+
+  expect(screen.getByRole("status").textContent).toContain("revoice_failed");
+});

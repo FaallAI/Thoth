@@ -81,3 +81,10 @@ test("a placed sound effect is numbered, since its clip id carries no library id
   expect(clipLabel(ctx.document.clips!.at(-1)!, ctx)).toBe("Sound effect · 1");
   expect(assetLabel("asset_sfx", ctx).label).toBe("Sound effect · 1");
 });
+
+test("a sound effect clip whose id carries no number reads plainly, never NaN", () => {
+  // Final review, minor 5.
+  const ctx = context(withClip({ ...voice, clip_id: "clip_sfx_whoosh", asset_id: "asset_sfx" }, { ...voiceAsset, asset_id: "asset_sfx" }));
+
+  expect(clipLabel(ctx.document.clips!.at(-1)!, ctx)).toBe("Sound effect");
+});

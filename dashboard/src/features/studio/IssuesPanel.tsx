@@ -17,11 +17,16 @@ type Props = {
   labelOf?: (clip: Clip) => string;
 };
 
+type Track = EditDocumentV2["tracks"][number];
+
+/** A lane's name: its label, else the word for its kind; never its id. */
+export function laneName(t: LocaleState["t"], track: Track | undefined): string {
+  return track?.label || (track ? t(`studio.timeline.trackKind.${track.kind}`) : t("studio.label.clip"));
+}
+
 /** An issue in readable language: "<lane>: <what is wrong>". */
 export function issueSentence(t: LocaleState["t"], doc: EditDocumentV2, issue: TimelineIssue): string {
-  return t(`studio.issues.${issue.code}`, {
-    track: doc.tracks.find((track) => track.track_id === issue.target.track_id)?.label ?? issue.target.track_id,
-  });
+  return t(`studio.issues.${issue.code}`, { track: laneName(t, doc.tracks.find((track) => track.track_id === issue.target.track_id)) });
 }
 
 /** A frame as m:ss.s on the canvas clock. */
@@ -76,9 +81,9 @@ export function IssuesBar({ document: doc, selectedIssueId, mode, dispatch, labe
       {open && issues.length > 0 ? (
         <div className="absolute bottom-full left-0 z-30 max-h-[50vh] w-full max-w-md overflow-auto rounded-t-[10px] border border-hairline bg-raised p-2 shadow-xl">
           {lanes.map(({ track, issues: laneIssues }) => (
-            <section key={track.track_id} role="group" aria-label={track.label ?? track.track_id} className="mb-2 last:mb-0">
+            <section key={track.track_id} role="group" aria-label={laneName(t, track)} className="mb-2 last:mb-0">
               <h3 className="px-2 py-1 font-mono text-[0.7rem] text-muted-ink">
-                {track.label ?? track.track_id} <span className="text-faint">{laneIssues.length}</span>
+                {laneName(t, track)} <span className="text-faint">{laneIssues.length}</span>
               </h3>
               <ul className="space-y-1">
                 {laneIssues.map((issue) => {

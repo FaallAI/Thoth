@@ -117,14 +117,18 @@ export function computeBeats(document: EditDocumentV2, inventory: StudioImportIt
 export function beatOwnFrames(beats: Beat[], totalFrames: number): Map<BeatId, number> {
   const own = new Map<BeatId, number>(beats.map((beat) => [beat.id, 0]));
   const byStart = [...beats].sort((a, b) => a.startFrame - b.startFrame);
-  for (let frame = 0; frame < totalFrames; frame++) {
+  // Ownership only changes where a beat starts or ends, so count those spans, not frames.
+  const edges = [0, totalFrames, ...beats.flatMap((beat) => [beat.startFrame, beat.startFrame + beat.durationInFrames])];
+  const cuts = [...new Set(edges.map((edge) => Math.min(Math.max(edge, 0), totalFrames)))].sort((a, b) => a - b);
+  for (let index = 0; index < cuts.length - 1; index++) {
+    const frame = cuts[index]!;
     let owner: Beat | undefined;
     for (const beat of byStart) {
       const covers = beat.startFrame <= frame && frame < beat.startFrame + beat.durationInFrames;
       if (covers && (!owner || beat.startFrame > owner.startFrame || (beat.startFrame === owner.startFrame && beat.durationInFrames < owner.durationInFrames))) owner = beat;
     }
     owner ??= byStart.filter((beat) => beat.startFrame <= frame).at(-1) ?? byStart[0];
-    if (owner) own.set(owner.id, (own.get(owner.id) ?? 0) + 1);
+    if (owner) own.set(owner.id, (own.get(owner.id) ?? 0) + cuts[index + 1]! - frame);
   }
   return own;
 }

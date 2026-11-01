@@ -162,3 +162,14 @@ test("an issue row names its clip and its time", () => {
   fireEvent.click(row);
   expect(actions.at(-1)).toEqual({ type: "set_playhead", frame: 30 });
 });
+
+test("a lane without a label is named by its kind, never its id", () => {
+  // Final review, minor 6.
+  const document = brokenDocument();
+  for (const track of document.tracks) delete (track as { label?: string }).label;
+  render(<IssuesBar document={document} selectedIssueId="" mode="advanced" dispatch={() => {}} />);
+  review();
+
+  expect(screen.getAllByRole("group").map((group) => group.getAttribute("aria-label"))).toEqual(["Main video", "Music"]);
+  expect(screen.queryByText(/track_/)).toBeNull();
+});

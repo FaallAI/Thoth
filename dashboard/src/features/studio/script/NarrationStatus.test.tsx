@@ -6,7 +6,7 @@ import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import { StudioImportRequestError, type NarrationState } from "@/api/control-plane";
 import { render } from "@/test-render";
 
-import { NarrationStatus } from "./NarrationStatus";
+import { NarrationStatus, narrationAttention } from "./NarrationStatus";
 
 afterEach(cleanup);
 
@@ -194,4 +194,64 @@ test("leaving Studio stops the re-voice: no more reads and no more paid beats", 
 
   expect(getNarration.mock.calls.length).toBeLessThanOrEqual(reads + 1);
   expect(revoiceNarrationBeat).toHaveBeenCalledTimes(1);
+});
+
+test("the script opens for a new or recreated narration, never for a re-voice", async () => {
+  // Final review, minor 1: the Script panel reopened on every read during a bulk re-voice.
+  const onStarted = mock(() => {});
+  const api = client({ getNarration: mock(async () => ({ ...completed, stale_beats: [] }) as NarrationState) });
+  const { rerender } = render(
+    <NarrationStatus client={api as never} projectId="p" documentId="edoc_1" state={null} variant="block" onChange={() => {}} onOpenScript={() => {}} onStarted={onStarted} pollMs={1} />,
+  );
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Create narration" })));
+  expect(onStarted).toHaveBeenCalledTimes(1);
+
+  rerender(
+    <NarrationStatus client={api as never} projectId="p" documentId="edoc_1" state={{ ...completed, stale_beats: ["main"] }} variant="block" onChange={() => {}} onOpenScript={() => {}} onStarted={onStarted} pollMs={1} />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Re-voice 1 changed beats" }));
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Yes, re-voice 1 beats" }));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  });
+  expect(onStarted).toHaveBeenCalledTimes(1);
+});
+
+test("a re-voice reports each beat's start and end, not every read in between", async () => {
+  // Final review, minor 2: Studio's own poller owns the reads in between.
+  let reads = 0;
+  const getNarration = mock(async () => (++reads < 3 ? { ...completed, status: "voicing" } : { ...completed, stale_beats: [] }) as NarrationState);
+  const { onChange } = mount({ ...completed, stale_beats: ["main"] }, client({ revoiceNarrationBeat: mock(async () => ({ ...completed, status: "voicing" }) as NarrationState), getNarration }));
+
+  fireEvent.click(screen.getByRole("button", { name: "Re-voice 1 changed beats" }));
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Yes, re-voice 1 beats" }));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+  });
+
+  expect(reads).toBe(3);
+  expect(onChange.mock.calls.map(([state]) => state.status)).toEqual(["voicing", "completed"]);
+});
+
+test("the menu dot means a re-voice waits in the menu: completed, stale, and below 1440", () => {
+  // Final review, minor 3.
+  const stale = { ...completed, stale_beats: ["main"] } as NarrationState;
+  expect(narrationAttention(stale, "compact_desktop")).toBe(true);
+  expect(narrationAttention(stale, "full_desktop")).toBe(false);
+  expect(narrationAttention({ ...stale, status: "voicing" }, "compact_desktop")).toBe(false);
+  expect(narrationAttention(completed, "compact_desktop")).toBe(false);
+  expect(narrationAttention(null, "phone")).toBe(false);
+});
+
+test("in the header a stopped narration is one chip, its reason and Create behind it", () => {
+  // Final review, minor 4: three stacked lines overflowed the 56 px header at 1440.
+  render(
+    <NarrationStatus client={client() as never} projectId="p" documentId="edoc_1" state={{ ...completed, status: "failed", failure_code: "voice_rejected" }} variant="chip" onChange={() => {}} onOpenScript={() => {}} />,
+  );
+  expect(screen.getByText("Narration stopped")).toBeDefined();
+  expect(screen.getByRole("button", { name: "Create narration" }).closest("details")).not.toBeNull();
+  cleanup();
+
+  render(<NarrationStatus client={client() as never} projectId="p" documentId="edoc_1" state={null} variant="chip" onChange={() => {}} onOpenScript={() => {}} />);
+  expect(screen.getByRole("button", { name: "Create narration" }).closest("details")).toBeNull();
 });

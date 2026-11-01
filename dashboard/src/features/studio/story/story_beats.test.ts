@@ -113,3 +113,13 @@ test("beat seconds always sum to the canvas, and a Hook over Main keeps its own 
   expect([...own.values()].reduce((sum, frames) => sum + frames, 0)).toBe(300);
   expect(own.get("hook")).toBeGreaterThan(0);
 });
+
+test("beat ownership is counted by spans, not frame by frame", () => {
+  // Final review, minor 7: a long canvas must not cost a loop per frame on every render.
+  const started = performance.now();
+  const own = beatOwnFrames([span("main", 0, 5_000_000), span("evidence", 2_000_000, 1_000_000)], 9_000_000);
+
+  expect(performance.now() - started).toBeLessThan(50);
+  // Main owns 0-2M and 3M-5M; Evidence owns 2M-3M and the uncovered tail 5M-9M (it started last).
+  expect([...own.entries()]).toEqual([["main", 4_000_000], ["evidence", 5_000_000]]);
+});
