@@ -112,7 +112,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   // The job is the destination at every width; compact screens also pick one
   // Edit pane at a time.
   const [job, setJob] = useState<StudioJob>("edit");
-  const [editPane, setEditPane] = useState<StudioEditPane>("preview");
+  const [chosenPane, setEditPane] = useState<StudioEditPane>("preview");
   const viewport = useStudioViewport();
   const compact = viewport === "phone" || viewport === "tablet";
   const [sceneBoardOpen, setSceneBoardOpen] = useState(true);
@@ -129,6 +129,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   // Both modes project the same draft; only version 2 can show the advanced one. Every width
   // edits Story or Timeline; compact screens show them one pane at a time (spec 2026-11-01).
   const advanced = Boolean(timeline) && state.mode === "advanced";
+  // Story has no Timeline pane: a Timeline pane chosen before a mode switch shows the preview.
+  const editPane: StudioEditPane = !advanced && chosenPane === "timeline" ? "preview" : chosenPane;
   const story = Boolean(timeline) && !advanced;
   // Below 1024 the Timeline is a view: its lanes show, edits happen on a larger screen.
   const timelineReadOnly = compact && advanced;
@@ -886,7 +888,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                   projectId={projectId}
                   generationRef={generation}
                   onAssets={(assets, replace) => dispatch({ type: "assets_loaded", assets, replace })}
-                  onAdd={addAsset}
+                  onAdd={timelineReadOnly ? undefined : addAsset}
                   onPreviewSource={(assetId, previewUrl) =>
                     setPreviewSources((current) => ({ ...current, [assetId]: previewUrl }))
                   }
@@ -897,10 +899,14 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                   <SfxLibrary
                     client={{ listSfx: client.listSfx, addSfxToProject: client.addSfxToProject }}
                     projectId={projectId}
-                    onAdd={(asset) => {
-                      dispatch({ type: "assets_loaded", assets: [asset], replace: false });
-                      addAsset(asset);
-                    }}
+                    onAdd={
+                      timelineReadOnly
+                        ? undefined
+                        : (asset) => {
+                            dispatch({ type: "assets_loaded", assets: [asset], replace: false });
+                            addAsset(asset);
+                          }
+                    }
                   />
                   </div>
                 ) : null}

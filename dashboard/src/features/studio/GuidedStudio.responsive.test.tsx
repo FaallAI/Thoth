@@ -217,6 +217,8 @@ test("Timeline on a phone is view-only, with a larger-screen note and Inspect", 
   expect(screen.getByText(/Best on a larger screen/)).toBeDefined();
   expect(screen.queryByRole("button", { name: /^Trim start of/ }) === null).toBe(true);
   expect(screen.queryByRole("group", { name: "Clip actions" }) === null).toBe(true);
+  // Final review, Important 3: lane toggles edit the draft too, so a view hides them.
+  expect(screen.queryByRole("button", { name: /^(Mute|Unmute|Hide|Show|Lock|Unlock) / }) === null).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "Music clip" }));
   fireEvent.click(screen.getByRole("button", { name: "Inspect" }));
   expect(screen.getByRole("button", { name: "Inspector" }).getAttribute("aria-current")).toBe("page");
@@ -540,4 +542,16 @@ test("Studio may shrink to the phone's width: a long title never widens the page
   // 985 px at 430 wide (browser walk, 2026-11-01).
   await renderStudio(375, timelineDocument() as EditDocument);
   expect(screen.getByRole("region", { name: "Guided Studio" }).className.split(" ").includes("min-w-0")).toBe(true);
+});
+
+test("leaving Timeline from its pane shows the preview, never an empty workspace", async () => {
+  // Final review, Important 4: Story has no Timeline pane, so the chosen pane must fall back.
+  await renderStudio(375, timelineDocument() as EditDocument);
+  const modes = () => within(screen.getByRole("group", { name: "Editor mode" }));
+  fireEvent.click(modes().getByRole("button", { name: "Timeline" }));
+  pane("Timeline");
+  fireEvent.click(modes().getByRole("button", { name: "Story" }));
+
+  expect(screen.getByRole("button", { name: "Preview" }).getAttribute("aria-current")).toBe("page");
+  expect(isHidden(screen.getByLabelText("Draft preview"))).toBe(false);
 });

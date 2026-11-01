@@ -188,3 +188,19 @@ test("asset rows name assets, never by id, and number repeated names", async () 
   expect(screen.getAllByText("Video · 4.0 s")).toHaveLength(2);
   expect(screen.queryByText(/asset_/)).toBeNull();
 });
+
+test("without an add action the rows offer preview only", async () => {
+  // Final review, Important 3: a view-only Timeline (below 1024) adds nothing to the draft.
+  render(
+    <AssetLibrary
+      client={{ listEditorAssets: mock(async () => page({ next_cursor: null })) as never, createEditorPreviewCapability: mock(async () => ({ preview_url: "/x", expires_at: "2026-09-20T00:00:00Z" })) as never }}
+      projectId="project_001"
+      generationRef={{ current: 0 }}
+      onAssets={() => {}}
+      onPreviewSource={() => {}}
+    />,
+  );
+
+  expect(await screen.findByRole("button", { name: "Preview asset_video" })).toBeDefined();
+  expect(screen.queryByRole("button", { name: /to timeline$/ })).toBeNull();
+});

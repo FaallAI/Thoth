@@ -92,7 +92,8 @@ export function TimelineTrack({
             <StateIcon key={field} aria-hidden="true" size={12} className="shrink-0 text-faint" />
           ))}
         <div className="absolute inset-y-0 right-1 flex items-center gap-0.5 bg-surface pl-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-          {toggles.map(([field, value, label, ToggleIcon]) => (
+          {/* A view-only Timeline (below 1024) changes nothing, lanes included. */}
+          {(readOnly ? [] : toggles).map(([field, value, label, ToggleIcon]) => (
             <button
               key={field}
               type="button"

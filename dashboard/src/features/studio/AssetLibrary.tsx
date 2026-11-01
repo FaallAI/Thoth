@@ -16,7 +16,8 @@ type Props = {
    */
   generationRef: RefObject<number>;
   onAssets: (assets: EditorAsset[], replace: boolean) => void;
-  onAdd: (asset: EditorAsset) => void;
+  /** Absent on a view-only Timeline (below 1024): rows offer preview only. */
+  onAdd?: (asset: EditorAsset) => void;
   onPreviewSource: (assetId: string, previewUrl: string) => void;
   /** A row's human name and detail line (spec 2026-11-01); absent, a row falls back to its id. */
   describe?: (asset: EditorAsset) => { label: string; detail: string };
@@ -120,14 +121,16 @@ export function AssetLibrary({
                 <span className="block font-medium break-words text-foreground">{labels[index]}</span>
                 <span className="block text-muted-foreground">{described[index]!.detail}</span>
                 <div className="mt-1 flex flex-wrap gap-1">
-                  <button
-                    type="button"
-                    className={action}
-                    aria-label={`Add ${labels[index]} to timeline`}
-                    onClick={() => onAdd(asset)}
-                  >
-                    Add
-                  </button>
+                  {onAdd ? (
+                    <button
+                      type="button"
+                      className={action}
+                      aria-label={`Add ${labels[index]} to timeline`}
+                      onClick={() => onAdd(asset)}
+                    >
+                      Add
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className={action}

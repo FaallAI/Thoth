@@ -1,6 +1,6 @@
 // The narration's status in Studio's header (spec 2026-11-01, Studio shell v2, goal 2): it says
 // where the narration stands and what can be done next, instead of a button that looks dead.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LoaderCircle, Mic } from "lucide-react";
 
 import { StudioImportRequestError, type ControlPlaneClient, type NarrationState } from "@/api/control-plane";
@@ -25,6 +25,9 @@ type Props = {
 const action =
   "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-ink hover:bg-surface focus-visible:outline-2 focus-visible:outline-copper disabled:cursor-not-allowed disabled:opacity-40";
 
+/** How long one beat's re-voice may run before the loop gives up. */
+const REVOICE_WAIT_MS = 10 * 60 * 1000;
+
 const reasonOf = (error: unknown) =>
   error instanceof StudioImportRequestError ? (error.code ?? "narration_unavailable") : "narration_unavailable";
 
@@ -34,6 +37,14 @@ export function NarrationStatus({ client, projectId, documentId, state, variant,
   const [problem, setProblem] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [confirmingRevoice, setConfirmingRevoice] = useState(false);
+  // A re-voice in flight stops when Studio closes: no more reads and no more paid beats.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const stale = state?.status === "completed" ? (state.stale_beats ?? []) : [];
   const beats = state?.script?.beats.length ?? 0;
 
@@ -54,16 +65,23 @@ export function NarrationStatus({ client, projectId, documentId, state, variant,
     run(async () => {
       setConfirmingRevoice(false);
       for (const beat of stale) {
+        if (!mounted.current) return;
         let current = await client.revoiceNarrationBeat(projectId, documentId, beat);
         onChange(current);
         // The server takes one re-voice at a time (completed -> voicing until written), so each
-        // beat must finish before the next is asked for.
+        // beat must finish before the next is asked for; a stalled one gives up after the cap.
+        const deadline = Date.now() + REVOICE_WAIT_MS;
         while (isNarrationActive(current)) {
           await new Promise((resolve) => setTimeout(resolve, pollMs));
+          if (!mounted.current) return;
+          if (Date.now() > deadline) throw new StudioImportRequestError(null, "narration_unavailable");
           current = await client.getNarration(projectId, documentId);
           onChange(current);
         }
-        if (current.status !== "completed") throw new StudioImportRequestError(null, current.failure_code ?? current.status);
+        // A failed re-voice ends "completed" with a failure code (NarrationRevoiceWorkflow).
+        if (current.status !== "completed" || current.failure_code) {
+          throw new StudioImportRequestError(null, current.failure_code ?? current.status);
+        }
       }
     });
   const recreate = () =>

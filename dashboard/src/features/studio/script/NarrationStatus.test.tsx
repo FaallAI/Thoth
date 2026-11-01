@@ -159,9 +159,10 @@ test("re-voicing changed beats waits for each beat to finish before the next", a
   expect(screen.queryByRole("status")).toBeNull();
 });
 
-test("re-voicing stops when a beat's narration fails", async () => {
+test("re-voicing stops when a beat's re-voice fails", async () => {
+  // A failed re-voice ends "completed" with a failure code (NarrationRevoiceWorkflow), never "failed".
   const revoiceNarrationBeat = mock(async () => ({ ...completed, status: "voicing" }) as NarrationState);
-  const getNarration = mock(async () => ({ ...completed, status: "failed", failure_code: "voice_rejected" }) as NarrationState);
+  const getNarration = mock(async () => ({ ...completed, stale_beats: ["main", "reactions"], failure_code: "revoice_failed" }) as NarrationState);
   mount({ ...completed, stale_beats: ["main", "reactions"] }, client({ revoiceNarrationBeat, getNarration }));
 
   fireEvent.click(screen.getByRole("button", { name: "Re-voice 2 changed beats" }));
@@ -171,5 +172,26 @@ test("re-voicing stops when a beat's narration fails", async () => {
   });
 
   expect(revoiceNarrationBeat).toHaveBeenCalledTimes(1);
-  expect(screen.getByRole("status").textContent).toContain("voice_rejected");
+  expect(screen.getByRole("status").textContent).toContain("revoice_failed");
+});
+
+test("leaving Studio stops the re-voice: no more reads and no more paid beats", async () => {
+  // Final review, Important 2: the wait loop outlived the component that started it.
+  const revoiceNarrationBeat = mock(async () => ({ ...completed, status: "voicing" }) as NarrationState);
+  const getNarration = mock(async () => ({ ...completed, status: "voicing" }) as NarrationState);
+  const api = client({ revoiceNarrationBeat, getNarration });
+  const { unmount } = render(
+    <NarrationStatus client={api as never} projectId="p" documentId="edoc_1" state={{ ...completed, stale_beats: ["main", "reactions"] }} variant="block" onChange={() => {}} onOpenScript={() => {}} pollMs={1} />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Re-voice 2 changed beats" }));
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Yes, re-voice 2 beats" }));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  });
+  unmount();
+  const reads = getNarration.mock.calls.length;
+  await new Promise((resolve) => setTimeout(resolve, 30));
+
+  expect(getNarration.mock.calls.length).toBeLessThanOrEqual(reads + 1);
+  expect(revoiceNarrationBeat).toHaveBeenCalledTimes(1);
 });
