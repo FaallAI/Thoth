@@ -16,7 +16,7 @@
   --input: #47494a;
   --ring: #efb28e;
 }
-.studio-shell > header { min-height: 70px; }
+.studio-shell > header { min-height: 56px; }
 .studio-shell [aria-label="Studio jobs"] button[aria-current="page"] { position: relative; background: transparent; color: var(--primary); }
 .studio-shell [aria-label="Studio jobs"] button[aria-current="page"]::after { content: ""; position: absolute; bottom: 5px; left: 12px; right: 12px; height: 2px; background: var(--primary); }
 .studio-shell [aria-label="Guided editing workstation"] > main { background: #101113; }
