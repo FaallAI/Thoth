@@ -46,3 +46,12 @@ test("the destinations read in Indonesian", () => {
   const nav = screen.getByRole("navigation", { name: "Bagian Studio" });
   expect(within(nav).getAllByRole("button").map((button) => button.textContent)).toEqual(["Edit", "Tinjau", "Render"]);
 });
+
+test("the jobs stay on one line and never shrink below their words", () => {
+  // At 1024 a wrapping nav stacked Edit, Review and Render inside the 56 px header (walk, 2026-11-01).
+  render(<StudioJobNav selected="edit" onSelect={() => {}} />);
+  const nav = screen.getByRole("navigation", { name: "Studio jobs" });
+  expect(nav.className.split(" ")).toContain("flex-nowrap");
+  expect(nav.className.split(" ")).toContain("shrink-0");
+  for (const button of screen.getAllByRole("button")) expect(button.className.split(" ")).toContain("whitespace-nowrap");
+});

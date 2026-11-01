@@ -86,3 +86,16 @@ test("the menu button carries a dot when a beat needs re-voice", () => {
   fireEvent.click(button);
   expect(within(header).getByRole("button", { name: "Assist" })).toBeDefined();
 });
+
+test("Request review keeps to one line", () => {
+  const { header } = mount("compact_desktop");
+  expect(within(header).getByRole("button", { name: "Request review" }).parentElement!.className).toContain("whitespace-nowrap");
+});
+
+test("the title is the one thing that shrinks, so the menu stays on screen", () => {
+  // At 1024 a title that could not shrink pushed the menu button off the right edge (walk, 2026-11-01).
+  const { header } = mount("compact_desktop");
+  const title = within(header).getByText("Kabut asap Kalteng dan evakuasi warga Palangka Raya");
+  expect(title.className.split(" ")).not.toContain("md:flex-none");
+  expect(title.className.split(" ")).toContain("min-w-0");
+});

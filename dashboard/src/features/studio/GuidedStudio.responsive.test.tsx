@@ -534,3 +534,10 @@ test("keeps a stale review comment until the newer revision is loaded, then resu
   expect(resubmitted!.base_revision).toBe(2);
   expect(resubmitted!.operation_id === stale!.operation_id).toBe(false);
 });
+
+test("Studio may shrink to the phone's width: a long title never widens the page", async () => {
+  // A flex child's min-width defaults to its content; the truncated title's full text set it to
+  // 985 px at 430 wide (browser walk, 2026-11-01).
+  await renderStudio(375, timelineDocument() as EditDocument);
+  expect(screen.getByRole("region", { name: "Guided Studio" }).className.split(" ").includes("min-w-0")).toBe(true);
+});

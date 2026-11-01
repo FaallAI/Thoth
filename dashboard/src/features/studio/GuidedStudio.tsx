@@ -547,7 +547,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     "grid size-9 place-items-center rounded-md text-muted-ink hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-copper disabled:cursor-not-allowed disabled:opacity-40";
 
   return (
-    <section className={`studio-shell pen-studio studio-job-${job} ${advanced ? "studio-advanced" : "studio-simple"}${story ? " studio-story" : ""} flex min-h-0 flex-1 flex-col bg-background text-foreground`} aria-label="Guided Studio">
+    <section className={`studio-shell pen-studio studio-job-${job} ${advanced ? "studio-advanced" : "studio-simple"}${story ? " studio-story" : ""} flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground`} aria-label="Guided Studio">
       {/* DESIGN §13: back to the documents, the title, the destinations, and where saving stands. */}
       <StudioHeader
         title={documentTitle ?? documentId}

@@ -67,7 +67,7 @@ export function StudioHeader({
         {t("studio.editor.backDisabled")}
       </span>
       <span aria-hidden="true" className="h-5 w-px shrink-0 bg-hairline" />
-      <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-ink md:max-w-[16rem] md:flex-none" title={title}>
+      <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-ink md:max-w-[16rem] md:flex-initial" title={title}>
         {title}
       </span>
       {oneRow ? jobs : <div className="flex min-w-0 flex-1 justify-center max-md:order-last max-md:basis-full">{jobs}</div>}
@@ -77,7 +77,7 @@ export function StudioHeader({
       {inlineNarration ? narration : null}
       {history}
       <div className="flex min-w-0 shrink-0 items-center gap-2 text-[13px] whitespace-nowrap text-muted-ink">{save}</div>
-      {primary}
+      {primary ? <div className="shrink-0 whitespace-nowrap">{primary}</div> : null}
       <details className="relative shrink-0">
         <summary
           aria-label={t("studio.editor.menu")}
