@@ -10,7 +10,7 @@ import { RevoiceConfirm } from "./RevoiceConfirm";
 import { isNarrationActive } from "./useNarration";
 
 type Props = {
-  client: Pick<ControlPlaneClient, "startNarration" | "revoiceNarrationBeat" | "restartNarration">;
+  client: Pick<ControlPlaneClient, "startNarration" | "revoiceNarrationBeat" | "restartNarration" | "getNarration">;
   projectId: string;
   documentId: string;
   state: NarrationState | null;
@@ -18,6 +18,8 @@ type Props = {
   variant: "chip" | "block";
   onChange: (state: NarrationState) => void;
   onOpenScript: () => void;
+  /** How often a running re-voice is read back; tests shorten it. */
+  pollMs?: number;
 };
 
 const action =
@@ -26,7 +28,7 @@ const action =
 const reasonOf = (error: unknown) =>
   error instanceof StudioImportRequestError ? (error.code ?? "narration_unavailable") : "narration_unavailable";
 
-export function NarrationStatus({ client, projectId, documentId, state, variant, onChange, onOpenScript }: Props) {
+export function NarrationStatus({ client, projectId, documentId, state, variant, onChange, onOpenScript, pollMs = 3000 }: Props) {
   const { t } = useLocale();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -51,7 +53,18 @@ export function NarrationStatus({ client, projectId, documentId, state, variant,
   const revoiceChanged = () =>
     run(async () => {
       setConfirmingRevoice(false);
-      for (const beat of stale) onChange(await client.revoiceNarrationBeat(projectId, documentId, beat));
+      for (const beat of stale) {
+        let current = await client.revoiceNarrationBeat(projectId, documentId, beat);
+        onChange(current);
+        // The server takes one re-voice at a time (completed -> voicing until written), so each
+        // beat must finish before the next is asked for.
+        while (isNarrationActive(current)) {
+          await new Promise((resolve) => setTimeout(resolve, pollMs));
+          current = await client.getNarration(projectId, documentId);
+          onChange(current);
+        }
+        if (current.status !== "completed") throw new StudioImportRequestError(null, current.failure_code ?? current.status);
+      }
     });
   const recreate = () =>
     run(async () => {
