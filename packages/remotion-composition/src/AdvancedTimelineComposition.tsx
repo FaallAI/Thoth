@@ -269,7 +269,8 @@ function renderClip(
     }
     case "audio": {
       const source = resolve(clip.asset_id, sources, onPreviewUnavailable);
-      if (!source) return <PreviewUnavailable label="Audio preview unavailable" />;
+      // Audio has no picture: a missing source is reported but never covers the frame.
+      if (!source) return null;
       return (
         <Audio
           src={source}

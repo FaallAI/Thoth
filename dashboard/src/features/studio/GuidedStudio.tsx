@@ -370,9 +370,10 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const [showScript, setShowScript] = useState(false);
   const narrationLocked = isNarrationActive(narration);
 
-  // Story previews the draft's own videos and stills; Timeline's library is not mounted here.
+  // Story previews the draft's own media, its narration voices included; Timeline's library
+  // is not mounted here.
   const mediaIds = useMemo(
-    () => (timeline?.asset_refs ?? []).filter((ref) => ref.kind !== "audio").map((ref) => ref.asset_id).join(" "),
+    () => (timeline?.asset_refs ?? []).map((ref) => ref.asset_id).join(" "),
     [timeline],
   );
   useEffect(() => {

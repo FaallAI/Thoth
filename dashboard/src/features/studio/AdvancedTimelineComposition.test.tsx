@@ -391,7 +391,9 @@ test("a missing or unsafe source becomes a placeholder and reports preview_unava
     />,
   );
   expect(screen.queryByTestId("video")).toBeNull();
-  expect(screen.getAllByTestId("preview-unavailable")).toHaveLength(2);
+  // The video draws a placeholder; the audio clip on the same asset is reported but draws
+  // nothing, since audio has no picture to replace (2026-11-01).
+  expect(screen.getAllByTestId("preview-unavailable")).toHaveLength(1);
   expect(reported).toEqual(["asset_video", "asset_video"]);
 });
 
@@ -806,4 +808,19 @@ test("ducking keeps the operator's own audio volume", () => {
   render(<AdvancedTimelineComposition document={document} previewSources={TYPED_SOURCES} />);
   const volume = mediaProps.audio[0]!.volume as (f: number) => number;
   expect(volume(5)).toBeCloseTo(0.06);
+});
+
+
+test("an audio clip without a source draws nothing over the picture, but is still reported", () => {
+  // Audio has no picture: a missing voice must never blank the frame (2026-11-01).
+  const reported: string[] = [];
+  render(
+    <AdvancedTimelineComposition
+      document={typedTimelineDocument()}
+      previewSources={{ asset_video: TYPED_SOURCES.asset_video }}
+      onPreviewUnavailable={(assetId) => reported.push(assetId)}
+    />,
+  );
+  expect(screen.queryAllByText("Audio preview unavailable")).toHaveLength(0);
+  expect(reported).toContain("asset_music");
 });
