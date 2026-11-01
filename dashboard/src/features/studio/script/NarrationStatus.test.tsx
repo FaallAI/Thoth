@@ -82,7 +82,8 @@ test("re-voicing changed beats calls each stale beat in order and stops at the f
   const api = client({ revoiceNarrationBeat });
   const { onChange } = mount({ ...completed, stale_beats: ["main", "reactions", "footage"] }, api);
 
-  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Re-voice 3 changed beats" })));
+  fireEvent.click(screen.getByRole("button", { name: "Re-voice 3 changed beats" }));
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Yes, re-voice 3 beats" })));
 
   expect(revoiceNarrationBeat.mock.calls.map((call) => call[2])).toEqual(["main", "reactions"]);
   expect(onChange).toHaveBeenCalledTimes(1);
@@ -103,4 +104,25 @@ test("a script awaiting approval opens the script", () => {
 
   fireEvent.click(screen.getByRole("button", { name: "Script ready to approve" }));
   expect(onOpenScript).toHaveBeenCalledTimes(1);
+});
+
+test("re-voicing changed beats first shows their characters and price, and spends nothing until confirmed", () => {
+  // Every re-voice is a paid ElevenLabs call (operator, 2026-11-01): the cost shows before any voice.
+  const api = client();
+  mount({ ...completed, stale_beats: ["main", "footage"], estimate: { characters: 21, provider: "elevenlabs", voice_id: "plgK", usd: 0.42 } }, api);
+
+  fireEvent.click(screen.getByRole("button", { name: "Re-voice 2 changed beats" }));
+  // "Dua." and "Empat." are 10 of the script's 21 characters: 10/21 of $0.42 is $0.20.
+  expect(screen.getByText("2 beats · 10 characters · about $0.20")).toBeDefined();
+  expect(api.revoiceNarrationBeat).toHaveBeenCalledTimes(0);
+  fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+  expect(screen.queryByRole("button", { name: "Yes, re-voice 2 beats" })).toBeNull();
+  expect(api.revoiceNarrationBeat).toHaveBeenCalledTimes(0);
+});
+
+test("an unpriced re-voice says so before it is confirmed", () => {
+  mount({ ...completed, stale_beats: ["main"] });
+
+  fireEvent.click(screen.getByRole("button", { name: "Re-voice 1 changed beats" }));
+  expect(screen.getByText("1 beats · 4 characters · Unpriced")).toBeDefined();
 });
