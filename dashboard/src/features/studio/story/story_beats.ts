@@ -108,3 +108,23 @@ export function computeBeats(document: EditDocumentV2, inventory: StudioImportIt
   }
   return result.sort((a, b) => a.startFrame - b.startFrame || BEAT_ORDER.indexOf(a.id) - BEAT_ORDER.indexOf(b.id));
 }
+
+/**
+ * Each beat's own frames, summing to the canvas (spec 2026-11-01, goal 6): a frame belongs to the
+ * covering beat that started last (a tie goes to the shorter span), and a frame no beat covers to
+ * the beat that started most recently before it. Beats keep their given order.
+ */
+export function beatOwnFrames(beats: Beat[], totalFrames: number): Map<BeatId, number> {
+  const own = new Map<BeatId, number>(beats.map((beat) => [beat.id, 0]));
+  const byStart = [...beats].sort((a, b) => a.startFrame - b.startFrame);
+  for (let frame = 0; frame < totalFrames; frame++) {
+    let owner: Beat | undefined;
+    for (const beat of byStart) {
+      const covers = beat.startFrame <= frame && frame < beat.startFrame + beat.durationInFrames;
+      if (covers && (!owner || beat.startFrame > owner.startFrame || (beat.startFrame === owner.startFrame && beat.durationInFrames < owner.durationInFrames))) owner = beat;
+    }
+    owner ??= byStart.filter((beat) => beat.startFrame <= frame).at(-1) ?? byStart[0];
+    if (owner) own.set(owner.id, (own.get(owner.id) ?? 0) + 1);
+  }
+  return own;
+}

@@ -35,6 +35,8 @@ type Props = {
   attachMaterial?: (itemId: string) => Promise<EditorAsset>;
   /** Exclude a missing material, as the import gate does; absent while the draft is unsaved. */
   onRemoveMissing?: (itemId: string) => Promise<void>;
+  /** The beat has a narration voice: its cards share the voice's time (spec 2026-11-01). */
+  narrated?: boolean;
 };
 
 /** A material that can stand in for a missing one (spec §9: "Use profile card"). */
@@ -51,7 +53,7 @@ const choice =
 const field = "h-9 w-24 rounded-md border border-hairline bg-well px-2 text-sm text-ink focus-visible:outline-2 focus-visible:outline-copper";
 
 /** Spec 2026-10-27 §9: the selected beat's cards, timing, position, motion and emphasis. */
-export function BeatInspector({ beat, beats, document, inventory, materials, dispatch, attachMaterial, onRemoveMissing }: Props) {
+export function BeatInspector({ beat, beats, document, inventory, materials, dispatch, attachMaterial, onRemoveMissing, narrated = false }: Props) {
   const { t, plural } = useLocale();
   const [picking, setPicking] = useState(false);
   const [addFailed, setAddFailed] = useState(false);
@@ -223,7 +225,9 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
 
       <section aria-label={t("studio.inspector.timing")} className={section}>
         <h3 className={heading}>{t("studio.inspector.timing")}</h3>
-        {cards.length ? (
+        {narrated && cards.length ? (
+          <p className="text-sm text-muted-ink">{t("studio.inspector.followsVoice", { length: seconds(beat.durationInFrames) })}</p>
+        ) : cards.length ? (
           <>
             <label className="flex items-center justify-between gap-2 text-sm text-ink">
               {t("studio.inspector.eachCard")}

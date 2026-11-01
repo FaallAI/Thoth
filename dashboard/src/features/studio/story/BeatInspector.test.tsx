@@ -252,3 +252,13 @@ test("the Shown list uses labels: kind and source, never an id", () => {
   expect(within(shown).getByText("Comment card · @viewer")).toBeDefined();
   expect(within(shown).queryByText(/asset_|clip_/)).toBeNull();
 });
+
+test("a narrated beat's cards follow the voice: no per-card length", () => {
+  // Studio shell v2 (spec 2026-11-01, anti-goals): narration shares a beat by each card's length.
+  render(
+    <BeatInspector beat={beats.find((beat) => beat.id === "reactions")!} beats={beats} document={storyDocument()} inventory={inventory} materials={materials} dispatch={mock(() => {})} narrated />,
+  );
+
+  expect(screen.getByText("Cards follow the voice · 2.7 s")).toBeDefined();
+  expect(screen.queryByLabelText(/Each card/)).toBeNull();
+});

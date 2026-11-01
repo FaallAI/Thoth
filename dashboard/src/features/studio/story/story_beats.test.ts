@@ -2,7 +2,7 @@
 
 import { expect, test } from "bun:test";
 
-import { ROLE_BEAT, beatOfClip, computeBeats } from "./story_beats";
+import { ROLE_BEAT, beatOfClip, beatOwnFrames, computeBeats, type Beat } from "./story_beats";
 
 import { draft, item, storyDocument, storyInventory } from "./story-test-fixtures";
 
@@ -97,3 +97,19 @@ for (const entry of cases.cases) {
     ).toEqual(entry.expected_spans as never);
   });
 }
+
+const span = (id: Beat["id"], startFrame: number, durationInFrames: number): Beat => ({ id, startFrame, durationInFrames, clipIds: [], missing: [] });
+
+test("a beat owns its frames until the next beat starts", () => {
+  // The narrated stage1 draft: Main's video holds under Evidence and Reactions.
+  const own = beatOwnFrames([span("main", 0, 735), span("evidence", 266, 258), span("reactions", 524, 242), span("footage", 766, 268)], 1034);
+
+  expect([...own.entries()]).toEqual([["main", 266], ["evidence", 258], ["reactions", 242], ["footage", 268]]);
+});
+
+test("beat seconds always sum to the canvas, and a Hook over Main keeps its own time", () => {
+  const own = beatOwnFrames(computeBeats(storyDocument(), storyInventory()), 300);
+
+  expect([...own.values()].reduce((sum, frames) => sum + frames, 0)).toBe(300);
+  expect(own.get("hook")).toBeGreaterThan(0);
+});

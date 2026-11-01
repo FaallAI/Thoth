@@ -1,12 +1,12 @@
 import { useState, type DragEvent } from "react";
-import { Plus } from "lucide-react";
+import { Mic, Plus } from "lucide-react";
 
 import type { EditDocumentV2 } from "@/api/control-plane";
 import { useLocale } from "@/lib/locale";
 
 import { MATERIAL_DRAG_TYPE } from "./MaterialsPanel";
 
-import type { Beat, BeatId } from "./story_beats";
+import { beatOwnFrames, type Beat, type BeatId } from "./story_beats";
 
 type Props = {
   beats: Beat[];
@@ -22,6 +22,9 @@ type Props = {
   /** The text beats "Add beat" may make: Hook and Outro, each only while the draft lacks it. */
   addable?: ("hook" | "outro")[];
   onAddBeat?: (id: "hook" | "outro") => void;
+  /** Beats with a narration voice, and those whose text changed after recording. */
+  voiced?: ReadonlySet<BeatId>;
+  stale?: ReadonlySet<BeatId>;
 };
 
 const THUMBS = 3;
@@ -38,6 +41,8 @@ export function BeatStrip({
   onDropMaterial,
   addable = [],
   onAddBeat,
+  voiced,
+  stale,
 }: Props) {
   const { t } = useLocale();
   const [over, setOver] = useState<BeatId | null>(null);
@@ -53,6 +58,8 @@ export function BeatStrip({
       .flatMap((clip) => (clip && "asset_id" in clip && previews[clip.asset_id] ? [clip.asset_id] : []))
       .slice(0, THUMBS);
   const seconds = (frames: number) => t("studio.story.seconds", { seconds: (frames / fps).toFixed(1) });
+  // Each tile's own time, so the tiles sum to the canvas (spec 2026-11-01, goal 6).
+  const own = beatOwnFrames(beats, totalFrames);
 
   return (
     <div
@@ -60,8 +67,9 @@ export function BeatStrip({
       aria-label={t("studio.story.beats")}
       className="flex shrink-0 items-stretch gap-2 overflow-x-auto rounded-[10px] border border-hairline bg-bg p-2"
     >
-      <span className="shrink-0 self-center px-2 font-mono text-xs text-muted-ink">
-        {t("studio.story.total", { length: seconds(totalFrames) })}
+      <span className="flex shrink-0 flex-col self-center px-2 font-mono text-xs text-muted-ink">
+        <span>{t("studio.story.total", { length: seconds(totalFrames) })}</span>
+        <span className="font-sans text-[11px] text-faint">{t("studio.story.matchesCanvas")}</span>
       </span>
       {beats.map((beat) => (
         <button
@@ -98,7 +106,14 @@ export function BeatStrip({
               )}
             </span>
           ) : null}
-          <span className="font-mono text-xs text-muted-ink">{seconds(beat.durationInFrames)}</span>
+          <span className="flex items-center gap-1.5 font-mono text-xs text-muted-ink">
+            {seconds(own.get(beat.id) ?? 0)}
+            {stale?.has(beat.id) ? (
+              <Mic role="img" aria-label={t("studio.story.needsRevoice")} size={12} className="text-status-waiting" />
+            ) : voiced?.has(beat.id) ? (
+              <Mic role="img" aria-label={t("studio.story.narrated")} size={12} className="text-status-done" />
+            ) : null}
+          </span>
           {over === beat.id ? (
             <span className="text-xs text-copper">{t("studio.story.addTo", { beat: t(`studio.story.beat.${beat.id}`) })}</span>
           ) : null}

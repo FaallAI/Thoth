@@ -57,7 +57,7 @@ export function Inspector({
     <aside className={`studio-copy-inspector min-h-0 overflow-auto border-l border-border bg-card/60 p-4 ${sceneIndex === undefined ? "" : "studio-copy-designed"}`} aria-label="Inspector">
       {sceneIndex === undefined ? <h2 className="font-mono text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
         Inspector
-      </h2> : <div className="studio-inspector-heading"><div><span>Scene {String(sceneIndex + 1).padStart(2, "0")} / {String(sceneCount).padStart(2, "0")}</span><h2>{clip?.heading || `Scene ${sceneIndex + 1}`}</h2></div><small>{scene ? formatSceneSeconds(scene.duration_in_frames, fps) : "—"}s</small></div>}
+      </h2> : <div className="studio-inspector-heading"><div><span>Scene {String(sceneIndex + 1).padStart(2, "0")} / {String(sceneCount).padStart(2, "0")}</span><h2 className="line-clamp-2 break-words" title={clip?.heading || undefined}>{clip?.heading || `Scene ${sceneIndex + 1}`}</h2>{clip ? <button type="button" className="mt-1 text-xs text-copper hover:underline focus-visible:outline-2 focus-visible:outline-copper" onClick={() => document.getElementById(headingId)?.focus()}>{t("studio.inspector.editHeading")}</button> : null}</div><small>{scene ? formatSceneSeconds(scene.duration_in_frames, fps) : "—"}s</small></div>}
       {scene ? (
         <div className="mt-4 space-y-5">
           <div>

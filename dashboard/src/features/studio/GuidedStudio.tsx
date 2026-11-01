@@ -382,6 +382,11 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     );
   });
   const [showScript, setShowScript] = useState(false);
+  // Beats with a narration voice, and those whose text changed after it (spec 2026-11-01, goal 6).
+  const voicedBeats = new Set(
+    (timeline?.clips ?? []).flatMap((clip) => (clip.clip_id.startsWith("clip_narration_") ? [clip.clip_id.slice("clip_narration_".length) as BeatId] : [])),
+  );
+  const staleBeats = new Set<BeatId>(narration?.status === "completed" ? (narration.stale_beats ?? []) : []);
   const narrationLocked = isNarrationActive(narration);
 
   // Story previews the draft's own media, its narration voices included; Timeline's library
@@ -1051,6 +1056,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                       dispatch={dispatch}
                       attachMaterial={attachMaterial}
                       onRemoveMissing={removeMissing}
+                      narrated={voicedBeats.has(shownBeat.id)}
                     />
                   ) : (
                     <p className="p-4 text-sm text-muted-ink">{t("studio.inspector.empty")}</p>
@@ -1127,6 +1133,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 onDropMaterial={(beatId, data) => void dropMaterial(beatId, data)}
                 addable={[...addable]}
                 onAddBeat={addBeat}
+                voiced={voicedBeats}
+                stale={staleBeats}
               />
             </div>
           ) : null}
