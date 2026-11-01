@@ -128,6 +128,10 @@ test("offers the three destinations at every width and compact Edit panes only b
   resize(1024);
   expect(screen.queryByRole("navigation", { name: "Studio panes" }) === null).toBe(true);
   expect(screen.getByRole("navigation", { name: "Studio jobs" })).toBeDefined();
+  // Studio shell v2 (spec 2026-11-01): from 1024 up the jobs sit in the header's single row.
+  const header = screen.getByRole("banner");
+  expect(screen.getByRole("navigation", { name: "Studio jobs" }).parentElement === header).toBe(true);
+  expect(header.className.includes("flex-nowrap") && header.className.includes("h-14")).toBe(true);
   expect(screen.queryByRole("tablist") === null).toBe(true);
   // Simple mode's scene strip sits under the preview: it collapses but has no width.
   expect(screen.queryByLabelText("Scene board width") === null).toBe(true);

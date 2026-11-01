@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { ArrowLeft, Redo2, SlidersHorizontal, Sparkles, Undo2 } from "lucide-react";
+import { Redo2, Sparkles, Undo2 } from "lucide-react";
 
 import type {
   ControlPlaneClient,
@@ -30,6 +30,7 @@ import { SceneAudioInspector } from "./SceneAudioInspector";
 import { SceneBoard } from "./SceneBoard";
 import { SceneMediaInspector } from "./SceneMediaInspector";
 import { Timeline } from "./Timeline";
+import { StudioHeader } from "./StudioHeader";
 import { TimelineInspector } from "./TimelineInspector";
 import { assetLabel, clipLabel, type LabelContext } from "./studio_labels";
 import {
@@ -120,7 +121,6 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const collapsible = viewport === "compact_desktop";
   const sceneRegionOpen = !collapsible || sceneBoardOpen;
   const inspectorRegionOpen = !collapsible || inspectorOpen;
-  const backDescriptionId = useId();
   const sceneWidthId = useId();
   const inspectorWidthId = useId();
   const [sceneBoardWidth, setSceneBoardWidth] = useState(14);
@@ -547,28 +547,14 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   return (
     <section className={`studio-shell pen-studio studio-job-${job} ${advanced ? "studio-advanced" : "studio-simple"}${story ? " studio-story" : ""} flex min-h-0 flex-1 flex-col bg-background text-foreground`} aria-label="Guided Studio">
       {/* DESIGN §13: back to the documents, the title, the destinations, and where saving stands. */}
-      <header className="studio-topbar relative flex min-h-14 flex-wrap items-center gap-x-4 gap-y-1 border-b border-hairline bg-bg px-4 py-1">
-        <button
-          type="button"
-          className="inline-flex h-9 items-center gap-1.5 rounded-md px-2 text-sm text-muted-ink hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-copper disabled:cursor-not-allowed disabled:opacity-40"
-          onClick={onBack}
-          disabled={backDisabled}
-          aria-label={t("studio.editor.backLabel")}
-          aria-describedby={backDisabled ? backDescriptionId : undefined}
-        >
-          <ArrowLeft aria-hidden="true" size={16} /> {t("studio.editor.back")}
-        </button>
-        <span id={backDescriptionId} className="sr-only">
-          {t("studio.editor.backDisabled")}
-        </span>
-        <span aria-hidden="true" className="h-5 w-px bg-hairline" />
-        <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-ink md:max-w-[16rem] md:flex-none" title={documentTitle ?? documentId}>
-          {documentTitle ?? documentId}
-        </span>
-        <div className="flex min-w-0 flex-1 justify-center max-md:order-last max-md:basis-full">
-          <StudioJobNav selected={job} onSelect={selectJob} />
-        </div>
-
+      <StudioHeader
+        title={documentTitle ?? documentId}
+        viewport={viewport}
+        onBack={onBack}
+        backDisabled={backDisabled}
+        jobs={<StudioJobNav selected={job} onSelect={selectJob} />}
+        mode={
+          <>
         {!compact && timeline ? (
           <div role="group" aria-label={t("studio.editor.mode")} id={modeGroupId} className="flex rounded-md bg-well p-0.5">
             {(["simple", "advanced"] as const).map((mode) => (
@@ -583,30 +569,6 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
               </button>
             ))}
           </div>
-        ) : null}
-        {story && timeline && narrationClient ? (
-          <>
-            <NarrationButton
-              client={narrationClient}
-              projectId={projectId}
-              documentId={documentId}
-              state={narration}
-              onChange={(next) => {
-                setNarration(next);
-                setShowScript(true);
-              }}
-            />
-            {narration ? (
-              <button
-                type="button"
-                aria-pressed={showScript}
-                className="rounded-md bg-well px-2.5 py-1 text-[13px] text-muted-ink aria-[pressed=true]:bg-raised aria-[pressed=true]:text-ink"
-                onClick={() => setShowScript((value) => !value)}
-              >
-                {t("studio.narration.script")}
-              </button>
-            ) : null}
-          </>
         ) : null}
         {!compact && !timeline ? (
           <div className="flex rounded-md bg-well p-0.5" role="group" aria-label={t("studio.editor.mode")}>
@@ -623,12 +585,19 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             </button>
           </div>
         ) : null}
+          </>
+        }
+        extra={
+          <>
         {compact && ((timeline && state.mode === "advanced") || (!timeline && client.upgradeEditDocument)) ? (
           <p className="text-xs text-muted-ink max-md:order-last">
             {t(timeline ? "studio.editor.compactAdvanced" : "studio.editor.compactEnable")}
           </p>
         ) : null}
-        {/* DESIGN 13.5: a phone's top bar keeps the title, the save state and the menu. */}
+          </>
+        }
+        history={
+          <>
         {viewport === "phone" ? null : (
         <div className="flex items-center gap-0.5">
           <button
@@ -651,7 +620,10 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           </button>
         </div>
         )}
-        <div className="flex min-w-0 items-center gap-2 text-[13px] whitespace-nowrap text-muted-ink">
+          </>
+        }
+        save={
+          <>
           <span aria-hidden="true" className={`size-2 rounded-full ${saveDot[state.saveStatus]}`} />
           {/* The document's own project, which the global project switcher may no longer show. */}
           <span aria-live="polite">{t(`studio.editor.status.${state.saveStatus}`)}</span>
@@ -659,17 +631,9 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             · {t("studio.editor.rev", { revision: base.revision })}
           </span>
           <span className="sr-only">{t("studio.editor.savedRevision", { revision: base.revision })}</span>
-        </div>
-        {story && askAssist ? (
-          <button
-            type="button"
-            aria-pressed={assistOn}
-            onClick={() => setAssistOn((on) => !on)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-studio-ai/60 px-3 text-[13px] text-studio-ai aria-[pressed=true]:bg-studio-ai/15 focus-visible:outline-2 focus-visible:outline-copper"
-          >
-            <Sparkles aria-hidden="true" size={14} /> {t("studio.assist.toggle")}
-          </button>
-        ) : null}
+          </>
+        }
+        primary={
         <button
           type="button"
           onClick={requestReview}
@@ -677,14 +641,62 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         >
           {t("studio.editor.requestReview")}
         </button>
-        <details className="relative">
-          <summary
-            aria-label={t("studio.editor.menu")}
-            className="grid size-9 cursor-pointer list-none place-items-center rounded-md text-muted-ink hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-copper [&::-webkit-details-marker]:hidden"
-          >
-            <SlidersHorizontal aria-hidden="true" size={16} />
-          </summary>
-          <div className="absolute top-11 right-0 z-40 flex w-80 flex-col gap-3 rounded-[10px] border border-hairline bg-raised p-4 text-sm shadow-xl">
+        }
+        narration={
+          <>
+        {story && timeline && narrationClient ? (
+          <>
+            <NarrationButton
+              client={narrationClient}
+              projectId={projectId}
+              documentId={documentId}
+              state={narration}
+              onChange={(next) => {
+                setNarration(next);
+                setShowScript(true);
+              }}
+            />
+          </>
+        ) : null}
+          </>
+        }
+        menu={
+          <>
+            {story && timeline && narrationClient ? (
+              <div className="flex flex-wrap gap-2 border-b border-hairline pb-3">
+            {narration ? (
+              <button
+                type="button"
+                aria-pressed={showScript}
+                className="rounded-md bg-well px-2.5 py-1 text-[13px] text-muted-ink aria-[pressed=true]:bg-raised aria-[pressed=true]:text-ink"
+                onClick={() => setShowScript((value) => !value)}
+              >
+                {t("studio.narration.script")}
+              </button>
+            ) : null}
+            {story && askAssist ? (
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                aria-expanded={assistOn}
+                onClick={() => setAssistOn((on) => !on)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-studio-ai/60 px-3 text-[13px] text-studio-ai focus-visible:outline-2 focus-visible:outline-copper"
+              >
+                <Sparkles aria-hidden="true" size={14} /> {t("studio.assist.toggle")}
+              </button>
+            ) : null}
+              </div>
+            ) : story && askAssist ? (
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                aria-expanded={assistOn}
+                onClick={() => setAssistOn((on) => !on)}
+                className="inline-flex h-9 items-center gap-1.5 self-start rounded-md border border-studio-ai/60 px-3 text-[13px] text-studio-ai focus-visible:outline-2 focus-visible:outline-copper"
+              >
+                <Sparkles aria-hidden="true" size={14} /> {t("studio.assist.toggle")}
+              </button>
+            ) : null}
             <span className="text-muted-ink">{t("studio.editor.project", { name: projectName ?? base.project_id })}</span>
             {workspaceControls ?? <p className="text-muted-ink">{t("studio.editor.noSwitch")}</p>}
             {/* Phones hide the top bar's Undo and Redo; they stay reachable here (final review I5). */}
@@ -751,9 +763,9 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 ) : null}
               </div>
             )}
-          </div>
-        </details>
-      </header>
+          </>
+        }
+      />
       {narrationLocked ? (
         <p role="status" className="border-b border-hairline bg-surface px-4 py-2 text-sm text-copper">
           {t("studio.narration.locked")}

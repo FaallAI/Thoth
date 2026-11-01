@@ -242,15 +242,17 @@ test("a newer revision names itself and keeps the edits on this device", async (
   expect(screen.getByRole("button", { name: "Reload Latest" })).toBeDefined();
 });
 
-test("the Assist toggle opens the panel for the open beat, in Story only", async () => {
+test("Assist, from the Studio menu, opens the panel for the open beat, in Story only", async () => {
+  // Studio shell v2 (spec 2026-11-01, ruling 5): Assist is a menu action that opens its panel.
   const requestStoryAssist = mock(async () => ({ proposal_id: "a", title: "Shorter hook", reason: "r", operations: [] }));
   await mountStory("en", { requestStoryAssist });
 
   const toggle = screen.getByRole("button", { name: "Assist" });
-  expect(toggle.getAttribute("aria-pressed")).toBe("false");
+  expect(toggle.closest("details")).not.toBeNull();
+  expect(toggle.getAttribute("aria-expanded")).toBe("false");
   expect(screen.queryByRole("region", { name: "Assist" })).toBeNull();
   fireEvent.click(toggle);
-  expect(toggle.getAttribute("aria-pressed")).toBe("true");
+  expect(toggle.getAttribute("aria-expanded")).toBe("true");
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "Suggest for Hook" })));
   expect(requestStoryAssist).toHaveBeenCalledWith("project_001", "edoc_story", { base_revision: 3, beat: "hook", clip_ids: ["clip_hook"] });
 
