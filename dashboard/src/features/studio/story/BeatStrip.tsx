@@ -25,6 +25,8 @@ type Props = {
   /** Beats with a narration voice, and those whose text changed after recording. */
   voiced?: ReadonlySet<BeatId>;
   stale?: ReadonlySet<BeatId>;
+  /** "chips" below 1024: one scrolling row, the total pinned on the left. */
+  variant?: "tiles" | "chips";
 };
 
 const THUMBS = 3;
@@ -43,7 +45,9 @@ export function BeatStrip({
   onAddBeat,
   voiced,
   stale,
+  variant = "tiles",
 }: Props) {
+  const chips = variant === "chips";
   const { t } = useLocale();
   const [over, setOver] = useState<BeatId | null>(null);
   const [adding, setAdding] = useState(false);
@@ -65,9 +69,10 @@ export function BeatStrip({
     <div
       role="toolbar"
       aria-label={t("studio.story.beats")}
-      className="flex shrink-0 items-stretch gap-2 overflow-x-auto rounded-[10px] border border-hairline bg-bg p-2"
+      data-variant={variant}
+      className={`flex shrink-0 items-stretch gap-2 rounded-[10px] border border-hairline bg-bg p-2 ${chips ? "overflow-x-auto [scrollbar-width:none]" : "overflow-x-auto"}`}
     >
-      <span className="flex shrink-0 flex-col self-center px-2 font-mono text-xs text-muted-ink">
+      <span className={`flex shrink-0 flex-col self-center px-2 font-mono text-xs text-muted-ink ${chips ? "sticky left-0 z-10 bg-bg" : ""}`}>
         <span>{t("studio.story.total", { length: seconds(totalFrames) })}</span>
         <span className="font-sans text-[11px] text-faint">{t("studio.story.matchesCanvas")}</span>
       </span>
@@ -90,12 +95,14 @@ export function BeatStrip({
             setOver(null);
             onDropMaterial?.(beat.id, event.dataTransfer.getData(MATERIAL_DRAG_TYPE));
           }}
-          className={`flex min-w-28 shrink-0 flex-col items-start gap-1 rounded-md border-2 bg-surface px-3 py-2 text-left text-sm text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-copper ${
+          className={`flex shrink-0 rounded-md border-2 bg-surface text-left text-sm text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-copper ${
+            chips ? "items-center gap-2 px-3 py-1.5" : "min-w-28 flex-col items-start gap-1 px-3 py-2"
+          } ${
             over === beat.id ? "border-dashed border-copper" : selected === beat.id ? "border-copper" : "border-transparent"
           }`}
         >
           <span className="font-medium">{t(`studio.story.beat.${beat.id}`)}</span>
-          {thumbs(beat).length ? (
+          {!chips && thumbs(beat).length ? (
             <span aria-hidden="true" className="flex gap-1">
               {thumbs(beat).map((assetId) =>
                 kinds.get(assetId) === "video" ? (

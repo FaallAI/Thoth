@@ -31,6 +31,7 @@ type Props = {
   onNudge: (clipId: string, frames: number) => void;
   /** The clip's human name (spec 2026-11-01); absent, the Timeline's own words for it. */
   labelOf?: (clip: NonNullable<EditDocumentV2["clips"]>[number]) => string;
+  readOnly?: boolean;
 };
 
 type TrackKind = TimelineLane["track"]["kind"];
@@ -58,6 +59,7 @@ export function TimelineTrack({
   onGestureStart,
   onNudge,
   labelOf,
+  readOnly = false,
 }: Props) {
   const { t } = useLocale();
   const { track, clips } = lane;
@@ -122,6 +124,7 @@ export function TimelineTrack({
             onGestureStart={(mode, clientX) => onGestureStart(clip.clip_id, mode, clientX)}
             onNudge={(frames) => onNudge(clip.clip_id, frames)}
             name={labelOf?.(clip)}
+            readOnly={readOnly}
           />
         ))}
       </div>

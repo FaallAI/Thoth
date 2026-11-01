@@ -51,7 +51,6 @@ import { NarrationStatus } from "./script/NarrationStatus";
 import { ScriptPanel } from "./script/ScriptPanel";
 import { SfxLibrary } from "./script/NarrationPresetForm";
 import { adoptNarratedRevision, isNarrationActive, useNarration } from "./script/useNarration";
-import { QuickEdit } from "./story/QuickEdit";
 import { SafeZoneOverlay } from "./story/SafeZone";
 import { ROLE_BEAT, computeBeats, type BeatId } from "./story/story_beats";
 import { BEAT_ROLE, addHook, addMaterialToBeat, addOutro, creditLine } from "./story/story_edits";
@@ -127,14 +126,12 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const [inspectorWidth, setInspectorWidth] = useState(22.25);
   const selectedScene = state.draft.scenes.find((scene) => scene.scene_id === state.selectedSceneId);
   const timeline = isTimelineDocument(state.draft) ? state.draft : undefined;
-  // Both modes project the same draft; only version 2 can show the advanced one.
-  // A compact screen presents Simple without touching the stored mode, so a
-  // wider screen brings the Advanced workspace back.
-  const effectiveMode = compact ? "simple" : state.mode;
-  const advanced = Boolean(timeline) && effectiveMode === "advanced";
-  const story = Boolean(timeline) && !advanced && !compact;
-  // DESIGN 13.5: a phone edits a timeline draft through the quick edit only.
-  const quick = viewport === "phone" && Boolean(timeline);
+  // Both modes project the same draft; only version 2 can show the advanced one. Every width
+  // edits Story or Timeline; compact screens show them one pane at a time (spec 2026-11-01).
+  const advanced = Boolean(timeline) && state.mode === "advanced";
+  const story = Boolean(timeline) && !advanced;
+  // Below 1024 the Timeline is a view: its lanes show, edits happen on a larger screen.
+  const timelineReadOnly = compact && advanced;
   const [safeZone, setSafeZone] = useState(false);
   const [selectedBeat, setSelectedBeat] = useState<BeatId | null>(null);
   const [inventory, setInventory] = useState<StudioImportItem[]>([]);
@@ -180,7 +177,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           .join(" "),
       } as CSSProperties);
   const reviewing = job === "review";
-  const previewVisible = reviewing || (editing && (!compact || quick || editPane === "preview"));
+  const previewVisible = reviewing || (editing && (!compact || editPane === "preview" || (advanced && editPane === "timeline")));
   const { pause } = player;
   // Kind and source, never an id (spec 2026-11-01, Studio shell v2).
   const labels: LabelContext | null = timeline ? { document: timeline, materials, t, inventory } : null;
@@ -360,14 +357,14 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
 
   const { getStudioMaterials } = client;
   useEffect(() => {
-    if (!(story || quick) || !getStudioMaterials) return;
+    if (!story || !getStudioMaterials) return;
     const requestGeneration = generation.current;
     void getStudioMaterials(projectId, documentId).then(
       (loaded) => requestGeneration === generation.current && setMaterials(loaded),
       // A draft made in Studio has no materials route answer; the panel lists uploads only.
       () => {},
     );
-  }, [story, quick, getStudioMaterials, projectId, documentId]);
+  }, [story, getStudioMaterials, projectId, documentId]);
 
   // Auto-draft narration (spec 2026-10-31): read and polled here; when it completes, the
   // revision the narration wrote is adopted like any newer saved revision.
@@ -396,7 +393,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     [timeline],
   );
   useEffect(() => {
-    if (!(story || quick) || !assetClient || !mediaIds) return;
+    if (!story || !assetClient || !mediaIds) return;
     const requestGeneration = generation.current;
     for (const assetId of mediaIds.split(" ")) {
       if (assetId in previewSources) continue;
@@ -409,7 +406,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     }
     // previewSources is read, not watched: each asset is asked for once per change of the media set.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [story, quick, assetClient, mediaIds, projectId]);
+  }, [story, assetClient, mediaIds, projectId]);
 
   const selectBeat = (id: BeatId) => {
     const beat = beats.find((entry) => entry.id === id);
@@ -560,7 +557,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         jobs={<StudioJobNav selected={job} onSelect={selectJob} />}
         mode={
           <>
-        {!compact && timeline ? (
+        {timeline ? (
           <div role="group" aria-label={t("studio.editor.mode")} id={modeGroupId} className="flex rounded-md bg-well p-0.5">
             {(["simple", "advanced"] as const).map((mode) => (
               <button
@@ -594,10 +591,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         }
         extra={
           <>
-        {compact && ((timeline && state.mode === "advanced") || (!timeline && client.upgradeEditDocument)) ? (
-          <p className="text-xs text-muted-ink max-md:order-last">
-            {t(timeline ? "studio.editor.compactAdvanced" : "studio.editor.compactEnable")}
-          </p>
+        {compact && !timeline && client.upgradeEditDocument ? (
+          <p className="text-xs text-muted-ink max-md:order-last">{t("studio.editor.compactEnable")}</p>
         ) : null}
           </>
         }
@@ -825,13 +820,28 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         </div>
       )}
 
-      {compact && editing && !quick ? (
+      {compact && editing ? (
         <CompactStudioNav
-          panes={[
-            { id: "scenes", label: "Scenes" },
-            { id: "preview", label: "Preview" },
-            { id: "controls", label: "Controls" },
-          ]}
+          panes={
+            advanced
+              ? [
+                  { id: "scenes", label: t("studio.pane.assets") },
+                  { id: "preview", label: t("studio.pane.preview") },
+                  { id: "timeline", label: t("studio.pane.timeline") },
+                  { id: "controls", label: t("studio.pane.inspector") },
+                ]
+              : story
+                ? [
+                    { id: "scenes", label: t("studio.pane.materials") },
+                    { id: "preview", label: t("studio.pane.preview") },
+                    { id: "controls", label: t("studio.pane.inspector") },
+                  ]
+                : [
+                    { id: "scenes", label: "Scenes" },
+                    { id: "preview", label: "Preview" },
+                    { id: "controls", label: "Controls" },
+                  ]
+          }
           selected={editPane}
           onSelect={setEditPane}
         />
@@ -848,7 +858,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           <div
             id="studio-region-scenes"
             className={stripLayout ? "col-span-2 col-start-1 row-start-2 min-w-0" : "contents"}
-            hidden={!editing || quick || (compact ? editPane !== "scenes" : !sceneRegionOpen)}
+            hidden={!editing || (compact ? editPane !== "scenes" : !sceneRegionOpen)}
           >
             {story && timeline && showScript && narration && narrationClient ? (
               <ScriptPanel
@@ -949,28 +959,33 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 </button>
               </div>
             ) : null}
-            <StudioPreview
-              overlay={story && !reviewing ? (safeZone ? <SafeZoneOverlay /> : null) : undefined}
-              // Review shows what was saved; Edit shows the draft.
-              document={reviewing ? base : state.draft}
-              onPlayer={setAttachedPlayer}
-              embedded
-              previewSources={previewSources}
-              onPreviewUnavailable={(assetId) =>
-                // Same reference when the asset is already gone, so the player
-                // reporting an unusable source cannot loop the editor.
-                setPreviewSources((current) => {
-                  if (!(assetId in current)) return current;
-                  const { [assetId]: _dropped, ...rest } = current;
-                  return rest;
-                })
-              }
-            />
+            {/* On a compact Timeline pane the lanes take the space; the one preview stays mounted. */}
+            <div className="contents" hidden={compact && editPane === "timeline"}>
+              <StudioPreview
+                overlay={story && !reviewing ? (safeZone ? <SafeZoneOverlay /> : null) : undefined}
+                // Review shows what was saved; Edit shows the draft.
+                document={reviewing ? base : state.draft}
+                onPlayer={setAttachedPlayer}
+                embedded
+                previewSources={previewSources}
+                onPreviewUnavailable={(assetId) =>
+                  // Same reference when the asset is already gone, so the player
+                  // reporting an unusable source cannot loop the editor.
+                  setPreviewSources((current) => {
+                    if (!(assetId in current)) return current;
+                    const { [assetId]: _dropped, ...rest } = current;
+                    return rest;
+                  })
+                }
+              />
+            </div>
             {advanced && timeline ? (
-              <div className="contents" hidden={reviewing}>
+              <div className="contents" hidden={reviewing || (compact && editPane !== "timeline")}>
                 <Timeline
                   state={state}
                   labelOf={labelOf}
+                  readOnly={timelineReadOnly}
+                  onInspect={() => setEditPane("controls")}
                   dispatch={dispatch}
                   onSeek={player.seekTo}
                   onPlay={player.play}
@@ -1012,28 +1027,9 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           <div
             id="studio-region-inspector"
             className="contents"
-            hidden={!editing || (quick ? false : compact ? editPane !== "controls" : !inspectorRegionOpen)}
+            hidden={!editing || (compact ? editPane !== "controls" : !inspectorRegionOpen)}
           >
-            {quick && timeline ? (
-              <QuickEdit
-                document={timeline}
-                beats={beats}
-                materials={materials}
-                revision={base.revision}
-                playheadFrame={state.playheadFrame}
-                dispatch={dispatch}
-                attachMaterial={attachMaterial}
-                captions={
-                  <CaptionTextInspector
-                    document={timeline}
-                    selectedSceneId={state.selectedSceneId}
-                    disabled={upgrading}
-                    compact
-                    onOperation={(operation) => dispatch({ type: "commit_timeline_operation", operation })}
-                  />
-                }
-              />
-            ) : advanced && timeline ? (
+            {advanced && timeline ? (
               <TimelineInspector
                 document={timeline}
                 labelOf={labelOf}
@@ -1102,7 +1098,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                   }
                 >
                   <SceneMediaInspector document={state.draft} sceneId={state.selectedSceneId} />
-                  {timeline && viewport !== "phone" ? <CaptionTextInspector document={timeline} selectedSceneId={state.selectedSceneId} disabled={upgrading} compact onOperation={(operation) => dispatch({ type: "commit_timeline_operation", operation })} /> : <section className="studio-caption-summary" aria-label="Captions"><h3>Captions</h3><p>No editable captions in this document.</p><button className="studio-style-trigger" type="button" disabled>Caption style unavailable</button></section>}
+                  {timeline ? <CaptionTextInspector document={timeline} selectedSceneId={state.selectedSceneId} disabled={upgrading} compact onOperation={(operation) => dispatch({ type: "commit_timeline_operation", operation })} /> : <section className="studio-caption-summary" aria-label="Captions"><h3>Captions</h3><p>No editable captions in this document.</p><button className="studio-style-trigger" type="button" disabled>Caption style unavailable</button></section>}
                 </Inspector>
                 {timeline && viewport !== "phone" ? (
                   <>
@@ -1136,6 +1132,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 onAddBeat={addBeat}
                 voiced={voicedBeats}
                 stale={staleBeats}
+                variant={compact ? "chips" : "tiles"}
               />
             </div>
           ) : null}

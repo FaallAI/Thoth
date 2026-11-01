@@ -273,7 +273,8 @@ test("Add beat makes the missing Outro with the credit line", async () => {
   expect((screen.getByLabelText("Text") as HTMLInputElement).value).toBe("Video: @creator · X");
 });
 
-test("a phone gets the quick edit, without beats or timeline", async () => {
+test("a phone edits Story in panes, with the beats as chips", async () => {
+  // Studio shell v2 (spec 2026-11-01, decided): the quick edit gave way to Story's panes.
   const width = window.innerWidth;
   Object.defineProperty(window, "innerWidth", { configurable: true, value: 375 });
   try {
@@ -292,8 +293,8 @@ test("a phone gets the quick edit, without beats or timeline", async () => {
       />,
     );
 
-    expect(await screen.findByRole("heading", { name: "Quick edit · Rev 3" })).toBeDefined();
-    expect(screen.queryByRole("toolbar", { name: "Story beats" })).toBeNull();
+    expect((await screen.findByRole("toolbar", { name: "Story beats" })).getAttribute("data-variant")).toBe("chips");
+    expect(screen.queryByRole("heading", { name: /^Quick edit/ })).toBeNull();
     expect(screen.queryByLabelText("Timeline")).toBeNull();
     expect(screen.getByLabelText("Draft preview")).toBeDefined();
   } finally {

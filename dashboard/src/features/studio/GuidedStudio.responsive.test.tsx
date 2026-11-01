@@ -188,12 +188,63 @@ test("reaches every job at phone and desktop widths", async () => {
   expect(previewMounts).toBe(1);
 });
 
-test("the Timeline option starts at 1024 px wide", async () => {
-  await renderStudio(1024, timelineDocument() as EditDocument);
-  const modes = await screen.findByRole("group", { name: "Editor mode" });
-  expect(within(modes).getByRole("button", { name: "Timeline" })).toBeDefined();
+test("the Timeline option is offered at every width for a version 2 draft", async () => {
+  // Studio shell v2 (spec 2026-11-01, decided): phones and tablets edit Story or Timeline in panes.
+  for (const width of [375, 900, 1024]) {
+    await renderStudio(width, timelineDocument() as EditDocument);
+    const modes = await screen.findByRole("group", { name: "Editor mode" });
+    expect(within(modes).getByRole("button", { name: "Timeline" })).toBeDefined();
+    cleanup();
+  }
 });
 
+test("a phone edits a version 2 draft in Story panes, with the beats as chips", async () => {
+  await renderStudio(375, timelineDocument() as EditDocument);
+
+  const panes = within(screen.getByRole("navigation", { name: "Studio panes" })).getAllByRole("button");
+  expect(panes.map((button) => button.textContent)).toEqual(["Materials", "Preview", "Inspector"]);
+  expect(screen.getByRole("toolbar", { name: "Story beats" }).getAttribute("data-variant")).toBe("chips");
+  expect(screen.queryByRole("heading", { name: /^Quick edit/ }) === null).toBe(true);
+});
+
+test("Timeline on a phone is view-only, with a larger-screen note and Inspect", async () => {
+  await renderStudio(375, timelineDocument() as EditDocument);
+  fireEvent.click(within(await screen.findByRole("group", { name: "Editor mode" })).getByRole("button", { name: "Timeline" }));
+
+  const panes = within(screen.getByRole("navigation", { name: "Studio panes" })).getAllByRole("button");
+  expect(panes.map((button) => button.textContent)).toEqual(["Assets", "Preview", "Timeline", "Inspector"]);
+  pane("Timeline");
+  expect(screen.getByText(/Best on a larger screen/)).toBeDefined();
+  expect(screen.queryByRole("button", { name: /^Trim start of/ }) === null).toBe(true);
+  expect(screen.queryByRole("group", { name: "Clip actions" }) === null).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Music clip" }));
+  fireEvent.click(screen.getByRole("button", { name: "Inspect" }));
+  expect(screen.getByRole("button", { name: "Inspector" }).getAttribute("aria-current")).toBe("page");
+});
+
+test("a version 1 draft keeps the scene board on a phone", async () => {
+  await renderStudio(375);
+  const panes = within(screen.getByRole("navigation", { name: "Studio panes" })).getAllByRole("button");
+  expect(panes.map((button) => button.textContent)).toEqual(["Scenes", "Preview", "Controls"]);
+});
+
+test("desktop Timeline keeps every tool and inspector field", async () => {
+  // Studio shell v2 (spec 2026-11-01, anti-goals): the redesign removes no tool and no field.
+  await renderStudio(1440, timelineDocument() as EditDocument);
+  fireEvent.click(await screen.findByRole("button", { name: "Timeline" }));
+  await screen.findByLabelText("Timeline");
+  fireEvent.click(screen.getByRole("button", { name: "Main video clip" }));
+
+  for (const name of ["Move clip to playhead", "Trim start to playhead", "Trim end to playhead", "Split clip at playhead", "Zoom in", "Zoom out"]) {
+    expect(screen.getByRole("button", { name })).toBeDefined();
+  }
+  // A switch is named by its text, a field by its label.
+  const control = (name: string) => screen.queryByRole("switch", { name }) ?? screen.queryByLabelText(name);
+  // Position presets need a positioned clip; TimelineInspector's own tests hold them.
+  for (const name of ["Ripple", "Snap", "Zoom", "Start frame", "End frame", "Fit", "Crop", "Hidden", "Locked", "Ownership"]) {
+    expect(control(name) === null).toBe(false);
+  }
+});
 test("explains a missing review or render capability instead of hiding the job", async () => {
   await renderStudio(1440);
   job("Review");
@@ -258,7 +309,7 @@ test("reviews the saved revision on desktop and returns to the draft heading in 
   expect(previewMounts).toBe(1);
 });
 
-test("keeps Advanced mode, a pending timeline edit, and the selection through a phone round trip", async () => {
+test("a pending timeline edit survives phone to tablet to desktop", async () => {
   const saved = mock(async (_projectId: string, _documentId: string, _patch: EditDocumentPatch) => ({
     kind: "saved" as const,
     document: timelineDocument() as EditDocument,
@@ -272,18 +323,17 @@ test("keeps Advanced mode, a pending timeline edit, and the selection through a 
   expect(screen.getByText("Unsaved changes")).toBeDefined();
 
   resize(375);
-  expect(screen.queryByLabelText("Timeline") === null).toBe(true);
-  expect(screen.queryByRole("group", { name: "Editor mode" }) === null).toBe(true);
-  expect(screen.getByText("Open on a larger screen to edit the timeline.")).toBeDefined();
+  const modeTimeline = () => within(screen.getByRole("group", { name: "Editor mode" })).getByRole("button", { name: "Timeline" });
+  expect(modeTimeline().getAttribute("aria-pressed")).toBe("true");
   expect(screen.getByText("Unsaved changes")).toBeDefined();
 
   resize(900);
-  pane("Scenes");
-  expect(screen.getByLabelText("Scene board")).toBeDefined();
-  expect(screen.queryByLabelText("Asset library") === null).toBe(true);
+  pane("Assets");
+  // This client lists no assets, so the pane is chosen but holds no library.
+  expect(screen.getByRole("button", { name: "Assets" }).getAttribute("aria-current")).toBe("page");
 
   resize(1440);
-  expect(screen.getByRole("button", { name: "Timeline" }).getAttribute("aria-pressed")).toBe("true");
+  expect(modeTimeline().getAttribute("aria-pressed")).toBe("true");
   expect(screen.getByRole("button", { name: "Unmute Music" })).toBeDefined();
   expect(screen.getByRole("button", { name: "Music clip" }).getAttribute("aria-pressed")).toBe("true");
 
@@ -291,7 +341,6 @@ test("keeps Advanced mode, a pending timeline edit, and the selection through a 
   expect(saved).toHaveBeenCalledTimes(1);
   expect(saved.mock.calls[0]![2].operations.map((operation) => operation.kind)).toEqual(["set_track_muted"]);
 });
-
 /** The upgraded text story plus one caption clip over its only scene. */
 function captionDocument(): EditDocument {
   const document = upgradedTextDocument();
@@ -320,23 +369,20 @@ function captionDocument(): EditDocument {
   return document;
 }
 
-test("edits caption text on a tablet through the shared draft and keeps it in the phone quick edit", async () => {
+test("edits caption text on a tablet through the shared draft and keeps it on a phone", async () => {
   const saved = mock(async (_projectId: string, _documentId: string, _patch: EditDocumentPatch) => ({
     kind: "saved" as const,
     document: captionDocument(),
   }));
   await renderStudio(900, captionDocument(), saved);
   jest.useFakeTimers();
-  pane("Controls");
+  pane("Inspector");
   fireEvent.change(screen.getByLabelText("Caption cue 1 text"), { target: { value: "New subtitle" } });
   expect(screen.getByText("Unsaved changes")).toBeDefined();
 
   resize(375);
-  // DESIGN 13.5: a phone edits a timeline draft through the quick edit (hook text, captions, swap).
-  expect(screen.getByRole("heading", { name: /^Quick edit · Rev \d+$/ })).toBeDefined();
+  // Studio shell v2 (spec 2026-11-01): a phone edits captions in the Story inspector pane.
   expect((screen.getByLabelText("Caption cue 1 text") as HTMLTextAreaElement).value).toBe("New subtitle");
-  expect(screen.queryByLabelText("Ownership") === null).toBe(true);
-  expect(screen.queryByLabelText("Duration (seconds)") === null).toBe(true);
 
   resize(900);
   expect((screen.getByLabelText("Caption cue 1 text") as HTMLTextAreaElement).value).toBe("New subtitle");
@@ -344,7 +390,6 @@ test("edits caption text on a tablet through the shared draft and keeps it in th
   expect(saved).toHaveBeenCalledTimes(1);
   expect(saved.mock.calls[0]![2].operations.map((operation) => operation.kind)).toEqual(["set_caption_cue_text"]);
 });
-
 test("collapses a compact-desktop side region from a trigger that keeps focus", async () => {
   await renderStudio(1024);
   const trigger = screen.getByRole("button", { name: "Scene board panel" });

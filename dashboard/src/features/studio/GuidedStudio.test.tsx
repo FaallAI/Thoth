@@ -972,42 +972,6 @@ test("edits the first text clip of a scene whose first clip is media", async () 
   ]);
 });
 
-test("moves a scene later from the tablet scene board through one persisted reorder", async () => {
-  // Desktop drafts open in Story; the scene board stays with the tablet editor.
-  const width = window.innerWidth;
-  Object.defineProperty(window, "innerWidth", { configurable: true, value: 900 });
-  try {
-    const { sceneStripDocument } = await import("./timeline-test-fixtures");
-    const strip = sceneStripDocument() as EditDocument;
-    const patchEditDocument = mock(
-      async (_projectId: string, _documentId: string, _patch: EditDocumentPatch) => ({
-        kind: "saved" as const,
-        document: strip,
-      }),
-    );
-    const { GuidedStudio } = await import("./GuidedStudio");
-    render(
-      <GuidedStudio
-        client={{ ...promptClientBase, ...advancedClientBase, getEditDocument: mock(async () => strip), patchEditDocument }}
-        projectId="project_001"
-        documentId="document_001"
-        onBack={() => {}}
-      />,
-    );
-    fireEvent.click(await screen.findByRole("button", { name: "Scenes" }));
-    jest.useFakeTimers();
-    fireEvent.click(screen.getByRole("button", { name: "Move Heading 1 later" }));
-    act(() => jest.advanceTimersByTime(500));
-
-    expect(patchEditDocument.mock.calls[0]![2]).toEqual({
-      base_revision: strip.revision,
-      operations: [expect.objectContaining({ kind: "reorder_scene", scene_id: "scene_001", to_index: 1 })],
-    });
-  } finally {
-    Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
-  }
-});
-
 test("captions and scene audio added in Simple mode persist in one autosave", async () => {
   const { sceneStripDocument } = await import("./timeline-test-fixtures");
   const strip = sceneStripDocument();

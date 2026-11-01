@@ -3,7 +3,7 @@ import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from "rea
 import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane";
 import { useLocale } from "@/lib/locale";
 import type { EditorAction, EditorState } from "./editor_state";
-import type { GestureMode } from "./TimelineClip";
+import { clipLabel, type GestureMode } from "./TimelineClip";
 import { TimelineToolbar, type ClipAction } from "./TimelineToolbar";
 import { TimelineTrack } from "./TimelineTrack";
 import {
@@ -25,6 +25,9 @@ type Props = {
   onPause?: () => void;
   /** The clip's human name (spec 2026-11-01); absent, the Timeline's own words for it. */
   labelOf?: (clip: NonNullable<EditDocumentV2["clips"]>[number]) => string;
+  /** Below 1024 the lanes are a view (spec 2026-11-01); a tapped clip offers Inspect. */
+  readOnly?: boolean;
+  onInspect?: () => void;
 };
 
 /** One pointer gesture in flight. Committed on pointer up, dropped on Escape. */
@@ -46,7 +49,7 @@ const snapThreshold = (zoom: number) => Math.max(1, Math.round(8 / zoom));
 /** The header column beside every lane; the ruler and the playhead start after it. */
 const HEADER_WIDTH = 192;
 
-export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf }: Props) {
+export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf, readOnly = false, onInspect }: Props) {
   const { t } = useLocale();
   const gesture = useRef<Gesture | null>(null);
   // The ruler under a press: pointer moves seek until the pointer is released.
@@ -247,7 +250,11 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf }: 
         onSnapping={(snapping) => dispatch({ type: "set_snapping", snapping })}
         onRipple={(ripple) => dispatch({ type: "set_ripple", ripple })}
         onClipAction={clipAction}
+        readOnly={readOnly}
       />
+      {readOnly ? (
+        <p className="flex items-center gap-2 border-b border-hairline bg-surface px-3 py-2 text-xs text-muted-ink">{t("studio.timeline.viewOnly")}</p>
+      ) : null}
 
       <div className="min-h-0 overflow-auto">
         <div
@@ -299,6 +306,7 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf }: 
               widthInFrames={duration}
               selectedClipId={state.selectedClipId}
               labelOf={labelOf}
+              readOnly={readOnly}
               onToggle={(field, value) =>
                 commit(
                   field === "hidden"
@@ -341,6 +349,19 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf }: 
           ))}
         </div>
       </div>
+      {readOnly && selectedClip ? (
+        <div className="flex items-center gap-3 border-t border-hairline bg-surface px-3 py-2">
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm text-ink">{labelOf?.(selectedClip) ?? clipLabel(t, selectedClip)}</span>
+            <span className="block font-mono text-xs text-muted-ink">
+              {formatTimecode(selectedClip.from_frame, fps)}–{formatTimecode(selectedClip.from_frame + selectedClip.duration_in_frames, fps)}
+            </span>
+          </span>
+          <button type="button" onClick={onInspect} className="rounded-md border border-hairline px-3 py-1.5 text-[13px] text-copper focus-visible:outline-2 focus-visible:outline-copper">
+            {t("studio.timeline.inspect")}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }
