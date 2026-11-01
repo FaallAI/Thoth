@@ -88,3 +88,9 @@ test("a sound effect clip whose id carries no number reads plainly, never NaN", 
 
   expect(clipLabel(ctx.document.clips!.at(-1)!, ctx)).toBe("Sound effect");
 });
+
+test("a handle reads with its @, once", () => {
+  // e2e audit 2026-11-02: "Post card · kabinet_rakyat".
+  const ctx = context(timelineDocument(), materialsWith([{ asset_id: "asset_video", role: "post_card", owner_handle: "kabinet_rakyat" }]));
+  expect(assetLabel("asset_video", ctx).label).toBe("Post card · @kabinet_rakyat");
+});

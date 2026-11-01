@@ -121,9 +121,9 @@ test("add from materials offers what the beat does not show, and attaches it", a
 
   fireEvent.click(screen.getByRole("button", { name: "Add from materials" }));
   const picker = screen.getByRole("listbox", { name: "Add from materials" });
-  expect(within(picker).getAllByRole("option").map((option) => option.textContent)).toEqual(["@late"]);
+  expect(within(picker).getAllByRole("option").map((option) => option.textContent)).toEqual(["Comment card · @late"]);
 
-  await act(async () => fireEvent.click(within(picker).getByRole("option", { name: "@late" })));
+  await act(async () => fireEvent.click(within(picker).getByRole("option", { name: "Comment card · @late" })));
 
   expect(attach).toHaveBeenCalledWith("comment_card_003");
   expect(dispatch.mock.calls.map(([action]) => action.type)).toEqual(["assets_loaded", "commit_operations"]);

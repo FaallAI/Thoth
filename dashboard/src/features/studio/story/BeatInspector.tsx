@@ -8,7 +8,7 @@ import { reasonText } from "@/features/workflows/OpenInStudio";
 
 import type { EditorAction } from "../editor_state";
 import { Switch } from "../StudioSwitch";
-import { clipLabel } from "../studio_labels";
+import { clipLabel, materialRowLabel } from "../studio_labels";
 import { ROLE_BEAT, beatOwnFrames, type Beat } from "./story_beats";
 import {
   addMaterialToBeat,
@@ -214,7 +214,7 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
                   onKeyDown={(event) => event.key === "Enter" && void add(item.item_id, item.role!)}
                   className="cursor-pointer rounded px-2 py-1.5 text-sm text-ink hover:bg-surface focus-visible:outline-2 focus-visible:outline-copper"
                 >
-                  {item.label}
+                  {materialRowLabel(item, t)}
                 </li>
               ))}
             </ul>

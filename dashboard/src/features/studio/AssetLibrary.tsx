@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 
 import type { ControlPlaneClient, EditorAsset } from "@/api/control-plane";
 
-import { numberRepeats } from "./studio_labels";
+import { Thumbnail } from "./story/MaterialsPanel";
+import { numberRepeats, type AssetKind } from "./studio_labels";
 
 /** One page at a time: the library never pulls a whole project into memory. */
 export const ASSET_PAGE_LIMIT = 20;
@@ -20,7 +21,9 @@ type Props = {
   onAdd?: (asset: EditorAsset) => void;
   onPreviewSource: (assetId: string, previewUrl: string) => void;
   /** A row's human name and detail line (spec 2026-11-01); absent, a row falls back to its id. */
-  describe?: (asset: EditorAsset) => { label: string; detail: string };
+  describe?: (asset: EditorAsset) => { label: string; detail: string; kind?: AssetKind };
+  /** Preview URLs by asset id, the same the player draws from. */
+  previews?: Record<string, string>;
 };
 
 /** Pages may overlap, so one asset keeps one row: first seen, newest projection. */
@@ -41,6 +44,7 @@ export function AssetLibrary({
   onAdd,
   onPreviewSource,
   describe,
+  previews,
 }: Props) {
   const [assets, setAssets] = useState<EditorAsset[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -84,15 +88,18 @@ export function AssetLibrary({
       .catch(() => undefined);
   };
 
-  const ready = assets.filter((asset) => asset.validation_state === "ready");
-  const described = ready.map(
-    (asset) =>
-      describe?.(asset) ?? {
+  const rows = assets
+    .filter((asset) => asset.validation_state === "ready")
+    .map((asset): { asset: EditorAsset; label: string; detail: string; kind?: AssetKind } => ({
+      asset,
+      ...(describe?.(asset) ?? {
         label: asset.asset_id,
         detail: `${asset.kind}${asset.duration_in_frames ? ` · ${asset.duration_in_frames}f` : ""}`,
-      },
-  );
-  const labels = numberRepeats(described.map((item) => item.label));
+      }),
+    }))
+    // What this draft uses comes first; what nothing names (another draft's upload) comes last.
+    .sort((a, b) => Number(a.kind === "upload") - Number(b.kind === "upload"));
+  const labels = numberRepeats(rows.map((row) => row.label));
 
   return (
     <section className="min-h-0 overflow-auto border-r border-border bg-card/60 p-3" aria-label="Asset library">
@@ -113,13 +120,15 @@ export function AssetLibrary({
       ) : (
         <>
           <ul className="space-y-2">
-            {ready.map((asset, index) => (
+            {rows.map(({ asset, detail }, index) => (
               <li
                 key={asset.asset_id}
-                className="rounded border border-border bg-background/40 p-2 text-xs"
+                className="flex gap-2 rounded border border-border bg-background/40 p-2 text-xs"
               >
+                <Thumbnail kind={asset.kind} preview={previews?.[asset.asset_id]} />
+                <div className="min-w-0 flex-1">
                 <span className="block font-medium break-words text-foreground">{labels[index]}</span>
-                <span className="block text-muted-foreground">{described[index]!.detail}</span>
+                <span className="block text-muted-foreground">{detail}</span>
                 <div className="mt-1 flex flex-wrap gap-1">
                   {onAdd ? (
                     <button
@@ -140,10 +149,11 @@ export function AssetLibrary({
                     Preview
                   </button>
                 </div>
+                </div>
               </li>
             ))}
           </ul>
-          {ready.length === 0 && !loading ? (
+          {rows.length === 0 && !loading ? (
             <p className="text-xs text-muted-foreground">No ready assets yet</p>
           ) : null}
           {cursor ? (

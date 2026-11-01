@@ -190,6 +190,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         const kind = t(`studio.label.kind.${asset.kind}`);
         return {
           label: named.label,
+          kind: named.kind,
           detail: named.seconds == null ? kind : `${kind} · ${t("studio.story.seconds", { seconds: named.seconds.toFixed(1) })}`,
         };
       }
@@ -883,6 +884,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 <AssetLibrary
                   client={assetClient}
                   describe={describeAsset}
+                  previews={previewSources}
                   projectId={projectId}
                   generationRef={generation}
                   onAssets={(assets, replace) => dispatch({ type: "assets_loaded", assets, replace })}
