@@ -6,6 +6,7 @@ import { LoaderCircle, Mic } from "lucide-react";
 import { StudioImportRequestError, type ControlPlaneClient, type NarrationState } from "@/api/control-plane";
 import { useLocale } from "@/lib/locale";
 
+import { RevoiceConfirm } from "./RevoiceConfirm";
 import { isNarrationActive } from "./useNarration";
 
 type Props = {
@@ -33,10 +34,6 @@ export function NarrationStatus({ client, projectId, documentId, state, variant,
   const [confirmingRevoice, setConfirmingRevoice] = useState(false);
   const stale = state?.status === "completed" ? (state.stale_beats ?? []) : [];
   const beats = state?.script?.beats.length ?? 0;
-  // Every re-voice is a paid TTS call, so its characters and price show first (operator, 2026-11-01).
-  const staleCharacters = (state?.script?.beats ?? []).filter((beat) => stale.includes(beat.beat)).reduce((sum, beat) => sum + beat.text.length, 0);
-  const estimate = state?.estimate;
-  const staleUsd = estimate?.usd != null && estimate.characters > 0 ? (estimate.usd * staleCharacters) / estimate.characters : null;
 
   const run = async (work: () => Promise<void>) => {
     setBusy(true);
@@ -105,24 +102,8 @@ export function NarrationStatus({ client, projectId, documentId, state, variant,
       ) : null}
       {state?.status === "completed" ? (
         <>
-          {stale.length && confirmingRevoice ? (
-            <div className="flex flex-col gap-2 rounded-md bg-surface p-2 text-xs text-muted-ink">
-              <p>
-                {t("studio.narration.revoiceCost", {
-                  count: stale.length,
-                  characters: staleCharacters,
-                  price: staleUsd == null ? t("studio.narration.unpriced") : t("studio.narration.price", { usd: staleUsd.toFixed(2) }),
-                })}
-              </p>
-              <div className="flex gap-2">
-                <button type="button" className="rounded-md bg-copper px-3 py-1 text-[13px] text-bg" disabled={busy} onClick={revoiceChanged}>
-                  {t("studio.narration.revoiceYes", { count: stale.length })}
-                </button>
-                <button type="button" className="rounded-md border border-hairline px-3 py-1 text-[13px] text-ink" onClick={() => setConfirmingRevoice(false)}>
-                  {t("studio.narration.notNow")}
-                </button>
-              </div>
-            </div>
+          {stale.length && confirmingRevoice && state ? (
+            <RevoiceConfirm state={state} beats={stale} busy={busy} onConfirm={revoiceChanged} onCancel={() => setConfirmingRevoice(false)} />
           ) : stale.length ? (
             <button type="button" className={action} disabled={busy} onClick={() => setConfirmingRevoice(true)}>
               {t("studio.narration.revoiceChanged", { count: stale.length })}

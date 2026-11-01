@@ -70,8 +70,29 @@ test("a completed script is editable and a stale beat can be re-voiced", async (
   fireEvent.change(screen.getByRole("textbox", { name: "Hook" }), { target: { value: "Baru" } });
   await act(async () => fireEvent.click(screen.getAllByRole("button", { name: "Save line" })[0]!));
   expect(api.editNarrationBeat).toHaveBeenCalledWith("p", "edoc_1", "hook", "Baru");
-  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Re-voice" })));
+  fireEvent.click(screen.getByRole("button", { name: "Re-voice" }));
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Yes, re-voice 1 beats" })));
   expect(api.revoiceNarrationBeat).toHaveBeenCalledWith("p", "edoc_1", "main");
+});
+
+test("re-voicing one beat shows its characters and price first, and spends nothing until confirmed", () => {
+  // Every re-voice is a paid ElevenLabs call (operator, 2026-11-01): the cost shows before any voice.
+  const api = client();
+  const priced: NarrationState = {
+    ...awaiting,
+    status: "completed",
+    stale_beats: ["main"],
+    estimate: { characters: 48, provider: "elevenlabs", voice_id: "plgK", usd: 0.48 },
+  };
+  render(<ScriptPanel client={api as never} projectId="p" documentId="edoc_1" state={priced} onChange={() => {}} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Re-voice" }));
+  // "Kata Andi, ikan diambil." is 24 of the script's 48 characters: half of $0.48.
+  expect(screen.getByText("1 beats · 24 characters · about $0.24")).toBeDefined();
+  expect(api.revoiceNarrationBeat).toHaveBeenCalledTimes(0);
+  fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+  expect(screen.queryByRole("button", { name: "Yes, re-voice 1 beats" })).toBeNull();
+  expect(api.revoiceNarrationBeat).toHaveBeenCalledTimes(0);
 });
 
 test("a running narration shows its step and the Indonesian strings exist", () => {
