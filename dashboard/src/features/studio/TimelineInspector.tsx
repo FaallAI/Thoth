@@ -4,7 +4,8 @@ import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane"
 import { useLocale } from "@/lib/locale";
 import { setPositionPreset, type PositionPreset } from "./story/story_edits";
 import { clipLabel } from "./TimelineClip";
-import { formatTimecode } from "./timeline_domain";
+import { issueSentence } from "./IssuesPanel";
+import { formatTimecode, timelineIssues } from "./timeline_domain";
 
 type Props = {
   document: EditDocumentV2;
@@ -74,6 +75,8 @@ export function TimelineInspector({
   };
   const fps = document.canvas.fps;
   const clip = document.clips?.find((candidate) => candidate.clip_id === selectedClipId);
+  // The selected clip's own warnings (spec 2026-11-01, goal 7).
+  const clipIssues = clip ? timelineIssues(document).filter((issue) => issue.target.kind === "clip" && issue.target.id === clip.clip_id) : [];
   const track = document.tracks.find(
     (candidate) => candidate.track_id === (clip?.track_id ?? selectedTrackId),
   );
@@ -302,6 +305,15 @@ export function TimelineInspector({
               </select>
             </div>
           </Section>
+          {clipIssues.length ? (
+            <Section title={t("studio.issues.forClip", { count: clipIssues.length })}>
+              <ul className="space-y-1 text-xs text-status-waiting">
+                {clipIssues.map((issue) => (
+                  <li key={issue.issue_id}>{issueSentence(t, document, issue)}</li>
+                ))}
+              </ul>
+            </Section>
+          ) : null}
         </>
       ) : track ? (
         <>

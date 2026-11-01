@@ -305,3 +305,13 @@ test("the timeline inspector title is the clip label", () => {
 
   expect(screen.getByRole("heading", { level: 2, name: "Footage · @OfficialiNews" })).toBeDefined();
 });
+
+test("the inspector lists the selected clip's issues", () => {
+  // Studio shell v2 (spec 2026-11-01, goal 7): a late main clip leaves a gap before it.
+  const document = timelineDocument();
+  document.clips![0]!.from_frame = 30;
+  mount({ clipId: "clip_main" }, document);
+
+  const issues = screen.getByRole("group", { name: "Issues · 1" });
+  expect(issues.textContent).toContain("Main video: a clip starts after a gap");
+});

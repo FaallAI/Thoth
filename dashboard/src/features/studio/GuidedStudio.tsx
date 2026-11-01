@@ -981,6 +981,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                   selectedIssueId={state.selectedIssueId}
                   mode={state.mode}
                   dispatch={dispatch}
+                  labelOf={labelOf}
                 />
               </div>
             ) : null}
