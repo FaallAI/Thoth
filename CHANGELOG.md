@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-01 - Deployed d8b738a (PR #102); the narrated draft rebuilt without TTS; Studio shell v2 specified
+
+**Deploy:**
+- **Build:** master `d8b738a` (PR #102: Timeline's three columns, cards that fill each narrated beat, roles on imported text scenes). Images: thoth `d2573d92`, renderer `6d219a07`, web `91386690`, pulled ahead.
+- **Run:** `make deploy` exit 0 with no workflow running; the preflight passed and head stays `0027`.
+- **Health:** every service healthy, and no ERROR or Traceback in the api, worker, web and renderer logs. The worker has the ElevenLabs key.
+- **Previous pins:** `D:/thoth-tmp/bu/pins/pins-7924ae24.env`.
+
+**The narrated draft, rebuilt without TTS** (operator: "ya tolong ini", following a side-agent note that "Recreate narration" would pay ElevenLabs again and still keep the flashing cards, because a narrated draft keeps its layout):
+- **Input:** `edoc_3aedc6af…` rev 15 (before narration), with its four judged-comment quotes marked `comment`, the four stored voices and the stored preset, run through the deployed `narrate_document`.
+- **Output:** written as revision 18 through `write_derived_revision` on base 17. Rev 17 matched rev 16 clip for clip, so no edit was lost.
+- **Check:** a dry run first showed 1034 frames, no overlap on any track, and no card or overlay under 1 s.
+- **Cost:** no ElevenLabs or LLM call was made.
+
+**Legacy drafts.** Text scenes carry their role only from imports made after PR #102. A read-only survey of stage1 found 2 v2 import drafts, and both lacked roles:
+- `edoc_3aedc6af…` had 4 such scenes and is handled by the rebuild above.
+- `edoc_2927f300…` has 8 and no narration yet. Do not narrate it: reopen the draft from its run, which creates a new draft with roles.
+
+**Studio shell v2:**
+- The pen.dev frames for the audit's remaining findings were reviewed and corrected in `design/thoth-dashboard-v2.pen`:
+  - Geist as the font;
+  - only the selected beat outlined;
+  - the Timeline's tools and inspector fields kept;
+  - Assist as an action;
+  - cards that follow the voice.
+- Spec: `docs/superpowers/specs/2026-11-01-studio-shell-v2-design.md`. Plan: `docs/superpowers/plans/2026-11-01-studio-shell-v2.md`.
+- The operator approved:
+  - Story or Timeline in panes on phone and tablet;
+  - tracking the `.pen` files, with generated exports ignored;
+  - Native execution.
+
+**Next steps:**
+- Execute the shell v2 plan (7 tasks) on `feat/studio-shell-v2`.
+- Operator: watch and render rev 18, and reopen `edoc_2927f300…` from its run before any narration.
+- Later: the CC0 default SFX set; the `narration-v1` golden capsule; removing the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`.
+
 ## 2026-11-01 - Deployed 7924ae2 (PR #101); Studio audit; the Timeline layout and narrated card timing fixed
 
 **Deploy:** master `7924ae2` (PR #101: Story previews narration audio, CC0-only SFX). Images: thoth `e2d09f48`, renderer `35c7d22e`, web `36334789`, pulled ahead. `make deploy` exit 0 after the operator granted `/permissions`; no workflow was running; head stays `0027`; every service healthy; no ERROR or Traceback in the api, worker, web and renderer logs. The ElevenLabs key is visible to the worker. The draft, its narration and the dashboard answer 200. Previous pins: `D:/thoth-tmp/bu/pins/pins-10af8950.env`.
