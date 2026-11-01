@@ -1101,7 +1101,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                     dispatch({ type: "edit_duration", sceneId, durationInFrames, operationId: makeOperationId() })
                   }
                 >
-                  <SceneMediaInspector document={state.draft} sceneId={state.selectedSceneId} />
+                  <SceneMediaInspector document={state.draft} sceneId={state.selectedSceneId} labelOf={labels ? (assetId) => assetLabel(assetId, labels).label : undefined} />
                   {timeline ? <CaptionTextInspector document={timeline} selectedSceneId={state.selectedSceneId} disabled={upgrading} compact onOperation={(operation) => dispatch({ type: "commit_timeline_operation", operation })} /> : <section className="studio-caption-summary" aria-label="Captions"><h3>Captions</h3><p>No editable captions in this document.</p><button className="studio-style-trigger" type="button" disabled>Caption style unavailable</button></section>}
                 </Inspector>
                 {timeline && viewport !== "phone" ? (

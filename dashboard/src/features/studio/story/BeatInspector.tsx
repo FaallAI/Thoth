@@ -9,7 +9,7 @@ import { reasonText } from "@/features/workflows/OpenInStudio";
 import type { EditorAction } from "../editor_state";
 import { Switch } from "../StudioSwitch";
 import { clipLabel } from "../studio_labels";
-import { ROLE_BEAT, type Beat } from "./story_beats";
+import { ROLE_BEAT, beatOwnFrames, type Beat } from "./story_beats";
 import {
   addMaterialToBeat,
   longestReading,
@@ -80,9 +80,11 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
   const text = beat.id === "hook" || beat.id === "outro" ? clips.find((clip) => clip.kind === "text") : undefined;
   const reading = longestReading(beat, inventory);
 
+  // The same seconds as the beat's tile: a beat that spans others does not count their time.
+  const ownFrames = beatOwnFrames(beats, document.canvas.duration_in_frames).get(beat.id) ?? beat.durationInFrames;
   const header = [
     t("studio.inspector.beatOf", { index: beats.indexOf(beat) + 1, count: beats.length }),
-    seconds(beat.durationInFrames),
+    seconds(ownFrames),
     plural("studio.inspector.materials", clips.length),
     ...(beat.missing.length ? [t("studio.story.missing", { count: beat.missing.length })] : []),
   ].join(" · ");
@@ -226,7 +228,7 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
       <section aria-label={t("studio.inspector.timing")} className={section}>
         <h3 className={heading}>{t("studio.inspector.timing")}</h3>
         {narrated && cards.length ? (
-          <p className="text-sm text-muted-ink">{t("studio.inspector.followsVoice", { length: seconds(beat.durationInFrames) })}</p>
+          <p className="text-sm text-muted-ink">{t("studio.inspector.followsVoice", { length: seconds(ownFrames) })}</p>
         ) : cards.length ? (
           <>
             <label className="flex items-center justify-between gap-2 text-sm text-ink">
@@ -288,7 +290,7 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
             </label>
           </>
         ) : (
-          <p className="text-sm text-muted-ink">{t("studio.inspector.followsVideo", { length: seconds(beat.durationInFrames) })}</p>
+          <p className="text-sm text-muted-ink">{t("studio.inspector.followsVideo", { length: seconds(ownFrames) })}</p>
         )}
       </section>
 

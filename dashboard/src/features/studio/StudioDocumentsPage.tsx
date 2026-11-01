@@ -53,7 +53,7 @@ function Thumbnail({ src, platform }: { src: string | null; platform: string | n
   return (
     <div className="flex aspect-[9/16] w-[88px] shrink-0 items-center justify-center overflow-hidden rounded-md bg-well md:w-full md:rounded-[10px] md:bg-surface">
       {src && !broken ? (
-        <img src={src} alt="" loading="lazy" onError={() => setBroken(true)} className="size-full object-cover object-top" />
+        <img src={src} alt="" loading="lazy" onError={() => setBroken(true)} className="size-full object-contain" />
       ) : platform ? (
         <PlatformIcon platform={platform} className="size-8 text-faint" />
       ) : (

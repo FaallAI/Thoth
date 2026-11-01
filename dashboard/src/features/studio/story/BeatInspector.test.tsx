@@ -8,7 +8,7 @@ import { render } from "@/test-render";
 
 import type { EditorAction } from "../editor_state";
 import { BeatInspector } from "./BeatInspector";
-import { computeBeats } from "./story_beats";
+import { beatOwnFrames, computeBeats } from "./story_beats";
 import { storyDocument, storyInventory } from "./story-test-fixtures";
 
 afterEach(cleanup);
@@ -261,4 +261,15 @@ test("a narrated beat's cards follow the voice: no per-card length", () => {
 
   expect(screen.getByText("Cards follow the voice · 2.7 s")).toBeDefined();
   expect(screen.queryByLabelText(/Each card/)).toBeNull();
+});
+
+test("a beat that spans others reads its own seconds, as its tile does", () => {
+  // e2e audit 2026-11-02, finding 4: Main read 13.6 s in the inspector and 8.9 s on its tile.
+  const canvas = storyDocument().canvas.duration_in_frames;
+  const spanning = beats.map((beat, index) => (index === 0 ? { ...beat, startFrame: 0, durationInFrames: canvas } : beat));
+  const own = beatOwnFrames(spanning, canvas).get(spanning[0]!.id)!;
+  expect(own).toBeLessThan(canvas);
+  render(<BeatInspector beat={spanning[0]!} beats={spanning} document={storyDocument()} inventory={inventory} materials={materials} dispatch={mock(() => {})} />);
+
+  expect(screen.getByText(new RegExp(`^Beat 1 of 4 · ${(own / 30).toFixed(1)} s`))).toBeDefined();
 });

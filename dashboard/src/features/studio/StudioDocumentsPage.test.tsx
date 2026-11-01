@@ -96,6 +96,8 @@ test("each document card shows its state, source run, revision and opens by URL"
   expect(card.textContent).toContain("Rev 4");
   // The picture is the run's post card; a card the browser cannot load falls back to a plain panel.
   expect(fake.cardUrl).toHaveBeenCalledWith("wf_1", "post");
+  // e2e audit 2026-11-02, finding 8: a wide card cropped to giant text ("AR PENJI"); the whole card shows.
+  expect(card.querySelector("img")!.className).toContain("object-contain");
   await userEvent.setup().click(card);
   expect(await screen.findByText("studio p1 edoc_1")).toBeDefined();
 });

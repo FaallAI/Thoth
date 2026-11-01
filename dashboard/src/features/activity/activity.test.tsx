@@ -69,3 +69,12 @@ test("the tab title counts what waits in the inbox", async () => {
   setup([[]], {}, { approvals: [{ workflow_id: "w", project_id: null, display_url: "u", platform: "x", status: "awaiting_approval", updated_at: "" }], failures: [], accounts: [] });
   await waitFor(() => expect(document.title).toBe("(1) Thoth"));
 });
+
+test("a run in status unknown is not asked for as active", async () => {
+  // e2e audit 2026-11-02, finding 9: 218 stored `unknown` rows read as "20 running" with nothing running.
+  const { client } = setup([[]], {});
+  await waitFor(() => expect(client.listRuns.mock.calls.length).toBeGreaterThan(0));
+
+  const [query] = client.listRuns.mock.calls[0] as unknown as [{ status: string[] }];
+  expect(query.status).toEqual(["queued", "running", "awaiting_approval"]);
+});
