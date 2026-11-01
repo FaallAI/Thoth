@@ -2,6 +2,84 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-01 - Studio shell v2: one-row header, phone panes, human labels, truthful beats, clickable issues
+
+Spec: `docs/superpowers/specs/2026-11-01-studio-shell-v2-design.md`. Plan: `docs/superpowers/plans/2026-11-01-studio-shell-v2.md` (7 tasks, executed natively). Ledger: `.superpowers/sdd/2026-11-01-studio-shell-v2/progress.md`. Branch `feat/studio-shell-v2`.
+
+**What changed**
+
+- **Labels.** Assets and clips read "kind · source" ("Narration · Main", "Comment card · @lailynisfa", "Upload · Image"), never an id. Repeated names are numbered. This covers asset rows, Materials uploads, the Story Shown list, the Timeline inspector title, clip names and the issue rows.
+- **Header.** The header is 56 px and one row from 1024 up. Script and Assist move into the overflow menu, and Assist now opens its panel instead of toggling. At 1024 the back button is an icon only and the menu carries an amber dot when a beat needs re-voice. The jobs and Request review never wrap.
+- **Narration status.** It replaces the dead-looking "Create narration" button with "Narrated · N beats" (and "N need re-voice"), plus Re-voice changed beats, Recreate narration… and Open script. A failed or cancelled narration offers Create again.
+  - **Every re-voice shows its cost first.** Both the bulk re-voice and the Script panel's per-beat re-voice show the beats' characters and their prorated price, and wait for "Yes, re-voice N beats". Operator ruling: the estimate shows before any voice.
+  - **Bulk re-voice runs one beat at a time.** It waits for each to finish, because the server takes one re-voice at a time. It stops at a failure code, when Studio closes, or after 10 minutes.
+- **Beat strip.** Each tile shows its own seconds, and the tiles sum to the canvas ("matches canvas"). A green mic marks a narrated beat, an amber mic a stale one, and only the selected tile is outlined.
+- **Inspectors.** The scene heading is clamped to two lines, with Edit heading. A narrated beat's timing reads "Cards follow the voice".
+- **Issues.** They are grouped by lane, and each row names its clip and its time. Choosing a row selects the clip and moves the playhead. The Timeline inspector lists the selected clip's issues.
+- **Phone and tablet (under 1024).** A v2 draft edits Story (Materials / Preview / Inspector, beats as chips) or Timeline (Assets / Preview / Timeline / Inspector) in panes.
+  - The Timeline is view-only: no drag, trim, clip actions, lane toggles or adds. Inspect opens a tapped clip's fields.
+  - The quick edit and its swap sheet are retired. DESIGN.md §13.5 is updated.
+- **Page width.** `.studio-shell` may shrink. A truncated title had set its min-content to 985 px at 430 wide.
+
+**Verification**
+- **Dashboard:** 1527 tests pass; `tsc -b`, the build and lint are clean.
+- **Python:** 4415 passed, 263 skipped; `make lint` is clean.
+- **Browser walk** on the narrated stage1 draft:
+  - the header is 56 px at 1440 and 1024;
+  - there is no horizontal scroll at 430, 1024 or 1440;
+  - no `asset_` or `clip_` text appears;
+  - the beat total is 34.5 s, equal to the canvas;
+  - the menu stays inside the viewport.
+- **Not covered:** the Indonesian frames rendered in English, because the read-token session ignores the stored locale. Indonesian widths stay covered by a unit test.
+- **Final review:** a fresh reviewer found no Critical issue. Its 4 Important findings were fixed test-first:
+  1. a failed re-voice ends "completed" with a failure code;
+  2. the wait loop had no stop or cap;
+  3. the compact Timeline still edited;
+  4. Timeline pane then Story left an empty workspace.
+
+  It also found 8 Minors, which are deferred and listed in the ledger.
+
+**Next steps**
+- **Operator gates:** push and PR for `feat/studio-shell-v2`; merge; deploy (web image; no migration).
+- **Minors:** all 8 were fixed test-first on 2026-11-02 (operator: "lakukan perbaikan minor"). Dashboard suite: 1535 pass.
+- **Later:** new issue kinds (a gap before a beat, a clip running past its beat, captions too short); reopen `edoc_2927f300…` from its run before narrating it; the CC0 default SFX set; the `narration-v1` golden capsule.
+
+## 2026-11-01 - Deployed d8b738a (PR #102); the narrated draft rebuilt without TTS; Studio shell v2 specified
+
+**Deploy:**
+- **Build:** master `d8b738a` (PR #102: Timeline's three columns, cards that fill each narrated beat, roles on imported text scenes). Images: thoth `d2573d92`, renderer `6d219a07`, web `91386690`, pulled ahead.
+- **Run:** `make deploy` exit 0 with no workflow running; the preflight passed and head stays `0027`.
+- **Health:** every service healthy, and no ERROR or Traceback in the api, worker, web and renderer logs. The worker has the ElevenLabs key.
+- **Previous pins:** `D:/thoth-tmp/bu/pins/pins-7924ae24.env`.
+
+**The narrated draft, rebuilt without TTS** (operator: "ya tolong ini", following a side-agent note that "Recreate narration" would pay ElevenLabs again and still keep the flashing cards, because a narrated draft keeps its layout):
+- **Input:** `edoc_3aedc6af…` rev 15 (before narration), with its four judged-comment quotes marked `comment`, the four stored voices and the stored preset, run through the deployed `narrate_document`.
+- **Output:** written as revision 18 through `write_derived_revision` on base 17. Rev 17 matched rev 16 clip for clip, so no edit was lost.
+- **Check:** a dry run first showed 1034 frames, no overlap on any track, and no card or overlay under 1 s.
+- **Cost:** no ElevenLabs or LLM call was made.
+
+**Legacy drafts.** Text scenes carry their role only from imports made after PR #102. A read-only survey of stage1 found 2 v2 import drafts, and both lacked roles:
+- `edoc_3aedc6af…` had 4 such scenes and is handled by the rebuild above.
+- `edoc_2927f300…` has 8 and no narration yet. Do not narrate it: reopen the draft from its run, which creates a new draft with roles.
+
+**Studio shell v2:**
+- The pen.dev frames for the audit's remaining findings were reviewed and corrected in `design/thoth-dashboard-v2.pen`:
+  - Geist as the font;
+  - only the selected beat outlined;
+  - the Timeline's tools and inspector fields kept;
+  - Assist as an action;
+  - cards that follow the voice.
+- Spec: `docs/superpowers/specs/2026-11-01-studio-shell-v2-design.md`. Plan: `docs/superpowers/plans/2026-11-01-studio-shell-v2.md`.
+- The operator approved:
+  - Story or Timeline in panes on phone and tablet;
+  - tracking the `.pen` files, with generated exports ignored;
+  - Native execution.
+
+**Next steps:**
+- Execute the shell v2 plan (7 tasks) on `feat/studio-shell-v2`.
+- Operator: watch and render rev 18, and reopen `edoc_2927f300…` from its run before any narration.
+- Later: the CC0 default SFX set; the `narration-v1` golden capsule; removing the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`.
+
 ## 2026-11-01 - Deployed 7924ae2 (PR #101); Studio audit; the Timeline layout and narrated card timing fixed
 
 **Deploy:** master `7924ae2` (PR #101: Story previews narration audio, CC0-only SFX). Images: thoth `e2d09f48`, renderer `35c7d22e`, web `36334789`, pulled ahead. `make deploy` exit 0 after the operator granted `/permissions`; no workflow was running; head stays `0027`; every service healthy; no ERROR or Traceback in the api, worker, web and renderer logs. The ElevenLabs key is visible to the worker. The draft, its narration and the dashboard answer 200. Previous pins: `D:/thoth-tmp/bu/pins/pins-10af8950.env`.

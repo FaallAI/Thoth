@@ -3,10 +3,9 @@
 import { afterEach, expect, mock, test } from "bun:test";
 import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 
-import { StudioImportRequestError, type NarrationState } from "@/api/control-plane";
+import type { NarrationState } from "@/api/control-plane";
 import { render } from "@/test-render";
 
-import { NarrationButton } from "./NarrationButton";
 import { ScriptPanel } from "./ScriptPanel";
 
 afterEach(cleanup);
@@ -40,26 +39,6 @@ function client(overrides: Record<string, unknown> = {}) {
   };
 }
 
-test("the button creates a narration and is unavailable while one runs", async () => {
-  const api = client();
-  const onChange = mock((_state: NarrationState) => {});
-  render(<NarrationButton client={api as never} projectId="p" documentId="edoc_1" state={null} onChange={onChange} />);
-  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Create narration" })));
-  expect(api.startNarration).toHaveBeenCalledTimes(1);
-  expect(onChange).toHaveBeenCalledTimes(1);
-  cleanup();
-
-  render(<NarrationButton client={api as never} projectId="p" documentId="edoc_1" state={{ ...awaiting, status: "voicing" }} onChange={onChange} />);
-  expect((screen.getByRole("button", { name: "Create narration" }) as HTMLButtonElement).disabled).toBe(true);
-});
-
-test("a refused start shows its reason", async () => {
-  const api = client({ startNarration: mock(async () => { throw new StudioImportRequestError(409, "prompt_not_configured"); }) });
-  render(<NarrationButton client={api as never} projectId="p" documentId="edoc_1" state={null} onChange={() => {}} />);
-  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Create narration" })));
-  expect(screen.getByRole("status").textContent).toContain("prompt_not_configured");
-});
-
 test("the approval shows the script read-only with the estimate and the unsupported words", async () => {
   const api = client();
   render(<ScriptPanel client={api as never} projectId="p" documentId="edoc_1" state={awaiting} onChange={() => {}} />);
@@ -91,8 +70,29 @@ test("a completed script is editable and a stale beat can be re-voiced", async (
   fireEvent.change(screen.getByRole("textbox", { name: "Hook" }), { target: { value: "Baru" } });
   await act(async () => fireEvent.click(screen.getAllByRole("button", { name: "Save line" })[0]!));
   expect(api.editNarrationBeat).toHaveBeenCalledWith("p", "edoc_1", "hook", "Baru");
-  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Re-voice" })));
+  fireEvent.click(screen.getByRole("button", { name: "Re-voice" }));
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Yes, re-voice 1 beats" })));
   expect(api.revoiceNarrationBeat).toHaveBeenCalledWith("p", "edoc_1", "main");
+});
+
+test("re-voicing one beat shows its characters and price first, and spends nothing until confirmed", () => {
+  // Every re-voice is a paid ElevenLabs call (operator, 2026-11-01): the cost shows before any voice.
+  const api = client();
+  const priced: NarrationState = {
+    ...awaiting,
+    status: "completed",
+    stale_beats: ["main"],
+    estimate: { characters: 48, provider: "elevenlabs", voice_id: "plgK", usd: 0.48 },
+  };
+  render(<ScriptPanel client={api as never} projectId="p" documentId="edoc_1" state={priced} onChange={() => {}} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Re-voice" }));
+  // "Kata Andi, ikan diambil." is 24 of the script's 48 characters: half of $0.48.
+  expect(screen.getByText("1 beats · 24 characters · about $0.24")).toBeDefined();
+  expect(api.revoiceNarrationBeat).toHaveBeenCalledTimes(0);
+  fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+  expect(screen.queryByRole("button", { name: "Yes, re-voice 1 beats" })).toBeNull();
+  expect(api.revoiceNarrationBeat).toHaveBeenCalledTimes(0);
 });
 
 test("a running narration shows its step and the Indonesian strings exist", () => {
@@ -148,11 +148,6 @@ test("polling keeps going after a failed read", async () => {
   await waitFor(() => expect(result.current[0]?.status).toBe("completed"));
 });
 
-test("a completed narration is not created again", () => {
-  render(<NarrationButton client={client() as never} projectId="p" documentId="edoc_1" state={{ ...awaiting, status: "completed" }} onChange={() => {}} />);
-  expect((screen.getByRole("button", { name: "Create narration" }) as HTMLButtonElement).disabled).toBe(true);
-});
-
 
 test("a finished narration is recreated only after a confirmation", async () => {
   const api = client();
@@ -164,4 +159,11 @@ test("a finished narration is recreated only after a confirmation", async () => 
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "Yes, write a new script" })));
   expect(api.restartNarration).toHaveBeenCalledWith("p", "edoc_1");
   expect(onChange.mock.calls[0]![0].status).toBe("transcribing");
+});
+
+test("a re-voice that failed says so, and the beat keeps its earlier voice", () => {
+  // Final review, minor 8: a failed re-voice ends "completed" with a failure code.
+  render(<ScriptPanel client={client() as never} projectId="p" documentId="edoc_1" state={{ ...awaiting, status: "completed", stale_beats: ["main"], failure_code: "revoice_failed" }} onChange={() => {}} />);
+
+  expect(screen.getByRole("status").textContent).toContain("revoice_failed");
 });

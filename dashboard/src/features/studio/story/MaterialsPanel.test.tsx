@@ -148,3 +148,11 @@ test("the panel speaks Indonesian", () => {
   expect(screen.getByRole("button", { name: /^Kartu 1$/ })).toBeDefined();
   expect(screen.getByRole("searchbox", { name: "Cari materi" })).toBeDefined();
 });
+
+test("an upload row names its kind, never its id", () => {
+  // Studio shell v2 (spec 2026-11-01, goal 4).
+  mount();
+
+  expect(screen.getByText("Upload · Image")).toBeDefined();
+  expect(screen.queryByText(/asset_upload/)).toBeNull();
+});

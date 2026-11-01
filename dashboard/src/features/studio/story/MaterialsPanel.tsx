@@ -4,6 +4,7 @@ import { ChevronDown, Film, ImageIcon, Info, Quote } from "lucide-react";
 import type { EditDocumentV2, EditorAsset, StudioMaterial, StudioMaterials } from "@/api/control-plane";
 import { useLocale } from "@/lib/locale";
 
+import { assetLabel, numberRepeats } from "../studio_labels";
 import type { Beat } from "./story_beats";
 
 /** What a dragged material carries: its item id, or `upload:<asset_id>` for a project upload. */
@@ -69,11 +70,14 @@ export function MaterialsPanel({ materials, uploads, beats, document, previews }
       )),
   });
   groups.push({ id: "comments", rows: items("comments").map((item) => <MaterialRow key={item.item_id} item={item} provenance={Boolean(materials?.provenance_available)} usedIn={[]} />) });
+  const uploadRows = uploads.filter((asset) => !known.has(asset.asset_id) && asset.kind !== "audio");
+  const uploadLabels = numberRepeats(uploadRows.map((asset) => assetLabel(asset.asset_id, { document, materials, t }, asset).label));
   groups.push({
     id: "uploads",
-    rows: uploads
-      .filter((asset) => !known.has(asset.asset_id) && asset.kind !== "audio" && matches(asset.asset_id))
-      .map((asset) => (
+    rows: uploadRows
+      .map((asset, index) => ({ asset, label: uploadLabels[index]! }))
+      .filter(({ label }) => matches(label))
+      .map(({ asset, label }) => (
         <li
           key={asset.asset_id}
           draggable
@@ -81,7 +85,7 @@ export function MaterialsPanel({ materials, uploads, beats, document, previews }
           className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-ink hover:bg-surface"
         >
           <Thumbnail kind={asset.kind} preview={previews[asset.asset_id]} />
-          <span className="min-w-0 truncate">{asset.asset_id}</span>
+          <span className="min-w-0 break-words">{label}</span>
         </li>
       )),
   });

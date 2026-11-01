@@ -290,3 +290,28 @@ test("a clip with no sound of its own says where the sound is", () => {
   expect(audio.textContent).toContain("This clip has no sound. Select a narration or music clip.");
   expect(screen.queryByLabelText("Volume")).toBeNull();
 });
+
+test("the timeline inspector title is the clip label", () => {
+  // Studio shell v2 (spec 2026-11-01, goal 4): Studio passes kind-and-source labels in.
+  render(
+    <TimelineInspector
+      document={timelineDocument()}
+      selectedClipId="clip_main"
+      selectedTrackId=""
+      onOperation={() => {}}
+      labelOf={(clip) => (clip.clip_id === "clip_main" ? "Footage · @OfficialiNews" : "Other")}
+    />,
+  );
+
+  expect(screen.getByRole("heading", { level: 2, name: "Footage · @OfficialiNews" })).toBeDefined();
+});
+
+test("the inspector lists the selected clip's issues", () => {
+  // Studio shell v2 (spec 2026-11-01, goal 7): a late main clip leaves a gap before it.
+  const document = timelineDocument();
+  document.clips![0]!.from_frame = 30;
+  mount({ clipId: "clip_main" }, document);
+
+  const issues = screen.getByRole("group", { name: "Issues · 1" });
+  expect(issues.textContent).toContain("Main video: a clip starts after a gap");
+});

@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { ArrowLeft, Redo2, SlidersHorizontal, Sparkles, Undo2 } from "lucide-react";
+import { Redo2, Sparkles, Undo2 } from "lucide-react";
 
 import type {
   ControlPlaneClient,
@@ -30,7 +30,9 @@ import { SceneAudioInspector } from "./SceneAudioInspector";
 import { SceneBoard } from "./SceneBoard";
 import { SceneMediaInspector } from "./SceneMediaInspector";
 import { Timeline } from "./Timeline";
+import { StudioHeader } from "./StudioHeader";
 import { TimelineInspector } from "./TimelineInspector";
+import { assetLabel, clipLabel, type LabelContext } from "./studio_labels";
 import {
   createAddClipFromAssetOperation,
   isTimelineDocument,
@@ -45,11 +47,10 @@ import { AssistPanel } from "./story/AssistPanel";
 import { BeatInspector } from "./story/BeatInspector";
 import { BeatStrip } from "./story/BeatStrip";
 import { MaterialsPanel } from "./story/MaterialsPanel";
-import { NarrationButton } from "./script/NarrationButton";
+import { NarrationStatus, narrationAttention } from "./script/NarrationStatus";
 import { ScriptPanel } from "./script/ScriptPanel";
 import { SfxLibrary } from "./script/NarrationPresetForm";
 import { adoptNarratedRevision, isNarrationActive, useNarration } from "./script/useNarration";
-import { QuickEdit } from "./story/QuickEdit";
 import { SafeZoneOverlay } from "./story/SafeZone";
 import { ROLE_BEAT, computeBeats, type BeatId } from "./story/story_beats";
 import { BEAT_ROLE, addHook, addMaterialToBeat, addOutro, creditLine } from "./story/story_edits";
@@ -111,7 +112,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   // The job is the destination at every width; compact screens also pick one
   // Edit pane at a time.
   const [job, setJob] = useState<StudioJob>("edit");
-  const [editPane, setEditPane] = useState<StudioEditPane>("preview");
+  const [chosenPane, setEditPane] = useState<StudioEditPane>("preview");
   const viewport = useStudioViewport();
   const compact = viewport === "phone" || viewport === "tablet";
   const [sceneBoardOpen, setSceneBoardOpen] = useState(true);
@@ -119,21 +120,20 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const collapsible = viewport === "compact_desktop";
   const sceneRegionOpen = !collapsible || sceneBoardOpen;
   const inspectorRegionOpen = !collapsible || inspectorOpen;
-  const backDescriptionId = useId();
   const sceneWidthId = useId();
   const inspectorWidthId = useId();
   const [sceneBoardWidth, setSceneBoardWidth] = useState(14);
   const [inspectorWidth, setInspectorWidth] = useState(22.25);
   const selectedScene = state.draft.scenes.find((scene) => scene.scene_id === state.selectedSceneId);
   const timeline = isTimelineDocument(state.draft) ? state.draft : undefined;
-  // Both modes project the same draft; only version 2 can show the advanced one.
-  // A compact screen presents Simple without touching the stored mode, so a
-  // wider screen brings the Advanced workspace back.
-  const effectiveMode = compact ? "simple" : state.mode;
-  const advanced = Boolean(timeline) && effectiveMode === "advanced";
-  const story = Boolean(timeline) && !advanced && !compact;
-  // DESIGN 13.5: a phone edits a timeline draft through the quick edit only.
-  const quick = viewport === "phone" && Boolean(timeline);
+  // Both modes project the same draft; only version 2 can show the advanced one. Every width
+  // edits Story or Timeline; compact screens show them one pane at a time (spec 2026-11-01).
+  const advanced = Boolean(timeline) && state.mode === "advanced";
+  // Story has no Timeline pane: a Timeline pane chosen before a mode switch shows the preview.
+  const editPane: StudioEditPane = !advanced && chosenPane === "timeline" ? "preview" : chosenPane;
+  const story = Boolean(timeline) && !advanced;
+  // Below 1024 the Timeline is a view: its lanes show, edits happen on a larger screen.
+  const timelineReadOnly = compact && advanced;
   const [safeZone, setSafeZone] = useState(false);
   const [selectedBeat, setSelectedBeat] = useState<BeatId | null>(null);
   const [inventory, setInventory] = useState<StudioImportItem[]>([]);
@@ -179,8 +179,21 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           .join(" "),
       } as CSSProperties);
   const reviewing = job === "review";
-  const previewVisible = reviewing || (editing && (!compact || quick || editPane === "preview"));
+  const previewVisible = reviewing || (editing && (!compact || editPane === "preview" || (advanced && editPane === "timeline")));
   const { pause } = player;
+  // Kind and source, never an id (spec 2026-11-01, Studio shell v2).
+  const labels: LabelContext | null = timeline ? { document: timeline, materials, t, inventory } : null;
+  const labelOf = labels ? (clip: Parameters<typeof clipLabel>[0]) => clipLabel(clip, labels) : undefined;
+  const describeAsset = labels
+    ? (asset: EditorAsset) => {
+        const named = assetLabel(asset.asset_id, labels, asset);
+        const kind = t(`studio.label.kind.${asset.kind}`);
+        return {
+          label: named.label,
+          detail: named.seconds == null ? kind : `${kind} · ${t("studio.story.seconds", { seconds: named.seconds.toFixed(1) })}`,
+        };
+      }
+    : undefined;
 
   // A hidden preview must not keep playing; showing it again never resumes it.
   useEffect(() => {
@@ -346,14 +359,14 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
 
   const { getStudioMaterials } = client;
   useEffect(() => {
-    if (!(story || quick) || !getStudioMaterials) return;
+    if (!story || !getStudioMaterials) return;
     const requestGeneration = generation.current;
     void getStudioMaterials(projectId, documentId).then(
       (loaded) => requestGeneration === generation.current && setMaterials(loaded),
       // A draft made in Studio has no materials route answer; the panel lists uploads only.
       () => {},
     );
-  }, [story, quick, getStudioMaterials, projectId, documentId]);
+  }, [story, getStudioMaterials, projectId, documentId]);
 
   // Auto-draft narration (spec 2026-10-31): read and polled here; when it completes, the
   // revision the narration wrote is adopted like any newer saved revision.
@@ -368,6 +381,11 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     );
   });
   const [showScript, setShowScript] = useState(false);
+  // Beats with a narration voice, and those whose text changed after it (spec 2026-11-01, goal 6).
+  const voicedBeats = new Set(
+    (timeline?.clips ?? []).flatMap((clip) => (clip.clip_id.startsWith("clip_narration_") ? [clip.clip_id.slice("clip_narration_".length) as BeatId] : [])),
+  );
+  const staleBeats = new Set<BeatId>(narration?.status === "completed" ? (narration.stale_beats ?? []) : []);
   const narrationLocked = isNarrationActive(narration);
 
   // Story previews the draft's own media, its narration voices included; Timeline's library
@@ -377,7 +395,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     [timeline],
   );
   useEffect(() => {
-    if (!(story || quick) || !assetClient || !mediaIds) return;
+    if (!story || !assetClient || !mediaIds) return;
     const requestGeneration = generation.current;
     for (const assetId of mediaIds.split(" ")) {
       if (assetId in previewSources) continue;
@@ -390,7 +408,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     }
     // previewSources is read, not watched: each asset is asked for once per change of the media set.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [story, quick, assetClient, mediaIds, projectId]);
+  }, [story, assetClient, mediaIds, projectId]);
 
   const selectBeat = (id: BeatId) => {
     const beat = beats.find((entry) => entry.id === id);
@@ -531,31 +549,17 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     "grid size-9 place-items-center rounded-md text-muted-ink hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-copper disabled:cursor-not-allowed disabled:opacity-40";
 
   return (
-    <section className={`studio-shell pen-studio studio-job-${job} ${advanced ? "studio-advanced" : "studio-simple"}${story ? " studio-story" : ""} flex min-h-0 flex-1 flex-col bg-background text-foreground`} aria-label="Guided Studio">
+    <section className={`studio-shell pen-studio studio-job-${job} ${advanced ? "studio-advanced" : "studio-simple"}${story ? " studio-story" : ""} flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground`} aria-label="Guided Studio">
       {/* DESIGN §13: back to the documents, the title, the destinations, and where saving stands. */}
-      <header className="studio-topbar relative flex min-h-14 flex-wrap items-center gap-x-4 gap-y-1 border-b border-hairline bg-bg px-4 py-1">
-        <button
-          type="button"
-          className="inline-flex h-9 items-center gap-1.5 rounded-md px-2 text-sm text-muted-ink hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-copper disabled:cursor-not-allowed disabled:opacity-40"
-          onClick={onBack}
-          disabled={backDisabled}
-          aria-label={t("studio.editor.backLabel")}
-          aria-describedby={backDisabled ? backDescriptionId : undefined}
-        >
-          <ArrowLeft aria-hidden="true" size={16} /> {t("studio.editor.back")}
-        </button>
-        <span id={backDescriptionId} className="sr-only">
-          {t("studio.editor.backDisabled")}
-        </span>
-        <span aria-hidden="true" className="h-5 w-px bg-hairline" />
-        <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-ink md:max-w-[16rem] md:flex-none" title={documentTitle ?? documentId}>
-          {documentTitle ?? documentId}
-        </span>
-        <div className="flex min-w-0 flex-1 justify-center max-md:order-last max-md:basis-full">
-          <StudioJobNav selected={job} onSelect={selectJob} />
-        </div>
-
-        {!compact && timeline ? (
+      <StudioHeader
+        title={documentTitle ?? documentId}
+        viewport={viewport}
+        onBack={onBack}
+        backDisabled={backDisabled}
+        jobs={<StudioJobNav selected={job} onSelect={selectJob} />}
+        mode={
+          <>
+        {timeline ? (
           <div role="group" aria-label={t("studio.editor.mode")} id={modeGroupId} className="flex rounded-md bg-well p-0.5">
             {(["simple", "advanced"] as const).map((mode) => (
               <button
@@ -569,30 +573,6 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
               </button>
             ))}
           </div>
-        ) : null}
-        {story && timeline && narrationClient ? (
-          <>
-            <NarrationButton
-              client={narrationClient}
-              projectId={projectId}
-              documentId={documentId}
-              state={narration}
-              onChange={(next) => {
-                setNarration(next);
-                setShowScript(true);
-              }}
-            />
-            {narration ? (
-              <button
-                type="button"
-                aria-pressed={showScript}
-                className="rounded-md bg-well px-2.5 py-1 text-[13px] text-muted-ink aria-[pressed=true]:bg-raised aria-[pressed=true]:text-ink"
-                onClick={() => setShowScript((value) => !value)}
-              >
-                {t("studio.narration.script")}
-              </button>
-            ) : null}
-          </>
         ) : null}
         {!compact && !timeline ? (
           <div className="flex rounded-md bg-well p-0.5" role="group" aria-label={t("studio.editor.mode")}>
@@ -609,12 +589,17 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             </button>
           </div>
         ) : null}
-        {compact && ((timeline && state.mode === "advanced") || (!timeline && client.upgradeEditDocument)) ? (
-          <p className="text-xs text-muted-ink max-md:order-last">
-            {t(timeline ? "studio.editor.compactAdvanced" : "studio.editor.compactEnable")}
-          </p>
+          </>
+        }
+        extra={
+          <>
+        {compact && !timeline && client.upgradeEditDocument ? (
+          <p className="text-xs text-muted-ink max-md:order-last">{t("studio.editor.compactEnable")}</p>
         ) : null}
-        {/* DESIGN 13.5: a phone's top bar keeps the title, the save state and the menu. */}
+          </>
+        }
+        history={
+          <>
         {viewport === "phone" ? null : (
         <div className="flex items-center gap-0.5">
           <button
@@ -637,7 +622,10 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           </button>
         </div>
         )}
-        <div className="flex min-w-0 items-center gap-2 text-[13px] whitespace-nowrap text-muted-ink">
+          </>
+        }
+        save={
+          <>
           <span aria-hidden="true" className={`size-2 rounded-full ${saveDot[state.saveStatus]}`} />
           {/* The document's own project, which the global project switcher may no longer show. */}
           <span aria-live="polite">{t(`studio.editor.status.${state.saveStatus}`)}</span>
@@ -645,17 +633,9 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             · {t("studio.editor.rev", { revision: base.revision })}
           </span>
           <span className="sr-only">{t("studio.editor.savedRevision", { revision: base.revision })}</span>
-        </div>
-        {story && askAssist ? (
-          <button
-            type="button"
-            aria-pressed={assistOn}
-            onClick={() => setAssistOn((on) => !on)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-studio-ai/60 px-3 text-[13px] text-studio-ai aria-[pressed=true]:bg-studio-ai/15 focus-visible:outline-2 focus-visible:outline-copper"
-          >
-            <Sparkles aria-hidden="true" size={14} /> {t("studio.assist.toggle")}
-          </button>
-        ) : null}
+          </>
+        }
+        primary={
         <button
           type="button"
           onClick={requestReview}
@@ -663,14 +643,63 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         >
           {t("studio.editor.requestReview")}
         </button>
-        <details className="relative">
-          <summary
-            aria-label={t("studio.editor.menu")}
-            className="grid size-9 cursor-pointer list-none place-items-center rounded-md text-muted-ink hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-copper [&::-webkit-details-marker]:hidden"
-          >
-            <SlidersHorizontal aria-hidden="true" size={16} />
-          </summary>
-          <div className="absolute top-11 right-0 z-40 flex w-80 flex-col gap-3 rounded-[10px] border border-hairline bg-raised p-4 text-sm shadow-xl">
+        }
+        narration={
+          <>
+        {story && timeline && narrationClient ? (
+          <>
+            <NarrationStatus
+              client={narrationClient}
+              projectId={projectId}
+              documentId={documentId}
+              state={narration}
+              variant={viewport === "full_desktop" ? "chip" : "block"}
+              onChange={setNarration}
+              onStarted={() => setShowScript(true)}
+              onOpenScript={() => setShowScript(true)}
+            />
+          </>
+        ) : null}
+          </>
+        }
+        menuAttention={narrationAttention(narration, viewport)}
+        menu={
+          <>
+            {story && timeline && narrationClient ? (
+              <div className="flex flex-wrap gap-2 border-b border-hairline pb-3">
+            {narration ? (
+              <button
+                type="button"
+                aria-pressed={showScript}
+                className="rounded-md bg-well px-2.5 py-1 text-[13px] text-muted-ink aria-[pressed=true]:bg-raised aria-[pressed=true]:text-ink"
+                onClick={() => setShowScript((value) => !value)}
+              >
+                {t("studio.narration.script")}
+              </button>
+            ) : null}
+            {story && askAssist ? (
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                aria-expanded={assistOn}
+                onClick={() => setAssistOn((on) => !on)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-studio-ai/60 px-3 text-[13px] text-studio-ai focus-visible:outline-2 focus-visible:outline-copper"
+              >
+                <Sparkles aria-hidden="true" size={14} /> {t("studio.assist.toggle")}
+              </button>
+            ) : null}
+              </div>
+            ) : story && askAssist ? (
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                aria-expanded={assistOn}
+                onClick={() => setAssistOn((on) => !on)}
+                className="inline-flex h-9 items-center gap-1.5 self-start rounded-md border border-studio-ai/60 px-3 text-[13px] text-studio-ai focus-visible:outline-2 focus-visible:outline-copper"
+              >
+                <Sparkles aria-hidden="true" size={14} /> {t("studio.assist.toggle")}
+              </button>
+            ) : null}
             <span className="text-muted-ink">{t("studio.editor.project", { name: projectName ?? base.project_id })}</span>
             {workspaceControls ?? <p className="text-muted-ink">{t("studio.editor.noSwitch")}</p>}
             {/* Phones hide the top bar's Undo and Redo; they stay reachable here (final review I5). */}
@@ -737,9 +766,9 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 ) : null}
               </div>
             )}
-          </div>
-        </details>
-      </header>
+          </>
+        }
+      />
       {narrationLocked ? (
         <p role="status" className="border-b border-hairline bg-surface px-4 py-2 text-sm text-copper">
           {t("studio.narration.locked")}
@@ -791,13 +820,28 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         </div>
       )}
 
-      {compact && editing && !quick ? (
+      {compact && editing ? (
         <CompactStudioNav
-          panes={[
-            { id: "scenes", label: "Scenes" },
-            { id: "preview", label: "Preview" },
-            { id: "controls", label: "Controls" },
-          ]}
+          panes={
+            advanced
+              ? [
+                  { id: "scenes", label: t("studio.pane.assets") },
+                  { id: "preview", label: t("studio.pane.preview") },
+                  { id: "timeline", label: t("studio.pane.timeline") },
+                  { id: "controls", label: t("studio.pane.inspector") },
+                ]
+              : story
+                ? [
+                    { id: "scenes", label: t("studio.pane.materials") },
+                    { id: "preview", label: t("studio.pane.preview") },
+                    { id: "controls", label: t("studio.pane.inspector") },
+                  ]
+                : [
+                    { id: "scenes", label: "Scenes" },
+                    { id: "preview", label: "Preview" },
+                    { id: "controls", label: "Controls" },
+                  ]
+          }
           selected={editPane}
           onSelect={setEditPane}
         />
@@ -814,7 +858,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           <div
             id="studio-region-scenes"
             className={stripLayout ? "col-span-2 col-start-1 row-start-2 min-w-0" : "contents"}
-            hidden={!editing || quick || (compact ? editPane !== "scenes" : !sceneRegionOpen)}
+            hidden={!editing || (compact ? editPane !== "scenes" : !sceneRegionOpen)}
           >
             {story && timeline && showScript && narration && narrationClient ? (
               <ScriptPanel
@@ -838,10 +882,11 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto]">
                 <AssetLibrary
                   client={assetClient}
+                  describe={describeAsset}
                   projectId={projectId}
                   generationRef={generation}
                   onAssets={(assets, replace) => dispatch({ type: "assets_loaded", assets, replace })}
-                  onAdd={addAsset}
+                  onAdd={timelineReadOnly ? undefined : addAsset}
                   onPreviewSource={(assetId, previewUrl) =>
                     setPreviewSources((current) => ({ ...current, [assetId]: previewUrl }))
                   }
@@ -852,10 +897,14 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                   <SfxLibrary
                     client={{ listSfx: client.listSfx, addSfxToProject: client.addSfxToProject }}
                     projectId={projectId}
-                    onAdd={(asset) => {
-                      dispatch({ type: "assets_loaded", assets: [asset], replace: false });
-                      addAsset(asset);
-                    }}
+                    onAdd={
+                      timelineReadOnly
+                        ? undefined
+                        : (asset) => {
+                            dispatch({ type: "assets_loaded", assets: [asset], replace: false });
+                            addAsset(asset);
+                          }
+                    }
                   />
                   </div>
                 ) : null}
@@ -914,27 +963,33 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 </button>
               </div>
             ) : null}
-            <StudioPreview
-              overlay={story && !reviewing ? (safeZone ? <SafeZoneOverlay /> : null) : undefined}
-              // Review shows what was saved; Edit shows the draft.
-              document={reviewing ? base : state.draft}
-              onPlayer={setAttachedPlayer}
-              embedded
-              previewSources={previewSources}
-              onPreviewUnavailable={(assetId) =>
-                // Same reference when the asset is already gone, so the player
-                // reporting an unusable source cannot loop the editor.
-                setPreviewSources((current) => {
-                  if (!(assetId in current)) return current;
-                  const { [assetId]: _dropped, ...rest } = current;
-                  return rest;
-                })
-              }
-            />
+            {/* On a compact Timeline pane the lanes take the space; the one preview stays mounted. */}
+            <div className="contents" hidden={compact && editPane === "timeline"}>
+              <StudioPreview
+                overlay={story && !reviewing ? (safeZone ? <SafeZoneOverlay /> : null) : undefined}
+                // Review shows what was saved; Edit shows the draft.
+                document={reviewing ? base : state.draft}
+                onPlayer={setAttachedPlayer}
+                embedded
+                previewSources={previewSources}
+                onPreviewUnavailable={(assetId) =>
+                  // Same reference when the asset is already gone, so the player
+                  // reporting an unusable source cannot loop the editor.
+                  setPreviewSources((current) => {
+                    if (!(assetId in current)) return current;
+                    const { [assetId]: _dropped, ...rest } = current;
+                    return rest;
+                  })
+                }
+              />
+            </div>
             {advanced && timeline ? (
-              <div className="contents" hidden={reviewing}>
+              <div className="contents" hidden={reviewing || (compact && editPane !== "timeline")}>
                 <Timeline
                   state={state}
+                  labelOf={labelOf}
+                  readOnly={timelineReadOnly}
+                  onInspect={() => setEditPane("controls")}
                   dispatch={dispatch}
                   onSeek={player.seekTo}
                   onPlay={player.play}
@@ -945,6 +1000,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                   selectedIssueId={state.selectedIssueId}
                   mode={state.mode}
                   dispatch={dispatch}
+                  labelOf={labelOf}
                 />
               </div>
             ) : null}
@@ -975,30 +1031,12 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           <div
             id="studio-region-inspector"
             className="contents"
-            hidden={!editing || (quick ? false : compact ? editPane !== "controls" : !inspectorRegionOpen)}
+            hidden={!editing || (compact ? editPane !== "controls" : !inspectorRegionOpen)}
           >
-            {quick && timeline ? (
-              <QuickEdit
-                document={timeline}
-                beats={beats}
-                materials={materials}
-                revision={base.revision}
-                playheadFrame={state.playheadFrame}
-                dispatch={dispatch}
-                attachMaterial={attachMaterial}
-                captions={
-                  <CaptionTextInspector
-                    document={timeline}
-                    selectedSceneId={state.selectedSceneId}
-                    disabled={upgrading}
-                    compact
-                    onOperation={(operation) => dispatch({ type: "commit_timeline_operation", operation })}
-                  />
-                }
-              />
-            ) : advanced && timeline ? (
+            {advanced && timeline ? (
               <TimelineInspector
                 document={timeline}
+                labelOf={labelOf}
                 selectedClipId={state.selectedClipId}
                 selectedTrackId={state.selectedTrackId}
                 onOperation={(operation) => dispatch({ type: "commit_timeline_operation", operation })}
@@ -1019,6 +1057,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                       dispatch={dispatch}
                       attachMaterial={attachMaterial}
                       onRemoveMissing={removeMissing}
+                      narrated={voicedBeats.has(shownBeat.id)}
                     />
                   ) : (
                     <p className="p-4 text-sm text-muted-ink">{t("studio.inspector.empty")}</p>
@@ -1063,7 +1102,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                   }
                 >
                   <SceneMediaInspector document={state.draft} sceneId={state.selectedSceneId} />
-                  {timeline && viewport !== "phone" ? <CaptionTextInspector document={timeline} selectedSceneId={state.selectedSceneId} disabled={upgrading} compact onOperation={(operation) => dispatch({ type: "commit_timeline_operation", operation })} /> : <section className="studio-caption-summary" aria-label="Captions"><h3>Captions</h3><p>No editable captions in this document.</p><button className="studio-style-trigger" type="button" disabled>Caption style unavailable</button></section>}
+                  {timeline ? <CaptionTextInspector document={timeline} selectedSceneId={state.selectedSceneId} disabled={upgrading} compact onOperation={(operation) => dispatch({ type: "commit_timeline_operation", operation })} /> : <section className="studio-caption-summary" aria-label="Captions"><h3>Captions</h3><p>No editable captions in this document.</p><button className="studio-style-trigger" type="button" disabled>Caption style unavailable</button></section>}
                 </Inspector>
                 {timeline && viewport !== "phone" ? (
                   <>
@@ -1095,6 +1134,9 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 onDropMaterial={(beatId, data) => void dropMaterial(beatId, data)}
                 addable={[...addable]}
                 onAddBeat={addBeat}
+                voiced={voicedBeats}
+                stale={staleBeats}
+                variant={compact ? "chips" : "tiles"}
               />
             </div>
           ) : null}

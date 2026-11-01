@@ -18,7 +18,8 @@ test("one tile per beat with its name and length, and the total on the left", ()
 
   const tiles = screen.getAllByRole("button", { name: /Hook|Main|Reactions|Footage/ });
   expect(tiles.map((tile) => tile.getAttribute("data-beat"))).toEqual(["hook", "main", "reactions", "footage"]);
-  expect(screen.getByRole("button", { name: /^Hook/ }).textContent).toContain("4.0 s");
+  // A tile shows its own time: Reactions starts at frame 60, inside Hook's 4 s (spec 2026-11-01).
+  expect(screen.getByRole("button", { name: /^Hook/ }).textContent).toContain("2.0 s");
   expect(screen.getByText("Total 10.0 s")).toBeDefined();
 });
 
@@ -106,4 +107,28 @@ test("with nothing to add there is no Add beat", () => {
   render(<BeatStrip beats={beats} fps={30} totalFrames={300} selected={null} onSelect={() => {}} addable={[]} onAddBeat={() => {}} />);
 
   expect(screen.queryByRole("button", { name: "Add beat" })).toBeNull();
+});
+
+test("only the selected tile is outlined; a narrated beat shows a mic, a stale one an amber mic", () => {
+  // Studio shell v2 (spec 2026-11-01, goal 6).
+  render(
+    <BeatStrip beats={beats} fps={30} totalFrames={300} selected="reactions" onSelect={() => {}} voiced={new Set(["hook", "main"])} stale={new Set(["main"])} />,
+  );
+
+  const tile = (name: RegExp) => screen.getByRole("button", { name });
+  expect(tile(/^Reactions/).className).toContain("border-copper");
+  expect(tile(/^Main/).className).not.toContain("border-copper");
+  expect(within(tile(/^Main/)).getByLabelText("Needs re-voice")).toBeDefined();
+  expect(within(tile(/^Hook/)).getByLabelText("Narrated")).toBeDefined();
+  expect(within(tile(/^Footage/)).queryByLabelText(/Narrated|Needs re-voice/)).toBeNull();
+});
+
+test("the tiles' own seconds sum to the canvas, and the total says so", () => {
+  render(<BeatStrip beats={beats} fps={30} totalFrames={300} selected={null} onSelect={() => {}} />);
+
+  const seconds = screen
+    .getAllByRole("button", { name: /Hook|Main|Reactions|Footage/ })
+    .map((tile) => Number(/(\d+\.\d) s/.exec(tile.textContent ?? "")?.[1]));
+  expect(seconds.reduce((sum, value) => sum + value, 0)).toBeCloseTo(10, 5);
+  expect(screen.getByText("matches canvas")).toBeDefined();
 });

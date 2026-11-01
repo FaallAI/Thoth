@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import type { EditDocumentV2 } from "@/api/control-plane";
 import { useLocale } from "@/lib/locale";
 import { TimelineClip, type GestureMode } from "./TimelineClip";
 import { framesToPixels, type TimelineLane } from "./timeline_domain";
@@ -28,6 +29,9 @@ type Props = {
   onSelectClip: (clipId: string) => void;
   onGestureStart: (clipId: string, mode: GestureMode, clientX: number) => void;
   onNudge: (clipId: string, frames: number) => void;
+  /** The clip's human name (spec 2026-11-01); absent, the Timeline's own words for it. */
+  labelOf?: (clip: NonNullable<EditDocumentV2["clips"]>[number]) => string;
+  readOnly?: boolean;
 };
 
 type TrackKind = TimelineLane["track"]["kind"];
@@ -54,6 +58,8 @@ export function TimelineTrack({
   onSelectClip,
   onGestureStart,
   onNudge,
+  labelOf,
+  readOnly = false,
 }: Props) {
   const { t } = useLocale();
   const { track, clips } = lane;
@@ -86,7 +92,8 @@ export function TimelineTrack({
             <StateIcon key={field} aria-hidden="true" size={12} className="shrink-0 text-faint" />
           ))}
         <div className="absolute inset-y-0 right-1 flex items-center gap-0.5 bg-surface pl-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-          {toggles.map(([field, value, label, ToggleIcon]) => (
+          {/* A view-only Timeline (below 1024) changes nothing, lanes included. */}
+          {(readOnly ? [] : toggles).map(([field, value, label, ToggleIcon]) => (
             <button
               key={field}
               type="button"
@@ -117,6 +124,8 @@ export function TimelineTrack({
             onSelect={() => onSelectClip(clip.clip_id)}
             onGestureStart={(mode, clientX) => onGestureStart(clip.clip_id, mode, clientX)}
             onNudge={(frames) => onNudge(clip.clip_id, frames)}
+            name={labelOf?.(clip)}
+            readOnly={readOnly}
           />
         ))}
       </div>

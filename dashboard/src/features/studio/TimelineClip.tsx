@@ -21,6 +21,10 @@ type Props = {
   onSelect: () => void;
   onGestureStart: (mode: GestureMode, clientX: number) => void;
   onNudge: (frames: number) => void;
+  /** The clip's human name (spec 2026-11-01); absent, the Timeline's own words for it. */
+  name?: string;
+  /** A view-only timeline: no trim handles, no drag. */
+  readOnly?: boolean;
 };
 
 /** Video lanes read as footage, cards and words as panels, sound as the darkest well. */
@@ -57,10 +61,12 @@ export function TimelineClip({
   onSelect,
   onGestureStart,
   onNudge,
+  name: given,
+  readOnly = false,
 }: Props) {
   const { t } = useLocale();
   const name = t("studio.timeline.clip", { track: label });
-  const text = clipLabel(t, clip);
+  const text = given ?? clipLabel(t, clip);
   const start = (mode: GestureMode) => (event: PointerEvent) => {
     if (event.button !== 0) return;
     onSelect();
@@ -84,10 +90,10 @@ export function TimelineClip({
           selected ? "border-2 border-copper" : "border-hairline hover:border-faint"
         }`}
         onClick={onSelect}
-        onPointerDown={start("move")}
+        onPointerDown={readOnly ? undefined : start("move")}
         onKeyDown={(event) => {
           const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
-          if (!step || locked) return;
+          if (!step || locked || readOnly) return;
           event.preventDefault();
           onNudge(step);
         }}
@@ -95,20 +101,24 @@ export function TimelineClip({
         {locked ? <Lock aria-hidden="true" size={11} className="mt-0.5 shrink-0 text-faint" /> : null}
         <span className="truncate rounded bg-well/70 px-1">{text}</span>
       </button>
-      <button
-        type="button"
-        aria-label={t("studio.timeline.trimStartOf", { clip: name })}
-        disabled={locked}
-        className={`${handle} left-0 rounded-l-md ${selected ? "bg-copper/40" : ""}`}
-        onPointerDown={start("trim_start")}
-      />
-      <button
-        type="button"
-        aria-label={t("studio.timeline.trimEndOf", { clip: name })}
-        disabled={locked}
-        className={`${handle} right-0 rounded-r-md ${selected ? "bg-copper/40" : ""}`}
-        onPointerDown={start("trim_end")}
-      />
+      {readOnly ? null : (
+        <>
+          <button
+            type="button"
+            aria-label={t("studio.timeline.trimStartOf", { clip: name })}
+            disabled={locked}
+            className={`${handle} left-0 rounded-l-md ${selected ? "bg-copper/40" : ""}`}
+            onPointerDown={start("trim_start")}
+          />
+          <button
+            type="button"
+            aria-label={t("studio.timeline.trimEndOf", { clip: name })}
+            disabled={locked}
+            className={`${handle} right-0 rounded-r-md ${selected ? "bg-copper/40" : ""}`}
+            onPointerDown={start("trim_end")}
+          />
+        </>
+      )}
     </div>
   );
 }

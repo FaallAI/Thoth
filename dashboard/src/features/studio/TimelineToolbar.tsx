@@ -31,6 +31,8 @@ type Props = {
   onClipAction: (action: ClipAction) => void;
   onPlay?: () => void;
   onPause?: () => void;
+  /** A view-only timeline (below 1024): no clip actions, ripple or snap. */
+  readOnly?: boolean;
 };
 
 const icon =
@@ -62,6 +64,7 @@ export function TimelineToolbar({
   onClipAction,
   onPlay,
   onPause,
+  readOnly = false,
 }: Props) {
   const { t } = useLocale();
 
@@ -80,6 +83,7 @@ export function TimelineToolbar({
       </span>
 
       {/* The same operations the pointer gestures emit, for keyboard and screen readers. */}
+      {readOnly ? null : (
       <div className="flex items-center gap-0.5" role="group" aria-label={t("studio.timeline.clipActions")}>
         {CLIP_ACTIONS.map(([action, label, Icon]) => (
           <button
@@ -95,11 +99,16 @@ export function TimelineToolbar({
           </button>
         ))}
       </div>
-      {selectionLocked ? <p className="text-xs text-muted-ink">{t("studio.timeline.locked")}</p> : null}
+      )}
+      {selectionLocked && !readOnly ? <p className="text-xs text-muted-ink">{t("studio.timeline.locked")}</p> : null}
 
       <div className="ml-auto flex items-center gap-3">
-        <Switch label={t("studio.timeline.ripple")} checked={ripple} onChange={onRipple} />
-        <Switch label={t("studio.timeline.snap")} checked={snapping} onChange={onSnapping} />
+        {readOnly ? null : (
+          <>
+            <Switch label={t("studio.timeline.ripple")} checked={ripple} onChange={onRipple} />
+            <Switch label={t("studio.timeline.snap")} checked={snapping} onChange={onSnapping} />
+          </>
+        )}
         <span aria-hidden="true" className="h-5 w-px bg-hairline" />
         <button
           type="button"

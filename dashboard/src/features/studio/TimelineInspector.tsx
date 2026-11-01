@@ -4,13 +4,16 @@ import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane"
 import { useLocale } from "@/lib/locale";
 import { setPositionPreset, type PositionPreset } from "./story/story_edits";
 import { clipLabel } from "./TimelineClip";
-import { formatTimecode } from "./timeline_domain";
+import { issueSentence } from "./IssuesPanel";
+import { formatTimecode, timelineIssues } from "./timeline_domain";
 
 type Props = {
   document: EditDocumentV2;
   selectedClipId: string;
   selectedTrackId: string;
   onOperation: (operation: EditDocumentOperation) => void;
+  /** The clip's human name (spec 2026-11-01); absent, the Timeline's own words for it. */
+  labelOf?: (clip: NonNullable<EditDocumentV2["clips"]>[number]) => string;
 };
 
 const field = "flex items-center justify-between gap-2 text-xs text-muted-ink";
@@ -48,6 +51,7 @@ export function TimelineInspector({
   selectedClipId,
   selectedTrackId,
   onOperation,
+  labelOf,
 }: Props) {
   const { t, plural } = useLocale();
   const ids = {
@@ -71,6 +75,8 @@ export function TimelineInspector({
   };
   const fps = document.canvas.fps;
   const clip = document.clips?.find((candidate) => candidate.clip_id === selectedClipId);
+  // The selected clip's own warnings (spec 2026-11-01, goal 7).
+  const clipIssues = clip ? timelineIssues(document).filter((issue) => issue.target.kind === "clip" && issue.target.id === clip.clip_id) : [];
   const track = document.tracks.find(
     (candidate) => candidate.track_id === (clip?.track_id ?? selectedTrackId),
   );
@@ -114,7 +120,7 @@ export function TimelineInspector({
       {clip ? (
         <>
           <header>
-            <h2 className="truncate text-sm font-semibold text-ink">{clipLabel(t, clip)}</h2>
+            <h2 className="truncate text-sm font-semibold text-ink">{labelOf?.(clip) ?? clipLabel(t, clip)}</h2>
             {track ? (
               <p className="text-xs text-muted-ink">{t("studio.timeline.track", { track: track.label })}</p>
             ) : null}
@@ -299,6 +305,15 @@ export function TimelineInspector({
               </select>
             </div>
           </Section>
+          {clipIssues.length ? (
+            <Section title={t("studio.issues.forClip", { count: clipIssues.length })}>
+              <ul className="space-y-1 text-xs text-status-waiting">
+                {clipIssues.map((issue) => (
+                  <li key={issue.issue_id}>{issueSentence(t, document, issue)}</li>
+                ))}
+              </ul>
+            </Section>
+          ) : null}
         </>
       ) : track ? (
         <>

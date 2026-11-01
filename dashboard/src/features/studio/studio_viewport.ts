@@ -2,7 +2,8 @@ import { useSyncExternalStore } from "react";
 
 export type StudioViewport = "phone" | "tablet" | "compact_desktop" | "full_desktop";
 export type StudioJob = "edit" | "review" | "render";
-export type StudioEditPane = "scenes" | "preview" | "controls";
+/** Compact Edit panes: scenes is Materials (Story) or Assets (Timeline); controls is the Inspector. */
+export type StudioEditPane = "scenes" | "preview" | "timeline" | "controls";
 
 // CSS viewport widths, not device detection: orientation and zoom change the surface.
 export function studioViewportAt(width: number): StudioViewport {

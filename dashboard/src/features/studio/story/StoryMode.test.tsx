@@ -242,15 +242,17 @@ test("a newer revision names itself and keeps the edits on this device", async (
   expect(screen.getByRole("button", { name: "Reload Latest" })).toBeDefined();
 });
 
-test("the Assist toggle opens the panel for the open beat, in Story only", async () => {
+test("Assist, from the Studio menu, opens the panel for the open beat, in Story only", async () => {
+  // Studio shell v2 (spec 2026-11-01, ruling 5): Assist is a menu action that opens its panel.
   const requestStoryAssist = mock(async () => ({ proposal_id: "a", title: "Shorter hook", reason: "r", operations: [] }));
   await mountStory("en", { requestStoryAssist });
 
   const toggle = screen.getByRole("button", { name: "Assist" });
-  expect(toggle.getAttribute("aria-pressed")).toBe("false");
+  expect(toggle.closest("details")).not.toBeNull();
+  expect(toggle.getAttribute("aria-expanded")).toBe("false");
   expect(screen.queryByRole("region", { name: "Assist" })).toBeNull();
   fireEvent.click(toggle);
-  expect(toggle.getAttribute("aria-pressed")).toBe("true");
+  expect(toggle.getAttribute("aria-expanded")).toBe("true");
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "Suggest for Hook" })));
   expect(requestStoryAssist).toHaveBeenCalledWith("project_001", "edoc_story", { base_revision: 3, beat: "hook", clip_ids: ["clip_hook"] });
 
@@ -271,7 +273,8 @@ test("Add beat makes the missing Outro with the credit line", async () => {
   expect((screen.getByLabelText("Text") as HTMLInputElement).value).toBe("Video: @creator · X");
 });
 
-test("a phone gets the quick edit, without beats or timeline", async () => {
+test("a phone edits Story in panes, with the beats as chips", async () => {
+  // Studio shell v2 (spec 2026-11-01, decided): the quick edit gave way to Story's panes.
   const width = window.innerWidth;
   Object.defineProperty(window, "innerWidth", { configurable: true, value: 375 });
   try {
@@ -290,8 +293,8 @@ test("a phone gets the quick edit, without beats or timeline", async () => {
       />,
     );
 
-    expect(await screen.findByRole("heading", { name: "Quick edit · Rev 3" })).toBeDefined();
-    expect(screen.queryByRole("toolbar", { name: "Story beats" })).toBeNull();
+    expect((await screen.findByRole("toolbar", { name: "Story beats" })).getAttribute("data-variant")).toBe("chips");
+    expect(screen.queryByRole("heading", { name: /^Quick edit/ })).toBeNull();
     expect(screen.queryByLabelText("Timeline")).toBeNull();
     expect(screen.getByLabelText("Draft preview")).toBeDefined();
   } finally {

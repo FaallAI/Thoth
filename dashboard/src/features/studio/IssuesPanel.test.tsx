@@ -1,7 +1,7 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, test } from "bun:test";
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 
 import { render } from "@/test-render";
 
@@ -63,8 +63,8 @@ test("Review issues opens and closes the list of every issue in readable languag
   expect(button.getAttribute("aria-expanded")).toBe("true");
   const items = screen.getAllByRole("listitem");
   expect(items).toHaveLength(2);
-  expect(items[0]!.textContent).toBe("Main video: a clip starts after a gap");
-  expect(items[1]!.textContent).toBe("Music: a clip runs past the end of the video");
+  expect(items[0]!.textContent).toContain("Main video: a clip starts after a gap");
+  expect(items[1]!.textContent).toContain("Music: a clip runs past the end of the video");
   review();
   expect(screen.queryByRole("listitem")).toBeNull();
 });
@@ -91,6 +91,7 @@ test("selecting an issue selects its target and focuses the clip", () => {
     { type: "select_issue", issueId: "main_track_gap:clip_main" },
     { type: "select_track", trackId: "track_main" },
     { type: "select_clip", clipId: "clip_main" },
+    { type: "set_playhead", frame: 30 },
   ]);
   expect(document.activeElement?.id).toBe("timeline-clip-clip_main");
 });
@@ -131,4 +132,44 @@ test("the list never reopens by itself after the issues clear", () => {
   view.rerender(<IssuesBar document={timelineDocument()} {...props} />);
   view.rerender(<IssuesBar document={brokenDocument()} {...props} />);
   expect(screen.queryByRole("listitem")).toBeNull();
+});
+
+test("issues are grouped by lane in track order", () => {
+  // Studio shell v2 (spec 2026-11-01, goal 7).
+  mount();
+  review();
+
+  const groups = screen.getAllByRole("group");
+  expect(groups.map((group) => group.getAttribute("aria-label"))).toEqual(["Main video", "Music"]);
+  expect(within(groups[1]!).getAllByRole("listitem")).toHaveLength(1);
+});
+
+test("an issue row names its clip and its time", () => {
+  const actions: EditorAction[] = [];
+  render(
+    <IssuesBar
+      document={brokenDocument()}
+      selectedIssueId=""
+      mode="advanced"
+      dispatch={(action) => actions.push(action)}
+      labelOf={(clip) => (clip.clip_id === "clip_main" ? "Footage · @OfficialiNews" : "Music")}
+    />,
+  );
+  review();
+
+  const row = screen.getByRole("button", { name: /Footage · @OfficialiNews/ });
+  expect(row.textContent).toContain("0:01.0");
+  fireEvent.click(row);
+  expect(actions.at(-1)).toEqual({ type: "set_playhead", frame: 30 });
+});
+
+test("a lane without a label is named by its kind, never its id", () => {
+  // Final review, minor 6.
+  const document = brokenDocument();
+  for (const track of document.tracks) delete (track as { label?: string }).label;
+  render(<IssuesBar document={document} selectedIssueId="" mode="advanced" dispatch={() => {}} />);
+  review();
+
+  expect(screen.getAllByRole("group").map((group) => group.getAttribute("aria-label"))).toEqual(["Main video", "Music"]);
+  expect(screen.queryByText(/track_/)).toBeNull();
 });

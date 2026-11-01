@@ -495,9 +495,12 @@ Uses the model of §7: stages, steps, estimates, the run tray, notifications.
   5. Timeline mode.
   6. Review.
   7. Render.
-- **Phone:** watch; comment and approve; monitor the render and download; edit the hook text and caption text; swap a card or clip from a list.
-  - No timeline on a phone.
-  - No reordering on a phone.
-  - No starting a render on a phone.
+- **Phone and tablet (under 1024 px, Studio shell v2, 2026-11-01):** a version 2 draft opens in Story or Timeline, one pane at a time.
+  - **Story panes:** Materials / Preview / Inspector, with the beats as a chip row whose total is pinned on the left.
+  - **Timeline panes:** Assets / Preview / Timeline / Inspector. The Timeline pane is view-only: lanes, no drag, trim or clip actions. A tapped clip offers Inspect, which opens its fields.
+  - **Also:** watch; comment and approve; monitor the render and download.
+  - **Version 1 drafts** keep the scene board.
+  - **Not on a phone:** editing the timeline itself, and starting a render.
+  - The quick edit and its swap sheet are retired.
 
 **Tokens:** Studio follows §5.1. It keeps `purple` (AI) and `playhead`; the F3 tokens migrate as mapped there.

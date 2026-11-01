@@ -637,12 +637,12 @@ test("keeps a first-page asset addable after a second page loads", async () => {
   const { patchEditDocument } = await renderPagedAssetStudio();
 
   fireEvent.click(await screen.findByRole("button", { name: "Load more assets" }));
-  expect(await screen.findByText("asset_second")).toBeDefined();
-  expect(screen.getByText("asset_first")).toBeDefined();
+  expect(await screen.findByLabelText("Add Upload · Video · 2 to timeline")).toBeDefined();
+  expect(screen.getByLabelText("Add Upload · Video to timeline")).toBeDefined();
 
   jest.useFakeTimers();
   try {
-    fireEvent.click(screen.getByLabelText("Add asset_first to timeline"));
+    fireEvent.click(screen.getByLabelText("Add Upload · Video to timeline"));
     act(() => jest.advanceTimersByTime(500));
     const patch = patchEditDocument.mock.calls[0]![2];
     expect(patch.operations).toHaveLength(1);
@@ -681,12 +681,12 @@ test("stays in Simple mode after a version 2 autosave completes", async () => {
 test("keeps a loaded asset addable after an earlier asset edit saves", async () => {
   const { patchEditDocument } = await renderPagedAssetStudio();
   fireEvent.click(await screen.findByRole("button", { name: "Load more assets" }));
-  expect(await screen.findByText("asset_second")).toBeDefined();
+  expect(await screen.findByLabelText("Add Upload · Video · 2 to timeline")).toBeDefined();
 
-  await completeAutosave(() => fireEvent.click(screen.getByLabelText("Add asset_first to timeline")));
+  await completeAutosave(() => fireEvent.click(screen.getByLabelText("Add Upload · Video to timeline")));
   expect(patchEditDocument).toHaveBeenCalledTimes(1);
 
-  await completeAutosave(() => fireEvent.click(screen.getByLabelText("Add asset_second to timeline")));
+  await completeAutosave(() => fireEvent.click(screen.getByLabelText("Add Upload · Video · 2 to timeline")));
 
   expect(patchEditDocument).toHaveBeenCalledTimes(2);
   expect(patchEditDocument.mock.calls[1]![2].operations[0]).toMatchObject({
@@ -972,42 +972,6 @@ test("edits the first text clip of a scene whose first clip is media", async () 
   ]);
 });
 
-test("moves a scene later from the tablet scene board through one persisted reorder", async () => {
-  // Desktop drafts open in Story; the scene board stays with the tablet editor.
-  const width = window.innerWidth;
-  Object.defineProperty(window, "innerWidth", { configurable: true, value: 900 });
-  try {
-    const { sceneStripDocument } = await import("./timeline-test-fixtures");
-    const strip = sceneStripDocument() as EditDocument;
-    const patchEditDocument = mock(
-      async (_projectId: string, _documentId: string, _patch: EditDocumentPatch) => ({
-        kind: "saved" as const,
-        document: strip,
-      }),
-    );
-    const { GuidedStudio } = await import("./GuidedStudio");
-    render(
-      <GuidedStudio
-        client={{ ...promptClientBase, ...advancedClientBase, getEditDocument: mock(async () => strip), patchEditDocument }}
-        projectId="project_001"
-        documentId="document_001"
-        onBack={() => {}}
-      />,
-    );
-    fireEvent.click(await screen.findByRole("button", { name: "Scenes" }));
-    jest.useFakeTimers();
-    fireEvent.click(screen.getByRole("button", { name: "Move Heading 1 later" }));
-    act(() => jest.advanceTimersByTime(500));
-
-    expect(patchEditDocument.mock.calls[0]![2]).toEqual({
-      base_revision: strip.revision,
-      operations: [expect.objectContaining({ kind: "reorder_scene", scene_id: "scene_001", to_index: 1 })],
-    });
-  } finally {
-    Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
-  }
-});
-
 test("captions and scene audio added in Simple mode persist in one autosave", async () => {
   const { sceneStripDocument } = await import("./timeline-test-fixtures");
   const strip = sceneStripDocument();
@@ -1094,4 +1058,37 @@ test("the top bar reads in Indonesian", async () => {
   expect(screen.getByText("Tersimpan")).toBeDefined();
   expect(screen.getByRole("button", { name: "Urungkan" })).toBeDefined();
   expect(within(screen.getByRole("navigation", { name: "Bagian Studio" })).getByRole("button", { name: "Tinjau" })).toBeDefined();
+});
+
+test("Timeline names assets from the run's materials, as Story does", async () => {
+  // Materials loaded only in Story, so Timeline called every card "Upload · Image" (walk, 2026-11-01).
+  const { timelineDocument } = await import("./timeline-test-fixtures");
+  const { GuidedStudio } = await import("./GuidedStudio");
+  const document = timelineDocument() as EditDocument;
+  render(
+    <GuidedStudio
+      client={{
+        ...promptClientBase,
+        ...advancedClientBase,
+        listEditorAssets: mock(async () => ({
+          assets: [{ asset_id: "asset_video", project_id: "project_001", kind: "video" as const, media_type: "video/mp4", has_audio: true, validation_state: "ready" as const, duration_in_frames: 60 }],
+          next_cursor: null,
+        })),
+        getStudioMaterials: mock(async () => ({
+          document_id: "document_002",
+          provenance_available: true,
+          items: [{ item_id: "comment_card_000", role: "comment_card" as const, label: "card", owner_handle: "@lailynisfa", media_kind: "video" as const, disposition: "attached" as const, asset_id: "asset_video" }],
+          figures: [],
+        })),
+        getEditDocument: mock(async () => document),
+        patchEditDocument: mock(async () => ({ kind: "saved" as const, document })),
+      }}
+      projectId="project_001"
+      documentId="document_002"
+      onBack={() => {}}
+    />,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Timeline" }));
+
+  expect(await screen.findByRole("button", { name: "Add Comment card · @lailynisfa to timeline" })).toBeDefined();
 });

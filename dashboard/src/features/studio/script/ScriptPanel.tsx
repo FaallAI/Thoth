@@ -6,6 +6,8 @@ import type { BeatName, ControlPlaneClient, NarrationState } from "@/api/control
 import { useLocale } from "@/lib/locale";
 import type { MessageKey } from "@/lib/i18n";
 
+import { RevoiceConfirm } from "./RevoiceConfirm";
+
 type Client = Pick<
   ControlPlaneClient,
   "decideNarration" | "editNarrationBeat" | "revoiceNarrationBeat" | "cancelNarration" | "restartNarration"
@@ -50,6 +52,7 @@ export function ScriptPanel({ client, projectId, documentId, state, onChange }: 
   const [busy, setBusy] = useState(false);
   const [lines, setLines] = useState<Record<string, string>>({});
   const [confirmRestart, setConfirmRestart] = useState(false);
+  const [confirmRevoice, setConfirmRevoice] = useState<BeatName | null>(null);
   const beatLabel = (beat: BeatName) => t(`studio.story.beat.${beat}` as MessageKey);
   const script = state.script;
 
@@ -149,6 +152,9 @@ export function ScriptPanel({ client, projectId, documentId, state, onChange }: 
   return (
     <section aria-label={t("studio.narration.script")} className="flex flex-col gap-3 text-sm">
       {stale.size > 0 ? <p className="text-xs text-copper">{t("studio.narration.staleCount", { count: stale.size })}</p> : null}
+      {state.status === "completed" && state.failure_code ? (
+        <p role="status" className="text-xs text-danger">{t("studio.narration.revoiceFailed", { code: state.failure_code })}</p>
+      ) : null}
       {/* A whole new script, approved again before any voice (operator, 2026-10-31). */}
       {confirmRestart ? (
         <div role="alert" className="flex flex-col gap-2 rounded-md bg-surface p-3 text-xs text-muted-ink">
@@ -192,12 +198,24 @@ export function ScriptPanel({ client, projectId, documentId, state, onChange }: 
               <>
                 <span className="text-xs text-copper">{t("studio.narration.stale")}</span>
                 <button type="button" disabled={busy} className="rounded bg-copper px-2 py-1 text-xs text-bg disabled:opacity-40"
-                  onClick={() => act(() => client.revoiceNarrationBeat(projectId, documentId, beat.beat))}>
+                  onClick={() => setConfirmRevoice(beat.beat)}>
                   {t("studio.narration.revoice")}
                 </button>
               </>
             ) : null}
           </div>
+          {confirmRevoice === beat.beat ? (
+            <RevoiceConfirm
+              state={state}
+              beats={[beat.beat]}
+              busy={busy}
+              onConfirm={() => {
+                setConfirmRevoice(null);
+                void act(() => client.revoiceNarrationBeat(projectId, documentId, beat.beat));
+              }}
+              onCancel={() => setConfirmRevoice(null)}
+            />
+          ) : null}
         </article>
       ))}
     </section>

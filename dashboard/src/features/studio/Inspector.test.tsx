@@ -84,3 +84,26 @@ test("follows a duration the document changes elsewhere, such as undo", () => {
   );
   expect(duration.value).toBe("5.033");
 });
+
+test("the scene heading is clamped to two lines with its full text on hover, and Edit goes to the field", () => {
+  // Studio shell v2 (spec 2026-11-01, goal 5): a long heading no longer fills the inspector.
+  const long = "Warga Palangka Raya masih bertahan di tengah kabut pekat, banyak yang menunggu bantuan sejak pekan lalu";
+  render(
+    <Inspector
+      scene={{ scene_id: "scene_001", duration_in_frames: 150 }}
+      clip={{ ...clip, heading: long }}
+      fps={30}
+      sceneIndex={0}
+      sceneCount={1}
+      onTextChange={() => {}}
+      onOwnershipChange={() => {}}
+      onDurationChange={() => {}}
+    />,
+  );
+
+  const heading = screen.getByRole("heading", { level: 2, name: long });
+  expect(heading.className).toContain("line-clamp-2");
+  expect(heading.getAttribute("title")).toBe(long);
+  fireEvent.click(screen.getByRole("button", { name: "Edit heading" }));
+  expect(document.activeElement).toBe(screen.getByLabelText("Heading"));
+});

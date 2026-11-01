@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 
 import type { ControlPlaneClient, EditorAsset } from "@/api/control-plane";
 
+import { numberRepeats } from "./studio_labels";
+
 /** One page at a time: the library never pulls a whole project into memory. */
 export const ASSET_PAGE_LIMIT = 20;
 
@@ -14,8 +16,11 @@ type Props = {
    */
   generationRef: RefObject<number>;
   onAssets: (assets: EditorAsset[], replace: boolean) => void;
-  onAdd: (asset: EditorAsset) => void;
+  /** Absent on a view-only Timeline (below 1024): rows offer preview only. */
+  onAdd?: (asset: EditorAsset) => void;
   onPreviewSource: (assetId: string, previewUrl: string) => void;
+  /** A row's human name and detail line (spec 2026-11-01); absent, a row falls back to its id. */
+  describe?: (asset: EditorAsset) => { label: string; detail: string };
 };
 
 /** Pages may overlap, so one asset keeps one row: first seen, newest projection. */
@@ -35,6 +40,7 @@ export function AssetLibrary({
   onAssets,
   onAdd,
   onPreviewSource,
+  describe,
 }: Props) {
   const [assets, setAssets] = useState<EditorAsset[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -79,6 +85,14 @@ export function AssetLibrary({
   };
 
   const ready = assets.filter((asset) => asset.validation_state === "ready");
+  const described = ready.map(
+    (asset) =>
+      describe?.(asset) ?? {
+        label: asset.asset_id,
+        detail: `${asset.kind}${asset.duration_in_frames ? ` · ${asset.duration_in_frames}f` : ""}`,
+      },
+  );
+  const labels = numberRepeats(described.map((item) => item.label));
 
   return (
     <section className="min-h-0 overflow-auto border-r border-border bg-card/60 p-3" aria-label="Asset library">
@@ -99,29 +113,28 @@ export function AssetLibrary({
       ) : (
         <>
           <ul className="space-y-2">
-            {ready.map((asset) => (
+            {ready.map((asset, index) => (
               <li
                 key={asset.asset_id}
                 className="rounded border border-border bg-background/40 p-2 text-xs"
               >
-                <span className="block truncate font-medium text-foreground">{asset.asset_id}</span>
-                <span className="block text-muted-foreground">
-                  {asset.kind}
-                  {asset.duration_in_frames ? ` · ${asset.duration_in_frames}f` : ""}
-                </span>
+                <span className="block font-medium break-words text-foreground">{labels[index]}</span>
+                <span className="block text-muted-foreground">{described[index]!.detail}</span>
                 <div className="mt-1 flex flex-wrap gap-1">
+                  {onAdd ? (
+                    <button
+                      type="button"
+                      className={action}
+                      aria-label={`Add ${labels[index]} to timeline`}
+                      onClick={() => onAdd(asset)}
+                    >
+                      Add
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className={action}
-                    aria-label={`Add ${asset.asset_id} to timeline`}
-                    onClick={() => onAdd(asset)}
-                  >
-                    Add
-                  </button>
-                  <button
-                    type="button"
-                    className={action}
-                    aria-label={`Preview ${asset.asset_id}`}
+                    aria-label={`Preview ${labels[index]}`}
                     onClick={() => preview(asset.asset_id)}
                   >
                     Preview
