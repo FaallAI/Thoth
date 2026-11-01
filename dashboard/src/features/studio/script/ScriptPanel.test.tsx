@@ -3,10 +3,9 @@
 import { afterEach, expect, mock, test } from "bun:test";
 import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 
-import { StudioImportRequestError, type NarrationState } from "@/api/control-plane";
+import type { NarrationState } from "@/api/control-plane";
 import { render } from "@/test-render";
 
-import { NarrationButton } from "./NarrationButton";
 import { ScriptPanel } from "./ScriptPanel";
 
 afterEach(cleanup);
@@ -39,26 +38,6 @@ function client(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
-
-test("the button creates a narration and is unavailable while one runs", async () => {
-  const api = client();
-  const onChange = mock((_state: NarrationState) => {});
-  render(<NarrationButton client={api as never} projectId="p" documentId="edoc_1" state={null} onChange={onChange} />);
-  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Create narration" })));
-  expect(api.startNarration).toHaveBeenCalledTimes(1);
-  expect(onChange).toHaveBeenCalledTimes(1);
-  cleanup();
-
-  render(<NarrationButton client={api as never} projectId="p" documentId="edoc_1" state={{ ...awaiting, status: "voicing" }} onChange={onChange} />);
-  expect((screen.getByRole("button", { name: "Create narration" }) as HTMLButtonElement).disabled).toBe(true);
-});
-
-test("a refused start shows its reason", async () => {
-  const api = client({ startNarration: mock(async () => { throw new StudioImportRequestError(409, "prompt_not_configured"); }) });
-  render(<NarrationButton client={api as never} projectId="p" documentId="edoc_1" state={null} onChange={() => {}} />);
-  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Create narration" })));
-  expect(screen.getByRole("status").textContent).toContain("prompt_not_configured");
-});
 
 test("the approval shows the script read-only with the estimate and the unsupported words", async () => {
   const api = client();
@@ -146,11 +125,6 @@ test("polling keeps going after a failed read", async () => {
   });
   const { result } = renderHook(() => useNarration({ getNarration } as never, "p", "edoc_1", true, () => {}, 5));
   await waitFor(() => expect(result.current[0]?.status).toBe("completed"));
-});
-
-test("a completed narration is not created again", () => {
-  render(<NarrationButton client={client() as never} projectId="p" documentId="edoc_1" state={{ ...awaiting, status: "completed" }} onChange={() => {}} />);
-  expect((screen.getByRole("button", { name: "Create narration" }) as HTMLButtonElement).disabled).toBe(true);
 });
 
 
