@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-02 - Deployed f061b3d (PR #103); first e2e audit of Studio; tester-army/e2e is the audit standard
+
+**Deploy:** master `f061b3d` (PR #103, Studio shell v2). Images: thoth `42cf2c0e`, renderer `f0277d98`, web `001229db`, pulled ahead. `make deploy` exit 0 with no workflow running; preflight passed; head stays `0027`; every service healthy; no ERROR or Traceback in the api, worker, web and renderer logs. Read smoke 200. Previous pins: `D:/thoth-tmp/bu/pins/pins-d8b738a3.env`.
+
+**Audit standard:** operator, 2026-11-02. Every audit of the dashboard's look or flows now uses tester-army/e2e over its MCP server, with no model and no API key; Claude Code judges the screenshots (AGENTS.md, E2E audits). The read token is now `e2e-audit`, valid to 2027-01-30.
+
+**Audit (read only, stage1, narrated draft `edoc_3aedc6af…` rev 18).**
+- **Screens:** Story, Timeline, Review, Render and the Studio list at 1440; Story and the menu at 1024; Story (Preview, Materials, Inspector), Timeline (Timeline, Assets, Inspector) and the menu at 430.
+- **Evidence:** 16 screenshots in `D:/thoth-tmp/e2e-audit-2026-11-02/`.
+- **Repeatable checks:** 5 model-free tests in `tests/studio-shell-v2.e2e.ts` on the `chore/e2e-trial` worktree, all passing.
+- **Not covered:** Indonesian (the locale comes from the server-side user, and changing it is a write), video and audio playback (the read scope refuses preview capabilities), 768-1023 wide, and the open Script panel.
+
+**Passed:** header one row at 1440 and 1024 with the menu on screen; no horizontal scroll at 430; no raw ids in visible text; beat total 34.5 s equals the canvas with a narrated mic on each beat; Timeline three columns with every tool and inspector field; phone Timeline view-only with Inspect; rebuilt card timing (Post card 8.8-13.4 s, no overlaps, "No issues"); Review and Render.
+
+**Findings, Important:**
+1. Phone: the title shrinks to "TO…" because the mode switch shares its row.
+2. Phone: Request review is unreachable, hidden from the header and absent from the menu.
+3. The inspector's "Scene media" says "No media attached · Unavailable" on a draft with a main video. `SceneMediaInspector` reads `scene.clip_ids`, and a narrated draft's scene lists only its text clip.
+4. A beat's inspector disagrees with its tile: Main reads 13.6 s, the tile 8.9 s.
+5. Story Materials rows are not labelled: three identical "@kabinet_rakyat" rows hide Post card, Profile card and Profile page (spec goal 4).
+6. Asset rows have no thumbnail, waveform or kind icon, and Materials has no Narration group (spec goal 4).
+7. Lane names are not sticky: at 430 they scroll away, and their 192 px column takes half the phone.
+8. Studio list thumbnail shows a crop of giant text ("AR PENJI").
+9. The top bar reads "20 running" and the nav "Runs 20" while Temporal has 0 running. `activity.tsx` counts status `unknown` as active, and `workflow_runs` holds 218 `unknown` rows.
+
+**Findings, Minor:**
+- Phone panes leave the lower third empty, and the beat chips are not pinned to the bottom.
+- Play takes focus on load, and its ring overlaps the volume icon.
+- The "9:16 · 1080×1920" label sits far from the preview.
+- The menu has both "Script" and "Open script", and calls the Materials column "Scene board panel".
+- A stray separator shows in the phone Timeline toolbar.
+- Handles lack "@" in labels ("Post card · kabinet_rakyat").
+- Other drafts' assets ("Upload · Image") list above this draft's.
+- The empty inspector panel is shorter than the phone screen.
+
+**Next steps:**
+- Operator: choose which findings to fix; each is fixed test-first on the next work branch, which also carries this record and the AGENTS.md standard.
+- Operator gates: push, PR, merge and deploy for that branch; merging `chore/e2e-trial`.
+- Carry forward: watch and render rev 18; reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`.
+
 ## 2026-11-01 - Studio shell v2: one-row header, phone panes, human labels, truthful beats, clickable issues
 
 Spec: `docs/superpowers/specs/2026-11-01-studio-shell-v2-design.md`. Plan: `docs/superpowers/plans/2026-11-01-studio-shell-v2.md` (7 tasks, executed natively). Ledger: `.superpowers/sdd/2026-11-01-studio-shell-v2/progress.md`. Branch `feat/studio-shell-v2`.
