@@ -67,17 +67,28 @@ export function StudioHeader({
         {t("studio.editor.backDisabled")}
       </span>
       <span aria-hidden="true" className="h-5 w-px shrink-0 bg-hairline" />
-      <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-ink md:max-w-[16rem] md:flex-initial" title={title}>
+      <span className={`min-w-0 truncate text-[15px] font-semibold text-ink ${oneRow ? "max-w-[16rem] flex-initial" : "flex-1"}`} title={title}>
         {title}
       </span>
-      {oneRow ? jobs : <div className="flex min-w-0 flex-1 justify-center max-md:order-last max-md:basis-full">{jobs}</div>}
-      {mode}
-      {extra}
-      {oneRow ? <span aria-hidden="true" className="flex-1" /> : null}
+      {oneRow ? (
+        <>
+          {jobs}
+          {mode}
+          {extra}
+          <span aria-hidden="true" className="flex-1" />
+        </>
+      ) : (
+        // Below 1024 the title keeps the first row; jobs and mode take the second.
+        <div className="order-last flex min-w-0 basis-full items-center gap-2">
+          {jobs}
+          {mode}
+          {extra}
+        </div>
+      )}
       {inlineNarration ? narration : null}
       {history}
       <div className="flex min-w-0 shrink-0 items-center gap-2 text-[13px] whitespace-nowrap text-muted-ink">{save}</div>
-      {primary ? <div className="shrink-0 whitespace-nowrap">{primary}</div> : null}
+      {primary && viewport !== "phone" ? <div className="shrink-0 whitespace-nowrap">{primary}</div> : null}
       <details className="relative shrink-0">
         <summary
           aria-label={t("studio.editor.menu")}
@@ -91,6 +102,7 @@ export function StudioHeader({
         <div className="absolute top-11 right-0 z-40 flex w-80 flex-col gap-3 rounded-[10px] border border-hairline bg-raised p-4 text-sm shadow-xl">
           {inlineNarration ? null : narration}
           {menu}
+          {viewport === "phone" ? primary : null}
         </div>
       </details>
     </header>

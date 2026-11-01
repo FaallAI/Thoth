@@ -639,7 +639,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         <button
           type="button"
           onClick={requestReview}
-          className="h-9 rounded-md border max-md:hidden border-hairline px-3 text-[13px] text-ink hover:bg-surface focus-visible:outline-2 focus-visible:outline-copper"
+          className="h-9 rounded-md border border-hairline px-3 text-[13px] text-ink hover:bg-surface focus-visible:outline-2 focus-visible:outline-copper"
         >
           {t("studio.editor.requestReview")}
         </button>
