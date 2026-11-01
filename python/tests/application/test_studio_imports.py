@@ -217,6 +217,21 @@ def test_the_draft_has_one_text_scene_per_ordered_source_item() -> None:
     assert "source_url" not in serialized
 
 
+def test_each_text_scene_carries_its_items_role_so_it_has_a_story_beat() -> None:
+    # Without it a quoted comment had no beat: narration crammed it over the footage titles.
+    document = build_studio_draft(PROJECT, "edoc_first", create_request().source)
+
+    assert [clip.source_role for clip in document.clips] == [
+        "main",
+        "footage",
+        "footage",
+        "footage",
+        "footage",
+        "comment",
+        "comment",
+    ]
+
+
 def test_the_draft_stops_at_the_scene_limit_and_titles_untitled_items() -> None:
     payload = projection_payload()
     payload["items"] = [

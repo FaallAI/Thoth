@@ -125,10 +125,28 @@ def narrate_document(
     assets = {asset.asset_id: asset for asset in document.asset_refs}
     keep_scene = document.scenes[0]
 
+    # The first narration lays each beat's clips on a track end to end over the beat's window: an
+    # imported draft layers cards over the main video with gaps, and mapping that span linearly
+    # shrank cards to flashes. A narrated draft's layout is the operator's, so it maps linearly.
+    packed: dict[str, Window] = {}
+    if not narrated:
+        groups: dict[tuple[str, str], list] = {}
+        for clip in base:
+            beat = beats.get(clip.clip_id)
+            if clip.track_id in main_tracks or clip.hidden or beat not in new_windows:
+                continue
+            old = old_windows.get(beat)
+            if old is not None and old[0] < clip.end_frame and clip.from_frame < old[1]:
+                groups.setdefault((beat, clip.track_id), []).append(clip)
+        for (beat, _), members in groups.items():
+            packed.update(_pack(members, new_windows[beat]))
+
     clips = []
     for clip in base:
         if clip.track_id in main_tracks and old_bg and new_bg:
             window = _map(clip.from_frame, clip.end_frame, old_bg, new_bg)
+        elif clip.clip_id in packed:
+            window = packed[clip.clip_id]
         elif (beat := beats.get(clip.clip_id)) in old_windows and beat in new_windows:
             window = _map(clip.from_frame, clip.end_frame, old_windows[beat], new_windows[beat])
         else:
@@ -346,6 +364,20 @@ def _union(windows: Sequence[Window]) -> Window | None:
     if not windows:
         return None
     return (min(start for start, _ in windows), max(end for _, end in windows))
+
+
+def _pack(clips: Sequence, window: Window) -> dict[str, Window]:
+    """Lay clips end to end over a window in their order, each a share as long as it was."""
+    ordered = sorted(clips, key=lambda clip: (clip.from_frame, clip.clip_id))
+    total = sum(clip.duration_in_frames for clip in ordered)
+    span = window[1] - window[0]
+    result: dict[str, Window] = {}
+    done = 0
+    for clip in ordered:
+        start = window[0] + span * done // total
+        done += clip.duration_in_frames
+        result[clip.clip_id] = (start, max(window[0] + span * done // total, start + 1))
+    return result
 
 
 def _map(start: int, end: int, old: Window, new: Window) -> Window:

@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-01 - Deployed 7924ae2 (PR #101); Studio audit; the Timeline layout and narrated card timing fixed
+
+**Deploy:** master `7924ae2` (PR #101: Story previews narration audio, CC0-only SFX). Images: thoth `e2d09f48`, renderer `35c7d22e`, web `36334789`, pulled ahead. `make deploy` exit 0 after the operator granted `/permissions`; no workflow was running; head stays `0027`; every service healthy; no ERROR or Traceback in the api, worker, web and renderer logs. The ElevenLabs key is visible to the worker. The draft, its narration and the dashboard answer 200. Previous pins: `D:/thoth-tmp/bu/pins/pins-10af8950.env`.
+
+**Audit (operator: "audit page timeline edit sangat berantakan dan studio secara menyeluruh").** Studio was walked on the narrated draft `edoc_3aedc6af…` (rev 17) at 1440, 1024 and 430 wide; shots are in `D:/thoth-tmp/audit/`. Two of the findings were regressions from PR #100:
+1. **Timeline layout broke.** `AssetLibrary` and `SfxLibrary` sat in a fragment inside the `display: contents` region, so the SFX list became a grid cell of its own. It took the centre column, pushed the preview and timeline into the inspector's column, and dropped the inspector under the assets.
+2. **The narrated draft scrambled its visuals.** An imported draft layers its cards over the main video with gaps, so a beat's Story span holds long empty stretches. `narrate_document` mapped that span linearly onto the voice: the Evidence cards played 0.8 s and 0.37 s, then about 7 s of nothing; the comment cards played 0.7 to 1.5 s with gaps between. The four quoted comments had no beat at all: imported text scenes never carried their item's role. They were mapped over the whole canvas and landed over the footage titles, which is where the Timeline's 5 overlap warnings came from.
+
+Not fixed here, and carried forward:
+- The header crowds at 1024 (the job tabs stack) and wraps at 1440 in Story.
+- At 430 wide the page is 985 px.
+- Assets and the Story inspector show raw IDs (`asset_…`, `clip_caption_narration_main`).
+- The Story inspector shows the scene heading as a 7-line block.
+- The beat strip total disagrees with its beats.
+- The completed "Create narration" button gives no reason it is off.
+
+**Fixes (`fix/narration-layout-retime`), each test-first:**
+- **Timeline:** the asset list and the SFX library share one cell, with the list filling it and SFX under it. Test: "Timeline keeps the sound effects in the asset column".
+- **Narration:** the first narration lays each beat's clips on a track end to end over the beat's window, each clip a share as long as it was. Later narrations keep the operator's layout and map linearly. Test: `test_a_beats_cards_share_its_whole_window_end_to_end` (RED at (295, 333)).
+- **Imports:** each text scene's clip carries its item's role, so Story and narration know its beat. Test: `test_each_text_scene_carries_its_items_role_so_it_has_a_story_beat`.
+
+**Checked without spending:** following the operator's side note, no voice was paid twice. The fixed `narrate_document` ran offline on rev 15 with the four stored voices and the stored preset, read-only. With the four quotes marked `comment` (they predate the import fix; their content matches Materials' four judged comments), the result is:
+- **Evidence:** 4.6 s, 2.0 s and 2.0 s.
+- **Reactions:** 3.4 s, 1.5 s and 3.1 s for the cards, and the four quotes 2.0 s each.
+- **Footage:** 4.5 s and 4.5 s.
+- **Overlaps:** none on any track.
+
+**Next steps:**
+- Operator gates: push and PR for `fix/narration-layout-retime`; merge; deploy (api, worker and web images; no migration). Then rebuild the narrated draft without TTS: rev 15 with the quotes marked `comment`, the stored voices, and the fixed code, written as a new revision. This is a stage1 data write and needs its own authorization. Do not render the current rev 17 before then.
+- A design pass for the header, the 430-wide layout and asset naming, briefed for pen.dev.
+- Later: the CC0 default SFX set; the `narration-v1` golden capsule; removing the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`.
+
 ## 2026-11-01 - Deployed master 10af895 (PR #100: the narrated draft); Story previews narration audio
 
 **Deploy:** thoth `3ce86e74`, renderer `71b71339`, web `295f36fb`, pulled ahead of `make deploy` (exit 0); preflight and browser capability passed; migrate applied 1 revision (head `0027`; `narrations`, `narration_presets`, `sfx_library` present); every service healthy; the api, worker, web and renderer logs hold no ERROR or Traceback. Read smoke: runs, `/sfx` (empty), the narration preset (Rust defaults) and `/prompt-stages` (now with `narration_script`) answer 200. Previous file in `D:/thoth-tmp/bu/pins/pins-716b5802.env`. No workflow was running.

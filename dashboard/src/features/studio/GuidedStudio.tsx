@@ -834,7 +834,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
               />
             ) : advanced ? (
               assetClient ? (
-                <>
+                // One workstation cell: the asset list fills it, the SFX library sits under it.
+                <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto]">
                 <AssetLibrary
                   client={assetClient}
                   projectId={projectId}
@@ -847,6 +848,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 />
                 {/* The shared SFX library with its labels (spec 2026-10-31, decision 8). */}
                 {client.listSfx ? (
+                  <div className="max-h-64 overflow-auto border-r border-t border-border bg-card/60 p-2">
                   <SfxLibrary
                     client={{ listSfx: client.listSfx, addSfxToProject: client.addSfxToProject }}
                     projectId={projectId}
@@ -855,8 +857,9 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                       addAsset(asset);
                     }}
                   />
+                  </div>
                 ) : null}
-                </>
+                </div>
               ) : null
             ) : (
               <SceneBoard

@@ -129,6 +129,18 @@ def test_a_beats_clips_keep_their_order_inside_the_new_window() -> None:
     assert (hook.from_frame, hook.end_frame) == (0, 108)
 
 
+def test_a_beats_cards_share_its_whole_window_end_to_end() -> None:
+    # An imported draft layers its cards over the main video with gaps between them; mapping that
+    # gappy span linearly left 0.4 s flashes of card and seconds of nothing (stage1, 2026-11-01).
+    document = narrate_document(draft(), VOICES, [], PRESET, ROLES)
+
+    first, second = clip(document, "clip_comment_card_000"), clip(document, "clip_comment_card_001")
+    assert (first.from_frame, first.end_frame) == (258, 318)  # 60 and 60 frames share 120
+    assert (second.from_frame, second.end_frame) == (318, 378)
+    title = clip(document, "clip_001")  # the beat's only overlay fills it
+    assert (title.from_frame, title.end_frame) == (258, 378)
+
+
 def test_the_main_video_plays_under_the_hook_main_and_reaction_beats() -> None:
     document = narrate_document(draft(), VOICES, [], PRESET, ROLES)
 
