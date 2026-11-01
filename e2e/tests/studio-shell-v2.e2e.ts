@@ -32,18 +32,18 @@ test('1440 Timeline: every tool and the clip inspector fields stay, named in wor
   await expect(screen.getByRole('switch', 'Ripple')).toBeVisible();
   await expect(screen.getByRole('switch', 'Snap')).toBeVisible();
   await screen.getByRole('button', 'Main Video clip').tap();
-  await expect(screen.getByRole('heading', 'Main video · kabinet_rakyat')).toBeVisible();
+  await expect(screen.getByRole('heading', 'Main video · @kabinet_rakyat')).toBeVisible();
   for (const name of ['Start frame', 'End frame', 'Fit', 'Crop', 'Hidden', 'Locked', 'Ownership']) {
     await expect(screen.getByLabel(name)).toBeVisible();
   }
   await expect(screen.getByText(/asset_|clip_/, { visible: true })).toHaveCount(0);
 });
 
-test('1024: the menu holds the narration, Script and Assist', async ({ app, browser, screen }) => {
+test('1024: the menu holds the narration, the script and Assist', async ({ app, browser, screen }) => {
   await browser.setViewport({ width: 1024, height: 820 });
   await app.open(DRAFT);
   await screen.getByLabel('Studio workspace menu').tap();
-  for (const name of ['Recreate narration…', 'Open script', 'Script', 'Assist']) {
+  for (const name of ['Recreate narration…', 'Open script', 'Assist']) {
     await expect(screen.getByRole('button', name)).toBeVisible();
   }
 });

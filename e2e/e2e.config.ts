@@ -24,6 +24,16 @@ export default {
         app: { url: process.env.THOTH_WEB_URL ?? 'http://127.0.0.1:8088' },
       }),
     ),
+    // The same widths against a local vite dev server, to check a fix before it is deployed.
+    ...([['dev1440', 1440, 900], ['dev1024', 1024, 820], ['dev430', 430, 932]] as const).map(([name, width, height]) => ({
+      name,
+      engine: web({
+        viewport: { width, height },
+        locale: 'en-US',
+        headers: { Authorization: `Bearer ${process.env.THOTH_DEV_TOKEN ?? ''}` },
+      }),
+      app: { url: 'http://localhost:5199' },
+    })),
   ],
   agents: { default: { model: zai('glm-5.3'), maxModelCalls: 15 } },
 } satisfies E2EConfig;
