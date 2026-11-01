@@ -637,12 +637,12 @@ test("keeps a first-page asset addable after a second page loads", async () => {
   const { patchEditDocument } = await renderPagedAssetStudio();
 
   fireEvent.click(await screen.findByRole("button", { name: "Load more assets" }));
-  expect(await screen.findByText("asset_second")).toBeDefined();
-  expect(screen.getByText("asset_first")).toBeDefined();
+  expect(await screen.findByLabelText("Add Upload · Video · 2 to timeline")).toBeDefined();
+  expect(screen.getByLabelText("Add Upload · Video to timeline")).toBeDefined();
 
   jest.useFakeTimers();
   try {
-    fireEvent.click(screen.getByLabelText("Add asset_first to timeline"));
+    fireEvent.click(screen.getByLabelText("Add Upload · Video to timeline"));
     act(() => jest.advanceTimersByTime(500));
     const patch = patchEditDocument.mock.calls[0]![2];
     expect(patch.operations).toHaveLength(1);
@@ -681,12 +681,12 @@ test("stays in Simple mode after a version 2 autosave completes", async () => {
 test("keeps a loaded asset addable after an earlier asset edit saves", async () => {
   const { patchEditDocument } = await renderPagedAssetStudio();
   fireEvent.click(await screen.findByRole("button", { name: "Load more assets" }));
-  expect(await screen.findByText("asset_second")).toBeDefined();
+  expect(await screen.findByLabelText("Add Upload · Video · 2 to timeline")).toBeDefined();
 
-  await completeAutosave(() => fireEvent.click(screen.getByLabelText("Add asset_first to timeline")));
+  await completeAutosave(() => fireEvent.click(screen.getByLabelText("Add Upload · Video to timeline")));
   expect(patchEditDocument).toHaveBeenCalledTimes(1);
 
-  await completeAutosave(() => fireEvent.click(screen.getByLabelText("Add asset_second to timeline")));
+  await completeAutosave(() => fireEvent.click(screen.getByLabelText("Add Upload · Video · 2 to timeline")));
 
   expect(patchEditDocument).toHaveBeenCalledTimes(2);
   expect(patchEditDocument.mock.calls[1]![2].operations[0]).toMatchObject({

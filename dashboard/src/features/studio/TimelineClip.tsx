@@ -21,6 +21,8 @@ type Props = {
   onSelect: () => void;
   onGestureStart: (mode: GestureMode, clientX: number) => void;
   onNudge: (frames: number) => void;
+  /** The clip's human name (spec 2026-11-01); absent, the Timeline's own words for it. */
+  name?: string;
 };
 
 /** Video lanes read as footage, cards and words as panels, sound as the darkest well. */
@@ -57,10 +59,11 @@ export function TimelineClip({
   onSelect,
   onGestureStart,
   onNudge,
+  name: given,
 }: Props) {
   const { t } = useLocale();
   const name = t("studio.timeline.clip", { track: label });
-  const text = clipLabel(t, clip);
+  const text = given ?? clipLabel(t, clip);
   const start = (mode: GestureMode) => (event: PointerEvent) => {
     if (event.button !== 0) return;
     onSelect();

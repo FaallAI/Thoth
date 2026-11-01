@@ -158,3 +158,33 @@ test("overlapping continuation pages render one row per asset", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Add asset_b to timeline" }));
   expect(added.map((value) => value.asset_id)).toEqual(["asset_b"]);
 });
+
+test("asset rows name assets, never by id, and number repeated names", async () => {
+  // Studio shell v2 (spec 2026-11-01, goal 4): a row says what the asset is, never its id.
+  render(
+    <AssetLibrary
+      client={{
+        listEditorAssets: mock(async () =>
+          page({ assets: [asset(), asset({ asset_id: "asset_second" }), asset({ asset_id: "asset_voice", kind: "audio" })], next_cursor: null }),
+        ) as never,
+        createEditorPreviewCapability: mock(async () => ({ preview_url: "/x", expires_at: "2026-09-20T00:00:00Z" })) as never,
+      }}
+      projectId="project_001"
+      generationRef={{ current: 0 }}
+      onAssets={() => {}}
+      onAdd={() => {}}
+      onPreviewSource={() => {}}
+      describe={(item) =>
+        item.asset_id === "asset_voice"
+          ? { label: "Narration · Main", detail: "Voice · 14.2 s" }
+          : { label: "Upload · Video", detail: "Video · 4.0 s" }
+      }
+    />,
+  );
+
+  expect(await screen.findByRole("button", { name: "Add Narration · Main to timeline" })).toBeDefined();
+  expect(screen.getByRole("button", { name: "Add Upload · Video to timeline" })).toBeDefined();
+  expect(screen.getByRole("button", { name: "Add Upload · Video · 2 to timeline" })).toBeDefined();
+  expect(screen.getAllByText("Video · 4.0 s")).toHaveLength(2);
+  expect(screen.queryByText(/asset_/)).toBeNull();
+});

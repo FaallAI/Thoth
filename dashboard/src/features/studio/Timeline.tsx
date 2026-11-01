@@ -1,6 +1,6 @@
 import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
-import type { EditDocumentOperation } from "@/api/control-plane";
+import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane";
 import { useLocale } from "@/lib/locale";
 import type { EditorAction, EditorState } from "./editor_state";
 import type { GestureMode } from "./TimelineClip";
@@ -23,6 +23,8 @@ type Props = {
   onSeek?: (frame: number) => void;
   onPlay?: () => void;
   onPause?: () => void;
+  /** The clip's human name (spec 2026-11-01); absent, the Timeline's own words for it. */
+  labelOf?: (clip: NonNullable<EditDocumentV2["clips"]>[number]) => string;
 };
 
 /** One pointer gesture in flight. Committed on pointer up, dropped on Escape. */
@@ -44,7 +46,7 @@ const snapThreshold = (zoom: number) => Math.max(1, Math.round(8 / zoom));
 /** The header column beside every lane; the ruler and the playhead start after it. */
 const HEADER_WIDTH = 192;
 
-export function Timeline({ state, dispatch, onSeek, onPlay, onPause }: Props) {
+export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf }: Props) {
   const { t } = useLocale();
   const gesture = useRef<Gesture | null>(null);
   // The ruler under a press: pointer moves seek until the pointer is released.
@@ -296,6 +298,7 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause }: Props) {
               zoom={state.zoom}
               widthInFrames={duration}
               selectedClipId={state.selectedClipId}
+              labelOf={labelOf}
               onToggle={(field, value) =>
                 commit(
                   field === "hidden"

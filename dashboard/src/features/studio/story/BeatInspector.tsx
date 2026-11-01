@@ -8,6 +8,7 @@ import { reasonText } from "@/features/workflows/OpenInStudio";
 
 import type { EditorAction } from "../editor_state";
 import { Switch } from "../StudioSwitch";
+import { clipLabel } from "../studio_labels";
 import { ROLE_BEAT, type Beat } from "./story_beats";
 import {
   addMaterialToBeat,
@@ -63,10 +64,8 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
   const clips = beat.clipIds
     .map((id) => (document.clips ?? []).find((clip) => clip.clip_id === id))
     .filter((clip): clip is Clip => Boolean(clip));
-  const items = new Map(inventory.map((entry) => [`clip_${entry.item_id}`, entry]));
-  const labelled = new Map((materials?.items ?? []).map((item) => [`clip_${item.item_id}`, item.label]));
-  const label = (clip: Clip) =>
-    clip.kind === "text" ? clip.heading : labelled.get(clip.clip_id) ?? items.get(clip.clip_id)?.label ?? ("asset_id" in clip ? clip.asset_id : clip.clip_id);
+  // Kind and source, never an id (spec 2026-11-01, Studio shell v2).
+  const label = (clip: Clip) => clipLabel(clip, { document, materials, t, inventory });
   const cards = CARD_BEATS.has(beat.id) ? clips.filter((clip) => clip.kind === "video") : [];
   const cardIds = cards.map((clip) => clip.clip_id);
   // Photos in the Footage beat may move too (operator, 2026-10-28); its videos already do.

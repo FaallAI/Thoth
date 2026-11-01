@@ -61,8 +61,8 @@ test("the header names the beat, its place, its length and what is missing", () 
 test("shown cards move, and leave the beat", () => {
   const { committed } = mount("reactions");
 
-  fireEvent.click(screen.getByRole("button", { name: "Move @viewer later" }));
-  fireEvent.click(screen.getByRole("button", { name: "Remove comment_card_001 from the beat" }));
+  fireEvent.click(screen.getByRole("button", { name: "Move Comment card · @viewer later" }));
+  fireEvent.click(screen.getByRole("button", { name: "Remove Comment card · comment_card_001 from the beat" }));
 
   expect(committed()).toEqual([
     [["move_clip", "clip_comment_card_001"], ["move_clip", "clip_comment_card_000"]],
@@ -242,4 +242,13 @@ test("a card beat lists Position, Motion and Emphasis in that order", () => {
   );
 
   expect(screen.getAllByRole("group").map((group) => group.getAttribute("aria-label"))).toEqual(["Position", "Motion", "Emphasis"]);
+});
+
+test("the Shown list uses labels: kind and source, never an id", () => {
+  // Studio shell v2 (spec 2026-11-01, goal 4).
+  mount("reactions");
+
+  const shown = screen.getByRole("region", { name: "Shown" });
+  expect(within(shown).getByText("Comment card · @viewer")).toBeDefined();
+  expect(within(shown).queryByText(/asset_|clip_/)).toBeNull();
 });

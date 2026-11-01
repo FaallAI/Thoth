@@ -31,6 +31,7 @@ import { SceneBoard } from "./SceneBoard";
 import { SceneMediaInspector } from "./SceneMediaInspector";
 import { Timeline } from "./Timeline";
 import { TimelineInspector } from "./TimelineInspector";
+import { assetLabel, clipLabel, type LabelContext } from "./studio_labels";
 import {
   createAddClipFromAssetOperation,
   isTimelineDocument,
@@ -181,6 +182,19 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const reviewing = job === "review";
   const previewVisible = reviewing || (editing && (!compact || quick || editPane === "preview"));
   const { pause } = player;
+  // Kind and source, never an id (spec 2026-11-01, Studio shell v2).
+  const labels: LabelContext | null = timeline ? { document: timeline, materials, t, inventory } : null;
+  const labelOf = labels ? (clip: Parameters<typeof clipLabel>[0]) => clipLabel(clip, labels) : undefined;
+  const describeAsset = labels
+    ? (asset: EditorAsset) => {
+        const named = assetLabel(asset.asset_id, labels, asset);
+        const kind = t(`studio.label.kind.${asset.kind}`);
+        return {
+          label: named.label,
+          detail: named.seconds == null ? kind : `${kind} · ${t("studio.story.seconds", { seconds: named.seconds.toFixed(1) })}`,
+        };
+      }
+    : undefined;
 
   // A hidden preview must not keep playing; showing it again never resumes it.
   useEffect(() => {
@@ -838,6 +852,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto]">
                 <AssetLibrary
                   client={assetClient}
+                  describe={describeAsset}
                   projectId={projectId}
                   generationRef={generation}
                   onAssets={(assets, replace) => dispatch({ type: "assets_loaded", assets, replace })}
@@ -935,6 +950,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
               <div className="contents" hidden={reviewing}>
                 <Timeline
                   state={state}
+                  labelOf={labelOf}
                   dispatch={dispatch}
                   onSeek={player.seekTo}
                   onPlay={player.play}
@@ -999,6 +1015,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             ) : advanced && timeline ? (
               <TimelineInspector
                 document={timeline}
+                labelOf={labelOf}
                 selectedClipId={state.selectedClipId}
                 selectedTrackId={state.selectedTrackId}
                 onOperation={(operation) => dispatch({ type: "commit_timeline_operation", operation })}

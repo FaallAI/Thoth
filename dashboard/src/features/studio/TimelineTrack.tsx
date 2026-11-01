@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import type { EditDocumentV2 } from "@/api/control-plane";
 import { useLocale } from "@/lib/locale";
 import { TimelineClip, type GestureMode } from "./TimelineClip";
 import { framesToPixels, type TimelineLane } from "./timeline_domain";
@@ -28,6 +29,8 @@ type Props = {
   onSelectClip: (clipId: string) => void;
   onGestureStart: (clipId: string, mode: GestureMode, clientX: number) => void;
   onNudge: (clipId: string, frames: number) => void;
+  /** The clip's human name (spec 2026-11-01); absent, the Timeline's own words for it. */
+  labelOf?: (clip: NonNullable<EditDocumentV2["clips"]>[number]) => string;
 };
 
 type TrackKind = TimelineLane["track"]["kind"];
@@ -54,6 +57,7 @@ export function TimelineTrack({
   onSelectClip,
   onGestureStart,
   onNudge,
+  labelOf,
 }: Props) {
   const { t } = useLocale();
   const { track, clips } = lane;
@@ -117,6 +121,7 @@ export function TimelineTrack({
             onSelect={() => onSelectClip(clip.clip_id)}
             onGestureStart={(mode, clientX) => onGestureStart(clip.clip_id, mode, clientX)}
             onNudge={(frames) => onNudge(clip.clip_id, frames)}
+            name={labelOf?.(clip)}
           />
         ))}
       </div>
