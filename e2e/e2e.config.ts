@@ -11,11 +11,19 @@ const zai = createAnthropic({
 
 export default {
   targets: [
-    {
-      // The dashboard behind the local stack; a read-scope developer token signs every request.
-      engine: web({ headers: { Authorization: `Bearer ${process.env.THOTH_DEV_TOKEN ?? ''}` } }),
-      app: { url: process.env.THOTH_WEB_URL ?? 'http://127.0.0.1:8088' },
-    },
+    // The dashboard behind the local stack; a read-scope developer token signs every request.
+    // One target per audited width, so a live session opens at that width.
+    ...([['web', 1280, 720, 'en-US'], ['w1440', 1440, 900, 'en-US'], ['w1024', 1024, 820, 'en-US'], ['w1024id', 1024, 820, 'id-ID'], ['w430', 430, 932, 'en-US']] as const).map(
+      ([name, width, height, locale]) => ({
+        name,
+        engine: web({
+          viewport: { width, height },
+          locale,
+          headers: { Authorization: `Bearer ${process.env.THOTH_DEV_TOKEN ?? ''}` },
+        }),
+        app: { url: process.env.THOTH_WEB_URL ?? 'http://127.0.0.1:8088' },
+      }),
+    ),
   ],
   agents: { default: { model: zai('glm-5.3'), maxModelCalls: 15 } },
 } satisfies E2EConfig;
