@@ -14,17 +14,18 @@ All notable changes to this project will be documented in this file.
 
 **Judged from frames:** every narrated caption sits centred above the bottom 18% with a box that fits its text, so the caption fix holds in a real file. Audio: mean -18.6 dB, peak -0.0 dB, no silence over 0.7 s. Those are measurements; nobody has listened yet.
 
-**Findings in the video, not fixed and not traced:**
-1. Comment scenes name different people on the card and in the text: at 19 s the card is Laily's comment and the text beside it is @trio.suprapno's. There are 3 cards and 4 text overlays, on different timings (17.5-25.5 s).
-2. Footage scenes show an English machine description on screen, under a credit handle: "The video shows a crowd of people..." at 27 s, "A woman in a hijab sits at a table..." at 31 s.
-3. The opening title is cut mid-word ("reaksi rakyat ke ang"), and the full caption repeats right below it, over busy footage (0-8.9 s).
-4. Comment text keeps raw emoji tokens: "[Terkekeh][Tertawa sampai menangis]".
-5. Pale "Rakyat" lettering sits between the title and the description at 7 and 9 s, and blur patches show at 1, 4, 11 and 13 s. Their source was not checked.
+**Findings in the video, traced read only, not fixed:**
+1. Comment scenes show two comments at once. Each name matches its own text, so nothing is misattributed in the data, but a viewer reads them as one. `scene_items` makes a text scene for every card-less comment, against `docs/DESIGN.md` ("a quote in the narration or a caption only"). The role `comment` maps to the reactions beat, and `narrate_document` packs each track into that beat separately, so 4 quotes land over 3 cards. Before narration they sat apart, at 115-135 s and 36-64 s. A new draft has the same defect.
+2. Footage scenes show the vision model's English description: `project_content_set` passes `clip.description` as the scene's text.
+3. The title is `text[:120]` (`assembly/service.py:102`), cut mid-word, and the body is the same text in full.
+4. "[Terkekeh]" and similar are TikTok's own emote tokens, kept as they arrive. Only sticker-only comments are filtered.
+5. The pale lettering is the source's burned-in "Kabinet Rakyat" watermark, and the patches are subtitle blur that narration switches on by design. The source's subtitles and watermark go unblurred from 4.5 to 10.6 s because the OCR sample at exactly 5 s hit colour bars in the source. 4.5 s and 10.57 s are the midpoints of that sample with its neighbours at 4 s and 16.14 s.
+6. Those colour bars play in the render at about 4.6-5.0 s. They come from the source.
 
 **Not covered:** the browser previewing the server's media, because the audit token cannot; listening to the sound.
 
 **Next steps**
-- Next work: trace and fix the findings above, starting with the comment scenes. Do not publish this render.
+- Next work: the operator rules on the findings, then fix them test-first. Rev 18 needs a new revision for any fix to show. Do not publish this render.
 - Operator gates: listen to `D:/thoth-tmp/r18/rev18.mp4`; merging `chore/e2e-trial`.
 - Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; the 218 stored `unknown` rows stay in `workflow_runs`; composition's `onPreviewUnavailable` is called during render.
 
