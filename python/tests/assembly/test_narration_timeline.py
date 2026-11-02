@@ -149,6 +149,29 @@ def test_the_main_video_plays_under_the_hook_main_and_reaction_beats() -> None:
     assert main.hold_after_source is False
 
 
+def test_the_first_narration_runs_the_main_video_to_the_end_of_its_beats() -> None:
+    # Cards reaching past the main clip once left it mapped short: 13.6 s of a 25.5 s window, then
+    # black behind the cards (rev 18, rev 19; stage1, 2026-11-02).
+    data = payload()
+    next(item for item in data["clips"] if item["clip_id"] == "clip_main")["duration_in_frames"] = (
+        150
+    )
+
+    main = clip(narrate_document(draft(data), VOICES, [], PRESET, ROLES), "clip_main")
+
+    assert (main.from_frame, main.end_frame, main.source_from_frame) == (0, 378, 0)
+
+
+def test_a_narrated_drafts_main_video_keeps_the_operators_layout() -> None:
+    once = narrate_document(draft(), VOICES, [], PRESET, ROLES).model_dump(mode="python")
+    main = next(item for item in once["clips"] if item["clip_id"] == "clip_main")
+    main.update(duration_in_frames=189, volume_keyframes=[])  # the operator cut it to half
+
+    again = narrate_document(EditDocumentV2.model_validate(once), VOICES, [], PRESET, ROLES)
+
+    assert clip(again, "clip_main").end_frame == 189
+
+
 def test_a_main_video_shorter_than_its_beats_holds_its_last_frame() -> None:
     data = payload()
     next(item for item in data["clips"] if item["clip_id"] == "clip_main")["source_from_frame"] = (
