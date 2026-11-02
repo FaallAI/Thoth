@@ -170,3 +170,31 @@ test('1440: the script panel opens from the narration chip', async ({ app, brows
   expect(column.scrolls).toBe(true);
   await app.screenshot('script-open-1440');
 });
+
+test('430 Timeline: the preview pane gives the player room, its clock whole', async ({ app, browser, screen }) => {
+  await browser.setViewport({ width: 430, height: 932 });
+  await app.open(DRAFT);
+  await screen.getByRole('group', 'Editor mode').getByRole('button', 'Timeline').tap();
+  await screen.getByRole('navigation', 'Studio panes').getByRole('button', 'Preview').tap();
+  await expect(screen.getByRole('button', 'Play video')).toBeVisible();
+  const width = await browser.evaluate(() => document.querySelector('[aria-label="Studio preview"] > div')!.getBoundingClientRect().width);
+  expect(width).toBeGreaterThan(220);
+  await expect(screen.getByText('0:00 / 0:34', { visible: true })).toBeVisible();
+  await app.screenshot('timeline-preview-430');
+});
+
+test('1024 Timeline: the last lane can be reached', async ({ app, browser, screen }) => {
+  await browser.setViewport({ width: 1024, height: 820 });
+  await app.open(DRAFT);
+  await screen.getByRole('group', 'Editor mode').getByRole('button', 'Timeline').tap();
+  await expect(screen.getByRole('group', 'SFX track')).toBeVisible();
+  const lane = await browser.evaluate(() => {
+    const track = document.querySelector('[aria-label="SFX track"]')!;
+    track.scrollIntoView({ block: 'end' });
+    return {
+      bottom: track.getBoundingClientRect().bottom,
+      bar: document.querySelector('[aria-label="Timeline issues"]')!.getBoundingClientRect().top,
+    };
+  });
+  expect(lane.bottom).toBeLessThanOrEqual(lane.bar + 1);
+});

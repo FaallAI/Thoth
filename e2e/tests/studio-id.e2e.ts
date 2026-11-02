@@ -24,3 +24,11 @@ test('Timeline reads Indonesian', async ({ app, browser, screen }) => {
   expect(labels).not.toContain('Add');
   expect(labels).not.toContain('Preview');
 });
+
+test('the phone panes call Timeline by the name the mode uses', async ({ app, browser, screen }) => {
+  await browser.setViewport({ width: 430, height: 932 });
+  await app.open(DRAFT);
+  await screen.getByRole('group', 'Mode editor').getByRole('button', 'Timeline').tap();
+  await expect(screen.getByRole('button', 'Inspektor')).toBeVisible();
+  await expect(screen.getByText('Linimasa')).toHaveCount(0);
+});
