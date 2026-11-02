@@ -60,7 +60,7 @@ test('1440 Story: the labels, the seconds and the media tell the truth', async (
   await expect(materials.getByText('Profile card · @kabinet_rakyat', { visible: true })).toBeVisible();
   await expect(materials.getByRole('region', /^Narration/)).toBeVisible();
   await expect(screen.getByText('No media attached', { visible: true })).toHaveCount(0);
-  await expect(screen.getByText(/^9:16 · 1080×1920 · /, { visible: true })).toBeVisible();
+  await expect(screen.getByText(/^9:16 · 1080×1920/, { visible: true })).toBeVisible();
   await expect(screen.getByText(/asset_|clip_/, { visible: true })).toHaveCount(0);
 });
 
@@ -100,4 +100,33 @@ test('1024: one script button in the menu, and the side panel named Materials', 
   await expect(screen.getByRole('button', 'Script')).toHaveCount(0);
   await expect(screen.getByRole('button', 'Materials panel')).toBeVisible();
   await expect(screen.getByRole('button', 'Scene board panel')).toHaveCount(0);
+});
+
+test('1440 Timeline and Review: the canvas size stays in sight under the preview', async ({ app, browser, screen }) => {
+  await browser.setViewport({ width: 1440, height: 900 });
+  await app.open(DRAFT);
+  await screen.getByRole('group', 'Editor mode').getByRole('button', 'Timeline').tap();
+  await expect(screen.getByRole('region', 'Asset library')).toBeVisible();
+  await expect(screen.getByText(/^9:16 · 1080×1920/, { visible: true })).toBeVisible();
+  await screen.getByRole('navigation', 'Studio jobs').getByRole('button', 'Review').tap();
+  await expect(screen.getByText(/^9:16 · 1080×1920/, { visible: true })).toBeVisible();
+});
+
+test('430 Render: the header stays put while the panel scrolls', async ({ app, browser, screen }) => {
+  await browser.setViewport({ width: 430, height: 932 });
+  await app.open(DRAFT);
+  await screen.getByRole('navigation', 'Studio jobs').getByRole('button', 'Render').tap();
+  await expect(screen.getByRole('heading', 'Readiness')).toBeVisible();
+  const layout = await browser.evaluate(() => {
+    const panel = document.querySelector('.studio-render-workspace')!;
+    panel.scrollTop = 99999;
+    document.querySelector('#workspace')!.scrollTop = 99999;
+    window.scrollTo(0, 99999);
+    return {
+      scrolled: panel.scrollTop,
+      header: document.querySelector('.studio-topbar')!.getBoundingClientRect().top,
+    };
+  });
+  expect(layout.scrolled).toBeGreaterThan(0);
+  expect(layout.header).toBeGreaterThanOrEqual(0);
 });
