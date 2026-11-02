@@ -2,6 +2,49 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-03 - Blur follows the text; the main video fills its beats
+
+Branch `fix/blur-follows-text`, offline, nothing pushed. Findings of the operator on the rev 19 render: blur stayed after its text was gone and sat on faces, and the footage went black behind the cards from 13.6 s to 25.5 s.
+
+**Black background:** the first narration mapped the main clip over a span the cards had made longer than it. It now maps from the main clips' own span, so the main runs to the end of its beats. A narrated draft keeps the operator's layout.
+
+**Blur:** one of the twelve samples stood for up to 11 s of video. When a video has caption windows the judge did not reject, `_follow_text` now reads every half second of the rendered video (`follow_seconds`), and `follow_captions` replaces the sampled caption windows. Overlay windows stay. A window opens and closes halfway to the neighbouring frame, about 0.25 s from the text. The rule follows changing text that holds one spot of the frame:
+- A track is one line: the same height, letter size, and centre or left edge.
+- Not a caption: fewer than 4 reads, a median read narrower than 0.18, the same words in 60% of its reads (misreads and pieces count as the same words), text that also shows on a spot 0.1 away (a sign the camera carries), text cut by the frame edge, or an editorial chyron beside its badge.
+- `_past_blank` from PR #105 is gone. It read a shirt at 6 s and blurred it, and half-second reads replace it. Footage candidates pass `follow=False`: a captioned candidate is rejected and needs no windows.
+- A lost frame or more than 200 windows keeps the sampled windows, with a warning.
+
+**Tested on every stored main with a verdict, ten videos, RapidOCR in the worker, no provider, no platform request:**
+
+| Video | Sampled verdict | Windows now | Judged against frames |
+|---|---|---|---|
+| rev 18 source | subtitle | 17, bottom band | Yes: red boxes on the words, none in the gaps, watermark and shirts free |
+| `instagram_DebN5MbiGXK` | subtitle | 2 lines to 42.75 s | Yes: end card and credit free |
+| `instagram_DeOfMJJz6hL` | subtitle, wrong band | 14 line windows in 4 spans | Yes: the samples blurred a brand strip at the top and missed these |
+| `instagram_DeeQRrRTLdq` | cover | none | Reads only: a handheld sign |
+| `tiktok_7702077612641799425` | cover | none | Reads only |
+| 4 clean mains | clean | none | Reads only |
+| `instagram_Dc5ZNTtSxeH` | clean | none in production; the rule alone finds 43 | Yes: real word captions the samples miss |
+
+The first version of the rule failed this test, and each failure became a test: a two-line caption lost a line, captions outside the sampled band were missed, and a moving sign gave 17 patches. Each rule was also broken in turn to see a test fail.
+
+**Limits:**
+- The sampled gate decides whether the half-second read runs. `instagram_Dc5ZNTtSxeH` has real word captions and stays unblurred and unmuted, as it did before this change. Reading every main every half second would close this, at about 0.7-0.8 s per frame of OCR on every main.
+- The seven golden cases hold twelve frames each, so they fall back to the sampled path and prove the verdict gate only. Their sources are not stored; two of them have captions. Testing the rule on them needs a live download, a separate gate.
+- Thresholds come from these ten videos. A line that says one sentence for 60% of its reads passes for a sign.
+- A window is about 0.25 s off the text. OCR costs 0.7-0.8 s per frame in the worker: about 2 minutes for a 72 s video, about 5 minutes at the 360-frame ceiling. A longer video is read thinner.
+- The trim still removes a caption it takes for a headline (`instagram_DeOfMJJz6hL`, first 5.3 s).
+
+**Verification:** `make test` 4455 passed, 263 skipped; `make lint` clean. The dashboard is untouched. The worker runs the deployed code, so production has not run this path: the ten videos were read in the worker and replayed here.
+
+**Next steps:**
+- Operator gates, each separate: push and PR, merge, deploy, revision 20 of the rev 18 draft and its render (one video unit of `ws_bootstrap`, no TTS), merging `chore/e2e-trial`.
+- Operator decision: read every main every half second, to catch captions the samples miss, or keep the gate.
+- After the operator judges revision 20: the rev 18 source becomes the eighth golden OCR case.
+- Rev 19 leftovers: colour bars at about 5 s (cut in Timeline); narration quotes comments whose cards are not shown; long title ending "ke…".
+- Operator: listen to `D:/thoth-tmp/r19/rev19.mp4`; decide on rotating the printed secrets.
+- Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; `onPreviewUnavailable` called during render; 218 stored `unknown` rows stay in `workflow_runs`; the knowledge graph update; a fresh full run with the caption judge at final acceptance.
+
 ## 2026-11-02 - Deployed afa4def (PR #105): the rev 18 video fixes
 
 **Deploy:** master `afa4def` (PR #105). Images: thoth `7cfb91b5`, renderer `aee756ce`, web `3bf23837`, pulled ahead; the thoth image carries that revision's label. `make deploy` exit 0, no workflow running before or after, every service up and healthy, 0 ERROR or Traceback lines in api and worker in the first minutes. The previous env is `D:/thoth-tmp/bu/pins/pins-7d598d49.env`.

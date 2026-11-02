@@ -4,12 +4,14 @@ Only complete coverage may produce a verdict: a frame that cannot be read is unk
 clean. A missing ffmpeg or ffprobe keeps its own code (operator, 2026-10-11). After Scout's
 verdict, `refine.py` corrects it (spec amendment, 2026-10-12): a trim only for a possible
 repost, measured by the region tracker; overlays keep the audio; scene text is dropped; the
-caption judge confirms captions before the audio is muted.
+caption judge confirms captions before the audio is muted. Captions are then read every half
+second, so that each blur window opens and closes with its text (operator, 2026-11-02).
 """
 
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
@@ -24,6 +26,8 @@ from thoth_control_plane.assembly.ports import (
 )
 from thoth_control_plane.assembly.refine import (
     Windows,
+    follow_captions,
+    follow_seconds,
     headline_span,
     retrim,
     settle,
@@ -38,7 +42,6 @@ from thoth_control_plane.assembly.subtitles import (
     classify_ocr_frames,
 )
 from thoth_control_plane.attribution.adapters.frames import DurationError, FrameError, ToolMissing
-from thoth_control_plane.attribution.matching import TextBox
 from thoth_control_plane.attribution.ports import Frame
 
 logger = logging.getLogger(__name__)
@@ -46,7 +49,7 @@ logger = logging.getLogger(__name__)
 FRAME_WIDTH = 720  # RapidOCR's detector scales the short side to 736 anyway
 RECOVERY_OFFSETS = (0.0, 0.25, 0.5, 1.0)
 EXTRACTION_ATTEMPTS = 2
-BLANK_RETRY_SECONDS = 1.0
+MAX_BLUR_REGIONS = 200  # MainOcr.subtitle_blur
 
 
 def recovery_seconds(requested: float, previous: float | None) -> list[float]:
@@ -73,25 +76,22 @@ async def _frame(
     return None
 
 
-async def _past_blank(
-    frames: FrameSampler, video: Path, text: TextReader, blank: Frame, before: float
-) -> tuple[Frame, list[TextBox]] | None:
-    """The frame just after a blank sample, if it reads anything.
-
-    Colour bars or a cut can land on a sample between readable ones. Samples are seconds apart
-    after the intro, so that one frame would leave the captions around it unblurred.
-    """
-    later = round(blank.second + BLANK_RETRY_SECONDS, 6)
-    if later >= before:
-        return None
-    frame = await _frame(frames, video, later, blank.second)
+async def _read_at(
+    frames: FrameSampler, video: Path, text: TextReader, second: float, previous: float | None
+) -> tuple[OcrFrame, Frame | None]:
+    frame = await _frame(frames, video, second, previous)
     if frame is None:
-        return None
+        return OcrFrame(second, error="frame_extract"), None
     try:
         boxes = await text.read(frame)
+    except ToolMissing as missing:
+        raise AssemblyError(missing.code) from None
+    except ImportError:
+        raise AssemblyError("rapidocr_missing") from None
     except Exception:
-        return None
-    return (frame, boxes) if boxes else None
+        return OcrFrame(frame.second, error="ocr_failed"), None
+    row = tuple(OcrBox(b.text, b.left, b.top, b.right, b.bottom) for b in boxes)
+    return OcrFrame(frame.second, row), frame
 
 
 async def analyze_main_ocr(
@@ -106,7 +106,9 @@ async def analyze_main_ocr(
     trim_allowed: bool = True,
     tracker: RegionTracker | None = None,
     judge: CaptionJudge | None = None,
+    follow: bool = True,
 ) -> MainOcr:
+    """`follow`: False for a caller that only needs the verdict, not the windows to blur."""
     if not duration or duration <= 0:
         try:
             duration = await probe.duration(video)
@@ -118,31 +120,11 @@ async def analyze_main_ocr(
     requested = build_sample_times(duration, max_frames)
     read: list[OcrFrame] = []
     images: dict[float, Frame] = {}
-    for index, second in enumerate(requested):
-        previous = read[-1].t if read else None
-        frame = await _frame(frames, video, second, previous)
-        if frame is None:
-            read.append(OcrFrame(second, error="frame_extract"))
-            continue
-        try:
-            boxes = await text.read(frame)
-        except ToolMissing as missing:
-            raise AssemblyError(missing.code) from None
-        except ImportError:
-            raise AssemblyError("rapidocr_missing") from None
-        except Exception:
-            read.append(OcrFrame(frame.second, error="ocr_failed"))
-            continue
-        if not boxes and read and read[-1].boxes:
-            upcoming = requested[index + 1] if index + 1 < len(requested) else duration
-            frame, boxes = await _past_blank(frames, video, text, frame, upcoming) or (frame, boxes)
-        images[frame.second] = frame
-        read.append(
-            OcrFrame(
-                frame.second,
-                tuple(OcrBox(b.text, b.left, b.top, b.right, b.bottom) for b in boxes),
-            )
-        )
+    for second in requested:
+        row, frame = await _read_at(frames, video, text, second, read[-1].t if read else None)
+        read.append(row)
+        if frame is not None:
+            images[frame.second] = frame
 
     valid = sum(1 for frame in read if frame.error is None)
     if valid != len(requested):
@@ -157,6 +139,8 @@ async def analyze_main_ocr(
         verdict, refined = await _measure_trim(video, read, verdict, tracker)
     windows = sort_windows(read, verdict)
     confirmed = await _confirm(windows, images, judge) if windows.captions else None
+    if follow and windows.captions and confirmed is not False:
+        verdict, windows = await _follow_text(video, read, duration, verdict, windows, frames, text)
     verdict = settle(verdict, windows, confirmed)
     return MainOcr(
         analyzed_at=now,
@@ -170,6 +154,37 @@ async def analyze_main_ocr(
             BlurRegion(x=r.x, y=r.y, w=r.w, h=r.h, start=r.start, end=r.end)
             for r in verdict.subtitle_blur
         ],
+    )
+
+
+async def _follow_text(
+    video: Path,
+    read: list[OcrFrame],
+    duration: float,
+    verdict: Verdict,
+    windows: Windows,
+    frames: FrameSampler,
+    text: TextReader,
+) -> tuple[Verdict, Windows]:
+    """Windows that hold only while their text does; without full coverage, the sampled ones."""
+    rows = {frame.t: frame for frame in read}
+    previous = None
+    for second in follow_seconds(verdict.trim_start, duration):
+        if second not in rows:
+            row, _ = await _read_at(frames, video, text, second, previous)
+            if row.error:
+                logger.warning("caption frame %.2f unread; the sampled blur windows stay", second)
+                return verdict, windows
+            rows[row.t] = row
+            second = row.t
+        previous = second
+    followed = follow_captions(list(rows.values()), verdict.trim_start, duration)
+    if len(followed) + len(windows.overlays) > MAX_BLUR_REGIONS:
+        logger.warning("%d caption windows; the sampled blur windows stay", len(followed))
+        return verdict, windows
+    return (
+        replace(verdict, subtitle_blur=(*windows.overlays, *followed)),
+        replace(windows, captions=followed),
     )
 
 

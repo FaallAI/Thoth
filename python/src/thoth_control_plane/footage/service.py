@@ -842,6 +842,7 @@ class FootageBuilder:
                 trim_allowed=True,
                 tracker=self._ports.tracker,
                 judge=self._ports.captions,
+                follow=False,  # a captioned candidate is rejected; it needs no windows
             )
             # An overlay band is rejected too: the renderer blurs bands on the main only.
             if ocr.outcome in ("subtitle", "overlay"):
