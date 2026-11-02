@@ -24,7 +24,7 @@ Branch `fix/studio-audit-findings`, not pushed. Operator: "ya perbaiki dulu dan 
 - **e2e, live over MCP, read only, judged by Claude:** the Studio list at 1440 and 430; Story at 1440, including the moment before the reads answered (no Create narration; Scene media read "Video") and after (the "Narrated · 4 beats" chip; "Main video · @kabinet_rakyat"); Timeline and Review at 1440 with the label; Story at 430; Render at 430 scrolled, header in place.
 - **Not covered:** Indonesian, the deployed build, a draft with no narration in a real browser (unit test only), a read that fails with a 5xx in a real browser (unit test only), a portrait post card in the new box.
 
-**Observation, not a defect of this branch:** on the Vite dev server Render stays on "Loading render options…", because of React StrictMode's double effect in dev. It finishes on stage1 at `f061b3d` and on a production build of this branch.
+**Observation, not a defect of this branch:** on the Vite dev server Render stays on "Loading render options…". It finishes on stage1 at `f061b3d` and on a production build of this branch. The cause was not traced; React StrictMode, which only acts in dev, is the likely one.
 
 **Next steps**
 - Next work: the operator looks at the Studio list and says whether the crop stays.
