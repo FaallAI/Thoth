@@ -167,3 +167,41 @@ test("a re-voice that failed says so, and the beat keeps its earlier voice", () 
 
   expect(screen.getByRole("status").textContent).toContain("revoice_failed");
 });
+
+test("a draft's narration is known only once a read has answered", async () => {
+  // e2e audit 2026-11-02: while the read ran, a narrated draft offered Create narration.
+  const { renderHook, waitFor, act: actHook } = await import("@testing-library/react");
+  const { useNarration } = await import("./useNarration");
+  const { StudioImportRequestError } = await import("@/api/control-plane");
+  let refuse!: (error: unknown) => void;
+  const getNarration = mock(() => new Promise<NarrationState>((_, reject) => (refuse = reject)));
+  const { result } = renderHook(() => useNarration({ getNarration } as never, "p", "edoc_1", true, () => {}, 5));
+
+  expect(result.current[2]).toBe(false);
+  await actHook(async () => refuse(new StudioImportRequestError(404)));
+  await waitFor(() => expect(result.current[2]).toBe(true));
+  expect(result.current[0]).toBeNull();
+});
+
+test("a read that could not be answered is asked again, never taken as no narration", async () => {
+  const { renderHook, waitFor } = await import("@testing-library/react");
+  const { useNarration } = await import("./useNarration");
+  const { StudioImportRequestError } = await import("@/api/control-plane");
+  let calls = 0;
+  const seen: boolean[] = [];
+  const getNarration = mock(async () => {
+    calls += 1;
+    if (calls === 1) throw new StudioImportRequestError(null);
+    if (calls === 2) throw new StudioImportRequestError(503);
+    return { ...awaiting, status: "completed" } as NarrationState;
+  });
+  const { result } = renderHook(() => {
+    const narration = useNarration({ getNarration } as never, "p", "edoc_1", true, () => {}, 5);
+    seen.push(narration[2] && narration[0] === null);
+    return narration;
+  });
+
+  await waitFor(() => expect(result.current[0]?.status).toBe("completed"));
+  expect(result.current[2]).toBe(true);
+  expect(seen).not.toContain(true);
+});

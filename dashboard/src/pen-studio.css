@@ -87,7 +87,7 @@
 .studio-shell.pen-studio.studio-advanced [aria-label="Guided editing workstation"] > main { padding:0; gap:0; }
 .studio-shell.pen-studio.studio-advanced [aria-label="Studio preview"] { height:320px; min-height:320px; flex:none; }
 .studio-shell.pen-studio.studio-advanced [aria-label="Studio preview"] > div { width:148px; height:263px; }
-.studio-shell.pen-studio.studio-advanced .studio-preview-hint { display:none; }
+.studio-shell.pen-studio.studio-advanced .studio-preview-tip { display:none; }
 .studio-shell.pen-studio.studio-advanced [aria-label="Asset library"] { padding:18px 14px; background:#242628; }
 .studio-shell.pen-studio.studio-advanced [aria-label="Timeline inspector"] { padding:18px 16px; background:#242628; }
 .studio-shell.pen-studio.studio-advanced [aria-label="Timeline"] { flex:1; padding-top:12px; border-top:1px solid #47494a; background:#242628; }
@@ -144,7 +144,7 @@
 .studio-shell.pen-studio .studio-review-preview-header > span { padding:8px 10px; border-radius:5px; background:#282a2c; font-size:10px; }
 .studio-shell.pen-studio.studio-job-review [aria-label="Studio preview"] { grid-column:1; grid-row:2; height:auto; min-height:0; }
 .studio-shell.pen-studio.studio-job-review [aria-label="Studio preview"] > div { width:344px; height:612px; max-height:calc(100% - 30px); }
-.studio-shell.pen-studio.studio-job-review .studio-preview-hint { display:none; }
+.studio-shell.pen-studio.studio-job-review .studio-preview-tip { display:none; }
 .studio-shell.pen-studio .studio-review-panel-region { grid-column:2; grid-row:1 / 4; height:100%; min-height:0; overflow-y:auto; background:#242628; border-left:1px solid #47494a; }
 .studio-shell.pen-studio .studio-review-preview-footer { grid-column:1; grid-row:3; display:flex; align-items:center; padding:0 28px; background:#242628; font-size:10px; color:#c5c6c7; }
 @media (max-width:1023px) { .studio-shell.pen-studio .studio-prompt-columns { grid-template-columns:1fr; overflow:auto; } .studio-shell.pen-studio .studio-prompt-template-editor { overflow:visible; } .studio-shell.pen-studio .studio-prompt-columns > aside { border-left:0; } .studio-shell.pen-studio [aria-label="Prompt stages"] button { min-height:44px; } .studio-shell.pen-studio.studio-job-review [aria-label="Guided editing workstation"] > main { display:flex; height:auto; min-height:600px; padding:0; } .studio-shell.pen-studio .studio-review-preview-header { min-height:66px; } .studio-shell.pen-studio.studio-job-review [aria-label="Studio preview"] { min-height:480px; } .studio-shell.pen-studio.studio-job-review [aria-label="Studio preview"] > div { height:445px; width:250px; } .studio-shell.pen-studio .studio-review-panel-region { height:auto; overflow:visible; border-left:0; } .studio-shell.pen-studio .studio-review-preview-footer { min-height:50px; } .studio-shell.pen-studio .studio-review-panel button { min-height:44px; } }

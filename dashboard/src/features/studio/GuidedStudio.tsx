@@ -138,6 +138,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const [selectedBeat, setSelectedBeat] = useState<BeatId | null>(null);
   const [inventory, setInventory] = useState<StudioImportItem[]>([]);
   const [materials, setMaterials] = useState<StudioMaterials | null>(null);
+  const [materialsRead, setMaterialsRead] = useState(false);
   const [commentFocusRequest, setCommentFocusRequest] = useState(0);
   const [assistOn, setAssistOn] = useState(false);
   const [refusalsSeen, setRefusalsSeen] = useState(0);
@@ -185,7 +186,9 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const previewVisible = reviewing || (editing && (!compact || editPane === "preview" || (advanced && editPane === "timeline")));
   const { pause } = player;
   // Kind and source, never an id (spec 2026-11-01, Studio shell v2).
-  const labels: LabelContext | null = timeline ? { document: timeline, materials, t, inventory } : null;
+  const labels: LabelContext | null = timeline
+    ? { document: timeline, materials, t, inventory, materialsPending: Boolean(story && client.getStudioMaterials && !materialsRead) }
+    : null;
   const labelOf = labels ? (clip: Parameters<typeof clipLabel>[0]) => clipLabel(clip, labels) : undefined;
   const describeAsset = labels
     ? (asset: EditorAsset) => {
@@ -365,11 +368,13 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   useEffect(() => {
     if (!story || !getStudioMaterials) return;
     const requestGeneration = generation.current;
-    void getStudioMaterials(projectId, documentId).then(
-      (loaded) => requestGeneration === generation.current && setMaterials(loaded),
-      // A draft made in Studio has no materials route answer; the panel lists uploads only.
-      () => {},
-    );
+    void getStudioMaterials(projectId, documentId)
+      .then(
+        (loaded) => requestGeneration === generation.current && setMaterials(loaded),
+        // A draft made in Studio has no materials route answer; the panel lists uploads only.
+        () => {},
+      )
+      .finally(() => requestGeneration === generation.current && setMaterialsRead(true));
   }, [story, getStudioMaterials, projectId, documentId]);
 
   // Auto-draft narration (spec 2026-10-31): read and polled here; when it completes, the
@@ -378,7 +383,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     client.startNarration && client.getNarration && client.decideNarration && client.editNarrationBeat && client.revoiceNarrationBeat && client.cancelNarration && client.restartNarration
       ? (client as Required<Pick<typeof client, "startNarration" | "getNarration" | "decideNarration" | "editNarrationBeat" | "revoiceNarrationBeat" | "cancelNarration" | "restartNarration">>)
       : undefined;
-  const [narration, setNarration] = useNarration(narrationClient, projectId, documentId, Boolean(timeline && narrationClient), () => {
+  const [narration, setNarration, narrationKnown] = useNarration(narrationClient, projectId, documentId, Boolean(timeline && narrationClient), () => {
     void client.getEditDocument(projectId, documentId).then(
       (latest) => adoptNarratedRevision(dispatch, latest),
       () => {},
@@ -650,7 +655,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         }
         narration={
           <>
-        {story && timeline && narrationClient ? (
+        {/* Until the first read answers, null means "not read yet": no Create on a narrated draft. */}
+        {story && timeline && narrationClient && narrationKnown ? (
           <>
             <NarrationStatus
               client={narrationClient}

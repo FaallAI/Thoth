@@ -111,7 +111,7 @@ export function StudioPreview({
     );
   }
 
-  if (embedded) return <section className="flex min-h-0 flex-1 flex-col" aria-label="Studio preview">{preview}<p className="studio-preview-hint">{currentDocument ? `${canvasRatio(currentDocument)} · ${currentDocument.canvas.width}×${currentDocument.canvas.height} · ` : ""}Space to play/pause · Click scenes to jump</p></section>;
+  if (embedded) return <section className="flex min-h-0 flex-1 flex-col" aria-label="Studio preview">{preview}<p className="studio-preview-hint">{currentDocument ? <span>{canvasRatio(currentDocument)} · {currentDocument.canvas.width}×{currentDocument.canvas.height}<span aria-hidden="true" className="studio-preview-tip"> · </span></span> : null}<span className="studio-preview-tip">Space to play/pause · Click scenes to jump</span></p></section>;
 
   return (
     <section className="flex min-h-0 flex-1 flex-col gap-4 p-4" aria-label="Studio preview">

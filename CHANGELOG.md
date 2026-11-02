@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-02 - Fixed the audit fixes' leftovers: load flashes, canvas label, list cards, phone Render
+
+Branch `fix/studio-audit-findings`, not pushed. Operator: "ya perbaiki dulu dan ini juga tolong perbaiki", naming the four notes of the entry below.
+
+**Fixed**
+- **"Create narration" on a narrated draft:** `useNarration` now tells "none yet" from "not read yet", and Studio shows the narration control only once a read has answered. A lost connection or a 5xx is asked again every 3 s instead of being taken as no narration; a 404 or any other refusal is the answer. The server already refused a second narration with `narration_exists`, so the flash misled but could not overwrite.
+- **"Upload · Video" while materials load:** `assetLabel` says only the kind ("Video") until the materials read has answered.
+- **Canvas label:** "9:16 · 1080×1920" now shows under the preview in Timeline and Review. Only the keyboard tip stays hidden there.
+- **Phone Render:** the panel scrolls in its own box at every width, so Studio's header stays put.
+- **Studio list:** the box is 16:9 on wider screens and square on a phone, and the card reads from its top left.
+
+**Behaviour change to know**
+- The list reverses the previous entry's finding 8 on purpose. A very wide card shown whole was an unreadable strip in a 9:16 box. It now crops on the right, and shows the account name and the start of the caption ("Kabinet Rakyat · TOBAT EGE GATUH…"). A draft with no card has the shorter box too, so more drafts fit on a screen. This departs from the 9:16 card the code comment attributed to wider screens; the operator has not yet seen it.
+- The narration control appears a moment after the header on load, rather than a wrong one showing at once.
+
+**Verification**
+- **Dashboard:** 1556 tests pass; `tsc -b` exit 0; build OK; lint exit 0 with 45 warnings, the same count as before this work. Python was not touched, so `make test` and `make lint` were not run.
+- **Red first:** 6 new unit tests and 2 new e2e checks failed before the fix, for the expected reasons.
+- **e2e, model-free:** 15 checks (10 in `tests/studio-audit-fixes.e2e.ts`, 5 in `tests/studio-shell-v2.e2e.ts`) pass on a production build of this branch served by `vite preview` against stage1 data.
+- **e2e, live over MCP, read only, judged by Claude:** the Studio list at 1440 and 430; Story at 1440, including the moment before the reads answered (no Create narration; Scene media read "Video") and after (the "Narrated · 4 beats" chip; "Main video · @kabinet_rakyat"); Timeline and Review at 1440 with the label; Story at 430; Render at 430 scrolled, header in place.
+- **Not covered:** Indonesian, the deployed build, a draft with no narration in a real browser (unit test only), a read that fails with a 5xx in a real browser (unit test only), a portrait post card in the new box.
+
+**Observation, not a defect of this branch:** on the Vite dev server Render stays on "Loading render options…", because of React StrictMode's double effect in dev. It finishes on stage1 at `f061b3d` and on a production build of this branch.
+
+**Next steps**
+- Next work: the operator looks at the Studio list and says whether the crop stays.
+- Operator gates: push and PR, merge, deploy for this branch; merging `chore/e2e-trial`.
+- After deploy: run both e2e files against stage1 (`--target w1440`).
+- Carry forward: watch and render rev 18; reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; the 218 stored `unknown` rows stay in `workflow_runs`.
+
 ## 2026-11-02 - Fixed every finding of the first e2e audit of Studio
 
 Branch `fix/studio-audit-findings`, not pushed. Ledger: `.superpowers/sdd/2026-11-02-studio-audit-fixes/progress.md`. Operator: "ya kerjakan semuanya". The findings are in the entry below.

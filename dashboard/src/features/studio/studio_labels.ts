@@ -12,6 +12,8 @@ export type LabelContext = {
   t: (key: MessageKey, values?: Values) => string;
   /** The import inventory: names a clip saved before Story mode by its `clip_<item_id>`. */
   inventory?: StudioImportItem[];
+  /** The materials are on their way: an asset they may name is not called an upload yet. */
+  materialsPending?: boolean;
 };
 
 const NARRATION = "clip_narration_";
@@ -81,7 +83,8 @@ export function assetLabel(
     }
   }
   const kind = ref?.kind ?? "video";
-  return { label: t("studio.label.upload", { kind: t(`studio.label.kind.${kind}` as MessageKey) }), kind: "upload", seconds: length };
+  const kindName = t(`studio.label.kind.${kind}` as MessageKey);
+  return { label: ctx.materialsPending ? kindName : t("studio.label.upload", { kind: kindName }), kind: "upload", seconds: length };
 }
 
 /** A clip's label: its own name, its material's, else the Timeline's words for its text, role or kind. */

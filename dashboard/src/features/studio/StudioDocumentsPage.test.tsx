@@ -201,8 +201,12 @@ test("a document whose time does not parse still shows its revision", async () =
   expect(card.textContent).toContain("Rev 2");
 });
 
-test("a post card shows whole, not cropped", () => {
-  // e2e audit 2026-11-02, finding 8: a wide card cropped to giant text ("AR PENJI").
+test("a post card reads from its top left in a landscape box", () => {
+  // e2e audit 2026-11-02: centred in 9:16 a wide card cropped to giant text ("AR PENJI"), and
+  // whole it was an unreadable strip. A landscape box from the top left shows who posted and what.
   // Static markup: in a full run happy-dom may fail the image before a test can read it.
-  expect(renderToStaticMarkup(<Thumbnail src="/card" platform={null} />)).toContain("object-contain");
+  const markup = renderToStaticMarkup(<Thumbnail src="/card" platform={null} />);
+  expect(markup).toContain("object-cover object-left-top");
+  expect(markup).toContain("md:aspect-video");
+  expect(markup).not.toContain("9/16");
 });

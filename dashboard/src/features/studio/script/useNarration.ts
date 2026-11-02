@@ -1,7 +1,7 @@
 // A draft's narration state, read once and polled while it runs (spec 2026-10-31).
 import { useEffect, useRef, useState } from "react";
 
-import type { ControlPlaneClient, EditDocument, NarrationState } from "@/api/control-plane";
+import { StudioImportRequestError, type ControlPlaneClient, type EditDocument, type NarrationState } from "@/api/control-plane";
 
 import type { EditorAction } from "../editor_state";
 
@@ -23,9 +23,10 @@ export function isNarrationActive(state: NarrationState | null): boolean {
 }
 
 /**
- * `[state, setState]`: null until a narration exists. While one runs the state is read every
- * `intervalMs`; when a running narration completes, `onCompleted` runs once so Studio can
- * adopt the revision the narration wrote.
+ * `[state, setState, known]`: null until a narration exists, and `known` once a read has told
+ * "none yet" from "not read yet". While one runs the state is read every `intervalMs`; when a
+ * running narration completes, `onCompleted` runs once so Studio can adopt the revision the
+ * narration wrote.
  */
 export function useNarration(
   client: Pick<ControlPlaneClient, "getNarration"> | undefined,
@@ -34,8 +35,9 @@ export function useNarration(
   enabled: boolean,
   onCompleted: () => void,
   intervalMs = 3000,
-): [NarrationState | null, (state: NarrationState) => void] {
+): [NarrationState | null, (state: NarrationState) => void, boolean] {
   const [state, setState] = useState<NarrationState | null>(null);
+  const [known, setKnown] = useState(false);
   // A failed read changes no state, so it bumps this to schedule the next one.
   const [retry, setRetry] = useState(0);
   const wasActive = useRef(false);
@@ -47,12 +49,28 @@ export function useNarration(
   useEffect(() => {
     if (!enabled || !client) return;
     let stopped = false;
-    // A draft with no narration answers 404: it simply has none yet.
-    void client.getNarration(projectId, documentId).then((loaded) => !stopped && setState(loaded), () => {});
+    let again: ReturnType<typeof setTimeout> | undefined;
+    const read = () =>
+      void client.getNarration(projectId, documentId).then(
+        (loaded) => {
+          if (stopped) return;
+          setState(loaded);
+          setKnown(true);
+        },
+        (error) => {
+          if (stopped) return;
+          // No connection or a server fault says nothing about the draft, so it is asked again.
+          // Any other refusal, like the 404 of a draft with no narration, is its answer.
+          if (error instanceof StudioImportRequestError && (error.status === null || error.status >= 500)) again = setTimeout(read, intervalMs);
+          else setKnown(true);
+        },
+      );
+    read();
     return () => {
       stopped = true;
+      clearTimeout(again);
     };
-  }, [client, projectId, documentId, enabled]);
+  }, [client, projectId, documentId, enabled, intervalMs]);
 
   const active = isNarrationActive(state);
   useEffect(() => {
@@ -68,5 +86,5 @@ export function useNarration(
     return () => clearTimeout(timer);
   }, [active, state, retry, client, projectId, documentId, intervalMs]);
 
-  return [state, setState];
+  return [state, setState, known];
 }
