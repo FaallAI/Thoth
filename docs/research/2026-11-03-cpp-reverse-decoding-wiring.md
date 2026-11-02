@@ -2,6 +2,10 @@
 
 Date: 2026-11-03. Asked by the operator after the half-second caption reading landed. No product code came from this research.
 
+## Status
+
+Parked by the operator on 2026-11-03: C++ waits until a case fits it. Nothing was built.
+
 ## Direction
 
 The operator's direction is C++ for backward video processing (reverse decoding), with the wiring to Python researched first. This note answers that, and it measures where the time goes.
