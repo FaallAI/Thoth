@@ -87,6 +87,7 @@
 .studio-shell.pen-studio.studio-advanced [aria-label="Guided editing workstation"] > main { padding:0; gap:0; }
 .studio-shell.pen-studio.studio-advanced [aria-label="Studio preview"] { height:320px; min-height:320px; flex:none; }
 .studio-shell.pen-studio.studio-advanced [aria-label="Studio preview"] > div { width:148px; height:263px; }
+@media (max-width:1023px) { .studio-shell.pen-studio.studio-advanced [aria-label="Studio preview"] { height:auto; min-height:0; } .studio-shell.pen-studio.studio-advanced [aria-label="Studio preview"] > div { width:250px; height:445px; } }
 .studio-shell.pen-studio.studio-advanced .studio-preview-tip { display:none; }
 .studio-shell.pen-studio.studio-advanced [aria-label="Asset library"] { padding:18px 14px; background:#242628; }
 .studio-shell.pen-studio.studio-advanced [aria-label="Timeline inspector"] { padding:18px 16px; background:#242628; }

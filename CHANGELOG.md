@@ -11,7 +11,8 @@ Branch `fix/studio-audit-findings`, not pushed. Operator: "tolong fix sekalian d
 - **Beat tiles drew a broken image for every narration voice:** a voice's preview went into an `<img>`. A voice now draws nothing there.
 - **The chip's menu stayed open over Safe zone** after Open script or Close script. It closes itself now.
 - **Script lines were cut off inside their fields.** They grow to their text (`field-sizing: content`), and the column scrolls instead of running under the beats. That second part fixes a regression this work caused and the e2e check caught; browsers without `field-sizing` keep the scrolling field.
-- **Indonesian:** the hint under the preview, the asset library, the scene fields, the media panel and its dialogs, and the captions panel were English. All are translated.
+- **Indonesian:** the hint under the preview, the asset library, the scene fields, the media panel and its dialogs, and the captions panel were English. All are translated. The phone pane read "Linimasa" where everything else says "Timeline".
+- **Phone Timeline's preview pane:** the player stayed 148 px wide with its clock cut to "0..", over an empty screen. It now takes 250 px, as the other panes do.
 
 **The two notes**
 - **"Loading render options…" on the dev server:** traced. An unmount cleanup moved `generationRef` and not the reducer's counter, so under StrictMode's double effect the reducer refused the second load's answer. The cleanup now dispatches `superseded`, keeping the two in step. Only the dev server's double effect reached it.
@@ -22,9 +23,9 @@ Branch `fix/studio-audit-findings`, not pushed. Operator: "tolong fix sekalian d
 
 **Verification**
 - **Dashboard:** 1563 tests pass; `tsc -b` exit 0; build OK; lint exit 0 with 45 warnings, the same count as before. **Renderer** (the composition changed): 229 tests pass, typecheck clean. Python untouched, so `make test` and `make lint` were not run.
-- **Red first:** 6 unit tests and 5 e2e checks failed before their fixes, and the Render check failed on the dev server before its fix. One unit test written for the StrictMode bug passed without the fix, because effects do not run twice in this test environment; it was replaced by a reducer test (seen failing with the case removed) and the e2e check.
-- **e2e, model-free:** 26 pass on a production build of this branch against stage1 data: `tests/studio-media.e2e.ts` (7, with local fixture media), `tests/studio-audit-fixes.e2e.ts` (12), `tests/studio-shell-v2.e2e.ts` (5), `tests/studio-id.e2e.ts` (2, Indonesian).
-- **Screenshots judged by Claude,** in `D:/thoth-tmp/e2e-audit-2026-11-02-rest/`: Studio list, Story, Timeline, Review and Render in Indonesian at 1440, 1024 and 430; Timeline in English at 1024; playback with picture in Story and Timeline; rows and tiles with pictures; the placed caption; the open script panel; the Indonesian media dialog.
+- **Red first:** 6 unit tests and 7 e2e checks failed before their fixes, and the Render check failed on the dev server before its fix. One unit test written for the StrictMode bug passed without the fix, because effects do not run twice in this test environment; it was replaced by a reducer test (seen failing with the case removed) and the e2e check.
+- **e2e, model-free:** 29 pass on a production build of this branch against stage1 data: `tests/studio-media.e2e.ts` (7, with local fixture media), `tests/studio-audit-fixes.e2e.ts` (14), `tests/studio-shell-v2.e2e.ts` (5), `tests/studio-id.e2e.ts` (3, Indonesian).
+- **Screenshots judged by Claude,** in `D:/thoth-tmp/e2e-audit-2026-11-02-rest/`: Studio list, Story, Timeline, Review and Render in Indonesian at 1440 and 1024; the same at 430 except that Story and Timeline show one pane each; Timeline in English at 1024; playback with picture in Story and Timeline; rows and tiles with pictures; the placed caption; the open script panel; the Indonesian media dialog; the phone Timeline's preview pane. The Indonesian shots at 1024 and 430 predate the translations, so they judge the layout; the new words were seen at 1440, and in unit tests.
 
 **Covered from the earlier list:** Indonesian; playback and thumbnails with pictures; Space in a real browser, with focus free and in a text field; the open Script panel; Timeline at 1024.
 

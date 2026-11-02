@@ -2021,7 +2021,7 @@ const id: Messages = {
   "studio.pane.materials": "Materi",
   "studio.pane.assets": "Aset",
   "studio.pane.preview": "Pratinjau",
-  "studio.pane.timeline": "Linimasa",
+  "studio.pane.timeline": "Timeline",
   "studio.pane.inspector": "Inspektor",
   "studio.timeline.trimStart": "Pangkas awal ke playhead",
   "studio.timeline.trimEnd": "Pangkas akhir ke playhead",
