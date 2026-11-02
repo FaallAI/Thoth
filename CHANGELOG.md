@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-02 - Deployed afa4def (PR #105): the rev 18 video fixes
+
+**Deploy:** master `afa4def` (PR #105). Images: thoth `7cfb91b5`, renderer `aee756ce`, web `3bf23837`, pulled ahead; the thoth image carries that revision's label. `make deploy` exit 0, no workflow running before or after, every service up and healthy, 0 ERROR or Traceback lines in api and worker in the first minutes. The previous env is `D:/thoth-tmp/bu/pins/pins-7d598d49.env`.
+
+**CI:** PR and master green, including `template-release-parity`.
+
+**e2e against the deployed stack, model-free, read only:** 26 pass on `w1440`, 3 on `w1440id`, 3 on `w1024id`. These check the dashboard, which this deploy did not change. They do not exercise the fixes, which only act on new drafts, new OCR and new narration scripts.
+
+**Next steps:**
+- Operator gate: a new revision of rev 18 and its render (no TTS, one video unit of `ws_bootstrap`), to see the fixes and judge the blur patches. Then add the rev 18 source as an eighth golden OCR case with the verdict the operator confirms.
+- Other gates: merging `chore/e2e-trial`; a fresh run through the whole path, including the caption judge, at final acceptance.
+- Operator: listen to `D:/thoth-tmp/r18/rev18.mp4`; decide on rotating the printed secrets.
+- Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; `onPreviewUnavailable` called during render; 218 stored `unknown` rows stay in `workflow_runs`.
+
 ## 2026-11-02 - Fixed the rev 18 video findings in new drafts and new OCR
 
 Branch `fix/rev18-video-findings`, offline and test-first. Not pushed, not deployed.
