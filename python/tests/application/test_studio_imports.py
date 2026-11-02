@@ -198,7 +198,7 @@ def test_the_draft_has_one_text_scene_per_ordered_source_item() -> None:
     assert isinstance(document, EditDocumentV2)
     assert document.revision == 1
     assert [scene.scene_id for scene in document.scenes] == [
-        f"scene_{index:03d}" for index in range(1, 8)
+        f"scene_{index:03d}" for index in range(1, 7)
     ]
     headings = [clip.heading for clip in document.clips]
     assert headings == [
@@ -208,10 +208,9 @@ def test_the_draft_has_one_text_scene_per_ordered_source_item() -> None:
         "footage 2",
         "footage 3",
         "viewer_one",
-        "viewer_two",
     ]
-    assert document.clips[0].body == "Main caption"
-    assert document.canvas.duration_in_frames == 7 * 150
+    assert document.clips[0].body == ""
+    assert document.canvas.duration_in_frames == 6 * 150
     serialized = document.model_dump_json()
     assert "example.com" not in serialized
     assert "source_url" not in serialized
@@ -228,8 +227,20 @@ def test_each_text_scene_carries_its_items_role_so_it_has_a_story_beat() -> None
         "footage",
         "footage",
         "comment",
-        "comment",
     ]
+
+
+def test_main_and_footage_scenes_show_their_heading_only() -> None:
+    # A main's text repeats its title; a footage description is for scoring, not the screen.
+    payload = projection_payload()
+    payload["items"][2]["text"] = "A flooded street."
+    document = build_studio_draft(PROJECT, "edoc_first", create_request(payload).source)
+
+    assert [(clip.heading, clip.body) for clip in document.clips[:2]] == [
+        ("main 0", ""),
+        ("footage 0", ""),
+    ]
+    assert document.clips[-1].body == "First"
 
 
 def test_the_draft_stops_at_the_scene_limit_and_titles_untitled_items() -> None:

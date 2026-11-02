@@ -25,6 +25,21 @@ def test_drops_empty_sticker_and_link_comments() -> None:
     assert [c.author for c in merge_comments([("input", report(comments=noisy))])] == ["d"]
 
 
+def test_emote_tokens_leave_the_text_and_an_emote_alone_says_nothing() -> None:
+    noisy = [
+        comment("a", "[Terkekeh][Tertawa]", 9),
+        comment("b", "kasihan banget [Terkekeh] warganya [Sedih]", 2),
+        comment("c", "[2024] banjir lagi di sini", 1),
+    ]
+
+    merged = merge_comments([("input", report(comments=noisy))])
+
+    assert [(c.author, c.text) for c in merged] == [
+        ("b", "kasihan banget warganya"),
+        ("c", "[2024] banjir lagi di sini"),
+    ]
+
+
 def test_deduplicates_across_reports_and_keeps_the_first_source() -> None:
     original = report(comments=[comment("Budi", "Kasihan warganya kebanjiran lagi", 5)])
     repost = report(

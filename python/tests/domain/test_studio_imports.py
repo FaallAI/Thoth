@@ -199,6 +199,15 @@ def test_every_item_with_content_gets_a_scene_and_media_points_at_it() -> None:
     assert scenes["unsupported_000"] is None
 
 
+def test_a_text_only_comment_takes_no_scene() -> None:
+    # A comment without media is a quote for the narration (DESIGN 13.2), never its own text.
+    projection = StudioSourceProjection.model_validate(projection_payload())
+
+    assert [entry.title for entry in scene_items(projection) if entry.role == "comment"] == [
+        "viewer_one"
+    ]
+
+
 def test_scenes_beyond_the_document_limit_are_reported_not_dropped() -> None:
     payload = projection_payload()
     payload["items"] = [

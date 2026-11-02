@@ -159,7 +159,7 @@ def test_comment_cards_follow_likes_and_carry_reading_time() -> None:
     assert not [i for i in projected.projection.items if i.role == "comment"]
 
 
-def test_a_comment_without_a_card_stays_a_text_scene() -> None:
+def test_a_comment_without_a_card_stays_a_quote_for_the_narration() -> None:
     comments = [
         {"text": "ada kartu", "author": "satu", "source": "input", "card": IMAGE},
         {"text": "tanpa kartu", "author": "dua", "source": "input"},

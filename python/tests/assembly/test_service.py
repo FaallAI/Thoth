@@ -124,6 +124,19 @@ def test_an_original_post_is_its_own_main(tmp_path: Path) -> None:
     assert content.figures_status == "unavailable"
 
 
+def test_a_long_post_title_ends_on_a_whole_word(tmp_path: Path) -> None:
+    text = " ".join(["banjir"] * 40)
+
+    main = build(tmp_path, report(text=text)).main
+
+    assert main.title.endswith("banjir…") and len(main.title) <= 120
+    assert main.description == text
+
+
+def test_a_post_of_one_long_word_still_has_a_title(tmp_path: Path) -> None:
+    assert build(tmp_path, report(text="x" * 200)).main.title == "x" * 120
+
+
 def test_without_attribution_the_verdict_is_none(tmp_path: Path) -> None:
     assert build(tmp_path, report()).attribution_verdict == "none"
 

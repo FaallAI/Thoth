@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-02 - Fixed the rev 18 video findings in new drafts and new OCR
+
+Branch `fix/rev18-video-findings`, offline and test-first. Not pushed, not deployed.
+
+**Fixes:**
+1. A comment without a card or other media takes no scene (`scene_items`), as `docs/DESIGN.md` 13.2 says. It stays a quote for the narration. Comment cards are placed as before.
+2. Main, footage and creator footage scenes show their heading only (`build_studio_draft`): a main's text repeated its title, and a footage description is for scoring. The projection keeps its text, so the source key of a stored run does not change.
+3. A long post's title ends on a whole word with "…" (`_title`). One endless word is still cut at 120 characters.
+4. `merge_comments` removes emote tokens such as `[Terkekeh]` before it judges a comment, on every platform. A comment left with nothing to say is dropped with its card, as stickers already were (operator confirmed, 2026-11-02). Bracketed text with digits, such as `[2024]`, stays.
+5. A sample that reads nothing right after one that read text is read again one second later (`_past_blank`). Scout's classifier and its parity fixture are untouched. A video without text is not read twice.
+
+**A first blur fix was dropped.** Joining two windows across one sample broke two operator-confirmed golden cases, where the sample held a title card. Limited to samples that read nothing, it passed the goldens but changed nothing on the rev 18 source, because the text on either side of the bars sits in different bands.
+
+**Check on the rev 18 source (production OCR path, local RapidOCR, no caption judge, no provider, nothing written):** the 5 s sample reads 0 boxes, which proves the colour bars caused the gap. The frame at 6 s reads 7. The subtitle and watermark windows now run 0 to 11.07 s with no gap (they ended at 4.5 s). The same frame adds one new window at 5-11.07 s on the right side (`y` 0.74), so the blur covers more of the picture there.
+
+**Verification:** `make test` 4423 passed, 263 skipped. `make lint` clean. Seven golden OCR cases pass, but they replay recorded frames only, so they do not exercise the second read. Eight new or changed tests failed first; three guards passed from the start because they pin existing behavior. Only Python changed, so the dashboard and renderer suites were not run.
+
+**Not covered:**
+- Stored runs keep their OCR windows and their comment text. Their titles stay cut until the run is assembled again.
+- Rev 18 shows none of this until it has a new revision.
+- A narration made again from a stored draft still sees raw emote tokens in the quotes.
+- `creator_photo` scenes still show their caption as the body. It is the creator's own text, not a machine description.
+- The colour bars stay in the source and in rev 18, and can be cut in Timeline.
+
+**Next steps:**
+- Operator gates, each separate: push and PR, merge, deploy, a new revision of rev 18 and its render (no TTS), merging `chore/e2e-trial`.
+- Operator: listen to `D:/thoth-tmp/r18/rev18.mp4`; decide on rotating the printed secrets.
+- Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; `onPreviewUnavailable` called during render; 218 stored `unknown` rows stay in `workflow_runs`.
+
 ## 2026-11-02 - Deployed 7d598d4 (PR #104): the Studio audit fixes and the new golden frames
 
 **Deploy:** master `7d598d4` (PR #104). Images: thoth `bb528a35`, renderer `00d08c62`, web `09d08d7a`, pulled ahead, each carrying that revision's label. `make deploy` exit 0 with no workflow running; preflight passed; head stays `0027`; every service healthy; no ERROR or Traceback in the api, worker, web and renderer logs. Previous pins: `D:/thoth-tmp/bu/pins/pins-f061b3d7.env`. No migration was added, so a rollback is those pins again.

@@ -1,6 +1,7 @@
 """Audience comments for the video: a port of Scout's multi-source merge.
 
-Sources come in priority order (the main's own post first). Sticker-only and link-first
+Sources come in priority order (the main's own post first). Emote tokens such as "[Terkekeh]"
+and "[Sticker]" are the platform's markup for a picture, so they leave the text. Link-first
 comments carry nothing for narration and are dropped, and so is any comment that says nothing
 (`is_substantive`, spec 2026-10-24 D1); the dedupe key is the author plus the
 first 60 characters, both lowercased (`dedupeKey` in `scout/lib/comment_engine.ts`).
@@ -17,7 +18,7 @@ from thoth_control_plane.acquisition.models import CardArtifact, SourceReport
 from thoth_control_plane.acquisition.substance import is_substantive
 from thoth_control_plane.assembly.models import MAX_COMMENTS, Comment, MediaRef, PostCardRef
 
-STICKER = re.compile(r"^\[\s*sti?c?ker\s*\]$", re.IGNORECASE)
+EMOTE = re.compile(r"\[\s*[^\W\d_]+(?:\s+[^\W\d_]+)*\s*\]")
 LINK_FIRST = re.compile(r"^https?://", re.IGNORECASE)
 Source = Literal["input", "original"]
 
@@ -50,8 +51,8 @@ def merge_comments(
     merged: list[Comment] = []
     for source, report in sources:
         for item in report.comments:
-            text = item.text.strip()
-            if STICKER.match(text) or LINK_FIRST.match(text) or not is_substantive(text):
+            text = " ".join(EMOTE.sub(" ", item.text).split())
+            if LINK_FIRST.match(text) or not is_substantive(text):
                 continue
             key = f"{item.author.lower()}|{text[:60].lower()}"
             if key in seen:
@@ -59,7 +60,7 @@ def merge_comments(
             seen.add(key)
             merged.append(
                 Comment(
-                    text=item.text,
+                    text=text,
                     author=item.author,
                     likes=item.likes,
                     source=source,
