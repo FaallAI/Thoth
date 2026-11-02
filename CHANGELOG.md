@@ -10,10 +10,22 @@ All notable changes to this project will be documented in this file.
 
 **e2e against the deployed stack, model-free, read only:** 26 pass on `w1440` (`studio-shell-v2`, `studio-audit-fixes`, `studio-media`), and 3 pass on each of `w1440id` and `w1024id` (`studio-id`). The Indonesian file first failed 3 of 3 on `w1024id` because of the target, not the app: stage1's Indonesian target changed only the browser's locale, so it now rewrites `/auth/me` like the dev ones.
 
-**Not covered:** the server's own media, audible sound and a narrated caption in a rendered file. Rev 18 has not been rendered, because that needs its own authorization.
+**Render of rev 18 (operator: "ya boleh"):** job `rj_4020c6cf…` completed: 1034 of 1034 frames in 38 s, 1080x1920, 34.475 s, 21,987,859 bytes. The download's sha256 matches the job's checksum. It was started by a one-off script through the deployed service inside the api container, because the audit token is read only, so the dashboard's Render button was not exercised. It used one video unit of `ws_bootstrap`'s allowance. Evidence: `D:/thoth-tmp/r18/`.
+
+**Judged from frames:** every narrated caption sits centred above the bottom 18% with a box that fits its text, so the caption fix holds in a real file. Audio: mean -18.6 dB, peak -0.0 dB, no silence over 0.7 s. Those are measurements; nobody has listened yet.
+
+**Findings in the video, not fixed and not traced:**
+1. Comment scenes name different people on the card and in the text: at 19 s the card is Laily's comment and the text beside it is @trio.suprapno's. There are 3 cards and 4 text overlays, on different timings (17.5-25.5 s).
+2. Footage scenes show an English machine description on screen, under a credit handle: "The video shows a crowd of people..." at 27 s, "A woman in a hijab sits at a table..." at 31 s.
+3. The opening title is cut mid-word ("reaksi rakyat ke ang"), and the full caption repeats right below it, over busy footage (0-8.9 s).
+4. Comment text keeps raw emoji tokens: "[Terkekeh][Tertawa sampai menangis]".
+5. Pale "Rakyat" lettering sits between the title and the description at 7 and 9 s, and blur patches show at 1, 4, 11 and 13 s. Their source was not checked.
+
+**Not covered:** the browser previewing the server's media, because the audit token cannot; listening to the sound.
 
 **Next steps**
-- Operator gates: render rev 18; merging `chore/e2e-trial`.
+- Next work: trace and fix the findings above, starting with the comment scenes. Do not publish this render.
+- Operator gates: listen to `D:/thoth-tmp/r18/rev18.mp4`; merging `chore/e2e-trial`.
 - Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; the 218 stored `unknown` rows stay in `workflow_runs`; composition's `onPreviewUnavailable` is called during render.
 
 ## 2026-11-02 - Promoted new golden frames for both capsules
