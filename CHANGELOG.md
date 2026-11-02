@@ -40,6 +40,7 @@ The first version of the rule failed this test, and each failure became a test: 
 **Next steps:**
 - Operator gates, each separate: push and PR, merge, deploy, revision 20 of the rev 18 draft and its render (one video unit of `ws_bootstrap`, no TTS), merging `chore/e2e-trial`.
 - Operator decision: read every main every half second, to catch captions the samples miss, or keep the gate.
+- Operator questions on C++ reverse decoding (`docs/research/2026-11-03-cpp-reverse-decoding-wiring.md`): which feature needs it, and which part of editing feels slow. Nothing is built until those are answered.
 - After the operator judges revision 20: the rev 18 source becomes the eighth golden OCR case.
 - Rev 19 leftovers: colour bars at about 5 s (cut in Timeline); narration quotes comments whose cards are not shown; long title ending "ke…".
 - Operator: listen to `D:/thoth-tmp/r19/rev19.mp4`; decide on rotating the printed secrets.
