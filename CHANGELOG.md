@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-02 - Deployed 7d598d4 (PR #104): the Studio audit fixes and the new golden frames
+
+**Deploy:** master `7d598d4` (PR #104). Images: thoth `bb528a35`, renderer `00d08c62`, web `09d08d7a`, pulled ahead, each carrying that revision's label. `make deploy` exit 0 with no workflow running; preflight passed; head stays `0027`; every service healthy; no ERROR or Traceback in the api, worker, web and renderer logs. Previous pins: `D:/thoth-tmp/bu/pins/pins-f061b3d7.env`. No migration was added, so a rollback is those pins again.
+
+**CI:** `template-release-parity` passed on the new frames on the push, the PR and master.
+
+**e2e against the deployed stack, model-free, read only:** 26 pass on `w1440` (`studio-shell-v2`, `studio-audit-fixes`, `studio-media`), and 3 pass on each of `w1440id` and `w1024id` (`studio-id`). The Indonesian file first failed 3 of 3 on `w1024id` because of the target, not the app: stage1's Indonesian target changed only the browser's locale, so it now rewrites `/auth/me` like the dev ones.
+
+**Not covered:** the server's own media, audible sound and a narrated caption in a rendered file. Rev 18 has not been rendered, because that needs its own authorization.
+
+**Next steps**
+- Operator gates: render rev 18; merging `chore/e2e-trial`.
+- Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; the 218 stored `unknown` rows stay in `workflow_runs`; composition's `onPreviewUnavailable` is called during render.
+
 ## 2026-11-02 - Promoted new golden frames for both capsules
 
 Branch `fix/studio-audit-findings`, not pushed. Operator, after the before-and-after pictures in `D:/thoth-tmp/golden-compare/`: "ya di setujui".
