@@ -15,10 +15,9 @@ from collections.abc import Sequence
 from typing import Literal
 
 from thoth_control_plane.acquisition.models import CardArtifact, SourceReport
-from thoth_control_plane.acquisition.substance import is_substantive
+from thoth_control_plane.acquisition.substance import is_substantive, without_emotes
 from thoth_control_plane.assembly.models import MAX_COMMENTS, Comment, MediaRef, PostCardRef
 
-EMOTE = re.compile(r"\[\s*[^\W\d_]+(?:\s+[^\W\d_]+)*\s*\]")
 LINK_FIRST = re.compile(r"^https?://", re.IGNORECASE)
 Source = Literal["input", "original"]
 
@@ -51,7 +50,7 @@ def merge_comments(
     merged: list[Comment] = []
     for source, report in sources:
         for item in report.comments:
-            text = " ".join(EMOTE.sub(" ", item.text).split())
+            text = without_emotes(item.text)
             if LINK_FIRST.match(text) or not is_substantive(text):
                 continue
             key = f"{item.author.lower()}|{text[:60].lower()}"
