@@ -59,7 +59,7 @@ const CAPTION_LANE: CSSProperties = {
   justifyContent: "flex-end",
   padding: 64,
 };
-/** Keeps a narrated caption above TikTok's interface, which covers the bottom 18% of the canvas. */
+/** Keeps a caption above TikTok's interface, which covers the bottom 18% of the canvas. */
 const CAPTION_SAFE_BOTTOM = 0.18;
 const UNAVAILABLE: CSSProperties = {
   alignItems: "center",
@@ -233,12 +233,8 @@ function renderClip(
     }
     case "caption": {
       const style = trustedStyle(clip.style_slot, CAPTION_STYLES, CAPTION_STYLES.caption_default!);
-      // A Sequence wraps its child in its own row, so the lane's centring never reached the cue,
-      // and its box ran the canvas's height from the top left. Only narrated captions leave that
-      // wrapper: the other styles are in the approved golden frames of the released capsules.
-      const narrated = style.name === "word_highlight";
       return (
-        <AbsoluteFill style={narrated ? { ...CAPTION_LANE, paddingBottom: canvas.height * CAPTION_SAFE_BOTTOM } : CAPTION_LANE}>
+        <AbsoluteFill style={{ ...CAPTION_LANE, paddingBottom: canvas.height * CAPTION_SAFE_BOTTOM }}>
           {/* Cue frames are relative to the caption clip, so they nest inside it. */}
           {clip.cues.map((cue, index) => (
             <Sequence
@@ -246,7 +242,9 @@ function renderClip(
               name={`${clip.clip_id}_cue_${index}`}
               from={cue.from_frame}
               durationInFrames={cue.duration_in_frames}
-              layout={narrated ? "none" : "absolute-fill"}
+              // Its default wrapper is a row of its own: the lane's centring would never reach the
+              // cue, and the cue's box would run the canvas's height from the top left.
+              layout="none"
             >
               {style.name === "word_highlight" && cue.words && cue.words.length > 0 ? (
                 <WordHighlightCue words={cue.words} style={style.style} />

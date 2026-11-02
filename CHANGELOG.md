@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-02 - Fixed every caption style; new golden frames await the operator's approval
+
+Branch `fix/studio-audit-findings`, not pushed. Operator, on the two open decisions: "aku ikutin saran anda". This settles the previous entry's decision on caption styles, and the Studio list's crop stays.
+
+**Changed:** every caption style now skips the `Sequence` wrapper and sits centred above TikTok's bottom 18%. The condition that limited this to narrated captions is gone.
+
+**The golden frames, checked by running the parity gate locally** (`Dockerfile.renderer-f1`, no network, the same command as CI, nothing promoted):
+| Code | `vertical_text_story-v1` | `story_mode-v1` | Preview vs render |
+|---|---|---|---|
+| Narrated captions only (`f523cccb`) | pass, 0 pixels changed | pass, 0 pixels changed | 0 pixels |
+| Every style (this commit) | `visual_mismatch` | `visual_mismatch` | 0 pixels |
+
+- Both capsules carry one `caption_default` clip over the whole timeline, so all 5 golden frames of each hold the bug; a capsule pins its assets and document, not the composition's source.
+- 1,076,892 to 1,242,133 pixels change per frame, about half of each frame, because the dark box is gone from it.
+- The candidates were judged from the renders. The picture is clean, and the caption sits centred above the bottom band.
+
+**Until the operator approves:** `template-release-parity` fails on this branch, so a push goes red there. Nothing has been promoted. Before and after, one picture per capsule: `D:/thoth-tmp/golden-compare/`.
+
+**Verification:** dashboard 1563 tests pass, renderer 229 pass; both typechecks clean. The final code's frames are byte-identical to the candidates in those pictures.
+
+**Next steps**
+- Operator gate: approve the new golden frames for both capsules, after looking at them. Then the gate runs again, its run is promoted, and the new sets are committed.
+- Operator gates, after that: push and PR, merge, deploy for this branch; merging `chore/e2e-trial`.
+- After deploy: run the e2e files against stage1 (`--target w1440`); watch and render rev 18.
+- Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; the 218 stored `unknown` rows stay in `workflow_runs`.
+
 ## 2026-11-02 - Closed the audit's gaps: playback, Indonesian, script panel; a caption bug in rendered video
 
 Branch `fix/studio-audit-findings`, not pushed. Operator: "tolong fix sekalian dulu", naming the not-covered list and two notes of the entry below. Covering playback showed what the read-scope token had hidden.
