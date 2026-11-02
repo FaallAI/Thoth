@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-02 - Promoted new golden frames for both capsules
+
+Branch `fix/studio-audit-findings`, not pushed. Operator, after the before-and-after pictures in `D:/thoth-tmp/golden-compare/`: "ya di setujui".
+
+- `vertical_text_story-v1`: set `sha256-09d5263a497ba3c2f9bef6390746882667eeabe938697d82b0a168320d9a6398`, promoted from `run_78ea265619db840c`.
+- `story_mode-v1`: set `sha256-efb07ab66c7b8a089790fbeeed6cd4d4808393d6dd819cb456b95bdc8daef656`, promoted from `run_3bff9e5800573755`.
+- Both runs were drawn at `a24e2b47` by a freshly built reference image with no network, and promoted from inside it. All 20 files are byte-identical to the frames the operator reviewed.
+- The earlier sets stay in `golden-sets/`; each manifest names the new one.
+
+**Verification:** an image built with the new goldens verified `pass` for both capsules on two fresh artifact roots. Renderer 229 tests pass (5 skipped), typecheck clean. Container contract tests: 56 pass.
+
+**Next steps**
+- Operator gates: push and PR, merge, deploy for this branch; merging `chore/e2e-trial`.
+- At push: `template-release-parity` runs in CI for the first time on these frames.
+- After deploy: run the e2e files against stage1 (`--target w1440`); watch and render rev 18.
+- Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; the 218 stored `unknown` rows stay in `workflow_runs`.
+
 ## 2026-11-02 - Fixed every caption style; new golden frames await the operator's approval
 
 Branch `fix/studio-audit-findings`, not pushed. Operator, on the two open decisions: "aku ikutin saran anda". This settles the previous entry's decision on caption styles, and the Studio list's crop stays.
