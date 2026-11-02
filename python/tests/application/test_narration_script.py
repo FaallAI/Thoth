@@ -170,6 +170,34 @@ def test_the_facts_come_from_the_materials_and_the_run_context() -> None:
     assert (facts.figures, facts.comments) == (["Budi Santoso"], ["itu kucing saya!"])
 
 
+def test_a_stored_quote_reaches_the_script_without_emote_tokens() -> None:
+    # Older runs stored comments raw; the voice must not read "[Terkekeh]" aloud.
+    from thoth_control_plane.application.narration_script import facts_from_materials
+    from thoth_control_plane.domain.studio_imports import StudioMaterial, StudioMaterials
+
+    labels = ["kasihan [Terkekeh] warganya [Sedih]", "[Terkekeh][Tertawa]", "[2024] banjir lagi"]
+    materials = StudioMaterials(
+        document_id="edoc_1",
+        provenance_available=True,
+        items=[
+            StudioMaterial(
+                item_id=f"comment_{index:03d}",
+                role="comment",
+                label=label,
+                media_kind="none",
+                disposition="excluded",
+            )
+            for index, label in enumerate(labels)
+        ],
+        figures=[],
+    )
+
+    assert facts_from_materials(materials, None).comments == [
+        "kasihan warganya",
+        "[2024] banjir lagi",
+    ]
+
+
 def test_sound_effects_the_draft_cannot_use_are_dropped_not_fatal() -> None:
     """An optional SFX never costs the whole script (final review, minor 11 re-graded)."""
     cues = [

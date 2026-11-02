@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import textwrap
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -52,6 +53,7 @@ from thoth_control_plane.attribution.models import SourceAttribution
 
 logger = logging.getLogger(__name__)
 HEADLINE_PREFIX = "headline: "
+TITLE_CHARS = 120
 FiguresStatus = Literal["ok", "none", "unavailable"]
 
 
@@ -93,13 +95,19 @@ def _media_ref(media: MaterializedMedia) -> MediaRef:
     )
 
 
+def _title(text: str) -> str:
+    """A long post's title ends on a whole word; one endless word can only be cut."""
+    short = textwrap.shorten(text, TITLE_CHARS, placeholder="…")
+    return text[:TITLE_CHARS] if short == "…" else short
+
+
 def _main_fields(report: SourceReport, source: Literal["input", "original"]) -> dict[str, Any]:
     text = report.post.text.strip()
     fields: dict[str, Any] = {
         "source": source,
         "url": report.source.canonical_url,
         "platform": report.source.platform,
-        "title": text[:120],
+        "title": _title(text),
         "description": text,
         "owner_handle": report.post.owner_handle,
         "published_at": report.post.published_at,

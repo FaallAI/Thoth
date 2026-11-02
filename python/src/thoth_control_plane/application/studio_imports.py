@@ -51,6 +51,10 @@ PASSTHROUGH = (
 )
 
 
+#: A main's text repeats its title; a footage description is for scoring, not the screen.
+HEADING_ONLY_ROLES = frozenset({"main", "footage", "creator_footage"})
+
+
 def _heading(item: StudioSourceItem) -> str:
     if item.title:
         return item.title
@@ -72,7 +76,7 @@ def build_studio_draft(
             index=index,
             role="title" if item.role == "main" else "source",
             heading=_heading(item),
-            body=item.text or "",
+            body="" if item.role in HEADING_ONLY_ROLES else item.text or "",
         )
         for index, item in enumerate(items, start=1)
     ]

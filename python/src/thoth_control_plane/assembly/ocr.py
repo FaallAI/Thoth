@@ -38,6 +38,7 @@ from thoth_control_plane.assembly.subtitles import (
     classify_ocr_frames,
 )
 from thoth_control_plane.attribution.adapters.frames import DurationError, FrameError, ToolMissing
+from thoth_control_plane.attribution.matching import TextBox
 from thoth_control_plane.attribution.ports import Frame
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,7 @@ logger = logging.getLogger(__name__)
 FRAME_WIDTH = 720  # RapidOCR's detector scales the short side to 736 anyway
 RECOVERY_OFFSETS = (0.0, 0.25, 0.5, 1.0)
 EXTRACTION_ATTEMPTS = 2
+BLANK_RETRY_SECONDS = 1.0
 
 
 def recovery_seconds(requested: float, previous: float | None) -> list[float]:
@@ -71,6 +73,27 @@ async def _frame(
     return None
 
 
+async def _past_blank(
+    frames: FrameSampler, video: Path, text: TextReader, blank: Frame, before: float
+) -> tuple[Frame, list[TextBox]] | None:
+    """The frame just after a blank sample, if it reads anything.
+
+    Colour bars or a cut can land on a sample between readable ones. Samples are seconds apart
+    after the intro, so that one frame would leave the captions around it unblurred.
+    """
+    later = round(blank.second + BLANK_RETRY_SECONDS, 6)
+    if later >= before:
+        return None
+    frame = await _frame(frames, video, later, blank.second)
+    if frame is None:
+        return None
+    try:
+        boxes = await text.read(frame)
+    except Exception:
+        return None
+    return (frame, boxes) if boxes else None
+
+
 async def analyze_main_ocr(
     video: Path,
     duration: float | None,
@@ -95,7 +118,7 @@ async def analyze_main_ocr(
     requested = build_sample_times(duration, max_frames)
     read: list[OcrFrame] = []
     images: dict[float, Frame] = {}
-    for second in requested:
+    for index, second in enumerate(requested):
         previous = read[-1].t if read else None
         frame = await _frame(frames, video, second, previous)
         if frame is None:
@@ -110,6 +133,9 @@ async def analyze_main_ocr(
         except Exception:
             read.append(OcrFrame(frame.second, error="ocr_failed"))
             continue
+        if not boxes and read and read[-1].boxes:
+            upcoming = requested[index + 1] if index + 1 < len(requested) else duration
+            frame, boxes = await _past_blank(frames, video, text, frame, upcoming) or (frame, boxes)
         images[frame.second] = frame
         read.append(
             OcrFrame(

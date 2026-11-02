@@ -17,6 +17,7 @@ MIN_LETTERS = 4
 MENTION = re.compile(r"@\w+")
 LINK = re.compile(r"(?i)\b(?:https?://|www\.)\S+|\bpic\.x\.com/\S+")
 WORD = re.compile(r"[^\W\d_]+")
+EMOTE = re.compile(r"\[\s*[^\W\d_]+(?:\s+[^\W\d_]+)*\s*\]")
 LAUGH = re.compile(r"(?i)^(?:w+k+[wk]*|h+[aeiou]+h[aeiouh]*|(?:a?wo?k){2,}|x+i+x[xi]*|k+w+k[kw]*)$")
 FILLER = frozenset(
     {
@@ -25,6 +26,11 @@ FILLER = frozenset(
         "oke", "ok", "yes", "ya", "iya", "hmm", "btw", "dong", "deh", "sih", "kak", "min", "bang",
     }
 )  # fmt: skip
+
+
+def without_emotes(text: str) -> str:
+    """The text without tokens such as "[Terkekeh]": the platform's markup for a picture."""
+    return " ".join(EMOTE.sub(" ", text).split())
 
 
 def is_substantive(text: str) -> bool:

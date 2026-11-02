@@ -955,9 +955,9 @@ def scene_membership(document: EditDocumentV2) -> dict[str, tuple[str | None, in
 @pytest.mark.parametrize(
     ("scene_id", "to_index", "expected"),
     [
-        ("scene_003", 0, ["003", "001", "002", "004", "005", "006", "007"]),
-        ("scene_001", 6, ["002", "003", "004", "005", "006", "007", "001"]),
-        ("scene_006", 2, ["001", "002", "006", "003", "004", "005", "007"]),
+        ("scene_003", 0, ["003", "001", "002", "004", "005", "006"]),
+        ("scene_001", 5, ["002", "003", "004", "005", "006", "001"]),
+        ("scene_006", 2, ["001", "002", "006", "003", "004", "005"]),
     ],
 )
 def test_reorder_scene_moves_a_scene_and_its_clips_as_a_unit(

@@ -294,13 +294,15 @@ def source_key(projection: StudioSourceProjection) -> str:
 def scene_items(projection: StudioSourceProjection) -> list[StudioSourceItem]:
     """Every item that carries text or media, in source order: one scene each.
 
-    Main footage is context for the main scene, never a scene of its own.
+    Main footage is context for the main scene, never a scene of its own. A text-only comment
+    is a quote for the narration, never its own text on screen (DESIGN 13.2).
     """
     return [
         item
         for item in projection.items
         if item.role != "main_footage"
         and item.role not in OVERLAY_ROLES
+        and not (item.role == "comment" and item.media_kind == "none")
         and (item.role == "main" or item.title or item.text or item.media_kind != "none")
     ]
 

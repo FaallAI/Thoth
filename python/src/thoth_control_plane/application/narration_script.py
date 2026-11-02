@@ -14,6 +14,7 @@ from typing import Any
 
 from pydantic import Field, ValidationError
 
+from thoth_control_plane.acquisition.substance import without_emotes
 from thoth_control_plane.domain.models import StrictModel
 from thoth_control_plane.domain.narration import (
     BEAT_ORDER,
@@ -212,10 +213,11 @@ def unsupported_tokens(
 def facts_from_materials(materials: Any, context: tuple[str, str] | None) -> ScriptFacts:
     """The script's facts from Story mode's materials and the run's title and description."""
     main = next((item for item in materials.items if item.role == "main"), None)
+    # Older runs stored comments raw, so emote tokens can still arrive here.
     comments = [
-        item.label
+        text
         for item in materials.items
-        if item.role in {"comment", "comment_card"} and item.label
+        if item.role in {"comment", "comment_card"} and (text := without_emotes(item.label or ""))
     ]
     title, description = context or ("", "")
     return ScriptFacts(
