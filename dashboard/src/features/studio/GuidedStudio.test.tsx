@@ -1122,8 +1122,11 @@ test("Create narration waits until the draft's narration has been read", async (
   await waitFor(() => expect(getNarration).toHaveBeenCalled());
 
   expect(screen.queryByRole("button", { name: "Create narration" })).toBeNull();
+  // Its place is held meanwhile, so the header does not jump when the answer arrives.
+  expect(screen.getByRole("status", { name: "Checking narration…" })).toBeDefined();
   refuse(new StudioImportRequestError(404));
   expect(await screen.findByRole("button", { name: "Create narration" })).toBeDefined();
+  expect(screen.queryByRole("status", { name: "Checking narration…" })).toBeNull();
 });
 
 test("Scene media does not call the main video an upload while materials load", async () => {

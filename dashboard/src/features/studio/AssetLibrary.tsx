@@ -1,3 +1,4 @@
+import { useLocale } from "@/lib/locale";
 import { useEffect, useRef, useState, type RefObject } from "react";
 
 import type { ControlPlaneClient, EditorAsset } from "@/api/control-plane";
@@ -46,6 +47,7 @@ export function AssetLibrary({
   describe,
   previews,
 }: Props) {
+  const { t } = useLocale();
   const [assets, setAssets] = useState<EditorAsset[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -104,17 +106,17 @@ export function AssetLibrary({
   return (
     <section className="min-h-0 overflow-auto border-r border-border bg-card/60 p-3" aria-label="Asset library">
       <h2 className="mb-2 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-        Assets
+        {t("studio.assets.title")}
       </h2>
       {failed ? (
         <div role="alert" className="space-y-2 text-xs text-destructive">
-          <p>Assets are unavailable. Check your connection and try again.</p>
+          <p>{t("studio.assets.unavailable")}</p>
           <button
             type="button"
             className={action}
             onClick={() => setAttempt((value) => value + 1)}
           >
-            Retry loading assets
+            {t("studio.assets.retry")}
           </button>
         </div>
       ) : (
@@ -134,19 +136,19 @@ export function AssetLibrary({
                     <button
                       type="button"
                       className={action}
-                      aria-label={`Add ${labels[index]} to timeline`}
+                      aria-label={t("studio.assets.addNamed", { label: labels[index]! })}
                       onClick={() => onAdd(asset)}
                     >
-                      Add
+                      {t("studio.assets.add")}
                     </button>
                   ) : null}
                   <button
                     type="button"
                     className={action}
-                    aria-label={`Preview ${labels[index]}`}
+                    aria-label={t("studio.assets.previewNamed", { label: labels[index]! })}
                     onClick={() => preview(asset.asset_id)}
                   >
-                    Preview
+                    {t("studio.assets.preview")}
                   </button>
                 </div>
                 </div>
@@ -154,7 +156,7 @@ export function AssetLibrary({
             ))}
           </ul>
           {rows.length === 0 && !loading ? (
-            <p className="text-xs text-muted-foreground">No ready assets yet</p>
+            <p className="text-xs text-muted-foreground">{t("studio.assets.none")}</p>
           ) : null}
           {cursor ? (
             <button
@@ -163,7 +165,7 @@ export function AssetLibrary({
               disabled={loading}
               onClick={() => load(cursor)}
             >
-              Load more assets
+              {t("studio.assets.more")}
             </button>
           ) : null}
         </>

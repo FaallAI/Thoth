@@ -273,3 +273,16 @@ test("one button opens and closes the script, also while a narration runs", () =
   fireEvent.click(screen.getByRole("button", { name: "Close script" }));
   expect(onCloseScript).toHaveBeenCalledTimes(1);
 });
+
+test("Open script closes the chip's menu, which would cover the canvas controls", () => {
+  // e2e 2026-11-02: the menu stayed open over Safe zone with the script panel beside it.
+  const { container } = render(
+    <NarrationStatus client={client() as never} projectId="p" documentId="edoc_1" state={completed} variant="chip" onChange={() => {}} onOpenScript={() => {}} />,
+  );
+  const menu = container.querySelector("details")!;
+  menu.open = true;
+
+  fireEvent.click(screen.getByRole("button", { name: "Open script" }));
+
+  expect(menu.open).toBe(false);
+});

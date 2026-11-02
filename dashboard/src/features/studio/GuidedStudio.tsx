@@ -47,7 +47,7 @@ import { AssistPanel } from "./story/AssistPanel";
 import { BeatInspector } from "./story/BeatInspector";
 import { BeatStrip } from "./story/BeatStrip";
 import { MaterialsPanel } from "./story/MaterialsPanel";
-import { NarrationStatus, narrationAttention } from "./script/NarrationStatus";
+import { NarrationChecking, NarrationStatus, narrationAttention } from "./script/NarrationStatus";
 import { ScriptPanel } from "./script/ScriptPanel";
 import { SfxLibrary } from "./script/NarrationPresetForm";
 import { adoptNarratedRevision, isNarrationActive, useNarration } from "./script/useNarration";
@@ -655,10 +655,10 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         }
         narration={
           <>
-        {/* Until the first read answers, null means "not read yet": no Create on a narrated draft. */}
-        {story && timeline && narrationClient && narrationKnown ? (
+        {story && timeline && narrationClient ? (
           <>
-            <NarrationStatus
+            {/* Until the first read answers, null means "not read yet": no Create on a narrated draft. */}
+            {!narrationKnown ? <NarrationChecking variant={viewport === "full_desktop" ? "chip" : "block"} /> : <NarrationStatus
               client={narrationClient}
               projectId={projectId}
               documentId={documentId}
@@ -669,7 +669,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
               onOpenScript={() => setShowScript(true)}
               onCloseScript={() => setShowScript(false)}
               scriptOpen={showScript}
-            />
+            />}
           </>
         ) : null}
           </>
@@ -863,13 +863,16 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             hidden={!editing || (compact ? editPane !== "scenes" : !sceneRegionOpen)}
           >
             {story && timeline && showScript && narration && narrationClient ? (
-              <ScriptPanel
-                client={narrationClient}
-                projectId={projectId}
-                documentId={documentId}
-                state={narration}
-                onChange={setNarration}
-              />
+              // A long script scrolls in its column and never runs under the beats.
+              <div className="min-h-0 overflow-y-auto">
+                <ScriptPanel
+                  client={narrationClient}
+                  projectId={projectId}
+                  documentId={documentId}
+                  state={narration}
+                  onChange={setNarration}
+                />
+              </div>
             ) : story && timeline ? (
               <MaterialsPanel
                 materials={materials}

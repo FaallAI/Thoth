@@ -107,3 +107,15 @@ test("the scene heading is clamped to two lines with its full text on hover, and
   fireEvent.click(screen.getByRole("button", { name: "Edit heading" }));
   expect(document.activeElement).toBe(screen.getByLabelText("Heading"));
 });
+
+test("the scene fields speak Indonesian", () => {
+  const { container } = render(
+    <Inspector scene={{ scene_id: "scene_001", duration_in_frames: 150 }} clip={clip} fps={30} onTextChange={() => {}} onOwnershipChange={() => {}} onDurationChange={() => {}} />,
+    { locale: "id" },
+  );
+
+  expect(screen.getByLabelText("Judul")).toBeDefined();
+  expect(screen.getByLabelText("Isi")).toBeDefined();
+  expect(container.textContent).toContain("Pengaturan scene");
+  expect(screen.queryByText("Heading")).toBeNull();
+});

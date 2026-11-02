@@ -665,3 +665,15 @@ describe("the safe error contract", () => {
     expect(known.lastError).toBe("render_unavailable");
   });
 });
+
+test("superseding moves the generation, so the panel's counter stays in lockstep", () => {
+  // The dev server stayed on "Loading render options…": the unmount half of an effect moved only
+  // the panel's counter, so StrictMode's second load carried a generation the reducer refused.
+  const started = renderJobReducer(createRenderJobState(), { type: "load_started" });
+  const superseded = renderJobReducer(started, { type: "superseded" });
+
+  expect(superseded.generation).toBe(started.generation + 1);
+  expect(
+    renderJobReducer(superseded, { type: "loaded", generation: superseded.generation, capability: { available: true } as never, jobs: [] }).capability,
+  ).not.toBeNull();
+});

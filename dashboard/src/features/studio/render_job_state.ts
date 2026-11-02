@@ -70,6 +70,7 @@ export type RenderJobState = {
 
 export type RenderJobAction =
   | { type: "load_started" }
+  | { type: "superseded" }
   | { type: "loaded"; generation: number; capability: RenderCapability; jobs: RenderJob[] }
   | { type: "load_failed"; generation: number; code: unknown }
   | { type: "job_selected"; renderJobId: string | null }
@@ -214,6 +215,8 @@ export function renderJobReducer(
   switch (action.type) {
     case "load_started":
       return { ...state, generation: state.generation + 1, lastError: null };
+    case "superseded":
+      return { ...state, generation: state.generation + 1 };
     case "loaded":
       if (action.generation !== state.generation) return state;
       return {

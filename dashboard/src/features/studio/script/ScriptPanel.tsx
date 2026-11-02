@@ -183,7 +183,8 @@ export function ScriptPanel({ client, projectId, documentId, state, onChange }: 
               value={lines[beat.beat] ?? beat.text}
               maxLength={2000}
               onChange={(event) => setLines((current) => ({ ...current, [beat.beat]: event.target.value }))}
-              className="rounded-md bg-well p-2 text-sm normal-case text-ink"
+              // The whole line reads without scrolling inside its field.
+              className="rounded-md bg-well p-2 text-sm normal-case text-ink [field-sizing:content]"
             />
           </label>
           <div className="flex items-center gap-2">

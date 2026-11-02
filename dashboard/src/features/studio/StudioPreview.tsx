@@ -1,3 +1,4 @@
+import { useLocale } from "@/lib/locale";
 import { Player } from "@remotion/player";
 import { useEffect, useState, type ComponentProps, type ReactNode } from "react";
 import { Maximize, Minimize, Pause, Play, Volume2, VolumeX } from "lucide-react";
@@ -38,6 +39,7 @@ export function StudioPreview({
   onPreviewUnavailable,
   overlay,
 }: Props) {
+  const { t } = useLocale();
   const [loadedDocument, setLoadedDocument] = useState<EditDocument | null>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -83,7 +85,7 @@ export function StudioPreview({
       )}
     </div>
   ) : (
-    <p className="text-sm text-muted-foreground">Loading Studio preview…</p>
+    <p className="text-sm text-muted-foreground">{t("studio.preview.loading")}</p>
   );
 
   function player() {
@@ -111,7 +113,7 @@ export function StudioPreview({
     );
   }
 
-  if (embedded) return <section className="flex min-h-0 flex-1 flex-col" aria-label="Studio preview">{preview}<p className="studio-preview-hint">{currentDocument ? <span>{canvasRatio(currentDocument)} · {currentDocument.canvas.width}×{currentDocument.canvas.height}<span aria-hidden="true" className="studio-preview-tip"> · </span></span> : null}<span className="studio-preview-tip">Space to play/pause · Click scenes to jump</span></p></section>;
+  if (embedded) return <section className="flex min-h-0 flex-1 flex-col" aria-label="Studio preview">{preview}<p className="studio-preview-hint">{currentDocument ? <span>{canvasRatio(currentDocument)} · {currentDocument.canvas.width}×{currentDocument.canvas.height}<span aria-hidden="true" className="studio-preview-tip"> · </span></span> : null}<span className="studio-preview-tip">{t("studio.preview.hint")}</span></p></section>;
 
   return (
     <section className="flex min-h-0 flex-1 flex-col gap-4 p-4" aria-label="Studio preview">

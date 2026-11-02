@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { render } from "@/test-render";
 import { SceneMediaInspector } from "./SceneMediaInspector";
 import { timelineDocument } from "./timeline-test-fixtures";
 
@@ -45,4 +46,15 @@ test("without a name the media reads as its kind, never as an id", () => {
 
   fireEvent.click(screen.getByRole("button", { name: "Media details" }));
   expect(screen.queryByText("asset_video")).toBeNull();
+});
+
+test("the media panel and its dialogs speak Indonesian", () => {
+  const document = timelineDocument();
+  render(<SceneMediaInspector document={document} sceneId={document.scenes[0]!.scene_id} />, { locale: "id" });
+
+  expect(screen.getByRole("region", { name: "Media scene" })).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "Ganti" }));
+  expect(screen.getByRole("dialog", { name: "Ganti media" })).toBeDefined();
+  expect(screen.getByText("Aset siap")).toBeDefined();
+  expect(screen.queryByText(/Replacing media/)).toBeNull();
 });

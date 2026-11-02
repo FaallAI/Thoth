@@ -1,3 +1,5 @@
+import type { MessageKey } from "@/lib/i18n";
+import { useLocale } from "@/lib/locale";
 import { useId, useState } from "react";
 import { Check, ChevronRight, Palette, X } from "lucide-react";
 
@@ -26,6 +28,8 @@ const operationId = () => `op_${crypto.randomUUID()}`;
  * draft, checked against the same rules the server applies before it is sent.
  */
 export function CaptionTextInspector({ document, selectedSceneId, onOperation, disabled, compact = false }: CaptionTextInspectorProps) {
+  const { t } = useLocale();
+  const styleName = (id: string) => t(`studio.caption.style.${id}` as MessageKey);
   const lockedId = useId();
   const styleId = useId();
   const newCaptionId = useId();
@@ -63,13 +67,13 @@ export function CaptionTextInspector({ document, selectedSceneId, onOperation, d
   const commitTiming = (clip: CaptionClip, index: number, edge: "start" | "end", raw: string) => {
     const cue = clip.cues[index]!;
     const value = Number(raw);
-    if (!raw.trim() || !Number.isFinite(value)) return setRefusal("Enter a time in seconds.");
+    if (!raw.trim() || !Number.isFinite(value)) return setRefusal(t("studio.caption.timeError"));
     const frame = Math.round(value * fps) - clip.from_frame;
     const start = edge === "start" ? frame : cue.from_frame;
     const end = edge === "end" ? frame : cue.from_frame + cue.duration_in_frames;
     if (start === cue.from_frame && end === cue.from_frame + cue.duration_in_frames) return;
-    if (start < 0) return setRefusal("caption cues must stay inside their clip");
-    if (end <= start) return setRefusal("A cue must end after it starts.");
+    if (start < 0) return setRefusal(t("studio.caption.insideClip"));
+    if (end <= start) return setRefusal(t("studio.caption.endAfterStart"));
     emit({
       kind: "set_caption_cue_timing",
       operation_id: operationId(),
@@ -81,16 +85,16 @@ export function CaptionTextInspector({ document, selectedSceneId, onOperation, d
   };
 
   return (
-    <section aria-label="Captions" className={`${compact ? "studio-caption-summary" : ""} border-l border-t border-border bg-card/60 p-4`}>
-      <h2 className="font-mono text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Captions</h2>
+    <section aria-label={t("studio.caption.title")} className={`${compact ? "studio-caption-summary" : ""} border-l border-t border-border bg-card/60 p-4`}>
+      <h2 className="font-mono text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{t("studio.caption.title")}</h2>
       {refusal ? (
         <p role="alert" className="mt-3 text-xs text-destructive">
           {refusal}
         </p>
       ) : null}
-      {compact ? <div className="studio-caption-rows">{captions.flatMap((clip) => clip.cues.map((cue, index) => <details key={`${clip.clip_id}-${index}`}><summary><span>{seconds(clip.from_frame + cue.from_frame, cue.duration_in_frames)}</span><span>{cue.text}</span><ChevronRight size={12} /></summary><textarea aria-label={`Edit compact caption ${index + 1}`} value={cue.text} disabled={disabled || clip.locked || document.tracks.find((track) => track.track_id === clip.track_id)?.locked} onChange={(event) => { if (event.target.value.trim()) emit({ kind: "set_caption_cue_text", operation_id: operationId(), clip_id: clip.clip_id, cue_index: index, text: event.target.value }); }} /></details>))}</div> : null}
+      {compact ? <div className="studio-caption-rows">{captions.flatMap((clip) => clip.cues.map((cue, index) => <details key={`${clip.clip_id}-${index}`}><summary><span>{seconds(clip.from_frame + cue.from_frame, cue.duration_in_frames)}</span><span>{cue.text}</span><ChevronRight size={12} /></summary><textarea aria-label={t("studio.caption.editCompact", { number: index + 1 })} value={cue.text} disabled={disabled || clip.locked || document.tracks.find((track) => track.track_id === clip.track_id)?.locked} onChange={(event) => { if (event.target.value.trim()) emit({ kind: "set_caption_cue_text", operation_id: operationId(), clip_id: clip.clip_id, cue_index: index, text: event.target.value }); }} /></details>))}</div> : null}
       <details className={compact ? "studio-caption-editors" : "contents"} open={!compact || undefined}>
-      {compact ? <summary>Edit captions and timing</summary> : null}
+      {compact ? <summary>{t("studio.caption.editAll")}</summary> : null}
       {captions.length ? (
         captions.map((clip) => {
           const track = document.tracks.find((entry) => entry.track_id === clip.track_id);
@@ -99,16 +103,16 @@ export function CaptionTextInspector({ document, selectedSceneId, onOperation, d
           return (
             <fieldset key={clip.clip_id} className="mt-4 space-y-3">
               <legend className="text-sm font-medium">
-                {`${track?.label ?? "Captions"} ${seconds(clip.from_frame, clip.duration_in_frames)}`}
+                {`${track?.label ?? t("studio.caption.title")} ${seconds(clip.from_frame, clip.duration_in_frames)}`}
               </legend>
               {locked ? (
                 <p id={`${lockedId}-${clip.clip_id}`} className="text-xs text-muted-foreground">
-                  This caption is locked. Unlock it on a desktop timeline to edit.
+                  {t("studio.caption.lockedClip")}
                 </p>
               ) : null}
               <div className="text-sm">
                 <label htmlFor={`${styleId}-${clip.clip_id}`} className="text-xs text-muted-foreground">
-                  Caption style
+                  {t("studio.caption.styleLabel")}
                 </label>
                 <select
                   id={`${styleId}-${clip.clip_id}`}
@@ -124,14 +128,14 @@ export function CaptionTextInspector({ document, selectedSceneId, onOperation, d
                     })
                   }
                 >
-                  {Object.entries(CAPTION_STYLE_LABELS).map(([id, label]) => (
+                  {Object.keys(CAPTION_STYLE_LABELS).map((id) => (
                     <option key={id} value={id}>
-                      {label}
+                      {styleName(id)}
                     </option>
                   ))}
                   {style in CAPTION_STYLE_LABELS ? null : (
                     <option value={style} disabled>
-                      {`${style} (not available)`}
+                      {t("studio.caption.notAvailable", { style })}
                     </option>
                   )}
                 </select>
@@ -144,13 +148,13 @@ export function CaptionTextInspector({ document, selectedSceneId, onOperation, d
                 return (
                   <div key={index} className="text-sm">
                     <p className="text-xs text-muted-foreground">
-                      {`Cue ${index + 1} `}
+                      {`${t("studio.caption.cue", { number: index + 1 })} `}
                       <span className="font-mono">
                         {seconds(clip.from_frame + cue.from_frame, cue.duration_in_frames)}
                       </span>
                     </p>
                     <textarea
-                      aria-label={`Caption cue ${index + 1} text`}
+                      aria-label={t("studio.caption.cueText", { number: index + 1 })}
                       className={`${fieldClass} min-h-16 resize-y`}
                       value={cue.text}
                       maxLength={300}
@@ -177,7 +181,7 @@ export function CaptionTextInspector({ document, selectedSceneId, onOperation, d
                           type="number"
                           step="0.1"
                           min={0}
-                          aria-label={`Caption cue ${index + 1} ${edge} (seconds)`}
+                          aria-label={t(`studio.caption.cue.${edge}`, { number: index + 1 })}
                           className={fieldClass}
                           defaultValue={toSeconds(frame)}
                           readOnly={locked}
@@ -201,11 +205,11 @@ export function CaptionTextInspector({ document, selectedSceneId, onOperation, d
         })
       ) : (
         <>
-          <p className="mt-4 text-sm text-muted-foreground">No captions in this scene.</p>
+          <p className="mt-4 text-sm text-muted-foreground">{t("studio.caption.none")}</p>
           {!scene ? null : captionTrackId ? (
             <div className="mt-3 text-sm">
               <label htmlFor={newCaptionId} className="text-xs text-muted-foreground">
-                New caption
+                {t("studio.caption.new")}
               </label>
               <textarea
                 id={newCaptionId}
@@ -231,22 +235,22 @@ export function CaptionTextInspector({ document, selectedSceneId, onOperation, d
                   setNewCaption("");
                 }}
               >
-                Add caption
+                {t("studio.caption.add")}
               </button>
             </div>
           ) : (
             <p className="mt-2 text-xs text-muted-foreground">
               {document.tracks.some((track) => track.kind === "caption")
-                ? "The caption lane is locked. Unlock it on a desktop timeline to add a caption."
-                : "This draft has no caption lane."}
+                ? t("studio.caption.lockedLane")
+                : t("studio.caption.noLane")}
             </p>
           )}
         </>
       )}
       </details>
       {compact ? <>
-        <button type="button" className="studio-style-trigger" aria-label="Caption style" onClick={() => setStyleOpen((open) => !open)}><Palette size={16} /><span>{captions.length ? CAPTION_STYLE_LABELS[(captions[0]!.style_slot ?? "caption_default") as CaptionStyle] ?? captions[0]!.style_slot : "Caption style"}</span><ChevronRight size={15} /></button>
-        {styleOpen ? <div className="studio-caption-style-menu" role="dialog" aria-label="Caption style"><header><strong>Caption style</strong><button type="button" aria-label="Close caption style" onClick={() => setStyleOpen(false)}><X size={15} /></button></header><p>Current supported choices</p>{Object.entries(CAPTION_STYLE_LABELS).map(([id, label]) => <button key={id} type="button" disabled={disabled || !captions.length || captions[0]!.locked || document.tracks.find((track) => track.track_id === captions[0]!.track_id)?.locked} onClick={() => { emit({ kind: "set_caption_style", operation_id: operationId(), clip_id: captions[0]!.clip_id, style_slot: id as CaptionStyle }); setStyleOpen(false); }}><Palette size={15} /><span>{label}</span>{captions[0]?.style_slot === id ? <Check size={14} /> : null}</button>)}<small>Styles apply to the selected scene's caption clip.</small></div> : null}
+        <button type="button" className="studio-style-trigger" aria-label={t("studio.caption.styleLabel")} onClick={() => setStyleOpen((open) => !open)}><Palette size={16} /><span>{captions.length ? ((captions[0]!.style_slot ?? "caption_default") in CAPTION_STYLE_LABELS ? styleName(captions[0]!.style_slot ?? "caption_default") : captions[0]!.style_slot) : t("studio.caption.styleLabel")}</span><ChevronRight size={15} /></button>
+        {styleOpen ? <div className="studio-caption-style-menu" role="dialog" aria-label={t("studio.caption.styleLabel")}><header><strong>{t("studio.caption.styleLabel")}</strong><button type="button" aria-label={t("studio.caption.styleClose")} onClick={() => setStyleOpen(false)}><X size={15} /></button></header><p>{t("studio.caption.styleChoices")}</p>{Object.keys(CAPTION_STYLE_LABELS).map((id) => <button key={id} type="button" disabled={disabled || !captions.length || captions[0]!.locked || document.tracks.find((track) => track.track_id === captions[0]!.track_id)?.locked} onClick={() => { emit({ kind: "set_caption_style", operation_id: operationId(), clip_id: captions[0]!.clip_id, style_slot: id as CaptionStyle }); setStyleOpen(false); }}><Palette size={15} /><span>{styleName(id)}</span>{captions[0]?.style_slot === id ? <Check size={14} /> : null}</button>)}<small>{t("studio.caption.styleNote")}</small></div> : null}
       </> : null}
     </section>
   );

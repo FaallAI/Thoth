@@ -2,6 +2,49 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-02 - Closed the audit's gaps: playback, Indonesian, script panel; a caption bug in rendered video
+
+Branch `fix/studio-audit-findings`, not pushed. Operator: "tolong fix sekalian dulu", naming the not-covered list and two notes of the entry below. Covering playback showed what the read-scope token had hidden.
+
+**Found by covering the gaps, and fixed**
+- **Narrated captions were wrong in the video itself.** A Remotion `Sequence` wraps its child in its own row, so `CAPTION_LANE` never reached the cue: the caption sat top left, and its dark box ran the canvas's height, dimming the left part of the title and the picture. `word_highlight` cues now skip that wrapper (`layout="none"`) and sit centred above TikTok's bottom 18%.
+- **Beat tiles drew a broken image for every narration voice:** a voice's preview went into an `<img>`. A voice now draws nothing there.
+- **The chip's menu stayed open over Safe zone** after Open script or Close script. It closes itself now.
+- **Script lines were cut off inside their fields.** They grow to their text (`field-sizing: content`), and the column scrolls instead of running under the beats. That second part fixes a regression this work caused and the e2e check caught; browsers without `field-sizing` keep the scrolling field.
+- **Indonesian:** the hint under the preview, the asset library, the scene fields, the media panel and its dialogs, and the captions panel were English. All are translated.
+
+**The two notes**
+- **"Loading render options…" on the dev server:** traced. An unmount cleanup moved `generationRef` and not the reducer's counter, so under StrictMode's double effect the reducer refused the second load's answer. The cleanup now dispatches `superseded`, keeping the two in step. Only the dev server's double effect reached it.
+- **The narration control's late arrival:** a "Checking narration…" chip holds its place until the read answers, and offers nothing to click.
+
+**Not fixed: a decision for the operator**
+- `caption_default` and `source` captions still have the bug in every render. The approved golden frames of `vertical_text_story-v1` and `story_mode-v1` contain it (see `frame-000060-render.png`: the box runs the frame's height behind "A cue that changes on a boundary"). Fixing them changes those frames, so `template-release-parity` fails until the goldens are promoted again, which needs the operator's approval. The gate compares pixels, so it never judged the look. Removing the `narrated` condition in `AdvancedTimelineComposition.tsx` is the whole code change.
+
+**Verification**
+- **Dashboard:** 1563 tests pass; `tsc -b` exit 0; build OK; lint exit 0 with 45 warnings, the same count as before. **Renderer** (the composition changed): 229 tests pass, typecheck clean. Python untouched, so `make test` and `make lint` were not run.
+- **Red first:** 6 unit tests and 5 e2e checks failed before their fixes, and the Render check failed on the dev server before its fix. One unit test written for the StrictMode bug passed without the fix, because effects do not run twice in this test environment; it was replaced by a reducer test (seen failing with the case removed) and the e2e check.
+- **e2e, model-free:** 26 pass on a production build of this branch against stage1 data: `tests/studio-media.e2e.ts` (7, with local fixture media), `tests/studio-audit-fixes.e2e.ts` (12), `tests/studio-shell-v2.e2e.ts` (5), `tests/studio-id.e2e.ts` (2, Indonesian).
+- **Screenshots judged by Claude,** in `D:/thoth-tmp/e2e-audit-2026-11-02-rest/`: Studio list, Story, Timeline, Review and Render in Indonesian at 1440, 1024 and 430; Timeline in English at 1024; playback with picture in Story and Timeline; rows and tiles with pictures; the placed caption; the open script panel; the Indonesian media dialog.
+
+**Covered from the earlier list:** Indonesian; playback and thumbnails with pictures; Space in a real browser, with focus free and in a text field; the open Script panel; Timeline at 1024.
+
+**Still not covered**
+- **The server's own media.** The read scope refuses preview capabilities, so the browser answers those requests with local fixtures. This proves the Player and the rows, not the stored files. A real check needs a higher-scope token or the operator watching rev 18.
+- **Audible sound:** the Player runs its audio, but nothing listens to it in a headless browser.
+- **The narrated caption in a rendered file:** the composition is the one both surfaces draw, but no render ran. `template-release-parity` runs at push.
+- **The deployed build:** waits on the deploy gate.
+
+**Left in English on purpose:** `aria-label` values that `pen-studio.css` selects on (`Studio preview`, `Asset library`, and the like), and the composition's "Video preview unavailable". The lane names (`main_video`) are raw identifiers in both languages.
+
+**Observation, not fixed:** the composition calls `onPreviewUnavailable` during render, which logs "Cannot update a component" in dev when a preview source is missing.
+
+**Next steps**
+- Operator decision: promote new goldens so every caption style is fixed, or keep the fix to narrated captions.
+- Operator decision, still open: whether the Studio list's crop stays.
+- Operator gates: push and PR, merge, deploy for this branch; merging `chore/e2e-trial`.
+- After deploy: run the e2e files against stage1 (`--target w1440`); watch and render rev 18, which also proves the caption in a real file.
+- Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; the 218 stored `unknown` rows stay in `workflow_runs`.
+
 ## 2026-11-02 - Fixed the audit fixes' leftovers: load flashes, canvas label, list cards, phone Render
 
 Branch `fix/studio-audit-findings`, not pushed. Operator: "ya perbaiki dulu dan ini juga tolong perbaiki", naming the four notes of the entry below.

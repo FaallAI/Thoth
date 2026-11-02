@@ -1,6 +1,6 @@
 // The narration's status in Studio's header (spec 2026-11-01, Studio shell v2, goal 2): it says
 // where the narration stands and what can be done next, instead of a button that looks dead.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { LoaderCircle, Mic } from "lucide-react";
 
 import { StudioImportRequestError, type ControlPlaneClient, type NarrationState } from "@/api/control-plane";
@@ -41,6 +41,26 @@ const REVOICE_WAIT_MS = 10 * 60 * 1000;
 
 const reasonOf = (error: unknown) =>
   error instanceof StudioImportRequestError ? (error.code ?? "narration_unavailable") : "narration_unavailable";
+
+/** Holds the control's place until the draft's narration has been read; it offers nothing to click. */
+export function NarrationChecking({ variant }: Pick<Props, "variant">) {
+  const { t } = useLocale();
+  const label = t("studio.narration.checking");
+  return (
+    <p
+      role="status"
+      aria-label={label}
+      className={
+        variant === "chip"
+          ? "inline-flex h-9 shrink-0 items-center gap-2 rounded-md border border-hairline px-3 text-[13px] text-muted-ink"
+          : "flex items-center gap-2 px-2 py-1 text-[13px] text-muted-ink"
+      }
+    >
+      <LoaderCircle aria-hidden="true" size={14} className="animate-spin" />
+      {label}
+    </p>
+  );
+}
 
 export function NarrationStatus({ client, projectId, documentId, state, variant, onChange, onOpenScript, scriptOpen = false, onCloseScript, pollMs = 3000, onStarted }: Props) {
   const { t } = useLocale();
@@ -100,6 +120,11 @@ export function NarrationStatus({ client, projectId, documentId, state, variant,
         }
       }
     });
+  // The chip's menu would stay open over the canvas controls, beside the panel it just opened.
+  const toggleScript = (event: MouseEvent<HTMLButtonElement>, toggle?: () => void) => {
+    event.currentTarget.closest("details")?.removeAttribute("open");
+    toggle?.();
+  };
   const recreate = () =>
     run(async () => {
       setConfirming(false);
@@ -144,7 +169,7 @@ export function NarrationStatus({ client, projectId, documentId, state, variant,
         </button>
       ) : null}
       {state?.status === "awaiting_approval" && !scriptOpen ? (
-        <button type="button" className={action} onClick={onOpenScript}>
+        <button type="button" className={action} onClick={(event) => toggleScript(event, onOpenScript)}>
           {t("studio.narration.readyToApprove")}
         </button>
       ) : null}
@@ -172,7 +197,7 @@ export function NarrationStatus({ client, projectId, documentId, state, variant,
         </>
       ) : null}
       {state && (scriptOpen || state.status !== "awaiting_approval") ? (
-        <button type="button" className={action} onClick={scriptOpen ? onCloseScript : onOpenScript}>
+        <button type="button" className={action} onClick={(event) => toggleScript(event, scriptOpen ? onCloseScript : onOpenScript)}>
           {t(scriptOpen ? "studio.narration.closeScript" : "studio.narration.openScript")}
         </button>
       ) : null}

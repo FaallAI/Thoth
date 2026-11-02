@@ -80,6 +80,8 @@ Every audit of the dashboard's look or flows uses [tester-army/e2e](https://gith
 - **Read only:**
   - An audit never saves, renders, voices or calls a provider.
   - The read scope refuses preview capabilities, so media previews do not load during an audit.
+  - Playback and pictures are checked with local fixtures that the browser serves in place of previews (`tests/studio-media.e2e.ts`). This proves the Player and the rows, not the server's stored media.
+  - Indonesian is checked on the `*id` targets, whose browser rewrites the signed-in user's language. Nothing is saved.
 - **Report:** give the screens checked, at which widths, what was judged from screenshots, and every finding with its screenshot. A finding is fixed test-first like any other.
 
 ## Code intelligence routing

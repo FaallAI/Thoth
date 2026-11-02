@@ -359,6 +359,7 @@ function RenderSurface({
     return () => {
       aliveRef.current = false;
       generationRef.current += 1;
+      dispatch({ type: "superseded" });
     };
   }, []);
 
