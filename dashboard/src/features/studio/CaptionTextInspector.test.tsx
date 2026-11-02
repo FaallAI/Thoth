@@ -1,7 +1,8 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, mock, test } from "bun:test";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { render } from "@/test-render";
 import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane";
 import { CAPTION_STYLE_IDS } from "@thoth/remotion-composition";
 import { CaptionTextInspector } from "./CaptionTextInspector";
@@ -201,4 +202,14 @@ test("a locked caption keeps its style and timing read-only", () => {
   expect((screen.getByLabelText("Caption style") as HTMLSelectElement).disabled).toBe(true);
   expect((screen.getByLabelText("Caption cue 1 start (seconds)") as HTMLInputElement).readOnly).toBe(true);
   expect((screen.getByLabelText("Caption cue 1 end (seconds)") as HTMLInputElement).readOnly).toBe(true);
+});
+
+test("captions speak Indonesian, style names included", () => {
+  const document = typedTimelineDocument();
+  render(<CaptionTextInspector document={document} selectedSceneId={document.scenes[0]!.scene_id} onOperation={() => {}} disabled={false} compact />, { locale: "id" });
+
+  expect(screen.getByText("Edit caption dan waktu")).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "Gaya caption" }));
+  expect(screen.getAllByText("Sorot kata").length).toBeGreaterThan(0);
+  expect(screen.queryByText("Word highlight")).toBeNull();
 });

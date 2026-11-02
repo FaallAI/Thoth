@@ -59,7 +59,8 @@ export function BeatStrip({
   const thumbs = (beat: Beat) =>
     beat.clipIds
       .map((id) => clips.get(id))
-      .flatMap((clip) => (clip && "asset_id" in clip && previews[clip.asset_id] ? [clip.asset_id] : []))
+      // A voice has no picture to show on its tile.
+      .flatMap((clip) => (clip && "asset_id" in clip && previews[clip.asset_id] && kinds.get(clip.asset_id) !== "audio" ? [clip.asset_id] : []))
       .slice(0, THUMBS);
   const seconds = (frames: number) => t("studio.story.seconds", { seconds: (frames / fps).toFixed(1) });
   // Each tile's own time, so the tiles sum to the canvas (spec 2026-11-01, goal 6).

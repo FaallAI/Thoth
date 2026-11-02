@@ -48,9 +48,11 @@ const snapThreshold = (zoom: number) => Math.max(1, Math.round(8 / zoom));
 
 /** The header column beside every lane; the ruler and the playhead start after it. */
 const HEADER_WIDTH = 192;
+const READ_ONLY_HEADER_WIDTH = 96;
 
 export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf, readOnly = false, onInspect }: Props) {
   const { t } = useLocale();
+  const headerWidth = readOnly ? READ_ONLY_HEADER_WIDTH : HEADER_WIDTH;
   const gesture = useRef<Gesture | null>(null);
   // The ruler under a press: pointer moves seek until the pointer is released.
   const scrubbing = useRef<HTMLElement | null>(null);
@@ -259,10 +261,10 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf, re
       <div className="min-h-0 overflow-auto">
         <div
           className="relative"
-          style={{ width: `${framesToPixels(duration, state.zoom) + HEADER_WIDTH}px` }}
+          style={{ width: `${framesToPixels(duration, state.zoom) + headerWidth}px` }}
         >
           <div className="sticky top-0 z-10 flex h-7 border-b border-hairline bg-surface">
-            <div className="shrink-0 border-r border-hairline" style={{ width: HEADER_WIDTH }} />
+            <div className="sticky left-0 z-10 shrink-0 border-r border-hairline bg-surface" style={{ width: headerWidth }} />
             <div
               role="slider"
               tabIndex={0}
@@ -294,7 +296,7 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf, re
           <div
             aria-hidden="true"
             className="pointer-events-none absolute bottom-0 top-0 z-20 w-px bg-playhead"
-            style={{ left: `${HEADER_WIDTH + framesToPixels(state.playheadFrame, state.zoom)}px` }}
+            style={{ left: `${headerWidth + framesToPixels(state.playheadFrame, state.zoom)}px` }}
           >
             <span className="absolute -left-1.5 top-0.5 size-3 rounded-full bg-playhead" />
           </div>

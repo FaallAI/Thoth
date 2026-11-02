@@ -99,3 +99,23 @@ test("the title is the one thing that shrinks, so the menu stays on screen", () 
   expect(title.className.split(" ")).not.toContain("md:flex-none");
   expect(title.className.split(" ")).toContain("min-w-0");
 });
+
+test("below 1024 the title keeps the first row; jobs and mode share the second", () => {
+  // e2e audit 2026-11-02, finding 1: the mode switch left the title only "TO…" at 430.
+  const { header } = mount("phone");
+
+  const row = within(header).getByRole("navigation", { name: "Studio jobs" }).parentElement!;
+  expect(row.className).toContain("basis-full");
+  expect(within(row).getByRole("group", { name: "Editor mode" })).toBeDefined();
+  expect(within(header).getByText("Kabut asap Kalteng dan evakuasi warga Palangka Raya").className).toContain("flex-1");
+});
+
+test("on a phone Request review lives in the menu; from a tablet up it stays in the header", () => {
+  // e2e audit 2026-11-02, finding 2: a phone could not reach Request review at all.
+  const phone = mount("phone").header;
+  expect(within(phone).getByRole("button", { name: "Request review" }).closest("details")).not.toBeNull();
+  cleanup();
+
+  const tablet = mount("tablet").header;
+  expect(within(tablet).getByRole("button", { name: "Request review" }).closest("details")).toBeNull();
+});

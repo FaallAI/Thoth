@@ -24,7 +24,7 @@
 }
 @media (max-width: 599px) {
   .dashboard-main { padding: 24px 16px; }
-  .dashboard-page-studio { padding: 0; height: auto; min-height: 80dvh; }
+  .dashboard-page-studio { padding: 0; }
   .dashboard-main [data-slot="card-header"] { padding: 18px 16px 0; }
   .dashboard-main [data-slot="card-content"] { padding: 0 16px 18px; }
 }

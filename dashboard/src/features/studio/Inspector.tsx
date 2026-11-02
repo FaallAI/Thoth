@@ -61,7 +61,7 @@ export function Inspector({
       {scene ? (
         <div className="mt-4 space-y-5">
           <div>
-            <label htmlFor={headingId} className="text-sm font-medium">Heading</label>
+            <label htmlFor={headingId} className="text-sm font-medium">{t("studio.scene.heading")}</label>
             <input
               id={headingId}
               className={fieldClass}
@@ -75,12 +75,12 @@ export function Inspector({
             />
             {headingInvalid && (
               <p id={headingErrorId} role="alert" className="mt-1 text-xs text-destructive">
-                Heading is required before saving.
+                {t("studio.scene.headingRequired")}
               </p>
             )}
           </div>
           <div>
-            <label htmlFor={bodyId} className="text-sm font-medium">Body</label>
+            <label htmlFor={bodyId} className="text-sm font-medium">{t("studio.scene.body")}</label>
             <textarea
               id={bodyId}
               className={`${fieldClass} min-h-28 resize-y`}
@@ -94,9 +94,9 @@ export function Inspector({
           {children}
           {textOnly ? null : (
             <details className="studio-scene-settings" open={sceneIndex === undefined ? true : undefined}>
-            <summary>Scene settings</summary>
+            <summary>{t("studio.scene.settings")}</summary>
             <div>
-              <label htmlFor={ownershipId} className="text-sm font-medium">Ownership</label>
+              <label htmlFor={ownershipId} className="text-sm font-medium">{t("studio.scene.ownership")}</label>
               <select
                 id={ownershipId}
                 className={fieldClass}
@@ -104,9 +104,9 @@ export function Inspector({
                 disabled={disabled || !clip}
                 onChange={(event) => { if (clip) onOwnershipChange(clip.clip_id, event.target.value as Ownership); }}
               >
-                <option value="ai_managed">AI managed</option>
-                <option value="user_edited">User edited</option>
-                <option value="locked">Locked</option>
+                <option value="ai_managed">{t("studio.scene.ownership.ai_managed")}</option>
+                <option value="user_edited">{t("studio.scene.ownership.user_edited")}</option>
+                <option value="locked">{t("studio.scene.ownership.locked")}</option>
               </select>
             </div>
             <DurationField
@@ -120,7 +120,7 @@ export function Inspector({
           )}
         </div>
       ) : (
-        <p className="mt-4 text-sm text-muted-foreground">Select a scene to edit.</p>
+        <p className="mt-4 text-sm text-muted-foreground">{t("studio.scene.select")}</p>
       )}
     </aside>
   );
@@ -138,6 +138,7 @@ function DurationField({
   disabled: boolean;
   onDurationChange: Props["onDurationChange"];
 }) {
+  const { t } = useLocale();
   const inputId = useId();
   const errorId = useId();
   const [input, setInput] = useState(() => formatSceneSeconds(scene.duration_in_frames, fps));
@@ -153,7 +154,7 @@ function DurationField({
   const commit = () => {
     const frames = parseSceneSeconds(input, fps);
     if (frames === null) {
-      setDurationError("Enter a duration greater than zero seconds.");
+      setDurationError(t("studio.scene.durationError"));
     } else {
       setDurationError(null);
       if (frames !== scene.duration_in_frames) onDurationChange(scene.scene_id, frames);
@@ -162,7 +163,7 @@ function DurationField({
 
   return (
     <div>
-      <label htmlFor={inputId} className="text-sm font-medium">Duration (seconds)</label>
+      <label htmlFor={inputId} className="text-sm font-medium">{t("studio.scene.duration")}</label>
       <input
         id={inputId}
         type="text"

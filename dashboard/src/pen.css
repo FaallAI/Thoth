@@ -58,5 +58,5 @@
   .pen-page-actions { justify-content: flex-start; }
   .pen-page-actions [data-slot="button"] { min-height: 44px; }
   .pen-dialog-heading{ padding: 20px; }
-  .dashboard-page-studio { padding: 0; height: auto; }
+  .dashboard-page-studio { padding: 0; }
 }

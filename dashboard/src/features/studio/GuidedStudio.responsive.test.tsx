@@ -118,7 +118,7 @@ test("offers the three destinations at every width and compact Edit panes only b
   const panes = within(screen.getByRole("navigation", { name: "Studio panes" })).getAllByRole("button");
   expect(panes.map((button) => button.textContent)).toEqual(["Scenes", "Preview", "Controls"]);
   expect(screen.queryByRole("tablist") === null).toBe(true);
-  expect(screen.queryByLabelText("Scene board width") === null).toBe(true);
+  expect(screen.queryByLabelText("Assets width") === null).toBe(true);
   expect(screen.getByText("Saved")).toBeDefined();
 
   resize(768);
@@ -134,7 +134,7 @@ test("offers the three destinations at every width and compact Edit panes only b
   expect(header.className.includes("flex-nowrap") && header.className.includes("h-14")).toBe(true);
   expect(screen.queryByRole("tablist") === null).toBe(true);
   // Simple mode's scene strip sits under the preview: it collapses but has no width.
-  expect(screen.queryByLabelText("Scene board width") === null).toBe(true);
+  expect(screen.queryByLabelText("Assets width") === null).toBe(true);
   expect(screen.getByRole("button", { name: "Scene board panel" })).toBeDefined();
 
   resize(1440);
@@ -554,4 +554,22 @@ test("leaving Timeline from its pane shows the preview, never an empty workspace
 
   expect(screen.getByRole("button", { name: "Preview" }).getAttribute("aria-current")).toBe("page");
   expect(isHidden(screen.getByLabelText("Draft preview"))).toBe(false);
+});
+
+test("Story's side panel is named for what it holds, with no slider for its fixed width", async () => {
+  // e2e audit 2026-11-02: the menu called the Materials column "Scene board panel".
+  await renderStudio(1024, timelineDocument() as EditDocument);
+
+  expect(screen.getByRole("button", { name: "Materials panel" })).toBeDefined();
+  expect(screen.queryByRole("button", { name: "Scene board panel" }) === null).toBe(true);
+  expect(screen.queryByLabelText("Assets width") === null).toBe(true);
+  fireEvent.click(within(screen.getByRole("group", { name: "Editor mode" })).getByRole("button", { name: "Timeline" }));
+  expect(screen.getByRole("button", { name: "Assets panel" })).toBeDefined();
+});
+
+test("a phone's Story pane fills the screen, with the beats pinned under it", async () => {
+  // e2e audit 2026-11-02: the panes left the lower third empty and the chips floated.
+  await renderStudio(430, timelineDocument() as EditDocument);
+
+  expect((screen.getByLabelText("Guided editing workstation") as HTMLElement).style.gridTemplateRows).toContain("minmax");
 });

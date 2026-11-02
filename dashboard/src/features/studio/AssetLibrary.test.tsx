@@ -1,7 +1,8 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, mock, test } from "bun:test";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { render } from "@/test-render";
 
 import type { EditorAsset, EditorAssetPage } from "@/api/control-plane";
 import { ASSET_PAGE_LIMIT, AssetLibrary } from "./AssetLibrary";
@@ -203,4 +204,48 @@ test("without an add action the rows offer preview only", async () => {
 
   expect(await screen.findByRole("button", { name: "Preview asset_video" })).toBeDefined();
   expect(screen.queryByRole("button", { name: /to timeline$/ })).toBeNull();
+});
+
+test("a row shows its picture or kind icon, and other drafts' uploads list last", async () => {
+  // e2e audit 2026-11-02, finding 6 and the minor on "Upload · Image" rows listing first.
+  const assets = [
+    asset({ asset_id: "asset_other", kind: "image" }),
+    asset({ asset_id: "asset_main", kind: "image" }),
+    asset({ asset_id: "asset_voice", kind: "audio" }),
+  ];
+  render(
+    <AssetLibrary
+      client={{ listEditorAssets: mock(async () => ({ assets, next_cursor: null })), createEditorPreviewCapability: mock(async () => ({ preview_url: "", expires_at: "" })) }}
+      projectId="project_001"
+      generationRef={{ current: 0 }}
+      onAssets={() => {}}
+      onPreviewSource={() => {}}
+      previews={{ asset_main: "/preview/main" }}
+      describe={(item) => ({
+        label: item.asset_id,
+        detail: item.kind,
+        kind: item.asset_id === "asset_other" ? "upload" : "video",
+      })}
+    />,
+  );
+
+  const rows = await screen.findAllByRole("listitem");
+  expect(rows.map((row) => row.querySelector("span.font-medium")?.textContent)).toEqual(["asset_main", "asset_voice", "asset_other"]);
+  expect(rows[0]!.querySelector("img")?.getAttribute("src")).toBe("/preview/main");
+  expect(rows[1]!.querySelector("svg")).not.toBeNull();
+});
+
+test("the library speaks Indonesian", async () => {
+  const client = {
+    listEditorAssets: mock(async () => ({ assets: [asset()], next_cursor: null })),
+    createEditorPreviewCapability: mock(async () => ({ preview_url: "/p", expires_at: "2099-01-01T00:00:00Z" })),
+  };
+  render(
+    <AssetLibrary client={client as never} projectId="p" generationRef={{ current: 0 }} onAssets={() => {}} onPreviewSource={() => {}} onAdd={() => {}} describe={() => ({ label: "Klip", detail: "Video" })} />,
+    { locale: "id" },
+  );
+
+  expect(await screen.findByRole("button", { name: "Tambahkan Klip ke timeline" })).toBeDefined();
+  expect(screen.getByRole("button", { name: "Pratinjau Klip" })).toBeDefined();
+  expect(screen.getByRole("heading", { name: "Aset" })).toBeDefined();
 });

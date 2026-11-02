@@ -67,6 +67,23 @@ Write the same next steps into that work's `CHANGELOG.md` entry and its active c
   - Canonical triage labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md).
   - Domain docs: Single-context `CONTEXT.md` plus `docs/adr/` at the repo root. See [`docs/agents/domain.md`](docs/agents/domain.md).
 
+## E2E audits
+
+Every audit of the dashboard's look or flows uses [tester-army/e2e](https://github.com/tester-army/e2e). The operator set this standard on 2026-11-02. Do not use ad-hoc browser-use, CDP or Playwright scripts for an audit.
+
+- **Live checks:** load the `e2e` skill, then drive the running app through the `e2e` MCP server. The server needs no model and no API key. Claude Code opens pages, acts, reads the screenshots and judges the visuals itself.
+- **Repeatable checks:** write them as deterministic e2e tests that use `screen` locators and `expect`, with no `agent.act` or `agent.assert`. A run of these needs no model.
+- **Setup until `chore/e2e-trial` is merged:**
+  - The package lives in the worktree `D:/thoth-tmp/wt-e2e-trial/e2e`.
+  - The MCP server is registered locally as `e2e` through `D:/thoth-tmp/e2e-mcp.sh`. The script reads the read-scope token from `D:/thoth-tmp/e2e-dev-token`, turns telemetry off and holds a WSL session open so stage1 web answers on `127.0.0.1:8088`.
+  - The token is the read-scope developer token `e2e-audit`, minted on 2026-11-01 with operator approval. It expires on 2027-01-30 18:51 UTC. Before then, mint a replacement the same way (`thoth-control tokens create --scope read --days 90`), with the operator's approval, and store it without printing it.
+- **Read only:**
+  - An audit never saves, renders, voices or calls a provider.
+  - The read scope refuses preview capabilities, so media previews do not load during an audit.
+  - Playback and pictures are checked with local fixtures that the browser serves in place of previews (`tests/studio-media.e2e.ts`). This proves the Player and the rows, not the server's stored media.
+  - Indonesian is checked on the `*id` targets, whose browser rewrites the signed-in user's language. Nothing is saved.
+- **Report:** give the screens checked, at which widths, what was judged from screenshots, and every finding with its screenshot. A finding is fixed test-first like any other.
+
 ## Code intelligence routing
 
 This repository is already indexed by several complementary layers. Do not add another

@@ -255,3 +255,34 @@ test("in the header a stopped narration is one chip, its reason and Create behin
   render(<NarrationStatus client={client() as never} projectId="p" documentId="edoc_1" state={null} variant="chip" onChange={() => {}} onOpenScript={() => {}} />);
   expect(screen.getByRole("button", { name: "Create narration" }).closest("details")).toBeNull();
 });
+
+test("one button opens and closes the script, also while a narration runs", () => {
+  // e2e audit 2026-11-02: the menu had both "Script" and "Open script".
+  const onOpenScript = mock(() => {});
+  const onCloseScript = mock(() => {});
+  const show = (state: NarrationState, scriptOpen: boolean) =>
+    render(<NarrationStatus client={client() as never} projectId="p" documentId="edoc_1" state={state} variant="block" onChange={() => {}} onOpenScript={onOpenScript} onCloseScript={onCloseScript} scriptOpen={scriptOpen} />);
+
+  show({ ...completed, status: "voicing" }, false);
+  fireEvent.click(screen.getByRole("button", { name: "Open script" }));
+  expect(onOpenScript).toHaveBeenCalledTimes(1);
+  cleanup();
+
+  show(completed, true);
+  expect(screen.queryByRole("button", { name: "Open script" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Close script" }));
+  expect(onCloseScript).toHaveBeenCalledTimes(1);
+});
+
+test("Open script closes the chip's menu, which would cover the canvas controls", () => {
+  // e2e 2026-11-02: the menu stayed open over Safe zone with the script panel beside it.
+  const { container } = render(
+    <NarrationStatus client={client() as never} projectId="p" documentId="edoc_1" state={completed} variant="chip" onChange={() => {}} onOpenScript={() => {}} />,
+  );
+  const menu = container.querySelector("details")!;
+  menu.open = true;
+
+  fireEvent.click(screen.getByRole("button", { name: "Open script" }));
+
+  expect(menu.open).toBe(false);
+});

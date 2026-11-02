@@ -1,5 +1,5 @@
 // Human names for assets and clips (spec 2026-11-01, Studio shell v2): "kind · source", never an id.
-import type { EditDocumentV2, StudioImportItem, StudioMaterials } from "@/api/control-plane";
+import type { EditDocumentV2, StudioImportItem, StudioMaterial, StudioMaterials } from "@/api/control-plane";
 import type { MessageKey, Values } from "@/lib/i18n";
 
 import { clipLabel as roleLabel } from "./TimelineClip";
@@ -12,11 +12,14 @@ export type LabelContext = {
   t: (key: MessageKey, values?: Values) => string;
   /** The import inventory: names a clip saved before Story mode by its `clip_<item_id>`. */
   inventory?: StudioImportItem[];
+  /** The materials are on their way: an asset they may name is not called an upload yet. */
+  materialsPending?: boolean;
 };
 
 const NARRATION = "clip_narration_";
 const SFX = "clip_sfx_";
 const CARD_ROLES = new Set(["post_card", "profile_card", "comment_card", "slide"]);
+const handle = (name: string) => (name.startsWith("@") ? name : `@${name}`);
 
 function seconds(document: EditDocumentV2, frames: number | null | undefined): number | null {
   return frames == null ? null : Math.round((frames / document.canvas.fps) * 10) / 10;
@@ -42,7 +45,8 @@ type Named = { role?: string | null; owner_handle?: string | null; author?: stri
 function described(item: Named | undefined, ctx: LabelContext): { label: string; kind: AssetKind } | null {
   if (!item?.role) return null;
   const role = ctx.t(`studio.label.role.${item.role}` as MessageKey);
-  const source = item.owner_handle || item.author || item.label || item.title;
+  const owner = item.owner_handle || item.author;
+  const source = owner ? handle(owner) : item.label || item.title;
   const kind: AssetKind = CARD_ROLES.has(item.role) ? "card" : item.media_kind === "image" ? "image" : "video";
   return { label: source ? ctx.t("studio.label.material", { role, source }) : role, kind };
 }
@@ -79,7 +83,8 @@ export function assetLabel(
     }
   }
   const kind = ref?.kind ?? "video";
-  return { label: t("studio.label.upload", { kind: t(`studio.label.kind.${kind}` as MessageKey) }), kind: "upload", seconds: length };
+  const kindName = t(`studio.label.kind.${kind}` as MessageKey);
+  return { label: ctx.materialsPending ? kindName : t("studio.label.upload", { kind: kindName }), kind: "upload", seconds: length };
 }
 
 /** A clip's label: its own name, its material's, else the Timeline's words for its text, role or kind. */
@@ -88,6 +93,12 @@ export function clipLabel(clip: Clip, ctx: LabelContext): string {
   if (named) return named.label;
   const material = ("asset_id" in clip ? materialName(clip.asset_id, ctx) : null) ?? itemName(clip.clip_id, ctx);
   return material?.label ?? roleLabel(ctx.t, clip);
+}
+
+/** A Materials row: its role and its own label, which may be a title; a judged comment stays its own words. */
+export function materialRowLabel(item: Pick<StudioMaterial, "role" | "label">, t: LabelContext["t"]): string {
+  if (!item.role || item.role === "comment") return item.label;
+  return t("studio.label.material", { role: t(`studio.label.role.${item.role}` as MessageKey), source: item.label });
 }
 
 /** Repeated labels in one list get " · 2", " · 3" in list order, so rows stay distinguishable. */

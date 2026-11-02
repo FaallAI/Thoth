@@ -132,3 +132,19 @@ test("the tiles' own seconds sum to the canvas, and the total says so", () => {
   expect(seconds.reduce((sum, value) => sum + value, 0)).toBeCloseTo(10, 5);
   expect(screen.getByText("matches canvas")).toBeDefined();
 });
+
+test("a narration voice draws no picture on its tile", () => {
+  // e2e 2026-11-02, first run with media: each tile showed a broken image for its narration.
+  const document = storyDocument();
+  document.asset_refs = document.asset_refs!.map((ref) =>
+    ref.asset_id === "asset_clip_comment_card_000" ? { ...ref, kind: "audio" as const } : ref,
+  );
+  const previews = { asset_clip_comment_card_000: "/p/voice.mp3", asset_clip_comment_card_001: "/p/card1.png" };
+  const { container } = render(
+    <BeatStrip beats={beats} fps={30} totalFrames={300} selected={null} onSelect={() => {}} document={document} previews={previews} />,
+  );
+
+  const sources = [...container.querySelectorAll("img, video")].map((node) => node.getAttribute("src"));
+  expect(sources).toContain("/p/card1.png");
+  expect(sources).not.toContain("/p/voice.mp3");
+});

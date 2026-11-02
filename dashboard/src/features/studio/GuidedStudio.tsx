@@ -47,7 +47,7 @@ import { AssistPanel } from "./story/AssistPanel";
 import { BeatInspector } from "./story/BeatInspector";
 import { BeatStrip } from "./story/BeatStrip";
 import { MaterialsPanel } from "./story/MaterialsPanel";
-import { NarrationStatus, narrationAttention } from "./script/NarrationStatus";
+import { NarrationChecking, NarrationStatus, narrationAttention } from "./script/NarrationStatus";
 import { ScriptPanel } from "./script/ScriptPanel";
 import { SfxLibrary } from "./script/NarrationPresetForm";
 import { adoptNarratedRevision, isNarrationActive, useNarration } from "./script/useNarration";
@@ -138,6 +138,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const [selectedBeat, setSelectedBeat] = useState<BeatId | null>(null);
   const [inventory, setInventory] = useState<StudioImportItem[]>([]);
   const [materials, setMaterials] = useState<StudioMaterials | null>(null);
+  const [materialsRead, setMaterialsRead] = useState(false);
   const [commentFocusRequest, setCommentFocusRequest] = useState(0);
   const [assistOn, setAssistOn] = useState(false);
   const [refusalsSeen, setRefusalsSeen] = useState(0);
@@ -165,7 +166,10 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   // Simple desktop editing lays the scenes out as a strip under the preview.
   const stripLayout = editing && !compact && !advanced && !story;
   const workstationStyle = compact
-    ? undefined
+    ? // A phone's Story pane takes the height; the beats sit under it.
+      story && editing
+      ? ({ gridTemplateRows: "minmax(0,1fr) auto" } as CSSProperties)
+      : undefined
     : ({
         "--scene-board-width": `${sceneBoardWidth}rem`,
         "--inspector-width": `${inspectorWidth}rem`,
@@ -182,7 +186,9 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const previewVisible = reviewing || (editing && (!compact || editPane === "preview" || (advanced && editPane === "timeline")));
   const { pause } = player;
   // Kind and source, never an id (spec 2026-11-01, Studio shell v2).
-  const labels: LabelContext | null = timeline ? { document: timeline, materials, t, inventory } : null;
+  const labels: LabelContext | null = timeline
+    ? { document: timeline, materials, t, inventory, materialsPending: Boolean(story && client.getStudioMaterials && !materialsRead) }
+    : null;
   const labelOf = labels ? (clip: Parameters<typeof clipLabel>[0]) => clipLabel(clip, labels) : undefined;
   const describeAsset = labels
     ? (asset: EditorAsset) => {
@@ -190,6 +196,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         const kind = t(`studio.label.kind.${asset.kind}`);
         return {
           label: named.label,
+          kind: named.kind,
           detail: named.seconds == null ? kind : `${kind} · ${t("studio.story.seconds", { seconds: named.seconds.toFixed(1) })}`,
         };
       }
@@ -361,11 +368,13 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   useEffect(() => {
     if (!story || !getStudioMaterials) return;
     const requestGeneration = generation.current;
-    void getStudioMaterials(projectId, documentId).then(
-      (loaded) => requestGeneration === generation.current && setMaterials(loaded),
-      // A draft made in Studio has no materials route answer; the panel lists uploads only.
-      () => {},
-    );
+    void getStudioMaterials(projectId, documentId)
+      .then(
+        (loaded) => requestGeneration === generation.current && setMaterials(loaded),
+        // A draft made in Studio has no materials route answer; the panel lists uploads only.
+        () => {},
+      )
+      .finally(() => requestGeneration === generation.current && setMaterialsRead(true));
   }, [story, getStudioMaterials, projectId, documentId]);
 
   // Auto-draft narration (spec 2026-10-31): read and polled here; when it completes, the
@@ -374,7 +383,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     client.startNarration && client.getNarration && client.decideNarration && client.editNarrationBeat && client.revoiceNarrationBeat && client.cancelNarration && client.restartNarration
       ? (client as Required<Pick<typeof client, "startNarration" | "getNarration" | "decideNarration" | "editNarrationBeat" | "revoiceNarrationBeat" | "cancelNarration" | "restartNarration">>)
       : undefined;
-  const [narration, setNarration] = useNarration(narrationClient, projectId, documentId, Boolean(timeline && narrationClient), () => {
+  const [narration, setNarration, narrationKnown] = useNarration(narrationClient, projectId, documentId, Boolean(timeline && narrationClient), () => {
     void client.getEditDocument(projectId, documentId).then(
       (latest) => adoptNarratedRevision(dispatch, latest),
       () => {},
@@ -639,7 +648,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         <button
           type="button"
           onClick={requestReview}
-          className="h-9 rounded-md border max-md:hidden border-hairline px-3 text-[13px] text-ink hover:bg-surface focus-visible:outline-2 focus-visible:outline-copper"
+          className="h-9 rounded-md border border-hairline px-3 text-[13px] text-ink hover:bg-surface focus-visible:outline-2 focus-visible:outline-copper"
         >
           {t("studio.editor.requestReview")}
         </button>
@@ -648,7 +657,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           <>
         {story && timeline && narrationClient ? (
           <>
-            <NarrationStatus
+            {/* Until the first read answers, null means "not read yet": no Create on a narrated draft. */}
+            {!narrationKnown ? <NarrationChecking variant={viewport === "full_desktop" ? "chip" : "block"} /> : <NarrationStatus
               client={narrationClient}
               projectId={projectId}
               documentId={documentId}
@@ -657,7 +667,9 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
               onChange={setNarration}
               onStarted={() => setShowScript(true)}
               onOpenScript={() => setShowScript(true)}
-            />
+              onCloseScript={() => setShowScript(false)}
+              scriptOpen={showScript}
+            />}
           </>
         ) : null}
           </>
@@ -667,16 +679,6 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
           <>
             {story && timeline && narrationClient ? (
               <div className="flex flex-wrap gap-2 border-b border-hairline pb-3">
-            {narration ? (
-              <button
-                type="button"
-                aria-pressed={showScript}
-                className="rounded-md bg-well px-2.5 py-1 text-[13px] text-muted-ink aria-[pressed=true]:bg-raised aria-[pressed=true]:text-ink"
-                onClick={() => setShowScript((value) => !value)}
-              >
-                {t("studio.narration.script")}
-              </button>
-            ) : null}
             {story && askAssist ? (
               <button
                 type="button"
@@ -745,14 +747,14 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 {collapsible ? (
                   <div className="flex flex-wrap gap-2">
                     <button type="button" className={toolbarButton} aria-expanded={sceneBoardOpen} aria-controls="studio-region-scenes" onClick={() => setSceneBoardOpen((open) => !open)}>
-                      {t("studio.editor.scenePanel")}
+                      {t(story ? "studio.editor.materialsPanel" : advanced ? "studio.editor.assetsPanel" : "studio.editor.scenePanel")}
                     </button>
                     <button type="button" className={toolbarButton} aria-expanded={inspectorOpen} aria-controls="studio-region-inspector" onClick={() => setInspectorOpen((open) => !open)}>
                       {t("studio.editor.inspectorPanel")}
                     </button>
                   </div>
                 ) : null}
-                {sceneRegionOpen && !stripLayout ? (
+                {sceneRegionOpen && !stripLayout && !story ? (
                   <>
                     <label htmlFor={sceneWidthId}>{t("studio.editor.sceneWidth")}</label>
                     <input id={sceneWidthId} type="range" min={12} max={22} step={1} value={sceneBoardWidth} onChange={(event) => setSceneBoardWidth(event.target.valueAsNumber)} />
@@ -861,13 +863,16 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             hidden={!editing || (compact ? editPane !== "scenes" : !sceneRegionOpen)}
           >
             {story && timeline && showScript && narration && narrationClient ? (
-              <ScriptPanel
-                client={narrationClient}
-                projectId={projectId}
-                documentId={documentId}
-                state={narration}
-                onChange={setNarration}
-              />
+              // A long script scrolls in its column and never runs under the beats.
+              <div className="min-h-0 overflow-y-auto">
+                <ScriptPanel
+                  client={narrationClient}
+                  projectId={projectId}
+                  documentId={documentId}
+                  state={narration}
+                  onChange={setNarration}
+                />
+              </div>
             ) : story && timeline ? (
               <MaterialsPanel
                 materials={materials}
@@ -883,6 +888,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 <AssetLibrary
                   client={assetClient}
                   describe={describeAsset}
+                  previews={previewSources}
                   projectId={projectId}
                   generationRef={generation}
                   onAssets={(assets, replace) => dispatch({ type: "assets_loaded", assets, replace })}
@@ -1101,7 +1107,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                     dispatch({ type: "edit_duration", sceneId, durationInFrames, operationId: makeOperationId() })
                   }
                 >
-                  <SceneMediaInspector document={state.draft} sceneId={state.selectedSceneId} />
+                  <SceneMediaInspector document={state.draft} sceneId={state.selectedSceneId} labelOf={labels ? (assetId) => assetLabel(assetId, labels).label : undefined} />
                   {timeline ? <CaptionTextInspector document={timeline} selectedSceneId={state.selectedSceneId} disabled={upgrading} compact onOperation={(operation) => dispatch({ type: "commit_timeline_operation", operation })} /> : <section className="studio-caption-summary" aria-label="Captions"><h3>Captions</h3><p>No editable captions in this document.</p><button className="studio-style-trigger" type="button" disabled>Caption style unavailable</button></section>}
                 </Inspector>
                 {timeline && viewport !== "phone" ? (

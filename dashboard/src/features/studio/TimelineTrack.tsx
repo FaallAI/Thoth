@@ -80,8 +80,9 @@ export function TimelineTrack({
       id={`timeline-track-${track.track_id}`}
       className="flex border-b border-hairline"
     >
-      <div className="group relative flex w-48 shrink-0 items-center gap-2 border-r border-hairline bg-surface px-3">
-        <Icon aria-hidden="true" size={15} className="shrink-0 text-muted-ink" />
+      {/* The name stays in sight while the lanes scroll; a view-only phone gives it a quarter of the screen. */}
+      <div className={`group sticky left-0 z-[5] flex shrink-0 items-center gap-2 border-r border-hairline bg-surface ${readOnly ? "w-24 px-2" : "w-48 px-3"}`}>
+        {readOnly ? null : <Icon aria-hidden="true" size={15} className="shrink-0 text-muted-ink" />}
         <span className="min-w-0 grow truncate font-mono text-xs text-ink" title={track.label}>
           {track.kind}
         </span>

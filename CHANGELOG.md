@@ -2,6 +2,207 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-02 - Promoted new golden frames for both capsules
+
+Branch `fix/studio-audit-findings`, not pushed. Operator, after the before-and-after pictures in `D:/thoth-tmp/golden-compare/`: "ya di setujui".
+
+- `vertical_text_story-v1`: set `sha256-09d5263a497ba3c2f9bef6390746882667eeabe938697d82b0a168320d9a6398`, promoted from `run_78ea265619db840c`.
+- `story_mode-v1`: set `sha256-efb07ab66c7b8a089790fbeeed6cd4d4808393d6dd819cb456b95bdc8daef656`, promoted from `run_3bff9e5800573755`.
+- Both runs were drawn at `a24e2b47` by a freshly built reference image with no network, and promoted from inside it. All 20 files are byte-identical to the frames the operator reviewed.
+- The earlier sets stay in `golden-sets/`; each manifest names the new one.
+
+**Verification:** an image built with the new goldens verified `pass` for both capsules on two fresh artifact roots. Renderer 229 tests pass (5 skipped), typecheck clean. Container contract tests: 56 pass.
+
+**Next steps**
+- Operator gates: push and PR, merge, deploy for this branch; merging `chore/e2e-trial`.
+- At push: `template-release-parity` runs in CI for the first time on these frames.
+- After deploy: run the e2e files against stage1 (`--target w1440`); watch and render rev 18.
+- Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; the 218 stored `unknown` rows stay in `workflow_runs`.
+
+## 2026-11-02 - Fixed every caption style; new golden frames await the operator's approval
+
+Branch `fix/studio-audit-findings`, not pushed. Operator, on the two open decisions: "aku ikutin saran anda". This settles the previous entry's decision on caption styles, and the Studio list's crop stays.
+
+**Changed:** every caption style now skips the `Sequence` wrapper and sits centred above TikTok's bottom 18%. The condition that limited this to narrated captions is gone.
+
+**The golden frames, checked by running the parity gate locally** (`Dockerfile.renderer-f1`, no network, the same command as CI, nothing promoted):
+| Code | `vertical_text_story-v1` | `story_mode-v1` | Preview vs render |
+|---|---|---|---|
+| Narrated captions only (`f523cccb`) | pass, 0 pixels changed | pass, 0 pixels changed | 0 pixels |
+| Every style (this commit) | `visual_mismatch` | `visual_mismatch` | 0 pixels |
+
+- Both capsules carry one `caption_default` clip over the whole timeline, so all 5 golden frames of each hold the bug; a capsule pins its assets and document, not the composition's source.
+- 1,076,892 to 1,242,133 pixels change per frame, about half of each frame, because the dark box is gone from it.
+- The candidates were judged from the renders. The picture is clean, and the caption sits centred above the bottom band.
+
+**Until the operator approves:** `template-release-parity` fails on this branch, so a push goes red there. Nothing has been promoted. Before and after, one picture per capsule: `D:/thoth-tmp/golden-compare/`.
+
+**Verification:** dashboard 1563 tests pass, renderer 229 pass; both typechecks clean. The final code's frames are byte-identical to the candidates in those pictures.
+
+**Next steps**
+- Operator gate: approve the new golden frames for both capsules, after looking at them. Then the gate runs again, its run is promoted, and the new sets are committed.
+- Operator gates, after that: push and PR, merge, deploy for this branch; merging `chore/e2e-trial`.
+- After deploy: run the e2e files against stage1 (`--target w1440`); watch and render rev 18.
+- Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; the 218 stored `unknown` rows stay in `workflow_runs`.
+
+## 2026-11-02 - Closed the audit's gaps: playback, Indonesian, script panel; a caption bug in rendered video
+
+Branch `fix/studio-audit-findings`, not pushed. Operator: "tolong fix sekalian dulu", naming the not-covered list and two notes of the entry below. Covering playback showed what the read-scope token had hidden.
+
+**Found by covering the gaps, and fixed**
+- **Narrated captions were wrong in the video itself.** A Remotion `Sequence` wraps its child in its own row, so `CAPTION_LANE` never reached the cue: the caption sat top left, and its dark box ran the canvas's height, dimming the left part of the title and the picture. `word_highlight` cues now skip that wrapper (`layout="none"`) and sit centred above TikTok's bottom 18%.
+- **Beat tiles drew a broken image for every narration voice:** a voice's preview went into an `<img>`. A voice now draws nothing there.
+- **The chip's menu stayed open over Safe zone** after Open script or Close script. It closes itself now.
+- **Script lines were cut off inside their fields.** They grow to their text (`field-sizing: content`), and the column scrolls instead of running under the beats. That second part fixes a regression this work caused and the e2e check caught; browsers without `field-sizing` keep the scrolling field.
+- **Indonesian:** the hint under the preview, the asset library, the scene fields, the media panel and its dialogs, and the captions panel were English. All are translated. The phone pane read "Linimasa" where everything else says "Timeline".
+- **Phone Timeline's preview pane:** the player stayed 148 px wide with its clock cut to "0..", over an empty screen. It now takes 250 px, as the other panes do.
+
+**The two notes**
+- **"Loading render options…" on the dev server:** traced. An unmount cleanup moved `generationRef` and not the reducer's counter, so under StrictMode's double effect the reducer refused the second load's answer. The cleanup now dispatches `superseded`, keeping the two in step. Only the dev server's double effect reached it.
+- **The narration control's late arrival:** a "Checking narration…" chip holds its place until the read answers, and offers nothing to click.
+
+**Not fixed: a decision for the operator**
+- `caption_default` and `source` captions still have the bug in every render. The approved golden frames of `vertical_text_story-v1` and `story_mode-v1` contain it (see `frame-000060-render.png`: the box runs the frame's height behind "A cue that changes on a boundary"). Fixing them changes those frames, so `template-release-parity` fails until the goldens are promoted again, which needs the operator's approval. The gate compares pixels, so it never judged the look. Removing the `narrated` condition in `AdvancedTimelineComposition.tsx` is the whole code change.
+
+**Verification**
+- **Dashboard:** 1563 tests pass; `tsc -b` exit 0; build OK; lint exit 0 with 45 warnings, the same count as before. **Renderer** (the composition changed): 229 tests pass, typecheck clean. Python untouched, so `make test` and `make lint` were not run.
+- **Red first:** 6 unit tests and 7 e2e checks failed before their fixes, and the Render check failed on the dev server before its fix. One unit test written for the StrictMode bug passed without the fix, because effects do not run twice in this test environment; it was replaced by a reducer test (seen failing with the case removed) and the e2e check.
+- **e2e, model-free:** 29 pass on a production build of this branch against stage1 data: `tests/studio-media.e2e.ts` (7, with local fixture media), `tests/studio-audit-fixes.e2e.ts` (14), `tests/studio-shell-v2.e2e.ts` (5), `tests/studio-id.e2e.ts` (3, Indonesian).
+- **Screenshots judged by Claude,** in `D:/thoth-tmp/e2e-audit-2026-11-02-rest/`: Studio list, Story, Timeline, Review and Render in Indonesian at 1440 and 1024; the same at 430 except that Story and Timeline show one pane each; Timeline in English at 1024; playback with picture in Story and Timeline; rows and tiles with pictures; the placed caption; the open script panel; the Indonesian media dialog; the phone Timeline's preview pane. The Indonesian shots at 1024 and 430 predate the translations, so they judge the layout; the new words were seen at 1440, and in unit tests.
+
+**Covered from the earlier list:** Indonesian; playback and thumbnails with pictures; Space in a real browser, with focus free and in a text field; the open Script panel; Timeline at 1024.
+
+**Still not covered**
+- **The server's own media.** The read scope refuses preview capabilities, so the browser answers those requests with local fixtures. This proves the Player and the rows, not the stored files. A real check needs a higher-scope token or the operator watching rev 18.
+- **Audible sound:** the Player runs its audio, but nothing listens to it in a headless browser.
+- **The narrated caption in a rendered file:** the composition is the one both surfaces draw, but no render ran. `template-release-parity` runs at push.
+- **The deployed build:** waits on the deploy gate.
+
+**Left in English on purpose:** `aria-label` values that `pen-studio.css` selects on (`Studio preview`, `Asset library`, and the like), and the composition's "Video preview unavailable". The lane names (`main_video`) are raw identifiers in both languages.
+
+**Observation, not fixed:** the composition calls `onPreviewUnavailable` during render, which logs "Cannot update a component" in dev when a preview source is missing.
+
+**Next steps**
+- Operator decision: promote new goldens so every caption style is fixed, or keep the fix to narrated captions.
+- Operator decision, still open: whether the Studio list's crop stays.
+- Operator gates: push and PR, merge, deploy for this branch; merging `chore/e2e-trial`.
+- After deploy: run the e2e files against stage1 (`--target w1440`); watch and render rev 18, which also proves the caption in a real file.
+- Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; the 218 stored `unknown` rows stay in `workflow_runs`.
+
+## 2026-11-02 - Fixed the audit fixes' leftovers: load flashes, canvas label, list cards, phone Render
+
+Branch `fix/studio-audit-findings`, not pushed. Operator: "ya perbaiki dulu dan ini juga tolong perbaiki", naming the four notes of the entry below.
+
+**Fixed**
+- **"Create narration" on a narrated draft:** `useNarration` now tells "none yet" from "not read yet", and Studio shows the narration control only once a read has answered. A lost connection or a 5xx is asked again every 3 s instead of being taken as no narration; a 404 or any other refusal is the answer. The server already refused a second narration with `narration_exists`, so the flash misled but could not overwrite.
+- **"Upload · Video" while materials load:** `assetLabel` says only the kind ("Video") until the materials read has answered.
+- **Canvas label:** "9:16 · 1080×1920" now shows under the preview in Timeline and Review. Only the keyboard tip stays hidden there.
+- **Phone Render:** the panel scrolls in its own box at every width, so Studio's header stays put.
+- **Studio list:** the box is 16:9 on wider screens and square on a phone, and the card reads from its top left.
+
+**Behaviour change to know**
+- The list reverses the previous entry's finding 8 on purpose. A very wide card shown whole was an unreadable strip in a 9:16 box. It now crops on the right, and shows the account name and the start of the caption ("Kabinet Rakyat · TOBAT EGE GATUH…"). A draft with no card has the shorter box too, so more drafts fit on a screen. This departs from the 9:16 card the code comment attributed to wider screens; the operator has not yet seen it.
+- The narration control appears a moment after the header on load, rather than a wrong one showing at once.
+
+**Verification**
+- **Dashboard:** 1556 tests pass; `tsc -b` exit 0; build OK; lint exit 0 with 45 warnings, the same count as before this work. Python was not touched, so `make test` and `make lint` were not run.
+- **Red first:** 6 new unit tests and 2 new e2e checks failed before the fix, for the expected reasons.
+- **e2e, model-free:** 15 checks (10 in `tests/studio-audit-fixes.e2e.ts`, 5 in `tests/studio-shell-v2.e2e.ts`) pass on a production build of this branch served by `vite preview` against stage1 data.
+- **e2e, live over MCP, read only, judged by Claude:** the Studio list at 1440 and 430; Story at 1440, including the moment before the reads answered (no Create narration; Scene media read "Video") and after (the "Narrated · 4 beats" chip; "Main video · @kabinet_rakyat"); Timeline and Review at 1440 with the label; Story at 430; Render at 430 scrolled, header in place.
+- **Not covered:** Indonesian, the deployed build, a draft with no narration in a real browser (unit test only), a read that fails with a 5xx in a real browser (unit test only), a portrait post card in the new box.
+
+**Observation, not a defect of this branch:** on the Vite dev server Render stays on "Loading render options…". It finishes on stage1 at `f061b3d` and on a production build of this branch. The cause was not traced; React StrictMode, which only acts in dev, is the likely one.
+
+**Next steps**
+- Next work: the operator looks at the Studio list and says whether the crop stays.
+- Operator gates: push and PR, merge, deploy for this branch; merging `chore/e2e-trial`.
+- After deploy: run both e2e files against stage1 (`--target w1440`).
+- Carry forward: watch and render rev 18; reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; the 218 stored `unknown` rows stay in `workflow_runs`.
+
+## 2026-11-02 - Fixed every finding of the first e2e audit of Studio
+
+Branch `fix/studio-audit-findings`, not pushed. Ledger: `.superpowers/sdd/2026-11-02-studio-audit-fixes/progress.md`. Operator: "ya kerjakan semuanya". The findings are in the entry below.
+
+**Important findings fixed**
+1. Phone header: the title keeps the first row; jobs and mode share the second.
+2. Request review is in the phone menu.
+3. Scene media finds the main-track video under a scene that lists only text, and names it ("Main video · @kabinet_rakyat") instead of an id.
+4. A beat's inspector reads its own seconds, the same as its tile.
+5. Materials rows read "Post card · @kabinet_rakyat". A row keeps the material's own label as the source, so a titled row stays distinct; a judged comment stays its own words. The Add from materials picker uses the same names.
+6. Asset rows show a picture or a kind icon. Materials has a Narration group when the draft has narration clips.
+7. Lane names are sticky; a view-only Timeline gives them 96 px.
+8. The Studio list shows the whole post card. A wide card now reads small in its 9:16 box instead of cropped.
+9. Status `unknown` no longer counts as active, so the false "20 running" is gone.
+
+**Minor findings fixed**
+- Phone panes fill the screen, with the beats pinned under them. The cause was `height: auto` in `pen.css` as well as `dashboard.css`.
+- Play no longer takes focus: Studio handles Space itself in `usePlayerTimeline`, except where focus already uses Space. Play and volume have a gap.
+- The canvas label moved into the hint line under the preview.
+- One Open script / Close script button replaces the menu's duplicate; it also shows while a narration runs.
+- The side panel is named "Materials panel" or "Assets panel", and Story has no width slider for its fixed column.
+- The stray separator in the view-only toolbar is gone.
+- Handles read with "@" once.
+- Other drafts' uploads list last in Assets.
+- The empty inspector fills the phone screen.
+
+**Behaviour changes to know**
+- The canvas label does not show in Timeline or Review, because the hint line is hidden there.
+- On a phone, Render scrolls the whole page, so its header moves with it.
+
+**Verification**
+- **Dashboard:** 1551 tests pass; `tsc -b`, the build and lint pass (lint exit 0 with 45 warnings, none on a line this work added). Python was not touched, so `make test` and `make lint` were not run.
+- **e2e, model-free:** `tests/studio-audit-fixes.e2e.ts` on `chore/e2e-trial` (dae60422, unpushed). The first 7 checks failed on stage1 at `f061b3d`; all 8, plus the 5 in `tests/studio-shell-v2.e2e.ts`, pass on a local dev server of this branch against stage1 data.
+- **e2e, live over MCP, read only:** 24 screenshots in `D:/thoth-tmp/e2e-audit-2026-11-02-fixes/`, judged by Claude. Story at 1440 and 1024; Timeline and the Studio list at 1440; Story (Preview, Materials, Inspector, menu), Timeline (Timeline, Assets, empty Inspector), Review and Render at 430.
+- **Not covered:** Indonesian (locale comes from the server-side user), video and audio playback and thumbnails with real pictures (the read scope refuses preview capabilities), Space in a real browser (unit test only), the open Script panel, a screenshot of Timeline at 1024, and the deployed build.
+
+**New finding, not fixed:** while Studio loads, the narration state is still empty, so a narrated draft briefly shows "Create narration". Seen at 1440 on the dev server, which is slower than stage1. Clicking it in that moment would ask to start a narration. Scene media also reads "Upload · Video" until the materials arrive.
+
+**Next steps**
+- Next work: fix the "Create narration" flash, test-first, on this branch or the next.
+- Operator gates: push and PR, merge, deploy for this branch; merging `chore/e2e-trial`.
+- After deploy: run both e2e files against stage1 (`--target w1440`).
+- Carry forward: watch and render rev 18; reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; the 218 stored `unknown` rows stay in `workflow_runs`.
+
+## 2026-11-02 - Deployed f061b3d (PR #103); first e2e audit of Studio; tester-army/e2e is the audit standard
+
+**Deploy:** master `f061b3d` (PR #103, Studio shell v2). Images: thoth `42cf2c0e`, renderer `f0277d98`, web `001229db`, pulled ahead. `make deploy` exit 0 with no workflow running; preflight passed; head stays `0027`; every service healthy; no ERROR or Traceback in the api, worker, web and renderer logs. Read smoke 200. Previous pins: `D:/thoth-tmp/bu/pins/pins-d8b738a3.env`.
+
+**Audit standard:** operator, 2026-11-02. Every audit of the dashboard's look or flows now uses tester-army/e2e over its MCP server, with no model and no API key; Claude Code judges the screenshots (AGENTS.md, E2E audits). The read token is now `e2e-audit`, valid to 2027-01-30.
+
+**Audit (read only, stage1, narrated draft `edoc_3aedc6af…` rev 18).**
+- **Screens:** Story, Timeline, Review, Render and the Studio list at 1440; Story and the menu at 1024; Story (Preview, Materials, Inspector), Timeline (Timeline, Assets, Inspector) and the menu at 430.
+- **Evidence:** 16 screenshots in `D:/thoth-tmp/e2e-audit-2026-11-02/`.
+- **Repeatable checks:** 5 model-free tests in `tests/studio-shell-v2.e2e.ts` on the `chore/e2e-trial` worktree, all passing.
+- **Not covered:** Indonesian (the locale comes from the server-side user, and changing it is a write), video and audio playback (the read scope refuses preview capabilities), 768-1023 wide, and the open Script panel.
+
+**Passed:** header one row at 1440 and 1024 with the menu on screen; no horizontal scroll at 430; no raw ids in visible text; beat total 34.5 s equals the canvas with a narrated mic on each beat; Timeline three columns with every tool and inspector field; phone Timeline view-only with Inspect; rebuilt card timing (Post card 8.8-13.4 s, no overlaps, "No issues"); Review and Render.
+
+**Findings, Important:**
+1. Phone: the title shrinks to "TO…" because the mode switch shares its row.
+2. Phone: Request review is unreachable, hidden from the header and absent from the menu.
+3. The inspector's "Scene media" says "No media attached · Unavailable" on a draft with a main video. `SceneMediaInspector` reads `scene.clip_ids`, and a narrated draft's scene lists only its text clip.
+4. A beat's inspector disagrees with its tile: Main reads 13.6 s, the tile 8.9 s.
+5. Story Materials rows are not labelled: three identical "@kabinet_rakyat" rows hide Post card, Profile card and Profile page (spec goal 4).
+6. Asset rows have no thumbnail, waveform or kind icon, and Materials has no Narration group (spec goal 4).
+7. Lane names are not sticky: at 430 they scroll away, and their 192 px column takes half the phone.
+8. Studio list thumbnail shows a crop of giant text ("AR PENJI").
+9. The top bar reads "20 running" and the nav "Runs 20" while Temporal has 0 running. `activity.tsx` counts status `unknown` as active, and `workflow_runs` holds 218 `unknown` rows.
+
+**Findings, Minor:**
+- Phone panes leave the lower third empty, and the beat chips are not pinned to the bottom.
+- Play takes focus on load, and its ring overlaps the volume icon.
+- The "9:16 · 1080×1920" label sits far from the preview.
+- The menu has both "Script" and "Open script", and calls the Materials column "Scene board panel".
+- A stray separator shows in the phone Timeline toolbar.
+- Handles lack "@" in labels ("Post card · kabinet_rakyat").
+- Other drafts' assets ("Upload · Image") list above this draft's.
+- The empty inspector panel is shorter than the phone screen.
+
+**Next steps:**
+- Operator: choose which findings to fix; each is fixed test-first on the next work branch, which also carries this record and the AGENTS.md standard.
+- Operator gates: push, PR, merge and deploy for that branch; merging `chore/e2e-trial`.
+- Carry forward: watch and render rev 18; reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`.
+
 ## 2026-11-01 - Studio shell v2: one-row header, phone panes, human labels, truthful beats, clickable issues
 
 Spec: `docs/superpowers/specs/2026-11-01-studio-shell-v2-design.md`. Plan: `docs/superpowers/plans/2026-11-01-studio-shell-v2.md` (7 tasks, executed natively). Ledger: `.superpowers/sdd/2026-11-01-studio-shell-v2/progress.md`. Branch `feat/studio-shell-v2`.

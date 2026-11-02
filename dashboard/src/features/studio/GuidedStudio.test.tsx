@@ -1092,3 +1092,57 @@ test("Timeline names assets from the run's materials, as Story does", async () =
 
   expect(await screen.findByRole("button", { name: "Add Comment card · @lailynisfa to timeline" })).toBeDefined();
 });
+
+const narrationCalls = {
+  startNarration: mock(async () => { throw new Error("unused"); }),
+  decideNarration: mock(async () => { throw new Error("unused"); }),
+  editNarrationBeat: mock(async () => { throw new Error("unused"); }),
+  revoiceNarrationBeat: mock(async () => { throw new Error("unused"); }),
+  cancelNarration: mock(async () => { throw new Error("unused"); }),
+  restartNarration: mock(async () => { throw new Error("unused"); }),
+};
+
+test("Create narration waits until the draft's narration has been read", async () => {
+  // e2e audit 2026-11-02: a narrated draft offered Create narration until its state arrived.
+  const { timelineDocument } = await import("./timeline-test-fixtures");
+  const { GuidedStudio } = await import("./GuidedStudio");
+  const { StudioImportRequestError } = await import("@/api/control-plane");
+  const document = timelineDocument() as EditDocument;
+  let refuse!: (error: unknown) => void;
+  const getNarration = mock(() => new Promise<never>((_, reject) => (refuse = reject)));
+  render(
+    <GuidedStudio
+      client={{ ...promptClientBase, ...advancedClientBase, ...narrationCalls, getNarration, getEditDocument: mock(async () => document), patchEditDocument: mock(async () => ({ kind: "saved" as const, document })) } as never}
+      projectId="project_001"
+      documentId="document_002"
+      onBack={() => {}}
+    />,
+  );
+  await screen.findByRole("button", { name: "Timeline" });
+  await waitFor(() => expect(getNarration).toHaveBeenCalled());
+
+  expect(screen.queryByRole("button", { name: "Create narration" })).toBeNull();
+  // Its place is held meanwhile, so the header does not jump when the answer arrives.
+  expect(screen.getByRole("status", { name: "Checking narration…" })).toBeDefined();
+  refuse(new StudioImportRequestError(404));
+  expect(await screen.findByRole("button", { name: "Create narration" })).toBeDefined();
+  expect(screen.queryByRole("status", { name: "Checking narration…" })).toBeNull();
+});
+
+test("Scene media does not call the main video an upload while materials load", async () => {
+  // e2e audit 2026-11-02: it read "Upload · Video" until the materials arrived.
+  const { timelineDocument } = await import("./timeline-test-fixtures");
+  const { GuidedStudio } = await import("./GuidedStudio");
+  const document = timelineDocument() as EditDocument;
+  render(
+    <GuidedStudio
+      client={{ ...promptClientBase, ...advancedClientBase, getStudioMaterials: mock(() => new Promise<never>(() => {})), getEditDocument: mock(async () => document), patchEditDocument: mock(async () => ({ kind: "saved" as const, document })) } as never}
+      projectId="project_001"
+      documentId="document_002"
+      onBack={() => {}}
+    />,
+  );
+  const media = await screen.findByRole("region", { name: "Scene media" });
+
+  expect(media.textContent).not.toContain("Upload");
+});

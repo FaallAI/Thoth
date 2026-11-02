@@ -169,7 +169,7 @@ test("Story shows the run's materials beside the preview, with the draft's media
   await mountStory();
 
   const panel = await screen.findByRole("complementary", { name: "Materials" });
-  expect(await within(panel).findByText("Banjir footage")).toBeDefined();
+  expect(await within(panel).findByText("Footage · Banjir footage")).toBeDefined();
   expect(within(panel).getByText("Used in Footage")).toBeDefined();
   // The preview needs every video and still the draft draws, not only Timeline's library.
   await waitFor(() => expect(preview.mock.calls.map((call) => call[1])).toContain("asset_clip_footage_000"));

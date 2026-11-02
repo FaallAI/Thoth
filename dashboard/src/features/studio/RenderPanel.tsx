@@ -359,6 +359,7 @@ function RenderSurface({
     return () => {
       aliveRef.current = false;
       generationRef.current += 1;
+      dispatch({ type: "superseded" });
     };
   }, []);
 
@@ -573,7 +574,8 @@ function RenderSurface({
 
   return (
     <section
-      className="studio-render-workspace grid min-w-0 grid-cols-[minmax(0,1fr)] gap-6 p-4 text-ink md:p-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]"
+      // Scrolls in its own box, so Studio's header stays put.
+      className="studio-render-workspace grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] content-start gap-6 overflow-y-auto p-4 text-ink md:p-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]"
       aria-label={t("studio.render.title")}
     >
       <section aria-labelledby={readinessId} className={cn(card, "flex flex-col gap-4 self-start")}>

@@ -107,9 +107,9 @@ export function TimelineToolbar({
           <>
             <Switch label={t("studio.timeline.ripple")} checked={ripple} onChange={onRipple} />
             <Switch label={t("studio.timeline.snap")} checked={snapping} onChange={onSnapping} />
+            <span aria-hidden="true" className="h-5 w-px bg-hairline" />
           </>
         )}
-        <span aria-hidden="true" className="h-5 w-px bg-hairline" />
         <button
           type="button"
           className={icon}
