@@ -9,17 +9,32 @@ const zai = createAnthropic({
   apiKey: process.env.ZAI_API_KEY,
 });
 
+// The language comes from the signed-in user, so an Indonesian target's browser rewrites that one
+// answer. Nothing is saved.
+const AS_INDONESIAN = [
+  `(() => {
+    const real = window.fetch;
+    window.fetch = async (...args) => {
+      const response = await real(...args);
+      if (!String(args[0]?.url ?? args[0]).endsWith('/auth/me') || !response.ok) return response;
+      const me = await response.clone().json();
+      return new Response(JSON.stringify({ ...me, locale: 'id' }), { status: response.status, headers: response.headers });
+    };
+  })();`,
+];
+
 export default {
   targets: [
     // The dashboard behind the local stack; a read-scope developer token signs every request.
     // One target per audited width, so a live session opens at that width.
-    ...([['web', 1280, 720, 'en-US'], ['w1440', 1440, 900, 'en-US'], ['w1024', 1024, 820, 'en-US'], ['w1024id', 1024, 820, 'id-ID'], ['w430', 430, 932, 'en-US']] as const).map(
+    ...([['web', 1280, 720, 'en-US'], ['w1440', 1440, 900, 'en-US'], ['w1024', 1024, 820, 'en-US'], ['w1440id', 1440, 900, 'id-ID'], ['w1024id', 1024, 820, 'id-ID'], ['w430', 430, 932, 'en-US']] as const).map(
       ([name, width, height, locale]) => ({
         name,
         engine: web({
           viewport: { width, height },
           locale,
           headers: { Authorization: `Bearer ${process.env.THOTH_DEV_TOKEN ?? ''}` },
+          initScripts: locale === 'id-ID' ? AS_INDONESIAN : [],
         }),
         app: { url: process.env.THOTH_WEB_URL ?? 'http://127.0.0.1:8088' },
       }),
@@ -34,25 +49,14 @@ export default {
       }),
       app: { url: 'http://localhost:5199' },
     })),
-    // Indonesian on the dev server: the language comes from the signed-in user, so the browser
-    // rewrites that one answer. Nothing is saved.
+    // Indonesian on the dev server.
     ...([['dev1440id', 1440, 900], ['dev1024id', 1024, 820], ['dev430id', 430, 932]] as const).map(([name, width, height]) => ({
       name,
       engine: web({
         viewport: { width, height },
         locale: 'id-ID',
         headers: { Authorization: `Bearer ${process.env.THOTH_DEV_TOKEN ?? ''}` },
-        initScripts: [
-          `(() => {
-            const real = window.fetch;
-            window.fetch = async (...args) => {
-              const response = await real(...args);
-              if (!String(args[0]?.url ?? args[0]).endsWith('/auth/me') || !response.ok) return response;
-              const me = await response.clone().json();
-              return new Response(JSON.stringify({ ...me, locale: 'id' }), { status: response.status, headers: response.headers });
-            };
-          })();`,
-        ],
+        initScripts: AS_INDONESIAN,
       }),
       app: { url: 'http://localhost:5199' },
     })),
