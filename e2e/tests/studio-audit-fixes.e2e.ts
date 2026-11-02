@@ -130,3 +130,43 @@ test('430 Render: the header stays put while the panel scrolls', async ({ app, b
   expect(layout.scrolled).toBeGreaterThan(0);
   expect(layout.header).toBeGreaterThanOrEqual(0);
 });
+
+// Failed only on the dev server, whose StrictMode runs effects twice; run it on a dev target to mean anything.
+test('1440 Render: the options finish loading', async ({ app, browser, screen }) => {
+  await browser.setViewport({ width: 1440, height: 900 });
+  await app.open(DRAFT);
+  await screen.getByRole('navigation', 'Studio jobs').getByRole('button', 'Render').tap();
+  await expect(screen.getByRole('heading', 'Readiness')).toBeVisible();
+  await expect(screen.getByText('Loading render options…', { visible: true })).toHaveCount(0, { timeout: 15000 });
+});
+
+test('1440: the script panel opens from the narration chip', async ({ app, browser, screen }) => {
+  await browser.setViewport({ width: 1440, height: 900 });
+  await app.open(DRAFT);
+  await screen.getByText(/^Narrated · \d+ beats/).first().tap();
+  await screen.getByRole('button', 'Open script').tap();
+  // The chip's menu closed itself, so Close script is one more tap away.
+  await expect(screen.getByRole('button', 'Safe zone')).toBeVisible();
+  const lines = await browser.evaluate(() =>
+    [...document.querySelectorAll('textarea')]
+      .filter((node) => node.closest('section[aria-label="Script"]'))
+      .map((node) => node.scrollHeight - node.clientHeight),
+  );
+  expect(lines.length).toBe(4);
+  // Every line reads whole, without scrolling inside its field.
+  expect(Math.max(...lines)).toBeLessThanOrEqual(1);
+  // A long script scrolls in its column and never runs under the beats.
+  const column = await browser.evaluate(() => {
+    const panel = document.querySelector('section[aria-label="Script"]')!;
+    let box: Element = panel;
+    while (box.parentElement && getComputedStyle(box).overflowY !== 'auto') box = box.parentElement;
+    return {
+      bottom: box.getBoundingClientRect().bottom,
+      beats: document.querySelector('[aria-label="Story beats"]')!.getBoundingClientRect().top,
+      scrolls: box.scrollHeight > box.clientHeight,
+    };
+  });
+  expect(column.bottom).toBeLessThanOrEqual(column.beats);
+  expect(column.scrolls).toBe(true);
+  await app.screenshot('script-open-1440');
+});

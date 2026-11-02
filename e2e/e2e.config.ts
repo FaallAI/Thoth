@@ -34,6 +34,28 @@ export default {
       }),
       app: { url: 'http://localhost:5199' },
     })),
+    // Indonesian on the dev server: the language comes from the signed-in user, so the browser
+    // rewrites that one answer. Nothing is saved.
+    ...([['dev1440id', 1440, 900], ['dev1024id', 1024, 820], ['dev430id', 430, 932]] as const).map(([name, width, height]) => ({
+      name,
+      engine: web({
+        viewport: { width, height },
+        locale: 'id-ID',
+        headers: { Authorization: `Bearer ${process.env.THOTH_DEV_TOKEN ?? ''}` },
+        initScripts: [
+          `(() => {
+            const real = window.fetch;
+            window.fetch = async (...args) => {
+              const response = await real(...args);
+              if (!String(args[0]?.url ?? args[0]).endsWith('/auth/me') || !response.ok) return response;
+              const me = await response.clone().json();
+              return new Response(JSON.stringify({ ...me, locale: 'id' }), { status: response.status, headers: response.headers });
+            };
+          })();`,
+        ],
+      }),
+      app: { url: 'http://localhost:5199' },
+    })),
   ],
   agents: { default: { model: zai('glm-5.3'), maxModelCalls: 15 } },
 } satisfies E2EConfig;
