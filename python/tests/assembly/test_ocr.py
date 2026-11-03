@@ -8,8 +8,10 @@ from pathlib import Path
 
 import pytest
 
+from thoth_control_plane.assembly import ocr as ocr_module
 from thoth_control_plane.assembly.ocr import analyze_main_ocr
 from thoth_control_plane.assembly.ports import AssemblyError
+from thoth_control_plane.assembly.subtitles import build_sample_times
 from thoth_control_plane.attribution.adapters.frames import DurationError, FrameError, ToolMissing
 from thoth_control_plane.attribution.matching import TextBox
 from thoth_control_plane.attribution.ports import Frame
@@ -298,7 +300,9 @@ def test_blur_opens_and_closes_with_the_caption_and_skips_the_watermark() -> Non
     ocr = followed()
 
     assert ocr.outcome == "subtitle" and ocr.mute_audio
-    assert [(r.start, r.end) for r in ocr.subtitle_blur] == [(0.0, 2.25), (5.75, 10.75)]
+    # Each edge is read out of its half-second gap. A window closes on the first read without its
+    # text: a midpoint left the caption's last frame showing (rev 18 source, 2026-11-03).
+    assert [(r.start, r.end) for r in ocr.subtitle_blur] == [(0.0, 2.0625), (5.96875, 10.5625)]
     assert all(r.y > 0.8 for r in ocr.subtitle_blur)
 
 
@@ -350,3 +354,169 @@ def test_a_missing_tool_while_following_keeps_its_code() -> None:
     with pytest.raises(AssemblyError) as raised:
         followed(text=Dies())
     assert raised.value.code == "rapidocr_missing"
+
+
+def test_the_lines_of_one_caption_share_the_reads_of_their_edges() -> None:
+    class TwoLines(Spoken):
+        async def read(self, frame: Frame) -> list[TextBox]:
+            boxes = await super().read(frame)
+            second = float(frame.jpeg.decode())
+            if second <= 2 or 6 <= second <= 10.5:
+                boxes.append(TextBox(CAPTION[int(second * 2) % 7 + 1], 0.74, 0.79, 0.3, 0.7))
+            return boxes
+
+    text = TwoLines()
+
+    ocr = followed(text=text)
+
+    assert len(ocr.subtitle_blur) == 4
+    assert len(text.read_at) == len(set(text.read_at))
+
+
+def test_a_frame_lost_at_an_edge_keeps_that_edge_within_its_gap() -> None:
+    frames = Frames(broken={2.25})
+
+    ocr = followed(frames)
+
+    assert [(r.start, r.end) for r in ocr.subtitle_blur] == [(0.0, 2.25), (5.96875, 10.5625)]
+    assert 2.0 not in [second for second, _ in frames.calls[frames.calls.index((2.25, 720)) + 1 :]]
+
+
+def test_too_many_edges_stay_within_half_a_second(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(ocr_module, "EDGE_MAX_READS", 8)
+    text = Spoken()
+
+    ocr = followed(text=text)
+
+    assert [(r.start, r.end) for r in ocr.subtitle_blur] == [(0.0, 2.25), (5.75, 10.75)]
+    assert all(
+        second * 2 == int(second * 2) or second in build_sample_times(20.0)
+        for second in text.read_at
+    )
+    assert "caption edges" in caplog.text
+
+
+def test_a_missing_tool_at_an_edge_keeps_its_code() -> None:
+    class DiesAtAnEdge(Spoken):
+        async def read(self, frame: Frame) -> list[TextBox]:
+            if float(frame.jpeg.decode()) == 2.25:
+                raise ToolMissing("rapidocr_missing")
+            return await super().read(frame)
+
+    with pytest.raises(AssemblyError) as raised:
+        followed(text=DiesAtAnEdge())
+    assert raised.value.code == "rapidocr_missing"
+
+
+# --- One decode pass and the caption band (operator, 2026-11-03) ---
+
+SHARP = [(0.0, 2.0625), (5.96875, 10.5625)]
+
+
+class OnePass:
+    def __init__(self, missing: set[float] = frozenset(), fails: bool = False) -> None:
+        self.missing, self.fails, self.calls = missing, fails, []
+
+    async def decode(
+        self,
+        video: Path,
+        seconds: list[float],
+        *,
+        width: int,
+        top: float = 0.0,
+        bottom: float = 1.0,
+    ) -> dict[float, Frame]:
+        self.calls.append((list(seconds), width, top, bottom))
+        if self.fails:
+            raise FrameError("decode_failed")
+        return {s: Frame(s, f"{s}".encode()) for s in seconds if s not in self.missing}
+
+
+class Banded(Spoken):
+    def __init__(self, broken: set[float] = frozenset()) -> None:
+        super().__init__()
+        self.broken, self.band_at = broken, []
+
+    async def read_band(self, frame: Frame, top: float, bottom: float) -> list[TextBox]:
+        second = float(frame.jpeg.decode())
+        self.band_at.append(second)
+        if second in self.broken:
+            raise RuntimeError("unreadable")
+        boxes = await Spoken.read(self, frame)
+        self.read_at.pop()
+        return [box for box in boxes if top <= box.top and box.bottom <= bottom]
+
+
+def windows(ocr) -> list[tuple[float, float]]:  # type: ignore[no-untyped-def]
+    return [(region.start, region.end) for region in ocr.subtitle_blur]
+
+
+def test_the_half_second_frames_come_from_one_pass() -> None:
+    frames, decoder = Frames(), OnePass()
+
+    ocr = followed(frames, decoder=decoder)
+
+    assert windows(ocr) == SHARP
+    assert 7.5 not in [second for second, _ in frames.calls]
+    assert 7.5 in decoder.calls[0][0] and decoder.calls[0][1] == 720
+    assert decoder.calls[0][2:] == (0.0, 1.0)
+
+
+def test_a_second_the_pass_did_not_reach_is_extracted_alone() -> None:
+    frames = Frames()
+
+    ocr = followed(frames, decoder=OnePass(missing={7.5}))
+
+    assert windows(ocr) == SHARP
+    assert (7.5, 720) in frames.calls
+
+
+def test_a_failed_pass_gives_the_same_windows_slower(caplog: pytest.LogCaptureFixture) -> None:
+    frames, text = Frames(), Banded()
+
+    ocr = followed(frames, text=text, decoder=OnePass(fails=True), bands=text)
+
+    assert windows(ocr) == SHARP
+    assert (7.5, 720) in frames.calls and not text.band_at
+    assert "decode pass failed" in caplog.text
+
+
+def test_edges_are_read_from_the_caption_band_only() -> None:
+    frames, text, decoder = Frames(), Banded(), OnePass()
+
+    ocr = followed(frames, text=text, decoder=decoder, bands=text)
+
+    assert windows(ocr) == SHARP
+    assert len(text.band_at) == 9  # three edges, three reads each
+    top, bottom = decoder.calls[1][2:]
+    assert top < 0.84 and bottom > 0.89 and bottom - top < 0.13  # the caption line, no watermark
+    assert set(text.band_at) <= set(decoder.calls[1][0])
+    assert not set(text.band_at) & {second for second, _ in frames.calls}
+
+
+def test_a_band_frame_the_pass_missed_is_read_whole() -> None:
+    frames, text = Frames(), Banded()
+
+    ocr = followed(frames, text=text, decoder=OnePass(missing={2.25}), bands=text)
+
+    assert windows(ocr) == SHARP
+    assert (2.25, 720) in frames.calls
+
+
+def test_a_band_read_that_fails_keeps_that_edge_within_its_gap() -> None:
+    text = Banded(broken={2.25})
+
+    ocr = followed(text=text, decoder=OnePass(), bands=text)
+
+    assert windows(ocr) == [(0.0, 2.25), (5.96875, 10.5625)]
+
+
+def test_without_a_band_reader_the_edges_are_read_whole() -> None:
+    frames = Frames()
+
+    ocr = followed(frames, decoder=OnePass())
+
+    assert windows(ocr) == SHARP
+    assert (2.25, 720) in frames.calls
