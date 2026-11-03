@@ -274,7 +274,13 @@ def edge_gaps(
             return None
         inside, outside = (after[0], before[-1]) if opening else (before[-1], after[0])
         boxes = region_boxes([inside], replace(region, start=inside.t, end=inside.t))[0][1]
-        reference = next((box for box in boxes if _plausible_subtitle(box)), None)
+        # The window's middle is its line: text in the shot can reach into the window too.
+        middle = region.y + region.h / 2
+        reference = min(
+            (box for box in boxes if _plausible_subtitle(box)),
+            key=lambda box: abs((box.y0 + box.y1) / 2 - middle),
+            default=None,
+        )
         return EdgeGap(reference, outside.t, inside.t) if reference else None
 
     return gap(region.start, True), gap(region.end, False)

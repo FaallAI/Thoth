@@ -463,6 +463,20 @@ def test_an_edge_needs_a_read_of_the_window_text() -> None:
     assert closing == EdgeGap(LINE, 2.0, 1.5)
 
 
+def test_an_edge_follows_the_line_of_its_window_not_text_in_the_shot_above_it() -> None:
+    # The reader lists boxes top first, so text in the shot can come before the caption.
+    above = OcrBox("FENTY", 0.4, 0.69, 0.6, 0.71)
+    region = Region(0.25, 0.685, 0.5, 0.08, 0.75, 1.75)
+    read = [
+        OcrFrame(0.5, (above,)),
+        OcrFrame(1.0, (above, LINE)),
+        OcrFrame(1.5, (above, LINE)),
+        OcrFrame(2.0, (above,)),
+    ]
+
+    assert edge_gaps(read, region, 0.0) == (EdgeGap(LINE, 0.5, 1.0), EdgeGap(LINE, 2.0, 1.5))
+
+
 def test_a_lost_read_is_not_taken_for_a_read_without_text() -> None:
     read = [
         OcrFrame(0.5),
