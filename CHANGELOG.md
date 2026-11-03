@@ -27,7 +27,7 @@ Branch `fix/blur-exact-edges`, offline, not pushed. The operator accepted the re
 | `instagram_DeOfMJJz6hL` | 14/14 | 23 of 28 | 0.062 s | 114 s -> 86 s |
 | `instagram_DeeQRrRTLdq` | 0/0 | none to compare | none | 53 s -> 48 s |
 
-On the rev 18 source, on both paths, 14 of 987 yellow frames stay uncovered (1.4%) and 22 of 995 window frames show no yellow. The longest uncovered run is 0.20 s; one cause seen is a word OCR misses at the edge. Event loop lag stayed at or below 0.062 s in an otherwise idle container.
+On the rev 18 source, on both paths, 14 of 987 yellow frames stay uncovered (1.4%) and 22 of 995 window frames show no yellow. The longest uncovered run is 0.20 s. A word OCR misses at the edge is the likely cause, not checked. Event loop lag stayed at or below 0.062 s in an otherwise idle container.
 
 **Limits:**
 - Text in the shot on a caption line counts as the caption: "FENTY" on `instagram_DeOfMJJz6hL` holds one line's window about 0.3 s too long.
