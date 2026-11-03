@@ -1,6 +1,6 @@
 /// <reference types="bun-types" />
 
-import { afterEach, expect, jest, mock, test } from "bun:test";
+import { afterEach, expect, jest, mock, setSystemTime, test } from "bun:test";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { render } from "@/test-render";
 import { useEffect } from "react";
@@ -1145,4 +1145,62 @@ test("Scene media does not call the main video an upload while materials load", 
   const media = await screen.findByRole("region", { name: "Scene media" });
 
   expect(media.textContent).not.toContain("Upload");
+});
+
+test("previews stay readable while the draft stays open", async () => {
+  // Each piece of a video is read on the asset's cookie, which lasted five minutes: after ten
+  // minutes on a narration every read of the main video was refused (stage1, 2026-11-03).
+  const { timelineDocument } = await import("./timeline-test-fixtures");
+  const { GuidedStudio } = await import("./GuidedStudio");
+  const document_ = timelineDocument() as EditDocument;
+  const createEditorPreviewCapability = mock(async () => ({
+    preview_url: "/api/v1/projects/project_001/editor-assets/asset_video/preview",
+    expires_at: "2099-01-01T00:00:00Z",
+  }));
+  const intervals = jest.spyOn(globalThis, "setInterval");
+  const stopped = jest.spyOn(globalThis, "clearInterval");
+  const { unmount } = render(
+    <GuidedStudio
+      client={{
+        ...promptClientBase,
+        ...advancedClientBase,
+        listEditorAssets: mock(async () => ({ assets: [], next_cursor: null })),
+        createEditorPreviewCapability,
+        getEditDocument: mock(async () => document_),
+        patchEditDocument: mock(async () => ({ kind: "saved" as const, document: document_ })),
+      }}
+      projectId="project_001"
+      documentId="document_002"
+      onBack={() => {}}
+    />,
+  );
+  await waitFor(() => expect(createEditorPreviewCapability).toHaveBeenCalledWith("project_001", "asset_video"));
+  await act(async () => {});
+  const asked = () => createEditorPreviewCapability.mock.calls.length;
+  const first = asked();
+
+  const call = intervals.mock.calls.find(([, ms]) => (ms ?? 0) > 60_000 && (ms ?? 0) < 300_000);
+  const index = intervals.mock.calls.indexOf(call!);
+  (call![0] as () => void)();
+  expect(asked()).toBeGreaterThan(first);
+
+  // Coming back soon after a renewal asks for nothing; coming back past the cookie renews at once.
+  const renewed = asked();
+  const visibility = Object.getOwnPropertyDescriptor(window.document, "visibilityState");
+  Object.defineProperty(window.document, "visibilityState", { configurable: true, get: () => "visible" });
+  window.document.dispatchEvent(new Event("visibilitychange"));
+  expect(asked()).toBe(renewed);
+  setSystemTime(new Date(Date.now() + 301_000));
+  window.document.dispatchEvent(new Event("visibilitychange"));
+  expect(asked()).toBeGreaterThan(renewed);
+  setSystemTime();
+  if (visibility) Object.defineProperty(window.document, "visibilityState", visibility);
+  else delete (window.document as { visibilityState?: unknown }).visibilityState;
+
+  unmount();
+  // By identity: two timers compare equal, so toHaveBeenCalledWith passes on any other one.
+  const timer = intervals.mock.results[index]!.value;
+  expect(stopped.mock.calls.some(([id]) => id === timer)).toBe(true);
+  intervals.mockRestore();
+  stopped.mockRestore();
 });

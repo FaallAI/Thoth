@@ -56,6 +56,9 @@ import { ROLE_BEAT, computeBeats, type BeatId } from "./story/story_beats";
 import { BEAT_ROLE, addHook, addMaterialToBeat, addOutro, creditLine } from "./story/story_edits";
 import "./studio.css";
 
+// ponytail: assumes the deployed five-minute THOTH_EDITOR_PREVIEW_TTL_SECONDS; read `expires_at` if it drops.
+const PREVIEW_RENEW_MS = 180_000;
+
 type Props = {
   client: Pick<ControlPlaneClient, "getEditDocument" | "patchEditDocument"> &
     // Advanced editing degrades to guided editing wherever these are absent.
@@ -418,6 +421,33 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     // previewSources is read, not watched: each asset is asked for once per change of the media set.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [story, assetClient, mediaIds, projectId]);
+
+  // Each piece of a video is read on the asset's cookie, which expires in minutes: renewing it
+  // keeps the same address readable however long the draft stays open.
+  const previewAssets = useRef<string[]>([]);
+  useEffect(() => {
+    previewAssets.current = Object.keys(previewSources);
+  }, [previewSources]);
+  useEffect(() => {
+    if (!assetClient) return;
+    let renewed = Date.now();
+    const renew = () => {
+      renewed = Date.now();
+      for (const assetId of previewAssets.current) {
+        void assetClient.createEditorPreviewCapability(projectId, assetId).catch(() => {});
+      }
+    };
+    const timer = setInterval(renew, PREVIEW_RENEW_MS);
+    // A hidden tab's timers slow down or stop, so a returning tab can be past its cookies.
+    const onVisible = () => {
+      if (window.document.visibilityState === "visible" && Date.now() - renewed >= PREVIEW_RENEW_MS) renew();
+    };
+    window.document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(timer);
+      window.document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [assetClient, projectId]);
 
   const selectBeat = (id: BeatId) => {
     const beat = beats.find((entry) => entry.id === id);

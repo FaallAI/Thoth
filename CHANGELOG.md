@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-03 - Story previews stay readable while a draft stays open
+
+Branch `fix/preview-capability-renewal`, not pushed. The operator reported that the narrated draft "Happy halowin di melbreennn" was blank behind its cards, except for the first seconds, with the narration still playing.
+
+**Deploy of PR #108:** master `a32472ce`. Images: thoth `f81ff2dec515`, renderer `adfa766dfdf8`, web `1f726689d6de`, pulled ahead, digests in the CI log. `make deploy` exit 0, no workflow running before, no migration, web 200, 0 error lines in the worker after 2 minutes. The previous env is `D:/thoth-tmp/bu/pins/pins-110ad558.env`. `git pull` failed on DNS first, so `make deploy` ran from a working tree at `110ad558`; #108 changed only Python and this file, so the compose files were the same. On that draft the narration then wrote its `reactions` beat from real comments, so the comment fix below worked on its first run.
+
+**Cause:** the draft itself is sound. Revision 19 keeps the main clip under the cards to 22.6 s, and the main file has 33 s of normal frames with no white ones. The browser reads a video a piece at a time, each piece on the asset's capability cookie, which lasts 5 minutes, and Studio asked for each asset once. On stage1 the capability was issued at 14:54:35, the narration kept the page open for about 10 minutes, and from 15:05:01 to 15:05:29 the main video's preview answered 403 17 times. In a browser, with videos answering 403 on this draft, the main picture and the footage thumbnails go blank while cards and captions stay.
+
+**Fix:** `GuidedStudio` asks again for every preview it holds every 3 minutes, and at once when a tab returns past that time. The address stays the same, so a playing video keeps reading on the new cookie. On stage1's own 14:54:35 load, a second capability was followed by more 206 answers, so a repeat does not break reads.
+
+**Verification:** `make dashboard-test` 1564 pass, 0 fail; `make dashboard-build` passes. The new test went red first on the missing timer. Of five deliberate breaks, four were caught at first; the missed one, a timer never stopped, showed that `toHaveBeenCalledWith` compared two timers as equal, so the check now uses identity and catches it. In real Chromium on the dev server, with capabilities answered locally, 14 assets each asked again once about 3 minutes after load. The first run of that throwaway test failed on my own limit, which expected as many requests as the first load's 28. Only the dashboard changed.
+
+**Limits:**
+- The reproduction was black here and the operator saw white: the shape matches, the colour was not explained. The 403s and the timing are stage1's own, and no other cause was found.
+- Real cookies were not exercised, because the read-scope audit token cannot ask for previews. Once deployed, stage1's log should show renewals and no 403 on a page left open.
+- Whether a video already refused starts reading again was not tested, so a page that slept past its cookies may still need a reload.
+- The interval assumes the deployed 300 s `THOTH_EDITOR_PREVIEW_TTL_SECONDS`; marked `ponytail:` in the code.
+- A render does not use these cookies, so it should be unaffected. No render of this draft was run to confirm it.
+
+**Next steps:**
+- Operator gates, each separate: push and PR of this branch, merge, deploy, merging `chore/e2e-trial`.
+- After deploy: leave this draft open over 5 minutes and play it; check the log for no 403 on its previews.
+- Until then, reloading the page gives 5 more minutes of working previews.
+- Operator decisions: the 12-sample gate, rotating the printed secrets.
+- Carry forward: everything under Next steps of the two entries below.
+
 ## 2026-11-03 - A refused narration script is asked for once more; the script sees real comments
 
 Branch `fix/narration-script-answer`, not pushed. The operator's Create Narration on `edoc_d2a3ee17…` stopped with `invalid_provider_output`.
