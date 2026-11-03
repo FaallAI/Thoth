@@ -102,6 +102,11 @@ function isActive(job: RenderJob): boolean {
   return ALLOWED_TRANSITIONS[job.status].length > 0;
 }
 
+/** Polls only sample the lifecycle, so a read can land past a status it never saw. */
+function reaches(from: RenderJobStatus, to: RenderJobStatus): boolean {
+  return ALLOWED_TRANSITIONS[from].some((next) => next === to || reaches(next, to));
+}
+
 function isAttempt(mutation: RenderMutation): mutation is RenderAttemptMutation {
   return mutation === "create" || mutation === "retry";
 }
@@ -120,18 +125,13 @@ function monotonicProgress(known: RenderProgress, reported: RenderProgress): Ren
  *
  * A finished render is a fact: the record stands as it finished, and the one
  * thing that may still happen to it is cleanup. An unfinished render moves only
- * the way the lifecycle allows, and nothing it has already reached — its
+ * forward along the lifecycle, and nothing it has already reached — its
  * progress or a stamp the lifecycle sets once — can be taken back by a snapshot
  * that was read before it happened.
  */
 function reconcile(known: RenderJob | undefined, incoming: RenderJob): RenderJob | null {
   if (!known) return incoming;
-  if (
-    known.status !== incoming.status &&
-    !ALLOWED_TRANSITIONS[known.status].includes(incoming.status)
-  ) {
-    return null;
-  }
+  if (known.status !== incoming.status && !reaches(known.status, incoming.status)) return null;
   if (!isActive(known)) {
     // Same terminal status: output, failure, and timing are settled, so only a
     // first cleanup stamp is news. A missing one is a stale read, not a revert.
