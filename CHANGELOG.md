@@ -22,25 +22,33 @@ Branch `fix/blur-exact-edges`, offline, not pushed. The operator accepted the re
 
 | Video | Windows slow/fast | Edges identical | Largest difference | Time slow -> fast |
 |---|---|---|---|---|
-| rev 18 source | 17/17 | 34 of 34 | 0 | 194 s -> 114 s |
-| `instagram_DebN5MbiGXK` | 2/2 | 4 of 4 | 0 | 80 s -> 71 s |
-| `instagram_DeOfMJJz6hL` | 14/14 | 23 of 28 | 0.062 s | 114 s -> 86 s |
-| `instagram_DeeQRrRTLdq` | 0/0 | none to compare | none | 53 s -> 48 s |
+| rev 18 source | 17/17 | 34 of 34 | 0 | 204 s -> 119 s |
+| `instagram_DebN5MbiGXK` | 2/2 | 4 of 4 | 0 | 84 s -> 76 s |
+| `instagram_DeOfMJJz6hL` | 14/14 | 23 of 28 | 0.188 s | 122 s -> 92 s |
+| `instagram_DeeQRrRTLdq` | 0/0 | none to compare | none | 57 s -> 50 s |
 
-On the rev 18 source, on both paths, 14 of 987 yellow frames stay uncovered (1.4%) and 22 of 995 window frames show no yellow. The longest uncovered run is 0.20 s. A word OCR misses at the edge is the likely cause, not checked. Event loop lag stayed at or below 0.062 s in an otherwise idle container.
+The largest difference is one line of `instagram_DeOfMJJz6hL` with text in the shot beside it: slow closes it at 20.75 s, fast at 20.94 s, the other lines at 20.81 s. Event loop lag stayed at or below 0.062 s in an otherwise idle container, measured before the two edge fixes below.
+
+**Two edge fixes after reading every frame of the band:** the operator asked to fix the known limits, so every frame's caption band was read and compared with the windows. On the rev 18 source, 14 of 987 yellow frames were uncovered, and neither cause was the missed word first assumed.
+- Eight were the caption's last frame. A read stands for the frame at or after its second, so text outlasts a midpoint by a frame and never opens before one. A window now closes on the first read without its text. A lost read still keeps the midpoint.
+- Six were one word, "juga", read correctly but rejected: its letters below the line make its box 45% taller than "masuk" before it, past the 40% a track allows. `holds_caption` now accepts a box up to twice as tall or half as tall. On every frame of three videos, one line's boxes range from about 0.6 to 1.5 times its median, and small text in the shot stays out.
+
+Result on the rev 18 source: uncovered yellow frames 14 -> 0 of 987. Window frames with no yellow 22 -> 31 of 1018, the new ones one frame each. The start of no window moved; ends moved by up to 0.031 s, or 0.156 s and 0.219 s where a word used to be rejected.
 
 **Limits:**
-- Text in the shot on a caption line counts as the caption: "FENTY" on `instagram_DeOfMJJz6hL` holds one line's window about 0.3 s too long.
-- The yellow count sees only yellow words on one video. The other videos were compared with the slow path, not with the truth.
-- The 12 samples are still extracted one by one and read whole. The decode holds up to about 130 MB of JPEG at the 360-frame ceiling; that figure is computed, not measured.
-- Only these four videos went through the fast path, and production has not run it.
+- Text in the shot on a caption line counts as the caption: "FENTY" on `instagram_DeOfMJJz6hL` holds one line's window about 0.31 s too long. Left on purpose: it occurs on one video, it covers real text instead of leaving a word showing, and every rule tried for it would risk closing a real caption early.
+- A blank inside a window stays blurred when reads on both sides hold text: 0.23 s at 17.63 s on the rev 18 source.
+- The yellow count sees only yellow words on one video. The other videos were compared with the slow path, not with the truth. Per-frame OCR cannot serve as that truth, because it also reads signs and shirts.
+- The 12 samples are still extracted one by one and read whole. One decode at the 360-frame ceiling, on the heaviest stored source looped to 216 s, held 93 MB of JPEG and raised peak memory by 179 MB, measured, in 19.6 s. The earlier 130 MB was only a computed JPEG total. The worker has no memory limit and the host had about 9 GB free, so nothing changes.
+- Production has not run the fast path.
+- **A width rule at its limit decides a whole track.** Calling the follow path directly on the seven other stored videos: six agree (0 windows, 14-84 s), but `instagram_Dc5ZNTtSxeH` gives 43 windows slow and 7 fast. Frames differ by 0.5 luma levels and 286 of 334 seconds read the same text, but one extra word moved a track's median width from 0.190 to 0.178 across the 0.18 rule. Neither answer is right: its word captions cover about 188 half-second reads and the wider rule misses the largest track on both paths, while the 7 fast windows are 0.06-0.56 s blinks. The 12-sample gate does not open for this video, so production never reaches this path. Short-word captions on a video where the gate opens could flip the same way, on either path. The rev 18 track has 0.211 against the 0.18 rule.
 
-**Verification:** `make test` 4486 passed, 263 skipped; `make lint` clean; eight golden cases pass. Tests came first; the new-API tests first failed on missing names, not on wrong behaviour. Each new rule was broken in turn. That found one weak test (the band check read only the size) and a brightness test that failed for a reason other than a wrong frame; a bar's position now identifies the frame. One mutation had no effect on behaviour and was replaced. Only Python changed.
+**Verification:** `make test` 4488 passed, 263 skipped; `make lint` clean; eight golden cases pass. Tests came first and were watched failing; for the two edge fixes the reds were the new expected values, not missing names. Each new rule was broken in turn, and all six breaks of the edge fixes were caught. For the speed work, the new-API tests first failed on missing names, not on wrong behaviour. That round found one weak test (the band check read only the size) and a brightness test that failed for a reason other than a wrong frame; a bar's position now identifies the frame. One mutation had no effect on behaviour and was replaced. Only Python changed.
 
 **Next steps:**
 - Operator gates, each separate: push and PR of this branch, merge, deploy, merging `chore/e2e-trial`.
 - Parked: four reads at once, about 0.32 s per frame in a bench, on about 8 cores. It needs a test under real load because OCR threads starved the Temporal workflow thread before.
-- Operator decision: read every main every half second, to catch captions the samples miss, or keep the gate.
+- Operator decision: read every main every half second, to catch captions the samples miss, or keep the gate. Opening it needs the 0.18 width rule and the word-caption edges reworked first: on `instagram_Dc5ZNTtSxeH` both fall short.
 - Rev 19 leftovers still in revision 20: colour bars at about 5 s, narration quoting comments without cards, long title ending "ke…".
 - Operator: decide on rotating the printed secrets.
 - Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; `onPreviewUnavailable` called during render; 218 stored `unknown` rows stay in `workflow_runs`; the knowledge graph update; a fresh full run with the caption judge at final acceptance.

@@ -294,13 +294,15 @@ async def _edge(
             row = await read_second(second)
             if row.error:
                 logger.warning("caption edge %.2f unread; it stays within its gap", second)
-                break
+                return (outside + inside) / 2
             rows[second] = row
         if holds_caption(gap.reference, row):
             inside = second
         else:
             outside = second
-    return (outside + inside) / 2
+    # A read stands for the frame at or after its second, so text can outlast a midpoint by a
+    # frame, never open before one: a window closes on the first read without its text.
+    return max(outside, (outside + inside) / 2)
 
 
 async def _measure_trim(

@@ -481,6 +481,8 @@ def test_a_lost_read_is_not_taken_for_a_read_without_text() -> None:
     ("box", "expected"),
     [
         (OcrBox("berikutnya", 0.25, 0.7, 0.75, 0.75), True),  # the next words of the line
+        (OcrBox("juga", 0.25, 0.689, 0.75, 0.761), True),  # letters below the line: a taller box
+        (OcrBox("MEREK", 0.25, 0.665, 0.75, 0.785), False),  # far larger letters: text in the shot
         (OcrBox("kata", 0.3, 0.2, 0.7, 0.25), False),  # another height
         (OcrBox("DIY", 0.3, 0.71, 0.34, 0.72), False),  # small text in the shot
         (OcrBox("kata", 0.0, 0.7, 0.6, 0.75), False),  # cut by the frame edge

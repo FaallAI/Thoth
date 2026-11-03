@@ -300,8 +300,9 @@ def test_blur_opens_and_closes_with_the_caption_and_skips_the_watermark() -> Non
     ocr = followed()
 
     assert ocr.outcome == "subtitle" and ocr.mute_audio
-    # Each edge is read out of its half-second gap: within 1/32 s of the text.
-    assert [(r.start, r.end) for r in ocr.subtitle_blur] == [(0.0, 2.03125), (5.96875, 10.53125)]
+    # Each edge is read out of its half-second gap. A window closes on the first read without its
+    # text: a midpoint left the caption's last frame showing (rev 18 source, 2026-11-03).
+    assert [(r.start, r.end) for r in ocr.subtitle_blur] == [(0.0, 2.0625), (5.96875, 10.5625)]
     assert all(r.y > 0.8 for r in ocr.subtitle_blur)
 
 
@@ -377,7 +378,7 @@ def test_a_frame_lost_at_an_edge_keeps_that_edge_within_its_gap() -> None:
 
     ocr = followed(frames)
 
-    assert [(r.start, r.end) for r in ocr.subtitle_blur] == [(0.0, 2.25), (5.96875, 10.53125)]
+    assert [(r.start, r.end) for r in ocr.subtitle_blur] == [(0.0, 2.25), (5.96875, 10.5625)]
     assert 2.0 not in [second for second, _ in frames.calls[frames.calls.index((2.25, 720)) + 1 :]]
 
 
@@ -411,7 +412,7 @@ def test_a_missing_tool_at_an_edge_keeps_its_code() -> None:
 
 # --- One decode pass and the caption band (operator, 2026-11-03) ---
 
-SHARP = [(0.0, 2.03125), (5.96875, 10.53125)]
+SHARP = [(0.0, 2.0625), (5.96875, 10.5625)]
 
 
 class OnePass:
@@ -509,7 +510,7 @@ def test_a_band_read_that_fails_keeps_that_edge_within_its_gap() -> None:
 
     ocr = followed(text=text, decoder=OnePass(), bands=text)
 
-    assert windows(ocr) == [(0.0, 2.25), (5.96875, 10.53125)]
+    assert windows(ocr) == [(0.0, 2.25), (5.96875, 10.5625)]
 
 
 def test_without_a_band_reader_the_edges_are_read_whole() -> None:
