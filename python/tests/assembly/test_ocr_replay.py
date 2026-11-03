@@ -87,7 +87,7 @@ def test_replay_reproduces_recovered_seconds_and_no_answers() -> None:
 def test_the_rev_18_source_blurs_only_while_its_captions_show() -> None:
     # Word captions on a shot full of signs and shirts, under a watermark the reader misreads. The
     # sampled windows blurred a face and a body for seconds (operator, rev 19, 2026-11-02).
-    path = Path(__file__).parents[1] / "fixtures/assembly/ocr_follow/tiktok_rev18_source.json"
+    path = Path(__file__).parents[1] / "fixtures/assembly/ocr/tiktok_rev18_source.json"
 
     ocr = replay(json.loads(path.read_text(encoding="utf-8")))
 

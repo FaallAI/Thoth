@@ -6056,5 +6056,10 @@
  ],
  "trim_allowed": false,
  "tracker": null,
- "vision": null
+ "vision": null,
+ "expected": {
+  "outcome": "subtitle",
+  "trim_start": 0.0,
+  "blur_count": 17
+ }
 }
