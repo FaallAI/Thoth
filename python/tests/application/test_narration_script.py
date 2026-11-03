@@ -197,6 +197,33 @@ def test_sound_effects_the_draft_cannot_use_are_dropped_not_fatal() -> None:
     assert [cue.sfx_id for cue in script.sfx_cues] == ["whoosh"] * 3
 
 
+@pytest.mark.parametrize(
+    "broken",
+    [
+        {"sfx_id": "whoosh", "beat": "main"},
+        {"sfx_id": "whoosh", "beat": "main", "moment": ""},
+        {"sfx_id": "whoosh", "beat": "main", "moment": "x", "word_index": "3"},
+        {"sfx_id": "whoosh", "beat": "main", "moment": "x", "word_index": -1},
+        {"sfx_id": "whoosh", "beat": "main", "moment": "x", "why": "extra field"},
+    ],
+)
+def test_a_badly_written_cue_is_dropped_and_the_script_stands(broken: dict[str, object]) -> None:
+    good = {"sfx_id": "whoosh", "beat": "main", "moment": "x"}
+    script = parse_script(
+        answer(sfx_cues=[broken, good]), beats=BEATS, preset=NarrationPreset(), sfx_ids={"whoosh"}
+    )  # type: ignore[arg-type]
+    assert [(cue.moment, cue.word_index) for cue in script.sfx_cues] == [("x", None)]
+
+
+def test_a_long_reason_for_a_cue_keeps_the_cue() -> None:
+    # The contract asks the model why it plays, and the stored field holds 60 characters.
+    cue = {"sfx_id": "whoosh", "beat": "main", "moment": "y" * 200}
+    script = parse_script(
+        answer(sfx_cues=[cue]), beats=BEATS, preset=NarrationPreset(), sfx_ids={"whoosh"}
+    )  # type: ignore[arg-type]
+    assert [cue.moment for cue in script.sfx_cues] == ["y" * 60]
+
+
 def test_an_empty_library_asks_for_no_sound_effects() -> None:
     _system, user = build_script_request(
         prompt="Tulis naskah.",

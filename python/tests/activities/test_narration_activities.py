@@ -131,8 +131,12 @@ class Studio:
     async def story_context(self, _p: str, _d: str) -> tuple[str, str]:
         return ("Kucing viral", "Kucing mencuri ikan")
 
-    async def story_comments(self, _p: str, _d: str) -> list[str]:
-        return ["lucu sekali"]
+    async def story_comments(self, _p: str, _d: str) -> dict[str, str]:
+        return {
+            "comment_card_001": "lucu sekali",
+            "comment_card_009": "kartunya tidak tampil",
+            "comment_000": "tanpa kartu",
+        }
 
 
 class Voice:
@@ -329,6 +333,33 @@ def test_the_script_request_carries_what_commenters_wrote() -> None:
 
     user = seen["provider_requests"][0]["user"]
     assert "- lucu sekali" in user and "@andi" not in user
+
+
+def test_the_script_only_hears_of_comments_shown_in_the_draft() -> None:
+    # On stage1 (2026-11-03) the narration quoted comments 4 and 5 while only 3 had cards up.
+    built, seen = ports()
+
+    run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+
+    user = seen["provider_requests"][0]["user"]
+    assert "kartunya tidak tampil" not in user and "tanpa kartu" not in user
+
+
+def test_a_hidden_card_is_not_a_comment_on_screen() -> None:
+    built, seen = ports()
+    document = seen["documents"].document
+    seen["documents"].document = document.model_copy(
+        update={
+            "clips": [
+                clip.model_copy(update={"hidden": clip.clip_id == "clip_comment_card_001"})
+                for clip in document.clips
+            ]
+        }
+    )
+
+    run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+
+    assert "lucu sekali" not in seen["provider_requests"][0]["user"]
 
 
 def test_voicing_stitches_neighbours_and_writing_narrates_the_draft() -> None:

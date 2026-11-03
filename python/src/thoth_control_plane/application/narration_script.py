@@ -21,6 +21,7 @@ from thoth_control_plane.domain.narration import (
     BeatId,
     NarrationPreset,
     NarrationScript,
+    SfxCue,
     SfxEntry,
     TranscriptSegment,
 )
@@ -40,6 +41,7 @@ COMMENT_LIMIT = 200
 COMMENTS_SHOWN = 10
 TRANSCRIPT_LIMIT = 3000
 ANSWER_SHOWN = 300  # how much of a refused answer the log keeps
+MOMENT_LIMIT = 60  # SfxCue.moment
 _URL = re.compile(r"https?://\S+|www\.\S+", re.IGNORECASE)
 _SENTENCE_END = re.compile(r"[.!?…]\s*$")
 #: Punctuation that wraps a token; the curly quotes are written as escapes.
@@ -115,6 +117,16 @@ def build_script_request(
     return f"{prompt}\n\n{ANSWER_CONTRACT}", "\n".join(line for line in lines if line)
 
 
+def _cue(raw: dict[str, Any]) -> SfxCue | None:
+    """One sound effect, or None when the model wrote it badly. The contract asks why it plays,
+    which can run past the stored moment, so a long reason is cut instead of costing the cue."""
+    moment = str(raw.get("moment", "")).strip()[:MOMENT_LIMIT]
+    try:
+        return SfxCue.model_validate({**raw, "moment": moment})
+    except ValidationError:
+        return None
+
+
 def parse_script(
     answer: object,
     *,
@@ -143,11 +155,12 @@ def parse_script(
     # A sound effect is optional: one the draft cannot use is dropped, never fatal.
     written_beats = {item["beat"] for item in ordered}
     cues = [
-        cue
+        usable
         for cue in (answer.get("sfx_cues") or [])
         if isinstance(cue, dict)
         and cue.get("sfx_id") in sfx_ids
         and cue.get("beat") in written_beats
+        and (usable := _cue(cue)) is not None
     ][: preset.max_sfx_cues]
     try:
         script = NarrationScript.model_validate(
