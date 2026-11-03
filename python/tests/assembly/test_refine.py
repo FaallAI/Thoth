@@ -10,6 +10,7 @@ import pytest
 from thoth_control_plane.assembly.refine import (
     EdgeGap,
     edge_gaps,
+    edge_seconds,
     follow_captions,
     follow_seconds,
     holds_caption,
@@ -488,3 +489,11 @@ def test_a_lost_read_is_not_taken_for_a_read_without_text() -> None:
 )
 def test_a_read_holds_the_caption_only_on_its_line(box: OcrBox, expected: bool) -> None:
     assert holds_caption(LINE, OcrFrame(1.0, (box,))) is expected
+
+
+def test_a_gap_names_every_second_its_halving_can_ask_for() -> None:
+    gap = EdgeGap(LINE, 2.0, 1.5)
+
+    assert edge_seconds(gap, 2) == {1.75, 1.625, 1.875}
+    assert len(edge_seconds(gap, 3)) == 7
+    assert min(edge_seconds(gap, 3)) > 1.5 and max(edge_seconds(gap, 3)) < 2.0

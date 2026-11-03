@@ -2,6 +2,49 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-03 - Exact blur edges in about half the OCR time
+
+Branch `fix/blur-exact-edges`, offline, not pushed. The operator accepted the revision 20 render, then asked whether the edge reads could be faster without changing the result.
+
+**Deploy of PR #106:** master `2ba562c`. Images: thoth `a75a3b41`, renderer `b675658d`, web `118911d9`, pulled ahead. `make deploy` exit 0, no workflow running before, no migration, every service up, web 200, 0 error lines in the worker in the first 2 minutes. The previous env is `D:/thoth-tmp/bu/pins/pins-afa4def7.env`.
+
+**Revision 20 of the rev 18 draft:** the main clip runs to frame 766, and 17 followed windows replace the 6 sampled ones. The windows came from the deployed OCR path in the worker, 123 s, without the judge. Render `rj_39d34434c7e8476aa19716e58f06f230`, `D:/thoth-tmp/r20/rev20.mp4`, one video unit of `ws_bootstrap`, no TTS and no provider. No full black stretch by `blackdetect`, and the footage shows behind the cards. The operator judged it good on 2026-11-03, so the rev 18 source is now the eighth golden OCR case.
+
+**Edges:** frame by frame, yellow caption words on revision 20 showed unblurred in 50 of 987 frames, up to 0.23 s at a window edge. `_sharpen` now halves each edge's half-second gap three times, with a limit of 180 reads. Lines of one caption share reads. A lost read keeps that edge inside its gap. Past the limit, every edge stays within half a second, with a warning. `FfmpegRegionTracker` does not fit: a change of words looks like the text leaving.
+
+**Speed:** the detector takes about 0.55 of 0.63 s per frame, and it is already native, so C++ or Rust would not help.
+- Edges read only the band holding the caption lines, cut from one decode pass. `Det.limit_type=max` stops the detector scaling a thin crop up, which is why a crop measured slower in the C++ research. About 0.075 s per read instead of 0.63 s on the rev 18 source.
+- The half-second frames come from one PyAV pass (`PyAvFrameDecoder`) instead of one ffmpeg process per frame.
+- The samples stay YCbCr. Through RGB, saturated colours clipped and the luma moved by up to 4.6 levels against ffmpeg's frames. After the change the bias is about 0.02 and each channel differs by 1-2 levels.
+- A failed pass, a rotated video or a second past the end falls back to one-frame extraction with the same result.
+
+**Slow path against fast path, same code, no judge, no provider:**
+
+| Video | Windows slow/fast | Edges identical | Largest difference | Time slow -> fast |
+|---|---|---|---|---|
+| rev 18 source | 17/17 | 34 of 34 | 0 | 194 s -> 114 s |
+| `instagram_DebN5MbiGXK` | 2/2 | 4 of 4 | 0 | 80 s -> 71 s |
+| `instagram_DeOfMJJz6hL` | 14/14 | 23 of 28 | 0.062 s | 114 s -> 86 s |
+| `instagram_DeeQRrRTLdq` | 0/0 | none to compare | none | 53 s -> 48 s |
+
+On the rev 18 source, on both paths, 14 of 987 yellow frames stay uncovered (1.4%) and 22 of 995 window frames show no yellow. The longest uncovered run is 0.20 s; one cause seen is a word OCR misses at the edge. Event loop lag stayed at or below 0.062 s in an otherwise idle container.
+
+**Limits:**
+- Text in the shot on a caption line counts as the caption: "FENTY" on `instagram_DeOfMJJz6hL` holds one line's window about 0.3 s too long.
+- The yellow count sees only yellow words on one video. The other videos were compared with the slow path, not with the truth.
+- The 12 samples are still extracted one by one and read whole. The decode holds up to about 130 MB of JPEG at the 360-frame ceiling; that figure is computed, not measured.
+- Only these four videos went through the fast path, and production has not run it.
+
+**Verification:** `make test` 4486 passed, 263 skipped; `make lint` clean; eight golden cases pass. Tests came first; the new-API tests first failed on missing names, not on wrong behaviour. Each new rule was broken in turn. That found one weak test (the band check read only the size) and a brightness test that failed for a reason other than a wrong frame; a bar's position now identifies the frame. One mutation had no effect on behaviour and was replaced. Only Python changed.
+
+**Next steps:**
+- Operator gates, each separate: push and PR of this branch, merge, deploy, merging `chore/e2e-trial`.
+- Parked: four reads at once, about 0.32 s per frame in a bench, on about 8 cores. It needs a test under real load because OCR threads starved the Temporal workflow thread before.
+- Operator decision: read every main every half second, to catch captions the samples miss, or keep the gate.
+- Rev 19 leftovers still in revision 20: colour bars at about 5 s, narration quoting comments without cards, long title ending "ke…".
+- Operator: decide on rotating the printed secrets.
+- Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; `onPreviewUnavailable` called during render; 218 stored `unknown` rows stay in `workflow_runs`; the knowledge graph update; a fresh full run with the caption judge at final acceptance.
+
 ## 2026-11-03 - Blur follows the text; the main video fills its beats
 
 Branch `fix/blur-follows-text`, offline, nothing pushed. Findings of the operator on the rev 19 render: blur stayed after its text was gone and sat on faces, and the footage went black behind the cards from 13.6 s to 25.5 s.

@@ -241,6 +241,19 @@ def holds_caption(reference: OcrBox, frame: OcrFrame) -> bool:
     )
 
 
+def edge_seconds(gap: EdgeGap, rounds: int) -> set[float]:
+    """Every second that halving this gap `rounds` times can ask for."""
+    spans, seconds = [(gap.outside, gap.inside)], set()
+    for _ in range(rounds):
+        halves = []
+        for one, other in spans:
+            middle = round((one + other) / 2, 6)
+            seconds.add(middle)
+            halves += [(one, middle), (middle, other)]
+        spans = halves
+    return seconds
+
+
 def edge_gaps(
     frames: Sequence[OcrFrame], region: Region, trim_start: float
 ) -> tuple[EdgeGap | None, EdgeGap | None]:

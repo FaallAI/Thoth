@@ -187,6 +187,7 @@ async def _run(
 def build_production_assembler(settings: Settings) -> Assembler:
     from thoth_control_plane.assembly.adapters.captions import AgnoCaptionJudge
     from thoth_control_plane.assembly.adapters.comment_judge import JevCommentJudge
+    from thoth_control_plane.assembly.adapters.decoder import PyAvFrameDecoder
     from thoth_control_plane.assembly.adapters.figures import AgnoFigureModel
     from thoth_control_plane.assembly.adapters.region import FfmpegRegionTracker
     from thoth_control_plane.assembly.service import AssemblyPorts, ContentAssembler
@@ -195,11 +196,14 @@ def build_production_assembler(settings: Settings) -> Assembler:
     from thoth_control_plane.infrastructure.footage_store import FootageStore
 
     openrouter = settings.openrouter_api_key
+    reader = RapidOcrReader(angle=False)
     return ContentAssembler(
         AssemblyPorts(
             frames=FfmpegFrameSource(settings.THOTH_FFMPEG),
             probe=FfprobeDuration(settings.THOTH_FFPROBE),
-            text=RapidOcrReader(angle=False),
+            text=reader,
+            decoder=PyAvFrameDecoder(),
+            bands=reader,
             figures=AgnoFigureModel(openrouter, settings.THOTH_FIGURES_MODEL)
             if openrouter
             else None,

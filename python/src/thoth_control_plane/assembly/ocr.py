@@ -12,6 +12,7 @@ each edge is read again inside its half-second gap (operator, 2026-11-03).
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
@@ -19,8 +20,10 @@ from pathlib import Path
 from thoth_control_plane.assembly.models import BlurRegion, MainOcr
 from thoth_control_plane.assembly.ports import (
     AssemblyError,
+    BandReader,
     CaptionJudge,
     DurationProbe,
+    FrameDecoder,
     FrameSampler,
     RegionTracker,
     TextReader,
@@ -29,6 +32,7 @@ from thoth_control_plane.assembly.refine import (
     EdgeGap,
     Windows,
     edge_gaps,
+    edge_seconds,
     follow_captions,
     follow_seconds,
     headline_span,
@@ -47,6 +51,7 @@ from thoth_control_plane.assembly.subtitles import (
     classify_ocr_frames,
 )
 from thoth_control_plane.attribution.adapters.frames import DurationError, FrameError, ToolMissing
+from thoth_control_plane.attribution.matching import TextBox
 from thoth_control_plane.attribution.ports import Frame
 
 logger = logging.getLogger(__name__)
@@ -59,6 +64,7 @@ EDGE_ROUNDS = 3  # a half-second gap narrows to 1/16 s, an edge to within about 
 # ponytail: past this, every edge stays within half a second; reading only some would make
 # windows of one video differ. About 2.5 minutes, kept inside the assembly activity's limit.
 EDGE_MAX_READS = 180
+BAND_MARGIN = 0.02  # above and below the caption lines, more than a line wanders (TRACK_Y)
 
 
 def recovery_seconds(requested: float, previous: float | None) -> list[float]:
@@ -91,16 +97,40 @@ async def _read_at(
     frame = await _frame(frames, video, second, previous)
     if frame is None:
         return OcrFrame(second, error="frame_extract"), None
+    row = await _boxes(frame, text.read)
+    return row, None if row.error else frame
+
+
+async def _boxes(frame: Frame, read: Callable[[Frame], Awaitable[list[TextBox]]]) -> OcrFrame:
     try:
-        boxes = await text.read(frame)
+        boxes = await read(frame)
     except ToolMissing as missing:
         raise AssemblyError(missing.code) from None
     except ImportError:
         raise AssemblyError("rapidocr_missing") from None
     except Exception:
-        return OcrFrame(frame.second, error="ocr_failed"), None
-    row = tuple(OcrBox(b.text, b.left, b.top, b.right, b.bottom) for b in boxes)
-    return OcrFrame(frame.second, row), frame
+        return OcrFrame(frame.second, error="ocr_failed")
+    return OcrFrame(
+        frame.second, tuple(OcrBox(b.text, b.left, b.top, b.right, b.bottom) for b in boxes)
+    )
+
+
+async def _decoded(
+    decoder: FrameDecoder | None,
+    video: Path,
+    seconds: Sequence[float],
+    *,
+    top: float = 0.0,
+    bottom: float = 1.0,
+) -> dict[float, Frame]:
+    """One pass over the video; without it each frame is extracted alone, the same but slower."""
+    if decoder is None or not seconds:
+        return {}
+    try:
+        return await decoder.decode(video, seconds, width=FRAME_WIDTH, top=top, bottom=bottom)
+    except Exception as error:
+        logger.warning("decode pass failed (%s); frames are extracted alone", type(error).__name__)
+        return {}
 
 
 async def analyze_main_ocr(
@@ -116,6 +146,8 @@ async def analyze_main_ocr(
     tracker: RegionTracker | None = None,
     judge: CaptionJudge | None = None,
     follow: bool = True,
+    decoder: FrameDecoder | None = None,
+    bands: BandReader | None = None,
 ) -> MainOcr:
     """`follow`: False for a caller that only needs the verdict, not the windows to blur."""
     if not duration or duration <= 0:
@@ -149,7 +181,9 @@ async def analyze_main_ocr(
     windows = sort_windows(read, verdict)
     confirmed = await _confirm(windows, images, judge) if windows.captions else None
     if follow and windows.captions and confirmed is not False:
-        verdict, windows = await _follow_text(video, read, duration, verdict, windows, frames, text)
+        verdict, windows = await _follow_text(
+            video, read, duration, verdict, windows, frames, text, decoder, bands
+        )
     verdict = settle(verdict, windows, confirmed)
     return MainOcr(
         analyzed_at=now,
@@ -174,13 +208,21 @@ async def _follow_text(
     windows: Windows,
     frames: FrameSampler,
     text: TextReader,
+    decoder: FrameDecoder | None,
+    bands: BandReader | None,
 ) -> tuple[Verdict, Windows]:
     """Windows that hold only while their text does; without full coverage, the sampled ones."""
     rows = {frame.t: frame for frame in read}
+    seconds = follow_seconds(verdict.trim_start, duration)
+    decoded = await _decoded(decoder, video, [second for second in seconds if second not in rows])
     previous = None
-    for second in follow_seconds(verdict.trim_start, duration):
+    for second in seconds:
         if second not in rows:
-            row, _ = await _read_at(frames, video, text, second, previous)
+            frame = decoded.get(second)
+            if frame is None:
+                row, _ = await _read_at(frames, video, text, second, previous)
+            else:
+                row = await _boxes(frame, text.read)
             if row.error:
                 logger.warning("caption frame %.2f unread; the sampled blur windows stay", second)
                 return verdict, windows
@@ -191,7 +233,9 @@ async def _follow_text(
     if len(followed) + len(windows.overlays) > MAX_BLUR_REGIONS:
         logger.warning("%d caption windows; the sampled blur windows stay", len(followed))
         return verdict, windows
-    followed = await _sharpen(video, rows, followed, verdict.trim_start, frames, text)
+    followed = await _sharpen(
+        video, rows, followed, verdict.trim_start, frames, text, decoder, bands
+    )
     return (
         replace(verdict, subtitle_blur=(*windows.overlays, *followed)),
         replace(windows, captions=followed),
@@ -205,23 +249,41 @@ async def _sharpen(
     trim_start: float,
     frames: FrameSampler,
     text: TextReader,
+    decoder: FrameDecoder | None,
+    bands: BandReader | None,
 ) -> tuple[Region, ...]:
     """The windows with each edge read out of the half-second gap it falls in."""
     gaps = [edge_gaps(list(rows.values()), region, trim_start) for region in followed]
-    edges = sum(1 for pair in gaps for gap in pair if gap)
-    if edges * EDGE_ROUNDS > EDGE_MAX_READS:
-        logger.warning("%d caption edges; they stay within half a second", edges)
+    found = [gap for pair in gaps for gap in pair if gap]
+    if len(found) * EDGE_ROUNDS > EDGE_MAX_READS:
+        logger.warning("%d caption edges; they stay within half a second", len(found))
         return followed
+    # Every caption line lies in this band, so the detector has far fewer pixels to read.
+    top = max(0.0, min((region.y for region in followed), default=0.0) - BAND_MARGIN)
+    bottom = min(1.0, max((r.y + r.h for r in followed), default=1.0) + BAND_MARGIN)
+    cut: dict[float, Frame] = {}
+    if bands is not None:
+        wanted = sorted({second for gap in found for second in edge_seconds(gap, EDGE_ROUNDS)})
+        cut = await _decoded(decoder, video, wanted, top=top, bottom=bottom)
+
+    async def read_second(second: float) -> OcrFrame:
+        frame = cut.get(second)
+        if frame is None or bands is None:
+            # `previous` just below: recovery must not answer with a frame from outside the gap.
+            row, _ = await _read_at(frames, video, text, second, second - 0.001)
+            return row
+        return await _boxes(frame, lambda band: bands.read_band(band, top, bottom))
+
     sharp = []
     for region, (opening, closing) in zip(followed, gaps, strict=True):
-        start = await _edge(video, rows, opening, frames, text) if opening else region.start
-        end = await _edge(video, rows, closing, frames, text) if closing else region.end
+        start = await _edge(rows, opening, read_second) if opening else region.start
+        end = await _edge(rows, closing, read_second) if closing else region.end
         sharp.append(replace(region, start=start, end=end))
     return tuple(sharp)
 
 
 async def _edge(
-    video: Path, rows: dict[float, OcrFrame], gap: EdgeGap, frames: FrameSampler, text: TextReader
+    rows: dict[float, OcrFrame], gap: EdgeGap, read_second: Callable[[float], Awaitable[OcrFrame]]
 ) -> float:
     """Halve the gap; lines of one caption ask for the same seconds, so `rows` saves the reads."""
     outside, inside = gap.outside, gap.inside
@@ -229,8 +291,7 @@ async def _edge(
         second = round((outside + inside) / 2, 6)
         row = rows.get(second)
         if row is None:
-            # `previous` just below: recovery must not answer with a frame from outside the gap.
-            row, _ = await _read_at(frames, video, text, second, second - 0.001)
+            row = await read_second(second)
             if row.error:
                 logger.warning("caption edge %.2f unread; it stays within its gap", second)
                 break

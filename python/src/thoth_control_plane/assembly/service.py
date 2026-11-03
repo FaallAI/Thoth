@@ -41,10 +41,12 @@ from thoth_control_plane.assembly.models import (
 from thoth_control_plane.assembly.ocr import analyze_main_ocr
 from thoth_control_plane.assembly.ports import (
     AssemblyError,
+    BandReader,
     CaptionJudge,
     CommentJudge,
     DurationProbe,
     FigureModel,
+    FrameDecoder,
     FrameSampler,
     RegionTracker,
     TextReader,
@@ -72,6 +74,8 @@ class AssemblyPorts:
     tracker: RegionTracker | None = None
     judge: CaptionJudge | None = None
     footage: FootageReader | None = None
+    decoder: FrameDecoder | None = None
+    bands: BandReader | None = None
 
 
 @dataclass(frozen=True)
@@ -255,6 +259,8 @@ class ContentAssembler:
                     trim_allowed=source == "input" and verdict in ("unresolved", "none"),
                     tracker=self._ports.tracker,
                     judge=self._ports.judge,
+                    decoder=self._ports.decoder,
+                    bands=self._ports.bands,
                 )
         except BaseException:
             figures_task.cancel()

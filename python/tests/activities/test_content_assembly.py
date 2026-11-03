@@ -360,3 +360,24 @@ def test_the_heartbeat_covers_the_assembly_pull(
         )
     )
     assert store.calls == [("fetch", True)]
+
+
+def test_production_reads_captions_in_one_pass_and_edges_in_the_band() -> None:
+    from types import SimpleNamespace
+
+    from thoth_control_plane.activities.content_assembly import build_production_assembler
+    from thoth_control_plane.assembly.adapters.decoder import PyAvFrameDecoder
+
+    assembler = build_production_assembler(
+        SimpleNamespace(  # type: ignore[arg-type]
+            openrouter_api_key=None,
+            THOTH_FFMPEG="ffmpeg",
+            THOTH_FFPROBE="ffprobe",
+            THOTH_FOOTAGE_ENABLED=False,
+            THOTH_EDITOR_DATABASE_URL=None,
+            THOTH_SUBTITLE_OCR_MAX_FRAMES=12,
+        )
+    )
+
+    assert isinstance(assembler._ports.decoder, PyAvFrameDecoder)
+    assert assembler._ports.bands is assembler._ports.text
