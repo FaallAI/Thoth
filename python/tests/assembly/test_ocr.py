@@ -8,8 +8,10 @@ from pathlib import Path
 
 import pytest
 
+from thoth_control_plane.assembly import ocr as ocr_module
 from thoth_control_plane.assembly.ocr import analyze_main_ocr
 from thoth_control_plane.assembly.ports import AssemblyError
+from thoth_control_plane.assembly.subtitles import build_sample_times
 from thoth_control_plane.attribution.adapters.frames import DurationError, FrameError, ToolMissing
 from thoth_control_plane.attribution.matching import TextBox
 from thoth_control_plane.attribution.ports import Frame
@@ -298,7 +300,8 @@ def test_blur_opens_and_closes_with_the_caption_and_skips_the_watermark() -> Non
     ocr = followed()
 
     assert ocr.outcome == "subtitle" and ocr.mute_audio
-    assert [(r.start, r.end) for r in ocr.subtitle_blur] == [(0.0, 2.25), (5.75, 10.75)]
+    # Each edge is read out of its half-second gap: within 1/32 s of the text.
+    assert [(r.start, r.end) for r in ocr.subtitle_blur] == [(0.0, 2.03125), (5.96875, 10.53125)]
     assert all(r.y > 0.8 for r in ocr.subtitle_blur)
 
 
@@ -349,4 +352,58 @@ def test_a_missing_tool_while_following_keeps_its_code() -> None:
 
     with pytest.raises(AssemblyError) as raised:
         followed(text=Dies())
+    assert raised.value.code == "rapidocr_missing"
+
+
+def test_the_lines_of_one_caption_share_the_reads_of_their_edges() -> None:
+    class TwoLines(Spoken):
+        async def read(self, frame: Frame) -> list[TextBox]:
+            boxes = await super().read(frame)
+            second = float(frame.jpeg.decode())
+            if second <= 2 or 6 <= second <= 10.5:
+                boxes.append(TextBox(CAPTION[int(second * 2) % 7 + 1], 0.74, 0.79, 0.3, 0.7))
+            return boxes
+
+    text = TwoLines()
+
+    ocr = followed(text=text)
+
+    assert len(ocr.subtitle_blur) == 4
+    assert len(text.read_at) == len(set(text.read_at))
+
+
+def test_a_frame_lost_at_an_edge_keeps_that_edge_within_its_gap() -> None:
+    frames = Frames(broken={2.25})
+
+    ocr = followed(frames)
+
+    assert [(r.start, r.end) for r in ocr.subtitle_blur] == [(0.0, 2.25), (5.96875, 10.53125)]
+    assert 2.0 not in [second for second, _ in frames.calls[frames.calls.index((2.25, 720)) + 1 :]]
+
+
+def test_too_many_edges_stay_within_half_a_second(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(ocr_module, "EDGE_MAX_READS", 8)
+    text = Spoken()
+
+    ocr = followed(text=text)
+
+    assert [(r.start, r.end) for r in ocr.subtitle_blur] == [(0.0, 2.25), (5.75, 10.75)]
+    assert all(
+        second * 2 == int(second * 2) or second in build_sample_times(20.0)
+        for second in text.read_at
+    )
+    assert "caption edges" in caplog.text
+
+
+def test_a_missing_tool_at_an_edge_keeps_its_code() -> None:
+    class DiesAtAnEdge(Spoken):
+        async def read(self, frame: Frame) -> list[TextBox]:
+            if float(frame.jpeg.decode()) == 2.25:
+                raise ToolMissing("rapidocr_missing")
+            return await super().read(frame)
+
+    with pytest.raises(AssemblyError) as raised:
+        followed(text=DiesAtAnEdge())
     assert raised.value.code == "rapidocr_missing"

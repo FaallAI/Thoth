@@ -10,7 +10,8 @@ render (`docs/research/2026-10-12-stage5a-ocr-trim-research.md`):
 - a trim belongs only to a main that may be a repost, and its boundary is measured, not the
   midpoint of a sampling gap (the measuring happens in `ocr.py` through a port);
 - a blur outlasted its text, because one sample stood for seconds of video: captions are read
-  again every half second and each window opens and closes with its text (operator, 2026-11-02).
+  again every half second and each window opens and closes with its text (operator, 2026-11-02);
+- half a second still showed a word: each edge is then read out of its gap (operator, 2026-11-03).
 """
 
 from __future__ import annotations
@@ -65,6 +66,15 @@ class Windows:
     captions: tuple[Region, ...] = ()
     overlays: tuple[Region, ...] = ()
     dropped: tuple[Region, ...] = ()
+
+
+@dataclass(frozen=True)
+class EdgeGap:
+    """Two neighbouring reads around a window's edge: one holds its text, one does not."""
+
+    reference: OcrBox
+    outside: float
+    inside: float
 
 
 def region_boxes(frames: Sequence[OcrFrame], region: Region) -> list[tuple[OcrFrame, list[OcrBox]]]:
@@ -218,6 +228,40 @@ def follow_captions(
             box = _envelope([box for _, box in run])
             regions.append(Region(box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0, start, end))
     return tuple(sorted(regions, key=lambda region: (region.start, region.y)))
+
+
+def holds_caption(reference: OcrBox, frame: OcrFrame) -> bool:
+    """Any words on the line of `reference`: a caption changes its words, not its line."""
+    return any(
+        box.x0 > EDGE
+        and box.x1 < 1 - EDGE
+        and _plausible_subtitle(box)
+        and _on_track(reference, box)
+        for box in frame.boxes
+    )
+
+
+def edge_gaps(
+    frames: Sequence[OcrFrame], region: Region, trim_start: float
+) -> tuple[EdgeGap | None, EdgeGap | None]:
+    """Where a window opens and closes. None: it starts at the trim, ends with the video, or
+    the read beside the edge holds nothing to look for."""
+    rows = sorted(
+        (frame for frame in frames if not frame.error and frame.t >= trim_start - SLACK),
+        key=lambda frame: frame.t,
+    )
+
+    def gap(edge: float, opening: bool) -> EdgeGap | None:
+        before = [frame for frame in rows if frame.t < edge - SLACK]
+        after = [frame for frame in rows if frame.t > edge + SLACK]
+        if not before or not after:
+            return None
+        inside, outside = (after[0], before[-1]) if opening else (before[-1], after[0])
+        boxes = region_boxes([inside], replace(region, start=inside.t, end=inside.t))[0][1]
+        reference = next((box for box in boxes if _plausible_subtitle(box)), None)
+        return EdgeGap(reference, outside.t, inside.t) if reference else None
+
+    return gap(region.start, True), gap(region.end, False)
 
 
 def headline_span(

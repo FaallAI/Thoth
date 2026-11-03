@@ -8,8 +8,11 @@ from pathlib import Path
 import pytest
 
 from thoth_control_plane.assembly.refine import (
+    EdgeGap,
+    edge_gaps,
     follow_captions,
     follow_seconds,
+    holds_caption,
     retrim,
     settle,
     sort_windows,
@@ -427,3 +430,61 @@ def test_a_handheld_shot_of_a_sign_has_no_caption_windows() -> None:
     read, duration = recorded("instagram_DeeQRrRTLdq")
 
     assert follow_captions(read, 4.1, duration) == ()
+
+
+# --- Exact edges (operator, revision 20, 2026-11-03) ---
+
+LINE = OcrBox("kata", 0.3, 0.7, 0.7, 0.75)
+LINE_REGION = Region(0.3, 0.7, 0.4, 0.05, 0.75, 1.75)
+
+
+def test_a_window_edge_lies_between_the_reads_around_it() -> None:
+    read = [OcrFrame(0.5), OcrFrame(1.0, (LINE,)), OcrFrame(1.5, (LINE,)), OcrFrame(2.0)]
+
+    assert edge_gaps(read, LINE_REGION, 0.0) == (EdgeGap(LINE, 0.5, 1.0), EdgeGap(LINE, 2.0, 1.5))
+
+
+def test_a_window_at_the_trim_or_the_end_has_no_edge_to_measure() -> None:
+    read = [OcrFrame(0.5), OcrFrame(1.0, (LINE,)), OcrFrame(1.5, (LINE,))]
+    region = Region(0.3, 0.7, 0.4, 0.05, 1.0, 2.0)
+
+    assert edge_gaps(read, region, 1.0) == (None, None)
+
+
+def test_an_edge_needs_a_read_of_the_window_text() -> None:
+    # A read that failed or holds other text cannot say what to look for.
+    elsewhere = OcrBox("papan", 0.3, 0.2, 0.7, 0.25)
+    read = [OcrFrame(0.5), OcrFrame(1.0, (elsewhere,)), OcrFrame(1.5, (LINE,)), OcrFrame(2.0)]
+
+    opening, closing = edge_gaps(read, LINE_REGION, 0.0)
+
+    assert opening is None
+    assert closing == EdgeGap(LINE, 2.0, 1.5)
+
+
+def test_a_lost_read_is_not_taken_for_a_read_without_text() -> None:
+    read = [
+        OcrFrame(0.5),
+        OcrFrame(0.75, error="ocr_failed"),
+        OcrFrame(1.0, (LINE,)),
+        OcrFrame(1.5, (LINE,)),
+        OcrFrame(2.0),
+    ]
+
+    opening, _ = edge_gaps(read, LINE_REGION, 0.0)
+
+    assert opening == EdgeGap(LINE, 0.5, 1.0)
+
+
+@pytest.mark.parametrize(
+    ("box", "expected"),
+    [
+        (OcrBox("berikutnya", 0.25, 0.7, 0.75, 0.75), True),  # the next words of the line
+        (OcrBox("kata", 0.3, 0.2, 0.7, 0.25), False),  # another height
+        (OcrBox("DIY", 0.3, 0.71, 0.34, 0.72), False),  # small text in the shot
+        (OcrBox("kata", 0.0, 0.7, 0.6, 0.75), False),  # cut by the frame edge
+        (OcrBox("2026", 0.3, 0.7, 0.7, 0.75), False),  # digits alone
+    ],
+)
+def test_a_read_holds_the_caption_only_on_its_line(box: OcrBox, expected: bool) -> None:
+    assert holds_caption(LINE, OcrFrame(1.0, (box,))) is expected

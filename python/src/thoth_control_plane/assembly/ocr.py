@@ -5,7 +5,8 @@ clean. A missing ffmpeg or ffprobe keeps its own code (operator, 2026-10-11). Af
 verdict, `refine.py` corrects it (spec amendment, 2026-10-12): a trim only for a possible
 repost, measured by the region tracker; overlays keep the audio; scene text is dropped; the
 caption judge confirms captions before the audio is muted. Captions are then read every half
-second, so that each blur window opens and closes with its text (operator, 2026-11-02).
+second, so that each blur window opens and closes with its text (operator, 2026-11-02), and
+each edge is read again inside its half-second gap (operator, 2026-11-03).
 """
 
 from __future__ import annotations
@@ -25,10 +26,13 @@ from thoth_control_plane.assembly.ports import (
     TextReader,
 )
 from thoth_control_plane.assembly.refine import (
+    EdgeGap,
     Windows,
+    edge_gaps,
     follow_captions,
     follow_seconds,
     headline_span,
+    holds_caption,
     retrim,
     settle,
     sort_windows,
@@ -37,6 +41,7 @@ from thoth_control_plane.assembly.refine import (
 from thoth_control_plane.assembly.subtitles import (
     OcrBox,
     OcrFrame,
+    Region,
     Verdict,
     build_sample_times,
     classify_ocr_frames,
@@ -50,6 +55,10 @@ FRAME_WIDTH = 720  # RapidOCR's detector scales the short side to 736 anyway
 RECOVERY_OFFSETS = (0.0, 0.25, 0.5, 1.0)
 EXTRACTION_ATTEMPTS = 2
 MAX_BLUR_REGIONS = 200  # MainOcr.subtitle_blur
+EDGE_ROUNDS = 3  # a half-second gap narrows to 1/16 s, an edge to within about one frame
+# ponytail: past this, every edge stays within half a second; reading only some would make
+# windows of one video differ. About 2.5 minutes, kept inside the assembly activity's limit.
+EDGE_MAX_READS = 180
 
 
 def recovery_seconds(requested: float, previous: float | None) -> list[float]:
@@ -182,10 +191,55 @@ async def _follow_text(
     if len(followed) + len(windows.overlays) > MAX_BLUR_REGIONS:
         logger.warning("%d caption windows; the sampled blur windows stay", len(followed))
         return verdict, windows
+    followed = await _sharpen(video, rows, followed, verdict.trim_start, frames, text)
     return (
         replace(verdict, subtitle_blur=(*windows.overlays, *followed)),
         replace(windows, captions=followed),
     )
+
+
+async def _sharpen(
+    video: Path,
+    rows: dict[float, OcrFrame],
+    followed: tuple[Region, ...],
+    trim_start: float,
+    frames: FrameSampler,
+    text: TextReader,
+) -> tuple[Region, ...]:
+    """The windows with each edge read out of the half-second gap it falls in."""
+    gaps = [edge_gaps(list(rows.values()), region, trim_start) for region in followed]
+    edges = sum(1 for pair in gaps for gap in pair if gap)
+    if edges * EDGE_ROUNDS > EDGE_MAX_READS:
+        logger.warning("%d caption edges; they stay within half a second", edges)
+        return followed
+    sharp = []
+    for region, (opening, closing) in zip(followed, gaps, strict=True):
+        start = await _edge(video, rows, opening, frames, text) if opening else region.start
+        end = await _edge(video, rows, closing, frames, text) if closing else region.end
+        sharp.append(replace(region, start=start, end=end))
+    return tuple(sharp)
+
+
+async def _edge(
+    video: Path, rows: dict[float, OcrFrame], gap: EdgeGap, frames: FrameSampler, text: TextReader
+) -> float:
+    """Halve the gap; lines of one caption ask for the same seconds, so `rows` saves the reads."""
+    outside, inside = gap.outside, gap.inside
+    for _ in range(EDGE_ROUNDS):
+        second = round((outside + inside) / 2, 6)
+        row = rows.get(second)
+        if row is None:
+            # `previous` just below: recovery must not answer with a frame from outside the gap.
+            row, _ = await _read_at(frames, video, text, second, second - 0.001)
+            if row.error:
+                logger.warning("caption edge %.2f unread; it stays within its gap", second)
+                break
+            rows[second] = row
+        if holds_caption(gap.reference, row):
+            inside = second
+        else:
+            outside = second
+    return (outside + inside) / 2
 
 
 async def _measure_trim(
