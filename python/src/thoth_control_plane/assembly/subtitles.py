@@ -234,16 +234,13 @@ class _Window:
     region: OcrBox
 
 
-def classify_ocr_frames(frames: Sequence[OcrFrame], duration: float) -> Verdict:
-    # A failed sample is unknown, not clean: it must not read as a headline disappearing.
-    ordered = sorted((frame for frame in frames if not frame.error), key=lambda frame: frame.t)
-    if not ordered:
-        return CLEAN
+def _same(a: OcrBox, b: OcrBox) -> bool:
+    return norm_text(a.text) == norm_text(b.text) and _iou(a, b) >= 0.6
+
+
+def editorial_labels(ordered: Sequence[OcrFrame]) -> list[OcrBox]:
+    """The persistent badges ("LIVE NEWS") that make a changing band beside them a chyron."""
     stable = max(2, math.ceil(len(ordered) * 0.6))
-
-    def same(a: OcrBox, b: OcrBox) -> bool:
-        return norm_text(a.text) == norm_text(b.text) and _iou(a, b) >= 0.6
-
     every = [box for frame in ordered for box in frame.boxes]
     labels: list[OcrBox] = []
     for index, candidate in enumerate(every):
@@ -256,18 +253,28 @@ def classify_ocr_frames(frames: Sequence[OcrFrame], duration: float) -> Verdict:
         held = sum(
             1
             for frame in ordered
-            if any(_editorial(b.text) and same(b, candidate) for b in frame.boxes)
+            if any(_editorial(b.text) and _same(b, candidate) for b in frame.boxes)
         )
-        first = next((i for i, box in enumerate(every) if same(box, candidate)), -1)
+        first = next((i for i, box in enumerate(every) if _same(box, candidate)), -1)
         if held >= stable and first == index:
             labels.append(candidate)
+    return labels
+
+
+def classify_ocr_frames(frames: Sequence[OcrFrame], duration: float) -> Verdict:
+    # A failed sample is unknown, not clean: it must not read as a headline disappearing.
+    ordered = sorted((frame for frame in frames if not frame.error), key=lambda frame: frame.t)
+    if not ordered:
+        return CLEAN
+    stable = max(2, math.ceil(len(ordered) * 0.6))
+    labels = editorial_labels(ordered)
 
     # A banner on the 2% cutoff jitters across it sample to sample; judge it by its median area
     # so all its samples are kept or dropped together (an 89 s video once lost 47 s to this).
     def stable_small(candidate: OcrBox) -> bool:
         areas = []
         for frame in ordered:
-            match = next((box for box in frame.boxes if same(box, candidate)), None)
+            match = next((box for box in frame.boxes if _same(box, candidate)), None)
             if match is not None:
                 areas.append(_area(match))
         return len(areas) >= stable and _median(areas) < STABLE_SMALL_AREA

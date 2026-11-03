@@ -408,6 +408,7 @@ async def test_a_subtitled_clip_is_rejected_and_deleted(
     async def subtitled(*args: Any, **kwargs: Any) -> Any:
         from thoth_control_plane.assembly.models import MainOcr
 
+        assert kwargs["follow"] is False  # a rejected candidate is not read every half second
         return MainOcr(
             analyzed_at=NOW,
             requested_frames=4,

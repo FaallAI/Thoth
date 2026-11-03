@@ -8,11 +8,15 @@ render (`docs/research/2026-10-12-stage5a-ocr-trim-research.md`):
   constant text over part of the video, is scene text;
 - captions that survive these rules are confirmed by one vision call before the audio goes;
 - a trim belongs only to a main that may be a repost, and its boundary is measured, not the
-  midpoint of a sampling gap (the measuring happens in `ocr.py` through a port).
+  midpoint of a sampling gap (the measuring happens in `ocr.py` through a port);
+- a blur outlasted its text, because one sample stood for seconds of video: captions are read
+  again every half second and each window opens and closes with its text (operator, 2026-11-02).
 """
 
 from __future__ import annotations
 
+import math
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 
@@ -23,9 +27,14 @@ from thoth_control_plane.assembly.subtitles import (
     Region,
     Verdict,
     _area,
+    _envelope,
     _group,
     _iou,
+    _lower_third,
+    _median,
+    _plausible_subtitle,
     _similarity,
+    editorial_labels,
     norm_text,
 )
 
@@ -35,6 +44,20 @@ CONSTANT = 0.8  # "the same text" despite OCR noise; distinct captions share les
 OVERLAY_COVERAGE = 0.8  # share of usable samples a constant window must cover to be an overlay
 INSIDE = 0.01  # tolerance for a box to sit inside a blur region (envelopes are padded)
 SLACK = 1e-6
+FOLLOW_STEP = 0.5
+# ponytail: a video past 3 minutes is read thinner to bound the OCR time; its windows are looser.
+FOLLOW_MAX_FRAMES = 360
+FOLLOW_MIN_READS = 4  # fewer reads on one spot are scene text passing by
+TRACK_Y = 0.012  # a caption line keeps its height on the frame...
+TRACK_X = 0.05  # ...and its centre or left edge...
+TRACK_HEIGHT = 0.4  # ...and its letter size, as a share of the first read
+CAPTION_WIDTH = 0.18  # the sampled rule's narrowest box, here for a track's median read
+SAME_TEXT = 0.6  # a misread of the same words; sentences of a caption share less
+# ponytail: a caption line that says one sentence for 60% of its reads passes for a sign. Three
+# videos put captions at 50% or less and signs at more; judge new misses against this share.
+CONSTANT_SHARE = 0.6
+MOVED_SHARE = 0.5  # this share of reads also seen on another spot makes a track text in the shot
+ANOTHER_SPOT = 0.1  # nearer, it is the same line with a taller read: not another spot
 
 
 @dataclass(frozen=True)
@@ -91,6 +114,110 @@ def sort_windows(frames: Sequence[OcrFrame], verdict: Verdict) -> Windows:
         else:
             captions.append(region)
     return Windows(tuple(captions), tuple(overlays), tuple(dropped))
+
+
+def follow_seconds(trim_start: float, duration: float) -> list[float]:
+    """The seconds to read a caption video at: every half second that gets rendered."""
+    step = max(FOLLOW_STEP, (duration - trim_start) / FOLLOW_MAX_FRAMES)
+    seconds = (round(i * step, 6) for i in range(1, math.ceil(duration / step)))
+    return [second for second in seconds if second >= trim_start - SLACK]
+
+
+def _on_track(first: OcrBox, box: OcrBox) -> bool:
+    height = first.y1 - first.y0
+    return (
+        abs((box.y0 + box.y1) - (first.y0 + first.y1)) / 2 <= TRACK_Y
+        and abs((box.y1 - box.y0) - height) <= TRACK_HEIGHT * height
+        and (
+            abs((box.x0 + box.x1) - (first.x0 + first.x1)) / 2 <= TRACK_X
+            or abs(box.x0 - first.x0) <= TRACK_X
+        )
+    )
+
+
+def _same_words(a: str, b: str) -> bool:
+    """One text despite the reader: misread, or only part of it read."""
+    return bool(a and b) and (_similarity(a, b) >= SAME_TEXT or a in b or b in a)
+
+
+def _changes(track: list[tuple[int, OcrBox]]) -> bool:
+    """Captions say something new; a watermark or a sign says one thing, however it is read."""
+    texts = [norm_text(box.text) for _, box in track]
+    usual = Counter(texts).most_common(1)[0][0]
+    alike = sum(1 for text in texts if _same_words(usual, text))
+    return (
+        len(track) >= FOLLOW_MIN_READS
+        and _median([box.x1 - box.x0 for _, box in track]) >= CAPTION_WIDTH
+        and alike / len(track) < CONSTANT_SHARE
+    )
+
+
+def _moves(track: list[tuple[int, OcrBox]], tracks: list[list[tuple[int, OcrBox]]]) -> bool:
+    """A camera carries a sign across the frame; a caption's words stay on their own spot."""
+    here = track[0][1]
+    elsewhere = {
+        norm_text(box.text)
+        for other in tracks
+        if other is not track
+        for _, box in other
+        if abs(box.y0 + box.y1 - here.y0 - here.y1) / 2 > ANOTHER_SPOT
+        or abs(box.x0 + box.x1 - here.x0 - here.x1) / 2 > ANOTHER_SPOT
+    }
+    seen = sum(
+        1
+        for _, box in track
+        if any(_similarity(norm_text(box.text), text) >= SAME_TEXT for text in elsewhere)
+    )
+    return seen / len(track) >= MOVED_SHARE
+
+
+def follow_captions(
+    frames: Sequence[OcrFrame], trim_start: float, duration: float
+) -> tuple[Region, ...]:
+    """The windows of changing text on one spot of the frame, over every rendered frame.
+
+    Each run of frames holding the text is one window, closing halfway to the first frame
+    without it. The sampled windows do not narrow this down: twelve samples can miss the
+    caption band altogether. Signs, shirts and an editorial chyron are not followed.
+    """
+    rows = sorted(
+        (frame for frame in frames if not frame.error and frame.t >= trim_start - SLACK),
+        key=lambda frame: frame.t,
+    )
+    labels = editorial_labels(rows)
+    tracks: list[list[tuple[int, OcrBox]]] = []
+    for index, frame in enumerate(rows):
+        for box in frame.boxes:
+            if (
+                box.x0 <= EDGE
+                or box.x1 >= 1 - EDGE
+                or not _plausible_subtitle(box)
+                or _lower_third(box, index, rows, labels)
+            ):
+                continue
+            track = next((t for t in tracks if _on_track(t[0][1], box)), None)
+            if track is None:
+                tracks.append([(index, box)])
+            else:
+                track.append((index, box))
+
+    regions: list[Region] = []
+    for track in tracks:
+        if not _changes(track) or _moves(track, tracks):
+            continue
+        runs: list[list[tuple[int, OcrBox]]] = []
+        for read in track:
+            if runs and read[0] <= runs[-1][-1][0] + 1:
+                runs[-1].append(read)
+            else:
+                runs.append([read])
+        for run in runs:
+            first, last = run[0][0], run[-1][0]
+            start = (rows[first - 1].t + rows[first].t) / 2 if first > 0 else trim_start
+            end = (rows[last].t + rows[last + 1].t) / 2 if last + 1 < len(rows) else duration
+            box = _envelope([box for _, box in run])
+            regions.append(Region(box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0, start, end))
+    return tuple(sorted(regions, key=lambda region: (region.start, region.y)))
 
 
 def headline_span(

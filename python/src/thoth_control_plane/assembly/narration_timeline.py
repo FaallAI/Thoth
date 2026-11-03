@@ -130,6 +130,10 @@ def narrate_document(
     # shrank cards to flashes. A narrated draft's layout is the operator's, so it maps linearly.
     packed: dict[str, Window] = {}
     if not narrated:
+        # The main video runs to the end of its beats: mapped over a span the cards made longer
+        # than it, it stopped early and left black behind them.
+        main_clips = [clip for clip in base if clip.track_id in main_tracks]
+        old_bg = _union([(clip.from_frame, clip.end_frame) for clip in main_clips]) or old_bg
         groups: dict[tuple[str, str], list] = {}
         for clip in base:
             beat = beats.get(clip.clip_id)

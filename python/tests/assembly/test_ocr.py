@@ -16,6 +16,7 @@ from thoth_control_plane.attribution.ports import Frame
 
 NOW = datetime(2026, 10, 11, 12, 0, tzinfo=UTC)
 VIDEO = Path("main.mp4")
+CAPTION = ("rocky", "apapun", "minumnya", "sendiri", "betul", "tobat", "makanannya", "paling")
 
 
 class Frames:
@@ -50,7 +51,7 @@ class Text:
         second = float(frame.jpeg.decode())
         if second <= 2:
             return [TextBox("BANJIR BESAR JAKARTA", 0.3, 0.36, 0.08, 0.92)]
-        return [TextBox(f"kata {second}", 0.75, 0.8, 0.2, 0.8)]
+        return [TextBox(CAPTION[round(second * 2) % len(CAPTION)], 0.75, 0.8, 0.2, 0.8)]
 
 
 def run(frames: Frames, duration: float | None = 30.0, probe: Probe | None = None):
@@ -256,4 +257,96 @@ def test_a_reader_reporting_a_missing_engine_keeps_its_code() -> None:
                 now=NOW,
             )
         )
+    assert raised.value.code == "rapidocr_missing"
+
+
+# --- Blur follows the text (operator, rev 19, 2026-11-02) ---
+
+
+class Spoken:
+    """A caption to 2 s and from 6 s to 10.5 s, the same watermark throughout."""
+
+    def __init__(self) -> None:
+        self.read_at: list[float] = []
+
+    async def read(self, frame: Frame) -> list[TextBox]:
+        second = float(frame.jpeg.decode())
+        self.read_at.append(second)
+        boxes = [TextBox("Kabinet Rakyat", 0.47, 0.52, 0.32, 0.68)]
+        if second <= 2 or 6 <= second <= 10.5:
+            boxes.append(TextBox(CAPTION[int(second * 2) % len(CAPTION)], 0.84, 0.89, 0.3, 0.7))
+        return boxes
+
+
+def followed(frames: Frames | None = None, **kwargs):  # type: ignore[no-untyped-def]
+    return asyncio.run(
+        analyze_main_ocr(
+            VIDEO,
+            20.0,
+            frames=frames or Frames(),
+            probe=Probe(20.0),
+            text=kwargs.pop("text", Spoken()),
+            max_frames=12,
+            now=NOW,
+            trim_allowed=False,
+            **kwargs,
+        )
+    )
+
+
+def test_blur_opens_and_closes_with_the_caption_and_skips_the_watermark() -> None:
+    ocr = followed()
+
+    assert ocr.outcome == "subtitle" and ocr.mute_audio
+    assert [(r.start, r.end) for r in ocr.subtitle_blur] == [(0.0, 2.25), (5.75, 10.75)]
+    assert all(r.y > 0.8 for r in ocr.subtitle_blur)
+
+
+def test_a_sample_is_not_read_twice_when_following_the_text() -> None:
+    text = Spoken()
+
+    followed(text=text)
+
+    assert len(text.read_at) == len(set(text.read_at))
+    assert 7.5 in text.read_at
+
+
+def test_a_clean_video_is_not_read_again() -> None:
+    class Quiet:
+        def __init__(self) -> None:
+            self.reads = 0
+
+        async def read(self, frame: Frame) -> list[TextBox]:
+            self.reads += 1
+            return []
+
+    text = Quiet()
+
+    assert followed(text=text).outcome == "clean"
+    assert text.reads == 12
+
+
+def test_a_frame_lost_while_following_keeps_the_sampled_windows() -> None:
+    ocr = followed(Frames(broken={7.5, 7.25, 7.0, 6.75, 6.5}))
+
+    assert ocr.outcome == "subtitle" and ocr.subtitle_blur
+
+
+def test_a_caller_that_only_needs_the_verdict_reads_the_samples_only() -> None:
+    text = Spoken()
+
+    ocr = followed(text=text, follow=False)
+
+    assert len(text.read_at) == 12 and ocr.outcome == "subtitle"
+
+
+def test_a_missing_tool_while_following_keeps_its_code() -> None:
+    class Dies(Spoken):
+        async def read(self, frame: Frame) -> list[TextBox]:
+            if len(self.read_at) >= 12:
+                raise ToolMissing("rapidocr_missing")
+            return await super().read(frame)
+
+    with pytest.raises(AssemblyError) as raised:
+        followed(text=Dies())
     assert raised.value.code == "rapidocr_missing"
