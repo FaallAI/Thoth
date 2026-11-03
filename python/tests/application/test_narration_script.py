@@ -147,18 +147,19 @@ def test_the_facts_come_from_the_materials_and_the_run_context() -> None:
                 platform="tiktok",
                 verdict="original",
             ),
+            # A card's label names its author: what the author wrote comes from the run.
             StudioMaterial(
-                item_id="comment_000",
-                role="comment",
-                label="itu kucing saya!",
-                media_kind="none",
-                disposition="excluded",
+                item_id="comment_card_000",
+                role="comment_card",
+                label="@andi",
+                media_kind="image",
+                disposition="attached",
             ),
         ],
         figures=[MaterialFigure(name="Budi Santoso", type="person", role="owner")],
     )
 
-    facts = facts_from_materials(materials, ("Judul", "Deskripsi"))
+    facts = facts_from_materials(materials, ("Judul", "Deskripsi"), ["itu kucing saya!"])
 
     assert (facts.title, facts.description, facts.owner_handle, facts.platform, facts.verdict) == (
         "Judul",
@@ -173,26 +174,12 @@ def test_the_facts_come_from_the_materials_and_the_run_context() -> None:
 def test_a_stored_quote_reaches_the_script_without_emote_tokens() -> None:
     # Older runs stored comments raw; the voice must not read "[Terkekeh]" aloud.
     from thoth_control_plane.application.narration_script import facts_from_materials
-    from thoth_control_plane.domain.studio_imports import StudioMaterial, StudioMaterials
+    from thoth_control_plane.domain.studio_imports import StudioMaterials
 
-    labels = ["kasihan [Terkekeh] warganya [Sedih]", "[Terkekeh][Tertawa]", "[2024] banjir lagi"]
-    materials = StudioMaterials(
-        document_id="edoc_1",
-        provenance_available=True,
-        items=[
-            StudioMaterial(
-                item_id=f"comment_{index:03d}",
-                role="comment",
-                label=label,
-                media_kind="none",
-                disposition="excluded",
-            )
-            for index, label in enumerate(labels)
-        ],
-        figures=[],
-    )
+    comments = ["kasihan [Terkekeh] warganya [Sedih]", "[Terkekeh][Tertawa]", "[2024] banjir lagi"]
+    materials = StudioMaterials(document_id="edoc_1", provenance_available=True, items=[])
 
-    assert facts_from_materials(materials, None).comments == [
+    assert facts_from_materials(materials, None, comments).comments == [
         "kasihan warganya",
         "[2024] banjir lagi",
     ]

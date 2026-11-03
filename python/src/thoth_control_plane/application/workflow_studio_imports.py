@@ -271,6 +271,18 @@ class WorkflowStudioImportService:
         )
         return (main.title or "", main.text or "") if main else None
 
+    async def story_comments(self, project_id: str, document_id: str) -> list[str]:
+        """What the run's commenters wrote, most-liked cards first, when still readable."""
+        try:
+            inventory = await self._imports.get_inventory(project_id, document_id)
+        except Exception:  # a draft made in Studio has no import, and the store may be down
+            return []
+        source = await self._readable_source(project_id, inventory.source_workflow_id)
+        items = source.projection.items if source else []
+        return [
+            item.text for item in items if item.role in {"comment", "comment_card"} and item.text
+        ]
+
     async def _readable_source(
         self, project_id: str, workflow_id: str | None
     ) -> WorkflowProjection | None:

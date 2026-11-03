@@ -9,6 +9,7 @@ calls `narration_voice` after it.
 from __future__ import annotations
 
 import asyncio
+import logging
 import tempfile
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
@@ -27,6 +28,7 @@ from thoth_control_plane.application.narration_script import (
     parse_script,
     unsupported_tokens,
 )
+from thoth_control_plane.application.prompt_proposal_ports import ProviderInvalidOutput
 from thoth_control_plane.assembly.narration_timeline import (
     PlacedSfx,
     VoicedBeat,
@@ -56,13 +58,18 @@ from thoth_control_plane.voice.ports import (
     VoiceUnavailable,
 )
 
+logger = logging.getLogger(__name__)
+
+#: The same request can be answered differently, so a refused answer is asked for once more.
+SCRIPT_ATTEMPTS = 2
+
 
 @dataclass
 class NarrationPorts:
     """What the activities reach; the worker wires the real ones, tests pass fakes."""
 
     store: Any  # NarrationStore
-    studio: Any  # materials(p, d) and story_context(p, d)
+    studio: Any  # materials(p, d), story_context(p, d) and story_comments(p, d)
     documents: Any  # get_latest(p, d) and write_derived_revision(p, d, base_revision, document)
     main_video: Callable[[str, EditDocumentV2, Path], Awaitable[Path | None]]
     transcribe: Callable[[Path], Awaitable[list[TranscriptSegment]]]
@@ -126,7 +133,8 @@ class NarrationActivities:
             document = await ports.documents.get_latest(step.project_id, step.document_id)
             materials = await ports.studio.materials(step.project_id, step.document_id)
             context = await ports.studio.story_context(step.project_id, step.document_id)
-            facts = facts_from_materials(materials, context)
+            comments = await ports.studio.story_comments(step.project_id, step.document_id)
+            facts = facts_from_materials(materials, context, comments)
             present = {span.beat for span in beat_spans(document, _roles(materials))}
             beats = [beat for beat in BEAT_ORDER if beat in present] or ["main"]
             transcript = await ports.store.get_transcript(step.document_id)
@@ -148,23 +156,28 @@ class NarrationActivities:
                 sfx=sfx,
                 note=step.note,
             )
-            try:
-                answer = await ports.provider.complete_json(
-                    provider_id=preference.provider_id,
-                    model_id=preference.model_id,
-                    system=system,
-                    user=user,
-                )
-            except Exception as error:
-                return await self._fail(step.document_id, _safe_failure_code(error))
-            try:
-                script = parse_script(
-                    answer,
-                    beats=beats,
-                    preset=preset,
-                    sfx_ids={entry.sfx_id for entry in sfx},  # type: ignore[arg-type]
-                )
-            except ScriptInvalid:
+            script = None
+            for attempt in range(1, SCRIPT_ATTEMPTS + 1):
+                try:
+                    answer = await ports.provider.complete_json(
+                        provider_id=preference.provider_id,
+                        model_id=preference.model_id,
+                        system=system,
+                        user=user,
+                    )
+                    script = parse_script(
+                        answer,
+                        beats=beats,
+                        preset=preset,
+                        sfx_ids={entry.sfx_id for entry in sfx},  # type: ignore[arg-type]
+                    )
+                    break
+                except (ProviderInvalidOutput, ScriptInvalid) as error:
+                    logger.warning("narration script refused attempt=%d: %s", attempt, error)
+                except Exception as error:
+                    logger.warning("narration script call failed: %s", type(error).__name__)
+                    return await self._fail(step.document_id, _safe_failure_code(error))
+            if script is None:
                 return await self._fail(step.document_id, "invalid_provider_output")
             estimate = estimate_voice(script, preset, await ports.prices())
             await ports.store.set_script(
