@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-03 - A refused narration script is asked for once more; the script sees real comments
+
+Branch `fix/narration-script-answer`, not pushed. The operator's Create Narration on `edoc_d2a3ee17…` stopped with `invalid_provider_output`.
+
+**Deploy of PR #107:** master `110ad558`. Images: thoth `c9047c95de58`, renderer `0b62b6963e93`, web `e4c5ddbf3515`, pulled ahead, digests matching the CI log. `make deploy` exit 0, no workflow running before, no migration, every service up, web 200, 0 error lines in the worker after 2 minutes. The previous env is `D:/thoth-tmp/bu/pins/pins-2ba562c4.env`. The deployed image's own code on `instagram_DebN5MbiGXK`, offline, gave the branch's 2 windows in 80 s. No real workflow had run the fast path when this was written.
+
+**What happened:** transcription passed. `google/gemma-4-31b-it` on OpenRouter answered (515 tokens in, 164 out) and the answer was refused within milliseconds. It was neither stored nor logged, so which check refused it cannot be known. With the operator's approval the same request was sent once more, with the draft unchanged since the failure (revision 18, 13:01:12): the answer was fenced JSON with all four beats and 72 words, and every check accepted it. So the likely cause is that the model answers one request differently at temperature 0; this is inferred, not observed. The replay ran outside a metering scope, so `usage_events` does not hold it.
+
+**Fixes:**
+- `write_script` asks once more after a refused answer, so at most one extra model call. A timeout, a rate limit or an outage still fails at once.
+- A refused answer now logs why at `warning`, with up to 300 characters of the answer. The failure code stays the only thing callers see. Any other exception logs its type: `_safe_failure_code` reports it as `invalid_provider_output` too, which could hide a bug.
+- **The script never saw a comment's words.** A card's label is `@author`, and `facts_from_materials` read labels, so the model got handles such as `@joe_senpay` and could name commenters without knowing what they wrote. The earlier draft of 31 October had the same fault. `story_comments` now reads what they wrote from the run's Content Set. On the failed draft that is 10 comments. The new prompt has not been sent to a model.
+
+**Verification:** `make test` 4496 passed, 263 skipped; `make lint` clean. Tests came first and were watched failing, except the outage guard, which passes on the old code too. Five deliberate breaks of the new rules were all caught.
+
+**Limits:**
+- The refused answer is gone, so the fix rests on one failure and one good replay. If the model refuses twice, the operator sees the same message, and the log now says why.
+- An SFX cue the model gets wrong (`moment` over 60 characters, a bad `word_index`) still refuses the whole script, against the comment there that calls an SFX never fatal. It could not have caused this failure, because this project's SFX library is empty, which drops every cue first. Not changed.
+- `unit_prices` is empty, so no cost can be shown for the extra call.
+
+**Next steps:**
+- Operator gates, each separate: push and PR of this branch, merge, deploy, merging `chore/e2e-trial`.
+- After deploy: Create Narration on this draft again, read the `reactions` beat, since it can now quote real comments. Voice stays behind the operator's approval.
+- Operator decisions: the 12-sample gate, rotating the printed secrets.
+- Carry forward: everything under Next steps of the entry below.
+
 ## 2026-11-03 - Exact blur edges in about half the OCR time
 
 Branch `fix/blur-exact-edges`, offline, not pushed. The operator accepted the revision 20 render, then asked whether the edge reads could be faster without changing the result.

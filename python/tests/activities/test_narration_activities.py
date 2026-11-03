@@ -13,6 +13,10 @@ from typing import Any
 import pytest
 
 from thoth_control_plane.activities.narration import NarrationActivities, NarrationPorts
+from thoth_control_plane.application.prompt_proposal_ports import (
+    ProviderInvalidOutput,
+    ProviderUnavailable,
+)
 from thoth_control_plane.domain.edit_document_v2 import AssetRef, EditDocumentV2
 from thoth_control_plane.domain.narration import (
     NarrationPreset,
@@ -117,7 +121,7 @@ class Studio:
                 StudioMaterial(
                     item_id="comment_card_001",
                     role="comment_card",
-                    label="lucu",
+                    label="@andi",
                     media_kind="image",
                     disposition="attached",
                 ),
@@ -126,6 +130,9 @@ class Studio:
 
     async def story_context(self, _p: str, _d: str) -> tuple[str, str]:
         return ("Kucing viral", "Kucing mencuri ikan")
+
+    async def story_comments(self, _p: str, _d: str) -> list[str]:
+        return ["lucu sekali"]
 
 
 class Voice:
@@ -146,12 +153,23 @@ class Voice:
         )
 
 
+GOOD_ANSWER = {
+    "beats": [
+        {"beat": "hook", "text": "Kucing ini bikin heboh."},
+        {"beat": "main", "text": "Ikan diambil dalam sekejap."},
+        {"beat": "reactions", "text": "Warganet tertawa, kata Andi."},
+    ],
+    "sfx_cues": [{"sfx_id": "whoosh", "beat": "reactions", "moment": "comment_appear"}],
+}
+
+
 def ports(**overrides: Any) -> tuple[NarrationPorts, dict[str, Any]]:
     seen: dict[str, Any] = {
         "store": Store(),
         "documents": Documents(),
         "voice": Voice(),
         "provider_calls": 0,
+        "provider_requests": [],
         "uploads": 0,
     }
 
@@ -175,16 +193,15 @@ def ports(**overrides: Any) -> tuple[NarrationPorts, dict[str, Any]]:
         )
 
     class Provider:
-        async def complete_json(self, **_: Any) -> dict[str, Any]:
+        async def complete_json(self, **request: Any) -> dict[str, Any]:
             seen["provider_calls"] += 1
-            return overrides.get("answer") or {
-                "beats": [
-                    {"beat": "hook", "text": "Kucing ini bikin heboh."},
-                    {"beat": "main", "text": "Ikan diambil dalam sekejap."},
-                    {"beat": "reactions", "text": "Warganet tertawa, kata Andi."},
-                ],
-                "sfx_cues": [{"sfx_id": "whoosh", "beat": "reactions", "moment": "comment_appear"}],
-            }
+            seen["provider_requests"].append(request)
+            if overrides.get("answers"):
+                answer = overrides["answers"].pop(0)
+                if isinstance(answer, Exception):
+                    raise answer
+                return answer
+            return overrides.get("answer") or GOOD_ANSWER
 
     class Preferences:
         async def get_preference(self, _p: str, _s: str) -> Any:
@@ -270,8 +287,48 @@ def test_an_unusable_answer_fails_as_invalid_provider_output() -> None:
 
     result = run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
 
-    assert result.code == "invalid_provider_output"
+    assert result.code == "invalid_provider_output" and seen["provider_calls"] == 2
     assert seen["store"].status[-1] == ("failed", "invalid_provider_output")
+
+
+@pytest.mark.parametrize(
+    "refused",
+    [{"beats": [{"beat": "outro", "text": "x"}]}, ProviderInvalidOutput("not JSON: 'x'")],
+)
+def test_a_refused_answer_is_asked_for_once_more(refused: Any) -> None:
+    # One request on 2026-11-03 was refused and the same request, sent again, was usable.
+    built, seen = ports(answers=[refused, GOOD_ANSWER])
+
+    result = run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+
+    assert result.code is None and seen["provider_calls"] == 2
+    assert seen["store"].status[-1] == ("awaiting_approval", None)
+
+
+def test_a_provider_outage_is_not_asked_again() -> None:
+    built, seen = ports(answers=[ProviderUnavailable()])
+
+    result = run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+
+    assert result.code == "provider_unavailable" and seen["provider_calls"] == 1
+
+
+def test_a_refused_answer_logs_why(caplog: pytest.LogCaptureFixture) -> None:
+    built, _ = ports(answer={"beats": [{"beat": "outro", "text": "x"}]})
+
+    with caplog.at_level("WARNING"):
+        run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+
+    assert "unknown beat" in caplog.text and "outro" in caplog.text
+
+
+def test_the_script_request_carries_what_commenters_wrote() -> None:
+    built, seen = ports()
+
+    run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+
+    user = seen["provider_requests"][0]["user"]
+    assert "- lucu sekali" in user and "@andi" not in user
 
 
 def test_voicing_stitches_neighbours_and_writing_narrates_the_draft() -> None:

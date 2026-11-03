@@ -120,9 +120,9 @@ class OpenAICompatiblePromptProvider:
         try:
             parsed = _loads_answer(content)
         except ValueError as error:
-            raise ProviderInvalidOutput() from error
+            raise ProviderInvalidOutput(f"not JSON: {content[:300]!r}") from error
         if not isinstance(parsed, dict):
-            raise ProviderInvalidOutput()
+            raise ProviderInvalidOutput(f"not an object: {content[:300]!r}")
         return parsed
 
     async def _chat(

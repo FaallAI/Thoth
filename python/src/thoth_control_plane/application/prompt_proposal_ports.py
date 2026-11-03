@@ -140,10 +140,10 @@ class ProviderUnavailable(Exception):
 
 
 class ProviderInvalidOutput(Exception):
-    """The provider output failed strict validation."""
+    """The provider output failed strict validation. `detail` is for the log, never a caller."""
 
-    def __init__(self) -> None:
-        super().__init__("invalid provider output")
+    def __init__(self, detail: str = "invalid provider output") -> None:
+        super().__init__(detail)
 
 
 class PromptWorkflowUnavailable(Exception):

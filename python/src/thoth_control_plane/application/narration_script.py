@@ -39,6 +39,7 @@ DESCRIPTION_LIMIT = 500
 COMMENT_LIMIT = 200
 COMMENTS_SHOWN = 10
 TRANSCRIPT_LIMIT = 3000
+ANSWER_SHOWN = 300  # how much of a refused answer the log keeps
 _URL = re.compile(r"https?://\S+|www\.\S+", re.IGNORECASE)
 _SENTENCE_END = re.compile(r"[.!?…]\s*$")
 #: Punctuation that wraps a token; the curly quotes are written as escapes.
@@ -125,7 +126,7 @@ def parse_script(
         raise ScriptInvalid("not an object")
     raw_beats = answer.get("beats")
     if not isinstance(raw_beats, list) or not raw_beats:
-        raise ScriptInvalid("no beats")
+        raise ScriptInvalid(f"no beats in {str(answer)[:ANSWER_SHOWN]}")
     # A beat the model left empty keeps its visuals and simply gets no voice.
     raw_beats = [
         item
@@ -137,7 +138,7 @@ def parse_script(
     allowed = set(beats)
     for item in raw_beats:
         if not isinstance(item, dict) or item.get("beat") not in allowed:
-            raise ScriptInvalid("unknown beat")
+            raise ScriptInvalid(f"unknown beat in {str(item)[:ANSWER_SHOWN]}")
     ordered = sorted(raw_beats, key=lambda item: BEAT_ORDER.index(item["beat"]))
     # A sound effect is optional: one the draft cannot use is dropped, never fatal.
     written_beats = {item["beat"] for item in ordered}
@@ -159,10 +160,10 @@ def parse_script(
             }
         )
     except ValidationError as error:
-        raise ScriptInvalid("not a script") from error
+        raise ScriptInvalid(f"not a script: {str(error)[:ANSWER_SHOWN]}") from error
     words = sum(len(beat.text.split()) for beat in script.beats)
     if words > preset.target_seconds * preset.words_per_second * LENGTH_SLACK:
-        raise ScriptInvalid("too long")
+        raise ScriptInvalid(f"too long: {words} words")
     return script
 
 
@@ -210,15 +211,12 @@ def unsupported_tokens(
     return found
 
 
-def facts_from_materials(materials: Any, context: tuple[str, str] | None) -> ScriptFacts:
-    """The script's facts from Story mode's materials and the run's title and description."""
+def facts_from_materials(
+    materials: Any, context: tuple[str, str] | None, comments: Sequence[str] = ()
+) -> ScriptFacts:
+    """The script's facts from Story mode's materials and the run's title, description and
+    comments. A card's label only names its author, so it is not a comment."""
     main = next((item for item in materials.items if item.role == "main"), None)
-    # Older runs stored comments raw, so emote tokens can still arrive here.
-    comments = [
-        text
-        for item in materials.items
-        if item.role in {"comment", "comment_card"} and (text := without_emotes(item.label or ""))
-    ]
     title, description = context or ("", "")
     return ScriptFacts(
         title=title,
@@ -227,5 +225,6 @@ def facts_from_materials(materials: Any, context: tuple[str, str] | None) -> Scr
         platform=(main.platform or "") if main else "",
         verdict=(main.verdict or "") if main else "",
         figures=[figure.name for figure in materials.figures],
-        comments=comments,
+        # Older runs stored comments raw, so emote tokens can still arrive here.
+        comments=[text for comment in comments if (text := without_emotes(comment))],
     )
