@@ -33,7 +33,7 @@ The largest difference is one line of `instagram_DeOfMJJz6hL` with text in the s
 - Eight were the caption's last frame. A read stands for the frame at or after its second, so text outlasts a midpoint by a frame and never opens before one. A window now closes on the first read without its text. A lost read still keeps the midpoint.
 - Six were one word, "juga", read correctly but rejected: its letters below the line make its box 45% taller than "masuk" before it, past the 40% a track allows. `holds_caption` now accepts a box up to twice as tall or half as tall. On every frame of three videos, one line's boxes range from about 0.6 to 1.5 times its median, and small text in the shot stays out.
 
-Result on the rev 18 source: uncovered yellow frames 14 -> 0 of 987. Window frames with no yellow 22 -> 31 of 1018, the new ones one frame each. The start of no window moved; ends moved by up to 0.031 s, or 0.156 s and 0.219 s where a word used to be rejected.
+Result on the rev 18 source: uncovered yellow frames 14 -> 0 of 987. Window frames with no yellow 22 -> 31 of 1018, the new ones one frame each. The start of no window moved. Ends moved by up to 0.031 s, plus two larger moves: 0.219 s for "juga", and 0.156 s on one `instagram_DeOfMJJz6hL` line, where text in the shot now holds the window past the other lines (20.94 s against 20.81 s).
 
 **Limits:**
 - Text in the shot on a caption line counts as the caption: "FENTY" on `instagram_DeOfMJJz6hL` holds one line's window about 0.31 s too long. Left on purpose: it occurs on one video, it covers real text instead of leaving a word showing, and every rule tried for it would risk closing a real caption early.
