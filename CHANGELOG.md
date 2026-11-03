@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-04 - A render whose last status falls between two polls finishes on screen
+
+Branch `fix/render-panel-missed-status`, not pushed. The operator asked why a render's encode took so long.
+
+**Deploy of PR #109:** master `36dda6a4`, from an up-to-date working tree. Images: thoth `d227ec51a8eb`, renderer `280a9be4abe7`, web `97b2a2947276`, pulled ahead, digests in the CI log. `make deploy` exit 0, no workflow running before, no migration, web 200, 0 error lines in the worker and 0 API 5xx after 2 minutes. The previous env is `D:/thoth-tmp/bu/pins/pins-a32472ce.env`. Real cookies were then seen renewing: 28 capability requests at 17:33 on load, 14 at 17:36, 0 refused reads. No read after the first cookie's 5 minutes was seen.
+
+**Cause:** the encode was not slow. Render `rj_4b2c435d104…` of the Halloween draft finished in 33 s for a 29.8 s video (17:46:37 to 17:47:09). The panel never learned it. `finalizing` lasted about 0.6 s, between the polls at 17:47:08.800 and 17:47:10.312, so the next read said `completed`. `reconcile` allowed only a direct lifecycle edge and refused `rendering` to `completed`, so the panel stayed on Encode and kept polling every 1.5 s, still at 18:08. The longer the final stage, the more likely a poll caught it, so a render could work one time and stick the next.
+
+**Fix:** a read may land on any status further along the lifecycle. A read older than the job's status still cannot move it back, and a finished status stays final. Reloading the page already showed the truth, because a first read has nothing to compare with.
+
+**Verification:** `make dashboard-test` 1567 pass, 0 fail; `make dashboard-build` passes. The reducer test and a panel test fail on the old `reconcile`, with "completed" received as "rendering" and the panel showing Rendering, and pass on the fix. The stale-read test passes on both as a guard. Only the dashboard changed.
+
+**Limits:**
+- The stuck state was reproduced in tests from stage1's request times, not watched in a browser on stage1. The panel's own render frames speed was not measured beyond this one render's 33 s.
+- `Cannot decode /public/asset_9e84eec2…mp4, falling back to <OffthreadVideo>` appeared 2 s before this render's end. It did not stretch this render noticeably. Not looked into.
+
+**Next steps:**
+- Operator gates, each separate: push and PR of this branch, merge, deploy, merging `chore/e2e-trial`.
+- Then the proposal already given: the narration quotes comments that have no card on screen (the Halloween script quotes comments 4 and 5, and only the top 3 have cards), with the long title, the colour bars and the SFX cue bug on the same branch.
+- Operator decisions: the 12-sample gate, rotating the printed secrets.
+- Carry forward: everything under Next steps of the entries below.
+
 ## 2026-11-03 - Story previews stay readable while a draft stays open
 
 Branch `fix/preview-capability-renewal`, not pushed. The operator reported that the narrated draft "Happy halowin di melbreennn" was blank behind its cards, except for the first seconds, with the narration still playing.

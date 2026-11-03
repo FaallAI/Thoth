@@ -519,6 +519,25 @@ describe("bounded polling", () => {
     expect(client.getRenderJob).toHaveBeenCalledTimes(1);
   });
 
+  test("a render whose last status fell between two polls still finishes on screen", async () => {
+    jest.useFakeTimers();
+    const client = makeClient([], {
+      getRenderJob: mock(async () => ({ ...COMPLETED, render_job_id: "rj_001" }) as RenderJob),
+    });
+    panel(client);
+    await startRender();
+
+    await act(async () => {
+      jest.advanceTimersByTime(1_500);
+    });
+    expect(screen.getByLabelText("Current render").textContent).toContain("Completed");
+    expect(screen.getByRole("button", { name: "Download video" })).toBeDefined();
+    await act(async () => {
+      jest.advanceTimersByTime(10_000);
+    });
+    expect(client.getRenderJob).toHaveBeenCalledTimes(1);
+  });
+
   test("offline pauses the poll and reconnecting reloads authoritative state", async () => {
     jest.useFakeTimers();
     const client = makeClient();
