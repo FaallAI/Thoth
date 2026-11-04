@@ -1,6 +1,6 @@
 import { Video } from "@remotion/media";
-import { AbsoluteFill, Audio, Img, Sequence, useCurrentFrame } from "remotion";
-import type { CSSProperties, ReactNode } from "react";
+import { AbsoluteFill, Audio, Freeze, Img, Sequence, useCurrentFrame } from "remotion";
+import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import type { EditDocumentV2, TimelineClip } from "./timeline";
 import { blurBoxes } from "./blur";
@@ -59,6 +59,8 @@ const CAPTION_LANE: CSSProperties = {
   justifyContent: "flex-end",
   padding: 64,
 };
+/** Keeps a caption above TikTok's interface, which covers the bottom 18% of the canvas. */
+const CAPTION_SAFE_BOTTOM = 0.18;
 const UNAVAILABLE: CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
@@ -148,6 +150,8 @@ const CAPTION_BASE: CSSProperties = {
 const CAPTION_STYLES: Record<string, CSSProperties> = {
   caption_default: { ...CAPTION_BASE, fontSize: 36 },
   source: { ...CAPTION_BASE, fontSize: 30, color: "#e4e4e7" },
+  // Narration's word-timed captions (spec 2026-10-31).
+  word_highlight: { ...CAPTION_BASE, fontSize: 40, fontWeight: 700 },
 };
 
 /** The caption styles a document may name; Studio offers exactly these. */
@@ -230,7 +234,7 @@ function renderClip(
     case "caption": {
       const style = trustedStyle(clip.style_slot, CAPTION_STYLES, CAPTION_STYLES.caption_default!);
       return (
-        <AbsoluteFill style={CAPTION_LANE}>
+        <AbsoluteFill style={{ ...CAPTION_LANE, paddingBottom: canvas.height * CAPTION_SAFE_BOTTOM }}>
           {/* Cue frames are relative to the caption clip, so they nest inside it. */}
           {clip.cues.map((cue, index) => (
             <Sequence
@@ -238,10 +242,17 @@ function renderClip(
               name={`${clip.clip_id}_cue_${index}`}
               from={cue.from_frame}
               durationInFrames={cue.duration_in_frames}
+              // Its default wrapper is a row of its own: the lane's centring would never reach the
+              // cue, and the cue's box would run the canvas's height from the top left.
+              layout="none"
             >
-              <p data-testid="caption-cue" data-caption-style={style.name} style={style.style}>
-                {cue.text}
-              </p>
+              {style.name === "word_highlight" && cue.words && cue.words.length > 0 ? (
+                <WordHighlightCue words={cue.words} style={style.style} />
+              ) : (
+                <p data-testid="caption-cue" data-caption-style={style.name} style={style.style}>
+                  {cue.text}
+                </p>
+              )}
             </Sequence>
           ))}
         </AbsoluteFill>
@@ -251,22 +262,98 @@ function renderClip(
       const draw = (motion: MotionState) =>
         videoClip(clip, muted, refs, canvas, sources, motion, onPreviewUnavailable);
       // Only a moving clip reads the frame, so a still clip draws exactly as before Story mode.
-      return clip.motion && clip.motion !== "none" ? <MovingClip clip={clip} draw={draw} /> : draw(STILL);
+      const drawn =
+        clip.motion && clip.motion !== "none" ? <MovingClip clip={clip} draw={draw} /> : draw(STILL);
+      const asset = refs.get(clip.asset_id);
+      // Narration's retiming may run a clip past its source: hold that last frame (2026-10-31).
+      const remaining =
+        clip.hold_after_source && asset?.kind === "video" && asset.duration_in_frames
+          ? asset.duration_in_frames - clip.source_from_frame
+          : null;
+      return remaining !== null && remaining > 0 ? <HeldClip lastFrame={remaining - 1}>{drawn}</HeldClip> : drawn;
     }
     case "audio": {
       const source = resolve(clip.asset_id, sources, onPreviewUnavailable);
-      if (!source) return <PreviewUnavailable label="Audio preview unavailable" />;
+      // Audio has no picture: a missing source is reported but never covers the frame.
+      if (!source) return null;
       return (
         <Audio
           src={source}
           startFrom={clip.source_from_frame}
-          volume={(frame) => (muted ? 0 : clip.volume * fadeMultiplier(frame, clip))}
+          volume={(frame) =>
+            // Ducking scales the clip's own volume, so an operator's level survives it.
+            muted ? 0 : clip.volume * volumeAt(frame, clip.volume_keyframes ?? [], 1) * fadeMultiplier(frame, clip)
+          }
         />
       );
     }
     default:
       return null;
   }
+}
+
+/** The spoken word in amber, the rest of the page in white (narration captions, 2026-10-31). */
+function WordHighlightCue({
+  words,
+  style,
+}: {
+  words: NonNullable<Extract<TimelineClip, { kind: "caption" }>["cues"][number]["words"]>;
+  style: CSSProperties;
+}) {
+  const frame = useCurrentFrame();
+  return (
+    <p data-testid="caption-cue" data-caption-style="word_highlight" style={style}>
+      {words.map((word, index) => {
+        const active = frame >= word.from_frame && frame < word.from_frame + word.duration_in_frames;
+        return (
+          <Fragment key={index}>
+            {index > 0 ? " " : null}
+            <span
+              data-testid="caption-word"
+              data-active={String(active)}
+              style={{ color: active ? "#d49a79" : "#ffffff" }}
+            >
+              {word.text}
+            </span>
+          </Fragment>
+        );
+      })}
+    </p>
+  );
+}
+
+/**
+ * Past the asset's last frame the clip shows that frame, paused. Freeze stays mounted and
+ * switches on through `active` (Remotion v4.0.127+), so the decoder is never remounted.
+ */
+function HeldClip({ lastFrame, children }: { lastFrame: number; children: ReactNode }) {
+  return (
+    <Freeze frame={lastFrame} active={(frame) => frame > lastFrame}>
+      {children}
+    </Freeze>
+  );
+}
+
+/**
+ * A keyframed volume at one clip-relative frame: the first value before the first
+ * keyframe, linear between keyframes, the last value after; `fallback` without any.
+ */
+export function volumeAt(
+  frame: number,
+  keyframes: ReadonlyArray<{ frame: number; volume: number }>,
+  fallback: number,
+): number {
+  if (keyframes.length === 0) return fallback;
+  if (frame <= keyframes[0]!.frame) return keyframes[0]!.volume;
+  for (let index = 1; index < keyframes.length; index += 1) {
+    const next = keyframes[index]!;
+    if (frame <= next.frame) {
+      const previous = keyframes[index - 1]!;
+      const ratio = (frame - previous.frame) / (next.frame - previous.frame);
+      return previous.volume + (next.volume - previous.volume) * ratio;
+    }
+  }
+  return keyframes[keyframes.length - 1]!.volume;
 }
 
 function MovingClip({ clip, draw }: { clip: VideoClip; draw: (motion: MotionState) => ReactNode }) {
@@ -322,6 +409,10 @@ function videoClip(
           src={source}
           trimBefore={clip.source_from_frame}
           muted={muted}
+          // Only narration's ducking passes a volume, so every other render stays as it was.
+          {...(clip.volume_keyframes && clip.volume_keyframes.length > 0
+            ? { volume: (frame: number) => volumeAt(frame, clip.volume_keyframes!, 1) }
+            : {})}
           objectFit={clip.fit}
           style={media}
         />

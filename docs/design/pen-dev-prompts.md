@@ -580,3 +580,26 @@ When the screens are approved, the implementation gets its own spec, with backen
 5. the inbox query.
 
 The dashboard restyle comes after that.
+
+## Studio shell v2 (2026-11-01)
+
+This brief came out of the 2026-11-01 Studio audit, and the result is in the `Studio shell v2 · …` and `Shell v2 · …` frames of `design/thoth-dashboard-v2.pen`. Review then corrected the frames: the font is Geist rather than the Inter this brief names; only the selected beat outlined; the Timeline's tools and inspector fields kept; Assist as an action; cards follow the voice. Spec: `docs/superpowers/specs/2026-11-01-studio-shell-v2-design.md`.
+
+```text
+Redesign the responsive shell of Thoth Studio, a dark-theme video editor for vertical (9:16) social videos. Keep the existing visual language: near-black surfaces, warm orange accent, Inter for UI text, mono for timecodes and track names, 10 px radii. Deliver frames at 1440, 1024 and 430 px wide, in English, with one Indonesian variant at 1024 to check longer labels. Text is never truncated without a tooltip.
+
+Context: Studio has two editing modes on the same draft.
+- Story: a materials list (left), a 9:16 preview (centre), a beat inspector (right), and a beat strip across the bottom (Hook, Main, Evidence, Reactions, Footage, Outro tiles with durations, plus "Add beat").
+- Timeline: assets (left) with a small "Sound effects" library under them, the preview over a multi-track timeline (centre: main_video, b_roll, overlay, caption, narration, music, sfx lanes), and a clip inspector (right).
+The header today holds: back to Studio, the draft title, the jobs Edit / Review / Render, the mode switch Story / Timeline, undo and redo, the save status ("Saved · rev 17"), and in Story also "Create narration", "Script" and "Assist", then "Request review" and a settings icon.
+
+Problems to solve:
+1. Header overflow. At 1024 the Edit / Review / Render jobs stack vertically and the header grows to ~130 px; at 1440 in Story the narration buttons push "Render" to a second line. Design one header that stays a single row of fixed height from 1440 down to 1024. Group the actions by priority: always visible (back, title, jobs, mode, save status, primary action), and an overflow menu for the rest (narration, Script, Assist, settings). The completed narration state needs a visible reason, such as "Narrated · 4 beats" with a menu to re-voice or recreate, instead of a disabled-looking button.
+2. 430 px. The page renders 985 px wide today. Design a phone layout with no horizontal scroll: a compact header (back, title, one overflow menu), a pane switcher (Materials / Preview / Inspector in Story; Assets / Preview / Timeline / Inspector in Timeline), and the beat strip as a horizontally scrollable row of beat chips. In Timeline on a phone, show the timeline as a read-mostly lane view with a "best on a larger screen" note; it doesn't need full editing.
+3. Asset and clip naming. Assets show raw IDs ("asset_e9495ab75c…", "audio · 269f"). Design an asset row with a thumbnail or waveform, a human label (for example "Narration · Main", "Comment card · @lailynisfa", "Footage · @OfficialiNews"), its kind and its duration in seconds, and Add / Preview actions. The Story inspector's "Shown" list should use the same labels, never a clip ID, and tell two clips with the same title apart by their kind.
+4. Story inspector density. The scene heading renders as a 7-line display-size block. Show it as a compact, clamped preview (two lines, with "Edit" to open the heading and body fields).
+5. Beat strip truth. Each tile shows the beat's own duration, and the total matches the canvas length. Show narrated beats with a small voice indicator and a mark when a beat's text changed but its voice was not re-recorded ("needs re-voice").
+6. Timeline issues bar. Keep the bottom status line ("5 warnings · Review issues"), but make "Review issues" open a list grouped by lane, where clicking an issue selects its clip.
+
+Out of scope: the render page, the Review job, the preview player controls, and the timeline lane rendering itself.
+```

@@ -15,6 +15,13 @@ class VoiceRequest(StrictModel):
     voice_id: Annotated[str, Field(min_length=1, max_length=200)]
     model: Annotated[str, Field(min_length=1, max_length=200)] | None = None
     speed: Annotated[float, Field(ge=0.7, le=1.5)] = 1.0
+    #: The text spoken just before and after this one, so separately voiced beats keep one
+    #: intonation (ElevenLabs request stitching); providers without it ignore them.
+    previous_text: Annotated[str, Field(max_length=5000)] | None = None
+    next_text: Annotated[str, Field(max_length=5000)] | None = None
+    #: ElevenLabs' documented stitching: the request IDs voiced just before this one (it
+    #: keeps the last 3; when sent, the provider ignores `previous_text`).
+    previous_request_ids: list[str] | None = None
 
 
 class WordTiming(StrictModel):
@@ -28,6 +35,8 @@ class SynthesizedVoice(StrictModel):
     media_type: Literal["audio/mpeg", "audio/wav"]
     duration_seconds: float
     word_timings: list[WordTiming] | None
+    #: The provider's ID for this generation, for stitching the next one.
+    request_id: str | None = None
 
 
 class VoiceSynthesizer(Protocol):

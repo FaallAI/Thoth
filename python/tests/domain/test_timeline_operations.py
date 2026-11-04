@@ -955,9 +955,9 @@ def scene_membership(document: EditDocumentV2) -> dict[str, tuple[str | None, in
 @pytest.mark.parametrize(
     ("scene_id", "to_index", "expected"),
     [
-        ("scene_003", 0, ["003", "001", "002", "004", "005", "006", "007"]),
-        ("scene_001", 6, ["002", "003", "004", "005", "006", "007", "001"]),
-        ("scene_006", 2, ["001", "002", "006", "003", "004", "005", "007"]),
+        ("scene_003", 0, ["003", "001", "002", "004", "005", "006"]),
+        ("scene_001", 5, ["002", "003", "004", "005", "006", "001"]),
+        ("scene_006", 2, ["001", "002", "006", "003", "004", "005"]),
     ],
 )
 def test_reorder_scene_moves_a_scene_and_its_clips_as_a_unit(
@@ -1110,7 +1110,7 @@ def test_add_caption_clip_spans_its_scene_with_one_default_cue() -> None:
         "hidden": False,
         "locked": False,
         "style_slot": "caption_default",
-        "cues": [{"from_frame": 0, "duration_in_frames": 45, "text": "Hello"}],
+        "cues": [{"from_frame": 0, "duration_in_frames": 45, "text": "Hello", "words": []}],
         "source_role": None,
     }
     assert find_track(result, "track_caption").clip_ids == ["clip_cap"]
@@ -1144,6 +1144,7 @@ def test_set_caption_cue_timing_moves_a_cue_inside_its_clip() -> None:
         "from_frame": 10,
         "duration_in_frames": 20,
         "text": "Hello",
+        "words": [],
     }
 
 
@@ -1234,6 +1235,7 @@ def test_shrinking_a_captioned_scene_keeps_every_cue_inside_the_caption() -> Non
         "from_frame": 29,
         "duration_in_frames": 1,
         "text": "Hello",
+        "words": [],
     }
 
 

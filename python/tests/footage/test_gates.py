@@ -1,14 +1,9 @@
-"""Scout's footage text gates (scout/pipeline/build_footage.ts, footage_queries.ts), ported."""
+"""Footage text gates, ported from Scout's `build_footage.ts` and `footage_queries.ts`."""
 
 from __future__ import annotations
 
-import re
-from pathlib import Path
-
 from thoth_control_plane.acquisition.models import DiscoveredVideo
 from thoth_control_plane.footage.gates import (
-    REACTION_RE,
-    SPAM_DOMAINS,
     MainIdentity,
     compose_query,
     looks_reaction,
@@ -18,24 +13,6 @@ from thoth_control_plane.footage.gates import (
     text_gate,
     video_id,
 )
-
-REPO = Path(__file__).resolve().parents[3]
-SCOUT = (REPO / "scout" / "pipeline" / "build_footage.ts").read_text(encoding="utf-8")
-
-
-def _scout_regex(name: str) -> str:
-    match = re.search(rf"const {name} =\s*/(.+?)/i;", SCOUT, re.S)
-    assert match, f"{name} not found in build_footage.ts"
-    return match.group(1)
-
-
-def test_the_reaction_regex_is_scouts_verbatim() -> None:
-    assert REACTION_RE.pattern == _scout_regex("REACTION_RE")
-
-
-def test_the_spam_domains_are_scouts_verbatim() -> None:
-    match = re.search(r"\|\| /(vidku.+?)/i\.test\(t\)", SCOUT)
-    assert match and SPAM_DOMAINS.pattern == match.group(1)
 
 
 def test_reaction_and_spam() -> None:

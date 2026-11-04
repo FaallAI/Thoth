@@ -30,23 +30,23 @@ operator change record.
 
 ## Prepare persistent storage
 
-Create `postgres`, `editor-postgres`, `artifacts`, `browser-profile`, `observations`, and `reports` below the absolute
-`THOTH_STAGE1_DATA_ROOT` outside this repository. Initialize `artifacts` and `browser-profile` as
-UID/GID `10001:10001`; keep the browser profile out of evidence and support output.
+Create `postgres`, `editor-postgres`, `artifacts`, `account-profiles`, `observations`, and `reports`
+below the absolute `THOTH_STAGE1_DATA_ROOT` outside this repository. Initialize `artifacts` and
+`account-profiles` as UID/GID `10001:10001`; keep the account profiles out of evidence and support
+output.
 
 Place the data root inside the WSL filesystem rather than under `/mnt/c`, because Linux UID/GID
 ownership is not reliable on the Windows drive mount.
 
 ```bash
-mkdir -p "$THOTH_STAGE1_DATA_ROOT"/{postgres,editor-postgres,artifacts,browser-profile,account-profiles,observations,reports}
-sudo chown -R 10001:10001 "$THOTH_STAGE1_DATA_ROOT"/artifacts "$THOTH_STAGE1_DATA_ROOT"/browser-profile
+mkdir -p "$THOTH_STAGE1_DATA_ROOT"/{postgres,editor-postgres,artifacts,account-profiles,observations,reports}
+sudo chown -R 10001:10001 "$THOTH_STAGE1_DATA_ROOT"/artifacts
 sudo chown -R 10001:10001 "$THOTH_STAGE1_DATA_ROOT"/account-profiles
-sudo chmod 750 "$THOTH_STAGE1_DATA_ROOT"/artifacts "$THOTH_STAGE1_DATA_ROOT"/browser-profile
+sudo chmod 750 "$THOTH_STAGE1_DATA_ROOT"/artifacts
 sudo chmod 700 "$THOTH_STAGE1_DATA_ROOT"/account-profiles
 ```
 
-Root is used only for this bounded ownership initialization. API, worker, and browser processes stay
-non-root. World-writable permissions are forbidden. PostgreSQL owns `postgres/` with the identity
+Root is used only for this bounded ownership initialization. API and worker processes stay non-root. World-writable permissions are forbidden. PostgreSQL owns `postgres/` with the identity
 expected by the pinned image; do not change its ownership manually.
 
 ## Configure the local environment
@@ -57,9 +57,9 @@ record. The variables Compose requires are `THOTH_IMAGE`, `THOTH_STAGE1_DATA_ROO
 `THOTH_CONTROL_PLANE_API_KEY`, `THOTH_POSTGRES_PASSWORD`, and `THOTH_EDITOR_POSTGRES_PASSWORD`. Missing required variables make
 `docker compose config` fail before any pull or startup.
 
-`THOTH_STAGE1_ACTIVITY_MODE` selects the worker activity mode. It defaults to
-`python_tiktok_with_legacy_fallback` and may only be changed to `legacy_scout` during the approved
-rollback drill.
+Acquisition runs in Python only. Scout and its CDP sidecar are retired (operator, 2026-10-30), so
+there is no acquisition mode to choose: an acquisition that fails is fixed in Python. A leftover
+`THOTH_STAGE1_ACTIVITY_MODE` line in `.env.stage1.local` is read by nothing.
 
 `THOTH_LIVE_TIKTOK_URL` is a host-side pytest variable and is never injected into a container. It is
 read only by `python/tests/live`, which is not part of the image. The fixture is referred to by
@@ -68,9 +68,8 @@ URL to be selected silently.
 
 ## Configure the shared provider input
 
-Legacy Scout aborts its first pipeline step without a model provider key, so the digest alone is not
-fallback-ready: the worker and every one-off reference need the same provider input. Keep that input
-in a file outside the repository and give Compose only its absolute path.
+The worker's vision and subtitle OCR need a model provider key. Keep that input in a file outside
+the repository and give Compose only its absolute path.
 
 `.env.stage1.providers.example` shows the shape and is not a usable provider file. Create the real
 file on restricted storage, then export its path:
@@ -82,19 +81,15 @@ export THOTH_STAGE1_PROVIDER_ENV_FILE="$HOME/secrets/stage1.providers.env"
 ```
 
 The file holds exactly `THOTH_NOVITA_API_KEY` and `THOTH_SUBTITLE_OCR_MODEL`, plus the
-optional `THOTH_OPENROUTER_API_KEY` that source attribution uses. A wider file is
+optional `THOTH_OPENROUTER_API_KEY` that source attribution uses and the optional
+`THOTH_ELEVENLABS_API_KEY` that narration's voice uses (2026-10-31). A wider file is
 usually an accidental copy of the repository `.env`, and a service-level `env_file` injects every
 line of the file it names into that container, so the extra variables would become container
 environment. The preflight rejects a third variable, a placeholder key, a relative or
 in-repository path, and, on Linux, a group- or world-readable mode.
 
-`compose.stage1.providers.yml` attaches that file to the worker and to nothing else. The API, the
-browser sidecar, and the infrastructure preflight keep starting with no provider input at all.
-
-The same path is read by `compose.stage1.parity.yml`, the standalone one-shot file a parity
-reference runs from. That file is never merged with the deployment: it names the provider input
-independently so a reference and the worker receive the same configuration without the reference
-inheriting anything else the deployment holds.
+`compose.stage1.providers.yml` attaches that file to the worker and to nothing else. The API and the
+infrastructure preflight keep starting with no provider input at all.
 
 Providing credentials changes runtime configuration only. It does not change the image, its digest,
 or anything already recorded for a deployment that is already running, and a present key is not
@@ -104,7 +99,7 @@ evidence of authentication, quota, or model availability.
 
 Validate the operator-supplied values before pulling anything. Compose interpolation only rejects an
 empty variable, so the preflight is what actually enforces the immutable digest, an absolute data
-root outside the repository, an approved activity mode, and non-placeholder credentials. It names
+root outside the repository, and non-placeholder credentials. It names
 variables and never prints their values.
 
 ```bash
@@ -112,11 +107,11 @@ uv run --project python thoth-control operations stage1-local-preflight --env-fi
 ```
 
 Omitting `--provider-env-file` preserves the earlier non-live behaviour and validates the base
-environment only. Fallback-ready activation always supplies it.
+environment only. A deployment that runs the worker always supplies it.
 
 Then render with `--quiet` and inspect the topology through views that never resolve secrets. A bare
 `docker compose config` prints every resolved `environment:` block, including the database password
-and API key, into the terminal and the shell history. `--no-interpolate` shows the full seven-service
+and API key, into the terminal and the shell history. `--no-interpolate` shows the full
 topology with every `${VAR:?...}` left unresolved, which is the safe way to check `ports:`, `user:`,
 and mount targets.
 
@@ -127,7 +122,7 @@ docker compose --env-file .env.stage1.local -f compose.stage1.local.yml config -
 docker compose --env-file .env.stage1.local -f compose.stage1.local.yml pull
 ```
 
-For a fallback-ready deployment, validate the merged pair as well. `--no-interpolate` alone stops
+With the provider overlay, validate the merged pair as well. `--no-interpolate` alone stops
 being a safe diagnostic here: interpolation and service `env_file` resolution are separate steps, so
 an un-interpolated render still resolves the provider file into the worker's `environment:`. Use
 `--quiet`, `--images`, or the combination below. The current host reports Docker Compose v5.5.0;
@@ -147,7 +142,7 @@ command that omits the override and recreates the worker silently rebuilds it wi
 input, which is the same failure the override exists to prevent.
 
 Reject the rendered configuration if any image reference is mutable or missing a digest, if a host
-binding appears for PostgreSQL, Temporal, or the CDP sidecar, or if any application service resolves
+binding appears for PostgreSQL or Temporal, or if any application service resolves
 to a user other than `10001:10001`.
 
 ## Non-live infrastructure preflight
@@ -157,7 +152,7 @@ editor migration explicitly before starting API. Alembic records the schema revi
 is safe to rerun: it prints only the number of revisions it applied (`0` when already at head) and
 must not be replaced with startup-time schema creation. A database migrated before Alembic is adopted
 from its existing tables; a schema that is not a prefix of the chain is refused unchanged.
-Do not run `docker compose up` for `legacy-cdp` or `worker` without explicit live approval.
+Do not run `docker compose up` for `worker` without explicit live approval.
 
 ```bash
 docker compose --env-file .env.stage1.local -f compose.stage1.local.yml up -d --wait postgresql editor-postgresql temporal temporal-ui
@@ -197,285 +192,28 @@ docker compose --env-file .env.stage1.local -f compose.stage1.local.yml exec tem
 
 Then run the non-live control-plane smoke before any live gate is considered.
 
-## Scout runtime contents
-
-The legacy Scout fallback needs two things the earlier image did not provide, both corrected by
-[the Scout runtime corrective design](../superpowers/specs/2026-09-06-stage1-scout-runtime-corrective-design.md).
-Verify them against the digest actually deployed rather than assuming any image has them.
-
-| Requirement | State in a corrected image | How Scout uses it |
-| --- | --- | --- |
-| `yt-dlp` | pinned `2026.8.19`, which reports itself as `2026.08.19`, installed as `/opt/thoth/python/.venv/bin/yt-dlp` | video acquisition and thumbnail resolution in `trace_source` and `build_footage` |
-| `gallery-dl` | pinned `1.32.11`, installed as `/opt/thoth/python/.venv/bin/gallery-dl` | image-post acquisition where no video stream exists |
-| Sibling-reachable CDP | supervisor relay on `18800`, Chromium itself still on loopback | `THOTH_CDP` from the worker container |
-
-Scout resolves each downloader from `YTDLP` and `GALLERY_DL`, falling back to `PATH`; the image
-sets both to the absolute paths above and both also resolve on `PATH` for its non-root user. The
-build itself gates their presence and exact versions after switching to that user, so an image that
-builds cannot be missing them. The Python TikTok path stays headless-first with its CDN fallback
-and does not use either downloader, so their absence does not fail every direct-CDN branch; it
-fails the legacy Scout steps that shell out to them.
-
-The sidecar's healthcheck probes `127.0.0.1` from inside the container, so a `healthy` sidecar is
-not evidence that any other container can reach it. Chromium binds DevTools to loopback whatever
-address it is given; sibling reachability comes from the relay in front of it. The two-container
-smoke is what proves that transport:
-
-```bash
-bash docker/test-cdp-offline.sh <image-ref>
-```
-
-It starts the browser on a throwaway internal network with no published ports, then, from a second
-container, proves HTTP discovery, a browser-level WebSocket session, and a page session opened by
-Scout's own CDP client. It also proves the supervisor dies with Chromium and that it leaves nothing
-behind. CI runs the same script on the pull-request candidate and on the published digest. It
-targets `about:blank` and reaches no external site, so it is an offline transport proof and says
-nothing about live acquisition, parity, or provider acceptance.
-
-The page opened by `legacy-cdp` is owned exclusively by the sidecar health contract. A worker
-fallback must never select, navigate, restore, or close that page. Instead,
-`scout/runtime/legacy_fallback.ts` opens one temporary `about:blank` page through the private
-relay's browser-level WebSocket, passes its exact validated target ID only to the Scout child, and
-runs Scout with `--source-reference-only`. The supervisor reaps Scout and closes that leased target
-before returning. A target that cannot be proven closed produces status `70`, which outranks the
-child status; success cannot conceal failed cleanup.
-
-The CDP smoke also runs this production supervisor through both its synthetic success and injected
-child-failure paths. It passes only when the original health target retains the same ID and local
-URL, a distinct temporary target is observed, and no temporary target remains after either path.
-Its output contains fixed booleans only, never target IDs or URLs. This construction prevents a
-fallback from leaving the sidecar unhealthy while its container remains running. It does not rely
-on Docker to restart an unhealthy container: `restart: unless-stopped` responds to process exit,
-not health status. This proof remains offline and does not demonstrate a successful live fallback.
-
-A second offline harness proves the other half: that a parity reference owns its browser instead of
-borrowing the deployment's.
-
-```bash
-bash docker/test-parity-offline.sh <image-ref>
-```
-
-It runs the one-shot reference container on a throwaway internal network next to a synthetic
-sentinel that takes the `legacy-cdp` alias and counts every request made to it. A pass requires the
-reference to start its own Chromium, drive it with Scout's own CDP client to a page the probe serves
-itself on loopback, find its profile empty, leave the sentinel's request count at zero, fail when
-its browser is killed, stop when cancelled, and leave no container or network behind. CI runs it on
-the pull-request candidate and on the published digest. Like the transport smoke, it contacts no
-site and no provider, so it says nothing about live acquisition, parity, or provider acceptance.
-
 ## Controlled live gate
 
-The approved mode is `python_tiktok_with_legacy_fallback`. Starting the CDP sidecar opens TikTok and
-requires explicit operator approval plus the locally supplied fixture. Stop on authentication wall,
-challenge, unexpected routing, redaction failure, or cleanup failure.
+Starting the worker lets it acquire from live platforms and requires explicit operator approval
+plus the locally supplied fixture. Stop on authentication wall, challenge, unexpected routing,
+redaction failure, or cleanup failure.
 
-The CDP health check requires a responding `/json/version` endpoint and a page target served over
-HTTPS from an exact TikTok host whose path carries no authentication or challenge marker. A login
-wall, a captcha, or a look-alike host is unhealthy by design. A CDP failure blocks worker startup
-while legacy fallback mode is selected; that must not be worked around by relaxing the health check
-or publishing port `18800`.
-
-The sidecar runs with `seccomp:unconfined` because Chromium's own sandbox needs syscalls the
-default Docker profile blocks. The relaxation is deliberate, it is scoped to the single container
-that browses TikTok, and no other service may relax its sandbox. Replace it with a pinned Chromium
-seccomp profile once one is available. It is never a substitute for the health probe, which stays
-fail-closed.
-
-Once the sidecar and worker are approved and running, verify their identity and isolation:
+Once the worker is approved and running, verify its identity and isolation:
 
 ```bash
 docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml exec worker id -u
-docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml exec legacy-cdp id -u
-docker inspect -f '{{json .NetworkSettings.Ports}}' "$(docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml ps -q legacy-cdp)"
-docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml exec worker printenv THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE
-docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml run --rm --no-deps -T worker bun /opt/thoth/scout/runtime/provider_check.ts
+docker inspect -f '{{json .NetworkSettings.Ports}}' "$(docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml ps -q worker)"
 ```
 
-- Both identity commands must print `10001`.
-- The provider check prints one line per reference role and must report `chat_ready=true`,
-  `vision_ready=true`, `embed_ready=true`, and `ocr_model_ready=true`. It contacts no provider, so
-  it proves the configuration arrived, not that the account can serve a request.
-- The bindings command must print a map whose every value is `null`. A `HostPort` entry means
-  the sidecar is reachable outside the private network and the gate stops here. `docker compose
-  port` is not a substitute: it reports an exposed port as `invalid IP:0` and exits `0` whether
-  or not that port is published, so it cannot distinguish the two.
-- The worker mode must print `python_tiktok_with_legacy_fallback`.
+- The identity command must print `10001`.
+- The bindings command must print `{}` or a map whose every value is `null`. A `HostPort` entry
+  means the worker is reachable outside the private network and the gate stops here. `docker
+  compose port` is not a substitute: it reports an exposed port as `invalid IP:0` and exits `0`
+  whether or not that port is published, so it cannot distinguish the two.
 
-Perform exactly one controlled fallback smoke on first activation, as described in "Controlled
-fallback gate (`f1`)" below. Establish the acceptance start timestamp only after that smoke passes
-and the operator explicitly approves opening the window.
-
-The isolated activation parity pair and the controlled fallback smoke are pre-window gates, each
-separately approved. Neither is an observation, and the activation pair is not one of the two
-in-window parity samples. An activation pair whose reference fails, produces no reference media, or
-leaves any Scout-side artifact-integrity check false is `evidence_incomparable`: preserved failure
-evidence, never a parity pass, and never usable to satisfy this gate or an acceptance dataset.
-
-The activation parity gate must pass before a window opens. Failed activation evidence stays in
-restricted evidence and is recorded in the operator change record; it is never deleted, relabelled,
-or retried without its own approval. Read the current gate state from the operator change record.
-Do not copy a gate verdict into this runbook.
-
-## Controlled fallback gate (`f1`)
-
-`f1` runs the deployed legacy fallback supervisor, `scout/runtime/legacy_fallback.ts`, exactly
-once in a one-shot container made from the deployed digest. The container joins the private Stage 1
-network and uses the deployed `legacy-cdp` sidecar; the worker, its mode, and every deployed
-service are left as they are. The design is
-`docs/superpowers/specs/2026-09-10-stage1-controlled-fallback-activation-design.md`.
-
-A passing `f1` proves supervisor activation and target isolation only: the supervisor leased a
-temporary target through the private relay, launched Scout through the production
-source-reference-only boundary, reaped it, and released the target, while the sidecar's health page
-survived and no CDP port was published. It is not Python-routing evidence. It does not show that a
-Python workflow falls back on its own, that a Python failure is eligible for fallback, or that
-Temporal routed anything through `LegacyScoutActivity`. It is also not a parity sample, a soak
-observation, a rollback drill, or an acceptance-window run.
-
-### Fixture and evidence locations
-
-All `f1` evidence stays outside this repository, outside `THOTH_STAGE1_DATA_ROOT`, and outside the
-parity sample root `$HOME/thoth-stage1-parity`:
-
-```text
-/home/mfr/thoth-stage1-fallback/                     mode 0700
-  controlled-fallback-record.jsonl                   append-only index, one f1 sample row
-  f1/                                                mode 0700, the gate directory
-    url.txt                                          operator fixture, mode 0600
-    reference-input/url                              staged copy, 10001:10001, removed by teardown
-    output/                                          supervisor output, returned to the operator
-    supervisor.stdout.log                            raw log, mode 0600
-    supervisor.stderr.log                            raw log, mode 0600
-    artifact-integrity.private.json                  restricted checksums, mode 0600
-    controlled-fallback-attempt.json                 safe attempt record, mode 0600
-```
-
-The operator writes the fixture at `/home/mfr/thoth-stage1-fallback/f1/url.txt`, and the index
-lives at `/home/mfr/thoth-stage1-fallback/controlled-fallback-record.jsonl`. The fixture holds
-exactly one canonical HTTPS TikTok post URL with no credentials, port, query, or fragment, and it
-must be byte-distinct from every retained parity fixture p1-p6: `f1` is independent of them. The
-gate directory must be named `f1`, must contain no symlink, and must not yet contain `output` or
-`reference-input`, an attempt record, or a private integrity record. A leftover staged directory is
-refused because an old output could otherwise validate as this attempt's.
-
-The deployed image runs as UID/GID `10001` and cannot read an operator-owned mode `0600` file. After
-the attempt is reserved, a no-network staging helper started from the same pinned digest copies the
-fixture to `f1/reference-input/url` (mode `0400`, in a mode `0500` directory, both owned by
-`10001:10001`) and creates `f1/output` (mode `0700`, owned by `10001:10001`). Only those two paths
-are mounted into the one-shot container. `f1/output` is mounted twice: once for the report, and
-once at Scout's fixed output root `/opt/thoth/scout/output`. Scout writes the acquired media there
-and records it as an absolute path, which validation rebases onto the gate directory. Without the
-second mount, the media is lost when the container is removed. After the supervisor exits, the same helper hands `output`
-back to the gate directory's owner with owner-only modes, and teardown removes `reference-input` on
-every terminal path. The operator's `url.txt` stays where it is.
-
-The URL never enters a host shell, a Compose argument, a Docker create request, or container
-configuration. The supervisor reads it from the staged file, so it appears in the Scout process argv
-inside the one-shot container while that process runs. That is the one residual exposure this gate
-accepts; it is visible only to processes inside that container.
-
-`supervisor.stdout.log`, `supervisor.stderr.log`, `artifact-integrity.private.json`, and `output/`
-are restricted evidence. They are never printed, pasted into chat, attached to Issue #5, or copied
-into an aggregate report or the soak dataset. Only the fields of `controlled-fallback-attempt.json`
-may be summarised in the operator change record.
-
-### Preflight
-
-Run preflight from the repository root in WSL. The commands resolve the gate through
-`.env.stage1.local` at the repository root and the two Compose files named below, so the working
-directory matters. The checkout must be clean: `git status --porcelain` must print nothing,
-untracked files included, so park local edits before the gate. Ignored files such as
-`.env.stage1.local` do not count. Preflight checks the inputs and the live deployment and starts
-no container; it prints only `controlled_fallback_preflight_passed=true` or `=false`.
-
-```bash
-export THOTH_F1_DIGEST=sha256:<the digest the deployed API, worker, and legacy-cdp all run>
-export THOTH_F1_ACQUISITION_REVISION=<40-hex commit that built that digest>
-export THOTH_F1_HARNESS_REVISION=<40-hex commit of this checkout>
-uv run --project python thoth-control operations stage1-controlled-fallback-preflight --sample /home/mfr/thoth-stage1-fallback/f1 --provider "$THOTH_STAGE1_PROVIDER_ENV_FILE" --data-root "$THOTH_STAGE1_DATA_ROOT" --parity-root "$HOME/thoth-stage1-parity" --digest "$THOTH_F1_DIGEST" --acquisition-revision "$THOTH_F1_ACQUISITION_REVISION" --harness-revision "$THOTH_F1_HARNESS_REVISION"
-```
-
-A preflight failure starts nothing and consumes nothing. Correct the input, then ask the operator
-for authorization again; do not loop preflight until it passes.
-
-### The live run is an operator gate
-
-The run below contacts TikTok through the deployed sidecar. It is an operator gate: it needs its
-own explicit, single-use authorization, and preflight passing does not grant it.
-
-```bash
-uv run --project python thoth-control operations stage1-controlled-fallback-run --gate-id f1 --sample /home/mfr/thoth-stage1-fallback/f1 --provider "$THOTH_STAGE1_PROVIDER_ENV_FILE" --data-root "$THOTH_STAGE1_DATA_ROOT" --parity-root "$HOME/thoth-stage1-parity" --digest "$THOTH_F1_DIGEST" --acquisition-revision "$THOTH_F1_ACQUISITION_REVISION" --harness-revision "$THOTH_F1_HARNESS_REVISION"
-```
-
-The command runs preflight again first; if it fails, it prints only
-`controlled_fallback_preflight_passed=false` and reserves nothing. Otherwise it reserves
-`controlled-fallback-attempt.json` as `pending` with an exclusive create, stages the fixture, starts the one-shot `controlled-fallback` service with
-`--no-deps`, waits once for it, captures its logs into the two raw log files, reclaims `output`,
-validates the artifact, tears the staged input down, re-checks the deployment, then finalizes the
-attempt record by write-and-rename and appends one row to `controlled-fallback-record.jsonl`. It
-prints only `controlled_fallback_completed=true|false` and `verdict=passed|failed|inconclusive`.
-A stale `pending` record blocks any later run until it is diagnosed; it is never overwritten.
-
-Authorization is consumed when the one-shot container starts. From then on there is no retry:
-whatever the outcome, it is the single final `f1` result. A failure is evidence and stays in the
-gate directory and the index. A correction is a separate amendment row that targets the sample row;
-existing bytes are never rewritten.
-
-### Verdicts and precedence
-
-- `passed` requires supervisor exit `0`, a present and validated artifact, the health page
-  preserved, the page-target count restored, healthy API and CDP, unchanged restart counts,
-  successful cleanup, and an empty teardown.
-- `failed` covers a nonzero supervisor exit, artifact validation failure, health-page loss or
-  health failure, restart drift, a target-count mismatch, or cleanup or teardown failure.
-- `inconclusive` is limited to losing the supervisor's terminal status after the container started.
-  It never grants activation credit.
-
-Precedence is fixed: cleanup and teardown failure first, then health, target-count, and restart
-drift, then artifact validation, then the supervisor's exit status. A supervisor that exits `0`
-cannot pass a gate whose cleanup failed. `temporary_target_observed=false` alone does not fail a
-fast run, because polling can miss a short-lived target; it is supporting evidence only.
-
-Artifact validation reuses the parity integrity contract: report schema, exactly one media
-artifact contained beneath `f1/output`, MP4 signature and minimum size, and byte-count and checksum
-agreement. It does not compare Python and Scout output and cannot set `parity_passed`.
-
-### Retry gate (`f2`)
-
-`f1` failed on 2026-09-25 because of a gate-harness defect (Scout media outside the gate mount,
-fixed in `e258b58`). The operator authorized one explicit retry under gate id `f2`; the amendment in
-the design spec defines it. `f1` is never run again. Before `f2` can pass preflight, one
-`classification_amendment` row targeting `f1` with `failure_attribution: "gate_harness_defect"`
-must be appended to the index; its shape is fixed by the spec. Then `f2` follows every rule above
-with `f2` in place of `f1`: the directory `/home/mfr/thoth-stage1-fallback/f2` (mode `0700`), its
-own `url.txt` (mode `0600`, byte-distinct from p1-p6, may equal `f1`'s), `--gate-id f2`, and its
-own single-use authorization. A failed `f2` is final; `f2` has no retry.
-
-### Activation gate for a corrected image (`f3`)
-
-`f3` is step 8's controlled fallback exercise for the corrected image on digest `a112d632…`. It is
-not a retry: the design spec's `f3` amendment defines it, and it needs no amendment row. Preflight
-refuses it if the index already holds any `f3` row, or any row recording the digest being
-activated. Otherwise `f3` follows every rule above with `f3` in place of `f1`: the directory
-`/home/mfr/thoth-stage1-fallback/f3` (mode `0700`), its own `url.txt` (mode `0600`, byte-distinct
-from every retained parity fixture), `--gate-id f3`, and its own single-use authorization. A failed
-`f3` is final.
-
-`f3` failed on `a112d632…` because of a legacy Scout defect: TikTok `v<N>…` CDN hosts were rejected
-as pages. `f4` is the activation gate for the image that carries the fix. It follows the `f3` rules
-exactly, with `f4` in place of `f3`: the directory `/home/mfr/thoth-stage1-fallback/f4`,
-`--gate-id f4`, and a digest no index row has recorded. A failed `f4` is final.
-
-Every gate fixture must be a bare post URL, with no `?query` and no `#fragment`. Preflight rejects
-either one. The parity reference refuses them too, so a parity fixture must be bare as well.
-
-### Offline proof
-
-`docker/test-controlled-fallback-offline.sh IMAGE` proves the same staging, reclaim, and teardown
-scripts and the one-shot gate shape against a synthetic `about:blank` browser on an internal
-network, with a placeholder fixture and no provider file. It runs in CI against the candidate image
-and the published digest, and prints only fixed `<field>=true|false` lines. It never touches the
-deployment project, `.env.stage1.local`, or any real fixture.
+Stage 1 closed under ADR 0001, and its activation parity and controlled fallback tooling was
+removed on 2026-10-30, followed the same day by Scout and its CDP sidecar. Deployment rollback is
+the recovery mechanism.
 
 ## Accelerated acceptance target
 
@@ -483,17 +221,15 @@ A new dataset is evaluated against the accelerated acceptance policy in
 `docs/superpowers/specs/2026-09-07-stage1-accelerated-acceptance-design.md`:
 
 - at least 24 hours between the first and last valid completed run;
-- at least 12 valid completed runs;
-- at least 2 in-window evidence-backed parity samples, each from a distinct approved, public,
-  first-party TikTok post.
+- at least 12 valid completed runs.
 
-The success, fallback, and terminal-failure rates are unchanged at 0.95, 0.05, and 0.02, and the
+Parity samples compared Python with Scout; Scout is retired, so the soak needs none. The success
+and terminal-failure rates are unchanged at 0.95 and 0.02, and the
 zero-tolerance cleanup and audit rules still apply to every observation. Archived windows keep the
 policy embedded in their own reports; they are never re-evaluated under these defaults.
 
-An aggregate report of `ready: true` is necessary but not sufficient. The controlled fallback
-exercise, the restart-recovery check, the rollback drill, and explicit human approval all remain
-required, and a Python-default decision neither removes nor disables the TypeScript Scout path.
+An aggregate report of `ready: true` is necessary but not sufficient. The restart-recovery check,
+the rollback drill, and explicit human approval all remain required.
 
 ## Evidence identity of an aggregate report
 
@@ -524,20 +260,6 @@ evaluation time is not automatically the evaluator commit. At the current checkp
 permanent value. Archived reports keep their own embedded policy and their own recorded provenance;
 they are never rebound to a later evaluator commit.
 
-## Soak parity samples
-
-A reference is captured in its own disposable container from `compose.stage1.parity.yml`, with its
-own Chromium on a fresh anonymous profile. It never attaches to the deployment's `legacy-cdp`
-sidecar, and it never overrides the `worker` service. That profile is anonymous by design, so a
-fixture behind a login wall stops the reference; seeding a profile or provisioning cookies is a
-separate approval. The deployed worker's real legacy fallback is unchanged and still drives the
-shared sidecar.
-
-Follow [Stage 1 Soak Parity Sampling](stage1-parity-sampling.md) for the two required in-window
-same-URL Python/Scout comparisons, artifact integrity checks, workflow-to-reference evidence, and
-rules for recording `parity_passed`. Cross-provider checksum equality is not the parity criterion.
-The two samples must come from distinct approved, public, first-party TikTok posts.
-
 ## Evidence export
 
 Use host AWS authentication to sync observation JSONL and aggregate reports separately to:
@@ -545,9 +267,8 @@ Use host AWS authentication to sync observation JSONL and aggregate reports sepa
 - `s3://clipper-stage1-soak-evidence-20260903-a1d22394/stage1/observations/`
 - `s3://clipper-stage1-soak-evidence-20260903-a1d22394/stage1/reports/`
 
-Never upload browser-profile data. Upload is a separate operator action and is not performed by
-Compose. AWS credentials are not mounted into PostgreSQL, Temporal, API, worker, UI, or CDP
-containers. Export commands name directories and object prefixes only; they never print observation
+Never upload account-profile data. Upload is a separate operator action and is not performed by
+Compose. AWS credentials are not mounted into PostgreSQL, Temporal, API, worker, or UI containers. Export commands name directories and object prefixes only; they never print observation
 contents, fixture URLs, or workflow identifiers.
 
 Only the aggregate `tiktok-stage1-soak-report.json` may be attached to the change record. Raw JSONL
@@ -563,7 +284,7 @@ soak window in flight is frozen: do not apply any of this to it.
    pairing records exactly as recorded; do not re-label, re-run, or delete them. Record the closure
    of the old window with its digest, its start timestamp, and the reason it is closing.
 2. Publish the corrected image and wait for every gate on that push to pass, including the
-   published-digest infrastructure smoke and `docker/test-cdp-offline.sh`. A build that is green
+   published-digest infrastructure smoke. A build that is green
    locally is not a published artefact. Every push mints a new digest, so a digest read from an
    earlier run is the wrong artefact.
 3. Record the exact acquisition implementation commit, the digest from that commit's Actions
@@ -574,26 +295,41 @@ soak window in flight is frozen: do not apply any of this to it.
    of an aggregate report" above.
 4. Validate the operator inputs against that digest with `stage1-local-preflight --provider-env-file`
    before pulling, then render the merged Compose pair with `config --quiet`.
-5. Deploy every THOTH role — API, worker, and the CDP sidecar — on that one digest. A mixed
+5. Deploy every THOTH role — the API and the worker — on that one digest. A mixed
    deployment invalidates the window before it starts.
-6. Keep the existing persistent state: the artifact root, the browser profile, and the PostgreSQL
-   volume carry forward. Do not recreate them for a version change.
+6. Keep the existing persistent state: the artifact root, the account profiles, and the PostgreSQL
+   volumes carry forward. Do not recreate them for a version change.
 7. Reconcile in-flight workflows before accruing anything new. Let them finish, cancel them
    explicitly, or record them as carried over; a workflow that spans two digests belongs to neither
    window.
-8. Verify identity, isolation, provider readiness, and worker mode as in the controlled live gate
-   above, then run one explicitly approved parity pair and one controlled fallback exercise. Both
-   need their own approval; neither is implied by this document.
+8. Verify identity and isolation as in the controlled live gate above.
 9. Only after those pass, and only after the operator explicitly approves opening the window, start
    a separate new dataset with a new start timestamp. Do not merge it with the archived window's
-   observations, and do not carry the old window's parity results forward. That dataset is the one
-   evaluated against the accelerated acceptance target above; the activation pair from step 8 is not
-   one of its two in-window parity samples. Archived windows keep the policy embedded in their own
-   reports and are never reclassified under the accelerated defaults.
+   observations. That dataset is the one evaluated against the accelerated acceptance target above.
+   Archived windows keep the policy embedded in their own reports and are never reclassified under
+   the accelerated defaults.
 
 Every retry at any step is explicit and recorded. A failure is evidence and is recorded as such: a
-failed reference, a failed fallback exercise, or a failed smoke is a result, not something to retry
+failed reference or a failed smoke is a result, not something to retry
 until it succeeds.
+
+## Narration (auto-draft, 2026-10-31)
+
+A draft opened from a `produce_video` run gains a narration only when someone presses
+**Create narration** in Studio. It needs:
+
+- `THOTH_ELEVENLABS_API_KEY` in the provider file above (the worker refuses the narration with
+  `voice_not_configured` before any spend when it is missing);
+- a model for the `narration_script` Prompt Lab stage in the project's *Presets & prompts*;
+- the bundled sound effects seeded once after the deploy that brings migration 0027:
+
+```bash
+docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml   -f compose.stage1.renderer.yml -f compose.stage1.web.yml run --rm --no-deps api thoth-control sfx seed
+```
+
+Only files listed with a licence-free licence in `assets/sfx/LICENSES.json` are seeded
+(operator, 2026-10-31); the command prints `added=… unchanged=… skipped=…` and is safe to rerun.
+An empty licence file seeds nothing, and narration then places no sound effect.
 
 ## Restart and rollback preparation
 
@@ -603,19 +339,9 @@ An ordinary restart keeps the same digest and the same environment:
 docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml restart worker
 ```
 
-The rollback mode is `legacy_scout` and may be applied only during the approved rollback drill. Set
-`THOTH_STAGE1_ACTIVITY_MODE` to that value in `.env.stage1.local`, then recreate only the worker.
-Restarting the container reuses the environment it was created with, so a restart alone would
-silently keep the previous mode:
-
-```bash
-docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml up -d --no-deps --force-recreate worker
-docker compose --env-file .env.stage1.local -f compose.stage1.local.yml -f compose.stage1.providers.yml exec worker printenv THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE
-```
-
-The mode command must print the mode that was just selected; if it prints the previous mode, the
-rollback has not taken effect and the drill stops. Recreating only the worker preserves Temporal
-history and artifacts for audit.
+Scout is retired, so there is no rollback mode; deployment rollback is the recovery mechanism.
+Restarting a container reuses the environment it was created with, and recreating the API and the
+worker preserves Temporal history and artifacts for audit.
 
 Do not run `docker compose down -v` and do not delete `THOTH_STAGE1_DATA_ROOT` during restart or
 rollback. The rollback drill is not performed until the soak report is ready, and it remains subject

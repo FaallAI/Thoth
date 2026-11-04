@@ -37,15 +37,11 @@ Write the same next steps into that work's `CHANGELOG.md` entry and its active c
 
 ## Technical stack and build verification
 
-- **Stack:** Rust 2024 edition (async Tokio), Windows (CUDA 13.2, LLVM), local `ffmpeg.exe` at root, NVIDIA NVENC for encoding, CUDA for Whisper, `config.toml` (no secrets) + `.env` (API keys).
-- **Task runner:** the root `Makefile`, run from WSL (`make help`): Python tests (`make test T=<path>`), ruff (`make lint`), dashboard tests and build, offline smokes, and the Stage 1 deploy (`make deploy`). The Windows CUDA build stays on `build_cuda.bat`.
+- **Stack:** the Python control plane (`python/`: FastAPI, Temporal, uv, Ruff), the React 19 + TypeScript dashboard built with Bun (`dashboard/`), and the Remotion renderer (`renderer/`, `packages/`), deployed as the Stage 1 Docker stack. The Rust engine and Scout were retired on 2026-10-31.
+- **Task runner:** the root `Makefile`, run from WSL (`make help`): Python tests (`make test T=<path>`), ruff (`make lint`), dashboard tests and build, offline smokes, and the Stage 1 deploy (`make deploy`).
 - **Mandatory verification sequence after every feature update:**
-  1. **Full CUDA build:** Run `build_cuda.bat` (never rely on `cargo check` alone; zero errors and zero critical warnings required):
-     ```cmd
-     cmd /c ".\build_cuda.bat > build_log.txt 2>&1"; "EXIT=$LASTEXITCODE"
-     ```
-  2. **Testing:** Run relevant unit tests (`cargo test --bin thoth <module>`). Fix any failures before proceeding.
-  3. **Record results:** Update the active SDD `progress.md` checkpoint and append the completed record to `CHANGELOG.md`. Never report complete from `cargo check` alone.
+  1. **Testing:** run the tests of every part the change touches: `make test` (Python; `T=<path>` while iterating, the full suite before reporting), `make lint`, and for `dashboard/` its tests, `tsc -b` and build. Fix any failures before proceeding.
+  2. **Record results:** Update the active SDD `progress.md` checkpoint and append the completed record to `CHANGELOG.md`. Never report complete from a partial test run alone.
 
 ## Engineering conventions and git commits
 
@@ -57,19 +53,36 @@ Write the same next steps into that work's `CHANGELOG.md` entry and its active c
   - Use exactly one `git commit -m "<subject>"`; do not add a body, detailed description, blank-line continuation, or trailer.
   - Never add `Co-Authored-By` or any AI attribution to a commit message.
 - **Code & schema conventions:**
-  - Use `#[serde(default)]` on new schema fields for backward-compatibility.
+  - Give new schema and payload fields a default, so stored data and older clients still decode.
   - Every new feature must degrade gracefully if disabled or unavailable.
-  - Log levels: `info!` for key progress, `warn!` for degradation, `debug!` for detail.
+  - Log levels: `info` for key progress, `warning` for degradation, `debug` for detail.
 
 ## Environment and operational guardrails
 
 - **Python:** Use `python` (Anaconda 3.10). `python3` does NOT exist on this machine (returns exit 127).
 - **Shell pathing:** In Bash use forward slashes (`C:/Users/...`) and `rg`/`tail`. In PowerShell use backslashes and `Select-Object -Last N`.
-- **Large file access:** `src/analyze/service.rs` (~2400 lines) and generated JSON/HTML under `.understand-anything/tmp/`, `test/scraper/*.html`, and `arch-input.json` exceed read caps; use offset/limit, grep, or targeted scripts.
+- **Large file access:** `python/openapi.json`, the generated dashboard types, and generated JSON/HTML under `.understand-anything/tmp/` and `arch-input.json` exceed read caps; use offset/limit, grep, or targeted scripts.
 - **Issue tracker & domain docs:**
   - Issues live in GitHub (`FaallAI/Thoth`) via `gh` CLI. See [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md).
   - Canonical triage labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md).
   - Domain docs: Single-context `CONTEXT.md` plus `docs/adr/` at the repo root. See [`docs/agents/domain.md`](docs/agents/domain.md).
+
+## E2E audits
+
+Every audit of the dashboard's look or flows uses [tester-army/e2e](https://github.com/tester-army/e2e). The operator set this standard on 2026-11-02. Do not use ad-hoc browser-use, CDP or Playwright scripts for an audit.
+
+- **Live checks:** load the `e2e` skill, then drive the running app through the `e2e` MCP server. The server needs no model and no API key. Claude Code opens pages, acts, reads the screenshots and judges the visuals itself.
+- **Repeatable checks:** write them as deterministic e2e tests that use `screen` locators and `expect`, with no `agent.act` or `agent.assert`. A run of these needs no model.
+- **Setup until `chore/e2e-trial` is merged:**
+  - The package lives in the worktree `D:/thoth-tmp/wt-e2e-trial/e2e`.
+  - The MCP server is registered locally as `e2e` through `D:/thoth-tmp/e2e-mcp.sh`. The script reads the read-scope token from `D:/thoth-tmp/e2e-dev-token`, turns telemetry off and holds a WSL session open so stage1 web answers on `127.0.0.1:8088`.
+  - The token is the read-scope developer token `e2e-audit`, minted on 2026-11-01 with operator approval. It expires on 2027-01-30 18:51 UTC. Before then, mint a replacement the same way (`thoth-control tokens create --scope read --days 90`), with the operator's approval, and store it without printing it.
+- **Read only:**
+  - An audit never saves, renders, voices or calls a provider.
+  - The read scope refuses preview capabilities, so media previews do not load during an audit.
+  - Playback and pictures are checked with local fixtures that the browser serves in place of previews (`tests/studio-media.e2e.ts`). This proves the Player and the rows, not the server's stored media.
+  - Indonesian is checked on the `*id` targets, whose browser rewrites the signed-in user's language. Nothing is saved.
+- **Report:** give the screens checked, at which widths, what was judged from screenshots, and every finding with its screenshot. A finding is fixed test-first like any other.
 
 ## Code intelligence routing
 
@@ -87,14 +100,14 @@ a 2000-line file to find one symbol is the most expensive way to answer a cheap 
 | Architecture, cross-cutting concept, onboarding to an unfamiliar area | `graphify query "<question>"` | Returns a scoped subgraph. `graphify path`/`explain` for relationships. |
 | Structural pattern match, codemod, mass refactor | `ast-grep` (`sg`) | AST-aware; use instead of regex for code shape. |
 
-Current coverage, verified 2026-09-18:
+Current coverage, verified 2026-09-18 (the Rust crates and `scout/` have since been removed):
 
-- **codegraph** — 488 files, 9640 nodes, 10983 edges across Python, Rust, TypeScript, TSX,
-  and JavaScript. This is the default layer for symbol questions in every part of the
-  repository: the Rust crates, `python/`, `dashboard/`, and `scout/`.
-- **serena** — `.serena/project.yml` sets `language_servers: [rust]`, so Serena answers
-  only for Rust today. It returns nothing useful for `dashboard/` or `python/`. Until that
-  list is extended, route non-Rust symbol questions to codegraph.
+- **codegraph** — 488 files, 9640 nodes, 10983 edges across Python, TypeScript, TSX, and
+  JavaScript. This is the default layer for symbol questions in every part of the
+  repository: `python/`, `dashboard/`, `renderer/`, and `packages/`.
+- **serena** — `.serena/project.yml` sets `language_servers: [rust]`, and no Rust is left,
+  so Serena answers nothing useful until that list is extended. Route symbol questions to
+  codegraph.
 - **graphify** — `graphify-out/` holds 15229 nodes and 29036 links. `graph.json` records
   `built_at_commit`; compare it against `HEAD` before trusting a broad architectural answer.
   Read `graphify-out/GRAPH_REPORT.md` only for a broad architecture review, or when

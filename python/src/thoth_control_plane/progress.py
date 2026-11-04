@@ -186,7 +186,10 @@ def step_sync(
         logger.warning("unknown step code dropped code=%s", code)
         return
     if code.split(".", 1)[0] != scope.stage:
-        logger.warning("step outside its scope's stage dropped code=%s", code)
+        # Attribution and footage reuse the source acquisition code, which reports source.*
+        # steps: dropping those is expected. Any other mismatch is an instrumentation bug.
+        log = logger.debug if code.startswith("source.") else logger.warning
+        log("step outside its scope's stage dropped code=%s", code)
         return
     kind = _kind_of(code, n=n, wait_until=wait_until)
     record = StepRecord(

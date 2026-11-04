@@ -17,8 +17,6 @@ PYTHON_PLATFORM_HOSTS: dict[str, frozenset[str]] = {
     "x": frozenset({"x.com", "twitter.com", "mobile.x.com", "mobile.twitter.com"}),
     "youtube": frozenset({"youtube.com", "youtu.be"}),
 }
-# Rejected in every mode by operator decision; never routed to legacy Scout.
-UNSUPPORTED_DOMAINS = ("facebook.com", "fb.com", "fb.watch", "reddit.com", "redd.it")
 
 
 def bare_host(host: str) -> str:
@@ -45,8 +43,6 @@ def platform_of(url: str) -> str | None:
     return None
 
 
-def platform_support(url: str) -> Literal["python", "legacy", "unsupported"]:
-    host = _host(url)
-    if any(host == domain or host.endswith("." + domain) for domain in UNSUPPORTED_DOMAINS):
-        return "unsupported"
-    return "python" if platform_of(url) is not None else "legacy"
+def platform_support(url: str) -> Literal["python", "unsupported"]:
+    """Python acquires every supported platform; Scout, which took the rest, is retired."""
+    return "python" if platform_of(url) is not None else "unsupported"

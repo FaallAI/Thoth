@@ -260,6 +260,8 @@ class SignInService:
             if role is None:
                 return None
             user_id, email = account.user_id, account.email
+        elif not await self._creator_still_admits(record):
+            return None
         now = self._clock()
         if record.last_used_at is None or now - record.last_used_at >= TOUCH_EVERY:
             await self._run(self._store.touch_token, record.token_id, now)
@@ -342,6 +344,37 @@ class SignInService:
             principal.token_id,
         )
 
+    async def _creator_still_admits(self, record: TokenRecord) -> bool:
+        """A workspace token lives only while its creator is an active owner or admin there."""
+        if record.created_by_user_id is None:
+            return False
+        creator = await self._run(self._store.account, record.created_by_user_id)
+        if creator is None or creator.disabled:
+            return False
+        role = await self._run(self._store.member_role, creator.user_id, record.workspace_id)
+        return role in ("owner", "admin")
+
+    def _workspace_admin(self, principal: Principal) -> None:
+        if principal.user_id is None:
+            raise UserRequired()
+        if principal.role not in ("owner", "admin"):
+            raise ScopeTooBroad()
+
+    async def list_workspace_tokens(self, principal: Principal) -> list[TokenView]:
+        """The workspace's tokens, for its owners and admins to see and revoke (audit A1)."""
+        self._workspace_admin(principal)
+        records = await self._run(self._store.list_tokens, "workspace", principal.workspace_id)
+        return [token_view(record) for record in records]
+
+    async def revoke_workspace_token(self, principal: Principal, token_id: str) -> bool:
+        self._workspace_admin(principal)
+        revoked = await self._run(
+            self._store.revoke_token, token_id, "workspace", principal.workspace_id
+        )
+        if revoked:
+            await self._event("token_revoked", "ok", user_id=principal.user_id, token_id=token_id)
+        return revoked
+
     async def list_tokens(self, principal: Principal) -> list[TokenView]:
         if principal.user_id is None:
             raise UserRequired()
@@ -387,6 +420,7 @@ class SignInService:
             expires_at=expires_at,
             last_used_at=None,
             parent_token_id=parent_token_id,
+            created_by_user_id=actor_user_id,
         )
         if not await self._run(self._store.create_token, record, token_hash(secret), TOKEN_LIMIT):
             raise TokenLimitReached()

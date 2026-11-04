@@ -32,12 +32,20 @@ def google(subject: str, email: str) -> VerifiedIdentity:
     return VerifiedIdentity("google", subject, email, "Alice")
 
 
-def test_the_first_user_owns_the_bootstrap_workspace_and_later_users_get_their_own(store) -> None:
+def test_a_sign_in_never_claims_the_bootstrap_workspace(store) -> None:
+    # Owning the bootstrap makes a platform admin, so a stranger who signs in first on a fresh
+    # install must not get it (audit A2): every sign-in gets a workspace of its own.
     first = store.upsert_identity(google("g1", "alice@acme.test"))
-    assert (first.workspace_id, first.role) == (BOOTSTRAP_WORKSPACE_ID, "owner")
-    second = store.upsert_identity(google("g2", "bob@acme.test"))
-    assert second.workspace_id != BOOTSTRAP_WORKSPACE_ID
-    assert second.workspace_id.startswith("ws_") and second.role == "owner"
+    assert first.workspace_id != BOOTSTRAP_WORKSPACE_ID
+    assert first.workspace_id.startswith("ws_") and first.role == "owner"
+
+
+def test_the_bootstrap_cli_claims_the_bootstrap_workspace_once(store) -> None:
+    store.upsert_identity(google("g1", "stranger@acme.test"))
+    operator = store.ensure_user("operator@acme.test", "Operator")
+    assert (operator.workspace_id, operator.role) == (BOOTSTRAP_WORKSPACE_ID, "owner")
+    later = store.ensure_user("dev@acme.test", "Dev")
+    assert later.workspace_id != BOOTSTRAP_WORKSPACE_ID
 
 
 def test_one_email_across_google_and_github_is_one_user_with_one_workspace(store) -> None:

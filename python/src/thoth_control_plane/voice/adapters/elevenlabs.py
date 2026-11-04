@@ -69,6 +69,12 @@ class ElevenLabsVoice:
             "model_id": request.model or DEFAULT_MODEL,
             "voice_settings": {"speed": request.speed},
         }
+        if request.previous_text:
+            body["previous_text"] = request.previous_text
+        if request.next_text:
+            body["next_text"] = request.next_text
+        if request.previous_request_ids:
+            body["previous_request_ids"] = request.previous_request_ids[-3:]
         try:
             async with httpx.AsyncClient(
                 base_url=BASE_URL, transport=self._transport, timeout=120
@@ -83,7 +89,13 @@ class ElevenLabsVoice:
             raise VoiceUnavailable("elevenlabs_unreachable") from None
         raise_for_status(response, "elevenlabs")
         # Billed once accepted, before the body is decoded (spec 2026-10-20, 2.1).
-        await metering.record_call(f"elevenlabs/{body['model_id']}", characters=len(request.text))
+        # The provider's own `character-cost` header is what it bills; the text length is the
+        # fallback when the header is missing.
+        cost = response.headers.get("character-cost", "")
+        await metering.record_call(
+            f"elevenlabs/{body['model_id']}",
+            characters=int(cost) if cost.isdigit() else len(request.text),
+        )
         try:
             payload = response.json()
             audio = base64.b64decode(payload["audio_base64"])
@@ -94,5 +106,9 @@ class ElevenLabsVoice:
             raise VoiceUnavailable("elevenlabs_bad_response") from None
         duration = words[-1].end_seconds if words else probe_duration(audio)
         return SynthesizedVoice(
-            audio=audio, media_type="audio/mpeg", duration_seconds=duration, word_timings=words
+            audio=audio,
+            media_type="audio/mpeg",
+            duration_seconds=duration,
+            word_timings=words,
+            request_id=response.headers.get("request-id") or None,
         )

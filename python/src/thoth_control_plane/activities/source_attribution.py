@@ -47,7 +47,6 @@ from thoth_control_plane.attribution.adapters.ocr import RapidOcrReader
 from thoth_control_plane.attribution.adapters.speech import SherpaDiarizer, WhisperTranscriber
 from thoth_control_plane.attribution.adapters.vision import AgnoVisionReader
 from thoth_control_plane.attribution.adapters.visual import OrbMatcher
-from thoth_control_plane.attribution.candidates import load_curated
 from thoth_control_plane.attribution.models import ReasonCode
 from thoth_control_plane.attribution.ports import AcquiredCandidate, AttributionError
 from thoth_control_plane.attribution.service import (
@@ -311,7 +310,7 @@ class _OnFirstUse:
                 ports = build_production_ports(self._settings, self._root)
             except SettingsValidationError as error:
                 raise AttributionError(str(error)) from None
-            self._inner = SourceAttributor(ports, curated=load_curated())
+            self._inner = SourceAttributor(ports)
         return await self._inner.identify(workflow_id, report, video)
 
 

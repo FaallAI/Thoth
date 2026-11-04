@@ -222,6 +222,25 @@ class EditDocumentService:
         except Exception as error:
             raise EditorUnavailable() from error
 
+    async def write_derived_revision(
+        self,
+        project_id: ProjectId,
+        document_id: OpaqueId,
+        base_revision: int,
+        document: EditDocument,
+    ) -> EditDocument:
+        """Narration's whole-document save, bound to the revision it was derived from."""
+        await self.get_latest(project_id, document_id)
+        assert self._repository is not None
+        try:
+            return await self._repository.write_derived_revision(
+                project_id, document_id, base_revision, document
+            )
+        except EditDocumentRevisionConflict:
+            raise
+        except Exception as error:
+            raise EditorUnavailable() from error
+
     async def upgrade_to_timeline(
         self,
         project_id: ProjectId,

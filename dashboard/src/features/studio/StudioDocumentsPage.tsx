@@ -48,12 +48,12 @@ function StatePill({ item }: { item: EditDocumentListItem }) {
 }
 
 /** The run's post card when it has one; a plain panel otherwise (or when the card is not ours to see). */
-function Thumbnail({ src, platform }: { src: string | null; platform: string | null | undefined }) {
+export function Thumbnail({ src, platform }: { src: string | null; platform: string | null | undefined }) {
   const [broken, setBroken] = useState(false);
   return (
-    <div className="flex aspect-[9/16] w-[88px] shrink-0 items-center justify-center overflow-hidden rounded-md bg-well md:w-full md:rounded-[10px] md:bg-surface">
+    <div className="flex aspect-square w-[88px] shrink-0 items-center justify-center overflow-hidden rounded-md bg-well md:aspect-video md:w-full md:rounded-[10px] md:bg-surface">
       {src && !broken ? (
-        <img src={src} alt="" loading="lazy" onError={() => setBroken(true)} className="size-full object-cover object-top" />
+        <img src={src} alt="" loading="lazy" onError={() => setBroken(true)} className="size-full object-cover object-left-top" />
       ) : platform ? (
         <PlatformIcon platform={platform} className="size-8 text-faint" />
       ) : (
@@ -71,7 +71,7 @@ function DocumentCard({ item, projectId, client }: { item: EditDocumentListItem;
     <Link
       to={`/studio/${encodeURIComponent(projectId)}/${encodeURIComponent(item.document_id)}`}
       aria-label={item.label}
-      // A row with a small picture on a phone (DESIGN §13.5), a 9:16 card on wider screens.
+      // A row with a small picture on a phone (DESIGN §13.5), a landscape card on wider screens.
       className="group flex min-w-0 gap-3 rounded-[10px] bg-surface p-3 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-copper md:flex-col md:gap-2 md:bg-transparent md:p-0"
     >
       <Thumbnail src={card} platform={item.source_platform} />

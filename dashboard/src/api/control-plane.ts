@@ -20,7 +20,6 @@ export type EditDocumentListItem = components["schemas"]["EditDocumentListItem"]
 export type EditDocumentListPage = components["schemas"]["EditDocumentListPage"];
 export type StylePreset = components["schemas"]["StylePreset"];
 export type ApprovalSubmission = components["schemas"]["ApprovalSubmission"];
-export type RetryRequest = components["schemas"]["RetryRequest"];
 export type EditDocumentV1 = components["schemas"]["EditDocumentV1"];
 export type EditDocumentV2 = components["schemas"]["EditDocumentV2"];
 export type EditDocument = EditDocumentV1 | EditDocumentV2;
@@ -44,6 +43,14 @@ export type StudioImportInventory = components["schemas"]["StudioImportInventory
 export type StudioMaterials = components["schemas"]["StudioMaterials"];
 export type StudioMaterial = StudioMaterials["items"][number];
 export type StoryAssistRequest = components["schemas"]["StoryAssistRequest"];
+// Auto-draft narration (spec 2026-10-31).
+export type NarrationState = components["schemas"]["NarrationState"];
+export type NarrationScript = components["schemas"]["NarrationScript"];
+export type NarrationDecision = components["schemas"]["NarrationDecision"];
+export type NarrationPreset = components["schemas"]["NarrationPreset"];
+export type StoredNarrationPreset = components["schemas"]["StoredPreset"];
+export type SfxSummary = components["schemas"]["SfxSummary"];
+export type BeatName = NonNullable<NarrationState["stale_beats"]>[number];
 export type StoryAssistProposal = components["schemas"]["StoryAssistProposal"];
 export type WorkflowStudioImport = components["schemas"]["WorkflowStudioImport"];
 export type CreateStudioImport = components["schemas"]["CreateStudioImport"];
@@ -246,14 +253,8 @@ export type ControlPlaneClient = {
   /** A text-only draft with no source: the documents page's "Blank". */
   createBlankDocument: (projectId: string) => Promise<EditDocument>;
   getWorkflow: (workflowId: string) => Promise<WorkflowSummary>;
-  streamWorkflow: (
-    workflowId: string,
-    onSnapshot: (snapshot: WorkflowSummary) => void,
-    lastEventId?: string,
-  ) => () => void;
   approveWorkflow: (workflowId: string, approval: ApprovalSubmission) => Promise<WorkflowSummary>;
   cancelWorkflow: (workflowId: string) => Promise<WorkflowSummary>;
-  retryWorkflow: (workflowId: string, retry?: RetryRequest) => Promise<WorkflowSummary>;
   inspectStudioImport: (projectId: string, source: StudioSourceProjection) => Promise<StudioSourceInspection>;
   createStudioImport: (
     projectId: string,
@@ -270,6 +271,18 @@ export type ControlPlaneClient = {
   attachStudioMaterial: (projectId: string, documentId: string, itemId: string) => Promise<EditorAsset>;
   /** Story Assist: one text proposal for a beat; nothing changes until it is applied (spec 7). */
   requestStoryAssist: (projectId: string, documentId: string, request: StoryAssistRequest) => Promise<StoryAssistProposal>;
+  /** Narration: start, read, decide, edit a beat, re-voice; the preset; the SFX library. */
+  startNarration: (projectId: string, documentId: string) => Promise<NarrationState>;
+  getNarration: (projectId: string, documentId: string) => Promise<NarrationState>;
+  decideNarration: (projectId: string, documentId: string, decision: NarrationDecision) => Promise<NarrationState>;
+  editNarrationBeat: (projectId: string, documentId: string, beat: BeatName, text: string) => Promise<NarrationScript>;
+  revoiceNarrationBeat: (projectId: string, documentId: string, beat: BeatName) => Promise<NarrationState>;
+  cancelNarration: (projectId: string, documentId: string) => Promise<NarrationState>;
+  restartNarration: (projectId: string, documentId: string) => Promise<NarrationState>;
+  getNarrationPreset: (projectId: string) => Promise<StoredNarrationPreset>;
+  saveNarrationPreset: (projectId: string, preset: NarrationPreset, baseRevision: number) => Promise<StoredNarrationPreset>;
+  listSfx: () => Promise<SfxSummary[]>;
+  addSfxToProject: (projectId: string, sfxId: string) => Promise<EditorAsset>;
   resolveStudioImportItem: (
     projectId: string,
     documentId: string,
@@ -390,20 +403,6 @@ type ClientOptions = { baseUrl?: string; apiKey?: string; fetch?: typeof fetch }
 
 const defaultBaseUrl = (import.meta.env.VITE_CONTROL_PLANE_URL ?? "").replace(/\/$/, "");
 
-function eventBlocks(chunk: string): Array<{ id?: string; data: string }> {
-  return chunk.split("\n\n").flatMap((block) => {
-    const fields = block.split("\n");
-    const id = fields.find((line) => line.startsWith("id:"))?.slice(3).trim();
-    const data = fields
-      .filter((line) => line.startsWith("data:"))
-      .map((line) => line.slice(5).trimStart())
-      .join("\n");
-    return data ? [{ id, data }] : [];
-  });
-}
-
-const TERMINAL_STATUSES = new Set(["succeeded", "failed", "cancelled"]);
-
 export function createControlPlaneClient(options: ClientOptions = {}): ControlPlaneClient {
   const baseUrl = (options.baseUrl ?? defaultBaseUrl).replace(/\/$/, "");
   // The browser authenticates with its same-site session cookie; it never holds a key (spec 3.6).
@@ -462,7 +461,12 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
       body: JSON.stringify(body),
     });
     if (response.status === 409) {
-      const conflict = (await response.json()) as DocumentRevisionConflictBody;
+      const conflict = (await response.json()) as DocumentRevisionConflictBody & { detail?: { code?: unknown } };
+      // A draft locked by its narration answers 409 too, but without a newer revision to adopt.
+      if (!conflict.latest) {
+        const code = conflict.detail?.code;
+        throw new Error(typeof code === "string" ? code : `Control plane request failed (409)`);
+      }
       return { kind: "conflict", latest: conflict.latest };
     }
     if (!response.ok) throw new Error(`Control plane request failed (${response.status})`);
@@ -495,6 +499,8 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
       headers: { "Content-Type": "application/json", ...extra },
       body: JSON.stringify(body),
     });
+  const narrationPath = (projectId: string, documentId: string, rest = "") =>
+    `/api/v1/projects/${encodeURIComponent(projectId)}/edit-documents/${encodeURIComponent(documentId)}/narration${rest}`;
   const workflowImportPath = (projectId: string, workflowId: string) =>
     `/api/v1/projects/${encodeURIComponent(projectId)}/workflows/${encodeURIComponent(workflowId)}/studio-import`;
 
@@ -658,12 +664,6 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
       }),
     cancelWorkflow: (workflowId) =>
       request<WorkflowSummary>(`/api/v1/workflows/${workflowId}/cancel`, { method: "POST" }),
-    retryWorkflow: (workflowId, retry = {}) =>
-      request<WorkflowSummary>(`/api/v1/workflows/${workflowId}/retry`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(retry),
-      }),
     inspectStudioImport: (projectId, source) => importPost(importPath(projectId, "/inspect"), source),
     createStudioImport: (projectId, request, idempotencyKey) =>
       importPost(importPath(projectId), request, { "Idempotency-Key": idempotencyKey }),
@@ -684,6 +684,31 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
         `/api/v1/projects/${encodeURIComponent(projectId)}/edit-documents/${encodeURIComponent(documentId)}/assist`,
         request,
       ),
+    startNarration: (projectId, documentId) => importPost(narrationPath(projectId, documentId), {}),
+    getNarration: (projectId, documentId) => importCall(narrationPath(projectId, documentId)),
+    decideNarration: (projectId, documentId, decision) =>
+      importPost(narrationPath(projectId, documentId, "/decision"), decision),
+    editNarrationBeat: (projectId, documentId, beat, text) =>
+      importCall(narrationPath(projectId, documentId, `/beats/${beat}`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      }),
+    revoiceNarrationBeat: (projectId, documentId, beat) =>
+      importPost(narrationPath(projectId, documentId, `/beats/${beat}/revoice`), {}),
+    cancelNarration: (projectId, documentId) => importPost(narrationPath(projectId, documentId, "/cancel"), {}),
+    restartNarration: (projectId, documentId) => importPost(narrationPath(projectId, documentId, "/restart"), {}),
+    getNarrationPreset: (projectId) =>
+      importCall(`/api/v1/projects/${encodeURIComponent(projectId)}/narration-preset`),
+    saveNarrationPreset: (projectId, preset, baseRevision) =>
+      importCall(`/api/v1/projects/${encodeURIComponent(projectId)}/narration-preset`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base_revision: baseRevision, preset }),
+      }),
+    listSfx: () => importCall("/api/v1/sfx"),
+    addSfxToProject: (projectId, sfxId) =>
+      importPost(`/api/v1/projects/${encodeURIComponent(projectId)}/sfx/${encodeURIComponent(sfxId)}/asset`, {}),
     attachStudioMaterial: (projectId, documentId, itemId) =>
       importCall(
         importPath(
@@ -869,67 +894,6 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
       reviewList<ReviewDecisionPage>(reviewPath(projectId, documentId, "review-decisions"), query),
     createStudioReviewDecision: (projectId, documentId, request) =>
       reviewPost<ReviewDecision>(reviewPath(projectId, documentId, "review-decisions"), request),
-    streamWorkflow(workflowId, onSnapshot, lastEventId) {
-      let active = true;
-      let cursor = lastEventId;
-      let controller: AbortController | undefined;
-      let snapshotRefresh = Promise.resolve();
-      // Ruling P6: a terminal or history-expired run never changes again; stop reconnecting.
-      let finished = false;
-
-      const refreshSnapshot = () => {
-        snapshotRefresh = snapshotRefresh.then(async () => {
-          if (!active) return;
-          try {
-            const snapshot = await client.getWorkflow(workflowId);
-            onSnapshot(snapshot);
-            if (TERMINAL_STATUSES.has(snapshot.status) || snapshot.history_expired) finished = true;
-          } catch {
-            // A later stream retry or user action will obtain the next snapshot.
-          }
-        });
-        return snapshotRefresh;
-      };
-      void refreshSnapshot();
-
-      void (async () => {
-        while (active && !finished) {
-          controller = new AbortController();
-          try {
-            const response = await fetch(`${baseUrl}/api/v1/workflows/${workflowId}/events`, {
-              headers: headers(cursor ? { "Last-Event-ID": cursor } : {}),
-              signal: controller.signal,
-            });
-            if (!response.ok || response.body === null) throw new Error("workflow stream unavailable");
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let pending = "";
-            while (active && !finished) {
-              const { done, value } = await reader.read();
-              pending = (pending + decoder.decode(value, { stream: !done })).replace(/\r\n/g, "\n");
-              let boundary = pending.indexOf("\n\n");
-              while (boundary >= 0) {
-                for (const event of eventBlocks(pending.slice(0, boundary))) {
-                  if (event.id) cursor = event.id;
-                  await refreshSnapshot();
-                }
-                pending = pending.slice(boundary + 2);
-                boundary = pending.indexOf("\n\n");
-              }
-              if (done) break;
-            }
-          } catch {
-            // The immediately refreshed snapshot is authoritative after every reconnect.
-          }
-          await refreshSnapshot();
-          if (active && !finished) await new Promise((resolve) => setTimeout(resolve, 1_000));
-        }
-      })();
-      return () => {
-        active = false;
-        controller?.abort();
-      };
-    },
   };
   return client;
 }

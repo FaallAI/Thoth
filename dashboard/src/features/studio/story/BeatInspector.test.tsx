@@ -8,7 +8,7 @@ import { render } from "@/test-render";
 
 import type { EditorAction } from "../editor_state";
 import { BeatInspector } from "./BeatInspector";
-import { computeBeats } from "./story_beats";
+import { beatOwnFrames, computeBeats } from "./story_beats";
 import { storyDocument, storyInventory } from "./story-test-fixtures";
 
 afterEach(cleanup);
@@ -61,8 +61,8 @@ test("the header names the beat, its place, its length and what is missing", () 
 test("shown cards move, and leave the beat", () => {
   const { committed } = mount("reactions");
 
-  fireEvent.click(screen.getByRole("button", { name: "Move @viewer later" }));
-  fireEvent.click(screen.getByRole("button", { name: "Remove comment_card_001 from the beat" }));
+  fireEvent.click(screen.getByRole("button", { name: "Move Comment card · @viewer later" }));
+  fireEvent.click(screen.getByRole("button", { name: "Remove Comment card · comment_card_001 from the beat" }));
 
   expect(committed()).toEqual([
     [["move_clip", "clip_comment_card_001"], ["move_clip", "clip_comment_card_000"]],
@@ -121,9 +121,9 @@ test("add from materials offers what the beat does not show, and attaches it", a
 
   fireEvent.click(screen.getByRole("button", { name: "Add from materials" }));
   const picker = screen.getByRole("listbox", { name: "Add from materials" });
-  expect(within(picker).getAllByRole("option").map((option) => option.textContent)).toEqual(["@late"]);
+  expect(within(picker).getAllByRole("option").map((option) => option.textContent)).toEqual(["Comment card · @late"]);
 
-  await act(async () => fireEvent.click(within(picker).getByRole("option", { name: "@late" })));
+  await act(async () => fireEvent.click(within(picker).getByRole("option", { name: "Comment card · @late" })));
 
   expect(attach).toHaveBeenCalledWith("comment_card_003");
   expect(dispatch.mock.calls.map(([action]) => action.type)).toEqual(["assets_loaded", "commit_operations"]);
@@ -188,7 +188,7 @@ test("without the run's provenance, Add from materials offers only what already 
   );
 
   fireEvent.click(screen.getByRole("button", { name: "Add from materials" }));
-  expect(within(screen.getByRole("listbox", { name: "Add from materials" })).getAllByRole("option").map((option) => option.textContent)).toEqual(["@kept"]);
+  expect(within(screen.getByRole("listbox", { name: "Add from materials" })).getAllByRole("option").map((option) => option.textContent)).toEqual(["Comment card · @kept"]);
 });
 
 test("the timing fields follow the draft after an undo", () => {
@@ -242,4 +242,34 @@ test("a card beat lists Position, Motion and Emphasis in that order", () => {
   );
 
   expect(screen.getAllByRole("group").map((group) => group.getAttribute("aria-label"))).toEqual(["Position", "Motion", "Emphasis"]);
+});
+
+test("the Shown list uses labels: kind and source, never an id", () => {
+  // Studio shell v2 (spec 2026-11-01, goal 4).
+  mount("reactions");
+
+  const shown = screen.getByRole("region", { name: "Shown" });
+  expect(within(shown).getByText("Comment card · @viewer")).toBeDefined();
+  expect(within(shown).queryByText(/asset_|clip_/)).toBeNull();
+});
+
+test("a narrated beat's cards follow the voice: no per-card length", () => {
+  // Studio shell v2 (spec 2026-11-01, anti-goals): narration shares a beat by each card's length.
+  render(
+    <BeatInspector beat={beats.find((beat) => beat.id === "reactions")!} beats={beats} document={storyDocument()} inventory={inventory} materials={materials} dispatch={mock(() => {})} narrated />,
+  );
+
+  expect(screen.getByText("Cards follow the voice · 2.7 s")).toBeDefined();
+  expect(screen.queryByLabelText(/Each card/)).toBeNull();
+});
+
+test("a beat that spans others reads its own seconds, as its tile does", () => {
+  // e2e audit 2026-11-02, finding 4: Main read 13.6 s in the inspector and 8.9 s on its tile.
+  const canvas = storyDocument().canvas.duration_in_frames;
+  const spanning = beats.map((beat, index) => (index === 0 ? { ...beat, startFrame: 0, durationInFrames: canvas } : beat));
+  const own = beatOwnFrames(spanning, canvas).get(spanning[0]!.id)!;
+  expect(own).toBeLessThan(canvas);
+  render(<BeatInspector beat={spanning[0]!} beats={spanning} document={storyDocument()} inventory={inventory} materials={materials} dispatch={mock(() => {})} />);
+
+  expect(screen.getByText(new RegExp(`^Beat 1 of 4 · ${(own / 30).toFixed(1)} s`))).toBeDefined();
 });

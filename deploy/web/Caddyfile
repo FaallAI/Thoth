@@ -14,6 +14,8 @@
 		X-Frame-Options "DENY"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		X-Content-Type-Options "nosniff"
+		# Ignored over plain HTTP, so local stacks are unaffected; HTTPS sites stay HTTPS (audit A3).
+		Strict-Transport-Security "max-age=31536000"
 		-Server
 	}
 

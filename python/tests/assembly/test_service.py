@@ -124,6 +124,19 @@ def test_an_original_post_is_its_own_main(tmp_path: Path) -> None:
     assert content.figures_status == "unavailable"
 
 
+def test_a_long_post_title_ends_on_a_whole_word(tmp_path: Path) -> None:
+    text = " ".join(["banjir"] * 40)
+
+    main = build(tmp_path, report(text=text)).main
+
+    assert main.title.endswith("banjir…") and len(main.title) <= 120
+    assert main.description == text
+
+
+def test_a_post_of_one_long_word_still_has_a_title(tmp_path: Path) -> None:
+    assert build(tmp_path, report(text="x" * 200)).main.title == "x" * 120
+
+
 def test_without_attribution_the_verdict_is_none(tmp_path: Path) -> None:
     assert build(tmp_path, report()).attribution_verdict == "none"
 
@@ -435,3 +448,29 @@ def test_photos_missing_store_degrades_to_none(tmp_path: Path) -> None:
     reader = FootageReader(_run(), [_clip_view(_clean_ocr())], RuntimeError("db down"))
     content = _footage_build(tmp_path, reader)
     assert content.photos == [] and len(content.footage) == 1
+
+
+def test_the_caption_read_gets_the_decode_pass_and_the_band_reader(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from thoth_control_plane.assembly import service
+
+    seen: dict[str, Any] = {}
+    real = service.analyze_main_ocr
+
+    async def spy(*args: Any, **kwargs: Any) -> Any:
+        seen.update(kwargs)
+        return await real(*args, **kwargs)
+
+    monkeypatch.setattr(service, "analyze_main_ocr", spy)
+    main = report()
+    touch(tmp_path, main)
+    decoder, bands = object(), object()
+    assembler = ContentAssembler(
+        AssemblyPorts(frames=Frames(), probe=Probe(), text=Clean(), decoder=decoder, bands=bands),  # type: ignore[arg-type]
+        clock=lambda: NOW,
+    )
+
+    asyncio.run(assembler.build(AssemblyInputs("wf_a", main, None, None, tmp_path)))
+
+    assert seen["decoder"] is decoder and seen["bands"] is bands

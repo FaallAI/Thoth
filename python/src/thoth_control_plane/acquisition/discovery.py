@@ -225,11 +225,18 @@ class _Scroll:
     kind: DiscoveryKind
     limit: int
     responses: list[Any] = field(default_factory=list)
+    # Each response's body as read when it arrived, None when the browser had already
+    # discarded it; Scrapling's own late copy turns that into b"", which reads as a refusal.
+    bodies: list[bytes | None] = field(default_factory=list)
+    unreadable: int = 0
     parsed: int = 0
     seen: set[str] = field(default_factory=set)
     done: bool = False
     captcha: bool = False
     solves: int = 0
+    # How many list responses had arrived when a captcha was last solved: a refusal among
+    # them predates the solve and is stale, never a reason to stop.
+    solved_after: int = 0
     timed_out: bool = False
     stop: str = "none"
     page_png: bytes | None = None
@@ -242,11 +249,14 @@ class _Scroll:
         # A session retry re-runs page_setup on a fresh page; start a clean tally so a
         # stale response or flag from the failed attempt never carries into this one.
         self.responses = []
+        self.bodies = []
+        self.unreadable = 0
         self.parsed = 0
         self.seen = set()
         self.done = False
         self.captcha = False
         self.solves = 0
+        self.solved_after = 0
         self.timed_out = False
         self.stop = "none"
         self.page_png = None
@@ -259,8 +269,14 @@ class _Scroll:
             try:
                 body = await response.body()
             except Exception:
-                body = b""
+                # Unreadable is not refused: skip it rather than parse it as a captcha.
+                self.unreadable += 1
+                self.bodies.append(None)
+                continue
+            self.bodies.append(body)
             page = parse_discovery_page(self.kind, body, getattr(response, "status", None))
+            if _stale_refusal(page, self.parsed - 1, self.solved_after):
+                continue
             self.seen.update(video.post_id for video in page.videos)
             if page.reason is not None or not page.has_more:
                 self.done = True
@@ -271,7 +287,15 @@ async def _solve(page: Any, scroll: _Scroll) -> bool:
     if scroll.solves >= MAX_SOLVES:
         return False
     scroll.solves += 1
-    return await solve_captcha(page)
+    solved = await solve_captcha(page)
+    if solved:
+        scroll.solved_after = len(scroll.responses)
+    return solved
+
+
+def _stale_refusal(page: DiscoveryPage, index: int, solved_after: int) -> bool:
+    """A list response TikTok refused before a captcha was solved says nothing about after."""
+    return page.reason is DiscoveryReason.CAPTCHA and index < solved_after
 
 
 def _scroll_action(scroll: _Scroll) -> Callable[[Any], Awaitable[None]]:
@@ -295,6 +319,9 @@ def _scroll_action(scroll: _Scroll) -> Callable[[Any], Awaitable[None]]:
             logger.warning(
                 "tiktok discovery scroll failed kind=%s error=%s", scroll.kind, type(error).__name__
             )
+        # The responses that arrived after the last scroll, read while the page still holds them.
+        with contextlib.suppress(Exception):
+            await scroll.absorb()
 
     return action
 
@@ -316,6 +343,13 @@ async def _crop_profile_page(page: Any) -> bytes | None:
 async def _paginate(page: Any, scroll: _Scroll) -> None:
     idle = 0
     for _ in range(MAX_SCROLLS):
+        # The modal first: a list response refused while it shows is stale once it is solved.
+        if await page.query_selector(CAPTCHA_SELECTOR) is not None:
+            if not await _solve(page, scroll):
+                scroll.captcha = True
+                scroll.stop = "captcha"
+                return
+            idle = 0
         await scroll.absorb()
         if len(scroll.seen) >= scroll.limit:
             scroll.stop = "limit"
@@ -323,12 +357,6 @@ async def _paginate(page: Any, scroll: _Scroll) -> None:
         if scroll.done:
             scroll.stop = "done"
             return
-        if await page.query_selector(CAPTCHA_SELECTOR) is not None:
-            if not await _solve(page, scroll):
-                scroll.captcha = True
-                scroll.stop = "captcha"
-                return
-            idle = 0
         before = len(scroll.responses)
         await page.mouse.wheel(0, SCROLL_PX)
         if await _wait_for_new(page, scroll, before):
@@ -352,18 +380,24 @@ async def _wait_for_new(page: Any, scroll: _Scroll, before: int) -> bool:
 def _assemble(
     kind: DiscoveryKind,
     limit: int,
-    parsed: list[DiscoveryPage],
+    parsed: list[DiscoveryPage | None],
     *,
     captcha: bool,
     timed_out: bool,
+    solved_after: int = 0,
 ) -> DiscoveryResult:
-    """Merge parsed pages in capture order; the first page reason stops assembly."""
+    """Merge parsed pages in capture order; the first page reason stops assembly, except a
+    refusal captured before a captcha was solved, which is stale."""
     videos: dict[str, DiscoveredVideo] = {}
     photos: dict[str, DiscoveredPhoto] = {}
     pages = ads = photo_posts = invalid = 0
     exhausted = False
     reason: DiscoveryReason | None = None
-    for page in parsed:
+    usable = 0
+    for index, page in enumerate(parsed):
+        if page is None or _stale_refusal(page, index, solved_after):
+            continue
+        usable += 1
         if page.reason is not None:
             reason = page.reason
             exhausted = False
@@ -380,7 +414,7 @@ def _assemble(
     if reason is None:
         if captcha:
             reason = DiscoveryReason.CAPTCHA
-        elif not parsed:
+        elif not usable:
             reason = DiscoveryReason.NO_DATA
         elif timed_out:
             reason = DiscoveryReason.TIMEOUT
@@ -399,6 +433,29 @@ def _empty(kind: DiscoveryKind, reason: DiscoveryReason) -> DiscoveryResult:
     return DiscoveryResult(
         kind=kind, videos=[], pages=0, exhausted=False, drops=DiscoveryDrops(), reason=reason
     )
+
+
+def _readable_pages(
+    kind: DiscoveryKind, scroll: _Scroll, captured: list[Any]
+) -> list[DiscoveryPage | None]:
+    """Each list response once: the body the page read when it arrived, else Scrapling's late
+    copy. Both can lose a body the browser discarded (Scrapling keeps b"" then); such a
+    response is None, skipped, never read as TikTok refusing the request."""
+    pages: list[DiscoveryPage | None] = []
+    for index in range(max(len(scroll.bodies), len(captured))):
+        body = scroll.bodies[index] if index < len(scroll.bodies) else None
+        source = scroll.responses[index] if body is not None else None
+        if body is None and index < len(captured):
+            late = getattr(captured[index], "body", None)
+            # Read in the page, a b"" is a real (refused) answer; from Scrapling it may be lost.
+            if isinstance(late, bytes) and (late or index >= len(scroll.bodies)):
+                body, source = late, captured[index]
+        pages.append(
+            None
+            if body is None
+            else parse_discovery_page(kind, body, getattr(source, "status", None))
+        )
+    return pages
 
 
 def _parse_entry(kind: DiscoveryKind, entry: Any) -> DiscoveryPage:
@@ -480,12 +537,19 @@ class ScraplingDiscoveryBrowser:
                 _decrement_active_sessions()
 
         logger.debug("tiktok discovery scroll ended kind=%s stop=%s", kind, scroll.stop)
+        if scroll.unreadable:
+            logger.info(
+                "tiktok discovery list bodies unreadable kind=%s unreadable=%d",
+                kind,
+                scroll.unreadable,
+            )
         captured = getattr(response, "captured_xhr", None) or []
         result = _assemble(
             kind,
             request.limit,
-            [_parse_entry(kind, entry) for entry in captured],
+            _readable_pages(kind, scroll, captured),
             captcha=scroll.captcha or _captcha_rendered(response),
             timed_out=scroll.timed_out,
+            solved_after=scroll.solved_after,
         )
         return result.model_copy(update={"page_png": scroll.page_png})

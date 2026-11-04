@@ -412,6 +412,37 @@ describe("the render job lifecycle", () => {
     expect(done.history[0].progress_percent).toBe(80);
   });
 
+  test("a read that missed a status still moves the job on", () => {
+    // Finalizing lasted 0.6 s between two polls on stage1 (2026-11-03): the panel refused the
+    // next read's "completed", so a render that took 33 s showed as encoding from then on.
+    const state = loaded([rendering]);
+    const done = renderJobReducer(state, {
+      type: "job_refreshed",
+      generation: state.generation,
+      job: { ...COMPLETED, render_job_id: "rj_001" } as RenderJob,
+    });
+    expect(done.history[0].status).toBe("completed");
+    expect(done.history[0].progress_percent).toBe(80);
+
+    const preparing = loaded([job({ status: "preparing" } as Partial<RenderJob>)]);
+    const moved = renderJobReducer(preparing, {
+      type: "job_refreshed",
+      generation: preparing.generation,
+      job: job({ status: "finalizing" } as Partial<RenderJob>),
+    });
+    expect(moved.history[0].status).toBe("finalizing");
+  });
+
+  test("a read older than the job's status cannot move it back", () => {
+    const state = loaded([job({ status: "finalizing" } as Partial<RenderJob>)]);
+    const stale = renderJobReducer(state, {
+      type: "job_refreshed",
+      generation: state.generation,
+      job: job({ status: "rendering" } as Partial<RenderJob>),
+    });
+    expect(stale.history[0].status).toBe("finalizing");
+  });
+
   test("a terminal status is final", () => {
     const completed = loaded([job({ status: "completed" } as Partial<RenderJob>)]);
     const toFailed = renderJobReducer(completed, {
@@ -664,4 +695,16 @@ describe("the safe error contract", () => {
     });
     expect(known.lastError).toBe("render_unavailable");
   });
+});
+
+test("superseding moves the generation, so the panel's counter stays in lockstep", () => {
+  // The dev server stayed on "Loading render options…": the unmount half of an effect moved only
+  // the panel's counter, so StrictMode's second load carried a generation the reducer refused.
+  const started = renderJobReducer(createRenderJobState(), { type: "load_started" });
+  const superseded = renderJobReducer(started, { type: "superseded" });
+
+  expect(superseded.generation).toBe(started.generation + 1);
+  expect(
+    renderJobReducer(superseded, { type: "loaded", generation: superseded.generation, capability: { available: true } as never, jobs: [] }).capability,
+  ).not.toBeNull();
 });

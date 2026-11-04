@@ -3,25 +3,11 @@ import re
 import tomllib
 from pathlib import Path
 
-from thoth_control_plane.operations.tiktok_parity import DEFAULT_SCOUT_RECORDED_ROOT
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 
 
 def _repo_text(relative_path: str) -> str:
     return (REPOSITORY_ROOT / relative_path).read_text(encoding="utf-8")
-
-
-def _fenced_commands(markdown: str) -> list[str]:
-    """Return only the lines inside fenced blocks, so prose cannot trip a command check."""
-    commands: list[str] = []
-    inside = False
-    for line in markdown.splitlines():
-        if line.startswith("```"):
-            inside = not inside
-        elif inside:
-            commands.append(line.strip())
-    return commands
 
 
 def test_dockerignore_excludes_sensitive_and_generated_inputs() -> None:
@@ -60,10 +46,15 @@ def test_dockerignore_excludes_sensitive_and_generated_inputs() -> None:
         "tiktok-stage1-soak-report.json*",
     }
     assert required_patterns <= patterns
-    # One exception, and only one: the tracked release capsule is media the
-    # parity image has to render, and the rules above would otherwise drop it.
+    # The tracked release capsule is media the parity image has to render, and
+    # narration seeds the bundled SFX from the image (spec 2026-10-31); the rules
+    # above would otherwise drop both.
     negations = {pattern for pattern in patterns if pattern.startswith("!")}
-    assert negations == {"!packages/remotion-composition/releases/**"}
+    assert negations == {
+        "!packages/remotion-composition/releases/**",
+        "!assets/sfx/**",
+        "!assets/asset_catalog.json",
+    }
 
 
 def test_dockerfile_uses_locked_full_compatibility_runtime() -> None:
@@ -72,12 +63,10 @@ def test_dockerfile_uses_locked_full_compatibility_runtime() -> None:
     assert "FROM oven/bun:1.4.4 AS bun-tools" in dockerfile
     assert "FROM python:3.12-slim-bookworm AS runtime" in dockerfile
     assert "uv sync --frozen --no-dev --extra acquisition" in dockerfile
-    assert "bun --cwd=/opt/thoth/scout install --frozen-lockfile --production" in dockerfile
     assert "/opt/thoth/python/.venv/bin/patchright install --with-deps chromium" in dockerfile
-    # The image carries exactly one Chromium (the legacy CDP refuses ambiguity) and it is
-    # patchright's — the stealthy sessions launch through patchright, which pins its own
-    # revision. The 2026-10-23 refresh shipped the driver without its browser and every
-    # card visit failed as headless_blocked.
+    # The image carries exactly one Chromium and it is patchright's — the stealthy sessions
+    # launch through patchright, which pins its own revision. The 2026-10-23 refresh shipped
+    # the driver without its browser and every card visit failed as headless_blocked.
     assert "/opt/thoth/python/.venv/bin/scrapling install" not in dockerfile
     assert "COPY . " not in dockerfile
 
@@ -89,10 +78,8 @@ def test_the_stealthy_browser_launch_smoke_gates_publication_and_deploy() -> Non
     assert "test-browser-offline.sh" in _repo_text("scripts/ops/deploy-stage1.sh")
 
 
-def test_dockerfile_preserves_legacy_adapter_layout_and_non_root_runtime() -> None:
+def test_dockerfile_keeps_a_non_root_runtime() -> None:
     dockerfile = _repo_text("Dockerfile")
-    assert "COPY --chown=thoth:thoth scout/ /opt/thoth/scout/" in dockerfile
-    assert "test -f /opt/thoth/scout/cli.ts" in dockerfile
     assert "THOTH_CONTROL_PLANE_ARTIFACT_ROOT=/var/lib/thoth/artifacts" in dockerfile
     assert "USER thoth" in dockerfile
     assert "RUN test -w /var/lib/thoth/artifacts" in dockerfile
@@ -142,10 +129,9 @@ def test_container_workflow_boots_the_stack_it_publishes() -> None:
 
 
 def test_container_workflow_smoke_never_starts_the_live_services() -> None:
-    """The CDP sidecar opens TikTok and the worker depends on it; CI starts neither."""
+    """The worker acquires from live platforms; CI never starts it."""
     workflow = _repo_text(".github/workflows/container-image.yml")
     smoke = workflow.split("  stack-smoke:", 1)[1]
-    assert "up -d --wait legacy-cdp" not in smoke
     assert " worker" not in smoke.replace("--wait postgresql temporal temporal-ui api", "")
     assert "down -v" not in smoke
 
@@ -174,8 +160,6 @@ def test_container_workflow_pins_gates_tags_platform_and_digest_summary() -> Non
     assert "uv run playwright install --with-deps chromium" in workflow
     # The speech adapter tests fail without models (operator, 2026-10-13), so CI fetches them.
     assert "fetch_speech_models.py --whisper tiny" in workflow
-    assert "bun --cwd=scout run test:acquisition" in workflow
-    assert "bun --cwd scout" not in workflow
     assert "platforms: linux/amd64" in workflow
     assert "type=raw,value=sha-${{ github.sha }}" in workflow
     assert "type=ref,event=branch" in workflow
@@ -356,7 +340,7 @@ def test_renderer_smoke_reads_no_real_credential_or_asset() -> None:
     assert "openssl rand" in script
 
 
-def test_quality_workflow_provisions_linux_ffmpeg_for_scout() -> None:
+def test_quality_workflow_provisions_linux_ffmpeg_for_the_media_tests() -> None:
     workflow = _repo_text(".github/workflows/container-image.yml")
     assert "Install media test dependencies" in workflow
     assert "sudo apt-get update" in workflow
@@ -384,10 +368,7 @@ def test_dockerfile_pins_base_interpreter_and_editable_layout() -> None:
     `uv` prefers its own managed interpreters by default, so an unpinned `uv sync`
     can resolve a downloaded CPython under `/root` instead of the base image's
     3.12. That would both violate the `python:3.12-slim-bookworm` runtime line and
-    leave `.venv/bin/python` unreadable after dropping to `thoth`. A non-editable
-    install fails the same way silently: `LegacyScoutActivity` resolves its
-    repository root from `thoth_control_plane.__file__`, so the Scout fallback
-    would break at runtime while the build stayed green.
+    leave `.venv/bin/python` unreadable after dropping to `thoth`.
     """
     dockerfile = _repo_text("Dockerfile")
     assert "UV_PYTHON=/usr/local/bin/python3.12" in dockerfile
@@ -396,83 +377,14 @@ def test_dockerfile_pins_base_interpreter_and_editable_layout() -> None:
     assert "assert m.__file__.startswith('/opt/thoth/python/src/'), m.__file__" in dockerfile
 
 
-def test_dockerfile_provides_linux_legacy_media_and_cdp_runtime() -> None:
+def test_dockerfile_provides_linux_media_runtime() -> None:
     dockerfile = _repo_text("Dockerfile")
     assert "ca-certificates ffmpeg tini" in dockerfile
     assert "THOTH_FFMPEG=/usr/bin/ffmpeg" in dockerfile
     assert "THOTH_FFPROBE=/usr/bin/ffprobe" in dockerfile
-    assert "/var/lib/thoth/browser-profile" in dockerfile
-    assert "COPY --chmod=0755 --chown=thoth:thoth docker/start-legacy-cdp" in dockerfile
-    assert "/opt/thoth/bin/start-legacy-cdp --check" in dockerfile
-    assert 'cdp_check_log="$(mktemp)"' in dockerfile
-    assert '/opt/thoth/bin/start-legacy-cdp --check >"$cdp_check_log" 2>&1' in dockerfile
-    assert 'test ! -s "$cdp_check_log"' in dockerfile
-    assert 'cat "$cdp_check_log" >&2' in dockerfile
-    assert "cdp_check_output=$(" not in dockerfile
     assert "/usr/bin/ffmpeg -version" in dockerfile
     assert "/usr/bin/ffprobe -version" in dockerfile
-    assert "EXPOSE 8000 18800" in dockerfile
-
-
-def test_legacy_cdp_launcher_is_fixed_private_contract() -> None:
-    """The launcher validates the container, then hands off to the supervisor.
-
-    It used to `exec` Chromium with `--remote-debugging-address=0.0.0.0`, which
-    Chromium ignores: DevTools stayed bound to loopback, so the sidecar answered its
-    own healthcheck while refusing every sibling container. The browser flags now live
-    in `scout/runtime/legacy_cdp.ts`; what stays here is argument validation, single
-    Chromium discovery, the writable profile, and the silent `--check`.
-    """
-    launcher = _repo_text("docker/start-legacy-cdp")
-    required = {
-        "/ms-playwright/chromium-[0-9]*/chrome-linux*/chrome",
-        "chromium_count=$((chromium_count + 1))",
-        'if [ "$chromium_count" -ne 1 ]; then',
-        'if [ ! -d "$profile_dir" ] || [ ! -w "$profile_dir" ]; then',
-        "runtime=/opt/thoth/scout/runtime/legacy_cdp.ts",
-        'exec bun "$runtime" \\',
-        '--chromium "$chromium_path" --profile "$profile_dir"',
-        "--offline-smoke",
-    }
-    assert all(token in launcher for token in required)
-    assert 'case "$#" in' in launcher
-    assert launcher.index('case "$#" in') < launcher.index("chromium_path=")
-    assert launcher.index("offline_smoke=false") < launcher.index('case "$#" in')
-    assert "--check" in launcher
-    assert launcher.index('if [ "$check_only" = true ]') < launcher.index("exec bun")
-    assert "sync_playwright" not in launcher
-    assert "--no-sandbox" not in launcher
-    assert "THOTH_LIVE_TIKTOK_URL" not in launcher
-    assert "--remote-debugging" not in launcher
-
-
-def test_legacy_cdp_launcher_clears_a_stale_profile_lock() -> None:
-    """Deploy 2026-10-24: after the WSL VM stopped hard, the profile kept a SingletonLock naming
-    a dead container, so Chromium refused the profile, exited before DevTools opened, and the
-    sidecar restarted in a loop with an empty log. This container is the profile's only user,
-    so any lock present at start is stale. `--check` stays free of side effects."""
-    launcher = _repo_text("docker/start-legacy-cdp")
-    clear = (
-        'rm -f "$profile_dir/SingletonLock" "$profile_dir/SingletonCookie"'
-        ' "$profile_dir/SingletonSocket"'
-    )
-    assert clear in launcher
-    assert launcher.index('if [ "$check_only" = true ]') < launcher.index(clear)
-    assert launcher.index(clear) < launcher.index("exec bun")
-    assert "rm -rf" not in launcher
-
-
-def test_legacy_cdp_supervisor_keeps_the_browser_private_and_sandboxed() -> None:
-    supervisor = _repo_text("scout/runtime/legacy_cdp.ts")
-    relay = _repo_text("scout/runtime/cdp_relay.ts")
-    assert "new URL('http://127.0.0.1:18801')" in supervisor
-    assert "new URL('http://legacy-cdp:18800')" in supervisor
-    assert "'--remote-debugging-address=127.0.0.1'" in supervisor
-    assert "'--headless=new'" in supervisor
-    assert "'https://www.tiktok.com/'" in supervisor
-    assert "'about:blank'" in supervisor
-    assert "--no-sandbox" not in supervisor
-    assert "--remote-allow-origins" not in supervisor and "--remote-allow-origins" not in relay
+    assert "EXPOSE 8000\n" in dockerfile
 
 
 def test_container_workflow_pins_every_action_to_full_commit_sha() -> None:
@@ -501,22 +413,6 @@ def test_container_workflow_pins_every_action_to_full_commit_sha() -> None:
             assert line.rstrip().endswith(expected[reference])
 
 
-def test_operations_docs_define_private_same_digest_cdp_sidecar() -> None:
-    documentation = _repo_text("docs/python-control-plane.md")
-    required = {
-        "/opt/thoth/bin/start-legacy-cdp",
-        "THOTH_CDP=http://legacy-cdp:18800",
-        "THOTH_FFMPEG=/usr/bin/ffmpeg",
-        "THOTH_FFPROBE=/usr/bin/ffprobe",
-        "/var/lib/thoth/browser-profile",
-        "10001:10001",
-        "GET http://legacy-cdp:18800/json/version",
-        "GET http://legacy-cdp:18800/json",
-        "must not have public ingress or a host-port mapping",
-    }
-    assert all(token in documentation for token in required)
-
-
 def test_blueprint_records_published_container_checkpoint() -> None:
     blueprint = _repo_text("BLUEPRINT.md")
     prose = " ".join(blueprint.split())
@@ -524,11 +420,7 @@ def test_blueprint_records_published_container_checkpoint() -> None:
     assert "worker/API/CDP sidecar" in blueprint
     assert "Deployment, controlled live smoke, and the operational soak remain pending" in prose
     assert "| Stage 1 container + CI | ⚠️ 95% |" in blueprint
-    assert (
-        "`Dockerfile`, `docker/start-legacy-cdp`, `.github/workflows/container-image.yml`"
-        in blueprint
-    )
-    assert "controlled fallback smoke" in blueprint
+    assert "`Dockerfile`, `.github/workflows/container-image.yml`" in blueprint
 
 
 def test_blueprint_does_not_pin_a_release_digest_it_cannot_keep_current() -> None:
@@ -544,81 +436,25 @@ def test_blueprint_does_not_pin_a_release_digest_it_cannot_keep_current() -> Non
     assert "read from the Actions summary of the exact commit being deployed" in prose
 
 
-def test_parity_runbook_routes_routine_attempt_inspection_through_the_summary() -> None:
-    """The sample is evidence, so reading one attempt must not mean opening the rest.
-
-    An attempt record answers "did it finish, and where did it stop". Reaching that
-    answer by listing the sample or printing a log puts the fixture URL, post
-    identifiers, and raw browser output on a terminal for a question that needs none
-    of them, so the runbook names one command and forbids the alternatives.
-    """
-    runbook = _repo_text("docs/operations/stage1-parity-sampling.md")
-    prose = " ".join(runbook.split())
-    assert "python -m thoth_control_plane.operations.stage1_parity_attempt_summary" in runbook
-    assert "--reference-id" in runbook
-    for field in (
-        "diagnostics_valid",
-        "diagnostic_contract",
-        "diagnostic_event_count",
-        "terminal_stage",
-        "terminal_category",
-        "media_candidate_discovery_signal",
-    ):
-        assert field in runbook
-    assert "Routine inspection is that command and nothing else" in prose
-    assert "diagnostic_contract=legacy" in runbook
-    assert "never migrated or amended" in prose
-    # The terminal event is an observation. Promoting it to a cause is the inference
-    # the p3/p4 review found, and the runbook is where that boundary is stated.
-    assert "says where a reference stopped, never why" in prose
-    enumerating = ("ls ", "find ", "tree ", "cat ", "head ", "tail ", "grep ")
-    assert [line for line in _fenced_commands(runbook) if line.startswith(enumerating)] == []
-
-
-def test_blueprint_records_the_safe_parity_diagnostic_contract() -> None:
-    blueprint = _repo_text("BLUEPRINT.md")
-    prose = " ".join(blueprint.split())
-    assert "stage1_parity_attempt_summary" in blueprint
-    assert "safe_runtime_diagnostic" in blueprint
-    assert "diagnostic_contract" in blueprint
-    assert "p1-p4 are never migrated or amended" in prose
-    assert "p5 remains a separate operator authorization" in prose
-
-
 def _yt_dlp_pin() -> str:
     """The single yt-dlp pin; the yt-dlp update workflow bumps it and the lock only."""
     (pin,) = set(re.findall(r'"yt-dlp==([0-9.]+)"', _repo_text("python/pyproject.toml")))
     return pin
 
 
-def test_scout_runtime_downloader_versions_are_exact() -> None:
-    """Scout shells out to both downloaders; neither was installed in the image.
-
-    Images are acquired with gallery-dl and the existing video/probe callers shell
-    out to yt-dlp, so a compatibility image that omits either one cannot run the
-    legacy fallback it exists to host. Both are pinned exactly so a rebuilt image
-    keeps the runtime the recorded evidence was produced against.
-    """
-    project = tomllib.loads(_repo_text("python/pyproject.toml"))
-    assert project["project"]["optional-dependencies"]["scout-runtime"] == [
-        "gallery-dl==1.32.17",
-        f"yt-dlp=={_yt_dlp_pin()}",
-    ]
-
-
-def test_uv_lock_resolves_the_pinned_downloaders() -> None:
+def test_uv_lock_resolves_the_pinned_downloader() -> None:
     lock = tomllib.loads(_repo_text("python/uv.lock"))
     locked = {package["name"]: package["version"] for package in lock["package"]}
-    assert locked["gallery-dl"] == "1.32.17"
+    assert "gallery-dl" not in locked  # Scout's image downloader, retired with it
     assert locked["yt-dlp"] == _yt_dlp_pin()
 
 
-def test_dockerfile_syncs_the_scout_runtime_extra_in_every_locked_install() -> None:
+def test_dockerfile_syncs_the_acquisition_extra_in_every_locked_install() -> None:
     dockerfile = _repo_text("Dockerfile")
     sync_commands = [line.strip() for line in dockerfile.splitlines() if "uv sync --frozen" in line]
     assert len(sync_commands) == 2
     assert all("--extra acquisition" in command for command in sync_commands)
-    assert all("--extra scout-runtime" in command for command in sync_commands)
+    assert not any("scout-runtime" in command for command in sync_commands)
 
 
 def test_dockerfile_probes_downloader_executables_as_the_runtime_user() -> None:
@@ -629,11 +465,8 @@ def test_dockerfile_probes_downloader_executables_as_the_runtime_user() -> None:
     """
     dockerfile = _repo_text("Dockerfile")
     runtime_stage = dockerfile.split("USER thoth", 1)[1]
-    assert "GALLERY_DL=/opt/thoth/python/.venv/bin/gallery-dl" in dockerfile
     assert "YTDLP=/opt/thoth/python/.venv/bin/yt-dlp" in dockerfile
-    assert 'test -x "$GALLERY_DL"' in runtime_stage
     assert 'test -x "$YTDLP"' in runtime_stage
-    assert 'test "$("$GALLERY_DL" --version)" = "1.32.17"' in runtime_stage
     # yt-dlp prints `2026.08.19` where the lock says `2026.8.19`; the probe compares the
     # executable with the package the frozen sync installed, so a bump needs no edit here.
     ytdlp_probe = (
@@ -645,11 +478,11 @@ def test_dockerfile_probes_downloader_executables_as_the_runtime_user() -> None:
     assert not re.search(r'"\d{4}\.\d{2}\.\d{2}"', runtime_stage)
 
 
-def test_pull_request_builds_load_the_image_and_prove_cdp_transport() -> None:
-    """A PR must fail on a broken relay, which requires the image locally.
+def test_pull_request_builds_load_the_image_and_prove_the_browser_launches() -> None:
+    """A PR must fail on a browser that cannot start, which requires the image locally.
 
     `push: false` alone leaves the build in the buildx cache with nothing to run, so
-    the loopback-only regression this harness exists to catch would pass review.
+    the regression the launch smoke exists to catch would pass review.
     """
     workflow = _repo_text(".github/workflows/container-image.yml")
     validate = workflow[workflow.index("  validate-image:") : workflow.index("  publish-image:")]
@@ -657,7 +490,7 @@ def test_pull_request_builds_load_the_image_and_prove_cdp_transport() -> None:
     assert "push: false" in validate
     assert "load: true" in validate
     assert "tags: ${{ env.CANDIDATE_IMAGE }}" in validate
-    assert 'bash docker/test-cdp-offline.sh "${CANDIDATE_IMAGE}"' in validate
+    assert 'bash docker/test-browser-offline.sh "${CANDIDATE_IMAGE}"' in validate
     assert "compose.stage1.local.yml" not in validate
 
 
@@ -668,357 +501,20 @@ def test_published_digest_is_proved_by_the_same_harness() -> None:
     assert (
         "THOTH_IMAGE_REF: ghcr.io/faallai/thoth@${{ needs.publish-image.outputs.digest }}" in smoke
     )
-    assert 'bash docker/test-cdp-offline.sh "${THOTH_IMAGE_REF}"' in smoke
+    assert 'bash docker/test-renderer-offline.sh "${THOTH_IMAGE_REF}"' in smoke
     assert "up -d --wait postgresql editor-postgresql temporal temporal-ui api" in smoke
     assert "curl -fsS http://127.0.0.1:8000/readyz" in smoke
 
 
-def test_quality_gates_run_the_scout_runtime_tests() -> None:
+def test_the_image_and_its_workflow_carry_no_scout() -> None:
+    """Scout and its CDP sidecar are retired (operator, 2026-10-30); none of it ships."""
+    dockerfile = _repo_text("Dockerfile")
     workflow = _repo_text(".github/workflows/container-image.yml")
-    package = _repo_text("scout/package.json")
-
-    assert "bun --cwd=scout run test:runtime" in workflow
-    assert "bun --cwd=scout run test:acquisition" in workflow
-    assert '"test:runtime": "bun test runtime/"' in package
-
-
-def test_cdp_harness_owns_everything_it_creates() -> None:
-    """The harness runs beside a real deployment, so its blast radius is the contract."""
-    harness = _repo_text("docker/test-cdp-offline.sh")
-    smoke_compose = _repo_text("compose.stage1.cdp-smoke.yml")
-
-    assert "set -euo pipefail" in harness
-    assert "trap teardown EXIT" in harness
-    assert "project_prefix=stage1-cdp-smoke" in harness
-    assert '"${project_prefix}"-*)' in harness
-    assert "--wait-timeout" in harness
-    assert "compose.stage1.local.yml" not in harness
-    assert 'docker compose -p "$test_project" -f "$compose_file"' in harness
-    assert "compose logs" not in harness and "docker logs" not in harness
-
-    assert "${THOTH_TEST_IMAGE:?set candidate image}" in smoke_compose
-    assert "internal: true" in smoke_compose
-    assert "ports:" not in smoke_compose
-    assert "- /var/lib/thoth/browser-profile:uid=10001,gid=10001,mode=0700" in smoke_compose
-    assert "/opt/thoth/bin/start-legacy-cdp" in smoke_compose
-    assert "--offline-smoke" in smoke_compose
-    assert "THOTH_CDP: http://legacy-cdp:18800" in smoke_compose
-    assert "NOVITA" not in smoke_compose
-    assert smoke_compose.count("seccomp:unconfined") == 1
-
-
-def test_cdp_harness_proves_legacy_fallback_target_isolation() -> None:
-    """The image smoke must exercise the production fallback supervisor itself.
-
-    Transport reachability alone cannot prove that a fallback avoids the sidecar's
-    health page or releases its temporary page on both child outcomes.  The harness
-    emits only fixed booleans so target identifiers and URLs never reach CI logs.
-    """
-    harness = _repo_text("docker/test-cdp-offline.sh")
-    runtime_harness = _repo_text("scout/runtime/legacy_fallback_harness.ts")
-
-    assert "bun scout/runtime/legacy_fallback_harness.ts" in harness
-    for field in (
-        "initial_target_preserved",
-        "temporary_target_observed",
-        "success_target_removed",
-        "failure_target_removed",
-    ):
-        assert f'"{field}":true' in harness
-        assert field in runtime_harness
-    assert "THOTH_LEGACY_FALLBACK_SMOKE_HOLD_MS" in runtime_harness
-    assert "console.log" not in runtime_harness.split("async function main", 1)[0]
-
-
-def test_controlled_fallback_overlay_is_a_private_one_shot_gate() -> None:
-    overlay = _repo_text("compose.stage1.controlled-fallback.yml")
-
-    assert "  controlled-fallback:\n" in overlay
-    assert "image: ${THOTH_CONTROLLED_FALLBACK_IMAGE:?" in overlay
-    assert 'user: "10001:10001"' in overlay
-    assert 'restart: "no"' in overlay
-    assert "networks: [stage1-private]" in overlay
-    assert "THOTH_CDP: http://legacy-cdp:18800" in overlay
-    assert "path: ${THOTH_STAGE1_PROVIDER_ENV_FILE:?" in overlay
-    for forbidden in (
-        "ports:",
-        "privileged",
-        "cap_add",
-        "docker.sock",
-        "/var/lib/thoth",
-        "browser-profile",
-        "THOTH_STAGE1_DATA_ROOT",
-        "https://",
-        "API_KEY",
-    ):
-        assert forbidden not in overlay
-    assert overlay.count("${THOTH_CONTROLLED_FALLBACK_SAMPLE_DIR:?") == 3
-    assert overlay.count("create_host_path: false") == 3
-    assert "target: /run/controlled-fallback/url\n        read_only: true" in overlay
-    assert "target: /run/controlled-fallback/output\n" in overlay
-    # Scout writes media under its fixed output root; the validator rebases exactly that prefix.
-    assert f"/output\n        target: {DEFAULT_SCOUT_RECORDED_ROOT}\n" in overlay
-    # The fixture is read inside the container and the supervisor runs exactly once.
-    assert overlay.count("exec bun scout/runtime/legacy_fallback.ts") == 1
-    assert '--url "$(cat /run/controlled-fallback/url)"' in overlay
-    assert "--out /run/controlled-fallback/output/source-report.json" in overlay
-
-
-def test_controlled_fallback_smoke_mirrors_the_gate_offline() -> None:
-    smoke = _repo_text("compose.stage1.controlled-fallback-smoke.yml")
-
-    assert "${THOTH_TEST_IMAGE:?set candidate image}" in smoke
-    assert "  controlled-fallback:\n" in smoke and "  legacy-cdp:\n" in smoke
-    assert "internal: true" in smoke
-    assert "ports:" not in smoke and "env_file" not in smoke and "NOVITA" not in smoke
-    assert smoke.count('user: "10001:10001"') == 2
-    assert 'restart: "no"' in smoke
-    assert "THOTH_CDP: http://legacy-cdp:18800" in smoke
-    assert "--offline-smoke" in smoke
-    assert "bun scout/runtime/legacy_fallback.ts" in smoke
-    assert smoke.count("create_host_path: false") == 3
-    assert "target: /run/controlled-fallback/url\n        read_only: true" in smoke
-    assert "target: /run/controlled-fallback/output\n" in smoke
-    assert f"/output\n        target: {DEFAULT_SCOUT_RECORDED_ROOT}\n" in smoke
-    assert smoke.count("seccomp:unconfined") == 1
-
-
-def test_controlled_fallback_harness_owns_everything_and_reuses_runner_scripts() -> None:
-    from thoth_control_plane.operations.stage1_controlled_fallback_runner import (
-        RECLAIM_OUTPUT_SCRIPT,
-        STAGE_FIXTURE_SCRIPT,
-        TEARDOWN_FIXTURE_SCRIPT,
-    )
-
-    harness = _repo_text("docker/test-controlled-fallback-offline.sh")
-
-    assert "set -euo pipefail" in harness
-    assert "trap teardown EXIT" in harness
-    assert "project_prefix=stage1-fallback-smoke" in harness
-    assert '"${project_prefix}"-*)' in harness
-    assert "compose_file=compose.stage1.controlled-fallback-smoke.yml" in harness
-    assert "compose.stage1.local.yml" not in harness
-    assert ".env.stage1" not in harness
-    assert "compose logs" not in harness and "docker logs" not in harness
-    assert "mktemp -d" in harness
-    assert "--network none --user 0:0" in harness
-    # The helper scripts the live runner will run are proved byte-identical here.
-    for script in (STAGE_FIXTURE_SCRIPT, RECLAIM_OUTPUT_SCRIPT, TEARDOWN_FIXTURE_SCRIPT):
-        assert f"'{script}'" in harness
-    for field in (
-        "preflight_contract",
-        "temporary_target_observed",
-        "health_target_preserved",
-        "success_target_removed",
-        "failure_target_removed",
-        "staged_output_reclaimed",
-        "scout_output_retained",
-        "teardown_leaves_nothing",
-    ):
-        assert f'echo "{field}=true"' in harness
-
-
-def test_both_image_jobs_prove_the_controlled_fallback_gate() -> None:
-    workflow = _repo_text(".github/workflows/container-image.yml")
-    validate = workflow[workflow.index("  validate-image:") : workflow.index("  publish-image:")]
-    smoke = workflow[
-        workflow.index("  stack-smoke:") : workflow.index("  template-release-parity:")
-    ]
-
-    assert 'bash docker/test-controlled-fallback-offline.sh "${CANDIDATE_IMAGE}"' in validate
-    harness_step = 'bash docker/test-controlled-fallback-offline.sh "${THOTH_IMAGE_REF}"'
-    assert harness_step in smoke
-    assert smoke.index("docker/test-cdp-offline.sh") < smoke.index(harness_step)
-    assert smoke.index(harness_step) < smoke.index("Stop the stack")
-
-
-def test_both_image_jobs_prove_the_reference_owns_its_browser() -> None:
-    """Isolation is a property of the image, so both gates must exercise it.
-
-    The PR gate catches a regression before it is published; the digest gate
-    catches one in the artifact that operators actually run.
-    """
-    workflow = _repo_text(".github/workflows/container-image.yml")
-    validate = workflow[workflow.index("  validate-image:") : workflow.index("  publish-image:")]
-    smoke = workflow[workflow.index("  stack-smoke:") :]
-
-    assert 'bash docker/test-parity-offline.sh "${CANDIDATE_IMAGE}"' in validate
-    assert 'bash docker/test-parity-offline.sh "${THOTH_IMAGE_REF}"' in smoke
-    # The parity harness is additional evidence, never a replacement.
-    assert 'bash docker/test-cdp-offline.sh "${CANDIDATE_IMAGE}"' in validate
-    assert 'bash docker/test-cdp-offline.sh "${THOTH_IMAGE_REF}"' in smoke
-
-
-def test_parity_harness_owns_everything_it_creates() -> None:
-    """The harness runs beside a real deployment, so its blast radius is the contract."""
-    harness = _repo_text("docker/test-parity-offline.sh")
-
-    assert "set -euo pipefail" in harness
-    assert "trap teardown EXIT INT TERM" in harness
-    assert "project_prefix=stage1-parity-smoke" in harness
-    assert '"${project_prefix}"-*)' in harness
-    assert 'docker compose -p "$test_project" -f "$compose_file"' in harness
-    # A forced browser death must be signalled at Chromium's parent only; a
-    # renderer dying is not the failure this proves.
-    assert "--type=" in harness
-    # Neither the deployment nor the operator file may be driven from a test.
-    assert "compose.stage1.local.yml" not in harness
-    assert "compose.stage1.parity.yml" not in harness
-    assert "docker system prune" not in harness
-    assert "compose logs" not in harness and "docker logs" not in harness
-
-
-def test_parity_smoke_network_is_internal_and_carries_a_synthetic_sentinel() -> None:
-    """The sentinel stands in for a production relay and must stay untouched."""
-    smoke_compose = _repo_text("compose.stage1.parity-smoke.yml")
-
-    assert "${THOTH_TEST_IMAGE:?set candidate image}" in smoke_compose
-    assert "internal: true" in smoke_compose
-    assert "ports:" not in smoke_compose
-    assert "- /var/lib/thoth/parity-profile:uid=10001,gid=10001,mode=0700" in smoke_compose
-    assert "/opt/thoth/bin/start-parity-reference" in smoke_compose
-    assert "--offline-smoke" in smoke_compose
-    # The reference drives only the browser it started, never the alias a
-    # deployment sidecar answers on.
-    assert "THOTH_CDP: http://127.0.0.1:18801" in smoke_compose
-    assert "- legacy-cdp" in smoke_compose
-    assert "NOVITA" not in smoke_compose
-    # Only the browser-bearing container may relax seccomp.
-    assert smoke_compose.count("seccomp:unconfined") == 1
-
-
-def test_the_parity_harness_accepts_only_the_supervisor_own_verdicts() -> None:
-    """A nonzero container exit is not evidence that the supervisor decided anything.
-
-    Docker's own forced kill after a stop timeout is nonzero too, so a harness that
-    accepts any failure would pass a reference whose signal handling and child
-    reaping are both broken. The supervisor emits 143 only when it was cancelled,
-    reaped both children, and recorded the attempt, and 70 when its browser died,
-    so the smoke asserts those codes rather than their absence from zero.
-    """
-    harness = _repo_text("docker/test-parity-offline.sh")
-
-    assert "docker wait" in harness
-    # Every wait is bounded: an unbounded one turns a hung reference into a hung job.
-    for wait in re.findall(r"^.*docker wait.*$", harness, re.MULTILINE):
-        assert "timeout" in wait, "an unbounded docker wait can hang the whole job"
-    assert "-eq 143" in harness
-    assert "-eq 70" in harness
-    # The declared budgets must be used, not merely declared.
-    assert harness.count("$exit_timeout") >= 2
-    # The cancellation phase must reach a probe that is still running. Without the
-    # hold, a probe that finished first would exit 0 and the phase would fail for a
-    # reason that has nothing to do with signal handling.
-    assert "THOTH_PARITY_SMOKE_HOLD_MS" in harness
-
-
-def test_the_diagnostic_contract_documents_describe_all_five_frame_keys() -> None:
-    """A frame carries five keys. A four-key description legitimizes dropping one of them,
-    and `schema_version` is the one a shortened count keeps losing."""
-    documents = (
-        "docs/superpowers/specs/2026-09-08-stage1-parity-diagnostic-preservation-design.md",
-        "docs/superpowers/plans/2026-09-08-stage1-parity-diagnostic-preservation.md",
-    )
-    for relative in documents:
-        prose = " ".join(_repo_text(relative).split())
-        assert "five keys" in prose, f"{relative} does not state the five-key count"
-        for key in ("schema_version", "kind", "stage", "category", "code"):
-            assert f"`{key}`" in prose, f"{relative} does not name `{key}`"
-        for wrong in ("four-key", "four defined keys", "four keys"):
-            assert wrong not in prose, f"{relative} still describes a {wrong} contract"
-
-
-def test_the_parity_reference_stops_at_the_source_boundary_within_one_budget() -> None:
-    """p5 died between two numbers that were never written down together.
-
-    The supervisor bounded the whole general Scout run at 15 minutes while the
-    source stage it was really waiting on owned 30, so a source resolution that
-    used its budget was killed from the outside and recorded as incomparable.
-    The image contract therefore pins both halves of the correction: the shipped
-    reference command is bounded to source discovery, and the outer deadline is
-    derived from the retained stage rather than written as its own literal.
-    """
-    supervisor = _repo_text("scout/runtime/parity_reference.ts")
-    pipeline = _repo_text("scout/pipeline/run_pipeline.ts")
-    contract = _repo_text("scout/lib/parity_reference_contract.ts")
-
-    assert "'--source-reference-only'" in supervisor
-    assert "'--source-reference-only'" in pipeline
-    assert "SOURCE_REFERENCE_TRACE_TIMEOUT_MS = 30 * 60_000" in contract
-    assert "SOURCE_REFERENCE_OVERHEAD_RESERVE_MS = 5 * 60_000" in contract
-    # Derived, not restated: a second literal is exactly how the two drifted apart.
-    assert "35 * 60_000" not in contract
-    assert (
-        "SOURCE_REFERENCE_SUPERVISOR_DEADLINE_MS ="
-        " SOURCE_REFERENCE_TRACE_TIMEOUT_MS + SOURCE_REFERENCE_OVERHEAD_RESERVE_MS;"
-    ) in " ".join(contract.split())
-    assert "SOURCE_REFERENCE_SUPERVISOR_DEADLINE_MS" in supervisor
-    assert "SOURCE_REFERENCE_TRACE_TIMEOUT_MS" in pipeline
-    # The deadline p5 hit must no longer be reachable as a production default.
-    assert "15 * 60_000" not in supervisor
-
-
-def test_the_parity_runbook_states_the_completion_boundary_and_its_budgets() -> None:
-    """An operator reading the runbook must not expect the stages the reference no longer runs.
-
-    Exit zero is the cheapest thing to mistake for parity, so the runbook has to keep
-    saying that artifact validation and the field comparison are what decide it.
-
-    The 35 minutes bound the supervised acquisition phase and nothing after it. An
-    operator who reads that number as a cap on the whole supervisor would expect a
-    reference to abandon teardown and attempt finalization once it expires, which is
-    the opposite of what the lifecycle does and would make a missing attempt record
-    look normal.
-    """
-    prose = " ".join(_repo_text("docs/operations/stage1-parity-sampling.md").split())
-
-    assert "--source-reference-only" in prose
-    assert "30 minutes" in prose and "35 minutes" in prose
-    for outside in ("collect_comments", "topic_dossier", "build_footage"):
-        assert outside in prose, f"the runbook does not place {outside} outside the reference"
-    assert "necessary but not sufficient" in prose
-    assert "supervised acquisition deadline" in prose
-    assert "cleanup and attempt finalization continue after that outcome" in prose
-
-
-def test_the_runbook_defines_the_controlled_fallback_gate() -> None:
-    """`f1` is one non-retryable attempt, so the runbook must say everything up front.
-
-    An operator who has to guess where the fixture goes, what counts as a pass, or
-    whether a failure may be rerun will burn the only attempt the gate allows.
-    """
-    runbook = _repo_text("docs/operations/stage1-local-docker.md")
-    prose = " ".join(runbook.split())
-    commands = " ".join(_fenced_commands(runbook))
-
-    for location in (
-        "/home/mfr/thoth-stage1-fallback/f1/url.txt",
-        "/home/mfr/thoth-stage1-fallback/controlled-fallback-record.jsonl",
-        "controlled-fallback-attempt.json",
-        "artifact-integrity.private.json",
-        "supervisor.stdout.log",
-        "supervisor.stderr.log",
-    ):
-        assert location in prose, f"the runbook does not name {location}"
-    assert "thoth-control operations stage1-controlled-fallback-preflight" in commands
-    assert "thoth-control operations stage1-controlled-fallback-run --gate-id f1" in commands
-    assert "operator gate" in prose
-    assert "`.env.stage1.local` at the repository root" in prose
-    assert "`output` or `reference-input`" in prose
-    # The one residual exposure the spec accepts has to be stated, not discovered.
-    assert "appears in the Scout process argv inside the one-shot container" in prose
-    for verdict in ("`passed`", "`failed`", "`inconclusive`"):
-        assert verdict in prose
-    assert "never grants activation credit" in prose
-    assert "there is no retry" in prose
-    assert "not Python-routing evidence" in prose
-
-
-def test_the_control_plane_guide_bounds_the_controlled_fallback_claim() -> None:
-    prose = " ".join(_repo_text("docs/python-control-plane.md").split())
-
-    assert "stage1-controlled-fallback-run" in prose
-    assert "not Python-routing evidence" in prose
+    for retired in ("scout", "cdp", "18800", "gallery", "browser-profile"):
+        assert retired not in dockerfile.lower()
+        assert retired not in workflow.lower()
+    assert not (REPOSITORY_ROOT / "scout").exists()
+    assert not (REPOSITORY_ROOT / "docker/start-legacy-cdp").exists()
 
 
 def test_editor_preview_signing_key_is_injected_at_runtime_only() -> None:
@@ -1165,10 +661,10 @@ def test_a_dispatched_build_publishes_and_smokes_like_a_push() -> None:
         assert "github.event_name == 'workflow_dispatch'" in jobs[name], name
 
 
-def test_yt_dlp_is_pinned_identically_in_both_extras() -> None:
+def test_yt_dlp_is_pinned_once() -> None:
+    # The acquisition extra holds the only pin since Scout's extra went (2026-10-30).
     pyproject = _repo_text("python/pyproject.toml")
-    pins = re.findall(r'"yt-dlp==([0-9.]+)"', pyproject)
-    assert len(pins) == 2 and len(set(pins)) == 1
+    assert len(re.findall(r'"yt-dlp==([0-9.]+)"', pyproject)) == 1
 
 
 def test_the_yt_dlp_update_workflow_trusts_no_unchecked_input() -> None:
@@ -1184,7 +680,7 @@ def test_the_yt_dlp_update_workflow_trusts_no_unchecked_input() -> None:
 
 def test_dockerfile_prepares_account_profiles_camoufox_and_timezones() -> None:
     dockerfile = _repo_text("Dockerfile")
-    assert "/var/lib/thoth/browser-profile /var/lib/thoth/account-profiles" in dockerfile
+    assert "/var/lib/thoth/artifacts /var/lib/thoth/account-profiles" in dockerfile
     assert "test -w /var/lib/thoth/account-profiles" in dockerfile
     assert "python -m camoufox fetch" in dockerfile
     assert "test -d /home/thoth/.cache/camoufox" in dockerfile
@@ -1283,3 +779,21 @@ def test_the_xendit_webhook_is_proxied_to_the_api() -> None:
     caddyfile = _repo_text("deploy/web/Caddyfile")
     backend = next(line for line in caddyfile.splitlines() if "@backend path" in line)
     assert "/billing/webhooks/*" in backend.split()
+
+
+def test_the_site_pins_browsers_to_https_once_they_reach_it() -> None:
+    """Audit A3: browsers ignore HSTS over plain HTTP, so a local site is unaffected, while a
+    domain deploy keeps every later visit, and its cookies, on HTTPS."""
+    caddyfile = _repo_text("deploy/web/Caddyfile")
+    assert 'Strict-Transport-Security "max-age=31536000"' in caddyfile
+
+
+def test_the_image_carries_the_bundled_sfx_and_their_licences() -> None:
+    """Narration seeds the SFX from the image; only licensed files are ever seeded."""
+    dockerfile = _repo_text("Dockerfile")
+    assert "COPY --chown=thoth:thoth assets/sfx/ /opt/thoth/assets/sfx/" in dockerfile
+    assert (
+        "COPY --chown=thoth:thoth assets/asset_catalog.json /opt/thoth/assets/asset_catalog.json"
+        in dockerfile
+    )
+    assert (REPOSITORY_ROOT / "assets/sfx/LICENSES.json").is_file()

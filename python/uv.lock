@@ -655,18 +655,6 @@ wheels = [
 ]
 
 [[package]]
-name = "gallery-dl"
-version = "1.32.17"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "requests" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/4e/7e/3ba52253f4edc121c2e5d4cc1bbc613c29822acd3435eecc54e6308157a5/gallery_dl-1.32.17.tar.gz", hash = "sha256:7e49b3140d23b88e020ff24049dfac59edd855d6fdfb11bc725ad44b0335bbb6", size = 762083, upload-time = "2026-10-17T14:19:18.564Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/50/2f/10d3f717e3dc38688ce07424652d7e6c5f606d8b7644af4c16e0dc016527/gallery_dl-1.32.17-py3-none-any.whl", hash = "sha256:f88ddeb788506f33385e541dbbfba57376ed04bbf6f3f635249a9dd3a78930ed", size = 942064, upload-time = "2026-10-17T14:19:14.453Z" },
-]
-
-[[package]]
 name = "greenlet"
 version = "3.5.6"
 source = { registry = "https://pypi.org/simple" }
@@ -2418,10 +2406,6 @@ acquisition = [
     { name = "sherpa-onnx-core" },
     { name = "yt-dlp" },
 ]
-scout-runtime = [
-    { name = "gallery-dl" },
-    { name = "yt-dlp" },
-]
 
 [package.dev-dependencies]
 dev = [
@@ -2441,7 +2425,6 @@ requires-dist = [
     { name = "cryptography", specifier = ">=44,<51" },
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "faster-whisper", marker = "extra == 'acquisition'", specifier = ">=1.2,<2" },
-    { name = "gallery-dl", marker = "extra == 'scout-runtime'", specifier = "==1.32.17" },
     { name = "httpx", specifier = ">=0.28,<1" },
     { name = "itsdangerous", specifier = ">=2.2,<3" },
     { name = "minio", specifier = ">=7.2.20,<8" },
@@ -2460,9 +2443,8 @@ requires-dist = [
     { name = "typer", specifier = ">=0.15,<1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30,<1" },
     { name = "yt-dlp", marker = "extra == 'acquisition'", specifier = "==2026.10.26" },
-    { name = "yt-dlp", marker = "extra == 'scout-runtime'", specifier = "==2026.10.26" },
 ]
-provides-extras = ["acquisition", "scout-runtime"]
+provides-extras = ["acquisition"]
 
 [package.metadata.requires-dev]
 dev = [

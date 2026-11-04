@@ -58,6 +58,9 @@ def sanitize_provider_text(text: str) -> str:
     return text if len(text) <= MAX_PROVIDER_TEXT else text[:MAX_PROVIDER_TEXT] + "…"
 
 
+UNREADABLE_BODY = "Error getting page content in async: Response.body:"
+
+
 class ScraplingRedactionFilter(logging.Filter):
     """Drop DEBUG/INFO and sanitize WARNING/ERROR records in the `scrapling` namespace.
 
@@ -70,6 +73,10 @@ class ScraplingRedactionFilter(logging.Filter):
         if not record.name.startswith("scrapling"):
             return True
         if record.levelno < logging.WARNING:
+            return False
+        # The browser already discarded that response's body (a navigation or a redirect);
+        # the listing still succeeds, so the line is noise (stage1, 2026-10-30).
+        if str(record.msg).startswith(UNREADABLE_BODY):
             return False
         try:
             text = record.getMessage()

@@ -1,12 +1,15 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
-import type { EditDocumentOperation } from "@/api/control-plane";
+import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane";
+import { useLocale } from "@/lib/locale";
 import type { EditorAction, EditorState } from "./editor_state";
-import type { GestureMode } from "./TimelineClip";
+import { clipLabel, type GestureMode } from "./TimelineClip";
 import { TimelineToolbar, type ClipAction } from "./TimelineToolbar";
 import { TimelineTrack } from "./TimelineTrack";
 import {
+  formatTimecode,
   framesToPixels,
+  rulerTicks,
   isTimelineDocument,
   snapCandidates,
   snapFrame,
@@ -20,6 +23,11 @@ type Props = {
   onSeek?: (frame: number) => void;
   onPlay?: () => void;
   onPause?: () => void;
+  /** The clip's human name (spec 2026-11-01); absent, the Timeline's own words for it. */
+  labelOf?: (clip: NonNullable<EditDocumentV2["clips"]>[number]) => string;
+  /** Below 1024 the lanes are a view (spec 2026-11-01); a tapped clip offers Inspect. */
+  readOnly?: boolean;
+  onInspect?: () => void;
 };
 
 /** One pointer gesture in flight. Committed on pointer up, dropped on Escape. */
@@ -38,8 +46,16 @@ const newId = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
 /** Snap within a fixed screen distance, so zooming out does not widen the pull. */
 const snapThreshold = (zoom: number) => Math.max(1, Math.round(8 / zoom));
 
-export function Timeline({ state, dispatch, onSeek, onPlay, onPause }: Props) {
+/** The header column beside every lane; the ruler and the playhead start after it. */
+const HEADER_WIDTH = 192;
+const READ_ONLY_HEADER_WIDTH = 96;
+
+export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf, readOnly = false, onInspect }: Props) {
+  const { t } = useLocale();
+  const headerWidth = readOnly ? READ_ONLY_HEADER_WIDTH : HEADER_WIDTH;
   const gesture = useRef<Gesture | null>(null);
+  // The ruler under a press: pointer moves seek until the pointer is released.
+  const scrubbing = useRef<HTMLElement | null>(null);
   const timeline = isTimelineDocument(state.draft) ? state.draft : undefined;
   const clips = timeline?.clips ?? [];
   const selectedClip = clips.find((clip) => clip.clip_id === state.selectedClipId);
@@ -49,8 +65,19 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause }: Props) {
     : undefined;
 
   // Keep the listeners' view of the editor current without re-attaching them.
-  const latest = useRef({ state, dispatch, timeline });
-  latest.current = { state, dispatch, timeline };
+  const latest = useRef({ state, dispatch, timeline, onSeek });
+  latest.current = { state, dispatch, timeline, onSeek };
+
+  /** Move the playhead and the preview to one frame, kept inside the document. */
+  const seek = (frame: number) => {
+    const { dispatch: send, timeline: doc, onSeek: follow } = latest.current;
+    const last = Math.max(0, (doc?.canvas.duration_in_frames ?? 1) - 1);
+    const clamped = Math.min(last, Math.max(0, Math.round(frame)));
+    send({ type: "set_playhead", frame: clamped });
+    follow?.(clamped);
+  };
+  const seekToPointer = (ruler: HTMLElement, clientX: number) =>
+    seek((clientX - ruler.getBoundingClientRect().left) / latest.current.state.zoom);
 
   /** Where a gesture lands, after snapping, for a pointer at `clientX`. */
   const frameAt = (active: Gesture, clientX: number) => {
@@ -98,8 +125,13 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause }: Props) {
   useEffect(() => {
     const end = () => {
       gesture.current = null;
+      scrubbing.current = null;
     };
     const onMove = (event: PointerEvent) => {
+      if (scrubbing.current) {
+        seekToPointer(scrubbing.current, event.clientX);
+        return;
+      }
       const active = gesture.current;
       if (!active) return;
       active.previewed = true;
@@ -156,6 +188,20 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause }: Props) {
     };
   };
 
+  const fps = timeline.canvas.fps;
+  const onRulerKey = (event: ReactKeyboardEvent) => {
+    const step = event.shiftKey ? Math.max(1, fps) : 1;
+    const target = {
+      ArrowRight: state.playheadFrame + step,
+      ArrowLeft: state.playheadFrame - step,
+      Home: 0,
+      End: duration - 1,
+    }[event.key];
+    if (target === undefined) return;
+    event.preventDefault();
+    seek(target);
+  };
+
   const commit = (operation: EditDocumentOperation) =>
     dispatch({ type: "commit_timeline_operation", operation });
 
@@ -195,51 +241,65 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause }: Props) {
         zoom={state.zoom}
         snapping={state.snapping}
         ripple={state.ripple}
+        playheadFrame={state.playheadFrame}
+        durationInFrames={duration}
+        fps={timeline.canvas.fps}
+        playing={state.playing}
         selectionLocked={selectionLocked}
+        onPlay={onPlay}
+        onPause={onPause}
         onZoom={(zoom) => dispatch({ type: "set_zoom", zoom })}
         onSnapping={(snapping) => dispatch({ type: "set_snapping", snapping })}
         onRipple={(ripple) => dispatch({ type: "set_ripple", ripple })}
         onClipAction={clipAction}
+        readOnly={readOnly}
       />
+      {readOnly ? (
+        <p className="flex items-center gap-2 border-b border-hairline bg-surface px-3 py-2 text-xs text-muted-ink">{t("studio.timeline.viewOnly")}</p>
+      ) : null}
 
-      <p className="px-3 py-2 text-xs text-muted-foreground lg:hidden">
-        The timeline needs a wider screen. Use Guided mode on this device.
-      </p>
-
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-        <input
-          type="range"
-          aria-label="Playhead"
-          min={0}
-          max={Math.max(0, duration - 1)}
-          step={1}
-          value={state.playheadFrame}
-          onChange={(event) => {
-            const frame = Number(event.target.value);
-            dispatch({ type: "set_playhead", frame });
-            onSeek?.(frame);
-          }}
-          className="h-2 w-full accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        />
-        <button
-          type="button"
-          className="rounded border border-border px-2 py-0.5 text-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          onClick={() => (state.playing ? onPause?.() : onPlay?.())}
+      <div className="min-h-0 overflow-auto">
+        <div
+          className="relative"
+          style={{ width: `${framesToPixels(duration, state.zoom) + headerWidth}px` }}
         >
-          {state.playing ? "Pause preview" : "Play preview"}
-        </button>
-        <span className="font-mono text-xs text-muted-foreground">
-          {state.playheadFrame}/{duration}f
-        </span>
-      </div>
-
-      <div className="hidden min-h-0 overflow-auto lg:block">
-        <div className="relative" style={{ width: `${framesToPixels(duration, state.zoom) + 192}px` }}>
+          <div className="sticky top-0 z-10 flex h-7 border-b border-hairline bg-surface">
+            <div className="sticky left-0 z-10 shrink-0 border-r border-hairline bg-surface" style={{ width: headerWidth }} />
+            <div
+              role="slider"
+              tabIndex={0}
+              aria-label={t("studio.timeline.playhead")}
+              aria-valuemin={0}
+              aria-valuemax={Math.max(0, duration - 1)}
+              aria-valuenow={state.playheadFrame}
+              aria-valuetext={formatTimecode(state.playheadFrame, fps)}
+              className="relative grow cursor-pointer focus-visible:outline-2 focus-visible:outline-copper"
+              onPointerDown={(event) => {
+                if (event.button !== 0) return;
+                scrubbing.current = event.currentTarget;
+                seekToPointer(event.currentTarget, event.clientX);
+              }}
+              onKeyDown={onRulerKey}
+            >
+              {rulerTicks(duration, fps, state.zoom).map((tick) => (
+                <span
+                  key={tick.frame}
+                  aria-hidden="true"
+                  className="absolute bottom-0 top-0 border-l border-hairline pl-1 pt-1 font-mono text-[0.7rem] text-faint"
+                  style={{ left: `${framesToPixels(tick.frame, state.zoom)}px` }}
+                >
+                  {tick.label}
+                </span>
+              ))}
+            </div>
+          </div>
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute bottom-0 top-0 w-px bg-primary"
-            style={{ left: `${192 + framesToPixels(state.playheadFrame, state.zoom)}px` }}
-          />
+            className="pointer-events-none absolute bottom-0 top-0 z-20 w-px bg-playhead"
+            style={{ left: `${headerWidth + framesToPixels(state.playheadFrame, state.zoom)}px` }}
+          >
+            <span className="absolute -left-1.5 top-0.5 size-3 rounded-full bg-playhead" />
+          </div>
           {lanes.map((lane) => (
             <TimelineTrack
               key={lane.track.track_id}
@@ -247,6 +307,8 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause }: Props) {
               zoom={state.zoom}
               widthInFrames={duration}
               selectedClipId={state.selectedClipId}
+              labelOf={labelOf}
+              readOnly={readOnly}
               onToggle={(field, value) =>
                 commit(
                   field === "hidden"
@@ -289,6 +351,19 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause }: Props) {
           ))}
         </div>
       </div>
+      {readOnly && selectedClip ? (
+        <div className="flex items-center gap-3 border-t border-hairline bg-surface px-3 py-2">
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm text-ink">{labelOf?.(selectedClip) ?? clipLabel(t, selectedClip)}</span>
+            <span className="block font-mono text-xs text-muted-ink">
+              {formatTimecode(selectedClip.from_frame, fps)}–{formatTimecode(selectedClip.from_frame + selectedClip.duration_in_frames, fps)}
+            </span>
+          </span>
+          <button type="button" onClick={onInspect} className="rounded-md border border-hairline px-3 py-1.5 text-[13px] text-copper focus-visible:outline-2 focus-visible:outline-copper">
+            {t("studio.timeline.inspect")}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

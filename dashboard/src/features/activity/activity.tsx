@@ -20,7 +20,7 @@ type Activity = {
 
 const ActivityContext = createContext<Activity | null>(null);
 
-const ACTIVE: RunStatus[] = ["queued", "running", "awaiting_approval", "unknown"];
+const ACTIVE: RunStatus[] = ["queued", "running", "awaiting_approval"];
 /** The inbox at most every 15 s (§7.6: the server settles stale rows no faster). */
 export const INBOX_MS = 15_000;
 /** The run tray and the notifications follow active runs on this beat. */

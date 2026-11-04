@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM rows for the editor tables (editor migrations 0001-0007, 0017, 0021 and 0024).
+"""SQLAlchemy ORM rows for the editor tables (editor migrations 0001-0007, 0017, 0021, 0024, 0027).
 
 They mirror the shipped SQL exactly; the migrations stay the source of truth, and a Postgres
 parity test compares every table here with the migrated schema. Constraints the database
@@ -280,3 +280,45 @@ class StudioImportDecisionRow(EditorBase):
     created_at: Mapped[datetime] = _created_at()
     # Editor migration 0017: why a workflow import excluded an item it had no room for.
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class NarrationRow(EditorBase):
+    """Editor migration 0027: one narration per Studio draft (auto-draft, 2026-10-31)."""
+
+    __tablename__ = "narrations"
+
+    document_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    project_id: Mapped[str] = mapped_column(Text)
+    workflow_id: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text)
+    preset: Mapped[Any] = mapped_column(JSONB)
+    transcript: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    script: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    estimate: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    unsupported: Mapped[Any] = mapped_column(JSONB, server_default="{}")
+    voices: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    stale_beats: Mapped[Any] = mapped_column(JSONB, server_default="[]")
+    failure_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = _created_at()
+    updated_at: Mapped[datetime] = _created_at()
+
+
+class NarrationPresetRow(EditorBase):
+    __tablename__ = "narration_presets"
+
+    project_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    preset: Mapped[Any] = mapped_column(JSONB)
+    revision: Mapped[int] = mapped_column(Integer)
+    updated_at: Mapped[datetime] = _created_at()
+
+
+class SfxLibraryRow(EditorBase):
+    __tablename__ = "sfx_library"
+
+    sfx_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    file_name: Mapped[str] = mapped_column(Text)
+    location: Mapped[str] = mapped_column(Text)
+    checksum: Mapped[str] = mapped_column(Text)
+    duration_seconds: Mapped[float] = mapped_column(Double)
+    labels: Mapped[Any] = mapped_column(JSONB, server_default="{}")
+    created_at: Mapped[datetime] = _created_at()

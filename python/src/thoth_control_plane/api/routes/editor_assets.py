@@ -195,7 +195,7 @@ async def issue_editor_asset_preview_capability(
         path=preview_path,
         httponly=True,
         samesite="strict",
-        secure=request.url.scheme == "https",
+        secure=settings.cookie_secure,
     )
     return response
 

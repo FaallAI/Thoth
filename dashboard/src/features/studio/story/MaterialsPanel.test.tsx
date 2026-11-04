@@ -148,3 +148,53 @@ test("the panel speaks Indonesian", () => {
   expect(screen.getByRole("button", { name: /^Kartu 1$/ })).toBeDefined();
   expect(screen.getByRole("searchbox", { name: "Cari materi" })).toBeDefined();
 });
+
+test("an upload row names its kind, never its id", () => {
+  // Studio shell v2 (spec 2026-11-01, goal 4).
+  mount();
+
+  expect(screen.getByText("Upload · Image")).toBeDefined();
+  expect(screen.queryByText(/asset_upload/)).toBeNull();
+});
+
+test("rows say what each material is, so a creator's cards stay apart", () => {
+  // e2e audit 2026-11-02, finding 5: three identical "@kabinet_rakyat" rows.
+  mount(
+    materials({
+      items: [
+        material("post_card_000", "post_card", { media_kind: "image", label: "@kabinet_rakyat", owner_handle: "kabinet_rakyat" }),
+        material("profile_card_000", "profile_card", { media_kind: "image", label: "@kabinet_rakyat", owner_handle: "kabinet_rakyat" }),
+        material("footage_000", "footage", { label: "Cat rescue", owner_handle: "kreator" }),
+        material("comment_000", "comment", { media_kind: "none", label: "Sangat setuju" }),
+      ],
+    }),
+  );
+
+  expect(screen.getByText("Post card · @kabinet_rakyat")).toBeDefined();
+  expect(screen.getByText("Profile card · @kabinet_rakyat")).toBeDefined();
+  expect(screen.getByText("Footage · Cat rescue")).toBeDefined();
+  // A judged comment stays its own words.
+  expect(screen.getByText("Sangat setuju")).toBeDefined();
+});
+
+test("the narration has its own group, with each beat's voice and length; none, no group", () => {
+  // e2e audit 2026-11-02, finding 6: nothing in Materials named the narration.
+  mount();
+  expect(screen.queryByRole("region", { name: /^Narration/ })).toBeNull();
+  cleanup();
+
+  const source = storyDocument();
+  const voice = {
+    kind: "audio",
+    clip_id: "clip_narration_main",
+    track_id: source.tracks[0]!.track_id,
+    asset_id: "asset_voice",
+    from_frame: 0,
+    duration_in_frames: 219,
+  } as unknown as NonNullable<typeof source.clips>[number];
+  render(<MaterialsPanel materials={materials()} uploads={[]} beats={beats} document={{ ...source, clips: [...(source.clips ?? []), voice] }} previews={{}} />);
+
+  const voices = group(/^Narration/);
+  expect(within(voices).getByText("Narration · Main")).toBeDefined();
+  expect(within(voices).getByText("Audio · 7.3 s")).toBeDefined();
+});

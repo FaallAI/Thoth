@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { ChevronDown, Film, ImageIcon, Info, Quote } from "lucide-react";
+import { AudioLines, ChevronDown, Film, ImageIcon, Info, Quote } from "lucide-react";
 
 import type { EditDocumentV2, EditorAsset, StudioMaterial, StudioMaterials } from "@/api/control-plane";
 import { useLocale } from "@/lib/locale";
 
+import { assetLabel, clipLabel, materialRowLabel, numberRepeats } from "../studio_labels";
 import type { Beat } from "./story_beats";
 
 /** What a dragged material carries: its item id, or `upload:<asset_id>` for a project upload. */
@@ -50,13 +51,35 @@ export function MaterialsPanel({ materials, uploads, beats, document, previews }
     assetId ? beats.filter((beat) => beat.clipIds.some((id) => assetOf.get(id) === assetId)) : [];
 
   const known = new Set((materials?.items ?? []).map((item) => item.asset_id).filter(Boolean));
-  const groups: { id: GroupId | "figures"; rows: React.ReactNode[] }[] = [];
+  const groups: { id: GroupId | "figures" | "narration"; rows: React.ReactNode[] }[] = [];
   const items = (id: GroupId) =>
     (materials?.items ?? []).filter(
       (item) => item.role && GROUP_OF[item.role] === id && matches(item.label, item.owner_handle, item.query, item.author),
     );
   for (const id of ["main", "cards", "footage", "photos"] as const) {
-    groups.push({ id, rows: items(id).map((item) => <MaterialRow key={item.item_id} item={item} provenance={Boolean(materials?.provenance_available)} usedIn={usedIn(item.asset_id)} preview={item.asset_id ? previews[item.asset_id] : undefined} />) });
+    const rows = items(id);
+    const labels = numberRepeats(rows.map((item) => materialRowLabel(item, t)));
+    groups.push({ id, rows: rows.map((item, index) => <MaterialRow key={item.item_id} item={item} label={labels[index]!} provenance={Boolean(materials?.provenance_available)} usedIn={usedIn(item.asset_id)} preview={item.asset_id ? previews[item.asset_id] : undefined} />) });
+  }
+  const voices = (document.clips ?? []).filter((clip) => clip.clip_id.startsWith("clip_narration_"));
+  if (voices.length) {
+    groups.push({
+      id: "narration",
+      rows: voices
+        .map((clip) => ({ clip, label: clipLabel(clip, { document, materials, t }) }))
+        .filter(({ label }) => matches(label))
+        .map(({ clip, label }) => (
+          <li key={clip.clip_id} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-surface">
+            <Thumbnail kind="audio" />
+            <div className="flex min-w-0 flex-col">
+              <span className="break-words text-sm text-ink">{label}</span>
+              <span className="text-xs text-muted-ink">
+                {t("studio.label.kind.audio")} · {t("studio.story.seconds", { seconds: (clip.duration_in_frames / document.canvas.fps).toFixed(1) })}
+              </span>
+            </div>
+          </li>
+        )),
+    });
   }
   groups.push({
     id: "figures",
@@ -68,12 +91,15 @@ export function MaterialsPanel({ materials, uploads, beats, document, previews }
         </li>
       )),
   });
-  groups.push({ id: "comments", rows: items("comments").map((item) => <MaterialRow key={item.item_id} item={item} provenance={Boolean(materials?.provenance_available)} usedIn={[]} />) });
+  groups.push({ id: "comments", rows: items("comments").map((item) => <MaterialRow key={item.item_id} item={item} label={item.label} provenance={Boolean(materials?.provenance_available)} usedIn={[]} />) });
+  const uploadRows = uploads.filter((asset) => !known.has(asset.asset_id) && asset.kind !== "audio");
+  const uploadLabels = numberRepeats(uploadRows.map((asset) => assetLabel(asset.asset_id, { document, materials, t }, asset).label));
   groups.push({
     id: "uploads",
-    rows: uploads
-      .filter((asset) => !known.has(asset.asset_id) && asset.kind !== "audio" && matches(asset.asset_id))
-      .map((asset) => (
+    rows: uploadRows
+      .map((asset, index) => ({ asset, label: uploadLabels[index]! }))
+      .filter(({ label }) => matches(label))
+      .map(({ asset, label }) => (
         <li
           key={asset.asset_id}
           draggable
@@ -81,7 +107,7 @@ export function MaterialsPanel({ materials, uploads, beats, document, previews }
           className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-ink hover:bg-surface"
         >
           <Thumbnail kind={asset.kind} preview={previews[asset.asset_id]} />
-          <span className="min-w-0 truncate">{asset.asset_id}</span>
+          <span className="min-w-0 break-words">{label}</span>
         </li>
       )),
   });
@@ -143,11 +169,11 @@ export function MaterialsPanel({ materials, uploads, beats, document, previews }
   );
 }
 
-function Thumbnail({ kind, preview }: { kind: string; preview?: string }) {
+export function Thumbnail({ kind, preview }: { kind: string; preview?: string }) {
   const box = "grid size-10 shrink-0 place-items-center overflow-hidden rounded bg-well text-faint";
   if (preview && kind === "image") return <img src={preview} alt="" className={`${box} object-cover`} />;
   if (preview && kind === "video") return <video src={preview} muted preload="metadata" className={`${box} object-cover`} />;
-  const Icon = kind === "video" ? Film : kind === "image" ? ImageIcon : Quote;
+  const Icon = kind === "video" ? Film : kind === "image" ? ImageIcon : kind === "audio" ? AudioLines : Quote;
   return (
     <span aria-hidden="true" className={box}>
       <Icon size={16} />
@@ -155,7 +181,7 @@ function Thumbnail({ kind, preview }: { kind: string; preview?: string }) {
   );
 }
 
-function MaterialRow({ item, provenance, usedIn, preview }: { item: StudioMaterial; provenance: boolean; usedIn: Beat[]; preview?: string }) {
+function MaterialRow({ item, label, provenance, usedIn, preview }: { item: StudioMaterial; label: string; provenance: boolean; usedIn: Beat[]; preview?: string }) {
   const { t, day } = useLocale();
   const [why, setWhy] = useState(false);
   const line = [
@@ -175,7 +201,7 @@ function MaterialRow({ item, provenance, usedIn, preview }: { item: StudioMateri
       <div className="flex items-start gap-2">
         <Thumbnail kind={item.media_kind} preview={preview} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-sm text-ink">{item.label}</span>
+          <span className="line-clamp-2 break-words text-sm text-ink" title={label}>{label}</span>
           <span className="truncate text-xs text-muted-ink">{line.join(" · ")}</span>
           {usedIn.length ? (
             <span className="flex flex-wrap gap-1 pt-0.5">

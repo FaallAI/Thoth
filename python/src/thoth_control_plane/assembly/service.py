@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import textwrap
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -40,10 +41,12 @@ from thoth_control_plane.assembly.models import (
 from thoth_control_plane.assembly.ocr import analyze_main_ocr
 from thoth_control_plane.assembly.ports import (
     AssemblyError,
+    BandReader,
     CaptionJudge,
     CommentJudge,
     DurationProbe,
     FigureModel,
+    FrameDecoder,
     FrameSampler,
     RegionTracker,
     TextReader,
@@ -52,6 +55,7 @@ from thoth_control_plane.attribution.models import SourceAttribution
 
 logger = logging.getLogger(__name__)
 HEADLINE_PREFIX = "headline: "
+TITLE_CHARS = 120
 FiguresStatus = Literal["ok", "none", "unavailable"]
 
 
@@ -70,6 +74,8 @@ class AssemblyPorts:
     tracker: RegionTracker | None = None
     judge: CaptionJudge | None = None
     footage: FootageReader | None = None
+    decoder: FrameDecoder | None = None
+    bands: BandReader | None = None
 
 
 @dataclass(frozen=True)
@@ -93,13 +99,19 @@ def _media_ref(media: MaterializedMedia) -> MediaRef:
     )
 
 
+def _title(text: str) -> str:
+    """A long post's title ends on a whole word; one endless word can only be cut."""
+    short = textwrap.shorten(text, TITLE_CHARS, placeholder="…")
+    return text[:TITLE_CHARS] if short == "…" else short
+
+
 def _main_fields(report: SourceReport, source: Literal["input", "original"]) -> dict[str, Any]:
     text = report.post.text.strip()
     fields: dict[str, Any] = {
         "source": source,
         "url": report.source.canonical_url,
         "platform": report.source.platform,
-        "title": text[:120],
+        "title": _title(text),
         "description": text,
         "owner_handle": report.post.owner_handle,
         "published_at": report.post.published_at,
@@ -247,6 +259,8 @@ class ContentAssembler:
                     trim_allowed=source == "input" and verdict in ("unresolved", "none"),
                     tracker=self._ports.tracker,
                     judge=self._ports.judge,
+                    decoder=self._ports.decoder,
+                    bands=self._ports.bands,
                 )
         except BaseException:
             figures_task.cancel()

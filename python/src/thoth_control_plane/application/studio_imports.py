@@ -51,6 +51,10 @@ PASSTHROUGH = (
 )
 
 
+#: A main's text repeats its title; a footage description is for scoring, not the screen.
+HEADING_ONLY_ROLES = frozenset({"main", "footage", "creator_footage"})
+
+
 def _heading(item: StudioSourceItem) -> str:
     if item.title:
         return item.title
@@ -62,17 +66,29 @@ def _heading(item: StudioSourceItem) -> str:
 def build_studio_draft(
     project_id: ProjectId, document_id: OpaqueId, projection: StudioSourceProjection
 ) -> EditDocumentV2:
-    """One text scene per ordered source item, up to the document's scene bound."""
+    """One text scene per ordered source item, up to the document's scene bound.
+
+    Each scene's clip carries its item's role, so Story and narration know its beat.
+    """
+    items = scene_items(projection)[:SCENE_LIMIT]
     clips = [
         text_clip(
             index=index,
             role="title" if item.role == "main" else "source",
             heading=_heading(item),
-            body=item.text or "",
+            body="" if item.role in HEADING_ONLY_ROLES else item.text or "",
         )
-        for index, item in enumerate(scene_items(projection)[:SCENE_LIMIT], start=1)
+        for index, item in enumerate(items, start=1)
     ]
-    return upgrade_edit_document_v1(document_from_text_clips(project_id, document_id, clips))
+    document = upgrade_edit_document_v1(document_from_text_clips(project_id, document_id, clips))
+    return document.model_copy(
+        update={
+            "clips": [
+                clip.model_copy(update={"source_role": item.role})
+                for clip, item in zip(document.clips, items, strict=True)
+            ]
+        }
+    )
 
 
 class StudioImportService:

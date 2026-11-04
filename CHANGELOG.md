@@ -2,6 +2,705 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-04 - The narration script is told what is on screen and who said what
+
+Same branch, `fix/narration-shown-comments`, PR #111. The operator found the narration of `edoc_d49fdc23…` odd. The stored script gave comment 1's point to the people in the video, gave the transcript's "hormat preman" to netizens, and read `@syarieffaid` aloud as the author of the criticism.
+
+**Deploy of PR #111 at `9997b4ee`, not merged, the first from a branch image:** images thoth `deb5598e03fb`, renderer `25d3a53f4451`, web `964ff67e6855`, digests in the push run's log. No workflow running before, `make deploy` exit 0, web 200, 0 error lines in the worker and 0 API 5xx after 2 minutes. The previous env is `D:/thoth-tmp/bu/pins/pins-604bb118.env`. Production runs code not in `master` until this branch merges.
+
+**The request:**
+- Each beat in the draft is described by what is on screen, and `reactions` follows the comment list in order.
+- `SOURCE_RULES` goes after every prompt, saved or starter: comments are from viewers, the transcript is from the people in the video and may be misheard, captions are not read word for word, handles are not written.
+- The account and platform are no longer sent, because the model wrote the handle despite being told not to. The narration can now name a creator only if the name is in the figures, title, description, comments or transcript.
+- The raw `Attribution:` verdict is removed, from `ScriptFacts` too. Nothing told the model what it meant.
+- The starter keeps the Hook, Tension, Solution, Call-To-Value arc and no longer reads as if those were the beats.
+
+**The answer:** `parse_script` strips the `@` from a handle, because the voice reads it.
+
+**Verification:** `make test` 4510 passed, 263 skipped; `make lint` clean. Red first for each change. Only Python changed.
+
+**Real model, operator authorized:** 4 `google/gemma-4-31b-it` calls, 2 per draft, on `edoc_d49fdc23…` and the Halloween draft `edoc_d2a3ee17…`, run in the worker from copies of the branch's files. No draft was written, no voice was made. In the last pair:
+- No handle or caption was voiced.
+- `reactions` used the 3 shown comments in order on both drafts, and no unsupported token was flagged.
+- Halloween's invented "aslinya sudah menyeramkan" is gone.
+
+**Limits:**
+- **Not solved:** on `edoc_d49fdc23…` the `main` beat still says the residents complain police are quick at demos and quiet on premanisme and klitih. That contrast is comment 1's, and the transcript only says "kayak demo". The rule reduced this and did not remove it. The next step, if it stays, is another model.
+- Each prompt was read on one answer per draft, and answers vary.
+- Scripts ran 115 and 89 words against about 135 asked, and there is no lower limit.
+- The transcript of Javanese speech stays garbled: Whisper still detects the language by itself.
+- An invented handle is no longer flagged, because `@` is stripped before `unsupported_tokens` reads the text.
+- The 4 trial calls ran outside an activity and left no row in `usage_events`, so their tokens are unknown.
+- An existing narration keeps its script. A new one comes from Create or Recreate, and voicing it is a paid call the operator approves.
+
+**Next steps:**
+- Operator gates, each separate: commit and push of this branch, deploy of its image, a new narration, merge of PR #111, merging `chore/e2e-trial`.
+- Proof still missing: a real run of a video with captions on the fast OCR path.
+- Operator decisions: the 12-sample gate, rotating the printed secrets.
+- Roadmap: auto-draft's reframe and other modes, Stage 6 enrichment, Stage 8 discovery.
+- Carry forward: everything under Next steps of the entries below, without the items this entry closes.
+
+## 2026-11-04 - The narration hears only of comments on screen; a badly written SFX cue is dropped
+
+Branch `fix/narration-shown-comments`, not pushed. The operator accepted the next step after renders worked.
+
+**Deploy of PR #110:** master `604bb118`, from an up-to-date working tree. Images: thoth `b4251a4c5582`, renderer `928f2526585e`, web `fd0a12d9bff8`, pulled ahead, digests in the CI log. `make deploy` exit 0, no workflow running before, no migration, web 200, 0 error lines in the worker and 0 API 5xx after 2 minutes. The previous env is `D:/thoth-tmp/bu/pins/pins-36dda6a4.env`. Proof on stage1: the operator's render `rj_6635aae12ed…` finished in 33 s at 19:06:50, and the panel's polls of it ended within that minute. The stuck render before it was still polled 21 minutes on.
+
+**Comments on screen:** giving the script real comments (PR #108) made an older finding more likely: the Halloween script quoted comments 4 and 5 while only the top 3 had cards. `story_comments` now keys what commenters wrote by inventory item, and `write_script` keeps those whose clip is in the draft and not hidden. On real drafts, read without a provider: Halloween keeps 3 of 10, the rev 18 draft 3 of 12. A comment with no card, or a card removed or hidden in Studio, is no longer offered. Names from dropped comments are now flagged as unsupported if the model writes them anyway.
+
+**SFX cues:** a badly written cue refused the whole script, against the comment there calling an SFX never fatal. Each cue is now checked alone and dropped if unusable. A `moment` over 60 characters is cut instead, because the contract asks the model why it plays.
+
+**Not code bugs, so unchanged:**
+- The long title ending "ke…" was fixed earlier by `_title`. Stored runs keep their cut titles until assembled again.
+- The colour bars at about 5 s are in the rev 18 source and can be cut in Timeline.
+
+**Verification:** `make test` 4504 passed, 263 skipped; `make lint` clean. Red first for the SFX tests and the new shape of `story_comments`. The two shown-comment tests passed before the rule only because the old code joined dictionary keys, so all five deliberate breaks were run, and each was caught. Only Python changed.
+
+**Limits:**
+- The new prompt has not been sent to a model, so a real script from it has not been read.
+- An existing narration keeps its script. A new one comes from Create or Recreate, and voicing it is a paid call the operator approves.
+- With few cards the model has little to react to. Three short comments may give a thinner `reactions` beat than ten.
+- A comment the model takes from the transcript is not affected.
+
+**Next steps:**
+- Operator gates, each separate: push and PR of this branch, merge, deploy, merging `chore/e2e-trial`.
+- After deploy: a new narration, reading the `reactions` beat before approving voice.
+- Proof still missing: a real run of a video with captions on the fast OCR path.
+- Operator decisions: the 12-sample gate, rotating the printed secrets.
+- Roadmap: auto-draft's reframe and other modes, Stage 6 enrichment, Stage 8 discovery.
+- Carry forward: everything under Next steps of the entries below, without the items this entry closes.
+
+## 2026-11-04 - A render whose last status falls between two polls finishes on screen
+
+Branch `fix/render-panel-missed-status`, not pushed. The operator asked why a render's encode took so long.
+
+**Deploy of PR #109:** master `36dda6a4`, from an up-to-date working tree. Images: thoth `d227ec51a8eb`, renderer `280a9be4abe7`, web `97b2a2947276`, pulled ahead, digests in the CI log. `make deploy` exit 0, no workflow running before, no migration, web 200, 0 error lines in the worker and 0 API 5xx after 2 minutes. The previous env is `D:/thoth-tmp/bu/pins/pins-a32472ce.env`. Real cookies were then seen renewing: 28 capability requests at 17:33 on load, 14 at 17:36, 0 refused reads. No read after the first cookie's 5 minutes was seen.
+
+**Cause:** the encode was not slow. Render `rj_4b2c435d104…` of the Halloween draft finished in 33 s for a 29.8 s video (17:46:37 to 17:47:09). The panel never learned it. `finalizing` lasted about 0.6 s, between the polls at 17:47:08.800 and 17:47:10.312, so the next read said `completed`. `reconcile` allowed only a direct lifecycle edge and refused `rendering` to `completed`, so the panel stayed on Encode and kept polling every 1.5 s, still at 18:08. The longer the final stage, the more likely a poll caught it, so a render could work one time and stick the next.
+
+**Fix:** a read may land on any status further along the lifecycle. A read older than the job's status still cannot move it back, and a finished status stays final. Reloading the page already showed the truth, because a first read has nothing to compare with.
+
+**Verification:** `make dashboard-test` 1567 pass, 0 fail; `make dashboard-build` passes. The reducer test and a panel test fail on the old `reconcile`, with "completed" received as "rendering" and the panel showing Rendering, and pass on the fix. The stale-read test passes on both as a guard. Only the dashboard changed.
+
+**Limits:**
+- The stuck state was reproduced in tests from stage1's request times, not watched in a browser on stage1. The panel's own render frames speed was not measured beyond this one render's 33 s.
+- `Cannot decode /public/asset_9e84eec2…mp4, falling back to <OffthreadVideo>` appeared 2 s before this render's end. It did not stretch this render noticeably. Not looked into.
+
+**Next steps:**
+- Operator gates, each separate: push and PR of this branch, merge, deploy, merging `chore/e2e-trial`.
+- Then the proposal already given: the narration quotes comments that have no card on screen (the Halloween script quotes comments 4 and 5, and only the top 3 have cards), with the long title, the colour bars and the SFX cue bug on the same branch.
+- Operator decisions: the 12-sample gate, rotating the printed secrets.
+- Carry forward: everything under Next steps of the entries below.
+
+## 2026-11-03 - Story previews stay readable while a draft stays open
+
+Branch `fix/preview-capability-renewal`, not pushed. The operator reported that the narrated draft "Happy halowin di melbreennn" was blank behind its cards, except for the first seconds, with the narration still playing.
+
+**Deploy of PR #108:** master `a32472ce`. Images: thoth `f81ff2dec515`, renderer `adfa766dfdf8`, web `1f726689d6de`, pulled ahead, digests in the CI log. `make deploy` exit 0, no workflow running before, no migration, web 200, 0 error lines in the worker after 2 minutes. The previous env is `D:/thoth-tmp/bu/pins/pins-110ad558.env`. `git pull` failed on DNS first, so `make deploy` ran from a working tree at `110ad558`; #108 changed only Python and this file, so the compose files were the same. On that draft the narration then wrote its `reactions` beat from real comments, so the comment fix below worked on its first run.
+
+**Cause:** the draft itself is sound. Revision 19 keeps the main clip under the cards to 22.6 s, and the main file has 33 s of normal frames with no white ones. The browser reads a video a piece at a time, each piece on the asset's capability cookie, which lasts 5 minutes, and Studio asked for each asset once. On stage1 the capability was issued at 14:54:35, the narration kept the page open for about 10 minutes, and from 15:05:01 to 15:05:29 the main video's preview answered 403 17 times. In a browser, with videos answering 403 on this draft, the main picture and the footage thumbnails go blank while cards and captions stay.
+
+**Fix:** `GuidedStudio` asks again for every preview it holds every 3 minutes, and at once when a tab returns past that time. The address stays the same, so a playing video keeps reading on the new cookie. On stage1's own 14:54:35 load, a second capability was followed by more 206 answers, so a repeat does not break reads.
+
+**Verification:** `make dashboard-test` 1564 pass, 0 fail; `make dashboard-build` passes. The new test went red first on the missing timer. Of five deliberate breaks, four were caught at first; the missed one, a timer never stopped, showed that `toHaveBeenCalledWith` compared two timers as equal, so the check now uses identity and catches it. In real Chromium on the dev server, with capabilities answered locally, 14 assets each asked again once about 3 minutes after load. The first run of that throwaway test failed on my own limit, which expected as many requests as the first load's 28. Only the dashboard changed.
+
+**Limits:**
+- The reproduction was black here and the operator saw white: the shape matches, the colour was not explained. The 403s and the timing are stage1's own, and no other cause was found.
+- Real cookies were not exercised, because the read-scope audit token cannot ask for previews. Once deployed, stage1's log should show renewals and no 403 on a page left open.
+- Whether a video already refused starts reading again was not tested, so a page that slept past its cookies may still need a reload.
+- The interval assumes the deployed 300 s `THOTH_EDITOR_PREVIEW_TTL_SECONDS`; marked `ponytail:` in the code.
+- A render does not use these cookies, so it should be unaffected. No render of this draft was run to confirm it.
+
+**Next steps:**
+- Operator gates, each separate: push and PR of this branch, merge, deploy, merging `chore/e2e-trial`.
+- After deploy: leave this draft open over 5 minutes and play it; check the log for no 403 on its previews.
+- Until then, reloading the page gives 5 more minutes of working previews.
+- Operator decisions: the 12-sample gate, rotating the printed secrets.
+- Carry forward: everything under Next steps of the two entries below.
+
+## 2026-11-03 - A refused narration script is asked for once more; the script sees real comments
+
+Branch `fix/narration-script-answer`, not pushed. The operator's Create Narration on `edoc_d2a3ee17…` stopped with `invalid_provider_output`.
+
+**Deploy of PR #107:** master `110ad558`. Images: thoth `c9047c95de58`, renderer `0b62b6963e93`, web `e4c5ddbf3515`, pulled ahead, digests matching the CI log. `make deploy` exit 0, no workflow running before, no migration, every service up, web 200, 0 error lines in the worker after 2 minutes. The previous env is `D:/thoth-tmp/bu/pins/pins-2ba562c4.env`. The deployed image's own code on `instagram_DebN5MbiGXK`, offline, gave the branch's 2 windows in 80 s. No real workflow had run the fast path when this was written.
+
+**What happened:** transcription passed. `google/gemma-4-31b-it` on OpenRouter answered (515 tokens in, 164 out) and the answer was refused within milliseconds. It was neither stored nor logged, so which check refused it cannot be known. With the operator's approval the same request was sent once more, with the draft unchanged since the failure (revision 18, 13:01:12): the answer was fenced JSON with all four beats and 72 words, and every check accepted it. So the likely cause is that the model answers one request differently at temperature 0; this is inferred, not observed. The replay ran outside a metering scope, so `usage_events` does not hold it.
+
+**Fixes:**
+- `write_script` asks once more after a refused answer, so at most one extra model call. A timeout, a rate limit or an outage still fails at once.
+- A refused answer now logs why at `warning`, with up to 300 characters of the answer. The failure code stays the only thing callers see. Any other exception logs its type: `_safe_failure_code` reports it as `invalid_provider_output` too, which could hide a bug.
+- **The script never saw a comment's words.** A card's label is `@author`, and `facts_from_materials` read labels, so the model got handles such as `@joe_senpay` and could name commenters without knowing what they wrote. The earlier draft of 31 October had the same fault. `story_comments` now reads what they wrote from the run's Content Set. On the failed draft that is 10 comments. The new prompt has not been sent to a model.
+
+**Verification:** `make test` 4496 passed, 263 skipped; `make lint` clean. Tests came first and were watched failing, except the outage guard, which passes on the old code too. Five deliberate breaks of the new rules were all caught.
+
+**Limits:**
+- The refused answer is gone, so the fix rests on one failure and one good replay. If the model refuses twice, the operator sees the same message, and the log now says why.
+- An SFX cue the model gets wrong (`moment` over 60 characters, a bad `word_index`) still refuses the whole script, against the comment there that calls an SFX never fatal. It could not have caused this failure, because this project's SFX library is empty, which drops every cue first. Not changed.
+- `unit_prices` is empty, so no cost can be shown for the extra call.
+
+**Next steps:**
+- Operator gates, each separate: push and PR of this branch, merge, deploy, merging `chore/e2e-trial`.
+- After deploy: Create Narration on this draft again, read the `reactions` beat, since it can now quote real comments. Voice stays behind the operator's approval.
+- Operator decisions: the 12-sample gate, rotating the printed secrets.
+- Carry forward: everything under Next steps of the entry below.
+
+## 2026-11-03 - Exact blur edges in about half the OCR time
+
+Branch `fix/blur-exact-edges`, offline, not pushed. The operator accepted the revision 20 render, then asked whether the edge reads could be faster without changing the result.
+
+**Deploy of PR #106:** master `2ba562c`. Images: thoth `a75a3b41`, renderer `b675658d`, web `118911d9`, pulled ahead. `make deploy` exit 0, no workflow running before, no migration, every service up, web 200, 0 error lines in the worker in the first 2 minutes. The previous env is `D:/thoth-tmp/bu/pins/pins-afa4def7.env`.
+
+**Revision 20 of the rev 18 draft:** the main clip runs to frame 766, and 17 followed windows replace the 6 sampled ones. The windows came from the deployed OCR path in the worker, 123 s, without the judge. Render `rj_39d34434c7e8476aa19716e58f06f230`, `D:/thoth-tmp/r20/rev20.mp4`, one video unit of `ws_bootstrap`, no TTS and no provider. No full black stretch by `blackdetect`, and the footage shows behind the cards. The operator judged it good on 2026-11-03, so the rev 18 source is now the eighth golden OCR case.
+
+**Edges:** frame by frame, yellow caption words on revision 20 showed unblurred in 50 of 987 frames, up to 0.23 s at a window edge. `_sharpen` now halves each edge's half-second gap three times, with a limit of 180 reads. Lines of one caption share reads. A lost read keeps that edge inside its gap. Past the limit, every edge stays within half a second, with a warning. `FfmpegRegionTracker` does not fit: a change of words looks like the text leaving.
+
+**Speed:** the detector takes about 0.55 of 0.63 s per frame, and it is already native, so C++ or Rust would not help.
+- Edges read only the band holding the caption lines, cut from one decode pass. `Det.limit_type=max` stops the detector scaling a thin crop up, which is why a crop measured slower in the C++ research. About 0.075 s per read instead of 0.63 s on the rev 18 source.
+- The half-second frames come from one PyAV pass (`PyAvFrameDecoder`) instead of one ffmpeg process per frame.
+- The samples stay YCbCr. Through RGB, saturated colours clipped and the luma moved by up to 4.6 levels against ffmpeg's frames. After the change the bias is about 0.02 and each channel differs by 1-2 levels.
+- A failed pass, a rotated video or a second past the end falls back to one-frame extraction with the same result.
+
+**Slow path against fast path, same code, no judge, no provider:**
+
+| Video | Windows slow/fast | Edges identical | Largest difference | Time slow -> fast |
+|---|---|---|---|---|
+| rev 18 source | 17/17 | 34 of 34 | 0 | 208 s -> 119 s |
+| `instagram_DebN5MbiGXK` | 2/2 | 4 of 4 | 0 | 83 s -> 76 s |
+| `instagram_DeOfMJJz6hL` | 14/14 | 25 of 28 | 0.062 s | 117 s -> 93 s |
+| `instagram_DeeQRrRTLdq` | 0/0 | none to compare | none | 56 s -> 50 s |
+
+The table is from the run after all the edge fixes below. Event loop lag stayed at or below 0.062 s in an otherwise idle container, measured before those fixes.
+
+**Edge fixes after reading every frame of the band:** the operator asked to fix the known limits, so every frame's caption band was read and compared with the windows. On the rev 18 source, 14 of 987 yellow frames were uncovered, and neither cause was the missed word first assumed.
+- Eight were the caption's last frame. A read stands for the frame at or after its second, so text outlasts a midpoint by a frame and never opens before one. A window now closes on the first read without its text. A lost read still keeps the midpoint.
+- Six were one word, "juga", read correctly but rejected: its letters below the line make its box 45% taller than "masuk" before it, past the 40% a track allows. `holds_caption` now accepts a box up to twice as tall or half as tall. On every frame of three videos, one line's boxes range from about 0.6 to 1.5 times its median, and small text in the shot stays out.
+
+- An edge looked for the first plausible box in its window, and the reader lists boxes top first, so text in the shot reaching into the window could stand in for the caption. On `instagram_DeOfMJJz6hL` the first line followed the printed "FENTY" and a stray "S" instead of its own words. An edge now looks for the box nearest the window's middle. This was first recorded here as text in the shot holding a window, left on purpose because a rule might close real captions early. No such rule had been tried, and reading each edge's reference found this cause.
+
+Result on the rev 18 source: uncovered yellow frames 14 -> 0 of 987. Window frames with no yellow 22 -> 31 of 1018, the new ones one frame each. The start of no window moved. Ends moved by up to 0.031 s, plus 0.219 s for "juga". The reference fix moved no rev 18 or `instagram_DebN5MbiGXK` edge. On `instagram_DeOfMJJz6hL` it moved two edges and one start: 35.94 -> 35.63 s and 20.94 -> 20.81 s, now with the other lines of each caption, and 30.03 -> 30.16 s.
+
+**Limits:**
+- Line 1 of the `instagram_DeOfMJJz6hL` caption at 30 s now opens at 30.16 s while the other lines open at 30.09 s, leaving one frame of half-faded words unblurred on that line. The fast and slow paths differ by up to 0.062 s on these faded frames.
+- Text in the shot that sits on a caption line's own height and position still counts as the caption. On `instagram_DeOfMJJz6hL` no line now outlasts the other lines of its caption by more than 0.063 s; no rule was tried for this case.
+- A blank inside a window stays blurred when reads on both sides hold text: 0.23 s at 17.63 s on the rev 18 source.
+- The yellow count sees only yellow words on one video. The other videos were compared with the slow path, not with the truth. Per-frame OCR cannot serve as that truth, because it also reads signs and shirts.
+- The 12 samples are still extracted one by one and read whole. One decode at the 360-frame ceiling, on the heaviest stored source looped to 216 s, held 93 MB of JPEG and raised peak memory by 179 MB, measured, in 19.6 s. The earlier 130 MB was only a computed JPEG total. The worker has no memory limit and the host had about 9 GB free, so nothing changes.
+- Production has not run the fast path.
+- **A width rule at its limit decides a whole track.** Calling the follow path directly on the seven other stored videos: six agree (0 windows, 14-84 s), but `instagram_Dc5ZNTtSxeH` gives 43 windows slow and 7 fast. Frames differ by 0.5 luma levels and 286 of 334 seconds read the same text, but one extra word moved a track's median width from 0.190 to 0.178 across the 0.18 rule. Neither answer is right: its word captions cover about 188 half-second reads and the wider rule misses the largest track on both paths, while the 7 fast windows are 0.06-0.56 s blinks. The 12-sample gate does not open for this video, so production never reaches this path. Short-word captions on a video where the gate opens could flip the same way, on either path. The rev 18 track has 0.211 against the 0.18 rule.
+
+**Verification:** `make test` 4489 passed, 263 skipped; `make lint` clean; eight golden cases pass. Tests came first and were watched failing; for the first two edge fixes the reds were the new expected values, not missing names, and the reference fix's red named "FENTY" as the reference. Each rule of the first two fixes was broken in turn, and all six breaks were caught. The reference fix was checked by its red only. `instagram_Dc5ZNTtSxeH` was not run again after the reference fix. For the speed work, the new-API tests first failed on missing names, not on wrong behaviour. That round found one weak test (the band check read only the size) and a brightness test that failed for a reason other than a wrong frame; a bar's position now identifies the frame. One mutation had no effect on behaviour and was replaced. Only Python changed.
+
+**Next steps:**
+- Operator gates, each separate: push and PR of this branch, merge, deploy, merging `chore/e2e-trial`.
+- Parked: four reads at once, about 0.32 s per frame in a bench, on about 8 cores. It needs a test under real load because OCR threads starved the Temporal workflow thread before.
+- Operator decision: read every main every half second, to catch captions the samples miss, or keep the gate. Opening it needs the 0.18 width rule and the word-caption edges reworked first: on `instagram_Dc5ZNTtSxeH` both fall short.
+- Rev 19 leftovers still in revision 20: colour bars at about 5 s, narration quoting comments without cards, long title ending "ke…".
+- Operator: decide on rotating the printed secrets.
+- Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; `onPreviewUnavailable` called during render; 218 stored `unknown` rows stay in `workflow_runs`; the knowledge graph update; a fresh full run with the caption judge at final acceptance.
+
+## 2026-11-03 - Blur follows the text; the main video fills its beats
+
+Branch `fix/blur-follows-text`, offline, nothing pushed. Findings of the operator on the rev 19 render: blur stayed after its text was gone and sat on faces, and the footage went black behind the cards from 13.6 s to 25.5 s.
+
+**Black background:** the first narration mapped the main clip over a span the cards had made longer than it. It now maps from the main clips' own span, so the main runs to the end of its beats. A narrated draft keeps the operator's layout.
+
+**Blur:** one of the twelve samples stood for up to 11 s of video. When a video has caption windows the judge did not reject, `_follow_text` now reads every half second of the rendered video (`follow_seconds`), and `follow_captions` replaces the sampled caption windows. Overlay windows stay. A window opens and closes halfway to the neighbouring frame, about 0.25 s from the text. The rule follows changing text that holds one spot of the frame:
+- A track is one line: the same height, letter size, and centre or left edge.
+- Not a caption: fewer than 4 reads, a median read narrower than 0.18, the same words in 60% of its reads (misreads and pieces count as the same words), text that also shows on a spot 0.1 away (a sign the camera carries), text cut by the frame edge, or an editorial chyron beside its badge.
+- `_past_blank` from PR #105 is gone. It read a shirt at 6 s and blurred it, and half-second reads replace it. Footage candidates pass `follow=False`: a captioned candidate is rejected and needs no windows.
+- A lost frame or more than 200 windows keeps the sampled windows, with a warning.
+
+**Tested on every stored main with a verdict, ten videos, RapidOCR in the worker, no provider, no platform request:**
+
+| Video | Sampled verdict | Windows now | Judged against frames |
+|---|---|---|---|
+| rev 18 source | subtitle | 17, bottom band | Yes: red boxes on the words, none in the gaps, watermark and shirts free |
+| `instagram_DebN5MbiGXK` | subtitle | 2 lines to 42.75 s | Yes: end card and credit free |
+| `instagram_DeOfMJJz6hL` | subtitle, wrong band | 14 line windows in 4 spans | Yes: the samples blurred a brand strip at the top and missed these |
+| `instagram_DeeQRrRTLdq` | cover | none | Reads only: a handheld sign |
+| `tiktok_7702077612641799425` | cover | none | Reads only |
+| 4 clean mains | clean | none | Reads only |
+| `instagram_Dc5ZNTtSxeH` | clean | none in production; the rule alone finds 43 | Yes: real word captions the samples miss |
+
+The first version of the rule failed this test, and each failure became a test: a two-line caption lost a line, captions outside the sampled band were missed, and a moving sign gave 17 patches. Each rule was also broken in turn to see a test fail.
+
+**Limits:**
+- The sampled gate decides whether the half-second read runs. `instagram_Dc5ZNTtSxeH` has real word captions and stays unblurred and unmuted, as it did before this change. Reading every main every half second would close this, at about 0.7-0.8 s per frame of OCR on every main.
+- The seven golden cases hold twelve frames each, so they fall back to the sampled path and prove the verdict gate only. Their sources are not stored; two of them have captions. Testing the rule on them needs a live download, a separate gate.
+- Thresholds come from these ten videos. A line that says one sentence for 60% of its reads passes for a sign.
+- A window is about 0.25 s off the text. OCR costs 0.7-0.8 s per frame in the worker: about 2 minutes for a 72 s video, about 5 minutes at the 360-frame ceiling. A longer video is read thinner.
+- The trim still removes a caption it takes for a headline (`instagram_DeOfMJJz6hL`, first 5.3 s).
+
+**Verification:** `make test` 4455 passed, 263 skipped; `make lint` clean. The dashboard is untouched. The worker runs the deployed code, so production has not run this path: the ten videos were read in the worker and replayed here.
+
+**Next steps:**
+- Operator gates, each separate: merge of PR #106, deploy, revision 20 of the rev 18 draft and its render (one video unit of `ws_bootstrap`, no TTS), merging `chore/e2e-trial`.
+- Operator decision: read every main every half second, to catch captions the samples miss, or keep the gate.
+- C++ reverse decoding is parked by the operator (2026-11-03) until a case fits it; the research is in `docs/research/2026-11-03-cpp-reverse-decoding-wiring.md`.
+- After the operator judges revision 20: the rev 18 source becomes the eighth golden OCR case.
+- Rev 19 leftovers: colour bars at about 5 s (cut in Timeline); narration quotes comments whose cards are not shown; long title ending "ke…".
+- Operator: listen to `D:/thoth-tmp/r19/rev19.mp4`; decide on rotating the printed secrets.
+- Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; `onPreviewUnavailable` called during render; 218 stored `unknown` rows stay in `workflow_runs`; the knowledge graph update; a fresh full run with the caption judge at final acceptance.
+
+## 2026-11-02 - Deployed afa4def (PR #105): the rev 18 video fixes
+
+**Deploy:** master `afa4def` (PR #105). Images: thoth `7cfb91b5`, renderer `aee756ce`, web `3bf23837`, pulled ahead; the thoth image carries that revision's label. `make deploy` exit 0, no workflow running before or after, every service up and healthy, 0 ERROR or Traceback lines in api and worker in the first minutes. The previous env is `D:/thoth-tmp/bu/pins/pins-7d598d49.env`.
+
+**CI:** PR and master green, including `template-release-parity`.
+
+**e2e against the deployed stack, model-free, read only:** 26 pass on `w1440`, 3 on `w1440id`, 3 on `w1024id`. These check the dashboard, which this deploy did not change. They do not exercise the fixes, which only act on new drafts, new OCR and new narration scripts.
+
+**Next steps:**
+- Operator gate: a new revision of rev 18 and its render (no TTS, one video unit of `ws_bootstrap`), to see the fixes and judge the blur patches. Then add the rev 18 source as an eighth golden OCR case with the verdict the operator confirms.
+- Other gates: merging `chore/e2e-trial`; a fresh run through the whole path, including the caption judge, at final acceptance.
+- Operator: listen to `D:/thoth-tmp/r18/rev18.mp4`; decide on rotating the printed secrets.
+- Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; `onPreviewUnavailable` called during render; 218 stored `unknown` rows stay in `workflow_runs`.
+
+## 2026-11-02 - Fixed the rev 18 video findings in new drafts and new OCR
+
+Branch `fix/rev18-video-findings`, offline and test-first. Not pushed, not deployed.
+
+**Fixes:**
+1. A comment without a card or other media takes no scene (`scene_items`), as `docs/DESIGN.md` 13.2 says. It stays a quote for the narration. Comment cards are placed as before.
+2. Main, footage and creator footage scenes show their heading only (`build_studio_draft`): a main's text repeated its title, and a footage description is for scoring. The projection keeps its text, so the source key of a stored run does not change.
+3. A long post's title ends on a whole word with "…" (`_title`). One endless word is still cut at 120 characters.
+4. `merge_comments` removes emote tokens such as `[Terkekeh]` before it judges a comment, on every platform. A comment left with nothing to say is dropped with its card, as stickers already were (operator confirmed, 2026-11-02). Bracketed text with digits, such as `[2024]`, stays. The narration script's facts remove them too, because stored runs and drafts still hold raw quotes.
+5. A sample that reads nothing right after one that read text is read again one second later (`_past_blank`). Scout's classifier and its parity fixture are untouched. A video without text is not read twice.
+
+**A first blur fix was dropped.** Joining two windows across one sample broke two operator-confirmed golden cases, where the sample held a title card. Limited to samples that read nothing, it passed the goldens but changed nothing on the rev 18 source, because the text on either side of the bars sits in different bands.
+
+**Check on the rev 18 source (production OCR path, local RapidOCR, no caption judge, no provider, nothing written):** the 5 s sample reads 0 boxes, which proves the colour bars caused the gap. The frame at 6 s reads 7. The subtitle and watermark windows now run 0 to 11.07 s with no gap (they ended at 4.5 s). The same frame adds one new window at 5-11.07 s on the right side (`y` 0.74), so the blur covers more of the picture there.
+
+**Verification:** `make test` 4424 passed, 263 skipped. `make lint` clean. Seven golden OCR cases pass, but they replay recorded frames only, so they do not exercise the second read. Eight new or changed tests failed first; three guards passed from the start because they pin existing behavior. Three scene reorder tests were updated because the shared draft now has six scenes. Only Python changed, so the dashboard and renderer suites were not run.
+
+**Not covered:**
+- Stored runs keep their OCR windows and their comment text. Their titles stay cut until the run is assembled again.
+- Rev 18 shows none of this until it has a new revision.
+- `creator_photo` scenes still show their caption as the body. It is the creator's own text, not a machine description.
+- The colour bars stay in the source and in rev 18, and can be cut in Timeline.
+
+**Next steps:**
+- Operator gates, each separate: push and PR, merge, deploy, a new revision of rev 18 and its render (no TTS), merging `chore/e2e-trial`.
+- Operator: listen to `D:/thoth-tmp/r18/rev18.mp4`; decide on rotating the printed secrets.
+- Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; `onPreviewUnavailable` called during render; 218 stored `unknown` rows stay in `workflow_runs`.
+
+## 2026-11-02 - Deployed 7d598d4 (PR #104): the Studio audit fixes and the new golden frames
+
+**Deploy:** master `7d598d4` (PR #104). Images: thoth `bb528a35`, renderer `00d08c62`, web `09d08d7a`, pulled ahead, each carrying that revision's label. `make deploy` exit 0 with no workflow running; preflight passed; head stays `0027`; every service healthy; no ERROR or Traceback in the api, worker, web and renderer logs. Previous pins: `D:/thoth-tmp/bu/pins/pins-f061b3d7.env`. No migration was added, so a rollback is those pins again.
+
+**CI:** `template-release-parity` passed on the new frames on the push, the PR and master.
+
+**e2e against the deployed stack, model-free, read only:** 26 pass on `w1440` (`studio-shell-v2`, `studio-audit-fixes`, `studio-media`), and 3 pass on each of `w1440id` and `w1024id` (`studio-id`). The Indonesian file first failed 3 of 3 on `w1024id` because of the target, not the app: stage1's Indonesian target changed only the browser's locale, so it now rewrites `/auth/me` like the dev ones.
+
+**Render of rev 18 (operator: "ya boleh"):** job `rj_4020c6cf…` completed: 1034 of 1034 frames in 38 s, 1080x1920, 34.475 s, 21,987,859 bytes. The download's sha256 matches the job's checksum. It was started by a one-off script through the deployed service inside the api container, because the audit token is read only, so the dashboard's Render button was not exercised. It used one video unit of `ws_bootstrap`'s allowance. Evidence: `D:/thoth-tmp/r18/`.
+
+**Judged from frames:** every narrated caption sits centred above the bottom 18% with a box that fits its text, so the caption fix holds in a real file. Audio: mean -18.6 dB, peak -0.0 dB, no silence over 0.7 s. Those are measurements; nobody has listened yet.
+
+**Findings in the video, traced read only, not fixed:**
+1. Comment scenes show two comments at once. Each name matches its own text, so nothing is misattributed in the data, but a viewer reads them as one. `scene_items` makes a text scene for every card-less comment, against `docs/DESIGN.md` ("a quote in the narration or a caption only"). The role `comment` maps to the reactions beat, and `narrate_document` packs each track into that beat separately, so 4 quotes land over 3 cards. Before narration they sat apart, at 115-135 s and 36-64 s. A new draft has the same defect.
+2. Footage scenes show the vision model's English description: `project_content_set` passes `clip.description` as the scene's text.
+3. The title is `text[:120]` (`assembly/service.py:102`), cut mid-word, and the body is the same text in full.
+4. "[Terkekeh]" and similar are TikTok's own emote tokens, kept as they arrive. Only sticker-only comments are filtered.
+5. The pale lettering is the source's burned-in "Kabinet Rakyat" watermark, and the patches are subtitle blur that narration switches on by design. The source's subtitles and watermark go unblurred from 4.5 to 10.6 s because the OCR sample at exactly 5 s hit colour bars in the source. 4.5 s and 10.57 s are the midpoints of that sample with its neighbours at 4 s and 16.14 s.
+6. Those colour bars play in the render at about 4.6-5.0 s. They come from the source.
+
+**Not covered:** the browser previewing the server's media, because the audit token cannot; listening to the sound.
+
+**Next steps**
+- Next work: the operator rules on the findings, then fix them test-first. Rev 18 needs a new revision for any fix to show. Do not publish this render.
+- Operator gates: listen to `D:/thoth-tmp/r18/rev18.mp4`; merging `chore/e2e-trial`.
+- Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; the 218 stored `unknown` rows stay in `workflow_runs`; composition's `onPreviewUnavailable` is called during render.
+
+## 2026-11-02 - Promoted new golden frames for both capsules
+
+Branch `fix/studio-audit-findings`, not pushed. Operator, after the before-and-after pictures in `D:/thoth-tmp/golden-compare/`: "ya di setujui".
+
+- `vertical_text_story-v1`: set `sha256-09d5263a497ba3c2f9bef6390746882667eeabe938697d82b0a168320d9a6398`, promoted from `run_78ea265619db840c`.
+- `story_mode-v1`: set `sha256-efb07ab66c7b8a089790fbeeed6cd4d4808393d6dd819cb456b95bdc8daef656`, promoted from `run_3bff9e5800573755`.
+- Both runs were drawn at `a24e2b47` by a freshly built reference image with no network, and promoted from inside it. All 20 files are byte-identical to the frames the operator reviewed.
+- The earlier sets stay in `golden-sets/`; each manifest names the new one.
+
+**Verification:** an image built with the new goldens verified `pass` for both capsules on two fresh artifact roots. Renderer 229 tests pass (5 skipped), typecheck clean. Container contract tests: 56 pass.
+
+**Next steps**
+- Operator gates: push and PR, merge, deploy for this branch; merging `chore/e2e-trial`.
+- At push: `template-release-parity` runs in CI for the first time on these frames.
+- After deploy: run the e2e files against stage1 (`--target w1440`); watch and render rev 18.
+- Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; the 218 stored `unknown` rows stay in `workflow_runs`.
+
+## 2026-11-02 - Fixed every caption style; new golden frames await the operator's approval
+
+Branch `fix/studio-audit-findings`, not pushed. Operator, on the two open decisions: "aku ikutin saran anda". This settles the previous entry's decision on caption styles, and the Studio list's crop stays.
+
+**Changed:** every caption style now skips the `Sequence` wrapper and sits centred above TikTok's bottom 18%. The condition that limited this to narrated captions is gone.
+
+**The golden frames, checked by running the parity gate locally** (`Dockerfile.renderer-f1`, no network, the same command as CI, nothing promoted):
+| Code | `vertical_text_story-v1` | `story_mode-v1` | Preview vs render |
+|---|---|---|---|
+| Narrated captions only (`f523cccb`) | pass, 0 pixels changed | pass, 0 pixels changed | 0 pixels |
+| Every style (this commit) | `visual_mismatch` | `visual_mismatch` | 0 pixels |
+
+- Both capsules carry one `caption_default` clip over the whole timeline, so all 5 golden frames of each hold the bug; a capsule pins its assets and document, not the composition's source.
+- 1,076,892 to 1,242,133 pixels change per frame, about half of each frame, because the dark box is gone from it.
+- The candidates were judged from the renders. The picture is clean, and the caption sits centred above the bottom band.
+
+**Until the operator approves:** `template-release-parity` fails on this branch, so a push goes red there. Nothing has been promoted. Before and after, one picture per capsule: `D:/thoth-tmp/golden-compare/`.
+
+**Verification:** dashboard 1563 tests pass, renderer 229 pass; both typechecks clean. The final code's frames are byte-identical to the candidates in those pictures.
+
+**Next steps**
+- Operator gate: approve the new golden frames for both capsules, after looking at them. Then the gate runs again, its run is promoted, and the new sets are committed.
+- Operator gates, after that: push and PR, merge, deploy for this branch; merging `chore/e2e-trial`.
+- After deploy: run the e2e files against stage1 (`--target w1440`); watch and render rev 18.
+- Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; the 218 stored `unknown` rows stay in `workflow_runs`.
+
+## 2026-11-02 - Closed the audit's gaps: playback, Indonesian, script panel; a caption bug in rendered video
+
+Branch `fix/studio-audit-findings`, not pushed. Operator: "tolong fix sekalian dulu", naming the not-covered list and two notes of the entry below. Covering playback showed what the read-scope token had hidden.
+
+**Found by covering the gaps, and fixed**
+- **Narrated captions were wrong in the video itself.** A Remotion `Sequence` wraps its child in its own row, so `CAPTION_LANE` never reached the cue: the caption sat top left, and its dark box ran the canvas's height, dimming the left part of the title and the picture. `word_highlight` cues now skip that wrapper (`layout="none"`) and sit centred above TikTok's bottom 18%.
+- **Beat tiles drew a broken image for every narration voice:** a voice's preview went into an `<img>`. A voice now draws nothing there.
+- **The chip's menu stayed open over Safe zone** after Open script or Close script. It closes itself now.
+- **Script lines were cut off inside their fields.** They grow to their text (`field-sizing: content`), and the column scrolls instead of running under the beats. That second part fixes a regression this work caused and the e2e check caught; browsers without `field-sizing` keep the scrolling field.
+- **Indonesian:** the hint under the preview, the asset library, the scene fields, the media panel and its dialogs, and the captions panel were English. All are translated. The phone pane read "Linimasa" where everything else says "Timeline".
+- **Phone Timeline's preview pane:** the player stayed 148 px wide with its clock cut to "0..", over an empty screen. It now takes 250 px, as the other panes do.
+
+**The two notes**
+- **"Loading render options…" on the dev server:** traced. An unmount cleanup moved `generationRef` and not the reducer's counter, so under StrictMode's double effect the reducer refused the second load's answer. The cleanup now dispatches `superseded`, keeping the two in step. Only the dev server's double effect reached it.
+- **The narration control's late arrival:** a "Checking narration…" chip holds its place until the read answers, and offers nothing to click.
+
+**Not fixed: a decision for the operator**
+- `caption_default` and `source` captions still have the bug in every render. The approved golden frames of `vertical_text_story-v1` and `story_mode-v1` contain it (see `frame-000060-render.png`: the box runs the frame's height behind "A cue that changes on a boundary"). Fixing them changes those frames, so `template-release-parity` fails until the goldens are promoted again, which needs the operator's approval. The gate compares pixels, so it never judged the look. Removing the `narrated` condition in `AdvancedTimelineComposition.tsx` is the whole code change.
+
+**Verification**
+- **Dashboard:** 1563 tests pass; `tsc -b` exit 0; build OK; lint exit 0 with 45 warnings, the same count as before. **Renderer** (the composition changed): 229 tests pass, typecheck clean. Python untouched, so `make test` and `make lint` were not run.
+- **Red first:** 6 unit tests and 7 e2e checks failed before their fixes, and the Render check failed on the dev server before its fix. One unit test written for the StrictMode bug passed without the fix, because effects do not run twice in this test environment; it was replaced by a reducer test (seen failing with the case removed) and the e2e check.
+- **e2e, model-free:** 29 pass on a production build of this branch against stage1 data: `tests/studio-media.e2e.ts` (7, with local fixture media), `tests/studio-audit-fixes.e2e.ts` (14), `tests/studio-shell-v2.e2e.ts` (5), `tests/studio-id.e2e.ts` (3, Indonesian).
+- **Screenshots judged by Claude,** in `D:/thoth-tmp/e2e-audit-2026-11-02-rest/`: Studio list, Story, Timeline, Review and Render in Indonesian at 1440 and 1024; the same at 430 except that Story and Timeline show one pane each; Timeline in English at 1024; playback with picture in Story and Timeline; rows and tiles with pictures; the placed caption; the open script panel; the Indonesian media dialog; the phone Timeline's preview pane. The Indonesian shots at 1024 and 430 predate the translations, so they judge the layout; the new words were seen at 1440, and in unit tests.
+
+**Covered from the earlier list:** Indonesian; playback and thumbnails with pictures; Space in a real browser, with focus free and in a text field; the open Script panel; Timeline at 1024.
+
+**Still not covered**
+- **The server's own media.** The read scope refuses preview capabilities, so the browser answers those requests with local fixtures. This proves the Player and the rows, not the stored files. A real check needs a higher-scope token or the operator watching rev 18.
+- **Audible sound:** the Player runs its audio, but nothing listens to it in a headless browser.
+- **The narrated caption in a rendered file:** the composition is the one both surfaces draw, but no render ran. `template-release-parity` runs at push.
+- **The deployed build:** waits on the deploy gate.
+
+**Left in English on purpose:** `aria-label` values that `pen-studio.css` selects on (`Studio preview`, `Asset library`, and the like), and the composition's "Video preview unavailable". The lane names (`main_video`) are raw identifiers in both languages.
+
+**Observation, not fixed:** the composition calls `onPreviewUnavailable` during render, which logs "Cannot update a component" in dev when a preview source is missing.
+
+**Next steps**
+- Operator decision: promote new goldens so every caption style is fixed, or keep the fix to narrated captions.
+- Operator decision, still open: whether the Studio list's crop stays.
+- Operator gates: push and PR, merge, deploy for this branch; merging `chore/e2e-trial`.
+- After deploy: run the e2e files against stage1 (`--target w1440`); watch and render rev 18, which also proves the caption in a real file.
+- Carry forward: reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; the 218 stored `unknown` rows stay in `workflow_runs`.
+
+## 2026-11-02 - Fixed the audit fixes' leftovers: load flashes, canvas label, list cards, phone Render
+
+Branch `fix/studio-audit-findings`, not pushed. Operator: "ya perbaiki dulu dan ini juga tolong perbaiki", naming the four notes of the entry below.
+
+**Fixed**
+- **"Create narration" on a narrated draft:** `useNarration` now tells "none yet" from "not read yet", and Studio shows the narration control only once a read has answered. A lost connection or a 5xx is asked again every 3 s instead of being taken as no narration; a 404 or any other refusal is the answer. The server already refused a second narration with `narration_exists`, so the flash misled but could not overwrite.
+- **"Upload · Video" while materials load:** `assetLabel` says only the kind ("Video") until the materials read has answered.
+- **Canvas label:** "9:16 · 1080×1920" now shows under the preview in Timeline and Review. Only the keyboard tip stays hidden there.
+- **Phone Render:** the panel scrolls in its own box at every width, so Studio's header stays put.
+- **Studio list:** the box is 16:9 on wider screens and square on a phone, and the card reads from its top left.
+
+**Behaviour change to know**
+- The list reverses the previous entry's finding 8 on purpose. A very wide card shown whole was an unreadable strip in a 9:16 box. It now crops on the right, and shows the account name and the start of the caption ("Kabinet Rakyat · TOBAT EGE GATUH…"). A draft with no card has the shorter box too, so more drafts fit on a screen. This departs from the 9:16 card the code comment attributed to wider screens; the operator has not yet seen it.
+- The narration control appears a moment after the header on load, rather than a wrong one showing at once.
+
+**Verification**
+- **Dashboard:** 1556 tests pass; `tsc -b` exit 0; build OK; lint exit 0 with 45 warnings, the same count as before this work. Python was not touched, so `make test` and `make lint` were not run.
+- **Red first:** 6 new unit tests and 2 new e2e checks failed before the fix, for the expected reasons.
+- **e2e, model-free:** 15 checks (10 in `tests/studio-audit-fixes.e2e.ts`, 5 in `tests/studio-shell-v2.e2e.ts`) pass on a production build of this branch served by `vite preview` against stage1 data.
+- **e2e, live over MCP, read only, judged by Claude:** the Studio list at 1440 and 430; Story at 1440, including the moment before the reads answered (no Create narration; Scene media read "Video") and after (the "Narrated · 4 beats" chip; "Main video · @kabinet_rakyat"); Timeline and Review at 1440 with the label; Story at 430; Render at 430 scrolled, header in place.
+- **Not covered:** Indonesian, the deployed build, a draft with no narration in a real browser (unit test only), a read that fails with a 5xx in a real browser (unit test only), a portrait post card in the new box.
+
+**Observation, not a defect of this branch:** on the Vite dev server Render stays on "Loading render options…". It finishes on stage1 at `f061b3d` and on a production build of this branch. The cause was not traced; React StrictMode, which only acts in dev, is the likely one.
+
+**Next steps**
+- Next work: the operator looks at the Studio list and says whether the crop stays.
+- Operator gates: push and PR, merge, deploy for this branch; merging `chore/e2e-trial`.
+- After deploy: run both e2e files against stage1 (`--target w1440`).
+- Carry forward: watch and render rev 18; reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; the 218 stored `unknown` rows stay in `workflow_runs`.
+
+## 2026-11-02 - Fixed every finding of the first e2e audit of Studio
+
+Branch `fix/studio-audit-findings`, not pushed. Ledger: `.superpowers/sdd/2026-11-02-studio-audit-fixes/progress.md`. Operator: "ya kerjakan semuanya". The findings are in the entry below.
+
+**Important findings fixed**
+1. Phone header: the title keeps the first row; jobs and mode share the second.
+2. Request review is in the phone menu.
+3. Scene media finds the main-track video under a scene that lists only text, and names it ("Main video · @kabinet_rakyat") instead of an id.
+4. A beat's inspector reads its own seconds, the same as its tile.
+5. Materials rows read "Post card · @kabinet_rakyat". A row keeps the material's own label as the source, so a titled row stays distinct; a judged comment stays its own words. The Add from materials picker uses the same names.
+6. Asset rows show a picture or a kind icon. Materials has a Narration group when the draft has narration clips.
+7. Lane names are sticky; a view-only Timeline gives them 96 px.
+8. The Studio list shows the whole post card. A wide card now reads small in its 9:16 box instead of cropped.
+9. Status `unknown` no longer counts as active, so the false "20 running" is gone.
+
+**Minor findings fixed**
+- Phone panes fill the screen, with the beats pinned under them. The cause was `height: auto` in `pen.css` as well as `dashboard.css`.
+- Play no longer takes focus: Studio handles Space itself in `usePlayerTimeline`, except where focus already uses Space. Play and volume have a gap.
+- The canvas label moved into the hint line under the preview.
+- One Open script / Close script button replaces the menu's duplicate; it also shows while a narration runs.
+- The side panel is named "Materials panel" or "Assets panel", and Story has no width slider for its fixed column.
+- The stray separator in the view-only toolbar is gone.
+- Handles read with "@" once.
+- Other drafts' uploads list last in Assets.
+- The empty inspector fills the phone screen.
+
+**Behaviour changes to know**
+- The canvas label does not show in Timeline or Review, because the hint line is hidden there.
+- On a phone, Render scrolls the whole page, so its header moves with it.
+
+**Verification**
+- **Dashboard:** 1551 tests pass; `tsc -b`, the build and lint pass (lint exit 0 with 45 warnings, none on a line this work added). Python was not touched, so `make test` and `make lint` were not run.
+- **e2e, model-free:** `tests/studio-audit-fixes.e2e.ts` on `chore/e2e-trial` (dae60422, unpushed). The first 7 checks failed on stage1 at `f061b3d`; all 8, plus the 5 in `tests/studio-shell-v2.e2e.ts`, pass on a local dev server of this branch against stage1 data.
+- **e2e, live over MCP, read only:** 24 screenshots in `D:/thoth-tmp/e2e-audit-2026-11-02-fixes/`, judged by Claude. Story at 1440 and 1024; Timeline and the Studio list at 1440; Story (Preview, Materials, Inspector, menu), Timeline (Timeline, Assets, empty Inspector), Review and Render at 430.
+- **Not covered:** Indonesian (locale comes from the server-side user), video and audio playback and thumbnails with real pictures (the read scope refuses preview capabilities), Space in a real browser (unit test only), the open Script panel, a screenshot of Timeline at 1024, and the deployed build.
+
+**New finding, not fixed:** while Studio loads, the narration state is still empty, so a narrated draft briefly shows "Create narration". Seen at 1440 on the dev server, which is slower than stage1. Clicking it in that moment would ask to start a narration. Scene media also reads "Upload · Video" until the materials arrive.
+
+**Next steps**
+- Next work: fix the "Create narration" flash, test-first, on this branch or the next.
+- Operator gates: push and PR, merge, deploy for this branch; merging `chore/e2e-trial`.
+- After deploy: run both e2e files against stage1 (`--target w1440`).
+- Carry forward: watch and render rev 18; reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`; the 218 stored `unknown` rows stay in `workflow_runs`.
+
+## 2026-11-02 - Deployed f061b3d (PR #103); first e2e audit of Studio; tester-army/e2e is the audit standard
+
+**Deploy:** master `f061b3d` (PR #103, Studio shell v2). Images: thoth `42cf2c0e`, renderer `f0277d98`, web `001229db`, pulled ahead. `make deploy` exit 0 with no workflow running; preflight passed; head stays `0027`; every service healthy; no ERROR or Traceback in the api, worker, web and renderer logs. Read smoke 200. Previous pins: `D:/thoth-tmp/bu/pins/pins-d8b738a3.env`.
+
+**Audit standard:** operator, 2026-11-02. Every audit of the dashboard's look or flows now uses tester-army/e2e over its MCP server, with no model and no API key; Claude Code judges the screenshots (AGENTS.md, E2E audits). The read token is now `e2e-audit`, valid to 2027-01-30.
+
+**Audit (read only, stage1, narrated draft `edoc_3aedc6af…` rev 18).**
+- **Screens:** Story, Timeline, Review, Render and the Studio list at 1440; Story and the menu at 1024; Story (Preview, Materials, Inspector), Timeline (Timeline, Assets, Inspector) and the menu at 430.
+- **Evidence:** 16 screenshots in `D:/thoth-tmp/e2e-audit-2026-11-02/`.
+- **Repeatable checks:** 5 model-free tests in `tests/studio-shell-v2.e2e.ts` on the `chore/e2e-trial` worktree, all passing.
+- **Not covered:** Indonesian (the locale comes from the server-side user, and changing it is a write), video and audio playback (the read scope refuses preview capabilities), 768-1023 wide, and the open Script panel.
+
+**Passed:** header one row at 1440 and 1024 with the menu on screen; no horizontal scroll at 430; no raw ids in visible text; beat total 34.5 s equals the canvas with a narrated mic on each beat; Timeline three columns with every tool and inspector field; phone Timeline view-only with Inspect; rebuilt card timing (Post card 8.8-13.4 s, no overlaps, "No issues"); Review and Render.
+
+**Findings, Important:**
+1. Phone: the title shrinks to "TO…" because the mode switch shares its row.
+2. Phone: Request review is unreachable, hidden from the header and absent from the menu.
+3. The inspector's "Scene media" says "No media attached · Unavailable" on a draft with a main video. `SceneMediaInspector` reads `scene.clip_ids`, and a narrated draft's scene lists only its text clip.
+4. A beat's inspector disagrees with its tile: Main reads 13.6 s, the tile 8.9 s.
+5. Story Materials rows are not labelled: three identical "@kabinet_rakyat" rows hide Post card, Profile card and Profile page (spec goal 4).
+6. Asset rows have no thumbnail, waveform or kind icon, and Materials has no Narration group (spec goal 4).
+7. Lane names are not sticky: at 430 they scroll away, and their 192 px column takes half the phone.
+8. Studio list thumbnail shows a crop of giant text ("AR PENJI").
+9. The top bar reads "20 running" and the nav "Runs 20" while Temporal has 0 running. `activity.tsx` counts status `unknown` as active, and `workflow_runs` holds 218 `unknown` rows.
+
+**Findings, Minor:**
+- Phone panes leave the lower third empty, and the beat chips are not pinned to the bottom.
+- Play takes focus on load, and its ring overlaps the volume icon.
+- The "9:16 · 1080×1920" label sits far from the preview.
+- The menu has both "Script" and "Open script", and calls the Materials column "Scene board panel".
+- A stray separator shows in the phone Timeline toolbar.
+- Handles lack "@" in labels ("Post card · kabinet_rakyat").
+- Other drafts' assets ("Upload · Image") list above this draft's.
+- The empty inspector panel is shorter than the phone screen.
+
+**Next steps:**
+- Operator: choose which findings to fix; each is fixed test-first on the next work branch, which also carries this record and the AGENTS.md standard.
+- Operator gates: push, PR, merge and deploy for that branch; merging `chore/e2e-trial`.
+- Carry forward: watch and render rev 18; reopen `edoc_2927f300…` from its run before narrating; CC0 default SFX; `narration-v1` capsule; remove the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`.
+
+## 2026-11-01 - Studio shell v2: one-row header, phone panes, human labels, truthful beats, clickable issues
+
+Spec: `docs/superpowers/specs/2026-11-01-studio-shell-v2-design.md`. Plan: `docs/superpowers/plans/2026-11-01-studio-shell-v2.md` (7 tasks, executed natively). Ledger: `.superpowers/sdd/2026-11-01-studio-shell-v2/progress.md`. Branch `feat/studio-shell-v2`.
+
+**What changed**
+
+- **Labels.** Assets and clips read "kind · source" ("Narration · Main", "Comment card · @lailynisfa", "Upload · Image"), never an id. Repeated names are numbered. This covers asset rows, Materials uploads, the Story Shown list, the Timeline inspector title, clip names and the issue rows.
+- **Header.** The header is 56 px and one row from 1024 up. Script and Assist move into the overflow menu, and Assist now opens its panel instead of toggling. At 1024 the back button is an icon only and the menu carries an amber dot when a beat needs re-voice. The jobs and Request review never wrap.
+- **Narration status.** It replaces the dead-looking "Create narration" button with "Narrated · N beats" (and "N need re-voice"), plus Re-voice changed beats, Recreate narration… and Open script. A failed or cancelled narration offers Create again.
+  - **Every re-voice shows its cost first.** Both the bulk re-voice and the Script panel's per-beat re-voice show the beats' characters and their prorated price, and wait for "Yes, re-voice N beats". Operator ruling: the estimate shows before any voice.
+  - **Bulk re-voice runs one beat at a time.** It waits for each to finish, because the server takes one re-voice at a time. It stops at a failure code, when Studio closes, or after 10 minutes.
+- **Beat strip.** Each tile shows its own seconds, and the tiles sum to the canvas ("matches canvas"). A green mic marks a narrated beat, an amber mic a stale one, and only the selected tile is outlined.
+- **Inspectors.** The scene heading is clamped to two lines, with Edit heading. A narrated beat's timing reads "Cards follow the voice".
+- **Issues.** They are grouped by lane, and each row names its clip and its time. Choosing a row selects the clip and moves the playhead. The Timeline inspector lists the selected clip's issues.
+- **Phone and tablet (under 1024).** A v2 draft edits Story (Materials / Preview / Inspector, beats as chips) or Timeline (Assets / Preview / Timeline / Inspector) in panes.
+  - The Timeline is view-only: no drag, trim, clip actions, lane toggles or adds. Inspect opens a tapped clip's fields.
+  - The quick edit and its swap sheet are retired. DESIGN.md §13.5 is updated.
+- **Page width.** `.studio-shell` may shrink. A truncated title had set its min-content to 985 px at 430 wide.
+
+**Verification**
+- **Dashboard:** 1527 tests pass; `tsc -b`, the build and lint are clean.
+- **Python:** 4415 passed, 263 skipped; `make lint` is clean.
+- **Browser walk** on the narrated stage1 draft:
+  - the header is 56 px at 1440 and 1024;
+  - there is no horizontal scroll at 430, 1024 or 1440;
+  - no `asset_` or `clip_` text appears;
+  - the beat total is 34.5 s, equal to the canvas;
+  - the menu stays inside the viewport.
+- **Not covered:** the Indonesian frames rendered in English, because the read-token session ignores the stored locale. Indonesian widths stay covered by a unit test.
+- **Final review:** a fresh reviewer found no Critical issue. Its 4 Important findings were fixed test-first:
+  1. a failed re-voice ends "completed" with a failure code;
+  2. the wait loop had no stop or cap;
+  3. the compact Timeline still edited;
+  4. Timeline pane then Story left an empty workspace.
+
+  It also found 8 Minors, which are deferred and listed in the ledger.
+
+**Next steps**
+- **Operator gates:** push and PR for `feat/studio-shell-v2`; merge; deploy (web image; no migration).
+- **Minors:** all 8 were fixed test-first on 2026-11-02 (operator: "lakukan perbaikan minor"). Dashboard suite: 1535 pass.
+- **Later:** new issue kinds (a gap before a beat, a clip running past its beat, captions too short); reopen `edoc_2927f300…` from its run before narrating it; the CC0 default SFX set; the `narration-v1` golden capsule.
+
+## 2026-11-01 - Deployed d8b738a (PR #102); the narrated draft rebuilt without TTS; Studio shell v2 specified
+
+**Deploy:**
+- **Build:** master `d8b738a` (PR #102: Timeline's three columns, cards that fill each narrated beat, roles on imported text scenes). Images: thoth `d2573d92`, renderer `6d219a07`, web `91386690`, pulled ahead.
+- **Run:** `make deploy` exit 0 with no workflow running; the preflight passed and head stays `0027`.
+- **Health:** every service healthy, and no ERROR or Traceback in the api, worker, web and renderer logs. The worker has the ElevenLabs key.
+- **Previous pins:** `D:/thoth-tmp/bu/pins/pins-7924ae24.env`.
+
+**The narrated draft, rebuilt without TTS** (operator: "ya tolong ini", following a side-agent note that "Recreate narration" would pay ElevenLabs again and still keep the flashing cards, because a narrated draft keeps its layout):
+- **Input:** `edoc_3aedc6af…` rev 15 (before narration), with its four judged-comment quotes marked `comment`, the four stored voices and the stored preset, run through the deployed `narrate_document`.
+- **Output:** written as revision 18 through `write_derived_revision` on base 17. Rev 17 matched rev 16 clip for clip, so no edit was lost.
+- **Check:** a dry run first showed 1034 frames, no overlap on any track, and no card or overlay under 1 s.
+- **Cost:** no ElevenLabs or LLM call was made.
+
+**Legacy drafts.** Text scenes carry their role only from imports made after PR #102. A read-only survey of stage1 found 2 v2 import drafts, and both lacked roles:
+- `edoc_3aedc6af…` had 4 such scenes and is handled by the rebuild above.
+- `edoc_2927f300…` has 8 and no narration yet. Do not narrate it: reopen the draft from its run, which creates a new draft with roles.
+
+**Studio shell v2:**
+- The pen.dev frames for the audit's remaining findings were reviewed and corrected in `design/thoth-dashboard-v2.pen`:
+  - Geist as the font;
+  - only the selected beat outlined;
+  - the Timeline's tools and inspector fields kept;
+  - Assist as an action;
+  - cards that follow the voice.
+- Spec: `docs/superpowers/specs/2026-11-01-studio-shell-v2-design.md`. Plan: `docs/superpowers/plans/2026-11-01-studio-shell-v2.md`.
+- The operator approved:
+  - Story or Timeline in panes on phone and tablet;
+  - tracking the `.pen` files, with generated exports ignored;
+  - Native execution.
+
+**Next steps:**
+- Execute the shell v2 plan (7 tasks) on `feat/studio-shell-v2`.
+- Operator: watch and render rev 18, and reopen `edoc_2927f300…` from its run before any narration.
+- Later: the CC0 default SFX set; the `narration-v1` golden capsule; removing the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`.
+
+## 2026-11-01 - Deployed 7924ae2 (PR #101); Studio audit; the Timeline layout and narrated card timing fixed
+
+**Deploy:** master `7924ae2` (PR #101: Story previews narration audio, CC0-only SFX). Images: thoth `e2d09f48`, renderer `35c7d22e`, web `36334789`, pulled ahead. `make deploy` exit 0 after the operator granted `/permissions`; no workflow was running; head stays `0027`; every service healthy; no ERROR or Traceback in the api, worker, web and renderer logs. The ElevenLabs key is visible to the worker. The draft, its narration and the dashboard answer 200. Previous pins: `D:/thoth-tmp/bu/pins/pins-10af8950.env`.
+
+**Audit (operator: "audit page timeline edit sangat berantakan dan studio secara menyeluruh").** Studio was walked on the narrated draft `edoc_3aedc6af…` (rev 17) at 1440, 1024 and 430 wide; shots are in `D:/thoth-tmp/audit/`. Two of the findings were regressions from PR #100:
+1. **Timeline layout broke.** `AssetLibrary` and `SfxLibrary` sat in a fragment inside the `display: contents` region, so the SFX list became a grid cell of its own. It took the centre column, pushed the preview and timeline into the inspector's column, and dropped the inspector under the assets.
+2. **The narrated draft scrambled its visuals.** An imported draft layers its cards over the main video with gaps, so a beat's Story span holds long empty stretches. `narrate_document` mapped that span linearly onto the voice: the Evidence cards played 0.8 s and 0.37 s, then about 7 s of nothing; the comment cards played 0.7 to 1.5 s with gaps between. The four quoted comments had no beat at all: imported text scenes never carried their item's role. They were mapped over the whole canvas and landed over the footage titles, which is where the Timeline's 5 overlap warnings came from.
+
+Not fixed here, and carried forward:
+- The header crowds at 1024 (the job tabs stack) and wraps at 1440 in Story.
+- At 430 wide the page is 985 px.
+- Assets and the Story inspector show raw IDs (`asset_…`, `clip_caption_narration_main`).
+- The Story inspector shows the scene heading as a 7-line block.
+- The beat strip total disagrees with its beats.
+- The completed "Create narration" button gives no reason it is off.
+
+**Fixes (`fix/narration-layout-retime`), each test-first:**
+- **Timeline:** the asset list and the SFX library share one cell, with the list filling it and SFX under it. Test: "Timeline keeps the sound effects in the asset column".
+- **Narration:** the first narration lays each beat's clips on a track end to end over the beat's window, each clip a share as long as it was. Later narrations keep the operator's layout and map linearly. Test: `test_a_beats_cards_share_its_whole_window_end_to_end` (RED at (295, 333)).
+- **Imports:** each text scene's clip carries its item's role, so Story and narration know its beat. Test: `test_each_text_scene_carries_its_items_role_so_it_has_a_story_beat`.
+
+**Checked without spending:** following the operator's side note, no voice was paid twice. The fixed `narrate_document` ran offline on rev 15 with the four stored voices and the stored preset, read-only. With the four quotes marked `comment` (they predate the import fix; their content matches Materials' four judged comments), the result is:
+- **Evidence:** 4.6 s, 2.0 s and 2.0 s.
+- **Reactions:** 3.4 s, 1.5 s and 3.1 s for the cards, and the four quotes 2.0 s each.
+- **Footage:** 4.5 s and 4.5 s.
+- **Overlaps:** none on any track.
+
+**Next steps:**
+- Operator gates: push and PR for `fix/narration-layout-retime`; merge; deploy (api, worker and web images; no migration). Then rebuild the narrated draft without TTS: rev 15 with the quotes marked `comment`, the stored voices, and the fixed code, written as a new revision. This is a stage1 data write and needs its own authorization. Do not render the current rev 17 before then.
+- A design pass for the header, the 430-wide layout and asset naming, briefed for pen.dev.
+- Later: the CC0 default SFX set; the `narration-v1` golden capsule; removing the extra `THOTH_ELEVENLABS_API_KEY` from `.env.stage1.local`.
+
+## 2026-11-01 - Deployed master 10af895 (PR #100: the narrated draft); Story previews narration audio
+
+**Deploy:** thoth `3ce86e74`, renderer `71b71339`, web `295f36fb`, pulled ahead of `make deploy` (exit 0); preflight and browser capability passed; migrate applied 1 revision (head `0027`; `narrations`, `narration_presets`, `sfx_library` present); every service healthy; the api, worker, web and renderer logs hold no ERROR or Traceback. Read smoke: runs, `/sfx` (empty), the narration preset (Rust defaults) and `/prompt-stages` (now with `narration_script`) answer 200. Previous file in `D:/thoth-tmp/bu/pins/pins-716b5802.env`. No workflow was running.
+- **Provider and model:** the operator put `THOTH_ELEVENLABS_API_KEY` in the stage1 provider file (the preflight validated it; the recreated worker builds the ElevenLabs adapter). The Prompt Lab catalog gained `google/gemma-4-31b-it` (first on SEA-HELM Indonesian, 79.75; Apache-2.0; 14 live OpenRouter endpoints with JSON) and `qwen/qwen3.6-27b` (second, 77.96) beside DeepSeek V3.1; Gemma 4 31B is the project's `narration_script` model (operator: "untuk model saya ikuti saran mu").
+- **First live narration:** completed on `edoc_3aedc6af…` (4 voiced beats, revision 16, 1034 frames). Studio's Story preview then went blank with "Audio preview unavailable".
+
+**Fix (`fix/narration-audio-preview`):** Story asked preview sources only for videos and stills, so the narration's voices had none, and the composition drew a missing audio source as a full-frame placeholder over the picture. Story now previews every asset of the draft, and a missing audio source is reported but draws nothing (audio has no picture). Renders were unaffected: a render bundle resolves every asset.
+
+**SFX licences:** the seed gate is CC0 only. The Pixabay and Mixkit licences forbid redistributing files as a library or inside a tool, which a bundled SFX library is. `LICENSES.json` stays empty.
+
+**Next steps:**
+- Operator gates: push and PR for `fix/narration-audio-preview`; merge; deploy (web and renderer images change; no migration).
+- After the fix: watch and render the narrated draft; then a default CC0 SFX set (Kenney CC0 interface and impact packs, Freesound CC0 per file) with sources in `LICENSES.json`, on the operator's word.
+- Later: the `narration-v1` golden capsule; ElevenLabs request-id stitching across re-voices.
+
+## 2026-10-31 - Auto-draft, first milestone: the narrated draft
+
+**Spec:** `docs/superpowers/specs/2026-10-31-auto-draft-narrated-draft-design.md`, approved by the operator on 2026-10-31 ("ya sesuai"). **Plan:** `docs/superpowers/plans/2026-10-31-auto-draft-narrated-draft.md`, executed natively on `feat/auto-draft-narration`. Operator rulings: a watchable narrated draft first; nothing hard-coded; the script is approved in Studio, with a TTS estimate, before any voice is made; no editing at the approval; ElevenLabs; SFX yes, BGM no; narration starts only from **Create narration**; bundled SFX must be licence-free (uploads are hosted, not provided).
+
+- **Flow:** `NarrationWorkflow` per draft: transcribe (the voice key is checked first, so a missing key spends nothing), write the script on the prompt queue (`narration_script` Prompt Lab stage, Hook -> Tension -> Solution -> Call-To-Value starter, facts only), wait for Approve or Reject-with-note, voice each beat (ElevenLabs with request stitching), write the draft. `NarrationRevoiceWorkflow` re-voices one edited beat.
+- **The draft change** (`assembly/narration_timeline.py`): beats laid end to end in story order, each as long as its voice (the first with the 1.6 s lead-in), its clips mapped into the new window; the main video under Hook-Reactions, holding its last frame when it runs out; word-highlight caption pages (at most 4 words or 1.2 s); ducking keyframes (0.12 under speech, 0.45 in pauses over 0.3 s); SFX on their word; 2-frame fades; imported subtitle blur switched on. Re-narrating a narrated draft replaces its own layer, which is how a beat is re-voiced.
+- **Document and composition:** caption words, `word_highlight`, `volume_keyframes` on video and audio clips, `hold_after_source` (drawn with Remotion `Freeze`); all optional, existing renders unchanged.
+- **Storage:** editor migration 0027 (`narrations`, `narration_presets`, `sfx_library`, the stage CHECKs). Preset defaults are the Rust values: `id`, 45 s at 3 words/s, voice `plgKUYgnlZ1DCNh54DwJ` / `eleven_multilingual_v2`, 0.12 / 0.45 / 1.6 s, at most 3 SFX.
+- **Script check:** an answer naming an unknown beat or SFX, too many cues, or more than 1.25x the target words is refused (`invalid_provider_output`); numbers, @handles and names the evidence lacks are underlined on the approval screen.
+- **SFX:** `thoth-control sfx seed` loudness-normalises (EBU R128, -16 LUFS, -1 dBTP) and stores licensed files in object storage; `assets/sfx/LICENSES.json` ships empty, so nothing is seeded until licence-free files are recorded.
+- **API:** `/projects/{p}/edit-documents/{d}/narration` (start, read, `/decision`, `/beats/{beat}`, `/beats/{beat}/revoice`), `/projects/{p}/narration-preset`, `GET /sfx`; the draft's `PATCH` answers `409 narration_in_progress` while a narration runs.
+- **Studio:** Create narration, the Script panel (steps, read-only approval with estimate and unsupported words, then editable lines with Re-voice), the lock banner, the narration preset on *Presets & prompts*, and the SFX library under Timeline's assets; English and Indonesian.
+- **Stage1:** the provider preflight admits the optional `THOTH_ELEVENLABS_API_KEY`; the image carries `assets/sfx` and the catalog.
+
+**Final review** (one fresh reviewer, whole branch): one Critical and six Important findings, plus two Minors re-graded Important by effect, fixed in one pass, each with a test that failed first:
+- A failed workflow start or a Temporal-side cancel no longer leaves the draft locked; `POST .../narration/cancel` closes a run, or a row whose workflow is gone.
+- Voices are stored per beat, so a retry never pays for a beat twice; re-voice is a voice step, then the draft write.
+- An atomic status claim makes a decision and a re-voice happen once; re-voice locks, polls and adopts like a narration.
+- An operator audio clip never outgrows its asset. Re-voicing keeps narration volume, caption fixes, deleted SFX and blur choices, and beats that came from scenes.
+- A narration-lock 409 is not read as a revision conflict, and queued edits are dropped, not replayed, when the narrated draft is adopted.
+- An SFX the draft cannot use is dropped instead of failing the script (the library ships empty).
+
+**Verification:** full Python suite 4402 passed (262 skipped) after the fix pass with the narration suites; the Postgres suites for the narration store, the editor repository and the migrations (0027) pass; `make lint` clean; dashboard 1482 pass, `tsc -b` clean, build clean, oxlint adds no warning; renderer 224 pass. The `narration-v1` parity capsule is not drawn yet.
+
+**Next steps:**
+- Operator gates, each separate: push and PR for `feat/auto-draft-narration`; merge; deploy (migration 0027 applies); put the ElevenLabs key from the old root `.env` into the stage1 provider file; record licence-free SFX in `assets/sfx/LICENSES.json` (or replace the files) and run `thoth-control sfx seed`; choose a model for the `narration_script` stage; one live narrated `produce_video` run as the acceptance; draw and approve the `narration-v1` golden capsule.
+- Final-review minors, fixed before push at the operator's request (2026-10-31), each test-first: polling keeps going after a failed read; an empty beat is dropped, not fatal; ducking scales an audio clip's own volume; the import resolve route waits for a running narration; Create narration is refused once a narration is complete (`narration_exists`); transcription seconds are metered; an edit during a re-voice is refused (the status claim); a changed SFX file replaces its library entry; store outages answer 503 `narration_unavailable`; a library SFX can be added to the draft (`POST /projects/{p}/sfx/{id}/asset`).
+- Recreate narration (operator, 2026-10-31): a finished narration is refused by Create narration (`narration_exists`) but can be written again with **Recreate narration** (`POST .../narration/restart`, confirmed in Studio): a new script for every beat in the draft now, including beats added since, approved again before any voice. A narration (first or recreated) places its approved script's SFX and replaces earlier placed ones; a re-voice keeps the SFX as the operator arranged them, so the SFX shown at approval are the SFX placed.
+- From the Context7 research (Remotion v4.0.538 docs and installed source; ElevenLabs API reference): stitching sends `previous_request_ids` of the beats voiced in the same call (at most 3, IDs stay under two hours) with `previous_text` as the fallback; TTS is metered from the `character-cost` response header; a held clip stays inside one `Freeze` switched on through `active` (its callback receives the clip-local frame), so the decoder is never remounted. `Freeze` pausing `@remotion/media` `Video` is documented; the volume callback is supported though Remotion now prefers a numeric volume (left as is, proven by the `narration-v1` render).
+- Next roadmap: item 7 (Stage 6, enrichment); the style template track stays parked behind the base items.
+
+## 2026-10-31 - Rust retired: no `crates/`, no Cargo, no Rust-era docs
+
+Operator, 2026-10-30: "scout dan crates itu sudah tidak dipakai!!! karena nanti akan full ke python"; approved on 2026-10-31. Nothing in the deployed images, the Compose stack or CI built or read any of it.
+
+- **Removed:** `crates/` (thoth, thoth-core, thoth-jobs, thoth-server, thoth-types), `Cargo.toml`, `Cargo.lock`, `.clippy.toml`, `build_cuda.bat`, `build_cuda.sh`, `test/scraper`, `tests/fixtures/main-footage`, `config.toml.example`, `.env.example`, `requirements.txt`, `environment.yml`, `SETUP.md`, and the Rust-only scripts (`scripts/deprecated`, `lib`, `media`, `narration`, `news`, `render`, `tts`, `vision`). `assets/platform_logos` went too: only Scout read its Supabase table.
+- **Docs removed:** `docs/CLI.md`, `INSTALL.md`, `CONFIGURATION.md`, `FEATURES.md`, `MODELS.md`, `PIPELINE.md`, `main-footage.md`. The `thoth-control` client section of `CLI.md` moved into `docs/RUNNING.md`, which now covers only the Python stack.
+- **Rewritten:** `README.md` describes the Python control plane, dashboard and renderer. `AGENTS.md`'s stack and mandatory verification are now the Python and dashboard checks (no CUDA build, no `cargo`), and its conventions name Python log levels and field defaults. BLUEPRINT notes the retirement; `docs/agents/domain.md`, the Makefile header, `.gitignore` and `.dockerignore` drop the crates.
+- **Kept:** `assets/` (fonts, BGM, SFX, logo, catalog) for auto-draft; the gitignored local `config.toml`, `ffmpeg.exe`, `target/` and the root `.env`.
+- **Security:** the 17 open Dependabot alerts (2 critical, 4 high, 7 moderate, 4 low) were all Rust crates (`zip`, `quinn-proto`, `rustls`, `tar`) in `Cargo.lock`, `crates/thoth-core` and `test/scraper`; removing them closes every one.
+- **Roadmap:** a dated status section maps items 4-11 and the dashboard track to what shipped; item 11 is left with only the `activity_mode` removal after 2026-11-29.
+
+**Verification:** full Python suite 4318 passed, 252 skipped, 1 failed only in this checkout: `test_the_image_and_its_workflow_carry_no_scout` finds the gitignored `scout/` leftovers (`node_modules`, `output`, `ckb.json`) that predate the Scout removal; a clean checkout has no `scout/`. `make lint` clean; `make help` runs.
+
+**Next steps:**
+- Operator gates: push and PR for `chore/retire-rust`, merge. No deploy is needed: no image changes.
+- Operator: delete the local ignored leftovers (`scout/`, `crates/`, `test/`, `target/`) when convenient.
+- After 2026-11-29: drop `SourceActivityMode` and the decode-only `activity_mode` input, which closes item 11.
+- Next roadmap item: 6, auto-draft slice 1 (transcript); the dashboard live gate (track step 8) runs in parallel.
+
+## 2026-10-31 - Deployed master 716b580 (PR #97: Scout retired)
+
+**Deploy:** thoth `0768aa92`, renderer `53bda04f`, web `deec28a7`, pulled ahead of `make deploy` (exit 0); preflight and the browser capability check passed; migrate applied 0 revisions (head stays `0026`); every service healthy; `legacy-cdp` is gone (0 containers); `api` and `worker` carry no activity-mode variable and no `/opt/thoth/scout`; a new worker polls `thoth-control-plane`; the api, worker, web and renderer logs hold no ERROR or Traceback. Read smoke: the run list, metrics, prompt stages and one run detail answer 200, the dashboard 200. Previous file in `D:/thoth-tmp/bu/pins/pins-127cb0e0.env`. No workflow was running.
+
+**Before the deploy:** `temporal` had been unhealthy for about six hours. Its `/etc/resolv.conf`, written when the container was created on a corporate network, still searched `internal.ebdesk.com`, whose resolver is unreachable now, so the healthcheck's lookup of `temporal` timed out. `up --wait` would have stopped at it with the worker already stopped. With no workflow running, `temporal` was recreated alone (healthy, health call 0.6 s); the deploy recreated the other THOTH containers with the current resolver.
+
+**Curated list:** the deployed attribution and footage exclude no account from the old curated JSON (operator, 2026-10-31).
+
+**Next steps:**
+- Operator: remove `THOTH_STAGE1_ACTIVITY_MODE` from `.env.stage1.local` and `$THOTH_STAGE1_DATA_ROOT/browser-profile`; neither is read any more.
+- Operator decision: the curated aggregator list's future.
+- After 2026-11-29: drop `SourceActivityMode` and the decode-only `activity_mode` input.
+- Follow-ups: 17 Dependabot alerts on master; `crates/` and the Rust-era docs; the Studio header overflow at 430px; seven R7 minors; audit B2/B5.
+
 ## 2026-10-30 - Agentic e2e trial on the dashboard (e2e 0.21.3, GLM 5.3)
 
 **What:** a standalone `e2e/` package with `e2e` 0.21.3, `@e2e-dev/web` 0.15.3, `@ai-sdk/anthropic` 4.0.81 and `ai` 7.0.142 (the AI SDK pins are the last releases older than two weeks; installed with `--ignore-scripts`; no package has install scripts). Three read-only tests in `e2e/tests/story-assist.e2e.ts`: a finished run opens its draft in Studio; Story mode shows the beats toolbar; the Assist panel opens for the shown beat. They never press suggest, apply or save.
@@ -16,6 +715,196 @@ All notable changes to this project will be documented in this file.
 - Operator gates: push and PR for `chore/e2e-trial`, then merge.
 - Decide whether the trial becomes a CI job; that needs a paid key or another provider (Coding Plan use is accepted for this trial scale only).
 - Revoke the `e2e-trial` token when the trial ends.
+
+## 2026-10-29 - Deployed master 5c30ba2 (PR #85, prompt answers in a markdown fence)
+## 2026-10-30 - Scout retired: Python-only acquisition, no CDP sidecar, no `scout/` tree
+
+Operator rulings of 2026-10-30: "scout dan crates itu sudah tidak dipakai!!! karena nanti akan full ke python" and "ya scout harus mati, nanti jika gagal berarti dari sisi python nya perlu di perbaiki lagi". Stage1 had run `python` only since 5d9ee252 (PR #87); this removes the dormant paths. Plan: `docs/superpowers/plans/2026-10-30-scout-retirement.md`.
+
+- **Workflow:** every source run takes the Python activity; a platform Python does not acquire is `unsupported_platform` (now refused at `POST /workflows` too, as Facebook and Reddit were). The legacy branch, the fallback transition event, `LEGACY_FALLBACK_ELIGIBLE_CODES`, the `fallback_from` payload key, and the `legacy_source` skip reason are gone (contract regenerated; one enum value removed).
+- **Replay safety:** a scan of stage1 found 30 histories in the 30-day retention, 27 started with `python_tiktok_with_legacy_fallback`, none scheduled `inspect_legacy_scout`; no stored run summary carries `legacy_source` or `fallback_from` (269 rows). So `SourceInvestigationWorkflowInput.activity_mode` keeps its three values, decode-only and ignored, until 2026-11-29.
+- **Worker and config:** the legacy activity, its `thoth-legacy-adapter` worker, `THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE`, and the preflight's mode check are removed.
+- **Soak contract:** observations are `activity_mode: "python"` only; the `legacy_fallback` route, count, rate, policy maximum and blocker are removed (no soak evidence exists yet, ADR 0001).
+- **Image and stack:** no Scout tree, no `start-legacy-cdp`, no `gallery-dl` (`scout-runtime` extra and its lock entry), no `browser-profile`, `EXPOSE 8000` only; Compose has no `legacy-cdp` service and the worker no longer waits for it; the provider overlay drops the `THOTH_SCOUT_*` roles. `bun` stays: yt-dlp uses it for YouTube. `deploy-stage1.sh` brings the stack up with `--remove-orphans`, so the deploy removes the running `legacy-cdp` container. CI drops the Scout tests and both CDP transport smokes; `make smoke-cdp` is gone.
+- **Curated list out of Git:** attribution's curated Instagram aggregator list was read from `scout/config/ig_accounts.json` (in the image at `/opt/thoth/scout`). The operator ruled on 2026-10-31 that this JSON is not a filter: `load_curated` is removed, attribution and footage no longer exclude any account from it, and the file stays only as a local, gitignored copy until the operator decides its future.
+- **Docs:** the Stage 1 runbook, `docs/python-control-plane.md`, `docs/RUNNING.md` and BLUEPRINT describe the Python-only stack. The Rust-era docs (README, `.env.example`, CLI/INSTALL/MODELS/FEATURES, main-footage) still describe Scout with the Rust crates and go with them.
+
+**Verification:** the new routing test (every recorded mode, nine URLs) was RED on the old code (13 cases routed to Scout) then GREEN; full Python suite 4321 passed, 252 skipped; `make lint` clean; dashboard 1465 pass, `tsc -b` and build clean; the three CI Compose renders and the full deploy file set render (no `legacy-cdp`); actionlint and `bash -n` on the deploy script clean.
+
+**Next steps:**
+- Operator gates: push and PR for `chore/retire-scout`, merge, deploy (the deploy removes `legacy-cdp`; the post-deploy check no longer finds a mode variable on `api` or `worker`).
+- After deploy: `THOTH_STAGE1_ACTIVITY_MODE` in `.env.stage1.local` and `$THOTH_STAGE1_DATA_ROOT/browser-profile` are unused and can be removed by hand.
+- After 2026-11-29: drop `SourceActivityMode` and the `activity_mode` workflow input field.
+- Follow-ups: retire `crates/` and the Rust-era docs; the Studio header overflow at 430 px; the seven R7 minors; audit B2 and B5.
+
+## 2026-10-30 - Deployed master 127cb0e (PRs #94 and #95: TikTok captcha and worker log fixes)
+
+**Deploy:** thoth `7e0b2cc2`, renderer `05e81b21`, web `d06550b5`, pulled ahead of `make deploy`; migrate applied 0 revisions (head stays `0026`); every service healthy, worker 0 restarts, a new worker polls `thoth-control-plane`; acquisition stays `python` on `api` and `worker`; the fresh worker log holds no ERROR or Traceback. Previous file in `D:/thoth-tmp/bu/pins/pins-98d7f427.env`. No workflow was running.
+
+`0418d84` (PR #94 alone) was built and pulled but never deployed: it dropped Scrapling's unreadable-body lines while those bodies still read as captcha, which PR #95 fixed first.
+
+**Next steps:**
+- Watch the next TikTok creator listing: videos, `no_data`, or a real `captcha`, never `captcha` after a solved whirl or over unreadable bodies; `tiktok discovery list bodies unreadable ... unreadable=n` shows how often bodies are lost.
+- The worker log should carry no `AsyncClient.aclose()` and no Scrapling `Response.body` errors.
+
+## 2026-10-30 - An unreadable TikTok list body is no longer a captcha
+
+**Raised by a side agent before the 0418d84 deploy, confirmed in Scrapling's source:** for every captured XHR, Scrapling reads the body after the page action ends; when the browser has already discarded it (navigated away, a redirect) it logs `Error getting page content in async: Response.body: ...` and keeps `b""`. Discovery parsed that `b""` as a TikTok refusal (`captcha`), and its own in-page read did the same on an exception. A listing could end `captcha` while TikTok refused nothing, and PR #94 had just dropped those Scrapling lines from the log as noise.
+
+**Fix (`acquisition/discovery.py`):** the page's own read of each list response is kept; an exception there is `unreadable`, counted and skipped, not parsed. The result is assembled from those reads, falling back per response to Scrapling's copy when the page's read failed and Scrapling kept a non-empty body; with neither, the response is skipped. A body read in the page as `b""` is still a refusal. A listing with no readable page ends as `no_data`. The scroll no longer stops at an unreadable body. The count stays in our own log: `tiktok discovery list bodies unreadable kind=... unreadable=n` (Scrapling's lines stay dropped).
+
+**Verification:** `test_an_unreadable_list_body_is_not_a_captcha` and `test_only_unreadable_list_bodies_end_as_no_data_not_captcha` RED then GREEN; two older tests now pin the new meaning (a failed in-page read falls back to Scrapling's copy; a failed attempt's unreadable body is counted, not mistaken); acquisition tests 1040 passed; full Python suite and `make lint` clean.
+
+## 2026-10-30 - Worker log: agno client leak and Scrapling body noise
+
+**`Task was destroyed but it is pending! AsyncClient.aclose()` (fixed):** agno 3.1.9 builds a new `AsyncOpenAI` per request; with no `http_client`, the SDK made its own httpx client and left it to `__del__`, which scheduled `aclose()` on whichever event loop ran at collection time, a Temporal workflow thread here. The four agno adapters (`captions`, `figures`, `vision`, `queries`) now pass their own `httpx.AsyncClient` and close it in `finally`. `test_an_agno_call_closes_the_http_client_it_used` and `test_every_agno_model_is_given_a_client_the_adapter_closes` (any new `OpenAILike(` without `http_client=` fails) were RED then GREEN.
+
+**Scrapling `ERROR ... Response.body:` lines (dropped):** Scrapling logs one for every captured response whose body the browser already discarded (navigated away, redirect); the listing still succeeds. The provider log filter drops exactly those; other Scrapling errors stay (`test_scrapling_unreadable_response_body_errors_are_dropped`).
+
+**Left as is:** `x.com/search` first-attempt `ERR_INVALID_AUTH_CREDENTIALS` and timeouts before a successful search, and TikTok's anonymous captcha that hands the listing to a source account.
+
+**Verification:** full Python suite 4384 passed, 252 skipped; `make lint` clean.
+
+## 2026-10-30 - A solved TikTok captcha no longer ends the listing as captcha
+
+**Seen in the stage1 worker log (run after the 98d7f42 deploy):** footage's creator listing for `@pojokbogor` went through a source account; the whirl captcha was solved (`tiktok captcha outcome subtype=whirl solved=true attempts=1`), yet four seconds later discovery finished `kind=profile pages=0 videos=0 reason=captcha`, the creator listing was "unavailable", and footage admitted nothing from that creator.
+
+**Cause:** the list response TikTok refused while the modal showed (a non-JSON body, parsed as `captcha`) was still in the capture. `absorb()` read it and marked the scroll done before any scroll after the solve, and `_assemble` stopped at that first page, so the solve bought nothing.
+
+**Fix (`acquisition/discovery.py`):** a successful solve records how many list responses had arrived (`solved_after`); a `captcha` refusal among those is stale and is skipped by both `absorb()` and `_assemble`. A refusal after the solve still ends the listing as `captcha`. The scroll now checks for the modal before reading responses, so the modal is solved first.
+
+**Verification:** `test_a_page_refused_before_a_solved_captcha_does_not_end_the_discovery` RED (captcha, 0 pages, 0 videos) then GREEN; `test_a_refusal_after_the_solve_is_still_captcha`; acquisition tests 1037 passed; full Python suite 4381 passed, 252 skipped; `make lint` clean.
+
+**Not covered offline:** whether TikTok re-sends the list request after a solve. If it does not, the listing now ends as `no_data`/`idle` instead of a false `captcha`; a live look at the next creator listing will tell.
+
+**Next steps:**
+- Operator gates: push and PR for `fix/discovery-solved-captcha`, merge, deploy; then watch the next creator listing that meets a captcha.
+
+## 2026-10-30 - Deployed master 98d7f42 (PR #92, worker log errors)
+
+**Deploy:** thoth `90d05385`, renderer `87226857`, web `908dbe8d`, pulled ahead of `make deploy`; migrate applied 0 revisions (head stays `0026`); every service healthy, worker 0 restarts, a new worker polls `thoth-control-plane`; acquisition stays `python` on `api` and `worker`. Previous file in `D:/thoth-tmp/bu/pins/pins-03741c38.env`. No workflow was running.
+
+**Verified in the live worker:** the diarization probe (120 s of audio through `SherpaDiarizer`) took 6.0 s with a worst event-loop lag of 0.01 s; before the fix the same probe stalled the loop 5.05 s.
+
+**Next steps:**
+- Watch the next TikTok run with speech: the worker log should show no `event loop stalled` and no source-step or MinIO pool warnings.
+
+## 2026-10-30 - Worker log errors after the 03741c3 deploy
+
+**Reported by the operator:** many errors in `docker logs thoth-stage1-local-worker-1`. The first Python-only TikTok run (`wf_6ca4c298...`) still succeeded end to end; the 30-minute log held five kinds of lines.
+
+**1. A 45.8 s event-loop stall (fixed).** The watchdog's stack dump showed diarization (`attribution/adapters/speech.py`, sherpa-onnx `engine.process`) running in a thread: it holds the GIL through `process()`, so the worker could not answer Temporal (TMPRL1104, an expired query; a TMPRL1101 deadlock was one coincident activation away). A probe in the worker container measured a 5.05 s stall for 120 s of audio. `SherpaDiarizer` now runs diarization in one spawned child process that keeps the engine loaded; a dead child is `diarization_failed` and the next call starts a fresh one. The same probe on the deployed image with this code: 0.01 s worst lag for 120 s and 240 s of audio. `test_diarization_leaves_the_event_loop_free` was RED (2.24 s) then GREEN. Note: `spawn` re-imports the main module, which the worker (`python -m thoth_control_plane.worker`, guarded `main()`) satisfies.
+
+**2. 27 "step outside its scope's stage dropped" warnings (quietened).** Attribution and footage reuse the source acquisition code, which reports `source.*` steps; dropping them is expected, so they now log at debug. Any other stage mismatch still warns.
+
+**3. MinIO "Connection pool is full" (fixed).** The custom `urllib3.PoolManager` kept urllib3's default of one connection per host; it now keeps eight.
+
+**4. and 5. Left as they are:** Scrapling's own `ERROR ... No data found for resource` / redirect-body lines (the library logs them while a page navigates; acquisition succeeds) and TikTok captcha / first-attempt timeouts (external, retried).
+
+**Verification:** full Python suite 4379 passed, 252 skipped; `make lint` clean.
+
+**Next steps:**
+- Operator gates: push and PR for `fix/worker-log-errors`, merge, deploy.
+- After deploy, a TikTok run with long speech should log no `event loop stalled`.
+
+## 2026-10-30 - Deployed master 03741c3 (PRs #89 and #90: Studio R7 and the audit fixes)
+
+**Deploy:** thoth `df5aa6dd`, renderer `bba59ac3`, web `19396ca4`, pulled ahead of `make deploy`; migrate applied 1 revision (`0026_access_token_creator`, head `0026`); every service healthy, worker 0 restarts, a new worker polls `thoth-control-plane`. Acquisition stays `python` on `api` and `worker`. Previous file in `D:/thoth-tmp/bu/pins/pins-5d9ee252.env`. No workflow was running.
+
+**Checked after deploy:** `POST /api/v1/workflows/{id}/retry` now answers 404 (B3 removed it); `GET /api/v1/workspace/tokens` answers 403 `insufficient_scope` to a read-scope token, the same rule as `/me/tokens` (token management needs a session or an admin-scope token).
+
+**Next steps:**
+- Look at the Timeline mode on stage1 in a signed-in browser (the screens were checked through `vite dev` before the merge).
+- Follow-ups: the Studio header overflows at 430 px; the seven deferred R7 minors; audit B2 and B5; full Scout retirement.
+
+## 2026-10-30 - Code audit fixes (A1-A3, B3, B4)
+
+From the read-only audit of 2026-10-30; the operator approved these five and deferred B2 and B5.
+
+- **A3:** the preview capability cookie is `Secure` whenever the site origin is HTTPS (`settings.cookie_secure`, like the session cookie); behind Caddy the request scheme is always `http`, so it never was. Caddy now sends `Strict-Transport-Security "max-age=31536000"` (ignored over plain HTTP, so local stacks are unaffected).
+- **A2:** only the bootstrap CLI (`thoth-control tokens create`, `ensure_user`) may claim `ws_bootstrap`; a public sign-in always gets its own workspace, so a stranger who signs in first on an empty database is no platform admin. Stage1 already has its owner. A fresh install runs the CLI for the operator first.
+- **A1:** a workspace token records its creator (editor migration `0026_access_token_creator`, `access_tokens.created_by_user_id`) and works only while that person is an active owner or admin of the workspace; a token with no creator is refused. Owners and admins list and revoke workspace tokens at `GET`/`DELETE /api/v1/workspace/tokens`, with minting on or off.
+- **B3:** the workflow retry chain is gone (route, `RetryRequest`, port, service, Temporal gateway, CLI `retry`, dashboard `retryWorkflow`): every gateway answered it with `WorkflowNotReady`. Render-job retry and the dashboard's "Retry run" (a new run) are separate and stay.
+- **B4:** the dashboard's hand-rolled SSE client (`streamWorkflow`) had no caller (run pages poll every second), so it was removed instead of rewritten on `EventSource`. The server's event stream stays for the CLI `watch`.
+
+`python/openapi.json` and `dashboard/src/api/generated/control-plane.ts` are regenerated.
+
+**Verification:** each fix RED then GREEN; full Python suite 4376 passed, 252 skipped; Postgres migration tests 30 passed; dashboard `bun test` 1438 passed, `tsc -b` and `bun run build` pass; `make lint` clean.
+
+**Next steps:**
+- Operator gates: push and PR for `fix/audit-findings`, merge, deploy (migration 0026 applies on deploy).
+- Deferred: B2 (central error handlers), B5 (`UnavailableWorkflowGateway`, browser `apiKey`, duplicate fetch clients).
+
+## 2026-10-30 - Studio R7: Timeline mode and clean-up (restyle part B)
+
+**Plan:** `docs/superpowers/plans/2026-10-30-studio-r7-timeline.md`, executed natively; the operator approved it and its out-of-scope list.
+
+**Timeline mode (DESIGN §13.1):**
+- Transport: play/pause, `m:ss.t / m:ss.t` timecode (`formatTimecode`), Ripple and Snap switches, a log-scale zoom slider with − and +, and the four clip actions as icon buttons.
+- Ruler: labelled ticks at the smallest step that leaves 80 px per label (`rulerTicks`); it is the playhead slider (arrows move a frame, Shift a second, Home/End), and pressing or dragging on it seeks the preview. The playhead is the `--playhead` line.
+- Tracks show their kind in mono with an icon; hide/mute/lock toggles appear on hover and focus, and a state that is on stays in sight. Clips read as their words (caption cue, heading), then their story role, then their kind (`clipLabelSource`); the selection is copper.
+- The issues list became the issues bar: "No issues" or "n warnings", the first issue, and "Review issues" opening the list. Timeline issues never block a render, so the bar counts no blocking ones.
+- The inspector groups Timing (frames with timecodes), Transform (Story's position presets, fit, crop, position, subtitle blur), Audio, Content and Clip, under the clip's own label.
+- Below 1024 px Studio says "Open on a larger screen to edit the timeline."; every new string is in English and Indonesian.
+
+**Clean-up:** the four F3 aliases (`--status-queued|succeeded|cancelled`, `--spine`) are gone, and 282 lines of `pen*.css` / `dashboard.css` / `studio.css` rules no screen uses were removed. `css_usage.test.ts` now fails on any styled class without a user.
+
+**Out of scope (operator-approved):** clip thumbnails and audio waveforms (no frame strips or peaks exist yet), canvas drag handles, and Scale/Opacity fields (no operation).
+
+**Verification:** dashboard `bun test` 1467 passed; `bun run build` passes; screens at 1440, 1024 and 430 px in `en` and `id` through `vite dev` with the read-scope token against the stage1 draft (`D:/thoth-tmp/restyle-shots/r7/`). The screens found truncated track names and a clipped ownership select, both fixed. A 430 px page overflow (`scrollWidth` 985) also exists on master and is not R7's.
+
+**Next steps:**
+- Operator gates: push and PR for `feat/studio-r7-timeline`, merge, deploy (part B's release).
+- Studio header overflows at 430 px on master too: its own fix.
+- Thumbnails and waveforms need a backend that produces frame strips and audio peaks.
+
+## 2026-10-30 - Deployed master 5d9ee25 (PR #87): acquisition is Python only
+
+**Deploy:** thoth `c88c4abe`, renderer `b5a4d0c3`, web `83c0c3cc`, pulled ahead of `make deploy`; migrate applied 0 revisions (head stays `0025`); every service healthy, worker 0 restarts, a new worker polls `thoth-control-plane`. `.env.stage1.local` now sets `THOTH_STAGE1_ACTIVITY_MODE=python` (the new preflight refuses the old fallback mode and passed). Previous file in `D:/thoth-tmp/bu/pins/pins-5c30ba23.env`. No workflow was running.
+
+**Verified after deploy:** `printenv THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE` prints `python` on both `api` (which picks the mode at workflow start) and `worker`. Stage1 no longer falls back to Scout: a TikTok acquisition that fails in Python now fails visibly.
+
+**Next steps:**
+- Watch the next TikTok runs; a failure Scout used to rescue is now a Python fix.
+- Operator gates: PRs for `feat/studio-r7-timeline` (R7) and `fix/audit-findings` (audit fixes, migration 0026).
+
+## 2026-10-30 - The final soak is Python-only
+
+**Operator ruling:** agreed to a Python-only soak policy. `tiktok_soak` required two Python-vs-Scout parity samples before `ready: true`; with Scout retired and the parity tooling removed, that blocker could never clear.
+
+**Change:** `TikTokSoakPolicy.minimum_parity_samples` defaults to 0 (`ge=0`). A recorded `parity_passed: false` still blocks, and an archived report keeps the parity minimum embedded in its own policy.
+
+**Verification:** `test_a_python_only_window_needs_no_parity_sample` RED then GREEN; `test_an_archived_policy_keeps_its_own_parity_minimum`; `tests/operations` and `tests/deployment` 489 passed; `make lint` clean.
+
+## 2026-10-30 - Scout fallback switched off: acquisition is Python only
+
+**Operator ruling:** "scout harus mati, nanti jika gagal berarti dari sisi python nya perlu di perbaiki lagi". Stage1 ran `python_tiktok_with_legacy_fallback`, so a TikTok acquisition that failed in Python silently fell back to Scout through `legacy-cdp`.
+
+**Change:** the default `THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE` is `python` (`config.py`, `.env.stage1.local.example`, CI). The stage1 preflight approves only `python`; both Scout modes, the fallback and the old `legacy_scout` rollback, are refused. In `python` mode a Scout-only platform answers `unsupported_platform` instead of running Scout.
+
+**Found on the way:** `compose.stage1.local.yml` hard-coded the fallback mode on the `api` service, and the API is what picks the mode when it starts a workflow; only the worker read `THOTH_STAGE1_ACTIVITY_MODE`. The runbook's mode change recreated only the worker, so it never changed the routing. Both roles now read the setting, and the runbook recreates `api` and `worker`.
+
+**Verification:** `make lint` clean; full Python suite 4371 passed, 252 skipped.
+
+**Next steps:**
+- Operator gates: push and PR, merge, deploy. Stage1 switches only when the new compose is deployed and `.env.stage1.local` sets `THOTH_STAGE1_ACTIVITY_MODE=python` (the current value would now fail the preflight).
+- Watch TikTok runs after the switch: a failure that Scout used to rescue now surfaces and is fixed in Python.
+- Remove the legacy activity, the `legacy-cdp` sidecar and `scout/` (Scout retirement) as its own task.
+
+## 2026-10-30 - Stage 1 parity and controlled fallback tooling removed
+
+**Operator ruling:** remove the Stage 1 parity tooling, and with it the controlled fallback gates (ADR 0001 waived both; deployment rollback is the recovery mechanism). Scout and the Rust crates are being retired, so nothing was kept alive for them.
+
+**Removed:** `operations/tiktok_parity.py`, `stage1_parity_preflight.py`, `stage1_parity_attempt_summary.py`, `stage1_controlled_fallback.py`, `stage1_controlled_fallback_runner.py`; the `tiktok-stage1-parity-compare` and `stage1-controlled-fallback-preflight|run` commands; `compose.stage1.parity*.yml` and `compose.stage1.controlled-fallback*.yml`; `docker/start-parity-reference`, `test-parity-offline.sh`, `test-controlled-fallback-offline.sh`; the parity profile and launcher check in the `Dockerfile`; four CI steps; `make smoke-parity` and `smoke-fallback`; `docs/operations/stage1-parity-sampling.md` and the runbook sections for the `f1`-`f4` gates and parity samples; 4 test files and 15 contract tests. The live TikTok test lost its Python-vs-Scout comparison and keeps its own containment and checksum helpers. Template release parity (renderer) is unrelated and stays. `scout/` is untouched.
+
+**Kept:** the runtime legacy fallback (`python_tiktok_with_legacy_fallback`) and the soak evaluator `tiktok_soak`.
+
+**Verification:** `make lint` clean; `tests/deployment`, `tests/test_cli.py`, `tests/operations`, `tests/live` pass (2 live tests skipped); full collection imports cleanly; actionlint reports only findings master already has.
+
+**Next steps:**
+- Operator gates: push and PR, merge.
+- `tiktok_soak` required 2 Python-vs-Scout parity samples: now 0, see "The final soak is Python-only".
+- Turn off the Scout runtime fallback on stage1: done in the next entry.
 
 ## 2026-10-29 - Deployed master 5c30ba2 (PR #85, prompt answers in a markdown fence)
 

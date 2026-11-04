@@ -160,6 +160,7 @@ async def test_list_stages_returns_the_ordered_proposal_ready_registry() -> None
         ("visual_plan", "proposal_ready"),
         ("caption_copy", "proposal_ready"),
         ("story_assist", "proposal_ready"),
+        ("narration_script", "proposal_ready"),
     ]
 
 

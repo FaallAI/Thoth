@@ -132,3 +132,53 @@ def test_audio_is_decoded_once_and_only_its_first_seconds(tmp_path: Path) -> Non
 
     assert first is again  # the transcriber and the diarizer share one decode
     assert abs(first.size - SAMPLE_RATE) <= SAMPLE_RATE // 10
+
+
+@pytest.mark.asyncio
+async def test_diarization_leaves_the_event_loop_free(
+    tmp_path: Path, diarization_dir: Path
+) -> None:
+    """Stage1, 2026-10-30: sherpa-onnx held the GIL through `process()` and stalled the worker's
+    event loop for 45.8 s (TMPRL1104, expired queries). Diarization must run off this process."""
+    import asyncio
+    import time
+
+    from thoth_control_plane.attribution.adapters.speech import SherpaDiarizer
+
+    if FFMPEG is None:
+        pytest.fail("ffmpeg is required for this test and is not installed")
+    audio = tmp_path / "noise.wav"
+    subprocess.run(
+        [
+            FFMPEG,
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "anoisesrc=d=60:c=pink:a=0.3",
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            str(audio),
+        ],
+        check=True,
+    )
+    diarizer = SherpaDiarizer(diarization_dir)
+    await diarizer.turns(audio, seconds=1)  # load the engine first; only the work is measured
+    worst, done = 0.0, False
+
+    async def watch() -> None:
+        nonlocal worst
+        last = time.monotonic()
+        while not done:
+            await asyncio.sleep(0.02)
+            now = time.monotonic()
+            worst, last = max(worst, now - last - 0.02), now
+
+    watcher = asyncio.create_task(watch())
+    await diarizer.turns(audio, seconds=60)
+    done = True
+    await watcher
+    assert worst < 0.5, f"the event loop stalled for {worst:.2f} s"

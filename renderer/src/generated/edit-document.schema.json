@@ -162,6 +162,14 @@
           "minLength": 1,
           "title": "Text",
           "type": "string"
+        },
+        "words": {
+          "items": {
+            "$ref": "#/$defs/CaptionWord"
+          },
+          "maxItems": 40,
+          "title": "Words",
+          "type": "array"
         }
       },
       "required": [
@@ -170,6 +178,35 @@
         "text"
       ],
       "title": "CaptionCue",
+      "type": "object"
+    },
+    "CaptionWord": {
+      "additionalProperties": false,
+      "description": "One spoken word, timed relative to the start of its cue (word-highlight captions).",
+      "properties": {
+        "duration_in_frames": {
+          "exclusiveMinimum": 0,
+          "title": "Duration In Frames",
+          "type": "integer"
+        },
+        "from_frame": {
+          "minimum": 0,
+          "title": "From Frame",
+          "type": "integer"
+        },
+        "text": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "from_frame",
+        "duration_in_frames",
+        "text"
+      ],
+      "title": "CaptionWord",
       "type": "object"
     },
     "ClipBlurRegion": {
@@ -624,6 +661,14 @@
           "minimum": 0,
           "title": "Volume",
           "type": "number"
+        },
+        "volume_keyframes": {
+          "items": {
+            "$ref": "#/$defs/VolumeKeyframe"
+          },
+          "maxItems": 500,
+          "title": "Volume Keyframes",
+          "type": "array"
         }
       },
       "required": [
@@ -1107,6 +1152,11 @@
           "title": "Hidden",
           "type": "boolean"
         },
+        "hold_after_source": {
+          "default": false,
+          "title": "Hold After Source",
+          "type": "boolean"
+        },
         "kind": {
           "const": "video",
           "title": "Kind",
@@ -1194,6 +1244,14 @@
           "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
           "title": "Track Id",
           "type": "string"
+        },
+        "volume_keyframes": {
+          "items": {
+            "$ref": "#/$defs/VolumeKeyframe"
+          },
+          "maxItems": 500,
+          "title": "Volume Keyframes",
+          "type": "array"
         }
       },
       "required": [
@@ -1206,6 +1264,29 @@
         "asset_id"
       ],
       "title": "TimelineVideoClip",
+      "type": "object"
+    },
+    "VolumeKeyframe": {
+      "additionalProperties": false,
+      "description": "A volume at one frame, relative to the start of its clip; frames between interpolate.",
+      "properties": {
+        "frame": {
+          "minimum": 0,
+          "title": "Frame",
+          "type": "integer"
+        },
+        "volume": {
+          "maximum": 2,
+          "minimum": 0,
+          "title": "Volume",
+          "type": "number"
+        }
+      },
+      "required": [
+        "frame",
+        "volume"
+      ],
+      "title": "VolumeKeyframe",
       "type": "object"
     }
   }

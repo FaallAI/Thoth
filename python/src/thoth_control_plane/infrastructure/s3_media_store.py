@@ -61,6 +61,9 @@ class S3MediaStore:
             raise SettingsValidationError("media_s3_credentials_missing")
         # A custom pool replaces minio's own, so it carries minio's TLS defaults explicitly.
         http = urllib3.PoolManager(
+            # urllib3 keeps one connection per host by default; parallel uploads (footage,
+            # cards) then discarded theirs and logged "Connection pool is full" (2026-10-30).
+            maxsize=8,
             cert_reqs="CERT_REQUIRED",
             ca_certs=certifi.where(),
             timeout=urllib3.Timeout(connect=5.0, read=120.0),

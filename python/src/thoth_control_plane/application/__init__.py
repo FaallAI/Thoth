@@ -15,7 +15,6 @@ from thoth_control_plane.application.editor_assets import (
 )
 from thoth_control_plane.application.ports import (
     ApprovalSubmission,
-    RetryRequest,
     WorkflowGateway,
 )
 from thoth_control_plane.application.workflows import (
@@ -50,7 +49,6 @@ __all__ = [
     "IdempotencyConflict",
     "ListEditorAssetsRequest",
     "MainImport",
-    "RetryRequest",
     "StylePreset",
     "UnavailableWorkflowGateway",
     "UnsupportedPlatform",

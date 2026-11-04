@@ -1,7 +1,8 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, mock, test } from "bun:test";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { render } from "@/test-render";
 
 import type { EditorAsset, EditorAssetPage } from "@/api/control-plane";
 import { ASSET_PAGE_LIMIT, AssetLibrary } from "./AssetLibrary";
@@ -157,4 +158,94 @@ test("overlapping continuation pages render one row per asset", async () => {
 
   fireEvent.click(screen.getByRole("button", { name: "Add asset_b to timeline" }));
   expect(added.map((value) => value.asset_id)).toEqual(["asset_b"]);
+});
+
+test("asset rows name assets, never by id, and number repeated names", async () => {
+  // Studio shell v2 (spec 2026-11-01, goal 4): a row says what the asset is, never its id.
+  render(
+    <AssetLibrary
+      client={{
+        listEditorAssets: mock(async () =>
+          page({ assets: [asset(), asset({ asset_id: "asset_second" }), asset({ asset_id: "asset_voice", kind: "audio" })], next_cursor: null }),
+        ) as never,
+        createEditorPreviewCapability: mock(async () => ({ preview_url: "/x", expires_at: "2026-09-20T00:00:00Z" })) as never,
+      }}
+      projectId="project_001"
+      generationRef={{ current: 0 }}
+      onAssets={() => {}}
+      onAdd={() => {}}
+      onPreviewSource={() => {}}
+      describe={(item) =>
+        item.asset_id === "asset_voice"
+          ? { label: "Narration · Main", detail: "Voice · 14.2 s" }
+          : { label: "Upload · Video", detail: "Video · 4.0 s" }
+      }
+    />,
+  );
+
+  expect(await screen.findByRole("button", { name: "Add Narration · Main to timeline" })).toBeDefined();
+  expect(screen.getByRole("button", { name: "Add Upload · Video to timeline" })).toBeDefined();
+  expect(screen.getByRole("button", { name: "Add Upload · Video · 2 to timeline" })).toBeDefined();
+  expect(screen.getAllByText("Video · 4.0 s")).toHaveLength(2);
+  expect(screen.queryByText(/asset_/)).toBeNull();
+});
+
+test("without an add action the rows offer preview only", async () => {
+  // Final review, Important 3: a view-only Timeline (below 1024) adds nothing to the draft.
+  render(
+    <AssetLibrary
+      client={{ listEditorAssets: mock(async () => page({ next_cursor: null })) as never, createEditorPreviewCapability: mock(async () => ({ preview_url: "/x", expires_at: "2026-09-20T00:00:00Z" })) as never }}
+      projectId="project_001"
+      generationRef={{ current: 0 }}
+      onAssets={() => {}}
+      onPreviewSource={() => {}}
+    />,
+  );
+
+  expect(await screen.findByRole("button", { name: "Preview asset_video" })).toBeDefined();
+  expect(screen.queryByRole("button", { name: /to timeline$/ })).toBeNull();
+});
+
+test("a row shows its picture or kind icon, and other drafts' uploads list last", async () => {
+  // e2e audit 2026-11-02, finding 6 and the minor on "Upload · Image" rows listing first.
+  const assets = [
+    asset({ asset_id: "asset_other", kind: "image" }),
+    asset({ asset_id: "asset_main", kind: "image" }),
+    asset({ asset_id: "asset_voice", kind: "audio" }),
+  ];
+  render(
+    <AssetLibrary
+      client={{ listEditorAssets: mock(async () => ({ assets, next_cursor: null })), createEditorPreviewCapability: mock(async () => ({ preview_url: "", expires_at: "" })) }}
+      projectId="project_001"
+      generationRef={{ current: 0 }}
+      onAssets={() => {}}
+      onPreviewSource={() => {}}
+      previews={{ asset_main: "/preview/main" }}
+      describe={(item) => ({
+        label: item.asset_id,
+        detail: item.kind,
+        kind: item.asset_id === "asset_other" ? "upload" : "video",
+      })}
+    />,
+  );
+
+  const rows = await screen.findAllByRole("listitem");
+  expect(rows.map((row) => row.querySelector("span.font-medium")?.textContent)).toEqual(["asset_main", "asset_voice", "asset_other"]);
+  expect(rows[0]!.querySelector("img")?.getAttribute("src")).toBe("/preview/main");
+  expect(rows[1]!.querySelector("svg")).not.toBeNull();
+});
+
+test("the library speaks Indonesian", async () => {
+  const client = {
+    listEditorAssets: mock(async () => ({ assets: [asset()], next_cursor: null })),
+    createEditorPreviewCapability: mock(async () => ({ preview_url: "/p", expires_at: "2099-01-01T00:00:00Z" })),
+  };
+  render(
+    <AssetLibrary client={client as never} projectId="p" generationRef={{ current: 0 }} onAssets={() => {}} onPreviewSource={() => {}} onAdd={() => {}} describe={() => ({ label: "Klip", detail: "Video" })} />,
+    { locale: "id" },
+  );
+
+  expect(await screen.findByRole("button", { name: "Tambahkan Klip ke timeline" })).toBeDefined();
+  expect(screen.getByRole("button", { name: "Pratinjau Klip" })).toBeDefined();
+  expect(screen.getByRole("heading", { name: "Aset" })).toBeDefined();
 });

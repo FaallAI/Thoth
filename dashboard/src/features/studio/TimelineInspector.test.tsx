@@ -1,9 +1,12 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, test } from "bun:test";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+
+import { render } from "@/test-render";
 
 import type { EditDocumentOperation } from "@/api/control-plane";
+import { setPositionPreset } from "./story/story_edits";
 import { TimelineInspector } from "./TimelineInspector";
 import { timelineDocument, typedTimelineDocument } from "./timeline-test-fixtures";
 
@@ -255,4 +258,60 @@ test("remove blur is disabled on a locked track", () => {
   document.tracks.find((track) => track.track_id === "track_main")!.locked = true;
   mount({ clipId: "clip_main" }, document);
   expect((screen.getByRole("button", { name: "Remove blur" }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+test("the heading names the clip by what it is and where it sits", () => {
+  mount({ clipId: "clip_caption" }, typedTimelineDocument());
+  expect(screen.getByRole("heading", { level: 2 }).textContent).toBe("First cue");
+  expect(screen.getByText("Captions track")).toBeDefined();
+});
+
+test("a clip's fields come in timing, transform and clip sections", () => {
+  mount({ clipId: "clip_b" }, typedTimelineDocument());
+  for (const name of ["Timing", "Transform", "Clip"]) {
+    expect(screen.getByRole("group", { name })).toBeDefined();
+  }
+  expect(screen.getByRole("group", { name: "Timing" }).textContent).toContain("0:03.0");
+  expect(screen.getByRole("group", { name: "Timing" }).textContent).toContain("0:07.0");
+});
+
+test("position presets place a clip the way Story mode does", () => {
+  const document = typedTimelineDocument();
+  const { operations } = mount({ clipId: "clip_b" }, document);
+  fireEvent.click(screen.getByRole("button", { name: "Top" }));
+  expect(operations.map(payload)).toEqual(
+    setPositionPreset(document, ["clip_b"], "top").map(payload),
+  );
+});
+
+test("a clip with no sound of its own says where the sound is", () => {
+  mount({ clipId: "clip_caption" }, typedTimelineDocument());
+  const audio = screen.getByRole("group", { name: "Audio" });
+  expect(audio.textContent).toContain("This clip has no sound. Select a narration or music clip.");
+  expect(screen.queryByLabelText("Volume")).toBeNull();
+});
+
+test("the timeline inspector title is the clip label", () => {
+  // Studio shell v2 (spec 2026-11-01, goal 4): Studio passes kind-and-source labels in.
+  render(
+    <TimelineInspector
+      document={timelineDocument()}
+      selectedClipId="clip_main"
+      selectedTrackId=""
+      onOperation={() => {}}
+      labelOf={(clip) => (clip.clip_id === "clip_main" ? "Footage · @OfficialiNews" : "Other")}
+    />,
+  );
+
+  expect(screen.getByRole("heading", { level: 2, name: "Footage · @OfficialiNews" })).toBeDefined();
+});
+
+test("the inspector lists the selected clip's issues", () => {
+  // Studio shell v2 (spec 2026-11-01, goal 7): a late main clip leaves a gap before it.
+  const document = timelineDocument();
+  document.clips![0]!.from_frame = 30;
+  mount({ clipId: "clip_main" }, document);
+
+  const issues = screen.getByRole("group", { name: "Issues · 1" });
+  expect(issues.textContent).toContain("Main video: a clip starts after a gap");
 });

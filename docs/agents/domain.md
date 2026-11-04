@@ -1,8 +1,8 @@
 # Domain Docs
 
 > **This repo is single-context.** One `CONTEXT.md` and one `docs/adr/` at the
-> repo root cover the whole project — the Rust crates (`crates/thoth*`), the
-> dashboard (`dashboard/`), and the Scout sourcing layer (`scout/`) share them.
+> repo root cover the whole project — the Python control plane (`python/`), the
+> dashboard (`dashboard/`), and the renderer (`renderer/`, `packages/`) share them.
 > There is no `CONTEXT-MAP.md`; ignore the multi-context sections below.
 
 How the engineering skills should consume this repo's domain documentation when exploring the codebase.

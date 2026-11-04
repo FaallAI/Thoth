@@ -45,6 +45,7 @@ export const video = (clip_id: string, track_id: string, from: number, length: n
     fit: "cover",
     blur_enabled: false,
     motion: "none",
+    hold_after_source: false,
     emphasis: { highlight: false, arrow: false },
     ...extra,
   }) as Clip;

@@ -47,23 +47,11 @@
 .sa-table td { height: 58px; padding: 0 18px; font-size: 11px; color: #c5c6c7; }
 .sa-table tbody tr:nth-child(even) { background: #2a2c2e; }
 .sa-table td.sa-label { font-size: 12px; font-weight: 600; color: #f5f3ee; }
-/* Column widths from the frames; the last column takes the rest. */
-.sa-accounts-table th:nth-child(1) { width: 160px; }
-.sa-accounts-table th:nth-child(2) { width: 160px; }
-.sa-accounts-table th:nth-child(3) { width: 145px; }
-.sa-accounts-table th:nth-child(4) { width: 320px; }
-.sa-accounts-table th:nth-child(5) { width: 135px; }
 .sa-proxies-table th:nth-child(1) { width: 300px; }
 .sa-proxies-table th:nth-child(2) { width: 150px; }
 .sa-proxies-table th:nth-child(3) { width: 440px; }
-.sa-status { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
-.sa-status small { font-size: 9px; color: #c5c6c7; }
-.sa-badge, .sa-chip, .sa-chips span { display: inline-flex; align-items: center; height: 21px; padding: 0 8px; border-radius: 4px; font-size: 10px; }
-.sa-badge--healthy { background: #244135; color: #78c69b; }
-.sa-badge--cooldown { background: #493b27; color: #d7af5f; }
-.sa-badge--expired { background: #4a3030; color: #e8918f; }
-.sa-badge--disabled, .sa-chip, .sa-chips span { background: #2a2c2e; color: #c5c6c7; border: 1px solid #47494a; }
-.sa-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+ .sa-chip{ display: inline-flex; align-items: center; height: 21px; padding: 0 8px; border-radius: 4px; font-size: 10px; }
+ .sa-chip{ background: #2a2c2e; color: #c5c6c7; border: 1px solid #47494a; }
 .sa-row-actions { display: flex; gap: 5px; }
 .sa-row-actions button { white-space: nowrap; height: 26px; padding: 0 8px; border-radius: 4px; background: #2a2c2e; font-size: 10px; color: #f5f3ee; }
 .sa-table tbody tr:nth-child(even) .sa-row-actions button { background: #242628; }

@@ -376,6 +376,21 @@ async def test_complete_json_rejects_a_non_object_answer() -> None:
         )
 
 
+async def test_complete_json_says_what_it_could_not_read() -> None:
+    from thoth_control_plane.application.prompt_proposal_ports import ProviderInvalidOutput
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        content = "Berikut naskahnya: " + "x" * 1000
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+    with pytest.raises(ProviderInvalidOutput, match="Berikut naskahnya") as refused:
+        await adapter(handler=handler).complete_json(
+            provider_id="novita", model_id="deepseek/deepseek-v3.1", system="s", user="u"
+        )
+
+    assert len(str(refused.value)) < 400
+
+
 FENCED = '```json\n{\n    "title": "Shorter hook",\n    "reason": "r",\n    "text": "t"\n}\n```'
 
 

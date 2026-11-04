@@ -99,10 +99,6 @@ api_key.txt
 /biome.json
 /bun.lock
 
-# Committed Scout package fixture: real media and frames the Rust acceptance
-# suite imports, plans and renders. Must survive the *.mp4 / *.jpg rules above.
-!crates/thoth-core/tests/fixtures/scout_package/**
-
 # Committed template release capsule: the synthetic media the preview/render
 # parity gate renders. Must survive the *.mp4 / *.wav rules above.
 !packages/remotion-composition/releases/**
@@ -120,3 +116,6 @@ tiktok-stage1-soak-report.json.part
 /stage1.providers.env
 stage1-local-observations*.jsonl
 stage1-local-reports/
+
+# Old curated IG list: local only, read by no code (operator, 2026-10-31)
+python/src/thoth_control_plane/attribution/curated_accounts.json

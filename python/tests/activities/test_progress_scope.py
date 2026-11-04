@@ -71,9 +71,7 @@ async def test_each_mapped_activity_runs_in_its_stage_scope(
     assert progress.current_scope() is None  # the scope ends with the activity
 
 
-@pytest.mark.parametrize(
-    "activity_type", ["inspect_legacy_scout", "record_workflow_completed", "run_prompt_proposal"]
-)
+@pytest.mark.parametrize("activity_type", ["record_workflow_completed", "run_prompt_proposal"])
 async def test_an_unmapped_activity_runs_without_a_scope(info, activity_type: str) -> None:
     info(activity_type, attempt=2)
     following = Next()

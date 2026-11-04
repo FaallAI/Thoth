@@ -8,13 +8,16 @@ from typing import Protocol
 
 from thoth_control_plane.assembly.figures import FigureAnswer
 from thoth_control_plane.assembly.subtitles import OcrBox
+from thoth_control_plane.attribution.matching import TextBox
 from thoth_control_plane.attribution.ports import Frame, TextReader
 
 __all__ = [
     "AssemblyError",
+    "BandReader",
     "CaptionJudge",
     "DurationProbe",
     "FigureModel",
+    "FrameDecoder",
     "FrameSampler",
     "RegionTracker",
     "TextReader",
@@ -31,6 +34,26 @@ class AssemblyError(Exception):
 
 class FrameSampler(Protocol):
     async def frame_at(self, video: Path, second: float, *, width: int) -> Frame: ...
+
+
+class FrameDecoder(Protocol):
+    """Many frames from one pass over a video; a second it cannot reach is left out."""
+
+    async def decode(
+        self,
+        video: Path,
+        seconds: Sequence[float],
+        *,
+        width: int,
+        top: float = 0.0,
+        bottom: float = 1.0,
+    ) -> dict[float, Frame]: ...
+
+
+class BandReader(Protocol):
+    """Text in a horizontal band cut from a frame, in the coordinates of the whole frame."""
+
+    async def read_band(self, frame: Frame, top: float, bottom: float) -> list[TextBox]: ...
 
 
 class DurationProbe(Protocol):

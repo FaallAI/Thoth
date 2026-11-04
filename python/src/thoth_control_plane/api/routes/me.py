@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from collections.abc import Awaitable
+from typing import Annotated, TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
@@ -45,7 +46,10 @@ def _account_caller(request: Request, principal: Principal) -> SignInService:
     return _service(request)
 
 
-async def _issue(call) -> CreatedToken:
+T = TypeVar("T")
+
+
+async def _issue(call: Awaitable[T]) -> T:
     try:
         return await call
     except UserRequired:
@@ -102,3 +106,18 @@ async def create_workspace_token(
     if not request.app.state.settings.THOTH_AUTH_WORKSPACE_TOKENS:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "workspace_tokens_disabled")
     return await _issue(_account_caller(request, principal).create_workspace_token(principal, body))
+
+
+# Listing and revoking work with the flag off too, so a token minted earlier can always be removed.
+@router.get("/workspace/tokens", response_model=list[TokenView])
+async def list_workspace_tokens(request: Request, principal: Caller) -> list[TokenView]:
+    return await _issue(_account_caller(request, principal).list_workspace_tokens(principal))
+
+
+@router.delete("/workspace/tokens/{token_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_workspace_token(token_id: str, request: Request, principal: Caller) -> Response:
+    if not await _issue(
+        _account_caller(request, principal).revoke_workspace_token(principal, token_id)
+    ):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "token_not_found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

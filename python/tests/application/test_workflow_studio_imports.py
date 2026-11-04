@@ -800,6 +800,20 @@ async def test_story_context_is_the_runs_title_and_description(tmp_path: Path) -
 
 
 @pytest.mark.asyncio
+async def test_story_comments_are_what_the_commenters_wrote(tmp_path: Path) -> None:
+    data = carded()
+    data["comments"].append({"text": "keren", "author": "fan", "likes": 9, "source": "input"})
+    built = world(tmp_path, data=data)
+    opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")
+
+    comments = await built.service.story_comments(PROJECT, opened.draft.document_id)
+
+    assert comments == {"comment_card_000": "wah", "comment_000": "keren"}
+    built.service._reports = MemoryReports(None)
+    assert await built.service.story_comments(PROJECT, opened.draft.document_id) == {}
+
+
+@pytest.mark.asyncio
 async def test_material_asset_of_an_attached_item_needs_no_content_set(tmp_path: Path) -> None:
     built = world(tmp_path)
     opened = await built.service.open(PROJECT, WF, ACTOR, "open-1")

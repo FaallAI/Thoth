@@ -387,7 +387,6 @@ async def test_attempts_convert_to_safe_progress_events_with_fixed_stage_names(
         "reason",
         "partial_cleanup_passed",
         "browser_cleanup_passed",
-        "fallback_from",
     }
     for event in result.events:
         assert set(event.payload.keys()) <= allowed_payload_keys

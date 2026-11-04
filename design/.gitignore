@@ -1,3 +1,7 @@
 # Prototype verification screenshots
 screenshot_*.png
 test_screenshot.png
+# Generated exports and images; the .pen files are the source
+exports/
+generated.png
+__pycache__/

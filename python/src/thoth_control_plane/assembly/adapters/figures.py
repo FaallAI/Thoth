@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 
+import httpx
+
 from thoth_control_plane import metering
 from thoth_control_plane.assembly.figures import FigureAnswer
 
@@ -23,6 +25,9 @@ class AgnoFigureModel:
         from agno.agent import Agent
         from agno.models.openai.like import OpenAILike
 
+        # agno builds an AsyncOpenAI per request; left to the SDK, its httpx client is
+        # closed by garbage collection, on whichever loop runs then (a workflow thread).
+        http = httpx.AsyncClient(timeout=TIMEOUT_SECONDS)
         agent = Agent(
             model=OpenAILike(
                 id=self._model,
@@ -30,6 +35,7 @@ class AgnoFigureModel:
                 base_url=self._base_url,
                 timeout=TIMEOUT_SECONDS,
                 max_retries=1,
+                http_client=http,
                 temperature=0.0,
             ),
             output_schema=FigureAnswer,
@@ -41,5 +47,7 @@ class AgnoFigureModel:
         except Exception:
             logger.warning("figures unavailable; the content set continues without them")
             return None
+        finally:
+            await http.aclose()
         await metering.record_model_run(self._model, run)
         return run.content if isinstance(run.content, FigureAnswer) else None

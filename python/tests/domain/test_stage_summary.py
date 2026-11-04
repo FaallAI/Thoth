@@ -58,7 +58,6 @@ def test_the_old_stage_ids_still_validate() -> None:
         "attribution_off",
         "footage_off",
         "assembly_off",
-        "legacy_source",
         "approval_rejected",
         "not_in_this_version",
         "run_failed",

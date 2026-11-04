@@ -140,7 +140,14 @@ async def apply_edit_document_patch(
     patch: EditDocumentPatch,
     _: Annotated[Actor, Depends(current_actor)],
     service: Annotated[EditDocumentService, Depends(get_edit_document_service)],
+    request: Request,
 ) -> EditDocument | JSONResponse:
+    narration = getattr(request.app.state, "narration_service", None)
+    # The narration writes the draft while it runs (spec 2026-10-31): edits wait for it.
+    if narration is not None and await narration.is_locked(project_id, document_id):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail={"code": "narration_in_progress"}
+        )
     try:
         return await service.apply_patch(project_id, document_id, patch)
     except EditDocumentNotFound as error:

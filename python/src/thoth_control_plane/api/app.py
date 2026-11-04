@@ -28,6 +28,7 @@ from thoth_control_plane.api.routes.health import router as health_router
 from thoth_control_plane.api.routes.inbox import router as inbox_router
 from thoth_control_plane.api.routes.internal_render_jobs import router as internal_render_router
 from thoth_control_plane.api.routes.me import router as me_router
+from thoth_control_plane.api.routes.narrations import router as narration_router
 from thoth_control_plane.api.routes.projects import router as project_router
 from thoth_control_plane.api.routes.prompt_lab import router as prompt_lab_router
 from thoth_control_plane.api.routes.prompt_proposals import router as prompt_proposal_router
@@ -50,13 +51,14 @@ from thoth_control_plane.application import (
     WorkflowNotReady,
     WorkflowService,
 )
-from thoth_control_plane.application.edit_documents import EditDocumentService
+from thoth_control_plane.application.edit_documents import EditDocumentNotFound, EditDocumentService
 from thoth_control_plane.application.editor_asset_ports import EditorAssetRepository
 from thoth_control_plane.application.editor_asset_uploads import (
     EditorAssetUploadService,
     sweep_unregistered_uploads,
 )
 from thoth_control_plane.application.editor_assets import EditorAssetService
+from thoth_control_plane.application.narrations import NarrationService
 from thoth_control_plane.application.ports import (
     EditDocumentRepository,
     PromptLabRepository,
@@ -72,6 +74,7 @@ from thoth_control_plane.application.prompt_proposal_ports import (
 from thoth_control_plane.application.prompt_proposals import PromptProposalService
 from thoth_control_plane.application.render_bundles import RenderPresetSettings
 from thoth_control_plane.application.render_jobs import RenderJobService
+from thoth_control_plane.application.sfx_library import SfxAssets
 from thoth_control_plane.application.story_assist import StoryAssistService
 from thoth_control_plane.application.studio_imports import StudioImportService
 from thoth_control_plane.application.studio_review import StudioReviewService
@@ -99,6 +102,8 @@ from thoth_control_plane.infrastructure.media_store import (
     MeteredMediaStore,
     build_media_store,
 )
+from thoth_control_plane.infrastructure.narration_gateway import TemporalNarrationGateway
+from thoth_control_plane.infrastructure.narration_store import NarrationStore
 from thoth_control_plane.infrastructure.project_store import ProjectStore, ProjectStoreUnavailable
 from thoth_control_plane.infrastructure.prompt_proposal_gateway import (
     TemporalPromptProposalGateway,
@@ -239,6 +244,27 @@ def _story_assist_service(app: FastAPI, gateway: Any) -> StoryAssistService:
     )
 
 
+def _narration_service(app: FastAPI, settings: Settings, gateway: Any) -> NarrationService:
+    """Narration (spec 2026-10-31): unavailable without the editor database or Temporal."""
+    database = settings.THOTH_EDITOR_DATABASE_URL
+
+    async def source_run(project_id: str, document_id: str) -> str | None:
+        try:
+            inventory = await app.state.studio_import_service.get_inventory(project_id, document_id)
+        except EditDocumentNotFound:  # a draft made in Studio has no import, so no run
+            return None
+        return inventory.source_workflow_id
+
+    return NarrationService(
+        store=NarrationStore(database.get_secret_value()) if database is not None else None,
+        documents=app.state.edit_document_service,
+        source_run=source_run,
+        preferences=app.state.prompt_proposal_service,
+        gateway=gateway,
+        sfx_assets=getattr(app.state, "sfx_assets", None),
+    )
+
+
 def create_app(
     settings: Settings | None = None,
     gateway: WorkflowGateway | None = None,
@@ -349,6 +375,13 @@ def create_app(
             if isinstance(resolved_gateway, TemporalWorkflowGateway)
             else None,
         )
+        app.state.narration_service = _narration_service(
+            app,
+            settings,
+            TemporalNarrationGateway(resolved_gateway.client)
+            if isinstance(resolved_gateway, TemporalWorkflowGateway)
+            else None,
+        )
         # One bounded pass first, so a job left active by a restart is closed
         # rather than resumed, then the same pass on a cancellable interval.
         with contextlib.suppress(Exception):
@@ -423,6 +456,16 @@ def create_app(
     )
     # Unavailable until the lifespan reaches Temporal; the worker holds the provider credentials.
     app.state.story_assist_service = _story_assist_service(app, None)
+    app.state.sfx_assets = (
+        SfxAssets(
+            assets=editor_asset_repository,
+            media=media,
+            probe=functools.partial(probe_media, settings.THOTH_FFPROBE),
+        )
+        if editor_asset_repository is not None
+        else None
+    )
+    app.state.narration_service = _narration_service(app, settings, None)
     if usage_store is None and settings.THOTH_EDITOR_DATABASE_URL is not None:
         usage_store = UsageStore.connect(settings.THOTH_EDITOR_DATABASE_URL.get_secret_value())
     app.state.usage_store = usage_store
@@ -609,6 +652,7 @@ def create_app(
     app.include_router(inbox_router, prefix="/api/v1")
     app.include_router(workflow_router, prefix="/api/v1")
     app.include_router(edit_document_router, prefix="/api/v1")
+    app.include_router(narration_router, prefix="/api/v1")
     app.include_router(editor_asset_router, prefix="/api/v1")
     app.include_router(prompt_lab_router, prefix="/api/v1")
     app.include_router(prompt_proposal_router, prefix="/api/v1")

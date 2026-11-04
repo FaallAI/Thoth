@@ -281,6 +281,8 @@ def test_the_production_client_verifies_tls_with_the_certifi_bundle() -> None:
     pool = store._client._http.connection_pool_kw
     assert pool["cert_reqs"] == "CERT_REQUIRED"
     assert pool["ca_certs"] == certifi.where()
+    # Stage1, 2026-10-30: one pooled connection made parallel uploads discard theirs.
+    assert pool["maxsize"] == 8
 
 
 @pytest.mark.parametrize("prefix", ["uploads", "renders", "work", "archive"])

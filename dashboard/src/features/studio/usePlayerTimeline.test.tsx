@@ -1,7 +1,7 @@
 /// <reference types="bun-types" />
 
-import { afterEach, expect, test } from "bun:test";
-import { act, cleanup, render } from "@testing-library/react";
+import { afterEach, expect, spyOn, test } from "bun:test";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { useEffect, useState } from "react";
 
 import { FakePlayer } from "./timeline-test-fixtures";
@@ -154,4 +154,24 @@ test("a player replaced at commit takes over every listener", () => {
 
   unmount();
   expect(second.listenerCount).toBe(0);
+});
+
+test("Space plays and pauses, except where focus already uses it", () => {
+  // e2e audit 2026-11-02: Remotion's own Space handling keeps focus on its Play button.
+  const player = new FakePlayer();
+  const play = spyOn(player, "play");
+  const pause = spyOn(player, "pause");
+  render(<Harness player={player} onFrameChange={() => {}} />);
+
+  fireEvent.keyDown(window, { code: "Space" });
+  expect(play).toHaveBeenCalledTimes(1);
+  act(() => player.emit("play", {}));
+  fireEvent.keyDown(window.document.body, { code: "Space" });
+  expect(pause).toHaveBeenCalledTimes(1);
+  act(() => player.emit("pause", {}));
+
+  const field = window.document.body.appendChild(window.document.createElement("textarea"));
+  fireEvent.keyDown(field, { code: "Space" });
+  field.remove();
+  expect(play).toHaveBeenCalledTimes(1);
 });

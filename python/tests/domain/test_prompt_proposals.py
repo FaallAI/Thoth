@@ -36,6 +36,7 @@ def test_every_prompt_stage_has_one_non_blank_starter() -> None:
         "visual_plan",
         "caption_copy",
         "story_assist",
+        "narration_script",
     }
     assert all(starter.body.strip() for starter in PROMPT_STARTERS.values())
     # Spec 2026-10-27, 12: the Assist prompt is written in English; the others in Indonesian.
@@ -44,6 +45,7 @@ def test_every_prompt_stage_has_one_non_blank_starter() -> None:
         "visual_plan": "id-ID",
         "caption_copy": "id-ID",
         "story_assist": "en-US",
+        "narration_script": "id-ID",
     }
 
 

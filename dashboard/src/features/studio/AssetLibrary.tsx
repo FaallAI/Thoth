@@ -1,6 +1,10 @@
+import { useLocale } from "@/lib/locale";
 import { useEffect, useRef, useState, type RefObject } from "react";
 
 import type { ControlPlaneClient, EditorAsset } from "@/api/control-plane";
+
+import { Thumbnail } from "./story/MaterialsPanel";
+import { numberRepeats, type AssetKind } from "./studio_labels";
 
 /** One page at a time: the library never pulls a whole project into memory. */
 export const ASSET_PAGE_LIMIT = 20;
@@ -14,8 +18,13 @@ type Props = {
    */
   generationRef: RefObject<number>;
   onAssets: (assets: EditorAsset[], replace: boolean) => void;
-  onAdd: (asset: EditorAsset) => void;
+  /** Absent on a view-only Timeline (below 1024): rows offer preview only. */
+  onAdd?: (asset: EditorAsset) => void;
   onPreviewSource: (assetId: string, previewUrl: string) => void;
+  /** A row's human name and detail line (spec 2026-11-01); absent, a row falls back to its id. */
+  describe?: (asset: EditorAsset) => { label: string; detail: string; kind?: AssetKind };
+  /** Preview URLs by asset id, the same the player draws from. */
+  previews?: Record<string, string>;
 };
 
 /** Pages may overlap, so one asset keeps one row: first seen, newest projection. */
@@ -35,7 +44,10 @@ export function AssetLibrary({
   onAssets,
   onAdd,
   onPreviewSource,
+  describe,
+  previews,
 }: Props) {
+  const { t } = useLocale();
   const [assets, setAssets] = useState<EditorAsset[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -78,60 +90,73 @@ export function AssetLibrary({
       .catch(() => undefined);
   };
 
-  const ready = assets.filter((asset) => asset.validation_state === "ready");
+  const rows = assets
+    .filter((asset) => asset.validation_state === "ready")
+    .map((asset): { asset: EditorAsset; label: string; detail: string; kind?: AssetKind } => ({
+      asset,
+      ...(describe?.(asset) ?? {
+        label: asset.asset_id,
+        detail: `${asset.kind}${asset.duration_in_frames ? ` · ${asset.duration_in_frames}f` : ""}`,
+      }),
+    }))
+    // What this draft uses comes first; what nothing names (another draft's upload) comes last.
+    .sort((a, b) => Number(a.kind === "upload") - Number(b.kind === "upload"));
+  const labels = numberRepeats(rows.map((row) => row.label));
 
   return (
     <section className="min-h-0 overflow-auto border-r border-border bg-card/60 p-3" aria-label="Asset library">
       <h2 className="mb-2 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-        Assets
+        {t("studio.assets.title")}
       </h2>
       {failed ? (
         <div role="alert" className="space-y-2 text-xs text-destructive">
-          <p>Assets are unavailable. Check your connection and try again.</p>
+          <p>{t("studio.assets.unavailable")}</p>
           <button
             type="button"
             className={action}
             onClick={() => setAttempt((value) => value + 1)}
           >
-            Retry loading assets
+            {t("studio.assets.retry")}
           </button>
         </div>
       ) : (
         <>
           <ul className="space-y-2">
-            {ready.map((asset) => (
+            {rows.map(({ asset, detail }, index) => (
               <li
                 key={asset.asset_id}
-                className="rounded border border-border bg-background/40 p-2 text-xs"
+                className="flex gap-2 rounded border border-border bg-background/40 p-2 text-xs"
               >
-                <span className="block truncate font-medium text-foreground">{asset.asset_id}</span>
-                <span className="block text-muted-foreground">
-                  {asset.kind}
-                  {asset.duration_in_frames ? ` · ${asset.duration_in_frames}f` : ""}
-                </span>
+                <Thumbnail kind={asset.kind} preview={previews?.[asset.asset_id]} />
+                <div className="min-w-0 flex-1">
+                <span className="block font-medium break-words text-foreground">{labels[index]}</span>
+                <span className="block text-muted-foreground">{detail}</span>
                 <div className="mt-1 flex flex-wrap gap-1">
+                  {onAdd ? (
+                    <button
+                      type="button"
+                      className={action}
+                      aria-label={t("studio.assets.addNamed", { label: labels[index]! })}
+                      onClick={() => onAdd(asset)}
+                    >
+                      {t("studio.assets.add")}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className={action}
-                    aria-label={`Add ${asset.asset_id} to timeline`}
-                    onClick={() => onAdd(asset)}
-                  >
-                    Add
-                  </button>
-                  <button
-                    type="button"
-                    className={action}
-                    aria-label={`Preview ${asset.asset_id}`}
+                    aria-label={t("studio.assets.previewNamed", { label: labels[index]! })}
                     onClick={() => preview(asset.asset_id)}
                   >
-                    Preview
+                    {t("studio.assets.preview")}
                   </button>
+                </div>
                 </div>
               </li>
             ))}
           </ul>
-          {ready.length === 0 && !loading ? (
-            <p className="text-xs text-muted-foreground">No ready assets yet</p>
+          {rows.length === 0 && !loading ? (
+            <p className="text-xs text-muted-foreground">{t("studio.assets.none")}</p>
           ) : null}
           {cursor ? (
             <button
@@ -140,7 +165,7 @@ export function AssetLibrary({
               disabled={loading}
               onClick={() => load(cursor)}
             >
-              Load more assets
+              {t("studio.assets.more")}
             </button>
           ) : null}
         </>

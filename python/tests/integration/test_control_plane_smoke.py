@@ -104,7 +104,6 @@ async def test_source_workflow_survives_restart_and_never_uses_a_cli_route(
     failed_summary = await control_plane.wait_for_terminal(failed["workflow_id"])
     assert failed_summary["status"] == "failed"
     assert failed_summary["failure"]["retryable"] is True
-    assert await control_plane.retry_status(failed["workflow_id"], from_stage="source") == 503
 
     cancelled = await control_plane.create(
         {
@@ -132,7 +131,6 @@ async def test_production_activity_and_api_share_a_custom_artifact_root(
     settings = Settings(
         THOTH_CONTROL_PLANE_API_KEY="custom-root-key",
         THOTH_CONTROL_PLANE_ARTIFACT_ROOT=tmp_path,
-        THOTH_SOURCE_INVESTIGATION_ACTIVITY_MODE="python",
     )
     environment = await WorkflowEnvironment.start_time_skipping(
         data_converter=pydantic_data_converter

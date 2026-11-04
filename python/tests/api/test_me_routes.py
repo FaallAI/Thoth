@@ -152,3 +152,19 @@ async def test_a_caller_without_a_user_has_no_language_to_save(api) -> None:
     )
 
     assert (service.status_code, service.json()) == (403, {"detail": "user_required"})
+
+
+async def test_owners_list_and_revoke_workspace_tokens_even_with_minting_off(gateway) -> None:
+    # Audit A1: a workspace token minted while the flag was on must stay removable after.
+    async with build(gateway, THOTH_AUTH_WORKSPACE_TOKENS=True) as on:
+        made = await on.post(
+            "/api/v1/workspace/tokens", json={"name": "partner"}, headers=SAME_SITE
+        )
+        token_id = made.json()["token"]["token_id"]
+        listed = await on.get("/api/v1/workspace/tokens")
+        assert [token["token_id"] for token in listed.json()] == [token_id]
+        gone = await on.delete(f"/api/v1/workspace/tokens/{token_id}", headers=SAME_SITE)
+        again = await on.delete(f"/api/v1/workspace/tokens/{token_id}", headers=SAME_SITE)
+        assert (gone.status_code, again.status_code) == (204, 404)
+    async with build(gateway) as off:
+        assert (await off.get("/api/v1/workspace/tokens")).status_code == 200

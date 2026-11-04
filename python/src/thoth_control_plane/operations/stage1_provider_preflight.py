@@ -30,7 +30,9 @@ PROVIDER_KEY_VARIABLE = "THOTH_NOVITA_API_KEY"
 PROVIDER_OCR_MODEL_VARIABLE = "THOTH_SUBTITLE_OCR_MODEL"
 REQUIRED_PROVIDER_VARIABLES = (PROVIDER_KEY_VARIABLE, PROVIDER_OCR_MODEL_VARIABLE)
 PROVIDER_OPENROUTER_VARIABLE = "THOTH_OPENROUTER_API_KEY"
-OPTIONAL_PROVIDER_VARIABLES = (PROVIDER_OPENROUTER_VARIABLE,)
+#: Narration's voice (spec 2026-10-31), read by the worker only.
+PROVIDER_ELEVENLABS_VARIABLE = "THOTH_ELEVENLABS_API_KEY"
+OPTIONAL_PROVIDER_VARIABLES = (PROVIDER_OPENROUTER_VARIABLE, PROVIDER_ELEVENLABS_VARIABLE)
 
 MINIMUM_KEY_LENGTH = 12
 PLACEHOLDER_MARKERS = ("replace-with", "changeme", "change-me", "your-", "example", "todo", "<")
@@ -98,7 +100,7 @@ def _parse_provider_file(path: Path) -> dict[str, str]:
             raise Stage1PreflightError(
                 "the provider env file contains an unrecognized variable; "
                 f"it admits only {' and '.join(REQUIRED_PROVIDER_VARIABLES)}, "
-                f"and optionally {PROVIDER_OPENROUTER_VARIABLE}"
+                f"and optionally {' and '.join(OPTIONAL_PROVIDER_VARIABLES)}"
             )
         if name in values:
             raise Stage1PreflightError(f"{name} is defined more than once in the provider env file")
@@ -114,13 +116,13 @@ def _check_values(values: dict[str, str]) -> None:
             raise Stage1PreflightError(f"{name} must not contain control characters")
 
     _check_key(PROVIDER_KEY_VARIABLE, values[PROVIDER_KEY_VARIABLE])
-    if PROVIDER_OPENROUTER_VARIABLE in values:
-        openrouter = values[PROVIDER_OPENROUTER_VARIABLE]
-        if any(character < " " or character == "\x7f" for character in openrouter):
-            raise Stage1PreflightError(
-                f"{PROVIDER_OPENROUTER_VARIABLE} must not contain control characters"
-            )
-        _check_key(PROVIDER_OPENROUTER_VARIABLE, openrouter)
+    for optional in OPTIONAL_PROVIDER_VARIABLES:
+        if optional not in values:
+            continue
+        key = values[optional]
+        if any(character < " " or character == "\x7f" for character in key):
+            raise Stage1PreflightError(f"{optional} must not contain control characters")
+        _check_key(optional, key)
 
     if not OCR_MODEL_PATTERN.fullmatch(values[PROVIDER_OCR_MODEL_VARIABLE]):
         raise Stage1PreflightError(

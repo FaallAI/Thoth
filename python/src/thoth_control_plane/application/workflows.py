@@ -93,15 +93,6 @@ class UnavailableWorkflowGateway:
     async def cancel(self, workflow_id: str, *, actor: Actor) -> WorkflowSummary:
         raise WorkflowNotReady
 
-    async def retry(
-        self,
-        workflow_id: str,
-        *,
-        from_stage: str | None,
-        actor: Actor,
-    ) -> WorkflowSummary:
-        raise WorkflowNotReady
-
     async def record_approval(
         self,
         workflow_id: str,
@@ -183,19 +174,6 @@ class WorkflowService:
     async def cancel(self, workflow_id: str, *, actor: Actor) -> WorkflowSummary:
         await self._gateway.get(workflow_id, actor=actor)
         return await self._gateway.cancel(workflow_id, actor=actor)
-
-    async def retry(
-        self,
-        workflow_id: str,
-        *,
-        from_stage: str | None,
-        actor: Actor,
-    ) -> WorkflowSummary:
-        return await self._gateway.retry(
-            workflow_id,
-            from_stage=from_stage,
-            actor=actor,
-        )
 
     async def record_approval(
         self,

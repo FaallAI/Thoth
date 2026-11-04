@@ -490,3 +490,22 @@ async def test_an_unreachable_store_is_the_safe_error_without_its_address() -> N
 def test_conflict_errors_are_safe() -> None:
     assert str(EditDocumentConflict()) == "edit document revision already exists"
     assert str(EditDocumentRevisionConflict(document())) == "edit document revision conflict"
+
+
+@needs_postgres
+async def test_a_derived_revision_lands_next_and_a_stale_one_conflicts(
+    documents: PostgresEditDocumentRepository,
+) -> None:
+    """Narration writes a whole derived document (spec 2026-10-31), bound to its base."""
+    base = timeline_document()
+    await documents.insert_revision(base)
+    derived = base.model_copy(update={"revision": 99})
+
+    result = await documents.write_derived_revision(
+        PROJECT, base.document_id, base.revision, derived
+    )
+
+    assert result.revision == base.revision + 1
+    assert await documents.get_latest(project_id=PROJECT, document_id=base.document_id) == result
+    with pytest.raises(EditDocumentRevisionConflict):
+        await documents.write_derived_revision(PROJECT, base.document_id, base.revision, derived)

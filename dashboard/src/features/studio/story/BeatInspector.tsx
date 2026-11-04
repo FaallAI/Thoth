@@ -7,7 +7,9 @@ import { useLocale } from "@/lib/locale";
 import { reasonText } from "@/features/workflows/OpenInStudio";
 
 import type { EditorAction } from "../editor_state";
-import { ROLE_BEAT, type Beat } from "./story_beats";
+import { Switch } from "../StudioSwitch";
+import { clipLabel, materialRowLabel } from "../studio_labels";
+import { ROLE_BEAT, beatOwnFrames, type Beat } from "./story_beats";
 import {
   addMaterialToBeat,
   longestReading,
@@ -33,6 +35,8 @@ type Props = {
   attachMaterial?: (itemId: string) => Promise<EditorAsset>;
   /** Exclude a missing material, as the import gate does; absent while the draft is unsaved. */
   onRemoveMissing?: (itemId: string) => Promise<void>;
+  /** The beat has a narration voice: its cards share the voice's time (spec 2026-11-01). */
+  narrated?: boolean;
 };
 
 /** A material that can stand in for a missing one (spec §9: "Use profile card"). */
@@ -49,7 +53,7 @@ const choice =
 const field = "h-9 w-24 rounded-md border border-hairline bg-well px-2 text-sm text-ink focus-visible:outline-2 focus-visible:outline-copper";
 
 /** Spec 2026-10-27 §9: the selected beat's cards, timing, position, motion and emphasis. */
-export function BeatInspector({ beat, beats, document, inventory, materials, dispatch, attachMaterial, onRemoveMissing }: Props) {
+export function BeatInspector({ beat, beats, document, inventory, materials, dispatch, attachMaterial, onRemoveMissing, narrated = false }: Props) {
   const { t, plural } = useLocale();
   const [picking, setPicking] = useState(false);
   const [addFailed, setAddFailed] = useState(false);
@@ -62,10 +66,8 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
   const clips = beat.clipIds
     .map((id) => (document.clips ?? []).find((clip) => clip.clip_id === id))
     .filter((clip): clip is Clip => Boolean(clip));
-  const items = new Map(inventory.map((entry) => [`clip_${entry.item_id}`, entry]));
-  const labelled = new Map((materials?.items ?? []).map((item) => [`clip_${item.item_id}`, item.label]));
-  const label = (clip: Clip) =>
-    clip.kind === "text" ? clip.heading : labelled.get(clip.clip_id) ?? items.get(clip.clip_id)?.label ?? ("asset_id" in clip ? clip.asset_id : clip.clip_id);
+  // Kind and source, never an id (spec 2026-11-01, Studio shell v2).
+  const label = (clip: Clip) => clipLabel(clip, { document, materials, t, inventory });
   const cards = CARD_BEATS.has(beat.id) ? clips.filter((clip) => clip.kind === "video") : [];
   const cardIds = cards.map((clip) => clip.clip_id);
   // Photos in the Footage beat may move too (operator, 2026-10-28); its videos already do.
@@ -78,9 +80,11 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
   const text = beat.id === "hook" || beat.id === "outro" ? clips.find((clip) => clip.kind === "text") : undefined;
   const reading = longestReading(beat, inventory);
 
+  // The same seconds as the beat's tile: a beat that spans others does not count their time.
+  const ownFrames = beatOwnFrames(beats, document.canvas.duration_in_frames).get(beat.id) ?? beat.durationInFrames;
   const header = [
     t("studio.inspector.beatOf", { index: beats.indexOf(beat) + 1, count: beats.length }),
-    seconds(beat.durationInFrames),
+    seconds(ownFrames),
     plural("studio.inspector.materials", clips.length),
     ...(beat.missing.length ? [t("studio.story.missing", { count: beat.missing.length })] : []),
   ].join(" · ");
@@ -210,7 +214,7 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
                   onKeyDown={(event) => event.key === "Enter" && void add(item.item_id, item.role!)}
                   className="cursor-pointer rounded px-2 py-1.5 text-sm text-ink hover:bg-surface focus-visible:outline-2 focus-visible:outline-copper"
                 >
-                  {item.label}
+                  {materialRowLabel(item, t)}
                 </li>
               ))}
             </ul>
@@ -223,7 +227,9 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
 
       <section aria-label={t("studio.inspector.timing")} className={section}>
         <h3 className={heading}>{t("studio.inspector.timing")}</h3>
-        {cards.length ? (
+        {narrated && cards.length ? (
+          <p className="text-sm text-muted-ink">{t("studio.inspector.followsVoice", { length: seconds(ownFrames) })}</p>
+        ) : cards.length ? (
           <>
             <label className="flex items-center justify-between gap-2 text-sm text-ink">
               {t("studio.inspector.eachCard")}
@@ -284,7 +290,7 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
             </label>
           </>
         ) : (
-          <p className="text-sm text-muted-ink">{t("studio.inspector.followsVideo", { length: seconds(beat.durationInFrames) })}</p>
+          <p className="text-sm text-muted-ink">{t("studio.inspector.followsVideo", { length: seconds(ownFrames) })}</p>
         )}
       </section>
 
@@ -346,23 +352,6 @@ function IconButton({ label, disabled, onClick, children }: { label: string; dis
       className="grid size-7 shrink-0 place-items-center rounded text-muted-ink hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-copper disabled:opacity-30"
     >
       {children}
-    </button>
-  );
-}
-
-function Switch({ label, checked, onChange }: { label: string; checked: boolean; onChange: (on: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className="flex items-center justify-between rounded-md px-1 py-1 text-sm text-ink focus-visible:outline-2 focus-visible:outline-copper"
-    >
-      {label}
-      <span aria-hidden="true" className={`flex h-5 w-9 items-center rounded-full p-0.5 ${checked ? "bg-copper" : "bg-well"}`}>
-        <span className={`size-4 rounded-full bg-ink transition-transform ${checked ? "translate-x-4" : ""}`} />
-      </span>
     </button>
   );
 }

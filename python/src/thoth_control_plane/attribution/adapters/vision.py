@@ -11,6 +11,7 @@ import logging
 from collections.abc import Sequence
 from typing import TypeVar
 
+import httpx
 from pydantic import BaseModel
 
 from thoth_control_plane import metering
@@ -62,6 +63,9 @@ class AgnoVisionReader:
         from agno.media import Image
         from agno.models.openai.like import OpenAILike
 
+        # agno builds an AsyncOpenAI per request; left to the SDK, its httpx client is
+        # closed by garbage collection, on whichever loop runs then (a workflow thread).
+        http = httpx.AsyncClient(timeout=TIMEOUT_SECONDS)
         agent = Agent(
             model=OpenAILike(
                 id=self._model,
@@ -69,6 +73,7 @@ class AgnoVisionReader:
                 base_url=self._base_url,
                 timeout=TIMEOUT_SECONDS,
                 max_retries=1,
+                http_client=http,
             ),
             output_schema=schema,
             use_json_mode=True,
@@ -80,6 +85,8 @@ class AgnoVisionReader:
         except Exception as error:
             logger.warning("vision read unavailable")
             raise AttributionError("vision_unavailable") from error
+        finally:
+            await http.aclose()
         await metering.record_model_run(self._model, run)
         if not isinstance(run.content, schema):
             logger.warning("vision read unusable")
