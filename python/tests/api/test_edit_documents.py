@@ -10,6 +10,7 @@ from tests.domain.edit_document_v2_fixtures import document_with_every_clip_kind
 from thoth_control_plane.api import create_app
 from thoth_control_plane.application.edit_documents import EditDocumentNotFound
 from thoth_control_plane.application.ports import (
+    EditDocumentRefused,
     EditDocumentRevisionConflict,
     EditDocumentUpgradeConflict,
 )
@@ -672,7 +673,12 @@ class RestorableRepository(MemoryEditDocumentRepository):
         self.revisions[document.revision] = document
 
     async def apply_operations(self, project_id, document_id, base_revision, operations):
-        result = await super().apply_operations(project_id, document_id, base_revision, operations)
+        try:
+            result = await super().apply_operations(
+                project_id, document_id, base_revision, operations
+            )
+        except ValueError as error:
+            raise EditDocumentRefused(str(error)) from error
         self.revisions[result.revision] = result
         return result
 

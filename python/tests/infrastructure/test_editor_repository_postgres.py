@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 
 from tests.postgres_support import DATABASE_URL, empty_tables, needs_postgres, reset_schema
 from thoth_control_plane.application.ports import (
+    EditDocumentRefused,
     EditDocumentRevisionConflict,
     EditDocumentUpgradeConflict,
 )
@@ -262,10 +263,10 @@ async def test_an_asset_resolves_only_when_this_project_has_it_ready(
     documents: PostgresEditDocumentRepository,
 ) -> None:
     await documents.insert_revision(timeline_document())
-    with pytest.raises(EditDocumentPersistenceError):
+    with pytest.raises(EditDocumentRefused):
         await documents.apply_operations(PROJECT, DOCUMENT, 1, add_clip_patch())
     seed_asset(state="pending")
-    with pytest.raises(EditDocumentPersistenceError):
+    with pytest.raises(EditDocumentRefused):
         await documents.apply_operations(PROJECT, DOCUMENT, 1, add_clip_patch())
     assert revisions() == 1
 

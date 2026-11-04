@@ -6,9 +6,10 @@ import logging
 from typing import TYPE_CHECKING, Annotated, Literal
 from uuid import uuid4
 
-from pydantic import Field, TypeAdapter, ValidationError, field_validator
+from pydantic import Field, TypeAdapter, field_validator
 
 from thoth_control_plane.application.ports import (
+    EditDocumentRefused,
     EditDocumentRevisionConflict,
     EditDocumentUpgradeConflict,
 )
@@ -42,10 +43,6 @@ class EditDocumentNotFound(Exception):
 
 class EditorUnavailable(Exception):
     """The optional editor persistence is not configured or reachable."""
-
-
-class EditDocumentRefused(Exception):
-    """The document's own rules refuse this change: retrying it can never succeed."""
 
 
 #: Opaque, caller-supplied replay key. Bounded and free of whitespace so it can
@@ -233,11 +230,9 @@ class EditDocumentService:
             )
         except EditDocumentRevisionConflict:
             raise
-        except ValueError as error:
-            # A validation error is a ValueError too, and its text carries the document.
-            reason = error.errors()[0]["msg"] if isinstance(error, ValidationError) else error
-            logger.warning("edit refused on %s: %s", document_id, reason)
-            raise EditDocumentRefused() from error
+        except EditDocumentRefused as error:
+            logger.warning("edit refused on %s: %s", document_id, error)
+            raise
         except Exception as error:
             raise EditorUnavailable() from error
 
