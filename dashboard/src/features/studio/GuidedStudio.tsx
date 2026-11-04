@@ -9,6 +9,7 @@ import type {
   StudioImportItem,
   StudioMaterials,
 } from "@/api/control-plane";
+import { documentLabel } from "@/lib/document-label";
 import { useLocale } from "@/lib/locale";
 import type { PreviewSources } from "./AdvancedTimelineComposition";
 import { AssetLibrary } from "./AssetLibrary";
@@ -36,6 +37,7 @@ import { assetLabel, clipLabel, type LabelContext } from "./studio_labels";
 import {
   createAddClipFromAssetOperation,
   isTimelineDocument,
+  placementChanges,
   timelineIssues,
 } from "./timeline_domain";
 import { StudioPreview } from "./StudioPreview";
@@ -66,6 +68,8 @@ type Props = {
       Pick<
         ControlPlaneClient,
         | "upgradeEditDocument"
+        | "restoreEditDocument"
+        | "uploadEditorAsset"
         | "listEditorAssets"
         | "createEditorPreviewCapability"
         | "getRenderCapability"
@@ -120,6 +124,10 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const compact = viewport === "phone" || viewport === "tablet";
   const [sceneBoardOpen, setSceneBoardOpen] = useState(true);
   const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [restoring, setRestoring] = useState(false);
+  const [restoreFailed, setRestoreFailed] = useState(false);
+  const [noRoom, setNoRoom] = useState(false);
+  const [placedNotice, setPlacedNotice] = useState<string | null>(null);
   const collapsible = viewport === "compact_desktop";
   const sceneRegionOpen = !collapsible || sceneBoardOpen;
   const inspectorRegionOpen = !collapsible || inspectorOpen;
@@ -129,6 +137,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const [inspectorWidth, setInspectorWidth] = useState(22.25);
   const selectedScene = state.draft.scenes.find((scene) => scene.scene_id === state.selectedSceneId);
   const timeline = isTimelineDocument(state.draft) ? state.draft : undefined;
+  const clipAssetIds = (timeline?.clips ?? []).flatMap((clip) => ("asset_id" in clip && clip.asset_id ? [clip.asset_id] : []));
   // Both modes project the same draft; only version 2 can show the advanced one. Every width
   // edits Story or Timeline; compact screens show them one pane at a time (spec 2026-11-01).
   const advanced = Boolean(timeline) && state.mode === "advanced";
@@ -242,8 +251,9 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
               : { type: "save_conflicted", latest: result.latest },
           );
         })
-        .catch(() => {
-          if (requestGeneration === generation.current) dispatch({ type: "save_failed" });
+        .catch((error: unknown) => {
+          if (requestGeneration !== generation.current) return;
+          dispatch({ type: "save_failed", refused: error instanceof Error && error.message === "edit_refused" });
         });
     }, 500);
     return () => clearTimeout(timeoutId);
@@ -551,8 +561,53 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
       operationId: makeOperationId(),
       clipId: `clip_${crypto.randomUUID()}`,
     });
-    if (operation) dispatch({ type: "commit_timeline_operation", operation });
+    setNoRoom(!operation);
+    setPlacedNotice(null);
+    if (!operation) return;
+    commitSceneOperation(operation);
+    // The person asked for the whole clip at the playhead: anything else is said out loud.
+    const { cut, later, otherTrack } = placementChanges(timeline, asset, state.playheadFrame, operation);
+    const seconds = (frames: number) => (frames / timeline.canvas.fps).toFixed(1);
+    const track = timeline.tracks.find((entry) => entry.track_id === operation.track_id)?.label ?? "";
+    const said = [
+      cut
+        ? t("studio.assets.placedCut", {
+            seconds: seconds(operation.duration_in_frames),
+            total: seconds(asset.duration_in_frames ?? timeline.canvas.fps),
+          })
+        : "",
+      later ? t("studio.assets.placedLater") : "",
+      otherTrack ? t("studio.assets.placedTrack", { track }) : "",
+    ].filter(Boolean);
+    if (said.length) setPlacedNotice(said.join(" "));
   };
+
+  /** A saved edit has no snapshot left, so Undo and Redo ask the server for its revision. */
+  const restoreRevision = (direction: "undo" | "redo") => {
+    const target = direction === "undo" ? state.savedUndo.at(-1) : state.savedRedo[0];
+    const restore = client.restoreEditDocument;
+    if (target === undefined || !restore || restoring) return;
+    const requestGeneration = generation.current;
+    setRestoring(true);
+    setRestoreFailed(false);
+    void restore(projectId, documentId, { base_revision: base.revision, revision: target })
+      .then((result) => {
+        if (requestGeneration !== generation.current) return;
+        dispatch(
+          result.kind === "saved"
+            ? { type: "restored", document: result.document, direction }
+            : { type: "save_conflicted", latest: result.latest },
+        );
+      })
+      .catch(() => setRestoreFailed(true))
+      .finally(() => setRestoring(false));
+  };
+  const undo = () => (state.history.length ? dispatch({ type: "undo" }) : restoreRevision("undo"));
+  const redo = () => (state.future.length ? dispatch({ type: "redo" }) : restoreRevision("redo"));
+  const historyBusy = state.inFlightOperationIds.length > 0 || upgrading || restoring;
+  const restorable = saveStatus === "saved" && Boolean(client.restoreEditDocument);
+  const undoDisabled = historyBusy || !(state.history.length || (restorable && state.savedUndo.length));
+  const redoDisabled = historyBusy || !(state.future.length || (restorable && state.savedRedo.length));
 
   const upgradeDocument = () => {
     const upgrade = client.upgradeEditDocument;
@@ -591,7 +646,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     <section className={`studio-shell pen-studio studio-job-${job} ${advanced ? "studio-advanced" : "studio-simple"}${story ? " studio-story" : ""} flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground`} aria-label="Guided Studio">
       {/* DESIGN §13: back to the documents, the title, the destinations, and where saving stands. */}
       <StudioHeader
-        title={documentTitle ?? documentId}
+        title={documentLabel(draft)}
         viewport={viewport}
         onBack={onBack}
         backDisabled={backDisabled}
@@ -645,8 +700,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             type="button"
             className={iconButton}
             aria-label={t("studio.editor.undo")}
-            disabled={!state.history.length || state.inFlightOperationIds.length > 0 || upgrading}
-            onClick={() => dispatch({ type: "undo" })}
+            disabled={undoDisabled}
+            onClick={undo}
           >
             <Undo2 aria-hidden="true" size={16} />
           </button>
@@ -654,8 +709,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             type="button"
             className={iconButton}
             aria-label={t("studio.editor.redo")}
-            disabled={!state.future.length || state.inFlightOperationIds.length > 0 || upgrading}
-            onClick={() => dispatch({ type: "redo" })}
+            disabled={redoDisabled}
+            onClick={redo}
           >
             <Redo2 aria-hidden="true" size={16} />
           </button>
@@ -740,16 +795,16 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
               <button
                 type="button"
                 className={toolbarButton}
-                disabled={!state.history.length || state.inFlightOperationIds.length > 0 || upgrading}
-                onClick={() => dispatch({ type: "undo" })}
+                disabled={undoDisabled}
+                onClick={undo}
               >
                 {t("studio.editor.undo")}
               </button>
               <button
                 type="button"
                 className={toolbarButton}
-                disabled={!state.future.length || state.inFlightOperationIds.length > 0 || upgrading}
-                onClick={() => dispatch({ type: "redo" })}
+                disabled={redoDisabled}
+                onClick={redo}
               >
                 {t("studio.editor.redo")}
               </button>
@@ -814,9 +869,35 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
       )}
       {state.saveStatus === "failed" && (
         <div role="alert" className={`${banner} bg-status-failed/10`}>
-          <p>{t("studio.editor.saveFailed")}</p>
-          <button type="button" className={toolbarButton} onClick={() => dispatch({ type: "retry_save" })}>
-            {t("studio.editor.retry")}
+          <p>{t(state.saveRefused ? "studio.editor.saveRefused" : "studio.editor.saveFailed")}</p>
+          {state.saveRefused ? null : (
+            <button type="button" className={toolbarButton} onClick={() => dispatch({ type: "retry_save" })}>
+              {t("studio.editor.retry")}
+            </button>
+          )}
+        </div>
+      )}
+      {restoreFailed && (
+        <div role="alert" className={`${banner} bg-status-failed/10`}>
+          <p>{t("studio.editor.undoFailed")}</p>
+          <button type="button" className={toolbarButton} onClick={() => setRestoreFailed(false)}>
+            {t("studio.editor.dismiss")}
+          </button>
+        </div>
+      )}
+      {placedNotice && (
+        <div role="status" aria-label={t("studio.assets.placedTitle")} className={`${banner} bg-copper/10`}>
+          <p>{placedNotice}</p>
+          <button type="button" className={toolbarButton} onClick={() => setPlacedNotice(null)}>
+            {t("studio.editor.dismiss")}
+          </button>
+        </div>
+      )}
+      {noRoom && (
+        <div role="status" className={`${banner} bg-copper/10`}>
+          <p>{t("studio.assets.noRoom")}</p>
+          <button type="button" className={toolbarButton} onClick={() => setNoRoom(false)}>
+            {t("studio.editor.dismiss")}
           </button>
         </div>
       )}
@@ -923,6 +1004,12 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                   generationRef={generation}
                   onAssets={(assets, replace) => dispatch({ type: "assets_loaded", assets, replace })}
                   onAdd={timelineReadOnly ? undefined : addAsset}
+                  wanted={clipAssetIds}
+                  upload={
+                    client.uploadEditorAsset
+                      ? (file) => client.uploadEditorAsset!(projectId, file)
+                      : undefined
+                  }
                   onPreviewSource={(assetId, previewUrl) =>
                     setPreviewSources((current) => ({ ...current, [assetId]: previewUrl }))
                   }

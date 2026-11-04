@@ -474,6 +474,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Edit Document Revision
+         * @description Save an earlier revision's content as the next revision, under the same guards as a patch.
+         */
+        post: operations["restore_edit_document_revision_api_v1_projects__project_id__edit_documents__document_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/edit-documents/{document_id}/review-comments": {
         parameters: {
             query?: never;
@@ -3400,6 +3420,16 @@ export interface components {
             /** Text */
             text: string;
         };
+        /**
+         * RestoreRevisionRequest
+         * @description Save an earlier revision's content as the next revision: what Undo does after a save.
+         */
+        RestoreRevisionRequest: {
+            /** Base Revision */
+            base_revision: number;
+            /** Revision */
+            revision: number;
+        };
         /** ReviewComment */
         ReviewComment: {
             actor: components["schemas"]["ActorSnapshot"];
@@ -6165,6 +6195,53 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NarrationState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_edit_document_revision_api_v1_projects__project_id__edit_documents__document_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestoreRevisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditDocumentV1"] | components["schemas"]["EditDocumentV2"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentRevisionConflictBody"];
                 };
             };
             /** @description Validation Error */

@@ -2,7 +2,9 @@ import { useLocale } from "@/lib/locale";
 import { useEffect, useRef, useState, type RefObject } from "react";
 
 import type { ControlPlaneClient, EditorAsset } from "@/api/control-plane";
+import type { MessageKey } from "@/lib/i18n";
 
+import { failure } from "./StudioImportGate";
 import { Thumbnail } from "./story/MaterialsPanel";
 import { numberRepeats, type AssetKind } from "./studio_labels";
 
@@ -25,7 +27,13 @@ type Props = {
   describe?: (asset: EditorAsset) => { label: string; detail: string; kind?: AssetKind };
   /** Preview URLs by asset id, the same the player draws from. */
   previews?: Record<string, string>;
+  /** What the draft uses: pages keep loading until these are in, so they can list first. */
+  wanted?: string[];
+  /** Absent, or on a view-only Timeline, nothing can be uploaded from here. */
+  upload?: (file: File) => Promise<EditorAsset>;
 };
+
+const UPLOAD_TYPES = "video/mp4,video/webm,image/jpeg,image/png,image/webp,audio/mpeg,audio/wav";
 
 /** Pages may overlap, so one asset keeps one row: first seen, newest projection. */
 function mergeById(current: EditorAsset[], page: EditorAsset[]): EditorAsset[] {
@@ -46,8 +54,12 @@ export function AssetLibrary({
   onPreviewSource,
   describe,
   previews,
+  wanted,
+  upload,
 }: Props) {
   const { t } = useLocale();
+  const [uploading, setUploading] = useState(false);
+  const [uploadFailure, setUploadFailure] = useState<MessageKey>();
   const [assets, setAssets] = useState<EditorAsset[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -77,6 +89,27 @@ export function AssetLibrary({
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one load per project or retry.
   }, [attempt, client, projectId]);
+
+  const stillMissing = wanted?.some((assetId) => !assets.some((asset) => asset.asset_id === assetId));
+  useEffect(() => {
+    if (stillMissing && cursor && !loading && !failed) load(cursor);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load reads the same state.
+  }, [stillMissing, cursor, loading, failed]);
+
+  const send = (file: File) => {
+    if (!upload) return;
+    const generation = generationRef.current;
+    setUploading(true);
+    setUploadFailure(undefined);
+    void upload(file)
+      .then((added) => {
+        if (generation !== generationRef.current) return;
+        setAssets((current) => mergeById([added], current));
+        callbacks.current.onAssets([added], false);
+      })
+      .catch((error: unknown) => setUploadFailure(failure(error, "studio.inventory.uploadFailed")))
+      .finally(() => setUploading(false));
+  };
 
   const preview = (assetId: string) => {
     const generation = generationRef.current;
@@ -108,6 +141,29 @@ export function AssetLibrary({
       <h2 className="mb-2 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
         {t("studio.assets.title")}
       </h2>
+      {upload && onAdd ? (
+        <div className="mb-2 space-y-1">
+          <label className={`${action} inline-block cursor-pointer focus-within:ring-2 focus-within:ring-ring`}>
+            {t("studio.inventory.upload")}
+            <input
+              type="file"
+              className="sr-only"
+              accept={UPLOAD_TYPES}
+              disabled={uploading}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = "";
+                if (file) send(file);
+              }}
+            />
+          </label>
+          {uploadFailure ? (
+            <p role="alert" className="text-xs text-destructive">
+              {t(uploadFailure)}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       {failed ? (
         <div role="alert" className="space-y-2 text-xs text-destructive">
           <p>{t("studio.assets.unavailable")}</p>

@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-05 - Fixes from the first read and write e2e audit
+
+Branch `chore/e2e-trial`, not pushed yet. It also brings the e2e package into the repo. The operator asked for a full e2e run with read and write access, then for every finding to be fixed.
+
+**Records this entry carries:** PR #111 merged as `c49b74be`, the same tree as the deployed `697fccc9`. That deploy: images thoth `c210ae711fb0`, renderer `fdf439a6a541`, web `90970a837f2b`, digests matching push run 41796520514, no workflow running before, `make deploy` exit 0, web 200, 0 error lines in the worker, 0 API 5xx after 2 minutes, no migration. The previous env is `D:/thoth-tmp/bu/pins/pins-9997b4ee.env`.
+
+**Findings fixed, each red first:**
+- **Add could not be saved.** A clip longer than the canvas or over a main-track clip got a 503 and "Check your connection", and Retry could never work. Add now places the clip in the first free stretch at or after the playhead, on the first track with room, cut to fit. The canvas keeps its length, so adding an asset never changes the video's duration.
+- **Placement is said out loud.** A banner says when a clip was cut, moved past the playhead or placed on another track. The operator asked for this after a side review pointed out the silent cut and move.
+- **A refused edit is told apart from an outage.** A patch the document's rules refuse answers 422 `edit_refused`, logged at warning, and the screen says it could not be saved and offers no Retry.
+- **The draft's own assets came behind newer ones.** The Asset library loads further pages by itself until every asset the draft's clips use is in, so they list first.
+- **A blank draft could not get media.** The Asset library has an upload.
+- **Undo disappeared half a second after an edit,** when autosave landed. Undo and Redo now restore a saved revision through `POST .../edit-documents/{id}/restore`, which writes the next revision under the same conflict and narration guards as a patch and refuses to cross the timeline upgrade.
+- **A finished render kept saying another one was running** until something else re-read the renderer. It re-reads when the poll sees the end.
+- **A newly added clip showed "Video preview unavailable"** until Preview was pressed.
+- **A draft's render history listed the whole project's renders.** It lists that draft's, filtered client side from the project's newest page.
+- Smaller: the Replace media dialog sat top left, the top bar's title stayed stale until a reload, and the render confirmation showed raw project and document ids.
+
+**Verification:**
+- `make lint` clean. Dashboard: 1595 tests pass, `tsc -b` and build pass.
+- `make test` in the worktree: 4511 passed, 263 skipped, 3 failed. The 3 are `test_ocr_replay` and `test_refine`, `pytest.approx() does not support nested data structures`. Those files match `master`, where they pass in the main checkout, so this looks like the worktree's test environment. CI decides it.
+- E2E, the branch's dashboard from a vite dev server against stage1 at `697fccc9`, no model: the 30 model-free read tests pass, including the 3 the asset bug failed, and 15 of 16 write tests pass. The other is Undo after a save, which needs this branch's server: stage1 answers 404.
+- Screens judged from screenshots: Story, Timeline with the placement banner, Review, Render, Presets, Settings, Usage, Billing, Inbox at 1440. Also saved at 1024 and from the Inspector pane at 430 by test.
+- One render output probed: H.264, 1080×1920, 150 frames, 5.013 s, with audio.
+- Row counts of the real project are unchanged: 88 revisions, 67 assets, 6 renders, 3 narrations, 270 runs, draft `edoc_3aedc6af…` at revision 20.
+
+**Limits:**
+- Not tested: narration, Assist, a new run and a draft from a run, because each costs money or calls a provider; sound effects, because the library is empty.
+- A clip always keeps the canvas: an 80 s video on a 5 s draft keeps 5 s. Lengthening the canvas is a separate decision.
+- The history filter only sees the project's newest 20 renders.
+- Left on stage1: the project `E2E write test 2026-11-04` with its drafts, uploads, renders, comments, preset and template. The usage page counts its renders. The write token `e2e-write` expires by itself within a day.
+
+**Next steps:**
+- Operator gates, each separate: commit and push, deploy of the branch image, the retest on it, merge.
+- Paid tests, once the cost is shown and accepted: narration, Assist, a new run, a draft from a run.
+- After merge: install the package in `e2e/`, repoint `D:/thoth-tmp/e2e-mcp.sh` and `D:/thoth-tmp/e2e-run.sh`, remove the worktree with the operator's approval.
+- Carried forward: the operator's choice on removing the throwaway project.
+
 ## 2026-11-04 - The narration script is told what is on screen and who said what
 
 Same branch, `fix/narration-shown-comments`, PR #111. The operator found the narration of `edoc_d49fdc23…` odd. The stored script gave comment 1's point to the people in the video, gave the transcript's "hormat preman" to netizens, and read `@syarieffaid` aloud as the author of the criticism.

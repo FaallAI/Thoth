@@ -1204,3 +1204,98 @@ test("previews stay readable while the draft stays open", async () => {
   intervals.mockRestore();
   stopped.mockRestore();
 });
+
+// Found by the write audit.
+test("write-audit: a save the document refuses says so and offers Undo, not a connection retry", async () => {
+  const patchEditDocument = mock(async () => {
+    throw new Error("edit_refused");
+  });
+  const { GuidedStudio } = await import("./GuidedStudio");
+  const user = userEvent.setup();
+  render(
+    <GuidedStudio
+      client={{ ...promptClientBase, getEditDocument: mock(async () => document), patchEditDocument }}
+      projectId="project_001"
+      documentId="document_001"
+      onBack={() => {}}
+    />,
+  );
+  await user.type(await screen.findByLabelText("Heading"), " updated");
+
+  const alert = await screen.findByRole("alert", {}, { timeout: 1_000 });
+  expect(alert.textContent).toContain("could not be saved");
+  expect(alert.textContent).not.toContain("connection");
+  expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+});
+
+test("write-audit: Undo after an autosave restores the revision it replaced", async () => {
+  const restored = { ...document, revision: document.revision + 2 };
+  const restoreEditDocument = mock(async () => ({ kind: "saved" as const, document: restored }));
+  const patchEditDocument = mock(async (_p: string, _d: string, patch: EditDocumentPatch) => ({
+    kind: "saved" as const,
+    document: { ...document, revision: patch.base_revision + 1 },
+  }));
+  const { GuidedStudio } = await import("./GuidedStudio");
+  const user = userEvent.setup();
+  render(
+    <GuidedStudio
+      client={{ ...promptClientBase, getEditDocument: mock(async () => document), patchEditDocument, restoreEditDocument }}
+      projectId="project_001"
+      documentId="document_001"
+      onBack={() => {}}
+    />,
+  );
+  await user.type(await screen.findByLabelText("Heading"), " updated");
+  await waitFor(() => expect(patchEditDocument).toHaveBeenCalled(), { timeout: 2_000 });
+  const undo = screen.getByRole("button", { name: "Undo" }) as HTMLButtonElement;
+  await waitFor(() => expect(undo.disabled).toBe(false));
+  await act(async () => {
+    fireEvent.click(undo);
+  });
+
+  expect(restoreEditDocument).toHaveBeenCalledWith("project_001", "document_001", {
+    base_revision: document.revision + 1,
+    revision: document.revision,
+  });
+});
+
+test("write-audit: adding an asset loads its preview without a trip to Preview", async () => {
+  const { createEditorPreviewCapability } = advancedClientBase as unknown as {
+    createEditorPreviewCapability: ReturnType<typeof mock>;
+  };
+  createEditorPreviewCapability.mockClear();
+  await renderPagedAssetStudio();
+  fireEvent.click(await screen.findByLabelText("Add Upload · Video to timeline"));
+  await waitFor(() => expect(createEditorPreviewCapability).toHaveBeenCalledWith("project_001", "asset_first"));
+});
+
+test("write-audit: Add says so when it cuts a clip to fit", async () => {
+  const long = { ...assetPage("asset_long", null).assets[0]!, duration_in_frames: 100_000 };
+  await mountAdvanced({ listEditorAssets: mock(async () => ({ assets: [long], next_cursor: null })) });
+  fireEvent.click(await screen.findByLabelText("Add Upload · Video to timeline"));
+
+  const notice = await screen.findByRole("status", { name: "Clip placed" });
+  expect(notice.textContent).toContain("3333.3 s");
+});
+
+test("write-audit: the top bar's title follows the heading as it is typed", async () => {
+  const { GuidedStudio } = await import("./GuidedStudio");
+  const user = userEvent.setup();
+  const { container } = render(
+    <GuidedStudio
+      client={{
+        ...promptClientBase,
+        getEditDocument: mock(async () => document),
+        patchEditDocument: mock(async () => ({ kind: "saved" as const, document })),
+      }}
+      projectId="project_001"
+      documentId="document_001"
+      documentTitle="Old title"
+      onBack={() => {}}
+    />,
+  );
+  const heading = await screen.findByLabelText("Heading");
+  await user.clear(heading);
+  await user.type(heading, "New title");
+  expect(container.querySelector(".studio-topbar span[title]")?.getAttribute("title")).toBe("New title");
+});

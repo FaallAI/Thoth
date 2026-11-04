@@ -295,6 +295,11 @@ export type ControlPlaneClient = {
     documentId: string,
     patch: EditDocumentPatch,
   ) => Promise<EditDocumentPatchResult>;
+  restoreEditDocument: (
+    projectId: string,
+    documentId: string,
+    request: { base_revision: number; revision: number },
+  ) => Promise<EditDocumentPatchResult>;
   upgradeEditDocument: (
     projectId: string,
     documentId: string,
@@ -468,6 +473,11 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
         throw new Error(typeof code === "string" ? code : `Control plane request failed (409)`);
       }
       return { kind: "conflict", latest: conflict.latest };
+    }
+    if (response.status === 422) {
+      // The document's own rules said no: the editor tells that apart from an outage.
+      const refused = (await response.clone().json().catch(() => null)) as { detail?: { code?: unknown } } | null;
+      if (refused?.detail?.code === "edit_refused") throw new Error("edit_refused");
     }
     if (!response.ok) throw new Error(`Control plane request failed (${response.status})`);
     return { kind: "saved", document: (await response.json()) as EditDocument };
@@ -734,6 +744,12 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
         `/api/v1/projects/${encodeURIComponent(projectId)}/edit-documents/${encodeURIComponent(documentId)}`,
         "PATCH",
         patch,
+      ),
+    restoreEditDocument: (projectId, documentId, request) =>
+      documentWrite(
+        `/api/v1/projects/${encodeURIComponent(projectId)}/edit-documents/${encodeURIComponent(documentId)}/restore`,
+        "POST",
+        request,
       ),
     upgradeEditDocument: (projectId, documentId, request, idempotencyKey) =>
       documentWrite(

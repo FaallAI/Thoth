@@ -5039,6 +5039,28 @@
         "title": "ResolvedPromptSection",
         "type": "object"
       },
+      "RestoreRevisionRequest": {
+        "additionalProperties": false,
+        "description": "Save an earlier revision's content as the next revision: what Undo does after a save.",
+        "properties": {
+          "base_revision": {
+            "exclusiveMinimum": 0.0,
+            "title": "Base Revision",
+            "type": "integer"
+          },
+          "revision": {
+            "exclusiveMinimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "base_revision",
+          "revision"
+        ],
+        "title": "RestoreRevisionRequest",
+        "type": "object"
+      },
       "ReviewComment": {
         "additionalProperties": false,
         "properties": {
@@ -11976,6 +11998,99 @@
         "tags": [
           "narration"
         ]
+      }
+    },
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/restore": {
+      "post": {
+        "description": "Save an earlier revision's content as the next revision, under the same guards as a patch.",
+        "operationId": "restore_edit_document_revision_api_v1_projects__project_id__edit_documents__document_id__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/EditDocumentV1"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EditDocumentV2"
+                    }
+                  ],
+                  "title": "Response Restore Edit Document Revision Api V1 Projects  Project Id  Edit Documents  Document Id  Restore Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentRevisionConflictBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Edit Document Revision"
       }
     },
     "/api/v1/projects/{project_id}/edit-documents/{document_id}/review-comments": {

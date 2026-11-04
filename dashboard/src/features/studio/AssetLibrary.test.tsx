@@ -249,3 +249,100 @@ test("the library speaks Indonesian", async () => {
   expect(screen.getByRole("button", { name: "Pratinjau Klip" })).toBeDefined();
   expect(screen.getByRole("heading", { name: "Aset" })).toBeDefined();
 });
+
+// Found by the e2e audit: an older draft's own assets sat two "Load more" presses behind newer ones.
+const pagedList = () =>
+  mock(async (_projectId: string, cursor?: string) =>
+    cursor === "cursor_2"
+      ? page({ assets: [asset({ asset_id: "asset_mine" })], next_cursor: "cursor_3" })
+      : cursor === "cursor_3"
+        ? page({ assets: [asset({ asset_id: "asset_last" })], next_cursor: null })
+        : page({ assets: [asset({ asset_id: "asset_new" })], next_cursor: "cursor_2" }),
+  );
+
+function mountWanted(listEditorAssets: ReturnType<typeof mock>, extra: Record<string, unknown>) {
+  render(
+    <AssetLibrary
+      client={{
+        listEditorAssets: listEditorAssets as never,
+        createEditorPreviewCapability: mock(async () => ({ preview_url: "", expires_at: "" })) as never,
+      }}
+      projectId="project_001"
+      generationRef={{ current: 0 }}
+      onAssets={() => {}}
+      onAdd={() => {}}
+      onPreviewSource={() => {}}
+      {...extra}
+    />,
+  );
+}
+
+test("write-audit: pages load by themselves until the draft's own assets are in, then stop", async () => {
+  const listEditorAssets = pagedList();
+  mountWanted(listEditorAssets, { wanted: ["asset_mine"] });
+
+  expect(await screen.findByText(/asset_mine/)).toBeDefined();
+  await waitFor(() => expect(listEditorAssets).toHaveBeenCalledTimes(2));
+  await new Promise((done) => setTimeout(done, 20));
+  expect(listEditorAssets).toHaveBeenCalledTimes(2);
+  expect(screen.getByRole("button", { name: "Load more assets" })).toBeDefined();
+});
+
+test("write-audit: an asset the project no longer lists ends at the last page", async () => {
+  const listEditorAssets = pagedList();
+  mountWanted(listEditorAssets, { wanted: ["asset_gone"] });
+
+  await waitFor(() => expect(listEditorAssets).toHaveBeenCalledTimes(3));
+  await new Promise((done) => setTimeout(done, 20));
+  expect(listEditorAssets).toHaveBeenCalledTimes(3);
+});
+
+test("write-audit: a failed page stops the search and offers the retry", async () => {
+  let call = 0;
+  const listEditorAssets = mock(async () => {
+    call += 1;
+    if (call === 2) throw new Error("down");
+    return page({ assets: [asset({ asset_id: "asset_new" })], next_cursor: "cursor_2" });
+  });
+  mountWanted(listEditorAssets, { wanted: ["asset_mine"] });
+
+  expect(await screen.findByRole("button", { name: "Retry loading assets" })).toBeDefined();
+  await new Promise((done) => setTimeout(done, 20));
+  expect(listEditorAssets).toHaveBeenCalledTimes(2);
+});
+
+// Found by the write audit: a draft with no run behind it had no way to get media.
+test("write-audit: an uploaded file joins the list and the reducer's assets", async () => {
+  const uploaded = asset({ asset_id: "asset_uploaded" });
+  const upload = mock(async () => uploaded);
+  const loaded: EditorAsset[][] = [];
+  mountWanted(mock(async () => page({ assets: [], next_cursor: null })), {
+    upload,
+    onAssets: (assets: EditorAsset[]) => loaded.push(assets),
+  });
+  const file = new File(["x"], "clip.mp4", { type: "video/mp4" });
+
+  fireEvent.change(await screen.findByLabelText("Upload file"), { target: { files: [file] } });
+
+  expect(await screen.findByText(/asset_uploaded/)).toBeDefined();
+  expect(upload).toHaveBeenCalledWith(file);
+  expect(loaded.at(-1)?.[0]?.asset_id).toBe("asset_uploaded");
+});
+
+test("write-audit: a refused upload says why and leaves the list alone", async () => {
+  const upload = mock(async () => {
+    throw new Error("nope");
+  });
+  mountWanted(mock(async () => page({ assets: [], next_cursor: null })), { upload });
+  const file = new File(["x"], "clip.mp4", { type: "video/mp4" });
+
+  fireEvent.change(await screen.findByLabelText("Upload file"), { target: { files: [file] } });
+
+  expect((await screen.findByRole("alert")).textContent).toContain("The upload failed");
+});
+
+test("write-audit: a view-only library offers no upload", async () => {
+  mountWanted(mock(async () => page({ assets: [], next_cursor: null })), { onAdd: undefined, upload: undefined });
+  await screen.findByText("No ready assets yet");
+  expect(screen.queryByLabelText("Upload file")).toBeNull();
+});

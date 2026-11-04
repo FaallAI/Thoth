@@ -1122,3 +1122,28 @@ test("a draft locked by its narration is a refused save, not a revision conflict
     "narration_in_progress",
   );
 });
+
+test("write-audit: a patch the document refuses names itself", async () => {
+  globalThis.fetch = mock(
+    async () => new Response(JSON.stringify({ detail: { code: "edit_refused" } }), { status: 422 }),
+  ) as unknown as typeof fetch;
+  const client = createControlPlaneClient({ baseUrl: "", apiKey: "" } as never);
+  await expect(
+    client.patchEditDocument("project_001", "document_001", { base_revision: 1, operations: [] }),
+  ).rejects.toThrow("edit_refused");
+});
+
+test("write-audit: a restore posts the revision to return to", async () => {
+  const saved = { revision: 9 };
+  const fetchMock = mock(async () => new Response(JSON.stringify(saved), { status: 200 }));
+  globalThis.fetch = fetchMock as unknown as typeof fetch;
+  const client = createControlPlaneClient({ baseUrl: "", apiKey: "" } as never);
+
+  await expect(
+    client.restoreEditDocument("project_001", "document_001", { base_revision: 8, revision: 3 }),
+  ).resolves.toEqual({ kind: "saved", document: saved as never });
+  const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+  expect(url).toEndWith("/api/v1/projects/project_001/edit-documents/document_001/restore");
+  expect(init.method).toBe("POST");
+  expect(JSON.parse(init.body as string)).toEqual({ base_revision: 8, revision: 3 });
+});

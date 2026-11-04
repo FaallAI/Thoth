@@ -75,6 +75,7 @@ export type RenderJobAction =
   | { type: "load_failed"; generation: number; code: unknown }
   | { type: "job_selected"; renderJobId: string | null }
   | { type: "job_refreshed"; generation: number; job: RenderJob }
+  | { type: "capability_refreshed"; generation: number; capability: RenderCapability }
   // An attempt is unusable without its key, and the other mutations have none
   // to give, so neither mistake is expressible.
   | { type: "mutation_started"; mutation: RenderAttemptMutation; attemptKey: string }
@@ -235,6 +236,8 @@ export function renderJobReducer(
       return action.generation === state.generation
         ? { ...state, history: recordJob(state.history, action.job) }
         : state;
+    case "capability_refreshed":
+      return action.generation === state.generation ? { ...state, capability: action.capability } : state;
     case "mutation_started": {
       // A second press replays the attempt already in flight: the original key
       // stays, so the control plane keeps answering the same request.

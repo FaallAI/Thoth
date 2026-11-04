@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Annotated, Literal
 from uuid import uuid4
 
-from pydantic import Field, TypeAdapter, field_validator
+from pydantic import Field, TypeAdapter, ValidationError, field_validator
 
 from thoth_control_plane.application.ports import (
     EditDocumentRevisionConflict,
@@ -28,6 +29,8 @@ from thoth_control_plane.domain.models import OpaqueId, ProjectId, StrictModel
 if TYPE_CHECKING:
     from thoth_control_plane.application.ports import EditDocumentRepository
 
+logger = logging.getLogger(__name__)
+
 TEMPLATE_ID = "vertical_text_story"
 TEMPLATE_VERSION = 1
 SCENE_DURATION_FRAMES = 150
@@ -41,6 +44,10 @@ class EditorUnavailable(Exception):
     """The optional editor persistence is not configured or reachable."""
 
 
+class EditDocumentRefused(Exception):
+    """The document's own rules refuse this change: retrying it can never succeed."""
+
+
 #: Opaque, caller-supplied replay key. Bounded and free of whitespace so it can
 #: never carry a path, a newline, or an unbounded blob into the store.
 IDEMPOTENCY_KEY_ADAPTER: TypeAdapter[str] = TypeAdapter(
@@ -52,6 +59,13 @@ class UpgradeTimelineRequest(StrictModel):
     """An explicit, user-initiated upgrade of one document to schema version 2."""
 
     base_revision: Annotated[int, Field(gt=0)]
+
+
+class RestoreRevisionRequest(StrictModel):
+    """Save an earlier revision's content as the next revision: what Undo does after a save."""
+
+    base_revision: Annotated[int, Field(gt=0)]
+    revision: Annotated[int, Field(gt=0)]
 
 
 OptionalTitle = Annotated[str | None, Field(max_length=300)]
@@ -219,8 +233,33 @@ class EditDocumentService:
             )
         except EditDocumentRevisionConflict:
             raise
+        except ValueError as error:
+            # A validation error is a ValueError too, and its text carries the document.
+            reason = error.errors()[0]["msg"] if isinstance(error, ValidationError) else error
+            logger.warning("edit refused on %s: %s", document_id, reason)
+            raise EditDocumentRefused() from error
         except Exception as error:
             raise EditorUnavailable() from error
+
+    async def restore_revision(
+        self, project_id: ProjectId, document_id: OpaqueId, request: RestoreRevisionRequest
+    ) -> EditDocument:
+        latest = await self.get_latest(project_id, document_id)
+        assert self._repository is not None
+        try:
+            target = await self._repository.get_revision(
+                project_id=project_id, document_id=document_id, revision=request.revision
+            )
+        except Exception as error:
+            raise EditorUnavailable() from error
+        if target is None:
+            raise EditDocumentNotFound()
+        # The upgrade to a timeline is one way: an older schema is not a state to go back to.
+        if target.schema_version != latest.schema_version:
+            raise EditDocumentRefused()
+        return await self.write_derived_revision(
+            project_id, document_id, request.base_revision, target
+        )
 
     async def write_derived_revision(
         self,

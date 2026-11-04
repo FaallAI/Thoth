@@ -93,7 +93,7 @@
 .studio-shell.pen-studio.studio-advanced [aria-label="Timeline inspector"] { padding:18px 16px; background:#242628; }
 .studio-shell.pen-studio.studio-advanced [aria-label="Timeline"] { flex:1; padding-top:12px; border-top:1px solid #47494a; background:#242628; }
 .studio-shell.pen-studio.studio-advanced [aria-label="Timeline"] > div:last-child { flex:1; }
-.studio-shell.pen-studio .studio-media-dialog { color:#f5f3ee; border:1px solid #47494a; border-radius:7px; padding:0; width:min(684px,calc(100vw - 32px)); background:#242628; box-shadow:0 24px 60px #0008; }
+.studio-shell.pen-studio .studio-media-dialog { margin:auto; color:#f5f3ee; border:1px solid #47494a; border-radius:7px; padding:0; width:min(684px,calc(100vw - 32px)); background:#242628; box-shadow:0 24px 60px #0008; }
 .studio-shell.pen-studio .studio-media-dialog::backdrop { background:#101113aa; }
 .studio-shell.pen-studio .studio-media-dialog header { display:flex; align-items:center; justify-content:space-between; padding:20px 24px; border-bottom:1px solid #47494a; }
 .studio-shell.pen-studio .studio-media-dialog h2 { font-size:18px; font-weight:600; }

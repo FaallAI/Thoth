@@ -294,7 +294,8 @@ class PostgresEditDocumentRepository:
             self._insert_revision(session, result)
             return result
 
-        return await self._run(write, (EditDocumentRevisionConflict,))
+        # A refused operation and a document the rules refuse are ValueErrors, not an outage.
+        return await self._run(write, (EditDocumentRevisionConflict, ValueError))
 
     async def write_derived_revision(
         self,

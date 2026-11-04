@@ -14,8 +14,10 @@ from thoth_control_plane.api.dependencies import current_actor
 from thoth_control_plane.application.edit_documents import (
     ContentSetImportRequest,
     EditDocumentNotFound,
+    EditDocumentRefused,
     EditDocumentService,
     EditorUnavailable,
+    RestoreRevisionRequest,
     UpgradeTimelineRequest,
 )
 from thoth_control_plane.application.ports import (
@@ -154,6 +156,39 @@ async def apply_edit_document_patch(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND) from error
     except EditDocumentRevisionConflict as error:
         return _revision_conflict(error)
+    except EditDocumentRefused as error:
+        raise _refused() from error
+    except EditorUnavailable as error:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE) from error
+
+
+@router.post(
+    "/projects/{project_id}/edit-documents/{document_id}/restore",
+    response_model=EditDocument,
+    responses={status.HTTP_409_CONFLICT: {"model": DocumentRevisionConflictBody}},
+)
+async def restore_edit_document_revision(
+    project_id: str,
+    document_id: str,
+    payload: RestoreRevisionRequest,
+    _: Annotated[Actor, Depends(current_actor)],
+    service: Annotated[EditDocumentService, Depends(get_edit_document_service)],
+    request: Request,
+) -> EditDocument | JSONResponse:
+    """Save an earlier revision's content as the next revision, under the same guards as a patch."""
+    narration = getattr(request.app.state, "narration_service", None)
+    if narration is not None and await narration.is_locked(project_id, document_id):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail={"code": "narration_in_progress"}
+        )
+    try:
+        return await service.restore_revision(project_id, document_id, payload)
+    except EditDocumentNotFound as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND) from error
+    except EditDocumentRevisionConflict as error:
+        return _revision_conflict(error)
+    except EditDocumentRefused as error:
+        raise _refused() from error
     except EditorUnavailable as error:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE) from error
 
@@ -238,6 +273,12 @@ async def propose_story_assist(
             if isinstance(error, kind):
                 raise HTTPException(status_code=code_status, detail={"code": code}) from error
         raise
+
+
+def _refused() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"code": "edit_refused"}
+    )
 
 
 def _revision_conflict(error: EditDocumentRevisionConflict) -> JSONResponse:

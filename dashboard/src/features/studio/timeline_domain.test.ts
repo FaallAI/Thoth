@@ -17,6 +17,7 @@ import {
   createAddClipFromAssetOperation,
   framesToPixels,
   isTimelineDocument,
+  placementChanges,
   issueTarget,
   pixelsToFrames,
   snapCandidates,
@@ -438,14 +439,14 @@ const IDS = { operationId: "op_asset", clipId: "clip_asset" };
 const TIMED_ASSET: EditorAsset = { ...READY_ASSET, duration_in_frames: 600 };
 
 test("an asset becomes an add operation on the first compatible unlocked track", () => {
-  expect(createAddClipFromAssetOperation(documentV2(), TIMED_ASSET, 45, IDS)).toEqual({
+  expect(createAddClipFromAssetOperation(roomyDocument(), TIMED_ASSET, 145, IDS)).toEqual({
     kind: "add_clip_from_asset",
     operation_id: "op_asset",
     clip_id: "clip_asset",
     track_id: "track_main",
     asset_id: "asset_new",
-    from_frame: 45,
-    duration_in_frames: 600,
+    from_frame: 145,
+    duration_in_frames: 155,
     source_from_frame: 0,
   });
 
@@ -456,18 +457,18 @@ test("an asset becomes an add operation on the first compatible unlocked track",
       0,
       IDS,
     ),
-  ).toMatchObject({ track_id: "track_music", from_frame: 0, duration_in_frames: 600 });
+  ).toMatchObject({ track_id: "track_music", from_frame: 120, duration_in_frames: 180 });
 });
 
 test("an image lands on a video track for one canvas second", () => {
   expect(
     createAddClipFromAssetOperation(
-      documentV2(),
+      roomyDocument(),
       { ...READY_ASSET, kind: "image", media_type: "image/png" },
-      12,
+      112,
       IDS,
     ),
-  ).toMatchObject({ track_id: "track_main", duration_in_frames: 30, from_frame: 12 });
+  ).toMatchObject({ track_id: "track_main", duration_in_frames: 30, from_frame: 112 });
 });
 
 test("an asset with no unlocked compatible track produces no operation", () => {
@@ -824,4 +825,82 @@ test("empty words fall through to the role", () => {
   expect(clipLabelSource(labelled({ kind: "text", heading: "", source_role: "outro" }))).toEqual({
     role: "outro",
   });
+});
+
+// Found by the write audit: the server refuses a clip past the canvas or over a main-track clip.
+function roomyDocument(): EditDocumentV2 {
+  const document = documentV2();
+  document.clips![0]!.duration_in_frames = 100;
+  document.scenes[0]!.duration_in_frames = 100;
+  return document;
+}
+
+test("write-audit: a long asset is cut to the room the canvas leaves", () => {
+  expect(createAddClipFromAssetOperation(roomyDocument(), TIMED_ASSET, 200, IDS)).toMatchObject({
+    track_id: "track_main",
+    from_frame: 200,
+    duration_in_frames: 100,
+  });
+});
+
+test("write-audit: an asset dropped on a clip lands right after it", () => {
+  expect(createAddClipFromAssetOperation(roomyDocument(), TIMED_ASSET, 40, IDS)).toMatchObject({
+    track_id: "track_main",
+    from_frame: 100,
+    duration_in_frames: 200,
+  });
+});
+
+test("write-audit: an asset stops where the next clip starts", () => {
+  const document = roomyDocument();
+  document.clips![0]!.from_frame = 150;
+  expect(createAddClipFromAssetOperation(document, TIMED_ASSET, 30, IDS)).toMatchObject({
+    from_frame: 30,
+    duration_in_frames: 120,
+  });
+});
+
+test("write-audit: a full track passes the asset to the next one that takes it", () => {
+  const document = documentV2();
+  document.tracks[2]!.locked = false;
+  expect(createAddClipFromAssetOperation(document, TIMED_ASSET, 45, IDS)).toMatchObject({
+    track_id: "track_locked",
+    from_frame: 45,
+    duration_in_frames: 255,
+  });
+});
+
+test("write-audit: no room on any track produces no operation", () => {
+  expect(createAddClipFromAssetOperation(documentV2(), TIMED_ASSET, 45, IDS)).toBeUndefined();
+});
+
+test("write-audit: a placement reports what it changed and nothing else", () => {
+  const add = (document: EditDocumentV2, playhead: number) =>
+    createAddClipFromAssetOperation(document, TIMED_ASSET, playhead, IDS)!;
+  const roomy = roomyDocument();
+  expect(placementChanges(roomy, TIMED_ASSET, 200, add(roomy, 200))).toEqual({
+    cut: true,
+    later: false,
+    otherTrack: false,
+  });
+  expect(placementChanges(roomy, TIMED_ASSET, 40, add(roomy, 40))).toMatchObject({ later: true, otherTrack: false });
+
+  const full = documentV2();
+  full.tracks[2]!.locked = false;
+  expect(placementChanges(full, TIMED_ASSET, 45, add(full, 45))).toMatchObject({ later: false, otherTrack: true });
+
+  const short = { ...TIMED_ASSET, duration_in_frames: 20 };
+  const whole = createAddClipFromAssetOperation(roomy, short, 200, IDS)!;
+  expect(placementChanges(roomy, short, 200, whole)).toEqual({ cut: false, later: false, otherTrack: false });
+});
+
+test("write-audit: every placed clip is one the document accepts without an issue", () => {
+  const document = roomyDocument();
+  for (const playhead of [0, 40, 99, 100, 200, 299]) {
+    const operation = createAddClipFromAssetOperation(document, TIMED_ASSET, playhead, IDS)!;
+    const placed = applyTimelineOperation(document, operation, { asset_new: TIMED_ASSET });
+    const codes = timelineIssues(placed).map((issue) => issue.code);
+    expect(codes).not.toContain("clip_exceeds_canvas");
+    expect(codes).not.toContain("clip_overlap");
+  }
 });
