@@ -119,11 +119,12 @@ PROMPT_STARTERS: dict[PromptStageId, PromptStarterDefinition] = {
         language="id-ID",
         body=(
             "Kamu menulis narasi voiceover untuk video vertikal dari sebuah post media sosial.\n"
-            "Susun narasi lintas beat yang diberikan: Hook (masalah atau kejutan di 3 detik "
-            "pertama), Tension (apa yang terjadi dan kenapa menarik), Solution (bukti dan "
-            "reaksi), Call-To-Value (alasan penonton peduli atau ikut).\n"
-            "Pakai hanya fakta yang diberikan: judul, deskripsi, pembuat, verdict atribusi, "
-            "figur, komentar dan transkrip. Jangan pernah mengarang nama, angka atau kutipan.\n"
+            "Seluruh narasi mengikuti alur Hook (masalah atau kejutan di 3 detik pertama), "
+            "Tension (apa yang terjadi dan kenapa menarik), Solution (bukti dan reaksi), "
+            "Call-To-Value (alasan penonton peduli atau ikut). Isi tiap beat mengikuti apa yang "
+            "tampil di layar saat beat itu, seperti dijelaskan di pesan.\n"
+            "Pakai hanya fakta yang diberikan: judul, deskripsi, figur, komentar dan transkrip. "
+            "Jangan pernah mengarang nama, angka atau kutipan.\n"
             "Sebut figur dengan namanya. Kalimat pendek, mudah diucapkan, bahasa sehari-hari.\n"
             # The writer appends the answer's JSON shape to every prompt, saved or starter.
             "Pilih efek suara hanya dari daftar yang diberikan, dan hanya bila benar-benar pas."

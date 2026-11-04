@@ -2,6 +2,74 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-04 - The narration script is told what is on screen and who said what
+
+Same branch, `fix/narration-shown-comments`, PR #111. The operator found the narration of `edoc_d49fdc23…` odd. The stored script gave comment 1's point to the people in the video, gave the transcript's "hormat preman" to netizens, and read `@syarieffaid` aloud as the author of the criticism.
+
+**Deploy of PR #111 at `9997b4ee`, not merged, the first from a branch image:** images thoth `deb5598e03fb`, renderer `25d3a53f4451`, web `964ff67e6855`, digests in the push run's log. No workflow running before, `make deploy` exit 0, web 200, 0 error lines in the worker and 0 API 5xx after 2 minutes. The previous env is `D:/thoth-tmp/bu/pins/pins-604bb118.env`. Production runs code not in `master` until this branch merges.
+
+**The request:**
+- Each beat in the draft is described by what is on screen, and `reactions` follows the comment list in order.
+- `SOURCE_RULES` goes after every prompt, saved or starter: comments are from viewers, the transcript is from the people in the video and may be misheard, captions are not read word for word, handles are not written.
+- The account and platform are no longer sent, because the model wrote the handle despite being told not to. The narration can now name a creator only if the name is in the figures, title, description, comments or transcript.
+- The raw `Attribution:` verdict is removed, from `ScriptFacts` too. Nothing told the model what it meant.
+- The starter keeps the Hook, Tension, Solution, Call-To-Value arc and no longer reads as if those were the beats.
+
+**The answer:** `parse_script` strips the `@` from a handle, because the voice reads it.
+
+**Verification:** `make test` 4510 passed, 263 skipped; `make lint` clean. Red first for each change. Only Python changed.
+
+**Real model, operator authorized:** 4 `google/gemma-4-31b-it` calls, 2 per draft, on `edoc_d49fdc23…` and the Halloween draft `edoc_d2a3ee17…`, run in the worker from copies of the branch's files. No draft was written, no voice was made. In the last pair:
+- No handle or caption was voiced.
+- `reactions` used the 3 shown comments in order on both drafts, and no unsupported token was flagged.
+- Halloween's invented "aslinya sudah menyeramkan" is gone.
+
+**Limits:**
+- **Not solved:** on `edoc_d49fdc23…` the `main` beat still says the residents complain police are quick at demos and quiet on premanisme and klitih. That contrast is comment 1's, and the transcript only says "kayak demo". The rule reduced this and did not remove it. The next step, if it stays, is another model.
+- Each prompt was read on one answer per draft, and answers vary.
+- Scripts ran 115 and 89 words against about 135 asked, and there is no lower limit.
+- The transcript of Javanese speech stays garbled: Whisper still detects the language by itself.
+- An invented handle is no longer flagged, because `@` is stripped before `unsupported_tokens` reads the text.
+- The 4 trial calls ran outside an activity and left no row in `usage_events`, so their tokens are unknown.
+- An existing narration keeps its script. A new one comes from Create or Recreate, and voicing it is a paid call the operator approves.
+
+**Next steps:**
+- Operator gates, each separate: commit and push of this branch, deploy of its image, a new narration, merge of PR #111, merging `chore/e2e-trial`.
+- Proof still missing: a real run of a video with captions on the fast OCR path.
+- Operator decisions: the 12-sample gate, rotating the printed secrets.
+- Roadmap: auto-draft's reframe and other modes, Stage 6 enrichment, Stage 8 discovery.
+- Carry forward: everything under Next steps of the entries below, without the items this entry closes.
+
+## 2026-11-04 - The narration hears only of comments on screen; a badly written SFX cue is dropped
+
+Branch `fix/narration-shown-comments`, not pushed. The operator accepted the next step after renders worked.
+
+**Deploy of PR #110:** master `604bb118`, from an up-to-date working tree. Images: thoth `b4251a4c5582`, renderer `928f2526585e`, web `fd0a12d9bff8`, pulled ahead, digests in the CI log. `make deploy` exit 0, no workflow running before, no migration, web 200, 0 error lines in the worker and 0 API 5xx after 2 minutes. The previous env is `D:/thoth-tmp/bu/pins/pins-36dda6a4.env`. Proof on stage1: the operator's render `rj_6635aae12ed…` finished in 33 s at 19:06:50, and the panel's polls of it ended within that minute. The stuck render before it was still polled 21 minutes on.
+
+**Comments on screen:** giving the script real comments (PR #108) made an older finding more likely: the Halloween script quoted comments 4 and 5 while only the top 3 had cards. `story_comments` now keys what commenters wrote by inventory item, and `write_script` keeps those whose clip is in the draft and not hidden. On real drafts, read without a provider: Halloween keeps 3 of 10, the rev 18 draft 3 of 12. A comment with no card, or a card removed or hidden in Studio, is no longer offered. Names from dropped comments are now flagged as unsupported if the model writes them anyway.
+
+**SFX cues:** a badly written cue refused the whole script, against the comment there calling an SFX never fatal. Each cue is now checked alone and dropped if unusable. A `moment` over 60 characters is cut instead, because the contract asks the model why it plays.
+
+**Not code bugs, so unchanged:**
+- The long title ending "ke…" was fixed earlier by `_title`. Stored runs keep their cut titles until assembled again.
+- The colour bars at about 5 s are in the rev 18 source and can be cut in Timeline.
+
+**Verification:** `make test` 4504 passed, 263 skipped; `make lint` clean. Red first for the SFX tests and the new shape of `story_comments`. The two shown-comment tests passed before the rule only because the old code joined dictionary keys, so all five deliberate breaks were run, and each was caught. Only Python changed.
+
+**Limits:**
+- The new prompt has not been sent to a model, so a real script from it has not been read.
+- An existing narration keeps its script. A new one comes from Create or Recreate, and voicing it is a paid call the operator approves.
+- With few cards the model has little to react to. Three short comments may give a thinner `reactions` beat than ten.
+- A comment the model takes from the transcript is not affected.
+
+**Next steps:**
+- Operator gates, each separate: push and PR of this branch, merge, deploy, merging `chore/e2e-trial`.
+- After deploy: a new narration, reading the `reactions` beat before approving voice.
+- Proof still missing: a real run of a video with captions on the fast OCR path.
+- Operator decisions: the 12-sample gate, rotating the printed secrets.
+- Roadmap: auto-draft's reframe and other modes, Stage 6 enrichment, Stage 8 discovery.
+- Carry forward: everything under Next steps of the entries below, without the items this entry closes.
+
 ## 2026-11-04 - A render whose last status falls between two polls finishes on screen
 
 Branch `fix/render-panel-missed-status`, not pushed. The operator asked why a render's encode took so long.

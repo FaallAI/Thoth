@@ -808,9 +808,9 @@ async def test_story_comments_are_what_the_commenters_wrote(tmp_path: Path) -> N
 
     comments = await built.service.story_comments(PROJECT, opened.draft.document_id)
 
-    assert comments == ["wah", "keren"]
+    assert comments == {"comment_card_000": "wah", "comment_000": "keren"}
     built.service._reports = MemoryReports(None)
-    assert await built.service.story_comments(PROJECT, opened.draft.document_id) == []
+    assert await built.service.story_comments(PROJECT, opened.draft.document_id) == {}
 
 
 @pytest.mark.asyncio

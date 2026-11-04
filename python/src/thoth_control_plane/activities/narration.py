@@ -134,7 +134,11 @@ class NarrationActivities:
             materials = await ports.studio.materials(step.project_id, step.document_id)
             context = await ports.studio.story_context(step.project_id, step.document_id)
             comments = await ports.studio.story_comments(step.project_id, step.document_id)
-            facts = facts_from_materials(materials, context, comments)
+            # A voice quoting a comment nobody can see reads as made up, so only cards on screen.
+            shown = {c.clip_id.removeprefix("clip_") for c in document.clips if not c.hidden}
+            facts = facts_from_materials(
+                materials, context, [text for item, text in comments.items() if item in shown]
+            )
             present = {span.beat for span in beat_spans(document, _roles(materials))}
             beats = [beat for beat in BEAT_ORDER if beat in present] or ["main"]
             transcript = await ports.store.get_transcript(step.document_id)
