@@ -34,6 +34,25 @@ ANSWER_CONTRACT = (
     'a beat id, "moment": why it plays, "word_index": the 0-based word of that beat\'s text it '
     "lands on}]}. Write every listed beat once, in order."
 )
+#: Always sent as well: a script that mixes up who said what reads as made up.
+SOURCE_RULES = (
+    "Comments were written by viewers: never present them as said by the people in the video. "
+    "The transcript is what the people in the video say: never present it as written by viewers. "
+    "It is machine-heard and may be misheard: use only what clearly makes sense and never quote "
+    "an unclear part. The title and description are raw captions: use what they mean, never read "
+    "them out word for word. Never write an account handle in the narration."
+)
+#: What is on screen during each beat, so the voice talks about what the viewer sees.
+BEAT_GUIDE: dict[BeatId, str] = {
+    "hook": "the opening seconds: the surprise or problem that makes someone stay.",
+    "main": "the original video plays: what happens in it and what its people say.",
+    "evidence": "the post and its author's profile are on screen: what the post is about.",
+    "reactions": "viewer comment cards appear in the order of the comment list: what viewers "
+    "wrote, in that order, from the comments only.",
+    "footage": "related videos of the same subject play: why this matters to the viewer, with no "
+    "new fact.",
+    "outro": "the closing seconds: why this matters to the viewer, with no new fact.",
+}
 #: How far past the target length an answer may run before it is refused.
 LENGTH_SLACK = 1.25
 DESCRIPTION_LIMIT = 500
@@ -44,6 +63,7 @@ ANSWER_SHOWN = 300  # how much of a refused answer the log keeps
 MOMENT_LIMIT = 60  # SfxCue.moment
 _URL = re.compile(r"https?://\S+|www\.\S+", re.IGNORECASE)
 _SENTENCE_END = re.compile(r"[.!?…]\s*$")
+_HANDLE_AT = re.compile(r"(?<!\w)@(?=\w)")
 #: Punctuation that wraps a token; the curly quotes are written as escapes.
 _QUOTES = "\"'()[],;:\u201c\u201d\u2018\u2019"
 
@@ -59,7 +79,6 @@ class ScriptFacts(StrictModel):
     description: str = ""
     owner_handle: str = ""
     platform: str = ""
-    verdict: str = ""
     figures: list[str] = Field(default_factory=list)
     comments: list[str] = Field(default_factory=list)
 
@@ -82,27 +101,24 @@ def build_script_request(
     words = round(preset.target_seconds * preset.words_per_second)
     lines = [
         f"Beats to write, in order: {', '.join(beats)}",
+        *(f"- {beat}: {BEAT_GUIDE[beat]}" for beat in beats),
         f"Language: {preset.language}. Length: about {words} words in total "
         f"({preset.target_seconds} seconds).",
         f"Title: {_clean(facts.title, DESCRIPTION_LIMIT)}" if facts.title else "",
         f"Post description: {_clean(facts.description, DESCRIPTION_LIMIT)}"
         if facts.description
         else "",
-        f"Creator: @{facts.owner_handle.lstrip('@')} on {facts.platform}"
-        if facts.owner_handle
-        else "",
-        f"Attribution: {facts.verdict}" if facts.verdict else "",
         f"Figures: {', '.join(_clean(name, 120) for name in facts.figures)}"
         if facts.figures
         else "",
     ]
     comments = [_clean(comment, COMMENT_LIMIT) for comment in facts.comments[:COMMENTS_SHOWN]]
     if comments:
-        lines.append("Comments:")
+        lines.append("Comments written by viewers, not said in the video:")
         lines += [f"- {comment}" for comment in comments if comment]
     spoken = _clean(" ".join(segment.text for segment in transcript), TRANSCRIPT_LIMIT)
     if spoken:
-        lines.append(f"What is said in the video: {spoken}")
+        lines.append(f"Machine transcript of the people in the video, may be misheard: {spoken}")
     if sfx:
         lines.append(f"Sound effects (at most {preset.max_sfx_cues}):")
         for entry in sfx:
@@ -114,7 +130,8 @@ def build_script_request(
         lines.append("No sound effects are available: sfx_cues must be [].")
     if note:
         lines.append(f"Operator note on the previous script: {_clean(note, 500)}")
-    return f"{prompt}\n\n{ANSWER_CONTRACT}", "\n".join(line for line in lines if line)
+    system = f"{prompt}\n\n{SOURCE_RULES}\n\n{ANSWER_CONTRACT}"
+    return system, "\n".join(line for line in lines if line)
 
 
 def _cue(raw: dict[str, Any]) -> SfxCue | None:
@@ -166,7 +183,8 @@ def parse_script(
         script = NarrationScript.model_validate(
             {
                 "beats": [
-                    {"beat": item["beat"], "text": str(item.get("text", "")).strip()}
+                    # The voice reads "@" aloud, whatever the prompt asked.
+                    {"beat": item["beat"], "text": _HANDLE_AT.sub("", str(item["text"]).strip())}
                     for item in ordered
                 ],
                 "sfx_cues": cues,
@@ -194,7 +212,6 @@ def unsupported_tokens(
             facts.description,
             facts.owner_handle,
             facts.platform,
-            facts.verdict,
             *facts.figures,
             *facts.comments,
             *(segment.text for segment in transcript),
@@ -236,7 +253,6 @@ def facts_from_materials(
         description=description,
         owner_handle=(main.owner_handle or "") if main else "",
         platform=(main.platform or "") if main else "",
-        verdict=(main.verdict or "") if main else "",
         figures=[figure.name for figure in materials.figures],
         # Older runs stored comments raw, so emote tokens can still arrive here.
         comments=[text for comment in comments if (text := without_emotes(comment))],

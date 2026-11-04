@@ -24,7 +24,6 @@ FACTS = ScriptFacts(
     description="Video kucing oren mencuri ikan https://example.com/x di Pasar Minggu",
     owner_handle="pecintakucing.id",
     platform="TikTok",
-    verdict="original",
     figures=["Budi Santoso"],
     comments=["lucu banget 😂", "itu kucing saya!"],
 )
@@ -72,7 +71,6 @@ def test_the_prompt_carries_the_facts_transcript_and_sfx_but_no_url() -> None:
     assert system.startswith("Tulis naskah.") and '"beats"' in system
     for expected in (
         "Kucing oren viral",
-        "@pecintakucing.id",
         "Budi Santoso",
         "3 ekor ikan",
         "whoosh",
@@ -82,6 +80,62 @@ def test_the_prompt_carries_the_facts_transcript_and_sfx_but_no_url() -> None:
         assert expected in user
     assert "http" not in user
     assert "hook, main, reactions" in user
+
+
+def _user_message(beats: list[str]) -> str:
+    _system, user = build_script_request(
+        prompt="Tulis naskah.",
+        beats=beats,  # type: ignore[arg-type]
+        facts=FACTS,
+        transcript=TRANSCRIPT,
+        preset=NarrationPreset(),
+        sfx=[],
+    )
+    return user
+
+
+def test_each_requested_beat_says_what_is_on_screen() -> None:
+    user = _user_message(["main", "reactions"])
+    assert "- main: " in user and "- reactions: " in user
+    # A beat this draft lacks is not described, so the model is not led to write about it.
+    assert "- footage: " not in user and "- hook: " not in user
+
+
+def test_comments_and_the_transcript_are_told_apart_by_who_said_them() -> None:
+    user = _user_message(["main"])
+    assert "Comments written by viewers, not said in the video:" in user
+    assert "Machine transcript of the people in the video, may be misheard:" in user
+
+
+def test_the_source_rules_hold_whatever_prompt_the_project_saved() -> None:
+    system, _user = build_script_request(
+        prompt="Prompt tersimpan.",
+        beats=BEATS,  # type: ignore[arg-type]
+        facts=FACTS,
+        transcript=TRANSCRIPT,
+        preset=NarrationPreset(),
+        sfx=[],
+    )
+    assert system.startswith("Prompt tersimpan.")
+    for rule in ("viewers", "handle", "misheard", "word for word"):
+        assert rule in system
+
+
+def test_the_model_is_not_given_the_account_so_the_voice_cannot_read_it() -> None:
+    assert "pecintakucing" not in _user_message(["main"])
+
+
+def test_the_attribution_verdict_is_not_offered_to_the_model() -> None:
+    assert not hasattr(FACTS, "verdict")
+    assert "Attribution" not in _user_message(["main"])
+
+
+def test_a_handle_loses_its_at_sign_before_the_voice_reads_it() -> None:
+    beats = [{"beat": "main", "text": "Kritik dari @syarieffaid (@warga.jogja) ini keras."}]
+    script = parse_script(
+        answer(beats=beats, sfx_cues=[]), beats=BEATS, preset=NarrationPreset(), sfx_ids=set()
+    )  # type: ignore[arg-type]
+    assert script.beats[0].text == "Kritik dari syarieffaid (warga.jogja) ini keras."
 
 
 def test_a_valid_answer_becomes_a_script_in_story_order() -> None:
@@ -161,12 +215,11 @@ def test_the_facts_come_from_the_materials_and_the_run_context() -> None:
 
     facts = facts_from_materials(materials, ("Judul", "Deskripsi"), ["itu kucing saya!"])
 
-    assert (facts.title, facts.description, facts.owner_handle, facts.platform, facts.verdict) == (
+    assert (facts.title, facts.description, facts.owner_handle, facts.platform) == (
         "Judul",
         "Deskripsi",
         "pecintakucing.id",
         "tiktok",
-        "original",
     )
     assert (facts.figures, facts.comments) == (["Budi Santoso"], ["itu kucing saya!"])
 
