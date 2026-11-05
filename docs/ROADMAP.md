@@ -112,6 +112,27 @@ component catalogs, shot detection with TransNetV2, LAVE / ExpressEdit / EditDue
 | 5. Prompt editing of a draft | An LLM changes a draft only through the typed edit operations (`EditDocumentPatch`), with an editor-critic loop | Not started |
 | 6. Shared SFX and assets | SFX live in MinIO/S3 with labels; uploaded SFX follow the template gallery: private to the workspace, operator review, uploader notified and approving, then available to every workspace with the uploader credited | Bundled SFX in MinIO come with auto-draft's first milestone; uploads not started |
 
+## Studio Timeline track (added 2026-11-05)
+
+The operator's audit request of 2026-11-05: every Timeline function must work, and a right click in
+Studio must offer editing options like common video editors. The operator decided on 2026-11-05
+that this track starts once `chore/e2e-trial` is merged and comes before the remaining slices of
+item 6 (reframe, other modes). The numbered items above keep their wording and order. The track
+gets its own spec, plan and branch; the scope below is the audit's input, not an agreed design.
+
+| Step | Scope | Status |
+|---|---|---|
+| 1. Spec | Where the right click applies (Timeline only, or Story too), which menu entries, which server operations are new | Not started; waits on the `chore/e2e-trial` merge |
+| 2. Missing functions the server already has | Delete a clip (`remove_clip`), drag to another track (`move_clip.target_track_id`), replace a clip's media (`replace_clip_asset`), track order (`reorder_track`), selecting a track from its name so an empty track can be removed | Not started |
+| 3. Missing browser behavior | Right click, Ctrl+Z / Ctrl+Y, S to split, Ctrl+wheel zoom, click an empty lane to seek | Not started |
+| 4. Locked or new edits | Fit, Crop, Position, fade, overlay text are locked in the Inspector; Duplicate has no operation yet | Not started; the spec decides which are needed |
+| 5. Design findings | The playhead paints over track names when scrolled; raw names such as `main_video`; Ripple and Snap labels touch their switches; the Materials search field is squashed; "34.467s" beside "8.9 s"; Story/Timeline and Request review stay on Review and Render; at 1024 an empty Inspector takes a third of the width and cuts the last lane; Mute on soundless tracks | Not started |
+| 6. Not tested yet | Ripple, audio volume and captions in the Timeline; Inspector number fields send one operation per keystroke (noted from the code) | Not started |
+
+The red tests are `e2e/tests-write/timeline-audit.e2e.ts`. The Studio shell v2 spec
+(2026-11-01) lists ripple delete as an existing tool, but git history shows no delete control in
+the Timeline, toolbar or Inspector, so it counts as new work here.
+
 ## UI phases
 
 From the 2026-10-18 UI audit.

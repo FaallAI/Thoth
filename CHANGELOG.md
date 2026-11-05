@@ -4,7 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## 2026-11-05 - Fixes from the first read and write e2e audit
 
-Branch `chore/e2e-trial`, not pushed yet. It also brings the e2e package into the repo. The operator asked for a full e2e run with read and write access, then for every finding to be fixed.
+Branch `chore/e2e-trial`, not merged. It also brings the e2e package into the repo.
+
+**Deploy of `bcdb421e` from the branch:** images thoth `bba0788985aa`, renderer `8e91c406465e`, web `d2d3e2040921`. CI run 41889189402 green with 4775 Python tests, no workflow running before, `make deploy` exit 0, web 200, 0 error lines in the worker, 0 API 5xx after 2 minutes, no migration. The previous env is `D:/thoth-tmp/bu/pins/pins-697fccc9.env`. Production runs code not in `master` until this branch merges.
+
+**Retest on that image, no model:** 30 of 30 read tests and 16 of 16 write tests pass, including Undo and Redo after autosave. A clip past the canvas answers 422 `edit_refused` with its reason in the log. Row counts of the real project are unchanged.
+
+**CI correction before the deploy:** the first push passed every `ValueError` through as a refusal, so an unreadable stored draft became 422. The refusal now covers only applying the operations and validating the result. An operation naming an asset that is missing or not ready is now refused rather than a persistence error, and its Postgres test says so.
+
+**Open:** `Create narration` on a blank draft is refused at no cost because it has no source run, and the screen shows the raw code `narration_not_available`. Narration and Assist have not been tested with a model. The operator asked for a full e2e run with read and write access, then for every finding to be fixed.
 
 **Records this entry carries:** PR #111 merged as `c49b74be`, the same tree as the deployed `697fccc9`. That deploy: images thoth `c210ae711fb0`, renderer `fdf439a6a541`, web `90970a837f2b`, digests matching push run 41796520514, no workflow running before, `make deploy` exit 0, web 200, 0 error lines in the worker, 0 API 5xx after 2 minutes, no migration. The previous env is `D:/thoth-tmp/bu/pins/pins-9997b4ee.env`.
 
@@ -22,8 +30,8 @@ Branch `chore/e2e-trial`, not pushed yet. It also brings the e2e package into th
 
 **Verification:**
 - `make lint` clean. Dashboard: 1595 tests pass, `tsc -b` and build pass.
-- `make test` in the worktree: 4511 passed, 263 skipped, 3 failed. The 3 are `test_ocr_replay` and `test_refine`, `pytest.approx() does not support nested data structures`. Those files match `master`, where they pass in the main checkout, so this looks like the worktree's test environment. CI decides it.
-- E2E, the branch's dashboard from a vite dev server against stage1 at `697fccc9`, no model: the 30 model-free read tests pass, including the 3 the asset bug failed, and 15 of 16 write tests pass. The other is Undo after a save, which needs this branch's server: stage1 answers 404.
+- `make test` in the worktree had 3 failures in `test_ocr_replay` and `test_refine`, `pytest.approx() does not support nested data structures`. They pass in CI, so they belong to the worktree's test environment.
+- Before the deploy, the branch's dashboard from a vite dev server against stage1 at `697fccc9`: the same read tests passed, and 15 of 16 write tests. The other was Undo after a save, which needed this branch's server.
 - Screens judged from screenshots: Story, Timeline with the placement banner, Review, Render, Presets, Settings, Usage, Billing, Inbox at 1440. Also saved at 1024 and from the Inspector pane at 430 by test.
 - One render output probed: H.264, 1080×1920, 150 frames, 5.013 s, with audio.
 - Row counts of the real project are unchanged: 88 revisions, 67 assets, 6 renders, 3 narrations, 270 runs, draft `edoc_3aedc6af…` at revision 20.
@@ -35,9 +43,10 @@ Branch `chore/e2e-trial`, not pushed yet. It also brings the e2e package into th
 - Left on stage1: the project `E2E write test 2026-11-04` with its drafts, uploads, renders, comments, preset and template. The usage page counts its renders. The write token `e2e-write` expires by itself within a day.
 
 **Next steps:**
-- Operator gates, each separate: commit and push, deploy of the branch image, the retest on it, merge.
-- Paid tests, once the cost is shown and accepted: narration, Assist, a new run, a draft from a run.
+- Operator gates, each separate: the paid tests, then merge.
+- Paid tests, once the cost is shown and accepted: narration, Assist, a new run, a draft from a run. Narration needs a source run first.
 - After merge: install the package in `e2e/`, repoint `D:/thoth-tmp/e2e-mcp.sh` and `D:/thoth-tmp/e2e-run.sh`, remove the worktree with the operator's approval.
+- Then the Studio Timeline track, added to `docs/ROADMAP.md` on 2026-11-05: its own spec, plan and branch, before the remaining slices of auto-draft.
 - Carried forward: the operator's choice on removing the throwaway project.
 
 ## 2026-11-04 - The narration script is told what is on screen and who said what

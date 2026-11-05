@@ -92,7 +92,7 @@ test("re-voicing changed beats calls each stale beat in order and stops at the f
   expect(revoiceNarrationBeat.mock.calls.map((call) => call[2])).toEqual(["main", "reactions"]);
   // Main's voicing state, then its completed read-back; Reactions is refused.
   expect(onChange).toHaveBeenCalledTimes(2);
-  expect(screen.getByRole("status").textContent).toContain("narration_in_progress");
+  expect(screen.getByRole("status").textContent).toContain("already running");
 });
 
 test("Recreate narration asks first", async () => {
@@ -172,7 +172,7 @@ test("re-voicing stops when a beat's re-voice fails", async () => {
   });
 
   expect(revoiceNarrationBeat).toHaveBeenCalledTimes(1);
-  expect(screen.getByRole("status").textContent).toContain("revoice_failed");
+  expect(screen.getByRole("status").textContent).toContain("could not be voiced");
 });
 
 test("leaving Studio stops the re-voice: no more reads and no more paid beats", async () => {
@@ -285,4 +285,34 @@ test("Open script closes the chip's menu, which would cover the canvas controls"
   fireEvent.click(screen.getByRole("button", { name: "Open script" }));
 
   expect(menu.open).toBe(false);
+});
+
+const refusedWith = async (code: string) => {
+  const api = client();
+  api.startNarration = mock(async () => {
+    throw new StudioImportRequestError(409, code);
+  }) as never;
+  mount(null, api);
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Create narration" }));
+  });
+  return screen.getByRole("status").textContent ?? "";
+};
+
+test("a refusal says what to do in words, never its raw code", async () => {
+  const text = await refusedWith("narration_not_available");
+  expect(text).toContain("made from a finished run");
+  expect(text).not.toContain("narration_not_available");
+});
+
+test("a missing model points to Presets", async () => {
+  const text = await refusedWith("prompt_not_configured");
+  expect(text).toContain("Presets");
+  expect(text).not.toContain("prompt_not_configured");
+});
+
+test("a refusal nobody named still shows no code", async () => {
+  const text = await refusedWith("something_new");
+  expect(text).not.toContain("something_new");
+  expect(text.length).toBeGreaterThan(0);
 });
