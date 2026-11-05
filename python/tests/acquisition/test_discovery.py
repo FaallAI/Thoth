@@ -701,6 +701,53 @@ async def test_a_captcha_on_load_is_solved_before_the_profile_crop(monkeypatch) 
     assert result.page_png == b"page-png"
 
 
+async def test_a_captcha_after_the_first_crop_gave_up_still_gets_the_profile_page(
+    monkeypatch,
+) -> None:
+    # Stage1, 2026-11-05: the whirl was solved and 24 videos were read, yet the draft had no
+    # profile page: the only crop had already ended, before the modal showed.
+    async def fake_solve(page, attempts=2, rng=None):
+        page.captcha = False
+        page.page_rect = True  # the grid only shows once the modal is gone
+        return True
+
+    monkeypatch.setattr(discovery_module, "solve_captcha", fake_solve)
+    session = FakeSession("profile", [_list_body([_item()], has_more=False)])
+
+    async def modal_lands_during_the_wait(timeout: int) -> None:
+        session.page.captcha = not session.page.page_rect
+
+    session.page.wait_for_timeout = modal_lands_during_the_wait
+
+    result = await _browser(session).discover(ProfileDiscovery(handle="creator", limit=30))
+
+    assert result.page_png == b"page-png"
+
+
+async def test_a_missed_profile_page_says_why(caplog) -> None:
+    session = FakeSession("profile", [_list_body([_item()], has_more=False)])
+
+    with caplog.at_level(logging.WARNING):
+        result = await _browser(session).discover(ProfileDiscovery(handle="creator", limit=30))
+
+    assert result.page_png is None
+    assert "tiktok profile page not captured reason=no_grid" in caplog.text
+
+
+async def test_a_failed_profile_crop_costs_the_card_not_the_listing(monkeypatch, caplog) -> None:
+    async def screenshot(self, **kwargs):
+        raise TimeoutError
+
+    monkeypatch.setattr(FakePage, "screenshot", screenshot)
+    session = FakeSession("profile", [_list_body([_item()], has_more=False)], page_rect=True)
+
+    with caplog.at_level(logging.WARNING):
+        result = await _browser(session).discover(ProfileDiscovery(handle="creator", limit=30))
+
+    assert result.page_png is None and len(result.videos) == 1
+    assert "tiktok profile page not captured reason=TimeoutError" in caplog.text
+
+
 async def test_captcha_rendered_in_the_final_page_is_reported() -> None:
     session = FakeSession("profile", _pages("profile", 1, last_has_more=False), css_captcha=True)
 
@@ -895,7 +942,12 @@ async def test_a_failed_in_page_body_read_falls_back_to_scraplings_copy() -> Non
         ({"hang": True}, {"SCROLL_DEADLINE_S": 0.05}, 100, "deadline"),
         ({}, {}, 100, "idle"),
         ({}, {"MAX_SCROLLS": 1}, 100, "max_scrolls"),
-        ({"wheel_error": RuntimeError("detached")}, {}, 100, "error:RuntimeError"),
+        (
+            {"wheel_error": RuntimeError("detached"), "page_rect": True},
+            {},
+            100,
+            "error:RuntimeError",
+        ),
     ],
 )
 async def test_the_scroll_stop_cause_is_logged(caplog, monkeypatch, flags, patch, limit, stop):

@@ -6,6 +6,32 @@ All notable changes to this project will be documented in this file.
 
 Branch `chore/e2e-trial`, not merged. It also brings the e2e package into the repo.
 
+**TikTok profile page, fixed test-first, not yet proven live:** a profile listing cropped its page once, before paging, and swallowed any failure. `_paginate` solved a captcha that showed later but never cropped again. It now crops again after each solved captcha while no crop exists, and every miss logs `tiktok profile page not captured reason=` (`no_grid`, `no_header`, `no_rect` or the exception's name). Three new tests went red first. `test_the_scroll_stop_cause_is_logged` gives its error case a grid, so its exact list of warnings still holds. Python: lint passes, 4514 pass and the same 3 `pytest.approx` failures in `test_ocr_replay` and `test_refine`. That the modal landed after the first check is still a guess for run `wf_3288fb0445f1bac39acb21b3`, because the old code logged nothing. A cause with no captcha gets no retry, only the log line.
+
+**Paid tests on `db6c4bc8`, in the throwaway project only, with the operator's approval:**
+- Run `wf_20c490d12bf6718865372298` on `kompascom` succeeded in 11m 4s, but attribution traced its main to Instagram, so it does not serve step 8.
+- Run `wf_3288fb0445f1bac39acb21b3` on `kabinet_rakyat` succeeded with a TikTok main and verdict `original`. Its `profile_page` is missing with "Not captured: profile page", so step 8 stays open. Comments: 50 read, 12 kept by the judge, 11 on the review screen, 7 in the inspection; these counts come from different stages and were not traced.
+- Assist on its draft: `deepseek/deepseek-chat-v3.1`, 303 tokens in, 121 out. Apply showed "Unsaved changes" and Undo. The test closed the browser before autosave, so saving is not verified.
+- Narration script: `google/gemma-4-31b-it`, 834 tokens in, 208 out, 4 beats, 486 characters.
+- Voice: `elevenlabs/eleven_multilingual_v2`, 4 calls, status `completed`, revision 15 to 16, total 150.7 s to 28.3 s. Every beat's word count matches its voice (20, 16, 26, 11 words).
+
+**Findings from those tests, not fixed:**
+- The screen estimates 486 characters, and the provider's `character-cost` header billed 31, 23, 34 and 19, so 107. The estimate counts text length (`domain/narration.py`), which overstates this run about 4.5 times.
+- `unit_prices` is empty, so the estimate reads "Unpriced".
+- The run's vision and footage provider calls are not in `usage_events` for the project in the window checked, so a run's cost cannot be read from it. Not traced.
+- The script panel's title and estimate touch the left edge, and "Recreate narration" sits flush against it.
+- On the narrated draft's first frame the heading text, the comment bubble and the source video's own text overlap, and a blur band covers the middle of the source's "ROCKY GERUNG". Not traced.
+- After Apply, the Assist text fills the frame.
+- The tray lags the page both ways, "Results" on a finished run holds only "Show activity", and the "..." menu stays open over the Inspector after Assist opens.
+
+**Left in the throwaway project:** 2 runs, 2 drafts, 1 narration with 4 voices, 2 copied model preferences. The real project's draft `edoc_3aedc6af…` stays at revision 20.
+
+**Design revisions, approved by the operator:** seven `Rev 2026-11` frames in `design/thoth-dashboard-v2.pen`: the script panel awaiting approval and narrated, text in frame, Assist with the menu closed, Timeline at 1440 and 1024, and header and Timeline rules. New headings start at Top, at most two lines on a scrim, with the rest cut by an ellipsis in the preview and the render while the draft keeps the whole text. The script panel, heading and Assist are coded on this branch; the Timeline frames wait for the Timeline track.
+
+**Next steps:** one more TikTok run on the deployed profile fix, then the operator's check of step 8. Then the merge gate, and the Studio Timeline track.
+
+**Deploy of `db6c4bc8` from the branch:** images thoth `0b508fad3d06`, renderer `94a76795f3f0`, web `95d59597aea0`. CI run 41968164207 green with 4775 Python tests, no workflow running before, `make deploy` exit 0, web 200, 0 error lines in the worker, 0 API 5xx after 2 minutes, no migration. The previous env is `D:/thoth-tmp/bu/pins/pins-bcdb421e.env`. It adds plain words for narration refusals in place of their raw codes, the Timeline audit tests (8 of 22 red until the Timeline track) and the roadmap entry for that track. Before it, `make test` in the worktree had the same 3 `pytest.approx` failures noted below; dashboard 1598 tests pass, build and lint pass. Retest on it, no model: 26 of 26 at `w1440` and 3 of 3 Indonesian at `w1440id`. A run across every target also passed the Studio files at `w1024`, `w430` and `web`; its failures were the stopped dev server on port 5199, tests sent to the wrong language target, and `story-assist`, whose steps need a model key or the `THOTH_E2E_DRAFT` setting this run did not set, so it was not exercised.
+
 **Deploy of `bcdb421e` from the branch:** images thoth `bba0788985aa`, renderer `8e91c406465e`, web `d2d3e2040921`. CI run 41889189402 green with 4775 Python tests, no workflow running before, `make deploy` exit 0, web 200, 0 error lines in the worker, 0 API 5xx after 2 minutes, no migration. The previous env is `D:/thoth-tmp/bu/pins/pins-697fccc9.env`. Production runs code not in `master` until this branch merges.
 
 **Retest on that image, no model:** 30 of 30 read tests and 16 of 16 write tests pass, including Undo and Redo after autosave. A clip past the canvas answers 422 `edit_refused` with its reason in the log. Row counts of the real project are unchanged.
