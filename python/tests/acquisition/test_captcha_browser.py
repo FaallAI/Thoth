@@ -8,6 +8,7 @@ the same contract `solve` relies on in the wild.
 """
 
 import base64
+import json
 from pathlib import Path
 
 import pytest
@@ -16,7 +17,11 @@ cv2 = pytest.importorskip("cv2", reason="the fixture images are generated with O
 numpy = pytest.importorskip("numpy", reason="the fixture images are generated with NumPy")
 
 from tests.acquisition.browser_support import async_api, launch  # noqa: E402
-from thoth_control_plane.acquisition.captcha import solve  # noqa: E402
+from thoth_control_plane.acquisition.captcha import (  # noqa: E402
+    CONTAINER_SELECTOR,
+    PROMPT_JS,
+    solve,
+)
 
 NOTCH_X = 200  # the gap's offset inside the 340px verify image
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -180,3 +185,60 @@ async def test_solve_reports_failure_when_the_whirl_modal_never_clears() -> None
     )
 
     assert solved is False
+
+
+async def test_prompt_reading_finds_the_prompt_on_the_recorded_whirl_modal() -> None:
+    """The 2026 TUXModal has no `.captcha_verify_title`; this proves the span fallback still
+    reads its prompt, so a click modal's `subtype=unknown` is a wording miss, not a reader
+    miss (what the samples must settle)."""
+    async with async_api.async_playwright() as playwright:
+        browser = await launch(playwright)
+        try:
+            page = await browser.new_page(viewport={"width": 800, "height": 820})
+            await page.set_content(_whirl_modal_html(WHIRL_TURNS))
+            container = await page.query_selector(CONTAINER_SELECTOR)
+            assert container is not None
+
+            prompts = await container.evaluate(PROMPT_JS)
+
+            assert prompts == ["Drag the slider to fit the puzzle"]
+        finally:
+            await browser.close()
+
+
+async def test_an_unanswerable_modal_saves_a_sample_in_real_chromium(tmp_path, monkeypatch) -> None:
+    """The recorded whirl modal with its slider stripped: a click-shaped page. The sample
+    carries the prompt the production reader saw, the rendered boxes, the sanitized DOM and
+    both images as served."""
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", str(tmp_path))
+    async with async_api.async_playwright() as playwright:
+        browser = await launch(playwright)
+        try:
+            page = await browser.new_page(viewport={"width": 800, "height": 820})
+            await page.set_content(_whirl_modal_html(WHIRL_TURNS))
+            await page.evaluate(
+                "() => document.querySelector('[draggable=true]').closest('div.cap-mt-6').remove()"
+            )
+            await page.wait_for_timeout(100)
+
+            assert await solve(page) is False
+
+            samples = sorted((tmp_path / "captcha-samples").iterdir())
+            assert len(samples) == 1
+            meta = json.loads((samples[0] / "sample.json").read_text(encoding="utf-8"))
+            assert meta["subtype"] == "unknown"  # the whirl prompt classifies as nothing
+            assert meta["reason"] == "unsupported"
+            assert meta["prompt_candidates"] == ["Drag the slider to fit the puzzle"]
+            tags = [box["tag"] for box in meta["boxes"]]
+            assert tags.count("img") == 2 and "button" in tags
+            dom = (samples[0] / "dom.html").read_text(encoding="utf-8")
+            assert "Drag the slider" in dom
+            assert "data:image/webp" not in dom  # the served bytes are blanked out of the DOM
+            images = sorted(samples[0].glob("image-*"))
+            assert [image.suffix for image in images] == [".webp", ".webp"]
+            assert meta["images"] == [
+                {"file": "image-0.webp", "src_hint": ""},
+                {"file": "image-1.webp", "src_hint": ""},
+            ]
+        finally:
+            await browser.close()

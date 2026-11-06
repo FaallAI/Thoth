@@ -1,6 +1,62 @@
 # Changelog — 🪶 Thoth (formerly CLIPPER)
 
-All notable changes to this project will be documented in this file.
+All notable changes to this project will be documented in this changelog.
+
+## 2026-11-06 - Click-captcha evidence capture; prompt reading proven; solver spec
+
+Branch `feat/tiktok-click-captcha` from `chore/e2e-trial` (88a91037), local only, Phase A of
+the executor prompt: recording before solving. Phase B waits for real samples and the
+operator's go.
+
+**Evidence capture in production code (`acquisition/captcha.py`):** when `solve()` meets a
+modal with no drag handle — today's `unsupported` path, which is every click subtype — it now
+saves one sanitized sample under the worker's artifact root
+(`THOTH_CONTROL_PLANE_ARTIFACT_ROOT`; compose sets it on stage1, an unset root means no
+capture and no writes anywhere): `sample.json` (subtype, reason, the prompt candidates the
+production reader saw, the rendered boxes of every image and button, and an images list with
+the `3d`/`icon` URL marker each src carries), the container's outer HTML with `data:`/URL-
+like/oversized attribute values blanked, and every modal image as served through the existing
+`_src_bytes` (first 12). The newest 50 samples are kept, the whole capture is bounded at 5 s
+and never raises — a container whose `evaluate` throws still ends
+`subtype=… solved=false attempts=1 reason=unsupported` (test-proven). No new outcome-line
+reasons, no new settings, no signature changes; discovery is untouched. One test-written bug
+caught before it shipped: a base64 data-URL payload can contain `/3d`, so only real URL paths
+are read for the marker.
+
+**Prompt reading has no defect to fix:** a real-Chromium test proves `PROMPT_JS`'s span
+fallback reads the recorded 2026 whirl modal's prompt ("Drag the slider to fit the puzzle")
+off `span.cap-break-words` — the TUXModal has no `.captcha_verify_title`. Production's
+`subtype=unknown` on 2026-11-06 is therefore a keyword-table miss (most plausibly Indonesian
+wording, e.g. "bentuknya sama" vs the table's "bentuk yang sama") or a late-rendered prompt;
+the keyword table stays untouched and the samples will settle it.
+
+**Research from primary sources** (spec
+`docs/superpowers/specs/2026-11-06-tiktok-click-captcha-design.md`, every claim sourced):
+both click subtypes rise in the same modal and are **one flat image clicked at coordinates,
+not a grid** — 3D wants exactly 2 clicks then a "Confirm" `TUXButton--primary` (prompt
+verbatim: "Select 2 objects that are the same shape"), icon wants N clicks **in order** then
+Confirm; answers are judged by the modal disappearing, and the verify request carries click
+trajectories, matching the humanized-click requirement. Open items only samples can settle
+are named in the spec (locale wording, click count for icon, whether Confirm gates on click
+count, OpenCV-vs-vision per subtype, blob srcs).
+
+**Verification:** `make test T=tests/acquisition/test_captcha.py` 35 passed;
+`test_captcha_browser.py` 7 passed in real Chromium (WSL env with Playwright per
+`D:/thoth-tmp/pytest-wsl-browser.sh`; CI also runs them);
+`make test T=tests/acquisition/test_discovery.py` 88 passed; full `make test` and `make lint`
+green except the 3 pre-existing `pytest.approx` failures in `tests/assembly/test_ocr_replay.py`
+and `tests/assembly/test_refine.py`, untouched. New tests went red first (sample absent;
+uncaught capture error turned the outcome into `reason=error`).
+
+**Next steps:**
+- Operator gates, each separate: push and deploy of this branch (passive sample collection
+  on stage1), or an authorised live recording session (active collection); then the
+  operator's go for Phase B once samples exist.
+- Phase B: fixtures from samples, refusal paths and pointer profile test-first, the smallest
+  solver the samples justify (vision model through the existing metered OpenRouter path;
+  commercial services stay banned), the same verification sequence.
+- Merge waits behind `chore/e2e-trial`; no PR is opened for this branch yet.
+
 
 ## 2026-11-06 - Profile fix deployed and tried live; runtime build cache in GHCR
 

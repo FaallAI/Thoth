@@ -7,6 +7,7 @@ clear themselves when a drag lands where the puzzle says it must.
 """
 
 import base64
+import json
 import logging
 import random
 import sys
@@ -489,6 +490,131 @@ async def test_click_subtypes_are_classified_from_the_prompt_and_left_alone(
     assert _outcome_lines(caplog) == [
         f"tiktok captcha outcome subtype={subtype} solved=false attempts=1 reason=unsupported"
     ]
+
+
+CLICK_DOM = (
+    '<div class="TUXModal captcha-verify-container">'
+    '<span class="cap-break-words cap-text-left">Select 2 objects that are the same shape</span>'
+    '<img src="data:image/png;base64,AAAA" alt="Verify that you\'re not a robot">'
+    '<button class="TUXButton TUXButton--primary" aria-disabled="true">Confirm</button>'
+    "</div>"
+)
+
+
+class FakeClickModal(FakeElement):
+    """A click modal's container: answers the scripts the evidence capture reads."""
+
+    def __init__(self, prompt: str, outer_html: str, boxes: Any) -> None:
+        super().__init__((100, 50, 340, 190), evaluates=[prompt])
+        self._outer_html = outer_html
+        self._boxes = boxes
+
+    async def evaluate(self, script: str, arg: Any = None) -> Any:
+        if "outerHTML" in script:
+            return self._outer_html
+        if "getBoundingClientRect" in script:
+            return self._boxes
+        return self._evaluates
+
+
+def _capture_click_page(prompt: str, dom: str) -> FakeCaptchaPage:
+    background, _ = _slide_arrays()
+    image = FakeElement(SLIDE_BOXES["image"], _data_url(background))
+    remote = FakeElement(
+        (104, 94, 60, 60), "https://p19-rc-captcha-va.ibyteimg.com/x/3d_2385_0dabbdd1_1.jpg"
+    )  # the documented shapes image URL shape; its fetch fails on the fake, hint stays
+    return FakeCaptchaPage(
+        {IMAGE_SELECTOR: image},
+        [image, remote],
+        accept=[],
+        container=FakeClickModal(
+            prompt,
+            dom,
+            [
+                {"tag": "img", "box": {"x": 100.0, "y": 90.0, "width": 340.0, "height": 190.0}},
+                {"tag": "button", "box": {"x": 100.0, "y": 300.0, "width": 340.0, "height": 40.0}},
+            ],
+        ),
+    )
+
+
+def _sample_dirs(root: Path) -> list[Path]:
+    samples = root / "captcha-samples"
+    return sorted(samples.iterdir()) if samples.exists() else []
+
+
+async def test_an_unanswerable_modal_saves_one_sanitized_sample(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", str(tmp_path))
+    page = _capture_click_page("Select 2 objects that are the same shape", CLICK_DOM)
+
+    assert await solve(page, rng=random.Random(1)) is False
+
+    dirs = _sample_dirs(tmp_path)
+    assert len(dirs) == 1
+    meta = json.loads((dirs[0] / "sample.json").read_text(encoding="utf-8"))
+    assert meta["subtype"] == "3d"  # the documented English shapes prompt classifies
+    assert meta["reason"] == "unsupported"
+    assert meta["prompt_candidates"] == ["Select 2 objects that are the same shape"]
+    assert [box["tag"] for box in meta["boxes"]] == ["img", "button"]
+    assert meta["images"] == [
+        {"file": "image-0.png", "src_hint": ""},
+        {"src_hint": "3d"},  # a URL marker the sanitized DOM no longer carries
+    ]
+    dom = (dirs[0] / "dom.html").read_text(encoding="utf-8")
+    assert "Select 2 objects" in dom
+    assert 'src=""' in dom and "data:image/png" not in dom  # token-like values are blanked
+    assert (dirs[0] / "image-0.png").read_bytes()[:4] == b"\x89PNG"
+
+
+async def test_sample_capture_keeps_only_the_newest_fifty(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", str(tmp_path))
+    samples = tmp_path / "captcha-samples"
+    for index in range(50):
+        (samples / f"20200101T000000{index:06d}Z").mkdir(parents=True)
+    page = _capture_click_page("Select 2 objects that are the same shape", CLICK_DOM)
+
+    assert await solve(page, rng=random.Random(1)) is False
+
+    dirs = _sample_dirs(tmp_path)
+    assert len(dirs) == 50
+    assert not (samples / "20200101T000000000000Z").exists()  # the oldest gave way
+    assert (dirs[-1] / "sample.json").exists()  # the new sample is the newest kept
+
+
+async def test_a_failing_capture_never_changes_the_outcome(tmp_path, monkeypatch, caplog) -> None:
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", str(tmp_path))
+
+    class ExplodingContainer(FakeElement):
+        async def evaluate(self, script: str, arg: Any = None) -> Any:
+            raise RuntimeError("detached")
+
+    background, _ = _slide_arrays()
+    image = FakeElement(SLIDE_BOXES["image"], _data_url(background))
+    page = FakeCaptchaPage(
+        {IMAGE_SELECTOR: image},
+        [image],
+        accept=[],
+        container=ExplodingContainer((100, 50, 340, 190)),
+    )
+
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is False
+
+    assert page.mouse.downs == 0
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=unknown solved=false attempts=1 reason=unsupported"
+    ]
+
+
+async def test_no_sample_is_written_without_the_artifact_root(tmp_path, monkeypatch) -> None:
+    monkeypatch.delenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", raising=False)
+    monkeypatch.chdir(tmp_path)
+    page = _capture_click_page("Select 2 objects that are the same shape", CLICK_DOM)
+
+    assert await solve(page, rng=random.Random(1)) is False
+
+    assert list(tmp_path.rglob("captcha-samples")) == []
+    assert not (tmp_path / ".thoth-artifacts").exists()
 
 
 async def test_solve_skips_a_subtype_with_nothing_to_drag() -> None:

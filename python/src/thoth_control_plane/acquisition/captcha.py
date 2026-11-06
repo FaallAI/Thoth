@@ -7,7 +7,9 @@ from the modal's own images: ``slide`` (fit the puzzle piece into the gap) and `
 how. The 2026 whirl modal (a TUXModal) labels none of its moving parts, so the images are
 picked by rendered size, the track is found through the handle's draggable wrapper, and the
 slider's degrees-per-pixel is measured live in mid-drag. Click subtypes (icon matching, 3D
-shapes) are classified but not solved yet; an unhandled subtype is never clicked at random.
+shapes) are classified but not solved yet; an unhandled subtype is never clicked at random,
+and every modal the solver cannot answer leaves one sanitized sample for the record (see
+:data:`SAMPLE_LIMIT`).
 
 Solving is best effort and never raises: without OpenCV, on an unsupported subtype, or after
 the attempt budget, :func:`solve` returns False and the caller keeps its captcha behaviour.
@@ -19,10 +21,16 @@ builds.
 
 from __future__ import annotations
 
+import asyncio
 import base64
+import json
 import logging
+import os
 import random
 import re
+import shutil
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -65,6 +73,22 @@ MIN_MATCH = 0.25
 #: the check polls until the modal is gone or the budget runs out.
 VERIFY_TIMEOUT_MS = 6_000
 VERIFY_POLL_MS = 250
+#: Evidence capture: one sanitized sample per modal the solver cannot answer, the newest
+#: SAMPLE_LIMIT kept. Samples land under the worker's artifact root only when the environment
+#: names one (compose sets THOTH_CONTROL_PLANE_ARTIFACT_ROOT on stage1); an unset root means
+#: no capture and no writes anywhere. No click modal was ever recorded (2026-11-06 and
+#: earlier), so the samples are the evidence a click solver will be built from.
+SAMPLE_LIMIT = 50
+CAPTURE_BUDGET_S = 5.0
+MAX_SAMPLE_IMAGES = 12
+DOM_JS = "el => el.outerHTML"
+BOXES_JS = (
+    "root => [...root.querySelectorAll('img, button')].map(el => {"
+    " const r = el.getBoundingClientRect();"
+    " return {tag: el.tagName.toLowerCase(),"
+    "  box: {x: r.x, y: r.y, width: r.width, height: r.height}}; })"
+)
+_SCRUB = re.compile(r"""([\w:-]+)=("[^"]*"|'[^']*')""")
 #: The 2026 whirl modal maps slider travel to disc rotation at an unstated rate and direction,
 #: so every drag measures both: this many pixels of travel with the button held, then read the
 #: two images' inline transforms and compute the rest of the drag from the answer.
@@ -124,7 +148,9 @@ async def _attempt(page: Any, rng: random.Random) -> tuple[str, str, bool]:
     handle = await page.query_selector(HANDLE_SELECTOR)
     subtype = await _classify(page)
     if handle is None:
-        # No drag handle: a click subtype, which nothing here answers.
+        # No drag handle: a click subtype, which nothing here answers. One sanitized sample
+        # records what rose; recording is best effort and never changes this outcome.
+        await _capture_sample(page, subtype, "unsupported")
         return subtype, "unsupported", False
     if subtype not in ("slide", "whirl"):
         # A drag handle whose images have not rendered yet: worth the retry.
@@ -144,6 +170,115 @@ async def _attempt(page: Any, rng: random.Random) -> tuple[str, str, bool]:
             return "whirl", failure, False
     gone = await _closed(page)
     return subtype, ("none" if gone else "modal_stayed"), gone
+
+
+async def _capture_sample(page: Any, subtype: str, reason: str) -> None:
+    """Save one sanitized sample of a modal the solver cannot answer, best effort.
+
+    The sample — sanitized DOM, prompt candidates, image and button boxes, the images as
+    served — is the only record of a click modal, because none was ever captured before
+    2026-11-06. Nothing here may raise, delay the solver past CAPTURE_BUDGET_S, or keep a
+    cookie, page URL or creator handle: attribute values that look like tokens or links are
+    blanked in the saved DOM, and only the modal's own parts are read. Unset artifact root:
+    no capture at all.
+    """
+    root = os.environ.get("THOTH_CONTROL_PLANE_ARTIFACT_ROOT")
+    if not root:
+        return
+    try:
+        await asyncio.wait_for(_write_sample(page, subtype, reason, Path(root)), CAPTURE_BUDGET_S)
+    except Exception:
+        logger.debug("tiktok captcha sample not saved")
+
+
+async def _write_sample(page: Any, subtype: str, reason: str, root: Path) -> None:
+    container = await page.query_selector(CONTAINER_SELECTOR)
+    if container is None:
+        return
+    prompts = await container.evaluate(PROMPT_JS)
+    dom = await container.evaluate(DOM_JS)
+    boxes = await container.evaluate(BOXES_JS)
+    entries: list[dict[str, Any]] = []
+    blobs: list[tuple[str, bytes]] = []
+    for element in (await page.query_selector_all(WHIRL_IMAGE_SELECTOR))[:MAX_SAMPLE_IMAGES]:
+        src = await element.get_attribute("src")
+        entry: dict[str, Any] = {"src_hint": _src_hint(src if isinstance(src, str) else "")}
+        try:
+            data = await _src_bytes(page, element)
+        except Exception:  # one unfetchable image must not lose the sample
+            data = b""
+        if data:
+            name = f"image-{len(blobs)}.{_image_ext(data)}"
+            entry["file"] = name
+            blobs.append((name, data))
+        entries.append(entry)
+    now = datetime.now(UTC)
+    sample = root / "captcha-samples" / now.strftime("%Y%m%dT%H%M%S%fZ")
+    sample.mkdir(parents=True, exist_ok=True)
+    (sample / "sample.json").write_text(
+        json.dumps(
+            {
+                "captured_at": now.isoformat(),
+                "subtype": subtype,
+                "reason": reason,
+                "prompt_candidates": prompts if isinstance(prompts, list) else [],
+                "boxes": boxes if isinstance(boxes, list) else [],
+                "images": entries,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (sample / "dom.html").write_text(
+        _sanitize_dom(dom if isinstance(dom, str) else ""), encoding="utf-8"
+    )
+    for name, data in blobs:
+        (sample / name).write_bytes(data)
+    _prune_samples(sample.parent)
+
+
+def _src_hint(src: str) -> str:
+    """The subtype marker TikTok bakes into some captcha image URLs, when present.
+
+    Data and blob URLs carry no marker, and a base64 payload can contain any bytes, so
+    only real URL paths are read.
+    """
+    if src.startswith(("data:", "blob:")):
+        return ""
+    if "/3d" in src:
+        return "3d"
+    if "/icon" in src:
+        return "icon"
+    return ""
+
+
+def _sanitize_dom(dom: str) -> str:
+    """Attribute values that look like tokens or links blanked; the modal's shape stays."""
+
+    def blank(match: re.Match[str]) -> str:
+        value = match.group(2)[1:-1]
+        if value.startswith("data:") or "://" in value or len(value) > 200:
+            return f'{match.group(1)}=""'
+        return match.group(0)
+
+    return _SCRUB.sub(blank, dom)[:200_000]
+
+
+def _image_ext(data: bytes) -> str:
+    if data.startswith(b"\x89PNG"):
+        return "png"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "jpg"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "webp"
+    if data.startswith(b"GIF8"):
+        return "gif"
+    return "bin"
+
+
+def _prune_samples(parent: Path) -> None:
+    for old in sorted(path for path in parent.iterdir() if path.is_dir())[:-SAMPLE_LIMIT]:
+        shutil.rmtree(old, ignore_errors=True)
 
 
 async def _closed(page: Any) -> bool:
