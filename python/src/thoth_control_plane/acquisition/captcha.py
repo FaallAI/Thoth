@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import json
 import logging
 import math
@@ -151,10 +152,10 @@ async def solve(page: Any, attempts: int = ATTEMPTS, rng: random.Random | None =
         return False
     rng = rng or random.Random()
     subtype, reason, attempt = "unknown", "error", 0
-    answered: set[str] = set()  # every challenge image this call already answered
+    seen: dict[str, str] = {}  # every challenge picture this call met, and how it ended
     for attempt in range(1, attempts + 1):
         try:
-            subtype, reason, solved = await _attempt(page, rng, answered)
+            subtype, reason, solved = await _attempt(page, rng, seen)
         except Exception as error:
             logger.debug("tiktok captcha attempt failed error=%s", type(error).__name__)
             reason = "error"
@@ -162,8 +163,8 @@ async def solve(page: Any, attempts: int = ATTEMPTS, rng: random.Random | None =
             if solved:
                 _outcome(subtype, True, attempt, "none")
                 return True
-            if reason in ("unsupported", "unconfident", "no_vision"):
-                break  # nothing a retry changes: no solver, or a deterministic refusal
+            if reason == "unsupported":  # a subtype with no solver never retries
+                break
         if attempt < attempts:
             await page.wait_for_timeout(400)
     _outcome(subtype, False, attempt, reason)
@@ -181,7 +182,7 @@ def _outcome(subtype: str, solved: bool, attempts: int, reason: str) -> None:
     )
 
 
-async def _attempt(page: Any, rng: random.Random, answered: set[str]) -> tuple[str, str, bool]:
+async def _attempt(page: Any, rng: random.Random, seen: dict[str, str]) -> tuple[str, str, bool]:
     """One try: the subtype it saw, why it fell short ("none" when it did not), and success."""
     if await page.query_selector(CONTAINER_SELECTOR) is None:
         return "unknown", "no_images", False
@@ -190,7 +191,7 @@ async def _attempt(page: Any, rng: random.Random, answered: set[str]) -> tuple[s
     if handle is None:
         # No drag handle: a click modal, answered by the 3D solver when it is one and the
         # switch allows; whatever happens, one sanitized sample keeps the record.
-        return await _click_attempt(page, rng, subtype, answered)
+        return await _click_attempt(page, rng, subtype, seen)
     if subtype not in ("slide", "whirl"):
         # A drag handle whose images have not rendered yet: worth the retry.
         return subtype, "no_images", False
@@ -221,7 +222,7 @@ def _click_mode() -> str:
 
 
 async def _click_attempt(
-    page: Any, rng: random.Random, subtype: str, answered: set[str]
+    page: Any, rng: random.Random, subtype: str, seen: dict[str, str]
 ) -> tuple[str, str, bool]:
     """A click modal: structural parts first, then the 3D solver when the switch allows."""
     image = await page.query_selector(CLICK_IMAGE_SELECTOR)
@@ -230,24 +231,30 @@ async def _click_attempt(
         # Icon and unknown stay unhandled; `off` keeps today's classify-capture-refuse.
         await _capture_sample(page, subtype, "unsupported")
         return subtype, "unsupported", False
-    return await _shapes_attempt(page, rng, image, confirm, subtype, answered)
+    return await _shapes_attempt(page, rng, image, confirm, subtype, seen)
 
 
 async def _shapes_attempt(
-    page: Any, rng: random.Random, image: Any, confirm: Any, subtype: str, answered: set[str]
+    page: Any, rng: random.Random, image: Any, confirm: Any, subtype: str, seen: dict[str, str]
 ) -> tuple[str, str, bool]:
-    """Answer one 3D challenge: solve locally, fall back to vision on a refusal, click."""
+    """Answer one 3D challenge: solve locally, fall back to vision on a refusal, click.
+
+    A refusal presses Refresh like a miss does: for a leased account an unanswered modal
+    ends as `challenge` exactly as a wrong answer, so a fresh image is the only thing
+    left to win. Whatever the ending, a picture met once — keyed by its bytes, since a
+    ``blob:`` src changes with every render — is never answered or solved again.
+    """
     src = await image.get_attribute("src")
     box = await image.bounding_box()
     if not isinstance(src, str) or not src or not box or not box["width"]:
         return subtype, "no_images", False
-    if src in answered:
-        # This exact image was already answered and the modal stayed: without a fresh
-        # challenge the same image is never answered twice.
+    raw = await _src_bytes(page, image)
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest in seen:
         logger.debug("tiktok captcha image unchanged; not answering it twice")
-        await _capture_sample(page, subtype, "modal_stayed")
-        return subtype, "modal_stayed", False
-    decoded = _decode(await _src_bytes(page, image))
+        await _capture_sample(page, subtype, seen[digest])
+        return subtype, seen[digest], False
+    decoded = _decode(raw)
     if decoded is None:
         return subtype, "no_images", False
     from thoth_control_plane.acquisition.captcha_shapes import (
@@ -257,22 +264,24 @@ async def _shapes_attempt(
     )
 
     result = same_shape_pair(decoded)
-    points = result.points
+    points, reason = result.points, "unconfident"
     if points is None and _click_mode() == "local_vision":
         key = os.environ.get(OPENROUTER_KEY_ENV, "")
         if not key:
-            await _capture_sample(page, subtype, "no_vision")
-            return subtype, "no_vision", False
-        marked = marked_image(decoded, result.objects) if len(result.objects) >= 2 else b""
-        pick = await _vision_answer(marked, key) if marked else None
-        marks = min(len(result.objects), MAX_MARKS)
-        if pick is not None and pick.first != pick.second and max(pick.first, pick.second) <= marks:
-            first, second = result.objects[pick.first - 1], result.objects[pick.second - 1]
-            points = (first.centroid, second.centroid)
+            reason = "no_vision"
+        else:
+            marked = marked_image(decoded, result.objects) if len(result.objects) >= 2 else b""
+            pick = await _vision_answer(marked, key) if marked else None
+            marks = min(len(result.objects), MAX_MARKS)
+            if pick and pick.first != pick.second and max(pick.first, pick.second) <= marks:
+                first, second = result.objects[pick.first - 1], result.objects[pick.second - 1]
+                points = (first.centroid, second.centroid)
     if points is None:
-        await _capture_sample(page, subtype, "unconfident")
-        return subtype, "unconfident", False
-    answered.add(src)
+        seen[digest] = reason
+        await _capture_sample(page, subtype, reason)
+        await _press_refresh(page, rng)
+        return subtype, reason, False
+    seen[digest] = "modal_stayed"
     await _click_answer(page, rng, image, box, decoded.shape, points, confirm)
     gone = await _closed(page)
     if gone:

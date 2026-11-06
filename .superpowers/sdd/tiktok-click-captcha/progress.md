@@ -74,3 +74,12 @@ nothing, stubborn-refresh-once), discovery 88 pass, full make test + make lint g
 the 3 known pytest.approx failures. Next: operator gates, each separate — push, deploy, a
 first live 3D check (wrong answer steps operator-1's cooldown), the paid-fallback
 allowance, then icon/Audio follow-ups.
+
+Status: Phase B review applied. Corrected: a refusal does not spare the cooldown — a leased
+discovery without videos behind a captcha releases as `challenge` either way. Fixed test-
+first: a refusal presses Refresh and uses the remaining attempt (only `unsupported` stops);
+pictures are keyed by SHA-256 of their bytes, not src (Chromium proved a re-served blob: got
+answered twice before). Verification: captcha + shapes 71 pass, browser 13 pass, full make
+test 4613 pass / 221 skip / 0 fail, make lint clean. Next: the same operator gates — push
+(new head), deploy with the switch chosen (`local` clicks live, `off` records only), a first
+live 3D check limited to creators that raise it, the paid-fallback allowance, icon/Audio.

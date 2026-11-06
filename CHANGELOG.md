@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-06 - Phase B review: a refusal refreshes; pictures keyed by their bytes
+
+Review of Phase B on `feat/tiktok-click-captcha`, local only.
+
+**Corrected claim:** the refusal margin does not guard `operator-1`'s cooldown. A leased
+discovery that ends without videos behind a captcha releases its account as `challenge`
+(`attribution/adapters/discovery.py`, `CHALLENGE_REASONS`) whether the solver answered wrong
+or refused, and either steps the cooldown one level (`accounts/policy.py`). What a refusal
+may spare is TikTok seeing a wrong answer, which is unproven. The anonymous pass before a
+lease costs no account anything. The spec and the solver's docstring now say so.
+
+**Fixed:**
+
+- A refusal (`unconfident`, `no_vision`) now saves its sample, presses Refresh and spends
+  the remaining attempt on a fresh image instead of stopping. Only `unsupported` does not
+  retry. The refused image is still never clicked.
+- A picture met once is keyed by the SHA-256 of its bytes instead of its src, because a
+  `blob:` src changes with every render. Proven red first in real Chromium: a Refresh that
+  re-serves the same picture under a new `blob:` URL got answered twice (4 clicks); it is
+  now answered once. An unchanged picture is not solved again either, so the vision
+  fallback never pays twice for one image.
+
+**Verification (WSL):** `test_captcha.py` + `test_captcha_shapes.py` 71 passed (2 new
+tests; the refusal tests now expect one Refresh and two attempts); browser tests with
+`THOTH_REQUIRE_BROWSER_TESTS=1` 13 passed in Chromium (1 new); full `make test` 4613
+passed, 221 skipped, 0 failed; `make lint` clean. The three `pytest.approx` failures in
+`tests/assembly/` did not appear in this run.
+
+**Next steps** (each gate its own operator decision):
+
+- push this branch (head changed since the earlier push approval);
+- deploy it, choosing the switch: `local` clicks live at once, `off` only records samples;
+- a first live check on a creator that raises the 3D modal: any unsolved end, wrong or
+  refused, steps `operator-1`'s cooldown, so keep that run to such creators;
+- whether to allow the paid vision fallback (`local_vision`);
+- icon and Audio as follow-ups.
+
 ## 2026-11-06 - Phase B: the in-house 3D click solver, local first
 
 Branch `feat/tiktok-click-captcha`, Phase B of the executor prompt, on the operator's go
@@ -99,8 +136,8 @@ untouched. Nothing was installed on any machine this round; two scratch helpers 
 - push this branch (still unpushed since Phase A);
 - deploy it (the branch rides after `chore/e2e-trial`);
 - a first live check on a creator that raises the 3D modal — a wrong answer steps
-  `operator-1`'s cooldown (15 min → 1 h → 6 h → 24 h); the refusal margin guards it, but
-  only live data proves the guard;
+  `operator-1`'s cooldown (15 min → 1 h → 6 h → 24 h); so does a refusal (corrected in
+  the review entry above);
 - whether to allow the paid vision fallback (`local_vision`) on stage1;
 - icon and Audio as follow-ups (spec section "Out of scope").
 

@@ -347,7 +347,12 @@ img.addEventListener('click', e => {
 confirm.addEventListener('click', () => {
   if (!window.__stubborn && window.__good === 2 && window.__clicks === 2) root.remove();
 });
-refresh.addEventListener('click', () => { window.__refreshes++; });
+refresh.addEventListener('click', async () => {
+  window.__refreshes++;
+  if (window.__reblob) {  // the same picture again, under a fresh blob: URL
+    img.src = URL.createObjectURL(await (await fetch(img.src)).blob());
+  }
+});
 """
 
 
@@ -449,7 +454,8 @@ async def test_solve_refuses_a_3d_modal_it_cannot_answer_without_clicking() -> N
     )
 
     assert solved is False
-    assert state == {"clicks": 0, "good": 0, "refreshes": 0, "open": True}
+    # Never answered; the refusal asks for a fresh image, which this shim never serves.
+    assert state == {"clicks": 0, "good": 0, "refreshes": 1, "open": True}
 
 
 async def test_a_stubborn_3d_modal_gets_refresh_and_is_never_answered_twice() -> None:
@@ -465,3 +471,16 @@ async def test_a_stubborn_3d_modal_gets_refresh_and_is_never_answered_twice() ->
     assert state["clicks"] == 2  # the second attempt refuses the unchanged image
     assert state["good"] == 2
     assert state["refreshes"] == 1  # the wrong answer asked for a new challenge
+
+
+async def test_the_same_picture_under_a_new_blob_url_is_never_answered_twice() -> None:
+    image = (FIXTURES / "shapes_sample.jpg").read_bytes()
+    html = _shapes_modal_html(image, SHAPES_NATIVE, SHAPES_MARKS).replace(
+        "<script>", "<script>window.__stubborn = true; window.__reblob = true;"
+    )
+
+    solved, state = await _run_shapes_modal(html)
+
+    assert solved is False
+    assert state["clicks"] == 2  # the re-served picture is recognised by its bytes
+    assert state["refreshes"] == 1

@@ -869,7 +869,8 @@ def _inside(x: float, y: float, box: dict[str, float]) -> bool:
 class FakeShapesPage:
     """The 3D click modal as solve sees it: clicks map through the image's rendered box,
     two clicks inside the labelled boxes enable Confirm, and Confirm clears the container
-    unless stubborn. A stubborn modal also ignores Refresh, so the image never changes."""
+    unless stubborn. Refresh keeps the image unless after_refresh names the (src, targets)
+    it swaps in."""
 
     def __init__(
         self,
@@ -880,6 +881,7 @@ class FakeShapesPage:
         stubborn: bool = False,
         refresh: bool = True,
         prompt: str = "Select 2 objects that are the same shape",
+        after_refresh: tuple[str, list[tuple[int, int, int, int]]] | None = None,
     ) -> None:
         self.image = FakeElement((100, 50, 340, 212), src)
         self.image_box = {"x": 100.0, "y": 50.0, "width": 340.0, "height": 212.0}
@@ -892,6 +894,7 @@ class FakeShapesPage:
         }
         self.confirm = FakeConfirm((100, 300, 340, 40), self.confirm_state)
         self.refresh = FakeElement((150, 360, 40, 28)) if refresh else None
+        self.after_refresh = after_refresh
         self.container = FakeClickModal(prompt, CLICK_DOM, [])
         self.image_clicks = 0
         self.good_clicks = 0
@@ -917,6 +920,8 @@ class FakeShapesPage:
             x, y, {"x": 150.0, "y": 360.0, "width": 40.0, "height": 28.0}
         ):
             self.refresh_clicks += 1
+            if self.after_refresh is not None:
+                self.image._src, self.targets = self.after_refresh
 
     async def query_selector(self, selector: str):
         if selector == CONTAINER_SELECTOR:
@@ -983,12 +988,47 @@ async def test_a_refused_3d_challenge_clicks_nothing_and_saves_a_sample(
     with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
         assert await solve(page, rng=random.Random(1)) is False
 
-    assert page.mouse.downs == 0 and page.image_clicks == 0
+    assert page.image_clicks == 0  # never answered
+    # A refusal ends as `challenge` for a leased account just like a miss, so it asks for
+    # a fresh image; this one keeps the picture, which the second attempt does not re-solve.
+    assert page.refresh_clicks == 1 and page.mouse.downs == 1
     assert _outcome_lines(caplog) == [
-        "tiktok captcha outcome subtype=3d solved=false attempts=1 reason=unconfident"
+        "tiktok captcha outcome subtype=3d solved=false attempts=2 reason=unconfident"
     ]
     meta = json.loads((_sample_dirs(tmp_path)[0] / "sample.json").read_text(encoding="utf-8"))
     assert meta["subtype"] == "3d" and meta["reason"] == "unconfident"
+
+
+async def test_a_refused_3d_challenge_asks_for_a_fresh_one_and_answers_it(caplog) -> None:
+    hard, _ = _shapes_arrays(two_objects=True)
+    easy, labels = _shapes_arrays()
+    page = FakeShapesPage(_data_url(hard), [], after_refresh=(_data_url(easy), labels))
+
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is True
+
+    assert page.refresh_clicks == 1
+    assert page.image_clicks == 2 and page.good_clicks == 2  # only the fresh image answered
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=3d solved=true attempts=2 reason=none"
+    ]
+
+
+async def test_the_same_picture_under_a_new_src_is_never_answered_twice(caplog) -> None:
+    """A blob: URL changes with every render, so the picture, not its src, is the key."""
+    image, labels = _shapes_arrays()
+    src = _data_url(image)
+    again = src.replace("data:image/png;base64,", "data:image/png;v=2;base64,", 1)
+    page = FakeShapesPage(src, labels, stubborn=True, after_refresh=(again, labels))
+
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is False
+
+    assert page.image_clicks == 2  # the first answer only
+    assert page.refresh_clicks == 1
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=3d solved=false attempts=2 reason=modal_stayed"
+    ]
 
 
 async def test_the_off_switch_keeps_the_classify_capture_refuse_behaviour(
@@ -1073,9 +1113,9 @@ async def test_a_local_vision_switch_without_a_key_refuses_without_a_call(
     with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
         assert await solve(page, rng=random.Random(1)) is False
 
-    assert page.mouse.downs == 0
+    assert page.image_clicks == 0 and page.refresh_clicks == 1
     assert _outcome_lines(caplog) == [
-        "tiktok captcha outcome subtype=3d solved=false attempts=1 reason=no_vision"
+        "tiktok captcha outcome subtype=3d solved=false attempts=2 reason=no_vision"
     ]
     meta = json.loads((_sample_dirs(tmp_path)[0] / "sample.json").read_text(encoding="utf-8"))
     assert meta["reason"] == "no_vision"
@@ -1150,7 +1190,11 @@ async def test_a_vision_reply_that_is_not_two_distinct_candidates_is_a_refusal(
     monkeypatch.setenv("THOTH_CAPTCHA_CLICK_SOLVER", "local_vision")
     monkeypatch.setenv("THOTH_OPENROUTER_API_KEY", "test-key")
 
+    calls = 0
+
     async def same_twice(marked: bytes, key: str, model: str) -> Any:
+        nonlocal calls
+        calls += 1
         return _vision_run(1, 1)
 
     monkeypatch.setattr(captcha, "_run_vision_agent", same_twice)
@@ -1159,9 +1203,10 @@ async def test_a_vision_reply_that_is_not_two_distinct_candidates_is_a_refusal(
     with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
         assert await solve(page, rng=random.Random(1)) is False
 
-    assert page.mouse.downs == 0
+    assert page.image_clicks == 0
+    assert calls == 1  # the unchanged picture is not paid for twice
     assert _outcome_lines(caplog) == [
-        "tiktok captcha outcome subtype=3d solved=false attempts=1 reason=unconfident"
+        "tiktok captcha outcome subtype=3d solved=false attempts=2 reason=unconfident"
     ]
 
 
@@ -1184,10 +1229,10 @@ async def test_a_failing_vision_call_is_a_refusal_and_meters_nothing(monkeypatch
     finally:
         metering.install(None)
 
-    assert page.mouse.downs == 0
+    assert page.image_clicks == 0
     assert sink.events == []  # a failed call is not a usage event
     assert _outcome_lines(caplog) == [
-        "tiktok captcha outcome subtype=3d solved=false attempts=1 reason=unconfident"
+        "tiktok captcha outcome subtype=3d solved=false attempts=2 reason=unconfident"
     ]
 
 

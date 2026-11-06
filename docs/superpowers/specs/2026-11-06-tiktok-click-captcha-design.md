@@ -241,10 +241,14 @@ points in image pixels or a refusal:
   mirrored shapes defeat the mask IoU; upgrade path: DINOv2 features (RESEARCH.md) or the
   vision fallback.
 - **Refuse** (`reason=unconfident`) unless the best pair beats the runner-up by
-  `PAIR_RATIO` (best ≤ 0.7 × second; the sample sits at 0.59) or fewer than 3 objects are
-  found. The margin is the operator's knob against wrong answers: a leased account's wrong
-  answer ends as `challenge` and steps its cooldown 15 min → 1 h → 6 h → 24 h
-  (RESEARCH.md), so refusing beats guessing.
+  `PAIR_RATIO` and `PAIR_GAP` (best < 0.7 × second and a gap of at least 0.05; the sample
+  sits at a 0.59 ratio and a 0.14 gap), or when fewer than 3 objects are
+  found. The margin is the operator's knob against wrong answers, **not a cooldown guard**:
+  a leased discovery that ends without videos behind a captcha releases its account as
+  `challenge` whether the solver answered wrong or refused (`attribution/adapters/discovery.py`,
+  `CHALLENGE_REASONS`), and either steps the cooldown 15 min → 1 h → 6 h → 24 h
+  (`accounts/policy.py`). What a refusal may spare is TikTok seeing a wrong answer — a
+  guess, unproven. The anonymous pass that runs before a lease costs no account anything.
 - RapidOCR second vote (backup, fires only when the margin refuses): two crops that read
   the same single character back a pair. On the one real sample RapidOCR reads **nothing**
   from the pastel 3D renders, so this vote is unproven on real data and helps only flatter
@@ -259,10 +263,13 @@ wobble and small jitter, a short hold, a pause between clicks; the pointer is re
 On `modal_stayed`: Phase A's capture saves a sample, Refresh is pressed
 (`#captcha_refresh_button`, else the button carrying the recorded refresh glyph
 `M56.62 21…` — one recorded modal has the id, the other only the glyph), and the **same
-image is never answered twice** (its src is remembered across the call's attempts; an
-unrefreshed repeat ends `modal_stayed` without clicking). Refusals and `no_vision` also
-save a sample. The existing attempt budget, the never-raise contract and the exactly-one
-INFO outcome line are unchanged; `unsupported`, `unconfident` and `no_vision` do not retry.
+image is never answered twice** (its bytes' SHA-256 is remembered across the call's
+attempts, since a `blob:` src changes with every render; an unrefreshed repeat ends with
+the reason it first ended with, without clicking or solving again). Refusals
+(`unconfident`, `no_vision`) save a sample and press Refresh too — an unanswered modal costs
+a leased account the same `challenge` as a miss, so the remaining attempt goes to a fresh
+image. The existing attempt budget, the never-raise contract and the exactly-one INFO
+outcome line are unchanged; only `unsupported` does not retry.
 Unverified: that a wrong answer leaves the modal answerable after Refresh (the sources say
 3D retries without refresh; the shim models refresh-keeps-image).
 

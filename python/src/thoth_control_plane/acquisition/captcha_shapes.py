@@ -7,8 +7,9 @@ split separates overlapping objects of different colours, and connected componen
 minimum area become the candidates. Every pair is scored by the distance between the masks
 normalised to a fixed square (aspect kept), taking the better of the plain and mirrored
 overlap, and the best pair must beat the runner-up by :data:`PAIR_RATIO` or the solver
-refuses: a wrong answer steps a leased account's cooldown (15 min to 1 h, 6 h, 24 h), so
-refusing beats guessing. One real image proves feasibility, not accuracy.
+refuses rather than click a guess. A refusal does not spare a leased account's cooldown —
+an unanswered modal ends as `challenge` like a miss — so the caller asks for a fresh image.
+One real image proves feasibility, not accuracy.
 """
 
 from __future__ import annotations
