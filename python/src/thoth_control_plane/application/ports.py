@@ -58,6 +58,10 @@ class RunExpired:
 RunSettlement = RunLive | RunClosed | RunExpired
 
 
+class EditDocumentRefused(Exception):
+    """The document's own rules refuse this change: retrying it can never succeed."""
+
+
 class EditDocumentRevisionConflict(Exception):
     """The document changed after the caller's base revision."""
 

@@ -260,6 +260,33 @@ test("Assist, from the Studio menu, opens the panel for the open beat, in Story 
   expect(screen.queryByRole("button", { name: "Assist" })).toBeNull();
 });
 
+test("opening Assist closes the menu and takes the Inspector's place until it is closed", async () => {
+  // Stage1, 2026-11-05: the menu stayed open over the Inspector, and the panel sat under it.
+  await mountStory("en", { requestStoryAssist: mock(async () => ({ proposal_id: "a", title: "t", reason: "r", operations: [] })) });
+  const toggle = screen.getByRole("button", { name: "Assist" });
+  const menu = toggle.closest("details")!;
+  menu.setAttribute("open", "");
+  expect(screen.getByRole("region", { name: "Shown" })).toBeDefined();
+
+  fireEvent.click(toggle);
+
+  expect(menu.hasAttribute("open")).toBe(false);
+  expect(screen.queryByRole("region", { name: "Shown" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Close Assist" }));
+  expect(screen.getByRole("region", { name: "Shown" })).toBeDefined();
+  expect(toggle.getAttribute("aria-expanded")).toBe("false");
+});
+
+test("a beat's heading moves between top, middle and lower from the Inspector", async () => {
+  await mountStory();
+
+  const place = within(screen.getByRole("group", { name: "Heading position" }));
+  expect(place.getByRole("button", { name: "Middle" }).getAttribute("aria-pressed")).toBe("true");
+  fireEvent.click(place.getByRole("button", { name: "Top" }));
+  expect(place.getByRole("button", { name: "Top" }).getAttribute("aria-pressed")).toBe("true");
+  expect(place.getByRole("button", { name: "Middle" }).getAttribute("aria-pressed")).toBe("false");
+});
+
 test("Add beat makes the missing Outro with the credit line", async () => {
   await mountStory();
 

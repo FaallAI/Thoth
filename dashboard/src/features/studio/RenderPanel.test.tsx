@@ -338,8 +338,6 @@ describe("confirming a render", () => {
 
     const confirmation = screen.getByRole("group", { name: "Render this version?" });
     expect(confirmation.getAttribute("aria-modal")).toBeNull();
-    expect(confirmation.textContent).toContain("project_001");
-    expect(confirmation.textContent).toContain("document_001");
     expect(confirmation.textContent).toContain("7");
     expect(confirmation.textContent).toContain("vertical_text_story");
     expect(confirmation.textContent).toContain("standard_vertical_mp4_v1");
@@ -1685,5 +1683,46 @@ describe("the restyled surface", () => {
     expect(screen.getByRole("button", { name: "Render revisi 7" })).toBeDefined();
     expect(screen.getByRole("region", { name: "Kesiapan" }).textContent).toContain("Revisi 7 tersimpan");
     expect(screen.getByRole("heading", { name: "Keluaran" })).toBeDefined();
+  });
+});
+
+describe("write-audit", () => {
+  test("the history lists this draft's renders, not the rest of the project's", async () => {
+    const other = {
+      ...COMPLETED,
+      render_job_id: "rj_other",
+      document_id: "document_other",
+      created_at: "2026-09-21T12:00:00Z",
+    } as RenderJob;
+    panel(makeClient([COMPLETED, other]));
+    await settle();
+    const rows = screen.getByRole("list", { name: "Render history" }).querySelectorAll("li");
+    expect(rows).toHaveLength(1);
+  });
+
+  test("a finished render frees the renderer without another click", async () => {
+    jest.useFakeTimers();
+    const client = makeClient([], {
+      getRenderJob: mock(async () =>
+        job({ status: "completed", finished_at: "2026-09-21T10:02:00Z" } as Partial<RenderJob>),
+      ),
+    });
+    panel(client);
+    await startRender();
+    const reads = (client.getRenderCapability as ReturnType<typeof mock>).mock.calls.length;
+
+    await act(async () => {
+      jest.advanceTimersByTime(1_500);
+    });
+    expect((client.getRenderCapability as ReturnType<typeof mock>).mock.calls.length).toBeGreaterThan(reads);
+  });
+
+  test("the confirmation names no raw project or document id", async () => {
+    panel(makeClient());
+    await settle();
+    fireEvent.click(screen.getByRole("button", { name: /^Render revision \d+$/ }));
+    const confirmation = screen.getByRole("group", { name: "Render this version?" });
+    expect(confirmation.textContent).not.toContain("project_001");
+    expect(confirmation.textContent).not.toContain("document_001");
   });
 });

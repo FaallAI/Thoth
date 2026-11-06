@@ -305,8 +305,7 @@ def _scroll_action(scroll: _Scroll) -> Callable[[Any], Awaitable[None]]:
             if await page.query_selector(CAPTCHA_SELECTOR) is not None:
                 await _solve(page, scroll)
             # Before scrolling, while the grid's first rows sit under the header.
-            with contextlib.suppress(Exception):
-                scroll.page_png = await _crop_profile_page(page)
+            await _capture_profile_page(page, scroll)
         # A failed or overlong scroll must never discard the pages Scrapling already captured.
         try:
             # A hard bound: a page await that never returns cannot outlive the deadline.
@@ -326,17 +325,32 @@ def _scroll_action(scroll: _Scroll) -> Callable[[Any], Awaitable[None]]:
     return action
 
 
+async def _capture_profile_page(page: Any, scroll: _Scroll) -> None:
+    """A missed crop costs the page card, never the listing, and the log says why."""
+    try:
+        scroll.page_png = await _crop_profile_page(page)
+    except Exception as error:
+        _crop_missed(type(error).__name__)
+
+
+def _crop_missed(reason: str) -> None:
+    logger.warning("tiktok profile page not captured reason=%s", reason)
+
+
 async def _crop_profile_page(page: Any) -> bytes | None:
     for _ in range(GRID_WAIT_S):
         if await page.locator(PROFILE_GRID_ITEMS).count():
             head = await page.locator(PROFILE_HEADER).first.bounding_box()
             if head is None:
+                _crop_missed("no_header")
                 return None
             rect = await page.evaluate(PROFILE_PAGE_JS, [head, PROFILE_GRID_ITEMS, 2])
             if not isinstance(rect, dict):
+                _crop_missed("no_rect")
                 return None
             return await page.screenshot(clip=rect, full_page=True, scale="css", timeout=10_000)
         await page.wait_for_timeout(1_000)
+    _crop_missed("no_grid")
     return None
 
 
@@ -350,6 +364,9 @@ async def _paginate(page: Any, scroll: _Scroll) -> None:
                 scroll.stop = "captcha"
                 return
             idle = 0
+            # The modal can land after the first crop gave up on a grid it was hiding.
+            if scroll.kind == "profile" and scroll.page_png is None:
+                await _capture_profile_page(page, scroll)
         await scroll.absorb()
         if len(scroll.seen) >= scroll.limit:
             scroll.stop = "limit"

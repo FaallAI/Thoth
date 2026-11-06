@@ -10,6 +10,7 @@ from tests.domain.edit_document_v2_fixtures import document_with_every_clip_kind
 from thoth_control_plane.api import create_app
 from thoth_control_plane.application.edit_documents import EditDocumentNotFound
 from thoth_control_plane.application.ports import (
+    EditDocumentRefused,
     EditDocumentRevisionConflict,
     EditDocumentUpgradeConflict,
 )
@@ -658,3 +659,147 @@ async def test_a_malformed_studio_document_cursor_is_a_client_error(gateway) -> 
         )
     assert response.status_code == 422
     assert response.json() == {"detail": "invalid_cursor"}
+
+
+class RestorableRepository(MemoryEditDocumentRepository):
+    """Keeps every revision, as the SQL store does."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.revisions: dict[int, EditDocument] = {}
+
+    async def insert_revision(self, document: EditDocument) -> None:
+        await super().insert_revision(document)
+        self.revisions[document.revision] = document
+
+    async def apply_operations(self, project_id, document_id, base_revision, operations):
+        try:
+            result = await super().apply_operations(
+                project_id, document_id, base_revision, operations
+            )
+        except ValueError as error:
+            raise EditDocumentRefused(str(error)) from error
+        self.revisions[result.revision] = result
+        return result
+
+    async def get_revision(self, *, project_id: str, document_id: str, revision: int):
+        return self.revisions.get(revision)
+
+    async def write_derived_revision(self, project_id, document_id, base_revision, document):
+        latest = await self.get_latest(project_id=project_id, document_id=document_id)
+        if latest.revision != base_revision:
+            raise EditDocumentRevisionConflict(latest)
+        result = document.model_copy(update={"revision": latest.revision + 1})
+        self.documents[(project_id, document_id)] = result
+        self.revisions[result.revision] = result
+        return result
+
+
+RENAME = {
+    "kind": "replace_text",
+    "operation_id": "op_001",
+    "clip_id": "clip_001",
+    "field": "heading",
+    "value": "Revised title",
+}
+
+
+async def _draft_with_an_edit(client) -> str:
+    created = await client.post(
+        "/api/v1/projects/project_001/edit-documents/import-content-set",
+        headers=AUTH_HEADERS,
+        json=PAYLOAD,
+    )
+    document_id = created.json()["document_id"]
+    await client.patch(
+        f"/api/v1/projects/project_001/edit-documents/{document_id}",
+        headers=AUTH_HEADERS,
+        json={"base_revision": 1, "operations": [RENAME]},
+    )
+    return document_id
+
+
+def _restorable_app(gateway):
+    return create_app(
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"),
+        gateway,
+        RestorableRepository(),
+        project_store=OPEN_PROJECTS,
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_patch_the_document_refuses_is_a_422_not_an_outage(gateway) -> None:
+    app = _restorable_app(gateway)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        document_id = await _draft_with_an_edit(client)
+        refused = await client.patch(
+            f"/api/v1/projects/project_001/edit-documents/{document_id}",
+            headers=AUTH_HEADERS,
+            json={"base_revision": 2, "operations": [{**RENAME, "clip_id": "clip_missing"}]},
+        )
+
+    assert refused.status_code == 422
+    assert refused.json()["detail"] == {"code": "edit_refused"}
+
+
+@pytest.mark.asyncio
+async def test_restore_saves_an_earlier_revision_as_the_next_one(gateway) -> None:
+    app = _restorable_app(gateway)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        document_id = await _draft_with_an_edit(client)
+        restored = await client.post(
+            f"/api/v1/projects/project_001/edit-documents/{document_id}/restore",
+            headers=AUTH_HEADERS,
+            json={"base_revision": 2, "revision": 1},
+        )
+
+    assert restored.status_code == 200
+    assert restored.json()["revision"] == 3
+    assert restored.json()["clips"][0]["heading"] != "Revised title"
+
+
+@pytest.mark.asyncio
+async def test_restore_conflicts_over_a_newer_save_and_refuses_an_unknown_revision(gateway) -> None:
+    app = _restorable_app(gateway)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        document_id = await _draft_with_an_edit(client)
+        path = f"/api/v1/projects/project_001/edit-documents/{document_id}/restore"
+        stale = await client.post(
+            path, headers=AUTH_HEADERS, json={"base_revision": 1, "revision": 1}
+        )
+        unknown = await client.post(
+            path, headers=AUTH_HEADERS, json={"base_revision": 2, "revision": 99}
+        )
+
+    assert stale.status_code == 409
+    assert stale.json()["latest"]["revision"] == 2
+    assert unknown.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_restore_will_not_cross_the_timeline_upgrade(gateway) -> None:
+    repository = RestorableRepository()
+    app = create_app(
+        Settings(THOTH_CONTROL_PLANE_API_KEY="test-key"),
+        gateway,
+        repository,
+        project_store=OPEN_PROJECTS,
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        document_id = await _draft_with_an_edit(client)
+        latest = repository.documents[("project_001", document_id)]
+        upgraded = upgrade_edit_document_v1(latest).model_copy(update={"revision": 3})
+        await repository.insert_revision(upgraded)
+        refused = await client.post(
+            f"/api/v1/projects/project_001/edit-documents/{document_id}/restore",
+            headers=AUTH_HEADERS,
+            json={"base_revision": 3, "revision": 1},
+        )
+
+    assert refused.status_code == 422
+    assert refused.json()["detail"] == {"code": "edit_refused"}

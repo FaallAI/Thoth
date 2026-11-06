@@ -251,8 +251,13 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=thoth-container
-          cache-to: type=gha,mode=max,scope=thoth-container
+          # The Actions cache stopped holding the runtime's 5 GB of dependency layers, so each
+          # publish rebuilt them under new digests and each deploy pulled the whole image.
+          # The registry cache is not bound by the Actions cache limit and keeps them stable.
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY_IMAGE }}:buildcache
+            type=gha,scope=thoth-container
+          cache-to: type=registry,ref=${{ env.REGISTRY_IMAGE }}:buildcache,mode=max
           provenance: mode=max
           sbom: true
 

@@ -2,6 +2,95 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-06 - Profile fix deployed and tried live; runtime build cache in GHCR
+
+Branch `chore/e2e-trial`, not merged.
+
+**Deploy of `78ac35d3`, with the operator's approval:** `api` and `worker` on `thoth@sha256:cb35a5410ced`, renderer `1269019f514a`, web `9d2d615e9f57`. Web 200, no worker error lines, no API 5xx. Rollback pins in `pins-db6c4bc8.env`. The first try was stopped by Claude Code for low memory before any pin changed; the second was stopped by the operator while pulling; the third finished.
+
+**Why the deploy took so long:** every pull of `thoth` fetched the whole 5.4 GB. The old and new images have their large layers at the same sizes (2.21, 1.96, 0.90 GB) under different digests, and the CI log of run 42076991255 shows the apt, `uv sync`, speech-model and Chromium steps built anew, not `CACHED`; why the Actions cache missed then was not traced. `719636ea` makes the runtime's publish step read and write a registry cache at `ghcr.io/faallai/thoth:buildcache`, with the Actions cache kept as a fallback. Its first build (run 42177513577, green) found no registry cache yet, took every runtime step from the Actions cache, and wrote `buildcache` with 22 layers, 5.36 GB. Its image carries the same five large layers as `78ac35d3`, so a deploy of it pulls none of them again. Whether the registry cache holds when the Actions cache misses shows only on a later build. The PR validation build is unchanged.
+
+**Live run `wf_47a20dd1bcbeaf5f8c1f29cd` on `kabinet_rakyat`, throwaway project, with the operator's approval:** completed in about 16 minutes. The profile listing stopped on a captcha three times (anonymous, with a source account whose outcome was `challenge`, then fallback), each with `pages=0 videos=0`. Every time the modal was already up at the first crop (`reason=no_grid`), and the solver logged `subtype=unknown solved=false reason=unsupported`: a click captcha, which has no solver. So the retry after a solved captcha never ran, and the fix is still unproven live. Keyword listings found 8 videos in each of four searches. Rows: `workflow_runs` +1, `usage_events` +63, nothing else changed. One `ERR_NAME_NOT_RESOLVED` for `/explore` at 07:07 UTC.
+
+**Next steps:**
+- Decide whether to answer TikTok's click captchas (icon and 3D subtypes, classified but unsolved) or to accept a missing profile page when one shows.
+- On a later `thoth` build, confirm the heavy steps come from `buildcache` and the deploy pulls only the code layers.
+- Commit, push and deploy of the script panel, heading position and Assist code, each on the operator's word.
+- Then the operator's check of step 8, the merge gate, and the Studio Timeline track.
+
+## 2026-11-05 - Fixes from the first read and write e2e audit
+
+Branch `chore/e2e-trial`, not merged. It also brings the e2e package into the repo.
+
+**TikTok profile page, fixed test-first, not yet proven live:** a profile listing cropped its page once, before paging, and swallowed any failure. `_paginate` solved a captcha that showed later but never cropped again. It now crops again after each solved captcha while no crop exists, and every miss logs `tiktok profile page not captured reason=` (`no_grid`, `no_header`, `no_rect` or the exception's name). Three new tests went red first. `test_the_scroll_stop_cause_is_logged` gives its error case a grid, so its exact list of warnings still holds. Python: lint passes, 4514 pass and the same 3 `pytest.approx` failures in `test_ocr_replay` and `test_refine`. That the modal landed after the first check is still a guess for run `wf_3288fb0445f1bac39acb21b3`, because the old code logged nothing. A cause with no captcha gets no retry, only the log line.
+
+**Paid tests on `db6c4bc8`, in the throwaway project only, with the operator's approval:**
+- Run `wf_20c490d12bf6718865372298` on `kompascom` succeeded in 11m 4s, but attribution traced its main to Instagram, so it does not serve step 8.
+- Run `wf_3288fb0445f1bac39acb21b3` on `kabinet_rakyat` succeeded with a TikTok main and verdict `original`. Its `profile_page` is missing with "Not captured: profile page", so step 8 stays open. Comments: 50 read, 12 kept by the judge, 11 on the review screen, 7 in the inspection; these counts come from different stages and were not traced.
+- Assist on its draft: `deepseek/deepseek-chat-v3.1`, 303 tokens in, 121 out. Apply showed "Unsaved changes" and Undo. The test closed the browser before autosave, so saving is not verified.
+- Narration script: `google/gemma-4-31b-it`, 834 tokens in, 208 out, 4 beats, 486 characters.
+- Voice: `elevenlabs/eleven_multilingual_v2`, 4 calls, status `completed`, revision 15 to 16, total 150.7 s to 28.3 s. Every beat's word count matches its voice (20, 16, 26, 11 words).
+
+**Findings from those tests, not fixed:**
+- The screen estimates 486 characters, and the provider's `character-cost` header billed 31, 23, 34 and 19, so 107. The estimate counts text length (`domain/narration.py`), which overstates this run about 4.5 times.
+- `unit_prices` is empty, so the estimate reads "Unpriced".
+- The run's vision and footage provider calls are not in `usage_events` for the project in the window checked, so a run's cost cannot be read from it. Not traced.
+- The script panel's title and estimate touch the left edge, and "Recreate narration" sits flush against it.
+- On the narrated draft's first frame the heading text, the comment bubble and the source video's own text overlap, and a blur band covers the middle of the source's "ROCKY GERUNG". Not traced.
+- After Apply, the Assist text fills the frame.
+- The tray lags the page both ways, "Results" on a finished run holds only "Show activity", and the "..." menu stays open over the Inspector after Assist opens.
+
+**Left in the throwaway project:** 2 runs, 2 drafts, 1 narration with 4 voices, 2 copied model preferences. The real project's draft `edoc_3aedc6af…` stays at revision 20.
+
+**Design revisions, approved by the operator:** seven `Rev 2026-11` frames in `design/thoth-dashboard-v2.pen`: the script panel awaiting approval and narrated, text in frame, Assist with the menu closed, Timeline at 1440 and 1024, and header and Timeline rules. New headings start at Top, at most two lines on a scrim, with the rest cut by an ellipsis in the preview and the render while the draft keeps the whole text. The script panel, heading and Assist are coded on this branch; the Timeline frames wait for the Timeline track.
+
+**Next steps:** one more TikTok run on the deployed profile fix, then the operator's check of step 8. Then the merge gate, and the Studio Timeline track.
+
+**Deploy of `db6c4bc8` from the branch:** images thoth `0b508fad3d06`, renderer `94a76795f3f0`, web `95d59597aea0`. CI run 41968164207 green with 4775 Python tests, no workflow running before, `make deploy` exit 0, web 200, 0 error lines in the worker, 0 API 5xx after 2 minutes, no migration. The previous env is `D:/thoth-tmp/bu/pins/pins-bcdb421e.env`. It adds plain words for narration refusals in place of their raw codes, the Timeline audit tests (8 of 22 red until the Timeline track) and the roadmap entry for that track. Before it, `make test` in the worktree had the same 3 `pytest.approx` failures noted below; dashboard 1598 tests pass, build and lint pass. Retest on it, no model: 26 of 26 at `w1440` and 3 of 3 Indonesian at `w1440id`. A run across every target also passed the Studio files at `w1024`, `w430` and `web`; its failures were the stopped dev server on port 5199, tests sent to the wrong language target, and `story-assist`, whose steps need a model key or the `THOTH_E2E_DRAFT` setting this run did not set, so it was not exercised.
+
+**Deploy of `bcdb421e` from the branch:** images thoth `bba0788985aa`, renderer `8e91c406465e`, web `d2d3e2040921`. CI run 41889189402 green with 4775 Python tests, no workflow running before, `make deploy` exit 0, web 200, 0 error lines in the worker, 0 API 5xx after 2 minutes, no migration. The previous env is `D:/thoth-tmp/bu/pins/pins-697fccc9.env`. Production runs code not in `master` until this branch merges.
+
+**Retest on that image, no model:** 30 of 30 read tests and 16 of 16 write tests pass, including Undo and Redo after autosave. A clip past the canvas answers 422 `edit_refused` with its reason in the log. Row counts of the real project are unchanged.
+
+**CI correction before the deploy:** the first push passed every `ValueError` through as a refusal, so an unreadable stored draft became 422. The refusal now covers only applying the operations and validating the result. An operation naming an asset that is missing or not ready is now refused rather than a persistence error, and its Postgres test says so.
+
+**Open:** `Create narration` on a blank draft is refused at no cost because it has no source run, and the screen shows the raw code `narration_not_available`. Narration and Assist have not been tested with a model. The operator asked for a full e2e run with read and write access, then for every finding to be fixed.
+
+**Records this entry carries:** PR #111 merged as `c49b74be`, the same tree as the deployed `697fccc9`. That deploy: images thoth `c210ae711fb0`, renderer `fdf439a6a541`, web `90970a837f2b`, digests matching push run 41796520514, no workflow running before, `make deploy` exit 0, web 200, 0 error lines in the worker, 0 API 5xx after 2 minutes, no migration. The previous env is `D:/thoth-tmp/bu/pins/pins-9997b4ee.env`.
+
+**Findings fixed, each red first:**
+- **Add could not be saved.** A clip longer than the canvas or over a main-track clip got a 503 and "Check your connection", and Retry could never work. Add now places the clip in the first free stretch at or after the playhead, on the first track with room, cut to fit. The canvas keeps its length, so adding an asset never changes the video's duration.
+- **Placement is said out loud.** A banner says when a clip was cut, moved past the playhead or placed on another track. The operator asked for this after a side review pointed out the silent cut and move.
+- **A refused edit is told apart from an outage.** A patch the document's rules refuse answers 422 `edit_refused`, logged at warning, and the screen says it could not be saved and offers no Retry.
+- **The draft's own assets came behind newer ones.** The Asset library loads further pages by itself until every asset the draft's clips use is in, so they list first.
+- **A blank draft could not get media.** The Asset library has an upload.
+- **Undo disappeared half a second after an edit,** when autosave landed. Undo and Redo now restore a saved revision through `POST .../edit-documents/{id}/restore`, which writes the next revision under the same conflict and narration guards as a patch and refuses to cross the timeline upgrade.
+- **A finished render kept saying another one was running** until something else re-read the renderer. It re-reads when the poll sees the end.
+- **A newly added clip showed "Video preview unavailable"** until Preview was pressed.
+- **A draft's render history listed the whole project's renders.** It lists that draft's, filtered client side from the project's newest page.
+- Smaller: the Replace media dialog sat top left, the top bar's title stayed stale until a reload, and the render confirmation showed raw project and document ids.
+
+**Verification:**
+- `make lint` clean. Dashboard: 1595 tests pass, `tsc -b` and build pass.
+- `make test` in the worktree had 3 failures in `test_ocr_replay` and `test_refine`, `pytest.approx() does not support nested data structures`. They pass in CI, so they belong to the worktree's test environment.
+- Before the deploy, the branch's dashboard from a vite dev server against stage1 at `697fccc9`: the same read tests passed, and 15 of 16 write tests. The other was Undo after a save, which needed this branch's server.
+- Screens judged from screenshots: Story, Timeline with the placement banner, Review, Render, Presets, Settings, Usage, Billing, Inbox at 1440. Also saved at 1024 and from the Inspector pane at 430 by test.
+- One render output probed: H.264, 1080×1920, 150 frames, 5.013 s, with audio.
+- Row counts of the real project are unchanged: 88 revisions, 67 assets, 6 renders, 3 narrations, 270 runs, draft `edoc_3aedc6af…` at revision 20.
+
+**Limits:**
+- Not tested: narration, Assist, a new run and a draft from a run, because each costs money or calls a provider; sound effects, because the library is empty.
+- A clip always keeps the canvas: an 80 s video on a 5 s draft keeps 5 s. Lengthening the canvas is a separate decision.
+- The history filter only sees the project's newest 20 renders.
+- Left on stage1: the project `E2E write test 2026-11-04` with its drafts, uploads, renders, comments, preset and template. The usage page counts its renders. The write token `e2e-write` expires by itself within a day.
+
+**Next steps:**
+- Operator gates, each separate: the paid tests, then merge.
+- Paid tests, once the cost is shown and accepted: narration, Assist, a new run, a draft from a run. Narration needs a source run first.
+- After merge: install the package in `e2e/`, repoint `D:/thoth-tmp/e2e-mcp.sh` and `D:/thoth-tmp/e2e-run.sh`, remove the worktree with the operator's approval.
+- Then the Studio Timeline track, added to `docs/ROADMAP.md` on 2026-11-05: its own spec, plan and branch, before the remaining slices of auto-draft.
+- Carried forward: the operator's choice on removing the throwaway project.
+
 ## 2026-11-04 - The narration script is told what is on screen and who said what
 
 Same branch, `fix/narration-shown-comments`, PR #111. The operator found the narration of `edoc_d49fdc23…` odd. The stored script gave comment 1's point to the people in the video, gave the transcript's "hormat preman" to netizens, and read `@syarieffaid` aloud as the author of the criticism.
@@ -701,6 +790,22 @@ Operator, 2026-10-30: "scout dan crates itu sudah tidak dipakai!!! karena nanti 
 - After 2026-11-29: drop `SourceActivityMode` and the decode-only `activity_mode` input.
 - Follow-ups: 17 Dependabot alerts on master; `crates/` and the Rust-era docs; the Studio header overflow at 430px; seven R7 minors; audit B2/B5.
 
+## 2026-10-30 - Agentic e2e trial on the dashboard (e2e 0.21.3, GLM 5.3)
+
+**What:** a standalone `e2e/` package with `e2e` 0.21.3, `@e2e-dev/web` 0.15.3, `@ai-sdk/anthropic` 4.0.81 and `ai` 7.0.142 (the AI SDK pins are the last releases older than two weeks; installed with `--ignore-scripts`; no package has install scripts). Three read-only tests in `e2e/tests/story-assist.e2e.ts`: a finished run opens its draft in Studio; Story mode shows the beats toolbar; the Assist panel opens for the shown beat. They never press suggest, apply or save.
+
+**Model path (operator-approved deviation):** the planned ACP route is not released (`@e2e-dev/acp` is 404 on npm, and the docs bundled in 0.21.3 list agent CLIs and ACP as unsupported providers). Agent steps use `@ai-sdk/anthropic` against `https://api.z.ai/api/anthropic/v1` with the GLM Coding Plan key (`ZAI_API_KEY`, root `.env`). `glm-5.3` answers text there but does not see images (a red PNG was answered "Blue", then "NO_IMAGE"), so the built-in agent runs on its text snapshot with vision off; no custom executor was needed.
+
+**Against stage1 (local):** `web({ headers })` sends a 7-day read-scope developer token (`e2e-trial`, minted with operator approval, stored in `D:/thoth-tmp/e2e-dev-token`) only to `http://127.0.0.1:8088`. Telemetry off.
+
+**Verification:** run 3: 3 passed, 6 model calls, 57.4k tokens (77% cached). Run 4: 3 passed, 3 steps replayed from the cache, 4 model calls; the two "switch to Story mode" steps missed the cache. The draft already opens in Story mode, so that step changed nothing, and e2e never records a no-change step (it runs live every time). It is now a plain tap on the Story button. Run 5: 3 passed, 3 steps replayed, 0 model calls, 4.6 s. Neither run sent a request to `/assist`. The read-scope token makes the editor's `preview-capability` POSTs answer 403, so media previews do not load in these runs.
+
+**Next steps:**
+- Operator gates: push and PR for `chore/e2e-trial`, then merge.
+- Decide whether the trial becomes a CI job; that needs a paid key or another provider (Coding Plan use is accepted for this trial scale only).
+- Revoke the `e2e-trial` token when the trial ends.
+
+## 2026-10-29 - Deployed master 5c30ba2 (PR #85, prompt answers in a markdown fence)
 ## 2026-10-30 - Scout retired: Python-only acquisition, no CDP sidecar, no `scout/` tree
 
 Operator rulings of 2026-10-30: "scout dan crates itu sudah tidak dipakai!!! karena nanti akan full ke python" and "ya scout harus mati, nanti jika gagal berarti dari sisi python nya perlu di perbaiki lagi". Stage1 had run `python` only since 5d9ee252 (PR #87); this removes the dormant paths. Plan: `docs/superpowers/plans/2026-10-30-scout-retirement.md`.

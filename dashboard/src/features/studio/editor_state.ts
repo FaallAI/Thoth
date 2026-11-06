@@ -43,7 +43,12 @@ export type EditorState = EditorSnapshot & {
   preview?: EditorSnapshot;
   history: EditorSnapshot[];
   future: EditorSnapshot[];
+  /** Revisions this session's saves replaced: Undo restores them once the snapshots are gone. */
+  savedUndo: number[];
+  savedRedo: number[];
   saveStatus: EditorSaveStatus;
+  /** The failed save was refused by the document's rules, so retrying it cannot help. */
+  saveRefused: boolean;
   isOffline: boolean;
   inFlightOperationIds: string[];
   latestConflict?: EditDocument;
@@ -72,7 +77,8 @@ export type EditorAction =
   | { type: "redo" }
   | { type: "save_started"; operationIds?: string[] }
   | { type: "save_succeeded"; document: EditDocument; operationIds?: string[] }
-  | { type: "save_failed" }
+  | { type: "save_failed"; refused?: boolean }
+  | { type: "restored"; document: EditDocument; direction: "undo" | "redo" }
   | { type: "retry_save" }
   | { type: "went_offline" }
   | { type: "went_online" }
@@ -120,7 +126,10 @@ export function createEditorState(
     assets,
     history: [],
     future: [],
+    savedUndo: [],
+    savedRedo: [],
     saveStatus: "saved",
+    saveRefused: false,
     isOffline: false,
     inFlightOperationIds: [],
     pendingOperations: [],
@@ -153,6 +162,7 @@ const DOCUMENT_ACTIONS = new Set<EditorAction["type"]>([
   "save_started",
   "save_succeeded",
   "save_failed",
+  "restored",
   "retry_save",
   "save_conflicted",
   "reload_latest",
@@ -504,18 +514,23 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ? {
             ...state,
             saveStatus: "saving",
+            saveRefused: false,
             inFlightOperationIds: action.operationIds ?? state.pendingOperations.map((operation) => operation.operation_id),
           }
         : state;
     case "save_succeeded": {
       const sent = new Set(action.operationIds ?? state.pendingOperations.map((operation) => operation.operation_id));
       const remaining = state.pendingOperations.filter((operation) => !sent.has(operation.operation_id));
+      // A revision adopted from elsewhere (no operations of ours) is not this session's to undo.
+      const savedUndo = sent.size ? [...state.savedUndo, state.base.revision] : [];
       if (remaining.length) {
         return {
           ...state,
           base: action.document,
           history: [],
           future: [],
+          savedUndo,
+          savedRedo: [],
           pendingOperations: remaining,
           inFlightOperationIds: [],
           saveStatus: state.isOffline ? "offline" : "dirty",
@@ -529,12 +544,25 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         isOffline: state.isOffline,
         inFlightOperationIds: [],
         saveStatus: state.isOffline ? "offline" : saved.saveStatus,
+        savedUndo,
+      };
+    }
+    case "restored": {
+      const saved = createEditorState(action.document, state.assets);
+      const undoing = action.direction === "undo";
+      return {
+        ...saved,
+        ...sessionAfterSave(state, action.document, saved),
+        isOffline: state.isOffline,
+        saveStatus: state.isOffline ? "offline" : saved.saveStatus,
+        savedUndo: undoing ? state.savedUndo.slice(0, -1) : [...state.savedUndo, state.base.revision],
+        savedRedo: undoing ? [state.base.revision, ...state.savedRedo] : state.savedRedo.slice(1),
       };
     }
     case "save_failed":
       return state.isOffline
         ? { ...state, inFlightOperationIds: [], saveStatus: "offline" }
-        : { ...state, inFlightOperationIds: [], saveStatus: "failed" };
+        : { ...state, inFlightOperationIds: [], saveStatus: "failed", saveRefused: Boolean(action.refused) };
     case "retry_save":
       return state.pendingOperations.length && !state.isOffline ? { ...state, saveStatus: "dirty" } : state;
     case "went_offline":
@@ -590,6 +618,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         base: state.latestConflict,
         history: [],
         future: [],
+        savedUndo: [],
+        savedRedo: [],
         pendingOperations,
         saveStatus: state.isOffline ? "offline" : pendingOperations.length ? "dirty" : "saved",
         latestConflict: undefined,

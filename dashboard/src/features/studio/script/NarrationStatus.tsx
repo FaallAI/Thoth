@@ -1,5 +1,6 @@
 // The narration's status in Studio's header (spec 2026-11-01, Studio shell v2, goal 2): it says
 // where the narration stands and what can be done next, instead of a button that looks dead.
+import type { MessageKey } from "@/lib/i18n";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { LoaderCircle, Mic } from "lucide-react";
 
@@ -61,6 +62,16 @@ export function NarrationChecking({ variant }: Pick<Props, "variant">) {
     </p>
   );
 }
+
+/** Refusals a person can act on; any other shows a plain sentence, never its code. */
+const EXPLAINED_REFUSALS = new Set([
+  "narration_not_available",
+  "prompt_not_configured",
+  "narration_in_progress",
+  "narration_exists",
+  "narration_preset_conflict",
+  "revoice_failed",
+]);
 
 export function NarrationStatus({ client, projectId, documentId, state, variant, onChange, onOpenScript, scriptOpen = false, onCloseScript, pollMs = 3000, onStarted }: Props) {
   const { t } = useLocale();
@@ -203,7 +214,7 @@ export function NarrationStatus({ client, projectId, documentId, state, variant,
       ) : null}
       {problem ? (
         <p role="status" className="px-2 text-xs text-danger">
-          {t("studio.narration.refused", { code: problem })}
+          {t(EXPLAINED_REFUSALS.has(problem) ? (`studio.narration.refused.${problem}` as MessageKey) : "studio.narration.refused.other")}
         </p>
       ) : null}
     </div>

@@ -597,6 +597,7 @@ def test_openapi_exposes_exact_required_path_method_pairs(gateway) -> None:
             "/api/v1/projects/{project_id}/edit-documents/{document_id}/upgrade-timeline",
             "post",
         ),
+        ("/api/v1/projects/{project_id}/edit-documents/{document_id}/restore", "post"),
         ("/api/v1/projects/{project_id}/edit-documents/{document_id}/review-comments", "get"),
         ("/api/v1/projects/{project_id}/edit-documents/{document_id}/review-comments", "post"),
         ("/api/v1/projects/{project_id}/edit-documents/{document_id}/review-decisions", "get"),

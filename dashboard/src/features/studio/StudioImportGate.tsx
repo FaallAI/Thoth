@@ -52,7 +52,7 @@ const CODES = new Set([
 const known = (error: StudioImportRequestError): MessageKey | null =>
   error.code && CODES.has(error.code) ? (`studio.inventory.error.${error.code}` as MessageKey) : null;
 
-function failure(error: unknown, fallback: MessageKey): MessageKey {
+export function failure(error: unknown, fallback: MessageKey): MessageKey {
   if (!(error instanceof StudioImportRequestError)) return fallback;
   if (error.status === null) return "studio.error.offline";
   return known(error) ?? fallback;

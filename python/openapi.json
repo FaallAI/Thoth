@@ -1777,6 +1777,7 @@
                   "set_clip_volume": "#/components/schemas/SetClipVolume",
                   "set_ownership": "#/components/schemas/SetOwnership",
                   "set_scene_duration": "#/components/schemas/SetSceneDuration",
+                  "set_text_place": "#/components/schemas/SetTextPlace",
                   "set_track_locked": "#/components/schemas/SetTrackLocked",
                   "set_track_muted": "#/components/schemas/SetTrackMuted",
                   "set_track_visibility": "#/components/schemas/SetTrackVisibility",
@@ -1849,6 +1850,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/SetCaptionStyle"
+                },
+                {
+                  "$ref": "#/components/schemas/SetTextPlace"
                 },
                 {
                   "$ref": "#/components/schemas/SetClipPosition"
@@ -5039,6 +5043,28 @@
         "title": "ResolvedPromptSection",
         "type": "object"
       },
+      "RestoreRevisionRequest": {
+        "additionalProperties": false,
+        "description": "Save an earlier revision's content as the next revision: what Undo does after a save.",
+        "properties": {
+          "base_revision": {
+            "exclusiveMinimum": 0.0,
+            "title": "Base Revision",
+            "type": "integer"
+          },
+          "revision": {
+            "exclusiveMinimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "base_revision",
+          "revision"
+        ],
+        "title": "RestoreRevisionRequest",
+        "type": "object"
+      },
       "ReviewComment": {
         "additionalProperties": false,
         "properties": {
@@ -6013,6 +6039,44 @@
         "title": "SetSceneDuration",
         "type": "object"
       },
+      "SetTextPlace": {
+        "additionalProperties": false,
+        "description": "Where a text clip's heading sits on the canvas; `title` is the middle, as it always was.",
+        "properties": {
+          "clip_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "set_text_place",
+            "title": "Kind",
+            "type": "string"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "style_slot": {
+            "enum": [
+              "title_top",
+              "title",
+              "title_lower"
+            ],
+            "title": "Style Slot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "clip_id",
+          "style_slot"
+        ],
+        "title": "SetTextPlace",
+        "type": "object"
+      },
       "SetTrackLocked": {
         "additionalProperties": false,
         "properties": {
@@ -6902,6 +6966,7 @@
                   "set_clip_volume": "#/components/schemas/SetClipVolume",
                   "set_ownership": "#/components/schemas/SetOwnership",
                   "set_scene_duration": "#/components/schemas/SetSceneDuration",
+                  "set_text_place": "#/components/schemas/SetTextPlace",
                   "set_track_locked": "#/components/schemas/SetTrackLocked",
                   "set_track_muted": "#/components/schemas/SetTrackMuted",
                   "set_track_visibility": "#/components/schemas/SetTrackVisibility",
@@ -6974,6 +7039,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/SetCaptionStyle"
+                },
+                {
+                  "$ref": "#/components/schemas/SetTextPlace"
                 },
                 {
                   "$ref": "#/components/schemas/SetClipPosition"
@@ -11976,6 +12044,99 @@
         "tags": [
           "narration"
         ]
+      }
+    },
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/restore": {
+      "post": {
+        "description": "Save an earlier revision's content as the next revision, under the same guards as a patch.",
+        "operationId": "restore_edit_document_revision_api_v1_projects__project_id__edit_documents__document_id__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/EditDocumentV1"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EditDocumentV2"
+                    }
+                  ],
+                  "title": "Response Restore Edit Document Revision Api V1 Projects  Project Id  Edit Documents  Document Id  Restore Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentRevisionConflictBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Edit Document Revision"
       }
     },
     "/api/v1/projects/{project_id}/edit-documents/{document_id}/review-comments": {

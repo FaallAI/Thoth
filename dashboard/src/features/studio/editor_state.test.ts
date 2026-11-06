@@ -926,3 +926,64 @@ test("a media-first scene still names its first text clip for guided edits", () 
   expect(sceneTextClip(document, scene)?.clip_id).toBe("clip_002");
   expect(sceneTextClip(document, { ...scene, scene_id: "scene_empty" })).toBeUndefined();
 });
+
+// Found by the write audit: autosave emptied the undo history half a second after every edit.
+const savedEdit = (value: string, revision: number, from = createEditorState(document)) => {
+  const edited = editHeading(from, value);
+  return editorReducer(edited, {
+    type: "save_succeeded",
+    document: { ...document, revision, clips: story(edited.draft).clips },
+  });
+};
+
+test("write-audit: a saved edit stays undoable by the revision it replaced", () => {
+  const saved = savedEdit("First", document.revision + 1);
+  expect(saved.savedUndo).toEqual([document.revision]);
+  expect(saved.savedRedo).toEqual([]);
+});
+
+test("write-audit: a restore moves the revision between the undo and redo stacks", () => {
+  const second = savedEdit("Second", document.revision + 2, savedEdit("First", document.revision + 1));
+  expect(second.savedUndo).toEqual([document.revision, document.revision + 1]);
+
+  const restored = { ...document, revision: document.revision + 3 };
+  const undone = editorReducer(second, { type: "restored", document: restored, direction: "undo" });
+  expect(undone.draft).toEqual(restored);
+  expect(undone.savedUndo).toEqual([document.revision]);
+  expect(undone.savedRedo).toEqual([document.revision + 2]);
+
+  const again = { ...document, revision: document.revision + 4 };
+  const redone = editorReducer(undone, { type: "restored", document: again, direction: "redo" });
+  expect(redone.savedUndo).toEqual([document.revision, document.revision + 3]);
+  expect(redone.savedRedo).toEqual([]);
+});
+
+test("write-audit: a new edit after an undo drops what could be redone", () => {
+  const first = savedEdit("First", document.revision + 1);
+  const undone = editorReducer(first, {
+    type: "restored",
+    document: { ...document, revision: document.revision + 2 },
+    direction: "undo",
+  });
+  expect(undone.savedRedo).toHaveLength(1);
+  expect(savedEdit("Other", document.revision + 3, undone).savedRedo).toEqual([]);
+});
+
+test("write-audit: a revision adopted from elsewhere empties the undo stacks", () => {
+  const first = savedEdit("First", document.revision + 1);
+  const adopted = editorReducer(first, {
+    type: "save_succeeded",
+    document: { ...document, revision: document.revision + 2 },
+    operationIds: [],
+  });
+  expect(adopted.savedUndo).toEqual([]);
+});
+
+test("write-audit: a refused save is told apart from a failed one and clears on the next try", () => {
+  const edited = editHeading(createEditorState(document), "Refused");
+  const refused = editorReducer(edited, { type: "save_failed", refused: true });
+  expect(refused).toMatchObject({ saveStatus: "failed", saveRefused: true });
+  const trying = editorReducer(refused, { type: "save_started" });
+  expect(trying.saveRefused).toBe(false);
+  expect(editorReducer(edited, { type: "save_failed" }).saveRefused).toBe(false);
+});

@@ -1,5 +1,6 @@
 import { useState, type Dispatch } from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, TriangleAlert, X } from "lucide-react";
+import { headingFitChars } from "@thoth/remotion-composition";
 
 import {
   StudioImportRequestError,
@@ -20,6 +21,7 @@ type Props = {
   /** The server reads the saved revision, so Assist waits until the draft is saved. */
   ready: boolean;
   dispatch: Dispatch<EditorAction>;
+  onClose?: () => void;
 };
 
 /** The route takes at most this many clip ids (StoryAssistRequest.clip_ids). */
@@ -34,7 +36,7 @@ const FAILURE_OF: Record<string, Failure> = {
 };
 
 /** Spec 2026-10-27 §7: one text proposal for the chosen beat; Apply or Dismiss. Never stored. */
-export function AssistPanel({ request, baseRevision, beat, document, ready, dispatch }: Props) {
+export function AssistPanel({ request, baseRevision, beat, document, ready, dispatch, onClose }: Props) {
   const { t } = useLocale();
   const [thinking, setThinking] = useState(false);
   const [proposal, setProposal] = useState<StoryAssistProposal | null>(null);
@@ -69,12 +71,24 @@ export function AssistPanel({ request, baseRevision, beat, document, ready, disp
   const text = proposal?.operations
     .map((operation) => ("value" in operation ? operation.value : "text" in operation ? operation.text : ""))
     .join(" ");
+  // Only a heading is drawn with a two-line limit; a caption has its own lane.
+  const fit = headingFitChars(document.canvas);
+  const tooLong = (proposal?.operations ?? []).flatMap((operation) =>
+    operation.kind === "replace_text" && operation.field === "heading" && operation.value.length > fit ? [operation.value.length] : [],
+  )[0];
 
   return (
-    <section aria-label={t("studio.assist.title")} className="flex flex-col gap-3 border-t border-studio-ai/40 p-4">
-      <h2 className="flex items-center gap-1.5 text-[15px] font-semibold text-studio-ai">
-        <Sparkles aria-hidden="true" size={15} /> {t("studio.assist.title")}
-      </h2>
+    <section aria-label={t("studio.assist.title")} className="flex flex-col gap-3 p-4">
+      <div className="flex items-center justify-between">
+        <h2 className="flex items-center gap-1.5 text-[15px] font-semibold text-studio-ai">
+          <Sparkles aria-hidden="true" size={15} /> {t("studio.assist.title")}
+        </h2>
+        {onClose ? (
+          <button type="button" aria-label={t("studio.assist.close")} onClick={onClose} className="grid size-7 place-items-center rounded-md text-muted-ink hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-copper">
+            <X aria-hidden="true" size={15} />
+          </button>
+        ) : null}
+      </div>
       <p className="text-xs text-muted-ink">{t("studio.assist.intro")}</p>
       {proposal ? (
         <div className="flex flex-col gap-2 rounded-md border border-studio-ai/50 bg-studio-ai/10 p-3 text-sm text-ink">
@@ -82,6 +96,12 @@ export function AssistPanel({ request, baseRevision, beat, document, ready, disp
           <p className="text-xs text-muted-ink">{proposal.reason}</p>
           <p className="text-xs text-faint">{t("studio.assist.proposed")}</p>
           <p className="rounded bg-well px-2 py-1.5">{text}</p>
+          {tooLong ? (
+            <p className="flex items-center gap-1.5 text-xs text-status-waiting">
+              <TriangleAlert aria-hidden="true" size={14} />
+              <span>{t("studio.inspector.tooLong", { count: tooLong })}</span>
+            </p>
+          ) : null}
           <div className="flex gap-2">
             <button
               type="button"

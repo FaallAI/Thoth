@@ -204,7 +204,8 @@ function RenderSurface({
       // the error, and not the selection, which the reducer does not guard.
       if (generation !== generationRef.current) return;
       // A page without records is an empty history, not a broken panel.
-      const jobs = page.jobs ?? [];
+      // ponytail: filters the project's newest page; a server-side filter when drafts outgrow it.
+      const jobs = (page.jobs ?? []).filter((entry) => entry.document_id === documentId);
       setImports(inventory);
       dispatch({ type: "loaded", generation, capability, jobs });
       // A reload lands on a render already running: the control plane names it,
@@ -378,7 +379,15 @@ function RenderSurface({
       client
         .getRenderJob(projectId, pollJobId)
         .then((job) => {
-          if (live) dispatch({ type: "job_refreshed", generation, job });
+          if (!live) return;
+          dispatch({ type: "job_refreshed", generation, job });
+          if (RUNNING_STATUSES.has(job.status)) return;
+          // The renderer is free again the moment a render ends: re-read that, unprompted.
+          // This poll has stopped by the time it answers, so the generation guards it alone.
+          client.getRenderCapability(projectId).then(
+            (capability) => dispatch({ type: "capability_refreshed", generation, capability }),
+            () => {},
+          );
         })
         .catch(() => {})
         .finally(() => {
@@ -683,10 +692,6 @@ function RenderSurface({
               {t("studio.render.confirm.title")}
             </h3>
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[13px] text-muted-ink">
-              <dt>{t("studio.render.confirm.project")}</dt>
-              <dd className="truncate font-mono">{confirmCreate.projectId}</dd>
-              <dt>{t("studio.render.confirm.document")}</dt>
-              <dd className="truncate font-mono">{confirmCreate.documentId}</dd>
               <dt>{t("studio.render.confirm.revision")}</dt>
               <dd className="font-mono">{confirmCreate.documentRevision}</dd>
               <dt>{t("studio.render.confirm.template")}</dt>

@@ -11,12 +11,13 @@ import hashlib
 from collections.abc import Callable
 from typing import TypeVar
 
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 from sqlalchemy import exists, select, true, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from thoth_control_plane.application.ports import (
+    EditDocumentRefused,
     EditDocumentRevisionConflict,
     EditDocumentUpgradeConflict,
 )
@@ -287,14 +288,22 @@ class PostgresEditDocumentRepository:
             if latest.revision != base_revision:
                 raise EditDocumentRevisionConflict(latest)
             resolved = self._resolve_assets(session, project_id, operations)
-            updated = apply_edit_operations(latest, operations, resolved_assets=resolved)
-            result = DOCUMENT_ADAPTER.validate_python(
-                {**updated.model_dump(mode="json"), "revision": latest.revision + 1}
-            )
+            # Only here does a ValueError mean the change is refused; an unreadable stored
+            # document above stays the safe persistence error.
+            try:
+                updated = apply_edit_operations(latest, operations, resolved_assets=resolved)
+                result = DOCUMENT_ADAPTER.validate_python(
+                    {**updated.model_dump(mode="json"), "revision": latest.revision + 1}
+                )
+            except ValidationError as error:
+                # Its text carries the document, so only the first rule's message is kept.
+                raise EditDocumentRefused(error.errors()[0]["msg"]) from error
+            except ValueError as error:
+                raise EditDocumentRefused(str(error)) from error
             self._insert_revision(session, result)
             return result
 
-        return await self._run(write, (EditDocumentRevisionConflict,))
+        return await self._run(write, (EditDocumentRevisionConflict, EditDocumentRefused))
 
     async def write_derived_revision(
         self,

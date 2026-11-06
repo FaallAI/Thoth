@@ -42,6 +42,7 @@ from thoth_control_plane.domain.timeline_operations import (
     SetClipHidden,
     SetClipLocked,
     SetClipVolume,
+    SetTextPlace,
     SetTrackLocked,
     SetTrackMuted,
     SetTrackVisibility,
@@ -1183,6 +1184,34 @@ def test_set_caption_style_rejects_an_unknown_style_at_parse_time() -> None:
 def test_set_caption_style_applies_only_to_caption_clips() -> None:
     with pytest.raises(ValueError, match="caption style applies only to caption clips"):
         apply_edit_operations(captioned_draft(), [caption_style("clip_001", "source")])
+
+
+def text_place(clip_id: str, style_slot: str) -> SetTextPlace:
+    return SetTextPlace.model_validate(
+        {
+            "kind": "set_text_place",
+            "operation_id": "op_place",
+            "clip_id": clip_id,
+            "style_slot": style_slot,
+        }
+    )
+
+
+@pytest.mark.parametrize("place", ["title_top", "title", "title_lower"])
+def test_set_text_place_moves_a_heading_through_its_style_slot(place: str) -> None:
+    result = apply_edit_operations(captioned_draft(), [text_place("clip_001", place)])
+
+    assert find_clip(result, "clip_001").style_slot == place
+
+
+def test_set_text_place_rejects_an_unknown_place_at_parse_time() -> None:
+    with pytest.raises(ValidationError):
+        text_place("clip_001", "title_center")
+
+
+def test_set_text_place_applies_only_to_text_clips() -> None:
+    with pytest.raises(ValueError, match="text place applies only to text clips"):
+        apply_edit_operations(captioned_draft(), [text_place("clip_cap", "title_top")])
 
 
 def test_caption_and_audio_edits_survive_a_save_round_trip() -> None:

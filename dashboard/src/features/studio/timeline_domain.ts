@@ -163,30 +163,70 @@ export function compatibleTrackIds(
     .map((track) => track.track_id);
 }
 
+/** The first free stretch of a track at or after `from`, or nothing when it is full to the end. */
+function freeSlot(
+  document: EditDocumentV2,
+  trackId: string,
+  from: number,
+): { start: number; room: number } | undefined {
+  const canvasEnd = document.canvas.duration_in_frames;
+  const clips = (document.clips ?? [])
+    .filter((clip) => clip.track_id === trackId)
+    .sort((left, right) => left.from_frame - right.from_frame);
+  let start = from;
+  for (const clip of clips) {
+    const end = clip.from_frame + clip.duration_in_frames;
+    if (end <= start) continue;
+    if (clip.from_frame > start) return { start, room: Math.min(clip.from_frame, canvasEnd) - start };
+    start = end;
+  }
+  return start < canvasEnd ? { start, room: canvasEnd - start } : undefined;
+}
+
 /**
- * The operation that drops `asset` onto the first track that accepts it.
+ * The operation that drops `asset` into the first free stretch at or after the
+ * playhead, on the first track that has one, cut to fit that stretch.
  *
- * Returns nothing when no unlocked track takes the asset, so the caller can
- * leave the document alone instead of emitting an operation the server refuses.
+ * Returns nothing when no unlocked track has room, so the caller can leave the
+ * document alone instead of emitting an operation the server refuses.
  */
 export function createAddClipFromAssetOperation(
   document: EditDocumentV2,
   asset: EditorAsset,
   playheadFrame: number,
   ids: { operationId: string; clipId: string },
-): EditDocumentOperation | undefined {
-  const [trackId] = compatibleTrackIds(document, asset.kind === "audio" ? "audio" : "video");
-  if (!trackId) return undefined;
+): Extract<EditDocumentOperation, { kind: "add_clip_from_asset" }> | undefined {
+  const from = Math.max(0, Math.round(playheadFrame));
+  for (const trackId of compatibleTrackIds(document, asset.kind === "audio" ? "audio" : "video")) {
+    const slot = freeSlot(document, trackId, from);
+    if (!slot) continue;
+    return {
+      kind: "add_clip_from_asset",
+      operation_id: ids.operationId,
+      clip_id: ids.clipId,
+      track_id: trackId,
+      asset_id: asset.asset_id,
+      from_frame: slot.start,
+      // A still has no duration of its own; one canvas second reads as deliberate.
+      duration_in_frames: Math.min(asset.duration_in_frames ?? document.canvas.fps, slot.room),
+      source_from_frame: 0,
+    };
+  }
+  return undefined;
+}
+
+/** How a placement differs from the whole asset at the playhead on the first track that takes it. */
+export function placementChanges(
+  document: EditDocumentV2,
+  asset: EditorAsset,
+  playheadFrame: number,
+  operation: Extract<EditDocumentOperation, { kind: "add_clip_from_asset" }>,
+): { cut: boolean; later: boolean; otherTrack: boolean } {
+  const [firstTrack] = compatibleTrackIds(document, asset.kind === "audio" ? "audio" : "video");
   return {
-    kind: "add_clip_from_asset",
-    operation_id: ids.operationId,
-    clip_id: ids.clipId,
-    track_id: trackId,
-    asset_id: asset.asset_id,
-    from_frame: Math.max(0, Math.round(playheadFrame)),
-    // A still has no duration of its own; one canvas second reads as deliberate.
-    duration_in_frames: asset.duration_in_frames ?? document.canvas.fps,
-    source_from_frame: 0,
+    cut: operation.duration_in_frames < (asset.duration_in_frames ?? document.canvas.fps),
+    later: operation.from_frame > Math.max(0, Math.round(playheadFrame)),
+    otherTrack: operation.track_id !== firstTrack,
   };
 }
 
@@ -367,6 +407,12 @@ export function applyTimelineOperation(
     case "set_caption_style": {
       const clip = unlockedClip(next, operation.clip_id);
       if (clip.kind !== "caption") throw new Error("caption style applies only to caption clips");
+      clip.style_slot = operation.style_slot;
+      break;
+    }
+    case "set_text_place": {
+      const clip = unlockedClip(next, operation.clip_id);
+      if (clip.kind !== "text") throw new Error("text place applies only to text clips");
       clip.style_slot = operation.style_slot;
       break;
     }

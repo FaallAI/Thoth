@@ -216,6 +216,20 @@ def test_the_draft_has_one_text_scene_per_ordered_source_item() -> None:
     assert "source_url" not in serialized
 
 
+def test_a_new_drafts_headings_start_at_the_top_and_quoted_text_stays_in_the_middle() -> None:
+    # The first narrated draft of 2026-11-05: a mid-frame title ran over the comment card.
+    document = build_studio_draft(PROJECT, "edoc_first", create_request().source)
+
+    assert [clip.style_slot for clip in document.clips] == [
+        "title_top",
+        "title_top",
+        "title_top",
+        "title_top",
+        "title_top",
+        "source",
+    ]
+
+
 def test_each_text_scene_carries_its_items_role_so_it_has_a_story_beat() -> None:
     # Without it a quoted comment had no beat: narration crammed it over the footage titles.
     document = build_studio_draft(PROJECT, "edoc_first", create_request().source)

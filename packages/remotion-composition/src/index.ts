@@ -8,6 +8,7 @@
 export {
   AdvancedTimelineComposition,
   CAPTION_STYLE_IDS,
+  headingFitChars,
   type PreviewSources,
   volumeAt,
 } from "./AdvancedTimelineComposition";
