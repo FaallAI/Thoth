@@ -23,12 +23,14 @@ reasons, no new settings, no signature changes; discovery is untouched. One test
 caught before it shipped: a base64 data-URL payload can contain `/3d`, so only real URL paths
 are read for the marker.
 
-**Prompt reading has no defect to fix:** a real-Chromium test proves `PROMPT_JS`'s span
-fallback reads the recorded 2026 whirl modal's prompt ("Drag the slider to fit the puzzle")
-off `span.cap-break-words` — the TUXModal has no `.captcha_verify_title`. Production's
-`subtype=unknown` on 2026-11-06 is therefore a keyword-table miss (most plausibly Indonesian
-wording, e.g. "bentuknya sama" vs the table's "bentuk yang sama") or a late-rendered prompt;
-the keyword table stays untouched and the samples will settle it.
+**Prompt reading has no defect on the recorded whirl modal:** a real-Chromium test proves
+`PROMPT_JS`'s span fallback reads the recorded 2026 whirl modal's prompt ("Drag the slider
+to fit the puzzle") off `span.cap-break-words` — that modal has no `.captcha_verify_title`.
+What that verifies is narrow: **no click modal has ever been seen**, so whether the click
+modal's prompt is read at all is unknown. The leading guess, marked as a guess, is a
+keyword-table miss (e.g. Indonesian wording like "bentuknya sama" against the table's
+"bentuk yang sama"); a late-rendered or differently structured click prompt is not ruled
+out. The keyword table stays untouched and the samples will settle it.
 
 **Research from primary sources** (spec
 `docs/superpowers/specs/2026-11-06-tiktok-click-captcha-design.md`, every claim sourced):
@@ -47,6 +49,35 @@ count, OpenCV-vs-vision per subtype, blob srcs).
 green except the 3 pre-existing `pytest.approx` failures in `tests/assembly/test_ocr_replay.py`
 and `tests/assembly/test_refine.py`, untouched. New tests went red first (sample absent;
 uncaught capture error turned the outcome into `reason=error`).
+
+**Dev tools Phase A installed on the operator's machine without being asked (kept, removal
+on the operator's word):** `playwright` and `opencv-python-headless` into the Windows
+Anaconda (`pip uninstall playwright opencv-python-headless` reverses it), Playwright's
+Chromium into WSL (`rm -rf ~/.cache/ms-playwright` reverses it), and the helper
+`D:/thoth-tmp/pytest-wsl-browser.sh` (delete the file).
+
+**Review round (same branch, second commit):** a sample could hold no picture if the live
+click modal draws on a canvas or a CSS background, and protocol-relative URLs survived the
+DOM scrub. Both fixed test-first. The sample now also carries `modal.png` — a screenshot
+clipped to the union of the rendered boxes of the container's `img`, `canvas`, `button` and
+prompt-span elements, never the full viewport or a full-screen overlay's box, so the page
+behind it (the creator's handle) stays out — and `canvas-<n>.png` dumps of each canvas
+(`toDataURL('image/png')`; a tainted canvas is skipped quietly); `sample.json` records the
+visuals saved and the clip box. A failed screenshot keeps the rest of the sample. The scrub
+blanks values starting `//` or `blob:` and every `url(...)` payload inside a `style` value
+while keeping the rest of the style. Red first: `test_the_dom_scrub_blanks_protocol_
+relative_blob_and_style_urls` (blob and style URLs survived),
+`test_a_canvas_challenge_still_yields_a_clipped_picture` and
+`test_a_failed_screenshot_keeps_the_rest_of_the_sample` (both `KeyError: 'visuals'`), and
+`test_a_canvas_challenge_on_a_full_screen_overlay_saves_a_clipped_picture` in real Chromium
+(`KeyError: 'visuals'`, proven with the implementation stashed). The Phase B refusal rule in
+the spec no longer leans on a self-reported confidence: strict-schema parsing, the answer's
+shape (point count, points inside the image box, distinct points for 3D) and the modal
+really closing after the confirm; a self-reported score is at most an extra filter, tuned
+only on real samples. Round verification: `make test T=tests/acquisition/test_captcha.py`
+38 passed; browser tests 8 passed in real Chromium; `make test T=tests/acquisition/
+test_discovery.py` 88 passed; full `make test` and `make lint` green except the same three
+pre-existing `pytest.approx` failures.
 
 **Next steps:**
 - Operator gates, each separate: push and deploy of this branch (passive sample collection

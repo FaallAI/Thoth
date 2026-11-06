@@ -17,10 +17,10 @@ Design decisions (from the executor prompt; spec at
 
 Status: reading done (captcha.py, discovery.py, tests, fixtures, CHANGELOG entries, vision
 path, ops script). The recorded whirl modal has no `.captcha_verify_title`; its prompt lives
-in a plain `span.cap-break-words`, which `PROMPT_JS`'s span fallback reads — the whirl
-fixture therefore exonerates the span heuristic for the 2026 TUXModal shape, and production's
-`subtype=unknown` most plausibly comes from prompt wording/locale never matching
-`CLICK_PROMPTS` (or a late-rendered prompt); the samples will settle it.
+in a plain `span.cap-break-words`, which `PROMPT_JS`'s span fallback reads. That verifies the
+reader on the recorded **whirl** modal only — no click modal has ever been seen, so whether a
+click modal's prompt is read at all is unknown; a keyword-table miss (e.g. Indonesian
+wording) is the leading guess, marked as a guess, and the samples will settle it.
 
 Status: Phase A built and verified, one local commit on this branch. Capture in
 production code (env-gated on the artifact root, bounded 5 s / 50 samples / 12 images,
@@ -36,3 +36,17 @@ Next: operator gates, each separate — push/deploy of this branch (passive coll
 live recording session (active), then the go for Phase B once samples exist. Gates not
 authorized: push, deploy, PR, merge (rides after `chore/e2e-trial`), live runs, paid vision
 calls.
+
+Status: review round applied (second commit, `f503ced1` untouched). Samples now also carry
+`modal.png` (screenshot clipped to the union of the container's img/canvas/button/prompt-span
+boxes — never the viewport or a full-screen overlay, so the page behind stays out) and
+`canvas-<n>.png` dumps (tainted canvases skipped quietly); a failed screenshot keeps the
+sample; `sample.json` records the visuals and the clip. The DOM scrub now blanks `//`- and
+`blob:`-prefixed values and `url(...)` payloads inside `style`. All red first (fake pages
+KeyError 'visuals'; the Chromium overlay test proven red with the implementation stashed).
+The spec's refusal rule leans on checkable shape, strict parsing and the modal closing, not
+self-reported confidence. Phase A's dev installs are disclosed in the CHANGELOG with removal
+steps. Round verification: captcha 38 pass, browser 8 pass, discovery 88 pass, full make
+test + make lint green except the 3 known `pytest.approx` failures. Prompt wording claim
+narrowed: reader verified on the whirl modal only; keyword miss is the leading guess. Next:
+the same operator gates as above.

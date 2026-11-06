@@ -44,13 +44,23 @@ settings:
   still ends `reason=unsupported attempts=1`).
 - **Sample:** one directory `<root>/captcha-samples/<utcstamp>/` holding `sample.json`
   (`captured_at`, `subtype`, `reason`, `prompt_candidates` — exactly what the production
-  `PROMPT_JS` reader saw — `boxes` of every `img`/`button`, and an `images` list), `dom.html`
-  (the container's outer HTML with attribute values that are `data:` URLs, contain `://` or
-  exceed 200 chars blanked; capped at 200 KB), and every modal image as served through the
-  existing `_src_bytes` (data URLs decode, links fetch on the session; first 12 images). Each
-  image entry carries `src_hint` — the `3d`/`icon` marker TikTok bakes into some captcha
-  image URLs — because the sanitized DOM no longer keeps the URL itself. Data and blob URLs
-  carry no hint, and their base64 payloads are never scanned for one.
+  `PROMPT_JS` reader saw — `boxes` of every `img`/`canvas`/`button` and of the prompt span,
+  an `images` list, and a `visuals` record), `dom.html` (the container's outer HTML with
+  attribute values that are `data:`/`blob:`/protocol-relative URLs, contain `://`, or exceed
+  200 chars blanked, and every `url(...)` payload inside a `style` value blanked while the
+  rest of the style stays; capped at 200 KB), every modal image as served through the
+  existing `_src_bytes` (data URLs decode, links fetch on the session; first 12), a dump of
+  each `<canvas>` in the container (`canvas-<n>.png` via `toDataURL('image/png')`; a
+  tainted canvas is skipped quietly), and `modal.png` — a screenshot clipped to the union of
+  the rendered boxes of the container's `img`, `canvas`, `button` and prompt-span elements,
+  never the full viewport or a full-screen overlay's box, so the page behind it (the
+  creator's handle) stays out of the sample. An empty union saves no screenshot; a failed
+  screenshot loses nothing else. Each image entry carries `src_hint` — the `3d`/`icon`
+  marker TikTok bakes into some captcha image URLs — because the sanitized DOM no longer
+  keeps the URL itself. Data and blob URLs carry no hint, and their base64 payloads are
+  never scanned for one. The element-screenshot ban is a **solving** rule (overlap would
+  corrupt a match); for evidence the clipped `modal.png` is exactly the fallback a
+  canvas-drawn challenge needs.
 - **Bound:** the newest 50 samples are kept; older directories are removed after each write.
 - **No secrets:** no cookies, no page URL, no creator handle is recorded; the modal's own
   parts are the only things read. One unfetchable image cannot lose the sample.
@@ -60,15 +70,16 @@ payload can contain `/3d`, so only real URL paths are read for the marker) and
 `tests/acquisition/test_captcha_browser.py` (real Chromium on the recorded whirl DOM with its
 slider stripped: prompt, boxes, sanitized DOM and both WebP images land in the sample).
 
-## Prompt reading: no defect to fix
+## Prompt reading: verified on the whirl modal only
 
 The recorded whirl modal (`tests/acquisition/fixtures/whirl_modal.html`, a 2026 TUXModal) has
 no `.captcha_verify_title`; its prompt lives in a plain `span.cap-break-words`. A real-
 Chromium test proves `PROMPT_JS`'s span fallback reads that prompt ("Drag the slider to fit
-the puzzle"). So the 2026 layout does not yield an empty prompt, and production's
-`subtype=unknown` is a wording miss — most plausibly an Indonesian prompt the seller-derived
-keyword table does not contain (e.g. a "bentuknya sama" wording misses "bentuk yang sama"),
-or a prompt rendered later than the read. The keyword table stays untouched; the samples will
+the puzzle"). What that verifies is narrow: no click modal has ever been seen, so whether a
+click modal's prompt is read at all is unknown. The leading guess, marked as a guess, is a
+keyword-table miss — an Indonesian prompt the seller-derived table does not contain (e.g. a
+"bentuknya sama" wording misses "bentuk yang sama") — with a late-rendered or differently
+structured click prompt not ruled out. The keyword table stays untouched; the samples will
 settle the real wording per locale. A Phase B candidate from the research: classify by the
 image URL's `3d`/`icon` marker (see below) instead of prompt keywords.
 
@@ -137,11 +148,15 @@ Decided now:
   `THOTH_CAPTCHA_VISION_MODEL` with a default (the same `qwen/qwen3-vl-30b-a3b-instruct`
   the attribution vision path uses). No key → no call → `reason=no_vision` (new reason
   value), solver returns False, discovery keeps today's behaviour.
-- **Confidence rule (refuse to click):** the answer is used only if the vision reply yields
-  valid points for the subtype — exactly 2 points inside the image for 3D, the instruction's
-  count for icon — each point inside the image's rendered box, and the model's own
-  confidence at or above a threshold (default 0.8; tune only on real samples). Anything less
-  returns False with `reason=unconfident` (new reason value) and clicks nothing.
+- **Confidence rule (refuse to click):** the refusal test leans on what can be checked, not
+  on a model's self-report. An answer is used only when the reply parses under a strict
+  schema and has the right shape — the point count the subtype asks for (exactly 2 for 3D,
+  the instruction's count for icon), every point strictly inside the challenge image's
+  rendered box, and points distinct from each other for 3D. Success is claimed only when the
+  modal really closes after the confirm (the existing `_closed` check); a modal that stays is
+  a wrong answer, whatever the model said about itself. A self-reported confidence score is
+  at most one extra filter, tuned only on real samples, never the deciding signal. Anything
+  unverified returns False with `reason=unconfident` (new reason value) and clicks nothing.
 - **Wrong answer:** detected as today — the modal stays after the confirm (existing
   `reason=modal_stayed`), the attempt budget bounds retries, and Phase B's per-captcha call
   budget bounds cost.
