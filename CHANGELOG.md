@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2026-11-06 - Profile fix deployed and tried live; runtime build cache in GHCR
+
+Branch `chore/e2e-trial`, not merged.
+
+**Deploy of `78ac35d3`, with the operator's approval:** `api` and `worker` on `thoth@sha256:cb35a5410ced`, renderer `1269019f514a`, web `9d2d615e9f57`. Web 200, no worker error lines, no API 5xx. Rollback pins in `pins-db6c4bc8.env`. The first try was stopped by Claude Code for low memory before any pin changed; the second was stopped by the operator while pulling; the third finished.
+
+**Why the deploy took so long:** every pull of `thoth` fetched the whole 5.4 GB. The old and new images have their large layers at the same sizes (2.21, 1.96, 0.90 GB) under different digests, and the CI log of run 42076991255 shows the apt, `uv sync`, speech-model and Chromium steps built anew, not `CACHED`; why the Actions cache missed then was not traced. `719636ea` makes the runtime's publish step read and write a registry cache at `ghcr.io/faallai/thoth:buildcache`, with the Actions cache kept as a fallback. Its first build (run 42177513577, green) found no registry cache yet, took every runtime step from the Actions cache, and wrote `buildcache` with 22 layers, 5.36 GB. Its image carries the same five large layers as `78ac35d3`, so a deploy of it pulls none of them again. Whether the registry cache holds when the Actions cache misses shows only on a later build. The PR validation build is unchanged.
+
+**Live run `wf_47a20dd1bcbeaf5f8c1f29cd` on `kabinet_rakyat`, throwaway project, with the operator's approval:** completed in about 16 minutes. The profile listing stopped on a captcha three times (anonymous, with a source account whose outcome was `challenge`, then fallback), each with `pages=0 videos=0`. Every time the modal was already up at the first crop (`reason=no_grid`), and the solver logged `subtype=unknown solved=false reason=unsupported`: a click captcha, which has no solver. So the retry after a solved captcha never ran, and the fix is still unproven live. Keyword listings found 8 videos in each of four searches. Rows: `workflow_runs` +1, `usage_events` +63, nothing else changed. One `ERR_NAME_NOT_RESOLVED` for `/explore` at 07:07 UTC.
+
+**Next steps:**
+- Decide whether to answer TikTok's click captchas (icon and 3D subtypes, classified but unsolved) or to accept a missing profile page when one shows.
+- On a later `thoth` build, confirm the heavy steps come from `buildcache` and the deploy pulls only the code layers.
+- Commit, push and deploy of the script panel, heading position and Assist code, each on the operator's word.
+- Then the operator's check of step 8, the merge gate, and the Studio Timeline track.
+
 ## 2026-11-05 - Fixes from the first read and write e2e audit
 
 Branch `chore/e2e-trial`, not merged. It also brings the e2e package into the repo.

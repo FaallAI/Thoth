@@ -144861,7 +144861,7 @@
                   "fill": "$ink",
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
-                  "content": "New headings start at Top. Middle and Bottom stay in the Inspector.",
+                  "content": "New headings start at Top. Top, Middle and Lower third are chosen in the Inspector. Older drafts stay in the Middle.",
                   "lineHeight": 1.45,
                   "fontFamily": "$font-ui",
                   "fontSize": 13,

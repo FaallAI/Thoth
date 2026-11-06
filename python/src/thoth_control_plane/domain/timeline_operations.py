@@ -195,6 +195,15 @@ class SetCaptionStyle(StrictModel):
     style_slot: CaptionStyle
 
 
+class SetTextPlace(StrictModel):
+    """Where a text clip's heading sits on the canvas; `title` is the middle, as it always was."""
+
+    kind: Literal["set_text_place"]
+    operation_id: OpaqueId
+    clip_id: OpaqueId
+    style_slot: Literal["title_top", "title", "title_lower"]
+
+
 class SetClipPosition(StrictModel):
     kind: Literal["set_clip_position"]
     operation_id: OpaqueId
@@ -281,6 +290,7 @@ TimelineOperation: TypeAlias = Annotated[
     | AddCaptionClip
     | SetCaptionCueTiming
     | SetCaptionStyle
+    | SetTextPlace
     | SetClipPosition
     | SetClipMotion
     | SetClipEmphasis
@@ -344,6 +354,11 @@ def apply_timeline_operation(
             clip = _unlocked_clip(document, operation.clip_id)
             if not isinstance(clip, TimelineCaptionClip):
                 raise ValueError("caption style applies only to caption clips")
+            clip.style_slot = operation.style_slot
+        case SetTextPlace():
+            clip = _unlocked_clip(document, operation.clip_id)
+            if not isinstance(clip, TimelineTextClip):
+                raise ValueError("text place applies only to text clips")
             clip.style_slot = operation.style_slot
         case SetClipPosition():
             _unlocked_video_clip(document, operation.clip_id).position = operation.position

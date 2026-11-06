@@ -84,7 +84,15 @@ def build_studio_draft(
     return document.model_copy(
         update={
             "clips": [
-                clip.model_copy(update={"source_role": item.role})
+                clip.model_copy(
+                    update={
+                        "source_role": item.role,
+                        # A lone title goes above the action; quoted text keeps the middle.
+                        "style_slot": (
+                            "title_top" if item.role in HEADING_ONLY_ROLES else clip.style_slot
+                        ),
+                    }
+                )
                 for clip, item in zip(document.clips, items, strict=True)
             ]
         }

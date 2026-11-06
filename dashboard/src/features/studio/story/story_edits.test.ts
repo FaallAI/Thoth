@@ -139,7 +139,7 @@ test("a hook opens the video for four seconds with the run's title", () => {
     duration_in_frames: 120,
     heading: "Kabut asap Kalteng",
     body: "",
-    style_slot: "title",
+    style_slot: "title_top",
     source_role: "hook",
   });
   expect((addHook(storyDocument(), "x".repeat(200)).at(-1) as { heading: string }).heading).toHaveLength(120);

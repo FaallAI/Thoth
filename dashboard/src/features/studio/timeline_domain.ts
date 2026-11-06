@@ -410,6 +410,12 @@ export function applyTimelineOperation(
       clip.style_slot = operation.style_slot;
       break;
     }
+    case "set_text_place": {
+      const clip = unlockedClip(next, operation.clip_id);
+      if (clip.kind !== "text") throw new Error("text place applies only to text clips");
+      clip.style_slot = operation.style_slot;
+      break;
+    }
     case "set_track_visibility":
       unlockedTrack(next, operation.track_id).hidden = operation.hidden;
       break;

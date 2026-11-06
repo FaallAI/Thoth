@@ -43,6 +43,30 @@ test("a suggestion for the beat, applied through the editor", async () => {
   expect(screen.queryByText("Shorter hook")).toBeNull();
 });
 
+test("a proposal too long for the frame says so before it is applied, and can still be applied", async () => {
+  // Stage1, 2026-11-05: an applied proposal kept its hashtags and covered the whole frame.
+  const value = "Kabut asap Kalteng makin pekat, ISPU tembus 1.533 dan warga diminta tetap di rumah";
+  const long: StoryAssistProposal = {
+    ...proposal,
+    operations: [{ kind: "replace_text", operation_id: "op_assist_1", clip_id: "clip_hook", field: "heading", value }],
+  };
+  const { dispatch } = mount(async () => long);
+
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Suggest for Hook" })));
+
+  expect(screen.getByText(`Too long for the frame: ${value.length} characters`)).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+  expect(dispatch).toHaveBeenCalledTimes(1);
+});
+
+test("a proposal that fits shows no warning", async () => {
+  mount(async () => proposal);
+
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Suggest for Hook" })));
+
+  expect(screen.queryByText(/Too long for the frame/)).toBeNull();
+});
+
 test("dismiss forgets the proposal and changes nothing", async () => {
   const { dispatch } = mount(async () => proposal);
 

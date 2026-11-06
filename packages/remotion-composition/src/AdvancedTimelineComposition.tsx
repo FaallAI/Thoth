@@ -54,6 +54,46 @@ const TEXT_CLIP: CSSProperties = {
 };
 const HEADING: CSSProperties = { maxWidth: "80%", fontSize: 60, fontWeight: 700, lineHeight: 1.25 };
 const BODY: CSSProperties = { maxWidth: "72%", fontSize: 30, color: "#d4d4d8" };
+/** A placed heading: two lines on a scrim, the draft keeping whatever the ellipsis cuts. */
+const PLACED_TEXT: CSSProperties = {
+  alignItems: "center",
+  textAlign: "center",
+};
+const HEADING_SCRIM: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 16,
+  maxWidth: "88%",
+  padding: "28px 36px",
+  borderRadius: 22,
+  backgroundColor: "rgba(0, 0, 0, 0.65)",
+};
+const PLACED_HEADING: CSSProperties = {
+  margin: 0,
+  fontSize: 60,
+  fontWeight: 700,
+  lineHeight: 1.25,
+  display: "-webkit-box",
+  WebkitBoxOrient: "vertical",
+  WebkitLineClamp: 2,
+  lineClamp: 2,
+  overflow: "hidden",
+};
+const HEADING_CHAR_WIDTH = 30;
+/** Above TikTok's top interface; lower keeps clear of its bottom 18% and of the caption lane. */
+const HEADING_TOP_SAFE = 0.08;
+const HEADING_LOWER_SAFE = 0.3;
+/** The two slots that place a heading; any other draws mid-frame as every older draft does. */
+const HEADING_PLACES = new Set(["title_top", "title_lower"]);
+
+/**
+ * About how many characters two lines of a placed heading hold on this canvas.
+ * ponytail: an average glyph width, not a measurement; measure the font if wide scripts cut early.
+ */
+export function headingFitChars(canvas: { width: number }): number {
+  const inner = canvas.width * 0.88 - 72;
+  return 2 * Math.floor(inner / HEADING_CHAR_WIDTH);
+}
 const CAPTION_LANE: CSSProperties = {
   alignItems: "center",
   justifyContent: "flex-end",
@@ -219,6 +259,26 @@ function renderClip(
 ): ReactNode {
   switch (clip.kind) {
     case "text":
+      if (HEADING_PLACES.has(clip.style_slot)) {
+        const top = clip.style_slot === "title_top";
+        return (
+          <AbsoluteFill
+            data-testid={`heading-${clip.style_slot}`}
+            style={{
+              ...PLACED_TEXT,
+              justifyContent: top ? "flex-start" : "flex-end",
+              ...(top
+                ? { paddingTop: canvas.height * HEADING_TOP_SAFE }
+                : { paddingBottom: canvas.height * HEADING_LOWER_SAFE }),
+            }}
+          >
+            <div style={HEADING_SCRIM}>
+              <h1 style={PLACED_HEADING}>{clip.heading}</h1>
+              {clip.body && <p style={{ ...BODY, maxWidth: "100%", margin: 0 }}>{clip.body}</p>}
+            </div>
+          </AbsoluteFill>
+        );
+      }
       return (
         <AbsoluteFill style={TEXT_CLIP}>
           <h1 style={HEADING}>{clip.heading}</h1>

@@ -44,14 +44,34 @@ test("the approval shows the script read-only with the estimate and the unsuppor
   render(<ScriptPanel client={api as never} projectId="p" documentId="edoc_1" state={awaiting} onChange={() => {}} />);
 
   expect(screen.queryByRole("textbox", { name: /Hook/ })).toBeNull();
-  expect(screen.getByText("48 characters · elevenlabs · voice plgK")).toBeTruthy();
-  expect(screen.getByText("Unpriced")).toBeTruthy();
+  expect(screen.getByText("About 48 characters · ElevenLabs")).toBeTruthy();
+  expect(screen.getByText("No price set yet")).toBeTruthy();
+  expect(screen.queryByText(/plgK/)).toBeNull();
   expect(screen.getByTitle("Not found in the evidence").textContent).toBe("Andi");
   expect(screen.getByText(/whoosh/)).toBeTruthy();
 
   fireEvent.change(screen.getByLabelText("Note for the next script (optional)"), { target: { value: "Hook kurang tajam" } });
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "Reject" })));
   expect(api.decideNarration).toHaveBeenCalledWith("p", "edoc_1", { decision: "reject", note: "Hook kurang tajam" });
+});
+
+test("the decision stays in view: the beats scroll, the buttons sit below them", () => {
+  // Stage1, 2026-11-05: on a four-beat script Approve lay under the fold of one scrolling column.
+  render(<ScriptPanel client={client() as never} projectId="p" documentId="edoc_1" state={awaiting} onChange={() => {}} />);
+
+  const beats = screen.getByTestId("script-beats");
+  expect(beats.textContent).toContain("Kucing ini bikin heboh.");
+  expect(beats.contains(screen.getByRole("button", { name: "Approve and voice" }))).toBe(false);
+});
+
+test("a finished script closes from its header and recreates from below its beats", () => {
+  const onClose = mock(() => {});
+  const completed: NarrationState = { ...awaiting, status: "completed" };
+  render(<ScriptPanel client={client() as never} projectId="p" documentId="edoc_1" state={completed} onChange={() => {}} onClose={onClose} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Close script" }));
+  expect(onClose).toHaveBeenCalledTimes(1);
+  expect(screen.getByTestId("script-beats").contains(screen.getByRole("button", { name: "Recreate narration" }))).toBe(false);
 });
 
 test("approving sends one decision", async () => {

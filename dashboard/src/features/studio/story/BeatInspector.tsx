@@ -1,5 +1,6 @@
 import { useState, type Dispatch, type KeyboardEvent } from "react";
-import { ArrowDown, ArrowUp, Plus, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, TriangleAlert, X } from "lucide-react";
+import { headingFitChars } from "@thoth/remotion-composition";
 
 import type { EditDocumentOperation, EditDocumentV2, EditorAsset, StudioImportItem, StudioMaterials } from "@/api/control-plane";
 import { useLocale } from "@/lib/locale";
@@ -45,6 +46,9 @@ const ALTERNATIVE: Partial<Record<string, string>> = { profile_page: "profile_ca
 type Clip = NonNullable<EditDocumentV2["clips"]>[number];
 const CARD_BEATS = new Set(["evidence", "reactions"]);
 const PRESETS: PositionPreset[] = ["top", "middle", "lower"];
+const HEADING_SLOT = { top: "title_top", middle: "title", lower: "title_lower" } as const;
+/** Any older slot draws mid-frame, so it reads as Middle. */
+const headingPreset = (slot: string): PositionPreset => (slot === "title_top" ? "top" : slot === "title_lower" ? "lower" : "middle");
 const MOTIONS: Motion[] = ["none", "slow_zoom", "pan"];
 const section = "flex flex-col gap-2 border-t border-hairline pt-3";
 const heading = "text-xs font-medium tracking-wide text-muted-ink uppercase";
@@ -78,6 +82,7 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
       : [];
   const moving = cards.length ? cards : photos;
   const text = beat.id === "hook" || beat.id === "outro" ? clips.find((clip) => clip.kind === "text") : undefined;
+  const headingClip = clips.find((clip) => clip.kind === "text");
   const reading = longestReading(beat, inventory);
 
   // The same seconds as the beat's tile: a beat that spans others does not count their time.
@@ -294,6 +299,30 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
         )}
       </section>
 
+      {headingClip ? (
+        <section role="group" aria-label={t("studio.inspector.headingPlace")} className={section}>
+          <h3 className={heading}>{t("studio.inspector.headingPlace")}</h3>
+          <div className="flex flex-wrap gap-1.5">
+            {PRESETS.map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                className={choice}
+                aria-pressed={headingPreset(headingClip.style_slot) === preset}
+                onClick={() => commit([{ kind: "set_text_place", operation_id: `op_${crypto.randomUUID()}`, clip_id: headingClip.clip_id, style_slot: HEADING_SLOT[preset] }])}
+              >
+                {t(`studio.inspector.position.${preset}`)}
+              </button>
+            ))}
+          </div>
+          {headingClip.heading.length > headingFitChars(document.canvas) ? (
+            <p className="flex items-center gap-1.5 text-xs text-status-waiting">
+              <TriangleAlert aria-hidden="true" size={14} />
+              <span>{t("studio.inspector.tooLong", { count: headingClip.heading.length })}</span>
+            </p>
+          ) : null}
+        </section>
+      ) : null}
       {cards.length ? (
         <section role="group" aria-label={t("studio.inspector.position")} className={section}>
             <h3 className={heading}>{t("studio.inspector.position")}</h3>

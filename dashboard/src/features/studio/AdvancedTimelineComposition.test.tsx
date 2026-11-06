@@ -95,7 +95,7 @@ mock.module("@remotion/media", () => ({
   },
 }));
 
-const { AdvancedTimelineComposition, COMPOSITION_ID, volumeAt } = await import("@thoth/remotion-composition");
+const { AdvancedTimelineComposition, COMPOSITION_ID, headingFitChars, volumeAt } = await import("@thoth/remotion-composition");
 const { RenderRoot } = await import("@thoth/remotion-composition/register");
 
 afterEach(() => {
@@ -294,6 +294,37 @@ test("the browser preview and the server registration share one component and on
 // thing that escapes is a fixed failure code. An ID it refuses therefore fails
 // every render with no diagnosis attached, so it is checked here instead.
 const REMOTION_ALLOWS = /^[a-zA-Z0-9-一-鿿]+$/;
+
+const withHeadingSlot = (slot: string) => {
+  const document = documentV2();
+  const text = document.clips!.find((clip) => clip.kind === "text") as { style_slot: string };
+  text.style_slot = slot;
+  return document;
+};
+
+test("a heading at the top or lower sits on a scrim and stops at two lines", () => {
+  for (const slot of ["title_top", "title_lower"]) {
+    render(<AdvancedTimelineComposition document={withHeadingSlot(slot)} previewSources={SOURCES} />);
+    const heading = screen.getByRole("heading", { level: 1 });
+    expect(screen.getByTestId(`heading-${slot}`).contains(heading)).toBe(true);
+    expect(heading.getAttribute("style")).toContain("line-clamp: 2");
+    cleanup();
+  }
+});
+
+test("a heading in the old slots draws as it always has, so old drafts and goldens do not move", () => {
+  for (const slot of ["title", "source", "background:url(x)"]) {
+    render(<AdvancedTimelineComposition document={withHeadingSlot(slot)} previewSources={SOURCES} />);
+    expect(screen.queryByTestId(`heading-${slot}`)).toBeNull();
+    expect(screen.getByRole("heading", { level: 1 }).getAttribute("style")).not.toContain("line-clamp");
+    cleanup();
+  }
+});
+
+test("two lines of heading hold about as many characters as the canvas is wide", () => {
+  expect(headingFitChars({ width: 1080 })).toBe(58);
+  expect(headingFitChars({ width: 1920 })).toBeGreaterThan(58);
+});
 
 test("the shared composition ID is one Remotion agrees to register", () => {
   expect(COMPOSITION_ID).toMatch(REMOTION_ALLOWS);

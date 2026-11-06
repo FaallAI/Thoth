@@ -2304,7 +2304,7 @@ export interface components {
             /** Base Revision */
             base_revision: number;
             /** Operations */
-            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
+            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTextPlace"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
         };
         /**
          * EditDocumentV1
@@ -3809,6 +3809,26 @@ export interface components {
             /** Scene Id */
             scene_id: string;
         };
+        /**
+         * SetTextPlace
+         * @description Where a text clip's heading sits on the canvas; `title` is the middle, as it always was.
+         */
+        SetTextPlace: {
+            /** Clip Id */
+            clip_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_text_place";
+            /** Operation Id */
+            operation_id: string;
+            /**
+             * Style Slot
+             * @enum {string}
+             */
+            style_slot: "title_top" | "title" | "title_lower";
+        };
         /** SetTrackLocked */
         SetTrackLocked: {
             /**
@@ -4101,7 +4121,7 @@ export interface components {
         /** StoryAssistProposal */
         StoryAssistProposal: {
             /** Operations */
-            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
+            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTextPlace"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
             /** Proposal Id */
             proposal_id: string;
             /** Reason */

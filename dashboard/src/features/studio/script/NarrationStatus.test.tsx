@@ -129,7 +129,7 @@ test("an unpriced re-voice says so before it is confirmed", () => {
   mount({ ...completed, stale_beats: ["main"] });
 
   fireEvent.click(screen.getByRole("button", { name: "Re-voice 1 changed beats" }));
-  expect(screen.getByText("1 beats · 4 characters · Unpriced")).toBeDefined();
+  expect(screen.getByText("1 beats · 4 characters · No price set yet")).toBeDefined();
 });
 
 test("re-voicing changed beats waits for each beat to finish before the next", async () => {

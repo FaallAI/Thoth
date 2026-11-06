@@ -266,7 +266,7 @@ function textBeat(document: EditDocumentV2, role: "hook" | "outro", heading: str
       duration_in_frames: duration,
       heading: heading.slice(0, HEADING_LIMIT),
       body: "",
-      style_slot: "title",
+      style_slot: "title_top",
       source_role: role,
     },
   ];

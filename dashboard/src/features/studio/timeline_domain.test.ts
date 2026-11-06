@@ -669,6 +669,18 @@ const captionStyle = (clipId: string) =>
 
 const captioned = () => applyTimelineOperation(captionReadyStrip(), addCaption(), {});
 
+test("a text place applies to a text clip and to nothing else", () => {
+  const place = (clipId: string) =>
+    ({ kind: "set_text_place", operation_id: "op_place", clip_id: clipId, style_slot: "title_top" }) as const;
+  const document = captioned();
+  const text = document.clips!.find((clip) => clip.kind === "text")!;
+
+  const next = applyTimelineOperation(document, place(text.clip_id), {});
+
+  expect(next.clips!.find((clip) => clip.clip_id === text.clip_id)).toMatchObject({ style_slot: "title_top" });
+  expect(() => applyTimelineOperation(document, place("clip_cap"), {})).toThrow("text place applies only to text clips");
+});
+
 test("a caption added to a scene spans it with one default cue", () => {
   const next = captioned();
 

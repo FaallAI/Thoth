@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useReducer, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { Redo2, Sparkles, Undo2 } from "lucide-react";
 
 import type {
@@ -153,6 +153,10 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const [materialsRead, setMaterialsRead] = useState(false);
   const [commentFocusRequest, setCommentFocusRequest] = useState(0);
   const [assistOn, setAssistOn] = useState(false);
+  const toggleAssist = (event: MouseEvent<HTMLButtonElement>) => {
+    event.currentTarget.closest("details")?.removeAttribute("open");
+    setAssistOn((on) => !on);
+  };
   const [refusalsSeen, setRefusalsSeen] = useState(0);
   const selectedClip = sceneTextClip(state.draft, selectedScene);
   const [previewSources, setPreviewSources] = useState<PreviewSources>({});
@@ -769,7 +773,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 type="button"
                 aria-haspopup="dialog"
                 aria-expanded={assistOn}
-                onClick={() => setAssistOn((on) => !on)}
+                onClick={toggleAssist}
                 className="inline-flex h-9 items-center gap-1.5 rounded-md border border-studio-ai/60 px-3 text-[13px] text-studio-ai focus-visible:outline-2 focus-visible:outline-copper"
               >
                 <Sparkles aria-hidden="true" size={14} /> {t("studio.assist.toggle")}
@@ -781,7 +785,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 type="button"
                 aria-haspopup="dialog"
                 aria-expanded={assistOn}
-                onClick={() => setAssistOn((on) => !on)}
+                onClick={toggleAssist}
                 className="inline-flex h-9 items-center gap-1.5 self-start rounded-md border border-studio-ai/60 px-3 text-[13px] text-studio-ai focus-visible:outline-2 focus-visible:outline-copper"
               >
                 <Sparkles aria-hidden="true" size={14} /> {t("studio.assist.toggle")}
@@ -974,14 +978,15 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             hidden={!editing || (compact ? editPane !== "scenes" : !sceneRegionOpen)}
           >
             {story && timeline && showScript && narration && narrationClient ? (
-              // A long script scrolls in its column and never runs under the beats.
-              <div className="min-h-0 overflow-y-auto">
+              // The panel scrolls its own beats, so its decision stays above the beat strip.
+              <div className="min-h-0 overflow-hidden">
                 <ScriptPanel
                   client={narrationClient}
                   projectId={projectId}
                   documentId={documentId}
                   state={narration}
                   onChange={setNarration}
+                  onClose={() => setShowScript(false)}
                 />
               </div>
             ) : story && timeline ? (
@@ -1169,7 +1174,18 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
               <div
                 className={`studio-simple-inspector flex min-h-0 flex-col overflow-auto ${stripLayout ? "col-start-2 row-start-1" : ""}`}
               >
-                {story && timeline ? (
+                {story && shownBeat && assistOn && askAssist ? (
+                  <AssistPanel
+                    key={shownBeat.id}
+                    request={askAssist}
+                    baseRevision={base.revision}
+                    beat={shownBeat}
+                    document={timeline!}
+                    ready={saveStatus === "saved"}
+                    dispatch={dispatch}
+                    onClose={() => setAssistOn(false)}
+                  />
+                ) : story && timeline ? (
                   shownBeat ? (
                     <BeatInspector
                       beat={shownBeat}
@@ -1185,17 +1201,6 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                   ) : (
                     <p className="p-4 text-sm text-muted-ink">{t("studio.inspector.empty")}</p>
                   )
-                ) : null}
-                {story && shownBeat && assistOn && askAssist ? (
-                  <AssistPanel
-                    key={shownBeat.id}
-                    request={askAssist}
-                    baseRevision={base.revision}
-                    beat={shownBeat}
-                    document={timeline!}
-                    ready={saveStatus === "saved"}
-                    dispatch={dispatch}
-                  />
                 ) : null}
                 <Inspector
                   scene={selectedScene}
