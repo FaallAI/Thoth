@@ -3,33 +3,44 @@
 The whirl fixtures are the images TikTok served on 2026-10-23 (a ring around a white hole, and
 the disc that fills it); the slide fixtures are generated — a background with a framed gap and
 its exact patch. The fakes mirror the modal's DOM as every maintained solver documents it and
-clear themselves when a drag lands where the puzzle says it must.
+clear themselves when a drag lands where the puzzle says it must. The 3D flow is tested the
+same way against synthetic challenge images whose same-shape pair is known by construction.
 """
 
 import base64
+import json
 import logging
 import random
 import sys
 from pathlib import Path
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, ClassVar
 
 import pytest
 
+from thoth_control_plane import metering
+from thoth_control_plane.acquisition import captcha as captcha
 from thoth_control_plane.acquisition.captcha import (
+    CLICK_IMAGE_SELECTOR,
+    CONFIRM_SELECTOR,
     CONTAINER_SELECTOR,
     HANDLE_SELECTOR,
     IMAGE_SELECTOR,
     PIECE_SELECTOR,
+    REFRESH_SELECTOR,
     WHIRL_IMAGE_SELECTOR,
     _decode,
     _drag,
     _rotation_deg,
+    _sanitize_dom,
+    _VisionPick,
     _whirl_drag,
     gap_offset,
     solve,
     whirl_angle,
     whirl_distance,
 )
+from thoth_control_plane.metering import MeterScope
 
 cv2 = pytest.importorskip("cv2", reason="the solver's image math needs OpenCV")
 numpy = pytest.importorskip("numpy", reason="the solver's image math needs NumPy")
@@ -239,6 +250,10 @@ class FakeCaptchaPage:
 
     async def wait_for_timeout(self, timeout: int) -> None:
         return None
+
+    async def screenshot(self, clip: dict | None = None, **kwargs: Any) -> bytes:
+        self.captured_clip = clip
+        return b"\x89PNG\r\n\x1a\nfake"
 
 
 class FakeWhirlPage:
@@ -491,6 +506,208 @@ async def test_click_subtypes_are_classified_from_the_prompt_and_left_alone(
     ]
 
 
+CLICK_DOM = (
+    '<div class="TUXModal captcha-verify-container">'
+    '<span class="cap-break-words cap-text-left">Select 2 objects that are the same shape</span>'
+    '<img src="data:image/png;base64,AAAA" alt="Verify that you\'re not a robot">'
+    '<button class="TUXButton TUXButton--primary" aria-disabled="true">Confirm</button>'
+    "</div>"
+)
+
+
+class FakeClickModal(FakeElement):
+    """A click modal's container: answers the scripts the evidence capture reads."""
+
+    def __init__(self, prompt: str, outer_html: str, boxes: Any, canvases: Any = ()) -> None:
+        super().__init__((100, 50, 340, 190), evaluates=[prompt])
+        self._outer_html = outer_html
+        self._boxes = boxes
+        self._canvases = list(canvases)
+
+    async def evaluate(self, script: str, arg: Any = None) -> Any:
+        if "outerHTML" in script:
+            return self._outer_html
+        if "getBoundingClientRect" in script:
+            return self._boxes
+        return self._evaluates
+
+    async def query_selector_all(self, selector: str):
+        assert selector == "canvas"
+        return self._canvases
+
+
+def _capture_click_page(prompt: str, dom: str) -> FakeCaptchaPage:
+    background, _ = _slide_arrays()
+    image = FakeElement(SLIDE_BOXES["image"], _data_url(background))
+    remote = FakeElement(
+        (104, 94, 60, 60), "https://p19-rc-captcha-va.ibyteimg.com/x/3d_2385_0dabbdd1_1.jpg"
+    )  # the documented shapes image URL shape; its fetch fails on the fake, hint stays
+    return FakeCaptchaPage(
+        {IMAGE_SELECTOR: image},
+        [image, remote],
+        accept=[],
+        container=FakeClickModal(
+            prompt,
+            dom,
+            [
+                {"tag": "img", "box": {"x": 100.0, "y": 90.0, "width": 340.0, "height": 190.0}},
+                {"tag": "button", "box": {"x": 100.0, "y": 300.0, "width": 340.0, "height": 40.0}},
+            ],
+        ),
+    )
+
+
+def _sample_dirs(root: Path) -> list[Path]:
+    samples = root / "captcha-samples"
+    return sorted(samples.iterdir()) if samples.exists() else []
+
+
+async def test_an_unanswerable_modal_saves_one_sanitized_sample(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", str(tmp_path))
+    page = _capture_click_page("Select 2 objects that are the same shape", CLICK_DOM)
+
+    assert await solve(page, rng=random.Random(1)) is False
+
+    dirs = _sample_dirs(tmp_path)
+    assert len(dirs) == 1
+    meta = json.loads((dirs[0] / "sample.json").read_text(encoding="utf-8"))
+    assert meta["subtype"] == "3d"  # the documented English shapes prompt classifies
+    assert meta["reason"] == "unsupported"
+    assert meta["prompt_candidates"] == ["Select 2 objects that are the same shape"]
+    assert [box["tag"] for box in meta["boxes"]] == ["img", "button"]
+    assert meta["images"] == [
+        {"file": "image-0.png", "src_hint": ""},
+        {"src_hint": "3d"},  # a URL marker the sanitized DOM no longer carries
+    ]
+    dom = (dirs[0] / "dom.html").read_text(encoding="utf-8")
+    assert "Select 2 objects" in dom
+    assert 'src=""' in dom and "data:image/png" not in dom  # token-like values are blanked
+    assert (dirs[0] / "image-0.png").read_bytes()[:4] == b"\x89PNG"
+
+
+async def test_sample_capture_keeps_only_the_newest_fifty(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", str(tmp_path))
+    samples = tmp_path / "captcha-samples"
+    for index in range(50):
+        (samples / f"20200101T000000{index:06d}Z").mkdir(parents=True)
+    page = _capture_click_page("Select 2 objects that are the same shape", CLICK_DOM)
+
+    assert await solve(page, rng=random.Random(1)) is False
+
+    dirs = _sample_dirs(tmp_path)
+    assert len(dirs) == 50
+    assert not (samples / "20200101T000000000000Z").exists()  # the oldest gave way
+    assert (dirs[-1] / "sample.json").exists()  # the new sample is the newest kept
+
+
+async def test_a_failing_capture_never_changes_the_outcome(tmp_path, monkeypatch, caplog) -> None:
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", str(tmp_path))
+
+    class ExplodingContainer(FakeElement):
+        async def evaluate(self, script: str, arg: Any = None) -> Any:
+            raise RuntimeError("detached")
+
+    background, _ = _slide_arrays()
+    image = FakeElement(SLIDE_BOXES["image"], _data_url(background))
+    page = FakeCaptchaPage(
+        {IMAGE_SELECTOR: image},
+        [image],
+        accept=[],
+        container=ExplodingContainer((100, 50, 340, 190)),
+    )
+
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is False
+
+    assert page.mouse.downs == 0
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=unknown solved=false attempts=1 reason=unsupported"
+    ]
+
+
+async def test_no_sample_is_written_without_the_artifact_root(tmp_path, monkeypatch) -> None:
+    monkeypatch.delenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", raising=False)
+    monkeypatch.chdir(tmp_path)
+    page = _capture_click_page("Select 2 objects that are the same shape", CLICK_DOM)
+
+    assert await solve(page, rng=random.Random(1)) is False
+
+    assert list(tmp_path.rglob("captcha-samples")) == []
+    assert not (tmp_path / ".thoth-artifacts").exists()
+
+
+def test_the_dom_scrub_blanks_protocol_relative_blob_and_style_urls() -> None:
+    dom = (
+        '<img src="//p16-rc-captcha-va.ibyteimg.com/obj?x-signature=abc123">'
+        '<img src="blob:https://m.tiktok.com/7a2f9e">'
+        '<div style="background:url(//p16-rc-captcha-va.ibyteimg.com/a.png); color:red"></div>'
+        '<div style="transform: rotate(60deg)"></div>'
+    )
+
+    scrubbed = _sanitize_dom(dom)
+
+    assert 'src=""' in scrubbed and "x-signature" not in scrubbed
+    assert "blob:https" not in scrubbed
+    assert "color:red" in scrubbed  # the rest of the style survives
+    assert "url(" in scrubbed and "ibyteimg" not in scrubbed  # the url() payload goes
+    assert "rotate(60deg)" in scrubbed  # a clean style is untouched
+
+
+async def test_a_canvas_challenge_still_yields_a_clipped_picture(tmp_path, monkeypatch) -> None:
+    """The costliest Phase A failure would be a sample with no picture: if the live modal
+    draws on a canvas, the DOM alone is not evidence."""
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", str(tmp_path))
+    canvas = FakeElement((100, 80, 340, 190), evaluates=_data_url(_slide_arrays()[0]))
+    page = FakeCaptchaPage(
+        {},
+        [],
+        accept=[],
+        container=FakeClickModal(
+            "Select 2 objects that are the same shape",
+            CLICK_DOM,
+            [
+                {"tag": "canvas", "box": {"x": 100.0, "y": 80.0, "width": 340.0, "height": 190.0}},
+                {"tag": "button", "box": {"x": 100.0, "y": 300.0, "width": 340.0, "height": 40.0}},
+            ],
+            canvases=[canvas],
+        ),
+    )
+
+    assert await solve(page, rng=random.Random(1)) is False
+
+    dirs = _sample_dirs(tmp_path)
+    assert len(dirs) == 1
+    meta = json.loads((dirs[0] / "sample.json").read_text(encoding="utf-8"))
+    union = {"x": 100.0, "y": 80.0, "width": 340.0, "height": 260.0}
+    assert meta["visuals"]["modal"] == {"clip": union, "file": "modal.png"}
+    assert meta["visuals"]["canvases"] == [{"file": "canvas-0.png"}]
+    assert meta["images"] == []
+    assert page.captured_clip == union  # the clip is the elements' union, never the viewport
+    assert (dirs[0] / "modal.png").read_bytes()[:4] == b"\x89PNG"
+    assert (dirs[0] / "canvas-0.png").read_bytes()[:4] == b"\x89PNG"
+
+
+async def test_a_failed_screenshot_keeps_the_rest_of_the_sample(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", str(tmp_path))
+    page = _capture_click_page("Select 2 objects that are the same shape", CLICK_DOM)
+
+    async def crash(**kwargs: Any) -> bytes:
+        raise RuntimeError("target crashed")
+
+    page.screenshot = crash
+
+    assert await solve(page, rng=random.Random(1)) is False
+
+    dirs = _sample_dirs(tmp_path)
+    assert len(dirs) == 1
+    meta = json.loads((dirs[0] / "sample.json").read_text(encoding="utf-8"))
+    assert meta["visuals"]["modal"] is None
+    assert (dirs[0] / "sample.json").exists()
+    assert (dirs[0] / "dom.html").exists()
+    assert (dirs[0] / "image-0.png").read_bytes()[:4] == b"\x89PNG"
+    assert not (dirs[0] / "modal.png").exists()
+
+
 async def test_solve_skips_a_subtype_with_nothing_to_drag() -> None:
     background, _ = _slide_arrays()
     image = FakeElement(SLIDE_BOXES["image"], _data_url(background))
@@ -604,3 +821,523 @@ def test_decode_reads_png_bytes() -> None:
     background, _ = _slide_arrays()
 
     assert _decode(_png(background)).shape[:2] == (190, 340)
+
+
+# --- The 3D click flow (Phase B): synthetic challenges whose answer is known by construction.
+
+
+def _star_polygon(cx: int, cy: int, radius: int) -> Any:
+    angles = numpy.linspace(0, 2 * numpy.pi, 10, endpoint=False) + numpy.pi / 2
+    radii = numpy.where(numpy.arange(10) % 2 == 0, radius, radius * 0.45)
+    return numpy.int32(
+        [[cx + r * numpy.cos(a), cy + r * numpy.sin(a)] for a, r in zip(angles, radii, strict=True)]
+    )
+
+
+def _shapes_arrays(two_objects: bool = False):
+    """A white 552x344 card: two same-shape stars (the answer) among distinct shapes; with
+    two_objects, only a star and a disc remain, which the solver must refuse to answer."""
+    image = numpy.full((344, 552, 3), 250, numpy.uint8)
+    cv2.fillPoly(image, [_star_polygon(90, 100, 42)], (0, 0, 255))
+    labels = [(48, 58, 84, 84)]
+    if not two_objects:
+        cv2.fillPoly(image, [_star_polygon(330, 240, 32)], (255, 0, 0))
+        cv2.fillPoly(image, [numpy.int32([(420, 60), (500, 60), (460, 130)])], (0, 255, 0))
+        cv2.rectangle(image, (200, 40), (280, 76), (0, 255, 255), -1)
+        labels.append((298, 208, 64, 64))
+    else:
+        cv2.circle(image, (400, 172), 46, (255, 0, 0), -1)
+        labels.append((354, 126, 92, 92))  # both objects, so a vision pick can answer
+    return image, labels
+
+
+class FakeConfirm(FakeElement):
+    """The Confirm button, disabled until two good clicks enable it."""
+
+    def __init__(self, box: tuple[float, float, float, float], state: dict[str, str]) -> None:
+        super().__init__(box)
+        self.state = state
+
+    async def get_attribute(self, name: str) -> str | None:
+        return self.state.get(name)
+
+
+def _inside(x: float, y: float, box: dict[str, float]) -> bool:
+    return box["x"] <= x <= box["x"] + box["width"] and box["y"] <= y <= box["y"] + box["height"]
+
+
+class FakeShapesPage:
+    """The 3D click modal as solve sees it: clicks map through the image's rendered box,
+    two clicks inside the labelled boxes enable Confirm, and Confirm clears the container
+    unless stubborn. Refresh keeps the image unless after_refresh names the (src, targets)
+    it swaps in."""
+
+    def __init__(
+        self,
+        src: str,
+        targets: list[tuple[int, int, int, int]],
+        *,
+        native: tuple[int, int] = (552, 344),
+        stubborn: bool = False,
+        refresh: bool = True,
+        prompt: str = "Select 2 objects that are the same shape",
+        after_refresh: tuple[str, list[tuple[int, int, int, int]]] | None = None,
+    ) -> None:
+        self.image = FakeElement((100, 50, 340, 212), src)
+        self.image_box = {"x": 100.0, "y": 50.0, "width": 340.0, "height": 212.0}
+        self.targets = targets
+        self.native = native
+        self.stubborn = stubborn
+        self.confirm_state = {
+            "class": "TUXButton TUXButton--disabled cap-w-full",
+            "aria-disabled": "true",
+        }
+        self.confirm = FakeConfirm((100, 300, 340, 40), self.confirm_state)
+        self.refresh = FakeElement((150, 360, 40, 28)) if refresh else None
+        self.after_refresh = after_refresh
+        self.container = FakeClickModal(prompt, CLICK_DOM, [])
+        self.image_clicks = 0
+        self.good_clicks = 0
+        self.refresh_clicks = 0
+        self.cleared = False
+        self.mouse = FakeMouse(on_up=self._released)
+
+    def _released(self) -> None:
+        x, y = self.mouse.moves[-1]
+        if _inside(x, y, self.image_box):
+            self.image_clicks += 1
+            ix = (x - self.image_box["x"]) / self.image_box["width"] * self.native[0]
+            iy = (y - self.image_box["y"]) / self.image_box["height"] * self.native[1]
+            if any(bx <= ix <= bx + bw and by <= iy <= by + bh for bx, by, bw, bh in self.targets):
+                self.good_clicks += 1
+            if self.image_clicks >= 2 and self.good_clicks >= 2:
+                self.confirm_state["class"] = "TUXButton cap-w-full"
+                self.confirm_state["aria-disabled"] = "false"
+        elif _inside(x, y, {"x": 100.0, "y": 300.0, "width": 340.0, "height": 40.0}):
+            if self.good_clicks >= 2 and not self.stubborn:
+                self.cleared = True
+        elif self.refresh is not None and _inside(
+            x, y, {"x": 150.0, "y": 360.0, "width": 40.0, "height": 28.0}
+        ):
+            self.refresh_clicks += 1
+            if self.after_refresh is not None:
+                self.image._src, self.targets = self.after_refresh
+
+    async def query_selector(self, selector: str):
+        if selector == CONTAINER_SELECTOR:
+            return None if self.cleared else self.container
+        if selector == CLICK_IMAGE_SELECTOR:
+            return self.image
+        if selector == CONFIRM_SELECTOR:
+            return self.confirm
+        if selector == REFRESH_SELECTOR:
+            return self.refresh
+        return None
+
+    async def query_selector_all(self, selector: str):
+        assert selector == WHIRL_IMAGE_SELECTOR
+        return [self.image]
+
+    async def wait_for_timeout(self, timeout: int) -> None:
+        return None
+
+
+def _shapes_page(two_objects: bool = False, **kwargs) -> FakeShapesPage:
+    image, labels = _shapes_arrays(two_objects)
+    return FakeShapesPage(_data_url(image), labels, **kwargs)
+
+
+async def test_solve_answers_a_3d_modal_and_clears_it(caplog) -> None:
+    page = _shapes_page()
+
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is True
+
+    assert page.cleared is True
+    assert page.image_clicks == 2 and page.good_clicks == 2
+    assert page.mouse.downs == 3 and page.mouse.ups == 3  # two points, then Confirm
+    assert len(page.mouse.moves) >= 24  # eased approaches, never teleports
+    assert len({y for _, y in page.mouse.moves}) > 1  # the approach wobbles
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=3d solved=true attempts=1 reason=none"
+    ]
+
+
+async def test_a_3d_modal_without_the_click_structure_stays_unsupported() -> None:
+    background, _ = _slide_arrays()
+    image = FakeElement(SLIDE_BOXES["image"], _data_url(background))
+    page = FakeCaptchaPage(
+        {IMAGE_SELECTOR: image},
+        [image],
+        accept=[],
+        container=FakeClickModal("Select 2 objects that are the same shape", CLICK_DOM, []),
+    )
+
+    assert await solve(page, rng=random.Random(1)) is False
+
+    assert page.mouse.downs == 0  # an image that is not the modal's own is never clicked
+
+
+async def test_a_refused_3d_challenge_clicks_nothing_and_saves_a_sample(
+    tmp_path, monkeypatch, caplog
+) -> None:
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", str(tmp_path))
+    monkeypatch.delenv("THOTH_CAPTCHA_CLICK_SOLVER", raising=False)
+    page = _shapes_page(two_objects=True)  # two objects: the solver must refuse
+
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is False
+
+    assert page.image_clicks == 0  # never answered
+    # A refusal ends as `challenge` for a leased account just like a miss, so it asks for
+    # a fresh image; this one keeps the picture, which the second attempt does not re-solve.
+    assert page.refresh_clicks == 1 and page.mouse.downs == 1
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=3d solved=false attempts=2 reason=unconfident"
+    ]
+    meta = json.loads((_sample_dirs(tmp_path)[0] / "sample.json").read_text(encoding="utf-8"))
+    assert meta["subtype"] == "3d" and meta["reason"] == "unconfident"
+
+
+async def test_a_refused_3d_challenge_asks_for_a_fresh_one_and_answers_it(caplog) -> None:
+    hard, _ = _shapes_arrays(two_objects=True)
+    easy, labels = _shapes_arrays()
+    page = FakeShapesPage(_data_url(hard), [], after_refresh=(_data_url(easy), labels))
+
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is True
+
+    assert page.refresh_clicks == 1
+    assert page.image_clicks == 2 and page.good_clicks == 2  # only the fresh image answered
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=3d solved=true attempts=2 reason=none"
+    ]
+
+
+async def test_the_same_picture_under_a_new_src_is_never_answered_twice(caplog) -> None:
+    """A blob: URL changes with every render, so the picture, not its src, is the key."""
+    image, labels = _shapes_arrays()
+    src = _data_url(image)
+    again = src.replace("data:image/png;base64,", "data:image/png;v=2;base64,", 1)
+    page = FakeShapesPage(src, labels, stubborn=True, after_refresh=(again, labels))
+
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is False
+
+    assert page.image_clicks == 2  # the first answer only
+    assert page.refresh_clicks == 1
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=3d solved=false attempts=2 reason=modal_stayed"
+    ]
+
+
+async def test_the_off_switch_keeps_the_classify_capture_refuse_behaviour(
+    tmp_path, monkeypatch, caplog
+) -> None:
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", str(tmp_path))
+    monkeypatch.setenv("THOTH_CAPTCHA_CLICK_SOLVER", "off")
+    page = _shapes_page()
+
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is False
+
+    assert page.mouse.downs == 0
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=3d solved=false attempts=1 reason=unsupported"
+    ]
+    meta = json.loads((_sample_dirs(tmp_path)[0] / "sample.json").read_text(encoding="utf-8"))
+    assert meta["reason"] == "unsupported"
+
+
+@pytest.mark.parametrize(
+    ("src", "prompt", "subtype", "source"),
+    [
+        (
+            "https://p19-rc-captcha-va.ibyteimg.com/x/3d_2385_ab_1.jpg",
+            "Select 2 objects that are the same shape",
+            "3d",
+            "url",
+        ),
+        (
+            "blob:https://www.tiktok.com/87ded5ee",
+            "Select 2 objects that are the same shape",
+            "3d",
+            "prompt",
+        ),
+        (
+            "blob:https://www.tiktok.com/87ded5ee",
+            "Which of these objects has a brim?",
+            "icon",
+            "prompt",
+        ),
+        (
+            "blob:https://www.tiktok.com/87ded5ee",
+            "Pilih dua benda yang bentuknya sama",
+            "3d",
+            "keywords",
+        ),
+        (
+            "blob:https://www.tiktok.com/87ded5ee",
+            "Rearrange the tiles until the picture is whole",
+            "unknown",
+            "structure",
+        ),
+    ],
+)
+async def test_click_subtypes_come_from_the_url_the_prompt_or_the_keywords(
+    src, prompt, subtype, source, monkeypatch, caplog
+) -> None:
+    monkeypatch.setenv("THOTH_CAPTCHA_CLICK_SOLVER", "off")
+    page = FakeShapesPage(src, [(0, 0, 10, 10)], prompt=prompt)
+
+    with caplog.at_level(logging.DEBUG, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is False
+
+    assert page.mouse.downs == 0
+    assert _outcome_lines(caplog) == [
+        f"tiktok captcha outcome subtype={subtype} solved=false attempts=1 reason=unsupported"
+    ]
+    assert f"tiktok captcha subtype={subtype} source={source}" in [
+        record.getMessage() for record in caplog.records
+    ]
+
+
+async def test_a_local_vision_switch_without_a_key_refuses_without_a_call(
+    tmp_path, monkeypatch, caplog
+) -> None:
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", str(tmp_path))
+    monkeypatch.setenv("THOTH_CAPTCHA_CLICK_SOLVER", "local_vision")
+    monkeypatch.delenv("THOTH_OPENROUTER_API_KEY", raising=False)
+    page = _shapes_page(two_objects=True)
+
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is False
+
+    assert page.image_clicks == 0 and page.refresh_clicks == 1
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=3d solved=false attempts=2 reason=no_vision"
+    ]
+    meta = json.loads((_sample_dirs(tmp_path)[0] / "sample.json").read_text(encoding="utf-8"))
+    assert meta["reason"] == "no_vision"
+
+
+def _vision_run(first: int, second: int) -> Any:
+    return SimpleNamespace(
+        content=_VisionPick(first=first, second=second),
+        metrics=SimpleNamespace(input_tokens=90, output_tokens=12),
+    )
+
+
+async def test_the_vision_fallback_answers_through_the_marked_candidates(
+    monkeypatch, caplog
+) -> None:
+    monkeypatch.setenv("THOTH_CAPTCHA_CLICK_SOLVER", "local_vision")
+    monkeypatch.setenv("THOTH_OPENROUTER_API_KEY", "test-key")
+    asked: list[bytes] = []
+
+    async def fake_agent(marked: bytes, key: str, model: str) -> Any:
+        asked.append(marked)
+        return _vision_run(1, 2)
+
+    monkeypatch.setattr(captcha, "_run_vision_agent", fake_agent)
+    page = _shapes_page(two_objects=True)  # the local solver refuses; the vision pick answers
+
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is True
+
+    assert len(asked) == 1 and asked[0][:4] == b"\x89PNG"  # one call, over the marked picture
+    assert page.image_clicks == 2 and page.good_clicks == 2  # the clicked boxes are the picked pair
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=3d solved=true attempts=1 reason=none"
+    ]
+
+
+async def test_the_vision_call_is_metered_into_usage_events(monkeypatch) -> None:
+    monkeypatch.setenv("THOTH_CAPTCHA_CLICK_SOLVER", "local_vision")
+    monkeypatch.setenv("THOTH_OPENROUTER_API_KEY", "test-key")
+    monkeypatch.delenv("THOTH_CAPTCHA_VISION_MODEL", raising=False)
+
+    async def fake_agent(marked: bytes, key: str, model: str) -> Any:
+        return _vision_run(1, 2)
+
+    monkeypatch.setattr(captcha, "_run_vision_agent", fake_agent)
+    sink = _MeteringSink()
+    metering.install(sink)
+    try:
+        with metering.scoped(MeterScope("ws_captcha")):
+            assert await solve(_shapes_page(two_objects=True), rng=random.Random(1)) is True
+    finally:
+        metering.install(None)
+
+    assert [(event.kind, event.key, event.quantity, event.unit) for event in sink.events] == [
+        ("provider_call", "qwen/qwen3-vl-30b-a3b-instruct", 1.0, "call"),
+        ("provider_call", "qwen/qwen3-vl-30b-a3b-instruct", 90.0, "token_in"),
+        ("provider_call", "qwen/qwen3-vl-30b-a3b-instruct", 12.0, "token_out"),
+    ]
+
+
+class _MeteringSink:
+    def __init__(self) -> None:
+        self.events: list[Any] = []
+
+    def record(self, event: Any) -> None:
+        self.events.append(event)
+
+
+async def test_a_vision_reply_that_is_not_two_distinct_candidates_is_a_refusal(
+    monkeypatch, caplog
+) -> None:
+    monkeypatch.setenv("THOTH_CAPTCHA_CLICK_SOLVER", "local_vision")
+    monkeypatch.setenv("THOTH_OPENROUTER_API_KEY", "test-key")
+
+    calls = 0
+
+    async def same_twice(marked: bytes, key: str, model: str) -> Any:
+        nonlocal calls
+        calls += 1
+        return _vision_run(1, 1)
+
+    monkeypatch.setattr(captcha, "_run_vision_agent", same_twice)
+    page = _shapes_page(two_objects=True)
+
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is False
+
+    assert page.image_clicks == 0
+    assert calls == 1  # the unchanged picture is not paid for twice
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=3d solved=false attempts=2 reason=unconfident"
+    ]
+
+
+async def test_a_failing_vision_call_is_a_refusal_and_meters_nothing(monkeypatch, caplog) -> None:
+    monkeypatch.setenv("THOTH_CAPTCHA_CLICK_SOLVER", "local_vision")
+    monkeypatch.setenv("THOTH_OPENROUTER_API_KEY", "test-key")
+    sink = _MeteringSink()
+    metering.install(sink)
+    try:
+
+        async def crashing(marked: bytes, key: str, model: str) -> Any:
+            raise RuntimeError("openrouter down")
+
+        monkeypatch.setattr(captcha, "_run_vision_agent", crashing)
+        page = _shapes_page(two_objects=True)
+
+        with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+            assert await solve(page, rng=random.Random(1)) is False
+
+    finally:
+        metering.install(None)
+
+    assert page.image_clicks == 0
+    assert sink.events == []  # a failed call is not a usage event
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=3d solved=false attempts=2 reason=unconfident"
+    ]
+
+
+async def test_a_stubborn_3d_modal_presses_refresh_and_never_answers_twice(
+    tmp_path, monkeypatch, caplog
+) -> None:
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", str(tmp_path))
+    monkeypatch.delenv("THOTH_CAPTCHA_CLICK_SOLVER", raising=False)
+    page = _shapes_page(stubborn=True)  # Confirm never clears; Refresh keeps the image
+
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is False
+
+    assert page.image_clicks == 2  # both attempts together: the second never re-answers
+    assert page.refresh_clicks == 1  # the wrong answer was followed by Refresh
+    assert page.mouse.downs == 4 and page.mouse.ups == 4  # two points, Confirm, Refresh
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=3d solved=false attempts=2 reason=modal_stayed"
+    ]
+    reasons = [
+        json.loads((sample / "sample.json").read_text(encoding="utf-8"))["reason"]
+        for sample in _sample_dirs(tmp_path)
+    ]
+    assert reasons == ["modal_stayed", "modal_stayed"]  # one per attempt that saw the modal
+
+
+async def test_a_stubborn_3d_modal_without_a_refresh_button_still_never_reanswers(
+    caplog,
+) -> None:
+    page = _shapes_page(stubborn=True, refresh=False)
+
+    with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
+        assert await solve(page, rng=random.Random(1)) is False
+
+    assert page.image_clicks == 2 and page.mouse.downs == 3  # no Refresh to press
+    assert _outcome_lines(caplog) == [
+        "tiktok captcha outcome subtype=3d solved=false attempts=2 reason=modal_stayed"
+    ]
+
+
+async def test_the_pointer_is_released_when_a_click_move_fails() -> None:
+    class Page:
+        def __init__(self) -> None:
+            self.mouse = FakeMouse()
+
+        async def wait_for_timeout(self, timeout: int) -> None:
+            if timeout >= 50:  # the short hold after the press; the approach waits are 4..18
+                raise RuntimeError("detached")
+
+    page = Page()
+
+    with pytest.raises(RuntimeError):
+        await captcha._human_click(page, page.mouse, 10.0, 10.0, 200.0, 180.0, random.Random(1))
+
+    assert page.mouse.downs == 1 and page.mouse.ups == 1
+
+
+class ViewportFakePage(FakeCaptchaPage):
+    """A fake page that names its viewport, like Playwright does."""
+
+    viewport_size: ClassVar[dict] = {"width": 800, "height": 820}
+
+
+async def test_no_modal_picture_when_the_clip_union_covers_the_viewport(
+    tmp_path, monkeypatch
+) -> None:
+    """A full-screen overlay's boxes can union to the page itself; the sample must skip the
+    picture rather than keep the profile behind the modal."""
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", str(tmp_path))
+    page = ViewportFakePage(
+        {},
+        [],
+        accept=[],
+        container=FakeClickModal(
+            "Select 2 objects that are the same shape",
+            CLICK_DOM,
+            [
+                {"tag": "img", "box": {"x": 0.0, "y": 0.0, "width": 700.0, "height": 800.0}},
+            ],
+        ),
+    )
+
+    assert await solve(page, rng=random.Random(1)) is False
+
+    dirs = _sample_dirs(tmp_path)
+    meta = json.loads((dirs[0] / "sample.json").read_text(encoding="utf-8"))
+    assert meta["visuals"]["modal"] is None  # 700x800 covers more than half of 800x820
+    assert not (dirs[0] / "modal.png").exists()
+    assert (dirs[0] / "dom.html").exists()  # the rest of the sample survives
+
+
+async def test_a_modal_picture_is_kept_when_the_union_stays_small(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", str(tmp_path))
+    page = ViewportFakePage(
+        {},
+        [],
+        accept=[],
+        container=FakeClickModal(
+            "Select 2 objects that are the same shape",
+            CLICK_DOM,
+            [{"tag": "img", "box": {"x": 100.0, "y": 80.0, "width": 340.0, "height": 220.0}}],
+        ),
+    )
+
+    assert await solve(page, rng=random.Random(1)) is False
+
+    meta = json.loads((_sample_dirs(tmp_path)[0] / "sample.json").read_text(encoding="utf-8"))
+    assert meta["visuals"]["modal"]["file"] == "modal.png"

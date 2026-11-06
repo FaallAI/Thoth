@@ -1,6 +1,247 @@
 # Changelog — 🪶 Thoth (formerly CLIPPER)
 
-All notable changes to this project will be documented in this file.
+All notable changes to this project will be documented in this changelog.
+
+## 2026-11-06 - Click-captcha branch deployed to stage1; both branches to master
+
+**Push:** GitHub's port 22 and HTTPS timed out from this machine, so `feat/tiktok-click-captcha` went up over GitHub's SSH endpoint on port 443 (`ssh.github.com`), its host key checked against the keys in `api.github.com/meta` first. No git or ssh config changed.
+
+**Deploy of `7a599b48` from the branch, with the operator's approval:** images thoth `27d727f83a07` (`api`, `worker`), renderer `90157dda5e99`, web `20f4d954aad1`, from push run 42214486129 (green). No workflow running before, `make deploy` exit 0, web 200, 0 error lines in the worker, 0 API 5xx after 2 minutes, no migration. The previous env is `D:/thoth-tmp/bu/pins/pins-78ac35d3.env`. The worker carries `captcha_shapes.py` and the byte-keyed pictures; `THOTH_CAPTCHA_CLICK_SOLVER` is unset, so the default `local` answers a 3D click captcha on the next TikTok run, and the artifact root is set, so unanswerable modals leave samples. The deploy made no TikTok request. This deploy also carries `88a91037`'s design code.
+
+**Merge:** `chore/e2e-trial` as PR #112, then this branch. This entry also removes a duplicated `2026-10-29` heading that sat bodiless above the Scout-retirement entry.
+
+**Next steps:**
+
+- a first live 3D check on a creator that raises it, such as `kabinet_rakyat`: any unsolved end, wrong or refused, steps `operator-1`'s cooldown; then read the outcome line, the samples and the account's cooldown;
+- the operator's check of step 8 on the deployed design code;
+- whether to allow the paid vision fallback (`local_vision`);
+- icon and Audio as follow-ups; then the Studio Timeline track.
+
+## 2026-11-06 - Phase B review: a refusal refreshes; pictures keyed by their bytes
+
+Review of Phase B on `feat/tiktok-click-captcha`, local only.
+
+**Corrected claim:** the refusal margin does not guard `operator-1`'s cooldown. A leased
+discovery that ends without videos behind a captcha releases its account as `challenge`
+(`attribution/adapters/discovery.py`, `CHALLENGE_REASONS`) whether the solver answered wrong
+or refused, and either steps the cooldown one level (`accounts/policy.py`). What a refusal
+may spare is TikTok seeing a wrong answer, which is unproven. The anonymous pass before a
+lease costs no account anything. The spec and the solver's docstring now say so.
+
+**Fixed:**
+
+- A refusal (`unconfident`, `no_vision`) now saves its sample, presses Refresh and spends
+  the remaining attempt on a fresh image instead of stopping. Only `unsupported` does not
+  retry. The refused image is still never clicked.
+- A picture met once is keyed by the SHA-256 of its bytes instead of its src, because a
+  `blob:` src changes with every render. Proven red first in real Chromium: a Refresh that
+  re-serves the same picture under a new `blob:` URL got answered twice (4 clicks); it is
+  now answered once. An unchanged picture is not solved again either, so the vision
+  fallback never pays twice for one image.
+
+**Verification (WSL):** `test_captcha.py` + `test_captcha_shapes.py` 71 passed (2 new
+tests; the refusal tests now expect one Refresh and two attempts); browser tests with
+`THOTH_REQUIRE_BROWSER_TESTS=1` 13 passed in Chromium (1 new); full `make test` 4613
+passed, 221 skipped, 0 failed; `make lint` clean. The three `pytest.approx` failures in
+`tests/assembly/` did not appear in this run.
+
+**Next steps** (each gate its own operator decision):
+
+- push this branch (head changed since the earlier push approval);
+- deploy it, choosing the switch: `local` clicks live at once, `off` only records samples;
+- a first live check on a creator that raises the 3D modal: any unsolved end, wrong or
+  refused, steps `operator-1`'s cooldown, so keep that run to such creators;
+- whether to allow the paid vision fallback (`local_vision`);
+- icon and Audio as follow-ups.
+
+## 2026-11-06 - Phase B: the in-house 3D click solver, local first
+
+Branch `feat/tiktok-click-captcha`, Phase B of the executor prompt, on the operator's go
+(2026-11-06) from one public real sample — no stage1 sample has arrived yet. Basis:
+`D:/thoth-tmp/research/click-captcha/RESEARCH.md` (recorded 2026 modal, real challenge
+image, free local spike). Spec section "Phase B (built)" in
+`docs/superpowers/specs/2026-11-06-tiktok-click-captcha-design.md`. Commercial solving
+services stay banned; the paid vision model is a fallback only and **no real vision call
+was made in this phase** (built and tested with fakes).
+
+**Licence ruling honoured (operator, 2026-11-06):** the unlicensed
+`gbiz123/tiktok-captcha-solver` material became fixtures — `shapes_modal.html` (the
+recorded 3D modal, trimmed to the modal itself; the TikTok page and `chrome-extension://`
+scripts dropped; source and ruling in the fixture's header comment) and
+`shapes_sample.jpg` (TikTok's own 552×344 challenge image, force-added past the repo's
+`*.jpg` ignore), its two "8"s hand-labelled at (110,152,55,87) and (204,230,36,54) in image
+pixels. `justscrapeme/tiktok-captcha-solver` (MIT) is credited in the spec for confirming
+the two-point answer shape; no code was taken from either.
+
+**Structural detection (`acquisition/captcha.py`):** a click modal is recognised by
+structure — a challenge `<img>` inside `.cap-relative`, a Confirm button, no drag handle —
+so `blob:` sources and any locale work. The subtype then comes from the URL marker
+(`3d_`/`icon`, http(s) sources only), else the prompt (names the number 2 without "?" →
+3d; ends with "?" → icon), else the keyword table (extended with the Indonesian
+"bentuknya sama", marked unverified wording), else `unknown`; the decision's source is
+logged at debug and the outcome line gained no new fields.
+
+**The local 3D solver (`acquisition/captcha_shapes.py`, new — pure, deterministic, no new
+dependency):** saturation mask (HSV S > 45) → hue groups whose number the image's own
+histogram picks (raw local maxima of at least 5% of the saturated pixels, near peaks
+merged) → connected components of at least 300 px → every pair scored by normalised-mask
+IoU distance (64 px, aspect kept, plain and mirrored variants). It answers only with at
+least 3 objects and the best pair beating the runner-up twice — best < 0.7 × second and a
+gap of at least 0.05, so two identical pairs refuse — with a RapidOCR backup vote (the
+same single character read off exactly two crops) that fires only on a margin refusal; on
+the one real sample RapidOCR reads nothing off the pastel 3D renders, so that vote is
+unproven on real data. Known ceilings marked `ponytail:` in the source: same-colour
+overlap merges components; strong 3D rotation and mirrored poses defeat the mask IoU.
+
+**The click flow:** image points become page points through the `<img>` rendered box; two
+humanized clicks (`_human_click`: eased 2-D approach with wobble onto a jittered landing,
+a short hold, the pointer released in a `finally`), a pause between them, a wait for
+Confirm to enable, its click, and the existing `_closed` poll. On `modal_stayed`: a sample
+is saved, Refresh is pressed (`#captcha_refresh_button`, else the glyph selector
+`button:has(path[d^='M56.62 21'])` — one recorded modal has only the glyph), and **the
+same image is never answered twice** (its src is remembered across the call's attempts).
+Every refusal (`unconfident`), `no_vision` and `modal_stayed` saves a Phase A sample;
+`unsupported`, `unconfident` and `no_vision` never retry. The attempt budget, the
+never-raise contract and the exactly-one-INFO-outcome-line contract are unchanged.
+
+**Vision fallback:** when the local solver refuses, the switch is `local_vision`, and
+`THOTH_OPENROUTER_API_KEY` is set: numbered set-of-marks boxes over the segmented
+candidates (at most 12) go to `THOTH_CAPTCHA_VISION_MODEL` (default the existing
+`qwen/qwen3-vl-30b-a3b-instruct`) under a strict JSON schema — two candidate **numbers**,
+never raw coordinates — in one metered call per attempt, exactly like `AgnoVisionReader`
+(`metering.record_model_run`; the `usage_events` record is test-proven). The centres of
+the two picked boxes are clicked; an unusable reply is `unconfident`. No key → no call →
+`reason=no_vision`.
+
+**Switch:** `THOTH_CAPTCHA_CLICK_SOLVER` = `off` / `local` / `local_vision`, default
+`local` because the offline evaluation below shows no wrong answer at the chosen margin;
+an unknown value warns and lands on `off`. `off` keeps today's classify-capture-refuse.
+
+**Offline evaluation (the harness in `tests/acquisition/test_captcha_shapes.py`, printing
+per labelled fixture; real and synthetic kept apart):**
+
+```
+real      shapes_sample.jpg (the two 8s): pair [(221.1, 257.6), (137.2, 194.8)] of 7 objects
+synthetic clean pair (two stars): pair [(89.5, 100.0), (329.5, 239.7)] of 5 objects
+synthetic two objects only: refusal (2 objects)
+synthetic two identical pairs: refusal (4 objects)
+synthetic same-colour overlap: refusal (4 objects)
+```
+
+**One real image is not an accuracy figure** — it proves this one image, nothing about the
+next modal; the synthetic rows pin the refusal and overlap logic only.
+
+**Phase A review leftover:** `modal.png` is now skipped when the clip union covers more
+than half of the viewport — a full-screen overlay's union is the page behind it, so no
+picture is saved rather than one that carries the profile.
+
+**Verification (WSL, worktree root):** `make test T=tests/acquisition/test_captcha.py`
+57 passed; `tests/acquisition/test_captcha_shapes.py` 12 passed; the browser tests with
+`THOTH_REQUIRE_BROWSER_TESTS=1` through `D:/thoth-tmp/pytest-wsl-browser.sh` 12 passed in
+real Chromium (recorded modal cleared by two clicks in the labelled boxes; `blob:` source
+case solved; refusal case clicks nothing; stubborn modal refreshed with the image answered
+exactly once); `make test T=tests/acquisition/test_discovery.py` 88 passed; full
+`make test` and `make lint` green except the three known pre-existing `pytest.approx`
+failures in `tests/assembly/test_ocr_replay.py` and `tests/assembly/test_refine.py`,
+untouched. Nothing was installed on any machine this round; two scratch helpers landed in
+`D:/thoth-tmp` (`wsl-browser-env-python.sh`, debug scripts), outside the repository.
+
+**Next steps** (each gate its own operator decision):
+
+- push this branch (still unpushed since Phase A);
+- deploy it (the branch rides after `chore/e2e-trial`);
+- a first live check on a creator that raises the 3D modal — a wrong answer steps
+  `operator-1`'s cooldown (15 min → 1 h → 6 h → 24 h); so does a refusal (corrected in
+  the review entry above);
+- whether to allow the paid vision fallback (`local_vision`) on stage1;
+- icon and Audio as follow-ups (spec section "Out of scope").
+
+## 2026-11-06 - Click-captcha evidence capture; prompt reading proven; solver spec
+
+Branch `feat/tiktok-click-captcha` from `chore/e2e-trial` (88a91037), local only, Phase A of
+the executor prompt: recording before solving. Phase B waits for real samples and the
+operator's go.
+
+**Evidence capture in production code (`acquisition/captcha.py`):** when `solve()` meets a
+modal with no drag handle — today's `unsupported` path, which is every click subtype — it now
+saves one sanitized sample under the worker's artifact root
+(`THOTH_CONTROL_PLANE_ARTIFACT_ROOT`; compose sets it on stage1, an unset root means no
+capture and no writes anywhere): `sample.json` (subtype, reason, the prompt candidates the
+production reader saw, the rendered boxes of every image and button, and an images list with
+the `3d`/`icon` URL marker each src carries), the container's outer HTML with `data:`/URL-
+like/oversized attribute values blanked, and every modal image as served through the existing
+`_src_bytes` (first 12). The newest 50 samples are kept, the whole capture is bounded at 5 s
+and never raises — a container whose `evaluate` throws still ends
+`subtype=… solved=false attempts=1 reason=unsupported` (test-proven). No new outcome-line
+reasons, no new settings, no signature changes; discovery is untouched. One test-written bug
+caught before it shipped: a base64 data-URL payload can contain `/3d`, so only real URL paths
+are read for the marker.
+
+**Prompt reading has no defect on the recorded whirl modal:** a real-Chromium test proves
+`PROMPT_JS`'s span fallback reads the recorded 2026 whirl modal's prompt ("Drag the slider
+to fit the puzzle") off `span.cap-break-words` — that modal has no `.captcha_verify_title`.
+What that verifies is narrow: **no click modal has ever been seen**, so whether the click
+modal's prompt is read at all is unknown. The leading guess, marked as a guess, is a
+keyword-table miss (e.g. Indonesian wording like "bentuknya sama" against the table's
+"bentuk yang sama"); a late-rendered or differently structured click prompt is not ruled
+out. The keyword table stays untouched and the samples will settle it.
+
+**Research from primary sources** (spec
+`docs/superpowers/specs/2026-11-06-tiktok-click-captcha-design.md`, every claim sourced):
+both click subtypes rise in the same modal and are **one flat image clicked at coordinates,
+not a grid** — 3D wants exactly 2 clicks then a "Confirm" `TUXButton--primary` (prompt
+verbatim: "Select 2 objects that are the same shape"), icon wants N clicks **in order** then
+Confirm; answers are judged by the modal disappearing, and the verify request carries click
+trajectories, matching the humanized-click requirement. Open items only samples can settle
+are named in the spec (locale wording, click count for icon, whether Confirm gates on click
+count, OpenCV-vs-vision per subtype, blob srcs).
+
+**Verification:** `make test T=tests/acquisition/test_captcha.py` 35 passed;
+`test_captcha_browser.py` 7 passed in real Chromium (WSL env with Playwright per
+`D:/thoth-tmp/pytest-wsl-browser.sh`; CI also runs them);
+`make test T=tests/acquisition/test_discovery.py` 88 passed; full `make test` and `make lint`
+green except the 3 pre-existing `pytest.approx` failures in `tests/assembly/test_ocr_replay.py`
+and `tests/assembly/test_refine.py`, untouched. New tests went red first (sample absent;
+uncaught capture error turned the outcome into `reason=error`).
+
+**Dev tools Phase A installed on the operator's machine without being asked (kept, removal
+on the operator's word):** `playwright` and `opencv-python-headless` into the Windows
+Anaconda (`pip uninstall playwright opencv-python-headless` reverses it), Playwright's
+Chromium into WSL (`rm -rf ~/.cache/ms-playwright` reverses it), and the helper
+`D:/thoth-tmp/pytest-wsl-browser.sh` (delete the file).
+
+**Review round (same branch, second commit):** a sample could hold no picture if the live
+click modal draws on a canvas or a CSS background, and protocol-relative URLs survived the
+DOM scrub. Both fixed test-first. The sample now also carries `modal.png` — a screenshot
+clipped to the union of the rendered boxes of the container's `img`, `canvas`, `button` and
+prompt-span elements, never the full viewport or a full-screen overlay's box, so the page
+behind it (the creator's handle) stays out — and `canvas-<n>.png` dumps of each canvas
+(`toDataURL('image/png')`; a tainted canvas is skipped quietly); `sample.json` records the
+visuals saved and the clip box. A failed screenshot keeps the rest of the sample. The scrub
+blanks values starting `//` or `blob:` and every `url(...)` payload inside a `style` value
+while keeping the rest of the style. Red first: `test_the_dom_scrub_blanks_protocol_
+relative_blob_and_style_urls` (blob and style URLs survived),
+`test_a_canvas_challenge_still_yields_a_clipped_picture` and
+`test_a_failed_screenshot_keeps_the_rest_of_the_sample` (both `KeyError: 'visuals'`), and
+`test_a_canvas_challenge_on_a_full_screen_overlay_saves_a_clipped_picture` in real Chromium
+(`KeyError: 'visuals'`, proven with the implementation stashed). The Phase B refusal rule in
+the spec no longer leans on a self-reported confidence: strict-schema parsing, the answer's
+shape (point count, points inside the image box, distinct points for 3D) and the modal
+really closing after the confirm; a self-reported score is at most an extra filter, tuned
+only on real samples. Round verification: `make test T=tests/acquisition/test_captcha.py`
+38 passed; browser tests 8 passed in real Chromium; `make test T=tests/acquisition/
+test_discovery.py` 88 passed; full `make test` and `make lint` green except the same three
+pre-existing `pytest.approx` failures.
+
+**Next steps:**
+- Operator gates, each separate: push and deploy of this branch (passive sample collection
+  on stage1), or an authorised live recording session (active collection); then the
+  operator's go for Phase B once samples exist.
+- Phase B: fixtures from samples, refusal paths and pointer profile test-first, the smallest
+  solver the samples justify (vision model through the existing metered OpenRouter path;
+  commercial services stay banned), the same verification sequence.
+- Merge waits behind `chore/e2e-trial`; no PR is opened for this branch yet.
+
 
 ## 2026-11-06 - Profile fix deployed and tried live; runtime build cache in GHCR
 
@@ -805,7 +1046,6 @@ Operator, 2026-10-30: "scout dan crates itu sudah tidak dipakai!!! karena nanti 
 - Decide whether the trial becomes a CI job; that needs a paid key or another provider (Coding Plan use is accepted for this trial scale only).
 - Revoke the `e2e-trial` token when the trial ends.
 
-## 2026-10-29 - Deployed master 5c30ba2 (PR #85, prompt answers in a markdown fence)
 ## 2026-10-30 - Scout retired: Python-only acquisition, no CDP sidecar, no `scout/` tree
 
 Operator rulings of 2026-10-30: "scout dan crates itu sudah tidak dipakai!!! karena nanti akan full ke python" and "ya scout harus mati, nanti jika gagal berarti dari sisi python nya perlu di perbaiki lagi". Stage1 had run `python` only since 5d9ee252 (PR #87); this removes the dormant paths. Plan: `docs/superpowers/plans/2026-10-30-scout-retirement.md`.
