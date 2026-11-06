@@ -4,7 +4,10 @@ The slide page reproduces the documented modal DOM (container, verify image, sli
 track, drag handle) with generated puzzle images; the whirl page is the modal DOM recorded on
 2026-10-23 with its own WebP images restored. A pointer listener moves the piece — or turns
 the disc — with the drag and removes the container only when it lands on the puzzle's answer,
-the same contract `solve` relies on in the wild.
+the same contract `solve` relies on in the wild. The 3D page is the recorded shapes modal
+(gbiz123, operator licence ruling 2026-11-06) with the real challenge image restored: two
+clicks inside the hand-labelled "8" boxes enable Confirm, and Confirm clears the container
+only then.
 """
 
 import base64
@@ -28,6 +31,10 @@ NOTCH_X = 200  # the gap's offset inside the 340px verify image
 FIXTURES = Path(__file__).parent / "fixtures"
 WHIRL_TURNS = 360.0 / 284.0  # the shim's disc degrees per slider pixel
 WHIRL_ANSWER = 60.0  # the recorded pair's upright rotation, in degrees
+#: The real 3D challenge (shapes_sample.jpg, 552x344) with its two "8"s labelled by hand,
+#: in image pixels: the large green one and the small salmon one.
+SHAPES_NATIVE = (552, 344)
+SHAPES_MARKS = [(110, 152, 55, 87), (204, 230, 36, 54)]
 
 _MODAL_JS = """
 const piece = document.querySelector('.captcha_verify_img_slide');
@@ -308,3 +315,153 @@ async def test_a_canvas_challenge_on_a_full_screen_overlay_saves_a_clipped_pictu
             assert png_width < 800 and png_height < 820  # smaller than the viewport
         finally:
             await browser.close()
+
+
+# The recorded 3D shapes modal (see fixtures/shapes_modal.html for provenance) with the real
+# challenge image restored. The page owns the modal's behaviour: two clicks inside the
+# hand-labelled "8" boxes enable the Confirm button, and Confirm removes the container only
+# when both clicks were good. The refresh button is found by its TikTok glyph (the recorded
+# modal carries no id), the same fallback the solver uses.
+_SHAPES_SHIM_JS = """
+const root = document.querySelector('.captcha-verify-container');
+const img = root.querySelector('.cap-relative img');
+const confirm = root.querySelector('.cap-relative button.cap-w-full');
+const refresh = [...root.querySelectorAll('button')].find(
+  b => [...b.querySelectorAll('path')].some(
+    p => (p.getAttribute('d') || '').startsWith('M56.62 21')));
+const MARKS = __MARKS__;
+window.__clicks = 0; window.__good = 0; window.__refreshes = 0;
+img.addEventListener('click', e => {
+  window.__clicks++;
+  const r = img.getBoundingClientRect();
+  const ix = (e.clientX - r.left) / r.width * __W__;
+  const iy = (e.clientY - r.top) / r.height * __H__;
+  if (MARKS.some(([x, y, w, h]) => ix >= x && ix <= x + w && iy >= y && iy <= y + h)) {
+    window.__good++;
+  }
+  if (window.__clicks >= 2) {
+    confirm.classList.remove('TUXButton--disabled');
+    confirm.setAttribute('aria-disabled', 'false');
+  }
+});
+confirm.addEventListener('click', () => {
+  if (!window.__stubborn && window.__good === 2 && window.__clicks === 2) root.remove();
+});
+refresh.addEventListener('click', () => { window.__refreshes++; });
+"""
+
+
+def _shapes_modal_html(image: bytes, native: tuple[int, int], marks: list) -> str:
+    modal = (FIXTURES / "shapes_modal.html").read_text(encoding="utf-8")
+    url = "data:image/jpeg;base64," + base64.b64encode(image).decode()
+    modal = modal.replace('src="data:..."', f'src="{url}"', 1)
+    shim = (
+        _SHAPES_SHIM_JS.replace("__MARKS__", json.dumps([list(mark) for mark in marks]))
+        .replace("__W__", str(native[0]))
+        .replace("__H__", str(native[1]))
+    )
+    # Only the two Tailwind classes the solver's mapping depends on are given meaning; the
+    # recorded modal renders its image at the column's width, as on TikTok.
+    style = "<style>.cap-w-full{width:100%}.cap-h-auto{height:auto}</style>"
+    return (
+        f'<!doctype html><html><head>{style}</head><body style="margin:0">'
+        f"{modal}<script>{shim}</script></body></html>"
+    )
+
+
+def _two_object_jpeg() -> bytes:
+    """A 552x344 white card with only a star and a disc: the local solver must refuse it."""
+    card = numpy.full((SHAPES_NATIVE[1], SHAPES_NATIVE[0], 3), 250, numpy.uint8)
+    angles = numpy.linspace(0, 2 * numpy.pi, 10, endpoint=False) + numpy.pi / 2
+    radii = numpy.where(numpy.arange(10) % 2 == 0, 42, 42 * 0.45)
+    star = numpy.int32(
+        [
+            [90 + r * numpy.cos(a), 100 + r * numpy.sin(a)]
+            for a, r in zip(angles, radii, strict=True)
+        ]
+    )
+    cv2.fillPoly(card, [star], (0, 0, 255))
+    cv2.circle(card, (400, 172), 46, (255, 0, 0), -1)
+    ok, encoded = cv2.imencode(".jpg", card)
+    assert ok
+    return encoded.tobytes()
+
+
+async def _run_shapes_modal(html: str, evaluate: str | None = None):
+    async with async_api.async_playwright() as playwright:
+        browser = await launch(playwright)
+        try:
+            page = await browser.new_page(viewport={"width": 800, "height": 820})
+            await page.set_content(html)
+            if evaluate:
+                await page.evaluate(evaluate)
+            await page.wait_for_timeout(100)
+            solved = await solve(page)
+            state = await page.evaluate(
+                "() => ({clicks: window.__clicks, good: window.__good,"
+                " refreshes: window.__refreshes,"
+                " open: document.querySelector('.captcha-verify-container') !== null})"
+            )
+            return solved, state
+        finally:
+            await browser.close()
+
+
+async def test_solve_clears_the_recorded_3d_modal_in_real_chromium() -> None:
+    image = (FIXTURES / "shapes_sample.jpg").read_bytes()
+
+    solved, state = await _run_shapes_modal(_shapes_modal_html(image, SHAPES_NATIVE, SHAPES_MARKS))
+
+    assert solved is True
+    assert state == {"clicks": 2, "good": 2, "refreshes": 0, "open": False}
+
+
+async def test_solve_clears_a_3d_modal_served_from_a_blob_url() -> None:
+    """The 2026 modals can serve the challenge from a blob: URL, so no URL marker exists:
+    the prompt classifies, and the bytes come from the in-page fetch."""
+    image = (FIXTURES / "shapes_sample.jpg").read_bytes()
+    to_blob = """async bytes => {
+      const blob = new Blob([new Uint8Array(bytes)], {type: 'image/jpeg'});
+      document.querySelector('.captcha-verify-container .cap-relative img').src =
+        URL.createObjectURL(blob);
+    }"""
+
+    async with async_api.async_playwright() as playwright:
+        browser = await launch(playwright)
+        try:
+            page = await browser.new_page(viewport={"width": 800, "height": 820})
+            await page.set_content(_shapes_modal_html(image, SHAPES_NATIVE, SHAPES_MARKS))
+            await page.evaluate(to_blob, list(image))
+            await page.wait_for_timeout(100)
+
+            assert await solve(page) is True
+
+            clicks = await page.evaluate("() => window.__clicks")
+            good = await page.evaluate("() => window.__good")
+            assert (clicks, good) == (2, 2)
+        finally:
+            await browser.close()
+
+
+async def test_solve_refuses_a_3d_modal_it_cannot_answer_without_clicking() -> None:
+    solved, state = await _run_shapes_modal(
+        _shapes_modal_html(_two_object_jpeg(), SHAPES_NATIVE, SHAPES_MARKS)
+    )
+
+    assert solved is False
+    assert state == {"clicks": 0, "good": 0, "refreshes": 0, "open": True}
+
+
+async def test_a_stubborn_3d_modal_gets_refresh_and_is_never_answered_twice() -> None:
+    image = (FIXTURES / "shapes_sample.jpg").read_bytes()
+    html = _shapes_modal_html(image, SHAPES_NATIVE, SHAPES_MARKS).replace(
+        "<script>", "<script>window.__stubborn = true;"
+    )
+
+    solved, state = await _run_shapes_modal(html)
+
+    assert solved is False
+    assert state["open"] is True
+    assert state["clicks"] == 2  # the second attempt refuses the unchanged image
+    assert state["good"] == 2
+    assert state["refreshes"] == 1  # the wrong answer asked for a new challenge
