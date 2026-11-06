@@ -107,6 +107,11 @@ MIN_MATCH = 0.25
 #: the check polls until the modal is gone or the budget runs out.
 VERIFY_TIMEOUT_MS = 6_000
 VERIFY_POLL_MS = 250
+#: A drag handle can show before its challenge images: live, signed in, 2026-11-06, the fresh
+#: whirl after a miss had not rendered within the 400 ms between attempts, and the second
+#: attempt ended no_images. The attempt waits this long for them instead.
+IMAGES_TIMEOUT_MS = 4_000
+IMAGES_POLL_MS = 250
 #: Evidence capture: one sanitized sample per modal the solver cannot answer, the newest
 #: SAMPLE_LIMIT kept. Samples land under the worker's artifact root only when the environment
 #: names one (compose sets THOTH_CONTROL_PLANE_ARTIFACT_ROOT on stage1); an unset root means
@@ -188,28 +193,45 @@ async def _attempt(page: Any, rng: random.Random, seen: dict[str, str]) -> tuple
         return "unknown", "no_images", False
     handle = await page.query_selector(HANDLE_SELECTOR)
     subtype = await _classify(page)
+    for _ in range(IMAGES_TIMEOUT_MS // IMAGES_POLL_MS):
+        if handle is None or subtype in ("slide", "whirl"):
+            break
+        # A drag handle whose images have not rendered yet: wait for them in this attempt.
+        await page.wait_for_timeout(IMAGES_POLL_MS)
+        handle = await page.query_selector(HANDLE_SELECTOR)
+        subtype = await _classify(page)
     if handle is None:
         # No drag handle: a click modal, answered by the 3D solver when it is one and the
         # switch allows; whatever happens, one sanitized sample keeps the record.
         return await _click_attempt(page, rng, subtype, seen)
     if subtype not in ("slide", "whirl"):
-        # A drag handle whose images have not rendered yet: worth the retry.
+        # The images never rendered: the retry may see them.
+        await _capture_sample(page, subtype, "no_images")
         return subtype, "no_images", False
+    # Recorded before the drag: after a miss TikTok loads a fresh challenge, so a sample
+    # taken afterwards would show a challenge nobody answered.
+    sample = await _capture_sample(page, subtype, "pending")
+    reason = await _drag_attempt(page, rng, handle, subtype)
+    _settle_sample(sample, reason)
+    return subtype, reason, reason == "none"
+
+
+async def _drag_attempt(page: Any, rng: random.Random, handle: Any, subtype: str) -> str:
+    """Answer a slide or whirl challenge with one drag: "none" once the modal is gone."""
     if subtype == "slide":
         piece = await page.query_selector(PIECE_SELECTOR)
         if piece is None:
-            return "slide", "no_images", False
+            return "no_images"
         drag = await _slide_drag(page, piece)
         if drag is None or abs(drag) < 1:
             logger.debug("tiktok captcha slide subtype gave no drag distance")
-            return "slide", "no_distance", False
+            return "no_distance"
         await _drag(page, handle, drag, rng)
     else:
         failure = await _whirl_drag(page, handle, rng)
         if failure is not None:
-            return "whirl", failure, False
-    gone = await _closed(page)
-    return subtype, ("none" if gone else "modal_stayed"), gone
+            return failure
+    return "none" if await _closed(page) else "modal_stayed"
 
 
 def _click_mode() -> str:
@@ -386,8 +408,9 @@ async def _human_click(
         await mouse.up()
 
 
-async def _capture_sample(page: Any, subtype: str, reason: str) -> None:
-    """Save one sanitized sample of a modal the solver cannot answer, best effort.
+async def _capture_sample(page: Any, subtype: str, reason: str) -> Path | None:
+    """Save one sanitized sample of a modal, best effort, and return its folder: a modal the
+    solver cannot answer, or a drag challenge just before its drag (see :func:`_settle_sample`).
 
     The sample — sanitized DOM, prompt candidates, image and button boxes, the images as
     served — is the only record of a click modal, because none was ever captured before
@@ -398,17 +421,37 @@ async def _capture_sample(page: Any, subtype: str, reason: str) -> None:
     """
     root = os.environ.get("THOTH_CONTROL_PLANE_ARTIFACT_ROOT")
     if not root:
-        return
+        return None
     try:
-        await asyncio.wait_for(_write_sample(page, subtype, reason, Path(root)), CAPTURE_BUDGET_S)
+        return await asyncio.wait_for(
+            _write_sample(page, subtype, reason, Path(root)), CAPTURE_BUDGET_S
+        )
     except Exception:
         logger.debug("tiktok captcha sample not saved")
+        return None
 
 
-async def _write_sample(page: Any, subtype: str, reason: str, root: Path) -> None:
+def _settle_sample(sample: Path | None, reason: str) -> None:
+    """A drag's sample, taken before the drag, once the drag's outcome is known: a solved
+    challenge needs no record and goes; any other keeps the reason it ended with."""
+    if sample is None:
+        return
+    try:
+        if reason == "none":
+            shutil.rmtree(sample, ignore_errors=True)
+            return
+        path = sample / "sample.json"
+        meta = json.loads(path.read_text(encoding="utf-8"))
+        meta["reason"] = reason
+        path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    except Exception:
+        logger.debug("tiktok captcha sample not settled")
+
+
+async def _write_sample(page: Any, subtype: str, reason: str, root: Path) -> Path | None:
     container = await page.query_selector(CONTAINER_SELECTOR)
     if container is None:
-        return
+        return None
     prompts = await container.evaluate(PROMPT_JS)
     dom = await container.evaluate(DOM_JS)
     boxes = await container.evaluate(BOXES_JS)
@@ -473,6 +516,7 @@ async def _write_sample(page: Any, subtype: str, reason: str, root: Path) -> Non
     for name, data in blobs:
         (sample / name).write_bytes(data)
     _prune_samples(sample.parent)
+    return sample
 
 
 def _union_box(boxes: Any) -> dict[str, float] | None:

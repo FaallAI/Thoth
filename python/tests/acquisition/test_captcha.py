@@ -417,8 +417,12 @@ class LateWhirlPage(FakeWhirlPage):
         self.rendered = True
 
 
-async def test_a_whirl_whose_images_load_late_is_solved_on_the_retry(caplog) -> None:
+async def test_a_whirl_whose_images_load_late_is_solved_without_spending_an_attempt(
+    caplog,
+) -> None:
     # Review: an unrendered whirl was classified unknown -> unsupported and never retried.
+    # Stage1, 2026-11-06: the fresh challenge after a miss had not rendered within the 400 ms
+    # between attempts, so the second attempt ended no_images; the attempt now waits for it.
     disc, ring = _whirl_arrays(60.0)
     page = LateWhirlPage(
         [
@@ -430,8 +434,64 @@ async def test_a_whirl_whose_images_load_late_is_solved_on_the_retry(caplog) -> 
     with caplog.at_level(logging.INFO, logger="thoth_control_plane.acquisition.captcha"):
         assert await solve(page, rng=random.Random(1)) is True
     assert _outcome_lines(caplog) == [
-        "tiktok captcha outcome subtype=whirl solved=true attempts=2 reason=none"
+        "tiktok captcha outcome subtype=whirl solved=true attempts=1 reason=none"
     ]
+
+
+def _capturable_slide_page(accept: list[float]) -> FakeCaptchaPage:
+    page = _slide_page(accept)
+    page.container = FakeClickModal("Drag the slider to fit the puzzle", CLICK_DOM, [])
+    return page
+
+
+async def test_a_drag_the_modal_survives_leaves_the_challenge_it_answered(
+    tmp_path, monkeypatch
+) -> None:
+    """A failed drag records the challenge as it was before the drag: after a miss TikTok
+    loads a fresh one, so a picture taken afterwards would show the wrong challenge."""
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", str(tmp_path))
+    page = _capturable_slide_page(accept=[500])  # both attempts miss the 336 answer
+    background, _ = _slide_arrays()
+
+    assert await solve(page, rng=random.Random(1)) is False
+
+    dirs = _sample_dirs(tmp_path)
+    assert len(dirs) == 2  # one per attempt
+    for sample in dirs:
+        meta = json.loads((sample / "sample.json").read_text(encoding="utf-8"))
+        assert meta["subtype"] == "slide" and meta["reason"] == "modal_stayed"
+        assert (sample / "image-0.png").read_bytes() == _png(background)
+
+
+async def test_a_solved_drag_leaves_no_sample(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", str(tmp_path))
+    page = _capturable_slide_page(accept=[336])
+
+    assert await solve(page, rng=random.Random(1)) is True
+
+    assert _sample_dirs(tmp_path) == []
+
+
+async def test_a_drag_handle_whose_images_never_render_leaves_a_sample(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", str(tmp_path))
+    background, _ = _slide_arrays()
+    image = FakeElement(SLIDE_BOXES["image"], _data_url(background))
+    page = FakeCaptchaPage(
+        {IMAGE_SELECTOR: image, HANDLE_SELECTOR: FakeElement((120, 294, 40, 24))},
+        [image],
+        accept=[],
+        container=FakeClickModal("Drag the slider", CLICK_DOM, []),
+    )
+
+    assert await solve(page, rng=random.Random(1)) is False
+
+    reasons = [
+        json.loads((sample / "sample.json").read_text(encoding="utf-8"))["reason"]
+        for sample in _sample_dirs(tmp_path)
+    ]
+    assert reasons == ["no_images", "no_images"]
 
 
 class SlowCloseWhirlPage(FakeWhirlPage):

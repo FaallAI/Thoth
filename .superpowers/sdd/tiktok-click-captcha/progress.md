@@ -90,3 +90,12 @@ rollback `pins-78ac35d3.env`; checks clean; switch unset (default `local`), arti
 set. Merge on the operator's word: `chore/e2e-trial` as PR #112 first, then this branch.
 Next: a first live 3D check on a creator that raises it (any unsolved end steps
 `operator-1`'s cooldown), the step-8 check, the paid-fallback allowance, icon/Audio.
+
+Status: first live run on the deploy (`wf_7328e00123c4be15039fe1b7`, kabinet_rakyat): no 3D
+modal; a leased whirl missed (166° read, 132.2 px), the second attempt hit unrendered images
+(`no_images`), `operator-1` stepped to cooldown level 2; no sample, since capture covered click
+modals only. Branch `fix/captcha-drag-evidence`: drag attempts wait up to 4 s for their images,
+and slide/whirl challenges are recorded before the drag (deleted when solved, else kept with
+the reason). Red first; captcha/shapes/discovery 162 pass, browser 13 pass (also with capture
+on), full make test 4616 pass / 221 skip / 0 fail, lint clean. Next: push, deploy the branch
+image, merge; a second live run after the cooldown; step 8; paid fallback; icon/Audio.

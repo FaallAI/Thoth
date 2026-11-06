@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-06 - First live run on the click-captcha deploy; drag captchas leave evidence
+
+Branch `fix/captcha-drag-evidence` from master `0b90feb8`.
+
+**Live run `wf_7328e00123c4be15039fe1b7` on `kabinet_rakyat`, throwaway project, with the operator's approval:** started and approved through the dashboard by a temporary e2e test (deleted after use; no call blocked by the write guard), completed in about 13 minutes. No 3D modal rose, so the 3D solver is still unproven live.
+
+- **Keyword listings:** two searches found 8 videos each.
+- **Anonymous profile pass:** TikTok's list response was refused as captcha with no modal on the page (`reason=no_grid`), so the solver was not called and no account was touched.
+- **Leased pass:** a **whirl** modal rose. Attempt 1 read 166° and dragged 132.2 px of a 284 px span at +1.255°/px, and the modal stayed. Attempt 2 ended `subtype=unknown reason=no_images`: the handle was up but the fresh challenge's images had not rendered in the 400 ms between attempts.
+- **Result:** the profile page was not captured (`TimeoutError`). `operator-1` was released as `challenge` and stepped to cooldown level 2, until 16:12 UTC.
+- **No sample:** capture covered only click modals, so whether the 166° reading was wrong cannot be told.
+- **Elsewhere in the run:** X search timed out reaching `x.com` (3 attempts), most likely the same network trouble that blocks GitHub's port 22 from this machine.
+
+**Fixed, test-first:**
+
+- **Wait for the images.** A drag attempt whose handle is up before its images now waits up to `IMAGES_TIMEOUT_MS` (4 s) for them instead of spending the attempt. `test_a_whirl_whose_images_load_late_is_solved_without_spending_an_attempt` was red on the old code (`attempts=2` against `attempts=1`).
+- **Record drag challenges before the drag.** A slide or whirl challenge is recorded just before its drag, because after a miss TikTok loads a fresh one and a sample taken afterwards would show a challenge nobody answered. A solved drag deletes its sample, and any other outcome keeps the reason it ended with (`modal_stayed`, `no_distance`, `no_angle`). A handle whose images never render leaves a `no_images` sample. Two of the three new tests were red first; the third, "a solved drag leaves no sample", is a guard that passed on the old code too.
+
+**Verification (WSL):** `test_captcha.py`, `test_captcha_shapes.py` and `test_discovery.py` 162 passed. The browser tests passed 13 of 13 in real Chromium, both normally and with `THOTH_CONTROL_PLANE_ARTIFACT_ROOT` set. With capture on, the solved slide and whirl modals left no sample, the whirl that never clears left one `modal_stayed` sample per attempt with both challenge images and `modal.png`, and the click tests left their samples as before. Full `make test` 4616 passed, 221 skipped, 0 failed; `make lint` clean.
+
+**Next steps** (each gate its own operator decision):
+
+- push this branch, deploy its CI image, then merge;
+- a second live run after `operator-1`'s cooldown ends (16:12 UTC): another unsolved end steps it to level 3, 6 h;
+- the operator's check of step 8, the paid vision fallback (`local_vision`), icon and Audio.
+
 ## 2026-11-06 - Click-captcha branch deployed to stage1; both branches to master
 
 **Push:** GitHub's port 22 and HTTPS timed out from this machine, so `feat/tiktok-click-captcha` went up over GitHub's SSH endpoint on port 443 (`ssh.github.com`), its host key checked against the keys in `api.github.com/meta` first. No git or ssh config changed.
