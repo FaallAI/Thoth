@@ -1,8 +1,15 @@
-# TikTok click-captcha solver — design (Phase A record)
+# TikTok click-captcha solver — design (Phases A and B)
 
 Branch `feat/tiktok-click-captcha` from `chore/e2e-trial` (88a91037). Executor prompt
 2026-11-06, phase A only: evidence capture offline, then a hard stop. Phase B (the solver
 itself) starts only after real samples exist and the operator says go.
+
+**Phase B started 2026-11-06 on the operator's go**, from one public real sample
+(`gbiz123/tests/new_shapes.html` and its challenge image, `shapes_sample.jpg`, 552 × 344)
+under the operator's licence ruling below — without waiting for stage1's own samples. The
+research basis is `D:/thoth-tmp/research/click-captcha/RESEARCH.md` (free local spike
+included); every claim it marks unverified stays unverified here until a stage1 sample or a
+live check settles it.
 
 ## Problem
 
@@ -175,9 +182,130 @@ Open until samples decide (each named "unverified" above):
   late-rendered prompt.
 - The real click count and whether order matters for icon; whether Confirm is disabled until
   the right number of clicks; whether a wrong answer refreshes the images.
-- Whether the modal we meet is one flat image (as every source says) or something else; if
+- Whether the modal we meet is one flat image (as every source say) or something else; if
   it is not what the sources describe, Phase B stops and reports instead of guessing.
 - Anti-bot tolerance for click timing — the humanized profile is kept regardless.
+
+## Phase B (built) — the in-house solver, local first
+
+The free spike (RESEARCH.md, `shapes_spike.py`) settled the Phase A open item above: the one
+real sample **is** OpenCV-solvable (saturated pastels on near-white, hue-split segmentation
+finds all 7 objects, normalised-mask IoU ranks the two "8"s first at 0.205 against 0.346 for
+the runner-up), so the local solver is primary and the paid vision model only a fallback —
+the operator's ruling for this phase. Nothing below has run against live TikTok.
+
+**Licence ruling (operator, 2026-11-06):** the unlicensed `gbiz123/tiktok-captcha-solver`
+material may be used; the recorded 2026 DOM and the real 3D challenge image
+(`shapes_sample.jpg`, served by TikTok's captcha CDN on 2026-11-06) are test fixtures. The
+fixture DOM keeps only the modal — the TikTok page and `chrome-extension://` scripts around
+it are dropped, and the fixture's header comment names the source and the ruling.
+`justscrapeme/tiktok-captcha-solver` (MIT) is credited for confirming the 3D answer shape
+(two proportional points on one flat image); no code was taken from it. Commercial solving
+services stay banned (operator, 2026-10-23).
+
+### 1. Structural detection and subtype (built)
+
+A click modal is detected by structure, not wording: a challenge `<img>` inside
+`.cap-relative` within the container, a Confirm button (`.cap-relative button.cap-w-full`),
+and no drag handle (`HANDLE_SELECTOR` absent). This works with `blob:` sources and any
+locale. The subtype is then chosen in this order, with the decision's source logged at
+debug:
+
+1. the `3d`/`icon` URL marker, when the source is http(s) (`_src_hint`; data and blob
+   sources carry none);
+2. the prompt: it names the number 2 and does not end with "?" → `3d`; it ends with "?" →
+   `icon`;
+3. the keyword table, extended with Indonesian forms — "bentuknya sama" added, marked
+   **unverified wording** (no primary source carries an Indonesian prompt; the leading guess
+   for production's `subtype=unknown` remains an Indonesian wording miss);
+4. otherwise `unknown`.
+
+The outcome line gains no new fields. Unverified: whether live 2026 click modals always
+carry exactly this DOM (two recorded modals do); whether Confirm gates on the click count
+(both recorded modals start `TUXButton--disabled aria-disabled="true"`; the shim assumes it
+enables after 2 clicks).
+
+### 2. The local 3D solver (built, pure and deterministic)
+
+`acquisition/captcha_shapes.py`, a pure function from the challenge image's bytes to two
+points in image pixels or a refusal:
+
+- Segment on saturation (HSV S > 45, 3×3 open), split by hue with the number of hue groups
+  **chosen from the image** (10°-bin circular histogram, smoothed local maxima of at least
+  5% of the saturated pixels, peaks within 2 bins merged), then connected components with a
+  minimum area (300 px).
+- Score every pair by the distance between the masks normalised to 64 px (aspect kept),
+  taking the better of plain and mirrored IoU. Rotated variants and an edge term are
+  deliberately not in: the sample's margin (0.205 vs 0.346) does not need them.
+  `# ponytail:` ceilings — same-colour overlap merges components, strong 3D rotation and
+  mirrored shapes defeat the mask IoU; upgrade path: DINOv2 features (RESEARCH.md) or the
+  vision fallback.
+- **Refuse** (`reason=unconfident`) unless the best pair beats the runner-up by
+  `PAIR_RATIO` (best ≤ 0.7 × second; the sample sits at 0.59) or fewer than 3 objects are
+  found. The margin is the operator's knob against wrong answers: a leased account's wrong
+  answer ends as `challenge` and steps its cooldown 15 min → 1 h → 6 h → 24 h
+  (RESEARCH.md), so refusing beats guessing.
+- RapidOCR second vote (backup, fires only when the margin refuses): two crops that read
+  the same single character back a pair. On the one real sample RapidOCR reads **nothing**
+  from the pastel 3D renders, so this vote is unproven on real data and helps only flatter
+  renders; it degrades silently when RapidOCR is missing.
+
+### 3. The click flow (built, inside `solve()`'s contract)
+
+For a structurally detected `3d` modal with the solver on: image points map to page points
+through the `<img>` rendered box; two humanized clicks (eased `_glide`-style approach with
+wobble and small jitter, a short hold, a pause between clicks; the pointer is released in a
+`finally`); wait for Confirm to enable, click it; verify with the existing `_closed` poll.
+On `modal_stayed`: Phase A's capture saves a sample, Refresh is pressed
+(`#captcha_refresh_button`, else the button carrying the recorded refresh glyph
+`M56.62 21…` — one recorded modal has the id, the other only the glyph), and the **same
+image is never answered twice** (its src is remembered across the call's attempts; an
+unrefreshed repeat ends `modal_stayed` without clicking). Refusals and `no_vision` also
+save a sample. The existing attempt budget, the never-raise contract and the exactly-one
+INFO outcome line are unchanged; `unsupported`, `unconfident` and `no_vision` do not retry.
+Unverified: that a wrong answer leaves the modal answerable after Refresh (the sources say
+3D retries without refresh; the shim models refresh-keeps-image).
+
+### 4. The vision fallback (built and tested with fakes only — no real call this phase)
+
+When the local solver refuses, the switch is `local_vision`, and a key is set: draw
+numbered boxes on the segmented candidates (set-of-marks, at most 12), ask
+`THOTH_CAPTCHA_VISION_MODEL` (default the existing `qwen/qwen3-vl-30b-a3b-instruct`) for
+the two candidate **numbers** under a strict JSON schema — never raw coordinates (a
+point-and-click study found Qwen-VL localizes poorly; RESEARCH.md) — and click the centres
+of the chosen boxes. One call per attempt, through the same OpenRouter path and
+`metering.record_model_run` metering as `AgnoVisionReader`; the reply must parse and name
+two distinct in-range candidates or the attempt is `unconfident`. No key → no call →
+`reason=no_vision`. A live paid call needs the operator's gate (below).
+
+### 5. The switch (built)
+
+`THOTH_CAPTCHA_CLICK_SOLVER`: `off` (today's behaviour — classify, capture, refuse as
+`unsupported`), `local` (default: local solver only), `local_vision` (local, then the paid
+fallback). The default is `local` because the evaluation below shows no wrong answer at the
+chosen margin; if stage1 samples show one, the margin moves or the default goes `off`.
+
+### 6. Evaluation (built) and its limit
+
+An offline harness under `python/tests/` runs the local solver over every labelled fixture
+and prints, per image, the pair or the refusal; synthetic OpenCV cases (clean pair, two
+objects, two equally-similar pairs, same-colour overlap) are reported separately from real
+images. **One real image is not an accuracy figure** — the real row proves the sample is
+answered, nothing about the next modal.
+
+### 7. Out of scope (next steps)
+
+- **Icon:** built only once a sample shows it on a listing (sellers tie it to video
+  upload); set-of-marks plus the instruction text through the vision model is the sketch.
+- **Audio:** the modal offers an Audio alternative whose clip nothing public describes;
+  answering it needs a live session that presses Audio (operator gate), and the image's
+  local `faster-whisper large-v3-turbo` is the candidate reader.
+
+### 8. Phase A review leftover (built)
+
+`modal.png` is skipped when the clip union covers more than half of the viewport — a
+full-screen overlay's union is the page itself, so no picture is saved rather than one that
+carries the profile behind it.
 
 ## Gates
 

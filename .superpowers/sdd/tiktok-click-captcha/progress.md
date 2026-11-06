@@ -50,3 +50,27 @@ steps. Round verification: captcha 38 pass, browser 8 pass, discovery 88 pass, f
 test + make lint green except the 3 known `pytest.approx` failures. Prompt wording claim
 narrowed: reader verified on the whirl modal only; keyword miss is the leading guess. Next:
 the same operator gates as above.
+
+Status: Phase B built and verified on the operator's go (2026-11-06, one public real sample
+under the licence ruling; no stage1 sample yet). Detection is structural (img in
+.cap-relative + Confirm + no handle; blob-safe), the subtype order is url marker → prompt
+(number 2 / trailing "?") → keywords ("bentuknya sama" added, unverified) → unknown, source
+logged at debug, outcome line unchanged. The local solver `captcha_shapes.py` is pure and
+deterministic: hue groups chosen by the image's own histogram, normalised-mask IoU with the
+mirror variant, refusal unless ≥3 objects and best < 0.7×second with a 0.05 gap; RapidOCR
+backup vote fires only on a margin refusal (reads nothing on the real pastels — unproven).
+Click flow: mapped points, two humanized clicks (pointer released in finally), Confirm
+after it enables, `_closed` verify, Refresh on modal_stayed, never the same image twice;
+samples saved on unconfident/no_vision/modal_stayed; no retry on those reasons. Vision
+fallback built fake-only: set-of-marks, strict JSON (two numbers), one metered call per
+attempt like AgnoVisionReader, usage_events test-proven, no key → no_vision; no real call
+made. Switch THOTH_CAPTCHA_CLICK_SOLVER off/local/local_vision, default local (evaluation:
+no wrong answer; margin 0.7 ratio + 0.05 gap). Fixtures: shapes_modal.html (trimmed gbiz123
+modal, ruling in header) + shapes_sample.jpg (force-added past *.jpg ignore), two 8s
+hand-labelled. Phase A leftover done: modal.png skipped when the clip union covers more
+than half the viewport. Verification: captcha 57 pass, shapes 12 pass (harness prints per
+fixture, real/synthetic apart), browser 12 pass in Chromium (clear, blob:, refusal-clicks-
+nothing, stubborn-refresh-once), discovery 88 pass, full make test + make lint green except
+the 3 known pytest.approx failures. Next: operator gates, each separate — push, deploy, a
+first live 3D check (wrong answer steps operator-1's cooldown), the paid-fallback
+allowance, then icon/Audio follow-ups.

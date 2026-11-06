@@ -28,23 +28,32 @@ which CI also covers.
 - an authorised live recording session (active collection), and
 - the operator's explicit go for Phase B once samples exist.
 
-## Phase B — the solver, only after real samples and the operator's go
+## Phase B — the solver, after the operator's go (2026-11-06, from one public real sample)
 
-Read the samples first; update every "unverified" mark in the spec. If a sample shows a
-subtype or shape the spec did not expect, stop and report.
+Spec section "Phase B (built)". Basis: `D:/thoth-tmp/research/click-captcha/RESEARCH.md`
+(recorded 3D modal, real challenge image, free local spike, operator licence ruling).
 
-1. **Fixtures from samples:** sanitized DOM and images under `python/tests/acquisition/
-   fixtures/` (click-shaped pages, like the whirl ones), plus real-Chromium shims that clear
-   the container only when the right points are clicked in order and Confirm follows.
-2. **Tests first:** classification from `src_hint` with keyword fallback and blob-src
-   behaviour; the refusal paths (low confidence, unreadable prompt, vision failure, no key)
-   click nothing and log `unconfident`/`no_vision`; the pointer profile (eased, jittered,
-   released); the outcome line carries the new reasons; the call budget and its metering.
-3. **Smallest solver:** classifier, then per subtype — vision model through the existing
-   OpenRouter path and `metering.record_model_run`, `THOTH_CAPTCHA_VISION_MODEL` with a
-   default, no call without a key; OpenCV only if the samples justify it (see spec). Humanized
-   clicks through the `_glide`/`_settle` machinery; Confirm after all points.
-4. **Verify:** the same commands as Phase A, all green except the three known failures.
+1. **Fixtures from the recorded modal:** `shapes_modal.html` (gbiz123 DOM trimmed to the
+   modal, source and ruling in the header comment) and `shapes_sample.jpg` (the real
+   challenge, 552 × 344, two "8"s hand-labelled at boxes (110,152,55,87) and
+   (204,230,36,54)); a real-Chromium shim that enables Confirm after two clicks and clears
+   the container only when both land inside the labelled boxes.
+2. **Tests first:** structural click detection and the subtype order (URL marker, prompt
+   number/`?` rules, keyword table with "bentuknya sama" unverified, unknown); the pure
+   solver on synthetic arrays (clean pair, <3 objects, ambiguous pairs, same-colour
+   overlap) and the real sample; the refusal paths click nothing (`unconfident`,
+   `no_vision`); the pointer profile (eased, jittered, released); Confirm gating and
+   `modal_stayed` → Refresh with no second answer to the same image; the vision fallback
+   with fakes (strict schema, one call, metering, no key → no call); the switch's `off`.
+3. **Smallest solver:** pure `captcha_shapes.py` (hue-peak segmentation, mask-IoU pair
+   scoring, PAIR_RATIO refusal, RapidOCR backup vote), the click flow in `captcha.py`
+   through the existing `_glide`/`_settle`/`_closed` machinery, the set-of-marks vision
+   fallback through the existing OpenRouter path and `metering.record_model_run`, switch
+   `THOTH_CAPTCHA_CLICK_SOLVER` (`off`/`local`/`local_vision`, default `local` unless the
+   evaluation shows a wrong answer). No new dependency.
+4. **Evaluation harness:** a test under `python/tests/` printing per labelled fixture the
+   pair or the refusal, real and synthetic cases reported separately.
+5. **Verify:** the same commands as Phase A, all green except the three known failures.
 
 Hard stop after Phase B: live runs, paid calls against a real modal, push, deploy, PR, merge
 — each needs the operator's explicit authorization.
