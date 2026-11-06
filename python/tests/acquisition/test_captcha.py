@@ -25,6 +25,7 @@ from thoth_control_plane.acquisition.captcha import (
     _decode,
     _drag,
     _rotation_deg,
+    _sanitize_dom,
     _whirl_drag,
     gap_offset,
     solve,
@@ -240,6 +241,10 @@ class FakeCaptchaPage:
 
     async def wait_for_timeout(self, timeout: int) -> None:
         return None
+
+    async def screenshot(self, clip: dict | None = None, **kwargs: Any) -> bytes:
+        self.captured_clip = clip
+        return b"\x89PNG\r\n\x1a\nfake"
 
 
 class FakeWhirlPage:
@@ -504,10 +509,11 @@ CLICK_DOM = (
 class FakeClickModal(FakeElement):
     """A click modal's container: answers the scripts the evidence capture reads."""
 
-    def __init__(self, prompt: str, outer_html: str, boxes: Any) -> None:
+    def __init__(self, prompt: str, outer_html: str, boxes: Any, canvases: Any = ()) -> None:
         super().__init__((100, 50, 340, 190), evaluates=[prompt])
         self._outer_html = outer_html
         self._boxes = boxes
+        self._canvases = list(canvases)
 
     async def evaluate(self, script: str, arg: Any = None) -> Any:
         if "outerHTML" in script:
@@ -515,6 +521,10 @@ class FakeClickModal(FakeElement):
         if "getBoundingClientRect" in script:
             return self._boxes
         return self._evaluates
+
+    async def query_selector_all(self, selector: str):
+        assert selector == "canvas"
+        return self._canvases
 
 
 def _capture_click_page(prompt: str, dom: str) -> FakeCaptchaPage:
@@ -615,6 +625,78 @@ async def test_no_sample_is_written_without_the_artifact_root(tmp_path, monkeypa
 
     assert list(tmp_path.rglob("captcha-samples")) == []
     assert not (tmp_path / ".thoth-artifacts").exists()
+
+
+def test_the_dom_scrub_blanks_protocol_relative_blob_and_style_urls() -> None:
+    dom = (
+        '<img src="//p16-rc-captcha-va.ibyteimg.com/obj?x-signature=abc123">'
+        '<img src="blob:https://m.tiktok.com/7a2f9e">'
+        '<div style="background:url(//p16-rc-captcha-va.ibyteimg.com/a.png); color:red"></div>'
+        '<div style="transform: rotate(60deg)"></div>'
+    )
+
+    scrubbed = _sanitize_dom(dom)
+
+    assert 'src=""' in scrubbed and "x-signature" not in scrubbed
+    assert "blob:https" not in scrubbed
+    assert "color:red" in scrubbed  # the rest of the style survives
+    assert "url(" in scrubbed and "ibyteimg" not in scrubbed  # the url() payload goes
+    assert "rotate(60deg)" in scrubbed  # a clean style is untouched
+
+
+async def test_a_canvas_challenge_still_yields_a_clipped_picture(tmp_path, monkeypatch) -> None:
+    """The costliest Phase A failure would be a sample with no picture: if the live modal
+    draws on a canvas, the DOM alone is not evidence."""
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", str(tmp_path))
+    canvas = FakeElement((100, 80, 340, 190), evaluates=_data_url(_slide_arrays()[0]))
+    page = FakeCaptchaPage(
+        {},
+        [],
+        accept=[],
+        container=FakeClickModal(
+            "Select 2 objects that are the same shape",
+            CLICK_DOM,
+            [
+                {"tag": "canvas", "box": {"x": 100.0, "y": 80.0, "width": 340.0, "height": 190.0}},
+                {"tag": "button", "box": {"x": 100.0, "y": 300.0, "width": 340.0, "height": 40.0}},
+            ],
+            canvases=[canvas],
+        ),
+    )
+
+    assert await solve(page, rng=random.Random(1)) is False
+
+    dirs = _sample_dirs(tmp_path)
+    assert len(dirs) == 1
+    meta = json.loads((dirs[0] / "sample.json").read_text(encoding="utf-8"))
+    union = {"x": 100.0, "y": 80.0, "width": 340.0, "height": 260.0}
+    assert meta["visuals"]["modal"] == {"clip": union, "file": "modal.png"}
+    assert meta["visuals"]["canvases"] == [{"file": "canvas-0.png"}]
+    assert meta["images"] == []
+    assert page.captured_clip == union  # the clip is the elements' union, never the viewport
+    assert (dirs[0] / "modal.png").read_bytes()[:4] == b"\x89PNG"
+    assert (dirs[0] / "canvas-0.png").read_bytes()[:4] == b"\x89PNG"
+
+
+async def test_a_failed_screenshot_keeps_the_rest_of_the_sample(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", str(tmp_path))
+    page = _capture_click_page("Select 2 objects that are the same shape", CLICK_DOM)
+
+    async def crash(**kwargs: Any) -> bytes:
+        raise RuntimeError("target crashed")
+
+    page.screenshot = crash
+
+    assert await solve(page, rng=random.Random(1)) is False
+
+    dirs = _sample_dirs(tmp_path)
+    assert len(dirs) == 1
+    meta = json.loads((dirs[0] / "sample.json").read_text(encoding="utf-8"))
+    assert meta["visuals"]["modal"] is None
+    assert (dirs[0] / "sample.json").exists()
+    assert (dirs[0] / "dom.html").exists()
+    assert (dirs[0] / "image-0.png").read_bytes()[:4] == b"\x89PNG"
+    assert not (dirs[0] / "modal.png").exists()
 
 
 async def test_solve_skips_a_subtype_with_nothing_to_drag() -> None:

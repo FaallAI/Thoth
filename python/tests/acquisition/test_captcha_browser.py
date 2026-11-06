@@ -9,6 +9,7 @@ the same contract `solve` relies on in the wild.
 
 import base64
 import json
+import struct
 from pathlib import Path
 
 import pytest
@@ -240,5 +241,70 @@ async def test_an_unanswerable_modal_saves_a_sample_in_real_chromium(tmp_path, m
                 {"file": "image-0.webp", "src_hint": ""},
                 {"file": "image-1.webp", "src_hint": ""},
             ]
+        finally:
+            await browser.close()
+
+
+_CANVAS_MODAL_HTML = """<!doctype html><html><body style="margin:0">
+<div style="position:fixed;top:12px;left:12px;font-size:20px">@kabinet_rakyat</div>
+<div class="TUXModal captcha-verify-container"
+     style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:8000">
+  <div style="position:absolute;left:200px;top:100px;width:380px">
+    <span class="cap-break-words cap-text-left"
+          style="display:block;height:20px">Select 2 objects that are the same shape</span>
+    <canvas id="captcha-canvas" width="340" height="190"
+            style="width:340px;height:190px;display:block;margin-top:10px"></canvas>
+    <button class="TUXButton TUXButton--primary"
+            style="width:340px;height:40px;margin-top:10px">Confirm</button>
+  </div>
+</div>
+<script>
+const c = document.getElementById('captcha-canvas').getContext('2d');
+c.fillStyle = '#ddd'; c.fillRect(0, 0, 340, 190);
+for (let i = 0; i < 6; i++) {
+  c.fillStyle = ['#c66', '#6c6', '#66c', '#cc6', '#c6c', '#6cc'][i];
+  c.beginPath();
+  c.arc(30 + (i % 3) * 110, 30 + Math.floor(i / 3) * 120, 22, 0, 7);
+  c.fill();
+}
+</script>
+</body></html>"""
+
+
+def _png_size(data: bytes) -> tuple[int, int]:
+    """The PNG's own IHDR width and height."""
+    assert data[:8] == b"\x89PNG\r\n\x1a\n"
+    return struct.unpack(">II", data[16:24])
+
+
+async def test_a_canvas_challenge_on_a_full_screen_overlay_saves_a_clipped_picture(
+    tmp_path, monkeypatch
+) -> None:
+    """The 2026 container can be a full-screen overlay over the creator's profile; the
+    sample's picture must be clipped to the modal's own content, never the page behind."""
+    monkeypatch.setenv("THOTH_CONTROL_PLANE_ARTIFACT_ROOT", str(tmp_path))
+    async with async_api.async_playwright() as playwright:
+        browser = await launch(playwright)
+        try:
+            page = await browser.new_page(viewport={"width": 800, "height": 820})
+            await page.set_content(_CANVAS_MODAL_HTML)
+            await page.wait_for_timeout(100)
+
+            assert await solve(page) is False
+
+            samples = sorted((tmp_path / "captcha-samples").iterdir())
+            assert len(samples) == 1
+            meta = json.loads((samples[0] / "sample.json").read_text(encoding="utf-8"))
+            assert meta["subtype"] == "3d"  # the documented shapes prompt classifies
+            assert meta["visuals"]["canvases"] == [{"file": "canvas-0.png"}]
+            width, height = _png_size((samples[0] / "canvas-0.png").read_bytes())
+            assert (width, height) == (340, 190)  # the drawn challenge, not a blank frame
+            modal = meta["visuals"]["modal"]
+            assert modal["file"] == "modal.png"
+            clip = modal["clip"]
+            assert clip["x"] >= 200 and clip["y"] >= 100  # starts at the modal's content
+            assert clip["x"] + clip["width"] <= 580  # the modal's column, not the page
+            png_width, png_height = _png_size((samples[0] / "modal.png").read_bytes())
+            assert png_width < 800 and png_height < 820  # smaller than the viewport
         finally:
             await browser.close()

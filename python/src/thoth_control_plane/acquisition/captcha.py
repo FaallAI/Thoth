@@ -83,12 +83,18 @@ CAPTURE_BUDGET_S = 5.0
 MAX_SAMPLE_IMAGES = 12
 DOM_JS = "el => el.outerHTML"
 BOXES_JS = (
-    "root => [...root.querySelectorAll('img, button')].map(el => {"
-    " const r = el.getBoundingClientRect();"
-    " return {tag: el.tagName.toLowerCase(),"
-    "  box: {x: r.x, y: r.y, width: r.width, height: r.height}}; })"
+    "root => { const out = [];"
+    " for (const el of root.querySelectorAll('img, canvas, button, span')) {"
+    "  if (el.tagName === 'SPAN' &&"
+    "      (el.textContent.trim().length <= 8 || el.closest('button'))) continue;"
+    "  const r = el.getBoundingClientRect();"
+    "  out.push({tag: el.tagName.toLowerCase(),"
+    "   box: {x: r.x, y: r.y, width: r.width, height: r.height}}); }"
+    " return out; }"
 )
+CANVAS_JS = "el => el.toDataURL('image/png')"
 _SCRUB = re.compile(r"""([\w:-]+)=("[^"]*"|'[^']*')""")
+_URL_IN_STYLE = re.compile(r"url\([^)]*\)")
 #: The 2026 whirl modal maps slider travel to disc rotation at an unstated rate and direction,
 #: so every drag measures both: this many pixels of travel with the button held, then read the
 #: two images' inline transforms and compute the rest of the drag from the answer.
@@ -212,6 +218,27 @@ async def _write_sample(page: Any, subtype: str, reason: str, root: Path) -> Non
             entry["file"] = name
             blobs.append((name, data))
         entries.append(entry)
+    # The picture the sample falls back to when the challenge is not an <img> at all: the
+    # modal's own content clipped out — never the page behind an overlay container.
+    visuals: dict[str, Any] = {"modal": None, "canvases": []}
+    for canvas in await container.query_selector_all("canvas"):
+        try:
+            url = await canvas.evaluate(CANVAS_JS)
+        except Exception:  # a tainted canvas refuses; it stays unrecorded
+            continue
+        if isinstance(url, str) and url.startswith("data:"):
+            name = f"canvas-{len(visuals['canvases'])}.png"
+            visuals["canvases"].append({"file": name})
+            blobs.append((name, base64.b64decode(url.split(",", 1)[1])))
+    clip = _union_box(boxes)
+    if clip is not None:
+        try:
+            png = await page.screenshot(clip=clip, scale="css", timeout=2_000)
+        except Exception:  # a failed screenshot must not lose the rest of the sample
+            png = None
+        if png:
+            visuals["modal"] = {"clip": clip, "file": "modal.png"}
+            blobs.append(("modal.png", png))
     now = datetime.now(UTC)
     sample = root / "captcha-samples" / now.strftime("%Y%m%dT%H%M%S%fZ")
     sample.mkdir(parents=True, exist_ok=True)
@@ -224,6 +251,7 @@ async def _write_sample(page: Any, subtype: str, reason: str, root: Path) -> Non
                 "prompt_candidates": prompts if isinstance(prompts, list) else [],
                 "boxes": boxes if isinstance(boxes, list) else [],
                 "images": entries,
+                "visuals": visuals,
             },
             indent=2,
         ),
@@ -235,6 +263,29 @@ async def _write_sample(page: Any, subtype: str, reason: str, root: Path) -> Non
     for name, data in blobs:
         (sample / name).write_bytes(data)
     _prune_samples(sample.parent)
+
+
+def _union_box(boxes: Any) -> dict[str, float] | None:
+    """The clip covering every rendered element box, or None when nothing rendered."""
+    if not isinstance(boxes, list):
+        return None
+    visible = [
+        entry["box"]
+        for entry in boxes
+        if isinstance(entry, dict)
+        and isinstance(entry.get("box"), dict)
+        and entry["box"].get("width", 0) + entry["box"].get("height", 0) > 0
+    ]
+    if not visible:
+        return None
+    left = min(box["x"] for box in visible)
+    top = min(box["y"] for box in visible)
+    return {
+        "x": left,
+        "y": top,
+        "width": max(box["x"] + box["width"] for box in visible) - left,
+        "height": max(box["y"] + box["height"] for box in visible) - top,
+    }
 
 
 def _src_hint(src: str) -> str:
@@ -256,10 +307,13 @@ def _sanitize_dom(dom: str) -> str:
     """Attribute values that look like tokens or links blanked; the modal's shape stays."""
 
     def blank(match: re.Match[str]) -> str:
-        value = match.group(2)[1:-1]
-        if value.startswith("data:") or "://" in value or len(value) > 200:
-            return f'{match.group(1)}=""'
-        return match.group(0)
+        name, quoted = match.group(1), match.group(2)
+        value = quoted[1:-1]
+        if name.lower() == "style":
+            value = _URL_IN_STYLE.sub("url()", value)
+        if value.startswith(("data:", "//", "blob:")) or "://" in value or len(value) > 200:
+            return f'{name}=""'
+        return f"{name}={quoted[0]}{value}{quoted[-1]}" if value != quoted[1:-1] else match.group(0)
 
     return _SCRUB.sub(blank, dom)[:200_000]
 
