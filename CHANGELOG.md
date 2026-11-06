@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-06 - Click-captcha branch deployed to stage1; both branches to master
+
+**Push:** GitHub's port 22 and HTTPS timed out from this machine, so `feat/tiktok-click-captcha` went up over GitHub's SSH endpoint on port 443 (`ssh.github.com`), its host key checked against the keys in `api.github.com/meta` first. No git or ssh config changed.
+
+**Deploy of `7a599b48` from the branch, with the operator's approval:** images thoth `27d727f83a07` (`api`, `worker`), renderer `90157dda5e99`, web `20f4d954aad1`, from push run 42214486129 (green). No workflow running before, `make deploy` exit 0, web 200, 0 error lines in the worker, 0 API 5xx after 2 minutes, no migration. The previous env is `D:/thoth-tmp/bu/pins/pins-78ac35d3.env`. The worker carries `captcha_shapes.py` and the byte-keyed pictures; `THOTH_CAPTCHA_CLICK_SOLVER` is unset, so the default `local` answers a 3D click captcha on the next TikTok run, and the artifact root is set, so unanswerable modals leave samples. The deploy made no TikTok request. This deploy also carries `88a91037`'s design code.
+
+**Merge:** `chore/e2e-trial` as PR #112, then this branch. This entry also removes a duplicated `2026-10-29` heading that sat bodiless above the Scout-retirement entry.
+
+**Next steps:**
+
+- a first live 3D check on a creator that raises it, such as `kabinet_rakyat`: any unsolved end, wrong or refused, steps `operator-1`'s cooldown; then read the outcome line, the samples and the account's cooldown;
+- the operator's check of step 8 on the deployed design code;
+- whether to allow the paid vision fallback (`local_vision`);
+- icon and Audio as follow-ups; then the Studio Timeline track.
+
 ## 2026-11-06 - Phase B review: a refusal refreshes; pictures keyed by their bytes
 
 Review of Phase B on `feat/tiktok-click-captcha`, local only.
@@ -1031,7 +1046,6 @@ Operator, 2026-10-30: "scout dan crates itu sudah tidak dipakai!!! karena nanti 
 - Decide whether the trial becomes a CI job; that needs a paid key or another provider (Coding Plan use is accepted for this trial scale only).
 - Revoke the `e2e-trial` token when the trial ends.
 
-## 2026-10-29 - Deployed master 5c30ba2 (PR #85, prompt answers in a markdown fence)
 ## 2026-10-30 - Scout retired: Python-only acquisition, no CDP sidecar, no `scout/` tree
 
 Operator rulings of 2026-10-30: "scout dan crates itu sudah tidak dipakai!!! karena nanti akan full ke python" and "ya scout harus mati, nanti jika gagal berarti dari sisi python nya perlu di perbaiki lagi". Stage1 had run `python` only since 5d9ee252 (PR #87); this removes the dormant paths. Plan: `docs/superpowers/plans/2026-10-30-scout-retirement.md`.

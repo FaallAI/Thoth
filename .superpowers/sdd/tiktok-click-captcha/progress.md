@@ -83,3 +83,10 @@ answered twice before). Verification: captcha + shapes 71 pass, browser 13 pass,
 test 4613 pass / 221 skip / 0 fail, make lint clean. Next: the same operator gates — push
 (new head), deploy with the switch chosen (`local` clicks live, `off` records only), a first
 live 3D check limited to creators that raise it, the paid-fallback allowance, icon/Audio.
+
+Status: pushed over SSH port 443 (port 22 and HTTPS dead) and deployed `7a599b48` to stage1
+on the operator's approval: thoth `27d727f83a07`, renderer `90157dda5e99`, web `20f4d954aad1`,
+rollback `pins-78ac35d3.env`; checks clean; switch unset (default `local`), artifact root
+set. Merge on the operator's word: `chore/e2e-trial` as PR #112 first, then this branch.
+Next: a first live 3D check on a creator that raises it (any unsolved end steps
+`operator-1`'s cooldown), the step-8 check, the paid-fallback allowance, icon/Audio.
