@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this changelog.
 
-## 2026-11-07 - Second live run: the leased whirl is solved
+## 2026-11-07 - Second live run: the leased whirl is solved; the page card survives a leased miss
 
 Branch `chore/captcha-live-run-2` from master `d2e691f7`. PR #114 was merged on the operator's word (merge `d2e691f7`, master push CI 42343646252 green); master's tree equals `7e2701b5`, which stage1 already runs, so nothing was redeployed. The understand-anything knowledge graph was brought to `d2e691f7` incrementally (80 changed files re-analysed, validation clean); it is gitignored.
 
@@ -16,9 +16,26 @@ Branch `chore/captcha-live-run-2` from master `d2e691f7`. PR #114 was merged on 
 - **Elsewhere in the run:** X search again failed all 3 attempts reaching `x.com/search` (`Page.goto` timeout 60 s).
 - **Run status:** the stored `workflow_runs.status` stays `running` until the run is next read through the API, which reconciles it from Temporal (the first run showed `running` until today's read, then `succeeded`).
 
+**Root cause of the missing page card:** both passes cropped. The anonymous pass's crop succeeded (no warning logged for it), and the leased pass's crop timed out (`page.screenshot`, 10 s). `ProfileDiscoverer._listing` then returned the longer leased result whole, so the anonymous crop was dropped. Why the leased screenshot times out is still unknown: the log kept only the exception's name.
+
+**Fixed, test-first:**
+
+- **Keep the anonymous crop.** A leased listing whose crop missed now keeps the page card the anonymous pass took; a leased crop still wins when both exist. `test_a_leased_listing_whose_crop_missed_keeps_the_anonymous_page` was red on the old code; `test_a_leased_crop_wins_over_the_anonymous_one` is a guard that passed on both.
+- **Say what the shot waited for.** A failed crop now logs Playwright's message on one line, capped at 300 characters (`reason=TimeoutError detail=...`), so the next leased timeout names its wait. `test_a_failed_profile_crop_logs_what_playwright_was_waiting_for` was red first.
+
+**Checked, as a side agent asked, without a live request:**
+
+- **An anonymous card is not new:** a listing that is not thin already returns the anonymous result and its crop; the fix only stops a leased miss from discarding one.
+- **The one TikTok page card stored on stage1** (`wf_9fe5cf449eb84149005d2e5f`, `kabinet_rakyat`, 2026-10-27, 1296x851) shows the header, the follow buttons and two full rows of the grid with no login prompt. Which pass took it is not recorded.
+- **The recorded signed-out profile page** (`python/tests/acquisition/pages/tiktok-profile.html`, 2026-10-22) holds TikTok's modal containers with `display: none`; its "Log in" button sits in the top bar, outside the crop (avatar header to the second grid row).
+- **Not provable offline:** whether a signed-out visit pops a login modal over the grid later on, and why the leased shot times out. Look at the page card itself at the step-8 check, not only that it exists.
+
+**Verification (WSL):** both discovery test files 111 passed; full `make test` 4619 passed, 221 skipped, 0 failed; `make lint` clean.
+
 **Next steps** (each gate its own operator decision):
 
-- diagnose the profile-page `TimeoutError` after a solved captcha (test-first; offline);
+- push this branch, deploy its CI image, then merge;
+- a live run after the deploy: the page card should be present, and a leased timeout will log its wait;
 - a live 3D check still needs a creator that raises the 3D modal;
 - the operator's check of step 8, the paid vision fallback (`local_vision`), icon and Audio;
 - carried: blur band, tray lag, Results "Show activity", `usage_events` missing vision/footage calls, estimate vs billed characters, empty `unit_prices`.

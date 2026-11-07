@@ -260,6 +260,9 @@ class ProfileDiscoverer:
         logger.info("discovery used a source account platform=%s outcome=%s", platform, outcome)
         if anonymous is not None and len(anonymous.videos) > len(result.videos):
             return anonymous
+        if result.page_png is None and anonymous is not None and anonymous.page_png is not None:
+            # A leased crop that missed must not drop the one the anonymous pass already took.
+            return result.model_copy(update={"page_png": anonymous.page_png})
         return result
 
     async def _run(
