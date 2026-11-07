@@ -15,18 +15,19 @@ Branch `fix/tiktok-page-card-thumbnails` from master `8296ab15`. PR #115 was mer
 
 **Fixed, test-first:**
 
-- **Crops wait for the thumbnails.** Before the screenshot, the crop waits up to `THUMB_WAIT_MS` (8 s) until every item in the two cropped rows has an `<img>` that has loaded (`PROFILE_THUMBS_JS` in `cards.py`, the same rows as `PROFILE_PAGE_JS`). Rows that never load give the card up with `reason=no_thumbnails loaded=<n>/<items>`, so the anonymous pass's crop can stand in (PR #115). A grid that draws no `<img>` at all is cropped as before, since there is nothing to judge.
-- `test_the_profile_crop_waits_for_the_grid_thumbnails` and `test_a_grid_whose_thumbnails_never_load_is_not_cropped` were red on the old code; `test_a_grid_without_images_is_cropped_as_before` is a guard that passed on both.
+- **Crops wait for the thumbnails.** Before the screenshot, the crop waits up to `THUMB_WAIT_MS` (8 s) until every tile in the two cropped rows that draws an `<img>` has loaded it (`PROFILE_THUMBS_JS` in `cards.py`, the same rows as `PROFILE_PAGE_JS`). Images that never load give the card up with `reason=no_thumbnails loaded=<n> images=<n> items=<n>`, so the anonymous pass's crop can stand in (PR #115). Every crop logs `tiktok profile page thumbnails loaded=<n> images=<n> items=<n>`.
+- **Tiles without an `<img>` do not cost the card.** A side agent pointed out that the first rule (every tile loaded) would drop the card for good if TikTok's photo-post tiles paint their picture without an `<img>`: in the empty card the nine photo tiles were plain black, without the pinned tiles' grey placeholder. Only tiles that draw an `<img>` are waited for; the counts in the log show the real markup on the next run.
+- `test_the_profile_crop_waits_for_the_grid_thumbnails`, `test_a_grid_whose_thumbnails_never_load_is_not_cropped` and `test_tiles_that_draw_no_img_do_not_cost_the_card` were red on the old code; `test_a_grid_without_images_is_cropped_as_before` is a guard that passed on both.
 - `test_profile_thumbs_js_counts_the_loaded_thumbnails_of_the_cropped_rows` checks the JS in real Chromium (4 loaded, 1 broken, 1 without `<img>`, a third row left out). It was written after the JS, so a mutation stood in for red: with `img.complete` alone it fails (`loaded: 5`).
 
-**Not known:** TikTok's grid markup was never recorded (the recorded signed-out page has no grid), so that its thumbnails are `<img>` elements is an assumption. If they are not, the crop behaves as before; the next live run's log shows which.
+**Not known:** TikTok's grid markup was never recorded (the recorded signed-out page has no grid), so whether every tile's thumbnail is an `<img>` is unknown. Tiles that draw none are cropped as they are, so a card can still show empty photo tiles; the next live run's counts and the card itself tell.
 
-**Verification (WSL):** discovery and card-geometry tests 115 passed; the geometry file 23 passed in the deployed image's Chromium with the Playwright revision fetched into a throwaway container; full `make test` 4623 passed, 221 skipped, 0 failed; `make lint` clean.
+**Verification (WSL):** discovery and card-geometry tests 115 passed; the geometry file 23 passed in the deployed image's Chromium with the Playwright revision fetched into a throwaway container; full `make test` 4624 passed, 221 skipped, 0 failed; `make lint` clean.
 
 **Next steps** (each gate its own operator decision):
 
 - push this branch, deploy its CI image, then merge;
-- a live run after the deploy: the page card's thumbnails should be drawn, or the log says `no_thumbnails`;
+- a live run after the deploy: read the `thumbnails loaded= images= items=` line and look at the card itself;
 - a live 3D check still needs a creator that raises the 3D modal;
 - the operator's check of step 8 (look at the card itself), the paid vision fallback (`local_vision`), icon and Audio;
 - carried: blur band, tray lag, Results "Show activity", `usage_events` missing vision/footage calls, estimate vs billed characters, empty `unit_prices`.

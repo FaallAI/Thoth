@@ -361,18 +361,28 @@ async def _crop_profile_page(page: Any) -> bytes | None:
 
 
 async def _thumbnails_loaded(page: Any) -> bool:
-    """A card of empty tiles is no page card: wait for the cropped rows' thumbnails to load."""
+    """A card of empty tiles is no page card: wait for the cropped rows' thumbnails to load.
+
+    Only tiles that draw an <img> are waited for. TikTok's grid markup was never recorded, so a
+    tile that paints its picture another way must not cost the card; the counts are logged so a
+    live run shows the markup.
+    """
     state: object = None
     for _ in range(THUMB_WAIT_MS // POLL_MS):
         state = await page.evaluate(PROFILE_THUMBS_JS, [PROFILE_GRID_ITEMS, 2])
-        if not isinstance(state, dict) or not state.get("images"):
-            return True  # a grid that draws no <img> leaves nothing to wait for
-        if state["loaded"] >= state["items"]:
+        if not isinstance(state, dict):
+            return True
+        if state["loaded"] >= state["images"]:
+            logger.info("tiktok profile page thumbnails %s", _thumb_counts(state))
             return True
         await page.wait_for_timeout(POLL_MS)
     assert isinstance(state, dict)
-    _crop_missed(f"no_thumbnails loaded={state['loaded']}/{state['items']}")
+    _crop_missed(f"no_thumbnails {_thumb_counts(state)}")
     return False
+
+
+def _thumb_counts(state: dict) -> str:
+    return f"loaded={state['loaded']} images={state['images']} items={state['items']}"
 
 
 async def _paginate(page: Any, scroll: _Scroll) -> None:

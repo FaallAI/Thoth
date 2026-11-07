@@ -125,3 +125,9 @@ give the card up (`no_thumbnails`) so the anonymous crop can stand in; a grid wi
 crops as before. JS checked in real Chromium (mutation-proved). Full make test 4623 pass / 221
 skip / 0 fail, lint clean. Next: push, deploy, merge; a live run to see the thumbnails; 3D
 check; step 8; paid fallback; icon/Audio.
+
+Status: on a side agent's note, the thumbnail wait is looser: only tiles that draw an `<img>`
+are waited for (photo tiles may paint without one; requiring every tile would drop the card
+for good), and every crop logs `thumbnails loaded= images= items=`. Red first; full make test
+4624 pass / 221 skip / 0 fail, lint clean. Next: push, deploy, merge; a live run reading the
+counts and the card itself.

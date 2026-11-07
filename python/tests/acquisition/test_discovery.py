@@ -763,7 +763,27 @@ async def test_a_grid_whose_thumbnails_never_load_is_not_cropped(caplog) -> None
 
     assert result.page_png is None and len(result.videos) == 1
     assert session.page.clips == []
-    assert "tiktok profile page not captured reason=no_thumbnails loaded=1/6" in caplog.text
+    assert (
+        "tiktok profile page not captured reason=no_thumbnails loaded=1 images=3 items=6"
+        in caplog.text
+    )
+
+
+async def test_tiles_that_draw_no_img_do_not_cost_the_card(caplog) -> None:
+    # TikTok's grid markup was never recorded: photo-post tiles may paint their picture another
+    # way, and a creator with many photo posts must not lose the card for it.
+    session = FakeSession(
+        "profile",
+        [_list_body([_item()], has_more=False)],
+        page_rect=True,
+        thumbs=[{"items": 6, "images": 3, "loaded": 3}],
+    )
+
+    with caplog.at_level(logging.INFO):
+        result = await _browser(session).discover(ProfileDiscovery(handle="creator", limit=30))
+
+    assert result.page_png == b"page-png"
+    assert "tiktok profile page thumbnails loaded=3 images=3 items=6" in caplog.text
 
 
 async def test_a_grid_without_images_is_cropped_as_before() -> None:
