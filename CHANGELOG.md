@@ -2,6 +2,54 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-07 - Fifth live run: the post card is clear again
+
+Recorded on the next work branch, from master `6a73a87d`. PR #118 was merged on the operator's word (merge `6a73a87d`) after its branch image `97d0553f` was deployed to stage1: thoth `a46e228d3dcc`, renderer `e6f384990706`, web `dfcf69eb1727`; rollback `pins-7dedcbce.env`. Checks after the deploy were clean (`make deploy` exit 0, web 200, 0 worker error lines, 0 API 5xx), and the worker's code hid overlays before the post-card crop.
+
+**Live run `wf_0606e570a5aa6a2aabeca068` on `kabinet_rakyat`, throwaway project, with the operator's approval:** started and approved through the dashboard by the temporary e2e test (deleted after use; no call blocked by the write guard). It completed in about 9 minutes.
+
+- **Post card: clear.** 1178x204: the name, caption and "more" are white over the video, as on 2026-11-05/06, no longer dimmed by TikTok's feed guide.
+- **Page card:** complete, 1296x851, all twelve thumbnails drawn. It is in Indonesian, so the leased crop succeeded this time. Both passes logged `thumbnails loaded=12 images=12 items=12`, and the leased screenshot did not time out on fonts.
+- **Captcha:** a leased whirl at 164° (129.7 px of 284) was solved on the first attempt. That is close to the first run's missed 166°, so that miss was not the angle range as such. `operator-1` stayed healthy.
+
+**Follow-up closed: vision and footage calls are metered.** The 2026-11-06 record said a run's vision and footage provider calls were missing from `usage_events`. They are not missing. For this run, `usage_events` holds, under its `workflow_id`:
+
+- 17 `qwen/qwen3-vl-30b-a3b-instruct` calls (25,699 tokens in, 532 out);
+- 2 `deepseek/deepseek-v4-flash-0731` calls and 1 `typesafe/jev-1.13` call;
+- 3 account leases, 21 stored media objects and the completed workflow.
+
+The earlier check filtered by `project_id`, which workflow-scoped events never carry (`metering.workflow_scope` sets the workflow only). The usage API sums per workspace and splits in-workflow costs by `workflow_id`, so nothing reads by project, and no code changed.
+
+**Follow-up traced: estimate vs billed characters is a provider discount, not a bug.** The narration estimate counts the beats' text (`domain.narration.estimate_voice`). The ElevenLabs adapter meters the `character-cost` header, which ElevenLabs documents as the credits a request cost, after the API discount and any voice multiplier.
+
+- On every stored narration (5 narrations, 24 calls, one voice, `eleven_multilingual_v2`), the billed credits run at a steady ~0.22 of the text length.
+- Per beat for `edoc_3a20bf9f…`: 139/106/156/85 characters were billed 31/23/34/19, a ratio of 4.47 to 4.61.
+- Nothing is wrong in the code. Whether a customer pays by text characters or by provider credits is a billing go-live decision, still the operator's, with `unit_prices` still empty. Until then the estimate is an upper bound of about 4.5 times the credits on this account.
+
+**Fixed, test-first: a caption window seen on the first read no longer opens unread at the trim.** This was the "blur band" follow-up from 2026-11-05: on the narrated draft `edoc_3a20bf9f…`, the subtitle blur covered the middle of the source's "ROCKY GERUNG" title card on the first frame.
+
+- **Cause:** no read falls before 0.5 s (the samples and the half-second follow reads both start there). A caption run that began on the first read opened at the trim, and `edge_gaps` had no read before it to measure from. The source opens on a title card for about 0.4 s, so the subtitle band blurred part of the title, the video's first frame included.
+- **Change:** `edge_gaps` now treats the trim's own frame as the far side of that opening edge. `_edge` reads that frame first: a caption already on it keeps the window at the trim, and otherwise the edge is halved as usual. The band pass decodes that frame too.
+- **Red first:** `test_a_caption_seen_on_the_first_read_opens_where_it_starts_not_at_the_trim` and `test_a_window_from_the_first_read_measures_its_opening_from_the_trim`.
+- **Guard:** `test_a_caption_already_on_the_first_frame_still_opens_at_the_trim` passed on both. `test_edges_are_read_from_the_caption_band_only` now counts one more band read: the trim's frame, which holds the caption.
+- **On the real source, offline:** the production OCR path ran in the deployed image over the draft's main, with local RapidOCR, no caption judge, no network and nothing written. Master opens the first window at 0.000 s. The fix opens it at 0.406 s: the reads at 0.375 s show the scene without the caption, and "bung" first shows at 0.438 s. The other 16 windows are unchanged.
+- **Not changed:** the closing edge at the end of a video has the same blind spot (the last read is up to 0.5 s before the end). It was not seen on a render, so it is left as it is.
+
+**Follow-up closed: Results is no longer only "Show activity".** On the read-only step-8 check, run `wf_628fde1261030cfe5b533369`'s Results showed Main, Cards, Footage, Figures and 12 kept comments above "Show activity (36 steps)".
+
+**Verification (WSL):** assembly tests 621 passed; full `make test` 4629 passed, 221 skipped, 0 failed; `make lint` clean.
+
+**Deferred by the operator (2026-11-07):** the icon captcha solver, until an icon sample shows on a listing. The spec already ties it to that, five live runs raised only whirls, and its sketch needs the paid vision path.
+
+**Next steps** (each gate its own operator decision):
+
+- the operator's own check of step 8 on this run;
+- a live 3D check still needs a creator that raises the 3D modal;
+- the paid vision fallback (`local_vision`);
+- at billing go-live: bill by text characters or by provider credits, and set `unit_prices`;
+- push this branch, deploy its CI image, merge; then a new narration revision of `edoc_3a20bf9f…` and its render (operator gate) to see the first frame;
+- carried: tray lag, and the "..." menu that stays open over the Inspector after Assist opens.
+
 ## 2026-11-07 - Fourth live run: the TikTok page card is complete; the post card loses TikTok's feed guide
 
 Branch `chore/page-card-live-proof` from master `6d376226`. PR #116 was merged on the operator's word (merge `6d376226`, master push CI green) after its branch image `7dedcbce` was deployed to stage1: thoth `4b9a057c0600`, renderer `f7e105889a61`, web `ad02d148253a`; rollback `pins-deb218f8.env`. Checks after the deploy were clean (`make deploy` exit 0, web 200, 0 worker error lines, 0 API 5xx), and the worker's code carried the thumbnail wait (`THUMB_WAIT_MS` 8000).

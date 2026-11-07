@@ -263,7 +263,10 @@ async def _sharpen(
     bottom = min(1.0, max((r.y + r.h for r in followed), default=1.0) + BAND_MARGIN)
     cut: dict[float, Frame] = {}
     if bands is not None:
-        wanted = sorted({second for gap in found for second in edge_seconds(gap, EDGE_ROUNDS)})
+        wanted = sorted(
+            {second for gap in found for second in edge_seconds(gap, EDGE_ROUNDS)}
+            | {gap.outside for gap in found if gap.outside not in rows}
+        )
         cut = await _decoded(decoder, video, wanted, top=top, bottom=bottom)
 
     async def read_second(second: float) -> OcrFrame:
@@ -287,6 +290,15 @@ async def _edge(
 ) -> float:
     """Halve the gap; lines of one caption ask for the same seconds, so `rows` saves the reads."""
     outside, inside = gap.outside, gap.inside
+    if outside not in rows:
+        # The trim's frame was never read: a caption already on it opens the window there.
+        row = await read_second(outside)
+        if row.error:
+            logger.warning("caption edge %.2f unread; the window opens at the trim", outside)
+            return outside
+        rows[outside] = row
+        if holds_caption(gap.reference, row):
+            return outside
     for _ in range(EDGE_ROUNDS):
         second = round((outside + inside) / 2, 6)
         row = rows.get(second)

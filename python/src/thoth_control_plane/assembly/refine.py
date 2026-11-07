@@ -270,9 +270,15 @@ def edge_gaps(
     def gap(edge: float, opening: bool) -> EdgeGap | None:
         before = [frame for frame in rows if frame.t < edge - SLACK]
         after = [frame for frame in rows if frame.t > edge + SLACK]
-        if not before or not after:
+        if opening and not before and after and after[0] is rows[0] and edge <= trim_start + SLACK:
+            # Nothing is read before the first read (0.5 s), so a window seen there opened at
+            # the trim unread: the trim's own frame is the far side (edoc_3a20bf9f, 2026-11-05).
+            inside, outside_t = rows[0], trim_start
+        elif not before or not after:
             return None
-        inside, outside = (after[0], before[-1]) if opening else (before[-1], after[0])
+        else:
+            inside, outside = (after[0], before[-1]) if opening else (before[-1], after[0])
+            outside_t = outside.t
         boxes = region_boxes([inside], replace(region, start=inside.t, end=inside.t))[0][1]
         # The window's middle is its line: text in the shot can reach into the window too.
         middle = region.y + region.h / 2
@@ -281,7 +287,7 @@ def edge_gaps(
             key=lambda box: abs((box.y0 + box.y1) / 2 - middle),
             default=None,
         )
-        return EdgeGap(reference, outside.t, inside.t) if reference else None
+        return EdgeGap(reference, outside_t, inside.t) if reference else None
 
     return gap(region.start, True), gap(region.end, False)
 

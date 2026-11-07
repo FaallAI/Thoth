@@ -452,6 +452,14 @@ def test_a_window_at_the_trim_or_the_end_has_no_edge_to_measure() -> None:
     assert edge_gaps(read, region, 1.0) == (None, None)
 
 
+def test_a_window_from_the_first_read_measures_its_opening_from_the_trim() -> None:
+    # Nothing is read before the first follow read, so its window's opening was never measured.
+    read = [OcrFrame(0.5, (LINE,)), OcrFrame(1.0, (LINE,)), OcrFrame(1.5)]
+    region = Region(0.3, 0.7, 0.4, 0.05, 0.0, 1.25)
+
+    assert edge_gaps(read, region, 0.0) == (EdgeGap(LINE, 0.0, 0.5), EdgeGap(LINE, 1.5, 1.0))
+
+
 def test_an_edge_needs_a_read_of_the_window_text() -> None:
     # A read that failed or holds other text cannot say what to look for.
     elsewhere = OcrBox("papan", 0.3, 0.2, 0.7, 0.25)
