@@ -138,3 +138,9 @@ passes), leased whirl at 212° solved first try, and the page card is complete (
 all twelve thumbnails, no login prompt). The leased crop times out waiting for fonts; the
 operator left `PW_TEST_SCREENSHOT_NO_FONTS_READY` unset. Next: step 8 on this card, a 3D check,
 the paid fallback, icon/Audio.
+
+Status: step 8 checked read-only (e2e, w1440): profile page complete, profile card fine, 12 kept
+comments with 7 cards. Finding: the post card is dimmed in all three runs of 2026-11-07 (a dark
+see-through layer over the caption), white on 2026-11-05/06 on the same deploy, so TikTok's
+post page likely changed. Next: one anonymous recon visit of the post page, then a test-first
+fix; the operator's own step-8 look.

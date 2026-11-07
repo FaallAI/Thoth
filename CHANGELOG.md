@@ -16,9 +16,19 @@ Branch `chore/page-card-live-proof` from master `6d376226`. PR #116 was merged o
   - The operator chose to leave it unset (2026-11-07), since the anonymous card is good. A creator whose anonymous pass has no grid (the first run's `no_grid`) still gets no card.
 - **Background shells:** Claude Code stopped the run watcher for low memory; the run's state was read once by hand instead.
 
+**Step 8, checked read-only with tester-army/e2e (target `w1440`, 1440x900; one screenshot judged, the stored cards fetched and viewed):** the run page shows the main as `Original`, and the cards Post, Profile, Profile page and Comments 7. It also shows one footage clip (`@merdekadotcom`, YouTube), one figure (Rocky Gerung), and 12 kept comments, 7 of them with a comment card.
+
+- **Profile page:** complete, as above.
+- **Profile card:** 1146x416, as before.
+- **Finding: the post card is dimmed.** In all three of today's runs (`wf_4acfca9d3a6cb4c8c698c0c3`, `wf_fd2513ddcc16aa21440fd3b1`, `wf_628fde1261030cfe5b533369`), the caption card (1178x204) is covered by a dark, see-through layer: the name, caption and "more" show dark grey. The runs of 2026-11-05 and 2026-11-06 (`wf_3288fb0445f1bac39acb21b3`, `wf_47a20dd1bcbeaf5f8c1f29cd`, `wf_7328e00123c4be15039fe1b7`) show the same caption in white.
+  - `wf_7328` and `wf_4acf` ran on the same deploy (`7e2701b5`), so TikTok's post page most likely changed, probably with a new modal mask that the card visit's overlay hiding does not remove.
+  - The cause needs today's post page DOM, which takes an anonymous live visit.
+- **Not checked:** the Studio import, because opening the run in Studio writes a draft and the audit is read-only.
+
 **Next steps** (each gate its own operator decision):
 
-- the operator's check of step 8, on this run's card;
+- record today's TikTok post page (one anonymous visit) and fix the dimmed post card test-first;
+- the operator's own check of step 8 on this run, including the post card;
 - a live 3D check still needs a creator that raises the 3D modal;
 - the paid vision fallback (`local_vision`), icon and Audio;
 - if a creator without an anonymous grid matters: the fonts switch, or another way past the leased font wait;
