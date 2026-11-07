@@ -28,6 +28,8 @@ from thoth_control_plane.domain.studio_layout import reading_seconds
 TITLE_LIMIT = 300
 TEXT_LIMIT = 2_000
 FIGURES = "Figures are context, not scenes"
+#: The unsupported field the figures arrive under; they can only be excluded.
+FIGURES_FIELD = "figures"
 # Style A materials each platform should yield (spec 2026-10-22 5c-2, G1 and G2).
 POST_CARD_PLATFORMS = frozenset({"x", "threads", "instagram", "tiktok"})
 PROFILE_PAGE_PLATFORMS = frozenset({"tiktok", "instagram", "x", "youtube"})
@@ -311,7 +313,7 @@ def project_content_set(content_set: ContentSet) -> WorkflowProjection:
         )
     if content_set.figures:
         figures = [figure.model_dump(mode="json") for figure in content_set.figures]
-        built.report("figures", None, None, FIGURES, figures)
+        built.report(FIGURES_FIELD, None, None, FIGURES, figures)
     if content_set.style_a:
         # A material the platform should yield but the run did not capture is shown, never
         # only logged (spec 5c-2, "no silent gap").

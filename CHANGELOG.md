@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this changelog.
 
-## 2026-11-08 - The blur fix seen on a render
+## 2026-11-08 - The blur fix seen on a render; figures no longer hold render
 
 Recorded on the next work branch, from master `fa7ed8a2`. PR #119 was merged on the operator's word (merge `fa7ed8a2`) after its branch image `49cfffd1` was deployed to stage1: thoth `5c221de6e7ad`, renderer `82d7a7902d48`, web `de318af628b0`; rollback `pins-97d0553f.env`. Checks after the deploy were clean, and the pinned images matched every running container.
 
@@ -19,17 +19,23 @@ Recorded on the next work branch, from master `fa7ed8a2`. PR #119 was merged on 
 - **No calls blocked:** the temporary e2e guard blocked nothing. The temporary config and tests were deleted after use.
 - **First frame:** the source's "ROCKY GERUNG" title card shows whole and sharp, with no blur band. At 0.6 s the source's word caption is blurred as designed.
 
-**Seen, not fixed:**
+**Fixed, test-first: render no longer waits on a hand-made "figures" decision.** "Figures" arrive as an unsupported inventory field that can only be excluded, yet render refused while it stayed unresolved. Opening a run in Studio now excludes that one item right after the media are attached, as it already does for comment cards with no room. The figures stay in the Materials panel as context.
 
-- **The narration heading box overlaps the source's own text:** at the top of the first frame, the source's "TOBAT ROCKY… UDAH TUA" sits behind it. This is the overlap part of the 2026-11-05 finding.
-- **Render is held until "figures" is excluded by hand,** although the Open in Studio dialog already says figures stay as context and they can never be included.
-- **Opening a draft shows the Source inventory dialog with "Close",** where it used to show "Continue in Studio". The e2e tests had to learn both.
+- `test_figures_are_excluded_on_open_so_render_waits_on_nothing` was red first.
+- `test_a_person_who_decided_the_figures_first_keeps_that_decision` is a guard: a decision made in the gate first stands.
+- The field name is one constant, `assembly.studio.FIGURES_FIELD`, shared by the projection and the importer.
+
+**Checked, not a bug:** opening a new draft shows the Source inventory with "Close" at the top and "Continue in Studio" at the foot (seen read-only with e2e). The temporary test had counted the foot button before the dialog finished loading.
+
+**Seen, not fixed (operator decision):** the narration heading box sits over the source's own top text ("TOBAT ROCKY… UDAH TUA") for as long as the source's title card shows, about 0.4 s, which includes the first frame. After that the heading sits over open sky. The stored OCR keeps only caption and overlay bands, so nothing yet knows where the source's top text is.
+
+**Verification (WSL):** importer tests 45 passed; full `make test` 4631 passed, 221 skipped, 0 failed; `make lint` clean.
 
 **Next steps** (each gate its own operator decision):
 
 - the operator's look at the render (`D:/thoth-tmp/fixes/render/render.mp4`) and at step 8;
-- whether render should resolve "figures" on its own;
-- the heading box over the source's own text;
+- push this branch, deploy its CI image, merge;
+- the heading box over the source's title card (operator decision);
 - carried: tray lag, the "..." menu that stays open over the Inspector.
 
 ## 2026-11-07 - Fifth live run: the post card is clear again
