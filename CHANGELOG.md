@@ -20,6 +20,12 @@ Recorded on the next work branch, from master `6a73a87d`. PR #118 was merged on 
 
 The earlier check filtered by `project_id`, which workflow-scoped events never carry (`metering.workflow_scope` sets the workflow only). The usage API sums per workspace and splits in-workflow costs by `workflow_id`, so nothing reads by project, and no code changed.
 
+**Follow-up traced: estimate vs billed characters is a provider discount, not a bug.** The narration estimate counts the beats' text (`domain.narration.estimate_voice`). The ElevenLabs adapter meters the `character-cost` header, which ElevenLabs documents as the credits a request cost, after the API discount and any voice multiplier.
+
+- On every stored narration (5 narrations, 24 calls, one voice, `eleven_multilingual_v2`), the billed credits run at a steady ~0.22 of the text length.
+- Per beat for `edoc_3a20bf9f…`: 139/106/156/85 characters were billed 31/23/34/19, a ratio of 4.47 to 4.61.
+- Nothing is wrong in the code. Whether a customer pays by text characters or by provider credits is a billing go-live decision, still the operator's, with `unit_prices` still empty. Until then the estimate is an upper bound of about 4.5 times the credits on this account.
+
 **Deferred by the operator (2026-11-07):** the icon captcha solver, until an icon sample shows on a listing. The spec already ties it to that, five live runs raised only whirls, and its sketch needs the paid vision path.
 
 **Next steps** (each gate its own operator decision):
@@ -27,7 +33,8 @@ The earlier check filtered by `project_id`, which workflow-scoped events never c
 - the operator's own check of step 8 on this run;
 - a live 3D check still needs a creator that raises the 3D modal;
 - the paid vision fallback (`local_vision`);
-- carried: blur band, tray lag, Results "Show activity", estimate vs billed characters, empty `unit_prices`.
+- at billing go-live: bill by text characters or by provider credits, and set `unit_prices`;
+- carried: blur band, tray lag, Results "Show activity".
 
 ## 2026-11-07 - Fourth live run: the TikTok page card is complete; the post card loses TikTok's feed guide
 
