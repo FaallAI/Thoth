@@ -26,6 +26,19 @@ The earlier check filtered by `project_id`, which workflow-scoped events never c
 - Per beat for `edoc_3a20bf9f…`: 139/106/156/85 characters were billed 31/23/34/19, a ratio of 4.47 to 4.61.
 - Nothing is wrong in the code. Whether a customer pays by text characters or by provider credits is a billing go-live decision, still the operator's, with `unit_prices` still empty. Until then the estimate is an upper bound of about 4.5 times the credits on this account.
 
+**Fixed, test-first: a caption window seen on the first read no longer opens unread at the trim.** This was the "blur band" follow-up from 2026-11-05: on the narrated draft `edoc_3a20bf9f…`, the subtitle blur covered the middle of the source's "ROCKY GERUNG" title card on the first frame.
+
+- **Cause:** no read falls before 0.5 s (the samples and the half-second follow reads both start there). A caption run that began on the first read opened at the trim, and `edge_gaps` had no read before it to measure from. The source opens on a title card for about 0.4 s, so the subtitle band blurred part of the title, the video's first frame included.
+- **Change:** `edge_gaps` now treats the trim's own frame as the far side of that opening edge. `_edge` reads that frame first: a caption already on it keeps the window at the trim, and otherwise the edge is halved as usual. The band pass decodes that frame too.
+- **Red first:** `test_a_caption_seen_on_the_first_read_opens_where_it_starts_not_at_the_trim` and `test_a_window_from_the_first_read_measures_its_opening_from_the_trim`.
+- **Guard:** `test_a_caption_already_on_the_first_frame_still_opens_at_the_trim` passed on both. `test_edges_are_read_from_the_caption_band_only` now counts one more band read: the trim's frame, which holds the caption.
+- **On the real source, offline:** the production OCR path ran in the deployed image over the draft's main, with local RapidOCR, no caption judge, no network and nothing written. Master opens the first window at 0.000 s. The fix opens it at 0.406 s: the reads at 0.375 s show the scene without the caption, and "bung" first shows at 0.438 s. The other 16 windows are unchanged.
+- **Not changed:** the closing edge at the end of a video has the same blind spot (the last read is up to 0.5 s before the end). It was not seen on a render, so it is left as it is.
+
+**Follow-up closed: Results is no longer only "Show activity".** On the read-only step-8 check, run `wf_628fde1261030cfe5b533369`'s Results showed Main, Cards, Footage, Figures and 12 kept comments above "Show activity (36 steps)".
+
+**Verification (WSL):** assembly tests 621 passed; full `make test` 4629 passed, 221 skipped, 0 failed; `make lint` clean.
+
 **Deferred by the operator (2026-11-07):** the icon captcha solver, until an icon sample shows on a listing. The spec already ties it to that, five live runs raised only whirls, and its sketch needs the paid vision path.
 
 **Next steps** (each gate its own operator decision):
@@ -34,7 +47,8 @@ The earlier check filtered by `project_id`, which workflow-scoped events never c
 - a live 3D check still needs a creator that raises the 3D modal;
 - the paid vision fallback (`local_vision`);
 - at billing go-live: bill by text characters or by provider credits, and set `unit_prices`;
-- carried: blur band, tray lag, Results "Show activity".
+- push this branch, deploy its CI image, merge; then a new narration revision of `edoc_3a20bf9f…` and its render (operator gate) to see the first frame;
+- carried: tray lag, and the "..." menu that stays open over the Inspector after Assist opens.
 
 ## 2026-11-07 - Fourth live run: the TikTok page card is complete; the post card loses TikTok's feed guide
 

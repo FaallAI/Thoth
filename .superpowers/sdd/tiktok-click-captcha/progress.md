@@ -156,3 +156,11 @@ Status: PR #118 merged (`6a73a87d`) after `97d0553f` was deployed. Fifth live ru
 leased crop (no font timeout this time); whirl at 164° solved first try. Records ride on the next
 work branch (local `records/after-6a73a87d`). Next: step 8 by the operator, a 3D check, the paid
 fallback, icon/Audio.
+
+Status: follow-ups traced on `fix/blur-opens-with-first-caption` (carries the run-5 records):
+`usage_events` vision/footage calls are metered (the old check filtered by project); the TTS
+estimate vs billed gap is ElevenLabs' ~0.22 credits per character (billing go-live decision);
+the blur band was a first-read window opening unread at the trim, fixed test-first and proven
+offline on the real source (0.000 -> 0.406 s). Icon solver deferred by the operator. Full make
+test 4629 pass / 221 skip / 0 fail, lint clean. Next: push, deploy, merge; tray lag; the "..."
+menu.

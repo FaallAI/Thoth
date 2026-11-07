@@ -306,6 +306,30 @@ def test_blur_opens_and_closes_with_the_caption_and_skips_the_watermark() -> Non
     assert all(r.y > 0.8 for r in ocr.subtitle_blur)
 
 
+def test_a_caption_seen_on_the_first_read_opens_where_it_starts_not_at_the_trim() -> None:
+    # Narrated draft edoc_3a20bf9f, 2026-11-05: no read falls before 0.5 s, so the first caption
+    # window opened at 0 unread and blurred the middle of the source's title card for 0.4 s.
+    class LateCaption(Spoken):
+        async def read(self, frame: Frame) -> list[TextBox]:
+            second = float(frame.jpeg.decode())
+            boxes = await super().read(frame)
+            return boxes if second >= 0.3 else boxes[:1]
+
+    text = LateCaption()
+
+    ocr = followed(text=text)
+
+    first = ocr.subtitle_blur[0]
+    assert 0.25 <= first.start <= 0.3125
+    assert 0.0 in text.read_at
+
+
+def test_a_caption_already_on_the_first_frame_still_opens_at_the_trim() -> None:
+    ocr = followed()
+
+    assert ocr.subtitle_blur[0].start == 0.0
+
+
 def test_a_sample_is_not_read_twice_when_following_the_text() -> None:
     text = Spoken()
 
@@ -489,7 +513,9 @@ def test_edges_are_read_from_the_caption_band_only() -> None:
     ocr = followed(frames, text=text, decoder=decoder, bands=text)
 
     assert windows(ocr) == SHARP
-    assert len(text.band_at) == 9  # three edges, three reads each
+    # Three edges, three reads each, and one read of the trim's frame, which holds the caption.
+    assert len(text.band_at) == 10
+    assert 0.0 in text.band_at
     top, bottom = decoder.calls[1][2:]
     assert top < 0.84 and bottom > 0.89 and bottom - top < 0.13  # the caption line, no watermark
     assert set(text.band_at) <= set(decoder.calls[1][0])
