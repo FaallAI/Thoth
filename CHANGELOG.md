@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-07 - Third live run: the page card is stored, with empty tiles; crops wait for thumbnails
+
+Branch `fix/tiktok-page-card-thumbnails` from master `8296ab15`. PR #115 was merged on the operator's word (merge `8296ab15`) after its branch image `deb218f8` was deployed to stage1: thoth `a6ca1c803bff`, renderer `6c5d0f979b99`, web `cf0fd498faf6`; rollback `pins-7e2701b5.env`. Checks after the deploy were clean (`make deploy` exit 0, web 200, 0 worker error lines, 0 API 5xx), and the worker's code carried the page-card fallback and the crop `detail=` log.
+
+**Live run `wf_fd2513ddcc16aa21440fd3b1` on `kabinet_rakyat`, throwaway project, with the operator's approval:** started and approved through the dashboard by the temporary e2e test (deleted after use; a fresh one-day write token, the old one had expired; no call blocked by the write guard). It completed.
+
+- **Captcha:** two whirl modals, both solved on the first attempt: 171° (137.7 px of 284) and 71° (57.1 px). The first run's miss read 166°, so a near-180° angle is not wrong as such.
+- **Account:** `operator-1` stayed healthy at level 0.
+- **Page card:** stored for the first time since 2026-10-27 (1296x851, 53 KB), with no crop warning. It shows the header, the follow buttons and the view counts in Indonesian, but **every thumbnail is empty**: the three pinned tiles grey, the other nine black. The 2026-10-27 card, in English, is 1 MB with every thumbnail drawn.
+- **Background shells:** Claude Code stopped the knowledge-graph dashboard, the WSL port hold and the run watcher for low memory during the run; the run itself, in Temporal, was untouched.
+
+**Fixed, test-first:**
+
+- **Crops wait for the thumbnails.** Before the screenshot, the crop waits up to `THUMB_WAIT_MS` (8 s) until every item in the two cropped rows has an `<img>` that has loaded (`PROFILE_THUMBS_JS` in `cards.py`, the same rows as `PROFILE_PAGE_JS`). Rows that never load give the card up with `reason=no_thumbnails loaded=<n>/<items>`, so the anonymous pass's crop can stand in (PR #115). A grid that draws no `<img>` at all is cropped as before, since there is nothing to judge.
+- `test_the_profile_crop_waits_for_the_grid_thumbnails` and `test_a_grid_whose_thumbnails_never_load_is_not_cropped` were red on the old code; `test_a_grid_without_images_is_cropped_as_before` is a guard that passed on both.
+- `test_profile_thumbs_js_counts_the_loaded_thumbnails_of_the_cropped_rows` checks the JS in real Chromium (4 loaded, 1 broken, 1 without `<img>`, a third row left out). It was written after the JS, so a mutation stood in for red: with `img.complete` alone it fails (`loaded: 5`).
+
+**Not known:** TikTok's grid markup was never recorded (the recorded signed-out page has no grid), so that its thumbnails are `<img>` elements is an assumption. If they are not, the crop behaves as before; the next live run's log shows which.
+
+**Verification (WSL):** discovery and card-geometry tests 115 passed; the geometry file 23 passed in the deployed image's Chromium with the Playwright revision fetched into a throwaway container; full `make test` 4623 passed, 221 skipped, 0 failed; `make lint` clean.
+
+**Next steps** (each gate its own operator decision):
+
+- push this branch, deploy its CI image, then merge;
+- a live run after the deploy: the page card's thumbnails should be drawn, or the log says `no_thumbnails`;
+- a live 3D check still needs a creator that raises the 3D modal;
+- the operator's check of step 8 (look at the card itself), the paid vision fallback (`local_vision`), icon and Audio;
+- carried: blur band, tray lag, Results "Show activity", `usage_events` missing vision/footage calls, estimate vs billed characters, empty `unit_prices`.
+
 ## 2026-11-07 - Second live run: the leased whirl is solved; the page card survives a leased miss
 
 Branch `chore/captcha-live-run-2` from master `d2e691f7`. PR #114 was merged on the operator's word (merge `d2e691f7`, master push CI 42343646252 green); master's tree equals `7e2701b5`, which stage1 already runs, so nothing was redeployed. The understand-anything knowledge graph was brought to `d2e691f7` incrementally (80 changed files re-analysed, validation clean); it is gitignored.

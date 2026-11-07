@@ -33,7 +33,7 @@ from thoth_control_plane.acquisition.browser import (
     _is_timeout,
 )
 from thoth_control_plane.acquisition.captcha import solve as solve_captcha
-from thoth_control_plane.acquisition.cards import PROFILE_PAGE_JS
+from thoth_control_plane.acquisition.cards import PROFILE_PAGE_JS, PROFILE_THUMBS_JS
 from thoth_control_plane.acquisition.models import (
     DiscoveredPhoto,
     DiscoveredVideo,
@@ -79,6 +79,8 @@ MAX_SOLVES = 3
 PROFILE_GRID_ITEMS = '[data-e2e="user-post-item"]'
 PROFILE_HEADER = '[data-e2e="user-avatar"]'
 GRID_WAIT_S = 10
+# How long a crop waits for the grid's lazily loaded thumbnails before it gives the card up.
+THUMB_WAIT_MS = 8_000
 
 
 @dataclass(frozen=True, slots=True)
@@ -342,6 +344,8 @@ def _crop_missed(reason: str) -> None:
 async def _crop_profile_page(page: Any) -> bytes | None:
     for _ in range(GRID_WAIT_S):
         if await page.locator(PROFILE_GRID_ITEMS).count():
+            if not await _thumbnails_loaded(page):
+                return None
             head = await page.locator(PROFILE_HEADER).first.bounding_box()
             if head is None:
                 _crop_missed("no_header")
@@ -354,6 +358,21 @@ async def _crop_profile_page(page: Any) -> bytes | None:
         await page.wait_for_timeout(1_000)
     _crop_missed("no_grid")
     return None
+
+
+async def _thumbnails_loaded(page: Any) -> bool:
+    """A card of empty tiles is no page card: wait for the cropped rows' thumbnails to load."""
+    state: object = None
+    for _ in range(THUMB_WAIT_MS // POLL_MS):
+        state = await page.evaluate(PROFILE_THUMBS_JS, [PROFILE_GRID_ITEMS, 2])
+        if not isinstance(state, dict) or not state.get("images"):
+            return True  # a grid that draws no <img> leaves nothing to wait for
+        if state["loaded"] >= state["items"]:
+            return True
+        await page.wait_for_timeout(POLL_MS)
+    assert isinstance(state, dict)
+    _crop_missed(f"no_thumbnails loaded={state['loaded']}/{state['items']}")
+    return False
 
 
 async def _paginate(page: Any, scroll: _Scroll) -> None:

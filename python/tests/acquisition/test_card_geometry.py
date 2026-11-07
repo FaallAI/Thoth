@@ -22,6 +22,7 @@ from thoth_control_plane.acquisition import (
     youtube_service,
 )
 from thoth_control_plane.acquisition.card_browser import MEDIA_BOX_JS, PROFILE_PAGE_JS, media_box
+from thoth_control_plane.acquisition.cards import PROFILE_THUMBS_JS
 from thoth_control_plane.acquisition.models import MediaBox
 
 PAGES = Path(__file__).parent / "pages"
@@ -80,6 +81,24 @@ async def test_profile_page_js_covers_the_header_and_two_rows() -> None:
     head = {"x": 0, "y": 0, "width": 600, "height": 200}
     rect = await _run(GRID.format(items=items), PROFILE_PAGE_JS, [head, ".item", 2])
     assert (rect["x"], rect["y"], rect["width"], rect["height"]) == (0, 0, 600, 800)
+
+
+@pytest.mark.asyncio
+async def test_profile_thumbs_js_counts_the_loaded_thumbnails_of_the_cropped_rows() -> None:
+    pixel = (
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8Bw"
+        "HwAFBQIAX8jx0gAAAABJRU5ErkJggg=="
+    )
+    loaded = f'<a class="item" style="height:300px;display:block"><img src="{pixel}"></a>'
+    broken = (
+        '<a class="item" style="height:300px;display:block">'
+        '<img src="data:image/png;base64,AA"></a>'
+    )
+    bare = '<a class="item" style="height:300px;display:block"></a>'
+    # Rows one and two: 4 loaded, 1 broken, 1 with no <img>. Row three is outside the crop.
+    items = loaded * 3 + loaded + broken + bare + loaded * 3
+    state = await _run(GRID.format(items=items), PROFILE_THUMBS_JS, [".item", 2])
+    assert state == {"items": 6, "images": 5, "loaded": 4}
 
 
 @pytest.mark.asyncio
