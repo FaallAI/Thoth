@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-07 - Fifth live run: the post card is clear again
+
+Recorded on the next work branch, from master `6a73a87d`. PR #118 was merged on the operator's word (merge `6a73a87d`) after its branch image `97d0553f` was deployed to stage1: thoth `a46e228d3dcc`, renderer `e6f384990706`, web `dfcf69eb1727`; rollback `pins-7dedcbce.env`. Checks after the deploy were clean (`make deploy` exit 0, web 200, 0 worker error lines, 0 API 5xx), and the worker's code hid overlays before the post-card crop.
+
+**Live run `wf_0606e570a5aa6a2aabeca068` on `kabinet_rakyat`, throwaway project, with the operator's approval:** started and approved through the dashboard by the temporary e2e test (deleted after use; no call blocked by the write guard). It completed in about 9 minutes.
+
+- **Post card: clear.** 1178x204: the name, caption and "more" are white over the video, as on 2026-11-05/06, no longer dimmed by TikTok's feed guide.
+- **Page card:** complete, 1296x851, all twelve thumbnails drawn. It is in Indonesian, so the leased crop succeeded this time. Both passes logged `thumbnails loaded=12 images=12 items=12`, and the leased screenshot did not time out on fonts.
+- **Captcha:** a leased whirl at 164° (129.7 px of 284) was solved on the first attempt. That is close to the first run's missed 166°, so that miss was not the angle range as such. `operator-1` stayed healthy.
+
+**Next steps** (each gate its own operator decision):
+
+- the operator's own check of step 8 on this run;
+- a live 3D check still needs a creator that raises the 3D modal;
+- the paid vision fallback (`local_vision`), icon and Audio;
+- carried: blur band, tray lag, Results "Show activity", `usage_events` missing vision/footage calls, estimate vs billed characters, empty `unit_prices`.
+
 ## 2026-11-07 - Fourth live run: the TikTok page card is complete; the post card loses TikTok's feed guide
 
 Branch `chore/page-card-live-proof` from master `6d376226`. PR #116 was merged on the operator's word (merge `6d376226`, master push CI green) after its branch image `7dedcbce` was deployed to stage1: thoth `4b9a057c0600`, renderer `f7e105889a61`, web `ad02d148253a`; rollback `pins-deb218f8.env`. Checks after the deploy were clean (`make deploy` exit 0, web 200, 0 worker error lines, 0 API 5xx), and the worker's code carried the thumbnail wait (`THUMB_WAIT_MS` 8000).

@@ -150,3 +150,9 @@ fixed 80 % black `<main>` over the page. Fixed test-first on `fix/tiktok-post-ca
 the post card crop, every fixed ancestor of what paints above the caption is hidden. Chromium
 and unit tests red first; full make test 4626 pass / 221 skip / 0 fail, lint clean. Next: push,
 deploy, merge, a live run; step 8 by the operator.
+
+Status: PR #118 merged (`6a73a87d`) after `97d0553f` was deployed. Fifth live run
+(`wf_0606e570a5aa6a2aabeca068`): the post card is clear again; the page card complete from the
+leased crop (no font timeout this time); whirl at 164° solved first try. Records ride on the next
+work branch (local `records/after-6a73a87d`). Next: step 8 by the operator, a 3D check, the paid
+fallback, icon/Audio.
