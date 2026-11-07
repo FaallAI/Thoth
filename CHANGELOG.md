@@ -12,12 +12,22 @@ Recorded on the next work branch, from master `6a73a87d`. PR #118 was merged on 
 - **Page card:** complete, 1296x851, all twelve thumbnails drawn. It is in Indonesian, so the leased crop succeeded this time. Both passes logged `thumbnails loaded=12 images=12 items=12`, and the leased screenshot did not time out on fonts.
 - **Captcha:** a leased whirl at 164° (129.7 px of 284) was solved on the first attempt. That is close to the first run's missed 166°, so that miss was not the angle range as such. `operator-1` stayed healthy.
 
+**Follow-up closed: vision and footage calls are metered.** The 2026-11-06 record said a run's vision and footage provider calls were missing from `usage_events`. They are not missing. For this run, `usage_events` holds, under its `workflow_id`:
+
+- 17 `qwen/qwen3-vl-30b-a3b-instruct` calls (25,699 tokens in, 532 out);
+- 2 `deepseek/deepseek-v4-flash-0731` calls and 1 `typesafe/jev-1.13` call;
+- 3 account leases, 21 stored media objects and the completed workflow.
+
+The earlier check filtered by `project_id`, which workflow-scoped events never carry (`metering.workflow_scope` sets the workflow only). The usage API sums per workspace and splits in-workflow costs by `workflow_id`, so nothing reads by project, and no code changed.
+
+**Deferred by the operator (2026-11-07):** the icon captcha solver, until an icon sample shows on a listing. The spec already ties it to that, five live runs raised only whirls, and its sketch needs the paid vision path.
+
 **Next steps** (each gate its own operator decision):
 
 - the operator's own check of step 8 on this run;
 - a live 3D check still needs a creator that raises the 3D modal;
-- the paid vision fallback (`local_vision`), icon and Audio;
-- carried: blur band, tray lag, Results "Show activity", `usage_events` missing vision/footage calls, estimate vs billed characters, empty `unit_prices`.
+- the paid vision fallback (`local_vision`);
+- carried: blur band, tray lag, Results "Show activity", estimate vs billed characters, empty `unit_prices`.
 
 ## 2026-11-07 - Fourth live run: the TikTok page card is complete; the post card loses TikTok's feed guide
 
