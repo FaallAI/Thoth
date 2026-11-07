@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-07 - Second live run: the leased whirl is solved
+
+Branch `chore/captcha-live-run-2` from master `d2e691f7`. PR #114 was merged on the operator's word (merge `d2e691f7`, master push CI 42343646252 green); master's tree equals `7e2701b5`, which stage1 already runs, so nothing was redeployed. The understand-anything knowledge graph was brought to `d2e691f7` incrementally (80 changed files re-analysed, validation clean); it is gitignored.
+
+**Live run `wf_4acfca9d3a6cb4c8c698c0c3` on `kabinet_rakyat`, throwaway project, with the operator's approval:** started and approved through the dashboard by the same temporary e2e test (deleted after use; no call blocked by the write guard). It succeeded in about 15 minutes with all five stages completed and three artifacts (`source_report`, `source_attribution`, `content_set`). No 3D modal rose, so the 3D solver is still unproven live.
+
+- **Anonymous profile pass:** 1 page, 3 videos and 16 photo posts, thin enough to lease `operator-1`.
+- **Leased pass:** a **whirl** modal rose and was **solved on the first attempt** (read 71°, dragged 56.1 px of a 284 px span at +1.265°/px; `solved=true attempts=1 reason=none`). The pass then read 6 pages, 24 videos and 70 photo posts.
+- **Account:** `operator-1` (TikTok) was released as `success`; cooldown level back to 0, status `healthy`.
+- **Samples:** none left, as designed: a solved drag deletes the sample it recorded before the drag. The first run's 166° miss stays undiagnosed.
+- **Profile page:** still not captured (`tiktok profile page not captured reason=TimeoutError`, 11 s after the solve), as in the first run. The re-crop after a solved captcha now runs live but times out.
+- **Elsewhere in the run:** X search again failed all 3 attempts reaching `x.com/search` (`Page.goto` timeout 60 s).
+- **Run status:** the stored `workflow_runs.status` stays `running` until the run is next read through the API, which reconciles it from Temporal (the first run showed `running` until today's read, then `succeeded`).
+
+**Next steps** (each gate its own operator decision):
+
+- diagnose the profile-page `TimeoutError` after a solved captcha (test-first; offline);
+- a live 3D check still needs a creator that raises the 3D modal;
+- the operator's check of step 8, the paid vision fallback (`local_vision`), icon and Audio;
+- carried: blur band, tray lag, Results "Show activity", `usage_events` missing vision/footage calls, estimate vs billed characters, empty `unit_prices`.
+
 ## 2026-11-06 - First live run on the click-captcha deploy; drag captchas leave evidence
 
 Branch `fix/captcha-drag-evidence` from master `0b90feb8`.

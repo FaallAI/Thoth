@@ -99,3 +99,11 @@ and slide/whirl challenges are recorded before the drag (deleted when solved, el
 the reason). Red first; captcha/shapes/discovery 162 pass, browser 13 pass (also with capture
 on), full make test 4616 pass / 221 skip / 0 fail, lint clean. Next: push, deploy the branch
 image, merge; a second live run after the cooldown; step 8; paid fallback; icon/Audio.
+
+Status: PR #114 merged (`d2e691f7`, master CI green; tree equals the deployed `7e2701b5`).
+Second live run (`wf_4acfca9d3a6cb4c8c698c0c3`, kabinet_rakyat) succeeded: the leased whirl was
+solved on attempt 1 (71°, 56.1 px), the pass read 24 videos, `operator-1` back to healthy /
+level 0; no sample left (solved drags delete theirs). Still no 3D modal. The profile page was
+again not captured (`TimeoutError` after the solve); X search timed out. Next: diagnose the
+profile-page timeout offline, a 3D check on a creator that raises it, step 8, paid fallback,
+icon/Audio.
