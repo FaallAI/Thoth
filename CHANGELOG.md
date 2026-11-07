@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-08 - The blur fix seen on a render
+
+Recorded on the next work branch, from master `fa7ed8a2`. PR #119 was merged on the operator's word (merge `fa7ed8a2`) after its branch image `49cfffd1` was deployed to stage1: thoth `5c221de6e7ad`, renderer `82d7a7902d48`, web `de318af628b0`; rollback `pins-97d0553f.env`. Checks after the deploy were clean, and the pinned images matched every running container.
+
+- **A first detached deploy never started.** `setsid nohup … &` died with its `wsl -e` call: there was no output file and the pins were untouched. `setsid -f` was proven with a test write, then ran the deploy to the end.
+
+**Live run `wf_6a5d0e23f532a3eafaced8ae` on `kabinet_rakyat`, throwaway project, with the operator's approval:** it completed in about 16 minutes. Its content set's first main blur window opens at **0.406 s**; run `wf_0606e570…` (old code) opened it at 0.000 s. The other 16 windows are identical.
+
+**Narration and render, with the operator's approval after the cost was shown:** the draft `edoc_194f53058bdd40b894d330025a39cb16` was made from that run.
+
+- **Script:** 4 beats, about 479 characters.
+- **Voice:** ElevenLabs, completed, revision 19.
+- **Exclude:** the one unresolved source item, "figures", was excluded (revision 20).
+- **Render:** `rj_b3d3f820fc364a91bd8c70e42d6e847b`, completed in 71 s.
+- **No calls blocked:** the temporary e2e guard blocked nothing. The temporary config and tests were deleted after use.
+- **First frame:** the source's "ROCKY GERUNG" title card shows whole and sharp, with no blur band. At 0.6 s the source's word caption is blurred as designed.
+
+**Seen, not fixed:**
+
+- **The narration heading box overlaps the source's own text:** at the top of the first frame, the source's "TOBAT ROCKY… UDAH TUA" sits behind it. This is the overlap part of the 2026-11-05 finding.
+- **Render is held until "figures" is excluded by hand,** although the Open in Studio dialog already says figures stay as context and they can never be included.
+- **Opening a draft shows the Source inventory dialog with "Close",** where it used to show "Continue in Studio". The e2e tests had to learn both.
+
+**Next steps** (each gate its own operator decision):
+
+- the operator's look at the render (`D:/thoth-tmp/fixes/render/render.mp4`) and at step 8;
+- whether render should resolve "figures" on its own;
+- the heading box over the source's own text;
+- carried: tray lag, the "..." menu that stays open over the Inspector.
+
 ## 2026-11-07 - Fifth live run: the post card is clear again
 
 Recorded on the next work branch, from master `6a73a87d`. PR #118 was merged on the operator's word (merge `6a73a87d`) after its branch image `97d0553f` was deployed to stage1: thoth `a46e228d3dcc`, renderer `e6f384990706`, web `dfcf69eb1727`; rollback `pins-7dedcbce.env`. Checks after the deploy were clean (`make deploy` exit 0, web 200, 0 worker error lines, 0 API 5xx), and the worker's code hid overlays before the post-card crop.
