@@ -131,3 +131,10 @@ are waited for (photo tiles may paint without one; requiring every tile would dr
 for good), and every crop logs `thumbnails loaded= images= items=`. Red first; full make test
 4624 pass / 221 skip / 0 fail, lint clean. Next: push, deploy, merge; a live run reading the
 counts and the card itself.
+
+Status: PR #116 merged (`6d376226`) after `7dedcbce` was deployed. Fourth live run
+(`wf_628fde1261030cfe5b533369`): grid markup known (`loaded=12 images=12 items=12` in both
+passes), leased whirl at 212° solved first try, and the page card is complete (anonymous crop,
+all twelve thumbnails, no login prompt). The leased crop times out waiting for fonts; the
+operator left `PW_TEST_SCREENSHOT_NO_FONTS_READY` unset. Next: step 8 on this card, a 3D check,
+the paid fallback, icon/Audio.

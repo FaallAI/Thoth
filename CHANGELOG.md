@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-07 - Fourth live run: the TikTok page card is complete
+
+Branch `chore/page-card-live-proof` from master `6d376226`. PR #116 was merged on the operator's word (merge `6d376226`, master push CI green) after its branch image `7dedcbce` was deployed to stage1: thoth `4b9a057c0600`, renderer `f7e105889a61`, web `ad02d148253a`; rollback `pins-deb218f8.env`. Checks after the deploy were clean (`make deploy` exit 0, web 200, 0 worker error lines, 0 API 5xx), and the worker's code carried the thumbnail wait (`THUMB_WAIT_MS` 8000).
+
+**Live run `wf_628fde1261030cfe5b533369` on `kabinet_rakyat`, throwaway project, with the operator's approval:** started and approved through the dashboard by the temporary e2e test (deleted after use; no call blocked by the write guard). It completed.
+
+- **Grid markup, now known:** both passes logged `tiktok profile page thumbnails loaded=12 images=12 items=12`. Every tile in the two cropped rows, photo posts included, draws an `<img>`, and all twelve had loaded.
+- **Captcha:** a leased whirl at 212° (169.5 px of 284) was solved on the first attempt. `operator-1` stayed healthy at level 0.
+- **Page card: complete.** It is 1296x851 and 977 KB, with the header, the follow buttons and all twelve thumbnails drawn, and no login prompt. It is in English, so it is the anonymous pass's crop, kept by PR #115's fallback.
+- **The leased crop still times out, and now says why:** `reason=TimeoutError detail=Page.screenshot: Timeout 10000ms exceeded. Call log: - taking page screenshot - waiting for fonts to load...`. The signed-in session's fonts never finish loading.
+  - The image's patchright and Playwright drivers both skip that wait when `PW_TEST_SCREENSHOT_NO_FONTS_READY` is set. The switch is process-wide and internal to Playwright.
+  - The operator chose to leave it unset (2026-11-07), since the anonymous card is good. A creator whose anonymous pass has no grid (the first run's `no_grid`) still gets no card.
+- **Background shells:** Claude Code stopped the run watcher for low memory; the run's state was read once by hand instead.
+
+**Next steps** (each gate its own operator decision):
+
+- the operator's check of step 8, on this run's card;
+- a live 3D check still needs a creator that raises the 3D modal;
+- the paid vision fallback (`local_vision`), icon and Audio;
+- if a creator without an anonymous grid matters: the fonts switch, or another way past the leased font wait;
+- carried: blur band, tray lag, Results "Show activity", `usage_events` missing vision/footage calls, estimate vs billed characters, empty `unit_prices`.
+
 ## 2026-11-07 - Third live run: the page card is stored, with empty tiles; crops wait for thumbnails
 
 Branch `fix/tiktok-page-card-thumbnails` from master `8296ab15`. PR #115 was merged on the operator's word (merge `8296ab15`) after its branch image `deb218f8` was deployed to stage1: thoth `a6ca1c803bff`, renderer `6c5d0f979b99`, web `cf0fd498faf6`; rollback `pins-7e2701b5.env`. Checks after the deploy were clean (`make deploy` exit 0, web 200, 0 worker error lines, 0 API 5xx), and the worker's code carried the page-card fallback and the crop `detail=` log.
