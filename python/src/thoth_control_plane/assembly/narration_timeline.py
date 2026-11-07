@@ -83,6 +83,7 @@ def narrate_document(
     roles_by_item: dict[str, str] | None = None,
     *,
     place_sfx: bool | None = None,
+    intro_frames: int = 0,
 ) -> EditDocumentV2:
     """`place_sfx`: True places `sfx` and replaces earlier placed SFX (a narration, first or
     recreated); False keeps the draft's SFX as the operator left them (a re-voice). None
@@ -101,6 +102,18 @@ def narrate_document(
     placing = (not narrated) if place_sfx is None else place_sfx
     replaced = (*_REBUILT_PREFIXES, SFX_PREFIX) if placing else _REBUILT_PREFIXES
     base = [clip for clip in document.clips if not clip.clip_id.startswith(replaced)]
+    if not narrated and intro_frames > 0:
+        # The first narration opens on the scene after the source's own title card (operator,
+        # 2026-11-08). A re-voice keeps where the operator left the main video.
+        base = [
+            clip.model_copy(update={"source_from_frame": intro_frames})
+            if isinstance(clip, TimelineVideoClip)
+            and clip.track_id in main_tracks
+            and clip.from_frame == 0
+            and clip.source_from_frame < intro_frames
+            else clip
+            for clip in base
+        ]
     present = [beat for beat in BEAT_ORDER if beat in old_windows or beat in voices]
 
     new_windows: dict[str, Window] = {}

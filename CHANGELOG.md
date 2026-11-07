@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this changelog.
 
-## 2026-11-08 - The blur fix seen on a render; figures no longer hold render
+## 2026-11-08 - The blur fix seen on a render; figures no longer hold render; narration skips a title card
 
 Recorded on the next work branch, from master `fa7ed8a2`. PR #119 was merged on the operator's word (merge `fa7ed8a2`) after its branch image `49cfffd1` was deployed to stage1: thoth `5c221de6e7ad`, renderer `82d7a7902d48`, web `de318af628b0`; rollback `pins-97d0553f.env`. Checks after the deploy were clean, and the pinned images matched every running container.
 
@@ -27,15 +27,24 @@ Recorded on the next work branch, from master `fa7ed8a2`. PR #119 was merged on 
 
 **Checked, not a bug:** opening a new draft shows the Source inventory with "Close" at the top and "Continue in Studio" at the foot (seen read-only with e2e). The temporary test had counted the foot button before the dialog finished loading.
 
-**Seen, not fixed (operator decision):** the narration heading box sits over the source's own top text ("TOBAT ROCKY… UDAH TUA") for as long as the source's title card shows, about 0.4 s, which includes the first frame. After that the heading sits over open sky. The stored OCR keeps only caption and overlay bands, so nothing yet knows where the source's top text is.
+**Fixed, test-first, on the operator's choice ("Lewati kartu judul"): a narrated draft starts after the source's title card.** The narration heading sat over the source's own title card, "TOBAT ROCKY… UDAH TUA" over "SOSIAL EKSPERIMEN ROCKY GERUNG", for the card's 0.4 s, which includes the video's first frame.
 
-**Verification (WSL):** importer tests 45 passed; full `make test` 4631 passed, 221 skipped, 0 failed; `make lint` clean.
+- **Detection:** `assembly/intro_card.intro_card_end` reads the main video with local RapidOCR only: frame 0, then every 0.25 s up to 1.5 s, and two halvings at the end.
+  - A card is at least five lines on frame 0 that reach both the top and the bottom third.
+  - It ends at the first read where fewer than 30 % of its lines remain on their spots.
+  - Text that stays past 1.5 s is an overlay, and lines only at the top are a headline over the action; neither is cut. Any failed read cuts nothing.
+- **Use:** on the first narration only, the write step reads the main video through the existing `main_video` port and asks the new `intro_card` port. `narrate_document(intro_frames=…)` then starts the main clip that opens the timeline at that source frame, rounded up, so the card's last frame is never shown. A re-voice keeps where the operator left the main video; an existing trim further in is kept; a failed check is a warning, and the draft is written as before.
+- **Unchanged:** no schema changed. Workflow output and drafts without narration are as before, and blur windows are in source frames, so they need no shift.
+- **Red first:** `test_a_title_card_ends_where_its_lines_go`, the two `…starts_the_main_video_after_its_title_card` tests (timeline and activity), and the rounding-up assertion.
+- **Guards:** a video that opens on its scene, text that stays, a top-only headline, unreadable frames, a title card inside an existing trim, a re-voice, and a failing check.
+- **On real videos, offline:** the deployed image ran the check from the checkout, with no network. The ROCKY GERUNG main gives 0.375 s (frame 12 at 30 fps, i.e. 0.4 s). Two footage videos of the same project give none. About 5 s per video.
+
+**Verification (WSL):** importer, timeline, title-card and narration-activity tests pass; full `make test` 4642 passed, 221 skipped, 0 failed; `make lint` clean.
 
 **Next steps** (each gate its own operator decision):
 
 - the operator's look at the render (`D:/thoth-tmp/fixes/render/render.mp4`) and at step 8;
-- push this branch, deploy its CI image, merge;
-- the heading box over the source's title card (operator decision);
+- push this branch, deploy its CI image, merge; then one narration and render (paid, operator gate) to see the first frame open on the scene;
 - carried: tray lag, the "..." menu that stays open over the Inspector.
 
 ## 2026-11-07 - Fifth live run: the post card is clear again

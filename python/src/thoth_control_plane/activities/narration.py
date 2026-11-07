@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import tempfile
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
@@ -30,6 +31,7 @@ from thoth_control_plane.application.narration_script import (
 )
 from thoth_control_plane.application.prompt_proposal_ports import ProviderInvalidOutput
 from thoth_control_plane.assembly.narration_timeline import (
+    NARRATION_PREFIX,
     PlacedSfx,
     VoicedBeat,
     narrate_document,
@@ -80,6 +82,8 @@ class NarrationPorts:
     preferences: Any  # get_preference(p, stage)
     provider: Any  # complete_json(provider_id=, model_id=, system=, user=)
     prices: Callable[[], Awaitable[Mapping[tuple[str, str, str], float]]]
+    #: Where a title card the main video opens on ends, in seconds; None when there is none.
+    intro_card: Callable[[Path], Awaitable[float | None]] | None = None
 
 
 def _roles(materials: Any) -> dict[str, str]:
@@ -263,6 +267,25 @@ class NarrationActivities:
                 raise  # retryable: the provider was unreachable or answered oddly
         return NarrationStepResult()
 
+    async def _intro_frames(self, step: NarrationStepInput, document: EditDocumentV2) -> int:
+        """Frames of the main video's opening title card, read on the first narration only: a
+        re-voice keeps where the operator left the main video. Never fails the draft."""
+        check = self._ports.intro_card
+        if check is None or any(c.clip_id.startswith(NARRATION_PREFIX) for c in document.clips):
+            return 0
+        try:
+            with tempfile.TemporaryDirectory() as work:
+                video = await self._ports.main_video(step.project_id, document, Path(work))
+                seconds = await check(video) if video is not None else None
+        except Exception as error:
+            logger.warning("title card check failed error=%s", type(error).__name__)
+            return 0
+        if seconds is None:
+            return 0
+        logger.info("narration starts after a title card seconds=%.3f", seconds)
+        # Up, never down: the card's last frame may lie just before the first read without it.
+        return math.ceil(seconds * document.canvas.fps)
+
     async def _write(
         self, step: NarrationStepInput, voices: list[VoiceRef], *, place_sfx: bool
     ) -> None:
@@ -279,6 +302,7 @@ class NarrationActivities:
                 continue
             asset = await ports.sfx_assets.ensure_project_sfx(step.project_id, entry)
             placed.append(PlacedSfx(cue=cue, asset=asset, duration_seconds=entry.duration_seconds))
+        intro = await self._intro_frames(step, document)
         narrated = narrate_document(
             document,
             [
@@ -294,6 +318,7 @@ class NarrationActivities:
             preset,
             _roles(materials),
             place_sfx=place_sfx,
+            intro_frames=intro,
         )
         await ports.documents.write_derived_revision(
             step.project_id, step.document_id, document.revision, narrated
@@ -431,6 +456,16 @@ def build_narration_activities(settings: Any, media: Any) -> NarrationActivities
         rows = await asyncio.to_thread(usage.prices)
         return {(row.kind, row.key, row.unit): row.usd_per_unit for row in rows}
 
+    async def intro_card(video: Path) -> float | None:
+        # The assembly activity's local readers: no provider, nothing written.
+        from thoth_control_plane.assembly.intro_card import intro_card_end
+        from thoth_control_plane.attribution.adapters.frames import FfmpegFrameSource
+        from thoth_control_plane.attribution.adapters.ocr import RapidOcrReader
+
+        return await intro_card_end(
+            video, FfmpegFrameSource(settings.THOTH_FFMPEG), RapidOcrReader(angle=False)
+        )
+
     return NarrationActivities(
         NarrationPorts(
             store=NarrationStore(database),
@@ -448,5 +483,6 @@ def build_narration_activities(settings: Any, media: Any) -> NarrationActivities
                 secrets=settings.prompt_provider_secrets,
             ),
             prices=prices,
+            intro_card=intro_card,
         )
     )

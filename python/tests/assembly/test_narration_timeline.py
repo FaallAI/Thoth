@@ -172,6 +172,34 @@ def test_a_narrated_drafts_main_video_keeps_the_operators_layout() -> None:
     assert clip(again, "clip_main").end_frame == 189
 
 
+def test_the_first_narration_starts_the_main_video_after_its_title_card() -> None:
+    # Operator, 2026-11-08: the narrated draft's first frame showed the heading over the source's
+    # own title card ("ROCKY GERUNG", 0.4 s); the draft now starts on the scene after it.
+    main = clip(narrate_document(draft(), VOICES, [], PRESET, ROLES, intro_frames=13), "clip_main")
+
+    assert (main.from_frame, main.source_from_frame) == (0, 13)
+
+
+def test_a_title_card_inside_an_existing_trim_changes_nothing() -> None:
+    data = payload()
+    next(item for item in data["clips"] if item["clip_id"] == "clip_main")["source_from_frame"] = 30
+
+    narrated = narrate_document(draft(data), VOICES, [], PRESET, ROLES, intro_frames=13)
+    main = clip(narrated, "clip_main")
+
+    assert main.source_from_frame == 30
+
+
+def test_a_re_voice_keeps_where_the_operator_left_the_main_video() -> None:
+    once = narrate_document(draft(), VOICES, [], PRESET, ROLES).model_dump(mode="python")
+
+    again = narrate_document(
+        EditDocumentV2.model_validate(once), VOICES, [], PRESET, ROLES, intro_frames=13
+    )
+
+    assert clip(again, "clip_main").source_from_frame == 0
+
+
 def test_a_main_video_shorter_than_its_beats_holds_its_last_frame() -> None:
     data = payload()
     next(item for item in data["clips"] if item["clip_id"] == "clip_main")["source_from_frame"] = (

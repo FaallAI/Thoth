@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
@@ -245,8 +246,49 @@ def ports(**overrides: Any) -> tuple[NarrationPorts, dict[str, Any]]:
         preferences=Preferences(),
         provider=Provider(),
         prices=prices,
+        intro_card=overrides.get("intro_card"),
     )
     return built, seen
+
+
+def main_clip(document: EditDocumentV2) -> Any:
+    main_tracks = {track.track_id for track in document.tracks if track.kind == "main_video"}
+    return next(clip for clip in document.clips if clip.track_id in main_tracks)
+
+
+def narrate_once(built: NarrationPorts, seen: dict[str, Any]) -> EditDocumentV2:
+    activities = NarrationActivities(built)
+    run(activities.write_script(NarrationScriptInput(**STEP.model_dump())))
+    run(activities.voice(STEP))
+    run(activities.write_draft(NarrationWriteInput(**STEP.model_dump())))
+    return seen["documents"].written[-1]
+
+
+def test_the_first_narration_starts_the_main_video_after_its_title_card() -> None:
+    looked: list[Path] = []
+
+    async def intro_card(video: Path) -> float | None:
+        looked.append(video)
+        return 0.4375
+
+    built, seen = ports(intro_card=intro_card)
+    written = narrate_once(built, seen)
+
+    fps = written.canvas.fps
+    # Up, never down: the card's last frame may lie just before the first read without it.
+    assert main_clip(written).source_from_frame == math.ceil(0.4375 * fps)
+    assert [path.name for path in looked] == ["main.mp4"]
+
+
+def test_a_title_card_check_that_fails_leaves_the_main_video_where_it_was() -> None:
+    async def intro_card(video: Path) -> float | None:
+        raise RuntimeError("rapidocr broke")
+
+    built, seen = ports(intro_card=intro_card)
+    written = narrate_once(built, seen)
+
+    before = main_clip(seen["documents"].document)
+    assert main_clip(written).source_from_frame == before.source_from_frame
 
 
 @pytest.fixture(autouse=True)

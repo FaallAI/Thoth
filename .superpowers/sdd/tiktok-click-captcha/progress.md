@@ -164,3 +164,10 @@ the blur band was a first-read window opening unread at the trim, fixed test-fir
 offline on the real source (0.000 -> 0.406 s). Icon solver deferred by the operator. Full make
 test 4629 pass / 221 skip / 0 fail, lint clean. Next: push, deploy, merge; tray lag; the "..."
 menu.
+
+Status (2026-11-08): PR #119 merged and deployed (`49cfffd1`); the blur fix proven on a render.
+On `fix/figures-excluded-on-open`, test-first: opening a run in Studio excludes "figures" so
+render never waits on it; a narrated draft starts after the source's opening title card (local
+OCR, first narration only; ROCKY GERUNG 0.375 s, two footage videos none). Full make test 4642
+pass / 221 skip / 0 fail, lint clean. Next: push, deploy, merge; one paid narration + render to
+see the first frame; tray lag; the "..." menu.
