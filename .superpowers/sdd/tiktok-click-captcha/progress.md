@@ -144,3 +144,9 @@ comments with 7 cards. Finding: the post card is dimmed in all three runs of 202
 see-through layer over the caption), white on 2026-11-05/06 on the same deploy, so TikTok's
 post page likely changed. Next: one anonymous recon visit of the post page, then a test-first
 fix; the operator's own step-8 look.
+
+Status: recon (one anonymous visit, approved) found the dimming: TikTok's new feed guide in a
+fixed 80 % black `<main>` over the page. Fixed test-first on `fix/tiktok-post-card-dim`: before
+the post card crop, every fixed ancestor of what paints above the caption is hidden. Chromium
+and unit tests red first; full make test 4626 pass / 221 skip / 0 fail, lint clean. Next: push,
+deploy, merge, a live run; step 8 by the operator.

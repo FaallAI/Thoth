@@ -155,6 +155,28 @@ POST_CARD_JS = """() => {
           width: x2 - x1 + 2 * p, height: y2 - y1 + 2 * p};
 }"""
 
+# Whatever fixed layer paints over the caption is no part of the post: TikTok's feed guide
+# ("Scroll, use the ↑ ↓ keys…", live recon 2026-11-07) sits in an 80 % black fixed <main> over
+# the whole page and dimmed every post card. Hides each fixed ancestor of what lies above the
+# caption's centre, nothing else, and says how many it hid.
+HIDE_POST_OVERLAYS_JS = """() => {
+  const desc = document.querySelector('[data-media-card-description-container="true"]');
+  if (!desc) return 0;
+  const r = desc.getBoundingClientRect();
+  const hidden = new Set();
+  for (const e of document.elementsFromPoint(r.left + r.width / 2, r.top + r.height / 2)) {
+    if (e === desc || desc.contains(e) || e.contains(desc)) break;
+    for (let o = e; o && o !== document.body; o = o.parentElement) {
+      if (getComputedStyle(o).position === 'fixed') {
+        hidden.add(o);
+        break;
+      }
+    }
+  }
+  hidden.forEach(o => o.style.setProperty('display', 'none', 'important'));
+  return hidden.size;
+}"""
+
 _active_session_count = 0
 
 
@@ -366,6 +388,9 @@ async def _crop_comment_cards(page: Any, cards: list[tuple[str, bytes]]) -> None
 
 
 async def _crop_post_card(page: Any) -> bytes | None:
+    # A layer that will not hide costs the card's contrast, never the card.
+    with contextlib.suppress(Exception):
+        await page.evaluate(HIDE_POST_OVERLAYS_JS)
     rect = await page.evaluate(POST_CARD_JS)
     if not isinstance(rect, dict):
         return None

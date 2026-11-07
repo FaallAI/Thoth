@@ -143,6 +143,51 @@ async def test_tiktok_post_card_js_finds_the_caption_block_on_the_recorded_page(
 
 
 @pytest.mark.asyncio
+async def test_tiktok_feed_guide_over_the_caption_is_hidden_before_the_post_card() -> None:
+    # Live recon, 2026-11-07: TikTok's "Scroll, use the ↑ ↓ keys" guide sits in a fixed, 80 %
+    # black <main> over the whole page, so every post card of that day came out dimmed.
+    html = """<style>body{margin:0}</style>
+<header id="bar" style="position:fixed;left:0;top:0;width:100%;height:50px;z-index:500">top</header>
+<div style="position:relative;width:600px;height:700px;margin-top:60px">
+  <div style="position:absolute;bottom:0;left:0;width:600px">
+    <div class="author">Kabinet Rakyat</div>
+    <div data-media-card-description-container="true"><p>the caption</p></div>
+  </div>
+</div>
+<main id="guide" style="position:fixed;inset:0;z-index:401;background:rgba(0,0,0,.8)">
+  <div class="DivGuideContainer">Scroll, use the keys to browse your feed.</div>
+</main>"""
+    async with async_api.async_playwright() as playwright:
+        chromium = await launch(playwright)
+        try:
+            page = await chromium.new_page(viewport={"width": 1280, "height": 900})
+            await page.set_content(html)
+            hidden = await page.evaluate(browser.HIDE_POST_OVERLAYS_JS)
+            shown = await page.evaluate(
+                "() => ['guide', 'bar'].map(i => document.getElementById(i).checkVisibility())"
+            )
+            on_top = await page.evaluate(
+                """() => {
+                  const r = document.querySelector('[data-media-card-description-container]')
+                    .getBoundingClientRect();
+                  return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+                    .tagName;
+                }"""
+            )
+        finally:
+            await chromium.close()
+    assert hidden == 1
+    assert shown == [False, True]
+    assert on_top == "P"
+
+
+@pytest.mark.asyncio
+async def test_the_recorded_tiktok_post_page_has_no_overlay_to_hide() -> None:
+    html = (PAGES / "tiktok-post.html").read_text(encoding="utf-8")
+    assert await _run(html, browser.HIDE_POST_OVERLAYS_JS, None) == 0
+
+
+@pytest.mark.asyncio
 async def test_hiding_the_threads_dialog_also_lifts_its_dimming_overlay() -> None:
     # Task 12: the dialog was hidden but its fixed backdrop still darkened the post card.
     html = (

@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this changelog.
 
-## 2026-11-07 - Fourth live run: the TikTok page card is complete
+## 2026-11-07 - Fourth live run: the TikTok page card is complete; the post card loses TikTok's feed guide
 
 Branch `chore/page-card-live-proof` from master `6d376226`. PR #116 was merged on the operator's word (merge `6d376226`, master push CI green) after its branch image `7dedcbce` was deployed to stage1: thoth `4b9a057c0600`, renderer `f7e105889a61`, web `ad02d148253a`; rollback `pins-deb218f8.env`. Checks after the deploy were clean (`make deploy` exit 0, web 200, 0 worker error lines, 0 API 5xx), and the worker's code carried the thumbnail wait (`THUMB_WAIT_MS` 8000).
 
@@ -25,9 +25,22 @@ Branch `chore/page-card-live-proof` from master `6d376226`. PR #116 was merged o
   - The cause needs today's post page DOM, which takes an anonymous live visit.
 - **Not checked:** the Studio import, because opening the run in Studio writes a draft and the audit is read-only.
 
+**Recon, one anonymous visit on the operator's approval** (deployed worker code, the post-card crop wrapped to record what lay over the caption):
+
+- **The cause:** a fixed `<main>` (z-index 401, `rgba(0, 0, 0, 0.8)`) holds TikTok's new feed guide, "Scroll, use the ↑ ↓ keys, or click the arrows on the right to browse your feed." with a "Got it" button. It covers the whole page, caption included.
+- **Timing:** in this visit the crop taken just after the viewport screenshot happened to come out clear, so whether the guide shows at crop time is a matter of timing. A fix has to be deterministic.
+
+**Fixed, test-first:** before the post card is cropped, `HIDE_POST_OVERLAYS_JS` hides each fixed ancestor of whatever paints above the caption's centre, and nothing else. A layer that will not hide costs the card's contrast, never the card. The comment cards are cropped after it, so they benefit too.
+
+- In real Chromium, `test_tiktok_feed_guide_over_the_caption_is_hidden_before_the_post_card` was red against a stub. It uses a page with the recorded structure: the guide is hidden, a fixed top bar that does not cover the caption stays, and the caption's text is on top again.
+- `test_visit_crops_the_post_header_and_caption` now also asserts that the overlay hiding runs before the crop, and was red first.
+- `test_the_recorded_tiktok_post_page_has_no_overlay_to_hide` is a guard: the 2026-10-22 recording hides nothing.
+
+**Verification (WSL):** `test_browser.py` and `test_card_geometry.py` 72 passed; the geometry file 25 passed in the deployed image's Chromium; full `make test` 4626 passed, 221 skipped, 0 failed; `make lint` clean.
+
 **Next steps** (each gate its own operator decision):
 
-- record today's TikTok post page (one anonymous visit) and fix the dimmed post card test-first;
+- push this branch, deploy its CI image, merge; a live run to see a clear post card;
 - the operator's own check of step 8 on this run, including the post card;
 - a live 3D check still needs a creator that raises the 3D modal;
 - the paid vision fallback (`local_vision`), icon and Audio;
