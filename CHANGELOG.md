@@ -32,6 +32,8 @@ Branch `chore/page-card-live-proof` from master `6d376226`. PR #116 was merged o
 
 **Fixed, test-first:** before the post card is cropped, `HIDE_POST_OVERLAYS_JS` hides each fixed ancestor of whatever paints above the caption's centre, and nothing else. A layer that will not hide costs the card's contrast, never the card. The comment cards are cropped after it, so they benefit too.
 
+**Comment cards checked, as a side agent asked:** two original files from today's `wf_628fde1261030cfe5b533369` match the same two comments from `wf_7328e00123c4be15039fe1b7` (2026-11-06): white text on black, not dimmed. Why they escaped is not known: they are element screenshots taken after the comment panel is opened, and the guide may be gone by then.
+
 - In real Chromium, `test_tiktok_feed_guide_over_the_caption_is_hidden_before_the_post_card` was red against a stub. It uses a page with the recorded structure: the guide is hidden, a fixed top bar that does not cover the caption stays, and the caption's text is on top again.
 - `test_visit_crops_the_post_header_and_caption` now also asserts that the overlay hiding runs before the crop, and was red first.
 - `test_the_recorded_tiktok_post_page_has_no_overlay_to_hide` is a guard: the 2026-10-22 recording hides nothing.
