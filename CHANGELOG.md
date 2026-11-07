@@ -2,6 +2,53 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-07 - Fourth live run: the TikTok page card is complete; the post card loses TikTok's feed guide
+
+Branch `chore/page-card-live-proof` from master `6d376226`. PR #116 was merged on the operator's word (merge `6d376226`, master push CI green) after its branch image `7dedcbce` was deployed to stage1: thoth `4b9a057c0600`, renderer `f7e105889a61`, web `ad02d148253a`; rollback `pins-deb218f8.env`. Checks after the deploy were clean (`make deploy` exit 0, web 200, 0 worker error lines, 0 API 5xx), and the worker's code carried the thumbnail wait (`THUMB_WAIT_MS` 8000).
+
+**Live run `wf_628fde1261030cfe5b533369` on `kabinet_rakyat`, throwaway project, with the operator's approval:** started and approved through the dashboard by the temporary e2e test (deleted after use; no call blocked by the write guard). It completed.
+
+- **Grid markup, now known:** both passes logged `tiktok profile page thumbnails loaded=12 images=12 items=12`. Every tile in the two cropped rows, photo posts included, draws an `<img>`, and all twelve had loaded.
+- **Captcha:** a leased whirl at 212° (169.5 px of 284) was solved on the first attempt. `operator-1` stayed healthy at level 0.
+- **Page card: complete.** It is 1296x851 and 977 KB, with the header, the follow buttons and all twelve thumbnails drawn, and no login prompt. It is in English, so it is the anonymous pass's crop, kept by PR #115's fallback.
+- **The leased crop still times out, and now says why:** `reason=TimeoutError detail=Page.screenshot: Timeout 10000ms exceeded. Call log: - taking page screenshot - waiting for fonts to load...`. The signed-in session's fonts never finish loading.
+  - The image's patchright and Playwright drivers both skip that wait when `PW_TEST_SCREENSHOT_NO_FONTS_READY` is set. The switch is process-wide and internal to Playwright.
+  - The operator chose to leave it unset (2026-11-07), since the anonymous card is good. A creator whose anonymous pass has no grid (the first run's `no_grid`) still gets no card.
+- **Background shells:** Claude Code stopped the run watcher for low memory; the run's state was read once by hand instead.
+
+**Step 8, checked read-only with tester-army/e2e (target `w1440`, 1440x900; one screenshot judged, the stored cards fetched and viewed):** the run page shows the main as `Original`, and the cards Post, Profile, Profile page and Comments 7. It also shows one footage clip (`@merdekadotcom`, YouTube), one figure (Rocky Gerung), and 12 kept comments, 7 of them with a comment card.
+
+- **Profile page:** complete, as above.
+- **Profile card:** 1146x416, as before.
+- **Finding: the post card is dimmed.** In all three of today's runs (`wf_4acfca9d3a6cb4c8c698c0c3`, `wf_fd2513ddcc16aa21440fd3b1`, `wf_628fde1261030cfe5b533369`), the caption card (1178x204) is covered by a dark, see-through layer: the name, caption and "more" show dark grey. The runs of 2026-11-05 and 2026-11-06 (`wf_3288fb0445f1bac39acb21b3`, `wf_47a20dd1bcbeaf5f8c1f29cd`, `wf_7328e00123c4be15039fe1b7`) show the same caption in white.
+  - `wf_7328` and `wf_4acf` ran on the same deploy (`7e2701b5`), so TikTok's post page most likely changed, probably with a new modal mask that the card visit's overlay hiding does not remove.
+  - The cause needs today's post page DOM, which takes an anonymous live visit.
+- **Not checked:** the Studio import, because opening the run in Studio writes a draft and the audit is read-only.
+
+**Recon, one anonymous visit on the operator's approval** (deployed worker code, the post-card crop wrapped to record what lay over the caption):
+
+- **The cause:** a fixed `<main>` (z-index 401, `rgba(0, 0, 0, 0.8)`) holds TikTok's new feed guide, "Scroll, use the ↑ ↓ keys, or click the arrows on the right to browse your feed." with a "Got it" button. It covers the whole page, caption included.
+- **Timing:** in this visit the crop taken just after the viewport screenshot happened to come out clear, so whether the guide shows at crop time is a matter of timing. A fix has to be deterministic.
+
+**Fixed, test-first:** before the post card is cropped, `HIDE_POST_OVERLAYS_JS` hides each fixed ancestor of whatever paints above the caption's centre, and nothing else. A layer that will not hide costs the card's contrast, never the card. The comment cards are cropped after it, so they benefit too.
+
+**Comment cards checked, as a side agent asked:** two original files from today's `wf_628fde1261030cfe5b533369` match the same two comments from `wf_7328e00123c4be15039fe1b7` (2026-11-06): white text on black, not dimmed. Why they escaped is not known: they are element screenshots taken after the comment panel is opened, and the guide may be gone by then.
+
+- In real Chromium, `test_tiktok_feed_guide_over_the_caption_is_hidden_before_the_post_card` was red against a stub. It uses a page with the recorded structure: the guide is hidden, a fixed top bar that does not cover the caption stays, and the caption's text is on top again.
+- `test_visit_crops_the_post_header_and_caption` now also asserts that the overlay hiding runs before the crop, and was red first.
+- `test_the_recorded_tiktok_post_page_has_no_overlay_to_hide` is a guard: the 2026-10-22 recording hides nothing.
+
+**Verification (WSL):** `test_browser.py` and `test_card_geometry.py` 72 passed; the geometry file 25 passed in the deployed image's Chromium; full `make test` 4626 passed, 221 skipped, 0 failed; `make lint` clean.
+
+**Next steps** (each gate its own operator decision):
+
+- push this branch, deploy its CI image, merge; a live run to see a clear post card;
+- the operator's own check of step 8 on this run, including the post card;
+- a live 3D check still needs a creator that raises the 3D modal;
+- the paid vision fallback (`local_vision`), icon and Audio;
+- if a creator without an anonymous grid matters: the fonts switch, or another way past the leased font wait;
+- carried: blur band, tray lag, Results "Show activity", `usage_events` missing vision/footage calls, estimate vs billed characters, empty `unit_prices`.
+
 ## 2026-11-07 - Third live run: the page card is stored, with empty tiles; crops wait for thumbnails
 
 Branch `fix/tiktok-page-card-thumbnails` from master `8296ab15`. PR #115 was merged on the operator's word (merge `8296ab15`) after its branch image `deb218f8` was deployed to stage1: thoth `a6ca1c803bff`, renderer `6c5d0f979b99`, web `cf0fd498faf6`; rollback `pins-7e2701b5.env`. Checks after the deploy were clean (`make deploy` exit 0, web 200, 0 worker error lines, 0 API 5xx), and the worker's code carried the page-card fallback and the crop `detail=` log.

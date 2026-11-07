@@ -131,3 +131,22 @@ are waited for (photo tiles may paint without one; requiring every tile would dr
 for good), and every crop logs `thumbnails loaded= images= items=`. Red first; full make test
 4624 pass / 221 skip / 0 fail, lint clean. Next: push, deploy, merge; a live run reading the
 counts and the card itself.
+
+Status: PR #116 merged (`6d376226`) after `7dedcbce` was deployed. Fourth live run
+(`wf_628fde1261030cfe5b533369`): grid markup known (`loaded=12 images=12 items=12` in both
+passes), leased whirl at 212° solved first try, and the page card is complete (anonymous crop,
+all twelve thumbnails, no login prompt). The leased crop times out waiting for fonts; the
+operator left `PW_TEST_SCREENSHOT_NO_FONTS_READY` unset. Next: step 8 on this card, a 3D check,
+the paid fallback, icon/Audio.
+
+Status: step 8 checked read-only (e2e, w1440): profile page complete, profile card fine, 12 kept
+comments with 7 cards. Finding: the post card is dimmed in all three runs of 2026-11-07 (a dark
+see-through layer over the caption), white on 2026-11-05/06 on the same deploy, so TikTok's
+post page likely changed. Next: one anonymous recon visit of the post page, then a test-first
+fix; the operator's own step-8 look.
+
+Status: recon (one anonymous visit, approved) found the dimming: TikTok's new feed guide in a
+fixed 80 % black `<main>` over the page. Fixed test-first on `fix/tiktok-post-card-dim`: before
+the post card crop, every fixed ancestor of what paints above the caption is hidden. Chromium
+and unit tests red first; full make test 4626 pass / 221 skip / 0 fail, lint clean. Next: push,
+deploy, merge, a live run; step 8 by the operator.

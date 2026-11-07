@@ -10,6 +10,7 @@ from thoth_control_plane.acquisition import browser as browser_module
 from thoth_control_plane.acquisition.browser import (
     COMMENT_CARDS_JS,
     COMMENT_PAGE_JS,
+    HIDE_POST_OVERLAYS_JS,
     MAX_COMMENTS,
     POST_CARD_JS,
     PROFILE_CARD_CHECK_JS,
@@ -794,7 +795,11 @@ async def test_visit_crops_the_post_header_and_caption(monkeypatch) -> None:
             return super().locator(selector)
 
         async def evaluate(self, script: str, arg: object = None) -> object:
+            if script == HIDE_POST_OVERLAYS_JS:
+                self.located.append("hide-overlays")
+                return 1
             if script == POST_CARD_JS:
+                self.located.append("post-card")
                 return {"x": 10, "y": 500, "width": 500, "height": 120}
             return await super().evaluate(script, arg)
 
@@ -808,6 +813,8 @@ async def test_visit_crops_the_post_header_and_caption(monkeypatch) -> None:
     await browser.close()
 
     assert snapshot.post_card_png == b"post-png"
+    # TikTok's feed guide dims the page (live recon, 2026-11-07): it goes before the crop.
+    assert page.located.index("hide-overlays") < page.located.index("post-card")
     # Never unfolded: TikTok's "more" adds its own AI summary under the caption (Task 12).
     assert not any("fold-button" in selector for selector in page.located)
     assert page.clips == [{"x": 10, "y": 500, "width": 500, "height": 120}]
