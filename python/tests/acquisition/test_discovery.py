@@ -14,7 +14,7 @@ from thoth_control_plane.acquisition.browser import (
     FETCH_WAIT_MS,
     active_scrapling_session_count,
 )
-from thoth_control_plane.acquisition.cards import PROFILE_PAGE_JS
+from thoth_control_plane.acquisition.cards import PROFILE_PAGE_JS, PROFILE_THUMBS_JS
 from thoth_control_plane.acquisition.discovery import (
     CAPTCHA_SELECTOR,
     EXPLORE_URL,
@@ -283,6 +283,10 @@ class FakePage:
         self.hang = flags.get("hang", False)
         # The profile grid (spec 5c-2): with page_rect, grid items show and the page is cropped.
         self.page_rect = flags.get("page_rect", False)
+        # The grid's thumbnails, one state per look; the last one repeats. Loaded by default.
+        loaded = [{"items": 6, "images": 6, "loaded": 6}]
+        self.thumbs: list[dict] = list(flags.get("thumbs", loaded))
+        self.thumb_looks = 0
         self.clips: list[dict] = []
         self.scrolls = 0
         self.handlers: list = []
@@ -350,6 +354,9 @@ class FakePage:
         return handle
 
     async def evaluate(self, script: str, arg: object = None) -> object:
+        if script == PROFILE_THUMBS_JS:
+            self.thumb_looks += 1
+            return self.thumbs.pop(0) if len(self.thumbs) > 1 else self.thumbs[0]
         assert script == PROFILE_PAGE_JS
         return {"x": 0, "y": 0, "width": 800, "height": 900} if self.page_rect else None
 
@@ -718,6 +725,75 @@ async def test_a_captcha_after_the_first_crop_gave_up_still_gets_the_profile_pag
         session.page.captcha = not session.page.page_rect
 
     session.page.wait_for_timeout = modal_lands_during_the_wait
+
+    result = await _browser(session).discover(ProfileDiscovery(handle="creator", limit=30))
+
+    assert result.page_png == b"page-png"
+
+
+async def test_the_profile_crop_waits_for_the_grid_thumbnails() -> None:
+    # Live run wf_fd2513ddcc16aa21440fd3b1: the page card was taken before TikTok's
+    # thumbnails loaded, so its whole grid showed empty tiles.
+    pending = {"items": 6, "images": 6, "loaded": 0}
+    halfway = {"items": 6, "images": 6, "loaded": 3}
+    ready = {"items": 6, "images": 6, "loaded": 6}
+    session = FakeSession(
+        "profile",
+        [_list_body([_item()], has_more=False)],
+        page_rect=True,
+        thumbs=[pending, halfway, ready],
+    )
+
+    result = await _browser(session).discover(ProfileDiscovery(handle="creator", limit=30))
+
+    assert result.page_png == b"page-png"
+    assert session.page.thumb_looks == 3
+
+
+async def test_a_grid_whose_thumbnails_never_load_is_not_cropped(caplog) -> None:
+    session = FakeSession(
+        "profile",
+        [_list_body([_item()], has_more=False)],
+        page_rect=True,
+        thumbs=[{"items": 6, "images": 3, "loaded": 1}],
+    )
+
+    with caplog.at_level(logging.WARNING):
+        result = await _browser(session).discover(ProfileDiscovery(handle="creator", limit=30))
+
+    assert result.page_png is None and len(result.videos) == 1
+    assert session.page.clips == []
+    assert (
+        "tiktok profile page not captured reason=no_thumbnails loaded=1 images=3 items=6"
+        in caplog.text
+    )
+
+
+async def test_tiles_that_draw_no_img_do_not_cost_the_card(caplog) -> None:
+    # TikTok's grid markup was never recorded: photo-post tiles may paint their picture another
+    # way, and a creator with many photo posts must not lose the card for it.
+    session = FakeSession(
+        "profile",
+        [_list_body([_item()], has_more=False)],
+        page_rect=True,
+        thumbs=[{"items": 6, "images": 3, "loaded": 3}],
+    )
+
+    with caplog.at_level(logging.INFO):
+        result = await _browser(session).discover(ProfileDiscovery(handle="creator", limit=30))
+
+    assert result.page_png == b"page-png"
+    assert "tiktok profile page thumbnails loaded=3 images=3 items=6" in caplog.text
+
+
+async def test_a_grid_without_images_is_cropped_as_before() -> None:
+    # Nothing to judge: a grid that draws no <img> is cropped as it always was.
+    session = FakeSession(
+        "profile",
+        [_list_body([_item()], has_more=False)],
+        page_rect=True,
+        thumbs=[{"items": 6, "images": 0, "loaded": 0}],
+    )
 
     result = await _browser(session).discover(ProfileDiscovery(handle="creator", limit=30))
 

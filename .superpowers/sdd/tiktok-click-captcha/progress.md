@@ -116,3 +116,18 @@ offline: the stored 2026-10-27 card is clean; the recorded signed-out page hides
 Full make test 4619 pass / 221 skip / 0 fail, lint clean. Next: push, deploy the branch image,
 merge; a live run to see the card and the leased timeout's wait; 3D check; step 8 (look at the
 card itself); paid fallback; icon/Audio.
+
+Status: PR #115 merged (`8296ab15`) after `deb218f8` was deployed. Third live run
+(`wf_fd2513ddcc16aa21440fd3b1`): two whirls solved first try (171°, 71°), `operator-1` healthy;
+the page card was stored but every thumbnail empty. Fixed test-first on
+`fix/tiktok-page-card-thumbnails`: crops wait up to 8 s for the cropped rows' thumbnails, else
+give the card up (`no_thumbnails`) so the anonymous crop can stand in; a grid without `<img>`
+crops as before. JS checked in real Chromium (mutation-proved). Full make test 4623 pass / 221
+skip / 0 fail, lint clean. Next: push, deploy, merge; a live run to see the thumbnails; 3D
+check; step 8; paid fallback; icon/Audio.
+
+Status: on a side agent's note, the thumbnail wait is looser: only tiles that draw an `<img>`
+are waited for (photo tiles may paint without one; requiring every tile would drop the card
+for good), and every crop logs `thumbnails loaded= images= items=`. Red first; full make test
+4624 pass / 221 skip / 0 fail, lint clean. Next: push, deploy, merge; a live run reading the
+counts and the card itself.

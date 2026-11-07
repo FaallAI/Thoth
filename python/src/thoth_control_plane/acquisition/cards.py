@@ -79,6 +79,24 @@ PROFILE_PAGE_JS = """([head, items, rows]) => {
   return {x: Math.max(0, x1), y: Math.max(0, y1), width: x2 - x1, height: y2 - y1};
 }"""
 
+# The same first rows as PROFILE_PAGE_JS: how many items draw an <img>, and how many have one
+# that has loaded, so a crop can wait for a grid's lazily loaded thumbnails.
+PROFILE_THUMBS_JS = """([items, rows]) => {
+  const visible = [...document.querySelectorAll(items)].filter(e => {
+    const b = e.getBoundingClientRect();
+    return b.width > 0 && b.height > 0;
+  });
+  const top = e => Math.round(e.getBoundingClientRect().top + scrollY);
+  const kept = [...new Set(visible.map(top))].sort((a, b) => a - b).slice(0, rows);
+  const shown = visible.filter(e => kept.includes(top(e)));
+  const drawn = img => img.complete && img.naturalWidth > 0;
+  return {
+    items: shown.length,
+    images: shown.filter(e => e.querySelector("img")).length,
+    loaded: shown.filter(e => [...e.querySelectorAll("img")].some(drawn)).length,
+  };
+}"""
+
 
 def media_box(card: dict[str, float] | None, media: dict[str, float] | None) -> MediaBox | None:
     """The media's box as fractions of the card's, or None when it is empty or falls outside."""
