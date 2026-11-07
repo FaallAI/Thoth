@@ -99,3 +99,20 @@ and slide/whirl challenges are recorded before the drag (deleted when solved, el
 the reason). Red first; captcha/shapes/discovery 162 pass, browser 13 pass (also with capture
 on), full make test 4616 pass / 221 skip / 0 fail, lint clean. Next: push, deploy the branch
 image, merge; a second live run after the cooldown; step 8; paid fallback; icon/Audio.
+
+Status: PR #114 merged (`d2e691f7`, master CI green; tree equals the deployed `7e2701b5`).
+Second live run (`wf_4acfca9d3a6cb4c8c698c0c3`, kabinet_rakyat) succeeded: the leased whirl was
+solved on attempt 1 (71°, 56.1 px), the pass read 24 videos, `operator-1` back to healthy /
+level 0; no sample left (solved drags delete theirs). Still no 3D modal. The profile page was
+again not captured (`TimeoutError` after the solve); X search timed out. Next: diagnose the
+profile-page timeout offline, a 3D check on a creator that raises it, step 8, paid fallback,
+icon/Audio.
+
+Status: root cause of the missing TikTok page card: the anonymous pass cropped it, the leased
+pass's screenshot timed out, and the longer leased result replaced the anonymous one whole.
+Fixed test-first on `chore/captcha-live-run-2`: a leased miss keeps the anonymous crop (a
+leased crop still wins), and a failed crop logs Playwright's message (`detail=`). Checked
+offline: the stored 2026-10-27 card is clean; the recorded signed-out page hides its modals.
+Full make test 4619 pass / 221 skip / 0 fail, lint clean. Next: push, deploy the branch image,
+merge; a live run to see the card and the leased timeout's wait; 3D check; step 8 (look at the
+card itself); paid fallback; icon/Audio.

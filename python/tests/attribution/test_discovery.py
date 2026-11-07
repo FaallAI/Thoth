@@ -360,6 +360,33 @@ async def test_creator_listing_keeps_photos_and_the_page() -> None:
 
 
 @pytest.mark.asyncio
+async def test_a_leased_listing_whose_crop_missed_keeps_the_anonymous_page() -> None:
+    # Live run wf_4acfca9d3a6cb4c8c698c0c3: the thin anonymous pass cropped the page, the
+    # leased pass timed out cropping it, and the longer leased listing dropped the crop.
+    anonymous = _result(_videos(3)).model_copy(update={"page_png": b"anonymous-page"})
+    fake = FakeDiscovery(anonymous, _result(_videos(24)))
+    leases = FakeLeases("fallback")
+    discoverer = ProfileDiscoverer({"tiktok": fake.factory}, leases=leases)  # type: ignore[arg-type]
+
+    listing = await discoverer.creator("tiktok", SOURCE, 30)
+
+    assert (len(listing.videos), listing.page_png) == (24, b"anonymous-page")
+    assert leases.released == ["success"]
+
+
+@pytest.mark.asyncio
+async def test_a_leased_crop_wins_over_the_anonymous_one() -> None:
+    anonymous = _result(_videos(3)).model_copy(update={"page_png": b"anonymous-page"})
+    signed_in = _result(_videos(24)).model_copy(update={"page_png": b"signed-in-page"})
+    fake = FakeDiscovery(anonymous, signed_in)
+    discoverer = ProfileDiscoverer({"tiktok": fake.factory}, leases=FakeLeases("fallback"))  # type: ignore[arg-type]
+
+    listing = await discoverer.creator("tiktok", SOURCE, 30)
+
+    assert listing.page_png == b"signed-in-page"
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("mode", ["fallback", "always"])
 async def test_a_thin_x_listing_never_leases(mode: str) -> None:
     # FxEmbed lists X profiles without an account; a lease would only spend the X budget.

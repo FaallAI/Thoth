@@ -330,7 +330,9 @@ async def _capture_profile_page(page: Any, scroll: _Scroll) -> None:
     try:
         scroll.page_png = await _crop_profile_page(page)
     except Exception as error:
-        _crop_missed(type(error).__name__)
+        # Playwright's call log says what the shot was waiting for; keep it on one line.
+        detail = " ".join(str(error).split())[:300]
+        _crop_missed(f"{type(error).__name__} detail={detail}" if detail else type(error).__name__)
 
 
 def _crop_missed(reason: str) -> None:

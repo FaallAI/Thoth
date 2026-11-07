@@ -748,6 +748,27 @@ async def test_a_failed_profile_crop_costs_the_card_not_the_listing(monkeypatch,
     assert "tiktok profile page not captured reason=TimeoutError" in caplog.text
 
 
+async def test_a_failed_profile_crop_logs_what_playwright_was_waiting_for(
+    monkeypatch, caplog
+) -> None:
+    # Two live leased crops timed out with only the exception's name to go on.
+    async def screenshot(self, **kwargs):
+        raise TimeoutError(
+            "Page.screenshot: Timeout 10000ms exceeded.\nCall log:\n"
+            "  - taking page screenshot\n  - waiting for fonts to load..."
+        )
+
+    monkeypatch.setattr(FakePage, "screenshot", screenshot)
+    session = FakeSession("profile", [_list_body([_item()], has_more=False)], page_rect=True)
+
+    with caplog.at_level(logging.WARNING):
+        await _browser(session).discover(ProfileDiscovery(handle="creator", limit=30))
+
+    line = next(r.getMessage() for r in caplog.records if "not captured" in r.getMessage())
+    assert line.startswith("tiktok profile page not captured reason=TimeoutError detail=")
+    assert "waiting for fonts to load" in line and "\n" not in line
+
+
 async def test_captcha_rendered_in_the_final_page_is_reported() -> None:
     session = FakeSession("profile", _pages("profile", 1, last_has_more=False), css_captcha=True)
 
