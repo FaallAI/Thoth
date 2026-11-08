@@ -17,16 +17,22 @@ mock.module("./StudioPreview", () => ({
   StudioPreview: ({
     document,
     onPlayer,
+    playbackRate,
   }: {
     document: EditDocument;
     onPlayer?: (player: PlayerTimelineRef | null) => void;
+    playbackRate?: number;
   }) => {
     // Published after commit, the way the real Player hands over its instance.
     useEffect(() => {
       onPlayer?.(previewPlayer);
       return () => onPlayer?.(null);
     }, [onPlayer]);
-    return <div aria-label="Draft preview">{document.clips?.[0]?.kind}</div>;
+    return (
+      <div aria-label="Draft preview" data-rate={playbackRate ?? 1}>
+        {document.clips?.[0]?.kind}
+      </div>
+    );
   },
 }));
 
@@ -1298,4 +1304,20 @@ test("write-audit: the top bar's title follows the heading as it is typed", asyn
   await user.clear(heading);
   await user.type(heading, "New title");
   expect(container.querySelector(".studio-topbar span[title]")?.getAttribute("title")).toBe("New title");
+});
+
+// Final review 2026-11-08: L's speed lasts only while playing; a pause from anywhere brings it back to 1.
+test("L speeds the preview up, and any pause brings it back to normal speed", async () => {
+  const { timelineDocument } = await import("./timeline-test-fixtures");
+  previewPlayer = new FakePlayer();
+  await renderTimelineStudio(timelineDocument() as EditDocument);
+  const player = previewPlayer;
+  const rate = () => screen.getByLabelText("Draft preview").getAttribute("data-rate");
+
+  fireEvent.keyDown(window, { key: "l" });
+  act(() => player.emit("play"));
+  fireEvent.keyDown(window, { key: "l" });
+  expect(rate()).toBe("2");
+  act(() => player.emit("pause"));
+  expect(rate()).toBe("1");
 });

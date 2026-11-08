@@ -131,6 +131,10 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const [noRoom, setNoRoom] = useState(false);
   // J, K and L (spec 2026-11-08 §6): L raises the Player's speed, K brings it back to 1.
   const [playbackRate, setPlaybackRate] = useState(1);
+  // L's speed lasts only while playing: a pause from anywhere (K, Space, the Player) brings it back to 1.
+  useEffect(() => {
+    if (!state.playing) setPlaybackRate(1);
+  }, [state.playing]);
   const [placedNotice, setPlacedNotice] = useState<string | null>(null);
   const collapsible = viewport === "compact_desktop";
   const sceneRegionOpen = !collapsible || sceneBoardOpen;

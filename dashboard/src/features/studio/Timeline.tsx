@@ -19,6 +19,7 @@ import {
   pasteTextOperations,
   rippleDeleteClips,
   splitAt,
+  type Edit,
   type PasteTarget,
 } from "./timeline_edits";
 import { PasteTextDialog } from "./PasteTextDialog";
@@ -188,8 +189,8 @@ export function Timeline({
   }, []);
 
   // Keep the listeners' view of the editor current without re-attaching them.
-  const latest = useRef({ state, dispatch, timeline, onSeek, onPlay, onPause, readOnly, editingKeys, onShuttle });
-  latest.current = { state, dispatch, timeline, onSeek, onPlay, onPause, readOnly, editingKeys, onShuttle };
+  const latest = useRef({ state, dispatch, timeline, onSeek, onPlay, onPause, readOnly, editingKeys, onShuttle, t });
+  latest.current = { state, dispatch, timeline, onSeek, onPlay, onPause, readOnly, editingKeys, onShuttle, t };
 
   /** The unlocked clips a marquee from `area` to `event` touches, lane by lane (spec 2026-11-08 §6). */
   const clipsInMarquee = (area: { x0: number; y0: number }, event: { clientX: number; clientY: number }) => {
@@ -246,12 +247,12 @@ export function Timeline({
   };
 
   /** The whole selection moved by the dragged clip's delta, measured on the document before the drag. */
-  const groupMove = (active: Gesture, clientX: number) => {
+  const groupMove = (active: Gesture, clientX: number): Edit => {
     const { state: current, timeline: doc } = latest.current;
     const origin = current.preview?.draft;
     const before = origin && isTimelineDocument(origin) ? origin : doc;
-    if (!before || !active.group) return [];
-    return moveClips(before, active.group, frameAt(active, clientX) - active.anchor).operations;
+    if (!before || !active.group) return { operations: [] };
+    return moveClips(before, active.group, frameAt(active, clientX) - active.anchor);
   };
 
   const operationFor = (active: Gesture, frame: number): EditDocumentOperation => {
@@ -315,7 +316,7 @@ export function Timeline({
       active.previewed = true;
       if (active.group) {
         // A group keeps its tracks and moves by one delta; a refused delta keeps the last preview.
-        const operations = groupMove(active, event.clientX);
+        const { operations } = groupMove(active, event.clientX);
         if (operations.length) latest.current.dispatch({ type: "preview_timeline_operations", operations });
         return;
       }
@@ -330,11 +331,14 @@ export function Timeline({
       if (area?.active) latest.current.dispatch({ type: "select_clips", clipIds: clipsInMarquee(area, event) });
       const active = gesture.current;
       end();
+      // A click without a drag on a clip of a larger selection selects that clip alone, as editors do.
+      if (active?.group && !active.previewed) latest.current.dispatch({ type: "select_clip", clipId: active.clipId });
       if (!active?.previewed) return;
       if (active.group) {
-        const operations = groupMove(active, event.clientX);
+        const { operations, refusal } = groupMove(active, event.clientX);
         latest.current.dispatch({ type: "cancel_timeline_preview" });
-        if (operations.length) latest.current.dispatch({ type: "commit_operations", operations });
+        if (refusal) setNotice(latest.current.t(`studio.menu.reason.${refusal}`));
+        else if (operations.length) latest.current.dispatch({ type: "commit_operations", operations });
         return;
       }
       followLane(active, event.clientX, event.clientY);
@@ -381,7 +385,13 @@ export function Timeline({
       const moves = ["start", "end", "frame_back", "frame_forward", "second_back", "second_forward"];
       if (moves.includes(action) && target?.closest?.("input[type='range'], [role='slider']")) return;
       const fpsNow = doc.canvas.fps;
-      const commitEdit = (operations: EditDocumentOperation[]) => {
+      // A refused key says why, as the menus do (final review 2026-11-08).
+      const commitEdit = ({ operations, refusal }: Edit) => {
+        if (refusal) {
+          setNotice(latest.current.t(`studio.menu.reason.${refusal}`));
+          return;
+        }
+        setNotice(null);
         if (operations.length) send({ type: "commit_operations", operations });
       };
       const clipId = current.selectedClipId;
@@ -389,15 +399,15 @@ export function Timeline({
       switch (action) {
         case "delete":
           if (!clipId) return;
-          commitEdit(deleteClips(doc, selection).operations);
+          commitEdit(deleteClips(doc, selection));
           break;
         case "ripple_delete":
           if (!clipId) return;
-          commitEdit(rippleDeleteClips(doc, selection).operations);
+          commitEdit(rippleDeleteClips(doc, selection));
           break;
         case "split":
           if (!clipId) return;
-          commitEdit(splitAt(doc, clipId, current.playheadFrame).operations);
+          commitEdit(splitAt(doc, clipId, current.playheadFrame));
           break;
         case "play":
           (current.playing ? pause : play)?.();
@@ -436,11 +446,11 @@ export function Timeline({
         case "paste":
           // With no copied clips the browser's paste goes on, for text (Task 8).
           if (!copied.current.length) return;
-          commitEdit(pasteClips(doc, copied.current, current.playheadFrame).operations);
+          commitEdit(pasteClips(doc, copied.current, current.playheadFrame));
           break;
         case "duplicate":
           if (!selection.length) return;
-          commitEdit(duplicateClips(doc, selection).operations);
+          commitEdit(duplicateClips(doc, selection));
           break;
         case "shuttle_forward":
           latest.current.onShuttle?.("forward");
@@ -710,6 +720,9 @@ export function Timeline({
                 // A press on a clip of a larger selection keeps it, so the group can be dragged or edited.
                 else if (!(selectedIds.length > 1 && selectedIds.includes(clipId))) {
                   dispatch({ type: "select_clip", clipId });
+                } else if (clipId !== state.selectedClipId) {
+                  // The pressed clip becomes the one the Inspector shows; the group stays for a drag.
+                  dispatch({ type: "select_clips", clipIds: [...selectedIds.filter((id) => id !== clipId), clipId] });
                 }
               }}
               onDropAsset={

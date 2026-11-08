@@ -22,8 +22,11 @@ test("it names the four places, with the ones that do not apply disabled and exp
   expect(dialog.textContent).toContain("Hello");
   const names = ["New text clip", "Replace the selected text", "New caption", "Replace the caption text"];
   for (const name of names) expect(screen.getByRole("button", { name })).toBeDefined();
-  const replace = screen.getByRole("button", { name: "Replace the selected text" }) as HTMLButtonElement;
-  expect([replace.disabled, replace.title]).toEqual([true, "Select a text clip first"]);
+  // Final review 2026-11-08, Important 4: a place that does not apply stays reachable and says why in words.
+  const replace = screen.getByRole("button", { name: "Replace the selected text" });
+  expect(replace.getAttribute("aria-disabled")).toBe("true");
+  expect(replace.textContent).toContain("Select a text clip first");
+  expect(replace.getAttribute("aria-describedby")).toBeTruthy();
 });
 
 test("nothing is placed until a pick, and a pick names its place", () => {
@@ -39,4 +42,21 @@ test("Escape cancels", () => {
   render(<PasteTextDialog text="Hello" targets={targets} onPick={() => {}} onClose={onClose} />);
   fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
   expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+test("a place that does not apply does nothing when chosen", () => {
+  const onPick = mock(() => {});
+  render(<PasteTextDialog text="Hello" targets={targets} onPick={onPick} onClose={() => {}} />);
+  fireEvent.click(screen.getByRole("button", { name: "Replace the selected text" }));
+  expect(onPick).not.toHaveBeenCalled();
+});
+
+test("closing returns focus to where it was", () => {
+  const before = document.body.appendChild(document.createElement("button"));
+  before.focus();
+  const view = render(<PasteTextDialog text="Hello" targets={targets} onPick={() => {}} onClose={() => {}} />);
+  expect(document.activeElement).not.toBe(before);
+  view.unmount();
+  expect(document.activeElement).toBe(before);
+  before.remove();
 });

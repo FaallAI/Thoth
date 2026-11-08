@@ -1,6 +1,6 @@
 // Where pasted text goes (spec 2026-11-08 §6): the person picks the place, and nothing is placed
 // until they do. Text comes from the system clipboard; clips and media never do.
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { X } from "lucide-react";
 
 import { useLocale } from "@/lib/locale";
@@ -14,12 +14,19 @@ type Props = {
 };
 
 const choice =
-  "w-full rounded-md border border-hairline px-3 py-2 text-left text-sm text-ink transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-copper disabled:cursor-not-allowed disabled:opacity-40";
+  "w-full rounded-md border border-hairline px-3 py-2 text-left text-sm text-ink transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-copper aria-disabled:cursor-not-allowed aria-disabled:opacity-60 aria-disabled:hover:bg-transparent";
 
 export function PasteTextDialog({ text, targets, onPick, onClose }: Props) {
   const { t } = useLocale();
   const panel = useRef<HTMLDivElement>(null);
-  useEffect(() => panel.current?.focus(), []);
+  const reasonId = useId();
+  // Where focus was before the dialog opened; it goes back there when the dialog closes.
+  const opener = useRef<Element | null>(document.activeElement);
+  useEffect(() => {
+    panel.current?.focus();
+    const back = opener.current as HTMLElement | null;
+    return () => back?.focus?.({ preventScroll: true });
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-bg/70 p-4" onPointerDown={(event) => event.target === event.currentTarget && onClose()}>
@@ -45,9 +52,23 @@ export function PasteTextDialog({ text, targets, onPick, onClose }: Props) {
         </header>
         <blockquote className="line-clamp-3 break-words rounded-md bg-well px-3 py-2 text-xs text-muted-ink">{text}</blockquote>
         <div className="flex flex-col gap-2">
+          {/* A place that does not apply stays in the tab order and says why in words (final review 2026-11-08). */}
           {targets.map(({ target, disabled, reason }) => (
-            <button key={target} type="button" className={choice} disabled={disabled} title={reason} onClick={() => onPick(target)}>
+            <button
+              key={target}
+              type="button"
+              className={choice}
+              aria-label={t(`studio.paste.target.${target}`)}
+              aria-disabled={disabled || undefined}
+              aria-describedby={disabled && reason ? `${reasonId}-${target}` : undefined}
+              onClick={() => !disabled && onPick(target)}
+            >
               {t(`studio.paste.target.${target}`)}
+              {disabled && reason ? (
+                <span id={`${reasonId}-${target}`} className="block text-xs text-faint">
+                  {reason}
+                </span>
+              ) : null}
             </button>
           ))}
         </div>

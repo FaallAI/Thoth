@@ -773,8 +773,9 @@ test("text over 300 characters leaves every place disabled", () => {
   mountText();
   pasteText(window, "x".repeat(301));
   for (const name of ["New text clip", "Replace the selected text", "New caption", "Replace the caption text"]) {
-    const button = screen.getByRole("button", { name }) as HTMLButtonElement;
-    expect([button.disabled, button.title]).toEqual([true, "Longer than 300 characters"]);
+    const button = screen.getByRole("button", { name });
+    expect(button.getAttribute("aria-disabled")).toBe("true");
+    expect(button.textContent).toContain("Longer than 300 characters");
   }
 });
 
@@ -890,4 +891,42 @@ test("a second track of one kind has a numbered name for screen readers too", ()
   doc.tracks.push({ ...doc.tracks.find((track) => track.track_id === "track_broll")!, track_id: "track_broll_2", order: 9, clip_ids: [] });
   mount({ base: doc, draft: doc });
   expect(screen.getByRole("group", { name: "B-roll 2 track" })).toBeDefined();
+});
+
+// Final review 2026-11-08, Important 2: a refused key or group drag says why.
+test("Ctrl+V onto a filled Main video says there is no room", () => {
+  const { actions } = mount({ selectedClipId: "clip_main", selectedClipIds: ["clip_main"], playheadFrame: 0 });
+  key(window, "c", { ctrlKey: true });
+  key(window, "v", { ctrlKey: true });
+  expect(actions.some((action) => action.type === "commit_operations")).toBe(false);
+  expect(screen.getByRole("status").textContent).toContain("No room on Main video there");
+});
+
+test("Delete with a locked clip in the selection says the clip is locked", () => {
+  const { actions } = mount({ selectedClipId: "clip_locked", selectedClipIds: ["clip_main", "clip_locked"] });
+  key(window, "Delete");
+  expect(actions.some((action) => action.type === "commit_operations")).toBe(false);
+  expect(screen.getByRole("status").textContent).toContain("This clip is locked");
+});
+
+test("a group drag that holds a locked clip says why it did not move", () => {
+  const { actions } = mount({ selectedClipId: "clip_locked", selectedClipIds: ["clip_main", "clip_locked"] });
+  drag(screen.getByRole("button", { name: "Main video clip" }), 10, 40);
+  expect(actions.some((action) => action.type === "commit_operations")).toBe(false);
+  expect(screen.getByRole("status").textContent).toContain("This clip is locked");
+});
+
+// Final review 2026-11-08, Important 3: the pressed clip is the one the Inspector shows.
+test("a press on a clip of a larger selection makes it the primary clip and keeps the group", () => {
+  const { actions } = mount(both);
+  fireEvent.pointerDown(screen.getByRole("button", { name: "Main video clip" }), { clientX: 10, button: 0 });
+  expect(actions.at(-1)).toEqual({ type: "select_clips", clipIds: ["clip_music", "clip_main"] });
+});
+
+test("a click without a drag on a clip of a larger selection selects that clip alone", () => {
+  const { actions } = mount(both);
+  const main = screen.getByRole("button", { name: "Main video clip" });
+  fireEvent.pointerDown(main, { clientX: 10, button: 0 });
+  fireEvent.pointerUp(window, { clientX: 10 });
+  expect(actions.at(-1)).toEqual({ type: "select_clip", clipId: "clip_main" });
 });
