@@ -2,6 +2,49 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-08 - Both fixes seen on a narrated render; the run tray follows the run page
+
+Recorded on the next work branch, from master `48f32b18`. PR #120 was merged on the operator's word (merge `48f32b18`) after its branch image `7bd0fc7e` was deployed to stage1: thoth `7be15c9b7dae`, renderer `77f84d181e85`, web `e06fa5fe4ace`; rollback `pins-49cfffd1.env`. Checks after the deploy were clean, the pins matched every running container, and the worker carried both fixes.
+
+- **The first deploy attempt refused to start.** A run, `wf_dca2de8cb7c81663451fc7ad`, was in flight; it was not started by the agent. The deploy script stops while any workflow runs, so stage1 was untouched. The deploy ran once that run completed.
+
+**Narration and render, with the operator's approval after the cost was shown:** run `wf_6a5d0e23…` was opened as a new draft, `edoc_b410cf36efa846a5985981bd1c615e34`, in the throwaway project.
+
+- **The Source inventory opened with no decision left:** "figures" was excluded on open.
+- **Script:** about 451 characters.
+- **Voice:** ElevenLabs.
+- **Render:** `rj_103104ee1cff4d3aa900f5080a59f6c3`, completed in 69 s. The render panel showed no "Resolve source items".
+- **Title card:** the worker logged `narration starts after a title card seconds=0.375`.
+- **First frame:** the scene after the title card, with the narration heading over open sky and the source's caption blurred. The title card is gone.
+- **No calls blocked:** the temporary e2e guard blocked nothing. The temporary config and tests were deleted after use.
+
+**Fixed, test-first: the run tray no longer lags the run page.** The 2026-11-05 audit found the tray behind the page both ways.
+
+- **Cause:** the run page reads its run every second; the tray reads the active runs on its own 10 s beat, and neither told the other.
+- **Fix:** the activity provider now offers `observe(workflowId, status)`, and the run page calls it with each status it reads.
+  - A status the tray disagrees with makes the tray read the active runs at once: a run the page sees start but the tray does not list, or one the page sees end that the tray still lists.
+  - It asks once per run and status, so a stored list that lags the page is not asked again on every page poll.
+  - A run that ends this way is still told once as a desktop notification.
+  - Starting a run is covered too: the New run dialog opens the run's page.
+- **Red first:** in `activity.test.tsx`, a start, a finish (told once), and a lagging list asked once per status; in `RunDetailPage.test.tsx`, the page telling the tray. These tests run with a one-minute beat, so only the page can move the tray.
+
+**Confirmed fixed since 2026-11-06, and guarded:** the "..." menu staying open over the Inspector after Assist opens (2026-11-05).
+
+- **Where it was fixed:** commit `88a91037` ("…and let Assist close") made `GuidedStudio.toggleAssist` close the menu's `<details>` before the panel opens. It is in master and in the deployed `7bd0fc7e`. The CHANGELOG never marked the finding closed, so it stayed on the carried list.
+- **Guard test:** `StoryMode.test.tsx` "opening Assist closes the menu and takes the Inspector's place until it is closed" was added in the same commit.
+- **Mutation check:** removing the closing line made that test fail (`expected false, received true`); restored, the 23 Story tests pass again.
+- **Live, read-only with tester-army/e2e on draft `edoc_b410cf36…`:**
+  - `w1440`: choosing Assist in the workspace menu closes the menu, and the Assist panel opens on the right.
+  - `w430` (phone): the menu closes too, and Assist sits at the top of the Inspector pane, uncovered.
+
+**Verification (WSL):** dashboard tests 1612 passed, 0 failed; `make dashboard-build` (type check and build) clean.
+
+**Next steps** (each gate its own operator decision):
+
+- push this branch, deploy its CI image, merge;
+- the operator's look at `D:/thoth-tmp/fixes/render2/render.mp4` and at step 8;
+- a live 3D check still needs a creator that raises the 3D modal; the paid vision fallback (`local_vision`) is the operator's call.
+
 ## 2026-11-08 - The blur fix seen on a render; figures no longer hold render; narration skips a title card
 
 Recorded on the next work branch, from master `fa7ed8a2`. PR #119 was merged on the operator's word (merge `fa7ed8a2`) after its branch image `49cfffd1` was deployed to stage1: thoth `5c221de6e7ad`, renderer `82d7a7902d48`, web `de318af628b0`; rollback `pins-97d0553f.env`. Checks after the deploy were clean, and the pinned images matched every running container.

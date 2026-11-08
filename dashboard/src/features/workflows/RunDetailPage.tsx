@@ -74,6 +74,14 @@ export function RunDetailPage({
   const [announcement, setAnnouncement] = useState("");
   const seen = useRef<{ status?: string; stages: Record<string, string> }>({ stages: {} });
   const activity = useActivity();
+  const observe = activity?.observe;
+  const runStatus = summary?.status;
+
+  // The page reads its run every second and the tray every ten: the tray catches up with what
+  // the page sees, both when the run starts and when it ends (e2e audit 2026-11-05).
+  useEffect(() => {
+    if (runStatus) observe?.(workflowId, runStatus);
+  }, [observe, runStatus, workflowId]);
 
   // Stage changes go to the live region, one sentence each, never per tick (§7.6); run events
   // become a desktop notification when the person has allowed them and looks elsewhere (§12.3).

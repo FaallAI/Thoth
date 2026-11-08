@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 
 import type { WorkflowStep, WorkflowSummary } from "@/api/control-plane";
+import { ActivityProvider, type ActivityClient } from "@/features/activity/activity";
 import { LocaleProvider } from "@/lib/locale";
 
 import { RunDetailPage, type DetailClient } from "./RunDetailPage";
@@ -184,6 +185,28 @@ test("a finished run shows its results from the content set, and its log on dema
   expect(screen.getByAltText("Post").getAttribute("src")).toBe("/media/wf_1/reports/wf_1/cards/post.png");
   expect(screen.getByText("Show activity (1 steps)")).toBeDefined();
   expect(screen.getByRole("button", { name: "Download content set" })).toBeDefined();
+});
+
+test("the page tells the tray what it sees, so the tray never lags the page", async () => {
+  // e2e audit 2026-11-05: the tray lagged the run page both ways. Its own beat here is a minute,
+  // so only the page can make it read the active runs again this soon.
+  const activityClient = {
+    getInbox: mock(async () => ({})),
+    listRuns: mock(async () => ({ items: [], next_cursor: null })),
+    getWorkflow: mock(async () => summary({})),
+    acknowledgeWorkflow: mock(async () => {}),
+  };
+  render(
+    <MemoryRouter initialEntries={["/workflows/wf_1"]}>
+      <LocaleProvider serverLocale="en">
+        <ActivityProvider client={activityClient as unknown as ActivityClient} activeMs={60_000} inboxMs={60_000} notify={() => {}}>
+          <RunDetailPage client={client(summary({})) as unknown as DetailClient} workflowId="wf_1" projects={projects} onOpenStudio={() => {}} />
+        </ActivityProvider>
+      </LocaleProvider>
+    </MemoryRouter>,
+  );
+
+  await waitFor(() => expect(activityClient.listRuns.mock.calls.length).toBe(2));
 });
 
 test("polling stops once the run has ended", async () => {
