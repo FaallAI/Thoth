@@ -1,13 +1,14 @@
 /// <reference types="bun-types" />
 
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, mock, test } from "bun:test";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 
 import { render } from "@/test-render";
 
+import type { EditDocumentV2 } from "@/api/control-plane";
 import { createEditorState, type EditorAction, type EditorState } from "./editor_state";
 import { Timeline } from "./Timeline";
-import { timelineDocument } from "./timeline-test-fixtures";
+import { textDocument, timelineDocument } from "./timeline-test-fixtures";
 
 afterEach(cleanup);
 
@@ -490,7 +491,7 @@ const committed = (actions: EditorAction[]) =>
 test("a clip's menu offers the editing entries in order", () => {
   mountMenus({ playheadFrame: 60 }, { beatOf: () => "main", onShowInStory: () => {} });
   fireEvent.contextMenu(screen.getByRole("button", { name: "Main video clip" }), { clientX: 5, clientY: 5 });
-  expect(menuNames()).toEqual(["Split at playhead", "Copy", "Paste", "Duplicate", "Delete", "Ripple delete", "Replace media…", "B-roll", "Hide", "Lock", "Show in Story"]);
+  expect(menuNames()).toEqual(["Split at playhead", "Copy", "Paste", "Duplicate", "Paste text…", "Delete", "Ripple delete", "Replace media…", "B-roll", "Hide", "Lock", "Show in Story"]);
   expect(screen.getByRole("group", { name: "Move to track" })).toBeTruthy();
 });
 
@@ -739,3 +740,61 @@ test("Ctrl+C in a text field copies no clips", () => {
   key(window, "v", { ctrlKey: true });
   expect(pasted(actions)).toEqual([]);
 });
+
+// Tier 2 (spec 2026-11-08 §6): text through the system clipboard, placed where the person picks.
+
+function mountText(overrides: Partial<EditorState> = {}) {
+  const doc = textDocument();
+  return mount({ base: doc, draft: doc, playheadFrame: 30, ...overrides });
+}
+const pasteText = (target: Element | Window, text: string, html = "") =>
+  fireEvent.paste(target, { clipboardData: { getData: (type: string) => (type === "text/plain" ? text : type === "text/html" ? html : "") } });
+
+test("pasting text on the timeline asks where it goes, then places it there", () => {
+  const { actions } = mountText();
+  pasteText(window, "Hello");
+  expect(actions.some((action) => action.type === "commit_operations")).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "New text clip" }));
+  expect(actions.at(-1)).toMatchObject({ type: "commit_operations", operations: [{ kind: "add_text_clip", heading: "Hello", from_frame: 30 }] });
+  expect(screen.queryByRole("dialog", { name: "Paste text" })).toBeNull();
+});
+
+test("a paste into a field, HTML alone or blank text opens nothing", () => {
+  mountText();
+  const field = document.body.appendChild(document.createElement("input"));
+  pasteText(field, "Hello");
+  field.remove();
+  pasteText(window, "", "<b>Bold</b>");
+  pasteText(window, "   ");
+  expect(screen.queryByRole("dialog", { name: "Paste text" })).toBeNull();
+});
+
+test("text over 300 characters leaves every place disabled", () => {
+  mountText();
+  pasteText(window, "x".repeat(301));
+  for (const name of ["New text clip", "Replace the selected text", "New caption", "Replace the caption text"]) {
+    const button = screen.getByRole("button", { name }) as HTMLButtonElement;
+    expect([button.disabled, button.title]).toEqual([true, "Longer than 300 characters"]);
+  }
+});
+
+test("Copy text puts a text clip's heading on the system clipboard", () => {
+  const writeText = mock(async (_text: string) => {});
+  Object.defineProperty(navigator, "clipboard", { value: { writeText, readText: async () => "" }, configurable: true });
+  mountMenusOver(textDocument());
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Overlay clip" }), { clientX: 5, clientY: 5 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "Copy text" }));
+  expect(writeText).toHaveBeenCalledWith("Old heading");
+});
+
+test("Paste text… says to use Ctrl+V when the browser will not read the clipboard", async () => {
+  Object.defineProperty(navigator, "clipboard", { value: { writeText: async () => {}, readText: () => Promise.reject(new Error("denied")) }, configurable: true });
+  mountMenusOver(textDocument());
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Overlay clip" }), { clientX: 5, clientY: 5 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "Paste text…" }));
+  expect((await screen.findByRole("status")).textContent).toContain("Use Ctrl+V to paste text");
+});
+
+function mountMenusOver(doc: EditDocumentV2) {
+  return mountMenus({ base: doc, draft: doc, playheadFrame: 30 });
+}

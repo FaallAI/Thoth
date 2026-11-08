@@ -11,6 +11,7 @@ import {
   duplicateClips,
   moveClips,
   pasteClips,
+  pasteTextOperations,
   rippleDeleteClips,
   setClipsFlag,
   gapAt,
@@ -22,7 +23,7 @@ import {
   splitAt,
   type Edit,
 } from "./timeline_edits";
-import { timelineDocument } from "./timeline-test-fixtures";
+import { textDocument, timelineDocument } from "./timeline-test-fixtures";
 
 type Clip = NonNullable<EditDocumentV2["clips"]>[number];
 
@@ -263,3 +264,36 @@ test("duplicateClips places the copy right after the selection's end", () => {
     { kind: "duplicate_clip", clip_id: "c", track_id: "track_main", from_frame: 160 },
   ]);
 });
+
+// Tier 2 (spec 2026-11-08 §6): text from the system clipboard, to the place the person picks.
+test("pasteTextOperations gives each place its operation", () => {
+  const doc = textDocument();
+  const at = (selectedClipId: string) => ({ playheadFrame: 30, selectedClipId });
+  expect(shape(pasteTextOperations(doc, "new_text", "Hello", at(""))).map(withoutNewClip)).toEqual([
+    { kind: "add_text_clip", track_id: "track_overlay", from_frame: 30, duration_in_frames: 90, heading: "Hello", body: "", style_slot: "title" },
+  ]);
+  expect(shape(pasteTextOperations(doc, "replace_text", "Hello", at("clip_text")))).toEqual([
+    { kind: "replace_text", clip_id: "clip_text", field: "heading", value: "Hello" },
+  ]);
+  expect(shape(pasteTextOperations(doc, "new_caption", "Hello", at(""))).map(withoutNewClip)).toEqual([
+    { kind: "add_caption_clip", track_id: "track_captions", scene_id: "scene_001", text: "Hello" },
+  ]);
+  expect(shape(pasteTextOperations(doc, "replace_caption", "Hello", at("clip_cap")))).toEqual([
+    { kind: "set_caption_cue_text", clip_id: "clip_cap", cue_index: 0, text: "Hello" },
+  ]);
+  for (const target of ["new_text", "new_caption"] as const) applies(doc, pasteTextOperations(doc, target, "Hello", at("")));
+});
+
+test("pasteTextOperations refuses a place that does not apply, and text over 300 characters", () => {
+  const doc = textDocument();
+  const nothing = { playheadFrame: 30, selectedClipId: "" };
+  expect(pasteTextOperations(doc, "replace_text", "Hello", nothing).refusal).toBe("not_text");
+  expect(pasteTextOperations(doc, "replace_caption", "Hello", { playheadFrame: 30, selectedClipId: "clip_text" }).refusal).toBe("not_caption");
+  expect(pasteTextOperations(timelineDocument(), "new_text", "Hello", nothing).refusal).toBe("no_track");
+  expect(pasteTextOperations(doc, "new_text", "x".repeat(301), nothing).refusal).toBe("too_long");
+});
+
+const withoutNewClip = (operation: Record<string, unknown>) => {
+  const { clip_id: _id, ...rest } = operation;
+  return rest;
+};

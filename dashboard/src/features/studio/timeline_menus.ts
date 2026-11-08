@@ -7,6 +7,7 @@ import { shortcutKeys } from "./studio_keys";
 import { compatibleTrackIds } from "./timeline_domain";
 import {
   closeGap,
+  cueAt,
   deleteClip,
   deleteClips,
   duplicateClips,
@@ -58,6 +59,9 @@ export function clipMenu(
     /** Clips copied in this page, and where Copy puts them (spec 2026-11-08 §6). */
     copied?: readonly string[];
     onCopy?: (ids: readonly string[]) => void;
+    /** Text through the system clipboard (spec 2026-11-08 §6). */
+    onCopyText?: (text: string) => void;
+    onPasteText?: () => void;
   },
 ): MenuEntry[] {
   const { t, doc, playheadFrame } = context;
@@ -75,6 +79,17 @@ export function clipMenu(
       ? editEntry(context, "paste", t("studio.menu.paste"), pasteClips(doc, copied, playheadFrame), shortcutKeys("paste"))
       : { kind: "item", id: "paste", label: t("studio.menu.paste"), shortcut: shortcutKeys("paste"), disabled: true, reason: t("studio.menu.reason.nothingCopied"), onSelect: () => {} },
     editEntry(context, "duplicate", t("studio.menu.duplicate"), duplicateClips(doc, these), shortcutKeys("duplicate")),
+    ...(clip.kind === "text" || clip.kind === "caption"
+      ? [
+          {
+            kind: "item" as const,
+            id: "copy-text",
+            label: t("studio.menu.copyText"),
+            onSelect: () => extra.onCopyText?.(clip.kind === "text" ? clip.heading : clip.kind === "caption" ? (clip.cues[cueAt(clip, playheadFrame)]?.text ?? "") : ""),
+          },
+        ]
+      : []),
+    { kind: "item", id: "paste-text", label: t("studio.menu.pasteText"), onSelect: () => extra.onPasteText?.() },
     group
       ? editEntry(context, "delete", t("studio.menu.deleteMany", count), deleteClips(doc, group), shortcutKeys("delete"))
       : editEntry(context, "delete", t("studio.menu.delete"), deleteClip(doc, clip.clip_id), shortcutKeys("delete")),
@@ -120,8 +135,11 @@ export function clipMenu(
   return entries;
 }
 
-export function gapMenu(context: MenuContext, trackId: string, frame: number): MenuEntry[] {
-  return [editEntry(context, "close-gap", context.t("studio.menu.closeGap"), closeGap(context.doc, trackId, frame))];
+export function gapMenu(context: MenuContext, trackId: string, frame: number, extra: { onPasteText?: () => void } = {}): MenuEntry[] {
+  return [
+    editEntry(context, "close-gap", context.t("studio.menu.closeGap"), closeGap(context.doc, trackId, frame)),
+    { kind: "item", id: "paste-text", label: context.t("studio.menu.pasteText"), onSelect: () => extra.onPasteText?.() },
+  ];
 }
 
 export function trackMenu(

@@ -14,7 +14,12 @@ export type Refusal =
   | "edge"
   | "incompatible"
   | "no_room"
-  | "gone";
+  | "gone"
+  | "no_track"
+  | "no_scene"
+  | "not_text"
+  | "not_caption"
+  | "too_long";
 export type Edit = { operations: EditDocumentOperation[]; refusal?: Refusal };
 
 type Clip = NonNullable<EditDocumentV2["clips"]>[number];
@@ -299,4 +304,78 @@ export function duplicateClips(doc: EditDocumentV2, ids: readonly string[]): Edi
   const clips = picked(doc, ids);
   if (!clips.length) return none;
   return pasteClips(doc, ids, Math.max(...clips.map(endOf)));
+}
+
+// --------------------------------------------------------------------------
+// Pasted text, to the place the person picks (spec 2026-11-08 §6)
+// --------------------------------------------------------------------------
+
+export type PasteTarget = "new_text" | "replace_text" | "new_caption" | "replace_caption";
+export const PASTE_TARGETS: readonly PasteTarget[] = ["new_text", "replace_text", "new_caption", "replace_caption"];
+
+/** A heading and a caption cue hold at most this many characters (`ShortText`). */
+export const TEXT_LIMIT = 300;
+/** A pasted text clip lasts three seconds, cut at the canvas end. */
+const PASTED_TEXT_SECONDS = 3;
+
+/** The caption cue under `frame`, or the first one. */
+export function cueAt(clip: Extract<Clip, { kind: "caption" }>, frame: number): number {
+  const offset = frame - clip.from_frame;
+  const index = clip.cues.findIndex((cue) => cue.from_frame <= offset && offset < cue.from_frame + cue.duration_in_frames);
+  return Math.max(0, index);
+}
+
+export function pasteTextOperations(
+  doc: EditDocumentV2,
+  target: PasteTarget,
+  text: string,
+  at: { playheadFrame: number; selectedClipId: string },
+): Edit {
+  if (text.length > TEXT_LIMIT) return refuse("too_long");
+  const selected = clipsOf(doc).find((clip) => clip.clip_id === at.selectedClipId);
+  const frame = at.playheadFrame;
+  switch (target) {
+    case "new_text": {
+      const track = doc.tracks.find((entry) => entry.kind === "overlay" && !entry.locked);
+      if (!track) return refuse("no_track");
+      return {
+        operations: [
+          {
+            kind: "add_text_clip",
+            operation_id: newId("op"),
+            clip_id: newId("clip"),
+            track_id: track.track_id,
+            from_frame: frame,
+            duration_in_frames: Math.min(Math.round(PASTED_TEXT_SECONDS * doc.canvas.fps), doc.canvas.duration_in_frames - frame),
+            heading: text,
+            body: "",
+            style_slot: "title",
+          },
+        ],
+      };
+    }
+    case "replace_text":
+      if (selected?.kind !== "text") return refuse("not_text");
+      if (isLocked(doc, selected)) return refuse("locked");
+      return { operations: [{ kind: "replace_text", operation_id: newId("op"), clip_id: selected.clip_id, field: "heading", value: text }] };
+    case "new_caption": {
+      const track = doc.tracks.find((entry) => entry.kind === "caption" && !entry.locked);
+      if (!track) return refuse("no_track");
+      const scene = doc.scenes.find((entry) => entry.start_frame <= frame && frame < entry.start_frame + entry.duration_in_frames);
+      if (!scene) return refuse("no_scene");
+      return {
+        operations: [
+          { kind: "add_caption_clip", operation_id: newId("op"), clip_id: newId("clip"), track_id: track.track_id, scene_id: scene.scene_id, text },
+        ],
+      };
+    }
+    case "replace_caption":
+      if (selected?.kind !== "caption") return refuse("not_caption");
+      if (isLocked(doc, selected)) return refuse("locked");
+      return {
+        operations: [
+          { kind: "set_caption_cue_text", operation_id: newId("op"), clip_id: selected.clip_id, cue_index: cueAt(selected, frame), text },
+        ],
+      };
+  }
 }

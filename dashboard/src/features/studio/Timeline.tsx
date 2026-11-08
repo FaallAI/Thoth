@@ -10,7 +10,18 @@ import { TimelineTrack } from "./TimelineTrack";
 import { ReplaceMediaDialog } from "./ReplaceMediaDialog";
 import { clipMenu, gapMenu, trackMenu, type MenuContext } from "./timeline_menus";
 import { isTypingTarget, timelineKey } from "./studio_keys";
-import { deleteClips, duplicateClips, moveClips, pasteClips, rippleDeleteClips, splitAt } from "./timeline_edits";
+import {
+  deleteClips,
+  duplicateClips,
+  moveClips,
+  PASTE_TARGETS,
+  pasteClips,
+  pasteTextOperations,
+  rippleDeleteClips,
+  splitAt,
+  type PasteTarget,
+} from "./timeline_edits";
+import { PasteTextDialog } from "./PasteTextDialog";
 import {
   clampZoom,
   compatibleTrackIds,
@@ -130,6 +141,42 @@ export function Timeline({
   useEffect(() => {
     copied.current = [];
   }, [documentId]);
+  // Text on its way from the system clipboard, waiting for the person to pick its place (spec 2026-11-08 §6).
+  const [pastedText, setPastedText] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const offerText = (text: string) => {
+    const trimmed = text.trim();
+    setNotice(null);
+    if (trimmed) setPastedText(trimmed);
+  };
+  const readClipboardText = () => {
+    const read = navigator.clipboard?.readText?.bind(navigator.clipboard);
+    if (!read) {
+      setNotice(t("studio.paste.useCtrlV"));
+      return;
+    }
+    read().then(offerText, () => setNotice(t("studio.paste.useCtrlV")));
+  };
+  const copyText = (text: string) => {
+    void navigator.clipboard?.writeText?.(text).catch(() => undefined);
+  };
+
+  // Ctrl+V with plain text and no copied clips: the browser's own paste event carries it, no permission asked.
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      const { timeline: doc, readOnly: viewOnly, editingKeys: keysOn } = latest.current;
+      if (!doc || viewOnly || !keysOn || event.defaultPrevented || isTypingTarget(event.target)) return;
+      if ((event.target as HTMLElement | null)?.closest?.("[role='dialog'], [role='menu']")) return;
+      // Plain text only: an HTML-only or file paste offers nothing.
+      const text = event.clipboardData?.getData("text/plain")?.trim() ?? "";
+      if (!text) return;
+      event.preventDefault();
+      setNotice(null);
+      setPastedText(text);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, []);
 
   // Keep the listeners' view of the editor current without re-attaching them.
   const latest = useRef({ state, dispatch, timeline, onSeek, onPlay, onPause, readOnly, editingKeys });
@@ -613,6 +660,8 @@ export function Timeline({
                           onCopy: (ids) => {
                             copied.current = ids;
                           },
+                          onCopyText: copyText,
+                          onPasteText: readClipboardText,
                         }),
                       )
               }
@@ -620,7 +669,9 @@ export function Timeline({
                 readOnly
                   ? undefined
                   : menu.bind((at) =>
-                      gapMenu(menuContext, lane.track.track_id, Math.floor((at.x - at.owner.getBoundingClientRect().left) / state.zoom)),
+                      gapMenu(menuContext, lane.track.track_id, Math.floor((at.x - at.owner.getBoundingClientRect().left) / state.zoom), {
+                        onPasteText: readClipboardText,
+                      }),
                     )
               }
               nameMenu={
@@ -666,6 +717,26 @@ export function Timeline({
         </div>
       </div>
       {menu.element}
+      {notice ? (
+        <p role="status" className="border-t border-hairline bg-surface px-3 py-2 text-xs text-muted-ink">
+          {notice}
+        </p>
+      ) : null}
+      {pastedText !== null ? (
+        <PasteTextDialog
+          text={pastedText}
+          targets={PASTE_TARGETS.map((target) => {
+            const edit = pasteTextOperations(timeline, target, pastedText, { playheadFrame: state.playheadFrame, selectedClipId: state.selectedClipId });
+            return { target, disabled: Boolean(edit.refusal), reason: edit.refusal ? t(`studio.menu.reason.${edit.refusal}`) : undefined };
+          })}
+          onClose={() => setPastedText(null)}
+          onPick={(target: PasteTarget) => {
+            const edit = pasteTextOperations(timeline, target, pastedText, { playheadFrame: state.playheadFrame, selectedClipId: state.selectedClipId });
+            setPastedText(null);
+            if (edit.operations.length) dispatch({ type: "commit_operations", operations: edit.operations });
+          }}
+        />
+      ) : null}
       {replaced && replacedAsset ? (
         <ReplaceMediaDialog
           currentAssetId={replacedAsset}
