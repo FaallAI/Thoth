@@ -2,6 +2,88 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-08 - Studio Timeline Tier 1: the editing grammar of common editors
+
+Branch `feat/studio-timeline-track` from master `5b20306e`, not pushed.
+
+**Deploy record carried here.** PR #121 (the run tray follows the run page) was merged as `5b20306e`, on the operator's word. Its branch image `a764c4bc` was deployed to stage1 first:
+- images: thoth `f0bfbcdd9025`, renderer `48bfeefde587`, web `2c32125aa9b8`;
+- rollback pins: `pins-7bd0fc7e.env`;
+- no workflow was running at deploy, and web answered 200;
+- the tray is not yet seen live on a running run.
+
+**Audit and research (operator, 2026-11-08: "test full semua fitur … research … sangat perfect").**
+- **Write run:** `timeline-audit` and `studio-write` on `rw1440`, in the throwaway project, no model. Result: 29 passed, 9 failed.
+  - Eight failures were the red tests of 2026-11-05 (missing features).
+  - One was a fragile test: it assumed the newest "Upload · Video" is 80 s; it was 20.1 s.
+- **Read-only look:** 1440, 1024 and 430 on the narrated draft `edoc_b410cf36…`.
+- **Benchmarks:** Clipchamp, Descript, Remotion Editor Starter, DaVinci Resolve, Premiere and CapCut.
+- **Report:** `docs/research/2026-11-08-studio-timeline-editor-research.md`.
+- **Spec:** `docs/superpowers/specs/2026-11-08-studio-timeline-track-design.md`, in three tiers. Operator decisions:
+  - the order is Tier 1, then 2, then 3;
+  - right click in Story mode too;
+  - re-voice in no menu;
+  - clips and media never go through the system clipboard; text may, to a place the person picks (Tier 2);
+  - ripple delete and close gap move every track, like Premiere's sync lock.
+- **Plan:** `docs/superpowers/plans/2026-11-08-studio-timeline-tier1.md`, run inline. The ledger is `.superpowers/sdd/2026-11-08-studio-timeline-tier1/progress.md`.
+
+**Built, test-first (Tier 1).**
+- **One right-click menu** for Story and Timeline (`components/ContextMenu.tsx`):
+  - opened by right click, Shift+F10, the Menu key or a long touch press;
+  - stays inside the viewport and closes on Escape, a click outside or scroll;
+  - a disabled entry keeps its place and says why.
+- **Edit helpers** (`timeline_edits.ts`) return typed operations, so one action is one undo step:
+  - delete, ripple delete, split, move to a track, close a gap, move or remove a track, hide and lock;
+  - ripple delete and close gap pull the later clips of every track. They are refused when another track has a clip in the stretch, or a clip that would move is locked.
+  - A server test confirms the batch applies in order.
+- **Keys** (`studio_keys.ts`):
+  - Delete, Shift+Delete, S, Space, Home and End, the arrows, Ctrl+= / Ctrl+- / Ctrl+0, Escape;
+  - **Ctrl+Z and Ctrl+Y in Story and Timeline**, which were never wired: the 2026-11-05 test passed through a number field's own undo;
+  - `?` or Ctrl+/ opens the shortcut list.
+  - No key acts while a person types in a field, and Space keeps its meaning on a button.
+- **Pointer:** a clip dragged onto another lane that can hold it moves there; a click on an empty lane seeks; Ctrl+wheel zooms around the pointer; a click on a track's name selects the track.
+- **Timeline menus:**
+  - on a clip: split, delete, ripple delete, replace media, move to a track, hide, lock, show in Story;
+  - on a gap: close this gap;
+  - on a track: select, move up and down, hide, mute, lock, remove when empty.
+- **Replace media works.** Today's dialog was a placeholder with a disabled button. It now offers the project's ready assets of the clip's own kind (a card's image, a video's video), in the Timeline, the Story Inspector and the Shown menu.
+- **Story menus:**
+  - on a Shown item: move earlier and later, remove, replace media, position, emphasis, play from here, show in Timeline;
+  - on a beat: open, add from materials, show in Timeline;
+  - on a material: add to the open beat, show where it is used, why this material.
+- **Look:**
+  - tracks read "Main video", "B-roll", "Sound effects" (Indonesian too), never `main_video`;
+  - the Inspector takes start and end as time ("0:07.5"), with the frame fields kept;
+  - "Ownership" reads "Edited by: Thoth / You / Nobody (locked)";
+  - at 1024 an empty Timeline Inspector folds to a 3 rem rail;
+  - a short clip shows its full name on hover.
+- **E2E:**
+  - new read-only `tests/studio-menus.e2e.ts`: 3 tests. They pass on the branch dashboard (`dev1440`, vite on 5199 against stage1) and fail on the deployed `a764c4bc`.
+  - the undo write test is rewritten, so only Studio's own undo can pass it;
+  - four write tests added (Delete, Move to track, the ripple reason, `?`);
+  - the fragile cut-to-fit test now checks the cut, not one file's length.
+
+**Verification (WSL):**
+- dashboard: 993 Studio and component tests passed, 0 failed; `make dashboard-build` clean;
+- Python: `tests/domain/test_timeline_operations.py` 118 passed.
+- The full-suite numbers are in the checkpoint.
+
+**Corrections made while building:**
+- Replacing a card's image needs no new operation (the server swaps same-kind media), so the Tier 2 item "Replace media for image clips" is dropped.
+- The 1440 lane area is not short: all seven lanes fit with room to spare. The research report is corrected.
+- The Fit / Crop / Position red test belongs to Tier 2.
+
+**Next steps** (each gate is its own operator decision):
+- **Write token:** a new one-day write-scope e2e token. The 2026-11-08 one expired at 16:38.
+  - With it, run the rewritten undo test once on the current deploy, expecting it to fail. This proves it catches the missing keys.
+- **Push and PR** of `feat/studio-timeline-track`.
+- **Deploy** of its branch image.
+- **After the deploy:**
+  - the write suite at `rw1440`, expecting every test but Fit / Crop / Position (Tier 2) to pass;
+  - the read-only look at 1440, 1024 and 430.
+- **Merge.**
+- **Then Tier 2:** multi-select, in-page copy / paste / duplicate (a new operation), system-clipboard text pasted to a chosen place, close all gaps, Fit / Crop / Position and fades, Assets search and drag-to-lane, J / K / L.
+
 ## 2026-11-08 - Both fixes seen on a narrated render; the run tray follows the run page
 
 Recorded on the next work branch, from master `48f32b18`. PR #120 was merged on the operator's word (merge `48f32b18`) after its branch image `7bd0fc7e` was deployed to stage1: thoth `7be15c9b7dae`, renderer `77f84d181e85`, web `e06fa5fe4ace`; rollback `pins-49cfffd1.env`. Checks after the deploy were clean, the pins matched every running container, and the worker carried both fixes.

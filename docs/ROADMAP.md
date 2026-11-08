@@ -129,6 +129,11 @@ gets its own spec, plan and branch; the scope below is the audit's input, not an
 | 5. Design findings | The playhead paints over track names when scrolled; raw names such as `main_video`; Ripple and Snap labels touch their switches; the Materials search field is squashed; "34.467s" beside "8.9 s"; Story/Timeline and Request review stay on Review and Render; at 1024 an empty Inspector takes a third of the width and cuts the last lane; Mute on soundless tracks | Not started |
 | 6. Not tested yet | Ripple, audio volume and captions in the Timeline; Inspector number fields send one operation per keystroke (noted from the code) | Not started |
 
+Status 2026-11-08: research, spec (`docs/superpowers/specs/2026-11-08-studio-timeline-track-design.md`,
+three tiers, Story menus included) and the Tier 1 plan are written; Tier 1 is built on
+`feat/studio-timeline-track` (menus, keys, drag to a track, Replace media, plain names), not pushed.
+Tier 2 and Tier 3 follow, in that order (operator, 2026-11-08).
+
 The red tests are `e2e/tests-write/timeline-audit.e2e.ts`. The Studio shell v2 spec
 (2026-11-01) lists ripple delete as an existing tool, but git history shows no delete control in
 the Timeline, toolbar or Inspector, so it counts as new work here.

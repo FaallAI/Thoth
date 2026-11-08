@@ -86,7 +86,9 @@ test('a file uploaded from the Asset library can be added to the draft', async (
 test('a video longer than the canvas is cut to fit, saved, and the screen says so', async ({ app, browser, screen }) => {
   await blankTimeline({ app, browser, screen });
   await screen.getByRole('button', 'Add Upload · Video to timeline').tap();
-  await expect(screen.getByRole('status', 'Clip placed').getByText(/Cut to 5\.0 s of 80\.0 s/)).toBeVisible();
+  // Which upload is named "Upload · Video" changes as the project gains uploads (2026-11-08: a 20.1 s
+  // one), so the test checks the cut, not one file's length. Every upload here is longer than 5 s.
+  await expect(screen.getByRole('status', 'Clip placed').getByText(/Cut to 5\.0 s of \d+\.\d s/)).toBeVisible();
   await expect(screen.getByText('Saved revision 3', { visible: true })).toBeVisible();
   await expect(screen.getByText(/Check your connection/)).toHaveCount(0);
   await expect(screen.getByText('No issues')).toBeVisible();

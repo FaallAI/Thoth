@@ -13,8 +13,7 @@ editing studio of a common application. This report holds both. It is not a desi
   a right-click menu, multi-select, copy / paste / duplicate, close a gap, Ctrl+wheel zoom, click
   a lane to seek, and a track you can select. Most of these need no new server operation.
 - The look still carries the 2026-11-05 design findings: raw track names (`main_video`), clips
-  without pictures or waveforms, a short lane area, and an empty Inspector that takes a third of
-  the screen at 1024.
+  without pictures or waveforms, and an empty Inspector that takes a third of the screen at 1024.
 - Proposed scope, in three tiers (section 6): editor basics first, then comfort, then the
   pro tools that need new backend work (filmstrips, waveforms, roll and slip, speed).
 
@@ -46,7 +45,7 @@ The eight timeline failures are the red tests written on 2026-11-05; none of the
 
 | Width | Seen |
 |---|---|
-| 1440 | Seven lanes fit, but the lane area is about a fifth of the height while the preview sits small in a large dark area. Track names are raw ids (`main_video`, `b_roll`). Clips are text only; short clips read "P…", "Co…". The Inspector shows timing in **frames** (225 / 334) with the time small beside it. Fit, Crop and Position are greyed out. "Ownership: AI managed / User edited / Locked" is internal language. No delete, duplicate or replace in the Inspector. The Assets column has no search, and uploads are named `Upload · Image · 13`. |
+| 1440 | Seven lanes fit with room to spare (corrected 2026-11-08 from the screenshot; an earlier line said the lanes took a fifth of the height). Track names are raw ids (`main_video`, `b_roll`). Clips are text only; short clips read "P…", "Co…". The Inspector shows timing in **frames** (225 / 334) with the time small beside it. Fit, Crop and Position are greyed out. "Ownership: AI managed / User edited / Locked" is internal language. No delete, duplicate or replace in the Inspector. The Assets column has no search, and uploads are named `Upload · Image · 13`. |
 | 1024 | The empty Inspector ("Select a clip or track to edit it") takes about a third of the width; the lanes show about 8 s; the SFX lane is cut at the bottom. |
 | 430 | Lanes are view-only by design ("Best on a larger screen"), and Preview and Timeline are separate panes, so you cannot watch while scrubbing. Undo and Redo are not in the phone header by design; they sit in the workspace menu (final review I5). |
 

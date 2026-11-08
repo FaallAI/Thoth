@@ -86,8 +86,9 @@ copy and paste, undo every step), and a screen whose names and numbers read as p
 | ? or Ctrl+/ | Open the shortcut list |
 
 **Right-click menu on a clip:** Split at playhead · Delete · Ripple delete · Replace media…
-(`replace_clip_asset`; video clips only, as the server allows; today's Replace dialog is a
-placeholder with a disabled button, so Tier 1 builds a real picker of ready assets of the same kind) · Move to track ▸ (compatible tracks only,
+(`replace_clip_asset`, on video-kind clips, cards included: the server swaps media of the same
+kind, so a card's image is replaced by an image; today's Replace dialog was a placeholder with a
+disabled button, so Tier 1 builds a real picker of ready assets of that kind) · Move to track ▸ (compatible tracks only,
 `move_clip.target_track_id`) · Hide / Show (`set_clip_hidden`) · Lock / Unlock
 (`set_clip_locked`) · Show in Story (switches to Story mode with that beat open, when the clip
 belongs to a beat). Entries that do not apply stay visible and disabled with the reason as a
@@ -194,7 +195,6 @@ server operation.
   - Pasted text is plain text only (no HTML), trimmed, and held to the same length limits as
     typed text.
 - **Close all gaps** on a track (track menu) and in the whole timeline.
-- **Replace media for image clips** (the operation accepts video clips only today).
 - **Inspector:** Fit, Crop and Position become editable on video and image clips (existing
   `set_clip_position` / `set_clip_motion`; Crop may need a field on the operation); fade in and
   fade out for visual and audio clips (new fields with defaults, and the renderer honours them).

@@ -125,10 +125,20 @@ test('keyboard: Delete removes the selected clip', async ({ app, browser, screen
 });
 
 test('keyboard: Ctrl+Z undoes and Ctrl+Y redoes', async ({ app, browser, screen }) => {
+  // 2026-11-08: the old version passed through the End frame field's own undo, with no Studio key.
+  // The edit here comes from a toolbar button and focus sits on the ruler, so only Studio can undo it.
   await clipOnTimeline({ app, browser, screen });
+  const ruler = await screen.getByRole('slider', 'Playhead').boundingBox();
+  await clickAt(browser, ruler.x + 120, ruler.y + ruler.height / 2);
   await screen.getByRole('button', 'Main Video clip').tap();
+  await screen.getByRole('button', 'Trim end to playhead').tap();
+  await expect.poll(async () => (await mainClip(browser))[0].duration_in_frames, { timeout: 5000 }).toBe(30);
+  await browser.keyboard.press('Escape');
+  await clickAt(browser, ruler.x + 120, ruler.y + ruler.height / 2);
   await browser.keyboard.press('Control+z');
-  await expect.poll(async () => (await mainClip(browser))[0].duration_in_frames, { timeout: 3000 }).toBe(150);
+  await expect.poll(async () => (await mainClip(browser))[0].duration_in_frames, { timeout: 5000 }).toBe(90);
+  await browser.keyboard.press('Control+y');
+  await expect.poll(async () => (await mainClip(browser))[0].duration_in_frames, { timeout: 5000 }).toBe(30);
 });
 
 test('keyboard: S splits the selected clip at the playhead', async ({ app, browser, screen }) => {
@@ -254,4 +264,34 @@ test('right click: a clip opens an editing menu', async ({ app, browser, screen 
   await clipOnTimeline({ app, browser, screen });
   await screen.getByRole('button', 'Main Video clip').secondaryTap();
   await expect(screen.getByRole('menu')).toBeVisible({ timeout: 2000 });
+});
+
+// Spec 2026-11-08 §5.1, Tier 1: the menus and the shortcut list on the deployed stack.
+test('right click: Delete removes the clip', async ({ app, browser, screen }) => {
+  await clipOnTimeline({ app, browser, screen });
+  await screen.getByRole('button', 'Main Video clip').secondaryTap();
+  await screen.getByRole('menuitem', 'Delete').tap();
+  await expect.poll(async () => (await mainClip(browser)).length, { timeout: 5000 }).toBe(0);
+});
+
+test('right click: Move to track moves the clip to B-roll', async ({ app, browser, screen }) => {
+  await clipOnTimeline({ app, browser, screen });
+  await screen.getByRole('button', 'Main Video clip').secondaryTap();
+  await screen.getByRole('menu').getByRole('menuitem', 'B-roll').tap();
+  await expect.poll(async () => (await mainClip(browser)).length, { timeout: 5000 }).toBe(0);
+});
+
+test('right click: Ripple delete says why while the heading spans the stretch', async ({ app, browser, screen }) => {
+  // A blank draft's heading runs the whole canvas on another track, so a ripple would slide clips under it.
+  await clipOnTimeline({ app, browser, screen });
+  await screen.getByRole('button', 'Main Video clip').secondaryTap();
+  await expect(screen.getByRole('menuitem', 'Ripple delete')).toHaveAttribute('title', 'Another track has a clip here; trim or delete it first');
+});
+
+test('keyboard: ? opens the shortcut list', async ({ app, browser, screen }) => {
+  await clipOnTimeline({ app, browser, screen });
+  const ruler = await screen.getByRole('slider', 'Playhead').boundingBox();
+  await clickAt(browser, ruler.x + 40, ruler.y + ruler.height / 2);
+  await browser.keyboard.press('?');
+  await expect(screen.getByRole('dialog', 'Keyboard shortcuts')).toBeVisible();
 });
