@@ -857,3 +857,34 @@ test("an audio clip without a source draws nothing over the picture, but is stil
   expect(screen.queryAllByText("Audio preview unavailable")).toHaveLength(0);
   expect(reported).toContain("asset_music");
 });
+
+// Tier 2 (spec 2026-11-08 §6): video clips fade their picture and their own sound.
+function fadedVideoDocument(): EditDocumentV2 {
+  const document = documentV2();
+  const video = document.clips!.find((clip) => clip.clip_id === "clip_video")!;
+  Object.assign(video, { duration_in_frames: 60, fade_in_frames: 10, fade_out_frames: 10 });
+  return document;
+}
+
+test("a video clip fades in and out", () => {
+  const opacities = [0, 5, 30, 59].map((frame) => {
+    currentFrame.value = frame;
+    render(<AdvancedTimelineComposition document={fadedVideoDocument()} previewSources={SOURCES} />);
+    const opacity = Number(screen.getByTestId("clip-fade").style.opacity);
+    cleanup();
+    return opacity;
+  });
+  expect(opacities[0]).toBe(0);
+  expect(opacities[1]).toBeCloseTo(0.5);
+  expect(opacities[2]).toBe(1);
+  expect(opacities[3]).toBeCloseTo(0.1, 1);
+  render(<AdvancedTimelineComposition document={fadedVideoDocument()} previewSources={SOURCES} />);
+  const volume = mediaProps.video.at(-1)?.volume as (frame: number) => number;
+  expect(volume(5)).toBeCloseTo(0.5);
+});
+
+test("a video clip without fades is drawn as before, fully opaque", () => {
+  render(<AdvancedTimelineComposition document={documentV2()} previewSources={SOURCES} />);
+  expect(screen.queryByTestId("clip-fade")).toBeNull();
+  expect(mediaProps.video.every((props) => props.volume === undefined)).toBe(true);
+});
