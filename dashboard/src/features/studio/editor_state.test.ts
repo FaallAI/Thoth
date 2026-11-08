@@ -996,3 +996,44 @@ test("select_clip with no id clears the clip and track selection", () => {
   expect(cleared.selectedClipId).toBe("");
   expect(cleared.selectedTrackId).toBe("");
 });
+
+// Tier 2 (spec 2026-11-08 §6): a selection of many clips.
+import { timelineDocument as selectionDocument } from "./timeline-test-fixtures";
+
+const selecting = (...actions: EditorAction[]) =>
+  actions.reduce(editorReducer, createEditorState(selectionDocument()));
+
+test("select_clip with add toggles a clip in and out of the selection", () => {
+  const two = selecting({ type: "select_clip", clipId: "clip_main" }, { type: "select_clip", clipId: "clip_music", add: true });
+  expect(two.selectedClipIds).toEqual(["clip_main", "clip_music"]);
+  expect(two.selectedClipId).toBe("clip_music");
+  const one = editorReducer(two, { type: "select_clip", clipId: "clip_music", add: true });
+  expect(one.selectedClipIds).toEqual(["clip_main"]);
+  expect(one.selectedClipId).toBe("clip_main");
+});
+
+test("a plain select_clip replaces the selection and an empty id clears it", () => {
+  const replaced = selecting(
+    { type: "select_clip", clipId: "clip_main" },
+    { type: "select_clip", clipId: "clip_music", add: true },
+    { type: "select_clip", clipId: "clip_locked" },
+  );
+  expect(replaced.selectedClipIds).toEqual(["clip_locked"]);
+  const cleared = editorReducer(replaced, { type: "select_clip", clipId: "" });
+  expect([cleared.selectedClipIds, cleared.selectedClipId]).toEqual([[], ""]);
+});
+
+test("select_clips sets the list and makes the last id primary", () => {
+  const state = selecting({ type: "select_clips", clipIds: ["clip_music", "clip_main", "missing"] });
+  expect(state.selectedClipIds).toEqual(["clip_music", "clip_main"]);
+  expect([state.selectedClipId, state.selectedTrackId]).toEqual(["clip_main", "track_main"]);
+});
+
+test("a removed clip leaves the selection after commit_operations", () => {
+  const state = selecting(
+    { type: "select_clips", clipIds: ["clip_main", "clip_music"] },
+    { type: "commit_operations", operations: [{ kind: "remove_clip", operation_id: "op_remove", clip_id: "clip_music" }] },
+  );
+  expect(state.selectedClipIds).toEqual(["clip_main"]);
+  expect(state.selectedClipId).toBe("clip_main");
+});

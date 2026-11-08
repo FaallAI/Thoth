@@ -582,3 +582,74 @@ test("Space on a focused clip plays, as in common editors", () => {
   key(screen.getByRole("button", { name: "Main video clip" }), " ");
   expect(transport).toEqual(["play"]);
 });
+
+// Tier 2 (spec 2026-11-08 §6): select many clips.
+/** Give each lane well a place on screen, one 44 px row per track, as the browser would. */
+function placeWells() {
+  ["track_main", "track_broll", "track_music"].forEach((trackId, row) => {
+    const well = document.querySelector(`[data-track-id="${trackId}"] [data-lane-well]`)!;
+    const top = row * 44;
+    Object.defineProperty(well, "getBoundingClientRect", {
+      value: () => ({ left: 0, right: 2000, top, bottom: top + 44, width: 2000, height: 44, x: 0, y: top, toJSON: () => ({}) }),
+    });
+  });
+}
+
+test("Shift+click and Ctrl+click add a clip to the selection", () => {
+  const { actions } = mount({ selectedClipId: "clip_main", selectedClipIds: ["clip_main"] });
+  fireEvent.click(screen.getByRole("button", { name: "Music clip" }), { shiftKey: true });
+  fireEvent.click(screen.getByRole("button", { name: "Music clip" }), { ctrlKey: true });
+  expect(actions.filter((action) => action.type === "select_clip")).toEqual([
+    { type: "select_clip", clipId: "clip_music", add: true },
+    { type: "select_clip", clipId: "clip_music", add: true },
+  ]);
+});
+
+test("a drag on empty lane space draws a marquee and selects the unlocked clips it touches", () => {
+  const { actions } = mount({ zoom: 4 });
+  placeWells();
+  const well = document.querySelector('[data-track-id="track_main"] [data-lane-well]')!;
+  fireEvent.pointerDown(well, { clientX: 5, clientY: 10, button: 0 });
+  fireEvent.pointerMove(window, { clientX: 700, clientY: 100 });
+  expect(screen.getByTestId("timeline-marquee")).toBeDefined();
+  fireEvent.pointerUp(window, { clientX: 700, clientY: 100 });
+  expect(actions.at(-1)).toEqual({ type: "select_clips", clipIds: ["clip_main", "clip_music"] });
+  expect(screen.queryByTestId("timeline-marquee")).toBeNull();
+});
+
+test("a short press on empty lane space draws no marquee", () => {
+  const { actions } = mount({ zoom: 4 });
+  placeWells();
+  const well = document.querySelector('[data-track-id="track_main"] [data-lane-well]')!;
+  fireEvent.pointerDown(well, { clientX: 5, clientY: 10, button: 0 });
+  fireEvent.pointerMove(window, { clientX: 7, clientY: 11 });
+  fireEvent.pointerUp(window, { clientX: 7, clientY: 11 });
+  expect(actions.some((action) => action.type === "select_clips")).toBe(false);
+});
+
+test("Ctrl+A selects every clip on visible, unlocked lanes", () => {
+  const { actions } = mount();
+  key(window, "a", { ctrlKey: true });
+  expect(actions.at(-1)).toEqual({ type: "select_clips", clipIds: ["clip_main", "clip_music"] });
+});
+
+test("Ctrl+A in a text field selects no clips", () => {
+  const { actions } = mount();
+  const field = document.body.appendChild(document.createElement("input"));
+  key(field, "a", { ctrlKey: true });
+  expect(actions.some((action) => action.type === "select_clips")).toBe(false);
+  field.remove();
+});
+
+test("Escape clears a selection of many clips", () => {
+  const { actions } = mount({ selectedClipId: "clip_music", selectedClipIds: ["clip_main", "clip_music"] });
+  key(window, "Escape");
+  expect(actions.at(-1)).toEqual({ type: "select_clip", clipId: "" });
+});
+
+test("every selected clip shows as selected", () => {
+  mount({ selectedClipId: "clip_music", selectedClipIds: ["clip_main", "clip_music"] });
+  for (const name of ["Main video clip", "Music clip"]) {
+    expect(screen.getByRole("button", { name }).getAttribute("aria-pressed")).toBe("true");
+  }
+});

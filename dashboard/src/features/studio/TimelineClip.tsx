@@ -19,7 +19,8 @@ type Props = {
   zoom: number;
   selected: boolean;
   locked: boolean;
-  onSelect: () => void;
+  /** `add` when Shift, Ctrl or Cmd was held: the clip joins or leaves the selection. */
+  onSelect: (add: boolean) => void;
   onGestureStart: (mode: GestureMode, clientX: number) => void;
   onNudge: (frames: number) => void;
   /** The clip's human name (spec 2026-11-01); absent, the Timeline's own words for it. */
@@ -51,6 +52,9 @@ export function clipLabel(t: LocaleState["t"], clip: Clip): string {
     : t(`studio.inventory.role.${source.role}`);
 }
 
+const withModifier = (event: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) =>
+  event.shiftKey || event.ctrlKey || event.metaKey;
+
 const handle =
   "absolute top-0 h-full w-2 cursor-ew-resize focus-visible:outline-2 focus-visible:outline-copper disabled:cursor-not-allowed disabled:opacity-0";
 
@@ -73,8 +77,10 @@ export function TimelineClip({
   const text = given ?? clipLabel(t, clip);
   const start = (mode: GestureMode) => (event: PointerEvent) => {
     if (event.button !== 0) return;
-    onSelect();
-    onGestureStart(mode, event.clientX);
+    const add = withModifier(event);
+    onSelect(add);
+    // A modifier press only changes the selection; it never starts a drag.
+    if (!add) onGestureStart(mode, event.clientX);
   };
 
   return (
@@ -93,16 +99,21 @@ export function TimelineClip({
         className={`flex h-full w-full items-start gap-1 overflow-hidden rounded-md border px-2 py-1 text-left text-xs text-ink transition-colors focus-visible:outline-2 focus-visible:outline-copper ${FILL[trackKind]} ${
           selected ? "border-2 border-copper" : "border-hairline hover:border-faint"
         }`}
-        onClick={onSelect}
+        // A pointer press already selected; a click from the keyboard (detail 0) selects here.
+        onClick={(event) => {
+          if (event.detail === 0) onSelect(withModifier(event));
+        }}
         onContextMenu={(event) => {
-          onSelect();
+          onSelect(false);
           menu?.onContextMenu(event);
         }}
         onPointerUp={menu?.onPointerUp}
         onPointerCancel={menu?.onPointerCancel}
         onPointerDown={(event) => {
           menu?.onPointerDown(event);
-          if (!readOnly) start("move")(event);
+          if (readOnly) {
+            if (event.button === 0) onSelect(false);
+          } else start("move")(event);
         }}
         onKeyDown={(event) => {
           menu?.onKeyDown(event);

@@ -62,6 +62,16 @@ type Gesture = {
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
 
 /** Snap within a fixed screen distance, so zooming out does not widen the pull. */
+/** How far a press on empty lane space moves before it becomes a marquee. */
+const MARQUEE_SLOP = 4;
+
+/** Lanes whose clips a marquee or Ctrl+A may take: shown and unlocked, and only unlocked clips. */
+function selectableLanes(doc: EditDocumentV2) {
+  return visibleLanes(doc)
+    .filter((lane) => !lane.track.hidden && !lane.track.locked)
+    .map((lane) => ({ ...lane, clips: lane.clips.filter((clip) => !clip.locked) }));
+}
+
 const snapThreshold = (zoom: number) => Math.max(1, Math.round(8 / zoom));
 
 /** The header column beside every lane; the ruler and the playhead start after it. */
@@ -90,6 +100,11 @@ export function Timeline({
   const timeline = isTimelineDocument(state.draft) ? state.draft : undefined;
   const clips = timeline?.clips ?? [];
   const selectedClip = clips.find((clip) => clip.clip_id === state.selectedClipId);
+  // The primary clip is always part of the selection, however the state was made.
+  const selectedIds =
+    state.selectedClipId && !state.selectedClipIds.includes(state.selectedClipId)
+      ? [...state.selectedClipIds, state.selectedClipId]
+      : state.selectedClipIds;
   const trackOf = (trackId: string) => timeline?.tracks.find((t) => t.track_id === trackId);
   const selectionLocked = selectedClip
     ? selectedClip.locked === true || trackOf(selectedClip.track_id)?.locked === true
@@ -97,6 +112,10 @@ export function Timeline({
 
   // The lanes' scroll box: Ctrl+0 fits the canvas into its width.
   const lanesBox = useRef<HTMLDivElement>(null);
+  // A marquee over empty lane space (spec 2026-11-08 §6): where it started, and the box on screen.
+  const marquee = useRef<{ x0: number; y0: number; active: boolean } | null>(null);
+  const lanesArea = useRef<HTMLDivElement>(null);
+  const [marqueeBox, setMarqueeBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   // One right-click menu for clips, gaps and tracks (spec 2026-11-08 §5.1), and the clip being replaced.
   const menu = useContextMenu();
   const [replacing, setReplacing] = useState<string | null>(null);
@@ -104,6 +123,21 @@ export function Timeline({
   // Keep the listeners' view of the editor current without re-attaching them.
   const latest = useRef({ state, dispatch, timeline, onSeek, onPlay, onPause, readOnly, editingKeys });
   latest.current = { state, dispatch, timeline, onSeek, onPlay, onPause, readOnly, editingKeys };
+
+  /** The unlocked clips a marquee from `area` to `event` touches, lane by lane (spec 2026-11-08 §6). */
+  const clipsInMarquee = (area: { x0: number; y0: number }, event: { clientX: number; clientY: number }) => {
+    const { timeline: doc, state: current } = latest.current;
+    if (!doc || !lanesBox.current) return [];
+    const [left, right] = [Math.min(area.x0, event.clientX), Math.max(area.x0, event.clientX)];
+    const [top, bottom] = [Math.min(area.y0, event.clientY), Math.max(area.y0, event.clientY)];
+    return selectableLanes(doc).flatMap((lane) => {
+      const well = lanesBox.current!.querySelector(`[data-track-id="${lane.track.track_id}"] [data-lane-well]`);
+      const box = well?.getBoundingClientRect();
+      if (!box || box.bottom < top || box.top > bottom) return [];
+      const [from, to] = [(left - box.left) / current.zoom, (right - box.left) / current.zoom];
+      return lane.clips.filter((clip) => clip.from_frame < to && clip.from_frame + clip.duration_in_frames > from).map((clip) => clip.clip_id);
+    });
+  };
 
   /** Move the playhead and the preview to one frame, kept inside the document. */
   const seek = (frame: number) => {
@@ -178,8 +212,23 @@ export function Timeline({
     const end = () => {
       gesture.current = null;
       scrubbing.current = null;
+      marquee.current = null;
+      setMarqueeBox(null);
     };
     const onMove = (event: PointerEvent) => {
+      const area = marquee.current;
+      if (area) {
+        area.active ||= Math.hypot(event.clientX - area.x0, event.clientY - area.y0) > MARQUEE_SLOP;
+        if (!area.active) return;
+        const origin = lanesArea.current?.getBoundingClientRect();
+        setMarqueeBox({
+          left: Math.min(area.x0, event.clientX) - (origin?.left ?? 0),
+          top: Math.min(area.y0, event.clientY) - (origin?.top ?? 0),
+          width: Math.abs(event.clientX - area.x0),
+          height: Math.abs(event.clientY - area.y0),
+        });
+        return;
+      }
       if (scrubbing.current) {
         seekToPointer(scrubbing.current, event.clientX);
         return;
@@ -194,6 +243,8 @@ export function Timeline({
       });
     };
     const onUp = (event: PointerEvent) => {
+      const area = marquee.current;
+      if (area?.active) latest.current.dispatch({ type: "select_clips", clipIds: clipsInMarquee(area, event) });
       const active = gesture.current;
       end();
       if (!active?.previewed) return;
@@ -287,6 +338,9 @@ export function Timeline({
           send({ type: "set_zoom", zoom: clampZoom(width / doc.canvas.duration_in_frames) });
           break;
         }
+        case "select_all":
+          send({ type: "select_clips", clipIds: selectableLanes(doc).flatMap((lane) => lane.clips.map((clip) => clip.clip_id)) });
+          break;
         case "clear":
           if (!clipId) return;
           send({ type: "select_clip", clipId: "" });
@@ -437,9 +491,18 @@ export function Timeline({
 
       <div ref={lanesBox} data-testid="timeline-lanes" className="min-h-0 overflow-auto">
         <div
+          ref={lanesArea}
           className="relative"
           style={{ width: `${framesToPixels(duration, state.zoom) + headerWidth}px` }}
         >
+          {marqueeBox ? (
+            <div
+              data-testid="timeline-marquee"
+              aria-hidden="true"
+              className="pointer-events-none absolute z-30 rounded-sm border border-copper bg-copper/10"
+              style={marqueeBox}
+            />
+          ) : null}
           <div className="sticky top-0 z-10 flex h-7 border-b border-hairline bg-surface">
             <div className="sticky left-0 z-10 shrink-0 border-r border-hairline bg-surface" style={{ width: headerWidth }} />
             <div
@@ -483,7 +546,7 @@ export function Timeline({
               lane={lane}
               zoom={state.zoom}
               widthInFrames={duration}
-              selectedClipId={state.selectedClipId}
+              selectedClipIds={selectedIds}
               labelOf={labelOf}
               readOnly={readOnly}
               name={trackName(t, timeline, lane.track)}
@@ -517,7 +580,16 @@ export function Timeline({
                       }),
                     )
               }
-              onSelectClip={(clipId) => dispatch({ type: "select_clip", clipId })}
+              onSelectClip={(clipId, add) => {
+                if (add) dispatch({ type: "select_clip", clipId, add: true });
+                // A press on a clip of a larger selection keeps it, so the group can be dragged or edited.
+                else if (!(selectedIds.length > 1 && selectedIds.includes(clipId))) {
+                  dispatch({ type: "select_clip", clipId });
+                }
+              }}
+              onMarqueeStart={readOnly ? undefined : (clientX, clientY) => {
+                marquee.current = { x0: clientX, y0: clientY, active: false };
+              }}
               onSelectTrack={() => dispatch({ type: "select_track", trackId: lane.track.track_id })}
               onSeekAt={(offset) => {
                 seek(offset / state.zoom);

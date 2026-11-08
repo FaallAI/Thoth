@@ -25,9 +25,12 @@ type Props = {
   lane: TimelineLane;
   zoom: number;
   widthInFrames: number;
-  selectedClipId: string;
+  /** Every selected clip (spec 2026-11-08 §6). */
+  selectedClipIds: readonly string[];
   onToggle: (field: "hidden" | "muted" | "locked", value: boolean) => void;
-  onSelectClip: (clipId: string) => void;
+  onSelectClip: (clipId: string, add: boolean) => void;
+  /** A press on the empty well that may grow into a marquee (spec 2026-11-08 §6). */
+  onMarqueeStart?: (clientX: number, clientY: number) => void;
   /** The track for the Inspector (spec 2026-11-08 §5.1). */
   onSelectTrack?: () => void;
   /** A press on the lane's empty well, in pixels from the lane's start. */
@@ -64,9 +67,10 @@ export function TimelineTrack({
   lane,
   zoom,
   widthInFrames,
-  selectedClipId,
+  selectedClipIds,
   onToggle,
   onSelectClip,
+  onMarqueeStart,
   onSelectTrack,
   onSeekAt,
   clipMenu,
@@ -152,6 +156,7 @@ export function TimelineTrack({
           laneMenu?.onPointerDown(event);
           if (event.button !== 0) return;
           onSeekAt?.(event.clientX - event.currentTarget.getBoundingClientRect().left);
+          onMarqueeStart?.(event.clientX, event.clientY);
         }}
       >
         {clips.map((clip) => (
@@ -161,9 +166,9 @@ export function TimelineTrack({
             trackKind={track.kind}
             label={track.label}
             zoom={zoom}
-            selected={clip.clip_id === selectedClipId}
+            selected={selectedClipIds.includes(clip.clip_id)}
             locked={clip.locked === true || track.locked === true}
-            onSelect={() => onSelectClip(clip.clip_id)}
+            onSelect={(add) => onSelectClip(clip.clip_id, add)}
             onGestureStart={(mode, clientX) => onGestureStart(clip.clip_id, mode, clientX)}
             onNudge={(frames) => onNudge(clip.clip_id, frames)}
             name={labelOf?.(clip)}
