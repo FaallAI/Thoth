@@ -65,8 +65,6 @@ def test_version_two_round_trips_without_coercion() -> None:
             clip["volume_keyframes"] = []
         if clip["kind"] == "video":
             clip["hold_after_source"] = False
-            # Video fades (2026-11-08) read back at their defaults too.
-            clip.update(fade_in_frames=0, fade_out_frames=0)
         for cue in clip.get("cues", []):
             cue["words"] = []
     assert document.model_dump(mode="json") == payload
@@ -286,3 +284,21 @@ def test_a_stored_video_clip_without_fades_decodes() -> None:
 
     clip = next(c for c in EditDocumentV2.model_validate(payload).clips if c.clip_id == "clip_main")
     assert (clip.fade_in_frames, clip.fade_out_frames) == (0, 0)
+
+
+def test_unused_video_fades_are_not_stored() -> None:
+    """A Tier 1 server forbids unknown fields, so a draft saved without fades must not carry them.
+
+    That keeps a rollback to the Tier 1 images safe for every draft that never used a fade
+    (operator, 2026-11-08).
+    """
+    document = EditDocumentV2.model_validate(document_v2_payload())
+    clips = document.model_dump(mode="json")["clips"]
+    stored = next(c for c in clips if c["clip_id"] == "clip_main")
+    assert "fade_in_frames" not in stored and "fade_out_frames" not in stored
+
+    payload = document_v2_payload()
+    next(c for c in payload["clips"] if c["clip_id"] == "clip_main")["fade_in_frames"] = 15
+    faded = EditDocumentV2.model_validate(payload).model_dump(mode="json")
+    main = next(c for c in faded["clips"] if c["clip_id"] == "clip_main")
+    assert main["fade_in_frames"] == 15 and "fade_out_frames" not in main

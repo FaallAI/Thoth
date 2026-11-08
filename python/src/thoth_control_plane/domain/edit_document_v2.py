@@ -232,8 +232,9 @@ class TimelineVideoClip(TimelineClipBase):
     #: Past the asset's last frame, hold that frame instead of ending (narration retiming).
     hold_after_source: bool = False
     #: Picture and sound fade in and out (spec 2026-11-08 section 6); older drafts have none.
-    fade_in_frames: FadeFrames = 0
-    fade_out_frames: FadeFrames = 0
+    #: An unused fade is not stored, so a rollback to images that forbid the field stays safe.
+    fade_in_frames: FadeFrames = Field(default=0, exclude_if=lambda frames: frames == 0)
+    fade_out_frames: FadeFrames = Field(default=0, exclude_if=lambda frames: frames == 0)
 
 
 class TimelineOverlayClip(TimelineClipBase):
