@@ -490,7 +490,7 @@ const committed = (actions: EditorAction[]) =>
 test("a clip's menu offers the editing entries in order", () => {
   mountMenus({ playheadFrame: 60 }, { beatOf: () => "main", onShowInStory: () => {} });
   fireEvent.contextMenu(screen.getByRole("button", { name: "Main video clip" }), { clientX: 5, clientY: 5 });
-  expect(menuNames()).toEqual(["Split at playhead", "Delete", "Ripple delete", "Replace media…", "B-roll", "Hide", "Lock", "Show in Story"]);
+  expect(menuNames()).toEqual(["Split at playhead", "Copy", "Paste", "Duplicate", "Delete", "Ripple delete", "Replace media…", "B-roll", "Hide", "Lock", "Show in Story"]);
   expect(screen.getByRole("group", { name: "Move to track" })).toBeTruthy();
 });
 
@@ -700,4 +700,42 @@ test("Escape during a group drag restores both clips", () => {
   expect(actions.at(-1)).toEqual({ type: "cancel_timeline_preview" });
   fireEvent.pointerUp(window, { clientX: 40 });
   expect(actions.some((action) => action.type === "commit_operations")).toBe(false);
+});
+
+// Tier 2 (spec 2026-11-08 §6): copy, paste and duplicate inside the open draft.
+const pasted = (actions: EditorAction[]) =>
+  actions.filter((action) => action.type === "commit_operations").flatMap((action) => (action.type === "commit_operations" ? action.operations : []));
+
+test("Ctrl+C then Ctrl+V pastes the selection at the playhead as one undo step", () => {
+  const { actions } = mount({ selectedClipId: "clip_music", selectedClipIds: ["clip_music"], playheadFrame: 0 });
+  key(window, "c", { ctrlKey: true });
+  key(window, "v", { ctrlKey: true });
+  expect(actions.filter((action) => action.type === "commit_operations")).toHaveLength(1);
+  expect(pasted(actions)).toMatchObject([{ kind: "duplicate_clip", clip_id: "clip_music", track_id: "track_music", from_frame: 0 }]);
+});
+
+test("Ctrl+D duplicates the selection after itself", () => {
+  const { actions } = mount({ selectedClipId: "clip_main", selectedClipIds: ["clip_main"] });
+  key(window, "d", { ctrlKey: true });
+  expect(pasted(actions)).toMatchObject([{ kind: "duplicate_clip", clip_id: "clip_main", from_frame: 120 }]);
+});
+
+test("the clip menu copies and pastes, and says so when nothing is copied", () => {
+  const { actions } = mountMenus({ playheadFrame: 0 });
+  const music = screen.getByRole("button", { name: "Music clip" });
+  fireEvent.contextMenu(music, { clientX: 5, clientY: 5 });
+  expect(screen.getByRole("menuitem", { name: "Paste" }).getAttribute("title")).toBe("Copy a clip first");
+  fireEvent.click(screen.getByRole("menuitem", { name: "Copy" }));
+  fireEvent.contextMenu(music, { clientX: 5, clientY: 5 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "Paste" }));
+  expect(actions.at(-1)).toMatchObject({ type: "commit_operations", operations: [{ kind: "duplicate_clip", clip_id: "clip_music", from_frame: 0 }] });
+});
+
+test("Ctrl+C in a text field copies no clips", () => {
+  const { actions } = mount({ selectedClipId: "clip_music", selectedClipIds: ["clip_music"] });
+  const field = document.body.appendChild(document.createElement("input"));
+  key(field, "c", { ctrlKey: true });
+  field.remove();
+  key(window, "v", { ctrlKey: true });
+  expect(pasted(actions)).toEqual([]);
 });

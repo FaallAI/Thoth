@@ -8,7 +8,9 @@ import {
   closeGap,
   deleteClip,
   deleteClips,
+  duplicateClips,
   moveClips,
+  pasteClips,
   rippleDeleteClips,
   setClipsFlag,
   gapAt,
@@ -232,4 +234,32 @@ test("setClipsFlag hides every clip, and refuses hiding when one is locked", () 
   ]);
   expect(setClipsFlag(doc, ["clip_main", "clip_locked"], "hidden", true).refusal).toBe("locked");
   expect(setClipsFlag(doc, ["clip_main", "clip_locked"], "locked", true).operations).toHaveLength(2);
+});
+
+// Tier 2 (spec 2026-11-08 §6): copies inside the open draft, never through the system clipboard.
+const withoutNewId = (operation: Record<string, unknown>) => {
+  const { new_clip_id: _id, ...rest } = operation;
+  return rest;
+};
+test("pasteClips places copies at a frame on their own tracks, keeping their offsets", () => {
+  const doc = threeClips({ from: 100, length: 30 });
+  expect(shape(pasteClips(doc, ["c", "clip_music"], 200)).map(withoutNewId)).toEqual([
+    { kind: "duplicate_clip", clip_id: "clip_music", track_id: "track_music", from_frame: 200 },
+    { kind: "duplicate_clip", clip_id: "c", track_id: "track_main", from_frame: 230 },
+  ]);
+  applies(doc, pasteClips(doc, ["c", "clip_music"], 200));
+});
+
+test("pasteClips refuses a filled Main video track, a deleted clip and the canvas end", () => {
+  const doc = threeClips();
+  expect(pasteClips(doc, ["a"], 30).refusal).toBe("no_room");
+  expect(pasteClips(doc, ["gone"], 0).refusal).toBe("gone");
+  expect(pasteClips(doc, ["c"], 280).refusal).toBe("outside");
+});
+
+test("duplicateClips places the copy right after the selection's end", () => {
+  const doc = threeClips();
+  expect(shape(duplicateClips(doc, ["c"])).map(withoutNewId)).toEqual([
+    { kind: "duplicate_clip", clip_id: "c", track_id: "track_main", from_frame: 160 },
+  ]);
 });

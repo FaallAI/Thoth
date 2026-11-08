@@ -3,7 +3,18 @@
 import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane";
 import { applyTimelineOperation, compatibleTrackIds } from "./timeline_domain";
 
-export type Refusal = "locked" | "later_locked" | "crossing" | "scene" | "outside" | "no_gap" | "not_empty" | "edge" | "incompatible";
+export type Refusal =
+  | "locked"
+  | "later_locked"
+  | "crossing"
+  | "scene"
+  | "outside"
+  | "no_gap"
+  | "not_empty"
+  | "edge"
+  | "incompatible"
+  | "no_room"
+  | "gone";
 export type Edit = { operations: EditDocumentOperation[]; refusal?: Refusal };
 
 type Clip = NonNullable<EditDocumentV2["clips"]>[number];
@@ -243,4 +254,49 @@ export function moveClips(doc: EditDocumentV2, ids: readonly string[], delta: nu
       ripple: false,
     })),
   };
+}
+
+// --------------------------------------------------------------------------
+// Copies inside the open draft (spec 2026-11-08 §6); the system clipboard never carries clips.
+// --------------------------------------------------------------------------
+
+/**
+ * `duplicate_clip` for each clip, placed at `at` on its own track with its offset from the earliest.
+ * A copy names a live clip only, so its media and provenance come from the draft, never from outside.
+ */
+export function pasteClips(doc: EditDocumentV2, ids: readonly string[], at: number): Edit {
+  const clips = picked(doc, ids).sort((left, right) => left.from_frame - right.from_frame);
+  if (clips.length !== new Set(ids).size) return refuse("gone");
+  if (!clips.length) return none;
+  const earliest = clips[0]!.from_frame;
+  const placed = clips.map((clip) => ({ clip, from: at + clip.from_frame - earliest }));
+  if (placed.some(({ clip, from }) => from < 0 || from + clip.duration_in_frames > doc.canvas.duration_in_frames)) {
+    return refuse("outside");
+  }
+  if (placed.some(({ clip }) => trackOf(doc, clip.track_id)?.locked)) return refuse("locked");
+  // The server keeps Main video clips from overlapping, existing ones and the copies alike.
+  const main = (clip: Clip) => trackOf(doc, clip.track_id)?.kind === "main_video";
+  const taken = clipsOf(doc).filter(main).map((clip) => [clip.from_frame, endOf(clip)] as const);
+  for (const { clip, from } of placed.filter(({ clip }) => main(clip))) {
+    const end = from + clip.duration_in_frames;
+    if (taken.some(([start, stop]) => start < end && stop > from)) return refuse("no_room");
+    taken.push([from, end]);
+  }
+  return {
+    operations: placed.map(({ clip, from }) => ({
+      kind: "duplicate_clip",
+      operation_id: newId("op"),
+      clip_id: clip.clip_id,
+      new_clip_id: newId("clip"),
+      track_id: clip.track_id,
+      from_frame: from,
+    })),
+  };
+}
+
+/** The selection again, right after its own end. */
+export function duplicateClips(doc: EditDocumentV2, ids: readonly string[]): Edit {
+  const clips = picked(doc, ids);
+  if (!clips.length) return none;
+  return pasteClips(doc, ids, Math.max(...clips.map(endOf)));
 }

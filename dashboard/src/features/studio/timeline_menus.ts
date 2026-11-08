@@ -9,6 +9,8 @@ import {
   closeGap,
   deleteClip,
   deleteClips,
+  duplicateClips,
+  pasteClips,
   moveToTrack,
   moveTrack,
   removeTrack,
@@ -53,16 +55,26 @@ export function clipMenu(
     onShowInStory?: () => void;
     /** The selection; when it holds this clip and others, delete, ripple, hide and lock act on all. */
     selection?: readonly string[];
+    /** Clips copied in this page, and where Copy puts them (spec 2026-11-08 §6). */
+    copied?: readonly string[];
+    onCopy?: (ids: readonly string[]) => void;
   },
 ): MenuEntry[] {
   const { t, doc, playheadFrame } = context;
   const group = extra.selection && extra.selection.length > 1 && extra.selection.includes(clip.clip_id) ? extra.selection : null;
   const count = { count: String(group?.length ?? 1) };
+  const these = group ?? [clip.clip_id];
+  const copied = extra.copied ?? [];
   const locked = clip.locked === true || doc.tracks.find((track) => track.track_id === clip.track_id)?.locked === true;
   const lockedReason = t("studio.menu.reason.locked");
   const targets = compatibleTrackIds(doc, clip.kind).filter((trackId) => trackId !== clip.track_id);
   const entries: MenuEntry[] = [
     editEntry(context, "split", t("studio.menu.split"), splitAt(doc, clip.clip_id, playheadFrame), shortcutKeys("split")),
+    { kind: "item", id: "copy", label: t("studio.menu.copy"), shortcut: shortcutKeys("copy"), onSelect: () => extra.onCopy?.(these) },
+    copied.length
+      ? editEntry(context, "paste", t("studio.menu.paste"), pasteClips(doc, copied, playheadFrame), shortcutKeys("paste"))
+      : { kind: "item", id: "paste", label: t("studio.menu.paste"), shortcut: shortcutKeys("paste"), disabled: true, reason: t("studio.menu.reason.nothingCopied"), onSelect: () => {} },
+    editEntry(context, "duplicate", t("studio.menu.duplicate"), duplicateClips(doc, these), shortcutKeys("duplicate")),
     group
       ? editEntry(context, "delete", t("studio.menu.deleteMany", count), deleteClips(doc, group), shortcutKeys("delete"))
       : editEntry(context, "delete", t("studio.menu.delete"), deleteClip(doc, clip.clip_id), shortcutKeys("delete")),

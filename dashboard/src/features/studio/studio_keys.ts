@@ -25,6 +25,9 @@ export type TimelineKey =
   | "zoom_out"
   | "zoom_fit"
   | "select_all"
+  | "copy"
+  | "paste"
+  | "duplicate"
   | "clear";
 
 type Keys = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey" | "altKey">;
@@ -36,7 +39,11 @@ export function timelineKey(event: Keys): TimelineKey | null {
     if (event.key === "=" || event.key === "+") return "zoom_in";
     if (event.key === "-") return "zoom_out";
     if (event.key === "0") return "zoom_fit";
-    if (event.key.toLowerCase() === "a" && !event.shiftKey) return "select_all";
+    const letter = event.key.toLowerCase();
+    if (letter === "a" && !event.shiftKey) return "select_all";
+    if (letter === "c" && !event.shiftKey) return "copy";
+    if (letter === "v" && !event.shiftKey) return "paste";
+    if (letter === "d" && !event.shiftKey) return "duplicate";
     return null;
   }
   switch (event.key) {
@@ -75,6 +82,9 @@ export const SHORTCUTS: readonly { action: ShortcutAction; keys: string; group: 
   { action: "undo", keys: "Ctrl+Z", group: "editing" },
   { action: "redo", keys: "Ctrl+Y", group: "editing" },
   { action: "select_all", keys: "Ctrl+A", group: "editing" },
+  { action: "copy", keys: "Ctrl+C", group: "editing" },
+  { action: "paste", keys: "Ctrl+V", group: "editing" },
+  { action: "duplicate", keys: "Ctrl+D", group: "editing" },
   { action: "clear", keys: "Esc", group: "editing" },
   { action: "play", keys: "Space", group: "playback" },
   { action: "start", keys: "Home", group: "playback" },

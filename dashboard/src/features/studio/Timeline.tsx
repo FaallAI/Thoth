@@ -10,7 +10,7 @@ import { TimelineTrack } from "./TimelineTrack";
 import { ReplaceMediaDialog } from "./ReplaceMediaDialog";
 import { clipMenu, gapMenu, trackMenu, type MenuContext } from "./timeline_menus";
 import { isTypingTarget, timelineKey } from "./studio_keys";
-import { deleteClips, moveClips, rippleDeleteClips, splitAt } from "./timeline_edits";
+import { deleteClips, duplicateClips, moveClips, pasteClips, rippleDeleteClips, splitAt } from "./timeline_edits";
 import {
   clampZoom,
   compatibleTrackIds,
@@ -124,6 +124,12 @@ export function Timeline({
   // One right-click menu for clips, gaps and tracks (spec 2026-11-08 §5.1), and the clip being replaced.
   const menu = useContextMenu();
   const [replacing, setReplacing] = useState<string | null>(null);
+  // Clips copied in this page (spec 2026-11-08 §6): ids in the open draft, never the system clipboard.
+  const copied = useRef<readonly string[]>([]);
+  const documentId = isTimelineDocument(state.draft) ? state.draft.document_id : "";
+  useEffect(() => {
+    copied.current = [];
+  }, [documentId]);
 
   // Keep the listeners' view of the editor current without re-attaching them.
   const latest = useRef({ state, dispatch, timeline, onSeek, onPlay, onPause, readOnly, editingKeys });
@@ -365,6 +371,20 @@ export function Timeline({
           send({ type: "set_zoom", zoom: clampZoom(width / doc.canvas.duration_in_frames) });
           break;
         }
+        case "copy":
+          // Text the person selected on the page copies as the browser does.
+          if (!selection.length || window.getSelection?.()?.toString()) return;
+          copied.current = selection;
+          break;
+        case "paste":
+          // With no copied clips the browser's paste goes on, for text (Task 8).
+          if (!copied.current.length) return;
+          commitEdit(pasteClips(doc, copied.current, current.playheadFrame).operations);
+          break;
+        case "duplicate":
+          if (!selection.length) return;
+          commitEdit(duplicateClips(doc, selection).operations);
+          break;
         case "select_all":
           send({ type: "select_clips", clipIds: selectableLanes(doc).flatMap((lane) => lane.clips.map((clip) => clip.clip_id)) });
           break;
@@ -589,6 +609,10 @@ export function Timeline({
                           storyBeat: beatOf?.(clip.clip_id) ?? null,
                           onShowInStory: onShowInStory ? () => onShowInStory(clip.clip_id) : undefined,
                           selection: selectedIds,
+                          copied: copied.current,
+                          onCopy: (ids) => {
+                            copied.current = ids;
+                          },
                         }),
                       )
               }
