@@ -47,7 +47,7 @@ copy and paste, undo every step), and a screen whose names and numbers read as p
 
 - Every edit is a typed operation saved through the existing autosave and revision flow; one user
   action is one patch (one revision, one undo step), even when it carries several operations
-  (ripple delete is `remove_clip` plus the `move_clip` of every later clip on that track).
+  (ripple delete is `remove_clip` plus the `move_clip` of every later clip on every track).
 - New operations (Tier 2 and 3) get defaults on every new field so stored documents and older
   clients still decode (`AGENTS.md`), and are mirrored in `timeline_domain.ts` and
   `domain/timeline_operations.py` with tests on both sides.
@@ -74,7 +74,7 @@ copy and paste, undo every step), and a screen whose names and numbers read as p
 | Key | Action |
 |---|---|
 | Delete, Backspace | Delete the selected clip (`remove_clip`) |
-| Shift+Delete | Ripple delete: delete and pull later clips on that track left |
+| Shift+Delete | Ripple delete: delete and pull later clips on every track left |
 | S | Split the selected clip at the playhead (`split_clip`) |
 | Space | Play / pause |
 | Home, End | Playhead to start, to end |
@@ -94,7 +94,13 @@ belongs to a beat). Entries that do not apply stay visible and disabled with the
 tooltip (a locked clip, a playhead outside the clip).
 
 **Right-click or hover on a gap** between two clips on one track: "Close this gap" (one patch of
-`move_clip` for every later clip on that track).
+`move_clip` for every later clip on every track).
+
+**Ripple across tracks** (operator, 2026-11-08, like Premiere's sync lock): ripple delete and close
+gap move the later clips of **every** track, so narration, captions, overlays and music stay in sync
+with the video. The edit is refused, with the reason shown, when a clip on another track lies in the
+removed stretch ("Another track has a clip here; trim or delete it first") or when a clip that would
+move is locked or sits on a locked track.
 
 **Right-click on a track name:** Select track (the Inspector shows the track) · Move up / Move
 down (`reorder_track`) · Hide / Mute / Lock (existing toggles) · Remove empty track

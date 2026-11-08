@@ -32,7 +32,7 @@
 ## Review Focus
 
 1. **A key pressed while typing in a field.** Delete in the heading box, S in caption text, Ctrl+Z in an Inspector number field must do the field's own thing and never edit the timeline (Task 3).
-2. **Ripple delete or close gap with a locked clip later on the track.** The helper returns no operations, and the entry is disabled with the reason "A later clip is locked" (Task 2).
+2. **Ripple delete or close gap with a locked clip later on any track.** The helper returns no operations, and the entry is disabled with the reason "A later clip is locked" (Task 2).
 3. **A menu opened near the bottom-right corner.** It stays inside the viewport (Task 1).
 4. **Space while a button or checkbox has focus.** The control's own action runs, and playback does not also toggle (Task 3).
 5. **A drag over an incompatible lane** (a video clip over Music). Nothing moves to that lane; the clip stays on its own track at the dragged frame (Task 4).
@@ -94,14 +94,14 @@
 - Consumes: `EditDocumentV2`, `EditDocumentOperation`, `compatibleTrackIds` from `timeline_domain.ts`.
 - Produces. Every helper returns `[]` when the edit is not allowed, and `newId("op")` makes the ids:
   ```ts
-  export type Refusal = "locked" | "later_locked" | "outside" | "no_gap" | "not_empty" | "edge" | "incompatible";
+  export type Refusal = "locked" | "later_locked" | "crossing" | "outside" | "no_gap" | "not_empty" | "edge" | "incompatible";
   export type Edit = { operations: EditDocumentOperation[]; refusal?: Refusal };
   export function deleteClip(doc: EditDocumentV2, clipId: string): Edit;
-  export function rippleDelete(doc: EditDocumentV2, clipId: string): Edit;          // remove_clip, then move_clip for each later clip on the track, ascending
+  export function rippleDelete(doc: EditDocumentV2, clipId: string): Edit;          // remove_clip, then move_clip for each later clip on EVERY track, ascending per track (operator, 2026-11-08)
   export function splitAt(doc: EditDocumentV2, clipId: string, frame: number): Edit; // refusal "outside" unless from < frame < end
   export function moveToTrack(doc: EditDocumentV2, clipId: string, trackId: string): Edit; // move_clip, same from_frame, ripple false
   export function gapAt(doc: EditDocumentV2, trackId: string, frame: number): { start: number; end: number } | null; // between two clips only
-  export function closeGap(doc: EditDocumentV2, trackId: string, frame: number): Edit; // moves every clip at or after gap.end left by its length
+  export function closeGap(doc: EditDocumentV2, trackId: string, frame: number): Edit; // moves every clip on EVERY track at or after gap.end left by its length
   export function moveTrack(doc: EditDocumentV2, trackId: string, direction: -1 | 1): Edit; // two reorder_track ops swapping `order` with the neighbour; refusal "edge"
   export function removeTrack(doc: EditDocumentV2, trackId: string): Edit;          // remove_empty_track; refusal "not_empty"
   export function setClipFlag(doc: EditDocumentV2, clipId: string, flag: "hidden" | "locked", value: boolean): Edit;
@@ -109,15 +109,17 @@
 - [ ] **Step 1: Write the failing tests** with `timelineDocument()`. In that fixture, `clip_main` is on `track_main` at 0 for 120 frames, `clip_locked` is on `track_broll` at 150, and `clip_music` is on `track_music` at 150 for 90 frames. The tests:
   - `deleteClip(clip_main)` gives one `remove_clip`.
   - `deleteClip(clip_locked)` gives refusal `locked`.
-  - `rippleDelete` on a document with three clips on `track_main` (0–60, 60–100, 130–160):
-    - removing the first gives `remove_clip` and then `move_clip`s to 0 and 70, in that order;
+  - `rippleDelete` moves every track (operator, 2026-11-08). On a document with three clips on `track_main` (0–60, 60–100, 130–160) and an audio clip on `track_music` at 100–130:
+    - removing the first clip gives `remove_clip`, then `move_clip`s on `track_main` to 0 and 70 and on `track_music` to 40;
+    - with the music clip at 30–90 instead (it lies in the removed 0–60 stretch), it gives refusal `crossing`;
+    - with the music clip locked, it gives refusal `later_locked`;
     - when the last clip is locked, it gives refusal `later_locked`.
   - `splitAt(clip_main, 60)` gives one `split_clip` with `split_frame` 60 and two new clip ids. Frames 0 and 120 give refusal `outside`.
   - `moveToTrack(clip_main, "track_broll")` gives one `move_clip` with `target_track_id` "track_broll" and `from_frame` 0. Moving it to `track_music` gives refusal `incompatible`, because `compatibleTrackIds` excludes that track for a video clip.
   - `gapAt` and `closeGap` on the three-clip document:
     - `gapAt(track_main, 110)` is `{ start: 100, end: 130 }`;
     - `gapAt(track_main, 200)` is null, because there is no clip after it;
-    - `closeGap` at 110 moves the third clip to 100.
+    - `closeGap` at 110 moves the third clip to 100 and the music clip (at 130–160 in this case) to 100 too; a music clip at 105–125 gives refusal `crossing`.
   - `moveTrack(track_broll, -1)` gives two `reorder_track` ops with orders 0 and 1 swapped. `moveTrack(track_main, -1)` gives refusal `edge`.
   - `removeTrack(track_captions)` is refused as `locked` (the track is locked in the fixture). `removeTrack(track_main)` is refused as `not_empty`.
   - **Every helper's operations apply.** For each non-refused result, `batchDraft` from `editor_state.ts` (export it if needed) returns a document. This proves the client accepts the batch.
