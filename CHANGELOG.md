@@ -63,8 +63,19 @@ Branch `feat/studio-timeline-track` from master `5b20306e`, not pushed.
   - four write tests added (Delete, Move to track, the ripple reason, `?`);
   - the fragile cut-to-fit test now checks the cut, not one file's length.
 
+**Final review** (a fresh reviewer read the whole branch). The verdict was "with fixes". Six findings were fixed test-first in `1cd3b2b4`; each test failed first:
+- in Review or Render, Delete and S still edited the hidden draft;
+- leaving an untouched time field moved the clip (rounding);
+- keys passed through an open menu or dialog;
+- arrows on the zoom slider moved the playhead;
+- Space did not play with a clip focused;
+- a menu with every entry disabled could not close on Escape.
+
+Eleven minor findings are recorded in the checkpoint for Tier 2.
+
 **Verification (WSL):**
-- dashboard: 993 Studio and component tests passed, 0 failed; `make dashboard-build` clean;
+- dashboard: 1687 tests passed, 0 failed, after the fixes; `make dashboard-build` clean;
+- Python: `make test` 4643 passed, 221 skipped; `make lint` clean;
 - Python: `tests/domain/test_timeline_operations.py` 118 passed.
 - The full-suite numbers are in the checkpoint.
 
@@ -74,6 +85,7 @@ Branch `feat/studio-timeline-track` from master `5b20306e`, not pushed.
 - The Fit / Crop / Position red test belongs to Tier 2.
 
 **Next steps** (each gate is its own operator decision):
+- **Ripple decision, before deploy.** As decided, ripple delete and close gap move every track and are refused when another track has a clip in the stretch. A full-length heading or music bed sits in every stretch, so on most real drafts the edit is refused. Should clips that span the whole stretch shorten by the removed length instead?
 - **Write token:** a new one-day write-scope e2e token. The 2026-11-08 one expired at 16:38.
   - With it, run the rewritten undo test once on the current deploy, expecting it to fail. This proves it catches the missing keys.
 - **Push and PR** of `feat/studio-timeline-track`.
