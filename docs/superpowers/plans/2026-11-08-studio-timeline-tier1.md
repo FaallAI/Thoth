@@ -328,6 +328,12 @@
 - Modify: `CHANGELOG.md`, `docs/ROADMAP.md` (track status, additions only), `.superpowers/sdd/2026-11-08-studio-timeline-track/progress.md` (new checkpoint)
 
 - [ ] **Step 1: Fix the fragile test.** "a video longer than the canvas is cut to fit…" uploads its own 80 s fixture through the Asset library's Upload file, then adds that row by its new name. It no longer adds the newest `Upload · Video`.
+- [ ] **Step 1b: Make the undo test prove Studio's undo.** `keyboard: Ctrl+Z undoes and Ctrl+Y redoes` passed on 2026-11-08 with no handler in the code; the browser's own undo of the "End frame" field reverted the typing. Rewrite the test:
+  - make the edit without a text field: tap "Trim end to playhead" with the playhead at frame 30, and expect the saved duration to be 30;
+  - press Escape, then tap the ruler, so focus is on no field;
+  - press Control+z and expect the saved duration to go back to 90;
+  - press Control+y and expect 30 again.
+  Run it once against the current deploy before Task 3 lands (expect FAIL), so the test is shown to catch the missing handler.
 - [ ] **Step 2: Add write tests** to `timeline-audit.e2e.ts`, in the existing style:
   - `right click: ripple delete pulls the next clip left`;
   - `right click: close this gap`;
