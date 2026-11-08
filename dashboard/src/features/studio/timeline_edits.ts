@@ -3,7 +3,7 @@
 import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane";
 import { compatibleTrackIds } from "./timeline_domain";
 
-export type Refusal = "locked" | "later_locked" | "crossing" | "outside" | "no_gap" | "not_empty" | "edge" | "incompatible";
+export type Refusal = "locked" | "later_locked" | "crossing" | "scene" | "outside" | "no_gap" | "not_empty" | "edge" | "incompatible";
 export type Edit = { operations: EditDocumentOperation[]; refusal?: Refusal };
 
 type Clip = NonNullable<EditDocumentV2["clips"]>[number];
@@ -33,11 +33,39 @@ function pullLeft(doc: EditDocumentV2, clips: Clip[], from: number, length: numb
     }));
 }
 
+/**
+ * A clip on another track that covers the whole stretch [start, end) and outlasts it: a heading or a
+ * music bed. It shortens by the stretch's length instead of blocking the edit (operator, 2026-11-08).
+ */
+const spans = (clip: Clip, start: number, end: number) =>
+  clip.from_frame <= start && endOf(clip) >= end && clip.duration_in_frames > end - start;
+
 /** Refusal for pulling `others` left over the stretch [start, end), or nothing when it may. */
 function blocked(doc: EditDocumentV2, others: Clip[], start: number, end: number): Refusal | undefined {
-  if (others.some((clip) => clip.from_frame < end && endOf(clip) > start)) return "crossing";
-  if (others.some((clip) => clip.from_frame >= end && isLocked(doc, clip))) return "later_locked";
+  const inside = others.filter((clip) => clip.from_frame < end && endOf(clip) > start);
+  if (inside.some((clip) => !spans(clip, start, end))) return "crossing";
+  const later = others.filter((clip) => clip.from_frame >= end);
+  if ([...inside, ...later].some((clip) => isLocked(doc, clip))) return "later_locked";
+  // The server keeps a scene-bound clip inside its scene; a pull that leaves it would be refused on save.
+  const length = end - start;
+  const leaves = (clip: Clip) => {
+    const scene = clip.scene_id ? doc.scenes.find((entry) => entry.scene_id === clip.scene_id) : undefined;
+    return Boolean(scene) && clip.from_frame - length < scene!.start_frame;
+  };
+  if (later.some(leaves)) return "scene";
   return undefined;
+}
+
+/** Shorten every clip that spans [start, end) by the stretch's length. */
+function shorten(others: Clip[], start: number, end: number): EditDocumentOperation[] {
+  return others
+    .filter((clip) => clip.from_frame < end && endOf(clip) > start && spans(clip, start, end))
+    .map((clip) => ({
+      kind: "trim_clip_end",
+      operation_id: newId("op"),
+      clip_id: clip.clip_id,
+      end_frame: endOf(clip) - (end - start),
+    }));
 }
 
 export function deleteClip(doc: EditDocumentV2, clipId: string): Edit {
@@ -57,6 +85,7 @@ export function rippleDelete(doc: EditDocumentV2, clipId: string): Edit {
   return {
     operations: [
       { kind: "remove_clip", operation_id: newId("op"), clip_id: clipId },
+      ...shorten(others, clip.from_frame, endOf(clip)),
       ...pullLeft(doc, others, endOf(clip), clip.duration_in_frames),
     ],
   };
@@ -119,7 +148,12 @@ export function closeGap(doc: EditDocumentV2, trackId: string, frame: number): E
   // The gap's own track holds nothing inside it, so every clip can be checked at once.
   const refusal = blocked(doc, clipsOf(doc), gap.start, gap.end);
   if (refusal) return refuse(refusal);
-  return { operations: pullLeft(doc, clipsOf(doc), gap.end, gap.end - gap.start) };
+  return {
+    operations: [
+      ...shorten(clipsOf(doc), gap.start, gap.end),
+      ...pullLeft(doc, clipsOf(doc), gap.end, gap.end - gap.start),
+    ],
+  };
 }
 
 export function moveTrack(doc: EditDocumentV2, trackId: string, direction: -1 | 1): Edit {

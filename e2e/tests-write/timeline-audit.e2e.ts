@@ -281,11 +281,16 @@ test('right click: Move to track moves the clip to B-roll', async ({ app, browse
   await expect.poll(async () => (await mainClip(browser)).length, { timeout: 5000 }).toBe(0);
 });
 
-test('right click: Ripple delete says why while the heading spans the stretch', async ({ app, browser, screen }) => {
-  // A blank draft's heading runs the whole canvas on another track, so a ripple would slide clips under it.
+test('right click: Ripple delete removes the clip and shortens the heading that spans it', async ({ app, browser, screen }) => {
+  // A blank draft's heading runs the whole canvas on another track; it shortens by the removed
+  // stretch instead of blocking the edit (operator, 2026-11-08).
   await clipOnTimeline({ app, browser, screen });
+  const heading = async () => (await saved(browser)).clips.find((clip: any) => clip.kind === 'text');
+  const before = (await heading()).duration_in_frames;
   await screen.getByRole('button', 'Main Video clip').secondaryTap();
-  await expect(screen.getByRole('menuitem', 'Ripple delete')).toHaveAttribute('title', 'Another track has a clip here; trim or delete it first');
+  await screen.getByRole('menuitem', 'Ripple delete').tap();
+  await expect.poll(async () => (await mainClip(browser)).length, { timeout: 5000 }).toBe(0);
+  await expect.poll(async () => (await heading()).duration_in_frames, { timeout: 5000 }).toBe(before - 90);
 });
 
 test('keyboard: ? opens the shortcut list', async ({ app, browser, screen }) => {

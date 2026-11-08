@@ -141,3 +141,45 @@ test("setClipFlag hides and locks, and a locked clip can still be unlocked", () 
   expect(setClipFlag(doc, "clip_locked", "hidden", true).refusal).toBe("locked");
   expect(shape(setClipFlag(doc, "clip_locked", "locked", false))).toEqual([{ kind: "set_clip_locked", clip_id: "clip_locked", locked: false }]);
 });
+
+// Operator, 2026-11-08: a clip that spans the whole removed stretch (a heading, a music bed)
+// shortens by the removed length instead of blocking the edit; a clip cut part-way still blocks.
+test("rippleDelete shortens a clip that spans the whole stretch, then pulls the rest left", () => {
+  const doc = threeClips({ from: 0, length: 200 });
+  const edit = rippleDelete(doc, "a");
+  expect(shape(edit)).toEqual([
+    { kind: "remove_clip", clip_id: "a" },
+    { kind: "trim_clip_end", clip_id: "clip_music", end_frame: 140 },
+    { kind: "move_clip", clip_id: "b", target_track_id: "track_main", from_frame: 0, ripple: false },
+    { kind: "move_clip", clip_id: "c", target_track_id: "track_main", from_frame: 70, ripple: false },
+  ]);
+  const after = applies(doc, edit);
+  expect(after.clips!.find((clip) => clip.clip_id === "clip_music")!.duration_in_frames).toBe(140);
+});
+
+test("rippleDelete still refuses a spanning clip that is locked", () => {
+  expect(rippleDelete(threeClips({ from: 0, length: 200, locked: true }), "a").refusal).toBe("later_locked");
+});
+
+test("rippleDelete refuses a clip that lies exactly on the stretch", () => {
+  expect(rippleDelete(threeClips({ from: 0, length: 60 }), "a").refusal).toBe("crossing");
+});
+
+test("closeGap shortens a clip that spans the whole gap", () => {
+  const doc = threeClips({ from: 90, length: 70 });
+  const edit = closeGap(doc, "track_main", 110);
+  expect(shape(edit)).toEqual([
+    { kind: "trim_clip_end", clip_id: "clip_music", end_frame: 130 },
+    { kind: "move_clip", clip_id: "c", target_track_id: "track_main", from_frame: 100, ripple: false },
+  ]);
+  applies(doc, edit);
+});
+
+// Final pass 2026-11-08: the server keeps a scene-bound clip inside its scene; the client must not
+// make an edit the server then refuses.
+test("rippleDelete refuses when a later clip would leave its scene", () => {
+  const doc = threeClips();
+  doc.scenes.push({ scene_id: "scene_late", role: "source", start_frame: 100, duration_in_frames: 200, clip_ids: ["clip_music"] });
+  doc.clips!.find((clip) => clip.clip_id === "clip_music")!.scene_id = "scene_late";
+  expect(rippleDelete(doc, "a").refusal).toBe("scene");
+});

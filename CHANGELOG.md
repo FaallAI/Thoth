@@ -73,9 +73,16 @@ Branch `feat/studio-timeline-track` from master `5b20306e`, not pushed.
 
 Eleven minor findings are recorded in the checkpoint for Tier 2.
 
+**Ripple decided (operator, 2026-11-08: "ya setuju").** The refusal rule made ripple delete and close gap unusable on most real drafts, because a full-length heading or music bed lies in every stretch. Now:
+- a clip on another track that spans the whole stretch (a heading, a music bed) shortens by the removed length (`trim_clip_end`) instead of blocking;
+- a clip cut part-way, or lying exactly on the stretch, still refuses, with the reason "A clip on another track is cut part-way here";
+- a pull that would take a scene-bound clip out of its scene refuses ("A clip would leave its scene"), because the server rejects that on save. The server test proving it found the rule. The narrated draft has one full-length scene, so its edits pass;
+- the server guard test applies remove, shorten and the pulls on a v2 document;
+- the write e2e test now expects the blank draft's heading to shorten by the removed 90 frames.
+
 **Verification (WSL):**
-- dashboard: 1687 tests passed, 0 failed, after the fixes; `make dashboard-build` clean;
-- Python: `make test` 4643 passed, 221 skipped; `make lint` clean;
+- dashboard: 1692 tests passed, 0 failed, after the fixes and the ripple change; `make dashboard-build` clean;
+- Python: `make test` 4643 passed, 221 skipped; `tests/domain/test_timeline_operations.py` 119 passed after the ripple change; `make lint` clean;
 - Python: `tests/domain/test_timeline_operations.py` 118 passed.
 - The full-suite numbers are in the checkpoint.
 
@@ -85,7 +92,6 @@ Eleven minor findings are recorded in the checkpoint for Tier 2.
 - The Fit / Crop / Position red test belongs to Tier 2.
 
 **Next steps** (each gate is its own operator decision):
-- **Ripple decision, before deploy.** As decided, ripple delete and close gap move every track and are refused when another track has a clip in the stretch. A full-length heading or music bed sits in every stretch, so on most real drafts the edit is refused. Should clips that span the whole stretch shorten by the removed length instead?
 - **Write token:** a new one-day write-scope e2e token. The 2026-11-08 one expired at 16:38.
   - With it, run the rewritten undo test once on the current deploy, expecting it to fail. This proves it catches the missing keys.
 - **Push and PR** of `feat/studio-timeline-track`.

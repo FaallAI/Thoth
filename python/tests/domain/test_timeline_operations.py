@@ -1353,3 +1353,41 @@ def test_ripple_delete_batch_applies_in_order() -> None:
     )
 
     assert track_ranges(result, "track_main_video") == [("clip_b", 0, 40), ("clip_c", 70, 30)]
+
+
+def three_part_main() -> EditDocumentV2:
+    """Main clips at 0-60, 60-100 and 130-160 in one full-length scene, as narrated drafts are.
+
+    The overlay keeps its 0-150 text (scene-bound) and its 150-300 text (no scene).
+    """
+    payload = document_v2_payload()
+    main = clip_by_id(payload, "clip_main")
+    parts = []
+    for clip_id, start, length in (("clip_a", 0, 60), ("clip_b", 60, 40), ("clip_c", 130, 30)):
+        part = deepcopy(main)
+        part.update({"clip_id": clip_id, "from_frame": start, "duration_in_frames": length})
+        parts.append(part)
+    payload["clips"] = [clip for clip in payload["clips"] if clip["clip_id"] != "clip_main"] + parts
+    track_by_id(payload, "track_main_video")["clip_ids"] = ["clip_a", "clip_b", "clip_c"]
+    clip_by_id(payload, "clip_002")["scene_id"] = None
+    first = payload["scenes"][0]
+    first.update({"duration_in_frames": 300, "clip_ids": ["clip_001"]})
+    payload["scenes"] = [first]
+    return EditDocumentV2.model_validate(payload)
+
+
+def test_ripple_delete_shortens_a_spanning_clip_and_pulls_the_rest() -> None:
+    """2026-11-08: the overlay text spanning the removed 0-60 shortens; the later one moves left."""
+    result = apply_edit_operations(
+        three_part_main(),
+        [
+            RemoveClip(kind="remove_clip", operation_id="op_remove", clip_id="clip_a"),
+            trim_end("clip_001", 90),
+            move("clip_b", "track_main_video", 0),
+            move("clip_c", "track_main_video", 70),
+            move("clip_002", "track_overlay", 90),
+        ],
+    )
+
+    assert track_ranges(result, "track_main_video") == [("clip_b", 0, 40), ("clip_c", 70, 30)]
+    assert track_ranges(result, "track_overlay") == [("clip_001", 0, 90), ("clip_002", 90, 150)]

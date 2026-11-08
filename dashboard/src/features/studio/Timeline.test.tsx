@@ -513,7 +513,7 @@ test("Delete commits one edit, and a Ripple delete across another track's clip i
   // The locked B-roll clip (150–200) lies inside the Music clip's stretch (150–240).
   fireEvent.contextMenu(screen.getByRole("button", { name: "Music clip" }), { clientX: 5, clientY: 5 });
   const ripple = screen.getByRole("menuitem", { name: "Ripple delete" });
-  expect(ripple.getAttribute("title")).toBe("Another track has a clip here; trim or delete it first");
+  expect(ripple.getAttribute("title")).toBe("A clip on another track is cut part-way here; trim or delete it first");
   fireEvent.click(ripple);
   expect(committed(actions)).toEqual([["remove_clip"]]);
 });
