@@ -10,7 +10,7 @@ import { TimelineTrack } from "./TimelineTrack";
 import { ReplaceMediaDialog } from "./ReplaceMediaDialog";
 import { clipMenu, gapMenu, trackMenu, type MenuContext } from "./timeline_menus";
 import { isTypingTarget, timelineKey } from "./studio_keys";
-import { deleteClip, rippleDelete, splitAt } from "./timeline_edits";
+import { deleteClips, moveClips, rippleDeleteClips, splitAt } from "./timeline_edits";
 import {
   clampZoom,
   compatibleTrackIds,
@@ -57,11 +57,19 @@ type Gesture = {
   anchor: number;
   operationId: string;
   previewed: boolean;
+  /** A move of a clip inside a larger selection drags them all (spec 2026-11-08 §6). */
+  group?: readonly string[];
 };
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
 
 /** Snap within a fixed screen distance, so zooming out does not widen the pull. */
+/** Every selected clip, the primary one included however the state was made. */
+const selectionOf = (state: EditorState) =>
+  state.selectedClipId && !state.selectedClipIds.includes(state.selectedClipId)
+    ? [...state.selectedClipIds, state.selectedClipId]
+    : state.selectedClipIds;
+
 /** How far a press on empty lane space moves before it becomes a marquee. */
 const MARQUEE_SLOP = 4;
 
@@ -101,10 +109,7 @@ export function Timeline({
   const clips = timeline?.clips ?? [];
   const selectedClip = clips.find((clip) => clip.clip_id === state.selectedClipId);
   // The primary clip is always part of the selection, however the state was made.
-  const selectedIds =
-    state.selectedClipId && !state.selectedClipIds.includes(state.selectedClipId)
-      ? [...state.selectedClipIds, state.selectedClipId]
-      : state.selectedClipIds;
+  const selectedIds = selectionOf(state);
   const trackOf = (trackId: string) => timeline?.tracks.find((t) => t.track_id === trackId);
   const selectionLocked = selectedClip
     ? selectedClip.locked === true || trackOf(selectedClip.track_id)?.locked === true
@@ -178,6 +183,15 @@ export function Timeline({
         : active.homeTrackId;
   };
 
+  /** The whole selection moved by the dragged clip's delta, measured on the document before the drag. */
+  const groupMove = (active: Gesture, clientX: number) => {
+    const { state: current, timeline: doc } = latest.current;
+    const origin = current.preview?.draft;
+    const before = origin && isTimelineDocument(origin) ? origin : doc;
+    if (!before || !active.group) return [];
+    return moveClips(before, active.group, frameAt(active, clientX) - active.anchor).operations;
+  };
+
   const operationFor = (active: Gesture, frame: number): EditDocumentOperation => {
     switch (active.mode) {
       case "trim_start":
@@ -236,6 +250,12 @@ export function Timeline({
       const active = gesture.current;
       if (!active) return;
       active.previewed = true;
+      if (active.group) {
+        // A group keeps its tracks and moves by one delta; a refused delta keeps the last preview.
+        const operations = groupMove(active, event.clientX);
+        if (operations.length) latest.current.dispatch({ type: "preview_timeline_operations", operations });
+        return;
+      }
       followLane(active, event.clientX, event.clientY);
       latest.current.dispatch({
         type: "preview_timeline_operation",
@@ -248,6 +268,12 @@ export function Timeline({
       const active = gesture.current;
       end();
       if (!active?.previewed) return;
+      if (active.group) {
+        const operations = groupMove(active, event.clientX);
+        latest.current.dispatch({ type: "cancel_timeline_preview" });
+        if (operations.length) latest.current.dispatch({ type: "commit_operations", operations });
+        return;
+      }
       followLane(active, event.clientX, event.clientY);
       latest.current.dispatch({
         type: "commit_timeline_operation",
@@ -296,14 +322,15 @@ export function Timeline({
         if (operations.length) send({ type: "commit_operations", operations });
       };
       const clipId = current.selectedClipId;
+      const selection = selectionOf(current);
       switch (action) {
         case "delete":
           if (!clipId) return;
-          commitEdit(deleteClip(doc, clipId).operations);
+          commitEdit(deleteClips(doc, selection).operations);
           break;
         case "ripple_delete":
           if (!clipId) return;
-          commitEdit(rippleDelete(doc, clipId).operations);
+          commitEdit(rippleDeleteClips(doc, selection).operations);
           break;
         case "split":
           if (!clipId) return;
@@ -393,6 +420,7 @@ export function Timeline({
       anchor: mode === "trim_end" ? clip.from_frame + clip.duration_in_frames : clip.from_frame,
       operationId: newId("op"),
       previewed: false,
+      group: mode === "move" && selectedIds.length > 1 && selectedIds.includes(clipId) ? selectedIds : undefined,
     };
   };
 
@@ -560,6 +588,7 @@ export function Timeline({
                           onReplace: () => setReplacing(clip.clip_id),
                           storyBeat: beatOf?.(clip.clip_id) ?? null,
                           onShowInStory: onShowInStory ? () => onShowInStory(clip.clip_id) : undefined,
+                          selection: selectedIds,
                         }),
                       )
               }

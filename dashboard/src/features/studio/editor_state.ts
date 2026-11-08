@@ -105,6 +105,8 @@ export type EditorAction =
   | { type: "upgrade_conflicted"; latest: EditDocument }
   | { type: "upgrade_failed" }
   | { type: "preview_timeline_operation"; operation: EditDocumentOperation }
+  /** A drag of several clips: the batch shows on screen; commit_operations keeps it (spec 2026-11-08 §6). */
+  | { type: "preview_timeline_operations"; operations: EditDocumentOperation[] }
   | { type: "commit_timeline_operation"; operation: EditDocumentOperation }
   /** Several operations as one undo step; one refusal discards them all (Story mode). */
   | { type: "commit_operations"; operations: EditDocumentOperation[] }
@@ -174,6 +176,7 @@ const DOCUMENT_ACTIONS = new Set<EditorAction["type"]>([
   "reload_latest",
   "keep_editing_locally",
   "preview_timeline_operation",
+  "preview_timeline_operations",
   "commit_timeline_operation",
   "commit_operations",
   "cancel_timeline_preview",
@@ -699,6 +702,11 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
     case "preview_timeline_operation": {
       const origin = gestureOrigin(state);
       const draft = timelineDraft(origin, action.operation, state.assets);
+      return draft ? { ...state, preview: origin, draft } : state;
+    }
+    case "preview_timeline_operations": {
+      const origin = gestureOrigin(state);
+      const draft = batchDraft({ ...state, ...origin }, action.operations);
       return draft ? { ...state, preview: origin, draft } : state;
     }
     case "cancel_timeline_preview":

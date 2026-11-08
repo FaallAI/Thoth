@@ -1037,3 +1037,33 @@ test("a removed clip leaves the selection after commit_operations", () => {
   expect(state.selectedClipIds).toEqual(["clip_main"]);
   expect(state.selectedClipId).toBe("clip_main");
 });
+
+test("one batch for two clips undoes at once", () => {
+  const removed = selecting({
+    type: "commit_operations",
+    operations: [
+      { kind: "remove_clip", operation_id: "op_a", clip_id: "clip_main" },
+      { kind: "remove_clip", operation_id: "op_b", clip_id: "clip_music" },
+    ],
+  });
+  expect(removed.draft.clips!.map((clip) => clip.clip_id)).toEqual(["clip_locked"]);
+  const undone = editorReducer(removed, { type: "undo" });
+  expect(undone.draft.clips!.map((clip) => clip.clip_id).sort()).toEqual(["clip_locked", "clip_main", "clip_music"]);
+});
+
+test("preview_timeline_operations previews a batch and Escape restores it", () => {
+  const moves = (frame: number): EditorAction => ({
+    type: "preview_timeline_operations",
+    operations: [
+      { kind: "move_clip", operation_id: "op_a", clip_id: "clip_main", target_track_id: "track_main", from_frame: frame, ripple: false },
+      { kind: "move_clip", operation_id: "op_b", clip_id: "clip_music", target_track_id: "track_music", from_frame: 150 + frame, ripple: false },
+    ],
+  });
+  const previewed = selecting(moves(10), moves(20));
+  const at = (state: typeof previewed, id: string) =>
+    (state.draft as EditDocumentV2).clips!.find((clip) => clip.clip_id === id)!.from_frame;
+  expect([at(previewed, "clip_main"), at(previewed, "clip_music")]).toEqual([20, 170]);
+  expect(previewed.history).toHaveLength(0);
+  const cancelled = editorReducer(previewed, { type: "cancel_timeline_preview" });
+  expect([at(cancelled, "clip_main"), at(cancelled, "clip_music")]).toEqual([0, 150]);
+});

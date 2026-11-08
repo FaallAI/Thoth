@@ -1,7 +1,7 @@
 // Timeline edits as typed operations (spec 2026-11-08 §5.1). Each helper answers the whole batch
 // one user action commits, or a refusal the menu shows as its reason; it never edits in place.
 import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane";
-import { compatibleTrackIds } from "./timeline_domain";
+import { applyTimelineOperation, compatibleTrackIds } from "./timeline_domain";
 
 export type Refusal = "locked" | "later_locked" | "crossing" | "scene" | "outside" | "no_gap" | "not_empty" | "edge" | "incompatible";
 export type Edit = { operations: EditDocumentOperation[]; refusal?: Refusal };
@@ -189,4 +189,58 @@ export function setClipFlag(doc: EditDocumentV2, clipId: string, flag: "hidden" 
     return { operations: [{ kind: "set_clip_hidden", operation_id: newId("op"), clip_id: clipId, hidden: value }] };
   }
   return { operations: [{ kind: "set_clip_locked", operation_id: newId("op"), clip_id: clipId, locked: value }] };
+}
+
+// --------------------------------------------------------------------------
+// The whole selection (spec 2026-11-08 §6): one batch for every clip, or a refusal for all.
+// --------------------------------------------------------------------------
+
+const picked = (doc: EditDocumentV2, ids: readonly string[]) => clipsOf(doc).filter((clip) => ids.includes(clip.clip_id));
+
+/** Apply a batch on a working copy, the way `commit_operations` will. */
+const applied = (doc: EditDocumentV2, operations: EditDocumentOperation[]) =>
+  operations.reduce((current, operation) => applyTimelineOperation(current, operation, {}), doc);
+
+export function deleteClips(doc: EditDocumentV2, ids: readonly string[]): Edit {
+  const clips = picked(doc, ids);
+  if (clips.some((clip) => isLocked(doc, clip))) return refuse("locked");
+  return { operations: clips.map((clip) => ({ kind: "remove_clip", operation_id: newId("op"), clip_id: clip.clip_id })) };
+}
+
+/** Ripple each clip out, the latest first, on the document the earlier removals left. */
+export function rippleDeleteClips(doc: EditDocumentV2, ids: readonly string[]): Edit {
+  const order = picked(doc, ids).sort((left, right) => right.from_frame - left.from_frame);
+  const operations: EditDocumentOperation[] = [];
+  let current = doc;
+  for (const clip of order) {
+    const edit = rippleDelete(current, clip.clip_id);
+    if (edit.refusal) return refuse(edit.refusal);
+    operations.push(...edit.operations);
+    current = applied(current, edit.operations);
+  }
+  return { operations };
+}
+
+export function setClipsFlag(doc: EditDocumentV2, ids: readonly string[], flag: "hidden" | "locked", value: boolean): Edit {
+  const edits = picked(doc, ids).map((clip) => setClipFlag(doc, clip.clip_id, flag, value));
+  const refused = edits.find((edit) => edit.refusal);
+  return refused ? refuse(refused.refusal!) : { operations: edits.flatMap((edit) => edit.operations) };
+}
+
+/** Every clip by the same frames on its own track; nothing leaves the canvas. */
+export function moveClips(doc: EditDocumentV2, ids: readonly string[], delta: number): Edit {
+  const clips = picked(doc, ids);
+  if (clips.some((clip) => isLocked(doc, clip))) return refuse("locked");
+  const canvas = doc.canvas.duration_in_frames;
+  if (clips.some((clip) => clip.from_frame + delta < 0 || endOf(clip) + delta > canvas)) return refuse("outside");
+  return {
+    operations: clips.map((clip) => ({
+      kind: "move_clip",
+      operation_id: newId("op"),
+      clip_id: clip.clip_id,
+      target_track_id: clip.track_id,
+      from_frame: clip.from_frame + delta,
+      ripple: false,
+    })),
+  };
 }

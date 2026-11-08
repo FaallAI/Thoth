@@ -7,6 +7,10 @@ import { applyTimelineOperation } from "./timeline_domain";
 import {
   closeGap,
   deleteClip,
+  deleteClips,
+  moveClips,
+  rippleDeleteClips,
+  setClipsFlag,
   gapAt,
   moveToTrack,
   moveTrack,
@@ -182,4 +186,50 @@ test("rippleDelete refuses when a later clip would leave its scene", () => {
   doc.scenes.push({ scene_id: "scene_late", role: "source", start_frame: 100, duration_in_frames: 200, clip_ids: ["clip_music"] });
   doc.clips!.find((clip) => clip.clip_id === "clip_music")!.scene_id = "scene_late";
   expect(rippleDelete(doc, "a").refusal).toBe("scene");
+});
+
+// Tier 2 (spec 2026-11-08 §6): one edit for the whole selection, or none.
+test("deleteClips removes every clip in one batch and refuses when one is locked", () => {
+  const doc = timelineDocument();
+  expect(shape(deleteClips(doc, ["clip_main", "clip_music"]))).toEqual([
+    { kind: "remove_clip", clip_id: "clip_main" },
+    { kind: "remove_clip", clip_id: "clip_music" },
+  ]);
+  expect(deleteClips(doc, ["clip_main", "clip_locked"])).toEqual({ operations: [], refusal: "locked" });
+});
+
+test("rippleDeleteClips closes every removed stretch on the evolving document", () => {
+  const doc = threeClips();
+  const edit = rippleDeleteClips(doc, ["a", "clip_music"]);
+  expect(edit.refusal).toBeUndefined();
+  const after = applies(doc, edit);
+  expect(after.clips!.map((clip) => [clip.clip_id, clip.from_frame])).toEqual([
+    ["b", 0],
+    ["c", 40],
+  ]);
+});
+
+test("rippleDeleteClips refuses all when one stretch is refused", () => {
+  expect(rippleDeleteClips(threeClips({ from: 30, length: 60 }), ["a", "c"]).refusal).toBe("crossing");
+});
+
+test("moveClips moves every clip by the same frames on its own track", () => {
+  const doc = timelineDocument();
+  expect(shape(moveClips(doc, ["clip_main", "clip_music"], 30))).toEqual([
+    { kind: "move_clip", clip_id: "clip_main", target_track_id: "track_main", from_frame: 30, ripple: false },
+    { kind: "move_clip", clip_id: "clip_music", target_track_id: "track_music", from_frame: 180, ripple: false },
+  ]);
+  expect(moveClips(doc, ["clip_main", "clip_locked"], 30).refusal).toBe("locked");
+  expect(moveClips(doc, ["clip_main", "clip_music"], -10).refusal).toBe("outside");
+  expect(moveClips(doc, ["clip_main", "clip_music"], 100).refusal).toBe("outside");
+});
+
+test("setClipsFlag hides every clip, and refuses hiding when one is locked", () => {
+  const doc = timelineDocument();
+  expect(shape(setClipsFlag(doc, ["clip_main", "clip_music"], "hidden", true))).toEqual([
+    { kind: "set_clip_hidden", clip_id: "clip_main", hidden: true },
+    { kind: "set_clip_hidden", clip_id: "clip_music", hidden: true },
+  ]);
+  expect(setClipsFlag(doc, ["clip_main", "clip_locked"], "hidden", true).refusal).toBe("locked");
+  expect(setClipsFlag(doc, ["clip_main", "clip_locked"], "locked", true).operations).toHaveLength(2);
 });

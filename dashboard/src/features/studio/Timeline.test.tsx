@@ -653,3 +653,51 @@ test("every selected clip shows as selected", () => {
     expect(screen.getByRole("button", { name }).getAttribute("aria-pressed")).toBe("true");
   }
 });
+
+// Tier 2 (spec 2026-11-08 §6): edits act on the whole selection as one undo step.
+const both = { selectedClipId: "clip_music", selectedClipIds: ["clip_main", "clip_music"] };
+
+test("Delete with two selected clips commits one batch for both", () => {
+  const { actions } = mount(both);
+  key(window, "Delete");
+  expect(actions.at(-1)).toMatchObject({
+    type: "commit_operations",
+    operations: [
+      { kind: "remove_clip", clip_id: "clip_main" },
+      { kind: "remove_clip", clip_id: "clip_music" },
+    ],
+  });
+});
+
+test("the menu of a selected clip acts on the whole selection", () => {
+  const { actions } = mountMenus(both);
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Main video clip" }), { clientX: 5, clientY: 5 });
+  expect(menuNames()).toContain("Delete 2 clips");
+  expect(menuNames()).toContain("Hide 2 clips");
+  fireEvent.click(screen.getByRole("menuitem", { name: "Delete 2 clips" }));
+  expect(actions.at(-1)).toMatchObject({ type: "commit_operations", operations: [{ kind: "remove_clip" }, { kind: "remove_clip" }] });
+});
+
+test("a group drag previews both clips and commits one batch on drop", () => {
+  const { actions } = mount(both);
+  drag(screen.getByRole("button", { name: "Main video clip" }), 10, 40);
+  const previews = actions.filter((action) => action.type === "preview_timeline_operations");
+  expect(previews.at(-1)).toMatchObject({
+    operations: [
+      { kind: "move_clip", clip_id: "clip_main", from_frame: 30 },
+      { kind: "move_clip", clip_id: "clip_music", from_frame: 180 },
+    ],
+  });
+  expect(actions.slice(-2).map((action) => action.type)).toEqual(["cancel_timeline_preview", "commit_operations"]);
+  expect(actions.at(-1)).toMatchObject({ operations: [{ from_frame: 30 }, { from_frame: 180 }] });
+});
+
+test("Escape during a group drag restores both clips", () => {
+  const { actions } = mount(both);
+  fireEvent.pointerDown(screen.getByRole("button", { name: "Main video clip" }), { clientX: 10, button: 0 });
+  fireEvent.pointerMove(window, { clientX: 40 });
+  key(window, "Escape");
+  expect(actions.at(-1)).toEqual({ type: "cancel_timeline_preview" });
+  fireEvent.pointerUp(window, { clientX: 40 });
+  expect(actions.some((action) => action.type === "commit_operations")).toBe(false);
+});
