@@ -54,6 +54,8 @@ type Props = {
   assetName?: (asset: EditorAsset) => string;
   /** Off while Review or Render shows: the Timeline stays mounted but hidden, so its keys must rest. */
   editingKeys?: boolean;
+  /** An asset dragged from the Assets column onto a lane that can hold it (spec 2026-11-08 §6). */
+  onDropAsset?: (assetId: string, trackId: string, frame: number) => void;
 };
 
 /** One pointer gesture in flight. Committed on pointer up, dropped on Escape. */
@@ -110,6 +112,7 @@ export function Timeline({
   onShowInStory,
   assetName,
   editingKeys = true,
+  onDropAsset,
 }: Props) {
   const { t } = useLocale();
   const headerWidth = readOnly ? READ_ONLY_HEADER_WIDTH : HEADER_WIDTH;
@@ -691,6 +694,17 @@ export function Timeline({
                   dispatch({ type: "select_clip", clipId });
                 }
               }}
+              onDropAsset={
+                readOnly || !onDropAsset
+                  ? undefined
+                  : (assetId, offset) => {
+                      const asset = state.assets[assetId];
+                      const kind = asset?.kind === "audio" ? "audio" : "video";
+                      // A known asset only goes on a lane that can hold it; the caller checks the room.
+                      if (asset && !compatibleTrackIds(timeline, kind).includes(lane.track.track_id)) return;
+                      onDropAsset(assetId, lane.track.track_id, Math.max(0, Math.round(offset / state.zoom)));
+                    }
+              }
               onMarqueeStart={readOnly ? undefined : (clientX, clientY) => {
                 marquee.current = { x0: clientX, y0: clientY, active: false };
               }}

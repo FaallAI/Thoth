@@ -580,18 +580,23 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     );
   };
 
-  const addAsset = (asset: EditorAsset) => {
+  const addAsset = (asset: EditorAsset, at?: { trackId: string; frame: number }) => {
     if (!timeline) return;
-    const operation = createAddClipFromAssetOperation(timeline, asset, state.playheadFrame, {
-      operationId: makeOperationId(),
-      clipId: `clip_${crypto.randomUUID()}`,
-    });
+    const operation = createAddClipFromAssetOperation(
+      timeline,
+      asset,
+      state.playheadFrame,
+      { operationId: makeOperationId(), clipId: `clip_${crypto.randomUUID()}` },
+      at,
+    );
     setNoRoom(!operation);
     setPlacedNotice(null);
     if (!operation) return;
     commitSceneOperation(operation);
     // The person asked for the whole clip at the playhead: anything else is said out loud.
-    const { cut, later, otherTrack } = placementChanges(timeline, asset, state.playheadFrame, operation);
+    // A drop placed it where they let go, so only a cut is news.
+    const placed = placementChanges(timeline, asset, state.playheadFrame, operation);
+    const { cut, later, otherTrack } = at ? { ...placed, later: false, otherTrack: false } : placed;
     const seconds = (frames: number) => (frames / timeline.canvas.fps).toFixed(1);
     const track = timeline.tracks.find((entry) => entry.track_id === operation.track_id)?.label ?? "";
     const said = [
@@ -1158,6 +1163,10 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
               <div className="contents" hidden={reviewing || (compact && editPane !== "timeline")}>
                 <Timeline
                   state={state}
+                  onDropAsset={(assetId, trackId, frame) => {
+                    const asset = state.assets[assetId];
+                    if (asset) addAsset(asset, { trackId, frame });
+                  }}
                   labelOf={labelOf}
                   readOnly={timelineReadOnly}
                   onInspect={() => setEditPane("controls")}

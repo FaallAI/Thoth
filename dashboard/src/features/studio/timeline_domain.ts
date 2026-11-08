@@ -23,6 +23,9 @@ import { visibleLanes } from "@thoth/remotion-composition";
 
 export { visibleLanes, type TimelineLane } from "@thoth/remotion-composition";
 
+/** The drag payload an Assets row carries onto a Timeline lane (spec 2026-11-08 §6). */
+export const ASSET_DRAG_TYPE = "application/x-thoth-asset";
+
 export type TimelineIssueCode =
   | "main_track_gap"
   | "clip_overlap"
@@ -217,11 +220,16 @@ export function createAddClipFromAssetOperation(
   asset: EditorAsset,
   playheadFrame: number,
   ids: { operationId: string; clipId: string },
+  /** A drop on a lane (spec 2026-11-08 §6): that track at that frame, or nothing. */
+  at?: { trackId: string; frame: number },
 ): Extract<EditDocumentOperation, { kind: "add_clip_from_asset" }> | undefined {
-  const from = Math.max(0, Math.round(playheadFrame));
-  for (const trackId of compatibleTrackIds(document, asset.kind === "audio" ? "audio" : "video")) {
+  const from = Math.max(0, Math.round(at?.frame ?? playheadFrame));
+  const compatible = compatibleTrackIds(document, asset.kind === "audio" ? "audio" : "video");
+  if (at && !compatible.includes(at.trackId)) return undefined;
+  for (const trackId of at ? [at.trackId] : compatible) {
     const slot = freeSlot(document, trackId, from);
-    if (!slot) continue;
+    // A drop lands where it was let go; the next free stretch is not what the person chose.
+    if (!slot || (at && slot.start !== from)) continue;
     return {
       kind: "add_clip_from_asset",
       operation_id: ids.operationId,

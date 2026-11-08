@@ -19,7 +19,7 @@ import type { EditDocumentV2 } from "@/api/control-plane";
 import type { MenuHandlers } from "@/components/ContextMenu";
 import { useLocale } from "@/lib/locale";
 import { TimelineClip, type GestureMode } from "./TimelineClip";
-import { framesToPixels, type TimelineLane } from "./timeline_domain";
+import { ASSET_DRAG_TYPE, framesToPixels, type TimelineLane } from "./timeline_domain";
 
 type Props = {
   lane: TimelineLane;
@@ -29,6 +29,8 @@ type Props = {
   selectedClipIds: readonly string[];
   onToggle: (field: "hidden" | "muted" | "locked", value: boolean) => void;
   onSelectClip: (clipId: string, add: boolean) => void;
+  /** An asset dropped on the lane, at that many pixels from the lane's start (spec 2026-11-08 §6). */
+  onDropAsset?: (assetId: string, offsetPx: number) => void;
   /** A press on the empty well that may grow into a marquee (spec 2026-11-08 §6). */
   onMarqueeStart?: (clientX: number, clientY: number) => void;
   /** The track for the Inspector (spec 2026-11-08 §5.1). */
@@ -81,6 +83,7 @@ export function TimelineTrack({
   labelOf,
   readOnly = false,
   name,
+  onDropAsset,
 }: Props) {
   const { t } = useLocale();
   const { track, clips } = lane;
@@ -151,6 +154,17 @@ export function TimelineTrack({
         onContextMenu={(event) => event.target === event.currentTarget && laneMenu?.onContextMenu(event)}
         onPointerUp={laneMenu?.onPointerUp}
         onPointerCancel={laneMenu?.onPointerCancel}
+        onDragOver={(event) => {
+          if (!onDropAsset || !Array.from(event.dataTransfer.types ?? []).includes(ASSET_DRAG_TYPE)) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+        }}
+        onDrop={(event) => {
+          const assetId = event.dataTransfer.getData(ASSET_DRAG_TYPE);
+          if (!onDropAsset || !assetId) return;
+          event.preventDefault();
+          onDropAsset(assetId, event.clientX - event.currentTarget.getBoundingClientRect().left);
+        }}
         onPointerDown={(event) => {
           if (event.target !== event.currentTarget) return;
           laneMenu?.onPointerDown(event);

@@ -1,7 +1,7 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, mock, test } from "bun:test";
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, createEvent, fireEvent, screen, within } from "@testing-library/react";
 
 import { render } from "@/test-render";
 
@@ -823,4 +823,23 @@ test("the lane menu offers to close every gap in the timeline", () => {
       { kind: "move_clip", clip_id: "clip_music", from_frame: 120 },
     ],
   });
+});
+
+// Tier 2 (spec 2026-11-08 §6): an asset dragged from the Assets column onto a lane.
+const assetDrop = (target: Element, assetId: string, clientX: number) => {
+  const event = createEvent.drop(target, {
+    dataTransfer: { types: ["application/x-thoth-asset"], getData: (type: string) => (type === "application/x-thoth-asset" ? assetId : "") },
+  });
+  // The test DOM's DragEvent drops clientX from its init, as its WheelEvent drops ctrlKey.
+  Object.defineProperty(event, "clientX", { value: clientX });
+  fireEvent(target, event);
+};
+
+test("an asset dropped on a lane is placed on that track at the drop point", () => {
+  const dropped: [string, string, number][] = [];
+  const video = { asset_id: "asset_video", project_id: "project_001", kind: "video", media_type: "video/mp4", has_audio: true, validation_state: "ready", duration_in_frames: 30 } as EditorState["assets"][string];
+  mountMenus({ zoom: 1, assets: { asset_video: video } }, { onDropAsset: (...drop) => dropped.push(drop) });
+  assetDrop(document.querySelector('[data-track-id="track_broll"] [data-lane-well]')!, "asset_video", 100);
+  assetDrop(document.querySelector('[data-track-id="track_music"] [data-lane-well]')!, "asset_video", 100);
+  expect(dropped).toEqual([["asset_video", "track_broll", 100]]);
 });

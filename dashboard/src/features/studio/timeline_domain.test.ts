@@ -1042,3 +1042,16 @@ test("add_text_clip works without a story role", () => {
   );
   expect(clipIn(result, "clip_pasted").source_role ?? null).toBeNull();
 });
+
+test("an asset dropped on a lane goes on that track at that frame, or nowhere", () => {
+  const doc = fixtureDocument();
+  const video = { asset_id: "asset_video", project_id: doc.project_id, kind: "video", media_type: "video/mp4", has_audio: true, validation_state: "ready", duration_in_frames: 30 } as EditorAsset;
+  const ids = { operationId: "op_drop", clipId: "clip_drop" };
+  expect(createAddClipFromAssetOperation(doc, video, 0, ids, { trackId: "track_broll", frame: 10 })).toMatchObject({
+    track_id: "track_broll",
+    from_frame: 10,
+    duration_in_frames: 30,
+  });
+  expect(createAddClipFromAssetOperation(doc, video, 0, ids, { trackId: "track_broll", frame: 160 })).toBeUndefined();
+  expect(createAddClipFromAssetOperation(doc, video, 0, ids, { trackId: "track_music", frame: 10 })).toBeUndefined();
+});
