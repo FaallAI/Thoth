@@ -163,8 +163,21 @@ server operation.
   hide / lock act on the whole selection as one patch.
 - **Copy, paste, duplicate:** Ctrl+C / Ctrl+V / Ctrl+D and menu entries. Paste puts the clips at
   the playhead on their own tracks. Needs a new operation (a `duplicate_clip` that copies a clip
-  with a new id, its asset reference and provenance untouched); the clipboard holds clip ids in
-  the page only, never the system clipboard.
+  with a new id, its asset reference and provenance untouched).
+- **The system clipboard** (operator, 2026-11-08), so clips paste between drafts and tabs:
+  - Ctrl+C and Ctrl+V go through the page's `copy` and `paste` events (`clipboardData`), which
+    need no permission prompt.
+  - The payload is versioned JSON describing the clips (kind, asset id, timing, settings,
+    source project), written as `text/plain`, plus a `web application/x-thoth-clips` custom
+    format where `ClipboardItem.supports()` accepts it.
+  - The menu's Paste entry reads with `navigator.clipboard`. Chromium asks once for
+    `clipboard-read`; Firefox and Safari show their own Paste button. Both need a secure context
+    (https, or localhost on stage1).
+  - When reading is refused or unavailable, the entry says to use Ctrl+V. Nothing breaks.
+  - A paste is accepted only when every asset belongs to the open project. Otherwise it is
+    refused with a message, and no asset is copied across projects or workspaces. Clips keep
+    their asset reference, so cards are never redrawn and provenance stays.
+  - Text that is not a Thoth payload is ignored by the timeline. Fields keep normal text paste.
 - **Close all gaps** on a track (track menu) and in the whole timeline.
 - **Inspector:** Fit, Crop and Position become editable on video and image clips (existing
   `set_clip_position` / `set_clip_motion`; Crop may need a field on the operation); fade in and
