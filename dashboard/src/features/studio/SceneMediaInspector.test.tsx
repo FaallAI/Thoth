@@ -58,3 +58,21 @@ test("the media panel and its dialogs speak Indonesian", () => {
   expect(screen.getByText("Aset siap")).toBeDefined();
   expect(screen.queryByText(/Replacing media/)).toBeNull();
 });
+
+// Spec 2026-11-08 §5.1: Replace media works where the Story offers it.
+test("with assets and a handler, Replace offers the ready videos and hands back the choice", () => {
+  const document = timelineDocument();
+  const replaced: [string, string][] = [];
+  render(
+    <SceneMediaInspector
+      document={document}
+      sceneId={document.scenes[0]!.scene_id}
+      labelOf={(assetId) => (assetId === "asset_other" ? "Footage · @someone" : "Main video")}
+      assets={[{ asset_id: "asset_other", project_id: "project_001", kind: "video", has_audio: true, media_type: "video/mp4", validation_state: "ready" }]}
+      onReplace={(clipId, assetId) => replaced.push([clipId, assetId])}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Replace" }));
+  fireEvent.click(screen.getByRole("button", { name: "Use Footage · @someone" }));
+  expect(replaced).toEqual([["clip_main", "asset_other"]]);
+});

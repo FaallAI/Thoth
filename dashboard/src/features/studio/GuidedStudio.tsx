@@ -55,7 +55,7 @@ import { ScriptPanel } from "./script/ScriptPanel";
 import { SfxLibrary } from "./script/NarrationPresetForm";
 import { adoptNarratedRevision, isNarrationActive, useNarration } from "./script/useNarration";
 import { SafeZoneOverlay } from "./story/SafeZone";
-import { ROLE_BEAT, computeBeats, type BeatId } from "./story/story_beats";
+import { ROLE_BEAT, beatOfClip, computeBeats, type BeatId } from "./story/story_beats";
 import { BEAT_ROLE, addHook, addMaterialToBeat, addOutro, creditLine } from "./story/story_edits";
 import "./studio.css";
 
@@ -1130,6 +1130,14 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                   onSeek={player.seekTo}
                   onPlay={player.play}
                   onPause={player.pause}
+                  beatOf={(clipId) => beatOfClip(timeline, inventory, clipId)}
+                  onShowInStory={(clipId) => {
+                    const beat = beatOfClip(timeline, inventory, clipId);
+                    if (!beat) return;
+                    setSelectedBeat(beat);
+                    dispatch({ type: "set_editor_mode", mode: "simple" });
+                  }}
+                  assetName={describeAsset ? (asset) => describeAsset(asset).label : undefined}
                 />
                 <IssuesBar
                   document={timeline}
@@ -1237,7 +1245,18 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                     dispatch({ type: "edit_duration", sceneId, durationInFrames, operationId: makeOperationId() })
                   }
                 >
-                  <SceneMediaInspector document={state.draft} sceneId={state.selectedSceneId} labelOf={labels ? (assetId) => assetLabel(assetId, labels).label : undefined} />
+                  <SceneMediaInspector
+                    document={state.draft}
+                    sceneId={state.selectedSceneId}
+                    labelOf={labels ? (assetId) => assetLabel(assetId, labels).label : undefined}
+                    assets={timeline ? Object.values(state.assets) : undefined}
+                    onReplace={(clipId, assetId) =>
+                      dispatch({
+                        type: "commit_operations",
+                        operations: [{ kind: "replace_clip_asset", operation_id: `op_${crypto.randomUUID()}`, clip_id: clipId, asset_id: assetId }],
+                      })
+                    }
+                  />
                   {timeline ? <CaptionTextInspector document={timeline} selectedSceneId={state.selectedSceneId} disabled={upgrading} compact onOperation={(operation) => dispatch({ type: "commit_timeline_operation", operation })} /> : <section className="studio-caption-summary" aria-label="Captions"><h3>Captions</h3><p>No editable captions in this document.</p><button className="studio-style-trigger" type="button" disabled>Caption style unavailable</button></section>}
                 </Inspector>
                 {timeline && viewport !== "phone" ? (

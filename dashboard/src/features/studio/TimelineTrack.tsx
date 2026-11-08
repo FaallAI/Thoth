@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import type { EditDocumentV2 } from "@/api/control-plane";
+import type { MenuHandlers } from "@/components/ContextMenu";
 import { useLocale } from "@/lib/locale";
 import { TimelineClip, type GestureMode } from "./TimelineClip";
 import { framesToPixels, type TimelineLane } from "./timeline_domain";
@@ -31,6 +32,10 @@ type Props = {
   onSelectTrack?: () => void;
   /** A press on the lane's empty well, in pixels from the lane's start. */
   onSeekAt?: (offsetPx: number) => void;
+  /** Right-click menus (spec 2026-11-08 §5.1): a clip's, the lane's gaps', the track's name. */
+  clipMenu?: (clip: NonNullable<EditDocumentV2["clips"]>[number]) => MenuHandlers;
+  laneMenu?: MenuHandlers;
+  nameMenu?: MenuHandlers;
   onGestureStart: (clipId: string, mode: GestureMode, clientX: number) => void;
   onNudge: (clipId: string, frames: number) => void;
   /** The clip's human name (spec 2026-11-01); absent, the Timeline's own words for it. */
@@ -62,6 +67,9 @@ export function TimelineTrack({
   onSelectClip,
   onSelectTrack,
   onSeekAt,
+  clipMenu,
+  laneMenu,
+  nameMenu,
   onGestureStart,
   onNudge,
   labelOf,
@@ -90,6 +98,7 @@ export function TimelineTrack({
       {/* A click anywhere on the name column but its toggles selects the track. */}
       <div
         className={`group sticky left-0 z-[5] flex shrink-0 items-center gap-2 border-r border-hairline bg-surface ${readOnly ? "w-24 px-2" : "w-48 px-3"} ${onSelectTrack ? "cursor-pointer" : ""}`}
+        {...nameMenu}
         onClick={(event) => {
           if ((event.target as HTMLElement).closest("button:not([data-track-name])")) return;
           onSelectTrack?.();
@@ -132,8 +141,13 @@ export function TimelineTrack({
         data-lane-well
         className="relative h-11 grow bg-well"
         style={{ minWidth: `${framesToPixels(widthInFrames, zoom)}px` }}
+        onContextMenu={(event) => event.target === event.currentTarget && laneMenu?.onContextMenu(event)}
+        onPointerUp={laneMenu?.onPointerUp}
+        onPointerCancel={laneMenu?.onPointerCancel}
         onPointerDown={(event) => {
-          if (event.button !== 0 || event.target !== event.currentTarget) return;
+          if (event.target !== event.currentTarget) return;
+          laneMenu?.onPointerDown(event);
+          if (event.button !== 0) return;
           onSeekAt?.(event.clientX - event.currentTarget.getBoundingClientRect().left);
         }}
       >
@@ -151,6 +165,7 @@ export function TimelineTrack({
             onNudge={(frames) => onNudge(clip.clip_id, frames)}
             name={labelOf?.(clip)}
             readOnly={readOnly}
+            menu={clipMenu?.(clip)}
           />
         ))}
       </div>

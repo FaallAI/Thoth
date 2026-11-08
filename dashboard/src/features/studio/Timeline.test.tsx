@@ -466,3 +466,85 @@ test("a click on a track's name selects the track", () => {
   fireEvent.click(screen.getByRole("button", { name: "Select Music track" }));
   expect(actions).toContainEqual({ type: "select_track", trackId: "track_music" });
 });
+
+// Spec 2026-11-08 §5.1: right-click menus on a clip, a gap and a track.
+function mountMenus(overrides: Partial<EditorState> = {}, props: Partial<Parameters<typeof Timeline>[0]> = {}) {
+  const actions: EditorAction[] = [];
+  render(
+    <Timeline
+      state={{ ...createEditorState(timelineDocument()), ...overrides }}
+      dispatch={(action) => actions.push(action)}
+      {...props}
+    />,
+  );
+  return { actions };
+}
+
+const menuNames = () => screen.getAllByRole("menuitem").map((item) => item.getAttribute("aria-label"));
+const committed = (actions: EditorAction[]) =>
+  actions.filter((action) => action.type === "commit_operations").map((action) => action.type === "commit_operations" && action.operations.map((operation) => operation.kind));
+
+test("a clip's menu offers the editing entries in order", () => {
+  mountMenus({ playheadFrame: 60 }, { beatOf: () => "main", onShowInStory: () => {} });
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Main video clip" }), { clientX: 5, clientY: 5 });
+  expect(menuNames()).toEqual(["Split at playhead", "Delete", "Ripple delete", "Replace media…", "B-roll", "Hide", "Lock", "Show in Story"]);
+  expect(screen.getByRole("group", { name: "Move to track" })).toBeTruthy();
+});
+
+test("menu entries that do not apply say why", () => {
+  mountMenus({ playheadFrame: 200 });
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Main video clip" }), { clientX: 5, clientY: 5 });
+  expect(screen.getByRole("menuitem", { name: "Split at playhead" }).getAttribute("title")).toBe("The playhead is outside this clip");
+  expect(screen.getByRole("menuitem", { name: "Show in Story" }).getAttribute("aria-disabled")).toBe("true");
+  fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+
+  fireEvent.contextMenu(screen.getByRole("button", { name: "B-roll clip" }), { clientX: 5, clientY: 5 });
+  expect(screen.getByRole("menuitem", { name: "Delete" }).getAttribute("title")).toBe("This clip is locked");
+  expect(screen.getByRole("menuitem", { name: "Split at playhead" }).getAttribute("aria-disabled")).toBe("true");
+});
+
+test("Delete commits one edit, and a Ripple delete across another track's clip is refused with its reason", () => {
+  const { actions } = mountMenus();
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Main video clip" }), { clientX: 5, clientY: 5 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+  // The locked B-roll clip (150–200) lies inside the Music clip's stretch (150–240).
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Music clip" }), { clientX: 5, clientY: 5 });
+  const ripple = screen.getByRole("menuitem", { name: "Ripple delete" });
+  expect(ripple.getAttribute("title")).toBe("Another track has a clip here; trim or delete it first");
+  fireEvent.click(ripple);
+  expect(committed(actions)).toEqual([["remove_clip"]]);
+});
+
+test("Replace media opens a picker of ready videos and commits the choice", () => {
+  const ready = { asset_id: "asset_other", project_id: "project_001", kind: "video", has_audio: true, media_type: "video/mp4", validation_state: "ready", duration_in_frames: 300 } as const;
+  const { actions } = mountMenus({ assets: { asset_other: ready } as EditorState["assets"] }, { assetName: () => "Footage · @someone" });
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Main video clip" }), { clientX: 5, clientY: 5 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "Replace media…" }));
+  fireEvent.click(within(screen.getByRole("dialog", { name: "Replace media" })).getByRole("button", { name: "Use Footage · @someone" }));
+  expect(actions.at(-1)).toMatchObject({ type: "commit_operations", operations: [{ kind: "replace_clip_asset", clip_id: "clip_main", asset_id: "asset_other" }] });
+});
+
+test("a gap's menu closes the gap, and away from a gap it says there is none", () => {
+  const { actions } = mountMenus({ zoom: 1 });
+  const well = document.querySelector('[data-track-id="track_main"] [data-lane-well]')!;
+  fireEvent.contextMenu(well, { clientX: 200, clientY: 5 });
+  const close = screen.getByRole("menuitem", { name: "Close this gap" });
+  expect(close.getAttribute("title")).toBe("There is no gap here");
+  expect(actions).toEqual([]);
+});
+
+test("a track's menu offers track entries, with the edges and full tracks disabled", () => {
+  mountMenus();
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Select Main video track" }), { clientX: 5, clientY: 5 });
+  expect(menuNames()).toEqual(["Select track", "Move up", "Move down", "Hide", "Mute", "Lock", "Remove empty track"]);
+  expect(screen.getByRole("menuitem", { name: "Move up" }).getAttribute("aria-disabled")).toBe("true");
+  expect(screen.getByRole("menuitem", { name: "Remove empty track" }).getAttribute("title")).toBe("Remove its clips first");
+});
+
+test("Show in Story hands the clip to the Story", () => {
+  const shown: string[] = [];
+  mountMenus({}, { beatOf: () => "main", onShowInStory: (clipId) => shown.push(clipId) });
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Main video clip" }), { clientX: 5, clientY: 5 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "Show in Story" }));
+  expect(shown).toEqual(["clip_main"]);
+});

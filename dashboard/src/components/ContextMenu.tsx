@@ -19,12 +19,16 @@ export type MenuEntry =
   | { kind: "separator"; id: string };
 
 type Open = { x: number; y: number; entries: MenuEntry[]; owner: HTMLElement | null };
+/** The handlers `bind` returns, for components that receive a menu from their owner. */
+export type MenuHandlers = ReturnType<ReturnType<typeof useContextMenu>["bind"]>;
+/** Where the menu opens and on which element, for entries that depend on the spot (a gap's frame). */
+export type MenuAt = { x: number; y: number; owner: HTMLElement };
 
 const LONG_PRESS_MS = 500;
 const EDGE = 4;
 
 export function useContextMenu(): {
-  bind: (entries: () => MenuEntry[]) => {
+  bind: (entries: (at: MenuAt) => MenuEntry[]) => {
     onContextMenu: (event: ReactMouseEvent) => void;
     onKeyDown: (event: ReactKeyboardEvent) => void;
     onPointerDown: (event: ReactPointerEvent) => void;
@@ -56,23 +60,24 @@ export function useContextMenu(): {
     return entries.length > 0;
   };
 
-  const bind = (entries: () => MenuEntry[]) => ({
+  const bind = (entries: (at: MenuAt) => MenuEntry[]) => ({
     onContextMenu: (event: ReactMouseEvent) => {
       cancelPress();
-      if (show(event.currentTarget as HTMLElement, event.clientX, event.clientY, entries())) event.preventDefault();
+      const owner = event.currentTarget as HTMLElement;
+      if (show(owner, event.clientX, event.clientY, entries({ x: event.clientX, y: event.clientY, owner }))) event.preventDefault();
     },
     onKeyDown: (event: ReactKeyboardEvent) => {
       if (!((event.key === "F10" && event.shiftKey) || event.key === "ContextMenu")) return;
       const owner = event.currentTarget as HTMLElement;
       const box = owner.getBoundingClientRect();
-      if (show(owner, box.left, box.bottom, entries())) event.preventDefault();
+      if (show(owner, box.left, box.bottom, entries({ x: box.left, y: box.bottom, owner }))) event.preventDefault();
     },
     onPointerDown: (event: ReactPointerEvent) => {
       if (event.pointerType !== "touch") return;
       const owner = event.currentTarget as HTMLElement;
       const { clientX, clientY } = event;
       cancelPress();
-      press.current = setTimeout(() => show(owner, clientX, clientY, entries()), LONG_PRESS_MS);
+      press.current = setTimeout(() => show(owner, clientX, clientY, entries({ x: clientX, y: clientY, owner })), LONG_PRESS_MS);
     },
     onPointerUp: cancelPress,
     onPointerCancel: cancelPress,

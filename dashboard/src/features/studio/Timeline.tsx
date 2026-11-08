@@ -1,11 +1,14 @@
-import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
-import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane";
+import type { EditDocumentOperation, EditDocumentV2, EditorAsset } from "@/api/control-plane";
+import { useContextMenu } from "@/components/ContextMenu";
 import { useLocale } from "@/lib/locale";
 import type { EditorAction, EditorState } from "./editor_state";
 import { clipLabel, type GestureMode } from "./TimelineClip";
 import { TimelineToolbar, type ClipAction } from "./TimelineToolbar";
 import { TimelineTrack } from "./TimelineTrack";
+import { ReplaceMediaDialog } from "./ReplaceMediaDialog";
+import { clipMenu, gapMenu, trackMenu, type MenuContext } from "./timeline_menus";
 import { isTypingTarget, timelineKey } from "./studio_keys";
 import { deleteClip, rippleDelete, splitAt } from "./timeline_edits";
 import {
@@ -32,6 +35,11 @@ type Props = {
   /** Below 1024 the lanes are a view (spec 2026-11-01); a tapped clip offers Inspect. */
   readOnly?: boolean;
   onInspect?: () => void;
+  /** The beat a clip belongs to in Story, or null; with `onShowInStory`, the menu's "Show in Story". */
+  beatOf?: (clipId: string) => string | null;
+  onShowInStory?: (clipId: string) => void;
+  /** An asset's human name, for Replace media; absent, its kind. */
+  assetName?: (asset: EditorAsset) => string;
 };
 
 /** One pointer gesture in flight. Committed on pointer up, dropped on Escape. */
@@ -57,7 +65,19 @@ const snapThreshold = (zoom: number) => Math.max(1, Math.round(8 / zoom));
 const HEADER_WIDTH = 192;
 const READ_ONLY_HEADER_WIDTH = 96;
 
-export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf, readOnly = false, onInspect }: Props) {
+export function Timeline({
+  state,
+  dispatch,
+  onSeek,
+  onPlay,
+  onPause,
+  labelOf,
+  readOnly = false,
+  onInspect,
+  beatOf,
+  onShowInStory,
+  assetName,
+}: Props) {
   const { t } = useLocale();
   const headerWidth = readOnly ? READ_ONLY_HEADER_WIDTH : HEADER_WIDTH;
   const gesture = useRef<Gesture | null>(null);
@@ -73,6 +93,9 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf, re
 
   // The lanes' scroll box: Ctrl+0 fits the canvas into its width.
   const lanesBox = useRef<HTMLDivElement>(null);
+  // One right-click menu for clips, gaps and tracks (spec 2026-11-08 §5.1), and the clip being replaced.
+  const menu = useContextMenu();
+  const [replacing, setReplacing] = useState<string | null>(null);
 
   // Keep the listeners' view of the editor current without re-attaching them.
   const latest = useRef({ state, dispatch, timeline, onSeek, onPlay, onPause, readOnly });
@@ -327,6 +350,27 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf, re
   const commit = (operation: EditDocumentOperation) =>
     dispatch({ type: "commit_timeline_operation", operation });
 
+  const toggleTrack = (trackId: string, field: "hidden" | "muted" | "locked", value: boolean) =>
+    commit(
+      field === "hidden"
+        ? { kind: "set_track_visibility", operation_id: newId("op"), track_id: trackId, hidden: value }
+        : field === "muted"
+          ? { kind: "set_track_muted", operation_id: newId("op"), track_id: trackId, muted: value }
+          : { kind: "set_track_locked", operation_id: newId("op"), track_id: trackId, locked: value },
+    );
+
+  const menuContext: MenuContext = {
+    t,
+    doc: timeline,
+    playheadFrame: state.playheadFrame,
+    commit: (operations) => {
+      if (operations.length) dispatch({ type: "commit_operations", operations });
+    },
+    trackName: (track) => track.label,
+  };
+  const replaced = clips.find((clip) => clip.clip_id === replacing);
+  const replacedAsset = replaced && "asset_id" in replaced ? replaced.asset_id : undefined;
+
   const clipAction = (action: ClipAction) => {
     if (!selectedClip || selectionLocked) return;
     const frame = state.playheadFrame;
@@ -433,29 +477,35 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf, re
               selectedClipId={state.selectedClipId}
               labelOf={labelOf}
               readOnly={readOnly}
-              onToggle={(field, value) =>
-                commit(
-                  field === "hidden"
-                    ? {
-                        kind: "set_track_visibility",
-                        operation_id: newId("op"),
-                        track_id: lane.track.track_id,
-                        hidden: value,
-                      }
-                    : field === "muted"
-                      ? {
-                          kind: "set_track_muted",
-                          operation_id: newId("op"),
-                          track_id: lane.track.track_id,
-                          muted: value,
-                        }
-                      : {
-                          kind: "set_track_locked",
-                          operation_id: newId("op"),
-                          track_id: lane.track.track_id,
-                          locked: value,
-                        },
-                )
+              onToggle={(field, value) => toggleTrack(lane.track.track_id, field, value)}
+              clipMenu={
+                readOnly
+                  ? undefined
+                  : (clip) =>
+                      menu.bind(() =>
+                        clipMenu(menuContext, clip, {
+                          onReplace: () => setReplacing(clip.clip_id),
+                          storyBeat: beatOf?.(clip.clip_id) ?? null,
+                          onShowInStory: onShowInStory ? () => onShowInStory(clip.clip_id) : undefined,
+                        }),
+                      )
+              }
+              laneMenu={
+                readOnly
+                  ? undefined
+                  : menu.bind((at) =>
+                      gapMenu(menuContext, lane.track.track_id, Math.floor((at.x - at.owner.getBoundingClientRect().left) / state.zoom)),
+                    )
+              }
+              nameMenu={
+                readOnly
+                  ? undefined
+                  : menu.bind(() =>
+                      trackMenu(menuContext, lane.track, {
+                        onSelect: () => dispatch({ type: "select_track", trackId: lane.track.track_id }),
+                        onToggle: (field, value) => toggleTrack(lane.track.track_id, field, value),
+                      }),
+                    )
               }
               onSelectClip={(clipId) => dispatch({ type: "select_clip", clipId })}
               onSelectTrack={() => dispatch({ type: "select_track", trackId: lane.track.track_id })}
@@ -480,6 +530,22 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf, re
           ))}
         </div>
       </div>
+      {menu.element}
+      {replaced && replacedAsset ? (
+        <ReplaceMediaDialog
+          currentAssetId={replacedAsset}
+          assets={Object.values(state.assets)}
+          nameOf={(asset) => assetName?.(asset) ?? t(`studio.label.kind.${asset.kind}`)}
+          onClose={() => setReplacing(null)}
+          onReplace={(assetId) => {
+            setReplacing(null);
+            dispatch({
+              type: "commit_operations",
+              operations: [{ kind: "replace_clip_asset", operation_id: newId("op"), clip_id: replaced.clip_id, asset_id: assetId }],
+            });
+          }}
+        />
+      ) : null}
       {readOnly && selectedClip ? (
         <div className="flex items-center gap-3 border-t border-hairline bg-surface px-3 py-2">
           <span className="min-w-0 flex-1">
