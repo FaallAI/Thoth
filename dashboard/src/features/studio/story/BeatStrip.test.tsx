@@ -148,3 +148,27 @@ test("a narration voice draws no picture on its tile", () => {
   expect(sources).toContain("/p/card1.png");
   expect(sources).not.toContain("/p/voice.mp3");
 });
+
+// Spec 2026-11-08 §5.2: a right click on a beat.
+test("a beat's menu opens it, adds from materials, or shows it in the Timeline", () => {
+  const calls: string[] = [];
+  render(
+    <BeatStrip
+      beats={beats}
+      fps={30}
+      totalFrames={300}
+      selected={null}
+      onSelect={(id) => calls.push(`open:${id}`)}
+      onAddFromMaterials={(id) => calls.push(`add:${id}`)}
+      onShowInTimeline={(id) => calls.push(`timeline:${id}`)}
+    />,
+  );
+  const reactions = screen.getByRole("button", { name: /Reactions/ });
+  fireEvent.contextMenu(reactions, { clientX: 5, clientY: 5 });
+  expect(screen.getAllByRole("menuitem").map((entry) => entry.getAttribute("aria-label"))).toEqual(["Open beat", "Add from materials…", "Show in Timeline"]);
+  for (const name of ["Open beat", "Add from materials…", "Show in Timeline"]) {
+    fireEvent.contextMenu(reactions, { clientX: 5, clientY: 5 });
+    fireEvent.click(screen.getByRole("menuitem", { name }));
+  }
+  expect(calls).toEqual(["open:reactions", "add:reactions", "timeline:reactions"]);
+});

@@ -414,3 +414,15 @@ test("a narrated draft's voices get a preview source in Story", async () => {
 
   await waitFor(() => expect(preview.mock.calls.map((call) => call[1])).toContain("asset_voice_main"));
 });
+
+// Spec 2026-11-08 §5.2: Show in Timeline from a Shown item opens the Timeline on that clip.
+test("Show in Timeline on a Shown item opens the Timeline with that clip selected", async () => {
+  await mountStory();
+  fireEvent.click(await screen.findByRole("button", { name: /^Reactions/ }));
+  const shown = within(screen.getByRole("region", { name: "Shown" })).getAllByRole("listitem")[0]!;
+  fireEvent.contextMenu(shown, { clientX: 5, clientY: 5 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "Show in Timeline" }));
+  expect(await screen.findByLabelText("Timeline")).toBeDefined();
+  expect(screen.getByRole("button", { name: "Timeline" }).getAttribute("aria-pressed")).toBe("true");
+  expect(document.querySelector('[id^="timeline-clip-"][aria-pressed="true"]')?.id).toBe("timeline-clip-clip_comment_card_000");
+});

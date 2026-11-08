@@ -33,7 +33,7 @@ test('1440 Timeline: every tool and the clip inspector fields stay, named in wor
   await expect(screen.getByRole('switch', 'Snap')).toBeVisible();
   await screen.getByRole('button', 'Main Video clip').tap();
   await expect(screen.getByRole('heading', 'Main video · @kabinet_rakyat')).toBeVisible();
-  for (const name of ['Start frame', 'End frame', 'Fit', 'Crop', 'Hidden', 'Locked', 'Ownership']) {
+  for (const name of ['Start frame', 'End frame', 'Fit', 'Crop', 'Hidden', 'Locked', 'Edited by']) {
     await expect(screen.getByLabel(name)).toBeVisible();
   }
   await expect(screen.getByText(/asset_|clip_/, { visible: true })).toHaveCount(0);

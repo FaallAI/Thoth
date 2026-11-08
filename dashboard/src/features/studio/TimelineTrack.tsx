@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import type { EditDocumentV2 } from "@/api/control-plane";
+import type { MenuHandlers } from "@/components/ContextMenu";
 import { useLocale } from "@/lib/locale";
 import { TimelineClip, type GestureMode } from "./TimelineClip";
 import { framesToPixels, type TimelineLane } from "./timeline_domain";
@@ -27,11 +28,21 @@ type Props = {
   selectedClipId: string;
   onToggle: (field: "hidden" | "muted" | "locked", value: boolean) => void;
   onSelectClip: (clipId: string) => void;
+  /** The track for the Inspector (spec 2026-11-08 §5.1). */
+  onSelectTrack?: () => void;
+  /** A press on the lane's empty well, in pixels from the lane's start. */
+  onSeekAt?: (offsetPx: number) => void;
+  /** Right-click menus (spec 2026-11-08 §5.1): a clip's, the lane's gaps', the track's name. */
+  clipMenu?: (clip: NonNullable<EditDocumentV2["clips"]>[number]) => MenuHandlers;
+  laneMenu?: MenuHandlers;
+  nameMenu?: MenuHandlers;
   onGestureStart: (clipId: string, mode: GestureMode, clientX: number) => void;
   onNudge: (clipId: string, frames: number) => void;
   /** The clip's human name (spec 2026-11-01); absent, the Timeline's own words for it. */
   labelOf?: (clip: NonNullable<EditDocumentV2["clips"]>[number]) => string;
   readOnly?: boolean;
+  /** The track's plain name (spec 2026-11-08 §5.1); absent, its stored label. */
+  name?: string;
 };
 
 type TrackKind = TimelineLane["track"]["kind"];
@@ -56,10 +67,16 @@ export function TimelineTrack({
   selectedClipId,
   onToggle,
   onSelectClip,
+  onSelectTrack,
+  onSeekAt,
+  clipMenu,
+  laneMenu,
+  nameMenu,
   onGestureStart,
   onNudge,
   labelOf,
   readOnly = false,
+  name,
 }: Props) {
   const { t } = useLocale();
   const { track, clips } = lane;
@@ -81,11 +98,25 @@ export function TimelineTrack({
       className="flex border-b border-hairline"
     >
       {/* The name stays in sight while the lanes scroll; a view-only phone gives it a quarter of the screen. */}
-      <div className={`group sticky left-0 z-[5] flex shrink-0 items-center gap-2 border-r border-hairline bg-surface ${readOnly ? "w-24 px-2" : "w-48 px-3"}`}>
+      {/* A click anywhere on the name column but its toggles selects the track. */}
+      <div
+        className={`group sticky left-0 z-[5] flex shrink-0 items-center gap-2 border-r border-hairline bg-surface ${readOnly ? "w-24 px-2" : "w-48 px-3"} ${onSelectTrack ? "cursor-pointer" : ""}`}
+        {...nameMenu}
+        onClick={(event) => {
+          if ((event.target as HTMLElement).closest("button:not([data-track-name])")) return;
+          onSelectTrack?.();
+        }}
+      >
         {readOnly ? null : <Icon aria-hidden="true" size={15} className="shrink-0 text-muted-ink" />}
-        <span className="min-w-0 grow truncate font-mono text-xs text-ink" title={track.label}>
-          {track.kind}
-        </span>
+        <button
+          type="button"
+          data-track-name
+          aria-label={t("studio.timeline.selectTrack", values)}
+          className="min-w-0 grow truncate text-left text-xs text-ink focus-visible:outline-2 focus-visible:outline-copper"
+          title={name ?? track.label}
+        >
+          {name ?? track.label}
+        </button>
         {/* A state that is on stays in sight; the toggles themselves show on hover and focus. */}
         {toggles
           .filter(([, value]) => value)
@@ -110,8 +141,18 @@ export function TimelineTrack({
         </div>
       </div>
       <div
+        data-lane-well
         className="relative h-11 grow bg-well"
         style={{ minWidth: `${framesToPixels(widthInFrames, zoom)}px` }}
+        onContextMenu={(event) => event.target === event.currentTarget && laneMenu?.onContextMenu(event)}
+        onPointerUp={laneMenu?.onPointerUp}
+        onPointerCancel={laneMenu?.onPointerCancel}
+        onPointerDown={(event) => {
+          if (event.target !== event.currentTarget) return;
+          laneMenu?.onPointerDown(event);
+          if (event.button !== 0) return;
+          onSeekAt?.(event.clientX - event.currentTarget.getBoundingClientRect().left);
+        }}
       >
         {clips.map((clip) => (
           <TimelineClip
@@ -127,6 +168,7 @@ export function TimelineTrack({
             onNudge={(frames) => onNudge(clip.clip_id, frames)}
             name={labelOf?.(clip)}
             readOnly={readOnly}
+            menu={clipMenu?.(clip)}
           />
         ))}
       </div>

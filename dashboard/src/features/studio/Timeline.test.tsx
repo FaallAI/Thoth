@@ -54,11 +54,14 @@ test("renders every track in order with its visibility, mute, and lock controls"
   expect(screen.getByRole("button", { name: "Unlock Captions" })).toBeDefined();
 });
 
-test("a track header names its kind in the editor's own words", () => {
+test("a track header names its kind in plain words, never its raw id", () => {
+  // Spec 2026-11-08 §5.1: "Main video", not `main_video`.
   mount();
   const music = screen.getByRole("group", { name: "Music track" });
-  expect(music.textContent).toContain("music");
-  expect(screen.getByRole("group", { name: "Main video track" }).textContent).toContain("main_video");
+  expect(music.textContent).toContain("Music");
+  const main = screen.getByRole("group", { name: "Main video track" });
+  expect(main.textContent).toContain("Main video");
+  expect(main.textContent).not.toContain("main_video");
   expect(music.querySelector("svg.lucide-music")).not.toBeNull();
 });
 
@@ -294,7 +297,7 @@ test("track controls dispatch their own typed operations", () => {
 
 test("lane names stay in sight while the lanes scroll, and take a quarter of a phone when view-only", () => {
   // e2e audit 2026-11-02, finding 7: at 430 they scrolled away, and their 192 px took half the screen.
-  const header = () => within(screen.getByRole("group", { name: "Main video track" })).getByText("main_video").parentElement!;
+  const header = () => screen.getByRole("button", { name: "Select Main video track" }).parentElement!;
   mount();
   expect(header().className).toContain("sticky");
   expect(header().className).toContain("w-48");
@@ -306,4 +309,276 @@ test("lane names stay in sight while the lanes scroll, and take a quarter of a p
   expect(header().className).toContain("w-24");
   // e2e audit 2026-11-02: no separator is left over from the switches a view hides.
   expect(document.querySelector(".h-5.w-px")).toBeNull();
+});
+
+// Spec 2026-11-08 §5.1: the editing keys common editors share.
+const key = (target: Element | Document | Window, key: string, init: KeyboardEventInit = {}) => fireEvent.keyDown(target, { key, ...init });
+const ops = (actions: EditorAction[]) =>
+  actions.flatMap((action) => (action.type === "commit_operations" ? action.operations.map((operation) => operation.kind) : []));
+
+test("Delete removes the selected clip as one edit", () => {
+  const { actions } = mount({ selectedClipId: "clip_main", selectedTrackId: "track_main" });
+  key(document.body, "Delete");
+  expect(ops(actions)).toEqual(["remove_clip"]);
+});
+
+test("S splits the selected clip at the playhead", () => {
+  const { actions } = mount({ selectedClipId: "clip_main", selectedTrackId: "track_main", playheadFrame: 60 });
+  key(document.body, "s");
+  const split = actions.find((action) => action.type === "commit_operations");
+  expect(split?.type === "commit_operations" && split.operations[0]).toMatchObject({ kind: "split_clip", split_frame: 60 });
+});
+
+test("keys typed in a field do nothing to the timeline", () => {
+  const { actions, transport } = mount({ selectedClipId: "clip_main", selectedTrackId: "track_main", playheadFrame: 60 });
+  const field = document.createElement("input");
+  document.body.appendChild(field);
+  try {
+    for (const name of ["Delete", "s", " ", "Home"]) key(field, name);
+  } finally {
+    field.remove();
+  }
+  expect(actions).toEqual([]);
+  expect(transport).toEqual([]);
+});
+
+test("Space on a focused button keeps the button's own meaning", () => {
+  const { transport } = mount();
+  key(screen.getByRole("button", { name: "Zoom in" }), " ");
+  expect(transport).toEqual([]);
+});
+
+test("Space elsewhere plays", () => {
+  const { transport } = mount();
+  key(document.body, " ");
+  expect(transport).toEqual(["play"]);
+});
+
+test("Home and End seek to the start and the last frame", () => {
+  const { actions } = mount({ playheadFrame: 100 });
+  key(document.body, "Home");
+  key(document.body, "End");
+  expect(actions.filter((action) => action.type === "set_playhead")).toEqual([
+    { type: "set_playhead", frame: 0 },
+    { type: "set_playhead", frame: 299 },
+  ]);
+});
+
+test("Ctrl+0 fits the canvas into the lanes", () => {
+  const { actions } = mount();
+  Object.defineProperty(screen.getByTestId("timeline-lanes"), "clientWidth", { configurable: true, value: 1192 });
+  key(document.body, "0", { ctrlKey: true });
+  const zoom = actions.find((action) => action.type === "set_zoom");
+  expect(zoom?.type === "set_zoom" && zoom.zoom).toBeCloseTo(1000 / 300, 3);
+});
+
+test("a locked clip ignores Delete and S", () => {
+  const { actions } = mount({ selectedClipId: "clip_locked", selectedTrackId: "track_broll", playheadFrame: 170 });
+  key(document.body, "Delete");
+  key(document.body, "s");
+  expect(actions).toEqual([]);
+});
+
+test("Escape clears the clip selection", () => {
+  const { actions } = mount({ selectedClipId: "clip_main", selectedTrackId: "track_main" });
+  key(document.body, "Escape");
+  expect(actions).toEqual([{ type: "select_clip", clipId: "" }]);
+});
+
+test("a view-only timeline ignores editing keys", () => {
+  const actions: EditorAction[] = [];
+  render(
+    <Timeline
+      state={{ ...createEditorState(timelineDocument()), selectedClipId: "clip_main", selectedTrackId: "track_main" }}
+      dispatch={(action) => actions.push(action)}
+      readOnly
+    />,
+  );
+  key(document.body, "Delete");
+  expect(actions).toEqual([]);
+});
+
+// Spec 2026-11-08 §5.1, pointer: another lane, an empty lane, Ctrl+wheel, a track's name.
+function withLaneUnderPointer(trackId: string, run: () => void) {
+  const original = document.elementsFromPoint;
+  const lane = document.querySelector(`[data-track-id="${trackId}"]`)!;
+  document.elementsFromPoint = () => [lane];
+  try {
+    run();
+  } finally {
+    document.elementsFromPoint = original;
+  }
+}
+
+const lastMove = (actions: EditorAction[]) =>
+  actions.filter((action) => action.type === "commit_timeline_operation").at(-1);
+
+test("a clip dragged onto another compatible lane moves there", () => {
+  const { actions } = mount();
+  const clip = screen.getByRole("button", { name: "Main video clip" });
+  withLaneUnderPointer("track_broll", () => {
+    fireEvent.pointerDown(clip, { clientX: 10, clientY: 10, button: 0 });
+    fireEvent.pointerMove(window, { clientX: 10, clientY: 60 });
+    fireEvent.pointerUp(window, { clientX: 10, clientY: 60 });
+  });
+  expect(lastMove(actions)).toMatchObject({ operation: { kind: "move_clip", target_track_id: "track_broll", from_frame: 0 } });
+});
+
+test("a clip dragged over an incompatible lane stays on its track", () => {
+  const { actions } = mount();
+  const clip = screen.getByRole("button", { name: "Main video clip" });
+  withLaneUnderPointer("track_music", () => {
+    fireEvent.pointerDown(clip, { clientX: 10, clientY: 10, button: 0 });
+    fireEvent.pointerMove(window, { clientX: 10, clientY: 100 });
+    fireEvent.pointerUp(window, { clientX: 10, clientY: 100 });
+  });
+  expect(lastMove(actions)).toMatchObject({ operation: { kind: "move_clip", target_track_id: "track_main" } });
+});
+
+test("a click on an empty part of a lane seeks there", () => {
+  const { actions } = mount({ zoom: 4 });
+  const well = document.querySelector('[data-track-id="track_music"] [data-lane-well]')!;
+  fireEvent.pointerDown(well, { clientX: 200, button: 0 });
+  expect(actions).toContainEqual({ type: "set_playhead", frame: 50 });
+});
+
+test("a click on a clip does not seek", () => {
+  const { actions } = mount({ zoom: 4 });
+  fireEvent.pointerDown(screen.getByRole("button", { name: "Music clip" }), { clientX: 700, button: 0 });
+  expect(actions.some((action) => action.type === "set_playhead")).toBe(false);
+});
+
+test("Ctrl+wheel zooms the lanes and a plain wheel does not", () => {
+  const { actions } = mount({ zoom: 2 });
+  const lanes = screen.getByTestId("timeline-lanes");
+  // The test DOM's WheelEvent drops `ctrlKey`, so it is set on the event itself.
+  const wheel = (ctrlKey: boolean) => {
+    const event = new WheelEvent("wheel", { deltaY: 240, bubbles: true, cancelable: true });
+    Object.defineProperty(event, "ctrlKey", { value: ctrlKey });
+    lanes.dispatchEvent(event);
+  };
+  wheel(false);
+  expect(actions.some((action) => action.type === "set_zoom")).toBe(false);
+  wheel(true);
+  const zoom = actions.find((action) => action.type === "set_zoom");
+  expect(zoom?.type === "set_zoom" && zoom.zoom).toBeLessThan(2);
+});
+
+test("a click on a track's name selects the track", () => {
+  const { actions } = mount();
+  fireEvent.click(screen.getByRole("button", { name: "Select Music track" }));
+  expect(actions).toContainEqual({ type: "select_track", trackId: "track_music" });
+});
+
+// Spec 2026-11-08 §5.1: right-click menus on a clip, a gap and a track.
+function mountMenus(overrides: Partial<EditorState> = {}, props: Partial<Parameters<typeof Timeline>[0]> = {}) {
+  const actions: EditorAction[] = [];
+  render(
+    <Timeline
+      state={{ ...createEditorState(timelineDocument()), ...overrides }}
+      dispatch={(action) => actions.push(action)}
+      {...props}
+    />,
+  );
+  return { actions };
+}
+
+const menuNames = () => screen.getAllByRole("menuitem").map((item) => item.getAttribute("aria-label"));
+const committed = (actions: EditorAction[]) =>
+  actions.filter((action) => action.type === "commit_operations").map((action) => action.type === "commit_operations" && action.operations.map((operation) => operation.kind));
+
+test("a clip's menu offers the editing entries in order", () => {
+  mountMenus({ playheadFrame: 60 }, { beatOf: () => "main", onShowInStory: () => {} });
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Main video clip" }), { clientX: 5, clientY: 5 });
+  expect(menuNames()).toEqual(["Split at playhead", "Delete", "Ripple delete", "Replace media…", "B-roll", "Hide", "Lock", "Show in Story"]);
+  expect(screen.getByRole("group", { name: "Move to track" })).toBeTruthy();
+});
+
+test("menu entries that do not apply say why", () => {
+  mountMenus({ playheadFrame: 200 });
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Main video clip" }), { clientX: 5, clientY: 5 });
+  expect(screen.getByRole("menuitem", { name: "Split at playhead" }).getAttribute("title")).toBe("The playhead is outside this clip");
+  expect(screen.getByRole("menuitem", { name: "Show in Story" }).getAttribute("aria-disabled")).toBe("true");
+  fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+
+  fireEvent.contextMenu(screen.getByRole("button", { name: "B-roll clip" }), { clientX: 5, clientY: 5 });
+  expect(screen.getByRole("menuitem", { name: "Delete" }).getAttribute("title")).toBe("This clip is locked");
+  expect(screen.getByRole("menuitem", { name: "Split at playhead" }).getAttribute("aria-disabled")).toBe("true");
+});
+
+test("Delete commits one edit, and a Ripple delete across another track's clip is refused with its reason", () => {
+  const { actions } = mountMenus();
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Main video clip" }), { clientX: 5, clientY: 5 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+  // The locked B-roll clip (150–200) lies inside the Music clip's stretch (150–240).
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Music clip" }), { clientX: 5, clientY: 5 });
+  const ripple = screen.getByRole("menuitem", { name: "Ripple delete" });
+  expect(ripple.getAttribute("title")).toBe("A clip on another track is cut part-way here; trim or delete it first");
+  fireEvent.click(ripple);
+  expect(committed(actions)).toEqual([["remove_clip"]]);
+});
+
+test("Replace media opens a picker of ready videos and commits the choice", () => {
+  const ready = { asset_id: "asset_other", project_id: "project_001", kind: "video", has_audio: true, media_type: "video/mp4", validation_state: "ready", duration_in_frames: 300 } as const;
+  const { actions } = mountMenus({ assets: { asset_other: ready } as EditorState["assets"] }, { assetName: () => "Footage · @someone" });
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Main video clip" }), { clientX: 5, clientY: 5 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "Replace media…" }));
+  fireEvent.click(within(screen.getByRole("dialog", { name: "Replace media" })).getByRole("button", { name: "Use Footage · @someone" }));
+  expect(actions.at(-1)).toMatchObject({ type: "commit_operations", operations: [{ kind: "replace_clip_asset", clip_id: "clip_main", asset_id: "asset_other" }] });
+});
+
+test("a gap's menu closes the gap, and away from a gap it says there is none", () => {
+  const { actions } = mountMenus({ zoom: 1 });
+  const well = document.querySelector('[data-track-id="track_main"] [data-lane-well]')!;
+  fireEvent.contextMenu(well, { clientX: 200, clientY: 5 });
+  const close = screen.getByRole("menuitem", { name: "Close this gap" });
+  expect(close.getAttribute("title")).toBe("There is no gap here");
+  expect(actions).toEqual([]);
+});
+
+test("a track's menu offers track entries, with the edges and full tracks disabled", () => {
+  mountMenus();
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Select Main video track" }), { clientX: 5, clientY: 5 });
+  expect(menuNames()).toEqual(["Select track", "Move up", "Move down", "Hide", "Mute", "Lock", "Remove empty track"]);
+  expect(screen.getByRole("menuitem", { name: "Move up" }).getAttribute("aria-disabled")).toBe("true");
+  expect(screen.getByRole("menuitem", { name: "Remove empty track" }).getAttribute("title")).toBe("Remove its clips first");
+});
+
+test("Show in Story hands the clip to the Story", () => {
+  const shown: string[] = [];
+  mountMenus({}, { beatOf: () => "main", onShowInStory: (clipId) => shown.push(clipId) });
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Main video clip" }), { clientX: 5, clientY: 5 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "Show in Story" }));
+  expect(shown).toEqual(["clip_main"]);
+});
+
+// Final review 2026-11-08 #3-#5.
+test("keys pressed inside an open dialog or menu do not reach the timeline", () => {
+  const { actions } = mount({ selectedClipId: "clip_main", selectedTrackId: "track_main", playheadFrame: 60 });
+  for (const role of ["dialog", "menu"]) {
+    const box = document.createElement("div");
+    box.setAttribute("role", role);
+    const inside = document.createElement("button");
+    box.appendChild(inside);
+    document.body.appendChild(box);
+    try {
+      for (const name of ["Delete", "s", "ArrowRight"]) key(inside, name);
+    } finally {
+      box.remove();
+    }
+  }
+  expect(actions).toEqual([]);
+});
+
+test("arrows on the zoom slider move the slider, not the playhead", () => {
+  const { actions } = mount({ playheadFrame: 60 });
+  key(screen.getByRole("slider", { name: "Zoom" }), "ArrowRight");
+  key(screen.getByRole("slider", { name: "Zoom" }), "Home");
+  expect(actions.some((action) => action.type === "set_playhead")).toBe(false);
+});
+
+test("Space on a focused clip plays, as in common editors", () => {
+  const { transport } = mount({ selectedClipId: "clip_main", selectedTrackId: "track_main" });
+  key(screen.getByRole("button", { name: "Main video clip" }), " ");
+  expect(transport).toEqual(["play"]);
 });

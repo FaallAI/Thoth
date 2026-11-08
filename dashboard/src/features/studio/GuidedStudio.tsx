@@ -33,6 +33,8 @@ import { SceneMediaInspector } from "./SceneMediaInspector";
 import { Timeline } from "./Timeline";
 import { StudioHeader } from "./StudioHeader";
 import { TimelineInspector } from "./TimelineInspector";
+import { useStudioShortcuts } from "./studio_keys";
+import { ShortcutsDialog } from "./ShortcutsDialog";
 import { assetLabel, clipLabel, type LabelContext } from "./studio_labels";
 import {
   createAddClipFromAssetOperation,
@@ -54,7 +56,7 @@ import { ScriptPanel } from "./script/ScriptPanel";
 import { SfxLibrary } from "./script/NarrationPresetForm";
 import { adoptNarratedRevision, isNarrationActive, useNarration } from "./script/useNarration";
 import { SafeZoneOverlay } from "./story/SafeZone";
-import { ROLE_BEAT, computeBeats, type BeatId } from "./story/story_beats";
+import { ROLE_BEAT, beatOfClip, computeBeats, type BeatId } from "./story/story_beats";
 import { BEAT_ROLE, addHook, addMaterialToBeat, addOutro, creditLine } from "./story/story_edits";
 import "./studio.css";
 
@@ -141,6 +143,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   // Both modes project the same draft; only version 2 can show the advanced one. Every width
   // edits Story or Timeline; compact screens show them one pane at a time (spec 2026-11-01).
   const advanced = Boolean(timeline) && state.mode === "advanced";
+  // At 1024 an empty Timeline Inspector folds to a rail so the lanes get the width (spec 2026-11-08 §5.1).
+  const railInspector = advanced && collapsible && !state.selectedClipId && !state.selectedTrackId;
   // Story has no Timeline pane: a Timeline pane chosen before a mode switch shows the preview.
   const editPane: StudioEditPane = !advanced && chosenPane === "timeline" ? "preview" : chosenPane;
   const story = Boolean(timeline) && !advanced;
@@ -148,6 +152,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const timelineReadOnly = compact && advanced;
   const [safeZone, setSafeZone] = useState(false);
   const [selectedBeat, setSelectedBeat] = useState<BeatId | null>(null);
+  // The keyboard shortcut list (spec 2026-11-08 §5.1).
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [inventory, setInventory] = useState<StudioImportItem[]>([]);
   const [materials, setMaterials] = useState<StudioMaterials | null>(null);
   const [materialsRead, setMaterialsRead] = useState(false);
@@ -193,7 +199,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         gridTemplateColumns: [
           editing && sceneRegionOpen && !stripLayout && (story ? "18rem" : "var(--scene-board-width)"),
           "minmax(0,1fr)",
-          editing && inspectorRegionOpen && "var(--inspector-width)",
+          editing && inspectorRegionOpen && (railInspector ? "3rem" : "var(--inspector-width)"),
         ]
           .filter(Boolean)
           .join(" "),
@@ -473,6 +479,21 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     const sceneId = timeline?.clips?.find((clip) => clip.clip_id === beat.clipIds[0])?.scene_id;
     if (sceneId) dispatch({ type: "select_scene", sceneId });
   };
+  // Spec 2026-11-08 §5.2: Story's menus play from a frame, open the Timeline, or open the picker.
+  const playFrom = (frame: number) => {
+    player.seekTo(frame);
+    dispatch({ type: "set_playhead", frame });
+    player.play();
+  };
+  const showClipInTimeline = (clipId: string) => {
+    dispatch({ type: "set_editor_mode", mode: "advanced" });
+    dispatch({ type: "select_clip", clipId });
+  };
+  const showBeatInTimeline = (id: BeatId) => {
+    selectBeat(id);
+    dispatch({ type: "set_editor_mode", mode: "advanced" });
+  };
+  const [pickRequest, setPickRequest] = useState(0);
   const { attachStudioMaterial } = client;
   const attachMaterial = useMemo(
     () => (attachStudioMaterial ? (itemId: string) => attachStudioMaterial(projectId, documentId, itemId) : undefined),
@@ -612,6 +633,13 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const restorable = saveStatus === "saved" && Boolean(client.restoreEditDocument);
   const undoDisabled = historyBusy || !(state.history.length || (restorable && state.savedUndo.length));
   const redoDisabled = historyBusy || !(state.future.length || (restorable && state.savedRedo.length));
+  // Spec 2026-11-08 §5.1: Ctrl+Z and Ctrl+Y from anywhere in the editing Studio but a field.
+  useStudioShortcuts({
+    undo: () => !undoDisabled && undo(),
+    redo: () => !redoDisabled && redo(),
+    shortcuts: () => setShortcutsOpen(true),
+    enabled: editing,
+  });
 
   const upgradeDocument = () => {
     const upgrade = client.upgradeEditDocument;
@@ -648,6 +676,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
 
   return (
     <section className={`studio-shell pen-studio studio-job-${job} ${advanced ? "studio-advanced" : "studio-simple"}${story ? " studio-story" : ""} flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground`} aria-label="Guided Studio">
+      <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       {/* DESIGN §13: back to the documents, the title, the destinations, and where saving stands. */}
       <StudioHeader
         title={documentLabel(draft)}
@@ -793,6 +822,17 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             ) : null}
             <span className="text-muted-ink">{t("studio.editor.project", { name: projectName ?? base.project_id })}</span>
             {workspaceControls ?? <p className="text-muted-ink">{t("studio.editor.noSwitch")}</p>}
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              className={`${toolbarButton} self-start`}
+              onClick={(event) => {
+                event.currentTarget.closest("details")?.removeAttribute("open");
+                setShortcutsOpen(true);
+              }}
+            >
+              {t("studio.shortcuts.open")}
+            </button>
             {/* Phones hide the top bar's Undo and Redo; they stay reachable here (final review I5). */}
             {viewport === "phone" ? (
             <div className="flex flex-wrap gap-2 border-t border-hairline pt-3">
@@ -996,6 +1036,9 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 beats={beats}
                 document={timeline}
                 previews={previewSources}
+                openBeat={shownBeat}
+                onAddToOpenBeat={(itemId) => shownBeat && void dropMaterial(shownBeat.id, itemId)}
+                onShowUse={playFrom}
               />
             ) : advanced ? (
               assetClient ? (
@@ -1122,6 +1165,15 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                   onSeek={player.seekTo}
                   onPlay={player.play}
                   onPause={player.pause}
+                  editingKeys={editing}
+                  beatOf={(clipId) => beatOfClip(timeline, inventory, clipId)}
+                  onShowInStory={(clipId) => {
+                    const beat = beatOfClip(timeline, inventory, clipId);
+                    if (!beat) return;
+                    setSelectedBeat(beat);
+                    dispatch({ type: "set_editor_mode", mode: "simple" });
+                  }}
+                  assetName={describeAsset ? (asset) => describeAsset(asset).label : undefined}
                 />
                 <IssuesBar
                   document={timeline}
@@ -1167,6 +1219,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 labelOf={labelOf}
                 selectedClipId={state.selectedClipId}
                 selectedTrackId={state.selectedTrackId}
+                rail={railInspector}
                 onOperation={(operation) => dispatch({ type: "commit_timeline_operation", operation })}
               />
             ) : (
@@ -1197,6 +1250,11 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                       attachMaterial={attachMaterial}
                       onRemoveMissing={removeMissing}
                       narrated={voicedBeats.has(shownBeat.id)}
+                      onPlayFrom={playFrom}
+                      onShowInTimeline={showClipInTimeline}
+                      replaceAssets={Object.values(state.assets)}
+                      assetName={describeAsset ? (asset) => describeAsset(asset).label : undefined}
+                      pickRequest={pickRequest}
                     />
                   ) : (
                     <p className="p-4 text-sm text-muted-ink">{t("studio.inspector.empty")}</p>
@@ -1229,7 +1287,18 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                     dispatch({ type: "edit_duration", sceneId, durationInFrames, operationId: makeOperationId() })
                   }
                 >
-                  <SceneMediaInspector document={state.draft} sceneId={state.selectedSceneId} labelOf={labels ? (assetId) => assetLabel(assetId, labels).label : undefined} />
+                  <SceneMediaInspector
+                    document={state.draft}
+                    sceneId={state.selectedSceneId}
+                    labelOf={labels ? (assetId) => assetLabel(assetId, labels).label : undefined}
+                    assets={timeline ? Object.values(state.assets) : undefined}
+                    onReplace={(clipId, assetId) =>
+                      dispatch({
+                        type: "commit_operations",
+                        operations: [{ kind: "replace_clip_asset", operation_id: `op_${crypto.randomUUID()}`, clip_id: clipId, asset_id: assetId }],
+                      })
+                    }
+                  />
                   {timeline ? <CaptionTextInspector document={timeline} selectedSceneId={state.selectedSceneId} disabled={upgrading} compact onOperation={(operation) => dispatch({ type: "commit_timeline_operation", operation })} /> : <section className="studio-caption-summary" aria-label="Captions"><h3>Captions</h3><p>No editable captions in this document.</p><button className="studio-style-trigger" type="button" disabled>Caption style unavailable</button></section>}
                 </Inspector>
                 {timeline && viewport !== "phone" ? (
@@ -1262,6 +1331,11 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 onDropMaterial={(beatId, data) => void dropMaterial(beatId, data)}
                 addable={[...addable]}
                 onAddBeat={addBeat}
+                onShowInTimeline={showBeatInTimeline}
+                onAddFromMaterials={(id) => {
+                  selectBeat(id);
+                  setPickRequest((count) => count + 1);
+                }}
                 voiced={voicedBeats}
                 stale={staleBeats}
                 variant={compact ? "chips" : "tiles"}

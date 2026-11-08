@@ -987,3 +987,10 @@ test("write-audit: a refused save is told apart from a failed one and clears on 
   expect(trying.saveRefused).toBe(false);
   expect(editorReducer(edited, { type: "save_failed" }).saveRefused).toBe(false);
 });
+
+test("select_clip with no id clears the clip and track selection", () => {
+  const selected = { ...createEditorState(timelineDocument()), selectedClipId: "clip_main", selectedTrackId: "track_main" };
+  const cleared = editorReducer(selected, { type: "select_clip", clipId: "" });
+  expect(cleared.selectedClipId).toBe("");
+  expect(cleared.selectedTrackId).toBe("");
+});

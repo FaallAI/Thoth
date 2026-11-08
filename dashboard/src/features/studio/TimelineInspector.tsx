@@ -1,11 +1,12 @@
-import { useId, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
+import { PanelRight } from "lucide-react";
 
 import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane";
 import { useLocale } from "@/lib/locale";
 import { setPositionPreset, type PositionPreset } from "./story/story_edits";
 import { clipLabel } from "./TimelineClip";
 import { issueSentence } from "./IssuesPanel";
-import { formatTimecode, timelineIssues } from "./timeline_domain";
+import { formatTimecode, parseTimecode, timelineIssues, trackName } from "./timeline_domain";
 
 type Props = {
   document: EditDocumentV2;
@@ -14,6 +15,8 @@ type Props = {
   onOperation: (operation: EditDocumentOperation) => void;
   /** The clip's human name (spec 2026-11-01); absent, the Timeline's own words for it. */
   labelOf?: (clip: NonNullable<EditDocumentV2["clips"]>[number]) => string;
+  /** At 1024 an Inspector with nothing selected folds to a narrow rail (spec 2026-11-08 §5.1). */
+  rail?: boolean;
 };
 
 const field = "flex items-center justify-between gap-2 text-xs text-muted-ink";
@@ -36,6 +39,60 @@ type OperationDraft = EditDocumentOperation extends infer T
     : never
   : never;
 
+/** A time a person types ("0:07.5"); an unreadable one changes nothing and shows the time again. */
+function TimeField({
+  id,
+  label,
+  frame,
+  fps,
+  disabled,
+  onCommit,
+}: {
+  id: string;
+  label: string;
+  frame: number;
+  fps: number;
+  disabled: boolean;
+  onCommit: (frame: number) => void;
+}) {
+  const shown = formatTimecode(frame, fps);
+  const [text, setText] = useState(shown);
+  useEffect(() => setText(shown), [shown]);
+  const commit = () => {
+    // Only what the person typed: the shown time is rounded, so reading it back could move the clip.
+    if (text.trim() === shown) return;
+    const next = parseTimecode(text, fps);
+    if (next === null || next === frame) {
+      setText(shown);
+      return;
+    }
+    onCommit(next);
+  };
+  return (
+    <div className={field}>
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        type="text"
+        inputMode="decimal"
+        className={input}
+        value={text}
+        disabled={disabled}
+        onChange={(event) => setText(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            commit();
+          } else if (event.key === "Escape") {
+            setText(shown);
+          }
+        }}
+      />
+    </div>
+  );
+}
+
 /** One titled group of fields, like the TIMING, TRANSFORM and AUDIO blocks of the design. */
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -52,11 +109,14 @@ export function TimelineInspector({
   selectedTrackId,
   onOperation,
   labelOf,
+  rail = false,
 }: Props) {
   const { t, plural } = useLocale();
   const ids = {
     start: useId(),
     end: useId(),
+    startTime: useId(),
+    endTime: useId(),
     volume: useId(),
     hidden: useId(),
     muted: useId(),
@@ -112,6 +172,18 @@ export function TimelineInspector({
   const emit = (operation: OperationDraft) =>
     onOperation({ ...operation, operation_id: newId() } as EditDocumentOperation);
 
+  if (rail && !clip && !track) {
+    return (
+      <aside
+        className="flex min-h-0 flex-col items-center border-l border-hairline bg-surface pt-4 text-faint"
+        aria-label={t("studio.timeline.inspector")}
+      >
+        <PanelRight aria-hidden="true" size={16} />
+        <span className="sr-only">{t("studio.timeline.selectSomething")}</span>
+      </aside>
+    );
+  }
+
   return (
     <aside
       className="min-h-0 space-y-3 overflow-auto border-l border-hairline bg-surface p-4"
@@ -122,11 +194,29 @@ export function TimelineInspector({
           <header>
             <h2 className="truncate text-sm font-semibold text-ink">{labelOf?.(clip) ?? clipLabel(t, clip)}</h2>
             {track ? (
-              <p className="text-xs text-muted-ink">{t("studio.timeline.track", { track: track.label })}</p>
+              <p className="text-xs text-muted-ink">{t("studio.timeline.track", { track: trackName(t, document, track) })}</p>
             ) : null}
           </header>
 
           <Section title={t("studio.timeline.section.timing")}>
+            <TimeField
+              id={ids.startTime}
+              label={t("studio.timeline.startTime")}
+              frame={clip.from_frame}
+              fps={fps}
+              disabled={frozen}
+              onCommit={(frame) =>
+                emit({ kind: "move_clip", clip_id: clip.clip_id, target_track_id: clip.track_id, from_frame: frame, ripple: false })
+              }
+            />
+            <TimeField
+              id={ids.endTime}
+              label={t("studio.timeline.endTime")}
+              frame={clip.from_frame + clip.duration_in_frames}
+              fps={fps}
+              disabled={frozen}
+              onCommit={(frame) => emit({ kind: "trim_clip_end", clip_id: clip.clip_id, end_frame: frame })}
+            />
             <div className={field}>
               <label htmlFor={ids.start}>{t("studio.timeline.startFrame")}</label>
               <span className="ml-auto font-mono text-faint">{formatTimecode(clip.from_frame, fps)}</span>
@@ -318,8 +408,7 @@ export function TimelineInspector({
       ) : track ? (
         <>
           <header>
-            <h2 className="truncate text-sm font-semibold text-ink">{track.label}</h2>
-            <p className="font-mono text-xs text-muted-ink">{track.kind}</p>
+            <h2 className="truncate text-sm font-semibold text-ink">{trackName(t, document, track)}</h2>
           </header>
           <Section title={t("studio.timeline.section.track")}>
             {checkbox(ids.hidden, t("studio.timeline.hidden"), track.hidden === true, track.locked === true, (hidden) =>

@@ -84,6 +84,28 @@ export function clipLabelSource(
 }
 
 /** `m:ss.t` for a frame: minutes are never wrapped into hours, and a zero rate reads as 0. */
+/** Time typed by a person ("0:07.5", "7.5", "1:02") as frames; null when it is not a time. */
+export function parseTimecode(text: string, fps: number): number | null {
+  const match = /^(?:(\d+):)?(\d+(?:\.\d+)?)$/.exec(text.trim());
+  if (!match) return null;
+  const seconds = Number(match[1] ?? 0) * 60 + Number(match[2]);
+  return Number.isFinite(seconds) ? Math.round(seconds * fps) : null;
+}
+
+/** A track in the reader's words: its kind's name, numbered from the second track of that kind. */
+export function trackName(
+  t: (key: `studio.timeline.trackName.${TimelineTrack["kind"]}`) => string,
+  document: EditDocumentV2,
+  track: TimelineTrack,
+): string {
+  const same = document.tracks
+    .filter((entry) => entry.kind === track.kind)
+    .sort((left, right) => left.order - right.order);
+  const index = same.findIndex((entry) => entry.track_id === track.track_id);
+  const name = t(`studio.timeline.trackName.${track.kind}`);
+  return index > 0 ? `${name} ${index + 1}` : name;
+}
+
 export function formatTimecode(frame: number, fps: number): string {
   const tenths = fps > 0 ? Math.floor((frame / fps) * 10) : 0;
   const minutes = Math.floor(tenths / 600);

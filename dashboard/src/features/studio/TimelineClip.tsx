@@ -2,6 +2,7 @@ import type { PointerEvent } from "react";
 import { Lock } from "lucide-react";
 
 import type { EditDocumentV2 } from "@/api/control-plane";
+import type { MenuHandlers } from "@/components/ContextMenu";
 import { useLocale, type LocaleState } from "@/lib/locale";
 import { clipLabelSource, framesToPixels } from "./timeline_domain";
 
@@ -25,6 +26,8 @@ type Props = {
   name?: string;
   /** A view-only timeline: no trim handles, no drag. */
   readOnly?: boolean;
+  /** The clip's right-click menu (spec 2026-11-08 §5.1). */
+  menu?: MenuHandlers;
 };
 
 /** Video lanes read as footage, cards and words as panels, sound as the darkest well. */
@@ -63,6 +66,7 @@ export function TimelineClip({
   onNudge,
   name: given,
   readOnly = false,
+  menu,
 }: Props) {
   const { t } = useLocale();
   const name = t("studio.timeline.clip", { track: label });
@@ -90,16 +94,29 @@ export function TimelineClip({
           selected ? "border-2 border-copper" : "border-hairline hover:border-faint"
         }`}
         onClick={onSelect}
-        onPointerDown={readOnly ? undefined : start("move")}
+        onContextMenu={(event) => {
+          onSelect();
+          menu?.onContextMenu(event);
+        }}
+        onPointerUp={menu?.onPointerUp}
+        onPointerCancel={menu?.onPointerCancel}
+        onPointerDown={(event) => {
+          menu?.onPointerDown(event);
+          if (!readOnly) start("move")(event);
+        }}
         onKeyDown={(event) => {
+          menu?.onKeyDown(event);
+          if (event.defaultPrevented) return;
           const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
-          if (!step || locked || readOnly) return;
+          if (!step) return;
+          // Arrows on a focused clip belong to the clip, so they never move the playhead instead.
           event.preventDefault();
+          if (locked || readOnly) return;
           onNudge(step);
         }}
       >
         {locked ? <Lock aria-hidden="true" size={11} className="mt-0.5 shrink-0 text-faint" /> : null}
-        <span className="truncate rounded bg-well/70 px-1">{text}</span>
+        <span className="truncate rounded bg-well/70 px-1" title={text}>{text}</span>
       </button>
       {readOnly ? null : (
         <>

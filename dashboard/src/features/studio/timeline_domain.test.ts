@@ -916,3 +916,30 @@ test("write-audit: every placed clip is one the document accepts without an issu
     expect(codes).not.toContain("clip_overlap");
   }
 });
+
+// Spec 2026-11-08 §5.1: time typed as time, and tracks named in plain language.
+import { messages } from "@/lib/i18n";
+import { parseTimecode, trackName } from "./timeline_domain";
+import { timelineDocument as fixtureDocument } from "./timeline-test-fixtures";
+
+test("parseTimecode reads m:ss.f, seconds and m:ss, and nothing else", () => {
+  expect(parseTimecode("0:07.5", 30)).toBe(225);
+  expect(parseTimecode("7.5", 30)).toBe(225);
+  expect(parseTimecode("1:02", 30)).toBe(1860);
+  expect(parseTimecode(" 0:01.0 ", 30)).toBe(30);
+  expect(parseTimecode("abc", 30)).toBeNull();
+  expect(parseTimecode("", 30)).toBeNull();
+  expect(parseTimecode("-1", 30)).toBeNull();
+});
+
+test("trackName names a track by its kind, in the reader's language, numbering a second one", () => {
+  const doc = fixtureDocument();
+  const en = (key: string) => (messages.en as Record<string, string>)[key]!;
+  const id = (key: string) => (messages.id as Record<string, string>)[key]!;
+  const main = doc.tracks.find((track) => track.track_id === "track_main")!;
+  expect(trackName(en as never, doc, main)).toBe("Main video");
+  expect(trackName(id as never, doc, main)).toBe("Video utama");
+  const second = { ...doc.tracks.find((track) => track.track_id === "track_broll")!, track_id: "track_broll_2", order: 9, label: "B-Roll 2" };
+  doc.tracks.push(second);
+  expect(trackName(en as never, doc, second)).toBe("B-roll 2");
+});

@@ -468,7 +468,7 @@ test("disables document-mutating controls while an upgrade request runs", async 
   );
   const heading = (await screen.findByLabelText("Heading")) as HTMLInputElement;
   const body = screen.getByLabelText("Body") as HTMLTextAreaElement;
-  const ownership = screen.getByLabelText("Ownership") as HTMLSelectElement;
+  const ownership = screen.getByLabelText("Edited by") as HTMLSelectElement;
   const duration = screen.getByLabelText("Duration (seconds)") as HTMLInputElement;
   const undo = screen.getByRole("button", { name: "Undo" }) as HTMLButtonElement;
 
@@ -487,5 +487,50 @@ test("disables document-mutating controls while an upgrade request runs", async 
   });
 
   expect((screen.getByLabelText("Heading") as HTMLInputElement).disabled).toBe(false);
-  expect((screen.getByLabelText("Ownership") as HTMLSelectElement).disabled).toBe(false);
+  expect((screen.getByLabelText("Edited by") as HTMLSelectElement).disabled).toBe(false);
+});
+
+// e2e audit 2026-11-08: Ctrl+Z passed only through a field's own undo; Studio had no key for it.
+test("Ctrl+Z and Ctrl+Y undo and redo outside fields, and leave a field's own undo alone", async () => {
+  const patchEditDocument = mock(async () => ({ kind: "saved" as const, document: editDocument }));
+  const { GuidedStudio } = await import("./GuidedStudio");
+  render(
+    <GuidedStudio
+      client={{ ...promptClientBase, getEditDocument: mock(async () => editDocument), patchEditDocument }}
+      projectId="project_001"
+      documentId="document_001"
+      onBack={() => {}}
+    />,
+  );
+  const heading = (await screen.findByLabelText("Heading")) as HTMLInputElement;
+  fireEvent.change(heading, { target: { value: "Local heading" } });
+
+  fireEvent.keyDown(heading, { key: "z", ctrlKey: true });
+  expect(heading.value).toBe("Local heading");
+
+  fireEvent.keyDown(document.body, { key: "z", ctrlKey: true });
+  expect(heading.value).toBe("Original heading");
+
+  fireEvent.keyDown(document.body, { key: "y", ctrlKey: true });
+  expect(heading.value).toBe("Local heading");
+});
+
+test("the shortcut list opens with ? and from the workspace menu", async () => {
+  const { GuidedStudio } = await import("./GuidedStudio");
+  render(
+    <GuidedStudio
+      client={{ ...promptClientBase, getEditDocument: mock(async () => editDocument), patchEditDocument: mock(async () => ({ kind: "saved" as const, document: editDocument })) }}
+      projectId="project_001"
+      documentId="document_001"
+      onBack={() => {}}
+    />,
+  );
+  await screen.findByLabelText("Heading");
+  fireEvent.keyDown(document.body, { key: "?" });
+  const dialog = screen.getByRole("dialog", { name: "Keyboard shortcuts" });
+  fireEvent.keyDown(dialog, { key: "Escape" });
+  expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).toBeNull();
+
+  fireEvent.click(screen.getByRole("button", { name: "Keyboard shortcuts" }));
+  expect(screen.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeTruthy();
 });

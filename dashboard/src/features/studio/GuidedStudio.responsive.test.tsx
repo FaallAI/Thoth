@@ -243,7 +243,7 @@ test("desktop Timeline keeps every tool and inspector field", async () => {
   // A switch is named by its text, a field by its label.
   const control = (name: string) => screen.queryByRole("switch", { name }) ?? screen.queryByLabelText(name);
   // Position presets need a positioned clip; TimelineInspector's own tests hold them.
-  for (const name of ["Ripple", "Snap", "Zoom", "Start frame", "End frame", "Fit", "Crop", "Hidden", "Locked", "Ownership"]) {
+  for (const name of ["Ripple", "Snap", "Zoom", "Start frame", "End frame", "Fit", "Crop", "Hidden", "Locked", "Edited by"]) {
     expect(control(name) === null).toBe(false);
   }
 });
@@ -572,4 +572,29 @@ test("a phone's Story pane fills the screen, with the beats pinned under it", as
   await renderStudio(430, timelineDocument() as EditDocument);
 
   expect((screen.getByLabelText("Guided editing workstation") as HTMLElement).style.gridTemplateRows).toContain("minmax");
+});
+
+// Spec 2026-11-08 §5.1: at 1024 an empty Timeline Inspector folds to a rail so the lanes get the width.
+test("at 1024 an empty Timeline Inspector folds to a rail and opens on a selection", async () => {
+  await renderStudio(1024, timelineDocument() as EditDocument);
+  fireEvent.click(await screen.findByRole("button", { name: "Timeline" }));
+  await screen.findByLabelText("Timeline");
+  const workstation = screen.getByLabelText("Guided editing workstation");
+  expect(workstation.style.gridTemplateColumns).toContain("3rem");
+  expect(workstation.style.gridTemplateColumns).not.toContain("var(--inspector-width)");
+  fireEvent.click(screen.getByRole("button", { name: "Main video clip" }));
+  expect(workstation.style.gridTemplateColumns).toContain("var(--inspector-width)");
+});
+
+// Final review 2026-11-08 #1: in Review the Timeline is hidden but mounted; its keys must not edit.
+test("Delete in the Review job edits nothing", async () => {
+  await renderStudio(1440, timelineDocument() as EditDocument);
+  fireEvent.click(await screen.findByRole("button", { name: "Timeline" }));
+  await screen.findByLabelText("Timeline");
+  fireEvent.click(screen.getByRole("button", { name: "Main video clip" }));
+  job("Review");
+  // `document` is this file's edit document; the page's body is window.document.body.
+  fireEvent.keyDown(window.document.body, { key: "Delete" });
+  job("Edit");
+  expect(screen.getByRole("button", { name: "Main video clip" })).toBeDefined();
 });
