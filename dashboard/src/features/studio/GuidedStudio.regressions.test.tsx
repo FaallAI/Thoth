@@ -468,7 +468,7 @@ test("disables document-mutating controls while an upgrade request runs", async 
   );
   const heading = (await screen.findByLabelText("Heading")) as HTMLInputElement;
   const body = screen.getByLabelText("Body") as HTMLTextAreaElement;
-  const ownership = screen.getByLabelText("Ownership") as HTMLSelectElement;
+  const ownership = screen.getByLabelText("Edited by") as HTMLSelectElement;
   const duration = screen.getByLabelText("Duration (seconds)") as HTMLInputElement;
   const undo = screen.getByRole("button", { name: "Undo" }) as HTMLButtonElement;
 
@@ -487,7 +487,7 @@ test("disables document-mutating controls while an upgrade request runs", async 
   });
 
   expect((screen.getByLabelText("Heading") as HTMLInputElement).disabled).toBe(false);
-  expect((screen.getByLabelText("Ownership") as HTMLSelectElement).disabled).toBe(false);
+  expect((screen.getByLabelText("Edited by") as HTMLSelectElement).disabled).toBe(false);
 });
 
 // e2e audit 2026-11-08: Ctrl+Z passed only through a field's own undo; Studio had no key for it.

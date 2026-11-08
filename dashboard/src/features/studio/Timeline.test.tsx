@@ -54,11 +54,14 @@ test("renders every track in order with its visibility, mute, and lock controls"
   expect(screen.getByRole("button", { name: "Unlock Captions" })).toBeDefined();
 });
 
-test("a track header names its kind in the editor's own words", () => {
+test("a track header names its kind in plain words, never its raw id", () => {
+  // Spec 2026-11-08 §5.1: "Main video", not `main_video`.
   mount();
   const music = screen.getByRole("group", { name: "Music track" });
-  expect(music.textContent).toContain("music");
-  expect(screen.getByRole("group", { name: "Main video track" }).textContent).toContain("main_video");
+  expect(music.textContent).toContain("Music");
+  const main = screen.getByRole("group", { name: "Main video track" });
+  expect(main.textContent).toContain("Main video");
+  expect(main.textContent).not.toContain("main_video");
   expect(music.querySelector("svg.lucide-music")).not.toBeNull();
 });
 
@@ -294,7 +297,7 @@ test("track controls dispatch their own typed operations", () => {
 
 test("lane names stay in sight while the lanes scroll, and take a quarter of a phone when view-only", () => {
   // e2e audit 2026-11-02, finding 7: at 430 they scrolled away, and their 192 px took half the screen.
-  const header = () => within(screen.getByRole("group", { name: "Main video track" })).getByText("main_video").parentElement!;
+  const header = () => screen.getByRole("button", { name: "Select Main video track" }).parentElement!;
   mount();
   expect(header().className).toContain("sticky");
   expect(header().className).toContain("w-48");

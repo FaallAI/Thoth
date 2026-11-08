@@ -15,6 +15,7 @@ import {
   clampZoom,
   compatibleTrackIds,
   formatTimecode,
+  trackName,
   framesToPixels,
   rulerTicks,
   isTimelineDocument,
@@ -366,7 +367,7 @@ export function Timeline({
     commit: (operations) => {
       if (operations.length) dispatch({ type: "commit_operations", operations });
     },
-    trackName: (track) => track.label,
+    trackName: (track) => trackName(t, timeline, track),
   };
   const replaced = clips.find((clip) => clip.clip_id === replacing);
   const replacedAsset = replaced && "asset_id" in replaced ? replaced.asset_id : undefined;
@@ -477,6 +478,7 @@ export function Timeline({
               selectedClipId={state.selectedClipId}
               labelOf={labelOf}
               readOnly={readOnly}
+              name={trackName(t, timeline, lane.track)}
               onToggle={(field, value) => toggleTrack(lane.track.track_id, field, value)}
               clipMenu={
                 readOnly

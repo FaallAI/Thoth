@@ -143,6 +143,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   // Both modes project the same draft; only version 2 can show the advanced one. Every width
   // edits Story or Timeline; compact screens show them one pane at a time (spec 2026-11-01).
   const advanced = Boolean(timeline) && state.mode === "advanced";
+  // At 1024 an empty Timeline Inspector folds to a rail so the lanes get the width (spec 2026-11-08 §5.1).
+  const railInspector = advanced && collapsible && !state.selectedClipId && !state.selectedTrackId;
   // Story has no Timeline pane: a Timeline pane chosen before a mode switch shows the preview.
   const editPane: StudioEditPane = !advanced && chosenPane === "timeline" ? "preview" : chosenPane;
   const story = Boolean(timeline) && !advanced;
@@ -197,7 +199,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
         gridTemplateColumns: [
           editing && sceneRegionOpen && !stripLayout && (story ? "18rem" : "var(--scene-board-width)"),
           "minmax(0,1fr)",
-          editing && inspectorRegionOpen && "var(--inspector-width)",
+          editing && inspectorRegionOpen && (railInspector ? "3rem" : "var(--inspector-width)"),
         ]
           .filter(Boolean)
           .join(" "),
@@ -1198,6 +1200,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 labelOf={labelOf}
                 selectedClipId={state.selectedClipId}
                 selectedTrackId={state.selectedTrackId}
+                rail={railInspector}
                 onOperation={(operation) => dispatch({ type: "commit_timeline_operation", operation })}
               />
             ) : (

@@ -41,6 +41,8 @@ type Props = {
   /** The clip's human name (spec 2026-11-01); absent, the Timeline's own words for it. */
   labelOf?: (clip: NonNullable<EditDocumentV2["clips"]>[number]) => string;
   readOnly?: boolean;
+  /** The track's plain name (spec 2026-11-08 §5.1); absent, its stored label. */
+  name?: string;
 };
 
 type TrackKind = TimelineLane["track"]["kind"];
@@ -74,6 +76,7 @@ export function TimelineTrack({
   onNudge,
   labelOf,
   readOnly = false,
+  name,
 }: Props) {
   const { t } = useLocale();
   const { track, clips } = lane;
@@ -109,10 +112,10 @@ export function TimelineTrack({
           type="button"
           data-track-name
           aria-label={t("studio.timeline.selectTrack", values)}
-          className="min-w-0 grow truncate text-left font-mono text-xs text-ink focus-visible:outline-2 focus-visible:outline-copper"
-          title={track.label}
+          className="min-w-0 grow truncate text-left text-xs text-ink focus-visible:outline-2 focus-visible:outline-copper"
+          title={name ?? track.label}
         >
-          {track.kind}
+          {name ?? track.label}
         </button>
         {/* A state that is on stays in sight; the toggles themselves show on hover and focus. */}
         {toggles

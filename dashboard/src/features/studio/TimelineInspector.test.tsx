@@ -69,7 +69,7 @@ test("hides, locks, and re-owns the selected clip", () => {
   const { operations } = mount({ clipId: "clip_main" });
   fireEvent.click(screen.getByLabelText("Hidden"));
   fireEvent.click(screen.getByLabelText("Locked"));
-  fireEvent.change(screen.getByLabelText("Ownership"), { target: { value: "user_edited" } });
+  fireEvent.change(screen.getByLabelText("Edited by"), { target: { value: "user_edited" } });
 
   expect(operations.map(payload)).toEqual([
     { kind: "set_clip_hidden", operation_id: "op", clip_id: "clip_main", hidden: true },
@@ -314,4 +314,43 @@ test("the inspector lists the selected clip's issues", () => {
 
   const issues = screen.getByRole("group", { name: "Issues · 1" });
   expect(issues.textContent).toContain("Main video: a clip starts after a gap");
+});
+
+// Spec 2026-11-08 §5.1: time as time, frames beside it; tracks in plain names.
+test("start and end are typed as time and land as moves and trims", () => {
+  const { operations } = mount({ clipId: "clip_main" });
+  const start = screen.getByRole("textbox", { name: "Start time" }) as HTMLInputElement;
+  const end = screen.getByRole("textbox", { name: "End time" }) as HTMLInputElement;
+  expect(start.value).toBe("0:00.0");
+  expect(end.value).toBe("0:04.0");
+  fireEvent.change(start, { target: { value: "0:01.0" } });
+  fireEvent.keyDown(start, { key: "Enter" });
+  fireEvent.change(end, { target: { value: "0:03.0" } });
+  fireEvent.blur(end);
+  expect(operations.map(payload)).toEqual([
+    { kind: "move_clip", operation_id: "op", clip_id: "clip_main", target_track_id: "track_main", from_frame: 30, ripple: false },
+    { kind: "trim_clip_end", operation_id: "op", clip_id: "clip_main", end_frame: 90 },
+  ]);
+  expect(screen.getByRole("spinbutton", { name: "Start frame" })).toBeDefined();
+});
+
+test("an unreadable time changes nothing and shows the clip's time again", () => {
+  const { operations } = mount({ clipId: "clip_main" });
+  const start = screen.getByRole("textbox", { name: "Start time" }) as HTMLInputElement;
+  fireEvent.change(start, { target: { value: "soon" } });
+  fireEvent.keyDown(start, { key: "Enter" });
+  expect(operations).toEqual([]);
+  expect(start.value).toBe("0:00.0");
+});
+
+test("a selected track reads by its plain name, never its raw kind", () => {
+  mount({ trackId: "track_main" });
+  expect(screen.getByRole("heading", { name: "Main video" })).toBeDefined();
+  expect(screen.queryByText("main_video")).toBeNull();
+});
+
+test("who edits a clip reads in plain words", () => {
+  mount({ clipId: "clip_main" });
+  const select = screen.getByLabelText("Edited by") as HTMLSelectElement;
+  expect([...select.options].map((option) => option.textContent)).toEqual(["Thoth", "You", "Nobody (locked)"]);
 });

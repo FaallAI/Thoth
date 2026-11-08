@@ -116,7 +116,7 @@ export function TimelineClip({
         }}
       >
         {locked ? <Lock aria-hidden="true" size={11} className="mt-0.5 shrink-0 text-faint" /> : null}
-        <span className="truncate rounded bg-well/70 px-1">{text}</span>
+        <span className="truncate rounded bg-well/70 px-1" title={text}>{text}</span>
       </button>
       {readOnly ? null : (
         <>
