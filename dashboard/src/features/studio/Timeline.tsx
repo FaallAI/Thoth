@@ -6,7 +6,10 @@ import type { EditorAction, EditorState } from "./editor_state";
 import { clipLabel, type GestureMode } from "./TimelineClip";
 import { TimelineToolbar, type ClipAction } from "./TimelineToolbar";
 import { TimelineTrack } from "./TimelineTrack";
+import { isTypingTarget, timelineKey } from "./studio_keys";
+import { deleteClip, rippleDelete, splitAt } from "./timeline_edits";
 import {
+  clampZoom,
   formatTimecode,
   framesToPixels,
   rulerTicks,
@@ -64,9 +67,12 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf, re
     ? selectedClip.locked === true || trackOf(selectedClip.track_id)?.locked === true
     : undefined;
 
+  // The lanes' scroll box: Ctrl+0 fits the canvas into its width.
+  const lanesBox = useRef<HTMLDivElement>(null);
+
   // Keep the listeners' view of the editor current without re-attaching them.
-  const latest = useRef({ state, dispatch, timeline, onSeek });
-  latest.current = { state, dispatch, timeline, onSeek };
+  const latest = useRef({ state, dispatch, timeline, onSeek, onPlay, onPause, readOnly });
+  latest.current = { state, dispatch, timeline, onSeek, onPlay, onPause, readOnly };
 
   /** Move the playhead and the preview to one frame, kept inside the document. */
   const seek = (frame: number) => {
@@ -152,6 +158,8 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf, re
     const onKeyDown = (event: KeyboardEvent) => {
       const active = gesture.current;
       if (event.key !== "Escape" || !active) return;
+      // Escape drops the drag first; the editing keys below then leave the selection alone.
+      event.preventDefault();
       end();
       if (active.previewed) latest.current.dispatch({ type: "cancel_timeline_preview" });
     };
@@ -167,6 +175,75 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf, re
       window.removeEventListener("keydown", onKeyDown);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- listeners read `latest`.
+  }, []);
+
+  // Spec 2026-11-08 §5.1: the editing keys, never while a person types in a field.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const { state: current, dispatch: send, timeline: doc, onPlay: play, onPause: pause, readOnly: viewOnly } = latest.current;
+      if (!doc || viewOnly || event.defaultPrevented || isTypingTarget(event.target)) return;
+      const action = timelineKey(event);
+      if (!action) return;
+      const target = event.target as HTMLElement | null;
+      // Space keeps its own meaning on a button, a checkbox or a list.
+      if (action === "play" && target?.closest?.("button, input, select, [role='slider']")) return;
+      const fpsNow = doc.canvas.fps;
+      const commitEdit = (operations: EditDocumentOperation[]) => {
+        if (operations.length) send({ type: "commit_operations", operations });
+      };
+      const clipId = current.selectedClipId;
+      switch (action) {
+        case "delete":
+          if (!clipId) return;
+          commitEdit(deleteClip(doc, clipId).operations);
+          break;
+        case "ripple_delete":
+          if (!clipId) return;
+          commitEdit(rippleDelete(doc, clipId).operations);
+          break;
+        case "split":
+          if (!clipId) return;
+          commitEdit(splitAt(doc, clipId, current.playheadFrame).operations);
+          break;
+        case "play":
+          (current.playing ? pause : play)?.();
+          break;
+        case "start":
+          seek(0);
+          break;
+        case "end":
+          seek(doc.canvas.duration_in_frames - 1);
+          break;
+        case "frame_back":
+        case "frame_forward":
+        case "second_back":
+        case "second_forward": {
+          const step = action.startsWith("second") ? Math.max(1, fpsNow) : 1;
+          seek(current.playheadFrame + (action.endsWith("back") ? -step : step));
+          break;
+        }
+        case "zoom_in":
+          send({ type: "set_zoom", zoom: clampZoom(current.zoom * 2) });
+          break;
+        case "zoom_out":
+          send({ type: "set_zoom", zoom: clampZoom(current.zoom / 2) });
+          break;
+        case "zoom_fit": {
+          const width = (lanesBox.current?.clientWidth ?? 0) - (viewOnly ? READ_ONLY_HEADER_WIDTH : HEADER_WIDTH);
+          if (width <= 0) return;
+          send({ type: "set_zoom", zoom: clampZoom(width / doc.canvas.duration_in_frames) });
+          break;
+        }
+        case "clear":
+          if (!clipId) return;
+          send({ type: "select_clip", clipId: "" });
+          break;
+      }
+      event.preventDefault();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the listener reads `latest`.
   }, []);
 
   if (!timeline) return null;
@@ -258,7 +335,7 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf, re
         <p className="flex items-center gap-2 border-b border-hairline bg-surface px-3 py-2 text-xs text-muted-ink">{t("studio.timeline.viewOnly")}</p>
       ) : null}
 
-      <div className="min-h-0 overflow-auto">
+      <div ref={lanesBox} data-testid="timeline-lanes" className="min-h-0 overflow-auto">
         <div
           className="relative"
           style={{ width: `${framesToPixels(duration, state.zoom) + headerWidth}px` }}

@@ -637,6 +637,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ? { ...state, selectedTrackId: action.trackId, selectedClipId: "" }
         : state;
     case "select_clip": {
+      if (!action.clipId) return { ...state, selectedClipId: "", selectedTrackId: "" };
       const clip = (state.draft.clips ?? []).find((entry) => entry.clip_id === action.clipId);
       return clip
         ? { ...state, selectedClipId: clip.clip_id, selectedTrackId: clip.track_id }

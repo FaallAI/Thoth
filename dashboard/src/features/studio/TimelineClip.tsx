@@ -93,8 +93,10 @@ export function TimelineClip({
         onPointerDown={readOnly ? undefined : start("move")}
         onKeyDown={(event) => {
           const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
-          if (!step || locked || readOnly) return;
+          if (!step) return;
+          // Arrows on a focused clip belong to the clip, so they never move the playhead instead.
           event.preventDefault();
+          if (locked || readOnly) return;
           onNudge(step);
         }}
       >

@@ -33,6 +33,7 @@ import { SceneMediaInspector } from "./SceneMediaInspector";
 import { Timeline } from "./Timeline";
 import { StudioHeader } from "./StudioHeader";
 import { TimelineInspector } from "./TimelineInspector";
+import { useStudioShortcuts } from "./studio_keys";
 import { assetLabel, clipLabel, type LabelContext } from "./studio_labels";
 import {
   createAddClipFromAssetOperation,
@@ -612,6 +613,13 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const restorable = saveStatus === "saved" && Boolean(client.restoreEditDocument);
   const undoDisabled = historyBusy || !(state.history.length || (restorable && state.savedUndo.length));
   const redoDisabled = historyBusy || !(state.future.length || (restorable && state.savedRedo.length));
+  // Spec 2026-11-08 §5.1: Ctrl+Z and Ctrl+Y from anywhere in the editing Studio but a field.
+  useStudioShortcuts({
+    undo: () => !undoDisabled && undo(),
+    redo: () => !redoDisabled && redo(),
+    shortcuts: () => {},
+    enabled: editing,
+  });
 
   const upgradeDocument = () => {
     const upgrade = client.upgradeEditDocument;

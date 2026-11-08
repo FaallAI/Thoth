@@ -307,3 +307,90 @@ test("lane names stay in sight while the lanes scroll, and take a quarter of a p
   // e2e audit 2026-11-02: no separator is left over from the switches a view hides.
   expect(document.querySelector(".h-5.w-px")).toBeNull();
 });
+
+// Spec 2026-11-08 §5.1: the editing keys common editors share.
+const key = (target: EventTarget, key: string, init: KeyboardEventInit = {}) => fireEvent.keyDown(target, { key, ...init });
+const ops = (actions: EditorAction[]) =>
+  actions.flatMap((action) => (action.type === "commit_operations" ? action.operations.map((operation) => operation.kind) : []));
+
+test("Delete removes the selected clip as one edit", () => {
+  const { actions } = mount({ selectedClipId: "clip_main", selectedTrackId: "track_main" });
+  key(document.body, "Delete");
+  expect(ops(actions)).toEqual(["remove_clip"]);
+});
+
+test("S splits the selected clip at the playhead", () => {
+  const { actions } = mount({ selectedClipId: "clip_main", selectedTrackId: "track_main", playheadFrame: 60 });
+  key(document.body, "s");
+  const split = actions.find((action) => action.type === "commit_operations");
+  expect(split?.type === "commit_operations" && split.operations[0]).toMatchObject({ kind: "split_clip", split_frame: 60 });
+});
+
+test("keys typed in a field do nothing to the timeline", () => {
+  const { actions, transport } = mount({ selectedClipId: "clip_main", selectedTrackId: "track_main", playheadFrame: 60 });
+  const field = document.createElement("input");
+  document.body.appendChild(field);
+  try {
+    for (const name of ["Delete", "s", " ", "Home"]) key(field, name);
+  } finally {
+    field.remove();
+  }
+  expect(actions).toEqual([]);
+  expect(transport).toEqual([]);
+});
+
+test("Space on a focused button keeps the button's own meaning", () => {
+  const { transport } = mount();
+  key(screen.getByRole("button", { name: "Zoom in" }), " ");
+  expect(transport).toEqual([]);
+});
+
+test("Space elsewhere plays", () => {
+  const { transport } = mount();
+  key(document.body, " ");
+  expect(transport).toEqual(["play"]);
+});
+
+test("Home and End seek to the start and the last frame", () => {
+  const { actions } = mount({ playheadFrame: 100 });
+  key(document.body, "Home");
+  key(document.body, "End");
+  expect(actions.filter((action) => action.type === "set_playhead")).toEqual([
+    { type: "set_playhead", frame: 0 },
+    { type: "set_playhead", frame: 299 },
+  ]);
+});
+
+test("Ctrl+0 fits the canvas into the lanes", () => {
+  const { actions } = mount();
+  Object.defineProperty(screen.getByTestId("timeline-lanes"), "clientWidth", { configurable: true, value: 1192 });
+  key(document.body, "0", { ctrlKey: true });
+  const zoom = actions.find((action) => action.type === "set_zoom");
+  expect(zoom?.type === "set_zoom" && zoom.zoom).toBeCloseTo(1000 / 300, 3);
+});
+
+test("a locked clip ignores Delete and S", () => {
+  const { actions } = mount({ selectedClipId: "clip_locked", selectedTrackId: "track_broll", playheadFrame: 170 });
+  key(document.body, "Delete");
+  key(document.body, "s");
+  expect(actions).toEqual([]);
+});
+
+test("Escape clears the clip selection", () => {
+  const { actions } = mount({ selectedClipId: "clip_main", selectedTrackId: "track_main" });
+  key(document.body, "Escape");
+  expect(actions).toEqual([{ type: "select_clip", clipId: "" }]);
+});
+
+test("a view-only timeline ignores editing keys", () => {
+  const actions: EditorAction[] = [];
+  render(
+    <Timeline
+      state={{ ...createEditorState(timelineDocument()), selectedClipId: "clip_main", selectedTrackId: "track_main" }}
+      dispatch={(action) => actions.push(action)}
+      readOnly
+    />,
+  );
+  key(document.body, "Delete");
+  expect(actions).toEqual([]);
+});
