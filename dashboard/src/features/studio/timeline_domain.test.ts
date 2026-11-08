@@ -2,7 +2,7 @@
 
 import { expect, test } from "bun:test";
 
-import type { EditDocumentV2, EditorAsset } from "@/api/control-plane";
+import type { EditDocumentOperation, EditDocumentV2, EditorAsset } from "@/api/control-plane";
 
 import {
   clipLabelSource,
@@ -99,6 +99,8 @@ function documentV2(): EditDocumentV2 {
         locked: false,
         fit: "cover",
         blur_enabled: false,
+        fade_in_frames: 0,
+        fade_out_frames: 0,
         motion: "none",
         hold_after_source: false,
         emphasis: { highlight: false, arrow: false },
@@ -942,4 +944,101 @@ test("trackName names a track by its kind, in the reader's language, numbering a
   const second = { ...doc.tracks.find((track) => track.track_id === "track_broll")!, track_id: "track_broll_2", order: 9, label: "B-Roll 2" };
   doc.tracks.push(second);
   expect(trackName(en as never, doc, second)).toBe("B-roll 2");
+});
+
+// Tier 2 (spec 2026-11-08 §6): the mirror of the server's duplicate, fit, crop and fade operations.
+const tier2Op = (operation: Record<string, unknown>) =>
+  ({ operation_id: `op_${String(operation.kind)}`, ...operation }) as EditDocumentOperation;
+const applied = (document: EditDocumentV2, ...operations: Record<string, unknown>[]) =>
+  operations.reduce<EditDocumentV2>((current, operation) => applyTimelineOperation(current, tier2Op(operation), {}), document);
+const clipIn = (document: EditDocumentV2, clipId: string) =>
+  document.clips!.find((clip) => clip.clip_id === clipId)! as Record<string, unknown>;
+
+test("duplicate_clip copies under a new id", () => {
+  const result = applied(fixtureDocument(), {
+    kind: "duplicate_clip",
+    clip_id: "clip_main",
+    new_clip_id: "clip_copy",
+    track_id: "track_main",
+    from_frame: 150,
+  });
+  const original = clipIn(result, "clip_main");
+  const copy = clipIn(result, "clip_copy");
+  for (const field of ["asset_id", "ownership", "source_role", "fit", "position", "blur_regions"]) {
+    expect(copy[field]).toEqual(original[field]);
+  }
+  expect(copy.scene_id ?? null).toBeNull();
+  expect([copy.from_frame, copy.duration_in_frames]).toEqual([150, 120]);
+  expect(result.tracks.find((track) => track.track_id === "track_main")!.clip_ids).toContain("clip_copy");
+});
+
+test("duplicate_clip refuses a reused id, a locked track and an incompatible track", () => {
+  const dup = (new_clip_id: string, track_id: string) => ({
+    kind: "duplicate_clip",
+    clip_id: "clip_main",
+    new_clip_id,
+    track_id,
+    from_frame: 150,
+  });
+  expect(() => applied(fixtureDocument(), dup("clip_music", "track_broll"))).toThrow("reuses an existing clip ID");
+  expect(() =>
+    applied(fixtureDocument(), { kind: "set_track_locked", track_id: "track_broll", locked: true }, dup("clip_copy", "track_broll")),
+  ).toThrow("track is locked");
+  expect(() => applied(fixtureDocument(), dup("clip_copy", "track_music"))).toThrow("incompatible");
+});
+
+test("set_clip_fit, set_clip_crop and set_clip_fades set their fields", () => {
+  const crop = { left: 0.1, top: 0, width: 0.8, height: 1 };
+  const result = applied(
+    fixtureDocument(),
+    { kind: "set_clip_fit", clip_id: "clip_main", fit: "contain" },
+    { kind: "set_clip_crop", clip_id: "clip_main", crop },
+    { kind: "set_clip_fades", clip_id: "clip_main", fade_in_frames: 15, fade_out_frames: 30 },
+  );
+  const main = clipIn(result, "clip_main");
+  expect([main.fit, main.crop, main.fade_in_frames, main.fade_out_frames]).toEqual(["contain", crop, 15, 30]);
+  expect(clipIn(applied(result, { kind: "set_clip_crop", clip_id: "clip_main", crop: null }), "clip_main").crop).toBeNull();
+  const music = applied(fixtureDocument(), { kind: "set_clip_fades", clip_id: "clip_music", fade_in_frames: 10, fade_out_frames: 20 });
+  expect(clipIn(music, "clip_music").fade_out_frames).toBe(20);
+  expect(() => applied(fixtureDocument(), { kind: "set_clip_fit", clip_id: "clip_music", fit: "fill" })).toThrow();
+});
+
+test("fades longer than the clip are refused", () => {
+  expect(() =>
+    applied(fixtureDocument(), { kind: "set_clip_fades", clip_id: "clip_main", fade_in_frames: 100, fade_out_frames: 100 }),
+  ).toThrow("fades must stay inside their clip");
+});
+
+test("trim and split shrink fades to fit", () => {
+  const faded = applied(fixtureDocument(), { kind: "set_clip_fades", clip_id: "clip_main", fade_in_frames: 40, fade_out_frames: 40 });
+  const trimmed = clipIn(applied(faded, { kind: "trim_clip_end", clip_id: "clip_main", end_frame: 60 }), "clip_main");
+  expect(trimmed.fade_in_frames).toBe(40);
+  expect(Number(trimmed.fade_in_frames) + Number(trimmed.fade_out_frames)).toBeLessThanOrEqual(60);
+  const split = applied(faded, {
+    kind: "split_clip",
+    clip_id: "clip_main",
+    split_frame: 50,
+    left_clip_id: "clip_left",
+    right_clip_id: "clip_right",
+  });
+  expect(clipIn(split, "clip_left").fade_out_frames).toBe(0);
+  expect(clipIn(split, "clip_right").fade_in_frames).toBe(0);
+});
+
+test("add_text_clip works without a story role", () => {
+  const result = applied(
+    fixtureDocument(),
+    { kind: "add_track", track_id: "track_overlay", track_kind: "overlay", label: "Overlay", order: 9 },
+    {
+      kind: "add_text_clip",
+      clip_id: "clip_pasted",
+      track_id: "track_overlay",
+      from_frame: 0,
+      duration_in_frames: 90,
+      heading: "Hello",
+      body: "",
+      style_slot: "title",
+    },
+  );
+  expect(clipIn(result, "clip_pasted").source_role ?? null).toBeNull();
 });

@@ -405,6 +405,25 @@ export function applyTimelineOperation(
     case "add_text_clip":
       addTextClip(next, operation);
       break;
+    case "duplicate_clip":
+      duplicateClip(next, operation);
+      break;
+    case "set_clip_fit":
+      unlockedVideoClip(next, operation.clip_id).fit = operation.fit;
+      break;
+    case "set_clip_crop":
+      unlockedVideoClip(next, operation.clip_id).crop = operation.crop ?? null;
+      break;
+    case "set_clip_fades": {
+      const clip = unlockedClip(next, operation.clip_id);
+      if (clip.kind !== "video" && clip.kind !== "audio") throw new Error("fades apply only to video and audio clips");
+      if (operation.fade_in_frames + operation.fade_out_frames > clip.duration_in_frames) {
+        throw new Error("fades must stay inside their clip");
+      }
+      clip.fade_in_frames = operation.fade_in_frames;
+      clip.fade_out_frames = operation.fade_out_frames;
+      break;
+    }
     case "set_caption_cue_text": {
       const clip = unlockedClip(next, operation.clip_id);
       const cue = clip.kind === "caption" ? clip.cues[operation.cue_index] : undefined;
@@ -450,7 +469,47 @@ export function applyTimelineOperation(
     default:
       throw new Error("operation is not a timeline operation");
   }
+  fitFades(next);
   return next;
+}
+
+/** Shrink fades a shorter clip can no longer hold: the fade out first, then the fade in (as the server does). */
+function fitFades(document: EditDocumentV2): void {
+  for (const clip of document.clips ?? []) {
+    if (clip.kind !== "video" && clip.kind !== "audio") continue;
+    const fadeIn = Math.min(clip.fade_in_frames ?? 0, clip.duration_in_frames);
+    const fadeOut = Math.min(clip.fade_out_frames ?? 0, clip.duration_in_frames - fadeIn);
+    // Only a fade that must shrink is written, so a clip stored without fades stays as it was.
+    if (fadeIn !== (clip.fade_in_frames ?? 0)) clip.fade_in_frames = fadeIn;
+    if (fadeOut !== (clip.fade_out_frames ?? 0)) clip.fade_out_frames = fadeOut;
+  }
+}
+
+/** A copy under a new id: media, provenance and styling stay; the scene does not (spec 2026-11-08 §6). */
+function duplicateClip(
+  document: EditDocumentV2,
+  operation: Extract<EditDocumentOperation, { kind: "duplicate_clip" }>,
+): void {
+  const source = clipOf(document, operation.clip_id);
+  const target = unlockedTrack(document, operation.track_id);
+  if ((document.clips ?? []).some((clip) => clip.clip_id === operation.new_clip_id)) {
+    throw new Error("operation reuses an existing clip ID");
+  }
+  if (!TRACK_CLIP_KINDS[target.kind].includes(source.kind)) {
+    throw new Error("clip kind is incompatible with track");
+  }
+  // The server refuses a clip past the canvas when it validates the document.
+  if (operation.from_frame + source.duration_in_frames > document.canvas.duration_in_frames) {
+    throw new Error("clip range exceeds canvas");
+  }
+  const copy = structuredClone(source);
+  copy.clip_id = operation.new_clip_id;
+  copy.track_id = target.track_id;
+  copy.from_frame = operation.from_frame;
+  copy.scene_id = null;
+  copy.locked = false;
+  document.clips = [...(document.clips ?? []), copy];
+  target.clip_ids = [...(target.clip_ids ?? []), copy.clip_id];
 }
 
 function track(document: EditDocumentV2, trackId: string): TimelineTrack {
@@ -534,6 +593,8 @@ function addClipFromAsset(
           fit: operation.fit ?? ("cover" as const),
           position: operation.position ?? null,
           blur_enabled: false,
+          fade_in_frames: 0,
+          fade_out_frames: 0,
           motion: "none" as const,
           hold_after_source: false,
           emphasis: { highlight: false, arrow: false },
@@ -797,6 +858,11 @@ function splitClip(
   right.from_frame = operation.split_frame;
   right.duration_in_frames = endFrame - operation.split_frame;
   if ("source_from_frame" in right) right.source_from_frame += leftDuration;
+  if (clip.kind === "video" || clip.kind === "audio") {
+    // The cut sits between the two parts: neither fades there.
+    clip.fade_out_frames = 0;
+    if (right.kind === "video" || right.kind === "audio") right.fade_in_frames = 0;
+  }
 
   const entry = track(document, clip.track_id);
   const ids = [...(entry.clip_ids ?? [])];

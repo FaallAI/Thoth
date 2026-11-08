@@ -218,6 +218,8 @@ function documentV2(): EditDocumentV2 {
         locked: true,
         fit: "cover",
         blur_enabled: false,
+        fade_in_frames: 0,
+        fade_out_frames: 0,
         motion: "none",
         hold_after_source: false,
         emphasis: { highlight: false, arrow: false },
