@@ -54,6 +54,8 @@ type Props = {
   assetName?: (asset: EditorAsset) => string;
   /** Off while Review or Render shows: the Timeline stays mounted but hidden, so its keys must rest. */
   editingKeys?: boolean;
+  /** J, K and L (spec 2026-11-08 §6): L plays and speeds up, K stops; J steps back here. */
+  onShuttle?: (direction: "forward" | "stop") => void;
   /** An asset dragged from the Assets column onto a lane that can hold it (spec 2026-11-08 §6). */
   onDropAsset?: (assetId: string, trackId: string, frame: number) => void;
 };
@@ -113,6 +115,7 @@ export function Timeline({
   assetName,
   editingKeys = true,
   onDropAsset,
+  onShuttle,
 }: Props) {
   const { t } = useLocale();
   const headerWidth = readOnly ? READ_ONLY_HEADER_WIDTH : HEADER_WIDTH;
@@ -182,8 +185,8 @@ export function Timeline({
   }, []);
 
   // Keep the listeners' view of the editor current without re-attaching them.
-  const latest = useRef({ state, dispatch, timeline, onSeek, onPlay, onPause, readOnly, editingKeys });
-  latest.current = { state, dispatch, timeline, onSeek, onPlay, onPause, readOnly, editingKeys };
+  const latest = useRef({ state, dispatch, timeline, onSeek, onPlay, onPause, readOnly, editingKeys, onShuttle });
+  latest.current = { state, dispatch, timeline, onSeek, onPlay, onPause, readOnly, editingKeys, onShuttle };
 
   /** The unlocked clips a marquee from `area` to `event` touches, lane by lane (spec 2026-11-08 §6). */
   const clipsInMarquee = (area: { x0: number; y0: number }, event: { clientX: number; clientY: number }) => {
@@ -434,6 +437,15 @@ export function Timeline({
         case "duplicate":
           if (!selection.length) return;
           commitEdit(duplicateClips(doc, selection).operations);
+          break;
+        case "shuttle_forward":
+          latest.current.onShuttle?.("forward");
+          break;
+        case "shuttle_stop":
+          latest.current.onShuttle?.("stop");
+          break;
+        case "shuttle_back":
+          seek(current.playheadFrame - Math.max(1, fpsNow));
           break;
         case "select_all":
           send({ type: "select_clips", clipIds: selectableLanes(doc).flatMap((lane) => lane.clips.map((clip) => clip.clip_id)) });

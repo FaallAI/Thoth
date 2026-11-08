@@ -843,3 +843,23 @@ test("an asset dropped on a lane is placed on that track at the drop point", () 
   assetDrop(document.querySelector('[data-track-id="track_music"] [data-lane-well]')!, "asset_video", 100);
   expect(dropped).toEqual([["asset_video", "track_broll", 100]]);
 });
+
+// Tier 2 (spec 2026-11-08 §6): J, K and L.
+test("L shuttles forward, K stops, and J steps back one second", () => {
+  const shuttle: string[] = [];
+  const { actions } = mountMenus({ playheadFrame: 60 }, { onShuttle: (direction) => shuttle.push(direction) });
+  key(window, "l");
+  key(window, "k");
+  key(window, "j");
+  expect(shuttle).toEqual(["forward", "stop"]);
+  expect(actions.at(-1)).toEqual({ type: "set_playhead", frame: 30 });
+});
+
+test("J, K and L do nothing in a text field", () => {
+  const shuttle: string[] = [];
+  const { actions } = mountMenus({ playheadFrame: 60 }, { onShuttle: (direction) => shuttle.push(direction) });
+  const field = document.body.appendChild(document.createElement("input"));
+  for (const letter of ["j", "k", "l"]) key(field, letter);
+  field.remove();
+  expect([shuttle, actions]).toEqual([[], []]);
+});

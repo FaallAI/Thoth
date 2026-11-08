@@ -22,6 +22,8 @@ type Props = {
   onPreviewUnavailable?: (assetId: string) => void;
   /** Drawn over the canvas itself (Story's safe zone); the player then keeps the canvas's shape. */
   overlay?: ReactNode;
+  /** The Player's speed; L raises it (spec 2026-11-08 §6). */
+  playbackRate?: number;
 };
 
 const canvasRatio = ({ canvas }: EditDocument) =>
@@ -38,6 +40,7 @@ export function StudioPreview({
   onPlayer,
   onPreviewUnavailable,
   overlay,
+  playbackRate = 1,
 }: Props) {
   const { t } = useLocale();
   const [loadedDocument, setLoadedDocument] = useState<EditDocument | null>(null);
@@ -100,6 +103,8 @@ export function StudioPreview({
           inputProps: never;
         })}
         controls
+        // L plays faster (spec 2026-11-08 §6); 1 is Remotion's own default.
+        playbackRate={playbackRate}
         // On true Remotion refocuses its Play button on load and on every play or pause; inside
         // Studio, usePlayerTimeline handles Space instead.
         spaceKeyToPlayOrPause={!embedded}

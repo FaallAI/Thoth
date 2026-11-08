@@ -28,6 +28,9 @@ export type TimelineKey =
   | "copy"
   | "paste"
   | "duplicate"
+  | "shuttle_back"
+  | "shuttle_stop"
+  | "shuttle_forward"
   | "clear";
 
 type Keys = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey" | "altKey">;
@@ -66,6 +69,15 @@ export function timelineKey(event: Keys): TimelineKey | null {
       return event.shiftKey ? "second_forward" : "frame_forward";
     case "Escape":
       return "clear";
+    case "j":
+    case "J":
+      return "shuttle_back";
+    case "k":
+    case "K":
+      return "shuttle_stop";
+    case "l":
+    case "L":
+      return "shuttle_forward";
     default:
       return null;
   }
@@ -93,11 +105,23 @@ export const SHORTCUTS: readonly { action: ShortcutAction; keys: string; group: 
   { action: "frame_forward", keys: "→", group: "playback" },
   { action: "second_back", keys: "Shift+←", group: "playback" },
   { action: "second_forward", keys: "Shift+→", group: "playback" },
+  { action: "shuttle_back", keys: "J", group: "playback" },
+  { action: "shuttle_stop", keys: "K", group: "playback" },
+  { action: "shuttle_forward", keys: "L", group: "playback" },
   { action: "zoom_in", keys: "Ctrl+=", group: "view" },
   { action: "zoom_out", keys: "Ctrl+-", group: "view" },
   { action: "zoom_fit", keys: "Ctrl+0", group: "view" },
   { action: "shortcuts", keys: "?", group: "studio" },
 ];
+
+/**
+ * The rate after a press of L: it starts playing at 1, and each L while playing doubles it, up to 4.
+ * J does not play backwards: a browser cannot play video or audio in reverse (Remotion's Player docs),
+ * so J steps back one second instead.
+ */
+export function shuttleRate(playing: boolean, rate: number): number {
+  return playing ? Math.min(4, rate * 2) : 1;
+}
 
 export const shortcutKeys = (action: ShortcutAction) => SHORTCUTS.find((entry) => entry.action === action)?.keys;
 

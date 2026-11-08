@@ -33,7 +33,7 @@ import { SceneMediaInspector } from "./SceneMediaInspector";
 import { Timeline } from "./Timeline";
 import { StudioHeader } from "./StudioHeader";
 import { TimelineInspector } from "./TimelineInspector";
-import { useStudioShortcuts } from "./studio_keys";
+import { shuttleRate, useStudioShortcuts } from "./studio_keys";
 import { ShortcutsDialog } from "./ShortcutsDialog";
 import { assetLabel, clipLabel, type LabelContext } from "./studio_labels";
 import {
@@ -129,6 +129,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const [restoring, setRestoring] = useState(false);
   const [restoreFailed, setRestoreFailed] = useState(false);
   const [noRoom, setNoRoom] = useState(false);
+  // J, K and L (spec 2026-11-08 §6): L raises the Player's speed, K brings it back to 1.
+  const [playbackRate, setPlaybackRate] = useState(1);
   const [placedNotice, setPlacedNotice] = useState<string | null>(null);
   const collapsible = viewport === "compact_desktop";
   const sceneRegionOpen = !collapsible || sceneBoardOpen;
@@ -1147,6 +1149,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 document={reviewing ? base : state.draft}
                 onPlayer={setAttachedPlayer}
                 embedded
+                playbackRate={playbackRate}
                 previewSources={previewSources}
                 onPreviewUnavailable={(assetId) =>
                   // Same reference when the asset is already gone, so the player
@@ -1175,6 +1178,15 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                   onPlay={player.play}
                   onPause={player.pause}
                   editingKeys={editing}
+                  onShuttle={(direction) => {
+                    if (direction === "stop") {
+                      player.pause();
+                      setPlaybackRate(1);
+                      return;
+                    }
+                    setPlaybackRate((rate) => shuttleRate(state.playing, rate));
+                    if (!state.playing) player.play();
+                  }}
                   beatOf={(clipId) => beatOfClip(timeline, inventory, clipId)}
                   onShowInStory={(clipId) => {
                     const beat = beatOfClip(timeline, inventory, clipId);
