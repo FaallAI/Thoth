@@ -65,6 +65,8 @@ def test_version_two_round_trips_without_coercion() -> None:
             clip["volume_keyframes"] = []
         if clip["kind"] == "video":
             clip["hold_after_source"] = False
+            # Video fades (2026-11-08) read back at their defaults too.
+            clip.update(fade_in_frames=0, fade_out_frames=0)
         for cue in clip.get("cues", []):
             cue["words"] = []
     assert document.model_dump(mode="json") == payload
@@ -275,3 +277,12 @@ def test_a_held_video_clip_may_run_past_its_source() -> None:
         EditDocumentV2.model_validate(deepcopy(payload))
     main["hold_after_source"] = True
     assert EditDocumentV2.model_validate(payload)
+
+
+def test_a_stored_video_clip_without_fades_decodes() -> None:
+    payload = document_v2_payload()
+    main = next(clip for clip in payload["clips"] if clip["clip_id"] == "clip_main")
+    assert "fade_in_frames" not in main and "fade_out_frames" not in main
+
+    clip = next(c for c in EditDocumentV2.model_validate(payload).clips if c.clip_id == "clip_main")
+    assert (clip.fade_in_frames, clip.fade_out_frames) == (0, 0)

@@ -309,12 +309,19 @@
             "type": "string"
           },
           "source_role": {
-            "enum": [
-              "hook",
-              "outro"
+            "anyOf": [
+              {
+                "enum": [
+                  "hook",
+                  "outro"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Source Role",
-            "type": "string"
+            "title": "Source Role"
           },
           "style_slot": {
             "pattern": "^[a-z][a-z0-9_]{0,63}$",
@@ -336,8 +343,7 @@
           "duration_in_frames",
           "heading",
           "body",
-          "style_slot",
-          "source_role"
+          "style_slot"
         ],
         "title": "AddTextClip",
         "type": "object"
@@ -1599,6 +1605,52 @@
         "title": "DocumentRevisionConflictBody",
         "type": "object"
       },
+      "DuplicateClip": {
+        "additionalProperties": false,
+        "description": "Copy a clip under a new id; its media, provenance and styling stay, its scene does not.",
+        "properties": {
+          "clip_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "from_frame": {
+            "minimum": 0.0,
+            "title": "From Frame",
+            "type": "integer"
+          },
+          "kind": {
+            "const": "duplicate_clip",
+            "title": "Kind",
+            "type": "string"
+          },
+          "new_clip_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "New Clip Id",
+            "type": "string"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "track_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Track Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "clip_id",
+          "new_clip_id",
+          "track_id",
+          "from_frame"
+        ],
+        "title": "DuplicateClip",
+        "type": "object"
+      },
       "EditDocumentListItem": {
         "additionalProperties": false,
         "properties": {
@@ -1758,6 +1810,7 @@
                   "add_clip_from_asset": "#/components/schemas/AddClipFromAsset",
                   "add_text_clip": "#/components/schemas/AddTextClip",
                   "add_track": "#/components/schemas/AddTrack",
+                  "duplicate_clip": "#/components/schemas/DuplicateClip",
                   "move_clip": "#/components/schemas/MoveClip",
                   "remove_clip": "#/components/schemas/RemoveClip",
                   "remove_empty_track": "#/components/schemas/RemoveEmptyTrack",
@@ -1769,7 +1822,10 @@
                   "set_caption_cue_timing": "#/components/schemas/SetCaptionCueTiming",
                   "set_caption_style": "#/components/schemas/SetCaptionStyle",
                   "set_clip_blur": "#/components/schemas/SetClipBlur",
+                  "set_clip_crop": "#/components/schemas/SetClipCrop",
                   "set_clip_emphasis": "#/components/schemas/SetClipEmphasis",
+                  "set_clip_fades": "#/components/schemas/SetClipFades",
+                  "set_clip_fit": "#/components/schemas/SetClipFit",
                   "set_clip_hidden": "#/components/schemas/SetClipHidden",
                   "set_clip_locked": "#/components/schemas/SetClipLocked",
                   "set_clip_motion": "#/components/schemas/SetClipMotion",
@@ -1868,6 +1924,18 @@
                 },
                 {
                   "$ref": "#/components/schemas/AddTextClip"
+                },
+                {
+                  "$ref": "#/components/schemas/DuplicateClip"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipFit"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipCrop"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipFades"
                 },
                 {
                   "$ref": "#/components/schemas/SetTrackVisibility"
@@ -5766,6 +5834,44 @@
         "title": "SetClipBlur",
         "type": "object"
       },
+      "SetClipCrop": {
+        "additionalProperties": false,
+        "description": "None restores the whole source frame.",
+        "properties": {
+          "clip_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "crop": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Crop"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "const": "set_clip_crop",
+            "title": "Kind",
+            "type": "string"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "clip_id"
+        ],
+        "title": "SetClipCrop",
+        "type": "object"
+      },
       "SetClipEmphasis": {
         "additionalProperties": false,
         "properties": {
@@ -5801,6 +5907,85 @@
           "arrow"
         ],
         "title": "SetClipEmphasis",
+        "type": "object"
+      },
+      "SetClipFades": {
+        "additionalProperties": false,
+        "description": "Fades on a video or audio clip; their sum must fit inside the clip.",
+        "properties": {
+          "clip_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "fade_in_frames": {
+            "maximum": 300.0,
+            "minimum": 0.0,
+            "title": "Fade In Frames",
+            "type": "integer"
+          },
+          "fade_out_frames": {
+            "maximum": 300.0,
+            "minimum": 0.0,
+            "title": "Fade Out Frames",
+            "type": "integer"
+          },
+          "kind": {
+            "const": "set_clip_fades",
+            "title": "Kind",
+            "type": "string"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "clip_id",
+          "fade_in_frames",
+          "fade_out_frames"
+        ],
+        "title": "SetClipFades",
+        "type": "object"
+      },
+      "SetClipFit": {
+        "additionalProperties": false,
+        "properties": {
+          "clip_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "fit": {
+            "enum": [
+              "cover",
+              "contain",
+              "fill"
+            ],
+            "title": "Fit",
+            "type": "string"
+          },
+          "kind": {
+            "const": "set_clip_fit",
+            "title": "Kind",
+            "type": "string"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "clip_id",
+          "fit"
+        ],
+        "title": "SetClipFit",
         "type": "object"
       },
       "SetClipHidden": {
@@ -6947,6 +7132,7 @@
                   "add_clip_from_asset": "#/components/schemas/AddClipFromAsset",
                   "add_text_clip": "#/components/schemas/AddTextClip",
                   "add_track": "#/components/schemas/AddTrack",
+                  "duplicate_clip": "#/components/schemas/DuplicateClip",
                   "move_clip": "#/components/schemas/MoveClip",
                   "remove_clip": "#/components/schemas/RemoveClip",
                   "remove_empty_track": "#/components/schemas/RemoveEmptyTrack",
@@ -6958,7 +7144,10 @@
                   "set_caption_cue_timing": "#/components/schemas/SetCaptionCueTiming",
                   "set_caption_style": "#/components/schemas/SetCaptionStyle",
                   "set_clip_blur": "#/components/schemas/SetClipBlur",
+                  "set_clip_crop": "#/components/schemas/SetClipCrop",
                   "set_clip_emphasis": "#/components/schemas/SetClipEmphasis",
+                  "set_clip_fades": "#/components/schemas/SetClipFades",
+                  "set_clip_fit": "#/components/schemas/SetClipFit",
                   "set_clip_hidden": "#/components/schemas/SetClipHidden",
                   "set_clip_locked": "#/components/schemas/SetClipLocked",
                   "set_clip_motion": "#/components/schemas/SetClipMotion",
@@ -7057,6 +7246,18 @@
                 },
                 {
                   "$ref": "#/components/schemas/AddTextClip"
+                },
+                {
+                  "$ref": "#/components/schemas/DuplicateClip"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipFit"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipCrop"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipFades"
                 },
                 {
                   "$ref": "#/components/schemas/SetTrackVisibility"
@@ -8702,6 +8903,20 @@
           },
           "emphasis": {
             "$ref": "#/components/schemas/Emphasis"
+          },
+          "fade_in_frames": {
+            "default": 0,
+            "maximum": 300.0,
+            "minimum": 0.0,
+            "title": "Fade In Frames",
+            "type": "integer"
+          },
+          "fade_out_frames": {
+            "default": 0,
+            "maximum": 300.0,
+            "minimum": 0.0,
+            "title": "Fade Out Frames",
+            "type": "integer"
           },
           "fit": {
             "default": "cover",

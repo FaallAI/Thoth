@@ -231,6 +231,9 @@ class TimelineVideoClip(TimelineClipBase):
     volume_keyframes: VolumeKeyframes = Field(default_factory=list)
     #: Past the asset's last frame, hold that frame instead of ending (narration retiming).
     hold_after_source: bool = False
+    #: Picture and sound fade in and out (spec 2026-11-08 section 6); older drafts have none.
+    fade_in_frames: FadeFrames = 0
+    fade_out_frames: FadeFrames = 0
 
 
 class TimelineOverlayClip(TimelineClipBase):
@@ -341,10 +344,10 @@ class EditDocumentV2(StrictModel):
                 for cue in clip.cues:
                     if cue.from_frame + cue.duration_in_frames > clip.duration_in_frames:
                         raise ValueError("caption cues must stay inside their clip")
-            if isinstance(clip, TimelineAudioClip) and (
+            if isinstance(clip, TimelineAudioClip | TimelineVideoClip) and (
                 clip.fade_in_frames + clip.fade_out_frames > clip.duration_in_frames
             ):
-                raise ValueError("audio fades must stay inside their clip")
+                raise ValueError("fades must stay inside their clip")
             keyframes = getattr(clip, "volume_keyframes", [])
             frames = [keyframe.frame for keyframe in keyframes]
             if frames and (frames != sorted(set(frames)) or frames[-1] >= clip.duration_in_frames):

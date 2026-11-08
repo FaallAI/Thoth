@@ -10,6 +10,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from tests.domain.edit_document_v2_fixtures import (
     audio_asset_payload,
+    audio_clip_payload,
     clip_by_id,
     document_v2_payload,
     document_with_every_clip_kind,
@@ -1391,3 +1392,138 @@ def test_ripple_delete_shortens_a_spanning_clip_and_pulls_the_rest() -> None:
 
     assert track_ranges(result, "track_main_video") == [("clip_b", 0, 40), ("clip_c", 70, 30)]
     assert track_ranges(result, "track_overlay") == [("clip_001", 0, 90), ("clip_002", 90, 150)]
+
+
+# --------------------------------------------------------------------------
+# Tier 2 (spec 2026-11-08 section 6): duplicate, fit, crop and fades
+# --------------------------------------------------------------------------
+
+
+def op(kind: str, **fields: Any) -> Any:
+    return OPERATION_ADAPTER.validate_python({"kind": kind, "operation_id": f"op_{kind}", **fields})
+
+
+def duplicate(clip_id: str, new_clip_id: str, track_id: str, from_frame: int) -> Any:
+    return op(
+        "duplicate_clip",
+        clip_id=clip_id,
+        new_clip_id=new_clip_id,
+        track_id=track_id,
+        from_frame=from_frame,
+    )
+
+
+def test_duplicate_clip_copies_under_a_new_id() -> None:
+    document = apply_edit_operations(document_v2_fixture(), [trim_end("clip_main", 100)])
+    result = apply_edit_operations(
+        document, [duplicate("clip_main", "clip_copy", "track_main_video", 200)]
+    )
+
+    original = find_clip(result, "clip_main")
+    copy = find_clip(result, "clip_copy")
+    for field in ("asset_id", "ownership", "source_role", "fit", "position", "blur_regions"):
+        assert getattr(copy, field) == getattr(original, field)
+    assert copy.scene_id is None
+    assert (copy.from_frame, copy.duration_in_frames) == (200, 100)
+    assert "clip_copy" in find_track(result, "track_main_video").clip_ids
+
+
+def test_duplicate_clip_refuses_a_reused_id_a_locked_track_and_an_incompatible_track() -> None:
+    document = apply_edit_operations(document_v2_fixture(), [trim_end("clip_main", 100)])
+    with pytest.raises(ValueError, match="reuses an existing clip ID"):
+        apply_edit_operations(document, [duplicate("clip_main", "clip_001", "track_b_roll", 0)])
+    locked = apply_edit_operations(
+        document, [op("set_track_locked", track_id="track_b_roll", locked=True)]
+    )
+    with pytest.raises(ValueError, match="track is locked"):
+        apply_edit_operations(locked, [duplicate("clip_main", "clip_copy", "track_b_roll", 0)])
+    with pytest.raises(ValueError, match="incompatible"):
+        apply_edit_operations(document, [duplicate("clip_main", "clip_copy", "track_music", 0)])
+
+
+def test_duplicate_onto_filled_main_video_is_refused() -> None:
+    with pytest.raises(ValueError, match="main video clips must not overlap"):
+        apply_edit_operations(
+            document_v2_fixture(), [duplicate("clip_main", "clip_copy", "track_main_video", 0)]
+        )
+
+
+def test_set_clip_fit_crop_and_fades() -> None:
+    crop = {"left": 0.1, "top": 0.0, "width": 0.8, "height": 1.0}
+    result = apply_edit_operations(
+        document_v2_fixture(),
+        [
+            op("set_clip_fit", clip_id="clip_main", fit="contain"),
+            op("set_clip_crop", clip_id="clip_main", crop=crop),
+            op("set_clip_fades", clip_id="clip_main", fade_in_frames=15, fade_out_frames=30),
+        ],
+    )
+    main = find_clip(result, "clip_main")
+    assert main.fit == "contain"
+    assert main.crop.model_dump() == crop
+    assert (main.fade_in_frames, main.fade_out_frames) == (15, 30)
+
+    cleared = apply_edit_operations(result, [op("set_clip_crop", clip_id="clip_main", crop=None)])
+    assert find_clip(cleared, "clip_main").crop is None
+
+    payload = document_v2_payload()
+    payload["asset_refs"].append(audio_asset_payload())
+    payload["clips"].append(audio_clip_payload())
+    track_by_id(payload, "track_music")["clip_ids"] = ["clip_music"]
+    with_audio = EditDocumentV2.model_validate(payload)
+    faded = apply_edit_operations(
+        with_audio,
+        [op("set_clip_fades", clip_id="clip_music", fade_in_frames=10, fade_out_frames=20)],
+    )
+    assert find_clip(faded, "clip_music").fade_out_frames == 20
+    with pytest.raises(ValueError):
+        apply_edit_operations(with_audio, [op("set_clip_fit", clip_id="clip_music", fit="fill")])
+    with pytest.raises(ValueError):
+        apply_edit_operations(
+            with_audio,
+            [op("set_clip_fades", clip_id="clip_001", fade_in_frames=1, fade_out_frames=1)],
+        )
+
+
+def test_fades_longer_than_the_clip_are_refused() -> None:
+    with pytest.raises(ValueError, match="fades must stay inside their clip"):
+        apply_edit_operations(
+            document_v2_fixture(),
+            [op("set_clip_fades", clip_id="clip_main", fade_in_frames=200, fade_out_frames=200)],
+        )
+
+
+def test_trim_and_split_shrink_fades_to_fit() -> None:
+    document = apply_edit_operations(
+        document_v2_fixture(),
+        [
+            trim_end("clip_main", 100),
+            op("set_clip_fades", clip_id="clip_main", fade_in_frames=40, fade_out_frames=40),
+        ],
+    )
+    trimmed = find_clip(apply_edit_operations(document, [trim_end("clip_main", 60)]), "clip_main")
+    assert trimmed.fade_in_frames + trimmed.fade_out_frames <= 60
+    assert trimmed.fade_in_frames == 40
+
+    split = apply_edit_operations(document, [split_main(50, "clip_left", "clip_right")])
+    assert find_clip(split, "clip_left").fade_out_frames == 0
+    assert find_clip(split, "clip_right").fade_in_frames == 0
+
+
+def test_add_text_clip_without_a_story_role() -> None:
+    result = apply_edit_operations(
+        document_v2_fixture(),
+        [
+            op(
+                "add_text_clip",
+                clip_id="clip_pasted",
+                track_id="track_overlay",
+                from_frame=0,
+                duration_in_frames=90,
+                heading="Hello",
+                body="",
+                style_slot="title",
+            )
+        ],
+    )
+    assert find_clip(result, "clip_pasted").source_role is None

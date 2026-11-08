@@ -21,8 +21,10 @@ from thoth_control_plane.domain.edit_document_v2 import (
     AssetRef,
     CaptionCue,
     CaptionStyle,
+    Crop,
     EditDocumentV2,
     Emphasis,
+    FadeFrames,
     FitMode,
     Motion,
     Position,
@@ -247,7 +249,45 @@ class AddTextClip(StrictModel):
     heading: ShortText
     body: BodyText
     style_slot: StyleSlot
-    source_role: Literal["hook", "outro"]
+    #: None for a text pasted onto the timeline (spec 2026-11-08 section 6), not a Story beat.
+    source_role: Literal["hook", "outro"] | None = None
+
+
+class DuplicateClip(StrictModel):
+    """Copy a clip under a new id; its media, provenance and styling stay, its scene does not."""
+
+    kind: Literal["duplicate_clip"]
+    operation_id: OpaqueId
+    clip_id: OpaqueId
+    new_clip_id: OpaqueId
+    track_id: OpaqueId
+    from_frame: FrameStart
+
+
+class SetClipFit(StrictModel):
+    kind: Literal["set_clip_fit"]
+    operation_id: OpaqueId
+    clip_id: OpaqueId
+    fit: FitMode
+
+
+class SetClipCrop(StrictModel):
+    """None restores the whole source frame."""
+
+    kind: Literal["set_clip_crop"]
+    operation_id: OpaqueId
+    clip_id: OpaqueId
+    crop: Crop | None = None
+
+
+class SetClipFades(StrictModel):
+    """Fades on a video or audio clip; their sum must fit inside the clip."""
+
+    kind: Literal["set_clip_fades"]
+    operation_id: OpaqueId
+    clip_id: OpaqueId
+    fade_in_frames: FadeFrames
+    fade_out_frames: FadeFrames
 
 
 class SetTrackVisibility(StrictModel):
@@ -296,6 +336,10 @@ TimelineOperation: TypeAlias = Annotated[
     | SetClipEmphasis
     | ReplaceClipAsset
     | AddTextClip
+    | DuplicateClip
+    | SetClipFit
+    | SetClipCrop
+    | SetClipFades
     | SetTrackVisibility
     | SetTrackMuted
     | SetTrackLocked,
@@ -372,6 +416,14 @@ def apply_timeline_operation(
             _replace_clip_asset(document, operation, resolved_assets)
         case AddTextClip():
             _add_text_clip(document, operation)
+        case DuplicateClip():
+            _duplicate_clip(document, operation)
+        case SetClipFit():
+            _unlocked_video_clip(document, operation.clip_id).fit = operation.fit
+        case SetClipCrop():
+            _unlocked_video_clip(document, operation.clip_id).crop = operation.crop
+        case SetClipFades():
+            _set_clip_fades(document, operation)
         case SetTrackVisibility():
             _unlocked_track(document, operation.track_id).hidden = operation.hidden
         case SetTrackMuted():
@@ -729,7 +781,49 @@ def _split_clip(document: EditDocumentV2, operation: SplitClip) -> None:
     track.clip_ids.append(right.clip_id)
     clip.clip_id = operation.left_clip_id
     clip.duration_in_frames = left_duration
+    if isinstance(clip, TimelineAudioClip | TimelineVideoClip):
+        # The cut sits between the two parts: neither fades there.
+        clip.fade_out_frames = 0
+        right.fade_in_frames = 0
     document.clips.append(right)
+
+
+def _duplicate_clip(document: EditDocumentV2, operation: DuplicateClip) -> None:
+    clip = _clip(document, operation.clip_id)
+    track = _unlocked_track(document, operation.track_id)
+    if any(other.clip_id == operation.new_clip_id for other in document.clips):
+        raise ValueError("operation reuses an existing clip ID")
+    if clip.kind not in TRACK_CLIP_KINDS[track.kind]:
+        raise ValueError("clip kind is incompatible with track")
+    copy = clip.model_copy(deep=True)
+    copy.clip_id = operation.new_clip_id
+    copy.track_id = track.track_id
+    copy.from_frame = operation.from_frame
+    copy.scene_id = None
+    copy.locked = False
+    document.clips.append(copy)
+    track.clip_ids.append(copy.clip_id)
+
+
+def _set_clip_fades(document: EditDocumentV2, operation: SetClipFades) -> None:
+    clip = _unlocked_clip(document, operation.clip_id)
+    if not isinstance(clip, TimelineAudioClip | TimelineVideoClip):
+        raise ValueError("fades apply only to video and audio clips")
+    if operation.fade_in_frames + operation.fade_out_frames > clip.duration_in_frames:
+        raise ValueError("fades must stay inside their clip")
+    clip.fade_in_frames = operation.fade_in_frames
+    clip.fade_out_frames = operation.fade_out_frames
+
+
+def fit_fades(document: EditDocumentV2) -> None:
+    """Shrink fades a shorter clip can no longer hold: the fade out first, then the fade in."""
+    for clip in document.clips:
+        if not isinstance(clip, TimelineAudioClip | TimelineVideoClip):
+            continue
+        clip.fade_in_frames = min(clip.fade_in_frames, clip.duration_in_frames)
+        clip.fade_out_frames = min(
+            clip.fade_out_frames, clip.duration_in_frames - clip.fade_in_frames
+        )
 
 
 def _set_clip_volume(document: EditDocumentV2, operation: SetClipVolume) -> None:
