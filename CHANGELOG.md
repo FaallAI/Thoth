@@ -91,15 +91,27 @@ Eleven minor findings are recorded in the checkpoint for Tier 2.
 - The 1440 lane area is not short: all seven lanes fit with room to spare. The research report is corrected.
 - The Fit / Crop / Position red test belongs to Tier 2.
 
+**Deployed and checked live (operator's approval, 2026-11-08: "ya boleh").**
+- **Push and PR:** PR #122 opened. CI was green, including the non-live smoke test.
+- **Deploy:** `c5a848b0` deployed to stage1.
+  - Images: thoth `8a5e5f9f3d41`, renderer `42c51bbe37da`, web `e82bb7d89dfe`.
+  - Rollback pins: `pins-a764c4bc.env`.
+  - No workflow was running, and web answered 200.
+- **Write token:** a new one-day write token (`e2e-write`), stored without printing.
+- **Undo test, before the deploy:** the rewritten undo test failed on the old `a764c4bc` (`expected 30 to be 90`), so it catches the missing keys.
+- **Write suite after the deploy** (`rw1440`): 41 of 42 passed. The one failure is Fit / Crop / Position, which belongs to Tier 2.
+- **Read-only suites** (`w1440`, narrated draft `edoc_b410cf36…`): 16 of 22 passed on the first run.
+  - Two failures checked wording Tier 1 changed on purpose: the raw `main_video` name and the "Ownership" label. The tests are updated, and both now pass.
+  - Three assert another draft's numbers ("Total 34.5 s", "0:00 / 0:34", "Beat 1 of 4 · 8.9 s") and do not fit this 27.6 s draft. That is test data, not a regression.
+  - One, "the script panel opens from the narration chip", measures the script column's scroll box at 900 against the beats at 810. The screenshot shows the column ending above the beats. Tier 1 did not touch the script panel, so this is left for a follow-up look.
+- **Look, read-only:**
+  - 1024: the empty Inspector is a rail, the lanes take the width, and all seven lanes show, Sound effects included.
+  - 430: plain track names, view-only lanes.
+  - 1440: the menu and the shortcut list were checked before the deploy.
+
 **Next steps** (each gate is its own operator decision):
-- **Write token:** a new one-day write-scope e2e token. The 2026-11-08 one expired at 16:38.
-  - With it, run the rewritten undo test once on the current deploy, expecting it to fail. This proves it catches the missing keys.
-- **Push and PR** of `feat/studio-timeline-track`.
-- **Deploy** of its branch image.
-- **After the deploy:**
-  - the write suite at `rw1440`, expecting every test but Fit / Crop / Position (Tier 2) to pass;
-  - the read-only look at 1440, 1024 and 430.
-- **Merge.**
+- **The operator tries Tier 1 on stage1, then merges PR #122** (its own authorization).
+- **Follow-up:** the script-panel height test, and the three read-only tests tied to another draft's numbers.
 - **Then Tier 2:** multi-select, in-page copy / paste / duplicate (a new operation), system-clipboard text pasted to a chosen place, close all gaps, Fit / Crop / Position and fades, Assets search and drag-to-lane, J / K / L.
 
 ## 2026-11-08 - Both fixes seen on a narrated render; the run tray follows the run page

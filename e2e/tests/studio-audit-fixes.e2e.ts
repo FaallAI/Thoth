@@ -43,7 +43,8 @@ test('430 Timeline: lane names stay in sight and take a quarter of the screen', 
   await screen.getByRole('navigation', 'Studio panes').getByRole('button', 'Timeline').tap();
   await expect(screen.getByText(/^Best on a larger screen/)).toBeVisible();
   const lane = await browser.evaluate(() => {
-    const name = [...document.querySelectorAll('[data-track-id] span')].find((node) => node.textContent === 'main_video')!;
+    // Tier 1 (2026-11-08): the name is a plain-language button, no longer the raw `main_video`.
+    const name = document.querySelector('[data-track-id] [data-track-name]')!;
     const style = getComputedStyle(name.parentElement!);
     return { position: style.position, width: name.parentElement!.getBoundingClientRect().width };
   });
