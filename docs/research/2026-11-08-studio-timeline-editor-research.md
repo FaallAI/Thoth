@@ -48,7 +48,7 @@ The eight timeline failures are the red tests written on 2026-11-05; none of the
 |---|---|
 | 1440 | Seven lanes fit, but the lane area is about a fifth of the height while the preview sits small in a large dark area. Track names are raw ids (`main_video`, `b_roll`). Clips are text only; short clips read "P…", "Co…". The Inspector shows timing in **frames** (225 / 334) with the time small beside it. Fit, Crop and Position are greyed out. "Ownership: AI managed / User edited / Locked" is internal language. No delete, duplicate or replace in the Inspector. The Assets column has no search, and uploads are named `Upload · Image · 13`. |
 | 1024 | The empty Inspector ("Select a clip or track to edit it") takes about a third of the width; the lanes show about 8 s; the SFX lane is cut at the bottom. |
-| 430 | Lanes are view-only by design ("Best on a larger screen"), and Preview and Timeline are separate panes, so you cannot watch while scrubbing. Undo, Redo and Request review are not in the phone header. |
+| 430 | Lanes are view-only by design ("Best on a larger screen"), and Preview and Timeline are separate panes, so you cannot watch while scrubbing. Undo and Redo are not in the phone header by design; they sit in the workspace menu (final review I5). |
 
 Previews do not load under the read scope, so pictures in the preview were not judged.
 
