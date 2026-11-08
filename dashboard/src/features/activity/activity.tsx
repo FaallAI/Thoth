@@ -16,6 +16,8 @@ type Activity = {
   /** Re-reads the inbox now: after an approve, a reject or an acknowledge (§7.6). */
   refresh: () => void;
   acknowledge: (workflowId: string) => Promise<void>;
+  /** A run page's own reading of its run: the tray catches up with it at once (audit 2026-11-05). */
+  observe: (workflowId: string, status: RunStatus) => void;
 };
 
 const ActivityContext = createContext<Activity | null>(null);
@@ -119,9 +121,26 @@ export function ActivityProvider({
     [client, readInbox],
   );
 
+  // The run page polls its run every second, the tray every ten: a status the tray disagrees with
+  // reads the active runs now. Once per run and status, so a stored list that lags the page is
+  // not asked again on every page poll.
+  const shown = useRef<WorkflowRun[]>([]);
+  shown.current = active;
+  const asked = useRef(new Map<string, RunStatus>());
+  const observe = useCallback(
+    (workflowId: string, status: RunStatus) => {
+      const listed = shown.current.find((run) => run.workflow_id === workflowId);
+      const agrees = ACTIVE.includes(status) ? listed?.status === status : listed === undefined;
+      if (agrees || asked.current.get(workflowId) === status) return;
+      asked.current.set(workflowId, status);
+      void readActive();
+    },
+    [readActive],
+  );
+
   const value = useMemo(
-    () => ({ inbox, active, waiting, refresh: readInbox, acknowledge }),
-    [inbox, active, waiting, readInbox, acknowledge],
+    () => ({ inbox, active, waiting, refresh: readInbox, acknowledge, observe }),
+    [inbox, active, waiting, readInbox, acknowledge, observe],
   );
   return <ActivityContext.Provider value={value}>{children}</ActivityContext.Provider>;
 }

@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this changelog.
 
-## 2026-11-08 - Both fixes seen on a narrated render
+## 2026-11-08 - Both fixes seen on a narrated render; the run tray follows the run page
 
 Recorded on the next work branch, from master `48f32b18`. PR #120 was merged on the operator's word (merge `48f32b18`) after its branch image `7bd0fc7e` was deployed to stage1: thoth `7be15c9b7dae`, renderer `77f84d181e85`, web `e06fa5fe4ace`; rollback `pins-49cfffd1.env`. Checks after the deploy were clean, the pins matched every running container, and the worker carried both fixes.
 
@@ -18,10 +18,25 @@ Recorded on the next work branch, from master `48f32b18`. PR #120 was merged on 
 - **First frame:** the scene after the title card, with the narration heading over open sky and the source's caption blurred. The title card is gone.
 - **No calls blocked:** the temporary e2e guard blocked nothing. The temporary config and tests were deleted after use.
 
+**Fixed, test-first: the run tray no longer lags the run page.** The 2026-11-05 audit found the tray behind the page both ways.
+
+- **Cause:** the run page reads its run every second; the tray reads the active runs on its own 10 s beat, and neither told the other.
+- **Fix:** the activity provider now offers `observe(workflowId, status)`, and the run page calls it with each status it reads.
+  - A status the tray disagrees with makes the tray read the active runs at once: a run the page sees start but the tray does not list, or one the page sees end that the tray still lists.
+  - It asks once per run and status, so a stored list that lags the page is not asked again on every page poll.
+  - A run that ends this way is still told once as a desktop notification.
+  - Starting a run is covered too: the New run dialog opens the run's page.
+- **Red first:** in `activity.test.tsx`, a start, a finish (told once), and a lagging list asked once per status; in `RunDetailPage.test.tsx`, the page telling the tray. These tests run with a one-minute beat, so only the page can move the tray.
+
+**Checked, not reproducible:** the "..." menu staying open over the Inspector after Assist opens (2026-11-05). On this build, read-only with e2e (`w1440`, draft `edoc_b410cf36…`), choosing Assist in the Studio workspace menu closes the menu: its items leave the screen, and the Assist panel opens on the right.
+
+**Verification (WSL):** dashboard tests 1612 passed, 0 failed; `make dashboard-build` (type check and build) clean.
+
 **Next steps** (each gate its own operator decision):
 
+- push this branch, deploy its CI image, merge;
 - the operator's look at `D:/thoth-tmp/fixes/render2/render.mp4` and at step 8;
-- carried: tray lag, the "..." menu that stays open over the Inspector after Assist opens.
+- a live 3D check still needs a creator that raises the 3D modal; the paid vision fallback (`local_vision`) is the operator's call.
 
 ## 2026-11-08 - The blur fix seen on a render; figures no longer hold render; narration skips a title card
 
