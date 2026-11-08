@@ -1330,7 +1330,7 @@ def test_a_blur_region_outside_the_frame_or_window_is_refused(region: dict[str, 
 
 
 def test_ripple_delete_batch_applies_in_order() -> None:
-    """The Studio's ripple delete (2026-11-08): remove, then pull each later clip left, ascending."""
+    """Studio ripple delete (2026-11-08): remove, then pull each later clip left, ascending."""
     payload = document_v2_payload()
     main = clip_by_id(payload, "clip_main")
     parts = []
