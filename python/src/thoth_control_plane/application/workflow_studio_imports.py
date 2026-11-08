@@ -35,6 +35,7 @@ from thoth_control_plane.application.studio_imports import StudioImportService
 from thoth_control_plane.application.workflows import WorkflowNotFound
 from thoth_control_plane.assembly.models import ContentSet, MediaRef
 from thoth_control_plane.assembly.studio import (
+    FIGURES_FIELD,
     WorkflowProjection,
     project_content_set,
     workflow_source_key,
@@ -172,6 +173,9 @@ class WorkflowStudioImportService:
                 continue
             item, inventory = await self._import_item(project_id, inventory, entry.item_id, ref)
             items.append(item)
+        for entry in list(inventory.items):
+            if entry.label == FIGURES_FIELD and entry.disposition == "unresolved":
+                inventory = await self._exclude_figures(project_id, inventory, entry.item_id)
         return WorkflowStudioImport(
             draft=draft.model_copy(update={"revision": inventory.revision}), items=items
         )
@@ -375,6 +379,20 @@ class WorkflowStudioImportService:
         except (EditDocumentRevisionConflict, StudioImportItemResolved):
             return self._left(item_id, "draft_changed"), inventory
         return WorkflowImportItem(item_id=item_id, outcome="not_placed"), inventory
+
+    async def _exclude_figures(
+        self, project_id: str, inventory: StudioImportInventory, item_id: str
+    ) -> StudioImportInventory:
+        """Figures are context, never scenes: the only decision there is, so render never waits
+        on a person to make it (draft edoc_194f5305, 2026-11-08). They stay in Materials."""
+        request = ResolveStudioImportItem(
+            base_revision=inventory.revision, decision=ExcludeImportItem(kind="exclude")
+        )
+        try:
+            return await self._imports.resolve(project_id, inventory.document_id, item_id, request)
+        except (EditDocumentRevisionConflict, StudioImportItemResolved):
+            # A person decided it meanwhile, or the draft moved on: the gate still offers it.
+            return await self._imports.get_inventory(project_id, inventory.document_id)
 
     @staticmethod
     def _left(item_id: str, reason: str) -> WorkflowImportItem:

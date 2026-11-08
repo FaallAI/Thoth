@@ -621,6 +621,38 @@ async def test_a_card_with_no_room_is_excluded_as_not_placed(tmp_path: Path) -> 
 
 
 @pytest.mark.asyncio
+async def test_figures_are_excluded_on_open_so_render_waits_on_nothing(tmp_path: Path) -> None:
+    # Draft edoc_194f5305, 2026-11-08: "figures" can only be excluded, yet render held until a
+    # person excluded it by hand. They stay in the Materials panel as context.
+    figure = {"name": "Rocky Gerung", "type": "person", "role": "commentator"}
+    imports = AttachingImports()
+    data = content_set_data() | {"figures": [figure], "figures_status": "ok"}
+    built = world(tmp_path, data=data, imports=imports)
+
+    opened = await built.service.open("project_001", WF, ACTOR, "open-1")
+
+    inventory = await imports.get_inventory(
+        project_id="project_001", document_id=opened.draft.document_id
+    )
+    [figures] = [item for item in inventory.items if item.label == "figures"]
+    assert figures.disposition == "excluded"
+    assert not [item for item in inventory.items if item.disposition == "unresolved"]
+    assert [d.kind for item_id, d in imports.decisions if item_id == figures.item_id] == ["exclude"]
+
+
+@pytest.mark.asyncio
+async def test_a_person_who_decided_the_figures_first_keeps_that_decision(tmp_path: Path) -> None:
+    figure = {"name": "Rocky Gerung", "type": "person", "role": "commentator"}
+    imports = AttachingImports(decide_first={"unsupported_000"})
+    data = content_set_data() | {"figures": [figure], "figures_status": "ok"}
+    built = world(tmp_path, data=data, imports=imports)
+
+    await built.service.open("project_001", WF, ACTOR, "open-1")
+
+    assert [item_id for item_id, _ in imports.decisions if item_id == "unsupported_000"] == []
+
+
+@pytest.mark.asyncio
 async def test_overlay_items_stay_unresolved_until_the_main_attaches(tmp_path: Path) -> None:
     imports = AttachingImports(refuse={"comment_card_000": "main_not_attached"})
     built = world(tmp_path, data=carded(), imports=imports)

@@ -2,6 +2,51 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-08 - The blur fix seen on a render; figures no longer hold render; narration skips a title card
+
+Recorded on the next work branch, from master `fa7ed8a2`. PR #119 was merged on the operator's word (merge `fa7ed8a2`) after its branch image `49cfffd1` was deployed to stage1: thoth `5c221de6e7ad`, renderer `82d7a7902d48`, web `de318af628b0`; rollback `pins-97d0553f.env`. Checks after the deploy were clean, and the pinned images matched every running container.
+
+- **A first detached deploy never started.** `setsid nohup … &` died with its `wsl -e` call: there was no output file and the pins were untouched. `setsid -f` was proven with a test write, then ran the deploy to the end.
+
+**Live run `wf_6a5d0e23f532a3eafaced8ae` on `kabinet_rakyat`, throwaway project, with the operator's approval:** it completed in about 16 minutes. Its content set's first main blur window opens at **0.406 s**; run `wf_0606e570…` (old code) opened it at 0.000 s. The other 16 windows are identical.
+
+**Narration and render, with the operator's approval after the cost was shown:** the draft `edoc_194f53058bdd40b894d330025a39cb16` was made from that run.
+
+- **Script:** 4 beats, about 479 characters.
+- **Voice:** ElevenLabs, completed, revision 19.
+- **Exclude:** the one unresolved source item, "figures", was excluded (revision 20).
+- **Render:** `rj_b3d3f820fc364a91bd8c70e42d6e847b`, completed in 71 s.
+- **No calls blocked:** the temporary e2e guard blocked nothing. The temporary config and tests were deleted after use.
+- **First frame:** the source's "ROCKY GERUNG" title card shows whole and sharp, with no blur band. At 0.6 s the source's word caption is blurred as designed.
+
+**Fixed, test-first: render no longer waits on a hand-made "figures" decision.** "Figures" arrive as an unsupported inventory field that can only be excluded, yet render refused while it stayed unresolved. Opening a run in Studio now excludes that one item right after the media are attached, as it already does for comment cards with no room. The figures stay in the Materials panel as context.
+
+- `test_figures_are_excluded_on_open_so_render_waits_on_nothing` was red first.
+- `test_a_person_who_decided_the_figures_first_keeps_that_decision` is a guard: a decision made in the gate first stands.
+- The field name is one constant, `assembly.studio.FIGURES_FIELD`, shared by the projection and the importer.
+
+**Checked, not a bug:** opening a new draft shows the Source inventory with "Close" at the top and "Continue in Studio" at the foot (seen read-only with e2e). The temporary test had counted the foot button before the dialog finished loading.
+
+**Fixed, test-first, on the operator's choice ("Lewati kartu judul"): a narrated draft starts after the source's title card.** The narration heading sat over the source's own title card, "TOBAT ROCKY… UDAH TUA" over "SOSIAL EKSPERIMEN ROCKY GERUNG", for the card's 0.4 s, which includes the video's first frame.
+
+- **Detection:** `assembly/intro_card.intro_card_end` reads the main video with local RapidOCR only: frame 0, then every 0.25 s up to 1.5 s, and two halvings at the end.
+  - A card is at least five lines on frame 0 that reach both the top and the bottom third.
+  - It ends at the first read where fewer than 30 % of its lines remain on their spots.
+  - Text that stays past 1.5 s is an overlay, and lines only at the top are a headline over the action; neither is cut. Any failed read cuts nothing.
+- **Use:** on the first narration only, the write step reads the main video through the existing `main_video` port and asks the new `intro_card` port. `narrate_document(intro_frames=…)` then starts the main clip that opens the timeline at that source frame, rounded up, so the card's last frame is never shown. A re-voice keeps where the operator left the main video; an existing trim further in is kept; a failed check is a warning, and the draft is written as before.
+- **Unchanged:** no schema changed. Workflow output and drafts without narration are as before, and blur windows are in source frames, so they need no shift.
+- **Red first:** `test_a_title_card_ends_where_its_lines_go`, the two `…starts_the_main_video_after_its_title_card` tests (timeline and activity), and the rounding-up assertion.
+- **Guards:** a video that opens on its scene, text that stays, a top-only headline, unreadable frames, a title card inside an existing trim, a re-voice, and a failing check.
+- **On real videos, offline:** the deployed image ran the check from the checkout, with no network. The ROCKY GERUNG main gives 0.375 s (frame 12 at 30 fps, i.e. 0.4 s). Two footage videos of the same project give none. About 5 s per video.
+
+**Verification (WSL):** importer, timeline, title-card and narration-activity tests pass; full `make test` 4642 passed, 221 skipped, 0 failed; `make lint` clean.
+
+**Next steps** (each gate its own operator decision):
+
+- the operator's look at the render (`D:/thoth-tmp/fixes/render/render.mp4`) and at step 8;
+- push this branch, deploy its CI image, merge; then one narration and render (paid, operator gate) to see the first frame open on the scene;
+- carried: tray lag, the "..." menu that stays open over the Inspector.
+
 ## 2026-11-07 - Fifth live run: the post card is clear again
 
 Recorded on the next work branch, from master `6a73a87d`. PR #118 was merged on the operator's word (merge `6a73a87d`) after its branch image `97d0553f` was deployed to stage1: thoth `a46e228d3dcc`, renderer `e6f384990706`, web `dfcf69eb1727`; rollback `pins-7dedcbce.env`. Checks after the deploy were clean (`make deploy` exit 0, web 200, 0 worker error lines, 0 API 5xx), and the worker's code hid overlays before the post-card crop.
