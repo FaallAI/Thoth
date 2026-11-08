@@ -34,6 +34,7 @@ import { Timeline } from "./Timeline";
 import { StudioHeader } from "./StudioHeader";
 import { TimelineInspector } from "./TimelineInspector";
 import { useStudioShortcuts } from "./studio_keys";
+import { ShortcutsDialog } from "./ShortcutsDialog";
 import { assetLabel, clipLabel, type LabelContext } from "./studio_labels";
 import {
   createAddClipFromAssetOperation,
@@ -149,6 +150,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const timelineReadOnly = compact && advanced;
   const [safeZone, setSafeZone] = useState(false);
   const [selectedBeat, setSelectedBeat] = useState<BeatId | null>(null);
+  // The keyboard shortcut list (spec 2026-11-08 §5.1).
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [inventory, setInventory] = useState<StudioImportItem[]>([]);
   const [materials, setMaterials] = useState<StudioMaterials | null>(null);
   const [materialsRead, setMaterialsRead] = useState(false);
@@ -617,7 +620,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   useStudioShortcuts({
     undo: () => !undoDisabled && undo(),
     redo: () => !redoDisabled && redo(),
-    shortcuts: () => {},
+    shortcuts: () => setShortcutsOpen(true),
     enabled: editing,
   });
 
@@ -656,6 +659,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
 
   return (
     <section className={`studio-shell pen-studio studio-job-${job} ${advanced ? "studio-advanced" : "studio-simple"}${story ? " studio-story" : ""} flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground`} aria-label="Guided Studio">
+      <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       {/* DESIGN §13: back to the documents, the title, the destinations, and where saving stands. */}
       <StudioHeader
         title={documentLabel(draft)}
@@ -801,6 +805,17 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             ) : null}
             <span className="text-muted-ink">{t("studio.editor.project", { name: projectName ?? base.project_id })}</span>
             {workspaceControls ?? <p className="text-muted-ink">{t("studio.editor.noSwitch")}</p>}
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              className={`${toolbarButton} self-start`}
+              onClick={(event) => {
+                event.currentTarget.closest("details")?.removeAttribute("open");
+                setShortcutsOpen(true);
+              }}
+            >
+              {t("studio.shortcuts.open")}
+            </button>
             {/* Phones hide the top bar's Undo and Redo; they stay reachable here (final review I5). */}
             {viewport === "phone" ? (
             <div className="flex flex-wrap gap-2 border-t border-hairline pt-3">

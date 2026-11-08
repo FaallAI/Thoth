@@ -514,3 +514,23 @@ test("Ctrl+Z and Ctrl+Y undo and redo outside fields, and leave a field's own un
   fireEvent.keyDown(document.body, { key: "y", ctrlKey: true });
   expect(heading.value).toBe("Local heading");
 });
+
+test("the shortcut list opens with ? and from the workspace menu", async () => {
+  const { GuidedStudio } = await import("./GuidedStudio");
+  render(
+    <GuidedStudio
+      client={{ ...promptClientBase, getEditDocument: mock(async () => editDocument), patchEditDocument: mock(async () => ({ kind: "saved" as const, document: editDocument })) }}
+      projectId="project_001"
+      documentId="document_001"
+      onBack={() => {}}
+    />,
+  );
+  await screen.findByLabelText("Heading");
+  fireEvent.keyDown(document.body, { key: "?" });
+  const dialog = screen.getByRole("dialog", { name: "Keyboard shortcuts" });
+  fireEvent.keyDown(dialog, { key: "Escape" });
+  expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).toBeNull();
+
+  fireEvent.click(screen.getByRole("button", { name: "Keyboard shortcuts" }));
+  expect(screen.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeTruthy();
+});
