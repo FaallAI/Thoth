@@ -257,7 +257,10 @@ test('inspector: hidden and locked are saved', async ({ app, browser, screen }) 
 test('inspector: Fit, Crop and Position can be changed on a video clip', async ({ app, browser, screen }) => {
   await clipOnTimeline({ app, browser, screen });
   await screen.getByRole('button', 'Main Video clip').tap();
-  await expect(screen.getByRole('textbox', 'Fit')).toBeEnabled({ timeout: 1500 });
+  // Fit is a choice (Cover, Contain, Fill) since Tier 2, so it is a combobox, not a text box.
+  await expect(screen.getByRole('combobox', 'Fit')).toBeEnabled({ timeout: 1500 });
+  await expect(screen.getByRole('textbox', 'Crop left')).toBeEnabled();
+  await expect(screen.getByRole('textbox', 'Position X')).toBeEnabled();
 });
 
 test('right click: a clip opens an editing menu', async ({ app, browser, screen }) => {

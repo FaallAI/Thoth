@@ -139,8 +139,10 @@ test("shows the newly selected clip's values without remounting", () => {
   expect((screen.getByLabelText("Start frame") as HTMLInputElement).value).toBe("90");
   expect((screen.getByLabelText("End frame") as HTMLInputElement).value).toBe("210");
   expect((screen.getByLabelText("Fit") as HTMLInputElement).value).toBe("contain");
-  expect((screen.getByLabelText("Crop") as HTMLInputElement).value).toBe("0.1, 0.2, 0.5, 0.6");
-  expect((screen.getByLabelText("Position") as HTMLInputElement).value).toBe("0.25, -0.5 ×1.5");
+  // Since Tier 2 crop and position are editable fields in percent (crop 0.1, 0.2, 0.5, 0.6).
+  const value = (name: string) => (screen.getByLabelText(name) as HTMLInputElement).value;
+  expect(["Crop left", "Crop top", "Crop right", "Crop bottom"].map(value)).toEqual(["10", "20", "40", "20"]);
+  expect(["Position X", "Position Y", "Scale"].map(value)).toEqual(["25", "-50", "150"]);
 });
 
 test("emits an edit against the clip that is selected now", () => {
@@ -181,8 +183,9 @@ test("reports an audio clip's volume and fades for the current selection", () =>
   );
 
   expect((screen.getByLabelText("Volume") as HTMLInputElement).value).toBe("0.4");
-  expect((screen.getByLabelText("Fade in (frames)") as HTMLInputElement).value).toBe("12");
-  expect((screen.getByLabelText("Fade out (frames)") as HTMLInputElement).value).toBe("24");
+  // Fades read in seconds since Tier 2 (12 and 24 frames at 30 fps).
+  expect((screen.getByLabelText("Fade in (seconds)") as HTMLInputElement).value).toBe("0.4");
+  expect((screen.getByLabelText("Fade out (seconds)") as HTMLInputElement).value).toBe("0.8");
 });
 
 test("reports persisted overlay and caption fields as read-only values", () => {
@@ -365,4 +368,80 @@ test("leaving a time field untouched changes nothing, off the tenth-second grid 
   fireEvent.blur(screen.getByRole("textbox", { name: "Start time" }));
   fireEvent.keyDown(screen.getByRole("textbox", { name: "End time" }), { key: "Enter" });
   expect(operations).toEqual([]);
+});
+
+// Tier 2 (spec 2026-11-08 §6): Fit, Crop, Position and fades are editable.
+const field = (name: string) => screen.getByLabelText(name) as HTMLInputElement;
+const typeAndLeave = (name: string, value: string) => {
+  fireEvent.change(field(name), { target: { value } });
+  fireEvent.blur(field(name));
+};
+
+test("Fit is a choice that commits set_clip_fit", () => {
+  const { operations } = mount({ clipId: "clip_main" });
+  fireEvent.change(screen.getByRole("combobox", { name: "Fit" }), { target: { value: "contain" } });
+  expect(operations.map(payload)).toEqual([{ kind: "set_clip_fit", operation_id: "op", clip_id: "clip_main", fit: "contain" }]);
+});
+
+test("crop fields commit a crop in fractions", () => {
+  const { operations } = mount({ clipId: "clip_main" });
+  expect(screen.getByLabelText("Crop")).toBeDefined();
+  typeAndLeave("Crop left", "10");
+  expect(operations.map(payload)).toEqual([
+    { kind: "set_clip_crop", operation_id: "op", clip_id: "clip_main", crop: { left: 0.1, top: 0, width: 0.9, height: 1 } },
+  ]);
+});
+
+test("a crop that leaves no picture is refused in place", () => {
+  const document = timelineDocument();
+  Object.assign(document.clips!.find((clip) => clip.clip_id === "clip_main")!, { crop: { left: 0.6, top: 0, width: 0.4, height: 1 } });
+  const { operations } = mount({ clipId: "clip_main" }, document);
+  typeAndLeave("Crop right", "50");
+  expect(operations).toEqual([]);
+  expect(screen.getByRole("alert").textContent).toContain("Crop leaves no picture");
+});
+
+test("Reset crop sends no crop", () => {
+  const document = timelineDocument();
+  Object.assign(document.clips!.find((clip) => clip.clip_id === "clip_main")!, { crop: { left: 0.1, top: 0, width: 0.9, height: 1 } });
+  const { operations } = mount({ clipId: "clip_main" }, document);
+  fireEvent.click(screen.getByRole("button", { name: "Reset crop" }));
+  expect(operations.map(payload)).toEqual([{ kind: "set_clip_crop", operation_id: "op", clip_id: "clip_main", crop: null }]);
+});
+
+test("position and scale commit set_clip_position", () => {
+  const { operations } = mount({ clipId: "clip_main" });
+  typeAndLeave("Position X", "25");
+  typeAndLeave("Scale", "150");
+  expect(operations.map(payload)).toEqual([
+    { kind: "set_clip_position", operation_id: "op", clip_id: "clip_main", position: { x: 0.25, y: 0, scale: 1 } },
+    { kind: "set_clip_position", operation_id: "op", clip_id: "clip_main", position: { x: 0, y: 0, scale: 1.5 } },
+  ]);
+});
+
+test("fades commit set_clip_fades in frames", () => {
+  const { operations } = mount({ clipId: "clip_main" });
+  typeAndLeave("Fade in (seconds)", "0.5");
+  expect(operations.map(payload)).toEqual([
+    { kind: "set_clip_fades", operation_id: "op", clip_id: "clip_main", fade_in_frames: 15, fade_out_frames: 0 },
+  ]);
+});
+
+test("a fade longer than the clip is refused in place", () => {
+  const { operations } = mount({ clipId: "clip_main" });
+  typeAndLeave("Fade out (seconds)", "9");
+  expect(operations).toEqual([]);
+  expect(screen.getByRole("alert").textContent).toContain("Fades are longer than the clip");
+});
+
+test("an untouched field commits nothing on blur", () => {
+  const { operations } = mount({ clipId: "clip_main" });
+  for (const name of ["Crop left", "Position X", "Scale", "Fade in (seconds)"]) fireEvent.blur(field(name));
+  expect(operations).toEqual([]);
+});
+
+test("a locked clip shows Fit, Crop, Position and fades read-only", () => {
+  mount({ clipId: "clip_locked" });
+  expect((screen.getByRole("combobox", { name: "Fit" }) as HTMLSelectElement).disabled).toBe(true);
+  for (const name of ["Crop left", "Position X", "Scale", "Fade in (seconds)"]) expect(field(name).disabled).toBe(true);
 });
