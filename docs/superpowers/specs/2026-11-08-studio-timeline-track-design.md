@@ -23,7 +23,8 @@ copy and paste, undo every step), and a screen whose names and numbers read as p
 - Tier 1 (editor basics), then Tier 2 (comfort), then Tier 3 (pro), in that order (operator,
   2026-11-08).
 - A right-click menu in both Timeline mode and Story mode (operator, 2026-11-08).
-- The eight red tests in `e2e/tests-write/timeline-audit.e2e.ts` turn green in Tier 1.
+- Seven of the eight red tests in `e2e/tests-write/timeline-audit.e2e.ts` turn green in Tier 1; the
+  eighth (Fit, Crop and Position editable) belongs to Tier 2.
 
 **Non-goals**
 
@@ -80,12 +81,13 @@ copy and paste, undo every step), and a screen whose names and numbers read as p
 | Left, Right | Playhead one frame (as today on a focused clip, the clip nudges) |
 | Ctrl+wheel | Zoom the lanes around the pointer |
 | Ctrl+=, Ctrl+-, Ctrl+0 | Zoom in, zoom out, zoom to fit |
-| Ctrl+Z, Ctrl+Y (Ctrl+Shift+Z) | Undo, redo (exists) |
+| Ctrl+Z, Ctrl+Y (Ctrl+Shift+Z) | Undo, redo, in Story and Timeline. The buttons exist; the keys are not wired (the 2026-11-08 test passed through a text field's own undo) |
 | Escape | Close a menu, drop a drag (exists), then clear the selection |
 | ? or Ctrl+/ | Open the shortcut list |
 
 **Right-click menu on a clip:** Split at playhead · Delete · Ripple delete · Replace media…
-(`replace_clip_asset`; video and image clips) · Move to track ▸ (compatible tracks only,
+(`replace_clip_asset`; video clips only, as the server allows; today's Replace dialog is a
+placeholder with a disabled button, so Tier 1 builds a real picker of ready assets of the same kind) · Move to track ▸ (compatible tracks only,
 `move_clip.target_track_id`) · Hide / Show (`set_clip_hidden`) · Lock / Unlock
 (`set_clip_locked`) · Show in Story (switches to Story mode with that beat open, when the clip
 belongs to a beat). Entries that do not apply stay visible and disabled with the reason as a
@@ -122,16 +124,16 @@ down (`reorder_track`) · Hide / Mute / Lock (existing toggles) · Remove empty 
 ### 5.2 Story mode
 
 **Right-click on an item in a beat's "Shown" list:** Move earlier · Move later · Remove from beat
-· Replace media… (video and image) · Position ▸ Top / Middle / Lower third · Emphasis ▸ Highlight
-/ Arrow (cards only) · Preview · Show in Timeline (switches to Timeline mode with that clip
+· Replace media… (video clips) · Position ▸ Top / Middle / Lower third · Emphasis ▸ Highlight
+/ Arrow (cards only) · Play from here (the preview plays from the item's start) · Show in Timeline (switches to Timeline mode with that clip
 selected).
 
 **Right-click on a beat in the beat strip:** Open beat · Add from materials… · Show in Timeline
 (playhead at the beat's start). Beats keep their fixed order (Hook, Main, Evidence, Reactions,
 Footage, Outro), so there is no "move beat".
 
-**Right-click on a material in the Materials panel:** Add to the open beat · Preview · Why this
-material.
+**Right-click on a material in the Materials panel:** Add to the open beat · Show where it is used
+(plays the preview from its clip; disabled when unused) · Why this material.
 
 Every Story entry calls the same edit helpers the existing buttons use (`story_edits.ts`); no new
 server operation.
@@ -150,7 +152,7 @@ server operation.
 
 - Unit tests for every new handler and helper (dashboard), and for ripple delete and close gap as
   operation batches.
-- The eight red tests in `timeline-audit.e2e.ts` pass; new write tests cover the Story menus,
+- Seven red tests in `timeline-audit.e2e.ts` pass (all but Fit / Crop / Position); new write tests cover the Story menus,
   ripple delete, close gap, the shortcut list and the 1024 layout.
 - Fix the fragile `studio-write` test ("a video longer than the canvas…") so it uses the video it
   uploads itself.
@@ -186,6 +188,7 @@ server operation.
   - Pasted text is plain text only (no HTML), trimmed, and held to the same length limits as
     typed text.
 - **Close all gaps** on a track (track menu) and in the whole timeline.
+- **Replace media for image clips** (the operation accepts video clips only today).
 - **Inspector:** Fit, Crop and Position become editable on video and image clips (existing
   `set_clip_position` / `set_clip_motion`; Crop may need a field on the operation); fade in and
   fade out for visual and audio clips (new fields with defaults, and the renderer honours them).
