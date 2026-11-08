@@ -250,8 +250,13 @@ export function AssetLibrary({
               </li>
             ))}
           </ul>
+          {/* Search and the filter see the loaded pages only, so an empty result says what was searched. */}
           {shown.length === 0 && !loading ? (
-            <p className="text-xs text-muted-foreground">{t("studio.assets.none")}</p>
+            <p className="text-xs text-muted-foreground">
+              {rows.length === 0
+                ? t("studio.assets.none")
+                : t(cursor ? "studio.assets.noMatchMore" : "studio.assets.noMatch", { count: String(rows.length) })}
+            </p>
           ) : null}
           {cursor ? (
             <button

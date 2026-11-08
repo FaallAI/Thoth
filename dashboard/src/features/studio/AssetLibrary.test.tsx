@@ -382,3 +382,22 @@ test("a row carries its asset when dragged", async () => {
   fireEvent.dragStart(row, { dataTransfer: { setData, effectAllowed: "" } });
   expect(setData).toHaveBeenCalledWith("application/x-thoth-asset", "asset_video");
 });
+
+// Side-agent note 2026-11-09 (operator: "Pesan jujur + muat lagi"): search and the filter see the
+// loaded pages only, so an empty result says so instead of "no assets", and offers the next page.
+test("a search with no match says what it searched and offers the next page", async () => {
+  mount(mock(async () => page({ assets: [asset(), asset({ asset_id: "asset_music", kind: "audio" })], next_cursor: "cursor_2" })));
+  await screen.findByText(/asset_music/);
+  fireEvent.change(screen.getByRole("searchbox", { name: "Search assets" }), { target: { value: "zzz" } });
+  expect(screen.getByText("No match among the 2 assets loaded so far. Load more to look further.")).toBeDefined();
+  expect(screen.queryByText("No ready assets yet")).toBeNull();
+  expect(screen.getByRole("button", { name: "Load more assets" })).toBeDefined();
+});
+
+test("a search with no match when everything is loaded says so plainly", async () => {
+  mount(twoKinds());
+  await screen.findByText(/asset_music/);
+  fireEvent.click(screen.getByRole("button", { name: "Image" }));
+  expect(screen.getByText("No match among the 2 assets loaded.")).toBeDefined();
+  expect(screen.queryByText("No ready assets yet")).toBeNull();
+});

@@ -44,6 +44,8 @@ same code as master: the only commit after it holds records and e2e tests.
   Ctrl+V uses the browser's paste event; the menu's "Paste text…" reads the clipboard. "Copy text" is on text and caption clips. Text over 300 characters disables every place, with the reason.
 - **Close all gaps** on a track (track menu) or in the whole timeline (lane menu).
 - **Assets column.** A search box and a type filter (All, Video, Image, Audio). Rows drag onto a lane and land at the drop point.
+  - Search and the filter cover only the pages already loaded (20 a page), as the library never pulls a whole project into memory. The server has no search parameter, and the names people see are made in the browser.
+  - An empty result says what it searched: "No match among the N assets loaded so far. Load more to look further." It no longer says "No ready assets yet". The Load more button stays beside it (operator, 2026-11-09, from a side-agent note).
 - **J, K and L.**
   - L plays, and each further L while playing doubles the speed, up to 4×.
   - K pauses.
@@ -87,7 +89,7 @@ same code as master: the only commit after it holds records and e2e tests.
 - **L's speed outlasted a pause** made by Space or the Player. This was graded minor, then re-graded important.
 
 **Verification.**
-- **Dashboard:** 1780 tests pass, and `tsc -b` and the build are clean.
+- **Dashboard:** 1782 tests pass, and `tsc -b` and the build are clean.
 - **Python:** full `make test` gives 4654 passed, 221 skipped. `make lint` is clean.
 - **Renderer:** `bun test` passes 224.
 - **Read-only e2e at 1440** on stage1 `c5a848b0`: `studio-audit-fixes` 14/14 and `studio-shell-v2` 5/5. These screens are unchanged by Tier 2.
@@ -101,7 +103,6 @@ same code as master: the only commit after it holds records and e2e tests.
 - Ctrl+D with nothing selected reaches the browser's bookmark shortcut.
 - "New caption" in a narrated draft spans the whole canvas.
 - Inspector values out of range revert silently, and the Inspector's message sits under the fade fields.
-- The Assets filter's empty state says "no assets" even when a search or filter hid the rows.
 - The paste chooser has no focus trap.
 
 **Open questions for the operator** (from the review's "declined to judge" list):
