@@ -27,6 +27,10 @@ type Props = {
   selectedClipId: string;
   onToggle: (field: "hidden" | "muted" | "locked", value: boolean) => void;
   onSelectClip: (clipId: string) => void;
+  /** The track for the Inspector (spec 2026-11-08 §5.1). */
+  onSelectTrack?: () => void;
+  /** A press on the lane's empty well, in pixels from the lane's start. */
+  onSeekAt?: (offsetPx: number) => void;
   onGestureStart: (clipId: string, mode: GestureMode, clientX: number) => void;
   onNudge: (clipId: string, frames: number) => void;
   /** The clip's human name (spec 2026-11-01); absent, the Timeline's own words for it. */
@@ -56,6 +60,8 @@ export function TimelineTrack({
   selectedClipId,
   onToggle,
   onSelectClip,
+  onSelectTrack,
+  onSeekAt,
   onGestureStart,
   onNudge,
   labelOf,
@@ -81,11 +87,24 @@ export function TimelineTrack({
       className="flex border-b border-hairline"
     >
       {/* The name stays in sight while the lanes scroll; a view-only phone gives it a quarter of the screen. */}
-      <div className={`group sticky left-0 z-[5] flex shrink-0 items-center gap-2 border-r border-hairline bg-surface ${readOnly ? "w-24 px-2" : "w-48 px-3"}`}>
+      {/* A click anywhere on the name column but its toggles selects the track. */}
+      <div
+        className={`group sticky left-0 z-[5] flex shrink-0 items-center gap-2 border-r border-hairline bg-surface ${readOnly ? "w-24 px-2" : "w-48 px-3"} ${onSelectTrack ? "cursor-pointer" : ""}`}
+        onClick={(event) => {
+          if ((event.target as HTMLElement).closest("button:not([data-track-name])")) return;
+          onSelectTrack?.();
+        }}
+      >
         {readOnly ? null : <Icon aria-hidden="true" size={15} className="shrink-0 text-muted-ink" />}
-        <span className="min-w-0 grow truncate font-mono text-xs text-ink" title={track.label}>
+        <button
+          type="button"
+          data-track-name
+          aria-label={t("studio.timeline.selectTrack", values)}
+          className="min-w-0 grow truncate text-left font-mono text-xs text-ink focus-visible:outline-2 focus-visible:outline-copper"
+          title={track.label}
+        >
           {track.kind}
-        </span>
+        </button>
         {/* A state that is on stays in sight; the toggles themselves show on hover and focus. */}
         {toggles
           .filter(([, value]) => value)
@@ -110,8 +129,13 @@ export function TimelineTrack({
         </div>
       </div>
       <div
+        data-lane-well
         className="relative h-11 grow bg-well"
         style={{ minWidth: `${framesToPixels(widthInFrames, zoom)}px` }}
+        onPointerDown={(event) => {
+          if (event.button !== 0 || event.target !== event.currentTarget) return;
+          onSeekAt?.(event.clientX - event.currentTarget.getBoundingClientRect().left);
+        }}
       >
         {clips.map((clip) => (
           <TimelineClip

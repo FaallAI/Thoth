@@ -309,7 +309,7 @@ test("lane names stay in sight while the lanes scroll, and take a quarter of a p
 });
 
 // Spec 2026-11-08 §5.1: the editing keys common editors share.
-const key = (target: EventTarget, key: string, init: KeyboardEventInit = {}) => fireEvent.keyDown(target, { key, ...init });
+const key = (target: Element | Document | Window, key: string, init: KeyboardEventInit = {}) => fireEvent.keyDown(target, { key, ...init });
 const ops = (actions: EditorAction[]) =>
   actions.flatMap((action) => (action.type === "commit_operations" ? action.operations.map((operation) => operation.kind) : []));
 
@@ -393,4 +393,76 @@ test("a view-only timeline ignores editing keys", () => {
   );
   key(document.body, "Delete");
   expect(actions).toEqual([]);
+});
+
+// Spec 2026-11-08 §5.1, pointer: another lane, an empty lane, Ctrl+wheel, a track's name.
+function withLaneUnderPointer(trackId: string, run: () => void) {
+  const original = document.elementsFromPoint;
+  const lane = document.querySelector(`[data-track-id="${trackId}"]`)!;
+  document.elementsFromPoint = () => [lane];
+  try {
+    run();
+  } finally {
+    document.elementsFromPoint = original;
+  }
+}
+
+const lastMove = (actions: EditorAction[]) =>
+  actions.filter((action) => action.type === "commit_timeline_operation").at(-1);
+
+test("a clip dragged onto another compatible lane moves there", () => {
+  const { actions } = mount();
+  const clip = screen.getByRole("button", { name: "Main video clip" });
+  withLaneUnderPointer("track_broll", () => {
+    fireEvent.pointerDown(clip, { clientX: 10, clientY: 10, button: 0 });
+    fireEvent.pointerMove(window, { clientX: 10, clientY: 60 });
+    fireEvent.pointerUp(window, { clientX: 10, clientY: 60 });
+  });
+  expect(lastMove(actions)).toMatchObject({ operation: { kind: "move_clip", target_track_id: "track_broll", from_frame: 0 } });
+});
+
+test("a clip dragged over an incompatible lane stays on its track", () => {
+  const { actions } = mount();
+  const clip = screen.getByRole("button", { name: "Main video clip" });
+  withLaneUnderPointer("track_music", () => {
+    fireEvent.pointerDown(clip, { clientX: 10, clientY: 10, button: 0 });
+    fireEvent.pointerMove(window, { clientX: 10, clientY: 100 });
+    fireEvent.pointerUp(window, { clientX: 10, clientY: 100 });
+  });
+  expect(lastMove(actions)).toMatchObject({ operation: { kind: "move_clip", target_track_id: "track_main" } });
+});
+
+test("a click on an empty part of a lane seeks there", () => {
+  const { actions } = mount({ zoom: 4 });
+  const well = document.querySelector('[data-track-id="track_music"] [data-lane-well]')!;
+  fireEvent.pointerDown(well, { clientX: 200, button: 0 });
+  expect(actions).toContainEqual({ type: "set_playhead", frame: 50 });
+});
+
+test("a click on a clip does not seek", () => {
+  const { actions } = mount({ zoom: 4 });
+  fireEvent.pointerDown(screen.getByRole("button", { name: "Music clip" }), { clientX: 700, button: 0 });
+  expect(actions.some((action) => action.type === "set_playhead")).toBe(false);
+});
+
+test("Ctrl+wheel zooms the lanes and a plain wheel does not", () => {
+  const { actions } = mount({ zoom: 2 });
+  const lanes = screen.getByTestId("timeline-lanes");
+  // The test DOM's WheelEvent drops `ctrlKey`, so it is set on the event itself.
+  const wheel = (ctrlKey: boolean) => {
+    const event = new WheelEvent("wheel", { deltaY: 240, bubbles: true, cancelable: true });
+    Object.defineProperty(event, "ctrlKey", { value: ctrlKey });
+    lanes.dispatchEvent(event);
+  };
+  wheel(false);
+  expect(actions.some((action) => action.type === "set_zoom")).toBe(false);
+  wheel(true);
+  const zoom = actions.find((action) => action.type === "set_zoom");
+  expect(zoom?.type === "set_zoom" && zoom.zoom).toBeLessThan(2);
+});
+
+test("a click on a track's name selects the track", () => {
+  const { actions } = mount();
+  fireEvent.click(screen.getByRole("button", { name: "Select Music track" }));
+  expect(actions).toContainEqual({ type: "select_track", trackId: "track_music" });
 });

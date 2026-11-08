@@ -10,6 +10,7 @@ import { isTypingTarget, timelineKey } from "./studio_keys";
 import { deleteClip, rippleDelete, splitAt } from "./timeline_edits";
 import {
   clampZoom,
+  compatibleTrackIds,
   formatTimecode,
   framesToPixels,
   rulerTicks,
@@ -36,6 +37,9 @@ type Props = {
 /** One pointer gesture in flight. Committed on pointer up, dropped on Escape. */
 type Gesture = {
   clipId: string;
+  clipKind: NonNullable<EditDocumentV2["clips"]>[number]["kind"];
+  /** The clip's own track: the lane a drag falls back to over an incompatible one. */
+  homeTrackId: string;
   trackId: string;
   mode: GestureMode;
   originX: number;
@@ -98,6 +102,21 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf, re
     return snapFrame(raw, candidates, snapThreshold(current.zoom));
   };
 
+  /** A move follows the pointer onto another lane that can hold the clip (spec 2026-11-08 §5.1). */
+  const followLane = (active: Gesture, clientX: number, clientY: number) => {
+    const doc = latest.current.timeline;
+    if (active.mode !== "move" || !doc || !document.elementsFromPoint) return;
+    const lane = document
+      .elementsFromPoint(clientX, clientY)
+      .map((element) => element.closest<HTMLElement>("[data-track-id]"))
+      .find(Boolean);
+    const trackId = lane?.dataset.trackId;
+    active.trackId =
+      trackId && (trackId === active.homeTrackId || compatibleTrackIds(doc, active.clipKind).includes(trackId))
+        ? trackId
+        : active.homeTrackId;
+  };
+
   const operationFor = (active: Gesture, frame: number): EditDocumentOperation => {
     switch (active.mode) {
       case "trim_start":
@@ -141,6 +160,7 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf, re
       const active = gesture.current;
       if (!active) return;
       active.previewed = true;
+      followLane(active, event.clientX, event.clientY);
       latest.current.dispatch({
         type: "preview_timeline_operation",
         operation: operationFor(active, frameAt(active, event.clientX)),
@@ -150,6 +170,7 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf, re
       const active = gesture.current;
       end();
       if (!active?.previewed) return;
+      followLane(active, event.clientX, event.clientY);
       latest.current.dispatch({
         type: "commit_timeline_operation",
         operation: operationFor(active, frameAt(active, event.clientX)),
@@ -246,6 +267,28 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf, re
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the listener reads `latest`.
   }, []);
 
+  // Ctrl+wheel zooms around the pointer; a plain wheel scrolls as always. Native, so it may cancel the page zoom.
+  const hasTimeline = Boolean(timeline);
+  useEffect(() => {
+    const box = lanesBox.current;
+    if (!box) return;
+    const onWheel = (event: WheelEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || !event.deltaY) return;
+      event.preventDefault();
+      const { state: current, dispatch: send, readOnly: viewOnly } = latest.current;
+      const header = viewOnly ? READ_ONLY_HEADER_WIDTH : HEADER_WIDTH;
+      const zoom = clampZoom(event.deltaY > 0 ? current.zoom / 1.25 : current.zoom * 1.25);
+      const pointer = event.clientX - box.getBoundingClientRect().left - header;
+      const frame = (box.scrollLeft + pointer) / current.zoom;
+      send({ type: "set_zoom", zoom });
+      requestAnimationFrame(() => {
+        box.scrollLeft = Math.max(0, frame * zoom - pointer);
+      });
+    };
+    box.addEventListener("wheel", onWheel, { passive: false });
+    return () => box.removeEventListener("wheel", onWheel);
+  }, [hasTimeline]);
+
   if (!timeline) return null;
 
   const duration = timeline.canvas.duration_in_frames;
@@ -256,6 +299,8 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf, re
     if (!clip || clip.locked === true || trackOf(clip.track_id)?.locked === true) return;
     gesture.current = {
       clipId,
+      clipKind: clip.kind,
+      homeTrackId: clip.track_id,
       trackId: clip.track_id,
       mode,
       originX: clientX,
@@ -300,6 +345,8 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf, re
       operationFor(
         {
           clipId: selectedClip.clip_id,
+          clipKind: selectedClip.kind,
+          homeTrackId: selectedClip.track_id,
           trackId: selectedClip.track_id,
           mode: action,
           originX: 0,
@@ -411,6 +458,11 @@ export function Timeline({ state, dispatch, onSeek, onPlay, onPause, labelOf, re
                 )
               }
               onSelectClip={(clipId) => dispatch({ type: "select_clip", clipId })}
+              onSelectTrack={() => dispatch({ type: "select_track", trackId: lane.track.track_id })}
+              onSeekAt={(offset) => {
+                seek(offset / state.zoom);
+                if (state.selectedClipId) dispatch({ type: "select_clip", clipId: "" });
+              }}
               onGestureStart={startGesture}
               onNudge={(clipId, frames) => {
                 const clip = clips.find((candidate) => candidate.clip_id === clipId);
