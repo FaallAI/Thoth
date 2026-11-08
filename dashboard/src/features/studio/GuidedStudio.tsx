@@ -1165,6 +1165,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                   onSeek={player.seekTo}
                   onPlay={player.play}
                   onPause={player.pause}
+                  editingKeys={editing}
                   beatOf={(clipId) => beatOfClip(timeline, inventory, clipId)}
                   onShowInStory={(clipId) => {
                     const beat = beatOfClip(timeline, inventory, clipId);

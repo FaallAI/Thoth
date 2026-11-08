@@ -59,6 +59,8 @@ function TimeField({
   const [text, setText] = useState(shown);
   useEffect(() => setText(shown), [shown]);
   const commit = () => {
+    // Only what the person typed: the shown time is rounded, so reading it back could move the clip.
+    if (text.trim() === shown) return;
     const next = parseTimecode(text, fps);
     if (next === null || next === frame) {
       setText(shown);

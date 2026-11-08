@@ -10,9 +10,11 @@ import { useStudioShortcuts } from "./studio_keys";
 
 afterEach(cleanup);
 
+const undone: string[] = [];
+
 function Harness() {
   const [open, setOpen] = useState(false);
-  useStudioShortcuts({ undo: () => {}, redo: () => {}, shortcuts: () => setOpen(true), enabled: true });
+  useStudioShortcuts({ undo: () => undone.push("undo"), redo: () => {}, shortcuts: () => setOpen(true), enabled: true });
   return (
     <>
       <input aria-label="Heading" />
@@ -48,4 +50,13 @@ test("the list names each action with its keys, in groups", () => {
 test("the list reads in Indonesian too", () => {
   render(<ShortcutsDialog open onClose={() => {}} />, { locale: "id" });
   expect(screen.getByRole("dialog", { name: "Pintasan keyboard" })).toBeTruthy();
+});
+
+// Final review 2026-11-08 #3: Ctrl+Z inside an open dialog does not undo the draft behind it.
+test("Ctrl+Z inside the open list does not undo the draft", () => {
+  undone.length = 0;
+  render(<Harness />);
+  fireEvent.keyDown(document.body, { key: "?" });
+  fireEvent.keyDown(screen.getByRole("dialog", { name: "Keyboard shortcuts" }), { key: "z", ctrlKey: true });
+  expect(undone).toEqual([]);
 });

@@ -551,3 +551,34 @@ test("Show in Story hands the clip to the Story", () => {
   fireEvent.click(screen.getByRole("menuitem", { name: "Show in Story" }));
   expect(shown).toEqual(["clip_main"]);
 });
+
+// Final review 2026-11-08 #3-#5.
+test("keys pressed inside an open dialog or menu do not reach the timeline", () => {
+  const { actions } = mount({ selectedClipId: "clip_main", selectedTrackId: "track_main", playheadFrame: 60 });
+  for (const role of ["dialog", "menu"]) {
+    const box = document.createElement("div");
+    box.setAttribute("role", role);
+    const inside = document.createElement("button");
+    box.appendChild(inside);
+    document.body.appendChild(box);
+    try {
+      for (const name of ["Delete", "s", "ArrowRight"]) key(inside, name);
+    } finally {
+      box.remove();
+    }
+  }
+  expect(actions).toEqual([]);
+});
+
+test("arrows on the zoom slider move the slider, not the playhead", () => {
+  const { actions } = mount({ playheadFrame: 60 });
+  key(screen.getByRole("slider", { name: "Zoom" }), "ArrowRight");
+  key(screen.getByRole("slider", { name: "Zoom" }), "Home");
+  expect(actions.some((action) => action.type === "set_playhead")).toBe(false);
+});
+
+test("Space on a focused clip plays, as in common editors", () => {
+  const { transport } = mount({ selectedClipId: "clip_main", selectedTrackId: "track_main" });
+  key(screen.getByRole("button", { name: "Main video clip" }), " ");
+  expect(transport).toEqual(["play"]);
+});

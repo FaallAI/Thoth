@@ -96,6 +96,8 @@ export function useStudioShortcuts(handlers: { undo: () => void; redo: () => voi
     const onKeyDown = (event: KeyboardEvent) => {
       const { undo, redo, shortcuts, enabled } = latest.current;
       if (!enabled || event.defaultPrevented || isTypingTarget(event.target)) return;
+      // A menu or a dialog owns its keys (final review 2026-11-08 #3).
+      if ((event.target as HTMLElement | null)?.closest?.("[role='dialog'], [role='menu']")) return;
       const mod = event.ctrlKey || event.metaKey;
       const letter = event.key.toLowerCase();
       if (mod && letter === "z" && !event.shiftKey) undo();

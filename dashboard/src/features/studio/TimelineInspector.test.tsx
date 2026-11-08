@@ -354,3 +354,15 @@ test("who edits a clip reads in plain words", () => {
   const select = screen.getByLabelText("Edited by") as HTMLSelectElement;
   expect([...select.options].map((option) => option.textContent)).toEqual(["Thoth", "You", "Nobody (locked)"]);
 });
+
+// Final review 2026-11-08 #2: frame 7 shows as 0:00.2, which reads back as frame 6.
+test("leaving a time field untouched changes nothing, off the tenth-second grid too", () => {
+  const document = timelineDocument();
+  const main = document.clips!.find((clip) => clip.clip_id === "clip_main")!;
+  main.from_frame = 7;
+  main.duration_in_frames = 100;
+  const { operations } = mount({ clipId: "clip_main" }, document);
+  fireEvent.blur(screen.getByRole("textbox", { name: "Start time" }));
+  fireEvent.keyDown(screen.getByRole("textbox", { name: "End time" }), { key: "Enter" });
+  expect(operations).toEqual([]);
+});

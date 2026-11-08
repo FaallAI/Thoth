@@ -585,3 +585,16 @@ test("at 1024 an empty Timeline Inspector folds to a rail and opens on a selecti
   fireEvent.click(screen.getByRole("button", { name: "Main video clip" }));
   expect(workstation.style.gridTemplateColumns).toContain("var(--inspector-width)");
 });
+
+// Final review 2026-11-08 #1: in Review the Timeline is hidden but mounted; its keys must not edit.
+test("Delete in the Review job edits nothing", async () => {
+  await renderStudio(1440, timelineDocument() as EditDocument);
+  fireEvent.click(await screen.findByRole("button", { name: "Timeline" }));
+  await screen.findByLabelText("Timeline");
+  fireEvent.click(screen.getByRole("button", { name: "Main video clip" }));
+  job("Review");
+  // `document` is this file's edit document; the page's body is window.document.body.
+  fireEvent.keyDown(window.document.body, { key: "Delete" });
+  job("Edit");
+  expect(screen.getByRole("button", { name: "Main video clip" })).toBeDefined();
+});

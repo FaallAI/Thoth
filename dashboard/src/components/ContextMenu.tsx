@@ -99,7 +99,8 @@ function MenuView({ state, onClose }: { state: Open; onClose: () => void }) {
       left: Math.max(EDGE, Math.min(state.x, window.innerWidth - box.width - EDGE)),
       top: Math.max(EDGE, Math.min(state.y, window.innerHeight - box.height - EDGE)),
     });
-    enabled(menu.current)[0]?.focus();
+    // With nothing enabled the menu itself takes focus, so Escape still closes it.
+    (enabled(menu.current)[0] ?? menu.current)?.focus();
   }, [state.x, state.y]);
 
   useEffect(() => {
@@ -175,10 +176,11 @@ function MenuView({ state, onClose }: { state: Open; onClose: () => void }) {
     <div
       ref={menu}
       role="menu"
+      tabIndex={-1}
       onKeyDown={onKeyDown}
       onContextMenu={(event) => event.preventDefault()}
       style={{ left: `${place.left}px`, top: `${place.top}px` }}
-      className="fixed z-50 flex min-w-48 flex-col rounded-md border border-hairline bg-raised p-1 shadow-lg"
+      className="fixed z-50 flex min-w-48 flex-col rounded-md border border-hairline bg-raised p-1 shadow-lg outline-none"
     >
       {render(state.entries)}
     </div>

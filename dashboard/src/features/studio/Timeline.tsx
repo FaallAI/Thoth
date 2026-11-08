@@ -41,6 +41,8 @@ type Props = {
   onShowInStory?: (clipId: string) => void;
   /** An asset's human name, for Replace media; absent, its kind. */
   assetName?: (asset: EditorAsset) => string;
+  /** Off while Review or Render shows: the Timeline stays mounted but hidden, so its keys must rest. */
+  editingKeys?: boolean;
 };
 
 /** One pointer gesture in flight. Committed on pointer up, dropped on Escape. */
@@ -78,6 +80,7 @@ export function Timeline({
   beatOf,
   onShowInStory,
   assetName,
+  editingKeys = true,
 }: Props) {
   const { t } = useLocale();
   const headerWidth = readOnly ? READ_ONLY_HEADER_WIDTH : HEADER_WIDTH;
@@ -99,8 +102,8 @@ export function Timeline({
   const [replacing, setReplacing] = useState<string | null>(null);
 
   // Keep the listeners' view of the editor current without re-attaching them.
-  const latest = useRef({ state, dispatch, timeline, onSeek, onPlay, onPause, readOnly });
-  latest.current = { state, dispatch, timeline, onSeek, onPlay, onPause, readOnly };
+  const latest = useRef({ state, dispatch, timeline, onSeek, onPlay, onPause, readOnly, editingKeys });
+  latest.current = { state, dispatch, timeline, onSeek, onPlay, onPause, readOnly, editingKeys };
 
   /** Move the playhead and the preview to one frame, kept inside the document. */
   const seek = (frame: number) => {
@@ -225,13 +228,18 @@ export function Timeline({
   // Spec 2026-11-08 §5.1: the editing keys, never while a person types in a field.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const { state: current, dispatch: send, timeline: doc, onPlay: play, onPause: pause, readOnly: viewOnly } = latest.current;
-      if (!doc || viewOnly || event.defaultPrevented || isTypingTarget(event.target)) return;
+      const { state: current, dispatch: send, timeline: doc, onPlay: play, onPause: pause, readOnly: viewOnly, editingKeys: keysOn } = latest.current;
+      if (!doc || viewOnly || !keysOn || event.defaultPrevented || isTypingTarget(event.target)) return;
       const action = timelineKey(event);
       if (!action) return;
       const target = event.target as HTMLElement | null;
-      // Space keeps its own meaning on a button, a checkbox or a list.
-      if (action === "play" && target?.closest?.("button, input, select, [role='slider']")) return;
+      // A menu or a dialog owns its keys; nothing behind it reacts (final review 2026-11-08 #3).
+      if (target?.closest?.("[role='dialog'], [role='menu']")) return;
+      // Space keeps its own meaning on a control, but plays from a focused clip as editors do (#5).
+      if (action === "play" && target?.closest?.("button:not([id^='timeline-clip-']), input, select, [role='slider']")) return;
+      // A slider keeps its arrows, Home and End (#4).
+      const moves = ["start", "end", "frame_back", "frame_forward", "second_back", "second_forward"];
+      if (moves.includes(action) && target?.closest?.("input[type='range'], [role='slider']")) return;
       const fpsNow = doc.canvas.fps;
       const commitEdit = (operations: EditDocumentOperation[]) => {
         if (operations.length) send({ type: "commit_operations", operations });

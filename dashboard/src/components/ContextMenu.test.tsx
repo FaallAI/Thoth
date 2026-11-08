@@ -129,3 +129,13 @@ test("a long touch press opens it, a short one does not", async () => {
   await new Promise((done) => setTimeout(done, 550));
   expect(screen.getByRole("menu")).toBeTruthy();
 });
+
+// Final review 2026-11-08 #7.
+test("a menu whose entries are all disabled still closes on Escape", () => {
+  render(<Harness entries={[item("Close this gap", { disabled: true, reason: "There is no gap here" })]} />);
+  fireEvent.contextMenu(screen.getByText("Owner"), { clientX: 1, clientY: 1 });
+  const menu = screen.getByRole("menu");
+  expect(menu.contains(document.activeElement)).toBe(true);
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+  expect(screen.queryByRole("menu")).toBeNull();
+});
