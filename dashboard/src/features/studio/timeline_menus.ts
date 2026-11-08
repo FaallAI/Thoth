@@ -6,7 +6,9 @@ import type { LocaleState } from "@/lib/locale";
 import { shortcutKeys } from "./studio_keys";
 import { compatibleTrackIds } from "./timeline_domain";
 import {
+  closeAllGaps,
   closeGap,
+  closeTimelineGaps,
   cueAt,
   deleteClip,
   deleteClips,
@@ -138,6 +140,7 @@ export function clipMenu(
 export function gapMenu(context: MenuContext, trackId: string, frame: number, extra: { onPasteText?: () => void } = {}): MenuEntry[] {
   return [
     editEntry(context, "close-gap", context.t("studio.menu.closeGap"), closeGap(context.doc, trackId, frame)),
+    editEntry(context, "close-timeline-gaps", context.t("studio.menu.closeTimelineGaps"), closeTimelineGaps(context.doc)),
     { kind: "item", id: "paste-text", label: context.t("studio.menu.pasteText"), onSelect: () => extra.onPasteText?.() },
   ];
 }
@@ -170,6 +173,7 @@ export function trackMenu(
       label: t(track.locked ? "studio.menu.unlock" : "studio.menu.lock"),
       onSelect: () => extra.onToggle("locked", !track.locked),
     },
+    editEntry(context, "close-all-gaps", t("studio.menu.closeAllGaps"), closeAllGaps(doc, track.track_id)),
     editEntry(context, "remove", t("studio.menu.removeTrack"), removeTrack(doc, track.track_id)),
   ];
 }

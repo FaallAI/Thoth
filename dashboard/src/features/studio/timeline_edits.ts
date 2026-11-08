@@ -379,3 +379,61 @@ export function pasteTextOperations(
       };
   }
 }
+
+// --------------------------------------------------------------------------
+// Every gap at once (spec 2026-11-08 §6)
+// --------------------------------------------------------------------------
+
+/** The first stretch between two clips of one track, or none. */
+function firstGap(doc: EditDocumentV2, trackId: string): { start: number; end: number } | null {
+  const clips = clipsOf(doc)
+    .filter((clip) => clip.track_id === trackId)
+    .sort((left, right) => left.from_frame - right.from_frame);
+  for (let index = 1; index < clips.length; index += 1) {
+    // The same stretch gapAt finds, so closeGap closes exactly this one.
+    const start = endOf(clips[index - 1]!);
+    if (start < clips[index]!.from_frame) return { start, end: clips[index]!.from_frame };
+  }
+  return null;
+}
+
+/** Each gap of one track closed left to right on the evolving document, as "Close this gap" would. */
+export function closeAllGaps(doc: EditDocumentV2, trackId: string): Edit {
+  const operations: EditDocumentOperation[] = [];
+  let current = doc;
+  // ponytail: one pass per gap; a track holds far fewer gaps than this cap.
+  for (let pass = 0; pass < 500; pass += 1) {
+    const gap = firstGap(current, trackId);
+    if (!gap) break;
+    const edit = closeGap(current, trackId, gap.start);
+    if (edit.refusal) return refuse(edit.refusal);
+    operations.push(...edit.operations);
+    current = applied(current, edit.operations);
+  }
+  return operations.length ? { operations } : refuse("no_gap");
+}
+
+/** Every stretch between the first clip and the last where no track holds a clip, closed in one batch. */
+export function closeTimelineGaps(doc: EditDocumentV2): Edit {
+  const spans = clipsOf(doc)
+    .map((clip) => [clip.from_frame, endOf(clip)] as const)
+    .sort((left, right) => left[0] - right[0]);
+  const gaps: { start: number; end: number }[] = [];
+  let reach = spans[0]?.[1] ?? 0;
+  for (const [from, to] of spans.slice(1)) {
+    if (from > reach) gaps.push({ start: reach, end: from });
+    reach = Math.max(reach, to);
+  }
+  if (!gaps.length) return refuse("no_gap");
+  const operations: EditDocumentOperation[] = [];
+  let current = doc;
+  // Right to left, so each stretch is still where it was found when its turn comes.
+  for (const gap of gaps.reverse()) {
+    const refusal = blocked(current, clipsOf(current), gap.start, gap.end);
+    if (refusal) return refuse(refusal);
+    const moves = pullLeft(current, clipsOf(current), gap.end, gap.end - gap.start);
+    operations.push(...moves);
+    current = applied(current, moves);
+  }
+  return { operations };
+}

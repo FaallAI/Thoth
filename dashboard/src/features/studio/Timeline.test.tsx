@@ -540,7 +540,7 @@ test("a gap's menu closes the gap, and away from a gap it says there is none", (
 test("a track's menu offers track entries, with the edges and full tracks disabled", () => {
   mountMenus();
   fireEvent.contextMenu(screen.getByRole("button", { name: "Select Main video track" }), { clientX: 5, clientY: 5 });
-  expect(menuNames()).toEqual(["Select track", "Move up", "Move down", "Hide", "Mute", "Lock", "Remove empty track"]);
+  expect(menuNames()).toEqual(["Select track", "Move up", "Move down", "Hide", "Mute", "Lock", "Close all gaps on this track", "Remove empty track"]);
   expect(screen.getByRole("menuitem", { name: "Move up" }).getAttribute("aria-disabled")).toBe("true");
   expect(screen.getByRole("menuitem", { name: "Remove empty track" }).getAttribute("title")).toBe("Remove its clips first");
 });
@@ -798,3 +798,29 @@ test("Paste text… says to use Ctrl+V when the browser will not read the clipbo
 function mountMenusOver(doc: EditDocumentV2) {
   return mountMenus({ base: doc, draft: doc, playheadFrame: 30 });
 }
+
+// Tier 2 (spec 2026-11-08 §6): close all gaps from the track menu and the lane menu.
+test("the track menu closes every gap on its track in one batch", () => {
+  const { actions } = mountMenus();
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Select Music track" }), { clientX: 5, clientY: 5 });
+  const close = screen.getByRole("menuitem", { name: "Close all gaps on this track" });
+  expect(close.getAttribute("title")).toBe("There is no gap here");
+  expect(actions).toEqual([]);
+});
+
+test("the lane menu offers to close every gap in the timeline", () => {
+  // The fixture is empty everywhere from 120 to 150; its B-roll clip after that is unlocked here so it may move.
+  const doc = timelineDocument();
+  doc.clips!.find((clip) => clip.clip_id === "clip_locked")!.locked = false;
+  const { actions } = mountMenus({ zoom: 1, base: doc, draft: doc });
+  const well = document.querySelector('[data-track-id="track_main"] [data-lane-well]')!;
+  fireEvent.contextMenu(well, { clientX: 200, clientY: 5 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "Close all gaps in the timeline" }));
+  expect(actions.at(-1)).toMatchObject({
+    type: "commit_operations",
+    operations: [
+      { kind: "move_clip", clip_id: "clip_locked", from_frame: 120 },
+      { kind: "move_clip", clip_id: "clip_music", from_frame: 120 },
+    ],
+  });
+});

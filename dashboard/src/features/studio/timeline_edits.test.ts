@@ -5,7 +5,9 @@ import { expect, test } from "bun:test";
 import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane";
 import { applyTimelineOperation } from "./timeline_domain";
 import {
+  closeAllGaps,
   closeGap,
+  closeTimelineGaps,
   deleteClip,
   deleteClips,
   duplicateClips,
@@ -297,3 +299,45 @@ const withoutNewClip = (operation: Record<string, unknown>) => {
   const { clip_id: _id, ...rest } = operation;
   return rest;
 };
+
+// Tier 2 (spec 2026-11-08 §6): close every gap at once.
+/** Main clips 0–60, 80–100 and 130–160: two gaps (60–80 and 100–130). */
+function twoGaps(music: { from: number; length: number; locked?: boolean } = { from: 130, length: 30 }): EditDocumentV2 {
+  const doc = threeClips(music);
+  Object.assign(doc.clips!.find((clip) => clip.clip_id === "b")!, { from_frame: 80, duration_in_frames: 20 });
+  return doc;
+}
+const starts = (doc: EditDocumentV2) => doc.clips!.map((clip) => [clip.clip_id, clip.from_frame]);
+
+test("closeAllGaps closes every gap on a track, and the other tracks move with it", () => {
+  const doc = twoGaps();
+  expect(starts(applies(doc, closeAllGaps(doc, "track_main")))).toEqual([
+    ["a", 0],
+    ["b", 60],
+    ["c", 80],
+    ["clip_music", 80],
+  ]);
+  expect(closeAllGaps(threeClips({ from: 130, length: 30 }), "track_music").refusal).toBe("no_gap");
+});
+
+test("closeTimelineGaps closes only stretches where every track is empty", () => {
+  const empty = twoGaps();
+  expect(starts(applies(empty, closeTimelineGaps(empty)))).toEqual([
+    ["a", 0],
+    ["b", 60],
+    ["c", 80],
+    ["clip_music", 80],
+  ]);
+  const held = twoGaps({ from: 100, length: 30 });
+  expect(starts(applies(held, closeTimelineGaps(held)))).toEqual([
+    ["a", 0],
+    ["b", 60],
+    ["c", 110],
+    ["clip_music", 80],
+  ]);
+});
+
+test("closing all gaps refuses when a clip that would move is locked", () => {
+  expect(closeAllGaps(twoGaps({ from: 130, length: 30, locked: true }), "track_main").refusal).toBe("later_locked");
+  expect(closeTimelineGaps(twoGaps({ from: 130, length: 30, locked: true })).refusal).toBe("later_locked");
+});
