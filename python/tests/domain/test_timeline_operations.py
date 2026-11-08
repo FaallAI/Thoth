@@ -1327,3 +1327,29 @@ def test_a_blur_region_outside_the_frame_or_window_is_refused(region: dict[str, 
     clip_by_id(payload, "clip_main")["blur_regions"] = [region]
     with pytest.raises(ValidationError):
         EditDocumentV2.model_validate(payload)
+
+
+def test_ripple_delete_batch_applies_in_order() -> None:
+    """The Studio's ripple delete (2026-11-08): remove, then pull each later clip left, ascending."""
+    payload = document_v2_payload()
+    main = clip_by_id(payload, "clip_main")
+    parts = []
+    for clip_id, start, length in (("clip_a", 0, 60), ("clip_b", 60, 40), ("clip_c", 130, 30)):
+        part = deepcopy(main)
+        part.update({"clip_id": clip_id, "from_frame": start, "duration_in_frames": length})
+        parts.append(part)
+    payload["clips"] = [clip for clip in payload["clips"] if clip["clip_id"] != "clip_main"] + parts
+    track_by_id(payload, "track_main_video")["clip_ids"] = ["clip_a", "clip_b", "clip_c"]
+    for scene in payload["scenes"]:
+        scene["clip_ids"] = [clip_id for clip_id in scene["clip_ids"] if clip_id != "clip_main"]
+
+    result = apply_edit_operations(
+        EditDocumentV2.model_validate(payload),
+        [
+            RemoveClip(kind="remove_clip", operation_id="op_remove", clip_id="clip_a"),
+            move("clip_b", "track_main_video", 0),
+            move("clip_c", "track_main_video", 70),
+        ],
+    )
+
+    assert track_ranges(result, "track_main_video") == [("clip_b", 0, 40), ("clip_c", 70, 30)]
