@@ -139,3 +139,27 @@ test("a menu whose entries are all disabled still closes on Escape", () => {
   fireEvent.keyDown(document.activeElement!, { key: "Escape" });
   expect(screen.queryByRole("menu")).toBeNull();
 });
+
+// Tier 1 review leftovers (2026-11-08), fixed in Tier 2.
+test("a long touch press that moves is a drag, not a menu", async () => {
+  render(<Harness entries={[{ kind: "item", id: "a", label: "First", onSelect: () => {} }]} />);
+  const owner = screen.getByRole("button", { name: "Owner" });
+  fireEvent.pointerDown(owner, { pointerType: "touch", clientX: 5, clientY: 5 });
+  fireEvent.pointerMove(window, { clientX: 30, clientY: 5 });
+  await new Promise((resolve) => setTimeout(resolve, 550));
+  expect(screen.queryByRole("menu")).toBeNull();
+});
+
+test("closing a menu returns focus to its owner without scrolling", () => {
+  render(<Harness entries={[{ kind: "item", id: "a", label: "First", onSelect: () => {} }]} />);
+  const owner = screen.getByRole("button", { name: "Owner" });
+  const calls: unknown[] = [];
+  const focus = owner.focus.bind(owner);
+  owner.focus = (options?: FocusOptions) => {
+    calls.push(options);
+    focus(options);
+  };
+  fireEvent.contextMenu(owner, { clientX: 5, clientY: 5 });
+  fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+  expect(calls).toContainEqual({ preventScroll: true });
+});

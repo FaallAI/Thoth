@@ -67,3 +67,11 @@ test("L plays, and each L while playing doubles the rate up to 4", () => {
   expect(shuttleRate(true, 4)).toBe(4);
   expect(shuttleRate(false, 4)).toBe(1);
 });
+
+// Tier 1 review leftovers (2026-11-08): the shortcut list names every key the Studio answers.
+test("the shortcut list includes the second keys and the pointer shortcuts", () => {
+  const keys = SHORTCUTS.map((entry) => entry.keys).join(" | ");
+  for (const shown of ["Backspace", "Ctrl+Shift+Z", "Ctrl+/", "Ctrl+wheel", "Shift+F10", "Ctrl+A", "Ctrl+C", "Ctrl+V", "Ctrl+D", "J", "K", "L"]) {
+    expect(keys).toContain(shown);
+  }
+});

@@ -117,6 +117,16 @@ export function clipMenu(
         return editEntry(context, `move-${trackId}`, context.trackName(track), moveToTrack(doc, clip.clip_id, trackId));
       }),
     });
+  } else {
+    // Shown even when it cannot act, so the person learns why (final review 2026-11-08).
+    entries.push({
+      kind: "item",
+      id: "move",
+      label: t("studio.menu.moveToTrack"),
+      disabled: true,
+      reason: locked ? lockedReason : t("studio.menu.reason.noTrackFits"),
+      onSelect: () => {},
+    });
   }
   entries.push(
     group

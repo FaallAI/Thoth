@@ -30,6 +30,7 @@ import {
   framesToPixels,
   rulerTicks,
   isTimelineDocument,
+  trackLabel,
   snapCandidates,
   snapFrame,
   visibleLanes,
@@ -141,6 +142,8 @@ export function Timeline({
   // One right-click menu for clips, gaps and tracks (spec 2026-11-08 §5.1), and the clip being replaced.
   const menu = useContextMenu();
   const [replacing, setReplacing] = useState<string | null>(null);
+  // The lane under a drag that cannot take the clip, shown as refusing (spec 2026-11-08 §5.1).
+  const [refusedLane, setRefusedLane] = useState<string | null>(null);
   // Clips copied in this page (spec 2026-11-08 §6): ids in the open draft, never the system clipboard.
   const copied = useRef<readonly string[]>([]);
   const documentId = isTimelineDocument(state.draft) ? state.draft.document_id : "";
@@ -236,10 +239,10 @@ export function Timeline({
       .map((element) => element.closest<HTMLElement>("[data-track-id]"))
       .find(Boolean);
     const trackId = lane?.dataset.trackId;
-    active.trackId =
-      trackId && (trackId === active.homeTrackId || compatibleTrackIds(doc, active.clipKind).includes(trackId))
-        ? trackId
-        : active.homeTrackId;
+    const fits = Boolean(trackId) && (trackId === active.homeTrackId || compatibleTrackIds(doc, active.clipKind).includes(trackId!));
+    active.trackId = fits ? trackId! : active.homeTrackId;
+    const refused = trackId && !fits ? trackId : null;
+    setRefusedLane((current) => (current === refused ? current : refused));
   };
 
   /** The whole selection moved by the dragged clip's delta, measured on the document before the drag. */
@@ -287,6 +290,7 @@ export function Timeline({
       scrubbing.current = null;
       marquee.current = null;
       setMarqueeBox(null);
+      setRefusedLane(null);
     };
     const onMove = (event: PointerEvent) => {
       const area = marquee.current;
@@ -660,6 +664,8 @@ export function Timeline({
               labelOf={labelOf}
               readOnly={readOnly}
               name={trackName(t, timeline, lane.track)}
+              accessibleLabel={trackLabel(timeline, lane.track)}
+              refusesDrop={refusedLane === lane.track.track_id}
               onToggle={(field, value) => toggleTrack(lane.track.track_id, field, value)}
               clipMenu={
                 readOnly

@@ -62,10 +62,9 @@ function TimeField({
     // Only what the person typed: the shown time is rounded, so reading it back could move the clip.
     if (text.trim() === shown) return;
     const next = parseTimecode(text, fps);
-    if (next === null || next === frame) {
-      setText(shown);
-      return;
-    }
+    // The field shows the stored time again; an accepted edit then shows its new time.
+    setText(shown);
+    if (next === null || next === frame) return;
     onCommit(next);
   };
   return (
@@ -115,7 +114,9 @@ function NumberField({
   const commit = () => {
     if (text.trim() === shown) return;
     const value = Number(text.trim().replace(",", "."));
-    if (!text.trim() || !Number.isFinite(value) || onCommit(value) === false) setText(shown);
+    // The stored value shows again; an accepted edit then shows its new value.
+    setText(shown);
+    if (text.trim() && Number.isFinite(value)) onCommit(value);
   };
   return (
     <div className={field}>

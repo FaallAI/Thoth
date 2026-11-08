@@ -445,3 +445,14 @@ test("a locked clip shows Fit, Crop, Position and fades read-only", () => {
   expect((screen.getByRole("combobox", { name: "Fit" }) as HTMLSelectElement).disabled).toBe(true);
   for (const name of ["Crop left", "Position X", "Scale", "Fade in (seconds)"]) expect(field(name).disabled).toBe(true);
 });
+
+// Tier 1 review leftovers (2026-11-08): a typed time the editor refuses shows the clip's real time again.
+test("a refused start time returns to the clip's real time", () => {
+  mount({ clipId: "clip_main" });
+  const start = screen.getByLabelText("Start time") as HTMLInputElement;
+  const before = start.value;
+  fireEvent.change(start, { target: { value: "0:02" } });
+  fireEvent.blur(start);
+  // The document did not change (the parent refused the move), so the field shows the real time.
+  expect(start.value).toBe(before);
+});

@@ -863,3 +863,31 @@ test("J, K and L do nothing in a text field", () => {
   field.remove();
   expect([shuttle, actions]).toEqual([[], []]);
 });
+
+// Tier 1 review leftovers (2026-11-08), fixed in Tier 2.
+test("a lane that cannot take the dragged clip shows it refuses", () => {
+  mount();
+  const clip = screen.getByRole("button", { name: "Main video clip" });
+  const music = () => document.querySelector('[data-track-id="track_music"] [data-lane-well]')!;
+  withLaneUnderPointer("track_music", () => {
+    fireEvent.pointerDown(clip, { clientX: 10, clientY: 10, button: 0 });
+    fireEvent.pointerMove(window, { clientX: 10, clientY: 100 });
+  });
+  expect(music().getAttribute("data-drop")).toBe("refused");
+  fireEvent.pointerUp(window, { clientX: 10, clientY: 100 });
+  expect(music().getAttribute("data-drop")).toBeNull();
+});
+
+test("Move to track stays in the menu, disabled with a reason, on a locked clip", () => {
+  mountMenus();
+  fireEvent.contextMenu(screen.getByRole("button", { name: "B-roll clip" }), { clientX: 5, clientY: 5 });
+  const move = screen.getByRole("menuitem", { name: "Move to track" });
+  expect([move.getAttribute("aria-disabled"), move.getAttribute("title")]).toEqual(["true", "This clip is locked"]);
+});
+
+test("a second track of one kind has a numbered name for screen readers too", () => {
+  const doc = timelineDocument();
+  doc.tracks.push({ ...doc.tracks.find((track) => track.track_id === "track_broll")!, track_id: "track_broll_2", order: 9, clip_ids: [] });
+  mount({ base: doc, draft: doc });
+  expect(screen.getByRole("group", { name: "B-roll 2 track" })).toBeDefined();
+});

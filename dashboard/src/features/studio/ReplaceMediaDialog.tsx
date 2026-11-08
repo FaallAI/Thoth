@@ -1,7 +1,7 @@
 // Replace media (spec 2026-11-08 §5.1): another ready asset of this project behind the same clip.
 // The server swaps media only for media of the same kind, so only that kind is offered.
 import { useEffect, useRef } from "react";
-import { Film, X } from "lucide-react";
+import { Film, Image as ImageIcon, X } from "lucide-react";
 
 import type { EditorAsset } from "@/api/control-plane";
 import { useLocale } from "@/lib/locale";
@@ -58,7 +58,11 @@ export function ReplaceMediaDialog({ currentAssetId, kind = "video", assets, nam
                     onClick={() => onReplace(asset.asset_id)}
                     className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-ink hover:bg-well focus-visible:outline-2 focus-visible:outline-copper"
                   >
-                    <Film aria-hidden="true" size={15} className="shrink-0 text-muted-ink" />
+                    {kind === "image" ? (
+                      <ImageIcon aria-hidden="true" size={15} className="shrink-0 text-muted-ink" />
+                    ) : (
+                      <Film aria-hidden="true" size={15} className="shrink-0 text-muted-ink" />
+                    )}
                     <span className="truncate">{name}</span>
                   </button>
                 </li>

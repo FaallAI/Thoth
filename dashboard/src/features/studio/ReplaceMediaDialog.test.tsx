@@ -43,3 +43,20 @@ test("with nothing to offer it says so, and Cancel and Escape close it", () => {
   fireEvent.keyDown(screen.getByRole("dialog", { name: "Replace media" }), { key: "Escape" });
   expect(onClose).toHaveBeenCalledTimes(2);
 });
+
+// Tier 1 review leftovers (2026-11-08): an image is shown with an image icon.
+test("image choices show an image icon, not a film", () => {
+  render(
+    <ReplaceMediaDialog
+      currentAssetId="asset_now"
+      kind="image"
+      assets={[asset("asset_now", "image"), asset("asset_other", "image")]}
+      nameOf={(item) => item.asset_id}
+      onReplace={() => {}}
+      onClose={() => {}}
+    />,
+  );
+  const option = screen.getByRole("button", { name: "Use asset_other" });
+  expect(option.querySelector("svg.lucide-image")).not.toBeNull();
+  expect(option.querySelector("svg.lucide-film")).toBeNull();
+});

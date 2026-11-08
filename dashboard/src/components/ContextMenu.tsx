@@ -25,6 +25,8 @@ export type MenuHandlers = ReturnType<ReturnType<typeof useContextMenu>["bind"]>
 export type MenuAt = { x: number; y: number; owner: HTMLElement };
 
 const LONG_PRESS_MS = 500;
+/** A touch that travels farther than this before the long press fires is a drag, not a menu. */
+const LONG_PRESS_SLOP = 8;
 const EDGE = 4;
 
 export function useContextMenu(): {
@@ -40,18 +42,23 @@ export function useContextMenu(): {
   open: boolean;
 } {
   const [state, setState] = useState<Open | null>(null);
+  const opened = useRef<Open | null>(null);
+  opened.current = state;
   const press = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const travel = useRef<((event: PointerEvent) => void) | null>(null);
 
+  // Focus goes back to the owner after the menu closes, and the page does not jump to it.
   const close = useCallback(() => {
-    setState((current) => {
-      current?.owner?.focus?.();
-      return null;
-    });
+    const owner = opened.current?.owner;
+    setState(null);
+    owner?.focus?.({ preventScroll: true });
   }, []);
 
   const cancelPress = () => {
     if (press.current) clearTimeout(press.current);
     press.current = null;
+    if (travel.current) window.removeEventListener("pointermove", travel.current);
+    travel.current = null;
   };
   useEffect(() => cancelPress, []);
 
@@ -77,7 +84,14 @@ export function useContextMenu(): {
       const owner = event.currentTarget as HTMLElement;
       const { clientX, clientY } = event;
       cancelPress();
-      press.current = setTimeout(() => show(owner, clientX, clientY, entries({ x: clientX, y: clientY, owner })), LONG_PRESS_MS);
+      press.current = setTimeout(() => {
+        cancelPress();
+        show(owner, clientX, clientY, entries({ x: clientX, y: clientY, owner }));
+      }, LONG_PRESS_MS);
+      travel.current = (move: PointerEvent) => {
+        if (Math.hypot(move.clientX - clientX, move.clientY - clientY) > LONG_PRESS_SLOP) cancelPress();
+      };
+      window.addEventListener("pointermove", travel.current);
     },
     onPointerUp: cancelPress,
     onPointerCancel: cancelPress,

@@ -1276,6 +1276,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                       replaceAssets={Object.values(state.assets)}
                       assetName={describeAsset ? (asset) => describeAsset(asset).label : undefined}
                       pickRequest={pickRequest}
+                      onPickHandled={() => setPickRequest(0)}
                     />
                   ) : (
                     <p className="p-4 text-sm text-muted-ink">{t("studio.inspector.empty")}</p>

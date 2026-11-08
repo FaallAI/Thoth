@@ -260,14 +260,16 @@ function MaterialRow({
     ];
   };
 
+  // The menu sits beside the row, not in it: a right click inside the menu must not reach the row.
   return (
+    <>
+    {menu.element}
     <li
       draggable={item.media_kind !== "none"}
       onDragStart={(event) => event.dataTransfer.setData(MATERIAL_DRAG_TYPE, item.item_id)}
       {...menu.bind(entries)}
       className="flex flex-col gap-1 rounded-md px-2 py-1.5 hover:bg-surface"
     >
-      {menu.element}
       <div className="flex items-start gap-2">
         <Thumbnail kind={item.media_kind} preview={preview} />
         <div className="flex min-w-0 flex-1 flex-col">
@@ -303,6 +305,7 @@ function MaterialRow({
         </div>
       ) : null}
     </li>
+    </>
   );
 }
 

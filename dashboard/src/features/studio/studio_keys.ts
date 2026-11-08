@@ -83,16 +83,16 @@ export function timelineKey(event: Keys): TimelineKey | null {
   }
 }
 
-export type ShortcutAction = TimelineKey | "undo" | "redo" | "shortcuts";
+export type ShortcutAction = TimelineKey | "undo" | "redo" | "shortcuts" | "zoom_wheel" | "open_menu";
 export type ShortcutGroup = "editing" | "playback" | "view" | "studio";
 
 /** The one list the menus and the shortcut dialog both read, so the two never drift. */
 export const SHORTCUTS: readonly { action: ShortcutAction; keys: string; group: ShortcutGroup }[] = [
-  { action: "delete", keys: "Delete", group: "editing" },
+  { action: "delete", keys: "Delete / Backspace", group: "editing" },
   { action: "ripple_delete", keys: "Shift+Delete", group: "editing" },
   { action: "split", keys: "S", group: "editing" },
   { action: "undo", keys: "Ctrl+Z", group: "editing" },
-  { action: "redo", keys: "Ctrl+Y", group: "editing" },
+  { action: "redo", keys: "Ctrl+Y / Ctrl+Shift+Z", group: "editing" },
   { action: "select_all", keys: "Ctrl+A", group: "editing" },
   { action: "copy", keys: "Ctrl+C", group: "editing" },
   { action: "paste", keys: "Ctrl+V", group: "editing" },
@@ -111,7 +111,9 @@ export const SHORTCUTS: readonly { action: ShortcutAction; keys: string; group: 
   { action: "zoom_in", keys: "Ctrl+=", group: "view" },
   { action: "zoom_out", keys: "Ctrl+-", group: "view" },
   { action: "zoom_fit", keys: "Ctrl+0", group: "view" },
-  { action: "shortcuts", keys: "?", group: "studio" },
+  { action: "zoom_wheel", keys: "Ctrl+wheel", group: "view" },
+  { action: "open_menu", keys: "Shift+F10", group: "studio" },
+  { action: "shortcuts", keys: "? / Ctrl+/", group: "studio" },
 ];
 
 /**

@@ -48,6 +48,10 @@ type Props = {
   readOnly?: boolean;
   /** The track's plain name (spec 2026-11-08 §5.1); absent, its stored label. */
   name?: string;
+  /** The label controls are named by, numbered from the second track of a kind; absent, the stored label. */
+  accessibleLabel?: string;
+  /** A dragged clip is over this lane and the lane cannot take it. */
+  refusesDrop?: boolean;
 };
 
 type TrackKind = TimelineLane["track"]["kind"];
@@ -84,11 +88,13 @@ export function TimelineTrack({
   readOnly = false,
   name,
   onDropAsset,
+  accessibleLabel,
+  refusesDrop = false,
 }: Props) {
   const { t } = useLocale();
   const { track, clips } = lane;
   const Icon = TRACK_ICON[track.kind];
-  const values = { track: track.label };
+  const values = { track: accessibleLabel ?? track.label };
   // A locked track keeps its own lock button live; everything else waits for it.
   const toggles = [
     ["hidden", track.hidden === true, t(track.hidden ? "studio.timeline.showTrack" : "studio.timeline.hideTrack", values), track.hidden ? EyeOff : Eye],
@@ -149,7 +155,8 @@ export function TimelineTrack({
       </div>
       <div
         data-lane-well
-        className="relative h-11 grow bg-well"
+        data-drop={refusesDrop ? "refused" : undefined}
+        className={`relative h-11 grow bg-well ${refusesDrop ? "cursor-not-allowed ring-1 ring-inset ring-destructive/60" : ""}`}
         style={{ minWidth: `${framesToPixels(widthInFrames, zoom)}px` }}
         onContextMenu={(event) => event.target === event.currentTarget && laneMenu?.onContextMenu(event)}
         onPointerUp={laneMenu?.onPointerUp}
