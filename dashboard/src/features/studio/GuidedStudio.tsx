@@ -479,6 +479,21 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     const sceneId = timeline?.clips?.find((clip) => clip.clip_id === beat.clipIds[0])?.scene_id;
     if (sceneId) dispatch({ type: "select_scene", sceneId });
   };
+  // Spec 2026-11-08 §5.2: Story's menus play from a frame, open the Timeline, or open the picker.
+  const playFrom = (frame: number) => {
+    player.seekTo(frame);
+    dispatch({ type: "set_playhead", frame });
+    player.play();
+  };
+  const showClipInTimeline = (clipId: string) => {
+    dispatch({ type: "set_editor_mode", mode: "advanced" });
+    dispatch({ type: "select_clip", clipId });
+  };
+  const showBeatInTimeline = (id: BeatId) => {
+    selectBeat(id);
+    dispatch({ type: "set_editor_mode", mode: "advanced" });
+  };
+  const [pickRequest, setPickRequest] = useState(0);
   const { attachStudioMaterial } = client;
   const attachMaterial = useMemo(
     () => (attachStudioMaterial ? (itemId: string) => attachStudioMaterial(projectId, documentId, itemId) : undefined),
@@ -1021,6 +1036,9 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 beats={beats}
                 document={timeline}
                 previews={previewSources}
+                openBeat={shownBeat}
+                onAddToOpenBeat={(itemId) => shownBeat && void dropMaterial(shownBeat.id, itemId)}
+                onShowUse={playFrom}
               />
             ) : advanced ? (
               assetClient ? (
@@ -1231,6 +1249,11 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                       attachMaterial={attachMaterial}
                       onRemoveMissing={removeMissing}
                       narrated={voicedBeats.has(shownBeat.id)}
+                      onPlayFrom={playFrom}
+                      onShowInTimeline={showClipInTimeline}
+                      replaceAssets={Object.values(state.assets)}
+                      assetName={describeAsset ? (asset) => describeAsset(asset).label : undefined}
+                      pickRequest={pickRequest}
                     />
                   ) : (
                     <p className="p-4 text-sm text-muted-ink">{t("studio.inspector.empty")}</p>
@@ -1307,6 +1330,11 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 onDropMaterial={(beatId, data) => void dropMaterial(beatId, data)}
                 addable={[...addable]}
                 onAddBeat={addBeat}
+                onShowInTimeline={showBeatInTimeline}
+                onAddFromMaterials={(id) => {
+                  selectBeat(id);
+                  setPickRequest((count) => count + 1);
+                }}
                 voiced={voicedBeats}
                 stale={staleBeats}
                 variant={compact ? "chips" : "tiles"}

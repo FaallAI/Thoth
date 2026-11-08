@@ -198,3 +198,35 @@ test("the narration has its own group, with each beat's voice and length; none, 
   expect(within(voices).getByText("Narration · Main")).toBeDefined();
   expect(within(voices).getByText("Audio · 7.3 s")).toBeDefined();
 });
+
+// Spec 2026-11-08 §5.2: a right click on a material.
+test("a material's menu adds it to the open beat, or shows where it is used", () => {
+  const added: string[] = [];
+  const played: number[] = [];
+  const beats = computeBeats(storyDocument(), storyInventory());
+  render(
+    <MaterialsPanel
+      materials={materials()}
+      uploads={[]}
+      beats={beats}
+      document={storyDocument()}
+      previews={{}}
+      openBeat={beats.find((beat) => beat.id === "reactions")}
+      onAddToOpenBeat={(itemId) => added.push(itemId)}
+      onShowUse={(frame) => played.push(frame)}
+    />,
+  );
+  const used = screen.getByText("Used in Reactions").closest("li")!;
+  fireEvent.contextMenu(used, { clientX: 5, clientY: 5 });
+  expect(screen.getAllByRole("menuitem").map((entry) => entry.getAttribute("aria-label"))).toEqual(["Add to the open beat", "Show where it is used", "Why this material"]);
+  expect(screen.getByRole("menuitem", { name: "Add to the open beat" }).getAttribute("title")).toBe("Already in this beat");
+  fireEvent.click(screen.getByRole("menuitem", { name: "Show where it is used" }));
+
+  const unused = screen.getByText(/Cat rescue/).closest("li")!;
+  fireEvent.contextMenu(unused, { clientX: 5, clientY: 5 });
+  expect(screen.getByRole("menuitem", { name: "Show where it is used" }).getAttribute("title")).toBe("Not used in the draft yet");
+  fireEvent.click(screen.getByRole("menuitem", { name: "Add to the open beat" }));
+
+  expect(played).toEqual([60]);
+  expect(added).toEqual(["footage_000"]);
+});

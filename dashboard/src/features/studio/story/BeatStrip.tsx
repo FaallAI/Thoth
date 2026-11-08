@@ -1,3 +1,4 @@
+import { useContextMenu } from "@/components/ContextMenu";
 import { useState, type DragEvent } from "react";
 import { Mic, Plus } from "lucide-react";
 
@@ -14,6 +15,9 @@ type Props = {
   totalFrames: number;
   selected: BeatId | null;
   onSelect: (id: BeatId) => void;
+  /** Right-click menu (spec 2026-11-08 §5.2). */
+  onAddFromMaterials?: (id: BeatId) => void;
+  onShowInTimeline?: (id: BeatId) => void;
   /** With the preview URLs, a tile shows its first clips' stills and videos. */
   document?: EditDocumentV2;
   previews?: Record<string, string>;
@@ -38,6 +42,8 @@ export function BeatStrip({
   totalFrames,
   selected,
   onSelect,
+  onAddFromMaterials,
+  onShowInTimeline,
   document,
   previews = {},
   onDropMaterial,
@@ -65,6 +71,7 @@ export function BeatStrip({
   const seconds = (frames: number) => t("studio.story.seconds", { seconds: (frames / fps).toFixed(1) });
   // Each tile's own time, so the tiles sum to the canvas (spec 2026-11-01, goal 6).
   const own = beatOwnFrames(beats, totalFrames);
+  const menu = useContextMenu();
 
   return (
     <div
@@ -77,6 +84,7 @@ export function BeatStrip({
         <span>{t("studio.story.total", { length: seconds(totalFrames) })}</span>
         <span className="font-sans text-[11px] text-faint">{t("studio.story.matchesCanvas")}</span>
       </span>
+      {menu.element}
       {beats.map((beat) => (
         <button
           key={beat.id}
@@ -84,6 +92,14 @@ export function BeatStrip({
           data-beat={beat.id}
           aria-pressed={selected === beat.id}
           onClick={() => onSelect(beat.id)}
+          {...menu.bind(() => {
+            const unavailable = t("studio.menu.reason.unavailable");
+            return [
+              { kind: "item", id: "open", label: t("studio.menu.openBeat"), onSelect: () => onSelect(beat.id) },
+              { kind: "item", id: "add", label: t("studio.menu.addFromMaterials"), disabled: !onAddFromMaterials, reason: unavailable, onSelect: () => onAddFromMaterials?.(beat.id) },
+              { kind: "item", id: "timeline", label: t("studio.menu.showInTimeline"), disabled: !onShowInTimeline, reason: unavailable, onSelect: () => onShowInTimeline?.(beat.id) },
+            ];
+          })}
           onDragOver={(event) => {
             if (!accepts(beat.id, event)) return;
             event.preventDefault();

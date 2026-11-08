@@ -273,3 +273,61 @@ test("a beat that spans others reads its own seconds, as its tile does", () => {
 
   expect(screen.getByText(new RegExp(`^Beat 1 of 4 · ${(own / 30).toFixed(1)} s`))).toBeDefined();
 });
+
+// Spec 2026-11-08 §5.2: a right click on a Shown item gathers its edits.
+const shownItems = () => within(screen.getByRole("region", { name: "Shown" })).getAllByRole("listitem");
+const itemNames = () => screen.getAllByRole("menuitem").map((entry) => entry.getAttribute("aria-label"));
+
+test("a Shown item's menu offers the beat's edits, with what does not apply disabled", () => {
+  mount("reactions");
+  fireEvent.contextMenu(shownItems()[0]!, { clientX: 5, clientY: 5 });
+  expect(itemNames()).toEqual([
+    "Move earlier",
+    "Move later",
+    "Remove from beat",
+    "Replace media…",
+    "Top",
+    "Middle",
+    "Lower third",
+    "Highlight box",
+    "Arrow",
+    "Play from here",
+    "Show in Timeline",
+  ]);
+  expect(screen.getByRole("menuitem", { name: "Move earlier" }).getAttribute("title")).toBe("Already first");
+  const menu = screen.getByRole("menu");
+  expect(within(within(menu).getByRole("group", { name: "Position" })).getAllByRole("menuitem")).toHaveLength(3);
+  expect(within(within(menu).getByRole("group", { name: "Emphasis" })).getAllByRole("menuitem")).toHaveLength(2);
+});
+
+test("Move later from the menu makes the same edit as the arrow", () => {
+  const { committed } = mount("reactions");
+  fireEvent.contextMenu(shownItems()[0]!, { clientX: 5, clientY: 5 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "Move later" }));
+  fireEvent.click(screen.getAllByRole("button", { name: /later$/ })[0]!);
+  const [fromMenu, fromArrow] = committed();
+  expect(fromMenu).toEqual(fromArrow);
+});
+
+test("Play from here and Show in Timeline hand the clip back", () => {
+  const played: number[] = [];
+  const shown: string[] = [];
+  render(
+    <BeatInspector
+      beat={beats.find((beat) => beat.id === "reactions")!}
+      beats={beats}
+      document={storyDocument()}
+      inventory={inventory}
+      materials={materials}
+      dispatch={() => {}}
+      onPlayFrom={(frame) => played.push(frame)}
+      onShowInTimeline={(clipId) => shown.push(clipId)}
+    />,
+  );
+  fireEvent.contextMenu(shownItems()[0]!, { clientX: 5, clientY: 5 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "Play from here" }));
+  fireEvent.contextMenu(shownItems()[0]!, { clientX: 5, clientY: 5 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "Show in Timeline" }));
+  expect(played).toEqual([60]);
+  expect(shown).toEqual(["clip_comment_card_000"]);
+});

@@ -536,6 +536,7 @@ export function Timeline({
       {replaced && replacedAsset ? (
         <ReplaceMediaDialog
           currentAssetId={replacedAsset}
+          kind={timeline.asset_refs?.find((ref) => ref.asset_id === replacedAsset)?.kind === "image" ? "image" : "video"}
           assets={Object.values(state.assets)}
           nameOf={(asset) => assetName?.(asset) ?? t(`studio.label.kind.${asset.kind}`)}
           onClose={() => setReplacing(null)}

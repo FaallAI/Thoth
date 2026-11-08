@@ -1,3 +1,4 @@
+import { useContextMenu, type MenuEntry } from "@/components/ContextMenu";
 import { useState } from "react";
 import { AudioLines, ChevronDown, Film, ImageIcon, Info, Quote } from "lucide-react";
 
@@ -33,10 +34,14 @@ type Props = {
   document: EditDocumentV2;
   /** Preview URLs by asset id, the same the player draws from. */
   previews: Record<string, string>;
+  /** Right-click menu (spec 2026-11-08 §5.2): the beat open in the Inspector, and what the menu does. */
+  openBeat?: Beat;
+  onAddToOpenBeat?: (itemId: string) => void;
+  onShowUse?: (frame: number) => void;
 };
 
 /** Spec 2026-10-27 §9: everything the run collected, grouped, with where it came from. */
-export function MaterialsPanel({ materials, uploads, beats, document, previews }: Props) {
+export function MaterialsPanel({ materials, uploads, beats, document, previews, openBeat, onAddToOpenBeat, onShowUse }: Props) {
   const { t } = useLocale();
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -49,6 +54,15 @@ export function MaterialsPanel({ materials, uploads, beats, document, previews }
   const assetOf = new Map((document.clips ?? []).map((clip) => [clip.clip_id, "asset_id" in clip ? clip.asset_id : null]));
   const usedIn = (assetId: string | null | undefined) =>
     assetId ? beats.filter((beat) => beat.clipIds.some((id) => assetOf.get(id) === assetId)) : [];
+  /** Where the material first shows in the draft, for "Show where it is used". */
+  const shownAt = (assetId: string | null | undefined): number | null => {
+    const inBeats = new Set(beats.flatMap((beat) => beat.clipIds));
+    const frames = (document.clips ?? [])
+      .filter((clip) => inBeats.has(clip.clip_id) && "asset_id" in clip && clip.asset_id === assetId)
+      .map((clip) => clip.from_frame);
+    return assetId && frames.length ? Math.min(...frames) : null;
+  };
+  const rowMenu = { openBeat, onAddToOpenBeat, onShowUse, shownAt };
 
   const known = new Set((materials?.items ?? []).map((item) => item.asset_id).filter(Boolean));
   const groups: { id: GroupId | "figures" | "narration"; rows: React.ReactNode[] }[] = [];
@@ -59,7 +73,7 @@ export function MaterialsPanel({ materials, uploads, beats, document, previews }
   for (const id of ["main", "cards", "footage", "photos"] as const) {
     const rows = items(id);
     const labels = numberRepeats(rows.map((item) => materialRowLabel(item, t)));
-    groups.push({ id, rows: rows.map((item, index) => <MaterialRow key={item.item_id} item={item} label={labels[index]!} provenance={Boolean(materials?.provenance_available)} usedIn={usedIn(item.asset_id)} preview={item.asset_id ? previews[item.asset_id] : undefined} />) });
+    groups.push({ id, rows: rows.map((item, index) => <MaterialRow menu={rowMenu} key={item.item_id} item={item} label={labels[index]!} provenance={Boolean(materials?.provenance_available)} usedIn={usedIn(item.asset_id)} preview={item.asset_id ? previews[item.asset_id] : undefined} />) });
   }
   const voices = (document.clips ?? []).filter((clip) => clip.clip_id.startsWith("clip_narration_"));
   if (voices.length) {
@@ -91,7 +105,7 @@ export function MaterialsPanel({ materials, uploads, beats, document, previews }
         </li>
       )),
   });
-  groups.push({ id: "comments", rows: items("comments").map((item) => <MaterialRow key={item.item_id} item={item} label={item.label} provenance={Boolean(materials?.provenance_available)} usedIn={[]} />) });
+  groups.push({ id: "comments", rows: items("comments").map((item) => <MaterialRow menu={rowMenu} key={item.item_id} item={item} label={item.label} provenance={Boolean(materials?.provenance_available)} usedIn={[]} />) });
   const uploadRows = uploads.filter((asset) => !known.has(asset.asset_id) && asset.kind !== "audio");
   const uploadLabels = numberRepeats(uploadRows.map((asset) => assetLabel(asset.asset_id, { document, materials, t }, asset).label));
   groups.push({
@@ -181,7 +195,28 @@ export function Thumbnail({ kind, preview }: { kind: string; preview?: string })
   );
 }
 
-function MaterialRow({ item, label, provenance, usedIn, preview }: { item: StudioMaterial; label: string; provenance: boolean; usedIn: Beat[]; preview?: string }) {
+type RowMenu = {
+  openBeat?: Beat;
+  onAddToOpenBeat?: (itemId: string) => void;
+  onShowUse?: (frame: number) => void;
+  shownAt: (assetId: string | null | undefined) => number | null;
+};
+
+function MaterialRow({
+  item,
+  label,
+  provenance,
+  usedIn,
+  preview,
+  menu: rowMenu,
+}: {
+  item: StudioMaterial;
+  label: string;
+  provenance: boolean;
+  usedIn: Beat[];
+  preview?: string;
+  menu?: RowMenu;
+}) {
   const { t, day } = useLocale();
   const [why, setWhy] = useState(false);
   const line = [
@@ -191,13 +226,48 @@ function MaterialRow({ item, label, provenance, usedIn, preview }: { item: Studi
     item.story_score != null ? t("studio.materials.score", { score: Math.round(item.story_score * 100) }) : null,
   ].filter(Boolean);
   const reasons = whyLines(item, t, day);
+  const menu = useContextMenu();
+  const entries = (): MenuEntry[] => {
+    const frame = rowMenu?.shownAt(item.asset_id) ?? null;
+    const open = rowMenu?.openBeat;
+    const already = Boolean(open && usedIn.some((beat) => beat.id === open.id));
+    const unavailable = t("studio.menu.reason.unavailable");
+    return [
+      {
+        kind: "item",
+        id: "add",
+        label: t("studio.menu.addToOpenBeat"),
+        disabled: !open || !rowMenu?.onAddToOpenBeat || item.media_kind === "none" || already,
+        reason: item.media_kind === "none" ? t("studio.menu.reason.noMedia") : already ? t("studio.menu.reason.alreadyIn") : unavailable,
+        onSelect: () => rowMenu?.onAddToOpenBeat?.(item.item_id),
+      },
+      {
+        kind: "item",
+        id: "use",
+        label: t("studio.menu.showUse"),
+        disabled: frame === null || !rowMenu?.onShowUse,
+        reason: frame === null ? t("studio.menu.reason.unused") : unavailable,
+        onSelect: () => frame !== null && rowMenu?.onShowUse?.(frame),
+      },
+      {
+        kind: "item",
+        id: "why",
+        label: t("studio.materials.why"),
+        disabled: !(provenance && reasons.length),
+        reason: unavailable,
+        onSelect: () => setWhy(true),
+      },
+    ];
+  };
 
   return (
     <li
       draggable={item.media_kind !== "none"}
       onDragStart={(event) => event.dataTransfer.setData(MATERIAL_DRAG_TYPE, item.item_id)}
+      {...menu.bind(entries)}
       className="flex flex-col gap-1 rounded-md px-2 py-1.5 hover:bg-surface"
     >
+      {menu.element}
       <div className="flex items-start gap-2">
         <Thumbnail kind={item.media_kind} preview={preview} />
         <div className="flex min-w-0 flex-1 flex-col">

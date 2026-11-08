@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type KeyboardEvent } from "react";
+import { useEffect, useState, type Dispatch, type KeyboardEvent } from "react";
 import { ArrowDown, ArrowUp, Plus, TriangleAlert, X } from "lucide-react";
 import { headingFitChars } from "@thoth/remotion-composition";
 
@@ -7,7 +7,9 @@ import { useLocale } from "@/lib/locale";
 
 import { reasonText } from "@/features/workflows/OpenInStudio";
 
+import { useContextMenu, type MenuEntry } from "@/components/ContextMenu";
 import type { EditorAction } from "../editor_state";
+import { ReplaceMediaDialog } from "../ReplaceMediaDialog";
 import { Switch } from "../StudioSwitch";
 import { clipLabel, materialRowLabel } from "../studio_labels";
 import { ROLE_BEAT, beatOwnFrames, type Beat } from "./story_beats";
@@ -38,6 +40,14 @@ type Props = {
   onRemoveMissing?: (itemId: string) => Promise<void>;
   /** The beat has a narration voice: its cards share the voice's time (spec 2026-11-01). */
   narrated?: boolean;
+  /** Right-click menu (spec 2026-11-08 §5.2): the preview plays from a frame; a clip opens in the Timeline. */
+  onPlayFrom?: (frame: number) => void;
+  onShowInTimeline?: (clipId: string) => void;
+  /** Replace media: the assets on offer and their names. */
+  replaceAssets?: EditorAsset[];
+  assetName?: (asset: EditorAsset) => string;
+  /** Changes when the beat strip asks to add from materials; opens the picker. */
+  pickRequest?: number;
 };
 
 /** A material that can stand in for a missing one (spec §9: "Use profile card"). */
@@ -57,11 +67,31 @@ const choice =
 const field = "h-9 w-24 rounded-md border border-hairline bg-well px-2 text-sm text-ink focus-visible:outline-2 focus-visible:outline-copper";
 
 /** Spec 2026-10-27 §9: the selected beat's cards, timing, position, motion and emphasis. */
-export function BeatInspector({ beat, beats, document, inventory, materials, dispatch, attachMaterial, onRemoveMissing, narrated = false }: Props) {
+export function BeatInspector({
+  beat,
+  beats,
+  document,
+  inventory,
+  materials,
+  dispatch,
+  attachMaterial,
+  onRemoveMissing,
+  narrated = false,
+  onPlayFrom,
+  onShowInTimeline,
+  replaceAssets,
+  assetName,
+  pickRequest,
+}: Props) {
   const { t, plural } = useLocale();
   const [picking, setPicking] = useState(false);
   const [addFailed, setAddFailed] = useState(false);
   const [removeFailed, setRemoveFailed] = useState(false);
+  const menu = useContextMenu();
+  const [replacing, setReplacing] = useState<string | null>(null);
+  useEffect(() => {
+    if (pickRequest) setPicking(true);
+  }, [pickRequest]);
   const fps = document.canvas.fps;
   const commit = (operations: EditDocumentOperation[]) =>
     operations.length && dispatch({ type: "commit_operations", operations });
@@ -84,6 +114,61 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
   const text = beat.id === "hook" || beat.id === "outro" ? clips.find((clip) => clip.kind === "text") : undefined;
   const headingClip = clips.find((clip) => clip.kind === "text");
   const reading = longestReading(beat, inventory);
+
+  // Spec 2026-11-08 §5.2: the Shown item's own edits, the same helpers the buttons below use.
+  const kindOfAsset = (assetId: string) => (document.asset_refs ?? []).find((ref) => ref.asset_id === assetId)?.kind;
+  const shownMenu = (clip: Clip, index: number): MenuEntry[] => {
+    const unavailable = t("studio.menu.reason.unavailable");
+    const earlier = index > 0 ? swapClips(document, clips[index - 1]!.clip_id, clip.clip_id) : [];
+    const later = index < clips.length - 1 ? swapClips(document, clip.clip_id, clips[index + 1]!.clip_id) : [];
+    const media = clip.kind === "video" && "asset_id" in clip;
+    const entries: MenuEntry[] = [
+      { kind: "item", id: "earlier", label: t("studio.menu.moveEarlier"), disabled: !earlier.length, reason: t("studio.menu.reason.first"), onSelect: () => commit(earlier) },
+      { kind: "item", id: "later", label: t("studio.menu.moveLater"), disabled: !later.length, reason: t("studio.menu.reason.last"), onSelect: () => commit(later) },
+      { kind: "item", id: "remove", label: t("studio.menu.removeFromBeat"), onSelect: () => commit([removeFromBeat(clip.clip_id)]) },
+      {
+        kind: "item",
+        id: "replace",
+        label: t("studio.menu.replaceMedia"),
+        disabled: !media || !replaceAssets,
+        reason: !media ? t("studio.menu.reason.notVideo") : unavailable,
+        onSelect: () => setReplacing(clip.clip_id),
+      },
+    ];
+    if (moving.some((entry) => entry.clip_id === clip.clip_id)) {
+      entries.push({
+        kind: "group",
+        id: "position",
+        label: t("studio.inspector.position"),
+        entries: PRESETS.map((preset) => ({
+          kind: "item" as const,
+          id: `position-${preset}`,
+          label: t(`studio.inspector.position.${preset}`),
+          onSelect: () => commit(setPositionPreset(document, [clip.clip_id], preset)),
+        })),
+      });
+    }
+    if (cards.some((entry) => entry.clip_id === clip.clip_id)) {
+      const lit = "emphasis" in clip && Boolean(clip.emphasis?.highlight);
+      const pointed = "emphasis" in clip && Boolean(clip.emphasis?.arrow);
+      entries.push({
+        kind: "group",
+        id: "emphasis",
+        label: t("studio.inspector.emphasis"),
+        entries: [
+          { kind: "item", id: "highlight", label: t("studio.inspector.emphasis.highlight"), onSelect: () => commit(setEmphasis([clip.clip_id], !lit, pointed)) },
+          { kind: "item", id: "arrow", label: t("studio.inspector.emphasis.arrow"), onSelect: () => commit(setEmphasis([clip.clip_id], lit, !pointed)) },
+        ],
+      });
+    }
+    entries.push(
+      { kind: "item", id: "play", label: t("studio.menu.playFromHere"), disabled: !onPlayFrom, reason: unavailable, onSelect: () => onPlayFrom?.(clip.from_frame) },
+      { kind: "item", id: "timeline", label: t("studio.menu.showInTimeline"), disabled: !onShowInTimeline, reason: unavailable, onSelect: () => onShowInTimeline?.(clip.clip_id) },
+    );
+    return entries;
+  };
+  const replacingClip = clips.find((clip) => clip.clip_id === replacing);
+  const replacingAsset = replacingClip && "asset_id" in replacingClip ? replacingClip.asset_id : undefined;
 
   // The same seconds as the beat's tile: a beat that spans others does not count their time.
   const ownFrames = beatOwnFrames(beats, document.canvas.duration_in_frames).get(beat.id) ?? beat.durationInFrames;
@@ -170,11 +255,29 @@ export function BeatInspector({ beat, beats, document, inventory, materials, dis
         );
       })}
 
+      {menu.element}
+      {replacingClip && replacingAsset && replaceAssets ? (
+        <ReplaceMediaDialog
+          currentAssetId={replacingAsset}
+          kind={kindOfAsset(replacingAsset) === "image" ? "image" : "video"}
+          assets={replaceAssets}
+          nameOf={(asset) => assetName?.(asset) ?? t(`studio.label.kind.${asset.kind}`)}
+          onClose={() => setReplacing(null)}
+          onReplace={(assetId) => {
+            setReplacing(null);
+            commit([{ kind: "replace_clip_asset", operation_id: `op_${crypto.randomUUID()}`, clip_id: replacingClip.clip_id, asset_id: assetId }]);
+          }}
+        />
+      ) : null}
       <section aria-label={t("studio.inspector.shown")} className={section}>
         <h3 className={heading}>{t("studio.inspector.shown")}</h3>
         <ul className="flex flex-col gap-1">
           {clips.map((clip, index) => (
-            <li key={clip.clip_id} className="flex items-center gap-1 rounded-md bg-surface px-2 py-1.5 text-sm text-ink">
+            <li
+              key={clip.clip_id}
+              {...menu.bind(() => shownMenu(clip, index))}
+              className="flex items-center gap-1 rounded-md bg-surface px-2 py-1.5 text-sm text-ink"
+            >
               <span className="min-w-0 flex-1 truncate">{label(clip)}</span>
               <IconButton
                 label={t("studio.inspector.earlier", { label: label(clip) })}

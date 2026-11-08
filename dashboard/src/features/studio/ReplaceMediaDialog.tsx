@@ -1,5 +1,5 @@
-// Replace media (spec 2026-11-08 §5.1): another ready video of this project behind the same clip.
-// The server swaps only a video clip's media, so only ready videos are offered.
+// Replace media (spec 2026-11-08 §5.1): another ready asset of this project behind the same clip.
+// The server swaps media only for media of the same kind, so only that kind is offered.
 import { useEffect, useRef } from "react";
 import { Film, X } from "lucide-react";
 
@@ -8,17 +8,19 @@ import { useLocale } from "@/lib/locale";
 
 type Props = {
   currentAssetId: string;
+  /** The kind the clip shows now (a card shows an image); default video. */
+  kind?: EditorAsset["kind"];
   assets: EditorAsset[];
   nameOf: (asset: EditorAsset) => string;
   onReplace: (assetId: string) => void;
   onClose: () => void;
 };
 
-export function ReplaceMediaDialog({ currentAssetId, assets, nameOf, onReplace, onClose }: Props) {
+export function ReplaceMediaDialog({ currentAssetId, kind = "video", assets, nameOf, onReplace, onClose }: Props) {
   const { t } = useLocale();
   const panel = useRef<HTMLDivElement>(null);
   const offered = assets.filter(
-    (asset) => asset.kind === "video" && asset.validation_state === "ready" && asset.asset_id !== currentAssetId,
+    (asset) => asset.kind === kind && asset.validation_state === "ready" && asset.asset_id !== currentAssetId,
   );
   useEffect(() => panel.current?.focus(), []);
 
@@ -64,7 +66,7 @@ export function ReplaceMediaDialog({ currentAssetId, assets, nameOf, onReplace, 
             })}
           </ul>
         ) : (
-          <p className="text-sm text-muted-ink">{t("studio.replace.none")}</p>
+          <p className="text-sm text-muted-ink">{t(kind === "image" ? "studio.replace.noneImage" : "studio.replace.none")}</p>
         )}
         <footer className="flex justify-end">
           <button type="button" onClick={onClose} className="rounded-md border border-hairline px-3 py-1.5 text-[13px] text-ink">

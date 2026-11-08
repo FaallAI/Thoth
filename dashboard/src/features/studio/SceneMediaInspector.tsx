@@ -57,6 +57,7 @@ export function SceneMediaInspector({
     {panel === "replace" && media?.kind === "video" && assetId && assets && onReplace ? (
       <ReplaceMediaDialog
         currentAssetId={assetId}
+        kind={asset?.kind === "image" ? "image" : "video"}
         assets={assets}
         nameOf={(asset) => labelOf?.(asset.asset_id) || t("studio.media.video")}
         onClose={() => setPanel(null)}
