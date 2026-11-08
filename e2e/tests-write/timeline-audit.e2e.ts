@@ -303,3 +303,99 @@ test('keyboard: ? opens the shortcut list', async ({ app, browser, screen }) => 
   await browser.keyboard.press('?');
   await expect(screen.getByRole('dialog', 'Keyboard shortcuts')).toBeVisible();
 });
+
+// Spec 2026-11-08 §6, Tier 2, on the deployed stack.
+/** A second main clip at 120–150 (the upload cut to fit), so the main track holds 0–90 and 120–150. */
+async function twoMainClips({ app, browser, screen }: Fixtures) {
+  await clipOnTimeline({ app, browser, screen });
+  const ruler = await screen.getByRole('slider', 'Playhead').boundingBox();
+  await clickAt(browser, ruler.x + 480, ruler.y + ruler.height / 2);
+  await screen.getByRole('button', 'Add Upload · Video to timeline').tap();
+  await expect.poll(async () => (await mainClip(browser)).length, { timeout: 5000 }).toBe(2);
+}
+/** The middle of the main lane at `frame`, at 4 px a frame past the 192 px name column. */
+const mainLaneAt = async (screen: any, frame: number) => {
+  const lane = await screen.getByRole('group', 'Main Video track').boundingBox();
+  return { x: lane.x + 192 + frame * 4, y: lane.y + lane.height / 2 };
+};
+const startsOnMain = async (browser: any) => (await mainClip(browser)).map((clip: any) => clip.from_frame).sort((a: number, b: number) => a - b);
+
+test('select: Shift-click two clips, and Delete removes both as one edit', async ({ app, browser, screen }) => {
+  await twoMainClips({ app, browser, screen });
+  const first = await mainLaneAt(screen, 40);
+  const second = await mainLaneAt(screen, 135);
+  await clickAt(browser, first.x, first.y);
+  await browser.keyboard.down('Shift');
+  await clickAt(browser, second.x, second.y);
+  await browser.keyboard.up('Shift');
+  await browser.keyboard.press('Delete');
+  await expect.poll(async () => (await mainClip(browser)).length, { timeout: 5000 }).toBe(0);
+});
+
+test('copy: Ctrl+C and Ctrl+V paste a copy at the playhead', async ({ app, browser, screen }) => {
+  await clipOnTimeline({ app, browser, screen });
+  await screen.getByRole('button', 'Main Video clip').tap();
+  await screen.getByRole('spinbutton', 'End frame').fill('30');
+  await expect.poll(async () => (await mainClip(browser))[0].duration_in_frames, { timeout: 5000 }).toBe(30);
+  await screen.getByRole('button', 'Main Video clip').tap();
+  await browser.keyboard.press('Control+c');
+  const ruler = await screen.getByRole('slider', 'Playhead').boundingBox();
+  await clickAt(browser, ruler.x + 240, ruler.y + ruler.height / 2);
+  await browser.keyboard.press('Control+v');
+  await expect.poll(async () => startsOnMain(browser), { timeout: 5000 }).toEqual([0, 60]);
+});
+
+test('duplicate: Ctrl+D puts a copy right after the clip', async ({ app, browser, screen }) => {
+  await clipOnTimeline({ app, browser, screen });
+  await screen.getByRole('button', 'Main Video clip').tap();
+  await screen.getByRole('spinbutton', 'End frame').fill('30');
+  await expect.poll(async () => (await mainClip(browser))[0].duration_in_frames, { timeout: 5000 }).toBe(30);
+  await screen.getByRole('button', 'Main Video clip').tap();
+  await browser.keyboard.press('Control+d');
+  await expect.poll(async () => startsOnMain(browser), { timeout: 5000 }).toEqual([0, 30]);
+});
+
+test('paste text: pasted text asks where it goes and becomes a new text clip', async ({ app, browser, screen }) => {
+  await clipOnTimeline({ app, browser, screen });
+  // A real paste event with plain text; the system clipboard itself is never read here.
+  await browser.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData('text/plain', 'Hello from e2e');
+    window.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+    return null;
+  });
+  await screen.getByRole('dialog', 'Paste text').getByRole('button', 'New text clip').tap();
+  await expect
+    .poll(async () => (await saved(browser)).clips.some((clip: any) => clip.kind === 'text' && clip.heading === 'Hello from e2e'), { timeout: 5000 })
+    .toBe(true);
+});
+
+test('inspector: Fit set to Contain is saved', async ({ app, browser, screen }) => {
+  await clipOnTimeline({ app, browser, screen });
+  await screen.getByRole('button', 'Main Video clip').tap();
+  await screen.getByRole('combobox', 'Fit').selectOption('Contain');
+  await expect.poll(async () => (await mainClip(browser))[0].fit, { timeout: 5000 }).toBe('contain');
+});
+
+test('inspector: Fade in 0.5 s is saved', async ({ app, browser, screen }) => {
+  await clipOnTimeline({ app, browser, screen });
+  await screen.getByRole('button', 'Main Video clip').tap();
+  await screen.getByRole('textbox', 'Fade in (seconds)').fill('0.5');
+  await browser.keyboard.press('Enter');
+  await expect.poll(async () => (await mainClip(browser))[0].fade_in_frames, { timeout: 5000 }).toBe(15);
+});
+
+test('tracks: Close all gaps on this track pulls the later clip in', async ({ app, browser, screen }) => {
+  await twoMainClips({ app, browser, screen });
+  await screen.getByRole('button', 'Select Main Video track').secondaryTap();
+  await screen.getByRole('menuitem', 'Close all gaps on this track').tap();
+  await expect.poll(async () => startsOnMain(browser), { timeout: 5000 }).toEqual([0, 90]);
+});
+
+test('assets: search narrows the asset list', async ({ app, browser, screen }) => {
+  await clipOnTimeline({ app, browser, screen });
+  await screen.getByRole('searchbox', 'Search assets').fill('nothing is called this');
+  await expect(screen.getByRole('button', 'Add Upload · Video to timeline')).not.toBeVisible();
+  await screen.getByRole('searchbox', 'Search assets').fill('upload');
+  await expect(screen.getByRole('button', 'Add Upload · Video to timeline')).toBeVisible();
+});

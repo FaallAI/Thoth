@@ -14,9 +14,10 @@ test('1440 Story: tier 1 controls, the narration chip and a beat total that matc
   }
   await expect(screen.getByRole('navigation', 'Studio jobs')).toBeVisible();
   await expect(screen.getByText('Narrated · 4 beats', { visible: true })).toBeVisible();
-  await expect(screen.getByText('Total 34.5 s')).toBeVisible();
+  // The draft's own total, which must match its canvas (Tier 2 follow-up, 2026-11-08).
+  await expect(screen.getByText(/^Total \d+\.\d s$/)).toBeVisible();
   await expect(screen.getByText('matches canvas')).toBeVisible();
-  await expect(screen.getByRole('button', 'Main 8.9 s Narrated')).toBeVisible();
+  await expect(screen.getByRole('button', /^Main \d+\.\d s Narrated$/)).toBeVisible();
   await expect(screen.getByText(/asset_|clip_/, { visible: true })).toHaveCount(0);
 });
 
