@@ -481,3 +481,19 @@ def test_a_recreated_narration_places_the_new_scripts_sfx() -> None:
     sfx_clips = [item for item in again.clips if item.clip_id.startswith("clip_sfx_")]
     assert [item.asset_id for item in sfx_clips] == ["asset_sfx_ding"]
     assert sfx_clips[0].from_frame == 258
+
+
+def test_a_faded_video_clip_that_narration_shortens_keeps_its_fades_inside() -> None:
+    # Final review 2026-11-08: video clips have fades since Tier 2, and a re-voice that shortens a
+    # faded card must not fail validation after the voices are paid for.
+    data = payload()
+    card = next(item for item in data["clips"] if item["clip_id"] == "clip_comment_card_000")
+    before = card["duration_in_frames"]
+    card.update(fade_in_frames=before // 2, fade_out_frames=before // 2)
+
+    shorter = [VOICES[0], VOICES[1], voiced("reactions", 2.0)]
+    document = narrate_document(draft(data), shorter, [], PRESET, ROLES)
+
+    shortened = clip(document, "clip_comment_card_000")
+    assert shortened.duration_in_frames < before
+    assert shortened.fade_in_frames + shortened.fade_out_frames <= shortened.duration_in_frames

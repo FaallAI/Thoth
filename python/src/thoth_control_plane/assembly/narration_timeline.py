@@ -437,6 +437,11 @@ def _retime(
         )
         update["hold_after_source"] = remaining is not None and length > remaining
         update["volume_keyframes"] = []
+        # Video fades (Tier 2) stay inside a clip the new window shortened, as fit_fades keeps them.
+        fade_in = min(clip.fade_in_frames, length)
+        update.update(
+            fade_in_frames=fade_in, fade_out_frames=min(clip.fade_out_frames, length - fade_in)
+        )
         # Blur turns on with the first narration only; the operator may switch it off after.
         if first and clip.blur_regions and any(s < end and start < e for s, e in voiced):
             update["blur_enabled"] = True
