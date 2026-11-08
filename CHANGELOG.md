@@ -28,7 +28,14 @@ Recorded on the next work branch, from master `48f32b18`. PR #120 was merged on 
   - Starting a run is covered too: the New run dialog opens the run's page.
 - **Red first:** in `activity.test.tsx`, a start, a finish (told once), and a lagging list asked once per status; in `RunDetailPage.test.tsx`, the page telling the tray. These tests run with a one-minute beat, so only the page can move the tray.
 
-**Checked, not reproducible:** the "..." menu staying open over the Inspector after Assist opens (2026-11-05). On this build, read-only with e2e (`w1440`, draft `edoc_b410cf36…`), choosing Assist in the Studio workspace menu closes the menu: its items leave the screen, and the Assist panel opens on the right.
+**Confirmed fixed since 2026-11-06, and guarded:** the "..." menu staying open over the Inspector after Assist opens (2026-11-05).
+
+- **Where it was fixed:** commit `88a91037` ("…and let Assist close") made `GuidedStudio.toggleAssist` close the menu's `<details>` before the panel opens. It is in master and in the deployed `7bd0fc7e`. The CHANGELOG never marked the finding closed, so it stayed on the carried list.
+- **Guard test:** `StoryMode.test.tsx` "opening Assist closes the menu and takes the Inspector's place until it is closed" was added in the same commit.
+- **Mutation check:** removing the closing line made that test fail (`expected false, received true`); restored, the 23 Story tests pass again.
+- **Live, read-only with tester-army/e2e on draft `edoc_b410cf36…`:**
+  - `w1440`: choosing Assist in the workspace menu closes the menu, and the Assist panel opens on the right.
+  - `w430` (phone): the menu closes too, and Assist sits at the top of the Inspector pane, uncovered.
 
 **Verification (WSL):** dashboard tests 1612 passed, 0 failed; `make dashboard-build` (type check and build) clean.
 
