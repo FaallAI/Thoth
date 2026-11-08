@@ -161,23 +161,30 @@ server operation.
 - **Multi-select:** Shift or Ctrl click adds a clip; a marquee drag on empty lane space selects
   every clip it touches; Ctrl+A selects all; Escape clears. Delete, ripple delete, move (drag) and
   hide / lock act on the whole selection as one patch.
-- **Copy, paste, duplicate:** Ctrl+C / Ctrl+V / Ctrl+D and menu entries. Paste puts the clips at
-  the playhead on their own tracks. Needs a new operation (a `duplicate_clip` that copies a clip
-  with a new id, its asset reference and provenance untouched).
-- **The system clipboard** (operator, 2026-11-08), so clips paste between drafts and tabs:
-  - Ctrl+C and Ctrl+V go through the page's `copy` and `paste` events (`clipboardData`), which
-    need no permission prompt.
-  - The payload is versioned JSON describing the clips (kind, asset id, timing, settings,
-    source project), written as `text/plain`, plus a `web application/x-thoth-clips` custom
-    format where `ClipboardItem.supports()` accepts it.
-  - The menu's Paste entry reads with `navigator.clipboard`. Chromium asks once for
-    `clipboard-read`; Firefox and Safari show their own Paste button. Both need a secure context
-    (https, or localhost on stage1).
-  - When reading is refused or unavailable, the entry says to use Ctrl+V. Nothing breaks.
-  - A paste is accepted only when every asset belongs to the open project. Otherwise it is
-    refused with a message, and no asset is copied across projects or workspaces. Clips keep
-    their asset reference, so cards are never redrawn and provenance stays.
-  - Text that is not a Thoth payload is ignored by the timeline. Fields keep normal text paste.
+- **Copy, paste, duplicate clips:** Ctrl+C / Ctrl+V / Ctrl+D and menu entries. Paste puts the
+  clips at the playhead on their own tracks. Needs a new operation (a `duplicate_clip` that copies
+  a clip with a new id, its asset reference and provenance untouched).
+  - Clips and media never go through the system clipboard (operator, 2026-11-08). Copied clips
+    live in the open page only, so they paste within the open draft.
+  - Media from outside Thoth is added only by uploading it (the existing Upload). A pasted image
+    or file is not turned into an asset.
+- **Text through the system clipboard, to a place the person chooses** (operator, 2026-11-08):
+  - Copy: "Copy text" on a text clip, caption cue or heading puts its plain text on the system
+    clipboard (`copy` event or `navigator.clipboard.writeText`).
+  - Paste into a field (heading, body, caption text, overlay text) works as normal browser paste.
+  - Paste onto the timeline (Ctrl+V with plain text and no copied clips, or the menu's "Paste
+    text…") opens a small chooser naming where the text goes:
+    - a new text clip on the Overlay track at the playhead (`add_text_clip`);
+    - replace the text of the selected text clip (`replace_text`);
+    - a new caption cue at the playhead (`add_caption_clip`), or replace the selected cue's text
+      (`set_caption_cue_text`).
+  - Entries that do not apply are disabled. Nothing is placed until the person picks one.
+    Escape cancels.
+  - Reading for the menu entry uses `navigator.clipboard.readText()`. Chromium asks once;
+    Firefox and Safari show their own Paste button. Both need a secure context (https, or
+    localhost on stage1). When reading is refused, the entry says to use Ctrl+V.
+  - Pasted text is plain text only (no HTML), trimmed, and held to the same length limits as
+    typed text.
 - **Close all gaps** on a track (track menu) and in the whole timeline.
 - **Inspector:** Fit, Crop and Position become editable on video and image clips (existing
   `set_clip_position` / `set_clip_motion`; Crop may need a field on the operation); fade in and
