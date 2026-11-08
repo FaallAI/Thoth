@@ -134,6 +134,11 @@ three tiers, Story menus included) and the Tier 1 plan are written; Tier 1 is bu
 `feat/studio-timeline-track` (menus, keys, drag to a track, Replace media, plain names), not pushed.
 Tier 2 and Tier 3 follow, in that order (operator, 2026-11-08).
 
+Status 2026-11-09: Tier 1 merged as `ccddab63` (PR #122) and runs on stage1 as `c5a848b0`. Tier 2
+(select many, copy and paste inside the draft, text paste to a chosen place, Fit/Crop/Position and
+fades, close all gaps, asset search and drag, J/K/L, the 11 Tier 1 leftovers) is built and reviewed
+on `feat/studio-timeline-tier2`, not pushed. Tier 3 follows.
+
 The red tests are `e2e/tests-write/timeline-audit.e2e.ts`. The Studio shell v2 spec
 (2026-11-01) lists ripple delete as an existing tool, but git history shows no delete control in
 the Timeline, toolbar or Inspector, so it counts as new work here.
