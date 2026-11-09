@@ -60,3 +60,23 @@ test("closing returns focus to where it was", () => {
   expect(document.activeElement).toBe(before);
   before.remove();
 });
+
+// Carried Tier 2 minor (operator, 2026-11-09): Tab stays inside the chooser.
+test("Tab from the last place wraps to the first, and Shift+Tab back", () => {
+  render(<PasteTextDialog text="Hello" targets={targets} onPick={() => {}} onClose={() => {}} />);
+  const dialog = screen.getByRole("dialog", { name: "Paste text" });
+  const buttons = Array.from(dialog.querySelectorAll("button"));
+  const [first, last] = [buttons[0]!, buttons.at(-1)!];
+  last.focus();
+  expect(fireEvent.keyDown(last, { key: "Tab" })).toBe(false);
+  expect(document.activeElement).toBe(first);
+  expect(fireEvent.keyDown(first, { key: "Tab", shiftKey: true })).toBe(false);
+  expect(document.activeElement).toBe(last);
+});
+
+test("Tab between places is left to the browser", () => {
+  render(<PasteTextDialog text="Hello" targets={targets} onPick={() => {}} onClose={() => {}} />);
+  const first = screen.getByRole("dialog", { name: "Paste text" }).querySelector("button")!;
+  first.focus();
+  expect(fireEvent.keyDown(first, { key: "Tab" })).toBe(true);
+});

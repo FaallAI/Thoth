@@ -38,3 +38,11 @@ test("focus returns to where it was when it closes", () => {
   expect(document.activeElement).toBe(opener);
   opener.remove();
 });
+
+test("Tab stays inside the dialog", () => {
+  render(<MarkerNameDialog label="" onSave={() => {}} onClose={() => {}} />);
+  const save = screen.getByRole("button", { name: "Save" });
+  save.focus();
+  expect(fireEvent.keyDown(save, { key: "Tab" })).toBe(false);
+  expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Marker name" }));
+});
