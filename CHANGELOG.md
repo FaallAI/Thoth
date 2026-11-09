@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this changelog.
 
 ## 2026-11-09 - Studio Timeline Tier 2: comfort (select many, copy and paste, text paste, fades, assets, J/K/L)
 
-Branch `feat/studio-timeline-tier2` from master `ccddab63`, not pushed. Plan
+Branch `feat/studio-timeline-tier2` from master `ccddab63`, PR #123. Plan
 `docs/superpowers/plans/2026-11-08-studio-timeline-tier2.md`, spec section 6. Executed natively,
 with one fresh review of the whole branch at the end.
 
@@ -93,7 +93,17 @@ same code as master: the only commit after it holds records and e2e tests.
 - **Python:** full `make test` gives 4654 passed, 221 skipped. `make lint` is clean.
 - **Renderer:** `bun test` passes 224.
 - **Read-only e2e at 1440** on stage1 `c5a848b0`: `studio-audit-fixes` 14/14 and `studio-shell-v2` 5/5. These screens are unchanged by Tier 2.
-- **Write e2e not run.** Eight new Tier 2 write tests are in `e2e/tests-write/timeline-audit.e2e.ts`; they need the branch deploy and a write token.
+- **CI on PR #123:** all green.
+- **Write e2e at 1440** on stage1 `7b5d04f8`, in the throwaway project with a one-day write token: `timeline-audit` and `studio-write` gave 49/50 on the first run, including seven of the eight Tier 2 tests.
+  - **The failure was the test.** "Close all gaps on this track" right-clicked the middle of the track name. On hover the track's toggles cover that spot, so Playwright would not click it. A right click there still opens the track menu, because the toggles sit inside the name column. The test now opens the menu from the keyboard: focus on the name, then Shift+F10. It passed on its own rerun.
+  - **Rows before and after:** the operator's project kept 121 revisions, 101 assets and 8 renders. Narrations, runs and proposals did not change. Every new row (210 revisions, 1 asset, 3 renders, 2 review events) is in the throwaway project, together with 8 usage events. These stay behind, because projects cannot be deleted through the API.
+
+**Deploy record.** Stage1 runs the branch image `7b5d04f8` since 2026-11-09:
+- thoth `sha256:1b0956aa4a89…` (api and worker);
+- renderer `sha256:701b65b2e55e…`;
+- web `sha256:1c8b792d6274…`.
+
+No workflow was running at the time. `make deploy` exited 0, and web answered 200. After the deploy, the worker logged no errors and the api returned no 5xx responses. The rollback copy is `D:/thoth-tmp/bu/pins/pins-c5a848b0.env`, and the rollback note above applies.
 
 **Deferred minors** (from the final review):
 - `resizeScene` does not fit fades until the save returns.
@@ -110,15 +120,11 @@ same code as master: the only commit after it holds records and e2e tests.
 - A paste can land on a hidden Overlay or Captions track.
 
 **Next steps.**
+- **Done:** the write token, push and PR #123, the branch deploy, and the write e2e.
 - **Operator gates, each needing its own authorization:**
-  - a one-day write-scope e2e token;
-  - push and PR;
-  - deploy of the branch image;
-  - the write e2e run, including the eight Tier 2 tests;
-  - the operator's own try;
-  - merge.
-
-  The rollback note above applies once this branch is deployed.
+  - a push of the e2e test fix and these records to PR #123;
+  - the operator's own try on stage1;
+  - merge of PR #123.
 - **Then Tier 3** (spec section 7): filmstrips and waveforms, roll and slip, speed, markers, and the phone editing decision.
 - **Carried:** the deferred minors and the two open questions above.
 

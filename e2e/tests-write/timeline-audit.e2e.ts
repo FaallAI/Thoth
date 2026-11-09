@@ -387,7 +387,9 @@ test('inspector: Fade in 0.5 s is saved', async ({ app, browser, screen }) => {
 
 test('tracks: Close all gaps on this track pulls the later clip in', async ({ app, browser, screen }) => {
   await twoMainClips({ app, browser, screen });
-  await screen.getByRole('button', 'Select Main Video track').secondaryTap();
+  // The track's toggles cover the middle of its name on hover, so the menu opens from the keyboard.
+  await screen.getByRole('button', 'Select Main Video track').focus();
+  await browser.keyboard.press('Shift+F10');
   await screen.getByRole('menuitem', 'Close all gaps on this track').tap();
   await expect.poll(async () => startsOnMain(browser), { timeout: 5000 }).toEqual([0, 90]);
 });
