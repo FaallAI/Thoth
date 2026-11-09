@@ -54,7 +54,8 @@ export function PreviewControls({ player, frame, durationInFrames, fps, playing,
   };
 
   return (
-    <div className="studio-preview-bar">
+    // Not a div: pen-studio.css dissolves any div holding the Player's own Play button.
+    <footer className="studio-preview-bar">
       <span>
         {formatTimecode(frame, fps)} / {formatTimecode(durationInFrames, fps)}
       </span>
@@ -83,6 +84,6 @@ export function PreviewControls({ player, frame, durationInFrames, fps, playing,
           <Maximize aria-hidden="true" size={14} />
         </button>
       </span>
-    </div>
+    </footer>
   );
 }

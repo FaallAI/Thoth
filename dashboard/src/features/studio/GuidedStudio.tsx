@@ -1252,6 +1252,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 ) : null}
                 <Timeline
                   sectionId="studio-timeline"
+                  fitOnOpen={wideTimeline}
                   status={wideTimeline ? issuesBar(true) : undefined}
                   state={state}
                   onDropAsset={(assetId, trackId, frame) => {
