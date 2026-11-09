@@ -11,6 +11,8 @@ import {
   applyTimelineOperation,
   carrySceneClips,
   fitFades,
+  fitMoves,
+  stretchClipMoves,
   fitMarkers,
   clampZoom,
   isTimelineDocument,
@@ -230,6 +232,7 @@ function resizeScene(
     const clip = byId.get(scene.clip_ids[0]);
     if (clip) {
       clip[startField] = startFrame;
+      stretchClipMoves(clip, duration);
       clip.duration_in_frames = duration;
     }
     const resized = { ...scene, start_frame: startFrame, duration_in_frames: duration };
@@ -256,6 +259,7 @@ function resizeScene(
     // minors, 2026-11-09). The markers are copied first: the document passed in is never changed.
     resized.markers = resized.markers?.map((marker) => ({ ...marker }));
     fitFades(resized);
+    fitMoves(resized);
     fitMarkers(resized);
   }
   return resized;

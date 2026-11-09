@@ -330,6 +330,7 @@ def test_timeline_operations_carry_no_locator_field_in_their_schema() -> None:
         "fit",
         "position",
         "source_role",
+        "background",
     }
 
 
@@ -1847,3 +1848,109 @@ def test_scene_resize_stretches_the_scene_clip_moves() -> None:
         EditDocumentV2.model_validate(payload), [resize("scene_001", 75)]
     )
     assert [move.frame for move in find_clip(result, "clip_main").moves] == [0, 50]
+
+
+BOX = {"kind": "box", "x": 0.2, "y": 0.2, "w": 0.3, "h": 0.2, "from_frame": 0, "to_frame": 60}
+
+
+def test_set_clip_background_blur_fill_sets_contain() -> None:
+    result = apply_edit_operations(
+        document_v2_fixture(),
+        [op("set_clip_background", clip_id="clip_main", background="blur_fill")],
+    )
+    main = find_clip(result, "clip_main")
+    assert (main.background, main.fit) == ("blur_fill", "contain")
+
+
+def test_set_clip_background_none_keeps_the_fit() -> None:
+    result = apply_edit_operations(
+        document_v2_fixture(),
+        [
+            op("set_clip_background", clip_id="clip_main", background="blur_fill"),
+            op("set_clip_background", clip_id="clip_main", background="none"),
+        ],
+    )
+    main = find_clip(result, "clip_main")
+    assert (main.background, main.fit) == ("none", "contain")
+
+
+def test_set_clip_dim_moves_and_marks() -> None:
+    result = apply_edit_operations(
+        document_v2_fixture(),
+        [
+            op("set_clip_dim", clip_id="clip_main", dim=0.4),
+            op(
+                "set_clip_moves",
+                clip_id="clip_main",
+                moves=[{"frame": 0}, {"frame": 30, "scale": 1.2}],
+            ),
+            op("set_clip_marks", clip_id="clip_main", marks=[BOX]),
+        ],
+    )
+    main = find_clip(result, "clip_main")
+    assert main.dim == 0.4
+    assert [move.frame for move in main.moves] == [0, 30]
+    assert main.emphasis.marks[0].w == 0.3
+
+
+def test_set_clip_moves_outside_the_clip_is_refused() -> None:
+    with pytest.raises(ValueError, match="moves must be increasing and inside the clip"):
+        apply_edit_operations(
+            document_v2_fixture(),
+            [op("set_clip_moves", clip_id="clip_main", moves=[{"frame": 0}, {"frame": 500}])],
+        )
+
+
+def test_effect_operations_refuse_a_locked_clip() -> None:
+    locked = apply_edit_operations(
+        document_v2_fixture(), [op("set_clip_locked", clip_id="clip_main", locked=True)]
+    )
+    for operation in (
+        op("set_clip_dim", clip_id="clip_main", dim=0.4),
+        op("set_clip_background", clip_id="clip_main", background="blur_fill"),
+        op("set_clip_moves", clip_id="clip_main", moves=[]),
+        op("set_clip_marks", clip_id="clip_main", marks=[]),
+    ):
+        with pytest.raises(ValueError, match="locked"):
+            apply_edit_operations(locked, [operation])
+
+
+def test_emphasis_booleans_keep_the_marks() -> None:
+    result = apply_edit_operations(
+        document_v2_fixture(),
+        [
+            op("set_clip_marks", clip_id="clip_main", marks=[BOX]),
+            op("set_clip_emphasis", clip_id="clip_main", highlight=True, arrow=False),
+        ],
+    )
+    emphasis = find_clip(result, "clip_main").emphasis
+    assert emphasis.highlight is True and len(emphasis.marks) == 1
+
+
+def test_set_text_place_card() -> None:
+    result = apply_edit_operations(
+        document_v2_fixture(), [op("set_text_place", clip_id="clip_001", style_slot="card")]
+    )
+    assert find_clip(result, "clip_001").style_slot == "card"
+
+
+def test_add_clip_from_asset_can_carry_a_background() -> None:
+    document = document_v2_fixture()
+    source = document.asset_refs[0]
+    result = apply_edit_operations(
+        document,
+        [
+            op(
+                "add_clip_from_asset",
+                clip_id="clip_new",
+                track_id="track_b_roll",
+                asset_id=source.asset_id,
+                from_frame=0,
+                duration_in_frames=30,
+                fit="contain",
+                background="blur_fill",
+            )
+        ],
+        resolved_assets={source.asset_id: source},
+    )
+    assert find_clip(result, "clip_new").background == "blur_fill"
