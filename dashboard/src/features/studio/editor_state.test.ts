@@ -313,7 +313,7 @@ function timelineDocument(): EditDocumentV2 {
     ],
     clips: [
       {
-        kind: "video",
+        kind: "video", speed: 1,
         clip_id: "clip_main",
         track_id: "track_main",
         asset_id: "asset_video",
@@ -332,7 +332,7 @@ function timelineDocument(): EditDocumentV2 {
         emphasis: { highlight: false, arrow: false },
       },
       {
-        kind: "audio",
+        kind: "audio", speed: 1,
         clip_id: "clip_music",
         track_id: "track_music",
         asset_id: "asset_video",

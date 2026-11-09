@@ -19,7 +19,8 @@ export type Refusal =
   | "no_scene"
   | "not_text"
   | "not_caption"
-  | "too_long";
+  | "too_long"
+  | "no_source";
 /** Something a successful edit still tells the person (operator, 2026-11-09). */
 export type Notice = "hidden_track";
 export type Edit = { operations: EditDocumentOperation[]; refusal?: Refusal; notice?: Notice };

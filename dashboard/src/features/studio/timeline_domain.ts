@@ -434,6 +434,15 @@ export function applyTimelineOperation(
     case "set_clip_crop":
       unlockedVideoClip(next, operation.clip_id).crop = operation.crop ?? null;
       break;
+    case "set_clip_speed": {
+      const clip = unlockedClip(next, operation.clip_id);
+      if (clip.kind !== "video" && clip.kind !== "audio") throw new Error("speed applies only to video and audio clips");
+      const asset = next.asset_refs?.find((ref) => ref.asset_id === clip.asset_id);
+      if (asset?.kind === "image") throw new Error("an image has no speed");
+      clip.speed = operation.speed;
+      clip.ownership = "user_edited";
+      break;
+    }
     case "set_clip_fades": {
       const clip = unlockedClip(next, operation.clip_id);
       if (clip.kind !== "video" && clip.kind !== "audio") throw new Error("fades apply only to video and audio clips");
@@ -604,6 +613,7 @@ function addClipFromAsset(
     hidden: false,
     locked: false,
     source_role: operation.source_role ?? null,
+    speed: 1 as const,
   };
   document.clips = [
     ...(document.clips ?? []),
@@ -656,8 +666,8 @@ function replaceClipAsset(
   }
   if (asset.kind === "video") {
     if (asset.duration_in_frames == null) throw new Error("video asset duration is unknown");
-    // Only this clip shortens; its neighbours keep their frames.
-    clip.duration_in_frames = Math.min(clip.duration_in_frames, asset.duration_in_frames);
+    // Only this clip shortens; its neighbours keep their frames. The speed stays (Tier 3a).
+    clip.duration_in_frames = Math.max(1, Math.min(clip.duration_in_frames, Math.floor((asset.duration_in_frames * 100) / speedPercent(clip))));
   }
   recordAsset(document, asset);
   clip.asset_id = asset.asset_id;
@@ -836,6 +846,26 @@ function repack(document: EditDocumentV2, entry: TimelineTrack, movedClipId: str
   }
 }
 
+// --------------------------------------------------------------------------
+// Speed (Tier 3a): whole percent on both sides, so the mirror and the server agree
+// --------------------------------------------------------------------------
+
+/** A clip's speed in whole percent; a clip without speed plays at 100. */
+export function speedPercent(clip: object): number {
+  const speed = "speed" in clip && typeof clip.speed === "number" ? clip.speed : 1;
+  return Math.round(speed * 100);
+}
+
+/** The source frames a clip plays: its length times its speed, rounded up. */
+export function sourceSpan(clip: { duration_in_frames: number; speed?: number }): number {
+  return Math.ceil((clip.duration_in_frames * speedPercent(clip)) / 100);
+}
+
+/** The timeline frames until the clip's source ends, at the clip's speed. */
+export function framesLeft(clip: { source_from_frame?: number; speed?: number }, asset: { duration_in_frames: number }): number {
+  return Math.floor(((asset.duration_in_frames - (clip.source_from_frame ?? 0)) * 100) / speedPercent(clip));
+}
+
 function trimClipStart(
   document: EditDocumentV2,
   operation: Extract<EditDocumentOperation, { kind: "trim_clip_start" }>,
@@ -846,8 +876,10 @@ function trimClipStart(
 
   const delta = operation.from_frame - clip.from_frame;
   if ("source_from_frame" in clip) {
-    if (clip.source_from_frame + delta < 0) throw new Error("trim cannot start before the source");
-    clip.source_from_frame += delta;
+    // A faster clip spends its source faster; offsets round down, as on the server.
+    const moved = Math.floor((delta * speedPercent(clip)) / 100);
+    if (clip.source_from_frame + moved < 0) throw new Error("trim cannot start before the source");
+    clip.source_from_frame += moved;
   }
   clip.from_frame = operation.from_frame;
   clip.duration_in_frames = endFrame - operation.from_frame;
@@ -879,7 +911,7 @@ function splitClip(
   right.clip_id = operation.right_clip_id;
   right.from_frame = operation.split_frame;
   right.duration_in_frames = endFrame - operation.split_frame;
-  if ("source_from_frame" in right) right.source_from_frame += leftDuration;
+  if ("source_from_frame" in right) right.source_from_frame += Math.floor((leftDuration * speedPercent(clip)) / 100);
   if (clip.kind === "video" || clip.kind === "audio") {
     // The cut sits between the two parts: neither fades there.
     clip.fade_out_frames = 0;

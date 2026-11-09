@@ -456,3 +456,37 @@ test("a refused start time returns to the clip's real time", () => {
   // The document did not change (the parent refused the move), so the field shows the real time.
   expect(start.value).toBe(before);
 });
+
+// Tier 3a (spec 2026-11-08 section 7): a clip's speed, from the presets.
+const withAsset = (fields: Record<string, unknown>) => {
+  const document = timelineDocument();
+  Object.assign(document.asset_refs!.find((ref) => ref.asset_id === "asset_video")!, fields);
+  return document;
+};
+
+test("Speed is a choice of presets that commits set_clip_speed", () => {
+  const { operations } = mount({ clipId: "clip_main" });
+  const speed = screen.getByRole("combobox", { name: "Speed" });
+  expect(Array.from((speed as HTMLSelectElement).options).map((option) => option.textContent)).toEqual(["0.25×", "0.5×", "0.75×", "1×", "1.25×", "1.5×", "2×", "3×", "4×"]);
+  fireEvent.change(speed, { target: { value: "2" } });
+  expect(operations.map(payload)).toEqual([{ kind: "set_clip_speed", operation_id: "op", clip_id: "clip_main", speed: 2 }]);
+});
+
+test("an audio clip has a Speed too", () => {
+  const { operations } = mount({ clipId: "clip_music" });
+  fireEvent.change(screen.getByRole("combobox", { name: "Speed" }), { target: { value: "0.5" } });
+  expect(operations.map(payload)).toEqual([{ kind: "set_clip_speed", operation_id: "op", clip_id: "clip_music", speed: 0.5 }]);
+});
+
+test("an image clip has no Speed", () => {
+  mount({ clipId: "clip_main" }, withAsset({ kind: "image" }));
+  expect(screen.queryByRole("combobox", { name: "Speed" })).toBeNull();
+});
+
+test("a speed the source cannot feed is refused in place", () => {
+  // clip_main is 120 frames long; at 2x it needs 240 frames of a 200-frame source.
+  const { operations } = mount({ clipId: "clip_main" }, withAsset({ duration_in_frames: 200 }));
+  fireEvent.change(screen.getByRole("combobox", { name: "Speed" }), { target: { value: "2" } });
+  expect(operations).toEqual([]);
+  expect(screen.getByRole("alert").textContent).toContain("The source is too short for this speed");
+});

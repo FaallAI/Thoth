@@ -325,9 +325,10 @@ function renderClip(
         clip.motion && clip.motion !== "none" ? <MovingClip clip={clip} draw={draw} /> : draw(STILL);
       const asset = refs.get(clip.asset_id);
       // Narration's retiming may run a clip past its source: hold that last frame (2026-10-31).
+      // At a speed (Tier 3a) the source runs out after fewer or more timeline frames.
       const remaining =
         clip.hold_after_source && asset?.kind === "video" && asset.duration_in_frames
-          ? asset.duration_in_frames - clip.source_from_frame
+          ? Math.floor(((asset.duration_in_frames - clip.source_from_frame) * 100) / speedPercent(clip))
           : null;
       const held =
         remaining !== null && remaining > 0 ? <HeldClip lastFrame={remaining - 1}>{drawn}</HeldClip> : drawn;
@@ -342,6 +343,7 @@ function renderClip(
         <Audio
           src={source}
           startFrom={clip.source_from_frame}
+          {...(speedPercent(clip) !== 100 ? { playbackRate: clip.speed } : {})}
           volume={(frame) =>
             // Ducking scales the clip's own volume, so an operator's level survives it.
             muted ? 0 : clip.volume * volumeAt(frame, clip.volume_keyframes ?? [], 1) * fadeMultiplier(frame, clip)
@@ -388,6 +390,11 @@ function WordHighlightCue({
  * Past the asset's last frame the clip shows that frame, paused. Freeze stays mounted and
  * switches on through `active` (Remotion v4.0.127+), so the decoder is never remounted.
  */
+/** A clip's speed in whole percent, as the server and the editor count it (Tier 3a). */
+function speedPercent(clip: { speed?: number }): number {
+  return Math.round((clip.speed ?? 1) * 100);
+}
+
 function HeldClip({ lastFrame, children }: { lastFrame: number; children: ReactNode }) {
   return (
     <Freeze frame={lastFrame} active={(frame) => frame > lastFrame}>
@@ -471,6 +478,8 @@ function videoClip(
           src={source}
           trimBefore={clip.source_from_frame}
           muted={muted}
+          // A clip at a speed (Tier 3a) keeps its pitch, so speech stays natural; normal speed passes nothing.
+          {...(speedPercent(clip) !== 100 ? { playbackRate: clip.speed, preservePitch: true } : {})}
           // Only ducking or a fade passes a volume, so every other render stays as it was.
           {...(clip.volume_keyframes?.length || hasFades(clip)
             ? {

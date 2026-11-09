@@ -11,6 +11,9 @@ import {
   MAX_ZOOM,
   MIN_ZOOM,
   applyTimelineOperation,
+  framesLeft,
+  sourceSpan,
+  speedPercent,
   carrySceneClips,
   clampZoom,
   compatibleTrackIds,
@@ -87,7 +90,7 @@ function documentV2(): EditDocumentV2 {
     ],
     clips: [
       {
-        kind: "video",
+        kind: "video", speed: 1,
         clip_id: "clip_main",
         track_id: "track_main",
         asset_id: "asset_video",
@@ -106,7 +109,7 @@ function documentV2(): EditDocumentV2 {
         emphasis: { highlight: false, arrow: false },
       },
       {
-        kind: "audio",
+        kind: "audio", speed: 1,
         clip_id: "clip_music",
         track_id: "track_music",
         asset_id: "asset_video",
@@ -1063,4 +1066,41 @@ test("an asset dropped on a lane goes on that track at that frame, or nowhere", 
   });
   expect(createAddClipFromAssetOperation(doc, video, 0, ids, { trackId: "track_broll", frame: 160 })).toBeUndefined();
   expect(createAddClipFromAssetOperation(doc, video, 0, ids, { trackId: "track_music", frame: 10 })).toBeUndefined();
+});
+
+// Tier 3a (spec 2026-11-08 section 7): speed keeps a clip's place and changes its source span,
+// with the same whole-percent maths as the server.
+test("speed maths matches the server's integers", () => {
+  const clip = { duration_in_frames: 31, speed: 1.5, source_from_frame: 10 } as const;
+  expect(speedPercent(clip)).toBe(150);
+  expect(speedPercent({})).toBe(100);
+  expect(sourceSpan(clip)).toBe(47); // ceil(31 * 1.5)
+  expect(framesLeft(clip, { duration_in_frames: 100 })).toBe(60); // floor(90 / 1.5)
+});
+
+test("set_clip_speed sets the speed and keeps the clip's place", () => {
+  const before = clipIn(fixtureDocument(), "clip_main");
+  const result = applied(fixtureDocument(), { kind: "set_clip_speed", clip_id: "clip_main", speed: 2 });
+  const main = clipIn(result, "clip_main");
+  expect([main.speed, main.ownership]).toEqual([2, "user_edited"]);
+  expect([main.from_frame, main.duration_in_frames]).toEqual([before.from_frame, before.duration_in_frames]);
+});
+
+test("set_clip_speed refuses a text clip", () => {
+  const doc = fixtureDocument();
+  doc.clips!.push({ kind: "text", clip_id: "clip_t", track_id: "track_main", from_frame: 0, duration_in_frames: 10, ownership: "user_edited", hidden: false, locked: false, heading: "Hi", body: "", style_slot: "title" } as never);
+  expect(() => applied(doc, { kind: "set_clip_speed", clip_id: "clip_t", speed: 2 })).toThrow("speed applies only to video and audio clips");
+});
+
+test("a trim start on a 2x clip moves its source twice as far", () => {
+  const fast = applied(fixtureDocument(), { kind: "set_clip_speed", clip_id: "clip_main", speed: 2 });
+  const result = applied(fast, { kind: "trim_clip_start", clip_id: "clip_main", from_frame: 10 });
+  expect(clipIn(result, "clip_main").source_from_frame).toBe(20);
+});
+
+test("a split of a 1.5x clip starts the right part at the left span", () => {
+  const fast = applied(fixtureDocument(), { kind: "set_clip_speed", clip_id: "clip_main", speed: 1.5 });
+  const result = applied(fast, { kind: "split_clip", clip_id: "clip_main", split_frame: 31, left_clip_id: "clip_l", right_clip_id: "clip_r" });
+  expect(clipIn(result, "clip_r").source_from_frame).toBe(46);
+  expect([clipIn(result, "clip_l").speed, clipIn(result, "clip_r").speed]).toEqual([1.5, 1.5]);
 });
