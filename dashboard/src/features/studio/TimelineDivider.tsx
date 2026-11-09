@@ -26,7 +26,12 @@ export function TimelineDivider({ height, workstation, onResize, onCommit }: Pro
   const { t } = useLocale();
   const measure = () => workstation()?.getBoundingClientRect().height ?? 0;
   const [room, setRoom] = useState(0);
-  useLayoutEffect(() => setRoom(measure()), []);
+  useLayoutEffect(() => {
+    const update = () => setRoom(measure());
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
   // A drag in flight ends with the divider: leaving Timeline mode unmounts it.
   const stop = useRef<(() => void) | null>(null);
@@ -100,7 +105,8 @@ export function TimelineDivider({ height, workstation, onResize, onCommit }: Pro
       className="studio-timeline-divider focus-visible:outline-2 focus-visible:outline-copper"
       onPointerDown={start}
       onKeyDown={keys}
-      onDoubleClick={() => onCommit(clampTimelineHeight(DEFAULT_TIMELINE_HEIGHT, measure()))}
+      // Unclamped: the rows fit it to a short window, and it is whole again when the window grows.
+      onDoubleClick={() => onCommit(DEFAULT_TIMELINE_HEIGHT)}
     />
   );
 }

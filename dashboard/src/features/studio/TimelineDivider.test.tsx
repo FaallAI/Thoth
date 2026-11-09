@@ -1,7 +1,7 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, mock, test } from "bun:test";
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 
 import { render } from "@/test-render";
 
@@ -104,4 +104,29 @@ test("it says its size", () => {
   expect(divider.getAttribute("aria-valuemax")).toBe("596");
   expect(divider.getAttribute("aria-controls")).toBe("studio-timeline");
   expect(divider.getAttribute("tabindex")).toBe("0");
+});
+
+function mountIn(room: { height: number }, height = 392) {
+  const onCommit = mock((_height: number) => {});
+  const workstation = { getBoundingClientRect: () => ({ height: room.height }) } as HTMLElement;
+  render(<TimelineDivider height={height} workstation={() => workstation} onResize={() => {}} onCommit={onCommit} />);
+  return { onCommit, divider: screen.getByRole("separator", { name: "Resize timeline" }) };
+}
+
+test("double-click on a short window keeps the default, for when the window grows", () => {
+  const { divider, onCommit } = mountIn({ height: 500 }, 200);
+  fireEvent.doubleClick(divider);
+  expect(onCommit.mock.calls).toEqual([[392]]);
+});
+
+test("its size follows the window", () => {
+  const room = { height: 844 };
+  const { divider } = mountIn(room);
+  expect(divider.getAttribute("aria-valuemax")).toBe("596");
+  room.height = 500;
+  act(() => {
+    window.dispatchEvent(new Event("resize"));
+  });
+  expect(divider.getAttribute("aria-valuemax")).toBe("252");
+  expect(divider.getAttribute("aria-valuenow")).toBe("252");
 });

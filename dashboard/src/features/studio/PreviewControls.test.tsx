@@ -121,3 +121,15 @@ test("the player's fullscreen state is reported", () => {
   unmount();
   expect(listeners.fullscreenchange).toBeUndefined();
 });
+
+test("a browser that does not allow fullscreen leaves the button off", () => {
+  Object.defineProperty(document, "fullscreenEnabled", { configurable: true, value: false });
+  try {
+    const { player } = fakePlayer();
+    mount(player);
+    const button = screen.getByRole("button", { name: "Enter Fullscreen" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+  } finally {
+    delete (document as unknown as Record<string, unknown>).fullscreenEnabled;
+  }
+});

@@ -56,7 +56,8 @@ export function PreviewControls({ player, frame, durationInFrames, fps, playing,
     try {
       player?.requestFullscreen?.();
     } catch (error) {
-      // Refused by the browser: the bar and the preview stay as they were.
+      // No fullscreen support: the bar and the preview stay as they were. The Player does not
+      // return the browser's promise, so a refusal after this point reaches only the console.
       console.warn("Studio preview could not enter fullscreen", error);
     }
   };
@@ -88,7 +89,7 @@ export function PreviewControls({ player, frame, durationInFrames, fps, playing,
         >
           {muted ? <VolumeX aria-hidden="true" size={14} /> : <Volume2 aria-hidden="true" size={14} />}
         </button>
-        <button type="button" className={icon} disabled={!player} aria-label={t("studio.preview.fullscreen")} onClick={fullscreen}>
+        <button type="button" className={icon} disabled={!player || document.fullscreenEnabled === false} aria-label={t("studio.preview.fullscreen")} onClick={fullscreen}>
           <Maximize aria-hidden="true" size={14} />
         </button>
       </span>

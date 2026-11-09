@@ -135,6 +135,13 @@ test('1440 Timeline: the player bar sits under the video', async ({ app, browser
   const fullscreen = await screen.getByRole('button', 'Enter Fullscreen').boundingBox();
   expect(Math.abs(fullscreen.y - play.y)).toBeLessThanOrEqual(4);
   expect(fullscreen.x - play.x).toBeGreaterThan(40);
+  // Comfortable to hit in either language, and the play button in the middle of the bar.
+  expect(Math.min(play.width, play.height, fullscreen.width, fullscreen.height)).toBeGreaterThanOrEqual(24);
+  const bar = await browser.evaluate(() => {
+    const rect = document.querySelector('.studio-preview-bar')!.getBoundingClientRect();
+    return rect.left + rect.width / 2;
+  });
+  expect(Math.abs(play.x + play.width / 2 - bar)).toBeLessThanOrEqual(1);
 });
 
 test('1440 Timeline: the clips fill the width on opening', async ({ app, browser, screen }) => {

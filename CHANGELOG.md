@@ -23,7 +23,7 @@ Text can no longer be selected anywhere in the Studio editor, except in inputs, 
 - The timeline row was full width, but the clips stopped at about 70% of it. The approved mock-up shows them filling it, so the Timeline now fits them on opening.
 
 **Verification.**
-- **Dashboard:** 1926 tests pass; `tsc -b` and the build are clean.
+- **Dashboard:** 1929 tests pass; `tsc -b` and the build are clean.
 - **No Python, renderer or contract change,** so those suites did not run.
 - **Read-only e2e against a local dev server of this branch, at 1440:** `studio-shell-v2`, `studio-audit-fixes` and `studio-phone` pass 29/29, including the eight new layout checks. One earlier combined run failed the 430 preview test on a 30 s timeout; it passed alone and in the next full run, and the cause was not found.
 - **Screenshots judged at 1440x900 and 1024x768:** the layout matches the mock-up.
@@ -36,11 +36,11 @@ Text can no longer be selected anywhere in the Studio editor, except in inputs, 
 - **Fullscreen state.** A bar that appears during fullscreen now reports it, and leaving reports it no longer counts.
 - **A long sound list could take the whole Assets column on short windows** (14% left at 1280x720 in the browser check). Sounds now take at most 35% of that cell.
 
-**Deferred minors from the review.**
-- English bar buttons are 16x20 px because an older `pen-studio.css` rule targets Remotion's labels; Indonesian ones are 24 px.
-- A double-click on a short window stores the fitted height rather than the default, so it stays smaller when the window grows.
-- A browser's asynchronous fullscreen refusal shows as a console rejection rather than the warning.
-- The divider's `aria-valuenow` and `aria-valuemax` go stale when the window is resized without touching it.
+**Review minors, fixed test-first on the operator's word.**
+- The bar's buttons are 24 px in both languages and Play sits in the middle of the bar, because the older `pen-studio.css` rules for Remotion's labels no longer reach the bar.
+- A double-click always stores the default, and the rows fit it to a short window.
+- The fullscreen button is off where the browser does not allow fullscreen. The Player does not return the browser's promise, so a later refusal can still reach the console.
+- The divider's size values follow the window.
 
 **Declined by the reviewer, not checked.** Whether Space still works in fullscreen while the bar's button holds focus is worth one try by hand.
 
