@@ -88,6 +88,10 @@ class MeteredMediaStore:
 
     def put_file(self, location: str, path: Path) -> None:
         self._inner.put_file(location, path)
+        if location.startswith("glance/"):
+            # Opening the Timeline builds the glance cache, a read-only view included; it bills
+            # nobody (operator, 2026-11-09).
+            return
         from thoth_control_plane import metering
 
         try:

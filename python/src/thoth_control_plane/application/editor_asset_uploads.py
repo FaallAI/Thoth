@@ -26,7 +26,7 @@ from thoth_control_plane.application.editor_asset_ports import (
     ReceivedUpload,
 )
 from thoth_control_plane.application.editor_assets import EditorAssetsUnavailable
-from thoth_control_plane.domain.editor_assets import EditorAsset, EditorAssetRecord
+from thoth_control_plane.domain.editor_assets import CANVAS_FPS, EditorAsset, EditorAssetRecord
 
 if TYPE_CHECKING:
     from thoth_control_plane.application.editor_asset_ports import EditorAssetRepository
@@ -35,8 +35,6 @@ if TYPE_CHECKING:
 
 #: The fixed upload ceiling: half the render staging bound, so any upload stays renderable.
 UPLOAD_MAX_BYTES = 512 * 1024 * 1024
-#: Asset durations are counted on the Studio canvas clock, not the media's own rate.
-CANVAS_FPS = 30
 PROVENANCE = "studio_upload"
 
 MediaProbe = Callable[[Path | str], Awaitable[dict[str, Any]]]

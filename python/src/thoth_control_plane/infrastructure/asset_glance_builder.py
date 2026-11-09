@@ -11,22 +11,35 @@ import asyncio
 import base64
 
 from thoth_control_plane.domain.asset_glance import (
+    MAX_PEAKS,
     PEAK_SAMPLE_RATE,
     STRIP_HEIGHT,
     AssetGlance,
     GlancePeaks,
     GlanceStrip,
+    peak_of,
     peak_seconds,
-    peaks_from_pcm,
+    stretch_bytes,
     strip_plan,
 )
-from thoth_control_plane.domain.editor_assets import EditorAsset
+from thoth_control_plane.domain.editor_assets import CANVAS_FPS, EditorAsset
 from thoth_control_plane.infrastructure.media_probe import FILE_PROTOCOLS, URL_PROTOCOLS
 
 #: A glance of a long video takes seconds; anything slower is treated as a failed build.
 GLANCE_TIMEOUT_SECONDS = 60
-#: The frame rate a duration is counted in when the asset names none.
-_DEFAULT_FPS = 30.0
+
+
+#: The one demuxer each upload type may open (final review 2026-11-09): a crafted file cannot
+#: become a playlist that makes ffmpeg read another file or, from the store, another URL.
+FORMATS = {
+    "video/mp4": "mov",
+    "video/webm": "matroska",
+    "image/png": "png_pipe",
+    "image/jpeg": "jpeg_pipe",
+    "image/webp": "webp_pipe",
+    "audio/mpeg": "mp3",
+    "audio/wav": "wav",
+}
 
 
 class GlanceToolMissing(Exception):
@@ -54,15 +67,19 @@ def jpeg_size(data: bytes) -> tuple[int, int]:
     raise GlanceBuildFailed("no JPEG frame header")
 
 
-async def _run(ffmpeg: str, source: str, output_args: list[str]) -> bytes:
+async def _start(
+    ffmpeg: str, source: str, formats: str, output_args: list[str]
+) -> asyncio.subprocess.Process:
     remote = source.startswith(("http://", "https://"))
     try:
-        process = await asyncio.create_subprocess_exec(
+        return await asyncio.create_subprocess_exec(
             ffmpeg,
             "-v",
             "error",
             "-protocol_whitelist",
             URL_PROTOCOLS if remote else FILE_PROTOCOLS,
+            "-format_whitelist",
+            formats,
             "-i",
             source,
             *output_args,
@@ -72,6 +89,10 @@ async def _run(ffmpeg: str, source: str, output_args: list[str]) -> bytes:
         )
     except OSError as error:  # ffmpeg itself is missing: an installation fault, fail loud
         raise GlanceToolMissing(ffmpeg) from error
+
+
+async def _run(ffmpeg: str, source: str, formats: str, output_args: list[str]) -> bytes:
+    process = await _start(ffmpeg, source, formats, output_args)
     try:
         stdout, _ = await asyncio.wait_for(process.communicate(), GLANCE_TIMEOUT_SECONDS)
     except TimeoutError as error:
@@ -83,18 +104,56 @@ async def _run(ffmpeg: str, source: str, output_args: list[str]) -> bytes:
     return stdout
 
 
+async def _stream_peaks(
+    ffmpeg: str, source: str, formats: str, seconds_per_peak: float
+) -> list[int]:
+    """Fold each stretch as ffmpeg streams it: constant memory, and the loop is never held."""
+    process = await _start(
+        ffmpeg,
+        source,
+        formats,
+        ["-vn", "-ac", "1", "-ar", str(PEAK_SAMPLE_RATE), "-f", "s16le", "-"],
+    )
+    size = stretch_bytes(PEAK_SAMPLE_RATE, seconds_per_peak)
+    values: list[int] = []
+
+    async def fold() -> None:
+        assert process.stdout is not None
+        while len(values) < MAX_PEAKS:
+            try:
+                values.append(peak_of(await process.stdout.readexactly(size)))
+            except asyncio.IncompleteReadError as end:
+                if end.partial:
+                    values.append(peak_of(end.partial))
+                break
+
+    try:
+        await asyncio.wait_for(fold(), GLANCE_TIMEOUT_SECONDS)
+    except TimeoutError as error:
+        raise GlanceBuildFailed("timeout") from error
+    finally:
+        # Enough peaks, a timeout or a cancelled request: ffmpeg never outlives the build.
+        if process.returncode is None:
+            process.kill()
+        await process.wait()
+    if not values or process.returncode not in (0, -9):
+        raise GlanceBuildFailed("ffmpeg refused the source")
+    return values
+
+
 def _seconds(asset: EditorAsset) -> float:
-    return (asset.duration_in_frames or 0) / (asset.fps or _DEFAULT_FPS)
+    """Durations count canvas frames, whatever the media's own rate (final review 2026-11-09)."""
+    return (asset.duration_in_frames or 0) / CANVAS_FPS
 
 
 async def build_glance(ffmpeg: str, source: str, asset: EditorAsset) -> AssetGlance:
     """A strip for a video or image, peaks for an audio track."""
+    formats = FORMATS.get(asset.media_type)
+    if formats is None:
+        raise GlanceBuildFailed("no glance for this media type")
     if asset.kind == "audio":
         seconds_per_peak = peak_seconds(_seconds(asset))
-        pcm = await _run(
-            ffmpeg, source, ["-vn", "-ac", "1", "-ar", str(PEAK_SAMPLE_RATE), "-f", "s16le", "-"]
-        )
-        values = peaks_from_pcm(pcm, PEAK_SAMPLE_RATE, seconds_per_peak)
+        values = await _stream_peaks(ffmpeg, source, formats, seconds_per_peak)
         return AssetGlance(
             asset_id=asset.asset_id,
             peaks=GlancePeaks(seconds_per_peak=seconds_per_peak, values=values),
@@ -106,7 +165,7 @@ async def build_glance(ffmpeg: str, source: str, asset: EditorAsset) -> AssetGla
         frames, seconds_per_frame = 1, 1
         video_filter = f"scale=-2:{STRIP_HEIGHT}"
     jpeg_out = ["-frames:v", "1", "-q:v", "5", "-f", "image2pipe", "-vcodec", "mjpeg", "-"]
-    image = await _run(ffmpeg, source, ["-vf", video_filter, *jpeg_out])
+    image = await _run(ffmpeg, source, formats, ["-vf", video_filter, *jpeg_out])
     width, height = jpeg_size(image)
     return AssetGlance(
         asset_id=asset.asset_id,

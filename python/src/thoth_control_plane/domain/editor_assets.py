@@ -22,6 +22,8 @@ from thoth_control_plane.domain.edit_document_v2 import (
 from thoth_control_plane.domain.edit_documents import Frame
 from thoth_control_plane.domain.models import Checksum, OpaqueId, ProjectId, StrictModel
 
+#: Asset durations are counted on the Studio canvas clock, not the media's own rate.
+CANVAS_FPS = 30
 #: Hard ceiling on one asset page, mirroring the Prompt Lab history limit.
 ASSET_PAGE_LIMIT_MAX = 50
 

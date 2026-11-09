@@ -421,8 +421,9 @@ def test_the_metered_store_leaves_copies_to_their_caller(tmp_path) -> None:
     assert store.probe_source("uploads/p1/asset_1.mp4").endswith("asset_1.mp4")
 
 
-def test_a_glance_is_counted_as_stored_media_under_its_own_key(tmp_path) -> None:
-    # Operator, 2026-11-09: the glance cache sits in our own store (S3 later), so it is billed too.
+def test_a_glance_is_not_counted_as_stored_media(tmp_path) -> None:
+    # Operator, 2026-11-09: opening the Timeline (a read-only audit included) builds the glance
+    # cache; that must not bill anyone, so a write under glance/ records nothing.
     from tests.test_metering import Sink
     from thoth_control_plane import metering
     from thoth_control_plane.infrastructure.media_store import LocalMediaStore, MeteredMediaStore
@@ -435,4 +436,5 @@ def test_a_glance_is_counted_as_stored_media_under_its_own_key(tmp_path) -> None
     source.write_bytes(b"{}")
     with metering.scoped(MeterScope("ws_a", project_id="project_001")):
         store.put_file("glance/project_001/asset_1.v1.json", source)
-    assert [(e.workspace_id, e.key, e.quantity) for e in sink.events] == [("ws_a", "glance", 2.0)]
+    assert sink.events == []
+    assert store.size("glance/project_001/asset_1.v1.json") == 2

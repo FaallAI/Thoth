@@ -37,18 +37,26 @@ def peak_seconds(duration_seconds: float) -> float:
     return max(MIN_PEAK_SECONDS, duration_seconds / MAX_PEAKS)
 
 
-def peaks_from_pcm(pcm: bytes, sample_rate: int, seconds_per_peak: float) -> list[int]:
-    """The loudest sample of each stretch, 0 to 100 of full scale, from signed 16-bit mono LE."""
+def peak_of(pcm: bytes) -> int:
+    """The loudest sample of one stretch, 0 to 100 of full scale, from signed 16-bit mono LE."""
     samples = array("h")
     samples.frombytes(pcm[: len(pcm) - len(pcm) % 2])
+    if not samples:
+        return 0
     if byteorder == "big":
         samples.byteswap()
-    stretch = max(1, round(sample_rate * seconds_per_peak))
-    values = [
-        round(100 * max(abs(sample) for sample in samples[start : start + stretch]) / _FULL_SCALE)
-        for start in range(0, len(samples), stretch)
-    ]
-    return values[:MAX_PEAKS]
+    return round(100 * max(max(samples), -min(samples)) / _FULL_SCALE)
+
+
+def stretch_bytes(sample_rate: int, seconds_per_peak: float) -> int:
+    """The bytes of 16-bit mono audio one peak covers."""
+    return 2 * max(1, round(sample_rate * seconds_per_peak))
+
+
+def peaks_from_pcm(pcm: bytes, sample_rate: int, seconds_per_peak: float) -> list[int]:
+    """Every stretch's peak, a trailing partial stretch included, at most ``MAX_PEAKS``."""
+    size = stretch_bytes(sample_rate, seconds_per_peak)
+    return [peak_of(pcm[start : start + size]) for start in range(0, len(pcm), size)][:MAX_PEAKS]
 
 
 JpegDataUrl = Annotated[str, Field(pattern=r"^data:image/jpeg;base64,[A-Za-z0-9+/=]+$")]
