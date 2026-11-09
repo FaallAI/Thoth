@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this changelog.
 
 ## 2026-11-09 - Studio Timeline Tier 3b: filmstrips, waveforms, the volume line
 
-Branch `feat/studio-timeline-tier3b` from master `d3c89bbb`, not pushed.
+Branch `feat/studio-timeline-tier3b` from master `d3c89bbb`, PR #125.
 - **Plan:** `docs/superpowers/plans/2026-11-09-studio-timeline-tier3b.md`, from spec section 7.
 - **Execution:** done natively, with one fresh review of the whole branch at the end.
 
@@ -94,8 +94,18 @@ Branch `feat/studio-timeline-tier3b` from master `d3c89bbb`, not pushed.
 - **Python:** `make test` gives 4718 passed and 222 skipped, with real-ffmpeg builder tests. `make lint` is clean.
 - **Dashboard:** 1889 tests pass, and `tsc -b` and the build are clean.
 - **Renderer:** `bun test` passes 224.
-- **Read-only e2e at 1440** on stage1 `573b2c92`: 20/21. The one failure is the new glance test, which stays red until the endpoint is deployed.
-- **Write e2e (filmstrip and volume line)** has not run. It needs the deploy and a one-day write token.
+- **Read-only e2e at 1440** on stage1 `2b10db0c`: 21/21, filmstrip and waveform included.
+- **Write e2e at rw1440** on stage1 `2b10db0c`: 57/57.
+  - The first run was 56/57. The volume test looked for a Music clip, but an added audio asset lands on the first audio track, Narration. The test was corrected and passed on its own rerun; its check that the line saves about 0.5 did not change.
+  - The operator's project did not change: 149 revisions, 116 assets, 8 renders before and after.
+  - Left behind in the throwaway project: 246 revisions, 1 asset, 3 local render jobs, 8 usage events and 2 review events.
+
+**Deploy.** Stage1 runs the branch image `2b10db0c`.
+- Digests: thoth `sha256:8640f5e9ea27…`, renderer `sha256:27ee14cf6cae…`, web `sha256:8c2c628acdd1…`.
+- Rollback pins: `pins-573b2c92.env`.
+- After the deploy: web answered 200, with 0 worker errors, 0 api 5xx and 0 running workflows.
+
+**CI on PR #125 at `2b10db0c`.** The push run passed. The PR run's "Validate image build" failed once at `web_serves_the_spa_on_deep_paths=false` while every service was healthy, and passed on a rerun of the same commit. The cause is unknown: the smoke script hides `compose up` output and does not print what the page request returned. A `grep -q` pipe break was considered and is unlikely, since the built page is 481 bytes.
 
 **Deferred minors:** none from this tier.
 
@@ -103,10 +113,7 @@ Branch `feat/studio-timeline-tier3b` from master `d3c89bbb`, not pushed.
 
 **Next steps.**
 - **Operator gates, each needing its own authorization:**
-  - a one-day write-scope e2e token;
-  - push and PR;
-  - deploy of the branch image;
-  - the write e2e (filmstrip and volume line);
+  - push of the e2e correction and these records (it mints new image digests, and stage1 stays on `2b10db0c` unless a redeploy is asked for);
   - the operator's own try;
   - merge.
 

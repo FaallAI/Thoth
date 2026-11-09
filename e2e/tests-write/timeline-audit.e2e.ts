@@ -496,8 +496,8 @@ test('volume: dragging the line to the middle saves about half', async ({ app, b
   await clipOnTimeline({ app, browser, screen });
   await screen.getByRole('button', 'Add Upload · Audio to timeline').tap();
   await expect(screen.getByText('Saved revision 5', { visible: true })).toBeVisible();
-  const clip = await screen.getByRole('button', 'Music clip').boundingBox();
-  const line = await screen.getByRole('slider', 'Volume of Music clip').boundingBox();
+  const clip = await screen.getByRole('button', 'Narration clip').boundingBox();
+  const line = await screen.getByRole('slider', 'Volume of Narration clip').boundingBox();
   await browser.mouse.move(line.x + 20, line.y + line.height / 2);
   await browser.mouse.down();
   await browser.mouse.move(line.x + 20, clip.y + clip.height / 2);
@@ -505,8 +505,8 @@ test('volume: dragging the line to the middle saves about half', async ({ app, b
   await expect
     .poll(async () => {
       const document = await saved(browser);
-      const music = document.tracks.find((track: any) => track.kind === 'music');
-      return document.clips.find((entry: any) => entry.track_id === music.track_id)?.volume;
+      const narration = document.tracks.find((track: any) => track.kind === 'narration');
+      return document.clips.find((entry: any) => entry.track_id === narration.track_id)?.volume;
     }, { timeout: 5000 })
     .toBeCloseTo(0.5, 1);
 });
