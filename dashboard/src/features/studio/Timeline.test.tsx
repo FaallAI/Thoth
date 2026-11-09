@@ -760,14 +760,25 @@ test("pasting text on the timeline asks where it goes, then places it there", ()
   expect(screen.queryByRole("dialog", { name: "Paste text" })).toBeNull();
 });
 
-test("a paste onto a hidden-only overlay track says so in the status line", () => {
+test("a paste onto a hidden-only overlay track says so while the pasted clip is there", () => {
   const doc = textDocument();
   doc.tracks.find((track) => track.kind === "overlay")!.hidden = true;
-  const { actions } = mount({ base: doc, draft: doc, playheadFrame: 30 });
+  const actions: EditorAction[] = [];
+  const at = (draft: EditDocumentV2) => (
+    <Timeline state={{ ...createEditorState(doc), draft, playheadFrame: 30 }} dispatch={(action) => actions.push(action)} onPlay={() => {}} onPause={() => {}} />
+  );
+  const { rerender } = render(at(doc));
   pasteText(window, "Hello");
   fireEvent.click(screen.getByRole("button", { name: "New text clip" }));
-  expect(actions.at(-1)).toMatchObject({ type: "commit_operations", operations: [{ kind: "add_text_clip", track_id: "track_overlay" }] });
+  const commit = actions.at(-1) as Extract<EditorAction, { type: "commit_operations" }>;
+  expect(commit).toMatchObject({ type: "commit_operations", operations: [{ kind: "add_text_clip", track_id: "track_overlay" }] });
+  // The draft takes the paste: the note shows.
+  const pasted = commit.operations.reduce((current, operation) => applyTimelineOperation(current, operation, {}), doc);
+  rerender(at(pasted));
   expect(screen.getByRole("status").textContent).toContain("Pasted on a hidden track. Show the track to see it.");
+  // A refused save puts the draft back: the note goes with the clip (carried minor, 2026-11-09).
+  rerender(at(doc));
+  expect(screen.queryByText("Pasted on a hidden track. Show the track to see it.")).toBeNull();
 });
 
 test("a paste into a field, HTML alone or blank text opens nothing", () => {
@@ -1282,4 +1293,15 @@ test("a volume drag stops when its clip goes away", () => {
   cleanup();
   fireEvent.pointerUp(window, { clientY: 110 });
   expect(volumeOps(actions, "commit_timeline_operation")).toEqual([]);
+});
+
+// Carried minors (operator, 2026-11-09).
+test("Alt+drag on a text clip just moves it: it has no source to slip", () => {
+  const doc = textDocument();
+  const { actions } = mount({ base: doc, draft: doc, snapping: false });
+  fireEvent.pointerDown(screen.getByRole("button", { name: "Overlay clip" }), { clientX: 10, button: 0, altKey: true });
+  fireEvent.pointerMove(window, { clientX: 40 });
+  fireEvent.pointerUp(window, { clientX: 40 });
+  expect(payload(actions.at(-1)!)).toMatchObject({ kind: "move_clip", clip_id: "clip_text" });
+  expect(screen.queryByRole("status")?.textContent ?? "").not.toContain("An image has no source time");
 });

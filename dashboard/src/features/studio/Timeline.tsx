@@ -164,6 +164,8 @@ export function Timeline({
   // Text on its way from the system clipboard, waiting for the person to pick its place (spec 2026-11-08 §6).
   const [pastedText, setPastedText] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // A paste that landed on a hidden track, by its clip (carried minor, 2026-11-09).
+  const [hiddenPaste, setHiddenPaste] = useState<string | null>(null);
   // The marker whose name is being edited (Tier 3a).
   const [renaming, setRenaming] = useState<string | null>(null);
   const offerText = (text: string) => {
@@ -565,6 +567,8 @@ export function Timeline({
   // Markers in time order, so "Marker 1" is the earliest (Tier 3a).
   const markers = [...(timeline.markers ?? [])].sort((left, right) => left.frame - right.frame);
   const renamedMarker = markers.find((marker) => marker.marker_id === renaming);
+  const shownNotice =
+    notice ?? (hiddenPaste && clips.some((clip) => clip.clip_id === hiddenPaste) ? t("studio.paste.hiddenTrack") : null);
 
   const startGesture = (clipId: string, asked: GestureMode, clientX: number) => {
     const clip = clips.find((candidate) => candidate.clip_id === clipId);
@@ -577,7 +581,9 @@ export function Timeline({
         : asked === "roll_start"
           ? clips.find((other) => other.track_id === clip.track_id && other.from_frame + other.duration_in_frames === clip.from_frame)
           : undefined;
-    const mode: GestureMode = asked === "roll_end" || asked === "roll_start" ? (neighbour ? asked : asked === "roll_end" ? "trim_end" : "trim_start") : asked;
+    const rolled: GestureMode = asked === "roll_end" || asked === "roll_start" ? (neighbour ? asked : asked === "roll_end" ? "trim_end" : "trim_start") : asked;
+    // A text, overlay or caption clip has no source to slip: Alt there is a plain move.
+    const mode: GestureMode = rolled === "slip" && !("source_from_frame" in clip) ? "move" : rolled;
     const roll = neighbour ? (asked === "roll_end" ? { leftId: clip.clip_id, rightId: neighbour.clip_id } : { leftId: neighbour.clip_id, rightId: clip.clip_id }) : undefined;
     gesture.current = {
       clipId,
@@ -866,9 +872,9 @@ export function Timeline({
         </div>
       </div>
       {menu.element}
-      {notice ? (
+      {shownNotice ? (
         <p role="status" className="border-t border-hairline bg-surface px-3 py-2 text-xs text-muted-ink">
-          {notice}
+          {shownNotice}
         </p>
       ) : null}
       {renamedMarker ? (
@@ -896,7 +902,10 @@ export function Timeline({
             const edit = pasteTextOperations(timeline, target, pastedText, { playheadFrame: state.playheadFrame, selectedClipId: state.selectedClipId });
             setPastedText(null);
             if (edit.operations.length) dispatch({ type: "commit_operations", operations: edit.operations });
-            setNotice(edit.notice === "hidden_track" ? t("studio.paste.hiddenTrack") : null);
+            setNotice(null);
+            // The note lasts while the pasted clip is in the draft: a refused save takes both away.
+            const placed = edit.operations[0];
+            setHiddenPaste(edit.notice === "hidden_track" && placed && "clip_id" in placed ? placed.clip_id : null);
           }}
         />
       ) : null}

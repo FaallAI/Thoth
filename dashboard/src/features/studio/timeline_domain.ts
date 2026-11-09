@@ -545,7 +545,7 @@ export function fitMarkers(document: EditDocumentV2): void {
 }
 
 /** Shrink fades a shorter clip can no longer hold: the fade out first, then the fade in (as the server does). */
-function fitFades(document: EditDocumentV2): void {
+export function fitFades(document: EditDocumentV2): void {
   for (const clip of document.clips ?? []) {
     if (clip.kind !== "video" && clip.kind !== "audio") continue;
     const fadeIn = Math.min(clip.fade_in_frames ?? 0, clip.duration_in_frames);
