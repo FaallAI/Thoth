@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this changelog.
 
 ## 2026-11-09 - Studio full-width timeline
 
-Branch `feat/studio-full-timeline` from `2b6cbdbf` (the Tier 3b head, because PR #125 is still open), not pushed.
+Branch `feat/studio-full-timeline` from `2b6cbdbf` (the Tier 3b head, because PR #125 is still open), PR #126, stacked on #125.
 - **Spec:** `docs/superpowers/specs/2026-11-09-studio-full-width-timeline-design.md`, approved by the operator on a clickable mock-up.
 - **Plan:** `docs/superpowers/plans/2026-11-09-studio-full-width-timeline.md`.
 - **Execution:** done natively, with one fresh review of the whole branch at the end.
@@ -28,7 +28,8 @@ Text can no longer be selected anywhere in the Studio editor, except in inputs, 
 - **Read-only e2e against a local dev server of this branch, at 1440:** `studio-shell-v2`, `studio-audit-fixes` and `studio-phone` pass 29/29, including the eight new layout checks. One earlier combined run failed the 430 preview test on a 30 s timeout; it passed alone and in the next full run, and the cause was not found.
 - **Screenshots judged at 1440x900 and 1024x768:** the layout matches the mock-up.
 - **Not seen live:** the issues list opening above the toolbar, because the test draft has no issues. Unit tests pin its position.
-- **Not yet run on stage1:** this branch is not deployed.
+- **CI on PR #126 at `02ac8ad9`:** the push run and the PR run passed, "Validate image build" included.
+- **Read-only e2e on stage1 `02ac8ad9`, at 1440:** 29/29.
 
 **Final review, by a fresh reviewer, fixed test-first.**
 - **Mute could not be undone.** Remotion applies mute on its next render, so reading it straight after the click returned the old value. The bar now follows the Player's `mutechange` event.
@@ -44,16 +45,17 @@ Text can no longer be selected anywhere in the Studio editor, except in inputs, 
 
 **Declined by the reviewer, not checked.** Whether Space still works in fullscreen while the bar's button holds focus is worth one try by hand.
 
-**Rollback.** There is no document field and no migration. A rollback only brings the old layout back.
+**Deploy.** Stage1 runs the branch image `02ac8ad9`, which carries Tier 3b too.
+- Digests: thoth `sha256:4fbf34c1f830…`, renderer `sha256:b1bc0a9794bf…`, web `sha256:5f830547d019…`.
+- Rollback pins: `pins-2b10db0c.env`. There is no document field and no migration, so a rollback only brings the old layout back.
+- After the deploy: web answered 200 and no workflow was running.
 
 **Next steps.**
 - **Operator gates, each needing its own authorization:**
-  - push and PR, after PR #125 is merged or stacked on it;
-  - deploy of the branch image;
-  - the read-only e2e on stage1;
-  - the operator's own try;
-  - merge.
-- **Carried from Tier 3b:** the push of `2b6cbdbf`, the operator's try and the merge of PR #125, and a Story scene resize of a sped-up clip that the server can still refuse.
+  - the operator's own try on stage1, of this and of Tier 3b;
+  - merge of PR #125, then of PR #126;
+  - a push of this record.
+- **Carried from Tier 3b:** a Story scene resize of a sped-up clip that the server can still refuse.
 
 ## 2026-11-09 - Studio Timeline Tier 3b: filmstrips, waveforms, the volume line
 

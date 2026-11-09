@@ -150,7 +150,7 @@ Tier 3b (filmstrips on video and image clips, waveforms on audio clips, a dragga
 built and reviewed on `feat/studio-timeline-tier3b`, not pushed. With it the Studio Timeline track's
 three tiers are built; the next track is the operator's choice.
 
-The Studio full-width timeline (a resizable bottom row, the player bar under the preview, no text selection) is built on `feat/studio-full-timeline`, on top of Tier 3b, and is not pushed yet.
+The Studio full-width timeline (a resizable bottom row, the player bar under the preview, no text selection) is on `feat/studio-full-timeline` (PR #126), stacked on Tier 3b, and deployed to stage1 for the operator to try.
 
 The red tests are `e2e/tests-write/timeline-audit.e2e.ts`. The Studio shell v2 spec
 (2026-11-01) lists ripple delete as an existing tool, but git history shows no delete control in
