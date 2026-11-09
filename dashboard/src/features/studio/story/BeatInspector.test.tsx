@@ -241,7 +241,7 @@ test("a card beat lists Position, Motion and Emphasis in that order", () => {
     <BeatInspector beat={beats.find((beat) => beat.id === "reactions")!} beats={beats} document={storyDocument()} inventory={inventory} materials={materials} dispatch={mock(() => {})} />,
   );
 
-  expect(screen.getAllByRole("group").map((group) => group.getAttribute("aria-label"))).toEqual(["Position", "Motion", "Emphasis"]);
+  expect(screen.getAllByRole("group").map((group) => group.getAttribute("aria-label"))).toEqual(["Position", "Motion", "Background", "Moves", "Emphasis"]);
 });
 
 test("the Shown list uses labels: kind and source, never an id", () => {
@@ -350,4 +350,63 @@ test("a request to add from materials opens the picker once and reports it handl
   );
   expect(screen.getByRole("listbox", { name: "Add from materials" })).toBeDefined();
   expect(handled).toHaveBeenCalledTimes(1);
+});
+
+// Studio effects layer (spec 2026-11-09): Background, Dim and moves per beat; marks named.
+function committedBatches(dispatch: ReturnType<typeof mock>) {
+  return dispatch.mock.calls
+    .map(([action]) => action as EditorAction)
+    .filter((action): action is Extract<EditorAction, { type: "commit_operations" }> => action.type === "commit_operations")
+    .map((action) => action.operations);
+}
+
+test("Blur-fill applies to every card of the beat as one batch", () => {
+  const { dispatch } = mount("reactions");
+  fireEvent.click(screen.getByRole("button", { name: "Blur-fill" }));
+  const [batch] = committedBatches(dispatch);
+  expect(batch!.length).toBeGreaterThan(1);
+  expect(batch!.every((operation) => operation.kind === "set_clip_background")).toBe(true);
+});
+
+test("Push in writes each card's own keyframes", () => {
+  const { dispatch } = mount("reactions");
+  fireEvent.click(screen.getByRole("button", { name: "Push in" }));
+  const [batch] = committedBatches(dispatch);
+  const document = storyDocument();
+  for (const operation of batch!) {
+    const moves = (operation as Extract<typeof operation, { kind: "set_clip_moves" }>).moves;
+    const clip = document.clips!.find((candidate) => candidate.clip_id === (operation as { clip_id: string }).clip_id)!;
+    expect(moves.at(-1)!.frame).toBe(clip.duration_in_frames - 1);
+  }
+});
+
+test("Dim applies to the Footage beat's photos", () => {
+  const document = storyDocument();
+  document.asset_refs!.find((ref) => ref.asset_id === "asset_clip_footage_000")!.kind = "image";
+  const dispatch = mock((_action: EditorAction) => {});
+  render(
+    <BeatInspector beat={beats.find((beat) => beat.id === "footage")!} beats={beats} document={document} inventory={inventory} materials={materials} dispatch={dispatch} />,
+  );
+  const dim = screen.getByLabelText("Dim");
+  fireEvent.change(dim, { target: { value: "50" } });
+  fireEvent.pointerUp(dim);
+  expect(committedBatches(dispatch)[0]).toMatchObject([{ kind: "set_clip_dim", clip_id: "clip_footage_000", dim: 0.5 }]);
+});
+
+test("the beat names the cards with marks", () => {
+  const document = storyDocument();
+  const card = document.clips!.find((clip) => clip.clip_id === beats.find((beat) => beat.id === "reactions")!.clipIds.find((id) => document.clips!.find((c) => c.clip_id === id)?.kind === "video"))!;
+  Object.assign(card, {
+    emphasis: { highlight: false, arrow: false, marks: [{ kind: "arrow", x: 0.5, y: 0.5, w: 0, h: 0, side: "top", from_frame: 0, to_frame: 30, color: "accent" }] },
+  });
+  render(
+    <BeatInspector beat={beats.find((beat) => beat.id === "reactions")!} beats={beats} document={document} inventory={inventory} materials={materials} dispatch={mock(() => {})} />,
+  );
+  expect(screen.getByText(/^Marks set in Timeline: /)).toBeDefined();
+});
+
+test("a heading can become a card", () => {
+  const { dispatch } = mount("hook");
+  fireEvent.click(screen.getByRole("button", { name: "Card" }));
+  expect(committedBatches(dispatch)[0]).toMatchObject([{ kind: "set_text_place", style_slot: "card" }]);
 });
