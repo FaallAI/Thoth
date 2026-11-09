@@ -70,6 +70,8 @@ Branch `feat/studio-timeline-tier3b` from master `d3c89bbb`, not pushed.
   - a timeout that stops ffmpeg;
   - a 404 at the route for another project's asset.
 
+**Found by CI on PR #125.** A finished ffmpeg was still sent a kill, so Python read its exit status first, asyncio reported 255, and a good audio track failed its glance. It passed locally only by timing. ffmpeg now exits by itself when the track ends, and only an early stop kills it. A track whose ffmpeg fails partway is refused.
+
 **The minors carried from Tiers 2 and 3a, fixed on this branch (operator, 2026-11-09).** Each fix is test-first; none of them had a fresh reviewer.
 - **From Tier 3a:**
   - Alt+drag on a text or caption clip is a plain move, not an "image" refusal.
@@ -89,7 +91,7 @@ Branch `feat/studio-timeline-tier3b` from master `d3c89bbb`, not pushed.
 - **Left as it is, a ruling:** a trim start of +1 and then −1 at a fractional speed can move the source by one frame. Whole-frame rounding causes it, it stays under one source frame per edit, and removing it needs fractional source positions in the document contract.
 
 **Verification.**
-- **Python:** `make test` gives 4716 passed and 222 skipped, with real-ffmpeg builder tests. `make lint` is clean.
+- **Python:** `make test` gives 4718 passed and 222 skipped, with real-ffmpeg builder tests. `make lint` is clean.
 - **Dashboard:** 1889 tests pass, and `tsc -b` and the build are clean.
 - **Renderer:** `bun test` passes 224.
 - **Read-only e2e at 1440** on stage1 `573b2c92`: 20/21. The one failure is the new glance test, which stays red until the endpoint is deployed.

@@ -145,6 +145,9 @@ async def _stream_peaks(
             except asyncio.IncompleteReadError as end:
                 if end.partial:
                     values.append(peak_of(end.partial))
+                # The track ended: let ffmpeg exit by itself, so its exit code is the real one.
+                # Killing a process already on its way out loses the code (CI, 2026-11-09).
+                await process.wait()
                 break
 
     try:
@@ -155,8 +158,8 @@ async def _stream_peaks(
         # Enough peaks, a timeout or a cancelled request: ffmpeg never outlives the build.
         if process.returncode is None:
             process.kill()
-        await process.wait()
-    if not values or process.returncode not in (0, -9):
+            await process.wait()
+    if not values or (process.returncode != 0 and len(values) < MAX_PEAKS):
         raise GlanceBuildFailed("ffmpeg refused the source")
     return values
 

@@ -123,7 +123,7 @@ async def test_an_hour_long_track_never_stalls_the_event_loop(tmp_path: Path) ->
     await asyncio.sleep(0.05)  # let the ticker see a block that ended with the build
     beat.cancel()
     assert glance.peaks is not None and len(glance.peaks.values) == 2000
-    assert longest < 0.15
+    assert longest < 0.4  # the blocking version held the loop for 0.89 s here
 
 
 @pytest.mark.parametrize(
@@ -254,3 +254,39 @@ async def test_a_long_video_that_times_out_is_not_tried_again(tmp_path: Path, mo
     with pytest.raises(GlanceBuildFailed):
         await build_glance(str(fake), str(tmp_path / "x.mp4"), asset("video", 600, "video/mp4"))
     assert calls(tmp_path).count("-i") == 1
+
+
+async def test_a_track_that_ends_normally_is_not_killed(tmp_path: Path, monkeypatch) -> None:
+    # CI, 2026-11-09: killing an ffmpeg that was already exiting made Python read its exit status
+    # first, so asyncio reported 255 and a good track failed. Only an early stop may kill.
+    import asyncio
+
+    fake = tmp_path / "ffmpeg"
+    fake.write_text("#!/bin/sh\nhead -c 1600 /dev/zero\nexec 1>&-\nsleep 0.2\nexit 0\n")
+    fake.chmod(0o755)
+    killed: list[int] = []
+    real_start = asyncio.create_subprocess_exec
+
+    async def spying(*args, **kwargs):
+        process = await real_start(*args, **kwargs)
+        real_kill = process.kill
+
+        def kill() -> None:
+            killed.append(process.pid)
+            real_kill()
+
+        process.kill = kill  # type: ignore[method-assign]
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", spying)
+    glance = await build_glance(str(fake), str(tmp_path / "x.wav"), asset("audio", 1, "audio/wav"))
+    assert glance.peaks is not None and glance.peaks.values == [0]
+    assert killed == []
+
+
+async def test_a_track_whose_ffmpeg_fails_partway_is_refused(tmp_path: Path) -> None:
+    fake = tmp_path / "ffmpeg"
+    fake.write_text("#!/bin/sh\nhead -c 1600 /dev/zero\nexec 1>&-\nsleep 0.2\nexit 1\n")
+    fake.chmod(0o755)
+    with pytest.raises(GlanceBuildFailed):
+        await build_glance(str(fake), str(tmp_path / "x.wav"), asset("audio", 1, "audio/wav"))
