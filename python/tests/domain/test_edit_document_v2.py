@@ -334,3 +334,23 @@ def test_a_clip_at_3x_needs_three_times_its_length_in_source() -> None:
     with pytest.raises(ValidationError, match="clip range exceeds source asset duration"):
         EditDocumentV2.model_validate(_main_with(speed=4.0))
     EditDocumentV2.model_validate(_main_with(speed=4.0, hold_after_source=True))
+
+
+# Tier 3a: markers on the ruler, stored only when there are some.
+def test_a_document_without_markers_stores_none() -> None:
+    dumped = EditDocumentV2.model_validate(document_v2_payload()).model_dump(mode="json")
+    assert "markers" not in dumped
+    payload = document_v2_payload()
+    payload["markers"] = [{"marker_id": "marker_1", "frame": 30}]
+    stored = EditDocumentV2.model_validate(payload).model_dump(mode="json")["markers"]
+    assert stored == [{"marker_id": "marker_1", "frame": 30, "label": ""}]
+
+
+def test_markers_must_sit_inside_the_canvas_and_have_unique_ids() -> None:
+    payload = document_v2_payload()
+    payload["markers"] = [{"marker_id": "marker_1", "frame": 300}]
+    with pytest.raises(ValidationError, match="markers must sit inside the canvas"):
+        EditDocumentV2.model_validate(payload)
+    payload["markers"] = [{"marker_id": "m", "frame": 1}, {"marker_id": "m", "frame": 2}]
+    with pytest.raises(ValidationError, match="duplicate marker IDs"):
+        EditDocumentV2.model_validate(payload)

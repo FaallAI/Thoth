@@ -317,6 +317,11 @@ def narrate_document(
         asset_refs=[
             asset.model_dump(mode="python") for asset in assets.values() if asset.asset_id in used
         ],
+        # A shorter voice-over keeps every marker on the draft (Tier 3a).
+        markers=[
+            {**marker.model_dump(mode="python"), "frame": min(marker.frame, total - 1)}
+            for marker in document.markers
+        ],
     )
     return EditDocumentV2.model_validate(payload)
 

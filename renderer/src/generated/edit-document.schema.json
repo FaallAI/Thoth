@@ -350,6 +350,14 @@
           "title": "Document Id",
           "type": "string"
         },
+        "markers": {
+          "items": {
+            "$ref": "#/$defs/TimelineMarker"
+          },
+          "maxItems": 100,
+          "title": "Markers",
+          "type": "array"
+        },
         "project_id": {
           "pattern": "^(?:[A-Za-z][A-Za-z0-9_-]{0,127}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$",
           "title": "Project Id",
@@ -810,6 +818,34 @@
         "cues"
       ],
       "title": "TimelineCaptionClip",
+      "type": "object"
+    },
+    "TimelineMarker": {
+      "additionalProperties": false,
+      "description": "A named point on the ruler (Tier 3a); it is never drawn into the video.",
+      "properties": {
+        "frame": {
+          "minimum": 0,
+          "title": "Frame",
+          "type": "integer"
+        },
+        "label": {
+          "default": "",
+          "maxLength": 60,
+          "title": "Label",
+          "type": "string"
+        },
+        "marker_id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+          "title": "Marker Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "marker_id",
+        "frame"
+      ],
+      "title": "TimelineMarker",
       "type": "object"
     },
     "TimelineOverlayClip": {

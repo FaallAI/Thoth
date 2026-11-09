@@ -293,6 +293,14 @@ TimelineClip: TypeAlias = Annotated[
 ]
 
 
+class TimelineMarker(StrictModel):
+    """A named point on the ruler (Tier 3a); it is never drawn into the video."""
+
+    marker_id: OpaqueId
+    frame: FrameStart
+    label: Annotated[str, Field(max_length=60)] = ""
+
+
 class EditDocumentV2(StrictModel):
     """A complete, validated, immutable schema-v2 multi-track document revision."""
 
@@ -306,6 +314,11 @@ class EditDocumentV2(StrictModel):
     tracks: Annotated[list[TimelineTrack], Field(min_length=1, max_length=50)]
     clips: Annotated[list[TimelineClip], Field(max_length=500)] = Field(default_factory=list)
     asset_refs: Annotated[list[AssetRef], Field(max_length=200)] = Field(default_factory=list)
+    #: Markers on the ruler (Tier 3a). None are stored when there are none, so a rollback to
+    #: images that forbid the field stays safe.
+    markers: Annotated[list[TimelineMarker], Field(max_length=100)] = Field(
+        default_factory=list, exclude_if=lambda markers: not markers
+    )
 
     @model_validator(mode="after")
     def validate_structure(self) -> EditDocumentV2:
@@ -318,6 +331,8 @@ class EditDocumentV2(StrictModel):
         self._validate_clips(tracks_by_id, scenes_by_id, assets_by_id)
         self._validate_track_membership(tracks_by_id)
         self._validate_main_video_layout()
+        if any(marker.frame >= self.canvas.duration_in_frames for marker in self.markers):
+            raise ValueError("markers must sit inside the canvas")
         return self
 
     def _require_unique_ids(self) -> None:
@@ -326,6 +341,7 @@ class EditDocumentV2(StrictModel):
             ([track.track_id for track in self.tracks], "track"),
             ([clip.clip_id for clip in self.clips], "clip"),
             ([asset.asset_id for asset in self.asset_refs], "asset"),
+            ([marker.marker_id for marker in self.markers], "marker"),
         ):
             if len(values) != len(set(values)):
                 raise ValueError(f"duplicate {label} IDs are not allowed")

@@ -1686,3 +1686,43 @@ def test_a_roll_patch_on_main_video_validates(left_first: bool) -> None:
     left, right = find_clip(result, "clip_l"), find_clip(result, "clip_r")
     assert (left.duration_in_frames, right.from_frame, right.duration_in_frames) == (180, 180, 120)
     assert right.source_from_frame == 180
+
+
+# Tier 3a: markers.
+def test_add_set_and_remove_a_marker() -> None:
+    added = apply_edit_operations(
+        document_v2_fixture(), [op("add_marker", marker_id="marker_1", frame=30)]
+    )
+    assert [(m.marker_id, m.frame, m.label) for m in added.markers] == [("marker_1", 30, "")]
+    named = apply_edit_operations(
+        added, [op("set_marker", marker_id="marker_1", frame=45, label="Hook ends")]
+    )
+    assert [(m.frame, m.label) for m in named.markers] == [(45, "Hook ends")]
+    assert apply_edit_operations(named, [op("remove_marker", marker_id="marker_1")]).markers == []
+
+
+def test_marker_operations_refuse_a_reused_id_an_unknown_marker_and_a_101st() -> None:
+    added = apply_edit_operations(
+        document_v2_fixture(), [op("add_marker", marker_id="marker_1", frame=30)]
+    )
+    with pytest.raises(ValueError, match="reuses an existing marker ID"):
+        apply_edit_operations(added, [op("add_marker", marker_id="marker_1", frame=40)])
+    with pytest.raises(ValueError, match="unknown marker"):
+        apply_edit_operations(added, [op("remove_marker", marker_id="marker_x")])
+    with pytest.raises(ValueError, match="unknown marker"):
+        apply_edit_operations(added, [op("set_marker", marker_id="marker_x", frame=1, label="")])
+    full = apply_edit_operations(
+        document_v2_fixture(),
+        [op("add_marker", marker_id=f"marker_{index}", frame=index) for index in range(100)],
+    )
+    with pytest.raises(ValueError):
+        apply_edit_operations(full, [op("add_marker", marker_id="marker_extra", frame=200)])
+
+
+def test_an_edit_that_shortens_the_document_moves_late_markers_to_the_last_frame() -> None:
+    draft = mixed_studio_draft()
+    last = draft.canvas.duration_in_frames - 1
+    marked = apply_edit_operations(draft, [op("add_marker", marker_id="marker_end", frame=last)])
+    shorter = apply_edit_operations(marked, [resize("scene_001", 30)])
+    assert shorter.canvas.duration_in_frames < draft.canvas.duration_in_frames
+    assert [m.frame for m in shorter.markers] == [shorter.canvas.duration_in_frames - 1]
