@@ -74,3 +74,12 @@ test('430 Timeline: menu-only lanes with a how-to note and Inspect', async ({ ap
   await screen.getByRole('button', 'Main Video clip').tap();
   await expect(screen.getByRole('button', 'Inspect')).toBeVisible();
 });
+
+test('1440 Timeline: a video clip shows its filmstrip and narration its waveform', async ({ app, browser, screen }) => {
+  // Tier 3b: the glance is a GET, so the read scope sees it; the first look may build it.
+  await browser.setViewport({ width: 1440, height: 900 });
+  await app.open(DRAFT);
+  await screen.getByRole('button', 'Timeline').tap();
+  await expect(screen.getByRole('button', 'Main Video clip').getByTestId('clip-filmstrip')).toBeVisible({ timeout: 30000 });
+  await expect(screen.getByRole('button', 'Narration clip').first().getByTestId('clip-waveform')).toBeVisible({ timeout: 30000 });
+});
