@@ -201,6 +201,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const editing = job === "edit";
   // Timeline editing at 1024 and wider: the timeline takes the whole bottom row (spec 2026-11-09).
   const wideTimeline = advanced && editing && !compact;
+  // The controls under the video: every desktop view of a video the person works on.
+  const playerBar = !compact && (job === "review" || wideTimeline || (story && editing));
   // Simple desktop editing lays the scenes out as a strip under the preview.
   const stripLayout = editing && !compact && !advanced && !story;
   const workstationStyle = compact
@@ -736,7 +738,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     ) : null;
 
   return (
-    <section className={`studio-shell pen-studio studio-job-${job} ${advanced ? "studio-advanced" : "studio-simple"}${wideTimeline ? " studio-wide-timeline" : ""}${story ? " studio-story" : ""} flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground`} aria-label="Guided Studio">
+    <section className={`studio-shell pen-studio studio-job-${job} ${advanced ? "studio-advanced" : "studio-simple"}${wideTimeline ? " studio-wide-timeline" : ""}${playerBar ? " studio-player-bar" : ""}${story ? " studio-story" : ""} flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground`} aria-label="Guided Studio">
       <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       {/* DESIGN §13: back to the documents, the title, the destinations, and where saving stands. */}
       <StudioHeader
@@ -1204,20 +1206,23 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                 // null sizes the canvas from its cell, which the wide Timeline's preview fills.
                 overlay={wideTimeline ? null : story && !reviewing ? (safeZone ? <SafeZoneOverlay /> : null) : undefined}
                 // In fullscreen the bar is off screen, so the Player's own controls come back.
-                controls={!wideTimeline || playerFullscreen}
+                controls={!playerBar || playerFullscreen}
                 footer={
-                  wideTimeline && timeline ? (
+                  playerBar ? (
+                    <>
                     <PreviewControls
                       player={attachedPlayer}
                       frame={state.playheadFrame}
-                      durationInFrames={timeline.canvas.duration_in_frames}
-                      fps={timeline.canvas.fps}
+                      durationInFrames={(reviewing ? base : draft).canvas.duration_in_frames}
+                      fps={(reviewing ? base : draft).canvas.fps}
                       playing={state.playing}
-                      canvas={timeline.canvas}
+                      canvas={(reviewing ? base : draft).canvas}
                       onPlay={player.play}
                       onPause={player.pause}
                       onFullscreenChange={setPlayerFullscreen}
                     />
+                    {story && editing ? <p className="studio-preview-hint"><span className="studio-preview-tip">{t("studio.preview.hint")}</span></p> : null}
+                    </>
                   ) : undefined
                 }
                 // Review shows what was saved; Edit shows the draft.

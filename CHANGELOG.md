@@ -18,18 +18,21 @@ Branch `feat/studio-full-timeline` from `2b6cbdbf` (the Tier 3b head, because PR
 
 Text can no longer be selected anywhere in the Studio editor, except in inputs, text areas and editable text. Phones and tablets, the Story mode and the Review and Render jobs keep their layouts.
 
+**Added on the operator's word, after the first deploy.** The player bar is also under the video in the Story mode and the Review job, at 1024 px and wider. Story keeps its Space tip under the bar. This commit is not on stage1 yet.
+
 **Found in the browser, fixed test-first.**
 - A rule in `pen-studio.css` dissolves any `div` holding a Play button, which stacked the new bar in three rows. The bar is a `footer` now.
 - The timeline row was full width, but the clips stopped at about 70% of it. The approved mock-up shows them filling it, so the Timeline now fits them on opening.
 
 **Verification.**
-- **Dashboard:** 1929 tests pass; `tsc -b` and the build are clean.
+- **Dashboard:** 1932 tests pass; `tsc -b` and the build are clean.
 - **No Python, renderer or contract change,** so those suites did not run.
-- **Read-only e2e against a local dev server of this branch, at 1440:** `studio-shell-v2`, `studio-audit-fixes` and `studio-phone` pass 29/29, including the eight new layout checks. One earlier combined run failed the 430 preview test on a 30 s timeout; it passed alone and in the next full run, and the cause was not found.
+- **Read-only e2e against a local dev server of this branch, at 1440:** `studio-shell-v2`, `studio-audit-fixes` and `studio-phone` pass 31/31, including the ten new layout checks. One earlier combined run failed the 430 preview test on a 30 s timeout; it passed alone and in the next full run, and the cause was not found.
 - **Screenshots judged at 1440x900 and 1024x768:** the layout matches the mock-up.
 - **Not seen live:** the issues list opening above the toolbar, because the test draft has no issues. Unit tests pin its position.
 - **CI on PR #126 at `02ac8ad9`:** the push run and the PR run passed, "Validate image build" included.
 - **Read-only e2e on stage1 `02ac8ad9`, at 1440:** 29/29.
+- **Write e2e on stage1 `02ac8ad9`, at rw1440, in the throwaway project:** first 16 passed and the run was stopped, because a test helper pressed Zoom in on a draft already fitted to the 4 px maximum. With the helper corrected, 55/57. The other two found the clock twice, since it now also shows in the player bar; narrowed to the Timeline region, both passed on their own rerun. Their checks did not change. The operator's project did not change: 149 revisions, 116 assets, 8 renders.
 
 **Final review, by a fresh reviewer, fixed test-first.**
 - **Mute could not be undone.** Remotion applies mute on its next render, so reading it straight after the click returned the old value. The bar now follows the Player's `mutechange` event.
@@ -52,9 +55,9 @@ Text can no longer be selected anywhere in the Studio editor, except in inputs, 
 
 **Next steps.**
 - **Operator gates, each needing its own authorization:**
+  - a push of the player bar commit and these records, with a redeploy so stage1 carries them;
   - the operator's own try on stage1, of this and of Tier 3b;
-  - merge of PR #125, then of PR #126;
-  - a push of this record.
+  - merge of PR #125, then of PR #126.
 - **Carried from Tier 3b:** a Story scene resize of a sped-up clip that the server can still refuse.
 
 ## 2026-11-09 - Studio Timeline Tier 3b: filmstrips, waveforms, the volume line

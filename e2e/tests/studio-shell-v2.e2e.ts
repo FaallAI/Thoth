@@ -198,3 +198,17 @@ test('1280 Timeline: a long sound list leaves Assets its share of the top row', 
   });
   expect(share).toBeGreaterThanOrEqual(0.6);
 });
+
+for (const mode of ['Story', 'Review'] as const) {
+  test(`1440 ${mode}: the player bar sits under the video in one row`, async ({ app, browser, screen }) => {
+    await browser.setViewport({ width: 1440, height: 900 });
+    await app.open(DRAFT);
+    if (mode === 'Review') await screen.getByRole('navigation', 'Studio jobs').getByRole('button', 'Review').tap();
+    const play = await screen.getByRole('button', 'Play video').boundingBox();
+    const fullscreen = await screen.getByRole('button', 'Enter Fullscreen').boundingBox();
+    const video = await box(browser, 'section[aria-label="Studio preview"] > div:first-child');
+    expect(play.y).toBeGreaterThanOrEqual(video.bottom);
+    expect(Math.abs(fullscreen.y - play.y)).toBeLessThanOrEqual(4);
+    await app.screenshot(`bar-${mode}`);
+  });
+}

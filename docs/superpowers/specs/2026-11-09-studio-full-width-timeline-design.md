@@ -39,7 +39,8 @@ These apply to the Timeline mode of the Edit job at 1024 px and wider, unless a 
 
 - Phones and tablets (below 1024 px) keep the panes, the Player's own controls and the issues bar under
   the lanes.
-- The Story mode and the Review and Render jobs keep their layouts and the Player's own controls.
+- The Story mode and the Review and Render jobs keep their layouts.
+- Amended by the operator on 2026-11-09: the player bar of item 4 is also under the video in the Story mode and the Review job, at 1024 px and wider. Render has no preview, and a version 1 draft keeps the Player's own controls while editing.
 - No document field, API or migration.
 
 ## Calls made while planning (not asked of the operator)

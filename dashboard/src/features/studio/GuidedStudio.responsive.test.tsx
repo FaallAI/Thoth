@@ -678,18 +678,37 @@ describe("the wide Timeline", () => {
     expect(lanes.contains(screen.getByRole("region", { name: "Timeline issues" }))).toBe(false);
   });
 
-  test("Story keeps its layout", async () => {
+  test("Story has the player bar and keeps its layout", async () => {
     await renderStudio(1440, timelineDocument() as EditDocument);
     expect(divider()).toBeNull();
-    expect(controlsOn()).toBe("true");
+    expect(controlsOn()).toBe("false");
+    expect(screen.getByRole("button", { name: "Play video" })).toBeDefined();
   });
 
-  test("Review keeps its layout", async () => {
+  test("Review has the player bar and keeps its layout", async () => {
     await renderStudio(1440, timelineDocument() as EditDocument);
     await openTimeline();
     job("Review");
     expect(divider()).toBeNull();
+    expect(controlsOn()).toBe("false");
+    expect(screen.getByRole("button", { name: "Play video" })).toBeDefined();
+  });
+
+  test("Review of a version 1 draft has the player bar too", async () => {
+    await renderStudio(1440);
+    job("Review");
+    expect(controlsOn()).toBe("false");
+  });
+
+  test("a version 1 draft edits with the Player's own controls", async () => {
+    await renderStudio(1440);
     expect(controlsOn()).toBe("true");
-    expect(screen.queryByRole("button", { name: "Play video" })).toBeNull();
+  });
+
+  test("phones keep the Player's controls in Story and Review", async () => {
+    await renderStudio(430, timelineDocument() as EditDocument);
+    expect(controlsOn()).toBe("true");
+    job("Review");
+    expect(controlsOn()).toBe("true");
   });
 });
