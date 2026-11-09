@@ -1736,3 +1736,39 @@ def test_slip_refuses_a_held_clip_that_would_start_past_its_media() -> None:
     apply_edit_operations(held, [op("slip_clip", clip_id="clip_main", source_from_frame=899)])
     with pytest.raises(ValueError, match="a held clip must start inside its source"):
         apply_edit_operations(held, [op("slip_clip", clip_id="clip_main", source_from_frame=900)])
+
+
+# Carried Tier 2 minor (2026-11-09): a pasted caption covers a stretch of its scene, not all of it.
+def test_a_caption_can_be_added_for_a_stretch_of_its_scene() -> None:
+    added = apply_edit_operations(
+        document_v2_fixture(),
+        [
+            op(
+                "add_caption_clip",
+                clip_id="clip_cap",
+                track_id="track_caption",
+                scene_id="scene_001",
+                text="Hello",
+                from_frame=30,
+                duration_in_frames=90,
+            )
+        ],
+    )
+    caption = find_clip(added, "clip_cap")
+    assert (caption.from_frame, caption.duration_in_frames) == (30, 90)
+    assert [(cue.from_frame, cue.duration_in_frames) for cue in caption.cues] == [(0, 90)]
+    with pytest.raises(ValueError, match="inside its scene"):
+        apply_edit_operations(
+            document_v2_fixture(),
+            [
+                op(
+                    "add_caption_clip",
+                    clip_id="clip_cap",
+                    track_id="track_caption",
+                    scene_id="scene_001",
+                    text="Hello",
+                    from_frame=120,
+                    duration_in_frames=90,
+                )
+            ],
+        )

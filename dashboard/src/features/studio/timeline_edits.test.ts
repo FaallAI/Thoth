@@ -281,7 +281,7 @@ test("pasteTextOperations gives each place its operation", () => {
     { kind: "replace_text", clip_id: "clip_text", field: "heading", value: "Hello" },
   ]);
   expect(shape(pasteTextOperations(doc, "new_caption", "Hello", at(""))).map(withoutNewClip)).toEqual([
-    { kind: "add_caption_clip", track_id: "track_captions", scene_id: "scene_001", text: "Hello" },
+    { kind: "add_caption_clip", track_id: "track_captions", scene_id: "scene_001", text: "Hello", from_frame: 30, duration_in_frames: 90 },
   ]);
   expect(shape(pasteTextOperations(doc, "replace_caption", "Hello", at("clip_cap")))).toEqual([
     { kind: "set_caption_cue_text", clip_id: "clip_cap", cue_index: 0, text: "Hello" },
@@ -525,4 +525,15 @@ test("a group move refuses taking a clip out of its scene", () => {
   Object.assign(clipOf(doc, "a"), { scene_id: "scene_a", duration_in_frames: 50 });
   expect(moveClips(doc, ["a"], 10).refusal).toBeUndefined();
   expect(moveClips(doc, ["a"], 20).refusal).toBe("scene");
+});
+
+test("a pasted caption is three seconds at the playhead, cut at its scene's end", () => {
+  // Carried Tier 2 minor (2026-11-09): in a narrated draft the one scene is the whole canvas.
+  const doc = textDocument();
+  const scene = doc.scenes[0]!;
+  const end = scene.start_frame + scene.duration_in_frames;
+  const edit = pasteTextOperations(doc, "new_caption", "Hello", { playheadFrame: end - 20, selectedClipId: "" });
+  expect(edit.operations[0]).toMatchObject({ from_frame: end - 20, duration_in_frames: 20 });
+  const placed = applies(doc, edit).clips!.at(-1)!;
+  expect([placed.from_frame, placed.duration_in_frames]).toEqual([end - 20, 20]);
 });

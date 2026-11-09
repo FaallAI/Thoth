@@ -794,6 +794,7 @@ function addCaptionClip(
   if (!TRACK_CLIP_KINDS[target.kind].includes("caption")) {
     throw new Error("clip kind is incompatible with track");
   }
+  const duration = operation.duration_in_frames ?? scene.duration_in_frames;
   document.clips = [
     ...(document.clips ?? []),
     {
@@ -801,13 +802,13 @@ function addCaptionClip(
       clip_id: operation.clip_id,
       track_id: target.track_id,
       scene_id: scene.scene_id,
-      from_frame: scene.start_frame,
-      duration_in_frames: scene.duration_in_frames,
+      from_frame: operation.from_frame ?? scene.start_frame,
+      duration_in_frames: duration,
       ownership: "user_edited",
       hidden: false,
       locked: false,
       style_slot: "caption_default",
-      cues: [{ from_frame: 0, duration_in_frames: scene.duration_in_frames, text: operation.text }],
+      cues: [{ from_frame: 0, duration_in_frames: duration, text: operation.text }],
     },
   ];
   target.clip_ids = [...(target.clip_ids ?? []), operation.clip_id];

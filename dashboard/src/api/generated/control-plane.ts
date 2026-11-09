@@ -1750,11 +1750,15 @@ export interface components {
         };
         /**
          * AddCaptionClip
-         * @description A caption spanning its scene, with one cue across the whole clip.
+         * @description A caption with one cue across the whole clip: its scene, or a stretch of it when given.
          */
         AddCaptionClip: {
             /** Clip Id */
             clip_id: string;
+            /** Duration In Frames */
+            duration_in_frames?: number | null;
+            /** From Frame */
+            from_frame?: number | null;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}

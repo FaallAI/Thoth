@@ -396,7 +396,17 @@ export function pasteTextOperations(
       if (!scene) return refuse("no_scene");
       return {
         operations: [
-          { kind: "add_caption_clip", operation_id: newId("op"), clip_id: newId("clip"), track_id: track.track_id, scene_id: scene.scene_id, text },
+          {
+            kind: "add_caption_clip",
+            operation_id: newId("op"),
+            clip_id: newId("clip"),
+            track_id: track.track_id,
+            scene_id: scene.scene_id,
+            text,
+            // A stretch at the playhead, not the whole scene: a narrated draft's one scene is the whole canvas.
+            from_frame: frame,
+            duration_in_frames: Math.min(Math.round(PASTED_TEXT_SECONDS * doc.canvas.fps), scene.start_frame + scene.duration_in_frames - frame),
+          },
         ],
         ...(track.hidden ? { notice: "hidden_track" as const } : {}),
       };

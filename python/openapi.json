@@ -102,12 +102,36 @@
       },
       "AddCaptionClip": {
         "additionalProperties": false,
-        "description": "A caption spanning its scene, with one cue across the whole clip.",
+        "description": "A caption with one cue across the whole clip: its scene, or a stretch of it when given.",
         "properties": {
           "clip_id": {
             "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
             "title": "Clip Id",
             "type": "string"
+          },
+          "duration_in_frames": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration In Frames"
+          },
+          "from_frame": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Frame"
           },
           "kind": {
             "const": "add_caption_clip",
