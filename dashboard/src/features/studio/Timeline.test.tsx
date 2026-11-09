@@ -1170,3 +1170,69 @@ test("a text clip never shows a filmstrip or a waveform", () => {
   const text = screen.getByRole("button", { name: /^Overlay clip/ });
   expect(text.querySelector("[data-testid='clip-filmstrip'], [data-testid='clip-waveform']")).toBeNull();
 });
+
+// Tier 3b: an audio clip's volume line, dragged or keyed; one edit on release.
+function musicAt(volume: number, overrides: Record<string, unknown> = {}) {
+  const doc = timelineDocument();
+  Object.assign(doc.clips!.find((clip) => clip.clip_id === "clip_music")!, { volume, ...overrides });
+  return doc;
+}
+const volumeLine = () => screen.getByRole("slider", { name: "Volume of Music clip" });
+function withBox(element: HTMLElement) {
+  Object.defineProperty(element.parentElement!, "getBoundingClientRect", {
+    value: () => ({ top: 100, bottom: 140, height: 40, left: 0, right: 200, width: 200, x: 0, y: 100, toJSON: () => ({}) }),
+  });
+}
+const volumeOps = (actions: EditorAction[], type: string) =>
+  actions.filter((action) => action.type === type).map((action) => ("operation" in action ? action.operation : null));
+
+test("dragging an audio clip's volume line previews, then commits once at the pointer", () => {
+  const doc = musicAt(0.5);
+  const { actions } = mount({ base: doc, draft: doc });
+  withBox(volumeLine());
+  fireEvent.pointerDown(volumeLine(), { clientY: 120, button: 0 });
+  fireEvent.pointerMove(window, { clientY: 110 });
+  fireEvent.pointerUp(window, { clientY: 110 });
+  expect(volumeOps(actions, "preview_timeline_operation").at(-1)).toMatchObject({ kind: "set_clip_volume", clip_id: "clip_music", volume: 0.75 });
+  expect(volumeOps(actions, "commit_timeline_operation")).toEqual([expect.objectContaining({ kind: "set_clip_volume", volume: 0.75 })]);
+});
+
+test("the volume line steps by 0.05 with arrows, and Home and End go to 0 and 1", () => {
+  const doc = musicAt(0.5);
+  const { actions } = mount({ base: doc, draft: doc });
+  fireEvent.keyDown(volumeLine(), { key: "ArrowUp" });
+  fireEvent.keyDown(volumeLine(), { key: "Home" });
+  fireEvent.keyDown(volumeLine(), { key: "End" });
+  expect(volumeOps(actions, "commit_timeline_operation").map((operation) => (operation as { volume: number }).volume)).toEqual([0.55, 0, 1]);
+});
+
+test("Escape during a volume drag cancels it and nothing commits", () => {
+  const doc = musicAt(0.5);
+  const { actions } = mount({ base: doc, draft: doc });
+  withBox(volumeLine());
+  fireEvent.pointerDown(volumeLine(), { clientY: 120, button: 0 });
+  fireEvent.pointerMove(window, { clientY: 105 });
+  fireEvent.keyDown(window, { key: "Escape" });
+  fireEvent.pointerUp(window, { clientY: 105 });
+  expect(actions.some((action) => action.type === "cancel_timeline_preview")).toBe(true);
+  expect(volumeOps(actions, "commit_timeline_operation")).toEqual([]);
+});
+
+test("a locked audio clip, a view-only timeline and video clips have no volume line", () => {
+  const locked = musicAt(0.5, { locked: true });
+  mount({ base: locked, draft: locked });
+  expect(screen.queryByRole("slider", { name: /^Volume of / })).toBeNull();
+  cleanup();
+  render(<Timeline state={createEditorState(musicAt(0.5))} dispatch={() => {}} readOnly />);
+  expect(screen.queryByRole("slider", { name: /^Volume of / })).toBeNull();
+  cleanup();
+  mount();
+  expect(screen.queryByRole("slider", { name: "Volume of Main video clip" })).toBeNull();
+});
+
+test("a volume above 1 rests at the top of the line", () => {
+  const doc = musicAt(1.6);
+  mount({ base: doc, draft: doc });
+  expect(volumeLine().getAttribute("aria-valuenow")).toBe("100");
+  expect(volumeLine().style.top).toBe("0%");
+});

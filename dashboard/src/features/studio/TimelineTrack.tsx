@@ -49,6 +49,8 @@ type Props = {
   glanceOf?: (assetId: string) => AssetGlance | undefined;
   /** The draft's frame rate, so a glance is placed in seconds. */
   fps?: number;
+  /** An audio clip's volume line moved (Tier 3b). */
+  onVolume?: (clipId: string, volume: number, phase: "preview" | "commit" | "cancel") => void;
   readOnly?: boolean;
   /** The track's plain name (spec 2026-11-08 §5.1); absent, its stored label. */
   name?: string;
@@ -91,6 +93,7 @@ export function TimelineTrack({
   labelOf,
   glanceOf,
   fps,
+  onVolume,
   readOnly = false,
   name,
   onDropAsset,
@@ -201,6 +204,7 @@ export function TimelineTrack({
             name={labelOf?.(clip)}
             glance={"asset_id" in clip ? glanceOf?.(clip.asset_id) : undefined}
             fps={fps}
+            onVolume={onVolume ? (volume, phase) => onVolume(clip.clip_id, volume, phase) : undefined}
             readOnly={readOnly}
             menu={clipMenu?.(clip)}
           />

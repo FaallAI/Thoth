@@ -1,4 +1,4 @@
-import type { PointerEvent } from "react";
+import type { KeyboardEvent, PointerEvent } from "react";
 import { Lock } from "lucide-react";
 
 import type { AssetGlance, EditDocumentV2 } from "@/api/control-plane";
@@ -33,6 +33,8 @@ type Props = {
   glance?: AssetGlance;
   /** The draft's frame rate, to place the glance in seconds. */
   fps?: number;
+  /** An audio clip's volume line (Tier 3b): a drag previews, a release or a key commits. */
+  onVolume?: (volume: number, phase: "preview" | "commit" | "cancel") => void;
   /** A view-only timeline: no trim handles, no drag. */
   readOnly?: boolean;
   /** The clip's right-click menu (spec 2026-11-08 §5.1). */
@@ -106,6 +108,73 @@ function GlanceLayer({ clip, glance, widthPx, fps }: { clip: Clip; glance: Asset
   return null;
 }
 
+/** Volume steps of 0.05, from 0 at the line's bottom to 1 at its top, as the Inspector's slider. */
+const volumeStep = (value: number) => Math.min(1, Math.max(0, Math.round(value * 20) / 20));
+
+function VolumeLine({ volume, label, onVolume }: { volume: number; label: string; onVolume: NonNullable<Props["onVolume"]> }) {
+  const shown = Math.min(1, Math.max(0, volume));
+  const start = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const box = event.currentTarget.parentElement!.getBoundingClientRect();
+    const at = (clientY: number) => volumeStep(1 - (clientY - box.top) / Math.max(1, box.height));
+    let last = at(event.clientY);
+    const end = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("keydown", escape, true);
+    };
+    const move = (moved: globalThis.PointerEvent) => {
+      last = at(moved.clientY);
+      onVolume(last, "preview");
+    };
+    const up = (released: globalThis.PointerEvent) => {
+      end();
+      onVolume(at(released.clientY), "commit");
+    };
+    const escape = (key: globalThis.KeyboardEvent) => {
+      if (key.key !== "Escape") return;
+      key.stopPropagation();
+      end();
+      onVolume(last, "cancel");
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("keydown", escape, true);
+    onVolume(last, "preview");
+  };
+  const keys = (event: KeyboardEvent<HTMLDivElement>) => {
+    const next =
+      event.key === "ArrowUp" || event.key === "ArrowRight" ? volumeStep(shown + 0.05)
+      : event.key === "ArrowDown" || event.key === "ArrowLeft" ? volumeStep(shown - 0.05)
+      : event.key === "Home" ? 0
+      : event.key === "End" ? 1
+      : null;
+    if (next === null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onVolume(next, "commit");
+  };
+  return (
+    <div
+      role="slider"
+      tabIndex={0}
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(shown * 100)}
+      aria-valuetext={`${Math.round(shown * 100)}%`}
+      className="group/volume absolute inset-x-1 z-10 h-3 -translate-y-1/2 cursor-ns-resize focus-visible:outline-2 focus-visible:outline-copper"
+      style={{ top: `${(1 - shown) * 100}%` }}
+      onPointerDown={start}
+      onKeyDown={keys}
+    >
+      <span aria-hidden="true" className="absolute inset-x-0 top-1/2 h-px bg-copper/80 group-hover/volume:h-0.5" />
+    </div>
+  );
+}
+
 const withModifier = (event: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) =>
   event.shiftKey || event.ctrlKey || event.metaKey;
 
@@ -125,6 +194,7 @@ export function TimelineClip({
   name: given,
   glance,
   fps = 30,
+  onVolume,
   readOnly = false,
   menu,
 }: Props) {
@@ -186,6 +256,9 @@ export function TimelineClip({
         {locked ? <Lock aria-hidden="true" size={11} className="relative mt-0.5 shrink-0 text-faint" /> : null}
         <span className="relative truncate rounded bg-well/70 px-1" title={text}>{text}</span>
       </button>
+      {!readOnly && !locked && onVolume && clip.kind === "audio" ? (
+        <VolumeLine volume={clip.volume ?? 1} label={t("studio.timeline.volumeOf", { clip: name })} onVolume={onVolume} />
+      ) : null}
       {readOnly ? null : (
         <>
           <button

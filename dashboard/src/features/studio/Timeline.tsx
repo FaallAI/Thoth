@@ -777,6 +777,15 @@ export function Timeline({
               labelOf={labelOf}
               glanceOf={glanceOf}
               fps={timeline.canvas.fps}
+              onVolume={(clipId, volume, phase) => {
+                // One edit on release; a drag previews and Escape puts the draft back (Tier 3b).
+                if (phase === "cancel") {
+                  dispatch({ type: "cancel_timeline_preview" });
+                  return;
+                }
+                const operation = { kind: "set_clip_volume" as const, operation_id: newId("op"), clip_id: clipId, volume };
+                dispatch(phase === "preview" ? { type: "preview_timeline_operation", operation } : { type: "commit_timeline_operation", operation });
+              }}
               readOnly={readOnly}
               name={trackName(t, timeline, lane.track)}
               accessibleLabel={trackLabel(timeline, lane.track)}
