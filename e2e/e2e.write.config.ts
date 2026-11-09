@@ -44,6 +44,8 @@ export default {
   targets: ([
     ['rw1440', 1440, 900, 'en-US', 'http://127.0.0.1:8088'],
     ['rw1440id', 1440, 900, 'id-ID', 'http://127.0.0.1:8088'],
+    // A phone (Tier 3a): menu-only editing by long press.
+    ['rw430', 430, 932, 'en-US', 'http://127.0.0.1:8088'],
     ['rwdev1440', 1440, 900, 'en-US', 'http://localhost:5199'],
     ['rwdev1440id', 1440, 900, 'id-ID', 'http://localhost:5199'],
   ] as const).map(([name, width, height, locale, url]) => ({

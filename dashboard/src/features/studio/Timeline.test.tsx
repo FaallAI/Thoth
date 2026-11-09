@@ -1085,3 +1085,49 @@ test("Rename marker… names it, and the name is saved as one edit", () => {
   expect(saved?.type === "commit_operations" && saved.operations).toEqual([expect.objectContaining({ kind: "set_marker", marker_id: "m1", frame: 60, label: "Hook ends" })]);
   expect(screen.queryByRole("dialog", { name: "Rename marker" })).toBeNull();
 });
+
+// Tier 3a (operator, 2026-11-09): phones get the editing menus by long press; no drag, trim or keys.
+function mountPhone(overrides: Partial<EditorState> = {}) {
+  const actions: EditorAction[] = [];
+  const state = { ...createEditorState(timelineDocument()), ...overrides };
+  render(<Timeline state={state} dispatch={(action) => actions.push(action)} onPlay={() => {}} onPause={() => {}} readOnly />);
+  return { actions };
+}
+const longPress = async (element: Element) => {
+  fireEvent.pointerDown(element, { pointerType: "touch", clientX: 5, clientY: 5, button: 0 });
+  await new Promise((done) => setTimeout(done, 550));
+};
+
+test("on a phone a long press on a clip opens its menu, and its edits commit", async () => {
+  const { actions } = mountPhone({ playheadFrame: 60 });
+  await longPress(screen.getByRole("button", { name: "Main video clip" }));
+  expect(screen.getByRole("menu")).toBeTruthy();
+  fireEvent.click(screen.getByRole("menuitem", { name: "Split at playhead" }));
+  expect(ops(actions)).toEqual(["split_clip"]);
+});
+
+test("on a phone the lane and track menus open by long press too", async () => {
+  mountPhone();
+  await longPress(screen.getByRole("button", { name: "Select Music track" }));
+  expect(screen.getByRole("menuitem", { name: "Select track" })).toBeTruthy();
+});
+
+test("on a phone a press that moves scrolls and opens nothing", async () => {
+  mountPhone();
+  fireEvent.pointerDown(screen.getByRole("button", { name: "Main video clip" }), { pointerType: "touch", clientX: 5, clientY: 5, button: 0 });
+  fireEvent.pointerMove(window, { clientX: 40, clientY: 5 });
+  await new Promise((done) => setTimeout(done, 550));
+  expect(screen.queryByRole("menu")).toBeNull();
+});
+
+test("on a phone there are no trim handles and a drag commits nothing", () => {
+  const { actions } = mountPhone();
+  expect(screen.queryByRole("button", { name: "Trim end of Main video clip" })).toBeNull();
+  drag(screen.getByRole("button", { name: "Main video clip" }), 10, 80);
+  expect(actions.some((action) => action.type.startsWith("commit"))).toBe(false);
+});
+
+test("the phone banner says how to edit here", () => {
+  mountPhone();
+  expect(document.body.textContent).toContain("Tap a clip to select it. Press and hold for its menu. Drag and trim on a wider screen.");
+});

@@ -774,44 +774,34 @@ export function Timeline({
               accessibleLabel={trackLabel(timeline, lane.track)}
               refusesDrop={refusedLane === lane.track.track_id}
               onToggle={(field, value) => toggleTrack(lane.track.track_id, field, value)}
-              clipMenu={
-                readOnly
-                  ? undefined
-                  : (clip) =>
-                      menu.bind(() =>
-                        clipMenu(menuContext, clip, {
-                          onReplace: () => setReplacing(clip.clip_id),
-                          storyBeat: beatOf?.(clip.clip_id) ?? null,
-                          onShowInStory: onShowInStory ? () => onShowInStory(clip.clip_id) : undefined,
-                          selection: selectedIds,
-                          copied: copied.current,
-                          onCopy: (ids) => {
-                            copied.current = ids;
-                          },
-                          onCopyText: copyText,
-                          onPasteText: readClipboardText,
-                        }),
-                      )
+              // Phones edit through the menus too (operator, 2026-11-09); only direct manipulation stays off.
+              clipMenu={(clip) =>
+                menu.bind(() =>
+                  clipMenu(menuContext, clip, {
+                    onReplace: () => setReplacing(clip.clip_id),
+                    storyBeat: beatOf?.(clip.clip_id) ?? null,
+                    onShowInStory: onShowInStory ? () => onShowInStory(clip.clip_id) : undefined,
+                    selection: selectedIds,
+                    copied: copied.current,
+                    onCopy: (ids) => {
+                      copied.current = ids;
+                    },
+                    onCopyText: copyText,
+                    onPasteText: readClipboardText,
+                  }),
+                )
               }
-              laneMenu={
-                readOnly
-                  ? undefined
-                  : menu.bind((at) =>
-                      gapMenu(menuContext, lane.track.track_id, Math.floor((at.x - at.owner.getBoundingClientRect().left) / state.zoom), {
-                        onPasteText: readClipboardText,
-                      }),
-                    )
-              }
-              nameMenu={
-                readOnly
-                  ? undefined
-                  : menu.bind(() =>
-                      trackMenu(menuContext, lane.track, {
-                        onSelect: () => dispatch({ type: "select_track", trackId: lane.track.track_id }),
-                        onToggle: (field, value) => toggleTrack(lane.track.track_id, field, value),
-                      }),
-                    )
-              }
+              laneMenu={menu.bind((at) =>
+                gapMenu(menuContext, lane.track.track_id, Math.floor((at.x - at.owner.getBoundingClientRect().left) / state.zoom), {
+                  onPasteText: readClipboardText,
+                }),
+              )}
+              nameMenu={menu.bind(() =>
+                trackMenu(menuContext, lane.track, {
+                  onSelect: () => dispatch({ type: "select_track", trackId: lane.track.track_id }),
+                  onToggle: (field, value) => toggleTrack(lane.track.track_id, field, value),
+                }),
+              )}
               onSelectClip={(clipId, add) => {
                 if (add) dispatch({ type: "select_clip", clipId, add: true });
                 // A press on a clip of a larger selection keeps it, so the group can be dragged or edited.
