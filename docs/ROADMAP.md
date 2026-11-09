@@ -139,6 +139,12 @@ Status 2026-11-09: Tier 1 merged as `ccddab63` (PR #122) and runs on stage1 as `
 fades, close all gaps, asset search and drag, J/K/L, the 11 Tier 1 leftovers) is built and reviewed
 on `feat/studio-timeline-tier2`, not pushed. Tier 3 follows.
 
+Status 2026-11-09, later: Tier 2 merged as `1754d852` (PR #123) and runs on stage1 as `7b5d04f8`.
+Tier 3 is split in two (operator, 2026-11-09). Tier 3a (clip speed, slip, roll, markers, menu-only
+editing on phones, and the two Tier 2 answers) is built and reviewed on
+`feat/studio-timeline-tier3a`, not pushed. Tier 3b (filmstrips, waveforms, the audio volume line)
+follows.
+
 The red tests are `e2e/tests-write/timeline-audit.e2e.ts`. The Studio shell v2 spec
 (2026-11-01) lists ripple delete as an existing tool, but git history shows no delete control in
 the Timeline, toolbar or Inspector, so it counts as new work here.

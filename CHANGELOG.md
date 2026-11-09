@@ -2,6 +2,122 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-09 - Studio Timeline Tier 3a: speed, slip, roll, markers, phones
+
+Branch `feat/studio-timeline-tier3a` from master `1754d852`, not pushed.
+- **Plan:** `docs/superpowers/plans/2026-11-09-studio-timeline-tier3a.md`, from spec section 7.
+- **Execution:** done natively, with one fresh review of the whole branch at the end.
+
+**Merge record carried here.**
+- PR #123 (Studio Timeline Tier 2) was merged as `1754d852` on 2026-11-09, on the operator's word.
+- Stage1 runs the branch image `7b5d04f8`. That is the same product code: the only commit after it holds an e2e test fix and records.
+
+**Operator decisions (2026-11-09), added to spec section 4.**
+- **Phones get menu-only editing.**
+  - A tap selects, and a long press opens the same clip, lane, track and marker menus as on desktop.
+  - The preview sits above the lanes.
+  - Drag, trim, marquee, asset drops and keys stay on wider screens.
+- **Tier 3 splits in two.** 3a is this entry. 3b (filmstrips, waveforms, the audio volume line) is its own plan and PR.
+- **The two Tier 2 open questions:**
+  - a duplicated clip drops its Story role;
+  - pasted text goes to a visible Overlay or Captions track first. When every track of that kind is hidden, the text still lands there and the status line says so.
+- **Checked before the roll task (a side-agent note, verified on stage1 data with a read-only query).**
+  - Every draft has one Main video clip until it is split.
+  - Narrated drafts hold one scene.
+  - Every touching cut on Main video today shares a scene.
+  - So the scene-boundary refusal does not block roll in current drafts.
+
+**What Tier 3a adds.**
+- **Server and contract.** New operations, mirrored in `timeline_domain.ts`:
+  - `set_clip_speed`;
+  - `slip_clip`;
+  - `add_marker`, `set_marker` and `remove_marker`.
+
+  New fields:
+  - `speed` on video and audio clips, one of 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3 and 4;
+  - `markers` on the document, at most 100.
+
+  All source-frame maths counts in whole percent, and Python and TypeScript give the same integers:
+  - trim start;
+  - split;
+  - replace media;
+  - validation;
+  - narration's retime;
+  - the held last frame.
+
+  Markers follow a shorter document onto its last frame, after any edit and after a re-voice. The contracts were regenerated.
+- **Speed.**
+  - A clip keeps its place and length on the timeline and plays more or less of its source: at 2×, a 5 s clip plays 10 s of source.
+  - A speed the source cannot feed is refused in the Inspector, with its reason.
+  - Video keeps its pitch (`preservePitch`), and audio uses Remotion's default, which keeps it too.
+  - Blur windows follow the speed, rounded outward so the text stays covered.
+- **Slip.** Alt+drag on a clip's body moves its content, and the picture follows the pointer. The Inspector's "Source start (seconds)" does the same by number.
+- **Roll.** Alt+drag on a trim handle whose edge touches a neighbour moves the cut between them, as one undo step. It is refused, with the reason, when:
+  - the cut is a scene boundary;
+  - a clip would leave its scene;
+  - either source runs out;
+  - a clip would vanish;
+  - a clip is locked.
+- **Markers.**
+  - M adds a marker at the playhead.
+  - A marker is a button beside the ruler, and a click moves the playhead to it.
+  - Its menu offers Rename…, Move to playhead and Delete.
+  - Markers never render into the video.
+- **Phones.** See the operator decisions above. The banner now reads "Tap a clip to select it. Press and hold for its menu. Drag and trim on a wider screen."
+- **The shortcut list** gains M, and Alt+drag for slip and for roll.
+
+**Rollback note.** `speed` and `markers` are stored only when used, as the Tier 2 video fades are. A rollback to the Tier 2 images (`pins-c5a848b0.env` or later) stays safe for every draft that never used them. A draft that did use one will not open there.
+
+**Decisions taken by the executor** (the full list is in the SDD ledger):
+- A sped-up clip on shorter replaced media is fitted to that media, not refused.
+- A Source start past the limit is refused in place, and the message names the latest allowed start, rounded down.
+- Markers are numbered in time order, and their accessible name is "<name> at <timecode>".
+- Marker buttons sit beside the ruler's slider, not inside it.
+- The phone preview takes 40% of the screen height above the lanes. This is to be judged on a 430 screenshot at the deploy gate.
+- The web e2e engine has no touch long press, so the phone tests hold a touch pointer themselves. This still runs the app's own long-press timer.
+
+**Final review (fresh reviewer, whole branch).** The verdict was "with fixes", with nothing critical. One fix pass, each fix test-first:
+- **Roll past a one-sided scene boundary.** A roll next to a copy (which has no scene) could take the other clip out of its scene and reach the server as a 422. It is now refused with "A clip would leave its scene".
+- **Refusal messages.** Slip and roll refusals showed the speed message. They now have their own: "The clip already shows its whole source" and "The source has no more footage there".
+- **Held clips.** The server did not bound a held clip's slip, so a direct call could store a start past its media. It now refuses one, and so does the dashboard.
+- **Marker targets.** Marker buttons were 12 px, too small to long-press. This was re-graded from minor because phones now use them. They are 24 px targets now.
+
+**Verification.**
+- **Python:** `make test` gives 4676 passed and 221 skipped. `make lint` is clean.
+- **Dashboard:** 1847 tests pass, and `tsc -b` and the build are clean.
+- **Renderer:** `bun test` passes 224.
+- **Read-only e2e at 1440** on stage1 `7b5d04f8` gives 18/19. The one failure is the 430 banner check updated for Tier 3a, which stays red until Tier 3a is deployed.
+- **The new read-only `tests/studio-phone.e2e.ts`** fails on stage1, as designed.
+- **The five new write tests** (speed, slip, roll, markers, phone) have not run. They need the branch deploy and a new one-day write token.
+
+**Deferred minors** (from the final review):
+- Alt+drag on a text or caption clip says "An image has no source time".
+- The hidden-track paste notice shows before the save succeeds.
+- `resizeScene` in the dashboard does not fit markers until the server revision arrives.
+- A trim start of +1 and then −1 at a fractional speed can drift the source by one frame.
+- A roll past a limit refuses the whole drag, while a slip clamps.
+- Saving an unchanged marker name still commits a revision.
+- `speedPercent` exists in both the composition package and the dashboard.
+
+**Carried.** The eight Tier 2 deferred minors are still open. A Story scene resize of a sped-up Main clip can still be refused by the server when its source runs out. Like any plain trim past a limit, it has no pre-check.
+
+**Next steps.**
+- **Operator gates, each needing its own authorization:**
+  - a one-day write-scope e2e token;
+  - push and PR;
+  - deploy of the branch image;
+  - the write e2e at 1440 and 430;
+  - the operator's own try;
+  - merge.
+
+  During the try, check:
+  - Alt+drag on Windows;
+  - a roll against a duplicated clip;
+  - a 4× clip;
+  - the phone preview's height.
+- **Then Tier 3b:** filmstrips and waveforms on clips (a backend that makes frame strips and audio peaks per asset), and a draggable volume line on audio.
+- **Carried:** the deferred minors above and the Tier 2 minors.
+
 ## 2026-11-09 - Studio Timeline Tier 2: comfort (select many, copy and paste, text paste, fades, assets, J/K/L)
 
 Branch `feat/studio-timeline-tier2` from master `ccddab63`, PR #123. Plan
