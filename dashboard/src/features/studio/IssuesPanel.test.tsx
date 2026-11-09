@@ -173,3 +173,21 @@ test("a lane without a label is named by its kind, never its id", () => {
   expect(screen.getAllByRole("group").map((group) => group.getAttribute("aria-label"))).toEqual(["Main video", "Music"]);
   expect(screen.queryByText(/track_/)).toBeNull();
 });
+
+test("inline, the bar shows the count without the sentence and opens its list above", () => {
+  render(<IssuesBar document={brokenDocument()} selectedIssueId="" mode="advanced" dispatch={() => {}} inline />);
+  const bar = screen.getByRole("region", { name: "Timeline issues" });
+  expect(bar.textContent).toContain("2 warnings");
+  expect(bar.textContent).not.toContain("Main video: a clip starts after a gap");
+  review();
+  expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  const list = screen.getAllByRole("listitem")[0]!.closest(".absolute")!;
+  expect(list.className).toContain("bottom-full");
+  expect(list.className).toContain("right-0");
+  expect(list.className).toContain("max-h-56");
+});
+
+test("inline with no issues still says so", () => {
+  render(<IssuesBar document={timelineDocument()} selectedIssueId="" mode="advanced" dispatch={() => {}} inline />);
+  expect(screen.getByText("No issues")).toBeDefined();
+});

@@ -9,6 +9,8 @@ import {
   Scissors,
 } from "lucide-react";
 
+import type { ReactNode } from "react";
+
 import { useLocale } from "@/lib/locale";
 import { Switch } from "./StudioSwitch";
 import { MAX_ZOOM, MIN_ZOOM, formatTimecode } from "./timeline_domain";
@@ -33,6 +35,8 @@ type Props = {
   onPause?: () => void;
   /** A view-only timeline (below 1024): no clip actions, ripple or snap. */
   readOnly?: boolean;
+  /** The issues status of the wide Timeline. */
+  status?: ReactNode;
 };
 
 const icon =
@@ -65,6 +69,7 @@ export function TimelineToolbar({
   onPlay,
   onPause,
   readOnly = false,
+  status,
 }: Props) {
   const { t } = useLocale();
 
@@ -103,6 +108,7 @@ export function TimelineToolbar({
       {selectionLocked && !readOnly ? <p className="text-xs text-muted-ink">{t("studio.timeline.locked")}</p> : null}
 
       <div className="ml-auto flex items-center gap-3">
+        {status}
         {readOnly ? null : (
           <>
             <Switch label={t("studio.timeline.ripple")} checked={ripple} onChange={onRipple} />

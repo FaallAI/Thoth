@@ -1343,3 +1343,19 @@ test("Ctrl+D with nothing selected is claimed, so the browser does not bookmark 
   expect(notCancelled).toBe(false);
   expect(actions.some((action) => action.type === "commit_operations")).toBe(false);
 });
+
+test("a status is drawn in the toolbar, beside the zoom", () => {
+  render(
+    <Timeline
+      state={createEditorState(timelineDocument())}
+      dispatch={() => {}}
+      onPlay={() => {}}
+      onPause={() => {}}
+      status={<span>Status here</span>}
+      sectionId="studio-timeline"
+    />,
+  );
+  const group = screen.getByRole("slider", { name: "Zoom" }).closest(".ml-auto")!;
+  expect(group.contains(screen.getByText("Status here"))).toBe(true);
+  expect(screen.getByRole("region", { name: "Timeline" }).id).toBe("studio-timeline");
+});
