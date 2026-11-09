@@ -30,7 +30,7 @@ export type BlurBox = {
   to: number | null;
 };
 
-type Size = { width?: number | null; height?: number | null };
+export type Size = { width?: number | null; height?: number | null };
 
 export function blurBoxes(
   clip: Pick<VideoClip, "fit" | "crop" | "position" | "source_from_frame" | "blur_regions"> & { speed?: number },
@@ -70,7 +70,8 @@ export function blurBoxes(
 }
 
 /** The source picture inside its element box under object-fit; the box itself when unsized. */
-function drawn(fit: string, asset: Size | undefined, width: number, height: number) {
+/** Where object-fit draws the picture inside a media element of this size, in pixels. */
+export function drawn(fit: string, asset: Size | undefined, width: number, height: number) {
   if (!asset?.width || !asset.height || fit === "fill") {
     return { left: 0, top: 0, width, height };
   }

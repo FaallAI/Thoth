@@ -4,7 +4,7 @@ import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import type { EditDocumentV2, TimelineClip } from "./timeline";
 import { blurBoxes } from "./blur";
-import { kineticGroups, markBox, markWindowOpen, sourceFrame, type MarkShape } from "./effects";
+import { kineticGroups, markBox, markWindowOpen, sourceFrame, type MarkShape, type MarkView } from "./effects";
 import { moveAt } from "./moves";
 import { speedPercent } from "./speed";
 import { visibleLanes } from "./timeline";
@@ -568,6 +568,8 @@ function videoClip(
               }
             : {})}
           objectFit={clip.fit}
+          // A paused player draws no new frame for a new callback, so a change of background remounts it.
+          key={clip.background ?? "none"}
           {...(onVideoFrame ? { onVideoFrame } : {})}
           style={media}
         />
@@ -626,12 +628,26 @@ function videoClip(
         </div>
       </AbsoluteFill>
     ) : null;
+  // Dim veils the clip's own visible picture; with blur-fill the blurred copy is the clip's too.
+  const veil =
+    clip.background === "blur_fill"
+      ? FULL_VEIL
+      : markBox(WHOLE_PICTURE, { fit: clip.fit, crop, asset: refs.get(clip.asset_id), canvas }, clip.position, motion);
   const dim =
-    (clip.dim ?? 0) > 0 ? (
-      <AbsoluteFill data-testid="clip-dim" style={{ backgroundColor: "#000000", opacity: clip.dim }} />
+    (clip.dim ?? 0) > 0 && veil ? (
+      <AbsoluteFill
+        data-testid="clip-dim"
+        style={{
+          backgroundColor: "#000000",
+          opacity: clip.dim,
+          ...(veil === FULL_VEIL
+            ? {}
+            : { left: percent(veil.left), top: percent(veil.top), width: percent(veil.width), height: percent(veil.height) }),
+        }}
+      />
     ) : null;
   const marks = clip.emphasis?.marks?.length ? (
-    <ClipMarks clip={clip} crop={crop} content={content} motion={motion} canvas={canvas} />
+    <ClipMarks clip={clip} view={{ fit: clip.fit, crop, asset: refs.get(clip.asset_id), canvas }} motion={motion} />
   ) : null;
   const emphasis = clip.emphasis;
   const layers = (
@@ -696,19 +712,10 @@ const ARROW_TURN: Record<string, string> = {
 };
 
 /** Boxes that draw themselves in and arrows that pop in, stuck to the media (spec 2026-11-09, 3.4). */
-function ClipMarks({
-  clip,
-  crop,
-  content,
-  motion,
-  canvas,
-}: {
-  clip: VideoClip;
-  crop: { left: number; top: number; width: number; height: number };
-  content: { width: number; height: number };
-  motion: MotionState;
-  canvas: EditDocumentV2["canvas"];
-}) {
+const WHOLE_PICTURE: MarkShape = { kind: "box", x: 0, y: 0, w: 1, h: 1, from_frame: 0, to_frame: 1 };
+const FULL_VEIL = { left: 0, top: 0, width: 1, height: 1 };
+
+function ClipMarks({ clip, view, motion }: { clip: VideoClip; view: MarkView; motion: MotionState }) {
   const frame = useCurrentFrame();
   const source = sourceFrame(clip, frame);
   return (
@@ -716,7 +723,7 @@ function ClipMarks({
       {(clip.emphasis?.marks ?? []).map((mark, index) => {
         const shape = mark as MarkShape & { side?: string; color?: string };
         if (!markWindowOpen(shape, clip, frame)) return null;
-        const box = markBox(shape, crop, content, clip.position, motion);
+        const box = markBox(shape, view, clip.position, motion);
         if (!box) return null;
         const color = MARK_COLORS[shape.color ?? "accent"] ?? MARK_COLORS.accent!;
         const since = source - shape.from_frame;
@@ -759,7 +766,7 @@ function ClipMarks({
               left: percent(box.left),
               top: percent(box.top),
               transform: `${ARROW_TURN[shape.side ?? "top"] ?? ARROW_TURN.top} scale(${pop})`,
-              transformOrigin: canvas.width > 0 ? "center" : undefined,
+              transformOrigin: "center",
             }}
           >
             <path d="M48 0h24v70h28L60 120 20 70h28z" />
@@ -809,7 +816,13 @@ function FadingClip({ clip, children }: { clip: Faded; children: ReactNode }) {
   );
 }
 
-/** Draws a decoded frame over the whole target canvas, cropped to cover it. */
+/** Pixels the blur reaches past the canvas edge: 3 sigma of blur(6px). */
+const BLUR_FILL_BLEED = 18;
+
+/**
+ * Draws a decoded frame over the whole target canvas, cropped to cover it plus the blur's reach, so
+ * the blur's transparent edge falls outside the canvas; the last frame is cleared first.
+ */
 function drawCover(target: HTMLCanvasElement | null, image: CanvasImageSource): void {
   const context = target?.getContext("2d");
   if (!target || !context) return;
@@ -817,7 +830,8 @@ function drawCover(target: HTMLCanvasElement | null, image: CanvasImageSource): 
   const width = Number(size.displayWidth ?? size.width);
   const height = Number(size.displayHeight ?? size.height);
   if (!(width > 0 && height > 0)) return;
-  const scale = Math.max(target.width / width, target.height / height);
+  const scale = Math.max((target.width + 2 * BLUR_FILL_BLEED) / width, (target.height + 2 * BLUR_FILL_BLEED) / height);
+  context.clearRect(0, 0, target.width, target.height);
   context.filter = BLUR_FILL_RADIUS;
   context.drawImage(image, (target.width - width * scale) / 2, (target.height - height * scale) / 2, width * scale, height * scale);
 }

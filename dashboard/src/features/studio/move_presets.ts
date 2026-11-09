@@ -1,4 +1,4 @@
-import type { Ease, Move } from "@thoth/remotion-composition";
+import { moveAt, type Ease, type Move } from "@thoth/remotion-composition";
 
 /** The camera moves Studio offers as one click each (spec 2026-11-09, 3.7). */
 export type MovePresetKind = "punch_in" | "push_in" | "pan_across" | "scroll_down" | "pull_out";
@@ -32,13 +32,15 @@ export function movePreset(
     case "pull_out":
       return [key(0, 1.2, "ease_out"), key(last, 1, "ease_out")];
     case "punch_in": {
-      // About a quarter second from the word to 135%, then held: Style A's punchline push.
+      // About a quarter second from the word to 35% closer, then held to the end: Style A's punchline
+      // push. It starts from where the moves already are, so nothing jumps; moves after it give way.
       const playhead = Math.min(Math.max(0, Math.round(at)), last);
       const start = Math.max(0, playhead - 1);
       const end = Math.min(playhead + Math.round(0.27 * fps), last);
-      const added = end > start ? [key(start, 1, "ease_out"), key(end, 1.35, "hold")] : [key(start, 1.35, "hold")];
-      const frames = new Set(added.map((move) => move.frame));
-      return [...existing.filter((move) => !frames.has(move.frame)), ...added].sort((a, b) => a.frame - b.frame);
+      const base = moveAt(existing, start);
+      const punched = key(end, base.scale * 1.35, "hold", base.x, base.y);
+      const added = end > start ? [key(start, base.scale, "ease_out", base.x, base.y), punched] : [punched];
+      return [...existing.filter((move) => move.frame < start), ...added];
     }
   }
 }

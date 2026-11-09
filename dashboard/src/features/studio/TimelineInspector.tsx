@@ -187,7 +187,9 @@ function EffectsFields({
   const moves = (clip.moves ?? []) as Move[];
   const marks = clip.emphasis?.marks ?? [];
   const speed = speedPercent(clip);
-  const toClip = (source: number) => Math.round(((source - clip.source_from_frame) * 100) / speed);
+  // A split or trim can leave a mark's window starting before the clip or ending after it.
+  const toClip = (source: number) =>
+    Math.min(clip.duration_in_frames, Math.max(0, Math.round(((source - clip.source_from_frame) * 100) / speed)));
   const toSource = (frame: number) => clip.source_from_frame + Math.floor((frame * speed) / 100);
   const stored = Math.round((clip.dim ?? 0) * 100);
   const [dim, setDim] = useState(stored);
@@ -219,6 +221,7 @@ function EffectsFields({
       onProblem(t("studio.effects.markInside"));
       return false as const;
     }
+    onProblem(null);
     setMarks(marks.map((mark, at) => (at === index ? next : mark)));
   };
   const percentField = (index: number, name: string, key: "x" | "y" | "w" | "h") => (

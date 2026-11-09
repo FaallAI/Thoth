@@ -2,7 +2,7 @@
 
 import { expect, test } from "bun:test";
 
-import type { Ease } from "@thoth/remotion-composition";
+import { moveAt, type Ease } from "@thoth/remotion-composition";
 
 import { movePreset } from "./move_presets";
 
@@ -28,13 +28,23 @@ test("punch in jumps to 135% in eight frames at the playhead and holds", () => {
   expect(movePreset("punch_in", 90, 30, 40)).toEqual([at(39, 1, "ease_out"), at(48, 1.35, "hold")]);
 });
 
-test("punch in joins the moves already there, replacing a keyframe on the same frame", () => {
+test("punch in starts from where the moves already are and holds to the end", () => {
+  // Review 2026-11-10: an absolute 100%-135% punch snapped back to the old moves on their next keyframe.
   const existing = [at(0, 1, "linear"), at(39, 1.1, "linear"), at(80, 1.1, "linear")];
   expect(movePreset("punch_in", 90, 30, 40, existing)).toEqual([
     at(0, 1, "linear"),
-    at(39, 1, "ease_out"),
-    at(48, 1.35, "hold"),
-    at(80, 1.1, "linear"),
+    at(39, 1.1, "ease_out"),
+    at(48, 1.1 * 1.35, "hold"),
+  ]);
+});
+
+test("punch in during a pan keeps the pan's place and stops it", () => {
+  const pan = movePreset("pan_across", 90, 30);
+  const base = moveAt(pan, 44);
+  expect(movePreset("punch_in", 90, 30, 45, pan)).toEqual([
+    pan[0]!,
+    at(44, base.scale, "ease_out", base.x, base.y),
+    at(53, base.scale * 1.35, "hold", base.x, base.y),
   ]);
 });
 

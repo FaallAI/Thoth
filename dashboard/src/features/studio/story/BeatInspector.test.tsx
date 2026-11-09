@@ -410,3 +410,20 @@ test("a heading can become a card", () => {
   fireEvent.click(screen.getByRole("button", { name: "Card" }));
   expect(committedBatches(dispatch)[0]).toMatchObject([{ kind: "set_text_place", style_slot: "card" }]);
 });
+
+// Review 2026-11-10: a Motion choice replaces moves, so Story can remove the moves it adds.
+test("a Motion choice clears the cards' moves, and no Motion reads as chosen while moves play", () => {
+  const document = storyDocument();
+  const reactions = beats.find((beat) => beat.id === "reactions")!;
+  const card = document.clips!.find((clip) => reactions.clipIds.includes(clip.clip_id) && clip.kind === "video")!;
+  Object.assign(card, { moves: [{ frame: 0, scale: 1, x: 0, y: 0, ease: "linear" }, { frame: 30, scale: 1.12, x: 0, y: 0, ease: "linear" }] });
+  const dispatch = mock((_action: EditorAction) => {});
+  render(<BeatInspector beat={reactions} beats={beats} document={document} inventory={inventory} materials={materials} dispatch={dispatch} />);
+  const motion = within(screen.getByRole("group", { name: "Motion" }));
+  const none = motion.getAllByRole("button", { name: "None" })[0]!;
+  expect(none.getAttribute("aria-pressed")).toBe("false");
+  fireEvent.click(none);
+  const [batch] = committedBatches(dispatch);
+  expect(batch).toContainEqual(expect.objectContaining({ kind: "set_clip_moves", clip_id: card.clip_id, moves: [] }));
+  expect(batch!.some((operation) => operation.kind === "set_clip_motion")).toBe(true);
+});

@@ -2,7 +2,7 @@
 
 import { afterEach, expect, mock, test } from "bun:test";
 import { cleanup, render, screen } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import type { EditDocumentV2 } from "@/api/control-plane";
 import { previewComposition } from "./preview";
@@ -10,7 +10,7 @@ import { applyTimelineOperation } from "./timeline_domain";
 import { typedTimelineDocument } from "./timeline-test-fixtures";
 
 /** Props the media primitives received, in render order, per test. */
-const mediaProps: { audio: Record<string, unknown>[]; video: Record<string, unknown>[] } = { audio: [], video: [] };
+const mediaProps: { audio: Record<string, unknown>[]; video: Record<string, unknown>[]; mounts: number } = { audio: [], video: [], mounts: 0 };
 
 /** The frame `useCurrentFrame` reports inside a clip's sequence. */
 const currentFrame = { value: 0 };
@@ -86,6 +86,9 @@ mock.module("@remotion/media", () => ({
   Video: ({ disallowFallbackToOffthreadVideo, volume, playbackRate, preservePitch, onVideoFrame, ...rest }: Record<string, unknown>) => {
     // Speed (Tier 3a) is captured too: a boolean prop cannot sit on a div.
     mediaProps.video.push({ volume, playbackRate, preservePitch, onVideoFrame });
+    useEffect(() => {
+      mediaProps.mounts += 1;
+    }, []);
     return (
       <div
         data-testid="video"
@@ -958,13 +961,32 @@ test("a movie's blur-fill blurs each frame inside its small canvas, never as a C
   render(<AdvancedTimelineComposition document={effectsDocument({ background: "blur_fill" })} previewSources={TYPED_SOURCES} />);
   const canvas = screen.getByTestId("clip-blur-fill").querySelector("canvas")!;
   expect(canvas.style.filter).toBe("");
-  const drawn: { filter: string; args: unknown[] }[] = [];
-  const context = { filter: "none", drawImage: (...args: unknown[]) => drawn.push({ filter: context.filter, args }) };
+  const calls: unknown[][] = [];
+  const context = {
+    filter: "none",
+    clearRect: (...args: unknown[]) => calls.push(["clear", ...args]),
+    drawImage: (...args: unknown[]) => calls.push(["draw", context.filter, ...args.slice(1)]),
+  };
   canvas.getContext = (() => context) as never;
   const onVideoFrame = mediaProps.video.map((props) => props.onVideoFrame).find((call) => typeof call === "function") as (image: unknown) => void;
   onVideoFrame({ displayWidth: canvas.width * 2, displayHeight: canvas.height });
-  // A frame twice as wide as the canvas covers it by height, centred.
-  expect(drawn).toEqual([{ filter: "blur(6px)", args: [expect.anything(), -canvas.width / 2, 0, canvas.width * 2, canvas.height] }]);
+  // The last frame is cleared, then the frame covers the canvas plus 3 sigma (18 px) on every side, so
+  // the blur's transparent edge falls outside the canvas (review 2026-11-10).
+  const [width, height] = [canvas.width + 36, canvas.height + 36];
+  const scale = Math.max(width / (canvas.width * 2), height / canvas.height);
+  expect(calls).toEqual([
+    ["clear", 0, 0, canvas.width, canvas.height],
+    ["draw", "blur(6px)", (canvas.width - canvas.width * 2 * scale) / 2, (canvas.height - canvas.height * scale) / 2, canvas.width * 2 * scale, canvas.height * scale],
+  ]);
+});
+
+test("turning blur-fill on remounts the clip's video, so a paused preview draws the background", () => {
+  // A paused player does not redraw for a new frame callback (review 2026-11-10).
+  // A clip that already has an effect keeps its layers, so only a key makes the video remount.
+  const { rerender } = render(<AdvancedTimelineComposition document={effectsDocument({ dim: 0.3 })} previewSources={TYPED_SOURCES} />);
+  const before = mediaProps.mounts;
+  rerender(<AdvancedTimelineComposition document={effectsDocument({ dim: 0.3, background: "blur_fill" })} previewSources={TYPED_SOURCES} />);
+  expect(mediaProps.mounts).toBe(before + 1);
 });
 
 test("blur-fill on a video draws the clip's own frames, with no second decoder", () => {
@@ -974,6 +996,29 @@ test("blur-fill on a video draws the clip's own frames, with no second decoder",
   expect(screen.getByTestId("clip-blur-fill").querySelector('[data-testid="video"]')).toBeNull();
   expect(mediaProps.video.some((props) => typeof props.onVideoFrame === "function")).toBe(true);
   expect(screen.getByTestId("clip-blur-fill").querySelector("canvas")).not.toBeNull();
+});
+
+test("dim veils only its own clip's picture", () => {
+  // Spec 2026-11-09, 3.3: "a black veil over the clip's own picture" (review 2026-11-10).
+  render(
+    <AdvancedTimelineComposition
+      document={effectsDocument({ dim: 0.4, fit: "fill", position: { x: 0.1, y: 0, scale: 0.5 } } as Effects)}
+      previewSources={TYPED_SOURCES}
+    />,
+  );
+  const veil = screen.getByTestId("clip-dim") as HTMLElement;
+  expect(veil.style.width).toBe("50%");
+  expect(veil.style.left).toBe("35%");
+});
+
+test("with blur-fill, dim veils the whole canvas, the blurred copy being part of the clip", () => {
+  render(
+    <AdvancedTimelineComposition
+      document={effectsDocument({ dim: 0.4, background: "blur_fill", fit: "fill", position: { x: 0, y: 0, scale: 0.5 } } as Effects)}
+      previewSources={TYPED_SOURCES}
+    />,
+  );
+  expect((screen.getByTestId("clip-dim") as HTMLElement).style.width).toBe("");
 });
 
 test("a clip without effects draws no blur-fill, dim or marks", () => {

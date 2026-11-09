@@ -3,6 +3,7 @@
  * drawing so the preview, the render and the tests share one definition.
  */
 
+import { drawn, type Size } from "./blur";
 import { speedPercent } from "./speed";
 import { emphasisBox, type MotionState } from "./story_effects";
 
@@ -33,20 +34,31 @@ export function markWindowOpen(mark: MarkShape, clip: { source_from_frame?: numb
   return mark.from_frame <= source && source < mark.to_frame;
 }
 
+/** How a clip's media element shows its picture: the same inputs blur regions project through. */
+export type MarkView = { fit?: string | null; crop: Crop; asset: Size | undefined; canvas: Box };
+
 /**
  * Where a mark sits on the canvas, in canvas fractions, or null when it lies outside the visible
- * media. A box partly outside is cut at the crop's edge; an arrow is a point (no size).
+ * media. Marks are fractions of the picture, projected the way the media element draws it (crop,
+ * then fit), as `blurBoxes` does; a box partly outside is cut at the frame's edge, and an arrow is a
+ * point (no size).
  */
 export function markBox(
   mark: MarkShape,
-  crop: Crop,
-  content: Box,
+  view: MarkView,
   position: Placement | null | undefined,
   motion: MotionState,
 ): Rect | null {
-  const media = emphasisBox(position, content, motion);
-  const across = (value: number) => (value - crop.left) / crop.width;
-  const down = (value: number) => (value - crop.top) / crop.height;
+  const { crop, canvas } = view;
+  const elementWidth = canvas.width / (crop.width || 1);
+  const elementHeight = canvas.height / (crop.height || 1);
+  const elementLeft = (-crop.left / (crop.width || 1)) * canvas.width;
+  const elementTop = (-crop.top / (crop.height || 1)) * canvas.height;
+  const picture = drawn(view.fit ?? "cover", view.asset, elementWidth, elementHeight);
+  // The clip's frame is the whole canvas before its placement and motion.
+  const media = emphasisBox(position, { width: 1, height: 1 }, motion);
+  const across = (value: number) => (elementLeft + picture.left + value * picture.width) / canvas.width;
+  const down = (value: number) => (elementTop + picture.top + value * picture.height) / canvas.height;
   const u0 = across(mark.x);
   const v0 = down(mark.y);
   if (mark.kind === "arrow") {

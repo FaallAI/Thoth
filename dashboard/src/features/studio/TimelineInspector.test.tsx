@@ -624,3 +624,25 @@ test("a mark's end before its start says why and sends nothing", () => {
   expect(operations).toHaveLength(0);
   expect(screen.getByRole("alert").textContent).toBe("A mark must end after it starts.");
 });
+
+// Review 2026-11-10: a split or trim leaves a mark starting before the clip, and a fixed window clears its message.
+test("a mark that starts before the clip shows the clip's start, never a negative time", () => {
+  const mark = { kind: "box", x: 0.35, y: 0.35, w: 0.3, h: 0.3, side: "top", from_frame: 0, to_frame: 200, color: "accent" };
+  mountEffects(withMain({ source_from_frame: 90, emphasis: { highlight: false, arrow: false, marks: [mark] } }));
+  expect((screen.getByLabelText("Box 1 shows from") as HTMLInputElement).value).toBe("0:00.0");
+  expect((screen.getByLabelText("Box 1 until") as HTMLInputElement).value).toBe("0:03.6");
+});
+
+test("a fixed mark window clears the message", () => {
+  const mark = { kind: "box", x: 0.35, y: 0.35, w: 0.3, h: 0.3, side: "top", from_frame: 30, to_frame: 90, color: "accent" };
+  const { operations } = mountEffects(withMain({ emphasis: { highlight: false, arrow: false, marks: [mark] } }));
+  const until = screen.getByLabelText("Box 1 until");
+  fireEvent.change(until, { target: { value: "0:00.5" } });
+  fireEvent.blur(until);
+  // Text queries: a role query over the whole Inspector takes seconds here.
+  expect(screen.getByText("A mark must end after it starts.")).toBeDefined();
+  fireEvent.change(until, { target: { value: "0:02.0" } });
+  fireEvent.blur(until);
+  expect(operations).toHaveLength(1);
+  expect(screen.queryByText("A mark must end after it starts.")).toBeNull();
+});

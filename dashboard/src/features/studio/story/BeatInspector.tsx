@@ -552,8 +552,16 @@ export function BeatInspector({
                 key={motion}
                 type="button"
                 className={choice}
-                aria-pressed={moving.every((clip) => motionOf(clip) === motion)}
-                onClick={() => commit(setMotion(moving.map((clip) => clip.clip_id), motion))}
+                // Moves play over Motion, so a Motion choice replaces them and none reads as chosen meanwhile.
+                aria-pressed={moving.every((clip) => motionOf(clip) === motion && !(clip as VideoOf).moves?.length)}
+                onClick={() =>
+                  commit([
+                    ...setMotion(moving.map((clip) => clip.clip_id), motion),
+                    ...moving
+                      .filter((clip) => (clip as VideoOf).moves?.length)
+                      .map((clip): EditDocumentOperation => ({ kind: "set_clip_moves", operation_id: newOperationId(), clip_id: clip.clip_id, moves: [] })),
+                  ])
+                }
               >
                 {t(`studio.inspector.motion.${motion}`)}
               </button>
