@@ -1147,7 +1147,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             ) : null}
             {/* On a compact Timeline pane the preview sits above the lanes at a fixed share of the
                 screen (operator, 2026-11-09); the one preview stays mounted either way. */}
-            <div className={compact && editPane === "timeline" ? "flex h-[40vh] min-h-56 flex-col [&>*]:min-h-0 [&>*]:flex-1" : "contents"}>
+            {/* The box keeps its height and clips what it holds; its preview fills exactly that (live check, 430). */}
+            <div className={compact && editPane === "timeline" ? "studio-phone-preview h-[40vh] min-h-56 shrink-0 overflow-hidden [&>*]:h-full [&>*]:min-h-0" : "contents"}>
               <StudioPreview
                 overlay={story && !reviewing ? (safeZone ? <SafeZoneOverlay /> : null) : undefined}
                 // Review shows what was saved; Edit shows the draft.
