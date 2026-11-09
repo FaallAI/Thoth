@@ -2,6 +2,68 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-10 - Studio effects layer
+
+Branch `feat/studio-effects-layer` from master `4971b458` (PR #126 merged; PR #125 merged as `ff4d1004` before it).
+- **Spec:** `docs/superpowers/specs/2026-11-09-studio-effects-layer-design.md`, approved by the operator on 2026-11-09.
+- **Plan:** `docs/superpowers/plans/2026-11-09-studio-effects-layer.md`.
+- **Execution:** done natively, task by task; the whole-branch review is still to come.
+
+**What changed.** The edit document and Studio gain the effects that Style A (IsseiNugroho) and Style B (WinNews) need:
+- **Moves:** scale and position keyframes per video clip, with Linear, Ease out, Ease in-out and Hold. They stay in place through trims, splits, scene resizes and narration retiming. Python and TypeScript run the same JSON cases.
+- **Blur-fill:** a blurred copy of the clip's own media covers the canvas behind it. Choosing it also sets the fit to Contain.
+- **Dim:** a black layer over the clip, from 0 to 80%.
+- **Marks:** up to 12 boxes and arrows per clip, in two colours. Their windows are in source frames, so they follow speed and trims, and a replaced asset clears them.
+- **Two caption styles:** `kinetic` (a group of up to four words at a time, mid-frame) and `boxed` (small subtitles on a solid box).
+- **A `card` text place:** a white card with a dark heading.
+- **Studio:** the Timeline Inspector has an Effects section with Background, Dim, five move presets (Punch in at playhead, Push in, Pan across, Scroll down, Pull out), a keyframe list, and Marks with time fields in clip time. A clip with moves or marks shows a "Has effects" badge.
+- **Story:** each beat offers Background, Dim and the four presets that need no playhead, and names the cards that have marks. Headings gain the Card place.
+- **New auto-drafts:** full-frame media more than 0.02 away from 9:16 sits on blur-fill.
+
+Every new field has a default and is left out of the stored document when unused, so a rollback stays safe for drafts that do not use the effects. A draft that uses one will not load on older images.
+
+**Render time.** The 60 s draft has 30 clips alternating a still and a movie. It was rendered locally in the F1 image with fixture media.
+- **First measurement:** 32.4 s without blur-fill and 163.9 s with it on every clip, so +406%, over the spec's 25% limit.
+- **Bisecting the cost:** stills alone cost 34.6 s and movies alone 160.6 s. A smaller copy, a frozen second video and a single decoder did not help. The cost was a CSS blur over a layer that changes every frame.
+- **The fix:** a movie's blur-fill now draws the clip's own decoded frames (`onVideoFrame`) into an eighth-size canvas, blurs them there, and scales the canvas up. A still keeps a CSS blur on its eighth-size copy.
+- **After the fix:** 31.6 s and 29.1 s without, 35.8 s and 35.0 s with, so +16.6%.
+
+**Release capsule.** `effects-v1` draws every effect over 120 frames.
+- **Candidate golden set:** run `run_5aa03942d132bd2b`. Its verdict is `golden_missing`, as expected. Preview and render match exactly on all six frames.
+- **Where it is:** in WSL under `~/thoth-golden-effects`, outside the checkout. It is not promoted and not in the CI loop.
+- **Frames judged:** 40 (dim, box, arrow and a kinetic group), 80 (blur-fill around a 0.8 scale movie, with boxed captions) and 119 (the card).
+- **One note for approval:** the kinetic group sits mid-frame, over the capsule's own title text. That overlap comes from the fixture's layout, not from the effect.
+
+**Found on the way.** Three `studio-media` read-only checks failed on stage1 too, so they were stale before this branch, not broken by it.
+- **Two expected the old clock:** they looked for `0:0X / 0:34`, but since PR #126 the clock shows tenths. They now accept them.
+- **One matched both clocks:** the narration preview check matched the player bar's clock as well as the Timeline's, so it now reads the Timeline's.
+
+**Verification.**
+- **Python:** `make test` gives 4768 passed and 224 skipped. `make test-postgres` gives 204 passed. Lint is clean.
+- **Dashboard:** 1968 tests pass, plus 45 in the e2e package. `tsc -b` and the build are clean.
+- **Renderer and composition:** 259 tests pass.
+- **Read-only e2e against a local dev server of this branch, at 1440:** 41 checks across `studio-shell-v2`, `studio-audit-fixes`, `studio-media` and `studio-menus`, including the new Effects check. All pass after the clock fixes.
+- **Screenshot judged at 1440x900:** the Effects section sits under Fade out, in the same style as the Clip section.
+- **The write checks** (`e2e/tests-write/effects.e2e.ts`: blur-fill and dim, Push in, Add box) are written but not run.
+
+**Next steps** (each its own gate):
+- the operator approves and promotes the `effects-v1` golden set, then `effects-v1` joins the CI loop;
+- the fresh whole-branch review and its fix pass;
+- push and PR;
+- deploy the branch image to stage1;
+- the write e2e, with a one-day write token;
+- the operator tries it;
+- merge.
+
+After that comes the planner slice of roadmap item 6.
+
+**Carried forward:**
+- a Story scene resize of a sped-up clip can be refused by the server;
+- the rights to Style B's news clips;
+- defamation safeguards (claims shown with their sources at approval, and terms and a takedown path before public sign-up);
+- editor-eye's music and SFX labels, text size, and font identification;
+- the understand-anything graph is stale since `ccddab63` and needs `/understand --full`.
+
 ## 2026-11-09 - Studio full-width timeline
 
 Branch `feat/studio-full-timeline` from `2b6cbdbf` (the Tier 3b head, because PR #125 is still open), PR #126, stacked on #125.

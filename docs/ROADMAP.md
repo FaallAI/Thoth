@@ -152,6 +152,8 @@ three tiers are built; the next track is the operator's choice.
 
 The Studio full-width timeline (a resizable bottom row, the player bar under the preview, no text selection) is on `feat/studio-full-timeline` (PR #126), stacked on Tier 3b, and deployed to stage1 for the operator to try.
 
+The Studio effects layer (moves, blur-fill, dim, marks, kinetic and boxed captions, the card place) is built on `feat/studio-effects-layer`, not pushed. Its `effects-v1` golden set waits for the operator's approval.
+
 The red tests are `e2e/tests-write/timeline-audit.e2e.ts`. The Studio shell v2 spec
 (2026-11-01) lists ripple delete as an existing tool, but git history shows no delete control in
 the Timeline, toolbar or Inspector, so it counts as new work here.
