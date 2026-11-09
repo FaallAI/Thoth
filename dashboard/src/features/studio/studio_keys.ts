@@ -31,6 +31,7 @@ export type TimelineKey =
   | "shuttle_back"
   | "shuttle_stop"
   | "shuttle_forward"
+  | "add_marker"
   | "clear";
 
 type Keys = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey" | "altKey">;
@@ -78,6 +79,9 @@ export function timelineKey(event: Keys): TimelineKey | null {
     case "l":
     case "L":
       return "shuttle_forward";
+    case "m":
+    case "M":
+      return "add_marker";
     default:
       return null;
   }
@@ -99,6 +103,7 @@ export const SHORTCUTS: readonly { action: ShortcutAction; keys: string; group: 
   { action: "duplicate", keys: "Ctrl+D", group: "editing" },
   { action: "slip_drag", keys: "Alt+drag", group: "editing" },
   { action: "roll_drag", keys: "Alt+drag", group: "editing" },
+  { action: "add_marker", keys: "M", group: "editing" },
   { action: "clear", keys: "Esc", group: "editing" },
   { action: "play", keys: "Space", group: "playback" },
   { action: "start", keys: "Home", group: "playback" },

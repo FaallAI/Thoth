@@ -11,6 +11,7 @@ import {
   MAX_ZOOM,
   MIN_ZOOM,
   applyTimelineOperation,
+  fitMarkers,
   framesLeft,
   sourceSpan,
   speedPercent,
@@ -1116,4 +1117,29 @@ test("slip_clip refuses an image", () => {
   const doc = fixtureDocument();
   Object.assign(doc.asset_refs![0]!, { kind: "image" });
   expect(() => applied(doc, { kind: "slip_clip", clip_id: "clip_main", source_from_frame: 4 })).toThrow("an image has no source time");
+});
+
+// Tier 3a: markers on the ruler, mirrored from the server.
+test("add_marker, set_marker and remove_marker", () => {
+  const added = applied(fixtureDocument(), { kind: "add_marker", marker_id: "marker_1", frame: 30, label: "" });
+  expect(added.markers).toEqual([{ marker_id: "marker_1", frame: 30, label: "" }]);
+  const named = applied(added, { kind: "set_marker", marker_id: "marker_1", frame: 45, label: "Hook ends" });
+  expect(named.markers).toEqual([{ marker_id: "marker_1", frame: 45, label: "Hook ends" }]);
+  expect(applied(named, { kind: "remove_marker", marker_id: "marker_1" }).markers).toEqual([]);
+});
+
+test("marker operations refuse a reused id and an unknown marker", () => {
+  const added = applied(fixtureDocument(), { kind: "add_marker", marker_id: "marker_1", frame: 30, label: "" });
+  expect(() => applied(added, { kind: "add_marker", marker_id: "marker_1", frame: 40, label: "" })).toThrow("operation reuses an existing marker ID");
+  expect(() => applied(added, { kind: "remove_marker", marker_id: "marker_x" })).toThrow("operation references an unknown marker");
+});
+
+test("fitMarkers moves a marker past the end onto the last frame", () => {
+  const doc = fixtureDocument();
+  doc.markers = [
+    { marker_id: "inside", frame: 10, label: "" },
+    { marker_id: "late", frame: doc.canvas.duration_in_frames + 40, label: "" },
+  ];
+  fitMarkers(doc);
+  expect(doc.markers.map((marker) => marker.frame)).toEqual([10, doc.canvas.duration_in_frames - 1]);
 });

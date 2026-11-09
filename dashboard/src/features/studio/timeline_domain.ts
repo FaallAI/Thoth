@@ -498,6 +498,22 @@ export function applyTimelineOperation(
     case "set_track_visibility":
       unlockedTrack(next, operation.track_id).hidden = operation.hidden;
       break;
+    case "add_marker": {
+      const markers = next.markers ?? [];
+      if (markers.some((marker) => marker.marker_id === operation.marker_id)) throw new Error("operation reuses an existing marker ID");
+      next.markers = [...markers, { marker_id: operation.marker_id, frame: operation.frame, label: operation.label ?? "" }];
+      break;
+    }
+    case "set_marker": {
+      const marker = markerOf(next, operation.marker_id);
+      marker.frame = operation.frame;
+      marker.label = operation.label;
+      break;
+    }
+    case "remove_marker":
+      markerOf(next, operation.marker_id);
+      next.markers = (next.markers ?? []).filter((marker) => marker.marker_id !== operation.marker_id);
+      break;
     case "set_track_muted":
       unlockedTrack(next, operation.track_id).muted = operation.muted;
       break;
@@ -508,7 +524,20 @@ export function applyTimelineOperation(
       throw new Error("operation is not a timeline operation");
   }
   fitFades(next);
+  fitMarkers(next);
   return next;
+}
+
+function markerOf(document: EditDocumentV2, markerId: string) {
+  const marker = document.markers?.find((entry) => entry.marker_id === markerId);
+  if (!marker) throw new Error("operation references an unknown marker");
+  return marker;
+}
+
+/** Move every marker past a shortened document's end onto its last frame (as the server does). */
+export function fitMarkers(document: EditDocumentV2): void {
+  const last = document.canvas.duration_in_frames - 1;
+  for (const marker of document.markers ?? []) if (marker.frame > last) marker.frame = last;
 }
 
 /** Shrink fades a shorter clip can no longer hold: the fade out first, then the fade in (as the server does). */

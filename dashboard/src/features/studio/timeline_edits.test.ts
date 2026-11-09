@@ -5,6 +5,7 @@ import { expect, test } from "bun:test";
 import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane";
 import { applyTimelineOperation } from "./timeline_domain";
 import {
+  addMarker,
   closeAllGaps,
   closeGap,
   closeTimelineGaps,
@@ -462,4 +463,20 @@ test("rollCut refuses a cut past either clip's source", () => {
   // a 70-frame source cannot feed a 75-frame a.
   Object.assign(doc.asset_refs!.find((ref) => ref.asset_id === "asset_video")!, { duration_in_frames: 70 });
   expect(rollCut(doc, "a", "b", 75).refusal).toBe("no_source");
+});
+
+// Tier 3a: M adds a marker at the playhead.
+test("addMarker adds one marker at the frame", () => {
+  const edit = addMarker(timelineDocument(), 60);
+  expect(edit.operations.map((operation) => ({ ...operation, marker_id: "m", operation_id: "op" }))).toEqual([
+    { kind: "add_marker", operation_id: "op", marker_id: "m", frame: 60, label: "" },
+  ]);
+});
+
+test("addMarker refuses a frame that has one, and a 101st marker", () => {
+  const doc = timelineDocument();
+  doc.markers = [{ marker_id: "m1", frame: 60, label: "" }];
+  expect(addMarker(doc, 60).refusal).toBe("taken");
+  doc.markers = Array.from({ length: 100 }, (_, index) => ({ marker_id: `m${index}`, frame: index, label: "" }));
+  expect(addMarker(doc, 140).refusal).toBe("too_many");
 });

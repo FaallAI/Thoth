@@ -1028,3 +1028,60 @@ test("a roll across a scene boundary says to resize the scene in Story", () => {
   fireEvent.pointerUp(window, { clientX: 70 });
   expect(screen.getByRole("status").textContent).toContain("This cut is a scene boundary. Resize the scene in Story instead");
 });
+
+// Tier 3a: markers on the ruler.
+function withMarkers(markers: { marker_id: string; frame: number; label: string }[], overrides: Partial<EditorState> = {}) {
+  const doc = timelineDocument();
+  doc.markers = markers;
+  return mount({ base: doc, draft: doc, ...overrides });
+}
+
+test("M adds a marker at the playhead as one edit", () => {
+  const { actions } = mount({ playheadFrame: 60 });
+  key(document.body, "m");
+  const added = actions.find((action) => action.type === "commit_operations");
+  expect(added?.type === "commit_operations" && added.operations).toEqual([expect.objectContaining({ kind: "add_marker", frame: 60, label: "" })]);
+});
+
+test("M typed in a field adds no marker", () => {
+  const { actions } = mount({ playheadFrame: 60 });
+  const field = document.body.appendChild(document.createElement("input"));
+  key(field, "m");
+  field.remove();
+  expect(actions).toEqual([]);
+});
+
+test("a marker is a button on the ruler that moves the playhead to it", () => {
+  const { actions } = withMarkers([
+    { marker_id: "m_named", frame: 90, label: "Hook beat" },
+    { marker_id: "m_plain", frame: 60, label: "" },
+  ]);
+  expect(screen.getByRole("button", { name: "Marker 1 at 0:02.0" })).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "Hook beat at 0:03.0" }));
+  expect(actions.at(-1)).toEqual({ type: "set_playhead", frame: 90 });
+});
+
+const openMarkerMenu = (name: string) => fireEvent.contextMenu(screen.getByRole("button", { name }), { clientX: 5, clientY: 5 });
+
+test("a marker's menu deletes it and moves it to the playhead", () => {
+  const { actions } = withMarkers([{ marker_id: "m1", frame: 60, label: "" }], { playheadFrame: 30 });
+  openMarkerMenu("Marker 1 at 0:02.0");
+  expect(menuNames()).toEqual(["Rename marker…", "Move to playhead", "Delete marker"]);
+  fireEvent.click(screen.getByRole("menuitem", { name: "Move to playhead" }));
+  expect(ops(actions)).toEqual(["set_marker"]);
+  openMarkerMenu("Marker 1 at 0:02.0");
+  fireEvent.click(screen.getByRole("menuitem", { name: "Delete marker" }));
+  expect(ops(actions)).toEqual(["set_marker", "remove_marker"]);
+});
+
+test("Rename marker… names it, and the name is saved as one edit", () => {
+  const { actions } = withMarkers([{ marker_id: "m1", frame: 60, label: "" }]);
+  openMarkerMenu("Marker 1 at 0:02.0");
+  fireEvent.click(screen.getByRole("menuitem", { name: "Rename marker…" }));
+  const dialog = screen.getByRole("dialog", { name: "Rename marker" });
+  fireEvent.change(within(dialog).getByRole("textbox", { name: "Marker name" }), { target: { value: "Hook ends" } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+  const saved = actions.find((action) => action.type === "commit_operations");
+  expect(saved?.type === "commit_operations" && saved.operations).toEqual([expect.objectContaining({ kind: "set_marker", marker_id: "m1", frame: 60, label: "Hook ends" })]);
+  expect(screen.queryByRole("dialog", { name: "Rename marker" })).toBeNull();
+});

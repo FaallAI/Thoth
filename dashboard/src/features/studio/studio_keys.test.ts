@@ -83,3 +83,9 @@ test("the shortcut list names the slip gesture (Tier 3a)", () => {
 test("the shortcut list names the roll gesture (Tier 3a)", () => {
   expect(SHORTCUTS.find((entry) => entry.action === "roll_drag")?.keys).toBe("Alt+drag");
 });
+
+test("M adds a marker (Tier 3a)", () => {
+  expect(timelineKey({ key: "m", ctrlKey: false, metaKey: false, shiftKey: false, altKey: false })).toBe("add_marker");
+  expect(timelineKey({ key: "M", ctrlKey: false, metaKey: false, shiftKey: true, altKey: false })).toBe("add_marker");
+  expect(SHORTCUTS.find((entry) => entry.action === "add_marker")?.keys).toBe("M");
+});

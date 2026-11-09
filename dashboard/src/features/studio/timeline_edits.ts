@@ -23,7 +23,9 @@ export type Refusal =
   | "no_source"
   | "still"
   | "not_touching"
-  | "scene_cut";
+  | "scene_cut"
+  | "taken"
+  | "too_many";
 /** Something a successful edit still tells the person (operator, 2026-11-09). */
 export type Notice = "hidden_track";
 export type Edit = { operations: EditDocumentOperation[]; refusal?: Refusal; notice?: Notice };
@@ -511,4 +513,19 @@ export function rollCut(doc: EditDocumentV2, leftId: string, rightId: string, fr
       { kind: "trim_clip_start", operation_id: newId("op"), clip_id: right.clip_id, from_frame: frame },
     ],
   };
+}
+
+// --------------------------------------------------------------------------
+// Markers (Tier 3a)
+// --------------------------------------------------------------------------
+
+/** The server keeps at most this many markers on a draft. */
+export const MAX_MARKERS = 100;
+
+/** A marker at `frame`, unless one already sits there or the draft holds the most it may. */
+export function addMarker(doc: EditDocumentV2, frame: number): Edit {
+  const markers = doc.markers ?? [];
+  if (markers.some((marker) => marker.frame === frame)) return refuse("taken");
+  if (markers.length >= MAX_MARKERS) return refuse("too_many");
+  return { operations: [{ kind: "add_marker", operation_id: newId("op"), marker_id: newId("marker"), frame, label: "" }] };
 }

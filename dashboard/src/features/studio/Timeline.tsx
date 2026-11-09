@@ -8,9 +8,11 @@ import { clipLabel, type GestureMode } from "./TimelineClip";
 import { TimelineToolbar, type ClipAction } from "./TimelineToolbar";
 import { TimelineTrack } from "./TimelineTrack";
 import { ReplaceMediaDialog } from "./ReplaceMediaDialog";
-import { clipMenu, gapMenu, trackMenu, type MenuContext } from "./timeline_menus";
+import { clipMenu, gapMenu, markerMenu, trackMenu, type MenuContext } from "./timeline_menus";
+import { MarkerNameDialog } from "./MarkerNameDialog";
 import { isTypingTarget, timelineKey } from "./studio_keys";
 import {
+  addMarker,
   deleteClips,
   duplicateClips,
   moveClips,
@@ -159,6 +161,8 @@ export function Timeline({
   // Text on its way from the system clipboard, waiting for the person to pick its place (spec 2026-11-08 §6).
   const [pastedText, setPastedText] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // The marker whose name is being edited (Tier 3a).
+  const [renaming, setRenaming] = useState<string | null>(null);
   const offerText = (text: string) => {
     const trimmed = text.trim();
     setNotice(null);
@@ -459,6 +463,9 @@ export function Timeline({
           if (!clipId) return;
           commitEdit(splitAt(doc, clipId, current.playheadFrame));
           break;
+        case "add_marker":
+          commitEdit(addMarker(doc, current.playheadFrame));
+          break;
         case "play":
           (current.playing ? pause : play)?.();
           break;
@@ -552,6 +559,9 @@ export function Timeline({
 
   const duration = timeline.canvas.duration_in_frames;
   const lanes = visibleLanes(timeline);
+  // Markers in time order, so "Marker 1" is the earliest (Tier 3a).
+  const markers = [...(timeline.markers ?? [])].sort((left, right) => left.frame - right.frame);
+  const renamedMarker = markers.find((marker) => marker.marker_id === renaming);
 
   const startGesture = (clipId: string, asked: GestureMode, clientX: number) => {
     const clip = clips.find((candidate) => candidate.clip_id === clipId);
@@ -723,6 +733,26 @@ export function Timeline({
                 </span>
               ))}
             </div>
+            {/* Markers sit beside the slider, not inside it: a slider holds no buttons (Tier 3a). */}
+            {markers.length ? (
+              <div role="group" aria-label={t("studio.marker.markers")} className="pointer-events-none absolute inset-y-0 right-0" style={{ left: headerWidth }}>
+                {markers.map((marker, index) => {
+                  const name = marker.label || t("studio.marker.label", { number: index + 1 });
+                  return (
+                    <button
+                      key={marker.marker_id}
+                      type="button"
+                      aria-label={t("studio.marker.at", { name, time: formatTimecode(marker.frame, fps) })}
+                      title={name}
+                      className="pointer-events-auto absolute top-0 h-3 w-3 -translate-x-1/2 rotate-45 rounded-[2px] bg-copper focus-visible:outline-2 focus-visible:outline-copper"
+                      style={{ left: `${framesToPixels(marker.frame, state.zoom)}px` }}
+                      onClick={() => seek(marker.frame)}
+                      {...menu.bind(() => markerMenu(menuContext, marker, { onRename: () => setRenaming(marker.marker_id) }))}
+                    />
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
           <div
             aria-hidden="true"
@@ -833,6 +863,19 @@ export function Timeline({
         <p role="status" className="border-t border-hairline bg-surface px-3 py-2 text-xs text-muted-ink">
           {notice}
         </p>
+      ) : null}
+      {renamedMarker ? (
+        <MarkerNameDialog
+          label={renamedMarker.label ?? ""}
+          onClose={() => setRenaming(null)}
+          onSave={(label) => {
+            setRenaming(null);
+            dispatch({
+              type: "commit_operations",
+              operations: [{ kind: "set_marker", operation_id: newId("op"), marker_id: renamedMarker.marker_id, frame: renamedMarker.frame, label }],
+            });
+          }}
+        />
       ) : null}
       {pastedText !== null ? (
         <PasteTextDialog
