@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse, Response
 
 from thoth_control_plane.api.dependencies import current_actor
 from thoth_control_plane.api.ranged import ranged_response
+from thoth_control_plane.application.asset_glances import AssetGlanceService, GlanceUnavailable
 from thoth_control_plane.application.editor_asset_ports import (
     EditorAssetMediaInvalid,
     EditorAssetUploadTooLarge,
@@ -32,6 +33,7 @@ from thoth_control_plane.application.editor_assets import (
     ListEditorAssetsRequest,
 )
 from thoth_control_plane.domain import Actor
+from thoth_control_plane.domain.asset_glance import AssetGlance
 from thoth_control_plane.domain.editor_assets import (
     ASSET_PAGE_LIMIT_MAX,
     EditorAsset,
@@ -262,3 +264,43 @@ def _capability_refused(
             samesite="strict",
         )
     return response
+
+
+#: An asset's bytes never change, so its glance may be kept a day in this browser.
+GLANCE_HEADERS = {"Cache-Control": "private, max-age=86400"}
+
+
+def _glance_service(request: Request, service: EditorAssetService) -> AssetGlanceService:
+    """One per app, so its build slots bound ffmpeg across every request."""
+    glances = getattr(request.app.state, "asset_glances", None)
+    if glances is None:
+        glances = AssetGlanceService(
+            service, request.app.state.media_store, request.app.state.settings.THOTH_FFMPEG
+        )
+        request.app.state.asset_glances = glances
+    return glances
+
+
+@router.get(
+    "/projects/{project_id}/editor-assets/{asset_id}/glance",
+    response_model=AssetGlance,
+)
+async def get_editor_asset_glance(
+    project_id: str,
+    asset_id: str,
+    request: Request,
+    _: Annotated[Actor, Depends(current_actor)],
+    service: Annotated[EditorAssetService, Depends(get_editor_asset_service)],
+) -> Response:
+    """The asset's filmstrip or peaks (Tier 3b), built on first request and then kept."""
+    try:
+        glance = await _glance_service(request, service).glance(project_id, asset_id)
+    except EditorAssetNotFound as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND) from error
+    except EditorAssetsUnavailable as error:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE) from error
+    except GlanceUnavailable as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail={"code": error.code}
+        ) from error
+    return JSONResponse(content=glance.model_dump(mode="json"), headers=GLANCE_HEADERS)

@@ -571,6 +571,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/editor-assets/{asset_id}/glance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Editor Asset Glance
+         * @description The asset's filmstrip or peaks (Tier 3b), built on first request and then kept.
+         */
+        get: operations["get_editor_asset_glance_api_v1_projects__project_id__editor_assets__asset_id__glance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/editor-assets/{asset_id}/preview": {
         parameters: {
             query?: never;
@@ -1921,6 +1941,16 @@ export interface components {
             size_bytes?: number | null;
         };
         /**
+         * AssetGlance
+         * @description What a clip of this asset shows: a video or image has a strip, an audio track its peaks.
+         */
+        AssetGlance: {
+            /** Asset Id */
+            asset_id: string;
+            peaks?: components["schemas"]["GlancePeaks"] | null;
+            strip?: components["schemas"]["GlanceStrip"] | null;
+        };
+        /**
          * AssetRef
          * @description Safe, immutable projection of a validated project asset.
          *
@@ -2478,6 +2508,32 @@ export interface components {
             platform?: string | null;
             /** Title */
             title?: string | null;
+        };
+        /**
+         * GlancePeaks
+         * @description The loudest sample of each stretch of the track, from its start.
+         */
+        GlancePeaks: {
+            /** Seconds Per Peak */
+            seconds_per_peak: number;
+            /** Values */
+            values: number[];
+        };
+        /**
+         * GlanceStrip
+         * @description Frames side by side in one JPEG, the first at the source's start.
+         */
+        GlanceStrip: {
+            /** Frame Height */
+            frame_height: number;
+            /** Frame Width */
+            frame_width: number;
+            /** Frames */
+            frames: number;
+            /** Image */
+            image: string;
+            /** Seconds Per Frame */
+            seconds_per_frame: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -6751,6 +6807,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EditorAsset"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_editor_asset_glance_api_v1_projects__project_id__editor_assets__asset_id__glance_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetGlance"];
                 };
             };
             /** @description Validation Error */
