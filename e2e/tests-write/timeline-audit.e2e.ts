@@ -401,3 +401,70 @@ test('assets: search narrows the asset list', async ({ app, browser, screen }) =
   await screen.getByRole('searchbox', 'Search assets').fill('upload');
   await expect(screen.getByRole('button', 'Add Upload · Video to timeline')).toBeVisible();
 });
+
+// Tier 3a (spec 2026-11-08 section 7): speed, slip, roll, markers and phones.
+// The throwaway project's upload is an 80 s video, so 2x and a 1 s slip have source to spare.
+test('speed: Speed 2x is saved', async ({ app, browser, screen }) => {
+  await clipOnTimeline({ app, browser, screen });
+  await screen.getByRole('button', 'Main Video clip').tap();
+  await screen.getByRole('combobox', 'Speed').selectOption('2×');
+  await expect.poll(async () => (await mainClip(browser))[0].speed, { timeout: 5000 }).toBe(2);
+});
+
+test('slip: Source start 1 s is saved', async ({ app, browser, screen }) => {
+  await clipOnTimeline({ app, browser, screen });
+  await screen.getByRole('button', 'Main Video clip').tap();
+  await screen.getByRole('textbox', 'Source start (seconds)').fill('1');
+  await browser.keyboard.press('Enter');
+  await expect.poll(async () => (await mainClip(browser))[0].source_from_frame, { timeout: 5000 }).toBe(30);
+});
+
+test('roll: Alt+drag the cut between two clips moves it', async ({ app, browser, screen }) => {
+  await clipOnTimeline({ app, browser, screen });
+  await screen.getByRole('switch', 'Snap').tap();
+  // Split the 90-frame clip at frame 45, then roll the cut 1 s (30 frames, 120 px) to the right.
+  const ruler = await screen.getByRole('slider', 'Playhead').boundingBox();
+  await clickAt(browser, ruler.x + 180, ruler.y + ruler.height / 2);
+  await screen.getByRole('button', 'Main Video clip').tap();
+  await browser.keyboard.press('s');
+  await expect.poll(async () => (await mainClip(browser)).length, { timeout: 5000 }).toBe(2);
+  const cut = await mainLaneAt(screen, 45);
+  await browser.keyboard.down('Alt');
+  await browser.mouse.move(cut.x - 2, cut.y);
+  await browser.mouse.down();
+  await browser.mouse.move(cut.x + 60, cut.y);
+  await browser.mouse.move(cut.x + 118, cut.y);
+  await browser.mouse.up();
+  await browser.keyboard.up('Alt');
+  await expect
+    .poll(async () => (await mainClip(browser)).map((clip: any) => [clip.from_frame, clip.duration_in_frames]).sort((a: number[], b: number[]) => a[0] - b[0]), { timeout: 5000 })
+    .toEqual([[0, 75], [75, 15]]);
+});
+
+test('markers: M adds a marker to the ruler', async ({ app, browser, screen }) => {
+  await clipOnTimeline({ app, browser, screen });
+  const ruler = await screen.getByRole('slider', 'Playhead').boundingBox();
+  await clickAt(browser, ruler.x + 120, ruler.y + ruler.height / 2);
+  await browser.keyboard.press('m');
+  await expect(screen.getByRole('button', /^Marker 1 at /)).toBeVisible();
+  await expect.poll(async () => ((await saved(browser)).markers ?? []).length, { timeout: 5000 }).toBe(1);
+});
+
+test('phone: a long press opens the clip menu, and Split is saved', async ({ app, browser, screen }) => {
+  await clipOnTimeline({ app, browser, screen });
+  const ruler = await screen.getByRole('slider', 'Playhead').boundingBox();
+  await clickAt(browser, ruler.x + 180, ruler.y + ruler.height / 2);
+  await browser.setViewport({ width: 430, height: 932 });
+  await screen.getByRole('navigation', 'Studio panes').getByRole('button', 'Timeline').tap();
+  await expect(screen.getByText(/Press and hold for its menu/)).toBeVisible();
+  // The web engine has no touch long press, so the test holds a touch pointer itself.
+  await browser.evaluate(() => {
+    const clip = document.querySelector('[aria-label="Main Video clip"]')!;
+    const box = clip.getBoundingClientRect();
+    const at = { bubbles: true, pointerType: 'touch', button: 0, clientX: box.x + 4, clientY: box.y + box.height / 2 };
+    clip.dispatchEvent(new PointerEvent('pointerdown', at));
+    return new Promise((done) => setTimeout(() => done(null), 700));
+  });
+  await screen.getByRole('menuitem', 'Split at playhead').tap();
+  await expect.poll(async () => (await mainClip(browser)).length, { timeout: 5000 }).toBe(2);
+});
