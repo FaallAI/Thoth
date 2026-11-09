@@ -83,7 +83,7 @@ export function timelineKey(event: Keys): TimelineKey | null {
   }
 }
 
-export type ShortcutAction = TimelineKey | "undo" | "redo" | "shortcuts" | "zoom_wheel" | "open_menu";
+export type ShortcutAction = TimelineKey | "undo" | "redo" | "shortcuts" | "zoom_wheel" | "open_menu" | "slip_drag";
 export type ShortcutGroup = "editing" | "playback" | "view" | "studio";
 
 /** The one list the menus and the shortcut dialog both read, so the two never drift. */
@@ -97,6 +97,7 @@ export const SHORTCUTS: readonly { action: ShortcutAction; keys: string; group: 
   { action: "copy", keys: "Ctrl+C", group: "editing" },
   { action: "paste", keys: "Ctrl+V", group: "editing" },
   { action: "duplicate", keys: "Ctrl+D", group: "editing" },
+  { action: "slip_drag", keys: "Alt+drag", group: "editing" },
   { action: "clear", keys: "Esc", group: "editing" },
   { action: "play", keys: "Space", group: "playback" },
   { action: "start", keys: "Home", group: "playback" },

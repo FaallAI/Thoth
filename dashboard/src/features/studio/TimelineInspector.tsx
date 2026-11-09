@@ -4,6 +4,7 @@ import { PanelRight } from "lucide-react";
 import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane";
 import { useLocale } from "@/lib/locale";
 import { setPositionPreset, type PositionPreset } from "./story/story_edits";
+import { slipClip, slipRange } from "./timeline_edits";
 import { clipLabel } from "./TimelineClip";
 import { issueSentence } from "./IssuesPanel";
 import { formatTimecode, parseTimecode, sourceSpan, timelineIssues, trackName } from "./timeline_domain";
@@ -191,6 +192,7 @@ export function TimelineInspector({
     scale: useId(),
     fadeIn: useId(),
     speed: useId(),
+    sourceStart: useId(),
     fadeOut: useId(),
     overlayPreset: useId(),
     overlayText: useId(),
@@ -364,6 +366,33 @@ export function TimelineInspector({
     );
   };
 
+  /** Where the clip starts in its source, in seconds: slip by number (Tier 3a). */
+  const sourceStartField = (slipped: NonNullable<EditDocumentV2["clips"]>[number]) => {
+    const range = slipRange(document, slipped);
+    if (range === "still" || !("source_from_frame" in slipped)) return null;
+    const tenths = (frames: number) => String(Math.floor((frames / fps) * 10) / 10);
+    const set = (seconds: number) => {
+      const frames = Math.round(seconds * fps);
+      if (frames < 0) return false;
+      const max = typeof range === "string" ? 0 : range.max;
+      if (frames > max) {
+        setProblem(t("studio.timeline.sourceStartMax", { seconds: tenths(max) }));
+        return false;
+      }
+      setProblem(null);
+      slipClip(document, slipped.clip_id, frames).operations.forEach(onOperation);
+    };
+    return (
+      <NumberField
+        id={ids.sourceStart}
+        label={t("studio.timeline.sourceStart")}
+        shown={String(Math.round((slipped.source_from_frame / fps) * 10) / 10)}
+        disabled={frozen}
+        onCommit={set}
+      />
+    );
+  };
+
   /** Fade in and out in seconds, on a video or audio clip (spec 2026-11-08 §6). */
   const fadeFields = (faded: { clip_id: string; duration_in_frames: number; fade_in_frames?: number; fade_out_frames?: number }) => {
     const fades = { in: faded.fade_in_frames ?? 0, out: faded.fade_out_frames ?? 0 };
@@ -523,6 +552,7 @@ export function TimelineInspector({
                 </select>
               </div>
               {speedField(clip)}
+              {sourceStartField(clip)}
               <div role="group" aria-label={t("studio.timeline.crop")} className="space-y-2">
                 {cropFields(clip)}
               </div>
@@ -581,6 +611,7 @@ export function TimelineInspector({
                 />
               </div>
               {speedField(clip)}
+              {sourceStartField(clip)}
               {fadeFields(clip)}
             </Section>
           ) : clip.kind !== "video" ? (

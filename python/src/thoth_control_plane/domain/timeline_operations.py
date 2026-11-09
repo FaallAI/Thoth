@@ -301,6 +301,15 @@ class SetClipSpeed(StrictModel):
     speed: PlaybackSpeed
 
 
+class SlipClip(StrictModel):
+    """Move the content inside a video or audio clip; the clip keeps its place (Tier 3a)."""
+
+    kind: Literal["slip_clip"]
+    operation_id: OpaqueId
+    clip_id: OpaqueId
+    source_from_frame: FrameStart
+
+
 class SetTrackVisibility(StrictModel):
     kind: Literal["set_track_visibility"]
     operation_id: OpaqueId
@@ -352,6 +361,7 @@ TimelineOperation: TypeAlias = Annotated[
     | SetClipCrop
     | SetClipFades
     | SetClipSpeed
+    | SlipClip
     | SetTrackVisibility
     | SetTrackMuted
     | SetTrackLocked,
@@ -438,6 +448,8 @@ def apply_timeline_operation(
             _set_clip_fades(document, operation)
         case SetClipSpeed():
             _set_clip_speed(document, operation)
+        case SlipClip():
+            _slip_clip(document, operation)
         case SetTrackVisibility():
             _unlocked_track(document, operation.track_id).hidden = operation.hidden
         case SetTrackMuted():
@@ -842,6 +854,18 @@ def _set_clip_speed(document: EditDocumentV2, operation: SetClipSpeed) -> None:
     if asset is not None and asset.kind == "image":
         raise ValueError("an image has no speed")
     clip.speed = operation.speed
+    clip.ownership = "user_edited"
+
+
+def _slip_clip(document: EditDocumentV2, operation: SlipClip) -> None:
+    clip = _unlocked_clip(document, operation.clip_id)
+    if not isinstance(clip, TimelineAudioClip | TimelineVideoClip):
+        raise ValueError("slip applies only to video and audio clips")
+    asset = next((ref for ref in document.asset_refs if ref.asset_id == clip.asset_id), None)
+    if asset is not None and asset.kind == "image":
+        raise ValueError("an image has no source time")
+    # The document's validation refuses a start whose span runs past the source.
+    clip.source_from_frame = operation.source_from_frame
     clip.ownership = "user_edited"
 
 

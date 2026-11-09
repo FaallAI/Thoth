@@ -2322,7 +2322,7 @@ export interface components {
             /** Base Revision */
             base_revision: number;
             /** Operations */
-            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTextPlace"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["DuplicateClip"] | components["schemas"]["SetClipFit"] | components["schemas"]["SetClipCrop"] | components["schemas"]["SetClipFades"] | components["schemas"]["SetClipSpeed"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
+            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTextPlace"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["DuplicateClip"] | components["schemas"]["SetClipFit"] | components["schemas"]["SetClipCrop"] | components["schemas"]["SetClipFades"] | components["schemas"]["SetClipSpeed"] | components["schemas"]["SlipClip"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
         };
         /**
          * EditDocumentV1
@@ -3991,6 +3991,23 @@ export interface components {
             /** Sfx Id */
             sfx_id: string;
         };
+        /**
+         * SlipClip
+         * @description Move the content inside a video or audio clip; the clip keeps its place (Tier 3a).
+         */
+        SlipClip: {
+            /** Clip Id */
+            clip_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "slip_clip";
+            /** Operation Id */
+            operation_id: string;
+            /** Source From Frame */
+            source_from_frame: number;
+        };
         /** SourceAccount */
         SourceAccount: {
             /** Cookie Names */
@@ -4211,7 +4228,7 @@ export interface components {
         /** StoryAssistProposal */
         StoryAssistProposal: {
             /** Operations */
-            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTextPlace"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["DuplicateClip"] | components["schemas"]["SetClipFit"] | components["schemas"]["SetClipCrop"] | components["schemas"]["SetClipFades"] | components["schemas"]["SetClipSpeed"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
+            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTextPlace"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["DuplicateClip"] | components["schemas"]["SetClipFit"] | components["schemas"]["SetClipCrop"] | components["schemas"]["SetClipFades"] | components["schemas"]["SetClipSpeed"] | components["schemas"]["SlipClip"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
             /** Proposal Id */
             proposal_id: string;
             /** Reason */

@@ -940,3 +940,32 @@ test("a click without a drag on a clip of a larger selection selects that clip a
   fireEvent.pointerUp(window, { clientX: 10 });
   expect(actions.at(-1)).toEqual({ type: "select_clip", clipId: "clip_main" });
 });
+
+// Tier 3a: Alt+drag on a clip's body slips its content; the picture follows the pointer.
+test("Alt+drag on a clip slips its content and commits once", () => {
+  const doc = timelineDocument();
+  Object.assign(doc.clips!.find((clip) => clip.clip_id === "clip_main")!, { source_from_frame: 60 });
+  const { actions } = mount({ base: doc, draft: doc });
+  const clip = screen.getByRole("button", { name: "Main video clip" });
+  fireEvent.pointerDown(clip, { clientX: 50, button: 0, altKey: true });
+  fireEvent.pointerMove(window, { clientX: 80 });
+  fireEvent.pointerUp(window, { clientX: 80 });
+
+  const slip = { kind: "slip_clip", operation_id: "op", clip_id: "clip_main", source_from_frame: 30 };
+  expect(actions.map((action) => action.type)).toEqual(["select_clip", "preview_timeline_operation", "commit_timeline_operation"]);
+  expect(payload(actions[1]!)).toEqual(slip);
+  expect(payload(actions[2]!)).toEqual(slip);
+});
+
+test("a slip that cannot happen says why and commits nothing", () => {
+  const doc = timelineDocument();
+  Object.assign(doc.asset_refs!.find((ref) => ref.asset_id === "asset_video")!, { kind: "image" });
+  const { actions } = mount({ base: doc, draft: doc });
+  const clip = screen.getByRole("button", { name: "Main video clip" });
+  fireEvent.pointerDown(clip, { clientX: 50, button: 0, altKey: true });
+  fireEvent.pointerMove(window, { clientX: 80 });
+  fireEvent.pointerUp(window, { clientX: 80 });
+
+  expect(actions.some((action) => action.type === "commit_timeline_operation")).toBe(false);
+  expect(screen.getByRole("status").textContent).toContain("An image has no source time");
+});

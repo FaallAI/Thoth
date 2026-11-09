@@ -18,6 +18,7 @@ import {
   pasteClips,
   pasteTextOperations,
   rippleDeleteClips,
+  slipClip,
   splitAt,
   type Edit,
   type PasteTarget,
@@ -31,6 +32,7 @@ import {
   framesToPixels,
   rulerTicks,
   isTimelineDocument,
+  speedPercent,
   trackLabel,
   snapCandidates,
   snapFrame,
@@ -246,6 +248,18 @@ export function Timeline({
     setRefusedLane((current) => (current === refused ? current : refused));
   };
 
+  /** A slip (Tier 3a): the content follows the pointer, so a drag right shows earlier source. */
+  const slipFor = (active: Gesture, clientX: number): Edit => {
+    const { state: current, timeline: doc } = latest.current;
+    const origin = current.preview?.draft;
+    const before = origin && isTimelineDocument(origin) ? origin : doc;
+    if (!before) return { operations: [] };
+    const clip = before.clips?.find((entry) => entry.clip_id === active.clipId);
+    const moved = Math.round((clientX - active.originX) / current.zoom);
+    const edit = slipClip(before, active.clipId, active.anchor - Math.floor((moved * speedPercent(clip ?? {})) / 100));
+    return { ...edit, operations: edit.operations.map((operation) => ({ ...operation, operation_id: active.operationId })) };
+  };
+
   /** The whole selection moved by the dragged clip's delta, measured on the document before the drag. */
   const groupMove = (active: Gesture, clientX: number): Edit => {
     const { state: current, timeline: doc } = latest.current;
@@ -314,6 +328,11 @@ export function Timeline({
       const active = gesture.current;
       if (!active) return;
       active.previewed = true;
+      if (active.mode === "slip") {
+        const [operation] = slipFor(active, event.clientX).operations;
+        if (operation) latest.current.dispatch({ type: "preview_timeline_operation", operation });
+        return;
+      }
       if (active.group) {
         // A group keeps its tracks and moves by one delta; a refused delta keeps the last preview.
         const { operations } = groupMove(active, event.clientX);
@@ -334,6 +353,13 @@ export function Timeline({
       // A click without a drag on a clip of a larger selection selects that clip alone, as editors do.
       if (active?.group && !active.previewed) latest.current.dispatch({ type: "select_clip", clipId: active.clipId });
       if (!active?.previewed) return;
+      if (active.mode === "slip") {
+        const { operations, refusal } = slipFor(active, event.clientX);
+        if (refusal) setNotice(latest.current.t(`studio.menu.reason.${refusal}`));
+        if (operations[0]) latest.current.dispatch({ type: "commit_timeline_operation", operation: operations[0] });
+        else latest.current.dispatch({ type: "cancel_timeline_preview" });
+        return;
+      }
       if (active.group) {
         const { operations, refusal } = groupMove(active, event.clientX);
         latest.current.dispatch({ type: "cancel_timeline_preview" });
@@ -513,7 +539,13 @@ export function Timeline({
       trackId: clip.track_id,
       mode,
       originX: clientX,
-      anchor: mode === "trim_end" ? clip.from_frame + clip.duration_in_frames : clip.from_frame,
+      // A slip counts in source frames; every other gesture in timeline frames.
+      anchor:
+        mode === "slip"
+          ? ("source_from_frame" in clip ? clip.source_from_frame : 0)
+          : mode === "trim_end"
+            ? clip.from_frame + clip.duration_in_frames
+            : clip.from_frame,
       operationId: newId("op"),
       previewed: false,
       group: mode === "move" && selectedIds.length > 1 && selectedIds.includes(clipId) ? selectedIds : undefined,

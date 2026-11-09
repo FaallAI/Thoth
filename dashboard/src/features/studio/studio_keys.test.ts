@@ -75,3 +75,7 @@ test("the shortcut list includes the second keys and the pointer shortcuts", () 
     expect(keys).toContain(shown);
   }
 });
+
+test("the shortcut list names the slip gesture (Tier 3a)", () => {
+  expect(SHORTCUTS.find((entry) => entry.action === "slip_drag")?.keys).toBe("Alt+drag");
+});

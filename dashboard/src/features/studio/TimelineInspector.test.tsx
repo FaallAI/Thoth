@@ -490,3 +490,28 @@ test("a speed the source cannot feed is refused in place", () => {
   expect(operations).toEqual([]);
   expect(screen.getByRole("alert").textContent).toContain("The source is too short for this speed");
 });
+
+// Tier 3a: slip by number, the keyboard path to Alt+drag.
+test("Source start in seconds commits slip_clip", () => {
+  const { operations } = mount({ clipId: "clip_main" }, withAsset({ duration_in_frames: 200 }));
+  typeAndLeave("Source start (seconds)", "1");
+  expect(operations.map(payload)).toEqual([{ kind: "slip_clip", operation_id: "op", clip_id: "clip_main", source_from_frame: 30 }]);
+});
+
+test("a source start past what the source holds is refused in place", () => {
+  // clip_main is 120 frames long on a 200-frame source: 80 frames is the latest start, 2.6 s in tenths.
+  const { operations } = mount({ clipId: "clip_main" }, withAsset({ duration_in_frames: 200 }));
+  typeAndLeave("Source start (seconds)", "5");
+  expect(operations).toEqual([]);
+  expect(screen.getByRole("alert").textContent).toContain("The source start can be at most 2.6 s");
+});
+
+test("an audio clip has a Source start too", () => {
+  mount({ clipId: "clip_music" });
+  expect(screen.getByLabelText("Source start (seconds)")).toBeDefined();
+});
+
+test("an image clip has no Source start", () => {
+  mount({ clipId: "clip_main" }, withAsset({ kind: "image" }));
+  expect(screen.queryByLabelText("Source start (seconds)")).toBeNull();
+});

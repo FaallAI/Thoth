@@ -1,7 +1,7 @@
 // Timeline edits as typed operations (spec 2026-11-08 §5.1). Each helper answers the whole batch
 // one user action commits, or a refusal the menu shows as its reason; it never edits in place.
 import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane";
-import { applyTimelineOperation, compatibleTrackIds } from "./timeline_domain";
+import { applyTimelineOperation, compatibleTrackIds, sourceSpan } from "./timeline_domain";
 
 export type Refusal =
   | "locked"
@@ -20,7 +20,8 @@ export type Refusal =
   | "not_text"
   | "not_caption"
   | "too_long"
-  | "no_source";
+  | "no_source"
+  | "still";
 /** Something a successful edit still tells the person (operator, 2026-11-09). */
 export type Notice = "hidden_track";
 export type Edit = { operations: EditDocumentOperation[]; refusal?: Refusal; notice?: Notice };
@@ -447,4 +448,32 @@ export function closeTimelineGaps(doc: EditDocumentV2): Edit {
     current = applied(current, moves);
   }
   return { operations };
+}
+
+// --------------------------------------------------------------------------
+// Slip (Tier 3a): the content moves inside the clip; the clip keeps its place
+// --------------------------------------------------------------------------
+
+/** The source starts a clip may take: 0 up to where its span still fits, or null when it has no source time. */
+export function slipRange(doc: EditDocumentV2, clip: Clip): { max: number } | Refusal {
+  if (clip.kind !== "video" && clip.kind !== "audio") return "still";
+  const asset = doc.asset_refs?.find((ref) => ref.asset_id === clip.asset_id);
+  if (asset?.kind === "image") return "still";
+  const length = asset?.duration_in_frames;
+  if (length == null) return { max: Number.POSITIVE_INFINITY };
+  // A clip that holds its last frame may start anywhere inside its source.
+  const max = clip.kind === "video" && clip.hold_after_source ? length - 1 : length - sourceSpan(clip);
+  return max > 0 ? { max } : "no_source";
+}
+
+/** Slip a clip so its source starts at `sourceFrom`, clamped to what the source holds. */
+export function slipClip(doc: EditDocumentV2, clipId: string, sourceFrom: number): Edit {
+  const clip = clipsOf(doc).find((entry) => entry.clip_id === clipId);
+  if (!clip) return refuse("gone");
+  if (isLocked(doc, clip)) return refuse("locked");
+  const range = slipRange(doc, clip);
+  if (typeof range === "string") return refuse(range);
+  const start = Math.min(range.max, Math.max(0, Math.round(sourceFrom)));
+  if (!("source_from_frame" in clip) || start === clip.source_from_frame) return none;
+  return { operations: [{ kind: "slip_clip", operation_id: newId("op"), clip_id: clip.clip_id, source_from_frame: start }] };
 }

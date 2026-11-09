@@ -1838,6 +1838,7 @@
                   "set_track_locked": "#/components/schemas/SetTrackLocked",
                   "set_track_muted": "#/components/schemas/SetTrackMuted",
                   "set_track_visibility": "#/components/schemas/SetTrackVisibility",
+                  "slip_clip": "#/components/schemas/SlipClip",
                   "split_clip": "#/components/schemas/SplitClip",
                   "trim_clip_end": "#/components/schemas/TrimClipEnd",
                   "trim_clip_start": "#/components/schemas/TrimClipStart"
@@ -1940,6 +1941,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/SetClipSpeed"
+                },
+                {
+                  "$ref": "#/components/schemas/SlipClip"
                 },
                 {
                   "$ref": "#/components/schemas/SetTrackVisibility"
@@ -6485,6 +6489,40 @@
         "title": "SfxSummary",
         "type": "object"
       },
+      "SlipClip": {
+        "additionalProperties": false,
+        "description": "Move the content inside a video or audio clip; the clip keeps its place (Tier 3a).",
+        "properties": {
+          "clip_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "slip_clip",
+            "title": "Kind",
+            "type": "string"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "source_from_frame": {
+            "minimum": 0.0,
+            "title": "Source From Frame",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "clip_id",
+          "source_from_frame"
+        ],
+        "title": "SlipClip",
+        "type": "object"
+      },
       "SourceAccount": {
         "additionalProperties": false,
         "properties": {
@@ -7208,6 +7246,7 @@
                   "set_track_locked": "#/components/schemas/SetTrackLocked",
                   "set_track_muted": "#/components/schemas/SetTrackMuted",
                   "set_track_visibility": "#/components/schemas/SetTrackVisibility",
+                  "slip_clip": "#/components/schemas/SlipClip",
                   "split_clip": "#/components/schemas/SplitClip",
                   "trim_clip_end": "#/components/schemas/TrimClipEnd",
                   "trim_clip_start": "#/components/schemas/TrimClipStart"
@@ -7310,6 +7349,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/SetClipSpeed"
+                },
+                {
+                  "$ref": "#/components/schemas/SlipClip"
                 },
                 {
                   "$ref": "#/components/schemas/SetTrackVisibility"

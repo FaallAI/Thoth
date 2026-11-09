@@ -6,7 +6,8 @@ import type { MenuHandlers } from "@/components/ContextMenu";
 import { useLocale, type LocaleState } from "@/lib/locale";
 import { clipLabelSource, framesToPixels } from "./timeline_domain";
 
-export type GestureMode = "move" | "trim_start" | "trim_end";
+/** Alt turns a body drag into a slip (Tier 3a). */
+export type GestureMode = "move" | "trim_start" | "trim_end" | "slip";
 
 type Clip = NonNullable<EditDocumentV2["clips"]>[number];
 type TrackKind = EditDocumentV2["tracks"][number]["kind"];
@@ -80,7 +81,7 @@ export function TimelineClip({
     const add = withModifier(event);
     onSelect(add);
     // A modifier press only changes the selection; it never starts a drag.
-    if (!add) onGestureStart(mode, event.clientX);
+    if (!add) onGestureStart(event.altKey && mode === "move" ? "slip" : mode, event.clientX);
   };
 
   return (

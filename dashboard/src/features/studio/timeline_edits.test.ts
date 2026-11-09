@@ -22,6 +22,7 @@ import {
   removeTrack,
   rippleDelete,
   setClipFlag,
+  slipClip,
   splitAt,
   type Edit,
 } from "./timeline_edits";
@@ -378,4 +379,30 @@ test("closeTimelineGaps closes only stretches where every track is empty", () =>
 test("closing all gaps refuses when a clip that would move is locked", () => {
   expect(closeAllGaps(twoGaps({ from: 130, length: 30, locked: true }), "track_main").refusal).toBe("later_locked");
   expect(closeTimelineGaps(twoGaps({ from: 130, length: 30, locked: true })).refusal).toBe("later_locked");
+});
+
+// Tier 3a: slip moves the content inside a clip, within its source.
+function sourced(duration: number | undefined, kind: "video" | "image" = "video") {
+  const doc = timelineDocument();
+  Object.assign(doc.asset_refs!.find((ref) => ref.asset_id === "asset_video")!, { duration_in_frames: duration, kind });
+  return doc;
+}
+const slipped = (edit: { operations: EditDocumentOperation[] }) =>
+  edit.operations.map((operation) => ({ ...operation, operation_id: "op" }));
+
+test("slipClip clamps to the source", () => {
+  // clip_main is 120 frames long; a 200-frame source leaves starts 0 to 80.
+  const doc = sourced(200);
+  expect(slipped(slipClip(doc, "clip_main", 50))).toEqual([{ kind: "slip_clip", operation_id: "op", clip_id: "clip_main", source_from_frame: 50 }]);
+  expect(slipped(slipClip(doc, "clip_main", 500))).toEqual([{ kind: "slip_clip", operation_id: "op", clip_id: "clip_main", source_from_frame: 80 }]);
+  expect(slipped(slipClip(doc, "clip_main", -9))).toEqual([]); // already at 0
+});
+
+test("slipClip refuses an image and a locked clip", () => {
+  expect(slipClip(sourced(undefined, "image"), "clip_main", 10).refusal).toBe("still");
+  expect(slipClip(sourced(200), "clip_locked", 10).refusal).toBe("locked");
+});
+
+test("a clip as long as its source cannot slip", () => {
+  expect(slipClip(sourced(120), "clip_main", 10).refusal).toBe("no_source");
 });

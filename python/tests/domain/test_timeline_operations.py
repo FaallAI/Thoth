@@ -1618,3 +1618,46 @@ def test_new_media_on_a_2x_clip_keeps_the_speed_and_fits_the_new_source() -> Non
     )
     main = find_clip(result, "clip_main")
     assert (main.speed, main.duration_in_frames) == (2.0, 200)
+
+
+# Tier 3a: slip moves the content inside a clip; the clip keeps its place and length.
+def test_slip_moves_only_the_source() -> None:
+    before = find_clip(document_v2_fixture(), "clip_main")
+    result = apply_edit_operations(
+        document_v2_fixture(), [op("slip_clip", clip_id="clip_main", source_from_frame=100)]
+    )
+    main = find_clip(result, "clip_main")
+    assert (main.source_from_frame, main.ownership) == (100, "user_edited")
+    assert main.from_frame == before.from_frame
+    assert main.duration_in_frames == before.duration_in_frames
+    assert main.blur_regions == before.blur_regions
+    assert main.volume_keyframes == before.volume_keyframes
+
+
+def test_slip_refuses_past_the_source_a_text_clip_an_image_and_a_locked_clip() -> None:
+    # clip_main is 300 frames long on a 900-frame asset: 600 is the last start that fits.
+    apply_edit_operations(
+        document_v2_fixture(), [op("slip_clip", clip_id="clip_main", source_from_frame=600)]
+    )
+    with pytest.raises(ValueError, match="exceeds source asset duration"):
+        apply_edit_operations(
+            document_v2_fixture(), [op("slip_clip", clip_id="clip_main", source_from_frame=601)]
+        )
+    with pytest.raises(ValueError):
+        op("slip_clip", clip_id="clip_main", source_from_frame=-1)
+    with pytest.raises(ValueError, match="slip applies only to video and audio clips"):
+        apply_edit_operations(
+            document_v2_fixture(), [op("slip_clip", clip_id="clip_001", source_from_frame=0)]
+        )
+    payload = document_v2_payload()
+    payload["asset_refs"][0].update(kind="image", duration_in_frames=None, has_audio=False)
+    with pytest.raises(ValueError, match="an image has no source time"):
+        apply_edit_operations(
+            EditDocumentV2.model_validate(payload),
+            [op("slip_clip", clip_id="clip_main", source_from_frame=10)],
+        )
+    locked = apply_edit_operations(
+        document_v2_fixture(), [op("set_clip_locked", clip_id="clip_main", locked=True)]
+    )
+    with pytest.raises(ValueError, match="locked"):
+        apply_edit_operations(locked, [op("slip_clip", clip_id="clip_main", source_from_frame=10)])

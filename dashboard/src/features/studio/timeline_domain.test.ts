@@ -1104,3 +1104,16 @@ test("a split of a 1.5x clip starts the right part at the left span", () => {
   expect(clipIn(result, "clip_r").source_from_frame).toBe(46);
   expect([clipIn(result, "clip_l").speed, clipIn(result, "clip_r").speed]).toEqual([1.5, 1.5]);
 });
+
+test("slip_clip moves only the source", () => {
+  const before = clipIn(fixtureDocument(), "clip_main");
+  const main = clipIn(applied(fixtureDocument(), { kind: "slip_clip", clip_id: "clip_main", source_from_frame: 40 }), "clip_main");
+  expect([main.source_from_frame, main.ownership]).toEqual([40, "user_edited"]);
+  expect([main.from_frame, main.duration_in_frames]).toEqual([before.from_frame, before.duration_in_frames]);
+});
+
+test("slip_clip refuses an image", () => {
+  const doc = fixtureDocument();
+  Object.assign(doc.asset_refs![0]!, { kind: "image" });
+  expect(() => applied(doc, { kind: "slip_clip", clip_id: "clip_main", source_from_frame: 4 })).toThrow("an image has no source time");
+});

@@ -443,6 +443,15 @@ export function applyTimelineOperation(
       clip.ownership = "user_edited";
       break;
     }
+    case "slip_clip": {
+      const clip = unlockedClip(next, operation.clip_id);
+      if (clip.kind !== "video" && clip.kind !== "audio") throw new Error("slip applies only to video and audio clips");
+      const asset = next.asset_refs?.find((ref) => ref.asset_id === clip.asset_id);
+      if (asset?.kind === "image") throw new Error("an image has no source time");
+      clip.source_from_frame = operation.source_from_frame;
+      clip.ownership = "user_edited";
+      break;
+    }
     case "set_clip_fades": {
       const clip = unlockedClip(next, operation.clip_id);
       if (clip.kind !== "video" && clip.kind !== "audio") throw new Error("fades apply only to video and audio clips");
