@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this changelog.
 
 ## 2026-11-09 - Studio Timeline Tier 3a: speed, slip, roll, markers, phones
 
-Branch `feat/studio-timeline-tier3a` from master `1754d852`, not pushed.
+Branch `feat/studio-timeline-tier3a` from master `1754d852`, PR #124.
 - **Plan:** `docs/superpowers/plans/2026-11-09-studio-timeline-tier3a.md`, from spec section 7.
 - **Execution:** done natively, with one fresh review of the whole branch at the end.
 
@@ -88,7 +88,24 @@ Branch `feat/studio-timeline-tier3a` from master `1754d852`, not pushed.
 - **Renderer:** `bun test` passes 224.
 - **Read-only e2e at 1440** on stage1 `7b5d04f8` gives 18/19. The one failure is the 430 banner check updated for Tier 3a, which stays red until Tier 3a is deployed.
 - **The new read-only `tests/studio-phone.e2e.ts`** fails on stage1, as designed.
-- **The five new write tests** (speed, slip, roll, markers, phone) have not run. They need the branch deploy and a new one-day write token.
+- **CI on PR #124.** All checks are green except "Validate image build" on the pull-request run. It failed twice because GitHub returned a 504 while the runner was downloading the Camoufox browser release. The push run built and published the image of the same commit.
+
+**Deploy record.** Stage1 runs the branch image `d723cf15` since 2026-11-09:
+- thoth `sha256:0c3c8cab2d67…` (api and worker);
+- renderer `sha256:8b399f4193d3…`;
+- web `sha256:900cc5a58857…`.
+
+No workflow was running at the time. `make deploy` exited 0, and web answered 200. After the deploy, the worker logged no errors and the api returned no 5xx responses. The rollback copy is `D:/thoth-tmp/bu/pins/pins-7b5d04f8.env`, and the rollback note above applies.
+
+**Write e2e on stage1 `d723cf15`, in the throwaway project with a one-day write token.**
+- **First run: 46 of 55 failed, all from one test-data cause.** The asset library lists 20 assets a page, newest first. Earlier runs had added uploads, so the one video upload every test needs had moved to the second page. The tests now press "Load more assets" until it shows.
+- **After that fix:**
+  - `timeline-audit` and `studio-write` at rw1440: 55/55, including speed, slip, roll and markers;
+  - the phone test at rw430: 1/1 (a long press opens the clip menu, and Split is saved);
+  - read-only at w1440: 20/20, including the new `studio-phone`. A second banner check in `studio-shell-v2` still expected the old view-only note; it was updated.
+- **Rows before and after:** the operator's project kept 121 revisions, 101 assets and 8 renders. Narrations, runs and proposals did not change. Every new row (345 revisions, 2 assets, 3 renders, 2 review events) is in the throwaway project, together with 9 usage events.
+
+**Live finding at 430, fixed test-first (not deployed yet).** In the screenshot, the phone preview overflowed its box and covered the Timeline's Play button and clock. The cause was `pen-studio.css`: below 1024 px it fixes the Timeline preview box at 250×445 px, and that rule beat the new box. A phone rule now lets the preview fill its 40vh box in the canvas's 9:16 shape. It was checked on the branch's dev server at 430: the player, its controls and the canvas line all fit, and the Timeline toolbar shows in full.
 
 **Deferred minors** (from the final review):
 - Alt+drag on a text or caption clip says "An image has no source time".
@@ -102,13 +119,12 @@ Branch `feat/studio-timeline-tier3a` from master `1754d852`, not pushed.
 **Carried.** The eight Tier 2 deferred minors are still open. A Story scene resize of a sped-up Main clip can still be refused by the server when its source runs out. Like any plain trim past a limit, it has no pre-check.
 
 **Next steps.**
+- **Done:** the write token, push and PR #124, the deploy of `d723cf15`, and the write e2e.
 - **Operator gates, each needing its own authorization:**
-  - a one-day write-scope e2e token;
-  - push and PR;
-  - deploy of the branch image;
-  - the write e2e at 1440 and 430;
+  - a push of the phone preview fix and these records to PR #124;
+  - a redeploy of the new branch image, so the phone preview fix reaches stage1;
   - the operator's own try;
-  - merge.
+  - merge, once "Validate image build" is green.
 
   During the try, check:
   - Alt+drag on Windows;
