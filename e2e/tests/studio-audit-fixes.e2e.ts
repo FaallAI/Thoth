@@ -199,7 +199,7 @@ test('1024 Timeline: the last lane can be reached', async ({ app, browser, scree
     track.scrollIntoView({ block: 'end' });
     return {
       bottom: track.getBoundingClientRect().bottom,
-      bar: document.querySelector('[aria-label="Timeline issues"]')!.getBoundingClientRect().top,
+      bar: document.querySelector('[data-testid="timeline-lanes"]')!.getBoundingClientRect().bottom,
     };
   });
   expect(lane.bottom).toBeLessThanOrEqual(lane.bar + 1);

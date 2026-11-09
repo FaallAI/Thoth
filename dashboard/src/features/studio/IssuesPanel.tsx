@@ -15,6 +15,8 @@ type Props = {
   dispatch: (action: EditorAction) => void;
   /** The clip's human name (spec 2026-11-01); absent, a row is the issue's sentence alone. */
   labelOf?: (clip: Clip) => string;
+  /** In the wide Timeline's toolbar: the count without the sentence, and the list opens upward. */
+  inline?: boolean;
 };
 
 type Track = EditDocumentV2["tracks"][number];
@@ -39,7 +41,7 @@ function clock(frame: number, fps: number): string {
  * The issues bar under the timeline. Every timeline issue is a warning: none of them blocks a
  * render, which render readiness decides (DESIGN §13.4), so the bar counts no "blocking" ones.
  */
-export function IssuesBar({ document: doc, selectedIssueId, mode, dispatch, labelOf }: Props) {
+export function IssuesBar({ document: doc, selectedIssueId, mode, dispatch, labelOf, inline = false }: Props) {
   const { t, plural } = useLocale();
   const [open, setOpen] = useState(false);
   const issues = timelineIssues(doc);
@@ -77,9 +79,9 @@ export function IssuesBar({ document: doc, selectedIssueId, mode, dispatch, labe
   };
 
   return (
-    <section className="relative border-t border-hairline bg-well text-xs" aria-label={t("studio.issues.title")}>
+    <section className={`relative text-xs ${inline ? "" : "border-t border-hairline bg-well"}`} aria-label={t("studio.issues.title")}>
       {open && issues.length > 0 ? (
-        <div className="absolute bottom-full left-0 z-30 max-h-[50vh] w-full max-w-md overflow-auto rounded-t-[10px] border border-hairline bg-raised p-2 shadow-xl">
+        <div className={`absolute bottom-full z-30 overflow-auto rounded-t-[10px] border border-hairline bg-raised p-2 shadow-xl ${inline ? "right-0 max-h-56 w-96 max-w-[80vw]" : "left-0 max-h-[50vh] w-full max-w-md"}`}>
           {lanes.map(({ track, issues: laneIssues }) => (
             <section key={track.track_id} role="group" aria-label={laneName(t, track)} className="mb-2 last:mb-0">
               <h3 className="px-2 py-1 font-mono text-[0.7rem] text-muted-ink">
@@ -113,7 +115,7 @@ export function IssuesBar({ document: doc, selectedIssueId, mode, dispatch, labe
           ))}
         </div>
       ) : null}
-      <div className="flex h-8 items-center gap-2 px-3">
+      <div className={`flex items-center gap-2 ${inline ? "" : "h-8 px-3"}`}>
         {issues.length === 0 ? (
           <>
             <CircleCheck aria-hidden="true" size={13} className="text-status-done" />
@@ -123,7 +125,7 @@ export function IssuesBar({ document: doc, selectedIssueId, mode, dispatch, labe
           <>
             <span aria-hidden="true" className="size-2 rounded-full bg-status-waiting" />
             <span className="shrink-0 text-ink">{plural("studio.issues.warnings", issues.length)}</span>
-            <span className="min-w-0 truncate text-faint">{sentence(issues[0]!)}</span>
+            {inline ? null : <span className="min-w-0 truncate text-faint">{sentence(issues[0]!)}</span>}
             <button
               type="button"
               aria-expanded={open}

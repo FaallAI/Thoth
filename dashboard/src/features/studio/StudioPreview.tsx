@@ -5,6 +5,7 @@ import { Maximize, Minimize, Pause, Play, Volume2, VolumeX } from "lucide-react"
 
 import type { ControlPlaneClient, EditDocument } from "@/api/control-plane";
 import type { PreviewSources } from "./AdvancedTimelineComposition";
+import { canvasRatio } from "./PreviewControls";
 import { getPlayerConfig, previewComposition } from "./preview";
 import type { PlayerTimelineRef } from "./usePlayerTimeline";
 
@@ -24,10 +25,11 @@ type Props = {
   overlay?: ReactNode;
   /** The Player's speed; L raises it (spec 2026-11-08 §6). */
   playbackRate?: number;
+  /** False hands the controls to a bar outside the video; clicking the video still plays. */
+  controls?: boolean;
+  /** Replaces the hint line under an embedded preview. */
+  footer?: ReactNode;
 };
-
-const canvasRatio = ({ canvas }: EditDocument) =>
-  canvas.width === 1080 && canvas.height === 1920 ? "9:16" : `${canvas.width}:${canvas.height}`;
 
 export function StudioPreview({
   document,
@@ -41,6 +43,8 @@ export function StudioPreview({
   onPreviewUnavailable,
   overlay,
   playbackRate = 1,
+  controls = true,
+  footer,
 }: Props) {
   const { t } = useLocale();
   const [loadedDocument, setLoadedDocument] = useState<EditDocument | null>(null);
@@ -73,19 +77,18 @@ export function StudioPreview({
       // With an overlay the canvas box is sized from this box's own width and height.
       style={overlay === undefined ? undefined : { containerType: "size" }}
     >
-      {overlay === undefined ? player() : (
-        <div
-          className="relative mx-auto"
-          style={{
-            aspectRatio: `${currentDocument.canvas.width} / ${currentDocument.canvas.height}`,
-            // The largest canvas-shaped box that fits, so the overlay sits on the canvas exactly.
-            width: `min(100cqw, calc(100cqh * ${currentDocument.canvas.width} / ${currentDocument.canvas.height}))`,
-          }}
-        >
-          {player()}
-          {overlay}
-        </div>
-      )}
+      {/* One element either way: a different tree would remount the Player and lose its place. */}
+      <div
+        className={overlay === undefined ? "contents" : "relative mx-auto"}
+        style={overlay === undefined ? undefined : {
+          aspectRatio: `${currentDocument.canvas.width} / ${currentDocument.canvas.height}`,
+          // The largest canvas-shaped box that fits, so the overlay sits on the canvas exactly.
+          width: `min(100cqw, calc(100cqh * ${currentDocument.canvas.width} / ${currentDocument.canvas.height}))`,
+        }}
+      >
+        {player()}
+        {overlay}
+      </div>
     </div>
   ) : (
     <p className="text-sm text-muted-foreground">{t("studio.preview.loading")}</p>
@@ -102,7 +105,8 @@ export function StudioPreview({
           component: never;
           inputProps: never;
         })}
-        controls
+        controls={controls}
+        clickToPlay
         // L plays faster (spec 2026-11-08 §6); 1 is Remotion's own default.
         playbackRate={playbackRate}
         // On true Remotion refocuses its Play button on load and on every play or pause; inside
@@ -118,7 +122,7 @@ export function StudioPreview({
     );
   }
 
-  if (embedded) return <section className="flex min-h-0 flex-1 flex-col" aria-label="Studio preview">{preview}<p className="studio-preview-hint">{currentDocument ? <span>{canvasRatio(currentDocument)} · {currentDocument.canvas.width}×{currentDocument.canvas.height}<span aria-hidden="true" className="studio-preview-tip"> · </span></span> : null}<span className="studio-preview-tip">{t("studio.preview.hint")}</span></p></section>;
+  if (embedded) return <section className="flex min-h-0 flex-1 flex-col" aria-label="Studio preview">{preview}{footer ?? <p className="studio-preview-hint">{currentDocument ? <span>{canvasRatio(currentDocument.canvas)} · {currentDocument.canvas.width}×{currentDocument.canvas.height}<span aria-hidden="true" className="studio-preview-tip"> · </span></span> : null}<span className="studio-preview-tip">{t("studio.preview.hint")}</span></p>}</section>;
 
   return (
     <section className="flex min-h-0 flex-1 flex-col gap-4 p-4" aria-label="Studio preview">

@@ -2,6 +2,65 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-09 - Studio full-width timeline
+
+Branch `feat/studio-full-timeline` from `2b6cbdbf` (the Tier 3b head, because PR #125 is still open), PR #126, stacked on #125.
+- **Spec:** `docs/superpowers/specs/2026-11-09-studio-full-width-timeline-design.md`, approved by the operator on a clickable mock-up.
+- **Plan:** `docs/superpowers/plans/2026-11-09-studio-full-width-timeline.md`.
+- **Execution:** done natively, with one fresh review of the whole branch at the end.
+
+**What changed.** At 1024 px and wider, the Timeline mode of the Edit job:
+- The timeline takes the whole bottom row. Assets, the preview and the Inspector share the row above.
+- A divider between the rows resizes the timeline by drag, arrow keys, Home and End. A double-click resets it to 392 px. The height is remembered per browser and is never sent to the server.
+- The clips fit the lanes when the Timeline opens, unless the person has already zoomed.
+- The player controls sit in a bar under the preview. The Player's own controls come back in fullscreen.
+- The issues status moved into the timeline toolbar.
+
+Text can no longer be selected anywhere in the Studio editor, except in inputs, text areas and editable text. Phones and tablets, the Story mode and the Review and Render jobs keep their layouts.
+
+**Added on the operator's word, after the first deploy.** The player bar is also under the video in the Story mode and the Review job, at 1024 px and wider. Story keeps its Space tip under the bar.
+
+**Found in the browser, fixed test-first.**
+- A rule in `pen-studio.css` dissolves any `div` holding a Play button, which stacked the new bar in three rows. The bar is a `footer` now.
+- The timeline row was full width, but the clips stopped at about 70% of it. The approved mock-up shows them filling it, so the Timeline now fits them on opening.
+
+**Verification.**
+- **Dashboard:** 1932 tests pass; `tsc -b` and the build are clean.
+- **No Python, renderer or contract change,** so those suites did not run.
+- **Read-only e2e against a local dev server of this branch, at 1440:** `studio-shell-v2`, `studio-audit-fixes` and `studio-phone` pass 31/31, including the ten new layout checks. One earlier combined run failed the 430 preview test on a 30 s timeout; it passed alone and in the next full run, and the cause was not found.
+- **Screenshots judged at 1440x900 and 1024x768:** the layout matches the mock-up.
+- **Not seen live:** the issues list opening above the toolbar, because the test draft has no issues. Unit tests pin its position.
+- **CI on PR #126 at `02ac8ad9`:** the push run and the PR run passed, "Validate image build" included.
+- **Read-only e2e on stage1 `02ac8ad9`, at 1440:** 29/29.
+- **Write e2e on stage1 `02ac8ad9`, at rw1440, in the throwaway project:** first 16 passed and the run was stopped, because a test helper pressed Zoom in on a draft already fitted to the 4 px maximum. With the helper corrected, 55/57. The other two found the clock twice, since it now also shows in the player bar; narrowed to the Timeline region, both passed on their own rerun. Their checks did not change. The operator's project did not change: 149 revisions, 116 assets, 8 renders.
+
+**Final review, by a fresh reviewer, fixed test-first.**
+- **Mute could not be undone.** Remotion applies mute on its next render, so reading it straight after the click returned the old value. The bar now follows the Player's `mutechange` event.
+- **The Player remounted between Timeline and Review,** and lost its place while the playhead kept the old time. `StudioPreview` now keeps one element tree. Before the fix a browser check showed the Player replaced.
+- **Fullscreen state.** A bar that appears during fullscreen now reports it, and leaving reports it no longer counts.
+- **A long sound list could take the whole Assets column on short windows** (14% left at 1280x720 in the browser check). Sounds now take at most 35% of that cell.
+
+**Review minors, fixed test-first on the operator's word.**
+- The bar's buttons are 24 px in both languages and Play sits in the middle of the bar, because the older `pen-studio.css` rules for Remotion's labels no longer reach the bar.
+- A double-click always stores the default, and the rows fit it to a short window.
+- The fullscreen button is off where the browser does not allow fullscreen. The Player does not return the browser's promise, so a later refusal can still reach the console.
+- The divider's size values follow the window.
+
+**Declined by the reviewer, not checked.** Whether Space still works in fullscreen while the bar's button holds focus is worth one try by hand.
+
+**Deploy.** Stage1 runs the branch image `4e73ec36`, which carries Tier 3b too. It replaced `02ac8ad9`, deployed earlier the same day.
+- Digests: thoth `sha256:7b74a98ef070…`, renderer `sha256:7bdab2fe9284…`, web `sha256:43cd2a65731a…`.
+- Rollback pins: `pins-02ac8ad9.env`, and `pins-2b10db0c.env` for the image before the full-width timeline. There is no document field and no migration, so a rollback only brings the old layout back.
+- After the deploy: web answered 200, no workflow was running, and the worker and api logged 0 errors and 0 5xx in the first 10 minutes.
+- CI on `4e73ec36`: the push run and the PR run passed. Read-only e2e on stage1, at 1440: 31/31.
+
+**Next steps.**
+- **Operator gates, each needing its own authorization:**
+  - a push of this record, which can ride with the merge;
+  - the operator's own try on stage1, of this and of Tier 3b;
+  - merge of PR #125, then of PR #126.
+- **Carried from Tier 3b:** a Story scene resize of a sped-up clip that the server can still refuse.
+
 ## 2026-11-09 - Studio Timeline Tier 3b: filmstrips, waveforms, the volume line
 
 Branch `feat/studio-timeline-tier3b` from master `d3c89bbb`, PR #125.

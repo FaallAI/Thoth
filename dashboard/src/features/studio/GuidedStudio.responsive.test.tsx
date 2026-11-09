@@ -1,9 +1,9 @@
 /// <reference types="bun-types" />
 
-import { afterEach, expect, jest, mock, test } from "bun:test";
+import { afterEach, describe, expect, jest, mock, test } from "bun:test";
 import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { render } from "@/test-render";
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import {
   StudioReviewRequestError,
   type CreateComment,
@@ -14,6 +14,7 @@ import {
 } from "@/api/control-plane";
 import { createC2ClientFixtureBase } from "./prompt-proposal-test-fixtures";
 import { FakePlayer, timelineDocument, upgradedTextDocument } from "./timeline-test-fixtures";
+import { readTimelineHeight, saveTimelineHeight, timelineRows } from "./timeline_height";
 import type { PlayerTimelineRef } from "./usePlayerTimeline";
 
 let previewPlayer: FakePlayer | null = null;
@@ -23,9 +24,13 @@ mock.module("./StudioPreview", () => ({
   StudioPreview: ({
     document,
     onPlayer,
+    controls,
+    footer,
   }: {
     document: EditDocument;
     onPlayer?: (player: PlayerTimelineRef | null) => void;
+    controls?: boolean;
+    footer?: ReactNode;
   }) => {
     useEffect(() => {
       previewMounts += 1;
@@ -35,7 +40,12 @@ mock.module("./StudioPreview", () => ({
       return () => onPlayer?.(null);
     }, [onPlayer]);
     const text = document.clips?.find((clip) => clip.kind === "text");
-    return <div aria-label="Draft preview">{text && "heading" in text ? text.heading : document.clips?.[0]?.kind}</div>;
+    return (
+      <>
+        <div aria-label="Draft preview" data-controls={String(controls ?? true)}>{text && "heading" in text ? text.heading : document.clips?.[0]?.kind}</div>
+        {footer}
+      </>
+    );
   },
 }));
 
@@ -77,6 +87,7 @@ afterEach(() => {
   jest.useRealTimers();
   previewPlayer = null;
   previewMounts = 0;
+  localStorage.removeItem("thoth.studio.timelineHeight");
   Object.defineProperty(window, "innerWidth", { configurable: true, value: initialWidth });
 });
 
@@ -605,4 +616,99 @@ test("Delete in the Review job edits nothing", async () => {
   fireEvent.keyDown(window.document.body, { key: "Delete" });
   job("Edit");
   expect(screen.getByRole("button", { name: "Main video clip" })).toBeDefined();
+});
+
+describe("the wide Timeline", () => {
+  const openTimeline = async () =>
+    fireEvent.click(within(await screen.findByRole("group", { name: "Editor mode" })).getByRole("button", { name: "Timeline" }));
+  const workstation = () => screen.getByLabelText("Guided editing workstation");
+  const divider = () => screen.queryByRole("separator", { name: "Resize timeline" });
+  const controlsOn = () => screen.getByLabelText("Draft preview").getAttribute("data-controls");
+
+  test("at full desktop it has the divider and the bar", async () => {
+    await renderStudio(1440, timelineDocument() as EditDocument);
+    await openTimeline();
+    expect(divider() !== null).toBe(true);
+    expect(controlsOn()).toBe("false");
+    expect(screen.getByRole("button", { name: "Play video" })).toBeDefined();
+    expect(workstation().style.gridTemplateRows).toBe(timelineRows(392));
+    expect(screen.getByRole("region", { name: "Timeline" }).id).toBe("studio-timeline");
+  });
+
+  test("the stored height is used", async () => {
+    saveTimelineHeight(300);
+    await renderStudio(1440, timelineDocument() as EditDocument);
+    await openTimeline();
+    expect(workstation().style.gridTemplateRows).toBe(timelineRows(300));
+  });
+
+  test("resizing commits to the browser", async () => {
+    await renderStudio(1440, timelineDocument() as EditDocument);
+    await openTimeline();
+    workstation().getBoundingClientRect = () => ({ height: 844 }) as DOMRect;
+    fireEvent.keyDown(divider()!, { key: "ArrowUp" });
+    expect(readTimelineHeight()).toBe(408);
+    expect(workstation().style.gridTemplateRows).toBe(timelineRows(408));
+  });
+
+  test("fullscreen brings the Player's controls back", async () => {
+    previewPlayer = new FakePlayer();
+    await renderStudio(1440, timelineDocument() as EditDocument);
+    await openTimeline();
+    act(() => previewPlayer!.emit("fullscreenchange", { detail: { isFullscreen: true } }));
+    expect(controlsOn()).toBe("true");
+    act(() => previewPlayer!.emit("fullscreenchange", { detail: { isFullscreen: false } }));
+    expect(controlsOn()).toBe("false");
+  });
+
+  test("the status sits in the toolbar, not under the lanes", async () => {
+    await renderStudio(1440, timelineDocument() as EditDocument);
+    await openTimeline();
+    const lanes = screen.getByRole("region", { name: "Timeline" });
+    expect(lanes.contains(screen.getByRole("region", { name: "Timeline issues" }))).toBe(true);
+  });
+
+  test("phones keep the panes and the Player's controls", async () => {
+    await renderStudio(430, timelineDocument() as EditDocument);
+    await openTimeline();
+    pane("Timeline");
+    expect(divider()).toBeNull();
+    expect(controlsOn()).toBe("true");
+    const lanes = screen.getByRole("region", { name: "Timeline" });
+    expect(lanes.contains(screen.getByRole("region", { name: "Timeline issues" }))).toBe(false);
+  });
+
+  test("Story has the player bar and keeps its layout", async () => {
+    await renderStudio(1440, timelineDocument() as EditDocument);
+    expect(divider()).toBeNull();
+    expect(controlsOn()).toBe("false");
+    expect(screen.getByRole("button", { name: "Play video" })).toBeDefined();
+  });
+
+  test("Review has the player bar and keeps its layout", async () => {
+    await renderStudio(1440, timelineDocument() as EditDocument);
+    await openTimeline();
+    job("Review");
+    expect(divider()).toBeNull();
+    expect(controlsOn()).toBe("false");
+    expect(screen.getByRole("button", { name: "Play video" })).toBeDefined();
+  });
+
+  test("Review of a version 1 draft has the player bar too", async () => {
+    await renderStudio(1440);
+    job("Review");
+    expect(controlsOn()).toBe("false");
+  });
+
+  test("a version 1 draft edits with the Player's own controls", async () => {
+    await renderStudio(1440);
+    expect(controlsOn()).toBe("true");
+  });
+
+  test("phones keep the Player's controls in Story and Review", async () => {
+    await renderStudio(430, timelineDocument() as EditDocument);
+    expect(controlsOn()).toBe("true");
+    job("Review");
+    expect(controlsOn()).toBe("true");
+  });
 });

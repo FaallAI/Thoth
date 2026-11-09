@@ -10,6 +10,11 @@ export type PlayerTimelineRef = {
   seekTo(frame: number): void;
   play(): void;
   pause(): void;
+  // Only the wide Timeline's control bar uses these; a Player without one leaves that button idle.
+  mute?(): void;
+  unmute?(): void;
+  requestFullscreen?(): void;
+  isFullscreen?(): boolean;
 };
 
 type FrameEvent = { detail?: { frame?: number } };

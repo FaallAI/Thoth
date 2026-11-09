@@ -1,6 +1,6 @@
 /// <reference types="bun-types" />
 
-import { afterEach, expect, mock, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { cleanup, createEvent, fireEvent, screen, within } from "@testing-library/react";
 
 import { render } from "@/test-render";
@@ -1342,4 +1342,51 @@ test("Ctrl+D with nothing selected is claimed, so the browser does not bookmark 
   const notCancelled = fireEvent.keyDown(document.body, { key: "d", ctrlKey: true });
   expect(notCancelled).toBe(false);
   expect(actions.some((action) => action.type === "commit_operations")).toBe(false);
+});
+
+test("a status is drawn in the toolbar, beside the zoom", () => {
+  render(
+    <Timeline
+      state={createEditorState(timelineDocument())}
+      dispatch={() => {}}
+      onPlay={() => {}}
+      onPause={() => {}}
+      status={<span>Status here</span>}
+      sectionId="studio-timeline"
+    />,
+  );
+  const group = screen.getByRole("slider", { name: "Zoom" }).closest(".ml-auto")!;
+  expect(group.contains(screen.getByText("Status here"))).toBe(true);
+  expect(screen.getByRole("region", { name: "Timeline" }).id).toBe("studio-timeline");
+});
+
+describe("fitting on opening", () => {
+  const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+  beforeEach(() => Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 1440 }));
+  afterEach(() => {
+    if (original) Object.defineProperty(HTMLElement.prototype, "clientWidth", original);
+    else delete (HTMLElement.prototype as unknown as Record<string, unknown>).clientWidth;
+  });
+  const open = (zoom: number) => {
+    const actions: EditorAction[] = [];
+    render(
+      <Timeline
+        state={{ ...createEditorState(timelineDocument()), zoom }}
+        dispatch={(action) => actions.push(action)}
+        onPlay={() => {}}
+        onPause={() => {}}
+        fitOnOpen
+      />,
+    );
+    return actions.filter((action) => action.type === "set_zoom");
+  };
+
+  test("an untouched zoom fits the clips to the lanes", () => {
+    const [action] = open(1);
+    expect(action).toEqual({ type: "set_zoom", zoom: (1440 - 192) / 300 > 4 ? 4 : (1440 - 192) / 300 });
+  });
+
+  test("a zoom the person chose stays", () => {
+    expect(open(2)).toEqual([]);
+  });
 });

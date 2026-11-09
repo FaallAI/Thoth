@@ -51,8 +51,9 @@ async function clipOnTimeline({ app, browser, screen }: Fixtures) {
   await screen.getByRole('button', 'Main Video clip').tap();
   await screen.getByRole('spinbutton', 'End frame').fill('90');
   await expect(screen.getByText('Saved revision 4', { visible: true })).toBeVisible();
-  await screen.getByRole('button', 'Zoom in').tap();
-  await screen.getByRole('button', 'Zoom in').tap();
+  // The wide Timeline fits a short draft on opening, which can already be the 4 px maximum.
+  const zoomIn = screen.getByRole('button', 'Zoom in');
+  for (let step = 0; step < 4 && (await zoomIn.isEnabled()); step += 1) await zoomIn.tap();
 }
 
 async function drag(browser: any, box: { x: number; y: number; width: number; height: number }, dx: number, dy = 0, at = 0.5, finish = true) {
@@ -210,9 +211,9 @@ test('playback: Play moves the clock and the ruler seeks', async ({ app, browser
   await clipOnTimeline({ app, browser, screen });
   const ruler = await screen.getByRole('slider', 'Playhead').boundingBox();
   await clickAt(browser, ruler.x + 120, ruler.y + ruler.height / 2);
-  await expect(screen.getByText(/^0:01\.0 \/ 0:05\.0/)).toBeVisible();
+  await expect(screen.getByRole('region', 'Timeline').getByText(/^0:01\.0 \/ 0:05\.0/)).toBeVisible();
   await screen.getByRole('region', 'Timeline').getByRole('button', 'Play').tap();
-  await expect(screen.getByText(/^0:0[2-4]\.\d \/ 0:05\.0/)).toBeVisible({ timeout: 8000 });
+  await expect(screen.getByRole('region', 'Timeline').getByText(/^0:0[2-4]\.\d \/ 0:05\.0/)).toBeVisible({ timeout: 8000 });
 });
 
 test('playback: a click on an empty part of a lane moves the playhead', async ({ app, browser, screen }) => {
@@ -220,7 +221,7 @@ test('playback: a click on an empty part of a lane moves the playhead', async ({
   const lane = await screen.getByRole('group', 'Music track').boundingBox();
   const ruler = await screen.getByRole('slider', 'Playhead').boundingBox();
   await clickAt(browser, ruler.x + 200, lane.y + lane.height / 2);
-  await expect(screen.getByText(/^0:01\.[5-9] \/ 0:05\.0/)).toBeVisible({ timeout: 2000 });
+  await expect(screen.getByRole('region', 'Timeline').getByText(/^0:01\.[5-9] \/ 0:05\.0/)).toBeVisible({ timeout: 2000 });
 });
 
 test('tracks: hide, mute and lock are saved, and a lock stops a drag', async ({ app, browser, screen }) => {

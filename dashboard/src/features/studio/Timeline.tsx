@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 
 import type { AssetGlance, EditDocumentOperation, EditDocumentV2, EditorAsset } from "@/api/control-plane";
 import { useContextMenu } from "@/components/ContextMenu";
@@ -66,6 +66,12 @@ type Props = {
   onShuttle?: (direction: "forward" | "stop") => void;
   /** An asset's filmstrip or peaks, when Studio has it (Tier 3b); a clip without one draws plain. */
   glanceOf?: (assetId: string) => AssetGlance | undefined;
+  /** Drawn in the toolbar: the wide layout's issues status. */
+  status?: ReactNode;
+  /** The section's id, so the divider above it can name what it resizes. */
+  sectionId?: string;
+  /** Fit the clips to the lanes on opening, unless the person has already zoomed. */
+  fitOnOpen?: boolean;
   /** An asset dragged from the Assets column onto a lane that can hold it (spec 2026-11-08 §6). */
   onDropAsset?: (assetId: string, trackId: string, frame: number) => void;
 };
@@ -131,6 +137,9 @@ export function Timeline({
   editingKeys = true,
   onDropAsset,
   onShuttle,
+  status,
+  sectionId,
+  fitOnOpen = false,
 }: Props) {
   const { t } = useLocale();
   const headerWidth = readOnly ? READ_ONLY_HEADER_WIDTH : HEADER_WIDTH;
@@ -208,6 +217,14 @@ export function Timeline({
   // Keep the listeners' view of the editor current without re-attaching them.
   const latest = useRef({ state, dispatch, timeline, onSeek, onPlay, onPause, readOnly, editingKeys, onShuttle, t });
   latest.current = { state, dispatch, timeline, onSeek, onPlay, onPause, readOnly, editingKeys, onShuttle, t };
+
+  useLayoutEffect(() => {
+    // 1 is the zoom a draft opens with; anything else was chosen by the person.
+    if (!fitOnOpen || latest.current.state.zoom !== 1 || !latest.current.timeline) return;
+    const width = (lanesBox.current?.clientWidth ?? 0) - HEADER_WIDTH;
+    if (width <= 0) return;
+    latest.current.dispatch({ type: "set_zoom", zoom: clampZoom(width / latest.current.timeline.canvas.duration_in_frames) });
+  }, [fitOnOpen]);
 
   /** The unlocked clips a marquee from `area` to `event` touches, lane by lane (spec 2026-11-08 §6). */
   const clipsInMarquee = (area: { x0: number; y0: number }, event: { clientX: number; clientY: number }) => {
@@ -693,7 +710,7 @@ export function Timeline({
   };
 
   return (
-    <section className="flex min-h-0 flex-col" aria-label="Timeline">
+    <section id={sectionId} className="flex min-h-0 flex-col" aria-label="Timeline">
       <TimelineToolbar
         zoom={state.zoom}
         snapping={state.snapping}
@@ -710,6 +727,7 @@ export function Timeline({
         onRipple={(ripple) => dispatch({ type: "set_ripple", ripple })}
         onClipAction={clipAction}
         readOnly={readOnly}
+        status={status}
       />
       {readOnly ? (
         <p className="flex items-center gap-2 border-b border-hairline bg-surface px-3 py-2 text-xs text-muted-ink">{t("studio.timeline.viewOnly")}</p>
@@ -719,7 +737,7 @@ export function Timeline({
         <div
           ref={lanesArea}
           className="relative"
-          style={{ width: `${framesToPixels(duration, state.zoom) + headerWidth}px` }}
+          style={{ width: `${framesToPixels(duration, state.zoom) + headerWidth}px`, minWidth: "100%" }}
         >
           {marqueeBox ? (
             <div
