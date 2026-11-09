@@ -4,6 +4,8 @@ import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import type { EditDocumentV2, TimelineClip } from "./timeline";
 import { blurBoxes } from "./blur";
+import { kineticGroups, markBox, markWindowOpen, sourceFrame, type MarkShape } from "./effects";
+import { moveAt } from "./moves";
 import { speedPercent } from "./speed";
 import { visibleLanes } from "./timeline";
 import { safePreviewSource } from "./media";
@@ -85,6 +87,27 @@ const HEADING_TOP_SAFE = 0.08;
 const HEADING_LOWER_SAFE = 0.3;
 /** The two slots that place a heading; any other draws mid-frame as every older draft does. */
 const HEADING_PLACES = new Set(["title_top", "title_lower"]);
+const TEXT_CARD: CSSProperties = {
+  backgroundColor: "#ffffff",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "0 80px",
+};
+const TEXT_CARD_HEADING: CSSProperties = {
+  margin: 0,
+  color: "#111111",
+  fontSize: 84,
+  fontWeight: 800,
+  lineHeight: 1.1,
+  textAlign: "center",
+};
+const BLUR_FILL_MEDIA: CSSProperties = {
+  width: "100%",
+  height: "100%",
+  objectFit: "cover",
+  filter: "blur(48px)",
+  transform: "scale(1.1)",
+};
 
 /**
  * About how many characters two lines of a placed heading hold on this canvas.
@@ -268,6 +291,14 @@ function renderClip(
 ): ReactNode {
   switch (clip.kind) {
     case "text":
+      if (clip.style_slot === "card") {
+        // Style B's narrator card: the heading alone, black on white (spec 2026-11-09, 3.6).
+        return (
+          <AbsoluteFill data-testid="text-card" style={TEXT_CARD}>
+            <h1 style={TEXT_CARD_HEADING}>{clip.heading}</h1>
+          </AbsoluteFill>
+        );
+      }
       if (HEADING_PLACES.has(clip.style_slot)) {
         const top = clip.style_slot === "title_top";
         return (
@@ -302,8 +333,13 @@ function renderClip(
     }
     case "caption": {
       const style = trustedStyle(clip.style_slot, CAPTION_STYLES, CAPTION_STYLES.caption_default!);
+      // Kinetic words sit in the middle, a little above it; every other style stays in the low lane.
+      const lane =
+        style.name === "kinetic"
+          ? { ...CAPTION_LANE, justifyContent: "center", paddingBottom: canvas.height * 0.1 }
+          : { ...CAPTION_LANE, paddingBottom: canvas.height * CAPTION_SAFE_BOTTOM };
       return (
-        <AbsoluteFill style={{ ...CAPTION_LANE, paddingBottom: canvas.height * CAPTION_SAFE_BOTTOM }}>
+        <AbsoluteFill style={lane}>
           {/* Cue frames are relative to the caption clip, so they nest inside it. */}
           {clip.cues.map((cue, index) => (
             <Sequence
@@ -315,7 +351,9 @@ function renderClip(
               // cue, and the cue's box would run the canvas's height from the top left.
               layout="none"
             >
-              {style.name === "word_highlight" && cue.words && cue.words.length > 0 ? (
+              {style.name === "kinetic" && cue.words && cue.words.length > 0 ? (
+                <KineticCue words={cue.words} style={style.style} />
+              ) : style.name === "word_highlight" && cue.words && cue.words.length > 0 ? (
                 <WordHighlightCue words={cue.words} style={style.style} />
               ) : (
                 <p data-testid="caption-cue" data-caption-style={style.name} style={style.style}>
@@ -331,8 +369,8 @@ function renderClip(
       const draw = (motion: MotionState) =>
         videoClip(clip, muted, refs, canvas, sources, motion, onPreviewUnavailable);
       // Only a moving clip reads the frame, so a still clip draws exactly as before Story mode.
-      const drawn =
-        clip.motion && clip.motion !== "none" ? <MovingClip clip={clip} draw={draw} /> : draw(STILL);
+      const moving = (clip.moves?.length ?? 0) > 0 || (clip.motion && clip.motion !== "none");
+      const drawn = moving ? <MovingClip clip={clip} draw={draw} /> : draw(STILL);
       const asset = refs.get(clip.asset_id);
       // Narration's retiming may run a clip past its source: hold that last frame (2026-10-31).
       // At a speed (Tier 3a) the source runs out after fewer or more timeline frames.
@@ -364,6 +402,24 @@ function renderClip(
     default:
       return null;
   }
+}
+
+/** Style B's words, one group at a time: each group stays until the next one starts. */
+function KineticCue({
+  words,
+  style,
+}: {
+  words: NonNullable<Extract<TimelineClip, { kind: "caption" }>["cues"][number]["words"]>;
+  style: CSSProperties;
+}) {
+  const frame = useCurrentFrame();
+  const groups = kineticGroups(words);
+  const shown = groups.filter((group) => group.from <= frame).at(-1) ?? groups[0]!;
+  return (
+    <p data-testid="caption-cue" data-caption-style="kinetic" style={style}>
+      {shown.text}
+    </p>
+  );
 }
 
 /** The spoken word in amber, the rest of the page in white (narration captions, 2026-10-31). */
@@ -433,6 +489,11 @@ export function volumeAt(
 function MovingClip({ clip, draw }: { clip: VideoClip; draw: (motion: MotionState) => ReactNode }) {
   // Inside the clip's sequence, so the motion runs across the clip's own duration.
   const frame = useCurrentFrame();
+  if (clip.moves?.length) {
+    // Keyframed moves replace the preset; they stack on the stored placement (spec 2026-11-09).
+    const value = moveAt(clip.moves, frame);
+    return <>{draw({ scale: value.scale, translateX: value.x, translateY: value.y })}</>;
+  }
   return <>{draw(motionTransform(clip.motion ?? "none", frame, clip.duration_in_frames))}</>;
 }
 
@@ -468,7 +529,7 @@ function videoClip(
       style={{
         overflow: "hidden",
         // Offsets are canvas fractions, not pixels, so they project as percentages.
-        transform: `translate(${percent(position.x + motion.translateX)}, ${percent(position.y)}) scale(${position.scale * motion.scale})`,
+        transform: `translate(${percent(position.x + motion.translateX)}, ${percent(position.y + motion.translateY)}) scale(${position.scale * motion.scale})`,
       }}
     >
       {/* A still has no source timeline, so only a movie carries a trim. */}
@@ -529,12 +590,46 @@ function videoClip(
         : null}
     </AbsoluteFill>
   );
+  const content = contentBox(clip.fit, refs.get(clip.asset_id), canvas);
+  // Behind the clip: a blurred copy of the same media covering the canvas, still while the clip moves.
+  const blurFill =
+    clip.background === "blur_fill" ? (
+      <AbsoluteFill data-testid="clip-blur-fill" style={{ overflow: "hidden" }}>
+        {kind === "image" ? (
+          <Img src={source} style={BLUR_FILL_MEDIA} />
+        ) : (
+          <Video
+            src={source}
+            trimBefore={clip.source_from_frame}
+            muted
+            {...(speedPercent(clip) !== 100 ? { playbackRate: clip.speed } : {})}
+            objectFit="cover"
+            style={BLUR_FILL_MEDIA}
+          />
+        )}
+      </AbsoluteFill>
+    ) : null;
+  const dim =
+    (clip.dim ?? 0) > 0 ? (
+      <AbsoluteFill data-testid="clip-dim" style={{ backgroundColor: "#000000", opacity: clip.dim }} />
+    ) : null;
+  const marks = clip.emphasis?.marks?.length ? (
+    <ClipMarks clip={clip} crop={crop} content={content} motion={motion} canvas={canvas} />
+  ) : null;
   const emphasis = clip.emphasis;
-  if (!emphasis?.highlight && !emphasis?.arrow) return frame;
-  const box = emphasisBox(clip.position, contentBox(clip.fit, refs.get(clip.asset_id), canvas), motion);
+  const layers = (
+    <>
+      {blurFill}
+      {frame}
+      {dim}
+      {marks}
+    </>
+  );
+  if (!emphasis?.highlight && !emphasis?.arrow) return blurFill || dim || marks ? layers : frame;
+  const box = emphasisBox(clip.position, content, motion);
   return (
     <>
-      {frame}
+      {layers}
       {emphasis.highlight ? (
         <div
           data-testid="clip-highlight"
@@ -569,6 +664,91 @@ function videoClip(
           <path d="M48 0h24v70h28L60 120 20 70h28z" />
         </svg>
       ) : null}
+    </>
+  );
+}
+
+const MARK_COLORS: Record<string, string> = { accent: "#ffd23f", alert: "#ff3b30" };
+const MARK_DRAW_FRAMES = 8;
+const MARK_POP_FRAMES = 5;
+const ARROW_TURN: Record<string, string> = {
+  top: "translate(-50%, -100%)",
+  bottom: "translate(-50%, 0) rotate(180deg)",
+  left: "translate(-100%, -50%) rotate(-90deg)",
+  right: "translate(0, -50%) rotate(90deg)",
+};
+
+/** Boxes that draw themselves in and arrows that pop in, stuck to the media (spec 2026-11-09, 3.4). */
+function ClipMarks({
+  clip,
+  crop,
+  content,
+  motion,
+  canvas,
+}: {
+  clip: VideoClip;
+  crop: { left: number; top: number; width: number; height: number };
+  content: { width: number; height: number };
+  motion: MotionState;
+  canvas: EditDocumentV2["canvas"];
+}) {
+  const frame = useCurrentFrame();
+  const source = sourceFrame(clip, frame);
+  return (
+    <>
+      {(clip.emphasis?.marks ?? []).map((mark, index) => {
+        const shape = mark as MarkShape & { side?: string; color?: string };
+        if (!markWindowOpen(shape, clip, frame)) return null;
+        const box = markBox(shape, crop, content, clip.position, motion);
+        if (!box) return null;
+        const color = MARK_COLORS[shape.color ?? "accent"] ?? MARK_COLORS.accent!;
+        const since = source - shape.from_frame;
+        if (shape.kind === "box") {
+          const drawn = Math.min(1, since / MARK_DRAW_FRAMES);
+          return (
+            <svg
+              key={index}
+              data-testid="clip-mark"
+              data-mark-kind="box"
+              style={{ position: "absolute", left: percent(box.left), top: percent(box.top), width: percent(box.width), height: percent(box.height), overflow: "visible" }}
+            >
+              <rect
+                x="0"
+                y="0"
+                width="100%"
+                height="100%"
+                fill="none"
+                stroke={color}
+                strokeWidth={6}
+                pathLength={100}
+                strokeDasharray={100}
+                strokeDashoffset={100 * (1 - drawn)}
+              />
+            </svg>
+          );
+        }
+        const pop = Math.min(1, (since + 1) / MARK_POP_FRAMES);
+        return (
+          <svg
+            key={index}
+            data-testid="clip-mark"
+            data-mark-kind="arrow"
+            width={ARROW_SIZE}
+            height={ARROW_SIZE}
+            viewBox="0 0 120 120"
+            fill={color}
+            style={{
+              position: "absolute",
+              left: percent(box.left),
+              top: percent(box.top),
+              transform: `${ARROW_TURN[shape.side ?? "top"] ?? ARROW_TURN.top} scale(${pop})`,
+              transformOrigin: canvas.width > 0 ? "center" : undefined,
+            }}
+          >
+            <path d="M48 0h24v70h28L60 120 20 70h28z" />
+          </svg>
+        );
+      })}
     </>
   );
 }

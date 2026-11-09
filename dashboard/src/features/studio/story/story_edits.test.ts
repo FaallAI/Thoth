@@ -52,7 +52,7 @@ function edgesAfter(height: number, preset: "top" | "lower") {
   const box = emphasisBox(
     (operation as { position: { x: number; y: number; scale: number } }).position,
     contentBox("contain", { width: 1080, height }, document.canvas),
-    { scale: 1, translateX: 0 },
+    { scale: 1, translateX: 0, translateY: 0 },
   );
   return { top: box.top, bottom: box.top + box.height };
 }
@@ -226,7 +226,7 @@ test("a card and a clip of another scene do not trade scenes", () => {
 
 test("an added tall card starts below the header, as the importer places it", () => {
   const position = cardPosition(1080, 1350, { width: 1080, height: 1920 });
-  const box = emphasisBox(position, contentBox("contain", { width: 1080, height: 1350 }, { width: 1080, height: 1920 }), { scale: 1, translateX: 0 });
+  const box = emphasisBox(position, contentBox("contain", { width: 1080, height: 1350 }, { width: 1080, height: 1920 }), { scale: 1, translateX: 0, translateY: 0 });
   expect(box.top).toBeCloseTo(0.1, 10);
   expect(cardPosition(1080, 360, { width: 1080, height: 1920 }).y).toBeCloseTo(-0.24, 10);
 });

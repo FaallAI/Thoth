@@ -922,3 +922,79 @@ test("a held 2x clip freezes where its source ends at that speed", () => {
   render(<AdvancedTimelineComposition document={document} previewSources={TYPED_SOURCES} />);
   expect(screen.getByTestId("freeze").getAttribute("data-frame")).toBe("9");
 });
+
+// Studio effects layer (spec 2026-11-09): moves, blur-fill, dim, marks, two caption styles, cards.
+type Effects = StoryClip & { moves?: unknown[]; background?: string; dim?: number };
+const effectsDocument = (fields: Effects) => storyDocument(fields as StoryClip);
+const MARK = { kind: "box", x: 0.2, y: 0.2, w: 0.3, h: 0.2, from_frame: 0, to_frame: 600, side: "top", color: "alert" };
+
+test("blur-fill, dim and a mark draw on the clip", () => {
+  render(
+    <AdvancedTimelineComposition
+      document={effectsDocument({
+        background: "blur_fill",
+        dim: 0.5,
+        emphasis: { highlight: false, arrow: false, marks: [MARK] } as StoryClip["emphasis"],
+      })}
+      previewSources={TYPED_SOURCES}
+    />,
+  );
+  expect(screen.getByTestId("clip-blur-fill")).toBeDefined();
+  expect((screen.getByTestId("clip-dim") as HTMLElement).style.opacity).toBe("0.5");
+  expect(screen.getByTestId("clip-mark").getAttribute("data-mark-kind")).toBe("box");
+});
+
+test("a clip without effects draws no blur-fill, dim or marks", () => {
+  render(<AdvancedTimelineComposition document={storyDocument({})} previewSources={TYPED_SOURCES} />);
+  expect(screen.queryByTestId("clip-blur-fill")).toBeNull();
+  expect(screen.queryByTestId("clip-dim")).toBeNull();
+  expect(screen.queryByTestId("clip-mark")).toBeNull();
+});
+
+test("moves draw through their keyframes, stacked on the placement", () => {
+  const moves = [
+    { frame: 0, scale: 1, x: 0, y: 0, ease: "linear" },
+    { frame: 10, scale: 2, x: 0, y: 0.1, ease: "linear" },
+  ];
+  currentFrame.value = 5;
+  render(<AdvancedTimelineComposition document={effectsDocument({ moves })} previewSources={TYPED_SOURCES} />);
+  expect(screen.getAllByTestId("clip-frame")[1]!.style.transform).toBe("translate(25%, -45%) scale(2.25)");
+});
+
+function captionDocument(style: string, words?: { text: string; from_frame: number; duration_in_frames: number }[]) {
+  const document = typedTimelineDocument();
+  const caption = document.clips!.find((clip) => clip.kind === "caption")! as Extract<
+    NonNullable<EditDocumentV2["clips"]>[number],
+    { kind: "caption" }
+  >;
+  caption.style_slot = style;
+  caption.cues = [{ from_frame: 0, duration_in_frames: 60, text: "Kok bisa ya? Siapa yang merintahin?", ...(words ? { words } : {}) }];
+  return document;
+}
+
+test("kinetic shows one group of words at a time", () => {
+  const words = ["Kok", "bisa", "ya?", "Siapa", "yang", "merintahin?"].map((text, i) => ({ text, from_frame: i * 10, duration_in_frames: 10 }));
+  currentFrame.value = 35;
+  render(<AdvancedTimelineComposition document={captionDocument("kinetic", words)} previewSources={TYPED_SOURCES} />);
+  const cue = screen.getByTestId("caption-cue");
+  expect(cue.getAttribute("data-caption-style")).toBe("kinetic");
+  expect(cue.textContent).toBe("Siapa yang merintahin?");
+});
+
+test("kinetic cue without words keeps its text", () => {
+  render(<AdvancedTimelineComposition document={captionDocument("kinetic")} previewSources={TYPED_SOURCES} />);
+  expect(screen.getByTestId("caption-cue").textContent).toBe("Kok bisa ya? Siapa yang merintahin?");
+});
+
+test("a card text clip draws a white card", () => {
+  const document = typedTimelineDocument();
+  document.clips!.push({
+    kind: "text", clip_id: "clip_card", track_id: "track_overlay", from_frame: 0, duration_in_frames: 30,
+    ownership: "ai_managed", hidden: false, locked: false, heading: "Siapa yang merintahin?", body: "", style_slot: "card",
+  } as never);
+  document.tracks.find((track) => track.track_id === "track_overlay")!.clip_ids!.push("clip_card");
+  render(<AdvancedTimelineComposition document={document} previewSources={TYPED_SOURCES} />);
+  const card = screen.getByTestId("text-card") as HTMLElement;
+  expect(card.style.backgroundColor).toBe("#ffffff");
+  expect(card.textContent).toBe("Siapa yang merintahin?");
+});

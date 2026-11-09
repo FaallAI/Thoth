@@ -10,11 +10,11 @@ import type { TimelineClip } from "./timeline";
 
 type VideoClip = Extract<TimelineClip, { kind: "video" }>;
 export type Motion = NonNullable<VideoClip["motion"]>;
-export type MotionState = { scale: number; translateX: number };
+export type MotionState = { scale: number; translateX: number; translateY: number };
 type Placement = { x: number; y: number; scale: number };
 type Box = { width: number; height: number };
 
-export const STILL: MotionState = { scale: 1, translateX: 0 };
+export const STILL: MotionState = { scale: 1, translateX: 0, translateY: 0 };
 const ZOOM_END = 1.08;
 const PAN = 0.03;
 export const HIGHLIGHT = { color: "#d49a79", width: 6 } as const;
@@ -23,8 +23,8 @@ export const ARROW_SIZE = 120;
 /** Linear in the clip's own frame: the first frame is the stored placement. */
 export function motionTransform(motion: Motion, frame: number, durationInFrames: number): MotionState {
   const t = durationInFrames > 1 ? Math.min(1, Math.max(0, frame / (durationInFrames - 1))) : 0;
-  if (motion === "slow_zoom") return { scale: 1 + (ZOOM_END - 1) * t, translateX: 0 };
-  if (motion === "pan") return { scale: 1, translateX: -PAN + 2 * PAN * t };
+  if (motion === "slow_zoom") return { scale: 1 + (ZOOM_END - 1) * t, translateX: 0, translateY: 0 };
+  if (motion === "pan") return { scale: 1, translateX: -PAN + 2 * PAN * t, translateY: 0 };
   return STILL;
 }
 
@@ -53,5 +53,5 @@ export function emphasisBox(
   const { x, y, scale } = position ?? { x: 0, y: 0, scale: 1 };
   const width = content.width * scale * motion.scale;
   const height = content.height * scale * motion.scale;
-  return { left: 0.5 + x + motion.translateX - width / 2, top: 0.5 + y - height / 2, width, height };
+  return { left: 0.5 + x + motion.translateX - width / 2, top: 0.5 + y + motion.translateY - height / 2, width, height };
 }
