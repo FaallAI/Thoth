@@ -42,6 +42,12 @@ FORMATS = {
 }
 
 
+#: Tiles at least this many seconds apart still differ when only keyframes are decoded.
+KEYFRAME_STRIP_SECONDS = 10
+FULL_DECODE = ("-threads", "2")
+KEYFRAMES_ONLY = ("-skip_frame", "nokey", "-threads", "2")
+
+
 class GlanceToolMissing(Exception):
     """ffmpeg could not start: an installation fault, reported as such."""
 
@@ -155,6 +161,30 @@ async def _stream_peaks(
     return values
 
 
+async def _video_strip(
+    ffmpeg: str, source: str, formats: str, output_args: list[str], seconds_per_frame: int
+) -> bytes:
+    """Decode in full unless the tiles are further apart than a video's keyframes usually are.
+
+    Measured 2026-11-09: with keyframes 5 s apart, keyframes alone drew 3 different pictures
+    across 15 tiles of a 20 s video, while a full decode of 5 minutes of 1080p took 7 s.
+    """
+    if seconds_per_frame >= KEYFRAME_STRIP_SECONDS:
+        try:
+            return await _run(ffmpeg, source, formats, output_args, KEYFRAMES_ONLY)
+        except GlanceBuildFailed as error:
+            if str(error) == "timeout":
+                raise
+            return await _run(ffmpeg, source, formats, output_args, FULL_DECODE)
+    try:
+        return await _run(ffmpeg, source, formats, output_args, FULL_DECODE)
+    except GlanceBuildFailed as error:
+        if str(error) != "timeout":
+            raise
+        # Too heavy to decode in full: a coarser strip, kept once built, beats none every session.
+        return await _run(ffmpeg, source, formats, output_args, KEYFRAMES_ONLY)
+
+
 def _seconds(asset: EditorAsset) -> float:
     """Durations count canvas frames, whatever the media's own rate (final review 2026-11-09)."""
     return (asset.duration_in_frames or 0) / CANVAS_FPS
@@ -181,17 +211,7 @@ async def build_glance(ffmpeg: str, source: str, asset: EditorAsset) -> AssetGla
     jpeg_out = ["-frames:v", "1", "-q:v", "5", "-f", "image2pipe", "-vcodec", "mjpeg", "-"]
     output_args = ["-vf", f"{video_filter},format=yuvj420p", *jpeg_out]
     if asset.kind == "video":
-        # Keyframes first, on two threads: a long 4K video stays cheap to glance at, each tile
-        # showing the nearest earlier keyframe. A video with too few keyframes yields nothing that
-        # way and is decoded in full; a timeout is not tried again (final review minor, 2026-11-09).
-        try:
-            image = await _run(
-                ffmpeg, source, formats, output_args, ("-skip_frame", "nokey", "-threads", "2")
-            )
-        except GlanceBuildFailed as error:
-            if str(error) == "timeout":
-                raise
-            image = await _run(ffmpeg, source, formats, output_args, ("-threads", "2"))
+        image = await _video_strip(ffmpeg, source, formats, output_args, seconds_per_frame)
     else:
         image = await _run(ffmpeg, source, formats, output_args)
     width, height = jpeg_size(image)

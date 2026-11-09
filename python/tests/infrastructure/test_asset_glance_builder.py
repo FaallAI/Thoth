@@ -206,14 +206,51 @@ async def test_a_timed_out_build_fails_and_stops_ffmpeg(tmp_path: Path, monkeypa
     assert not alive(pid)
 
 
-async def test_a_video_strip_decodes_keyframes_only_on_two_threads(tmp_path: Path) -> None:
-    # Final review minor, fixed 2026-11-09: a long 4K video stays cheap to glance at.
+def calls(tmp_path: Path) -> list[str]:
+    return (tmp_path / "argv.txt").read_text().split("\n")
+
+
+async def test_a_short_video_is_decoded_in_full(tmp_path: Path) -> None:
+    # 2026-11-09, measured: with keyframes 5 s apart, keyframes alone gave 3 different pictures
+    # across 15 tiles of a 20 s video. A full decode of 5 minutes of 1080p took 7 s.
     fake, _ = sleeping_ffmpeg(tmp_path, 0)
     with pytest.raises(GlanceBuildFailed):
-        await build_glance(str(fake), str(tmp_path / "x.mp4"), asset("video", 3, "video/mp4"))
-    # The first try decodes keyframes only; a video that yields nothing then is decoded in full.
-    args = (tmp_path / "argv.txt").read_text().split("\n")
+        await build_glance(str(fake), str(tmp_path / "x.mp4"), asset("video", 500, "video/mp4"))
+    args = calls(tmp_path)
+    assert args.count("-i") == 1 and "-skip_frame" not in args
+    assert args[args.index("-threads") + 1] == "2"
+
+
+async def test_a_short_video_that_times_out_falls_back_to_keyframes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from thoth_control_plane.infrastructure import asset_glance_builder
+
+    monkeypatch.setattr(asset_glance_builder, "GLANCE_TIMEOUT_SECONDS", 0.2)
+    fake, _ = sleeping_ffmpeg(tmp_path, 30)
+    with pytest.raises(GlanceBuildFailed):
+        await build_glance(str(fake), str(tmp_path / "x.mp4"), asset("video", 500, "video/mp4"))
+    args = calls(tmp_path)
+    assert args.count("-i") == 2 and args.count("-skip_frame") == 1
+    assert args.index("-skip_frame") > args.index("-i")
+
+
+async def test_a_long_video_tries_keyframes_first(tmp_path: Path) -> None:
+    # Tiles 10 s apart are further apart than a keyframe gap, so keyframes still differ.
+    fake, _ = sleeping_ffmpeg(tmp_path, 0)
+    with pytest.raises(GlanceBuildFailed):
+        await build_glance(str(fake), str(tmp_path / "x.mp4"), asset("video", 600, "video/mp4"))
+    args = calls(tmp_path)
     assert args[args.index("-skip_frame") + 1] == "nokey"
     assert args.index("-skip_frame") < args.index("-i")
-    assert args[args.index("-threads") + 1] == "2"
     assert args.count("-i") == 2 and args.count("-skip_frame") == 1
+
+
+async def test_a_long_video_that_times_out_is_not_tried_again(tmp_path: Path, monkeypatch) -> None:
+    from thoth_control_plane.infrastructure import asset_glance_builder
+
+    monkeypatch.setattr(asset_glance_builder, "GLANCE_TIMEOUT_SECONDS", 0.2)
+    fake, _ = sleeping_ffmpeg(tmp_path, 30)
+    with pytest.raises(GlanceBuildFailed):
+        await build_glance(str(fake), str(tmp_path / "x.mp4"), asset("video", 600, "video/mp4"))
+    assert calls(tmp_path).count("-i") == 1
