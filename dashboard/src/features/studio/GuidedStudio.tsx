@@ -27,6 +27,9 @@ import {
 } from "./editor_state";
 import { Inspector } from "./Inspector";
 import { IssuesBar } from "./IssuesPanel";
+import { PreviewControls } from "./PreviewControls";
+import { TimelineDivider } from "./TimelineDivider";
+import { readTimelineHeight, saveTimelineHeight, timelineRows } from "./timeline_height";
 import { RenderPanel, type RenderPanelClient } from "./RenderPanel";
 import { SceneAudioInspector } from "./SceneAudioInspector";
 import { SceneBoard } from "./SceneBoard";
@@ -178,6 +181,9 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const modeGroupId = useId();
   // The Player lives in state, so replacing it re-binds the timeline listeners.
   const [attachedPlayer, setAttachedPlayer] = useState<PlayerTimelineRef | null>(null);
+  const [playerFullscreen, setPlayerFullscreen] = useState(false);
+  const [timelineHeight, setTimelineHeight] = useState(readTimelineHeight);
+  const workstation = useRef<HTMLDivElement>(null);
   const player = usePlayerTimeline(
     attachedPlayer,
     (frame) => dispatch({ type: "set_playhead", frame }),
@@ -193,6 +199,8 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   // An upgrade replaces the document, so nothing may edit it until it settles.
   const upgrading = state.upgradeStatus === "running";
   const editing = job === "edit";
+  // Timeline editing at 1024 and wider: the timeline takes the whole bottom row (spec 2026-11-09).
+  const wideTimeline = advanced && editing && !compact;
   // Simple desktop editing lays the scenes out as a strip under the preview.
   const stripLayout = editing && !compact && !advanced && !story;
   const workstationStyle = compact
@@ -203,7 +211,9 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     : ({
         "--scene-board-width": `${sceneBoardWidth}rem`,
         "--inspector-width": `${inspectorWidth}rem`,
-        gridTemplateRows: stripLayout ? "minmax(0,1fr) 228px" : story && editing ? "minmax(0,1fr) auto" : undefined,
+        gridTemplateRows: wideTimeline
+          ? timelineRows(timelineHeight)
+          : stripLayout ? "minmax(0,1fr) 228px" : story && editing ? "minmax(0,1fr) auto" : undefined,
         gridTemplateColumns: [
           editing && sceneRegionOpen && !stripLayout && (story ? "18rem" : "var(--scene-board-width)"),
           "minmax(0,1fr)",
@@ -713,8 +723,20 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   const iconButton =
     "grid size-9 place-items-center rounded-md text-muted-ink hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-copper disabled:cursor-not-allowed disabled:opacity-40";
 
+  const issuesBar = (inline: boolean) =>
+    timeline ? (
+      <IssuesBar
+        document={timeline}
+        selectedIssueId={state.selectedIssueId}
+        mode={state.mode}
+        dispatch={dispatch}
+        labelOf={labelOf}
+        inline={inline}
+      />
+    ) : null;
+
   return (
-    <section className={`studio-shell pen-studio studio-job-${job} ${advanced ? "studio-advanced" : "studio-simple"}${story ? " studio-story" : ""} flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground`} aria-label="Guided Studio">
+    <section className={`studio-shell pen-studio studio-job-${job} ${advanced ? "studio-advanced" : "studio-simple"}${wideTimeline ? " studio-wide-timeline" : ""}${story ? " studio-story" : ""} flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground`} aria-label="Guided Studio">
       <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       {/* DESIGN §13: back to the documents, the title, the destinations, and where saving stands. */}
       <StudioHeader
@@ -1045,6 +1067,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
 
       <div id="studio-panel-scenes" className="flex min-h-0 flex-1 flex-col">
         <div
+          ref={workstation}
           aria-label="Guided editing workstation"
           // Render shows nothing from the workstation, so it yields the space.
           hidden={job === "render"}
@@ -1178,7 +1201,25 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             {/* The box keeps its height and clips what it holds; its preview fills exactly that (live check, 430). */}
             <div className={compact && editPane === "timeline" ? "studio-phone-preview h-[40vh] min-h-56 shrink-0 overflow-hidden [&>*]:h-full [&>*]:min-h-0" : "contents"}>
               <StudioPreview
-                overlay={story && !reviewing ? (safeZone ? <SafeZoneOverlay /> : null) : undefined}
+                // null sizes the canvas from its cell, which the wide Timeline's preview fills.
+                overlay={wideTimeline ? null : story && !reviewing ? (safeZone ? <SafeZoneOverlay /> : null) : undefined}
+                // In fullscreen the bar is off screen, so the Player's own controls come back.
+                controls={!wideTimeline || playerFullscreen}
+                footer={
+                  wideTimeline && timeline ? (
+                    <PreviewControls
+                      player={attachedPlayer}
+                      frame={state.playheadFrame}
+                      durationInFrames={timeline.canvas.duration_in_frames}
+                      fps={timeline.canvas.fps}
+                      playing={state.playing}
+                      canvas={timeline.canvas}
+                      onPlay={player.play}
+                      onPause={player.pause}
+                      onFullscreenChange={setPlayerFullscreen}
+                    />
+                  ) : undefined
+                }
                 // Review shows what was saved; Edit shows the draft.
                 document={reviewing ? base : state.draft}
                 onPlayer={setAttachedPlayer}
@@ -1198,7 +1239,20 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             </div>
             {advanced && timeline ? (
               <div className="contents" hidden={reviewing || (compact && editPane !== "timeline")}>
+                {wideTimeline ? (
+                  <TimelineDivider
+                    height={timelineHeight}
+                    workstation={() => workstation.current}
+                    onResize={setTimelineHeight}
+                    onCommit={(height) => {
+                      setTimelineHeight(height);
+                      saveTimelineHeight(height);
+                    }}
+                  />
+                ) : null}
                 <Timeline
+                  sectionId="studio-timeline"
+                  status={wideTimeline ? issuesBar(true) : undefined}
                   state={state}
                   onDropAsset={(assetId, trackId, frame) => {
                     const asset = state.assets[assetId];
@@ -1231,13 +1285,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                   }}
                   assetName={describeAsset ? (asset) => describeAsset(asset).label : undefined}
                 />
-                <IssuesBar
-                  document={timeline}
-                  selectedIssueId={state.selectedIssueId}
-                  mode={state.mode}
-                  dispatch={dispatch}
-                  labelOf={labelOf}
-                />
+                {wideTimeline ? null : issuesBar(false)}
               </div>
             ) : null}
             {reviewClient ? (
