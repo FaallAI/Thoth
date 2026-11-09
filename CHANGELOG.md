@@ -60,19 +60,37 @@ Branch `feat/studio-timeline-tier3b` from master `d3c89bbb`, not pushed.
 **The review's minors, fixed too (operator, 2026-11-09: "perbaiki minor dulu").** Each fix is test-first:
 - **Long clips at maximum zoom.** A very wide clip widens its filmstrip tiles past the 200-tile cap, instead of stopping partway. Each frame covers its tile.
 - **Cancelled builds.** ffmpeg never outlives a cancelled or timed-out build, on both the strip and the peaks path.
-- **Video strips decode keyframes first, on two threads,** so a long 4K video stays cheap.
-  - A video with too few keyframes (a short clip with one) yields nothing that way, and is then decoded in full.
-  - A timeout is not tried again.
-  - Strips are converted to full-range YUV, which the JPEG encoder needs.
+- **Heavy videos stay affordable, on two threads, without repeating pictures.** Strips are converted to full-range YUV, which the JPEG encoder needs.
+  - **Up to 9 minutes (tiles under 10 s apart): a full decode.** A first version read keyframes first; a side-agent note questioned it and the operator asked to verify. On a 20 s video with keyframes 5 s apart, keyframes alone drew 3 different pictures across 15 tiles, against 20 of 20 for a full decode. A full decode of 5 minutes of 1080p took 7 s.
+  - **If that times out, keyframes instead,** so a coarser strip is kept once rather than failing every session.
+  - **Over 9 minutes (tiles 10 s or more apart): keyframes first.** The tiles are further apart than keyframes usually are. A video that yields nothing that way is decoded in full, and a timeout there is not tried again.
 - **Volume drags.** A drag ends when its clip goes away mid-drag.
 - **Missing tests added:**
   - a store outage on the cache read and on `probe_source` (`media_store_unavailable`, nothing built);
   - a timeout that stops ffmpeg;
   - a 404 at the route for another project's asset.
 
+**The minors carried from Tiers 2 and 3a, fixed on this branch (operator, 2026-11-09).** Each fix is test-first; none of them had a fresh reviewer.
+- **From Tier 3a:**
+  - Alt+drag on a text or caption clip is a plain move, not an "image" refusal.
+  - The hidden-track paste note lasts only while the pasted clip is in the draft, so a refused save takes it away.
+  - A roll dragged past a limit stops at the limit and says why, instead of refusing the whole drag (`rollRange`).
+  - Saving an unchanged marker name makes no revision.
+  - `speedPercent` has one home, in the composition package.
+- **From Tier 2:**
+  - A shorter scene fits fades and markers at once in the dashboard, not when the save returns.
+  - A paste checks Main video overlap on its own track only, as the server does.
+  - A group move refuses a Main video overlap and a clip leaving its scene, before the save.
+  - A group drag released past a limit stays at its last allowed place and says why.
+  - Ctrl+D with nothing selected no longer reaches the browser's bookmark shortcut.
+  - A pasted caption is three seconds at the playhead, cut at its scene's end, through two new optional fields on `add_caption_clip`. An operation without them serializes as before.
+  - Inspector fields say what they accept when a value is refused, non-numbers included, and the message sits above the fields.
+  - Tab stays inside the paste chooser and the marker dialog.
+- **Left as it is, a ruling:** a trim start of +1 and then −1 at a fractional speed can move the source by one frame. Whole-frame rounding causes it, it stays under one source frame per edit, and removing it needs fractional source positions in the document contract.
+
 **Verification.**
-- **Python:** `make test` gives 4712 passed and 222 skipped, with real-ffmpeg builder tests. `make lint` is clean.
-- **Dashboard:** 1869 tests pass, and `tsc -b` and the build are clean.
+- **Python:** `make test` gives 4716 passed and 222 skipped, with real-ffmpeg builder tests. `make lint` is clean.
+- **Dashboard:** 1889 tests pass, and `tsc -b` and the build are clean.
 - **Renderer:** `bun test` passes 224.
 - **Read-only e2e at 1440** on stage1 `573b2c92`: 20/21. The one failure is the new glance test, which stays red until the endpoint is deployed.
 - **Write e2e (filmstrip and volume line)** has not run. It needs the deploy and a one-day write token.
@@ -93,7 +111,6 @@ Branch `feat/studio-timeline-tier3b` from master `d3c89bbb`, not pushed.
   During the try, check how long the first look at a long video takes.
 - **Then the next track,** which the operator chooses from the roadmap. The Studio Timeline track's three tiers are built.
 - **Carried:**
-  - the Tier 3a minors (seven) and the Tier 2 minors (eight);
   - a Story scene resize of a sped-up clip can still be refused by the server.
 
 ## 2026-11-09 - Studio Timeline Tier 3a: speed, slip, roll, markers, phones
