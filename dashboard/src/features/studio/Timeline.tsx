@@ -779,6 +779,7 @@ export function Timeline({
             const edit = pasteTextOperations(timeline, target, pastedText, { playheadFrame: state.playheadFrame, selectedClipId: state.selectedClipId });
             setPastedText(null);
             if (edit.operations.length) dispatch({ type: "commit_operations", operations: edit.operations });
+            setNotice(edit.notice === "hidden_track" ? t("studio.paste.hiddenTrack") : null);
           }}
         />
       ) : null}

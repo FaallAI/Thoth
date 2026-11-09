@@ -20,7 +20,9 @@ export type Refusal =
   | "not_text"
   | "not_caption"
   | "too_long";
-export type Edit = { operations: EditDocumentOperation[]; refusal?: Refusal };
+/** Something a successful edit still tells the person (operator, 2026-11-09). */
+export type Notice = "hidden_track";
+export type Edit = { operations: EditDocumentOperation[]; refusal?: Refusal; notice?: Notice };
 
 type Clip = NonNullable<EditDocumentV2["clips"]>[number];
 
@@ -325,6 +327,12 @@ export function cueAt(clip: Extract<Clip, { kind: "caption" }>, frame: number): 
   return Math.max(0, index);
 }
 
+/** An unlocked track of the kind, a visible one first: a hidden one still takes the text (operator, 2026-11-09). */
+function pasteTrack(doc: EditDocumentV2, kind: "overlay" | "caption") {
+  const open = doc.tracks.filter((entry) => entry.kind === kind && !entry.locked);
+  return open.find((entry) => !entry.hidden) ?? open[0];
+}
+
 export function pasteTextOperations(
   doc: EditDocumentV2,
   target: PasteTarget,
@@ -336,7 +344,7 @@ export function pasteTextOperations(
   const frame = at.playheadFrame;
   switch (target) {
     case "new_text": {
-      const track = doc.tracks.find((entry) => entry.kind === "overlay" && !entry.locked);
+      const track = pasteTrack(doc, "overlay");
       if (!track) return refuse("no_track");
       return {
         operations: [
@@ -352,6 +360,7 @@ export function pasteTextOperations(
             style_slot: "title",
           },
         ],
+        ...(track.hidden ? { notice: "hidden_track" as const } : {}),
       };
     }
     case "replace_text":
@@ -359,7 +368,7 @@ export function pasteTextOperations(
       if (isLocked(doc, selected)) return refuse("locked");
       return { operations: [{ kind: "replace_text", operation_id: newId("op"), clip_id: selected.clip_id, field: "heading", value: text }] };
     case "new_caption": {
-      const track = doc.tracks.find((entry) => entry.kind === "caption" && !entry.locked);
+      const track = pasteTrack(doc, "caption");
       if (!track) return refuse("no_track");
       const scene = doc.scenes.find((entry) => entry.start_frame <= frame && frame < entry.start_frame + entry.duration_in_frames);
       if (!scene) return refuse("no_scene");
@@ -367,6 +376,7 @@ export function pasteTextOperations(
         operations: [
           { kind: "add_caption_clip", operation_id: newId("op"), clip_id: newId("clip"), track_id: track.track_id, scene_id: scene.scene_id, text },
         ],
+        ...(track.hidden ? { notice: "hidden_track" as const } : {}),
       };
     }
     case "replace_caption":

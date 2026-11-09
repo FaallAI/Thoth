@@ -295,6 +295,44 @@ test("pasteTextOperations refuses a place that does not apply, and text over 300
   expect(pasteTextOperations(doc, "new_text", "x".repeat(301), nothing).refusal).toBe("too_long");
 });
 
+// Operator, 2026-11-09: a visible track first; a hidden-only one still takes it, and says so.
+function withHiddenTwin(kind: "overlay" | "caption") {
+  const doc = textDocument();
+  const original = doc.tracks.find((track) => track.kind === kind)!;
+  original.hidden = true;
+  doc.tracks.push({ ...original, track_id: `${original.track_id}_2`, label: `${original.label} 2`, order: 9, hidden: false, clip_ids: [] });
+  return doc;
+}
+const nobody = { playheadFrame: 30, selectedClipId: "" };
+
+test("pasted text goes to a visible overlay track before a hidden one", () => {
+  const edit = pasteTextOperations(withHiddenTwin("overlay"), "new_text", "Hello", nobody);
+  expect(edit.operations[0]).toMatchObject({ track_id: "track_overlay_2" });
+  expect(edit.notice).toBeUndefined();
+});
+
+test("pasted text on a hidden-only overlay lands there and notices", () => {
+  const doc = textDocument();
+  doc.tracks.find((track) => track.kind === "overlay")!.hidden = true;
+  const edit = pasteTextOperations(doc, "new_text", "Hello", nobody);
+  expect(edit.operations[0]).toMatchObject({ track_id: "track_overlay" });
+  expect(edit.notice).toBe("hidden_track");
+});
+
+test("a pasted caption goes to a visible caption track before a hidden one", () => {
+  const edit = pasteTextOperations(withHiddenTwin("caption"), "new_caption", "Hello", nobody);
+  expect(edit.operations[0]).toMatchObject({ track_id: "track_captions_2" });
+  expect(edit.notice).toBeUndefined();
+});
+
+test("a pasted caption on a hidden-only caption track lands there and notices", () => {
+  const doc = textDocument();
+  doc.tracks.find((track) => track.kind === "caption")!.hidden = true;
+  const edit = pasteTextOperations(doc, "new_caption", "Hello", nobody);
+  expect(edit.operations[0]).toMatchObject({ track_id: "track_captions" });
+  expect(edit.notice).toBe("hidden_track");
+});
+
 const withoutNewClip = (operation: Record<string, unknown>) => {
   const { clip_id: _id, ...rest } = operation;
   return rest;

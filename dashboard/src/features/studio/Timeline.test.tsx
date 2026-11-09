@@ -759,6 +759,16 @@ test("pasting text on the timeline asks where it goes, then places it there", ()
   expect(screen.queryByRole("dialog", { name: "Paste text" })).toBeNull();
 });
 
+test("a paste onto a hidden-only overlay track says so in the status line", () => {
+  const doc = textDocument();
+  doc.tracks.find((track) => track.kind === "overlay")!.hidden = true;
+  const { actions } = mount({ base: doc, draft: doc, playheadFrame: 30 });
+  pasteText(window, "Hello");
+  fireEvent.click(screen.getByRole("button", { name: "New text clip" }));
+  expect(actions.at(-1)).toMatchObject({ type: "commit_operations", operations: [{ kind: "add_text_clip", track_id: "track_overlay" }] });
+  expect(screen.getByRole("status").textContent).toContain("Pasted on a hidden track. Show the track to see it.");
+});
+
 test("a paste into a field, HTML alone or blank text opens nothing", () => {
   mountText();
   const field = document.body.appendChild(document.createElement("input"));
