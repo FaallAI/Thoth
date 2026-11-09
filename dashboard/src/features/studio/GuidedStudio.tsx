@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useReducer, useRef, useState, type CSSProper
 import { Redo2, Sparkles, Undo2 } from "lucide-react";
 
 import type {
+  AssetGlance,
   ControlPlaneClient,
   EditDocument,
   EditDocumentOperation,
@@ -74,6 +75,7 @@ type Props = {
         | "uploadEditorAsset"
         | "listEditorAssets"
         | "createEditorPreviewCapability"
+        | "getEditorAssetGlance"
         | "getRenderCapability"
         | "createRenderJob"
         | "listRenderJobs"
@@ -432,6 +434,23 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
     () => (timeline?.asset_refs ?? []).map((ref) => ref.asset_id).join(" "),
     [timeline],
   );
+  // Tier 3b: each asset's filmstrip or peaks, asked for once; a refusal leaves the clip plain.
+  const [glances, setGlances] = useState<Record<string, AssetGlance | null>>({});
+  useEffect(() => {
+    const getGlance = client.getEditorAssetGlance;
+    if (!advanced || !getGlance || !mediaIds) return;
+    for (const assetId of mediaIds.split(" ")) {
+      if (assetId in glances) continue;
+      setGlances((current) => ({ ...current, [assetId]: null }));
+      void getGlance(projectId, assetId).then(
+        (glance) => setGlances((current) => ({ ...current, [assetId]: glance })),
+        () => {},
+      );
+    }
+    // glances is read, not watched: each asset is asked for once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [advanced, client, mediaIds, projectId]);
+
   useEffect(() => {
     if (!story || !assetClient || !mediaIds) return;
     const requestGeneration = generation.current;
@@ -1177,6 +1196,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
                     if (asset) addAsset(asset, { trackId, frame });
                   }}
                   labelOf={labelOf}
+                  glanceOf={(assetId) => glances[assetId] ?? undefined}
                   readOnly={timelineReadOnly}
                   onInspect={() => setEditPane("controls")}
                   dispatch={dispatch}

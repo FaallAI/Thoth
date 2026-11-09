@@ -1,7 +1,7 @@
 import type { PointerEvent } from "react";
 import { Lock } from "lucide-react";
 
-import type { EditDocumentV2 } from "@/api/control-plane";
+import type { AssetGlance, EditDocumentV2 } from "@/api/control-plane";
 import type { MenuHandlers } from "@/components/ContextMenu";
 import { useLocale, type LocaleState } from "@/lib/locale";
 import { clipLabelSource, framesToPixels } from "./timeline_domain";
@@ -28,6 +28,8 @@ type Props = {
   onNudge: (frames: number) => void;
   /** The clip's human name (spec 2026-11-01); absent, the Timeline's own words for it. */
   name?: string;
+  /** The asset's filmstrip or peaks (Tier 3b); drawn in Task 5. */
+  glance?: AssetGlance;
   /** A view-only timeline: no trim handles, no drag. */
   readOnly?: boolean;
   /** The clip's right-click menu (spec 2026-11-08 §5.1). */

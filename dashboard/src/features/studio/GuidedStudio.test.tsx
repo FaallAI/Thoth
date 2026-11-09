@@ -1321,3 +1321,23 @@ test("L speeds the preview up, and any pause brings it back to normal speed", as
   act(() => player.emit("pause"));
   expect(rate()).toBe("1");
 });
+
+// Tier 3b: each asset's filmstrip or peaks, asked for once in Timeline mode.
+const GLANCE = { asset_id: "asset_music", strip: null, peaks: { seconds_per_peak: 0.1, values: [10, 40] } };
+
+test("Timeline asks for each asset's glance once", async () => {
+  const getEditorAssetGlance = mock(async (_projectId: string, assetId: string) => ({ ...GLANCE, asset_id: assetId }));
+  await mountAdvanced({ getEditorAssetGlance });
+  await waitFor(() => expect(getEditorAssetGlance).toHaveBeenCalledTimes(2));
+  fireEvent.click(screen.getByRole("button", { name: "Mute Music" }));
+  await act(async () => {});
+  expect(getEditorAssetGlance.mock.calls.map(([, assetId]) => assetId).sort()).toEqual(["asset_music", "asset_video"]);
+});
+
+test("a refused glance leaves the timeline as it was", async () => {
+  await mountAdvanced({ getEditorAssetGlance: mock(async () => Promise.reject(new Error("503"))) });
+  await act(async () => {});
+  expect(screen.queryByTestId("clip-filmstrip")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Mute Music" }));
+  expect(screen.getByRole("button", { name: "Unmute Music" })).toBeDefined();
+});

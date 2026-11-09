@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
-import type { EditDocumentOperation, EditDocumentV2, EditorAsset } from "@/api/control-plane";
+import type { AssetGlance, EditDocumentOperation, EditDocumentV2, EditorAsset } from "@/api/control-plane";
 import { useContextMenu } from "@/components/ContextMenu";
 import { useLocale } from "@/lib/locale";
 import type { EditorAction, EditorState } from "./editor_state";
@@ -63,6 +63,8 @@ type Props = {
   editingKeys?: boolean;
   /** J, K and L (spec 2026-11-08 §6): L plays and speeds up, K stops; J steps back here. */
   onShuttle?: (direction: "forward" | "stop") => void;
+  /** An asset's filmstrip or peaks, when Studio has it (Tier 3b); a clip without one draws plain. */
+  glanceOf?: (assetId: string) => AssetGlance | undefined;
   /** An asset dragged from the Assets column onto a lane that can hold it (spec 2026-11-08 §6). */
   onDropAsset?: (assetId: string, trackId: string, frame: number) => void;
 };
@@ -117,6 +119,7 @@ export function Timeline({
   onPlay,
   onPause,
   labelOf,
+  glanceOf,
   readOnly = false,
   onInspect,
   beatOf,
@@ -772,6 +775,7 @@ export function Timeline({
               widthInFrames={duration}
               selectedClipIds={selectedIds}
               labelOf={labelOf}
+              glanceOf={glanceOf}
               readOnly={readOnly}
               name={trackName(t, timeline, lane.track)}
               accessibleLabel={trackLabel(timeline, lane.track)}
