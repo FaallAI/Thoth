@@ -16,6 +16,7 @@ from typing import Annotated, Literal, TypeAlias
 
 from pydantic import Field
 
+from thoth_control_plane.domain.clip_moves import shift_moves, split_moves
 from thoth_control_plane.domain.edit_document_v2 import (
     TRACK_CLIP_KINDS,
     AssetRef,
@@ -742,6 +743,8 @@ def _replace_clip_asset(
     clip.crop = None
     clip.blur_regions = []
     clip.blur_enabled = False
+    # Marks point at the old medium's content, so they go with it (spec 2026-11-09, 3.4).
+    clip.emphasis = clip.emphasis.model_copy(update={"marks": []})
     clip.ownership = "user_edited"
 
 
@@ -817,6 +820,9 @@ def _trim_clip_start(document: EditDocumentV2, operation: TrimClipStart) -> None
         if source_from_frame + moved < 0:
             raise ValueError("trim cannot start before the source")
         clip.source_from_frame = source_from_frame + moved
+    if isinstance(clip, TimelineVideoClip):
+        # Moves are relative to the start: the picture at the new start stays as it was.
+        clip.moves = shift_moves(clip.moves, delta)
     clip.from_frame = operation.from_frame
     clip.duration_in_frames = end_frame - operation.from_frame
 
@@ -857,6 +863,8 @@ def _split_clip(document: EditDocumentV2, operation: SplitClip) -> None:
         # The cut sits between the two parts: neither fades there.
         clip.fade_out_frames = 0
         right.fade_in_frames = 0
+    if isinstance(clip, TimelineVideoClip) and isinstance(right, TimelineVideoClip):
+        clip.moves, right.moves = split_moves(clip.moves, left_duration)
     document.clips.append(right)
 
 
