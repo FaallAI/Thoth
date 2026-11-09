@@ -57,19 +57,27 @@ Branch `feat/studio-timeline-tier3b` from master `d3c89bbb`, not pushed.
   - there was no demuxer whitelist (security);
   - every glance was asked for at once, which could hold the connections autosave needs.
 
+**The review's minors, fixed too (operator, 2026-11-09: "perbaiki minor dulu").** Each fix is test-first:
+- **Long clips at maximum zoom.** A very wide clip widens its filmstrip tiles past the 200-tile cap, instead of stopping partway. Each frame covers its tile.
+- **Cancelled builds.** ffmpeg never outlives a cancelled or timed-out build, on both the strip and the peaks path.
+- **Video strips decode keyframes first, on two threads,** so a long 4K video stays cheap.
+  - A video with too few keyframes (a short clip with one) yields nothing that way, and is then decoded in full.
+  - A timeout is not tried again.
+  - Strips are converted to full-range YUV, which the JPEG encoder needs.
+- **Volume drags.** A drag ends when its clip goes away mid-drag.
+- **Missing tests added:**
+  - a store outage on the cache read and on `probe_source` (`media_store_unavailable`, nothing built);
+  - a timeout that stops ffmpeg;
+  - a 404 at the route for another project's asset.
+
 **Verification.**
-- **Python:** `make test` gives 4706 passed and 222 skipped, with real-ffmpeg builder tests. `make lint` is clean.
-- **Dashboard:** 1867 tests pass, and `tsc -b` and the build are clean.
+- **Python:** `make test` gives 4712 passed and 222 skipped, with real-ffmpeg builder tests. `make lint` is clean.
+- **Dashboard:** 1869 tests pass, and `tsc -b` and the build are clean.
 - **Renderer:** `bun test` passes 224.
 - **Read-only e2e at 1440** on stage1 `573b2c92`: 20/21. The one failure is the new glance test, which stays red until the endpoint is deployed.
 - **Write e2e (filmstrip and volume line)** has not run. It needs the deploy and a one-day write token.
 
-**Deferred minors:**
-- The filmstrip stops partway across long portrait clips at maximum zoom (a 200-tile cap).
-- A cancelled request can leave a strip's ffmpeg running until it finishes.
-- Long 4K videos that time out are rebuilt on every Studio session.
-- A volume drag's listeners outlive a clip that unmounts mid-drag.
-- Some tests are missing: a store outage, a timeout kill, and a cross-project 404 at the route.
+**Deferred minors:** none from this tier.
 
 **Rollback.** There is no document field and no migration. A rollback to the Tier 3a images leaves the `glance/` files unused.
 
@@ -85,7 +93,6 @@ Branch `feat/studio-timeline-tier3b` from master `d3c89bbb`, not pushed.
   During the try, check how long the first look at a long video takes.
 - **Then the next track,** which the operator chooses from the roadmap. The Studio Timeline track's three tiers are built.
 - **Carried:**
-  - the deferred minors above;
   - the Tier 3a minors (seven) and the Tier 2 minors (eight);
   - a Story scene resize of a sped-up clip can still be refused by the server.
 
