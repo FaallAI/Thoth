@@ -5,6 +5,7 @@ import { Maximize, Minimize, Pause, Play, Volume2, VolumeX } from "lucide-react"
 
 import type { ControlPlaneClient, EditDocument } from "@/api/control-plane";
 import type { PreviewSources } from "./AdvancedTimelineComposition";
+import { canvasRatio } from "./PreviewControls";
 import { getPlayerConfig, previewComposition } from "./preview";
 import type { PlayerTimelineRef } from "./usePlayerTimeline";
 
@@ -24,10 +25,11 @@ type Props = {
   overlay?: ReactNode;
   /** The Player's speed; L raises it (spec 2026-11-08 §6). */
   playbackRate?: number;
+  /** False hands the controls to a bar outside the video; clicking the video still plays. */
+  controls?: boolean;
+  /** Replaces the hint line under an embedded preview. */
+  footer?: ReactNode;
 };
-
-const canvasRatio = ({ canvas }: EditDocument) =>
-  canvas.width === 1080 && canvas.height === 1920 ? "9:16" : `${canvas.width}:${canvas.height}`;
 
 export function StudioPreview({
   document,
@@ -41,6 +43,8 @@ export function StudioPreview({
   onPreviewUnavailable,
   overlay,
   playbackRate = 1,
+  controls = true,
+  footer,
 }: Props) {
   const { t } = useLocale();
   const [loadedDocument, setLoadedDocument] = useState<EditDocument | null>(null);
@@ -102,7 +106,8 @@ export function StudioPreview({
           component: never;
           inputProps: never;
         })}
-        controls
+        controls={controls}
+        clickToPlay
         // L plays faster (spec 2026-11-08 §6); 1 is Remotion's own default.
         playbackRate={playbackRate}
         // On true Remotion refocuses its Play button on load and on every play or pause; inside
@@ -118,7 +123,7 @@ export function StudioPreview({
     );
   }
 
-  if (embedded) return <section className="flex min-h-0 flex-1 flex-col" aria-label="Studio preview">{preview}<p className="studio-preview-hint">{currentDocument ? <span>{canvasRatio(currentDocument)} · {currentDocument.canvas.width}×{currentDocument.canvas.height}<span aria-hidden="true" className="studio-preview-tip"> · </span></span> : null}<span className="studio-preview-tip">{t("studio.preview.hint")}</span></p></section>;
+  if (embedded) return <section className="flex min-h-0 flex-1 flex-col" aria-label="Studio preview">{preview}{footer ?? <p className="studio-preview-hint">{currentDocument ? <span>{canvasRatio(currentDocument.canvas)} · {currentDocument.canvas.width}×{currentDocument.canvas.height}<span aria-hidden="true" className="studio-preview-tip"> · </span></span> : null}<span className="studio-preview-tip">{t("studio.preview.hint")}</span></p>}</section>;
 
   return (
     <section className="flex min-h-0 flex-1 flex-col gap-4 p-4" aria-label="Studio preview">
