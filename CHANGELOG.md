@@ -2,6 +2,47 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-09 - Studio full-width timeline
+
+Branch `feat/studio-full-timeline` from `2b6cbdbf` (the Tier 3b head, because PR #125 is still open), not pushed.
+- **Spec:** `docs/superpowers/specs/2026-11-09-studio-full-width-timeline-design.md`, approved by the operator on a clickable mock-up.
+- **Plan:** `docs/superpowers/plans/2026-11-09-studio-full-width-timeline.md`.
+- **Execution:** done natively, with one fresh review of the whole branch at the end.
+
+**What changed.** At 1024 px and wider, the Timeline mode of the Edit job:
+- The timeline takes the whole bottom row. Assets, the preview and the Inspector share the row above.
+- A divider between the rows resizes the timeline by drag, arrow keys, Home and End. A double-click resets it to 392 px. The height is remembered per browser and is never sent to the server.
+- The clips fit the lanes when the Timeline opens, unless the person has already zoomed.
+- The player controls sit in a bar under the preview. The Player's own controls come back in fullscreen.
+- The issues status moved into the timeline toolbar.
+
+Text can no longer be selected anywhere in the Studio editor, except in inputs, text areas and editable text. Phones and tablets, the Story mode and the Review and Render jobs keep their layouts.
+
+**Found in the browser, fixed test-first.**
+- A rule in `pen-studio.css` dissolves any `div` holding a Play button, which stacked the new bar in three rows. The bar is a `footer` now.
+- The timeline row was full width, but the clips stopped at about 70% of it. The approved mock-up shows them filling it, so the Timeline now fits them on opening.
+
+**Verification.**
+- **Dashboard:** 1925 tests pass; `tsc -b` and the build are clean.
+- **No Python, renderer or contract change,** so those suites did not run.
+- **Read-only e2e against a local dev server of this branch, at 1440:** `studio-shell-v2` and `studio-audit-fixes` pass 26/26, including the six new layout checks. One earlier combined run failed the 430 preview test on a 30 s timeout; it passed alone and in the next full run, and the cause was not found.
+- **Screenshots judged at 1440x900 and 1024x768:** the layout matches the mock-up.
+- **Not seen live:** the issues list opening above the toolbar, because the test draft has no issues. Unit tests pin its position.
+- **Not yet run on stage1:** this branch is not deployed.
+
+**Noted, left as it is.** The Sound effects box under Assets takes about 100 px, so at 1024x768 the top row shows one asset at a time until the timeline is made shorter.
+
+**Rollback.** There is no document field and no migration. A rollback only brings the old layout back.
+
+**Next steps.**
+- **Operator gates, each needing its own authorization:**
+  - push and PR, after PR #125 is merged or stacked on it;
+  - deploy of the branch image;
+  - the read-only e2e on stage1;
+  - the operator's own try;
+  - merge.
+- **Carried from Tier 3b:** the push of `2b6cbdbf`, the operator's try and the merge of PR #125, and a Story scene resize of a sped-up clip that the server can still refuse.
+
 ## 2026-11-09 - Studio Timeline Tier 3b: filmstrips, waveforms, the volume line
 
 Branch `feat/studio-timeline-tier3b` from master `d3c89bbb`, PR #125.
