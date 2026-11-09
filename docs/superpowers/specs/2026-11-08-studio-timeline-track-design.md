@@ -64,6 +64,13 @@ copy and paste, undo every step), and a screen whose names and numbers read as p
 2. Right click exists in Story mode as well as Timeline mode, with the entries in section 5.2.
 3. Re-voice is not in any menu (it is paid).
 4. Tier 1 as played back on 2026-11-08 ("ya sudah pas").
+5. Phones get menu-only editing: tap selects, a long press opens the same menus, and the preview
+   sits above the lanes. Drag and trim stay on wider screens (2026-11-09).
+6. Tier 3 splits in two: 3a (speed, slip, roll, markers, phones) and 3b (filmstrips, waveforms,
+   the audio volume line), each its own plan and PR (2026-11-09).
+7. The two Tier 2 open questions (2026-11-09):
+   - a duplicated clip drops its Story role;
+   - pasted text goes to a visible track first, and a paste onto a hidden one says so.
 
 ## 5. Tier 1: editor basics
 

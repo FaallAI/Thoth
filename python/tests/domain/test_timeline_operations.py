@@ -1421,11 +1421,27 @@ def test_duplicate_clip_copies_under_a_new_id() -> None:
 
     original = find_clip(result, "clip_main")
     copy = find_clip(result, "clip_copy")
-    for field in ("asset_id", "ownership", "source_role", "fit", "position", "blur_regions"):
+    for field in ("asset_id", "ownership", "fit", "position", "blur_regions"):
         assert getattr(copy, field) == getattr(original, field)
     assert copy.scene_id is None
     assert (copy.from_frame, copy.duration_in_frames) == (200, 100)
     assert "clip_copy" in find_track(result, "track_main_video").clip_ids
+
+
+def test_a_duplicate_drops_its_story_role() -> None:
+    # Operator, 2026-11-09: a copy is footage, not a second Hook.
+    trimmed = apply_edit_operations(document_v2_fixture(), [trim_end("clip_main", 100)])
+    payload = trimmed.model_dump(mode="python")
+    for clip in payload["clips"]:
+        if clip["clip_id"] == "clip_main":
+            clip["source_role"] = "hook"
+    document = type(trimmed).model_validate(payload)
+    result = apply_edit_operations(
+        document, [duplicate("clip_main", "clip_copy", "track_main_video", 200)]
+    )
+
+    assert find_clip(result, "clip_copy").source_role is None
+    assert find_clip(result, "clip_main").source_role == "hook"
 
 
 def test_duplicate_clip_refuses_a_reused_id_a_locked_track_and_an_incompatible_track() -> None:

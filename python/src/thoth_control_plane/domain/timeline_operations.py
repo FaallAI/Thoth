@@ -800,6 +800,8 @@ def _duplicate_clip(document: EditDocumentV2, operation: DuplicateClip) -> None:
     copy.track_id = track.track_id
     copy.from_frame = operation.from_frame
     copy.scene_id = None
+    # A copy is footage, not a second Hook or Outro (operator, 2026-11-09).
+    copy.source_role = None
     copy.locked = False
     document.clips.append(copy)
     track.clip_ids.append(copy.clip_id)

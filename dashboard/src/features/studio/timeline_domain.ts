@@ -527,6 +527,8 @@ function duplicateClip(
   copy.track_id = target.track_id;
   copy.from_frame = operation.from_frame;
   copy.scene_id = null;
+  // A copy is footage, not a second Hook or Outro (operator, 2026-11-09).
+  copy.source_role = null;
   copy.locked = false;
   document.clips = [...(document.clips ?? []), copy];
   target.clip_ids = [...(target.clip_ids ?? []), copy.clip_id];

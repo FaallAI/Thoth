@@ -964,12 +964,21 @@ test("duplicate_clip copies under a new id", () => {
   });
   const original = clipIn(result, "clip_main");
   const copy = clipIn(result, "clip_copy");
-  for (const field of ["asset_id", "ownership", "source_role", "fit", "position", "blur_regions"]) {
+  for (const field of ["asset_id", "ownership", "fit", "position", "blur_regions"]) {
     expect(copy[field]).toEqual(original[field]);
   }
   expect(copy.scene_id ?? null).toBeNull();
   expect([copy.from_frame, copy.duration_in_frames]).toEqual([150, 120]);
   expect(result.tracks.find((track) => track.track_id === "track_main")!.clip_ids).toContain("clip_copy");
+});
+
+test("a duplicate drops its Story role", () => {
+  // Operator, 2026-11-09: a copy is footage, not a second Hook.
+  const document = fixtureDocument();
+  const hook = { ...document, clips: document.clips!.map((clip) => (clip.clip_id === "clip_main" ? { ...clip, source_role: "hook" as const } : clip)) };
+  const result = applied(hook, { kind: "duplicate_clip", clip_id: "clip_main", new_clip_id: "clip_copy", track_id: "track_main", from_frame: 150 });
+  expect(clipIn(result, "clip_copy").source_role ?? null).toBeNull();
+  expect(clipIn(result, "clip_main").source_role).toBe("hook");
 });
 
 test("duplicate_clip refuses a reused id, a locked track and an incompatible track", () => {
