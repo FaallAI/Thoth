@@ -11,6 +11,10 @@ import {
   MAX_ZOOM,
   MIN_ZOOM,
   applyTimelineOperation,
+  fitMarkers,
+  framesLeft,
+  sourceSpan,
+  speedPercent,
   carrySceneClips,
   clampZoom,
   compatibleTrackIds,
@@ -87,7 +91,7 @@ function documentV2(): EditDocumentV2 {
     ],
     clips: [
       {
-        kind: "video",
+        kind: "video", speed: 1,
         clip_id: "clip_main",
         track_id: "track_main",
         asset_id: "asset_video",
@@ -106,7 +110,7 @@ function documentV2(): EditDocumentV2 {
         emphasis: { highlight: false, arrow: false },
       },
       {
-        kind: "audio",
+        kind: "audio", speed: 1,
         clip_id: "clip_music",
         track_id: "track_music",
         asset_id: "asset_video",
@@ -964,12 +968,21 @@ test("duplicate_clip copies under a new id", () => {
   });
   const original = clipIn(result, "clip_main");
   const copy = clipIn(result, "clip_copy");
-  for (const field of ["asset_id", "ownership", "source_role", "fit", "position", "blur_regions"]) {
+  for (const field of ["asset_id", "ownership", "fit", "position", "blur_regions"]) {
     expect(copy[field]).toEqual(original[field]);
   }
   expect(copy.scene_id ?? null).toBeNull();
   expect([copy.from_frame, copy.duration_in_frames]).toEqual([150, 120]);
   expect(result.tracks.find((track) => track.track_id === "track_main")!.clip_ids).toContain("clip_copy");
+});
+
+test("a duplicate drops its Story role", () => {
+  // Operator, 2026-11-09: a copy is footage, not a second Hook.
+  const document = fixtureDocument();
+  const hook = { ...document, clips: document.clips!.map((clip) => (clip.clip_id === "clip_main" ? { ...clip, source_role: "hook" as const } : clip)) };
+  const result = applied(hook, { kind: "duplicate_clip", clip_id: "clip_main", new_clip_id: "clip_copy", track_id: "track_main", from_frame: 150 });
+  expect(clipIn(result, "clip_copy").source_role ?? null).toBeNull();
+  expect(clipIn(result, "clip_main").source_role).toBe("hook");
 });
 
 test("duplicate_clip refuses a reused id, a locked track and an incompatible track", () => {
@@ -1054,4 +1067,87 @@ test("an asset dropped on a lane goes on that track at that frame, or nowhere", 
   });
   expect(createAddClipFromAssetOperation(doc, video, 0, ids, { trackId: "track_broll", frame: 160 })).toBeUndefined();
   expect(createAddClipFromAssetOperation(doc, video, 0, ids, { trackId: "track_music", frame: 10 })).toBeUndefined();
+});
+
+// Tier 3a (spec 2026-11-08 section 7): speed keeps a clip's place and changes its source span,
+// with the same whole-percent maths as the server.
+test("speed maths matches the server's integers", () => {
+  const clip = { duration_in_frames: 31, speed: 1.5, source_from_frame: 10 } as const;
+  expect(speedPercent(clip)).toBe(150);
+  expect(speedPercent({})).toBe(100);
+  expect(sourceSpan(clip)).toBe(47); // ceil(31 * 1.5)
+  expect(framesLeft(clip, { duration_in_frames: 100 })).toBe(60); // floor(90 / 1.5)
+});
+
+test("set_clip_speed sets the speed and keeps the clip's place", () => {
+  const before = clipIn(fixtureDocument(), "clip_main");
+  const result = applied(fixtureDocument(), { kind: "set_clip_speed", clip_id: "clip_main", speed: 2 });
+  const main = clipIn(result, "clip_main");
+  expect([main.speed, main.ownership]).toEqual([2, "user_edited"]);
+  expect([main.from_frame, main.duration_in_frames]).toEqual([before.from_frame, before.duration_in_frames]);
+});
+
+test("set_clip_speed refuses a text clip", () => {
+  const doc = fixtureDocument();
+  doc.clips!.push({ kind: "text", clip_id: "clip_t", track_id: "track_main", from_frame: 0, duration_in_frames: 10, ownership: "user_edited", hidden: false, locked: false, heading: "Hi", body: "", style_slot: "title" } as never);
+  expect(() => applied(doc, { kind: "set_clip_speed", clip_id: "clip_t", speed: 2 })).toThrow("speed applies only to video and audio clips");
+});
+
+test("a trim start on a 2x clip moves its source twice as far", () => {
+  const fast = applied(fixtureDocument(), { kind: "set_clip_speed", clip_id: "clip_main", speed: 2 });
+  const result = applied(fast, { kind: "trim_clip_start", clip_id: "clip_main", from_frame: 10 });
+  expect(clipIn(result, "clip_main").source_from_frame).toBe(20);
+});
+
+test("a split of a 1.5x clip starts the right part at the left span", () => {
+  const fast = applied(fixtureDocument(), { kind: "set_clip_speed", clip_id: "clip_main", speed: 1.5 });
+  const result = applied(fast, { kind: "split_clip", clip_id: "clip_main", split_frame: 31, left_clip_id: "clip_l", right_clip_id: "clip_r" });
+  expect(clipIn(result, "clip_r").source_from_frame).toBe(46);
+  expect([clipIn(result, "clip_l").speed, clipIn(result, "clip_r").speed]).toEqual([1.5, 1.5]);
+});
+
+test("slip_clip moves only the source", () => {
+  const before = clipIn(fixtureDocument(), "clip_main");
+  const main = clipIn(applied(fixtureDocument(), { kind: "slip_clip", clip_id: "clip_main", source_from_frame: 40 }), "clip_main");
+  expect([main.source_from_frame, main.ownership]).toEqual([40, "user_edited"]);
+  expect([main.from_frame, main.duration_in_frames]).toEqual([before.from_frame, before.duration_in_frames]);
+});
+
+test("slip_clip refuses an image", () => {
+  const doc = fixtureDocument();
+  Object.assign(doc.asset_refs![0]!, { kind: "image" });
+  expect(() => applied(doc, { kind: "slip_clip", clip_id: "clip_main", source_from_frame: 4 })).toThrow("an image has no source time");
+});
+
+// Tier 3a: markers on the ruler, mirrored from the server.
+test("add_marker, set_marker and remove_marker", () => {
+  const added = applied(fixtureDocument(), { kind: "add_marker", marker_id: "marker_1", frame: 30, label: "" });
+  expect(added.markers).toEqual([{ marker_id: "marker_1", frame: 30, label: "" }]);
+  const named = applied(added, { kind: "set_marker", marker_id: "marker_1", frame: 45, label: "Hook ends" });
+  expect(named.markers).toEqual([{ marker_id: "marker_1", frame: 45, label: "Hook ends" }]);
+  expect(applied(named, { kind: "remove_marker", marker_id: "marker_1" }).markers).toEqual([]);
+});
+
+test("marker operations refuse a reused id and an unknown marker", () => {
+  const added = applied(fixtureDocument(), { kind: "add_marker", marker_id: "marker_1", frame: 30, label: "" });
+  expect(() => applied(added, { kind: "add_marker", marker_id: "marker_1", frame: 40, label: "" })).toThrow("operation reuses an existing marker ID");
+  expect(() => applied(added, { kind: "remove_marker", marker_id: "marker_x" })).toThrow("operation references an unknown marker");
+});
+
+test("fitMarkers moves a marker past the end onto the last frame", () => {
+  const doc = fixtureDocument();
+  doc.markers = [
+    { marker_id: "inside", frame: 10, label: "" },
+    { marker_id: "late", frame: doc.canvas.duration_in_frames + 40, label: "" },
+  ];
+  fitMarkers(doc);
+  expect(doc.markers.map((marker) => marker.frame)).toEqual([10, doc.canvas.duration_in_frames - 1]);
+});
+
+// Final review 2026-11-09, Important 3: a held clip still starts inside its media.
+test("slip_clip refuses a held clip that would start past its media", () => {
+  const doc = fixtureDocument();
+  Object.assign(doc.asset_refs![0]!, { duration_in_frames: 400 });
+  Object.assign(doc.clips!.find((clip) => clip.clip_id === "clip_main")!, { hold_after_source: true });
+  expect(() => applied(doc, { kind: "slip_clip", clip_id: "clip_main", source_from_frame: 400 })).toThrow("a held clip must start inside its source");
 });

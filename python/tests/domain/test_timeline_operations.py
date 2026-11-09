@@ -1421,11 +1421,27 @@ def test_duplicate_clip_copies_under_a_new_id() -> None:
 
     original = find_clip(result, "clip_main")
     copy = find_clip(result, "clip_copy")
-    for field in ("asset_id", "ownership", "source_role", "fit", "position", "blur_regions"):
+    for field in ("asset_id", "ownership", "fit", "position", "blur_regions"):
         assert getattr(copy, field) == getattr(original, field)
     assert copy.scene_id is None
     assert (copy.from_frame, copy.duration_in_frames) == (200, 100)
     assert "clip_copy" in find_track(result, "track_main_video").clip_ids
+
+
+def test_a_duplicate_drops_its_story_role() -> None:
+    # Operator, 2026-11-09: a copy is footage, not a second Hook.
+    trimmed = apply_edit_operations(document_v2_fixture(), [trim_end("clip_main", 100)])
+    payload = trimmed.model_dump(mode="python")
+    for clip in payload["clips"]:
+        if clip["clip_id"] == "clip_main":
+            clip["source_role"] = "hook"
+    document = type(trimmed).model_validate(payload)
+    result = apply_edit_operations(
+        document, [duplicate("clip_main", "clip_copy", "track_main_video", 200)]
+    )
+
+    assert find_clip(result, "clip_copy").source_role is None
+    assert find_clip(result, "clip_main").source_role == "hook"
 
 
 def test_duplicate_clip_refuses_a_reused_id_a_locked_track_and_an_incompatible_track() -> None:
@@ -1527,3 +1543,196 @@ def test_add_text_clip_without_a_story_role() -> None:
         ],
     )
     assert find_clip(result, "clip_pasted").source_role is None
+
+
+# Tier 3a (spec 2026-11-08 section 7): speed keeps the clip's place and changes its source span.
+def test_set_clip_speed_sets_the_speed_and_marks_the_clip_edited() -> None:
+    result = apply_edit_operations(
+        document_v2_fixture(), [op("set_clip_speed", clip_id="clip_main", speed=2.0)]
+    )
+    main = find_clip(result, "clip_main")
+    assert (main.speed, main.ownership) == (2.0, "user_edited")
+    assert (main.from_frame, main.duration_in_frames) == (0, 300)
+
+
+def test_set_clip_speed_refuses_a_locked_clip_a_text_clip_and_an_image() -> None:
+    locked = apply_edit_operations(
+        document_v2_fixture(), [op("set_clip_locked", clip_id="clip_main", locked=True)]
+    )
+    with pytest.raises(ValueError, match="locked"):
+        apply_edit_operations(locked, [op("set_clip_speed", clip_id="clip_main", speed=2.0)])
+    with pytest.raises(ValueError, match="speed"):
+        apply_edit_operations(
+            document_v2_fixture(), [op("set_clip_speed", clip_id="clip_001", speed=2.0)]
+        )
+    payload = document_v2_payload()
+    payload["asset_refs"][0].update(kind="image", duration_in_frames=None, has_audio=False)
+    still = EditDocumentV2.model_validate(payload)
+    with pytest.raises(ValueError, match="an image has no speed"):
+        apply_edit_operations(still, [op("set_clip_speed", clip_id="clip_main", speed=2.0)])
+
+
+def test_a_trim_start_on_a_2x_clip_moves_its_source_twice_as_far() -> None:
+    fast = apply_edit_operations(
+        document_v2_fixture(), [op("set_clip_speed", clip_id="clip_main", speed=2.0)]
+    )
+    result = apply_edit_operations(
+        fast, [op("trim_clip_start", clip_id="clip_main", from_frame=10)]
+    )
+    assert find_clip(result, "clip_main").source_from_frame == 20
+
+
+def test_a_split_of_a_1_5x_clip_starts_the_right_part_at_the_left_span() -> None:
+    fast = apply_edit_operations(
+        document_v2_fixture(), [op("set_clip_speed", clip_id="clip_main", speed=1.5)]
+    )
+    result = apply_edit_operations(
+        fast,
+        [
+            op(
+                "split_clip",
+                clip_id="clip_main",
+                split_frame=31,
+                left_clip_id="clip_left",
+                right_clip_id="clip_right",
+            )
+        ],
+    )
+    left, right = find_clip(result, "clip_left"), find_clip(result, "clip_right")
+    assert right.source_from_frame == 46  # floor(31 * 150 / 100)
+    assert (left.speed, right.speed) == (1.5, 1.5)
+
+
+def test_new_media_on_a_2x_clip_keeps_the_speed_and_fits_the_new_source() -> None:
+    fast = apply_edit_operations(
+        document_v2_fixture(), [op("set_clip_speed", clip_id="clip_main", speed=2.0)]
+    )
+    source = document_v2_payload()["asset_refs"][0]
+    shorter = AssetRef.model_validate(
+        {**source, "asset_id": "asset_short", "duration_in_frames": 400}
+    )
+    result = apply_edit_operations(
+        fast,
+        [op("replace_clip_asset", clip_id="clip_main", asset_id="asset_short")],
+        resolved_assets={"asset_short": shorter},
+    )
+    main = find_clip(result, "clip_main")
+    assert (main.speed, main.duration_in_frames) == (2.0, 200)
+
+
+# Tier 3a: slip moves the content inside a clip; the clip keeps its place and length.
+def test_slip_moves_only_the_source() -> None:
+    before = find_clip(document_v2_fixture(), "clip_main")
+    result = apply_edit_operations(
+        document_v2_fixture(), [op("slip_clip", clip_id="clip_main", source_from_frame=100)]
+    )
+    main = find_clip(result, "clip_main")
+    assert (main.source_from_frame, main.ownership) == (100, "user_edited")
+    assert main.from_frame == before.from_frame
+    assert main.duration_in_frames == before.duration_in_frames
+    assert main.blur_regions == before.blur_regions
+    assert main.volume_keyframes == before.volume_keyframes
+
+
+def test_slip_refuses_past_the_source_a_text_clip_an_image_and_a_locked_clip() -> None:
+    # clip_main is 300 frames long on a 900-frame asset: 600 is the last start that fits.
+    apply_edit_operations(
+        document_v2_fixture(), [op("slip_clip", clip_id="clip_main", source_from_frame=600)]
+    )
+    with pytest.raises(ValueError, match="exceeds source asset duration"):
+        apply_edit_operations(
+            document_v2_fixture(), [op("slip_clip", clip_id="clip_main", source_from_frame=601)]
+        )
+    with pytest.raises(ValueError):
+        op("slip_clip", clip_id="clip_main", source_from_frame=-1)
+    with pytest.raises(ValueError, match="slip applies only to video and audio clips"):
+        apply_edit_operations(
+            document_v2_fixture(), [op("slip_clip", clip_id="clip_001", source_from_frame=0)]
+        )
+    payload = document_v2_payload()
+    payload["asset_refs"][0].update(kind="image", duration_in_frames=None, has_audio=False)
+    with pytest.raises(ValueError, match="an image has no source time"):
+        apply_edit_operations(
+            EditDocumentV2.model_validate(payload),
+            [op("slip_clip", clip_id="clip_main", source_from_frame=10)],
+        )
+    locked = apply_edit_operations(
+        document_v2_fixture(), [op("set_clip_locked", clip_id="clip_main", locked=True)]
+    )
+    with pytest.raises(ValueError, match="locked"):
+        apply_edit_operations(locked, [op("slip_clip", clip_id="clip_main", source_from_frame=10)])
+
+
+# Tier 3a: a roll is two existing trims in one patch; the server validates the result once.
+@pytest.mark.parametrize("left_first", [True, False])
+def test_a_roll_patch_on_main_video_validates(left_first: bool) -> None:
+    split = apply_edit_operations(
+        document_v2_fixture(),
+        [
+            op(
+                "split_clip",
+                clip_id="clip_main",
+                split_frame=150,
+                left_clip_id="clip_l",
+                right_clip_id="clip_r",
+            )
+        ],
+    )
+    trims = [
+        op("trim_clip_end", clip_id="clip_l", end_frame=180),
+        op("trim_clip_start", clip_id="clip_r", from_frame=180),
+    ]
+    result = apply_edit_operations(split, trims if left_first else trims[::-1])
+    left, right = find_clip(result, "clip_l"), find_clip(result, "clip_r")
+    assert (left.duration_in_frames, right.from_frame, right.duration_in_frames) == (180, 180, 120)
+    assert right.source_from_frame == 180
+
+
+# Tier 3a: markers.
+def test_add_set_and_remove_a_marker() -> None:
+    added = apply_edit_operations(
+        document_v2_fixture(), [op("add_marker", marker_id="marker_1", frame=30)]
+    )
+    assert [(m.marker_id, m.frame, m.label) for m in added.markers] == [("marker_1", 30, "")]
+    named = apply_edit_operations(
+        added, [op("set_marker", marker_id="marker_1", frame=45, label="Hook ends")]
+    )
+    assert [(m.frame, m.label) for m in named.markers] == [(45, "Hook ends")]
+    assert apply_edit_operations(named, [op("remove_marker", marker_id="marker_1")]).markers == []
+
+
+def test_marker_operations_refuse_a_reused_id_an_unknown_marker_and_a_101st() -> None:
+    added = apply_edit_operations(
+        document_v2_fixture(), [op("add_marker", marker_id="marker_1", frame=30)]
+    )
+    with pytest.raises(ValueError, match="reuses an existing marker ID"):
+        apply_edit_operations(added, [op("add_marker", marker_id="marker_1", frame=40)])
+    with pytest.raises(ValueError, match="unknown marker"):
+        apply_edit_operations(added, [op("remove_marker", marker_id="marker_x")])
+    with pytest.raises(ValueError, match="unknown marker"):
+        apply_edit_operations(added, [op("set_marker", marker_id="marker_x", frame=1, label="")])
+    full = apply_edit_operations(
+        document_v2_fixture(),
+        [op("add_marker", marker_id=f"marker_{index}", frame=index) for index in range(100)],
+    )
+    with pytest.raises(ValueError):
+        apply_edit_operations(full, [op("add_marker", marker_id="marker_extra", frame=200)])
+
+
+def test_an_edit_that_shortens_the_document_moves_late_markers_to_the_last_frame() -> None:
+    draft = mixed_studio_draft()
+    last = draft.canvas.duration_in_frames - 1
+    marked = apply_edit_operations(draft, [op("add_marker", marker_id="marker_end", frame=last)])
+    shorter = apply_edit_operations(marked, [resize("scene_001", 30)])
+    assert shorter.canvas.duration_in_frames < draft.canvas.duration_in_frames
+    assert [m.frame for m in shorter.markers] == [shorter.canvas.duration_in_frames - 1]
+
+
+def test_slip_refuses_a_held_clip_that_would_start_past_its_media() -> None:
+    # Final review 2026-11-09, Important 3: validation skips held clips, so the slip checks.
+    payload = document_v2_payload()
+    next(c for c in payload["clips"] if c["clip_id"] == "clip_main")["hold_after_source"] = True
+    held = EditDocumentV2.model_validate(payload)
+    apply_edit_operations(held, [op("slip_clip", clip_id="clip_main", source_from_frame=899)])
+    with pytest.raises(ValueError, match="a held clip must start inside its source"):
+        apply_edit_operations(held, [op("slip_clip", clip_id="clip_main", source_from_frame=900)])

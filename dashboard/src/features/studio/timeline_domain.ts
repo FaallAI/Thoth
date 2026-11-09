@@ -434,6 +434,28 @@ export function applyTimelineOperation(
     case "set_clip_crop":
       unlockedVideoClip(next, operation.clip_id).crop = operation.crop ?? null;
       break;
+    case "set_clip_speed": {
+      const clip = unlockedClip(next, operation.clip_id);
+      if (clip.kind !== "video" && clip.kind !== "audio") throw new Error("speed applies only to video and audio clips");
+      const asset = next.asset_refs?.find((ref) => ref.asset_id === clip.asset_id);
+      if (asset?.kind === "image") throw new Error("an image has no speed");
+      clip.speed = operation.speed;
+      clip.ownership = "user_edited";
+      break;
+    }
+    case "slip_clip": {
+      const clip = unlockedClip(next, operation.clip_id);
+      if (clip.kind !== "video" && clip.kind !== "audio") throw new Error("slip applies only to video and audio clips");
+      const asset = next.asset_refs?.find((ref) => ref.asset_id === clip.asset_id);
+      if (asset?.kind === "image") throw new Error("an image has no source time");
+      const held = clip.kind === "video" && clip.hold_after_source === true;
+      if (held && asset?.duration_in_frames != null && operation.source_from_frame >= asset.duration_in_frames) {
+        throw new Error("a held clip must start inside its source");
+      }
+      clip.source_from_frame = operation.source_from_frame;
+      clip.ownership = "user_edited";
+      break;
+    }
     case "set_clip_fades": {
       const clip = unlockedClip(next, operation.clip_id);
       if (clip.kind !== "video" && clip.kind !== "audio") throw new Error("fades apply only to video and audio clips");
@@ -480,6 +502,22 @@ export function applyTimelineOperation(
     case "set_track_visibility":
       unlockedTrack(next, operation.track_id).hidden = operation.hidden;
       break;
+    case "add_marker": {
+      const markers = next.markers ?? [];
+      if (markers.some((marker) => marker.marker_id === operation.marker_id)) throw new Error("operation reuses an existing marker ID");
+      next.markers = [...markers, { marker_id: operation.marker_id, frame: operation.frame, label: operation.label ?? "" }];
+      break;
+    }
+    case "set_marker": {
+      const marker = markerOf(next, operation.marker_id);
+      marker.frame = operation.frame;
+      marker.label = operation.label;
+      break;
+    }
+    case "remove_marker":
+      markerOf(next, operation.marker_id);
+      next.markers = (next.markers ?? []).filter((marker) => marker.marker_id !== operation.marker_id);
+      break;
     case "set_track_muted":
       unlockedTrack(next, operation.track_id).muted = operation.muted;
       break;
@@ -490,7 +528,20 @@ export function applyTimelineOperation(
       throw new Error("operation is not a timeline operation");
   }
   fitFades(next);
+  fitMarkers(next);
   return next;
+}
+
+function markerOf(document: EditDocumentV2, markerId: string) {
+  const marker = document.markers?.find((entry) => entry.marker_id === markerId);
+  if (!marker) throw new Error("operation references an unknown marker");
+  return marker;
+}
+
+/** Move every marker past a shortened document's end onto its last frame (as the server does). */
+export function fitMarkers(document: EditDocumentV2): void {
+  const last = document.canvas.duration_in_frames - 1;
+  for (const marker of document.markers ?? []) if (marker.frame > last) marker.frame = last;
 }
 
 /** Shrink fades a shorter clip can no longer hold: the fade out first, then the fade in (as the server does). */
@@ -527,6 +578,8 @@ function duplicateClip(
   copy.track_id = target.track_id;
   copy.from_frame = operation.from_frame;
   copy.scene_id = null;
+  // A copy is footage, not a second Hook or Outro (operator, 2026-11-09).
+  copy.source_role = null;
   copy.locked = false;
   document.clips = [...(document.clips ?? []), copy];
   target.clip_ids = [...(target.clip_ids ?? []), copy.clip_id];
@@ -602,6 +655,7 @@ function addClipFromAsset(
     hidden: false,
     locked: false,
     source_role: operation.source_role ?? null,
+    speed: 1 as const,
   };
   document.clips = [
     ...(document.clips ?? []),
@@ -654,8 +708,8 @@ function replaceClipAsset(
   }
   if (asset.kind === "video") {
     if (asset.duration_in_frames == null) throw new Error("video asset duration is unknown");
-    // Only this clip shortens; its neighbours keep their frames.
-    clip.duration_in_frames = Math.min(clip.duration_in_frames, asset.duration_in_frames);
+    // Only this clip shortens; its neighbours keep their frames. The speed stays (Tier 3a).
+    clip.duration_in_frames = Math.max(1, Math.min(clip.duration_in_frames, Math.floor((asset.duration_in_frames * 100) / speedPercent(clip))));
   }
   recordAsset(document, asset);
   clip.asset_id = asset.asset_id;
@@ -834,6 +888,26 @@ function repack(document: EditDocumentV2, entry: TimelineTrack, movedClipId: str
   }
 }
 
+// --------------------------------------------------------------------------
+// Speed (Tier 3a): whole percent on both sides, so the mirror and the server agree
+// --------------------------------------------------------------------------
+
+/** A clip's speed in whole percent; a clip without speed plays at 100. */
+export function speedPercent(clip: object): number {
+  const speed = "speed" in clip && typeof clip.speed === "number" ? clip.speed : 1;
+  return Math.round(speed * 100);
+}
+
+/** The source frames a clip plays: its length times its speed, rounded up. */
+export function sourceSpan(clip: { duration_in_frames: number; speed?: number }): number {
+  return Math.ceil((clip.duration_in_frames * speedPercent(clip)) / 100);
+}
+
+/** The timeline frames until the clip's source ends, at the clip's speed. */
+export function framesLeft(clip: { source_from_frame?: number; speed?: number }, asset: { duration_in_frames: number }): number {
+  return Math.floor(((asset.duration_in_frames - (clip.source_from_frame ?? 0)) * 100) / speedPercent(clip));
+}
+
 function trimClipStart(
   document: EditDocumentV2,
   operation: Extract<EditDocumentOperation, { kind: "trim_clip_start" }>,
@@ -844,8 +918,10 @@ function trimClipStart(
 
   const delta = operation.from_frame - clip.from_frame;
   if ("source_from_frame" in clip) {
-    if (clip.source_from_frame + delta < 0) throw new Error("trim cannot start before the source");
-    clip.source_from_frame += delta;
+    // A faster clip spends its source faster; offsets round down, as on the server.
+    const moved = Math.floor((delta * speedPercent(clip)) / 100);
+    if (clip.source_from_frame + moved < 0) throw new Error("trim cannot start before the source");
+    clip.source_from_frame += moved;
   }
   clip.from_frame = operation.from_frame;
   clip.duration_in_frames = endFrame - operation.from_frame;
@@ -877,7 +953,7 @@ function splitClip(
   right.clip_id = operation.right_clip_id;
   right.from_frame = operation.split_frame;
   right.duration_in_frames = endFrame - operation.split_frame;
-  if ("source_from_frame" in right) right.source_from_frame += leftDuration;
+  if ("source_from_frame" in right) right.source_from_frame += Math.floor((leftDuration * speedPercent(clip)) / 100);
   if (clip.kind === "video" || clip.kind === "audio") {
     // The cut sits between the two parts: neither fades there.
     clip.fade_out_frames = 0;

@@ -187,3 +187,28 @@ export function trackMenu(
     editEntry(context, "remove", t("studio.menu.removeTrack"), removeTrack(doc, track.track_id)),
   ];
 }
+
+type Marker = NonNullable<EditDocumentV2["markers"]>[number];
+
+/** A marker's own menu (Tier 3a): rename, move to the playhead, delete. Markers are never locked. */
+export function markerMenu(context: MenuContext, marker: Marker, extra: { onRename: () => void }): MenuEntry[] {
+  const { t, playheadFrame, commit } = context;
+  const operationId = () => `op_${crypto.randomUUID()}`;
+  return [
+    { kind: "item", id: "rename", label: t("studio.marker.rename"), onSelect: extra.onRename },
+    {
+      kind: "item",
+      id: "to-playhead",
+      label: t("studio.marker.toPlayhead"),
+      disabled: marker.frame === playheadFrame,
+      onSelect: () =>
+        commit([{ kind: "set_marker", operation_id: operationId(), marker_id: marker.marker_id, frame: playheadFrame, label: marker.label ?? "" }]),
+    },
+    {
+      kind: "item",
+      id: "delete",
+      label: t("studio.marker.delete"),
+      onSelect: () => commit([{ kind: "remove_marker", operation_id: operationId(), marker_id: marker.marker_id }]),
+    },
+  ];
+}

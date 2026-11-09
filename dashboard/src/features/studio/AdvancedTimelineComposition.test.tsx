@@ -83,8 +83,9 @@ mock.module("remotion", () => ({
 
 // The WebCodecs video tag needs a real decoder; its props are what the composition decides.
 mock.module("@remotion/media", () => ({
-  Video: ({ disallowFallbackToOffthreadVideo, volume, ...rest }: Record<string, unknown>) => {
-    mediaProps.video.push({ volume });
+  Video: ({ disallowFallbackToOffthreadVideo, volume, playbackRate, preservePitch, ...rest }: Record<string, unknown>) => {
+    // Speed (Tier 3a) is captured too: a boolean prop cannot sit on a div.
+    mediaProps.video.push({ volume, playbackRate, preservePitch });
     return (
       <div
         data-testid="video"
@@ -206,7 +207,7 @@ function documentV2(): EditDocumentV2 {
     ],
     clips: [
       {
-        kind: "video",
+        kind: "video", speed: 1,
         clip_id: "clip_video",
         track_id: "track_main",
         asset_id: "asset_video",
@@ -225,7 +226,7 @@ function documentV2(): EditDocumentV2 {
         emphasis: { highlight: false, arrow: false },
       },
       {
-        kind: "audio",
+        kind: "audio", speed: 1,
         clip_id: "clip_music",
         track_id: "track_music",
         asset_id: "asset_video",
@@ -887,4 +888,37 @@ test("a video clip without fades is drawn as before, fully opaque", () => {
   render(<AdvancedTimelineComposition document={documentV2()} previewSources={SOURCES} />);
   expect(screen.queryByTestId("clip-fade")).toBeNull();
   expect(mediaProps.video.every((props) => props.volume === undefined)).toBe(true);
+});
+
+// Tier 3a (spec 2026-11-08 section 7): a clip plays its source at its speed, and keeps its pitch.
+test("a 2x video clip plays at 2x and keeps its pitch", () => {
+  const document = documentV2();
+  Object.assign(document.clips!.find((clip) => clip.kind === "video")!, { speed: 2 });
+  render(<AdvancedTimelineComposition document={document} previewSources={SOURCES} />);
+  expect(mediaProps.video[0]).toMatchObject({ playbackRate: 2, preservePitch: true });
+});
+
+test("a video clip at normal speed passes no speed, so its render is unchanged", () => {
+  render(<AdvancedTimelineComposition document={documentV2()} previewSources={SOURCES} />);
+  expect(mediaProps.video[0]!.playbackRate).toBeUndefined();
+  expect(mediaProps.video[0]!.preservePitch).toBeUndefined();
+});
+
+test("an audio clip plays at its speed", () => {
+  const document = documentV2();
+  Object.assign(document.clips!.find((clip) => clip.kind === "audio")!, { speed: 0.5 });
+  render(<AdvancedTimelineComposition document={document} previewSources={SOURCES} />);
+  expect(mediaProps.audio[0]).toMatchObject({ playbackRate: 0.5 });
+});
+
+test("a held 2x clip freezes where its source ends at that speed", () => {
+  const document = typedTimelineDocument();
+  const clip = document.clips![1]! as Extract<NonNullable<EditDocumentV2["clips"]>[number], { kind: "video" }>;
+  const asset = document.asset_refs!.find((ref) => ref.asset_id === clip.asset_id)!;
+  asset.duration_in_frames = 200;
+  // 20 source frames left at 2x last 10 timeline frames.
+  Object.assign(clip, { hold_after_source: true, source_from_frame: 180, speed: 2 });
+  currentFrame.value = 15;
+  render(<AdvancedTimelineComposition document={document} previewSources={TYPED_SOURCES} />);
+  expect(screen.getByTestId("freeze").getAttribute("data-frame")).toBe("9");
 });

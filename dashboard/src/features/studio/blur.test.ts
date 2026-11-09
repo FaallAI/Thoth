@@ -71,3 +71,13 @@ test("a window wholly before the clip's trim draws nothing", () => {
   );
   expect(boxes).toEqual([]);
 });
+
+test("a 2x clip's window lasts half as long on the timeline, rounded outward", () => {
+  // Source frames 91 to 151 on a clip trimmed at 60, played at 2x: timeline 15.5 to 45.5.
+  const [box] = blurBoxes(
+    clip({ source_from_frame: 60, speed: 2, blur_regions: [{ ...BAND, from_frame: 91, to_frame: 151 }] }),
+    { width: 720, height: 1280 },
+    CANVAS,
+  );
+  expect([box!.from, box!.to]).toEqual([15, 46]);
+});

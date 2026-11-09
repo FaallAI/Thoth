@@ -4,9 +4,13 @@ import { PanelRight } from "lucide-react";
 import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane";
 import { useLocale } from "@/lib/locale";
 import { setPositionPreset, type PositionPreset } from "./story/story_edits";
+import { slipClip, slipRange } from "./timeline_edits";
 import { clipLabel } from "./TimelineClip";
 import { issueSentence } from "./IssuesPanel";
-import { formatTimecode, parseTimecode, timelineIssues, trackName } from "./timeline_domain";
+import { formatTimecode, parseTimecode, sourceSpan, timelineIssues, trackName } from "./timeline_domain";
+
+/** The speeds a clip may play at; the server accepts exactly these (Tier 3a). */
+const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4] as const;
 
 type Props = {
   document: EditDocumentV2;
@@ -187,6 +191,8 @@ export function TimelineInspector({
     positionY: useId(),
     scale: useId(),
     fadeIn: useId(),
+    speed: useId(),
+    sourceStart: useId(),
     fadeOut: useId(),
     overlayPreset: useId(),
     overlayText: useId(),
@@ -323,6 +329,67 @@ export function TimelineInspector({
           {t("studio.timeline.resetPosition")}
         </button>
       </>
+    );
+  };
+
+  /** Speed from the presets (Tier 3a): the clip keeps its place and plays more or less source. */
+  const speedField = (sped: { clip_id: string; asset_id: string; duration_in_frames: number; source_from_frame?: number; speed?: number; hold_after_source?: boolean }) => {
+    const asset = document.asset_refs?.find((ref) => ref.asset_id === sped.asset_id);
+    if (asset?.kind === "image") return null;
+    const choose = (speed: (typeof SPEEDS)[number]) => {
+      const room = asset?.duration_in_frames;
+      const needed = (sped.source_from_frame ?? 0) + sourceSpan({ duration_in_frames: sped.duration_in_frames, speed });
+      if (room != null && needed > room && !sped.hold_after_source) {
+        setProblem(t("studio.menu.reason.no_source"));
+        return;
+      }
+      setProblem(null);
+      emit({ kind: "set_clip_speed", clip_id: sped.clip_id, speed });
+    };
+    return (
+      <div className={field}>
+        <label htmlFor={ids.speed}>{t("studio.timeline.speed")}</label>
+        <select
+          id={ids.speed}
+          className={input}
+          value={String(sped.speed ?? 1)}
+          disabled={frozen}
+          onChange={(event) => choose(Number(event.target.value) as (typeof SPEEDS)[number])}
+        >
+          {SPEEDS.map((speed) => (
+            <option key={speed} value={String(speed)}>
+              {`${speed}×`}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  };
+
+  /** Where the clip starts in its source, in seconds: slip by number (Tier 3a). */
+  const sourceStartField = (slipped: NonNullable<EditDocumentV2["clips"]>[number]) => {
+    const range = slipRange(document, slipped);
+    if (range === "still" || !("source_from_frame" in slipped)) return null;
+    const tenths = (frames: number) => String(Math.floor((frames / fps) * 10) / 10);
+    const set = (seconds: number) => {
+      const frames = Math.round(seconds * fps);
+      if (frames < 0) return false;
+      const max = typeof range === "string" ? 0 : range.max;
+      if (frames > max) {
+        setProblem(t("studio.timeline.sourceStartMax", { seconds: tenths(max) }));
+        return false;
+      }
+      setProblem(null);
+      slipClip(document, slipped.clip_id, frames).operations.forEach(onOperation);
+    };
+    return (
+      <NumberField
+        id={ids.sourceStart}
+        label={t("studio.timeline.sourceStart")}
+        shown={String(Math.round((slipped.source_from_frame / fps) * 10) / 10)}
+        disabled={frozen}
+        onCommit={set}
+      />
     );
   };
 
@@ -484,6 +551,8 @@ export function TimelineInspector({
                   ))}
                 </select>
               </div>
+              {speedField(clip)}
+              {sourceStartField(clip)}
               <div role="group" aria-label={t("studio.timeline.crop")} className="space-y-2">
                 {cropFields(clip)}
               </div>
@@ -541,6 +610,8 @@ export function TimelineInspector({
                   }
                 />
               </div>
+              {speedField(clip)}
+              {sourceStartField(clip)}
               {fadeFields(clip)}
             </Section>
           ) : clip.kind !== "video" ? (

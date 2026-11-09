@@ -207,14 +207,22 @@ test("a phone edits a version 2 draft in Story panes, with the beats as chips", 
   expect(screen.queryByRole("heading", { name: /^Quick edit/ }) === null).toBe(true);
 });
 
-test("Timeline on a phone is view-only, with a larger-screen note and Inspect", async () => {
+test("Timeline on a phone edits by menu only, with the preview above the lanes and Inspect", async () => {
   await renderStudio(375, timelineDocument() as EditDocument);
   fireEvent.click(within(await screen.findByRole("group", { name: "Editor mode" })).getByRole("button", { name: "Timeline" }));
 
   const panes = within(screen.getByRole("navigation", { name: "Studio panes" })).getAllByRole("button");
   expect(panes.map((button) => button.textContent)).toEqual(["Assets", "Preview", "Timeline", "Inspector"]);
   pane("Timeline");
-  expect(screen.getByText(/Best on a larger screen/)).toBeDefined();
+  // Operator, 2026-11-09: menu-only editing on phones, with the preview stacked above the lanes.
+  expect(screen.getByText(/Press and hold for its menu/)).toBeDefined();
+  const preview = screen.getByLabelText("Draft preview");
+  expect(preview.closest("[hidden]")).toBeNull();
+  expect(preview.compareDocumentPosition(screen.getByTestId("timeline-lanes")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  // Live check at 430 (2026-11-09): the player overflowed its share and covered the Timeline
+  // toolbar. The box keeps its height, clips what it holds, and its preview fills exactly that.
+  const box = preview.parentElement!;
+  for (const name of ["shrink-0", "overflow-hidden", "[&>*]:h-full", "studio-phone-preview"]) expect(box.className).toContain(name);
   expect(screen.queryByRole("button", { name: /^Trim start of/ }) === null).toBe(true);
   expect(screen.queryByRole("group", { name: "Clip actions" }) === null).toBe(true);
   // Final review, Important 3: lane toggles edit the draft too, so a view hides them.

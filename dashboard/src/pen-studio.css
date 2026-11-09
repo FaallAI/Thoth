@@ -88,6 +88,8 @@
 .studio-shell.pen-studio.studio-advanced [aria-label="Studio preview"] { height:320px; min-height:320px; flex:none; }
 .studio-shell.pen-studio.studio-advanced [aria-label="Studio preview"] > div { width:148px; height:263px; }
 @media (max-width:1023px) { .studio-shell.pen-studio.studio-advanced [aria-label="Studio preview"] { height:auto; min-height:0; } .studio-shell.pen-studio.studio-advanced [aria-label="Studio preview"] > div { width:250px; height:445px; } }
+/* A phone's Timeline pane (Tier 3a): the preview fills its 40vh box above the lanes, in the canvas's 9:16 shape, instead of a fixed 445px. */
+@media (max-width:1023px) { .studio-shell.pen-studio.studio-advanced .studio-phone-preview [aria-label="Studio preview"] { height:100%; } .studio-shell.pen-studio.studio-advanced .studio-phone-preview [aria-label="Studio preview"] > div { flex:1 1 0; min-height:0; height:auto; width:auto; max-width:100%; aspect-ratio:9 / 16; } }
 .studio-shell.pen-studio.studio-advanced .studio-preview-tip { display:none; }
 .studio-shell.pen-studio.studio-advanced [aria-label="Asset library"] { padding:18px 14px; background:#242628; }
 .studio-shell.pen-studio.studio-advanced [aria-label="Timeline inspector"] { padding:18px 16px; background:#242628; }

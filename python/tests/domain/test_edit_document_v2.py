@@ -302,3 +302,55 @@ def test_unused_video_fades_are_not_stored() -> None:
     faded = EditDocumentV2.model_validate(payload).model_dump(mode="json")
     main = next(c for c in faded["clips"] if c["clip_id"] == "clip_main")
     assert main["fade_in_frames"] == 15 and "fade_out_frames" not in main
+
+
+# Tier 3a (spec 2026-11-08 section 7): a clip's speed, stored only when used.
+def _main_with(**fields: Any) -> dict[str, Any]:
+    payload = document_v2_payload()
+    next(c for c in payload["clips"] if c["clip_id"] == "clip_main").update(fields)
+    return payload
+
+
+def test_a_clip_at_normal_speed_stores_no_speed() -> None:
+    clips = EditDocumentV2.model_validate(document_v2_payload()).model_dump(mode="json")["clips"]
+    assert "speed" not in next(c for c in clips if c["clip_id"] == "clip_main")
+    fast = EditDocumentV2.model_validate(_main_with(speed=2.0)).model_dump(mode="json")["clips"]
+    assert next(c for c in fast if c["clip_id"] == "clip_main")["speed"] == 2.0
+
+
+def test_a_stored_clip_without_speed_decodes() -> None:
+    document = EditDocumentV2.model_validate(document_v2_payload())
+    assert next(c for c in document.clips if c.clip_id == "clip_main").speed == 1.0
+
+
+def test_a_speed_outside_the_presets_is_refused() -> None:
+    with pytest.raises(ValidationError):
+        EditDocumentV2.model_validate(_main_with(speed=1.1))
+
+
+def test_a_clip_at_3x_needs_three_times_its_length_in_source() -> None:
+    # clip_main is 300 frames long on a 900-frame asset.
+    EditDocumentV2.model_validate(_main_with(speed=3.0))
+    with pytest.raises(ValidationError, match="clip range exceeds source asset duration"):
+        EditDocumentV2.model_validate(_main_with(speed=4.0))
+    EditDocumentV2.model_validate(_main_with(speed=4.0, hold_after_source=True))
+
+
+# Tier 3a: markers on the ruler, stored only when there are some.
+def test_a_document_without_markers_stores_none() -> None:
+    dumped = EditDocumentV2.model_validate(document_v2_payload()).model_dump(mode="json")
+    assert "markers" not in dumped
+    payload = document_v2_payload()
+    payload["markers"] = [{"marker_id": "marker_1", "frame": 30}]
+    stored = EditDocumentV2.model_validate(payload).model_dump(mode="json")["markers"]
+    assert stored == [{"marker_id": "marker_1", "frame": 30, "label": ""}]
+
+
+def test_markers_must_sit_inside_the_canvas_and_have_unique_ids() -> None:
+    payload = document_v2_payload()
+    payload["markers"] = [{"marker_id": "marker_1", "frame": 300}]
+    with pytest.raises(ValidationError, match="markers must sit inside the canvas"):
+        EditDocumentV2.model_validate(payload)
+    payload["markers"] = [{"marker_id": "m", "frame": 1}, {"marker_id": "m", "frame": 2}]
+    with pytest.raises(ValidationError, match="duplicate marker IDs"):
+        EditDocumentV2.model_validate(payload)

@@ -32,7 +32,7 @@ export type BlurBox = {
 type Size = { width?: number | null; height?: number | null };
 
 export function blurBoxes(
-  clip: Pick<VideoClip, "fit" | "crop" | "position" | "source_from_frame" | "blur_regions">,
+  clip: Pick<VideoClip, "fit" | "crop" | "position" | "source_from_frame" | "blur_regions"> & { speed?: number },
   asset: Size | undefined,
   canvas: { width: number; height: number },
 ): BlurBox[] {
@@ -45,6 +45,9 @@ export function blurBoxes(
   const boxTop = (-crop.top / (crop.height || 1)) * canvas.height;
   const picture = drawn(clip.fit ?? "cover", asset, boxWidth, boxHeight);
   const trim = clip.source_from_frame ?? 0;
+  // Source frames to timeline frames at the clip's speed (Tier 3a), rounded outward so the text stays covered.
+  const pct = Math.round((clip.speed ?? 1) * 100);
+  const timeline = (frames: number, round: (value: number) => number) => Math.max(0, round((frames * 100) / pct));
   // A window that ends at or before the clip's trim (after a split or trim) shows nothing.
   const visible = (clip.blur_regions ?? []).filter(
     (region) => region.to_frame == null || region.to_frame > trim,
@@ -59,8 +62,8 @@ export function blurBoxes(
       width: region.w * picture.width + 2 * sigma,
       height: height + 2 * sigma,
       sigma,
-      from: windowed ? Math.max(0, region.from_frame! - trim) : null,
-      to: windowed ? Math.max(0, region.to_frame! - trim) : null,
+      from: windowed ? timeline(region.from_frame! - trim, Math.floor) : null,
+      to: windowed ? timeline(region.to_frame! - trim, Math.ceil) : null,
     };
   });
 }

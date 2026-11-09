@@ -8,6 +8,7 @@ import { render } from "@/test-render";
 import type { EditDocumentV2 } from "@/api/control-plane";
 import { createEditorState, type EditorAction, type EditorState } from "./editor_state";
 import { Timeline } from "./Timeline";
+import { applyTimelineOperation } from "./timeline_domain";
 import { textDocument, timelineDocument } from "./timeline-test-fixtures";
 
 afterEach(cleanup);
@@ -759,6 +760,16 @@ test("pasting text on the timeline asks where it goes, then places it there", ()
   expect(screen.queryByRole("dialog", { name: "Paste text" })).toBeNull();
 });
 
+test("a paste onto a hidden-only overlay track says so in the status line", () => {
+  const doc = textDocument();
+  doc.tracks.find((track) => track.kind === "overlay")!.hidden = true;
+  const { actions } = mount({ base: doc, draft: doc, playheadFrame: 30 });
+  pasteText(window, "Hello");
+  fireEvent.click(screen.getByRole("button", { name: "New text clip" }));
+  expect(actions.at(-1)).toMatchObject({ type: "commit_operations", operations: [{ kind: "add_text_clip", track_id: "track_overlay" }] });
+  expect(screen.getByRole("status").textContent).toContain("Pasted on a hidden track. Show the track to see it.");
+});
+
 test("a paste into a field, HTML alone or blank text opens nothing", () => {
   mountText();
   const field = document.body.appendChild(document.createElement("input"));
@@ -929,4 +940,202 @@ test("a click without a drag on a clip of a larger selection selects that clip a
   fireEvent.pointerDown(main, { clientX: 10, button: 0 });
   fireEvent.pointerUp(window, { clientX: 10 });
   expect(actions.at(-1)).toEqual({ type: "select_clip", clipId: "clip_main" });
+});
+
+// Tier 3a: Alt+drag on a clip's body slips its content; the picture follows the pointer.
+test("Alt+drag on a clip slips its content and commits once", () => {
+  const doc = timelineDocument();
+  Object.assign(doc.clips!.find((clip) => clip.clip_id === "clip_main")!, { source_from_frame: 60 });
+  const { actions } = mount({ base: doc, draft: doc });
+  const clip = screen.getByRole("button", { name: "Main video clip" });
+  fireEvent.pointerDown(clip, { clientX: 50, button: 0, altKey: true });
+  fireEvent.pointerMove(window, { clientX: 80 });
+  fireEvent.pointerUp(window, { clientX: 80 });
+
+  const slip = { kind: "slip_clip", operation_id: "op", clip_id: "clip_main", source_from_frame: 30 };
+  expect(actions.map((action) => action.type)).toEqual(["select_clip", "preview_timeline_operation", "commit_timeline_operation"]);
+  expect(payload(actions[1]!)).toEqual(slip);
+  expect(payload(actions[2]!)).toEqual(slip);
+});
+
+test("a slip that cannot happen says why and commits nothing", () => {
+  const doc = timelineDocument();
+  Object.assign(doc.asset_refs!.find((ref) => ref.asset_id === "asset_video")!, { kind: "image" });
+  const { actions } = mount({ base: doc, draft: doc });
+  const clip = screen.getByRole("button", { name: "Main video clip" });
+  fireEvent.pointerDown(clip, { clientX: 50, button: 0, altKey: true });
+  fireEvent.pointerMove(window, { clientX: 80 });
+  fireEvent.pointerUp(window, { clientX: 80 });
+
+  expect(actions.some((action) => action.type === "commit_timeline_operation")).toBe(false);
+  expect(screen.getByRole("status").textContent).toContain("An image has no source time");
+});
+
+// Tier 3a: Alt+drag on a trim handle whose edge touches a neighbour rolls the cut between them.
+function touchingPair(rightSource?: number) {
+  const base = timelineDocument();
+  const doc = applyTimelineOperation(base, { kind: "split_clip", operation_id: "op_split", clip_id: "clip_main", split_frame: 60, left_clip_id: "clip_a", right_clip_id: "clip_b" }, {});
+  if (rightSource !== undefined) Object.assign(doc.clips!.find((clip) => clip.clip_id === "clip_b")!, { source_from_frame: rightSource });
+  return mount({ base: doc, draft: doc, snapping: false });
+}
+const endHandleOfFirst = () => screen.getAllByRole("button", { name: "Trim end of Main video clip" })[0]!;
+
+test("Alt+drag on a cut between two clips rolls it as one undo step", () => {
+  const { actions } = touchingPair();
+  fireEvent.pointerDown(endHandleOfFirst(), { clientX: 60, button: 0, altKey: true });
+  fireEvent.pointerMove(window, { clientX: 75 });
+  fireEvent.pointerUp(window, { clientX: 75 });
+
+  const committed = actions.filter((action) => action.type === "commit_operations");
+  expect(committed).toHaveLength(1);
+  const operations: unknown[] = (committed[0] as { operations: Record<string, unknown>[] }).operations.map((operation) => ({ ...operation, operation_id: "op" }));
+  expect(operations).toEqual([
+    { kind: "trim_clip_end", operation_id: "op", clip_id: "clip_a", end_frame: 75 },
+    { kind: "trim_clip_start", operation_id: "op", clip_id: "clip_b", from_frame: 75 },
+  ]);
+});
+
+test("without Alt the same handle trims only its own clip", () => {
+  const { actions } = touchingPair();
+  fireEvent.pointerDown(endHandleOfFirst(), { clientX: 60, button: 0 });
+  fireEvent.pointerMove(window, { clientX: 50 });
+  fireEvent.pointerUp(window, { clientX: 50 });
+  expect(payload(actions.at(-1)!)).toEqual({ kind: "trim_clip_end", operation_id: "op", clip_id: "clip_a", end_frame: 50 });
+});
+
+test("a refused roll says why and commits nothing", () => {
+  // clip_b starts at the head of its source, so the cut cannot move left.
+  const { actions } = touchingPair(0);
+  fireEvent.pointerDown(endHandleOfFirst(), { clientX: 60, button: 0, altKey: true });
+  fireEvent.pointerMove(window, { clientX: 50 });
+  fireEvent.pointerUp(window, { clientX: 50 });
+  expect(actions.some((action) => action.type === "commit_operations" || action.type === "commit_timeline_operation")).toBe(false);
+  expect(screen.getByRole("status").textContent).toContain("The source has no more footage there");
+});
+
+test("a roll across a scene boundary says to resize the scene in Story", () => {
+  const base = timelineDocument();
+  const doc = applyTimelineOperation(base, { kind: "split_clip", operation_id: "op_split", clip_id: "clip_main", split_frame: 60, left_clip_id: "clip_a", right_clip_id: "clip_b" }, {});
+  doc.scenes = [
+    { ...doc.scenes[0]!, scene_id: "scene_a", start_frame: 0, duration_in_frames: 60, clip_ids: [] },
+    { ...doc.scenes[0]!, scene_id: "scene_b", start_frame: 60, duration_in_frames: 90, clip_ids: [] },
+  ];
+  Object.assign(doc.clips!.find((clip) => clip.clip_id === "clip_a")!, { scene_id: "scene_a" });
+  Object.assign(doc.clips!.find((clip) => clip.clip_id === "clip_b")!, { scene_id: "scene_b" });
+  mount({ base: doc, draft: doc, snapping: false });
+  fireEvent.pointerDown(endHandleOfFirst(), { clientX: 60, button: 0, altKey: true });
+  fireEvent.pointerMove(window, { clientX: 70 });
+  fireEvent.pointerUp(window, { clientX: 70 });
+  expect(screen.getByRole("status").textContent).toContain("This cut is a scene boundary. Resize the scene in Story instead");
+});
+
+// Tier 3a: markers on the ruler.
+function withMarkers(markers: { marker_id: string; frame: number; label: string }[], overrides: Partial<EditorState> = {}) {
+  const doc = timelineDocument();
+  doc.markers = markers;
+  return mount({ base: doc, draft: doc, ...overrides });
+}
+
+test("M adds a marker at the playhead as one edit", () => {
+  const { actions } = mount({ playheadFrame: 60 });
+  key(document.body, "m");
+  const added = actions.find((action) => action.type === "commit_operations");
+  expect(added?.type === "commit_operations" && added.operations).toEqual([expect.objectContaining({ kind: "add_marker", frame: 60, label: "" })]);
+});
+
+test("M typed in a field adds no marker", () => {
+  const { actions } = mount({ playheadFrame: 60 });
+  const field = document.body.appendChild(document.createElement("input"));
+  key(field, "m");
+  field.remove();
+  expect(actions).toEqual([]);
+});
+
+test("a marker is a button on the ruler that moves the playhead to it", () => {
+  const { actions } = withMarkers([
+    { marker_id: "m_named", frame: 90, label: "Hook beat" },
+    { marker_id: "m_plain", frame: 60, label: "" },
+  ]);
+  expect(screen.getByRole("button", { name: "Marker 1 at 0:02.0" })).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "Hook beat at 0:03.0" }));
+  expect(actions.at(-1)).toEqual({ type: "set_playhead", frame: 90 });
+});
+
+const openMarkerMenu = (name: string) => fireEvent.contextMenu(screen.getByRole("button", { name }), { clientX: 5, clientY: 5 });
+
+test("a marker's menu deletes it and moves it to the playhead", () => {
+  const { actions } = withMarkers([{ marker_id: "m1", frame: 60, label: "" }], { playheadFrame: 30 });
+  openMarkerMenu("Marker 1 at 0:02.0");
+  expect(menuNames()).toEqual(["Rename marker…", "Move to playhead", "Delete marker"]);
+  fireEvent.click(screen.getByRole("menuitem", { name: "Move to playhead" }));
+  expect(ops(actions)).toEqual(["set_marker"]);
+  openMarkerMenu("Marker 1 at 0:02.0");
+  fireEvent.click(screen.getByRole("menuitem", { name: "Delete marker" }));
+  expect(ops(actions)).toEqual(["set_marker", "remove_marker"]);
+});
+
+test("Rename marker… names it, and the name is saved as one edit", () => {
+  const { actions } = withMarkers([{ marker_id: "m1", frame: 60, label: "" }]);
+  openMarkerMenu("Marker 1 at 0:02.0");
+  fireEvent.click(screen.getByRole("menuitem", { name: "Rename marker…" }));
+  const dialog = screen.getByRole("dialog", { name: "Rename marker" });
+  fireEvent.change(within(dialog).getByRole("textbox", { name: "Marker name" }), { target: { value: "Hook ends" } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+  const saved = actions.find((action) => action.type === "commit_operations");
+  expect(saved?.type === "commit_operations" && saved.operations).toEqual([expect.objectContaining({ kind: "set_marker", marker_id: "m1", frame: 60, label: "Hook ends" })]);
+  expect(screen.queryByRole("dialog", { name: "Rename marker" })).toBeNull();
+});
+
+// Tier 3a (operator, 2026-11-09): phones get the editing menus by long press; no drag, trim or keys.
+function mountPhone(overrides: Partial<EditorState> = {}) {
+  const actions: EditorAction[] = [];
+  const state = { ...createEditorState(timelineDocument()), ...overrides };
+  render(<Timeline state={state} dispatch={(action) => actions.push(action)} onPlay={() => {}} onPause={() => {}} readOnly />);
+  return { actions };
+}
+const longPress = async (element: Element) => {
+  fireEvent.pointerDown(element, { pointerType: "touch", clientX: 5, clientY: 5, button: 0 });
+  await new Promise((done) => setTimeout(done, 550));
+};
+
+test("on a phone a long press on a clip opens its menu, and its edits commit", async () => {
+  const { actions } = mountPhone({ playheadFrame: 60 });
+  await longPress(screen.getByRole("button", { name: "Main video clip" }));
+  expect(screen.getByRole("menu")).toBeTruthy();
+  fireEvent.click(screen.getByRole("menuitem", { name: "Split at playhead" }));
+  expect(ops(actions)).toEqual(["split_clip"]);
+});
+
+test("on a phone the lane and track menus open by long press too", async () => {
+  mountPhone();
+  await longPress(screen.getByRole("button", { name: "Select Music track" }));
+  expect(screen.getByRole("menuitem", { name: "Select track" })).toBeTruthy();
+});
+
+test("on a phone a press that moves scrolls and opens nothing", async () => {
+  mountPhone();
+  fireEvent.pointerDown(screen.getByRole("button", { name: "Main video clip" }), { pointerType: "touch", clientX: 5, clientY: 5, button: 0 });
+  fireEvent.pointerMove(window, { clientX: 40, clientY: 5 });
+  await new Promise((done) => setTimeout(done, 550));
+  expect(screen.queryByRole("menu")).toBeNull();
+});
+
+test("on a phone there are no trim handles and a drag commits nothing", () => {
+  const { actions } = mountPhone();
+  expect(screen.queryByRole("button", { name: "Trim end of Main video clip" })).toBeNull();
+  drag(screen.getByRole("button", { name: "Main video clip" }), 10, 80);
+  expect(actions.some((action) => action.type.startsWith("commit"))).toBe(false);
+});
+
+test("the phone banner says how to edit here", () => {
+  mountPhone();
+  expect(document.body.textContent).toContain("Tap a clip to select it. Press and hold for its menu. Drag and trim on a wider screen.");
+});
+
+// Final review 2026-11-09: phones long-press markers now, so a marker is a 24 px target.
+test("a marker is at least a 24 px target", () => {
+  withMarkers([{ marker_id: "m1", frame: 60, label: "" }]);
+  const marker = screen.getByRole("button", { name: "Marker 1 at 0:02.0" });
+  expect(marker.className).toContain("h-6");
+  expect(marker.className).toContain("w-6");
 });

@@ -1,7 +1,7 @@
 // Timeline edits as typed operations (spec 2026-11-08 §5.1). Each helper answers the whole batch
 // one user action commits, or a refusal the menu shows as its reason; it never edits in place.
 import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane";
-import { applyTimelineOperation, compatibleTrackIds } from "./timeline_domain";
+import { applyTimelineOperation, compatibleTrackIds, sourceSpan, speedPercent } from "./timeline_domain";
 
 export type Refusal =
   | "locked"
@@ -19,8 +19,18 @@ export type Refusal =
   | "no_scene"
   | "not_text"
   | "not_caption"
-  | "too_long";
-export type Edit = { operations: EditDocumentOperation[]; refusal?: Refusal };
+  | "too_long"
+  | "no_source"
+  | "still"
+  | "not_touching"
+  | "scene_cut"
+  | "taken"
+  | "too_many"
+  | "whole_source"
+  | "no_footage";
+/** Something a successful edit still tells the person (operator, 2026-11-09). */
+export type Notice = "hidden_track";
+export type Edit = { operations: EditDocumentOperation[]; refusal?: Refusal; notice?: Notice };
 
 type Clip = NonNullable<EditDocumentV2["clips"]>[number];
 
@@ -325,6 +335,12 @@ export function cueAt(clip: Extract<Clip, { kind: "caption" }>, frame: number): 
   return Math.max(0, index);
 }
 
+/** An unlocked track of the kind, a visible one first: a hidden one still takes the text (operator, 2026-11-09). */
+function pasteTrack(doc: EditDocumentV2, kind: "overlay" | "caption") {
+  const open = doc.tracks.filter((entry) => entry.kind === kind && !entry.locked);
+  return open.find((entry) => !entry.hidden) ?? open[0];
+}
+
 export function pasteTextOperations(
   doc: EditDocumentV2,
   target: PasteTarget,
@@ -336,7 +352,7 @@ export function pasteTextOperations(
   const frame = at.playheadFrame;
   switch (target) {
     case "new_text": {
-      const track = doc.tracks.find((entry) => entry.kind === "overlay" && !entry.locked);
+      const track = pasteTrack(doc, "overlay");
       if (!track) return refuse("no_track");
       return {
         operations: [
@@ -352,6 +368,7 @@ export function pasteTextOperations(
             style_slot: "title",
           },
         ],
+        ...(track.hidden ? { notice: "hidden_track" as const } : {}),
       };
     }
     case "replace_text":
@@ -359,7 +376,7 @@ export function pasteTextOperations(
       if (isLocked(doc, selected)) return refuse("locked");
       return { operations: [{ kind: "replace_text", operation_id: newId("op"), clip_id: selected.clip_id, field: "heading", value: text }] };
     case "new_caption": {
-      const track = doc.tracks.find((entry) => entry.kind === "caption" && !entry.locked);
+      const track = pasteTrack(doc, "caption");
       if (!track) return refuse("no_track");
       const scene = doc.scenes.find((entry) => entry.start_frame <= frame && frame < entry.start_frame + entry.duration_in_frames);
       if (!scene) return refuse("no_scene");
@@ -367,6 +384,7 @@ export function pasteTextOperations(
         operations: [
           { kind: "add_caption_clip", operation_id: newId("op"), clip_id: newId("clip"), track_id: track.track_id, scene_id: scene.scene_id, text },
         ],
+        ...(track.hidden ? { notice: "hidden_track" as const } : {}),
       };
     }
     case "replace_caption":
@@ -436,4 +454,86 @@ export function closeTimelineGaps(doc: EditDocumentV2): Edit {
     current = applied(current, moves);
   }
   return { operations };
+}
+
+// --------------------------------------------------------------------------
+// Slip (Tier 3a): the content moves inside the clip; the clip keeps its place
+// --------------------------------------------------------------------------
+
+/** The source starts a clip may take: 0 up to where its span still fits, or null when it has no source time. */
+export function slipRange(doc: EditDocumentV2, clip: Clip): { max: number } | Refusal {
+  if (clip.kind !== "video" && clip.kind !== "audio") return "still";
+  const asset = doc.asset_refs?.find((ref) => ref.asset_id === clip.asset_id);
+  if (asset?.kind === "image") return "still";
+  const length = asset?.duration_in_frames;
+  if (length == null) return { max: Number.POSITIVE_INFINITY };
+  // A clip that holds its last frame may start anywhere inside its source.
+  const max = clip.kind === "video" && clip.hold_after_source ? length - 1 : length - sourceSpan(clip);
+  return max > 0 ? { max } : "whole_source";
+}
+
+/** Slip a clip so its source starts at `sourceFrom`, clamped to what the source holds. */
+export function slipClip(doc: EditDocumentV2, clipId: string, sourceFrom: number): Edit {
+  const clip = clipsOf(doc).find((entry) => entry.clip_id === clipId);
+  if (!clip) return refuse("gone");
+  if (isLocked(doc, clip)) return refuse("locked");
+  const range = slipRange(doc, clip);
+  if (typeof range === "string") return refuse(range);
+  const start = Math.min(range.max, Math.max(0, Math.round(sourceFrom)));
+  if (!("source_from_frame" in clip) || start === clip.source_from_frame) return none;
+  return { operations: [{ kind: "slip_clip", operation_id: newId("op"), clip_id: clip.clip_id, source_from_frame: start }] };
+}
+
+// --------------------------------------------------------------------------
+// Roll (Tier 3a): the cut between two touching clips moves; their total stays
+// --------------------------------------------------------------------------
+
+/** Move the cut where `leftId` ends and `rightId` starts to `frame`: two trims in one patch. */
+export function rollCut(doc: EditDocumentV2, leftId: string, rightId: string, frame: number): Edit {
+  const left = clipsOf(doc).find((clip) => clip.clip_id === leftId);
+  const right = clipsOf(doc).find((clip) => clip.clip_id === rightId);
+  if (!left || !right) return refuse("gone");
+  if (left.track_id !== right.track_id || endOf(left) !== right.from_frame) return refuse("not_touching");
+  if (isLocked(doc, left) || isLocked(doc, right)) return refuse("locked");
+  // A clip must stay inside its scene, so a cut between two scenes is not a roll.
+  if (left.scene_id && right.scene_id && left.scene_id !== right.scene_id) return refuse("scene_cut");
+  if (frame <= left.from_frame || frame >= endOf(right)) return refuse("edge");
+  // A copy has no scene, so one side may still have one: that clip stays inside it (final review 2026-11-09).
+  const sceneOf = (clip: Clip) => doc.scenes.find((scene) => scene.scene_id === clip.scene_id);
+  const leftScene = left.scene_id ? sceneOf(left) : undefined;
+  const rightScene = right.scene_id ? sceneOf(right) : undefined;
+  if (leftScene && frame > leftScene.start_frame + leftScene.duration_in_frames) return refuse("scene");
+  if (rightScene && frame < rightScene.start_frame) return refuse("scene");
+  if (frame === right.from_frame) return none;
+  // The left clip plays further into its source; the right one starts earlier or later in its own.
+  if ("source_from_frame" in left && !(left.kind === "video" && left.hold_after_source)) {
+    const length = doc.asset_refs?.find((ref) => ref.asset_id === left.asset_id)?.duration_in_frames;
+    const span = sourceSpan({ duration_in_frames: frame - left.from_frame, speed: left.speed });
+    if (length != null && left.source_from_frame + span > length) return refuse("no_footage");
+  }
+  if ("source_from_frame" in right) {
+    const moved = Math.floor(((frame - right.from_frame) * speedPercent(right)) / 100);
+    if (right.source_from_frame + moved < 0) return refuse("no_footage");
+  }
+  return {
+    operations: [
+      { kind: "trim_clip_end", operation_id: newId("op"), clip_id: left.clip_id, end_frame: frame },
+      { kind: "trim_clip_start", operation_id: newId("op"), clip_id: right.clip_id, from_frame: frame },
+    ],
+  };
+}
+
+// --------------------------------------------------------------------------
+// Markers (Tier 3a)
+// --------------------------------------------------------------------------
+
+/** The server keeps at most this many markers on a draft. */
+export const MAX_MARKERS = 100;
+
+/** A marker at `frame`, unless one already sits there or the draft holds the most it may. */
+export function addMarker(doc: EditDocumentV2, frame: number): Edit {
+  const markers = doc.markers ?? [];
+  if (markers.some((marker) => marker.frame === frame)) return refuse("taken");
+  if (markers.length >= MAX_MARKERS) return refuse("too_many");
+  return { operations: [{ kind: "add_marker", operation_id: newId("op"), marker_id: newId("marker"), frame, label: "" }] };
 }

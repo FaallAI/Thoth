@@ -26,13 +26,28 @@ async function blankDraft(fixtures: Fixtures) {
   await expect(screen.getByText('Saved revision 1', { visible: true })).toBeVisible();
 }
 
+/**
+ * The library lists 20 assets a page, newest first, and every run here uploads more, so the one
+ * video upload falls past the first page (2026-11-09). Load pages until its row shows.
+ */
+async function showUploadVideo(screen: any) {
+  const add = screen.getByRole('button', 'Add Upload · Video to timeline');
+  const rows = screen.getByRole('region', 'Asset library').getByRole('listitem');
+  for (let page = 0; page < 10 && (await add.count()) === 0; page += 1) {
+    const before = await rows.count();
+    await screen.getByRole('button', 'Load more assets').tap();
+    await expect.poll(async () => rows.count(), { timeout: 10000 }).toBeGreaterThan(before);
+  }
+  await expect(add).toBeVisible();
+}
+
 /** A blank draft on the Timeline, saved as revision 2, with the uploaded media listed. */
 async function blankTimeline(fixtures: Fixtures) {
   const { screen } = fixtures;
   await blankDraft(fixtures);
   await screen.getByRole('button', /^Advanced timeline/).tap();
   await expect(screen.getByText('Saved revision 2', { visible: true })).toBeVisible();
-  await expect(screen.getByRole('button', 'Add Upload · Video to timeline')).toBeVisible();
+  await showUploadVideo(screen);
 }
 
 /** A draft trimmed to its canvas, saved as revision 3, on the Render job. */

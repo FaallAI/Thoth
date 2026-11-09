@@ -79,7 +79,7 @@ export function timelineDocument(): EditDocumentV2 {
     ],
     clips: [
       {
-        kind: "video",
+        kind: "video", speed: 1,
         clip_id: "clip_main",
         track_id: "track_main",
         asset_id: "asset_video",
@@ -98,7 +98,7 @@ export function timelineDocument(): EditDocumentV2 {
         emphasis: { highlight: false, arrow: false },
       },
       {
-        kind: "video",
+        kind: "video", speed: 1,
         clip_id: "clip_locked",
         track_id: "track_broll",
         asset_id: "asset_video",
@@ -117,7 +117,7 @@ export function timelineDocument(): EditDocumentV2 {
         emphasis: { highlight: false, arrow: false },
       },
       {
-        kind: "audio",
+        kind: "audio", speed: 1,
         clip_id: "clip_music",
         track_id: "track_music",
         asset_id: "asset_music",
@@ -282,7 +282,7 @@ export function typedTimelineDocument(): EditDocumentV2 {
     ],
     clips: [
       {
-        kind: "video",
+        kind: "video", speed: 1,
         clip_id: "clip_a",
         track_id: "track_main",
         scene_id: "scene_001",
@@ -304,7 +304,7 @@ export function typedTimelineDocument(): EditDocumentV2 {
         position: { x: 0, y: 0, scale: 1 },
       },
       {
-        kind: "video",
+        kind: "video", speed: 1,
         clip_id: "clip_b",
         track_id: "track_main",
         asset_id: "asset_video",
@@ -352,7 +352,7 @@ export function typedTimelineDocument(): EditDocumentV2 {
         ],
       },
       {
-        kind: "audio",
+        kind: "audio", speed: 1,
         clip_id: "clip_audio",
         track_id: "track_music",
         asset_id: "asset_music",
@@ -367,7 +367,7 @@ export function typedTimelineDocument(): EditDocumentV2 {
         fade_out_frames: 24,
       },
       {
-        kind: "video",
+        kind: "video", speed: 1,
         clip_id: "clip_still",
         track_id: "track_main",
         asset_id: "asset_still",
@@ -429,7 +429,7 @@ export function sceneStripDocument(): EditDocumentV2 {
       text(2, 30, 60),
       text(3, 90, 90),
       {
-        kind: "video",
+        kind: "video", speed: 1,
         clip_id: "clip_still",
         track_id: "track_broll",
         scene_id: "scene_002",

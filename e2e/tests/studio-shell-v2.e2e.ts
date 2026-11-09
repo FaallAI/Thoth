@@ -61,12 +61,13 @@ test('430 Story: panes and beat chips', async ({ app, browser, screen }) => {
   await expect(screen.getByRole('button', 'Edit heading')).toBeVisible();
 });
 
-test('430 Timeline: view-only lanes with a larger-screen note and Inspect', async ({ app, browser, screen }) => {
+test('430 Timeline: menu-only lanes with a how-to note and Inspect', async ({ app, browser, screen }) => {
   await browser.setViewport({ width: 430, height: 932 });
   await app.open(DRAFT);
   await screen.getByRole('group', 'Editor mode').getByRole('button', 'Timeline').tap();
   await screen.getByRole('navigation', 'Studio panes').getByRole('button', 'Timeline').tap();
-  await expect(screen.getByText(/^Best on a larger screen/)).toBeVisible();
+  // Tier 3a (operator, 2026-11-09): phones edit by long-press menu; drag, trim and toggles stay off.
+  await expect(screen.getByText(/^Tap a clip to select it/)).toBeVisible();
   await expect(screen.getByRole('group', 'Clip actions')).toHaveCount(0);
   await expect(screen.getByRole('button', /^(Hide|Mute|Lock) /)).toHaveCount(0);
   await expect(screen.getByRole('button', /^Trim (start|end) of /)).toHaveCount(0);

@@ -41,7 +41,8 @@ test('430 Timeline: lane names stay in sight and take a quarter of the screen', 
   await app.open(DRAFT);
   await screen.getByRole('group', 'Editor mode').getByRole('button', 'Timeline').tap();
   await screen.getByRole('navigation', 'Studio panes').getByRole('button', 'Timeline').tap();
-  await expect(screen.getByText(/^Best on a larger screen/)).toBeVisible();
+  // Tier 3a (operator, 2026-11-09): phones edit by menu, and the note says how.
+  await expect(screen.getByText(/^Tap a clip to select it/)).toBeVisible();
   const lane = await browser.evaluate(() => {
     // Tier 1 (2026-11-08): the name is a plain-language button, no longer the raw `main_video`.
     const name = document.querySelector('[data-track-id] [data-track-name]')!;

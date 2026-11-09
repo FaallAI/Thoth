@@ -5,6 +5,7 @@ import { expect, test } from "bun:test";
 import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane";
 import { applyTimelineOperation } from "./timeline_domain";
 import {
+  addMarker,
   closeAllGaps,
   closeGap,
   closeTimelineGaps,
@@ -20,8 +21,10 @@ import {
   moveToTrack,
   moveTrack,
   removeTrack,
+  rollCut,
   rippleDelete,
   setClipFlag,
+  slipClip,
   splitAt,
   type Edit,
 } from "./timeline_edits";
@@ -295,6 +298,44 @@ test("pasteTextOperations refuses a place that does not apply, and text over 300
   expect(pasteTextOperations(doc, "new_text", "x".repeat(301), nothing).refusal).toBe("too_long");
 });
 
+// Operator, 2026-11-09: a visible track first; a hidden-only one still takes it, and says so.
+function withHiddenTwin(kind: "overlay" | "caption") {
+  const doc = textDocument();
+  const original = doc.tracks.find((track) => track.kind === kind)!;
+  original.hidden = true;
+  doc.tracks.push({ ...original, track_id: `${original.track_id}_2`, label: `${original.label} 2`, order: 9, hidden: false, clip_ids: [] });
+  return doc;
+}
+const nobody = { playheadFrame: 30, selectedClipId: "" };
+
+test("pasted text goes to a visible overlay track before a hidden one", () => {
+  const edit = pasteTextOperations(withHiddenTwin("overlay"), "new_text", "Hello", nobody);
+  expect(edit.operations[0]).toMatchObject({ track_id: "track_overlay_2" });
+  expect(edit.notice).toBeUndefined();
+});
+
+test("pasted text on a hidden-only overlay lands there and notices", () => {
+  const doc = textDocument();
+  doc.tracks.find((track) => track.kind === "overlay")!.hidden = true;
+  const edit = pasteTextOperations(doc, "new_text", "Hello", nobody);
+  expect(edit.operations[0]).toMatchObject({ track_id: "track_overlay" });
+  expect(edit.notice).toBe("hidden_track");
+});
+
+test("a pasted caption goes to a visible caption track before a hidden one", () => {
+  const edit = pasteTextOperations(withHiddenTwin("caption"), "new_caption", "Hello", nobody);
+  expect(edit.operations[0]).toMatchObject({ track_id: "track_captions_2" });
+  expect(edit.notice).toBeUndefined();
+});
+
+test("a pasted caption on a hidden-only caption track lands there and notices", () => {
+  const doc = textDocument();
+  doc.tracks.find((track) => track.kind === "caption")!.hidden = true;
+  const edit = pasteTextOperations(doc, "new_caption", "Hello", nobody);
+  expect(edit.operations[0]).toMatchObject({ track_id: "track_captions" });
+  expect(edit.notice).toBe("hidden_track");
+});
+
 const withoutNewClip = (operation: Record<string, unknown>) => {
   const { clip_id: _id, ...rest } = operation;
   return rest;
@@ -340,4 +381,116 @@ test("closeTimelineGaps closes only stretches where every track is empty", () =>
 test("closing all gaps refuses when a clip that would move is locked", () => {
   expect(closeAllGaps(twoGaps({ from: 130, length: 30, locked: true }), "track_main").refusal).toBe("later_locked");
   expect(closeTimelineGaps(twoGaps({ from: 130, length: 30, locked: true })).refusal).toBe("later_locked");
+});
+
+// Tier 3a: slip moves the content inside a clip, within its source.
+function sourced(duration: number | undefined, kind: "video" | "image" = "video") {
+  const doc = timelineDocument();
+  Object.assign(doc.asset_refs!.find((ref) => ref.asset_id === "asset_video")!, { duration_in_frames: duration, kind });
+  return doc;
+}
+const slipped = (edit: { operations: EditDocumentOperation[] }) =>
+  edit.operations.map((operation) => ({ ...operation, operation_id: "op" }));
+
+test("slipClip clamps to the source", () => {
+  // clip_main is 120 frames long; a 200-frame source leaves starts 0 to 80.
+  const doc = sourced(200);
+  expect(slipped(slipClip(doc, "clip_main", 50))).toEqual([{ kind: "slip_clip", operation_id: "op", clip_id: "clip_main", source_from_frame: 50 }]);
+  expect(slipped(slipClip(doc, "clip_main", 500))).toEqual([{ kind: "slip_clip", operation_id: "op", clip_id: "clip_main", source_from_frame: 80 }]);
+  expect(slipped(slipClip(doc, "clip_main", -9))).toEqual([]); // already at 0
+});
+
+test("slipClip refuses an image and a locked clip", () => {
+  expect(slipClip(sourced(undefined, "image"), "clip_main", 10).refusal).toBe("still");
+  expect(slipClip(sourced(200), "clip_locked", 10).refusal).toBe("locked");
+});
+
+test("a clip as long as its source cannot slip", () => {
+  // Final review 2026-11-09: slip says so in its own words, not the speed's.
+  expect(slipClip(sourced(120), "clip_main", 10).refusal).toBe("whole_source");
+});
+
+// Tier 3a: a roll moves the cut between two touching clips; the pair keeps its total length.
+const clipOf = (doc: EditDocumentV2, id: string) => doc.clips!.find((clip) => clip.clip_id === id)! as Clip & { source_from_frame: number };
+
+test("rollCut moves the cut and keeps the total", () => {
+  // a is 0 to 60 and b is 60 to 100 on Main video.
+  const doc = threeClips();
+  const edit = rollCut(doc, "a", "b", 75);
+  expect(shape(edit)).toEqual([
+    { kind: "trim_clip_end", clip_id: "a", end_frame: 75 },
+    { kind: "trim_clip_start", clip_id: "b", from_frame: 75 },
+  ]);
+  const after = applies(doc, edit);
+  expect([clipOf(after, "a").duration_in_frames, clipOf(after, "b").from_frame, clipOf(after, "b").duration_in_frames]).toEqual([75, 75, 25]);
+  expect(clipOf(after, "b").source_from_frame).toBe(15);
+});
+
+test("rollCut on 2x clips moves the right source by twice the frames", () => {
+  const doc = threeClips();
+  Object.assign(clipOf(doc, "a"), { speed: 2 });
+  Object.assign(clipOf(doc, "b"), { speed: 2, source_from_frame: 40 });
+  expect(clipOf(applies(doc, rollCut(doc, "a", "b", 75)), "b").source_from_frame).toBe(70);
+});
+
+test("rollCut refuses clips that do not touch, and a cut moved to either end", () => {
+  const doc = threeClips();
+  expect(rollCut(doc, "b", "c", 110).refusal).toBe("not_touching");
+  expect(rollCut(doc, "a", "b", 0).refusal).toBe("edge");
+  expect(rollCut(doc, "a", "b", 100).refusal).toBe("edge");
+});
+
+test("rollCut refuses a locked clip", () => {
+  const doc = threeClips();
+  Object.assign(clipOf(doc, "b"), { locked: true });
+  expect(rollCut(doc, "a", "b", 70).refusal).toBe("locked");
+});
+
+test("rollCut refuses a cut that is a scene boundary", () => {
+  const doc = threeClips();
+  doc.scenes = [
+    { ...doc.scenes[0]!, scene_id: "scene_a", start_frame: 0, duration_in_frames: 60, clip_ids: ["a"] },
+    { ...doc.scenes[0]!, scene_id: "scene_b", start_frame: 60, duration_in_frames: 90, clip_ids: ["b"] },
+  ];
+  Object.assign(clipOf(doc, "a"), { scene_id: "scene_a" });
+  Object.assign(clipOf(doc, "b"), { scene_id: "scene_b" });
+  expect(rollCut(doc, "a", "b", 70).refusal).toBe("scene_cut");
+});
+
+test("rollCut refuses a cut past either clip's source", () => {
+  const doc = threeClips();
+  // b starts at the head of its source, so the cut cannot move left of 60.
+  expect(rollCut(doc, "a", "b", 50).refusal).toBe("no_footage");
+  // a 70-frame source cannot feed a 75-frame a.
+  Object.assign(doc.asset_refs!.find((ref) => ref.asset_id === "asset_video")!, { duration_in_frames: 70 });
+  expect(rollCut(doc, "a", "b", 75).refusal).toBe("no_footage");
+});
+
+// Tier 3a: M adds a marker at the playhead.
+test("addMarker adds one marker at the frame", () => {
+  const edit = addMarker(timelineDocument(), 60);
+  expect(edit.operations.map((operation) => ({ ...operation, marker_id: "m", operation_id: "op" }))).toEqual([
+    { kind: "add_marker", operation_id: "op", marker_id: "m", frame: 60, label: "" },
+  ]);
+});
+
+test("addMarker refuses a frame that has one, and a 101st marker", () => {
+  const doc = timelineDocument();
+  doc.markers = [{ marker_id: "m1", frame: 60, label: "" }];
+  expect(addMarker(doc, 60).refusal).toBe("taken");
+  doc.markers = Array.from({ length: 100 }, (_, index) => ({ marker_id: `m${index}`, frame: index, label: "" }));
+  expect(addMarker(doc, 140).refusal).toBe("too_many");
+});
+
+// Final review 2026-11-09, Important 1: a copy has no scene, so one side of a cut may still have one.
+test("rollCut refuses a cut that would take one clip out of its scene", () => {
+  const doc = threeClips();
+  const scene = (scene_id: string, start_frame: number, duration_in_frames: number) => ({ ...doc.scenes[0]!, scene_id, start_frame, duration_in_frames, clip_ids: [] });
+  doc.scenes = [scene("scene_a", 0, 60), scene("scene_b", 60, 90)];
+  Object.assign(clipOf(doc, "a"), { scene_id: "scene_a" });
+  Object.assign(clipOf(doc, "b"), { scene_id: null, source_from_frame: 40 });
+  expect(rollCut(doc, "a", "b", 75).refusal).toBe("scene");
+  Object.assign(clipOf(doc, "a"), { scene_id: null });
+  Object.assign(clipOf(doc, "b"), { scene_id: "scene_b" });
+  expect(rollCut(doc, "a", "b", 50).refusal).toBe("scene");
 });

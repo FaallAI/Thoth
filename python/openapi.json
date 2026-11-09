@@ -268,6 +268,45 @@
         "title": "AddClipFromAsset",
         "type": "object"
       },
+      "AddMarker": {
+        "additionalProperties": false,
+        "properties": {
+          "frame": {
+            "minimum": 0.0,
+            "title": "Frame",
+            "type": "integer"
+          },
+          "kind": {
+            "const": "add_marker",
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "default": "",
+            "maxLength": 60,
+            "title": "Label",
+            "type": "string"
+          },
+          "marker_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Marker Id",
+            "type": "string"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "marker_id",
+          "frame"
+        ],
+        "title": "AddMarker",
+        "type": "object"
+      },
       "AddTextClip": {
         "additionalProperties": false,
         "description": "A Hook or Outro text over the overlay track, bound to no scene (Story mode, spec 8).",
@@ -1808,12 +1847,14 @@
                 "mapping": {
                   "add_caption_clip": "#/components/schemas/AddCaptionClip",
                   "add_clip_from_asset": "#/components/schemas/AddClipFromAsset",
+                  "add_marker": "#/components/schemas/AddMarker",
                   "add_text_clip": "#/components/schemas/AddTextClip",
                   "add_track": "#/components/schemas/AddTrack",
                   "duplicate_clip": "#/components/schemas/DuplicateClip",
                   "move_clip": "#/components/schemas/MoveClip",
                   "remove_clip": "#/components/schemas/RemoveClip",
                   "remove_empty_track": "#/components/schemas/RemoveEmptyTrack",
+                  "remove_marker": "#/components/schemas/RemoveMarker",
                   "reorder_scene": "#/components/schemas/ReorderScene",
                   "reorder_track": "#/components/schemas/ReorderTrack",
                   "replace_clip_asset": "#/components/schemas/ReplaceClipAsset",
@@ -1830,13 +1871,16 @@
                   "set_clip_locked": "#/components/schemas/SetClipLocked",
                   "set_clip_motion": "#/components/schemas/SetClipMotion",
                   "set_clip_position": "#/components/schemas/SetClipPosition",
+                  "set_clip_speed": "#/components/schemas/SetClipSpeed",
                   "set_clip_volume": "#/components/schemas/SetClipVolume",
+                  "set_marker": "#/components/schemas/SetMarker",
                   "set_ownership": "#/components/schemas/SetOwnership",
                   "set_scene_duration": "#/components/schemas/SetSceneDuration",
                   "set_text_place": "#/components/schemas/SetTextPlace",
                   "set_track_locked": "#/components/schemas/SetTrackLocked",
                   "set_track_muted": "#/components/schemas/SetTrackMuted",
                   "set_track_visibility": "#/components/schemas/SetTrackVisibility",
+                  "slip_clip": "#/components/schemas/SlipClip",
                   "split_clip": "#/components/schemas/SplitClip",
                   "trim_clip_end": "#/components/schemas/TrimClipEnd",
                   "trim_clip_start": "#/components/schemas/TrimClipStart"
@@ -1936,6 +1980,21 @@
                 },
                 {
                   "$ref": "#/components/schemas/SetClipFades"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipSpeed"
+                },
+                {
+                  "$ref": "#/components/schemas/SlipClip"
+                },
+                {
+                  "$ref": "#/components/schemas/AddMarker"
+                },
+                {
+                  "$ref": "#/components/schemas/SetMarker"
+                },
+                {
+                  "$ref": "#/components/schemas/RemoveMarker"
                 },
                 {
                   "$ref": "#/components/schemas/SetTrackVisibility"
@@ -2085,6 +2144,14 @@
             "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
             "title": "Document Id",
             "type": "string"
+          },
+          "markers": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineMarker"
+            },
+            "maxItems": 100,
+            "title": "Markers",
+            "type": "array"
           },
           "project_id": {
             "pattern": "^(?:[A-Za-z][A-Za-z0-9_-]{0,127}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$",
@@ -4495,6 +4562,33 @@
         "title": "RemoveEmptyTrack",
         "type": "object"
       },
+      "RemoveMarker": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "remove_marker",
+            "title": "Kind",
+            "type": "string"
+          },
+          "marker_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Marker Id",
+            "type": "string"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "marker_id"
+        ],
+        "title": "RemoveMarker",
+        "type": "object"
+      },
       "RenderCapability": {
         "additionalProperties": false,
         "description": "Whether this installation can start a render right now, and why not.",
@@ -6120,6 +6214,50 @@
         "title": "SetClipPosition",
         "type": "object"
       },
+      "SetClipSpeed": {
+        "additionalProperties": false,
+        "description": "A video or audio clip's speed; its place and length stay (Tier 3a).",
+        "properties": {
+          "clip_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "set_clip_speed",
+            "title": "Kind",
+            "type": "string"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "speed": {
+            "enum": [
+              0.25,
+              0.5,
+              0.75,
+              1.0,
+              1.25,
+              1.5,
+              2.0,
+              3.0,
+              4.0
+            ],
+            "title": "Speed",
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "clip_id",
+          "speed"
+        ],
+        "title": "SetClipSpeed",
+        "type": "object"
+      },
       "SetClipVolume": {
         "additionalProperties": false,
         "properties": {
@@ -6152,6 +6290,45 @@
           "volume"
         ],
         "title": "SetClipVolume",
+        "type": "object"
+      },
+      "SetMarker": {
+        "additionalProperties": false,
+        "properties": {
+          "frame": {
+            "minimum": 0.0,
+            "title": "Frame",
+            "type": "integer"
+          },
+          "kind": {
+            "const": "set_marker",
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 60,
+            "title": "Label",
+            "type": "string"
+          },
+          "marker_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Marker Id",
+            "type": "string"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "marker_id",
+          "frame",
+          "label"
+        ],
+        "title": "SetMarker",
         "type": "object"
       },
       "SetOwnership": {
@@ -6435,6 +6612,40 @@
           "labels"
         ],
         "title": "SfxSummary",
+        "type": "object"
+      },
+      "SlipClip": {
+        "additionalProperties": false,
+        "description": "Move the content inside a video or audio clip; the clip keeps its place (Tier 3a).",
+        "properties": {
+          "clip_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "slip_clip",
+            "title": "Kind",
+            "type": "string"
+          },
+          "operation_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "source_from_frame": {
+            "minimum": 0.0,
+            "title": "Source From Frame",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "operation_id",
+          "clip_id",
+          "source_from_frame"
+        ],
+        "title": "SlipClip",
         "type": "object"
       },
       "SourceAccount": {
@@ -7130,12 +7341,14 @@
                 "mapping": {
                   "add_caption_clip": "#/components/schemas/AddCaptionClip",
                   "add_clip_from_asset": "#/components/schemas/AddClipFromAsset",
+                  "add_marker": "#/components/schemas/AddMarker",
                   "add_text_clip": "#/components/schemas/AddTextClip",
                   "add_track": "#/components/schemas/AddTrack",
                   "duplicate_clip": "#/components/schemas/DuplicateClip",
                   "move_clip": "#/components/schemas/MoveClip",
                   "remove_clip": "#/components/schemas/RemoveClip",
                   "remove_empty_track": "#/components/schemas/RemoveEmptyTrack",
+                  "remove_marker": "#/components/schemas/RemoveMarker",
                   "reorder_scene": "#/components/schemas/ReorderScene",
                   "reorder_track": "#/components/schemas/ReorderTrack",
                   "replace_clip_asset": "#/components/schemas/ReplaceClipAsset",
@@ -7152,13 +7365,16 @@
                   "set_clip_locked": "#/components/schemas/SetClipLocked",
                   "set_clip_motion": "#/components/schemas/SetClipMotion",
                   "set_clip_position": "#/components/schemas/SetClipPosition",
+                  "set_clip_speed": "#/components/schemas/SetClipSpeed",
                   "set_clip_volume": "#/components/schemas/SetClipVolume",
+                  "set_marker": "#/components/schemas/SetMarker",
                   "set_ownership": "#/components/schemas/SetOwnership",
                   "set_scene_duration": "#/components/schemas/SetSceneDuration",
                   "set_text_place": "#/components/schemas/SetTextPlace",
                   "set_track_locked": "#/components/schemas/SetTrackLocked",
                   "set_track_muted": "#/components/schemas/SetTrackMuted",
                   "set_track_visibility": "#/components/schemas/SetTrackVisibility",
+                  "slip_clip": "#/components/schemas/SlipClip",
                   "split_clip": "#/components/schemas/SplitClip",
                   "trim_clip_end": "#/components/schemas/TrimClipEnd",
                   "trim_clip_start": "#/components/schemas/TrimClipStart"
@@ -7258,6 +7474,21 @@
                 },
                 {
                   "$ref": "#/components/schemas/SetClipFades"
+                },
+                {
+                  "$ref": "#/components/schemas/SetClipSpeed"
+                },
+                {
+                  "$ref": "#/components/schemas/SlipClip"
+                },
+                {
+                  "$ref": "#/components/schemas/AddMarker"
+                },
+                {
+                  "$ref": "#/components/schemas/SetMarker"
+                },
+                {
+                  "$ref": "#/components/schemas/RemoveMarker"
                 },
                 {
                   "$ref": "#/components/schemas/SetTrackVisibility"
@@ -8422,6 +8653,22 @@
             ],
             "title": "Source Role"
           },
+          "speed": {
+            "default": 1.0,
+            "enum": [
+              0.25,
+              0.5,
+              0.75,
+              1.0,
+              1.25,
+              1.5,
+              2.0,
+              3.0,
+              4.0
+            ],
+            "title": "Speed",
+            "type": "number"
+          },
           "track_id": {
             "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
             "title": "Track Id",
@@ -8566,6 +8813,34 @@
           "cues"
         ],
         "title": "TimelineCaptionClip",
+        "type": "object"
+      },
+      "TimelineMarker": {
+        "additionalProperties": false,
+        "description": "A named point on the ruler (Tier 3a); it is never drawn into the video.",
+        "properties": {
+          "frame": {
+            "minimum": 0.0,
+            "title": "Frame",
+            "type": "integer"
+          },
+          "label": {
+            "default": "",
+            "maxLength": 60,
+            "title": "Label",
+            "type": "string"
+          },
+          "marker_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Marker Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "marker_id",
+          "frame"
+        ],
+        "title": "TimelineMarker",
         "type": "object"
       },
       "TimelineOverlayClip": {
@@ -9025,6 +9300,22 @@
               }
             ],
             "title": "Source Role"
+          },
+          "speed": {
+            "default": 1.0,
+            "enum": [
+              0.25,
+              0.5,
+              0.75,
+              1.0,
+              1.25,
+              1.5,
+              2.0,
+              3.0,
+              4.0
+            ],
+            "title": "Speed",
+            "type": "number"
           },
           "track_id": {
             "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",

@@ -27,16 +27,19 @@ from thoth_control_plane.domain.edit_document_v2 import (
     FadeFrames,
     FitMode,
     Motion,
+    PlaybackSpeed,
     Position,
     StoryRole,
     TimelineAudioClip,
     TimelineCaptionClip,
     TimelineClip,
+    TimelineMarker,
     TimelineTextClip,
     TimelineTrack,
     TimelineVideoClip,
     TrackKind,
     Volume,
+    speed_percent,
 )
 from thoth_control_plane.domain.edit_documents import (
     BodyText,
@@ -290,6 +293,49 @@ class SetClipFades(StrictModel):
     fade_out_frames: FadeFrames
 
 
+class SetClipSpeed(StrictModel):
+    """A video or audio clip's speed; its place and length stay (Tier 3a)."""
+
+    kind: Literal["set_clip_speed"]
+    operation_id: OpaqueId
+    clip_id: OpaqueId
+    speed: PlaybackSpeed
+
+
+class SlipClip(StrictModel):
+    """Move the content inside a video or audio clip; the clip keeps its place (Tier 3a)."""
+
+    kind: Literal["slip_clip"]
+    operation_id: OpaqueId
+    clip_id: OpaqueId
+    source_from_frame: FrameStart
+
+
+MarkerLabel = Annotated[str, Field(max_length=60)]
+
+
+class AddMarker(StrictModel):
+    kind: Literal["add_marker"]
+    operation_id: OpaqueId
+    marker_id: OpaqueId
+    frame: FrameStart
+    label: MarkerLabel = ""
+
+
+class SetMarker(StrictModel):
+    kind: Literal["set_marker"]
+    operation_id: OpaqueId
+    marker_id: OpaqueId
+    frame: FrameStart
+    label: MarkerLabel
+
+
+class RemoveMarker(StrictModel):
+    kind: Literal["remove_marker"]
+    operation_id: OpaqueId
+    marker_id: OpaqueId
+
+
 class SetTrackVisibility(StrictModel):
     kind: Literal["set_track_visibility"]
     operation_id: OpaqueId
@@ -340,6 +386,11 @@ TimelineOperation: TypeAlias = Annotated[
     | SetClipFit
     | SetClipCrop
     | SetClipFades
+    | SetClipSpeed
+    | SlipClip
+    | AddMarker
+    | SetMarker
+    | RemoveMarker
     | SetTrackVisibility
     | SetTrackMuted
     | SetTrackLocked,
@@ -424,6 +475,24 @@ def apply_timeline_operation(
             _unlocked_video_clip(document, operation.clip_id).crop = operation.crop
         case SetClipFades():
             _set_clip_fades(document, operation)
+        case SetClipSpeed():
+            _set_clip_speed(document, operation)
+        case SlipClip():
+            _slip_clip(document, operation)
+        case AddMarker():
+            if any(marker.marker_id == operation.marker_id for marker in document.markers):
+                raise ValueError("operation reuses an existing marker ID")
+            document.markers.append(
+                TimelineMarker(
+                    marker_id=operation.marker_id, frame=operation.frame, label=operation.label
+                )
+            )
+        case SetMarker():
+            marker = _marker(document, operation.marker_id)
+            marker.frame = operation.frame
+            marker.label = operation.label
+        case RemoveMarker():
+            document.markers.remove(_marker(document, operation.marker_id))
         case SetTrackVisibility():
             _unlocked_track(document, operation.track_id).hidden = operation.hidden
         case SetTrackMuted():
@@ -664,8 +733,9 @@ def _replace_clip_asset(
     if asset.kind == "video":
         if asset.duration_in_frames is None:
             raise ValueError("video asset duration is unknown")
-        # Only this clip shortens; its neighbours keep their frames.
-        clip.duration_in_frames = min(clip.duration_in_frames, asset.duration_in_frames)
+        # Only this clip shortens; its neighbours keep their frames. The speed stays (Tier 3a).
+        fits = asset.duration_in_frames * 100 // speed_percent(clip)
+        clip.duration_in_frames = max(1, min(clip.duration_in_frames, fits))
     clip.asset_id = asset.asset_id
     clip.source_from_frame = 0
     # Crop and blur regions are fractions and frames of the old medium; they do not carry over.
@@ -742,9 +812,11 @@ def _trim_clip_start(document: EditDocumentV2, operation: TrimClipStart) -> None
     delta = operation.from_frame - clip.from_frame
     source_from_frame = getattr(clip, "source_from_frame", None)
     if source_from_frame is not None:
-        if source_from_frame + delta < 0:
+        # A faster clip spends its source faster (Tier 3a); offsets round down on both sides.
+        moved = delta * speed_percent(clip) // 100
+        if source_from_frame + moved < 0:
             raise ValueError("trim cannot start before the source")
-        clip.source_from_frame = source_from_frame + delta
+        clip.source_from_frame = source_from_frame + moved
     clip.from_frame = operation.from_frame
     clip.duration_in_frames = end_frame - operation.from_frame
 
@@ -774,7 +846,7 @@ def _split_clip(document: EditDocumentV2, operation: SplitClip) -> None:
     right.from_frame = operation.split_frame
     right.duration_in_frames = end_frame - operation.split_frame
     if getattr(right, "source_from_frame", None) is not None:
-        right.source_from_frame += left_duration
+        right.source_from_frame += left_duration * speed_percent(clip) // 100
 
     track = _track(document, clip.track_id)
     track.clip_ids[track.clip_ids.index(clip.clip_id)] = operation.left_clip_id
@@ -800,6 +872,8 @@ def _duplicate_clip(document: EditDocumentV2, operation: DuplicateClip) -> None:
     copy.track_id = track.track_id
     copy.from_frame = operation.from_frame
     copy.scene_id = None
+    # A copy is footage, not a second Hook or Outro (operator, 2026-11-09).
+    copy.source_role = None
     copy.locked = False
     document.clips.append(copy)
     track.clip_ids.append(copy.clip_id)
@@ -813,6 +887,48 @@ def _set_clip_fades(document: EditDocumentV2, operation: SetClipFades) -> None:
         raise ValueError("fades must stay inside their clip")
     clip.fade_in_frames = operation.fade_in_frames
     clip.fade_out_frames = operation.fade_out_frames
+
+
+def _set_clip_speed(document: EditDocumentV2, operation: SetClipSpeed) -> None:
+    clip = _unlocked_clip(document, operation.clip_id)
+    if not isinstance(clip, TimelineAudioClip | TimelineVideoClip):
+        raise ValueError("speed applies only to video and audio clips")
+    asset = next((ref for ref in document.asset_refs if ref.asset_id == clip.asset_id), None)
+    if asset is not None and asset.kind == "image":
+        raise ValueError("an image has no speed")
+    clip.speed = operation.speed
+    clip.ownership = "user_edited"
+
+
+def _slip_clip(document: EditDocumentV2, operation: SlipClip) -> None:
+    clip = _unlocked_clip(document, operation.clip_id)
+    if not isinstance(clip, TimelineAudioClip | TimelineVideoClip):
+        raise ValueError("slip applies only to video and audio clips")
+    asset = next((ref for ref in document.asset_refs if ref.asset_id == clip.asset_id), None)
+    if asset is not None and asset.kind == "image":
+        raise ValueError("an image has no source time")
+    # Validation skips held clips, so a held clip's start is checked here (final review 2026-11-09).
+    held = isinstance(clip, TimelineVideoClip) and clip.hold_after_source
+    length = asset.duration_in_frames if asset is not None else None
+    if held and length is not None and operation.source_from_frame >= length:
+        raise ValueError("a held clip must start inside its source")
+    # The document's validation refuses a start whose span runs past the source.
+    clip.source_from_frame = operation.source_from_frame
+    clip.ownership = "user_edited"
+
+
+def _marker(document: EditDocumentV2, marker_id: str) -> TimelineMarker:
+    marker = next((entry for entry in document.markers if entry.marker_id == marker_id), None)
+    if marker is None:
+        raise ValueError("operation references an unknown marker")
+    return marker
+
+
+def fit_markers(document: EditDocumentV2) -> None:
+    """Move every marker past a shortened document's end onto its last frame."""
+    last = document.canvas.duration_in_frames - 1
+    for marker in document.markers:
+        marker.frame = min(marker.frame, last)
 
 
 def fit_fades(document: EditDocumentV2) -> None:
