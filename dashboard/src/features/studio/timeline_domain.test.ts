@@ -1143,3 +1143,11 @@ test("fitMarkers moves a marker past the end onto the last frame", () => {
   fitMarkers(doc);
   expect(doc.markers.map((marker) => marker.frame)).toEqual([10, doc.canvas.duration_in_frames - 1]);
 });
+
+// Final review 2026-11-09, Important 3: a held clip still starts inside its media.
+test("slip_clip refuses a held clip that would start past its media", () => {
+  const doc = fixtureDocument();
+  Object.assign(doc.asset_refs![0]!, { duration_in_frames: 400 });
+  Object.assign(doc.clips!.find((clip) => clip.clip_id === "clip_main")!, { hold_after_source: true });
+  expect(() => applied(doc, { kind: "slip_clip", clip_id: "clip_main", source_from_frame: 400 })).toThrow("a held clip must start inside its source");
+});

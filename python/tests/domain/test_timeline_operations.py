@@ -1726,3 +1726,13 @@ def test_an_edit_that_shortens_the_document_moves_late_markers_to_the_last_frame
     shorter = apply_edit_operations(marked, [resize("scene_001", 30)])
     assert shorter.canvas.duration_in_frames < draft.canvas.duration_in_frames
     assert [m.frame for m in shorter.markers] == [shorter.canvas.duration_in_frames - 1]
+
+
+def test_slip_refuses_a_held_clip_that_would_start_past_its_media() -> None:
+    # Final review 2026-11-09, Important 3: validation skips held clips, so the slip checks.
+    payload = document_v2_payload()
+    next(c for c in payload["clips"] if c["clip_id"] == "clip_main")["hold_after_source"] = True
+    held = EditDocumentV2.model_validate(payload)
+    apply_edit_operations(held, [op("slip_clip", clip_id="clip_main", source_from_frame=899)])
+    with pytest.raises(ValueError, match="a held clip must start inside its source"):
+        apply_edit_operations(held, [op("slip_clip", clip_id="clip_main", source_from_frame=900)])

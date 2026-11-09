@@ -907,6 +907,11 @@ def _slip_clip(document: EditDocumentV2, operation: SlipClip) -> None:
     asset = next((ref for ref in document.asset_refs if ref.asset_id == clip.asset_id), None)
     if asset is not None and asset.kind == "image":
         raise ValueError("an image has no source time")
+    # Validation skips held clips, so a held clip's start is checked here (final review 2026-11-09).
+    held = isinstance(clip, TimelineVideoClip) and clip.hold_after_source
+    length = asset.duration_in_frames if asset is not None else None
+    if held and length is not None and operation.source_from_frame >= length:
+        raise ValueError("a held clip must start inside its source")
     # The document's validation refuses a start whose span runs past the source.
     clip.source_from_frame = operation.source_from_frame
     clip.ownership = "user_edited"

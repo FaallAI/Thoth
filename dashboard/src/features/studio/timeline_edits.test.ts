@@ -406,7 +406,8 @@ test("slipClip refuses an image and a locked clip", () => {
 });
 
 test("a clip as long as its source cannot slip", () => {
-  expect(slipClip(sourced(120), "clip_main", 10).refusal).toBe("no_source");
+  // Final review 2026-11-09: slip says so in its own words, not the speed's.
+  expect(slipClip(sourced(120), "clip_main", 10).refusal).toBe("whole_source");
 });
 
 // Tier 3a: a roll moves the cut between two touching clips; the pair keeps its total length.
@@ -459,10 +460,10 @@ test("rollCut refuses a cut that is a scene boundary", () => {
 test("rollCut refuses a cut past either clip's source", () => {
   const doc = threeClips();
   // b starts at the head of its source, so the cut cannot move left of 60.
-  expect(rollCut(doc, "a", "b", 50).refusal).toBe("no_source");
+  expect(rollCut(doc, "a", "b", 50).refusal).toBe("no_footage");
   // a 70-frame source cannot feed a 75-frame a.
   Object.assign(doc.asset_refs!.find((ref) => ref.asset_id === "asset_video")!, { duration_in_frames: 70 });
-  expect(rollCut(doc, "a", "b", 75).refusal).toBe("no_source");
+  expect(rollCut(doc, "a", "b", 75).refusal).toBe("no_footage");
 });
 
 // Tier 3a: M adds a marker at the playhead.
@@ -479,4 +480,17 @@ test("addMarker refuses a frame that has one, and a 101st marker", () => {
   expect(addMarker(doc, 60).refusal).toBe("taken");
   doc.markers = Array.from({ length: 100 }, (_, index) => ({ marker_id: `m${index}`, frame: index, label: "" }));
   expect(addMarker(doc, 140).refusal).toBe("too_many");
+});
+
+// Final review 2026-11-09, Important 1: a copy has no scene, so one side of a cut may still have one.
+test("rollCut refuses a cut that would take one clip out of its scene", () => {
+  const doc = threeClips();
+  const scene = (scene_id: string, start_frame: number, duration_in_frames: number) => ({ ...doc.scenes[0]!, scene_id, start_frame, duration_in_frames, clip_ids: [] });
+  doc.scenes = [scene("scene_a", 0, 60), scene("scene_b", 60, 90)];
+  Object.assign(clipOf(doc, "a"), { scene_id: "scene_a" });
+  Object.assign(clipOf(doc, "b"), { scene_id: null, source_from_frame: 40 });
+  expect(rollCut(doc, "a", "b", 75).refusal).toBe("scene");
+  Object.assign(clipOf(doc, "a"), { scene_id: null });
+  Object.assign(clipOf(doc, "b"), { scene_id: "scene_b" });
+  expect(rollCut(doc, "a", "b", 50).refusal).toBe("scene");
 });

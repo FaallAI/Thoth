@@ -1010,7 +1010,7 @@ test("a refused roll says why and commits nothing", () => {
   fireEvent.pointerMove(window, { clientX: 50 });
   fireEvent.pointerUp(window, { clientX: 50 });
   expect(actions.some((action) => action.type === "commit_operations" || action.type === "commit_timeline_operation")).toBe(false);
-  expect(screen.getByRole("status").textContent).toContain("The source is too short");
+  expect(screen.getByRole("status").textContent).toContain("The source has no more footage there");
 });
 
 test("a roll across a scene boundary says to resize the scene in Story", () => {
@@ -1130,4 +1130,12 @@ test("on a phone there are no trim handles and a drag commits nothing", () => {
 test("the phone banner says how to edit here", () => {
   mountPhone();
   expect(document.body.textContent).toContain("Tap a clip to select it. Press and hold for its menu. Drag and trim on a wider screen.");
+});
+
+// Final review 2026-11-09: phones long-press markers now, so a marker is a 24 px target.
+test("a marker is at least a 24 px target", () => {
+  withMarkers([{ marker_id: "m1", frame: 60, label: "" }]);
+  const marker = screen.getByRole("button", { name: "Marker 1 at 0:02.0" });
+  expect(marker.className).toContain("h-6");
+  expect(marker.className).toContain("w-6");
 });

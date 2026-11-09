@@ -25,7 +25,9 @@ export type Refusal =
   | "not_touching"
   | "scene_cut"
   | "taken"
-  | "too_many";
+  | "too_many"
+  | "whole_source"
+  | "no_footage";
 /** Something a successful edit still tells the person (operator, 2026-11-09). */
 export type Notice = "hidden_track";
 export type Edit = { operations: EditDocumentOperation[]; refusal?: Refusal; notice?: Notice };
@@ -467,7 +469,7 @@ export function slipRange(doc: EditDocumentV2, clip: Clip): { max: number } | Re
   if (length == null) return { max: Number.POSITIVE_INFINITY };
   // A clip that holds its last frame may start anywhere inside its source.
   const max = clip.kind === "video" && clip.hold_after_source ? length - 1 : length - sourceSpan(clip);
-  return max > 0 ? { max } : "no_source";
+  return max > 0 ? { max } : "whole_source";
 }
 
 /** Slip a clip so its source starts at `sourceFrom`, clamped to what the source holds. */
@@ -496,16 +498,22 @@ export function rollCut(doc: EditDocumentV2, leftId: string, rightId: string, fr
   // A clip must stay inside its scene, so a cut between two scenes is not a roll.
   if (left.scene_id && right.scene_id && left.scene_id !== right.scene_id) return refuse("scene_cut");
   if (frame <= left.from_frame || frame >= endOf(right)) return refuse("edge");
+  // A copy has no scene, so one side may still have one: that clip stays inside it (final review 2026-11-09).
+  const sceneOf = (clip: Clip) => doc.scenes.find((scene) => scene.scene_id === clip.scene_id);
+  const leftScene = left.scene_id ? sceneOf(left) : undefined;
+  const rightScene = right.scene_id ? sceneOf(right) : undefined;
+  if (leftScene && frame > leftScene.start_frame + leftScene.duration_in_frames) return refuse("scene");
+  if (rightScene && frame < rightScene.start_frame) return refuse("scene");
   if (frame === right.from_frame) return none;
   // The left clip plays further into its source; the right one starts earlier or later in its own.
   if ("source_from_frame" in left && !(left.kind === "video" && left.hold_after_source)) {
     const length = doc.asset_refs?.find((ref) => ref.asset_id === left.asset_id)?.duration_in_frames;
     const span = sourceSpan({ duration_in_frames: frame - left.from_frame, speed: left.speed });
-    if (length != null && left.source_from_frame + span > length) return refuse("no_source");
+    if (length != null && left.source_from_frame + span > length) return refuse("no_footage");
   }
   if ("source_from_frame" in right) {
     const moved = Math.floor(((frame - right.from_frame) * speedPercent(right)) / 100);
-    if (right.source_from_frame + moved < 0) return refuse("no_source");
+    if (right.source_from_frame + moved < 0) return refuse("no_footage");
   }
   return {
     operations: [

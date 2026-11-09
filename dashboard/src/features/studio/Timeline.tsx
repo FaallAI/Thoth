@@ -744,11 +744,14 @@ export function Timeline({
                       type="button"
                       aria-label={t("studio.marker.at", { name, time: formatTimecode(marker.frame, fps) })}
                       title={name}
-                      className="pointer-events-auto absolute top-0 h-3 w-3 -translate-x-1/2 rotate-45 rounded-[2px] bg-copper focus-visible:outline-2 focus-visible:outline-copper"
+                      // A 24 px target around a small diamond: phones long-press it (final review 2026-11-09).
+                      className="pointer-events-auto absolute top-0 grid h-6 w-6 -translate-x-1/2 place-items-center rounded-sm focus-visible:outline-2 focus-visible:outline-copper"
                       style={{ left: `${framesToPixels(marker.frame, state.zoom)}px` }}
                       onClick={() => seek(marker.frame)}
                       {...menu.bind(() => markerMenu(menuContext, marker, { onRename: () => setRenaming(marker.marker_id) }))}
-                    />
+                    >
+                      <span aria-hidden="true" className="h-3 w-3 rotate-45 rounded-[2px] bg-copper" />
+                    </button>
                   );
                 })}
               </div>

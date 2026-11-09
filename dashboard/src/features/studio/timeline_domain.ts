@@ -448,6 +448,10 @@ export function applyTimelineOperation(
       if (clip.kind !== "video" && clip.kind !== "audio") throw new Error("slip applies only to video and audio clips");
       const asset = next.asset_refs?.find((ref) => ref.asset_id === clip.asset_id);
       if (asset?.kind === "image") throw new Error("an image has no source time");
+      const held = clip.kind === "video" && clip.hold_after_source === true;
+      if (held && asset?.duration_in_frames != null && operation.source_from_frame >= asset.duration_in_frames) {
+        throw new Error("a held clip must start inside its source");
+      }
       clip.source_from_frame = operation.source_from_frame;
       clip.ownership = "user_edited";
       break;
