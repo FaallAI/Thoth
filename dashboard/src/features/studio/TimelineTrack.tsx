@@ -47,6 +47,8 @@ type Props = {
   labelOf?: (clip: NonNullable<EditDocumentV2["clips"]>[number]) => string;
   /** An asset's filmstrip or peaks (Tier 3b). */
   glanceOf?: (assetId: string) => AssetGlance | undefined;
+  /** The draft's frame rate, so a glance is placed in seconds. */
+  fps?: number;
   readOnly?: boolean;
   /** The track's plain name (spec 2026-11-08 §5.1); absent, its stored label. */
   name?: string;
@@ -88,6 +90,7 @@ export function TimelineTrack({
   onNudge,
   labelOf,
   glanceOf,
+  fps,
   readOnly = false,
   name,
   onDropAsset,
@@ -197,6 +200,7 @@ export function TimelineTrack({
             onNudge={(frames) => onNudge(clip.clip_id, frames)}
             name={labelOf?.(clip)}
             glance={"asset_id" in clip ? glanceOf?.(clip.asset_id) : undefined}
+            fps={fps}
             readOnly={readOnly}
             menu={clipMenu?.(clip)}
           />

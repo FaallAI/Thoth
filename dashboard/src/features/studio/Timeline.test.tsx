@@ -1139,3 +1139,34 @@ test("a marker is at least a 24 px target", () => {
   expect(marker.className).toContain("h-6");
   expect(marker.className).toContain("w-6");
 });
+
+// Tier 3b: clips show what they hold.
+const VIDEO_GLANCE = {
+  asset_id: "asset_video",
+  strip: { image: "data:image/jpeg;base64,AAAA", frame_width: 128, frame_height: 72, frames: 5, seconds_per_frame: 1 },
+  peaks: null,
+};
+const AUDIO_GLANCE = { asset_id: "asset_music", strip: null, peaks: { seconds_per_peak: 0.1, values: [10, 60, 30] } };
+function mountWithGlances(glanceOf?: (assetId: string) => typeof VIDEO_GLANCE | typeof AUDIO_GLANCE | undefined, doc = timelineDocument()) {
+  render(<Timeline state={createEditorState(doc)} dispatch={() => {}} onPlay={() => {}} onPause={() => {}} glanceOf={glanceOf as never} />);
+}
+
+test("video clips show their filmstrip and audio clips their waveform", () => {
+  mountWithGlances((assetId) => (assetId === "asset_video" ? VIDEO_GLANCE : assetId === "asset_music" ? AUDIO_GLANCE : undefined));
+  const strips = screen.getAllByTestId("clip-filmstrip");
+  expect(strips.length).toBe(2);
+  expect(strips[0]!.innerHTML).toContain("data:image/jpeg;base64,AAAA");
+  expect(screen.getAllByTestId("clip-waveform").length).toBe(1);
+});
+
+test("without a glance a clip draws as before", () => {
+  mountWithGlances(undefined);
+  expect(screen.queryByTestId("clip-filmstrip")).toBeNull();
+  expect(screen.queryByTestId("clip-waveform")).toBeNull();
+});
+
+test("a text clip never shows a filmstrip or a waveform", () => {
+  mountWithGlances(() => VIDEO_GLANCE, textDocument());
+  const text = screen.getByRole("button", { name: /^Overlay clip/ });
+  expect(text.querySelector("[data-testid='clip-filmstrip'], [data-testid='clip-waveform']")).toBeNull();
+});

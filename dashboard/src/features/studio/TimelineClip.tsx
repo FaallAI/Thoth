@@ -5,6 +5,7 @@ import type { AssetGlance, EditDocumentV2 } from "@/api/control-plane";
 import type { MenuHandlers } from "@/components/ContextMenu";
 import { useLocale, type LocaleState } from "@/lib/locale";
 import { clipLabelSource, framesToPixels } from "./timeline_domain";
+import { glanceWindow, peakSlice, stripTiles } from "./clip_glance";
 
 /** Alt turns a body drag into a slip and a handle drag into a roll (Tier 3a). */
 export type GestureMode = "move" | "trim_start" | "trim_end" | "slip" | "roll_start" | "roll_end";
@@ -28,8 +29,10 @@ type Props = {
   onNudge: (frames: number) => void;
   /** The clip's human name (spec 2026-11-01); absent, the Timeline's own words for it. */
   name?: string;
-  /** The asset's filmstrip or peaks (Tier 3b); drawn in Task 5. */
+  /** The asset's filmstrip or peaks (Tier 3b); a clip without one draws plain. */
   glance?: AssetGlance;
+  /** The draft's frame rate, to place the glance in seconds. */
+  fps?: number;
   /** A view-only timeline: no trim handles, no drag. */
   readOnly?: boolean;
   /** The clip's right-click menu (spec 2026-11-08 §5.1). */
@@ -57,6 +60,52 @@ export function clipLabel(t: LocaleState["t"], clip: Clip): string {
     : t(`studio.inventory.role.${source.role}`);
 }
 
+/** A clip's inner height in pixels (h-9 less its border), the filmstrip's height. */
+const GLANCE_HEIGHT = 34;
+
+/** Behind the label: the frames or the sound of the stretch of source the clip plays. */
+function GlanceLayer({ clip, glance, widthPx, fps }: { clip: Clip; glance: AssetGlance; widthPx: number; fps: number }) {
+  if (!("source_from_frame" in clip) || widthPx <= 0) return null;
+  const window = glanceWindow(clip, fps);
+  if ((clip.kind === "video") && glance.strip) {
+    const strip = glance.strip;
+    return (
+      <div data-testid="clip-filmstrip" aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden opacity-70">
+        {stripTiles(strip, window, widthPx, GLANCE_HEIGHT).map((tile) => (
+          <div
+            key={tile.left}
+            className="absolute top-0 h-full bg-no-repeat"
+            style={{
+              left: `${tile.left}px`,
+              width: `${tile.width}px`,
+              backgroundImage: `url("${strip.image}")`,
+              backgroundSize: `${strip.frames * Math.round((strip.frame_width * GLANCE_HEIGHT) / strip.frame_height)}px ${GLANCE_HEIGHT}px`,
+              backgroundPosition: `-${tile.frame * Math.round((strip.frame_width * GLANCE_HEIGHT) / strip.frame_height)}px 0`,
+            }}
+          />
+        ))}
+      </div>
+    );
+  }
+  if (clip.kind === "audio" && glance.peaks) {
+    const values = peakSlice(glance.peaks, window);
+    if (!values.length) return null;
+    const path = values.map((value, index) => `M${index + 0.5} ${50 - value / 2}V${50 + value / 2}`).join("");
+    return (
+      <svg
+        data-testid="clip-waveform"
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 h-full w-full text-copper/50"
+        viewBox={`0 0 ${values.length} 100`}
+        preserveAspectRatio="none"
+      >
+        <path d={path} stroke="currentColor" strokeWidth={0.8} vectorEffect="non-scaling-stroke" />
+      </svg>
+    );
+  }
+  return null;
+}
+
 const withModifier = (event: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) =>
   event.shiftKey || event.ctrlKey || event.metaKey;
 
@@ -74,6 +123,8 @@ export function TimelineClip({
   onGestureStart,
   onNudge,
   name: given,
+  glance,
+  fps = 30,
   readOnly = false,
   menu,
 }: Props) {
@@ -101,7 +152,7 @@ export function TimelineClip({
         id={`timeline-clip-${clip.clip_id}`}
         aria-label={name}
         aria-pressed={selected}
-        className={`flex h-full w-full items-start gap-1 overflow-hidden rounded-md border px-2 py-1 text-left text-xs text-ink transition-colors focus-visible:outline-2 focus-visible:outline-copper ${FILL[trackKind]} ${
+        className={`relative flex h-full w-full items-start gap-1 overflow-hidden rounded-md border px-2 py-1 text-left text-xs text-ink transition-colors focus-visible:outline-2 focus-visible:outline-copper ${FILL[trackKind]} ${
           selected ? "border-2 border-copper" : "border-hairline hover:border-faint"
         }`}
         // A pointer press already selected; a click from the keyboard (detail 0) selects here.
@@ -131,8 +182,9 @@ export function TimelineClip({
           onNudge(step);
         }}
       >
-        {locked ? <Lock aria-hidden="true" size={11} className="mt-0.5 shrink-0 text-faint" /> : null}
-        <span className="truncate rounded bg-well/70 px-1" title={text}>{text}</span>
+        {glance ? <GlanceLayer clip={clip} glance={glance} widthPx={framesToPixels(clip.duration_in_frames, zoom)} fps={fps} /> : null}
+        {locked ? <Lock aria-hidden="true" size={11} className="relative mt-0.5 shrink-0 text-faint" /> : null}
+        <span className="relative truncate rounded bg-well/70 px-1" title={text}>{text}</span>
       </button>
       {readOnly ? null : (
         <>

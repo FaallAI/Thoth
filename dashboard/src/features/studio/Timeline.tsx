@@ -776,6 +776,7 @@ export function Timeline({
               selectedClipIds={selectedIds}
               labelOf={labelOf}
               glanceOf={glanceOf}
+              fps={timeline.canvas.fps}
               readOnly={readOnly}
               name={trackName(t, timeline, lane.track)}
               accessibleLabel={trackLabel(timeline, lane.track)}
