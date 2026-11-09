@@ -56,6 +56,8 @@ export const CAPTION_STYLE_LABELS: Record<
 > = {
   caption_default: "Standard",
   source: "Source quote",
+  boxed: "Boxed",
+  kinetic: "Kinetic",
   word_highlight: "Word highlight",
 };
 

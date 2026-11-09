@@ -30,11 +30,15 @@ ValidationState: TypeAlias = Literal["ready", "rejected", "pending"]
 FitMode: TypeAlias = Literal["cover", "contain", "fill"]
 OverlayPreset: TypeAlias = Literal["lower_third", "badge", "progress_bar"]
 #: The caption styles `CAPTION_STYLES` in @thoth/remotion-composition renders.
-CaptionStyle: TypeAlias = Literal["caption_default", "source", "word_highlight"]
+CaptionStyle: TypeAlias = Literal["caption_default", "source", "word_highlight", "boxed", "kinetic"]
 #: The import's `SourceRole` plus the two beats only "Add beat" makes (Story mode, spec §5.1).
 StoryRole: TypeAlias = Literal[SourceRole, "hook", "outro"]
 #: Movement across a clip's own duration; "none" draws what was drawn before Story mode.
 Motion: TypeAlias = Literal["none", "slow_zoom", "pan"]
+#: A blurred copy of the media behind it, for media of another shape (spec 2026-11-09).
+Background: TypeAlias = Literal["none", "blur_fill"]
+#: How a move eases from one keyframe to the next; "hold" keeps the value until the next.
+Ease: TypeAlias = Literal["linear", "ease_out", "ease_in_out", "hold"]
 
 PositiveInt = Annotated[int, Field(gt=0)]
 NormalizedUnit = Annotated[float, Field(ge=0.0, le=1.0)]
@@ -42,6 +46,7 @@ Offset = Annotated[float, Field(ge=-1.0, le=1.0)]
 Scale = Annotated[float, Field(gt=0.0, le=4.0)]
 Volume = Annotated[float, Field(ge=0.0, le=2.0)]
 FadeFrames = Annotated[int, Field(ge=0, le=300)]
+Dim = Annotated[float, Field(ge=0.0, le=0.8)]
 #: A clip's speed is one of these presets, so source maths stays in whole percent (Tier 3a).
 PlaybackSpeed = Literal[0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0]
 Fps = Annotated[float, Field(gt=0.0, le=240.0)]
@@ -132,9 +137,54 @@ class Position(StrictModel):
     scale: Scale = 1.0
 
 
+class Mark(StrictModel):
+    """A box or an arrow on part of the picture (spec 2026-11-09, 3.4).
+
+    Fractions of the media frame and source frames, as blur regions are, so a mark stays on the
+    content it points at however the clip is trimmed, moved, split or sped up.
+    """
+
+    kind: Literal["box", "arrow"]
+    x: NormalizedUnit
+    y: NormalizedUnit
+    w: NormalizedUnit = 0.0
+    h: NormalizedUnit = 0.0
+    #: The side an arrow comes from; a box ignores it.
+    side: Literal["top", "bottom", "left", "right"] = "top"
+    from_frame: FrameStart
+    to_frame: Frame
+    color: Literal["accent", "alert"] = "accent"
+
+    @model_validator(mode="after")
+    def sized_inside_and_ordered(self) -> Mark:
+        outside = self.x + self.w > 1.0 or self.y + self.h > 1.0
+        if self.kind == "box" and (not self.w or not self.h or outside):
+            raise ValueError("a box mark needs a size and must stay inside the frame")
+        if self.to_frame <= self.from_frame:
+            raise ValueError("a mark must end after it starts")
+        return self
+
+
 class Emphasis(StrictModel):
     highlight: bool = False
     arrow: bool = False
+    #: Unused marks are not stored, so a rollback to images without them stays safe.
+    marks: Annotated[list[Mark], Field(max_length=12)] = Field(
+        default_factory=list, exclude_if=lambda marks: not marks
+    )
+
+
+class MoveKeyframe(StrictModel):
+    """Scale and place at one frame relative to the clip's start, stacked on its position."""
+
+    frame: FrameStart
+    scale: Scale = 1.0
+    x: Offset = 0.0
+    y: Offset = 0.0
+    ease: Ease = "ease_in_out"
+
+
+MoveKeyframes = Annotated[list[MoveKeyframe], Field(max_length=60)]
 
 
 class ClipBlurRegion(StrictModel):
@@ -240,6 +290,13 @@ class TimelineVideoClip(TimelineClipBase):
     #: Speed keeps the clip's place and length and changes how much source it plays (Tier 3a).
     #: Normal speed is not stored, so a rollback to images that forbid the field stays safe.
     speed: PlaybackSpeed = Field(default=1.0, exclude_if=lambda speed: speed == 1.0)
+    #: Effects (spec 2026-11-09); unused ones are not stored, so a rollback stays safe.
+    #: Default factories keep them optional in the generated TypeScript contract.
+    moves: MoveKeyframes = Field(default_factory=list, exclude_if=lambda moves: not moves)
+    background: Background = Field(
+        default_factory=lambda: "none", exclude_if=lambda value: value == "none"
+    )
+    dim: Dim = Field(default_factory=lambda: 0.0, exclude_if=lambda dim: dim == 0.0)
 
 
 class TimelineOverlayClip(TimelineClipBase):
@@ -392,6 +449,9 @@ class EditDocumentV2(StrictModel):
             frames = [keyframe.frame for keyframe in keyframes]
             if frames and (frames != sorted(set(frames)) or frames[-1] >= clip.duration_in_frames):
                 raise ValueError("volume keyframes must be increasing and inside the clip")
+            moves = [keyframe.frame for keyframe in getattr(clip, "moves", [])]
+            if moves and (moves != sorted(set(moves)) or moves[-1] >= clip.duration_in_frames):
+                raise ValueError("moves must be increasing and inside the clip")
 
     @staticmethod
     def _validate_clip_scene(clip: TimelineClip, scenes_by_id: dict[str, Scene]) -> None:

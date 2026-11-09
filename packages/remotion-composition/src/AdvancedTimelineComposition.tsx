@@ -192,6 +192,15 @@ const CAPTION_STYLES: Record<string, CSSProperties> = {
   source: { ...CAPTION_BASE, fontSize: 30, color: "#e4e4e7" },
   // Narration's word-timed captions (spec 2026-10-31).
   word_highlight: { ...CAPTION_BASE, fontSize: 40, fontWeight: 700 },
+  // Style A's small subtitles on a solid box, and Style B's big centred words (spec 2026-11-09).
+  boxed: { borderRadius: 4, backgroundColor: "#000000", padding: "6px 14px", textAlign: "center", fontSize: 30 },
+  kinetic: {
+    textAlign: "center",
+    fontSize: 96,
+    fontWeight: 800,
+    textTransform: "uppercase",
+    textShadow: "0 4px 12px rgba(0, 0, 0, 0.85)",
+  },
 };
 
 /** The caption styles a document may name; Studio offers exactly these. */

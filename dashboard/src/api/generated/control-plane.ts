@@ -2490,6 +2490,8 @@ export interface components {
              * @default false
              */
             highlight: boolean;
+            /** Marks */
+            marks?: components["schemas"]["Mark"][];
         };
         /**
          * EventKind
@@ -2659,6 +2661,50 @@ export interface components {
             start: string;
         };
         /**
+         * Mark
+         * @description A box or an arrow on part of the picture (spec 2026-11-09, 3.4).
+         *
+         *     Fractions of the media frame and source frames, as blur regions are, so a mark stays on the
+         *     content it points at however the clip is trimmed, moved, split or sped up.
+         */
+        Mark: {
+            /**
+             * Color
+             * @default accent
+             * @enum {string}
+             */
+            color: "accent" | "alert";
+            /** From Frame */
+            from_frame: number;
+            /**
+             * H
+             * @default 0
+             */
+            h: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "box" | "arrow";
+            /**
+             * Side
+             * @default top
+             * @enum {string}
+             */
+            side: "top" | "bottom" | "left" | "right";
+            /** To Frame */
+            to_frame: number;
+            /**
+             * W
+             * @default 0
+             */
+            w: number;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
+        /**
          * MaterialFigure
          * @description A person or organisation the run named: context for the editor, never media.
          */
@@ -2716,6 +2762,35 @@ export interface components {
             ripple: boolean;
             /** Target Track Id */
             target_track_id: string;
+        };
+        /**
+         * MoveKeyframe
+         * @description Scale and place at one frame relative to the clip's start, stacked on its position.
+         */
+        MoveKeyframe: {
+            /**
+             * Ease
+             * @default ease_in_out
+             * @enum {string}
+             */
+            ease: "linear" | "ease_out" | "ease_in_out" | "hold";
+            /** Frame */
+            frame: number;
+            /**
+             * Scale
+             * @default 1
+             */
+            scale: number;
+            /**
+             * X
+             * @default 0
+             */
+            x: number;
+            /**
+             * Y
+             * @default 0
+             */
+            y: number;
         };
         /** MoveWorkflow */
         MoveWorkflow: {
@@ -3785,7 +3860,7 @@ export interface components {
              * Style Slot
              * @enum {string}
              */
-            style_slot: "caption_default" | "source" | "word_highlight";
+            style_slot: "caption_default" | "source" | "word_highlight" | "boxed" | "kinetic";
         };
         /** SetClipBlur */
         SetClipBlur: {
@@ -4891,6 +4966,11 @@ export interface components {
             /** Asset Id */
             asset_id: string;
             /**
+             * Background
+             * @enum {string}
+             */
+            background?: "none" | "blur_fill";
+            /**
              * Blur Enabled
              * @default false
              */
@@ -4900,6 +4980,8 @@ export interface components {
             /** Clip Id */
             clip_id: string;
             crop?: components["schemas"]["Crop"] | null;
+            /** Dim */
+            dim?: number;
             /** Duration In Frames */
             duration_in_frames: number;
             emphasis?: components["schemas"]["Emphasis"];
@@ -4947,6 +5029,8 @@ export interface components {
              * @enum {string}
              */
             motion: "none" | "slow_zoom" | "pan";
+            /** Moves */
+            moves?: components["schemas"]["MoveKeyframe"][];
             /**
              * Ownership
              * @enum {string}
