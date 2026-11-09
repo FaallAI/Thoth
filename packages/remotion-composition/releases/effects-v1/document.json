@@ -150,32 +150,27 @@
       "duration_in_frames": 60,
       "ownership": "ai_managed",
       "kind": "video",
-      "asset_id": "asset_video",
+      "asset_id": "asset_landscape",
       "fit": "contain",
       "source_from_frame": 0,
-      "blur_enabled": true,
-      "blur_regions": [
-        {
-          "x": 0.1,
-          "y": 0.65,
-          "w": 0.8,
-          "h": 0.09
-        },
-        {
-          "x": 0.1,
-          "y": 0.08,
-          "w": 0.5,
-          "h": 0.06,
-          "from_frame": 0,
-          "to_frame": 30
-        }
-      ],
       "motion": "pan",
       "background": "blur_fill",
-      "position": {
-        "x": 0.0,
-        "y": 0.0,
-        "scale": 0.8
+      "emphasis": {
+        "highlight": false,
+        "arrow": false,
+        "marks": [
+          {
+            "kind": "box",
+            "x": 0.3,
+            "y": 0.25,
+            "w": 0.4,
+            "h": 0.5,
+            "side": "top",
+            "from_frame": 0,
+            "to_frame": 60,
+            "color": "accent"
+          }
+        ]
       },
       "moves": [
         {
@@ -396,6 +391,17 @@
       "has_audio": true,
       "validation_state": "ready",
       "duration_in_frames": 120
+    },
+    {
+      "asset_id": "asset_landscape",
+      "project_id": "project_template_release",
+      "kind": "video",
+      "has_audio": false,
+      "validation_state": "ready",
+      "width": 640,
+      "height": 360,
+      "fps": 30,
+      "duration_in_frames": 60
     }
   ]
 }

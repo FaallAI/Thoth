@@ -19,6 +19,11 @@
       "asset_id": "asset_audio",
       "file": "assets/audio.wav",
       "sha256": "sha256:f63005bba67f7ec3abc1a6274bc78ee15f7c9bf3f7d47f0c18dd7bf91096e2f6"
+    },
+    {
+      "asset_id": "asset_landscape",
+      "file": "assets/landscape.mp4",
+      "sha256": "sha256:86c525314235f2e290023aa3110561fec7f7541af4334fdf19a061da0880ed52"
     }
   ],
   "frames": [
