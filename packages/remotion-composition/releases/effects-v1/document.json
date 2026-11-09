@@ -38,39 +38,45 @@
       "track_id": "track_main",
       "kind": "main_video",
       "label": "Main",
-      "order": 0
+      "order": 1
     },
     {
       "track_id": "track_story",
       "kind": "overlay",
       "label": "Story",
-      "order": 1
+      "order": 2
     },
     {
       "track_id": "track_badge",
       "kind": "overlay",
       "label": "Badge",
-      "order": 2
+      "order": 3
     },
     {
       "track_id": "track_caption",
       "kind": "caption",
       "label": "Caption",
-      "order": 3
+      "order": 4
     },
     {
       "track_id": "track_score",
       "kind": "music",
       "label": "Score",
-      "order": 4,
+      "order": 5,
       "muted": true
     },
     {
       "track_id": "track_spare",
       "kind": "b_roll",
       "label": "Spare",
-      "order": 5,
+      "order": 6,
       "hidden": true
+    },
+    {
+      "track_id": "track_backdrop",
+      "kind": "b_roll",
+      "label": "Backdrop",
+      "order": 0
     }
   ],
   "clips": [
@@ -199,7 +205,7 @@
       "kind": "text",
       "heading": "Preview and render agree",
       "body": "Every glyph on this frame is drawn with the typeface this package carries.",
-      "style_slot": "title"
+      "style_slot": "title_top"
     },
     {
       "clip_id": "clip_body",
@@ -361,6 +367,17 @@
           "text": "Small subtitles on a solid box."
         }
       ]
+    },
+    {
+      "clip_id": "clip_backdrop",
+      "track_id": "track_backdrop",
+      "from_frame": 0,
+      "duration_in_frames": 60,
+      "ownership": "ai_managed",
+      "kind": "video",
+      "asset_id": "asset_landscape",
+      "fit": "cover",
+      "source_from_frame": 0
     }
   ],
   "asset_refs": [

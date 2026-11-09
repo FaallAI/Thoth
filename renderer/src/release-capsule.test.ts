@@ -613,7 +613,7 @@ describe("the effects release capsule", () => {
     const clips = capsule.document.clips as Clip[];
 
     expect(capsule.template_id).toBe("vertical_text_story");
-    expect([...capsule.frames]).toEqual([0, 20, 40, 60, 80, 119]);
+    expect([...capsule.frames]).toEqual([0, 20, 40, 60, 90, 119]);
     expect(clips.some((clip) => clip.background === "blur_fill")).toBe(true);
     expect(clips.some((clip) => (clip.dim ?? 0) > 0)).toBe(true);
     expect(clips.filter((clip) => (clip.moves?.length ?? 0) > 0).length).toBeGreaterThanOrEqual(2);
