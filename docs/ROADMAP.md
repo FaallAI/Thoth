@@ -145,6 +145,11 @@ editing on phones, and the two Tier 2 answers) is built and reviewed on
 `feat/studio-timeline-tier3a`, not pushed. Tier 3b (filmstrips, waveforms, the audio volume line)
 follows.
 
+Status 2026-11-09, last: Tier 3a merged as `d3c89bbb` (PR #124) and runs on stage1 as `573b2c92`.
+Tier 3b (filmstrips on video and image clips, waveforms on audio clips, a draggable volume line) is
+built and reviewed on `feat/studio-timeline-tier3b`, not pushed. With it the Studio Timeline track's
+three tiers are built; the next track is the operator's choice.
+
 The red tests are `e2e/tests-write/timeline-audit.e2e.ts`. The Studio shell v2 spec
 (2026-11-01) lists ripple delete as an existing tool, but git history shows no delete control in
 the Timeline, toolbar or Inspector, so it counts as new work here.

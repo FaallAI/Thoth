@@ -2,6 +2,93 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-09 - Studio Timeline Tier 3b: filmstrips, waveforms, the volume line
+
+Branch `feat/studio-timeline-tier3b` from master `d3c89bbb`, not pushed.
+- **Plan:** `docs/superpowers/plans/2026-11-09-studio-timeline-tier3b.md`, from spec section 7.
+- **Execution:** done natively, with one fresh review of the whole branch at the end.
+
+**Merge and deploy records carried here.**
+- **PR #124 (Tier 3a)** was merged as `d3c89bbb` on 2026-11-09, on the operator's word and a `/permissions` entry for the exact command.
+- **The redeploy before it.** Stage1 had already been redeployed to the branch head `573b2c92`, which carries the phone preview fix:
+  - thoth `sha256:0532d2f35864…`;
+  - renderer `sha256:966483561d53…`;
+  - web `sha256:4b1e7890a3e6…`.
+
+  The rollback copy is `pins-d723cf15.env`. Web answered 200, the worker logged no errors, and the api returned no 5xx responses. The read-only e2e passed 20/20, and the 430 screenshot showed the preview fitting above the Timeline toolbar.
+
+**What Tier 3b adds.**
+- **An asset's glance.**
+  - A video or image gets a filmstrip: one JPEG of at most 60 frames side by side, 72 px tall, at least a second apart.
+  - An audio asset gets its peaks: at most 2000 values from 0 to 100, against full scale.
+  - **Where it is kept:** ffmpeg builds it the first time a browser asks for it. It reads the asset through `MediaStore.probe_source`, with the upload probe's protocol whitelist, a format whitelist for the asset's type, and a 60 s timeout. The glance is then kept in the media store under the new `glance/` prefix, as JSON, and served by `GET /api/v1/projects/{project_id}/editor-assets/{asset_id}/glance`.
+  - **On failure:** a failed build answers 503 with a code (`ffmpeg_unavailable`, `glance_failed` or `media_store_unavailable`) and is never kept.
+  - **Limits:** builds run at most two at a time in one process. Audio peaks are folded as ffmpeg streams them, so memory stays constant and the API never stalls.
+- **In the Timeline.**
+  - Studio asks for each asset's glance once, two at a time.
+  - Video and image clips show filmstrip tiles at the frames' own shape, and audio clips show their waveform.
+  - Both show only the stretch of source the clip plays, at its speed: slipped, split and trimmed clips included.
+  - A clip without a glance draws as before.
+- **The volume line.**
+  - **What it is:** an audio clip has a level line, a `role="slider"` from 0 to 1, as the Inspector's slider.
+  - **Dragging:** dragging moves the level from where it was pressed, and a press alone changes nothing. A release commits one `set_clip_volume`, and Escape or a cancelled pointer puts the draft back.
+  - **Keys:** the arrows step by 0.05, and Home and End go to 0 and 1. A clip already above 1 is never made quieter by a "louder" key.
+  - **Where it shows:** it is hidden on locked clips and in a view-only Timeline.
+
+**Operator decisions (2026-11-09).**
+- **Billing went back and forth once.** First the glance cache was to be billed like any stored media, because it sits in our own store (later rented S3).
+- **Then, final: it is not billed.** Opening the Timeline builds the cache, and a read-only view or audit included must bill nobody. A write under `glance/` records no usage.
+
+**Decisions taken by the executor** (the full list is in the SDD ledger):
+- **Lazy builds.** The glance is built on first request, not on upload, so uploads stay fast and no backfill is needed.
+- **Its own service.** The glance has its own `AssetGlanceService`, because `EditorAssetService` never opens an artifact.
+- **`glance` joins the media store's allowed prefixes.** The upload sweep still lists only `uploads/`.
+- **Asset durations count canvas frames (30 fps).** The constant is now shared from `domain/editor_assets.py`.
+- **Filmstrip tiles keep each frame's shape**, instead of one strip stretched across the clip.
+- **A read-only view writes the cache.** It is a derived cache, not a saved draft, and it bills nobody.
+
+**Final review (fresh reviewer, whole branch).** The verdict was "with fixes", with nothing critical. One fix pass, each fix test-first:
+- **Strips were timed on the media's own fps,** so 60 fps footage froze halfway.
+- **Peaks held the whole audio in memory and stalled the event loop** (0.89 s for an hour of audio).
+- **A plain press on the volume line changed the level,** and a cancelled pointer left the drag alive.
+- **Four minors re-graded up:**
+  - a "louder" key lowered a boosted clip;
+  - the strip's picture was repeated in every tile;
+  - there was no demuxer whitelist (security);
+  - every glance was asked for at once, which could hold the connections autosave needs.
+
+**Verification.**
+- **Python:** `make test` gives 4706 passed and 222 skipped, with real-ffmpeg builder tests. `make lint` is clean.
+- **Dashboard:** 1867 tests pass, and `tsc -b` and the build are clean.
+- **Renderer:** `bun test` passes 224.
+- **Read-only e2e at 1440** on stage1 `573b2c92`: 20/21. The one failure is the new glance test, which stays red until the endpoint is deployed.
+- **Write e2e (filmstrip and volume line)** has not run. It needs the deploy and a one-day write token.
+
+**Deferred minors:**
+- The filmstrip stops partway across long portrait clips at maximum zoom (a 200-tile cap).
+- A cancelled request can leave a strip's ffmpeg running until it finishes.
+- Long 4K videos that time out are rebuilt on every Studio session.
+- A volume drag's listeners outlive a clip that unmounts mid-drag.
+- Some tests are missing: a store outage, a timeout kill, and a cross-project 404 at the route.
+
+**Rollback.** There is no document field and no migration. A rollback to the Tier 3a images leaves the `glance/` files unused.
+
+**Next steps.**
+- **Operator gates, each needing its own authorization:**
+  - a one-day write-scope e2e token;
+  - push and PR;
+  - deploy of the branch image;
+  - the write e2e (filmstrip and volume line);
+  - the operator's own try;
+  - merge.
+
+  During the try, check how long the first look at a long video takes.
+- **Then the next track,** which the operator chooses from the roadmap. The Studio Timeline track's three tiers are built.
+- **Carried:**
+  - the deferred minors above;
+  - the Tier 3a minors (seven) and the Tier 2 minors (eight);
+  - a Story scene resize of a sped-up clip can still be refused by the server.
+
 ## 2026-11-09 - Studio Timeline Tier 3a: speed, slip, roll, markers, phones
 
 Branch `feat/studio-timeline-tier3a` from master `1754d852`, PR #124.
