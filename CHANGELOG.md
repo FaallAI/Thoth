@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this changelog.
 Branch `feat/studio-effects-layer` from master `4971b458` (PR #126 merged; PR #125 merged as `ff4d1004` before it).
 - **Spec:** `docs/superpowers/specs/2026-11-09-studio-effects-layer-design.md`, approved by the operator on 2026-11-09.
 - **Plan:** `docs/superpowers/plans/2026-11-09-studio-effects-layer.md`.
-- **Execution:** done natively, task by task; the whole-branch review is still to come.
+- **Execution:** done natively, task by task, then one fresh review of the whole branch and one fix pass.
 
 **What changed.** The edit document and Studio gain the effects that Style A (IsseiNugroho) and Style B (WinNews) need:
 - **Moves:** scale and position keyframes per video clip, with Linear, Ease out, Ease in-out and Hold. They stay in place through trims, splits, scene resizes and narration retiming. Python and TypeScript run the same JSON cases.
@@ -27,31 +27,54 @@ Every new field has a default and is left out of the stored document when unused
 - **Bisecting the cost:** stills alone cost 34.6 s and movies alone 160.6 s. A smaller copy, a frozen second video and a single decoder did not help. The cost was a CSS blur over a layer that changes every frame.
 - **The fix:** a movie's blur-fill now draws the clip's own decoded frames (`onVideoFrame`) into an eighth-size canvas, blurs them there, and scales the canvas up. A still keeps a CSS blur on its eighth-size copy.
 - **After the fix:** 31.6 s and 29.1 s without, 35.8 s and 35.0 s with, so +16.6%.
+- **After the review's fix pass:** 30.8 s and 27.7 s without, 33.3 s and 33.5 s with, so +14.2%.
 
-**Release capsule.** `effects-v1` draws every effect over 120 frames.
-- **Candidate golden set:** run `run_5aa03942d132bd2b`. Its verdict is `golden_missing`, as expected. Preview and render match exactly on all six frames.
-- **Where it is:** in WSL under `~/thoth-golden-effects`, outside the checkout. It is not promoted and not in the CI loop.
-- **Frames judged:** 40 (dim, box, arrow and a kinetic group), 80 (blur-fill around a 0.8 scale movie, with boxed captions) and 119 (the card).
-- **One note for approval:** the kinetic group sits mid-frame, over the capsule's own title text. That overlap comes from the fixture's layout, not from the effect.
+**Release capsule and golden set.** `effects-v1` draws every effect over 120 frames.
+- **What it shows:** a still with a pan, dim, a box and an arrow; kinetic captions; a 640x360 movie on `contain` with blur-fill, a box on its letterboxed picture and a punch-in; boxed captions; and the card.
+- **Promoted on the operator's word ("ya di izinkan", 2026-11-10):** set `sha256-39756b019bfb03e7ab266d32132798b63c2643df635886324a03786bbcd3604f`, from `run_87440284dc7f2a4f`.
+- **How it was drawn:** by a fresh F1 image with no network, and promoted from inside it. All 12 files are byte-identical to the frames judged.
+- **Frames judged:** 40 (dim on the still's picture only, a box, an arrow, a kinetic group), 80 (the landscape movie on its blur-fill, with the box on its picture) and 119 (the card).
+- **One note:** the kinetic group sits mid-frame over the capsule's own title text. That is the fixture's layout, not the effect.
+- **CI:** `effects-v1` joins the golden loop in `container-image.yml`, and the container contract test expects it. An image built with the new goldens verified `pass` for all three capsules on a fresh artifact root.
 
 **Found on the way.** Three `studio-media` read-only checks failed on stage1 too, so they were stale before this branch, not broken by it.
 - **Two expected the old clock:** they looked for `0:0X / 0:34`, but since PR #126 the clock shows tenths. They now accept them.
 - **One matched both clocks:** the narration preview check matched the player bar's clock as well as the Timeline's, so it now reads the Timeline's.
 
+**Final review, by a fresh reviewer: 0 Critical, 5 Important, 12 Minor.** Three Minors were re-graded Important by their effect. Each fix was made test-first:
+- **Marks on media of another shape:** marks landed off their content on `cover` or cropped media of another shape. They now project through crop and fit exactly as blur regions do.
+- **Dim:** it veiled the whole canvas. It now veils only the clip's own picture, or the whole canvas when the clip has blur-fill.
+- **Story and moves:** Story could add moves but not remove them. A Motion choice now replaces the cards' moves, and no Motion reads as chosen while moves play.
+- **Punch in combined with other moves:** it jumped. It now starts from the current move value and holds to the clip end.
+- **Mark times after a split or trim:** they showed negative times. They now show the clip's own range.
+- **Blur-fill canvas edges:** the canvas clears each frame and draws 18 px past every edge, so no earlier frame or transparent edge shows.
+- **Blur-fill in a paused preview:** the clip's video now remounts when its background changes, so the background appears.
+- **A fixed mark window** now clears its error message.
+
+**Deferred minors:**
+- The preview's HTML5 fallback shows no movie blur-fill.
+- Punch in with the playhead outside the clip gives no notice.
+- Add box and Add arrow stay enabled at 12 marks.
+- Kinetic groups can hold 5 words, or 1 word mid-cue.
+- Presets on a 1-frame clip are refused.
+- The keyframe list shows no x or y.
+- Background back to None keeps fit Contain.
+- Story's Dim shows the first card's value.
+
+**For the operator:** the Card place is offered in Story only, while spec 3.7 lists the new styles in the Timeline Inspector.
+
 **Verification.**
 - **Python:** `make test` gives 4768 passed and 224 skipped. `make test-postgres` gives 204 passed. Lint is clean.
-- **Dashboard:** 1968 tests pass, plus 45 in the e2e package. `tsc -b` and the build are clean.
-- **Renderer and composition:** 259 tests pass.
+- **Dashboard:** 1975 tests pass, plus 45 in the e2e package. `tsc -b` and the build are clean.
+- **Renderer and composition:** 262 tests pass. The container contract test gives 56 passed, and actionlint is clean on the workflow.
 - **Read-only e2e against a local dev server of this branch, at 1440:** 41 checks across `studio-shell-v2`, `studio-audit-fixes`, `studio-media` and `studio-menus`, including the new Effects check. All pass after the clock fixes.
 - **Screenshot judged at 1440x900:** the Effects section sits under Fade out, in the same style as the Clip section.
 - **The write checks** (`e2e/tests-write/effects.e2e.ts`: blur-fill and dim, Push in, Add box) are written but not run.
 
 **Next steps** (each its own gate):
-- the operator approves and promotes the `effects-v1` golden set, then `effects-v1` joins the CI loop;
-- the fresh whole-branch review and its fix pass;
-- push and PR;
-- deploy the branch image to stage1;
-- the write e2e, with a one-day write token;
+- push and PR (authorized 2026-11-10);
+- deploy the branch image to stage1 (authorized 2026-11-10);
+- the write e2e, with a one-day write token (authorized 2026-11-10);
 - the operator tries it;
 - merge.
 
