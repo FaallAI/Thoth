@@ -18,6 +18,21 @@ const mainClip = async (browser: any) => {
   return document.clips.filter((clip: any) => clip.track_id === main.track_id);
 };
 
+/**
+ * The library lists 20 assets a page, newest first, and every run here uploads more, so the one
+ * video upload falls past the first page (2026-11-09). Load pages until its row shows.
+ */
+async function showUploadVideo(screen: any) {
+  const add = screen.getByRole('button', 'Add Upload · Video to timeline');
+  const rows = screen.getByRole('region', 'Asset library').getByRole('listitem');
+  for (let page = 0; page < 10 && (await add.count()) === 0; page += 1) {
+    const before = await rows.count();
+    await screen.getByRole('button', 'Load more assets').tap();
+    await expect.poll(async () => rows.count(), { timeout: 10000 }).toBeGreaterThan(before);
+  }
+  await expect(add).toBeVisible();
+}
+
 /** A 3 s main clip from frame 0 on a 5 s canvas, zoomed so a frame is 4 px, saved. */
 async function clipOnTimeline({ app, browser, screen }: Fixtures) {
   await browser.setViewport({ width: 1440, height: 900 });
@@ -30,6 +45,7 @@ async function clipOnTimeline({ app, browser, screen }: Fixtures) {
   await screen.getByRole('button', 'Blank').tap();
   await screen.getByRole('button', /^Advanced timeline/).tap();
   await expect(screen.getByText('Saved revision 2', { visible: true })).toBeVisible();
+  await showUploadVideo(screen);
   await screen.getByRole('button', 'Add Upload · Video to timeline').tap();
   await expect(screen.getByText('Saved revision 3', { visible: true })).toBeVisible();
   await screen.getByRole('button', 'Main Video clip').tap();
