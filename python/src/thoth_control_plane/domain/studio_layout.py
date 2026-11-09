@@ -8,8 +8,30 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from thoth_control_plane.domain.edit_document_v2 import ClipBlurRegion, Position
+from thoth_control_plane.domain.edit_document_v2 import (
+    AssetRef,
+    Background,
+    ClipBlurRegion,
+    FitMode,
+    Position,
+)
 from thoth_control_plane.domain.studio_imports import SourceBlurRegion
+
+#: How far from 9:16 a picture may be and still fill the canvas without a blur behind it.
+FULL_FRAME_TOLERANCE = 0.02
+
+
+def full_frame_fill(asset: AssetRef) -> tuple[FitMode, Background] | None:
+    """Full-frame media of another shape sits whole on a blurred copy of itself (spec 2026-11-09).
+
+    None keeps what the import set before: a vertical picture, or one of unknown size.
+    """
+    if not asset.width or not asset.height:
+        return None
+    if abs(asset.width / asset.height - 9 / 16) <= FULL_FRAME_TOLERANCE:
+        return None
+    return ("contain", "blur_fill")
+
 
 #: Indonesian readers read 150-200 words a minute at 6.09 characters a word: 15-20 a second.
 READING_CPS = 15.0

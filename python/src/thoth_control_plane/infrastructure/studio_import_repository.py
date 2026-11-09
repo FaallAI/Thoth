@@ -44,6 +44,7 @@ from thoth_control_plane.domain.studio_layout import (
     SLIDE_SECONDS,
     card_position,
     clip_regions,
+    full_frame_fill,
     post_card_slot,
     profile_slot,
     reaction_beat,
@@ -353,6 +354,7 @@ class PostgresStudioImportRepository:
                 source_from_frame=source_from,
                 scene_id=scene.scene_id,
                 source_role=entry.role,
+                **_fill(asset),
             )
         )
         try:
@@ -420,6 +422,12 @@ def _clip(document: EditDocument, clip_id: str) -> Any:
     return next(clip for clip in document.clips if clip.clip_id == clip_id)
 
 
+def _fill(asset: Any) -> dict[str, Any]:
+    """The fit and background a full-frame clip of this asset takes (spec 2026-11-09, 3.8)."""
+    fill = full_frame_fill(asset)
+    return {} if fill is None else {"fit": fill[0], "background": fill[1]}
+
+
 def _overlay(
     latest: EditDocument,
     entry: StudioImportItem,
@@ -479,9 +487,10 @@ def _overlay(
         duration_in_frames=max(1, round(length * canvas.fps)),
         source_from_frame=0,
         scene_id=scene.scene_id,
-        fit="contain",
         position=position,
         source_role=entry.role,
+        # A slide fills the canvas, so it may sit on blur-fill; a card keeps its place and fit.
+        **{"fit": "contain", **(_fill(asset) if position is None else {})},
     )
     try:
         return apply_edit_operations(latest, [operation], resolved_assets={asset.asset_id: asset})
