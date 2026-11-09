@@ -21,6 +21,7 @@ import {
   pasteTextOperations,
   rippleDeleteClips,
   rollCut,
+  rollRange,
   slipClip,
   splitAt,
   type Edit,
@@ -266,7 +267,15 @@ export function Timeline({
     const origin = current.preview?.draft;
     const before = origin && isTimelineDocument(origin) ? origin : doc;
     if (!before || !active.roll) return { operations: [] };
-    return rollCut(before, active.roll.leftId, active.roll.rightId, frameAt(active, clientX));
+    const wanted = frameAt(active, clientX);
+    const range = rollRange(before, active.roll.leftId, active.roll.rightId);
+    const frame = range ? Math.min(range.max, Math.max(range.min, wanted)) : wanted;
+    const edit = rollCut(before, active.roll.leftId, active.roll.rightId, frame);
+    // Stopped at a limit: the roll goes that far, and says why it stops there.
+    if (frame !== wanted && !edit.refusal) {
+      return { ...edit, refusal: rollCut(before, active.roll.leftId, active.roll.rightId, wanted).refusal };
+    }
+    return edit;
   };
 
   /** A slip (Tier 3a): the content follows the pointer, so a drag right shows earlier source. */
@@ -382,8 +391,8 @@ export function Timeline({
       if (active.roll) {
         const { operations, refusal } = rollFor(active, event.clientX);
         latest.current.dispatch({ type: "cancel_timeline_preview" });
-        if (refusal) setNotice(latest.current.t(`studio.menu.reason.${refusal}`));
-        else if (operations.length) latest.current.dispatch({ type: "commit_operations", operations });
+        if (operations.length) latest.current.dispatch({ type: "commit_operations", operations });
+        setNotice(refusal ? latest.current.t(`studio.menu.reason.${refusal}`) : null);
         return;
       }
       if (active.mode === "slip") {
@@ -883,6 +892,8 @@ export function Timeline({
           onClose={() => setRenaming(null)}
           onSave={(label) => {
             setRenaming(null);
+            // An unchanged name is no edit, so it makes no revision (carried minor, 2026-11-09).
+            if (label === (renamedMarker.label ?? "")) return;
             dispatch({
               type: "commit_operations",
               operations: [{ kind: "set_marker", operation_id: newId("op"), marker_id: renamedMarker.marker_id, frame: renamedMarker.frame, label }],

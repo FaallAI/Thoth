@@ -1151,3 +1151,9 @@ test("slip_clip refuses a held clip that would start past its media", () => {
   Object.assign(doc.clips!.find((clip) => clip.clip_id === "clip_main")!, { hold_after_source: true });
   expect(() => applied(doc, { kind: "slip_clip", clip_id: "clip_main", source_from_frame: 400 })).toThrow("a held clip must start inside its source");
 });
+
+test("the editor and the renderer share one speed helper", async () => {
+  // Carried minor (2026-11-09): one copy of the whole-percent rule, in the composition package.
+  const composition = await import("@thoth/remotion-composition");
+  expect(speedPercent).toBe(composition.speedPercent);
+});

@@ -19,9 +19,9 @@ type AssetRef = NonNullable<EditDocumentV2["asset_refs"]>[number];
 
 // Lane selection is drawn as well as edited, so it lives with the composition
 // the renderer shares; editing callers keep importing it from here.
-import { visibleLanes } from "@thoth/remotion-composition";
+import { speedPercent, visibleLanes } from "@thoth/remotion-composition";
 
-export { visibleLanes, type TimelineLane } from "@thoth/remotion-composition";
+export { speedPercent, visibleLanes, type TimelineLane } from "@thoth/remotion-composition";
 
 /** The drag payload an Assets row carries onto a Timeline lane (spec 2026-11-08 §6). */
 export const ASSET_DRAG_TYPE = "application/x-thoth-asset";
@@ -892,11 +892,6 @@ function repack(document: EditDocumentV2, entry: TimelineTrack, movedClipId: str
 // Speed (Tier 3a): whole percent on both sides, so the mirror and the server agree
 // --------------------------------------------------------------------------
 
-/** A clip's speed in whole percent; a clip without speed plays at 100. */
-export function speedPercent(clip: object): number {
-  const speed = "speed" in clip && typeof clip.speed === "number" ? clip.speed : 1;
-  return Math.round(speed * 100);
-}
 
 /** The source frames a clip plays: its length times its speed, rounded up. */
 export function sourceSpan(clip: { duration_in_frames: number; speed?: number }): number {

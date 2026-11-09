@@ -537,3 +537,28 @@ export function addMarker(doc: EditDocumentV2, frame: number): Edit {
   if (markers.length >= MAX_MARKERS) return refuse("too_many");
   return { operations: [{ kind: "add_marker", operation_id: newId("op"), marker_id: newId("marker"), frame, label: "" }] };
 }
+
+/**
+ * The frames the cut between two touching clips may move to, or null when no roll is possible.
+ * A drag past a limit stops at it, as a slip does (carried minor, 2026-11-09).
+ */
+export function rollRange(doc: EditDocumentV2, leftId: string, rightId: string): { min: number; max: number } | null {
+  const left = clipsOf(doc).find((clip) => clip.clip_id === leftId);
+  const right = clipsOf(doc).find((clip) => clip.clip_id === rightId);
+  if (!left || !right || left.track_id !== right.track_id || endOf(left) !== right.from_frame) return null;
+  let min = left.from_frame + 1;
+  let max = endOf(right) - 1;
+  const sceneOf = (clip: Clip) => (clip.scene_id ? doc.scenes.find((scene) => scene.scene_id === clip.scene_id) : undefined);
+  const leftScene = sceneOf(left);
+  const rightScene = sceneOf(right);
+  if (leftScene) max = Math.min(max, leftScene.start_frame + leftScene.duration_in_frames);
+  if (rightScene) min = Math.max(min, rightScene.start_frame);
+  if ("source_from_frame" in left && !(left.kind === "video" && left.hold_after_source)) {
+    const length = doc.asset_refs?.find((ref) => ref.asset_id === left.asset_id)?.duration_in_frames;
+    if (length != null) max = Math.min(max, left.from_frame + Math.floor(((length - left.source_from_frame) * 100) / speedPercent(left)));
+  }
+  if ("source_from_frame" in right) {
+    min = Math.max(min, right.from_frame - Math.floor((right.source_from_frame * 100) / speedPercent(right)));
+  }
+  return min <= max ? { min, max } : null;
+}

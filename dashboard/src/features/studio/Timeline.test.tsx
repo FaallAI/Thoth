@@ -1305,3 +1305,23 @@ test("Alt+drag on a text clip just moves it: it has no source to slip", () => {
   expect(payload(actions.at(-1)!)).toMatchObject({ kind: "move_clip", clip_id: "clip_text" });
   expect(screen.queryByRole("status")?.textContent ?? "").not.toContain("An image has no source time");
 });
+
+test("a roll dragged past its limit stops at the limit instead of refusing", () => {
+  const { actions } = touchingPair();
+  // clip_b ends at 120, so the cut can go no further than 119.
+  fireEvent.pointerDown(endHandleOfFirst(), { clientX: 60, button: 0, altKey: true });
+  fireEvent.pointerMove(window, { clientX: 400 });
+  fireEvent.pointerUp(window, { clientX: 400 });
+  const committed = actions.filter((action) => action.type === "commit_operations");
+  expect(committed).toHaveLength(1);
+  expect((committed[0] as { operations: { end_frame?: number }[] }).operations[0]!.end_frame).toBe(119);
+});
+
+test("saving a marker's name unchanged commits nothing", () => {
+  const { actions } = withMarkers([{ marker_id: "m1", frame: 60, label: "Hook" }]);
+  openMarkerMenu("Hook at 0:02.0");
+  fireEvent.click(screen.getByRole("menuitem", { name: "Rename marker…" }));
+  fireEvent.click(within(screen.getByRole("dialog", { name: "Rename marker" })).getByRole("button", { name: "Save" }));
+  expect(actions.some((action) => action.type === "commit_operations")).toBe(false);
+  expect(screen.queryByRole("dialog", { name: "Rename marker" })).toBeNull();
+});
