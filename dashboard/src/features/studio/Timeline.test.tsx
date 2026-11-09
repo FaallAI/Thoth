@@ -1325,3 +1325,21 @@ test("saving a marker's name unchanged commits nothing", () => {
   expect(actions.some((action) => action.type === "commit_operations")).toBe(false);
   expect(screen.queryByRole("dialog", { name: "Rename marker" })).toBeNull();
 });
+
+test("a group drag released past a limit stays at its last good place and says why", () => {
+  // Carried Tier 2 minor (2026-11-09): it used to jump back to where it started.
+  const { actions } = mount(both);
+  fireEvent.pointerDown(screen.getByRole("button", { name: "Main video clip" }), { clientX: 10, button: 0 });
+  fireEvent.pointerMove(window, { clientX: 40 });
+  fireEvent.pointerMove(window, { clientX: 100 });
+  fireEvent.pointerUp(window, { clientX: 100 });
+  expect(actions.at(-1)).toMatchObject({ type: "commit_operations", operations: [{ from_frame: 30 }, { from_frame: 180 }] });
+  expect(screen.getByRole("status").textContent?.length).toBeGreaterThan(0);
+});
+
+test("Ctrl+D with nothing selected is claimed, so the browser does not bookmark the page", () => {
+  const { actions } = mount();
+  const notCancelled = fireEvent.keyDown(document.body, { key: "d", ctrlKey: true });
+  expect(notCancelled).toBe(false);
+  expect(actions.some((action) => action.type === "commit_operations")).toBe(false);
+});

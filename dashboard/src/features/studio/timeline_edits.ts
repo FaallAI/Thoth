@@ -259,6 +259,19 @@ export function moveClips(doc: EditDocumentV2, ids: readonly string[], delta: nu
   if (clips.some((clip) => isLocked(doc, clip))) return refuse("locked");
   const canvas = doc.canvas.duration_in_frames;
   if (clips.some((clip) => clip.from_frame + delta < 0 || endOf(clip) + delta > canvas)) return refuse("outside");
+  // The server keeps each clip inside its scene and Main video clips apart (carried minors, 2026-11-09).
+  const sceneOf = (clip: Clip) => (clip.scene_id ? doc.scenes.find((scene) => scene.scene_id === clip.scene_id) : undefined);
+  const leaves = (clip: Clip) => {
+    const scene = sceneOf(clip);
+    return scene !== undefined && (clip.from_frame + delta < scene.start_frame || endOf(clip) + delta > scene.start_frame + scene.duration_in_frames);
+  };
+  if (clips.some(leaves)) return refuse("scene");
+  const moving = new Set(clips.map((clip) => clip.clip_id));
+  const stays = clipsOf(doc).filter((clip) => !moving.has(clip.clip_id));
+  const collides = (clip: Clip) =>
+    trackOf(doc, clip.track_id)?.kind === "main_video" &&
+    stays.some((other) => other.track_id === clip.track_id && other.from_frame < endOf(clip) + delta && endOf(other) > clip.from_frame + delta);
+  if (clips.some(collides)) return refuse("no_room");
   return {
     operations: clips.map((clip) => ({
       kind: "move_clip",
@@ -290,12 +303,13 @@ export function pasteClips(doc: EditDocumentV2, ids: readonly string[], at: numb
   }
   if (placed.some(({ clip }) => trackOf(doc, clip.track_id)?.locked)) return refuse("locked");
   // The server keeps Main video clips from overlapping, existing ones and the copies alike.
+  // Per track, as the server checks it (carried minor, 2026-11-09).
   const main = (clip: Clip) => trackOf(doc, clip.track_id)?.kind === "main_video";
-  const taken = clipsOf(doc).filter(main).map((clip) => [clip.from_frame, endOf(clip)] as const);
+  const taken = clipsOf(doc).filter(main).map((clip) => [clip.track_id, clip.from_frame, endOf(clip)] as const);
   for (const { clip, from } of placed.filter(({ clip }) => main(clip))) {
     const end = from + clip.duration_in_frames;
-    if (taken.some(([start, stop]) => start < end && stop > from)) return refuse("no_room");
-    taken.push([from, end]);
+    if (taken.some(([track, start, stop]) => track === clip.track_id && start < end && stop > from)) return refuse("no_room");
+    taken.push([clip.track_id, from, end]);
   }
   return {
     operations: placed.map(({ clip, from }) => ({

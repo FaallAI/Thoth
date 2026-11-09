@@ -86,6 +86,8 @@ type Gesture = {
   group?: readonly string[];
   /** A roll moves the cut between these two touching clips (Tier 3a). */
   roll?: { leftId: string; rightId: string };
+  /** The group's last move that was allowed, kept for a release past a limit. */
+  lastGroup?: EditDocumentOperation[];
 };
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
@@ -371,7 +373,10 @@ export function Timeline({
       if (active.group) {
         // A group keeps its tracks and moves by one delta; a refused delta keeps the last preview.
         const { operations } = groupMove(active, event.clientX);
-        if (operations.length) latest.current.dispatch({ type: "preview_timeline_operations", operations });
+        if (operations.length) {
+          active.lastGroup = operations;
+          latest.current.dispatch({ type: "preview_timeline_operations", operations });
+        }
         return;
       }
       followLane(active, event.clientX, event.clientY);
@@ -405,8 +410,10 @@ export function Timeline({
       if (active.group) {
         const { operations, refusal } = groupMove(active, event.clientX);
         latest.current.dispatch({ type: "cancel_timeline_preview" });
+        // Released past a limit, the group stays where it last could go, and says why it stopped.
+        const kept = refusal ? active.lastGroup : operations;
+        if (kept?.length) latest.current.dispatch({ type: "commit_operations", operations: kept });
         if (refusal) setNotice(latest.current.t(`studio.menu.reason.${refusal}`));
-        else if (operations.length) latest.current.dispatch({ type: "commit_operations", operations });
         return;
       }
       followLane(active, event.clientX, event.clientY);
@@ -520,8 +527,8 @@ export function Timeline({
           commitEdit(pasteClips(doc, copied.current, current.playheadFrame));
           break;
         case "duplicate":
-          if (!selection.length) return;
-          commitEdit(duplicateClips(doc, selection));
+          // Claimed even with nothing selected, so the browser never bookmarks the page instead.
+          if (selection.length) commitEdit(duplicateClips(doc, selection));
           break;
         case "shuttle_forward":
           latest.current.onShuttle?.("forward");
