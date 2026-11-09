@@ -13,8 +13,8 @@ export type PlayerTimelineRef = {
   // Only the wide Timeline's control bar uses these; a Player without one leaves that button idle.
   mute?(): void;
   unmute?(): void;
-  isMuted?(): boolean;
   requestFullscreen?(): void;
+  isFullscreen?(): boolean;
 };
 
 type FrameEvent = { detail?: { frame?: number } };

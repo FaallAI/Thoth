@@ -23,14 +23,26 @@ Text can no longer be selected anywhere in the Studio editor, except in inputs, 
 - The timeline row was full width, but the clips stopped at about 70% of it. The approved mock-up shows them filling it, so the Timeline now fits them on opening.
 
 **Verification.**
-- **Dashboard:** 1925 tests pass; `tsc -b` and the build are clean.
+- **Dashboard:** 1926 tests pass; `tsc -b` and the build are clean.
 - **No Python, renderer or contract change,** so those suites did not run.
-- **Read-only e2e against a local dev server of this branch, at 1440:** `studio-shell-v2` and `studio-audit-fixes` pass 26/26, including the six new layout checks. One earlier combined run failed the 430 preview test on a 30 s timeout; it passed alone and in the next full run, and the cause was not found.
+- **Read-only e2e against a local dev server of this branch, at 1440:** `studio-shell-v2`, `studio-audit-fixes` and `studio-phone` pass 29/29, including the eight new layout checks. One earlier combined run failed the 430 preview test on a 30 s timeout; it passed alone and in the next full run, and the cause was not found.
 - **Screenshots judged at 1440x900 and 1024x768:** the layout matches the mock-up.
 - **Not seen live:** the issues list opening above the toolbar, because the test draft has no issues. Unit tests pin its position.
 - **Not yet run on stage1:** this branch is not deployed.
 
-**Noted, left as it is.** The Sound effects box under Assets takes about 100 px, so at 1024x768 the top row shows one asset at a time until the timeline is made shorter.
+**Final review, by a fresh reviewer, fixed test-first.**
+- **Mute could not be undone.** Remotion applies mute on its next render, so reading it straight after the click returned the old value. The bar now follows the Player's `mutechange` event.
+- **The Player remounted between Timeline and Review,** and lost its place while the playhead kept the old time. `StudioPreview` now keeps one element tree. Before the fix a browser check showed the Player replaced.
+- **Fullscreen state.** A bar that appears during fullscreen now reports it, and leaving reports it no longer counts.
+- **A long sound list could take the whole Assets column on short windows** (14% left at 1280x720 in the browser check). Sounds now take at most 35% of that cell.
+
+**Deferred minors from the review.**
+- English bar buttons are 16x20 px because an older `pen-studio.css` rule targets Remotion's labels; Indonesian ones are 24 px.
+- A double-click on a short window stores the fitted height rather than the default, so it stays smaller when the window grows.
+- A browser's asynchronous fullscreen refusal shows as a console rejection rather than the warning.
+- The divider's `aria-valuenow` and `aria-valuemax` go stale when the window is resized without touching it.
+
+**Declined by the reviewer, not checked.** Whether Space still works in fullscreen while the bar's button holds focus is worth one try by hand.
 
 **Rollback.** There is no document field and no migration. A rollback only brings the old layout back.
 

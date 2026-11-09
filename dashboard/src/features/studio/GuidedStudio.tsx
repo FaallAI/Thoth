@@ -1105,7 +1105,7 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
             ) : advanced ? (
               assetClient ? (
                 // One workstation cell: the asset list fills it, the SFX library sits under it.
-                <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto]">
+                <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_fit-content(35%)]">
                 <AssetLibrary
                   client={assetClient}
                   describe={describeAsset}

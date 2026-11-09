@@ -163,3 +163,31 @@ test('1440: text cannot be selected, fields still can', async ({ app, browser, s
   }));
   expect(selectable).toEqual({ heading: 'none', field: 'text' });
 });
+
+test('1440 Timeline: the same player stays through Review and back', async ({ app, browser, screen }) => {
+  await openWideTimeline({ app, browser, screen });
+  await browser.evaluate(() => {
+    (window as any).__player = document.querySelector('.__remotion-player');
+    return null;
+  });
+  await screen.getByRole('navigation', 'Studio jobs').getByRole('button', 'Review').tap();
+  expect(await browser.evaluate(() => Boolean((window as any).__player?.isConnected))).toBe(true);
+  await screen.getByRole('navigation', 'Studio jobs').getByRole('button', 'Edit').tap();
+  expect(await browser.evaluate(() => Boolean((window as any).__player?.isConnected))).toBe(true);
+});
+
+test('1280 Timeline: a long sound list leaves Assets its share of the top row', async ({ app, browser, screen }) => {
+  await browser.setViewport({ width: 1280, height: 720 });
+  await app.open(DRAFT);
+  await screen.getByRole('button', 'Timeline').tap();
+  await expect(screen.getByRole('region', 'Sound effects')).toBeVisible({ timeout: 20000 });
+  const share = await browser.evaluate(() => {
+    const sounds = document.querySelector('[aria-label="Sound effects"]')!;
+    const tall = document.createElement('div');
+    tall.style.height = '900px';
+    sounds.appendChild(tall);
+    const assets = document.querySelector('[aria-label="Asset library"]')!;
+    return assets.getBoundingClientRect().height / assets.parentElement!.getBoundingClientRect().height;
+  });
+  expect(share).toBeGreaterThanOrEqual(0.6);
+});

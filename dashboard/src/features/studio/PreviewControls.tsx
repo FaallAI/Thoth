@@ -20,7 +20,7 @@ type Props = {
   onFullscreenChange: (fullscreen: boolean) => void;
 };
 
-type FullscreenEvent = { detail?: { isFullscreen?: boolean } };
+type PlayerEvent = { detail?: { isFullscreen?: boolean; isMuted?: boolean } };
 
 const icon =
   "inline-flex size-6 items-center justify-center rounded text-muted-ink hover:text-ink disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-copper";
@@ -34,15 +34,23 @@ export function PreviewControls({ player, frame, durationInFrames, fps, playing,
   report.current = onFullscreenChange;
   useEffect(() => {
     if (!player) return;
-    const listener = (event: unknown) => report.current(Boolean((event as FullscreenEvent).detail?.isFullscreen));
-    player.addEventListener("fullscreenchange", listener);
-    return () => player.removeEventListener("fullscreenchange", listener);
+    const onFullscreen = (event: unknown) => report.current(Boolean((event as PlayerEvent).detail?.isFullscreen));
+    // The Player applies mute on its next render, so its event is the only true report.
+    const onMute = (event: unknown) => setMuted(Boolean((event as PlayerEvent).detail?.isMuted));
+    player.addEventListener("fullscreenchange", onFullscreen);
+    player.addEventListener("mutechange", onMute);
+    // The bar can appear while the Player is already fullscreen, and removal fires no event.
+    report.current(Boolean(player.isFullscreen?.()));
+    return () => {
+      player.removeEventListener("fullscreenchange", onFullscreen);
+      player.removeEventListener("mutechange", onMute);
+      report.current(false);
+    };
   }, [player]);
 
   const toggleMute = () => {
     if (muted) player?.unmute?.();
     else player?.mute?.();
-    setMuted(player?.isMuted?.() ?? muted);
   };
   const fullscreen = () => {
     try {

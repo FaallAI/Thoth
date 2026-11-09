@@ -1,7 +1,7 @@
 /// <reference types="bun-types" />
 
 import { afterEach, expect, mock, test } from "bun:test";
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 
 import { render } from "@/test-render";
 
@@ -13,7 +13,6 @@ afterEach(cleanup);
 
 function fakePlayer(overrides: Partial<PlayerTimelineRef> = {}) {
   const listeners: Record<string, ((event: unknown) => void) | undefined> = {};
-  let muted = false;
   const player = {
     addEventListener: (type: string, listener: (event: unknown) => void) => {
       listeners[type] = listener;
@@ -25,14 +24,11 @@ function fakePlayer(overrides: Partial<PlayerTimelineRef> = {}) {
     seekTo: () => {},
     play: () => {},
     pause: () => {},
-    mute: mock(() => {
-      muted = true;
-    }),
-    unmute: mock(() => {
-      muted = false;
-    }),
-    isMuted: () => muted,
+    // Like Remotion's: the change arrives later, through the mutechange event.
+    mute: mock(() => {}),
+    unmute: mock(() => {}),
     requestFullscreen: mock(() => {}),
+    isFullscreen: () => false,
     ...overrides,
   };
   return { player, listeners };
@@ -75,12 +71,14 @@ test("play and pause call the timeline's handlers", () => {
 });
 
 test("mute toggles and the label follows", () => {
-  const { player } = fakePlayer();
+  const { player, listeners } = fakePlayer();
   mount(player);
   fireEvent.click(screen.getByRole("button", { name: "Mute sound" }));
   expect(player.mute).toHaveBeenCalledTimes(1);
+  act(() => listeners.mutechange!({ detail: { isMuted: true } }));
   fireEvent.click(screen.getByRole("button", { name: "Unmute sound" }));
   expect(player.unmute).toHaveBeenCalledTimes(1);
+  act(() => listeners.mutechange!({ detail: { isMuted: false } }));
   expect(screen.getByRole("button", { name: "Mute sound" })).toBeDefined();
 });
 
@@ -105,6 +103,14 @@ test("no player yet leaves the buttons off", () => {
   mount(null);
   expect((screen.getByRole("button", { name: "Mute sound" }) as HTMLButtonElement).disabled).toBe(true);
   expect((screen.getByRole("button", { name: "Enter Fullscreen" }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+test("a bar that appears during fullscreen says so, and leaving says it no longer counts", () => {
+  const { player } = fakePlayer({ isFullscreen: () => true });
+  const { onFullscreenChange, unmount } = mount(player);
+  expect(onFullscreenChange).toHaveBeenLastCalledWith(true);
+  unmount();
+  expect(onFullscreenChange).toHaveBeenLastCalledWith(false);
 });
 
 test("the player's fullscreen state is reported", () => {

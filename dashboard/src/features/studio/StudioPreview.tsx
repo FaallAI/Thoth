@@ -77,19 +77,18 @@ export function StudioPreview({
       // With an overlay the canvas box is sized from this box's own width and height.
       style={overlay === undefined ? undefined : { containerType: "size" }}
     >
-      {overlay === undefined ? player() : (
-        <div
-          className="relative mx-auto"
-          style={{
-            aspectRatio: `${currentDocument.canvas.width} / ${currentDocument.canvas.height}`,
-            // The largest canvas-shaped box that fits, so the overlay sits on the canvas exactly.
-            width: `min(100cqw, calc(100cqh * ${currentDocument.canvas.width} / ${currentDocument.canvas.height}))`,
-          }}
-        >
-          {player()}
-          {overlay}
-        </div>
-      )}
+      {/* One element either way: a different tree would remount the Player and lose its place. */}
+      <div
+        className={overlay === undefined ? "contents" : "relative mx-auto"}
+        style={overlay === undefined ? undefined : {
+          aspectRatio: `${currentDocument.canvas.width} / ${currentDocument.canvas.height}`,
+          // The largest canvas-shaped box that fits, so the overlay sits on the canvas exactly.
+          width: `min(100cqw, calc(100cqh * ${currentDocument.canvas.width} / ${currentDocument.canvas.height}))`,
+        }}
+      >
+        {player()}
+        {overlay}
+      </div>
     </div>
   ) : (
     <p className="text-sm text-muted-foreground">{t("studio.preview.loading")}</p>
