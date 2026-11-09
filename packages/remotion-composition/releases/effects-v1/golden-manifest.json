@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "golden_set": "sha256-2694f28c9ceb86f6e17ee08b582684037d5d2baef5b6a2916e7fbbc591588786",
+  "frames": [
+    {
+      "frame": 0,
+      "preview": "frame-000000-preview.png",
+      "render": "frame-000000-render.png"
+    },
+    {
+      "frame": 20,
+      "preview": "frame-000020-preview.png",
+      "render": "frame-000020-render.png"
+    },
+    {
+      "frame": 40,
+      "preview": "frame-000040-preview.png",
+      "render": "frame-000040-render.png"
+    },
+    {
+      "frame": 60,
+      "preview": "frame-000060-preview.png",
+      "render": "frame-000060-render.png"
+    },
+    {
+      "frame": 90,
+      "preview": "frame-000090-preview.png",
+      "render": "frame-000090-render.png"
+    },
+    {
+      "frame": 119,
+      "preview": "frame-000119-preview.png",
+      "render": "frame-000119-render.png"
+    }
+  ]
+}

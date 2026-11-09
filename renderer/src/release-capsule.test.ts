@@ -624,7 +624,9 @@ describe("the effects release capsule", () => {
       new Set(["kinetic", "boxed"]),
     );
     expect(clips.some((clip) => clip.kind === "text" && clip.style_slot === "card")).toBe(true);
-    // No golden set until the operator approves one (spec 2026-11-09, section 6).
-    expect(capsule.goldens).toBeNull();
+    // Approved by the operator on 2026-11-10 and promoted from run_fbeac0be736f4b68.
+    const manifest = JSON.parse(readFileSync(join(capsule.directory, "golden-manifest.json"), "utf8"));
+    expect(capsule.goldens?.golden_set).toBe(manifest.golden_set);
+    expect(capsule.goldens?.frames.map((entry) => entry.frame)).toEqual([...capsule.frames]);
   });
 });

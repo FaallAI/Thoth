@@ -30,11 +30,20 @@ Every new field has a default and is left out of the stored document when unused
 - **After the review's fix pass:** 30.8 s and 27.7 s without, 33.3 s and 33.5 s with, so +14.2%.
 
 **Release capsule and golden set.** `effects-v1` draws every effect over 120 frames.
-- **What it shows:** a still with a pan, dim, a box and an arrow; kinetic captions; a 640x360 movie on `contain` with blur-fill, a box on its letterboxed picture and a punch-in; boxed captions; and the card.
-- **Promoted on the operator's word ("ya di izinkan", 2026-11-10):** set `sha256-39756b019bfb03e7ab266d32132798b63c2643df635886324a03786bbcd3604f`, from `run_87440284dc7f2a4f`.
+- **What it shows:**
+  - a dimmed still with a pan, a box and an arrow, over a bright movie, so Dim visibly veils the still's picture only;
+  - kinetic captions, clear of the fixture title, which now sits at the top;
+  - a 640x360 movie on `contain` with blur-fill, a box on its letterboxed picture, and a punch-in held at 135% at frame 90;
+  - boxed captions;
+  - the card.
+- **Promoted on the operator's word ("ya setuju", 2026-11-10), after they looked at the six frames:** set `sha256-2694f28c9ceb86f6e17ee08b582684037d5d2baef5b6a2916e7fbbc591588786`, from `run_fbeac0be736f4b68`.
+- **A first set was withdrawn:** `sha256-39756b01…`, from `run_87440284dc7f2a4f`, was promoted before the operator had seen it. It was withdrawn because it showed neither the punch-in at full size nor dim's scope, and because its kinetic captions overlapped the title.
 - **How it was drawn:** by a fresh F1 image with no network, and promoted from inside it. All 12 files are byte-identical to the frames judged.
-- **Frames judged:** 40 (dim on the still's picture only, a box, an arrow, a kinetic group), 80 (the landscape movie on its blur-fill, with the box on its picture) and 119 (the card).
-- **One note:** the kinetic group sits mid-frame over the capsule's own title text. That is the fixture's layout, not the effect.
+- **Frames judged:**
+  - 20: the dimmed still over the bright movie, the box and kinetic captions;
+  - 90: the punch-in at 135%, on its blur-fill, with the box;
+  - all six, by the operator.
+- **Carried forward:** kinetic captions sit mid-frame, where a Middle heading also sits. A draft with both would overlap.
 - **CI:** `effects-v1` joins the golden loop in `container-image.yml`, and the container contract test expects it. An image built with the new goldens verified `pass` for all three capsules on a fresh artifact root.
 
 **Found on the way.** Three `studio-media` read-only checks failed on stage1 too, so they were stale before this branch, not broken by it.
