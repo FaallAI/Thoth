@@ -1132,6 +1132,20 @@
         "emphasis": {
           "$ref": "#/$defs/Emphasis"
         },
+        "fade_in_frames": {
+          "default": 0,
+          "maximum": 300,
+          "minimum": 0,
+          "title": "Fade In Frames",
+          "type": "integer"
+        },
+        "fade_out_frames": {
+          "default": 0,
+          "maximum": 300,
+          "minimum": 0,
+          "title": "Fade Out Frames",
+          "type": "integer"
+        },
         "fit": {
           "default": "cover",
           "enum": [

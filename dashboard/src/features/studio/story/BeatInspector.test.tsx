@@ -331,3 +331,23 @@ test("Play from here and Show in Timeline hand the clip back", () => {
   expect(played).toEqual([60]);
   expect(shown).toEqual(["clip_comment_card_000"]);
 });
+
+// Tier 1 review leftovers (2026-11-08): a pick request opens the picker once and says it was handled.
+test("a request to add from materials opens the picker once and reports it handled", () => {
+  const handled = mock(() => {});
+  render(
+    <BeatInspector
+      beat={beats.find((beat) => beat.id === "reactions")!}
+      beats={beats}
+      document={storyDocument()}
+      inventory={inventory}
+      materials={materials}
+      dispatch={() => {}}
+      attachMaterial={mock(async () => fresh)}
+      pickRequest={1}
+      onPickHandled={handled}
+    />,
+  );
+  expect(screen.getByRole("listbox", { name: "Add from materials" })).toBeDefined();
+  expect(handled).toHaveBeenCalledTimes(1);
+});

@@ -48,6 +48,8 @@ type Props = {
   assetName?: (asset: EditorAsset) => string;
   /** Changes when the beat strip asks to add from materials; opens the picker. */
   pickRequest?: number;
+  /** Called once the request opened the picker, so a later remount does not open it again. */
+  onPickHandled?: () => void;
 };
 
 /** A material that can stand in for a missing one (spec §9: "Use profile card"). */
@@ -82,6 +84,7 @@ export function BeatInspector({
   replaceAssets,
   assetName,
   pickRequest,
+  onPickHandled,
 }: Props) {
   const { t, plural } = useLocale();
   const [picking, setPicking] = useState(false);
@@ -90,7 +93,10 @@ export function BeatInspector({
   const menu = useContextMenu();
   const [replacing, setReplacing] = useState<string | null>(null);
   useEffect(() => {
-    if (pickRequest) setPicking(true);
+    if (!pickRequest) return;
+    setPicking(true);
+    onPickHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one opening per request.
   }, [pickRequest]);
   const fps = document.canvas.fps;
   const commit = (operations: EditDocumentOperation[]) =>

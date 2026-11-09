@@ -7,6 +7,10 @@ import type { MessageKey } from "@/lib/i18n";
 import { failure } from "./StudioImportGate";
 import { Thumbnail } from "./story/MaterialsPanel";
 import { numberRepeats, type AssetKind } from "./studio_labels";
+import { ASSET_DRAG_TYPE } from "./timeline_domain";
+
+const FILTERS = ["all", "video", "image", "audio"] as const;
+type Filter = (typeof FILTERS)[number];
 
 /** One page at a time: the library never pulls a whole project into memory. */
 export const ASSET_PAGE_LIMIT = 20;
@@ -65,6 +69,8 @@ export function AssetLibrary({
   const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<Filter>("all");
   // Callbacks are read through a ref so a fresh inline handler never re-runs the load.
   const callbacks = useRef({ onAssets, onPreviewSource });
   callbacks.current = { onAssets, onPreviewSource };
@@ -135,6 +141,11 @@ export function AssetLibrary({
     // What this draft uses comes first; what nothing names (another draft's upload) comes last.
     .sort((a, b) => Number(a.kind === "upload") - Number(b.kind === "upload"));
   const labels = numberRepeats(rows.map((row) => row.label));
+  // Search and the type filter narrow what shows, never what loads (spec 2026-11-08 §6).
+  const needle = query.trim().toLowerCase();
+  const shown = rows
+    .map((row, index) => ({ ...row, name: labels[index]! }))
+    .filter((row) => (filter === "all" || row.asset.kind === filter) && (!needle || row.name.toLowerCase().includes(needle)));
 
   return (
     <section className="min-h-0 overflow-auto border-r border-border bg-card/60 p-3" aria-label="Asset library">
@@ -164,6 +175,29 @@ export function AssetLibrary({
           ) : null}
         </div>
       ) : null}
+      <div className="mb-2 space-y-1">
+        <input
+          type="search"
+          aria-label={t("studio.assets.search")}
+          placeholder={t("studio.assets.search")}
+          className="w-full rounded border border-border bg-background/40 px-2 py-1 text-xs"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <div role="group" aria-label={t("studio.assets.filter")} className="flex flex-wrap gap-1">
+          {FILTERS.map((value) => (
+            <button
+              key={value}
+              type="button"
+              className={`${action} ${filter === value ? "bg-accent" : ""}`}
+              aria-pressed={filter === value}
+              onClick={() => setFilter(value)}
+            >
+              {t(`studio.assets.filter.${value}`)}
+            </button>
+          ))}
+        </div>
+      </div>
       {failed ? (
         <div role="alert" className="space-y-2 text-xs text-destructive">
           <p>{t("studio.assets.unavailable")}</p>
@@ -178,21 +212,26 @@ export function AssetLibrary({
       ) : (
         <>
           <ul className="space-y-2">
-            {rows.map(({ asset, detail }, index) => (
+            {shown.map(({ asset, detail, name }) => (
               <li
                 key={asset.asset_id}
-                className="flex gap-2 rounded border border-border bg-background/40 p-2 text-xs"
+                className={`flex gap-2 rounded border border-border bg-background/40 p-2 text-xs ${onAdd ? "cursor-grab" : ""}`}
+                draggable={Boolean(onAdd)}
+                onDragStart={(event) => {
+                  event.dataTransfer.setData(ASSET_DRAG_TYPE, asset.asset_id);
+                  event.dataTransfer.effectAllowed = "copy";
+                }}
               >
                 <Thumbnail kind={asset.kind} preview={previews?.[asset.asset_id]} />
                 <div className="min-w-0 flex-1">
-                <span className="block font-medium break-words text-foreground">{labels[index]}</span>
+                <span className="block font-medium break-words text-foreground">{name}</span>
                 <span className="block text-muted-foreground">{detail}</span>
                 <div className="mt-1 flex flex-wrap gap-1">
                   {onAdd ? (
                     <button
                       type="button"
                       className={action}
-                      aria-label={t("studio.assets.addNamed", { label: labels[index]! })}
+                      aria-label={t("studio.assets.addNamed", { label: name })}
                       onClick={() => onAdd(asset)}
                     >
                       {t("studio.assets.add")}
@@ -201,7 +240,7 @@ export function AssetLibrary({
                   <button
                     type="button"
                     className={action}
-                    aria-label={t("studio.assets.previewNamed", { label: labels[index]! })}
+                    aria-label={t("studio.assets.previewNamed", { label: name })}
                     onClick={() => preview(asset.asset_id)}
                   >
                     {t("studio.assets.preview")}
@@ -211,8 +250,13 @@ export function AssetLibrary({
               </li>
             ))}
           </ul>
-          {rows.length === 0 && !loading ? (
-            <p className="text-xs text-muted-foreground">{t("studio.assets.none")}</p>
+          {/* Search and the filter see the loaded pages only, so an empty result says what was searched. */}
+          {shown.length === 0 && !loading ? (
+            <p className="text-xs text-muted-foreground">
+              {rows.length === 0
+                ? t("studio.assets.none")
+                : t(cursor ? "studio.assets.noMatchMore" : "studio.assets.noMatch", { count: String(rows.length) })}
+            </p>
           ) : null}
           {cursor ? (
             <button

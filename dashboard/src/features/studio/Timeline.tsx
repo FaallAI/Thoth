@@ -10,7 +10,19 @@ import { TimelineTrack } from "./TimelineTrack";
 import { ReplaceMediaDialog } from "./ReplaceMediaDialog";
 import { clipMenu, gapMenu, trackMenu, type MenuContext } from "./timeline_menus";
 import { isTypingTarget, timelineKey } from "./studio_keys";
-import { deleteClip, rippleDelete, splitAt } from "./timeline_edits";
+import {
+  deleteClips,
+  duplicateClips,
+  moveClips,
+  PASTE_TARGETS,
+  pasteClips,
+  pasteTextOperations,
+  rippleDeleteClips,
+  splitAt,
+  type Edit,
+  type PasteTarget,
+} from "./timeline_edits";
+import { PasteTextDialog } from "./PasteTextDialog";
 import {
   clampZoom,
   compatibleTrackIds,
@@ -19,6 +31,7 @@ import {
   framesToPixels,
   rulerTicks,
   isTimelineDocument,
+  trackLabel,
   snapCandidates,
   snapFrame,
   visibleLanes,
@@ -43,6 +56,10 @@ type Props = {
   assetName?: (asset: EditorAsset) => string;
   /** Off while Review or Render shows: the Timeline stays mounted but hidden, so its keys must rest. */
   editingKeys?: boolean;
+  /** J, K and L (spec 2026-11-08 §6): L plays and speeds up, K stops; J steps back here. */
+  onShuttle?: (direction: "forward" | "stop") => void;
+  /** An asset dragged from the Assets column onto a lane that can hold it (spec 2026-11-08 §6). */
+  onDropAsset?: (assetId: string, trackId: string, frame: number) => void;
 };
 
 /** One pointer gesture in flight. Committed on pointer up, dropped on Escape. */
@@ -57,11 +74,29 @@ type Gesture = {
   anchor: number;
   operationId: string;
   previewed: boolean;
+  /** A move of a clip inside a larger selection drags them all (spec 2026-11-08 §6). */
+  group?: readonly string[];
 };
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
 
 /** Snap within a fixed screen distance, so zooming out does not widen the pull. */
+/** Every selected clip, the primary one included however the state was made. */
+const selectionOf = (state: EditorState) =>
+  state.selectedClipId && !state.selectedClipIds.includes(state.selectedClipId)
+    ? [...state.selectedClipIds, state.selectedClipId]
+    : state.selectedClipIds;
+
+/** How far a press on empty lane space moves before it becomes a marquee. */
+const MARQUEE_SLOP = 4;
+
+/** Lanes whose clips a marquee or Ctrl+A may take: shown and unlocked, and only unlocked clips. */
+function selectableLanes(doc: EditDocumentV2) {
+  return visibleLanes(doc)
+    .filter((lane) => !lane.track.hidden && !lane.track.locked)
+    .map((lane) => ({ ...lane, clips: lane.clips.filter((clip) => !clip.locked) }));
+}
+
 const snapThreshold = (zoom: number) => Math.max(1, Math.round(8 / zoom));
 
 /** The header column beside every lane; the ruler and the playhead start after it. */
@@ -81,6 +116,8 @@ export function Timeline({
   onShowInStory,
   assetName,
   editingKeys = true,
+  onDropAsset,
+  onShuttle,
 }: Props) {
   const { t } = useLocale();
   const headerWidth = readOnly ? READ_ONLY_HEADER_WIDTH : HEADER_WIDTH;
@@ -90,6 +127,8 @@ export function Timeline({
   const timeline = isTimelineDocument(state.draft) ? state.draft : undefined;
   const clips = timeline?.clips ?? [];
   const selectedClip = clips.find((clip) => clip.clip_id === state.selectedClipId);
+  // The primary clip is always part of the selection, however the state was made.
+  const selectedIds = selectionOf(state);
   const trackOf = (trackId: string) => timeline?.tracks.find((t) => t.track_id === trackId);
   const selectionLocked = selectedClip
     ? selectedClip.locked === true || trackOf(selectedClip.track_id)?.locked === true
@@ -97,13 +136,76 @@ export function Timeline({
 
   // The lanes' scroll box: Ctrl+0 fits the canvas into its width.
   const lanesBox = useRef<HTMLDivElement>(null);
+  // A marquee over empty lane space (spec 2026-11-08 §6): where it started, and the box on screen.
+  const marquee = useRef<{ x0: number; y0: number; active: boolean } | null>(null);
+  const lanesArea = useRef<HTMLDivElement>(null);
+  const [marqueeBox, setMarqueeBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   // One right-click menu for clips, gaps and tracks (spec 2026-11-08 §5.1), and the clip being replaced.
   const menu = useContextMenu();
   const [replacing, setReplacing] = useState<string | null>(null);
+  // The lane under a drag that cannot take the clip, shown as refusing (spec 2026-11-08 §5.1).
+  const [refusedLane, setRefusedLane] = useState<string | null>(null);
+  // Clips copied in this page (spec 2026-11-08 §6): ids in the open draft, never the system clipboard.
+  const copied = useRef<readonly string[]>([]);
+  const documentId = isTimelineDocument(state.draft) ? state.draft.document_id : "";
+  useEffect(() => {
+    copied.current = [];
+  }, [documentId]);
+  // Text on its way from the system clipboard, waiting for the person to pick its place (spec 2026-11-08 §6).
+  const [pastedText, setPastedText] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const offerText = (text: string) => {
+    const trimmed = text.trim();
+    setNotice(null);
+    if (trimmed) setPastedText(trimmed);
+  };
+  const readClipboardText = () => {
+    const read = navigator.clipboard?.readText?.bind(navigator.clipboard);
+    if (!read) {
+      setNotice(t("studio.paste.useCtrlV"));
+      return;
+    }
+    read().then(offerText, () => setNotice(t("studio.paste.useCtrlV")));
+  };
+  const copyText = (text: string) => {
+    void navigator.clipboard?.writeText?.(text).catch(() => undefined);
+  };
+
+  // Ctrl+V with plain text and no copied clips: the browser's own paste event carries it, no permission asked.
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      const { timeline: doc, readOnly: viewOnly, editingKeys: keysOn } = latest.current;
+      if (!doc || viewOnly || !keysOn || event.defaultPrevented || isTypingTarget(event.target)) return;
+      if ((event.target as HTMLElement | null)?.closest?.("[role='dialog'], [role='menu']")) return;
+      // Plain text only: an HTML-only or file paste offers nothing.
+      const text = event.clipboardData?.getData("text/plain")?.trim() ?? "";
+      if (!text) return;
+      event.preventDefault();
+      setNotice(null);
+      setPastedText(text);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, []);
 
   // Keep the listeners' view of the editor current without re-attaching them.
-  const latest = useRef({ state, dispatch, timeline, onSeek, onPlay, onPause, readOnly, editingKeys });
-  latest.current = { state, dispatch, timeline, onSeek, onPlay, onPause, readOnly, editingKeys };
+  const latest = useRef({ state, dispatch, timeline, onSeek, onPlay, onPause, readOnly, editingKeys, onShuttle, t });
+  latest.current = { state, dispatch, timeline, onSeek, onPlay, onPause, readOnly, editingKeys, onShuttle, t };
+
+  /** The unlocked clips a marquee from `area` to `event` touches, lane by lane (spec 2026-11-08 §6). */
+  const clipsInMarquee = (area: { x0: number; y0: number }, event: { clientX: number; clientY: number }) => {
+    const { timeline: doc, state: current } = latest.current;
+    if (!doc || !lanesBox.current) return [];
+    const [left, right] = [Math.min(area.x0, event.clientX), Math.max(area.x0, event.clientX)];
+    const [top, bottom] = [Math.min(area.y0, event.clientY), Math.max(area.y0, event.clientY)];
+    return selectableLanes(doc).flatMap((lane) => {
+      const well = lanesBox.current!.querySelector(`[data-track-id="${lane.track.track_id}"] [data-lane-well]`);
+      const box = well?.getBoundingClientRect();
+      if (!box || box.bottom < top || box.top > bottom) return [];
+      const [from, to] = [(left - box.left) / current.zoom, (right - box.left) / current.zoom];
+      return lane.clips.filter((clip) => clip.from_frame < to && clip.from_frame + clip.duration_in_frames > from).map((clip) => clip.clip_id);
+    });
+  };
 
   /** Move the playhead and the preview to one frame, kept inside the document. */
   const seek = (frame: number) => {
@@ -138,10 +240,19 @@ export function Timeline({
       .map((element) => element.closest<HTMLElement>("[data-track-id]"))
       .find(Boolean);
     const trackId = lane?.dataset.trackId;
-    active.trackId =
-      trackId && (trackId === active.homeTrackId || compatibleTrackIds(doc, active.clipKind).includes(trackId))
-        ? trackId
-        : active.homeTrackId;
+    const fits = Boolean(trackId) && (trackId === active.homeTrackId || compatibleTrackIds(doc, active.clipKind).includes(trackId!));
+    active.trackId = fits ? trackId! : active.homeTrackId;
+    const refused = trackId && !fits ? trackId : null;
+    setRefusedLane((current) => (current === refused ? current : refused));
+  };
+
+  /** The whole selection moved by the dragged clip's delta, measured on the document before the drag. */
+  const groupMove = (active: Gesture, clientX: number): Edit => {
+    const { state: current, timeline: doc } = latest.current;
+    const origin = current.preview?.draft;
+    const before = origin && isTimelineDocument(origin) ? origin : doc;
+    if (!before || !active.group) return { operations: [] };
+    return moveClips(before, active.group, frameAt(active, clientX) - active.anchor);
   };
 
   const operationFor = (active: Gesture, frame: number): EditDocumentOperation => {
@@ -178,8 +289,24 @@ export function Timeline({
     const end = () => {
       gesture.current = null;
       scrubbing.current = null;
+      marquee.current = null;
+      setMarqueeBox(null);
+      setRefusedLane(null);
     };
     const onMove = (event: PointerEvent) => {
+      const area = marquee.current;
+      if (area) {
+        area.active ||= Math.hypot(event.clientX - area.x0, event.clientY - area.y0) > MARQUEE_SLOP;
+        if (!area.active) return;
+        const origin = lanesArea.current?.getBoundingClientRect();
+        setMarqueeBox({
+          left: Math.min(area.x0, event.clientX) - (origin?.left ?? 0),
+          top: Math.min(area.y0, event.clientY) - (origin?.top ?? 0),
+          width: Math.abs(event.clientX - area.x0),
+          height: Math.abs(event.clientY - area.y0),
+        });
+        return;
+      }
       if (scrubbing.current) {
         seekToPointer(scrubbing.current, event.clientX);
         return;
@@ -187,6 +314,12 @@ export function Timeline({
       const active = gesture.current;
       if (!active) return;
       active.previewed = true;
+      if (active.group) {
+        // A group keeps its tracks and moves by one delta; a refused delta keeps the last preview.
+        const { operations } = groupMove(active, event.clientX);
+        if (operations.length) latest.current.dispatch({ type: "preview_timeline_operations", operations });
+        return;
+      }
       followLane(active, event.clientX, event.clientY);
       latest.current.dispatch({
         type: "preview_timeline_operation",
@@ -194,9 +327,20 @@ export function Timeline({
       });
     };
     const onUp = (event: PointerEvent) => {
+      const area = marquee.current;
+      if (area?.active) latest.current.dispatch({ type: "select_clips", clipIds: clipsInMarquee(area, event) });
       const active = gesture.current;
       end();
+      // A click without a drag on a clip of a larger selection selects that clip alone, as editors do.
+      if (active?.group && !active.previewed) latest.current.dispatch({ type: "select_clip", clipId: active.clipId });
       if (!active?.previewed) return;
+      if (active.group) {
+        const { operations, refusal } = groupMove(active, event.clientX);
+        latest.current.dispatch({ type: "cancel_timeline_preview" });
+        if (refusal) setNotice(latest.current.t(`studio.menu.reason.${refusal}`));
+        else if (operations.length) latest.current.dispatch({ type: "commit_operations", operations });
+        return;
+      }
       followLane(active, event.clientX, event.clientY);
       latest.current.dispatch({
         type: "commit_timeline_operation",
@@ -241,22 +385,29 @@ export function Timeline({
       const moves = ["start", "end", "frame_back", "frame_forward", "second_back", "second_forward"];
       if (moves.includes(action) && target?.closest?.("input[type='range'], [role='slider']")) return;
       const fpsNow = doc.canvas.fps;
-      const commitEdit = (operations: EditDocumentOperation[]) => {
+      // A refused key says why, as the menus do (final review 2026-11-08).
+      const commitEdit = ({ operations, refusal }: Edit) => {
+        if (refusal) {
+          setNotice(latest.current.t(`studio.menu.reason.${refusal}`));
+          return;
+        }
+        setNotice(null);
         if (operations.length) send({ type: "commit_operations", operations });
       };
       const clipId = current.selectedClipId;
+      const selection = selectionOf(current);
       switch (action) {
         case "delete":
           if (!clipId) return;
-          commitEdit(deleteClip(doc, clipId).operations);
+          commitEdit(deleteClips(doc, selection));
           break;
         case "ripple_delete":
           if (!clipId) return;
-          commitEdit(rippleDelete(doc, clipId).operations);
+          commitEdit(rippleDeleteClips(doc, selection));
           break;
         case "split":
           if (!clipId) return;
-          commitEdit(splitAt(doc, clipId, current.playheadFrame).operations);
+          commitEdit(splitAt(doc, clipId, current.playheadFrame));
           break;
         case "play":
           (current.playing ? pause : play)?.();
@@ -287,6 +438,32 @@ export function Timeline({
           send({ type: "set_zoom", zoom: clampZoom(width / doc.canvas.duration_in_frames) });
           break;
         }
+        case "copy":
+          // Text the person selected on the page copies as the browser does.
+          if (!selection.length || window.getSelection?.()?.toString()) return;
+          copied.current = selection;
+          break;
+        case "paste":
+          // With no copied clips the browser's paste goes on, for text (Task 8).
+          if (!copied.current.length) return;
+          commitEdit(pasteClips(doc, copied.current, current.playheadFrame));
+          break;
+        case "duplicate":
+          if (!selection.length) return;
+          commitEdit(duplicateClips(doc, selection));
+          break;
+        case "shuttle_forward":
+          latest.current.onShuttle?.("forward");
+          break;
+        case "shuttle_stop":
+          latest.current.onShuttle?.("stop");
+          break;
+        case "shuttle_back":
+          seek(current.playheadFrame - Math.max(1, fpsNow));
+          break;
+        case "select_all":
+          send({ type: "select_clips", clipIds: selectableLanes(doc).flatMap((lane) => lane.clips.map((clip) => clip.clip_id)) });
+          break;
         case "clear":
           if (!clipId) return;
           send({ type: "select_clip", clipId: "" });
@@ -339,6 +516,7 @@ export function Timeline({
       anchor: mode === "trim_end" ? clip.from_frame + clip.duration_in_frames : clip.from_frame,
       operationId: newId("op"),
       previewed: false,
+      group: mode === "move" && selectedIds.length > 1 && selectedIds.includes(clipId) ? selectedIds : undefined,
     };
   };
 
@@ -437,9 +615,18 @@ export function Timeline({
 
       <div ref={lanesBox} data-testid="timeline-lanes" className="min-h-0 overflow-auto">
         <div
+          ref={lanesArea}
           className="relative"
           style={{ width: `${framesToPixels(duration, state.zoom) + headerWidth}px` }}
         >
+          {marqueeBox ? (
+            <div
+              data-testid="timeline-marquee"
+              aria-hidden="true"
+              className="pointer-events-none absolute z-30 rounded-sm border border-copper bg-copper/10"
+              style={marqueeBox}
+            />
+          ) : null}
           <div className="sticky top-0 z-10 flex h-7 border-b border-hairline bg-surface">
             <div className="sticky left-0 z-10 shrink-0 border-r border-hairline bg-surface" style={{ width: headerWidth }} />
             <div
@@ -483,10 +670,12 @@ export function Timeline({
               lane={lane}
               zoom={state.zoom}
               widthInFrames={duration}
-              selectedClipId={state.selectedClipId}
+              selectedClipIds={selectedIds}
               labelOf={labelOf}
               readOnly={readOnly}
               name={trackName(t, timeline, lane.track)}
+              accessibleLabel={trackLabel(timeline, lane.track)}
+              refusesDrop={refusedLane === lane.track.track_id}
               onToggle={(field, value) => toggleTrack(lane.track.track_id, field, value)}
               clipMenu={
                 readOnly
@@ -497,6 +686,13 @@ export function Timeline({
                           onReplace: () => setReplacing(clip.clip_id),
                           storyBeat: beatOf?.(clip.clip_id) ?? null,
                           onShowInStory: onShowInStory ? () => onShowInStory(clip.clip_id) : undefined,
+                          selection: selectedIds,
+                          copied: copied.current,
+                          onCopy: (ids) => {
+                            copied.current = ids;
+                          },
+                          onCopyText: copyText,
+                          onPasteText: readClipboardText,
                         }),
                       )
               }
@@ -504,7 +700,9 @@ export function Timeline({
                 readOnly
                   ? undefined
                   : menu.bind((at) =>
-                      gapMenu(menuContext, lane.track.track_id, Math.floor((at.x - at.owner.getBoundingClientRect().left) / state.zoom)),
+                      gapMenu(menuContext, lane.track.track_id, Math.floor((at.x - at.owner.getBoundingClientRect().left) / state.zoom), {
+                        onPasteText: readClipboardText,
+                      }),
                     )
               }
               nameMenu={
@@ -517,7 +715,30 @@ export function Timeline({
                       }),
                     )
               }
-              onSelectClip={(clipId) => dispatch({ type: "select_clip", clipId })}
+              onSelectClip={(clipId, add) => {
+                if (add) dispatch({ type: "select_clip", clipId, add: true });
+                // A press on a clip of a larger selection keeps it, so the group can be dragged or edited.
+                else if (!(selectedIds.length > 1 && selectedIds.includes(clipId))) {
+                  dispatch({ type: "select_clip", clipId });
+                } else if (clipId !== state.selectedClipId) {
+                  // The pressed clip becomes the one the Inspector shows; the group stays for a drag.
+                  dispatch({ type: "select_clips", clipIds: [...selectedIds.filter((id) => id !== clipId), clipId] });
+                }
+              }}
+              onDropAsset={
+                readOnly || !onDropAsset
+                  ? undefined
+                  : (assetId, offset) => {
+                      const asset = state.assets[assetId];
+                      const kind = asset?.kind === "audio" ? "audio" : "video";
+                      // A known asset only goes on a lane that can hold it; the caller checks the room.
+                      if (asset && !compatibleTrackIds(timeline, kind).includes(lane.track.track_id)) return;
+                      onDropAsset(assetId, lane.track.track_id, Math.max(0, Math.round(offset / state.zoom)));
+                    }
+              }
+              onMarqueeStart={readOnly ? undefined : (clientX, clientY) => {
+                marquee.current = { x0: clientX, y0: clientY, active: false };
+              }}
               onSelectTrack={() => dispatch({ type: "select_track", trackId: lane.track.track_id })}
               onSeekAt={(offset) => {
                 seek(offset / state.zoom);
@@ -541,6 +762,26 @@ export function Timeline({
         </div>
       </div>
       {menu.element}
+      {notice ? (
+        <p role="status" className="border-t border-hairline bg-surface px-3 py-2 text-xs text-muted-ink">
+          {notice}
+        </p>
+      ) : null}
+      {pastedText !== null ? (
+        <PasteTextDialog
+          text={pastedText}
+          targets={PASTE_TARGETS.map((target) => {
+            const edit = pasteTextOperations(timeline, target, pastedText, { playheadFrame: state.playheadFrame, selectedClipId: state.selectedClipId });
+            return { target, disabled: Boolean(edit.refusal), reason: edit.refusal ? t(`studio.menu.reason.${edit.refusal}`) : undefined };
+          })}
+          onClose={() => setPastedText(null)}
+          onPick={(target: PasteTarget) => {
+            const edit = pasteTextOperations(timeline, target, pastedText, { playheadFrame: state.playheadFrame, selectedClipId: state.selectedClipId });
+            setPastedText(null);
+            if (edit.operations.length) dispatch({ type: "commit_operations", operations: edit.operations });
+          }}
+        />
+      ) : null}
       {replaced && replacedAsset ? (
         <ReplaceMediaDialog
           currentAssetId={replacedAsset}

@@ -325,6 +325,8 @@ function timelineDocument(): EditDocumentV2 {
         locked: false,
         fit: "cover",
         blur_enabled: false,
+        fade_in_frames: 0,
+        fade_out_frames: 0,
         motion: "none",
         hold_after_source: false,
         emphasis: { highlight: false, arrow: false },
@@ -993,4 +995,75 @@ test("select_clip with no id clears the clip and track selection", () => {
   const cleared = editorReducer(selected, { type: "select_clip", clipId: "" });
   expect(cleared.selectedClipId).toBe("");
   expect(cleared.selectedTrackId).toBe("");
+});
+
+// Tier 2 (spec 2026-11-08 §6): a selection of many clips.
+import { timelineDocument as selectionDocument } from "./timeline-test-fixtures";
+
+const selecting = (...actions: EditorAction[]) =>
+  actions.reduce(editorReducer, createEditorState(selectionDocument()));
+
+test("select_clip with add toggles a clip in and out of the selection", () => {
+  const two = selecting({ type: "select_clip", clipId: "clip_main" }, { type: "select_clip", clipId: "clip_music", add: true });
+  expect(two.selectedClipIds).toEqual(["clip_main", "clip_music"]);
+  expect(two.selectedClipId).toBe("clip_music");
+  const one = editorReducer(two, { type: "select_clip", clipId: "clip_music", add: true });
+  expect(one.selectedClipIds).toEqual(["clip_main"]);
+  expect(one.selectedClipId).toBe("clip_main");
+});
+
+test("a plain select_clip replaces the selection and an empty id clears it", () => {
+  const replaced = selecting(
+    { type: "select_clip", clipId: "clip_main" },
+    { type: "select_clip", clipId: "clip_music", add: true },
+    { type: "select_clip", clipId: "clip_locked" },
+  );
+  expect(replaced.selectedClipIds).toEqual(["clip_locked"]);
+  const cleared = editorReducer(replaced, { type: "select_clip", clipId: "" });
+  expect([cleared.selectedClipIds, cleared.selectedClipId]).toEqual([[], ""]);
+});
+
+test("select_clips sets the list and makes the last id primary", () => {
+  const state = selecting({ type: "select_clips", clipIds: ["clip_music", "clip_main", "missing"] });
+  expect(state.selectedClipIds).toEqual(["clip_music", "clip_main"]);
+  expect([state.selectedClipId, state.selectedTrackId]).toEqual(["clip_main", "track_main"]);
+});
+
+test("a removed clip leaves the selection after commit_operations", () => {
+  const state = selecting(
+    { type: "select_clips", clipIds: ["clip_main", "clip_music"] },
+    { type: "commit_operations", operations: [{ kind: "remove_clip", operation_id: "op_remove", clip_id: "clip_music" }] },
+  );
+  expect(state.selectedClipIds).toEqual(["clip_main"]);
+  expect(state.selectedClipId).toBe("clip_main");
+});
+
+test("one batch for two clips undoes at once", () => {
+  const removed = selecting({
+    type: "commit_operations",
+    operations: [
+      { kind: "remove_clip", operation_id: "op_a", clip_id: "clip_main" },
+      { kind: "remove_clip", operation_id: "op_b", clip_id: "clip_music" },
+    ],
+  });
+  expect(removed.draft.clips!.map((clip) => clip.clip_id)).toEqual(["clip_locked"]);
+  const undone = editorReducer(removed, { type: "undo" });
+  expect(undone.draft.clips!.map((clip) => clip.clip_id).sort()).toEqual(["clip_locked", "clip_main", "clip_music"]);
+});
+
+test("preview_timeline_operations previews a batch and Escape restores it", () => {
+  const moves = (frame: number): EditorAction => ({
+    type: "preview_timeline_operations",
+    operations: [
+      { kind: "move_clip", operation_id: "op_a", clip_id: "clip_main", target_track_id: "track_main", from_frame: frame, ripple: false },
+      { kind: "move_clip", operation_id: "op_b", clip_id: "clip_music", target_track_id: "track_music", from_frame: 150 + frame, ripple: false },
+    ],
+  });
+  const previewed = selecting(moves(10), moves(20));
+  const at = (state: typeof previewed, id: string) =>
+    (state.draft as EditDocumentV2).clips!.find((clip) => clip.clip_id === id)!.from_frame;
+  expect([at(previewed, "clip_main"), at(previewed, "clip_music")]).toEqual([20, 170]);
+  expect(previewed.history).toHaveLength(0);
+  const cancelled = editorReducer(previewed, { type: "cancel_timeline_preview" });
+  expect([at(cancelled, "clip_main"), at(cancelled, "clip_music")]).toEqual([0, 150]);
 });

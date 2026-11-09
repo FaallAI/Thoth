@@ -275,3 +275,30 @@ def test_a_held_video_clip_may_run_past_its_source() -> None:
         EditDocumentV2.model_validate(deepcopy(payload))
     main["hold_after_source"] = True
     assert EditDocumentV2.model_validate(payload)
+
+
+def test_a_stored_video_clip_without_fades_decodes() -> None:
+    payload = document_v2_payload()
+    main = next(clip for clip in payload["clips"] if clip["clip_id"] == "clip_main")
+    assert "fade_in_frames" not in main and "fade_out_frames" not in main
+
+    clip = next(c for c in EditDocumentV2.model_validate(payload).clips if c.clip_id == "clip_main")
+    assert (clip.fade_in_frames, clip.fade_out_frames) == (0, 0)
+
+
+def test_unused_video_fades_are_not_stored() -> None:
+    """A Tier 1 server forbids unknown fields, so a draft saved without fades must not carry them.
+
+    That keeps a rollback to the Tier 1 images safe for every draft that never used a fade
+    (operator, 2026-11-08).
+    """
+    document = EditDocumentV2.model_validate(document_v2_payload())
+    clips = document.model_dump(mode="json")["clips"]
+    stored = next(c for c in clips if c["clip_id"] == "clip_main")
+    assert "fade_in_frames" not in stored and "fade_out_frames" not in stored
+
+    payload = document_v2_payload()
+    next(c for c in payload["clips"] if c["clip_id"] == "clip_main")["fade_in_frames"] = 15
+    faded = EditDocumentV2.model_validate(payload).model_dump(mode="json")
+    main = next(c for c in faded["clips"] if c["clip_id"] == "clip_main")
+    assert main["fade_in_frames"] == 15 and "fade_out_frames" not in main

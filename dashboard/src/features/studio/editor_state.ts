@@ -31,6 +31,8 @@ export type EditorState = EditorSnapshot & {
   selectedSceneId: string;
   selectedTrackId: string;
   selectedClipId: string;
+  /** Every selected clip (spec 2026-11-08 §6); `selectedClipId` is the one the Inspector shows. */
+  selectedClipIds: string[];
   selectedIssueId: string;
   mode: EditorMode;
   playheadFrame: number;
@@ -88,7 +90,10 @@ export type EditorAction =
   | { type: "assets_loaded"; assets: EditorAsset[]; replace: boolean }
   | { type: "set_editor_mode"; mode: EditorMode }
   | { type: "select_track"; trackId: string }
-  | { type: "select_clip"; clipId: string }
+  /** `add` toggles the clip in or out of the selection (Shift or Ctrl click). */
+  | { type: "select_clip"; clipId: string; add?: boolean }
+  /** A marquee or Ctrl+A; the last id becomes the primary one. */
+  | { type: "select_clips"; clipIds: string[] }
   | { type: "select_issue"; issueId: string }
   | { type: "set_playhead"; frame: number }
   | { type: "set_playing"; playing: boolean }
@@ -100,6 +105,8 @@ export type EditorAction =
   | { type: "upgrade_conflicted"; latest: EditDocument }
   | { type: "upgrade_failed" }
   | { type: "preview_timeline_operation"; operation: EditDocumentOperation }
+  /** A drag of several clips: the batch shows on screen; commit_operations keeps it (spec 2026-11-08 §6). */
+  | { type: "preview_timeline_operations"; operations: EditDocumentOperation[] }
   | { type: "commit_timeline_operation"; operation: EditDocumentOperation }
   /** Several operations as one undo step; one refusal discards them all (Story mode). */
   | { type: "commit_operations"; operations: EditDocumentOperation[] }
@@ -115,6 +122,7 @@ export function createEditorState(
     selectedSceneId: document.scenes[0]?.scene_id ?? "",
     selectedTrackId: "",
     selectedClipId: "",
+    selectedClipIds: [],
     selectedIssueId: "",
     // DESIGN 13.1: a draft opens in Story ("simple"); Timeline is opened on demand.
     mode: "simple",
@@ -168,6 +176,7 @@ const DOCUMENT_ACTIONS = new Set<EditorAction["type"]>([
   "reload_latest",
   "keep_editing_locally",
   "preview_timeline_operation",
+  "preview_timeline_operations",
   "commit_timeline_operation",
   "commit_operations",
   "cancel_timeline_preview",
@@ -431,6 +440,26 @@ function gestureOrigin(state: EditorState): EditorSnapshot {
 }
 
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
+  return keptSelection(reduce(state, action));
+}
+
+/**
+ * The selection holds only clips the draft still has, and always holds the primary clip.
+ * Every path that sets `selectedClipId` alone (a save, an undo, an issue) keeps working.
+ */
+function keptSelection(state: EditorState): EditorState {
+  const present = new Set(documentClips(state.draft).map((clip) => clip.clip_id));
+  const kept = (state.selectedClipIds ?? []).filter((id) => present.has(id));
+  const primary = present.has(state.selectedClipId) ? state.selectedClipId : (kept.at(-1) ?? "");
+  const ids = !primary ? [] : kept.includes(primary) ? kept : [primary];
+  if (primary === state.selectedClipId && ids.length === state.selectedClipIds?.length && ids.every((id, index) => id === state.selectedClipIds[index])) {
+    return state;
+  }
+  const clip = documentClips(state.draft).find((entry) => entry.clip_id === primary);
+  return { ...state, selectedClipId: primary, selectedClipIds: ids, selectedTrackId: clip ? String(clip.track_id) : state.selectedTrackId };
+}
+
+function reduce(state: EditorState, action: EditorAction): EditorState {
   // One gate for keyboard, pointer, Inspector, and delayed callbacks alike.
   if (state.upgradeStatus === "running" && DOCUMENT_ACTIONS.has(action.type)) return state;
   switch (action.type) {
@@ -634,14 +663,26 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return { ...state, mode: action.mode };
     case "select_track":
       return state.draft.tracks.some((track) => track.track_id === action.trackId)
-        ? { ...state, selectedTrackId: action.trackId, selectedClipId: "" }
+        ? { ...state, selectedTrackId: action.trackId, selectedClipId: "", selectedClipIds: [] }
         : state;
     case "select_clip": {
-      if (!action.clipId) return { ...state, selectedClipId: "", selectedTrackId: "" };
+      if (!action.clipId) return { ...state, selectedClipId: "", selectedClipIds: [], selectedTrackId: "" };
       const clip = (state.draft.clips ?? []).find((entry) => entry.clip_id === action.clipId);
-      return clip
-        ? { ...state, selectedClipId: clip.clip_id, selectedTrackId: clip.track_id }
-        : state;
+      if (!clip) return state;
+      if (action.add) {
+        const has = state.selectedClipIds.includes(clip.clip_id);
+        const ids = has ? state.selectedClipIds.filter((id) => id !== clip.clip_id) : [...state.selectedClipIds, clip.clip_id];
+        const primary = has ? (ids.at(-1) ?? "") : clip.clip_id;
+        const primaryClip = (state.draft.clips ?? []).find((entry) => entry.clip_id === primary);
+        return { ...state, selectedClipIds: ids, selectedClipId: primary, selectedTrackId: primaryClip?.track_id ?? "" };
+      }
+      return { ...state, selectedClipId: clip.clip_id, selectedClipIds: [clip.clip_id], selectedTrackId: clip.track_id };
+    }
+    case "select_clips": {
+      const present = new Set((state.draft.clips ?? []).map((clip) => clip.clip_id));
+      const ids = action.clipIds.filter((id) => present.has(id));
+      const primary = (state.draft.clips ?? []).find((clip) => clip.clip_id === ids.at(-1));
+      return { ...state, selectedClipIds: ids, selectedClipId: primary?.clip_id ?? "", selectedTrackId: primary?.track_id ?? "" };
     }
     case "select_issue":
       return { ...state, selectedIssueId: action.issueId };
@@ -661,6 +702,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "preview_timeline_operation": {
       const origin = gestureOrigin(state);
       const draft = timelineDraft(origin, action.operation, state.assets);
+      return draft ? { ...state, preview: origin, draft } : state;
+    }
+    case "preview_timeline_operations": {
+      const origin = gestureOrigin(state);
+      const draft = batchDraft({ ...state, ...origin }, action.operations);
       return draft ? { ...state, preview: origin, draft } : state;
     }
     case "cancel_timeline_preview":

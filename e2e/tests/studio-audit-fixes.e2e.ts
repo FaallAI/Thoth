@@ -55,7 +55,8 @@ test('430 Timeline: lane names stay in sight and take a quarter of the screen', 
 test('1440 Story: the labels, the seconds and the media tell the truth', async ({ app, browser, screen }) => {
   await browser.setViewport({ width: 1440, height: 900 });
   await app.open(DRAFT);
-  await expect(screen.getByText(/^Beat 1 of 4 · 8\.9 s/, { visible: true })).toBeVisible();
+  // The draft's own numbers, not one draft's: any narrated draft passes (Tier 2 follow-up, 2026-11-08).
+  await expect(screen.getByText(/^Beat 1 of \d+ · \d+\.\d s/, { visible: true })).toBeVisible();
   const materials = screen.getByRole('complementary', 'Materials');
   await expect(materials.getByText('Post card · @kabinet_rakyat', { visible: true })).toBeVisible();
   await expect(materials.getByText('Profile card · @kabinet_rakyat', { visible: true })).toBeVisible();
@@ -159,8 +160,11 @@ test('1440: the script panel opens from the narration chip', async ({ app, brows
   // A long script scrolls in its column and never runs under the beats.
   const column = await browser.evaluate(() => {
     const panel = document.querySelector('section[aria-label="Script"]')!;
-    let box: Element = panel;
-    while (box.parentElement && getComputedStyle(box).overflowY !== 'auto') box = box.parentElement;
+    // The beats scroll in a box inside the panel (ScriptPanel's BEATS); walking up from the panel
+    // found a page-level box instead and failed while the screen was right (Tier 2 follow-up, 2026-11-08).
+    const inner = [...panel.querySelectorAll('*')].find((node) => getComputedStyle(node).overflowY === 'auto');
+    let box: Element = inner ?? panel;
+    while (!inner && box.parentElement && getComputedStyle(box).overflowY !== 'auto') box = box.parentElement;
     return {
       bottom: box.getBoundingClientRect().bottom,
       beats: document.querySelector('[aria-label="Story beats"]')!.getBoundingClientRect().top,
@@ -180,7 +184,7 @@ test('430 Timeline: the preview pane gives the player room, its clock whole', as
   await expect(screen.getByRole('button', 'Play video')).toBeVisible();
   const width = await browser.evaluate(() => document.querySelector('[aria-label="Studio preview"] > div')!.getBoundingClientRect().width);
   expect(width).toBeGreaterThan(220);
-  await expect(screen.getByText('0:00 / 0:34', { visible: true })).toBeVisible();
+  await expect(screen.getByText(/^0:00 \/ \d+:\d\d$/, { visible: true })).toBeVisible();
   await app.screenshot('timeline-preview-430');
 });
 

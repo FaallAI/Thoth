@@ -2,7 +2,7 @@
 
 import { expect, test } from "bun:test";
 
-import { isTypingTarget, SHORTCUTS, timelineKey } from "./studio_keys";
+import { isTypingTarget, SHORTCUTS, shuttleRate, timelineKey } from "./studio_keys";
 
 const make = (html: string) => {
   const host = document.createElement("div");
@@ -50,5 +50,28 @@ test("the shortcut list names every Timeline key it maps", () => {
   const actions: string[] = SHORTCUTS.map((entry) => entry.action);
   for (const action of ["delete", "ripple_delete", "split", "play", "zoom_fit", "undo", "redo", "shortcuts"]) {
     expect(actions).toContain(action);
+  }
+});
+
+// Tier 2 (spec 2026-11-08 §6): J, K and L.
+test("timelineKey maps J, K and L, without modifiers only", () => {
+  expect([key("j"), key("k"), key("l"), key("L")]).toEqual(["shuttle_back", "shuttle_stop", "shuttle_forward", "shuttle_forward"]);
+  expect(key("l", { ctrlKey: true })).toBeNull();
+  expect(SHORTCUTS.map((entry) => entry.action)).toEqual(expect.arrayContaining(["shuttle_back", "shuttle_stop", "shuttle_forward"]));
+});
+
+test("L plays, and each L while playing doubles the rate up to 4", () => {
+  expect(shuttleRate(false, 1)).toBe(1);
+  expect(shuttleRate(true, 1)).toBe(2);
+  expect(shuttleRate(true, 2)).toBe(4);
+  expect(shuttleRate(true, 4)).toBe(4);
+  expect(shuttleRate(false, 4)).toBe(1);
+});
+
+// Tier 1 review leftovers (2026-11-08): the shortcut list names every key the Studio answers.
+test("the shortcut list includes the second keys and the pointer shortcuts", () => {
+  const keys = SHORTCUTS.map((entry) => entry.keys).join(" | ");
+  for (const shown of ["Backspace", "Ctrl+Shift+Z", "Ctrl+/", "Ctrl+wheel", "Shift+F10", "Ctrl+A", "Ctrl+C", "Ctrl+V", "Ctrl+D", "J", "K", "L"]) {
+    expect(keys).toContain(shown);
   }
 });

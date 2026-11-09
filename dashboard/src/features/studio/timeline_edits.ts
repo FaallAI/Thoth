@@ -1,9 +1,25 @@
 // Timeline edits as typed operations (spec 2026-11-08 §5.1). Each helper answers the whole batch
 // one user action commits, or a refusal the menu shows as its reason; it never edits in place.
 import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane";
-import { compatibleTrackIds } from "./timeline_domain";
+import { applyTimelineOperation, compatibleTrackIds } from "./timeline_domain";
 
-export type Refusal = "locked" | "later_locked" | "crossing" | "scene" | "outside" | "no_gap" | "not_empty" | "edge" | "incompatible";
+export type Refusal =
+  | "locked"
+  | "later_locked"
+  | "crossing"
+  | "scene"
+  | "outside"
+  | "no_gap"
+  | "not_empty"
+  | "edge"
+  | "incompatible"
+  | "no_room"
+  | "gone"
+  | "no_track"
+  | "no_scene"
+  | "not_text"
+  | "not_caption"
+  | "too_long";
 export type Edit = { operations: EditDocumentOperation[]; refusal?: Refusal };
 
 type Clip = NonNullable<EditDocumentV2["clips"]>[number];
@@ -189,4 +205,235 @@ export function setClipFlag(doc: EditDocumentV2, clipId: string, flag: "hidden" 
     return { operations: [{ kind: "set_clip_hidden", operation_id: newId("op"), clip_id: clipId, hidden: value }] };
   }
   return { operations: [{ kind: "set_clip_locked", operation_id: newId("op"), clip_id: clipId, locked: value }] };
+}
+
+// --------------------------------------------------------------------------
+// The whole selection (spec 2026-11-08 §6): one batch for every clip, or a refusal for all.
+// --------------------------------------------------------------------------
+
+const picked = (doc: EditDocumentV2, ids: readonly string[]) => clipsOf(doc).filter((clip) => ids.includes(clip.clip_id));
+
+/** Apply a batch on a working copy, the way `commit_operations` will. */
+const applied = (doc: EditDocumentV2, operations: EditDocumentOperation[]) =>
+  operations.reduce((current, operation) => applyTimelineOperation(current, operation, {}), doc);
+
+export function deleteClips(doc: EditDocumentV2, ids: readonly string[]): Edit {
+  const clips = picked(doc, ids);
+  if (clips.some((clip) => isLocked(doc, clip))) return refuse("locked");
+  return { operations: clips.map((clip) => ({ kind: "remove_clip", operation_id: newId("op"), clip_id: clip.clip_id })) };
+}
+
+/** Ripple each clip out, the latest first, on the document the earlier removals left. */
+export function rippleDeleteClips(doc: EditDocumentV2, ids: readonly string[]): Edit {
+  const order = picked(doc, ids).sort((left, right) => right.from_frame - left.from_frame);
+  const operations: EditDocumentOperation[] = [];
+  let current = doc;
+  for (const clip of order) {
+    const edit = rippleDelete(current, clip.clip_id);
+    if (edit.refusal) return refuse(edit.refusal);
+    operations.push(...edit.operations);
+    current = applied(current, edit.operations);
+  }
+  return { operations };
+}
+
+export function setClipsFlag(doc: EditDocumentV2, ids: readonly string[], flag: "hidden" | "locked", value: boolean): Edit {
+  const edits = picked(doc, ids).map((clip) => setClipFlag(doc, clip.clip_id, flag, value));
+  const refused = edits.find((edit) => edit.refusal);
+  return refused ? refuse(refused.refusal!) : { operations: edits.flatMap((edit) => edit.operations) };
+}
+
+/** Every clip by the same frames on its own track; nothing leaves the canvas. */
+export function moveClips(doc: EditDocumentV2, ids: readonly string[], delta: number): Edit {
+  const clips = picked(doc, ids);
+  if (clips.some((clip) => isLocked(doc, clip))) return refuse("locked");
+  const canvas = doc.canvas.duration_in_frames;
+  if (clips.some((clip) => clip.from_frame + delta < 0 || endOf(clip) + delta > canvas)) return refuse("outside");
+  return {
+    operations: clips.map((clip) => ({
+      kind: "move_clip",
+      operation_id: newId("op"),
+      clip_id: clip.clip_id,
+      target_track_id: clip.track_id,
+      from_frame: clip.from_frame + delta,
+      ripple: false,
+    })),
+  };
+}
+
+// --------------------------------------------------------------------------
+// Copies inside the open draft (spec 2026-11-08 §6); the system clipboard never carries clips.
+// --------------------------------------------------------------------------
+
+/**
+ * `duplicate_clip` for each clip, placed at `at` on its own track with its offset from the earliest.
+ * A copy names a live clip only, so its media and provenance come from the draft, never from outside.
+ */
+export function pasteClips(doc: EditDocumentV2, ids: readonly string[], at: number): Edit {
+  const clips = picked(doc, ids).sort((left, right) => left.from_frame - right.from_frame);
+  if (clips.length !== new Set(ids).size) return refuse("gone");
+  if (!clips.length) return none;
+  const earliest = clips[0]!.from_frame;
+  const placed = clips.map((clip) => ({ clip, from: at + clip.from_frame - earliest }));
+  if (placed.some(({ clip, from }) => from < 0 || from + clip.duration_in_frames > doc.canvas.duration_in_frames)) {
+    return refuse("outside");
+  }
+  if (placed.some(({ clip }) => trackOf(doc, clip.track_id)?.locked)) return refuse("locked");
+  // The server keeps Main video clips from overlapping, existing ones and the copies alike.
+  const main = (clip: Clip) => trackOf(doc, clip.track_id)?.kind === "main_video";
+  const taken = clipsOf(doc).filter(main).map((clip) => [clip.from_frame, endOf(clip)] as const);
+  for (const { clip, from } of placed.filter(({ clip }) => main(clip))) {
+    const end = from + clip.duration_in_frames;
+    if (taken.some(([start, stop]) => start < end && stop > from)) return refuse("no_room");
+    taken.push([from, end]);
+  }
+  return {
+    operations: placed.map(({ clip, from }) => ({
+      kind: "duplicate_clip",
+      operation_id: newId("op"),
+      clip_id: clip.clip_id,
+      new_clip_id: newId("clip"),
+      track_id: clip.track_id,
+      from_frame: from,
+    })),
+  };
+}
+
+/** The selection again, right after its own end. */
+export function duplicateClips(doc: EditDocumentV2, ids: readonly string[]): Edit {
+  const clips = picked(doc, ids);
+  if (!clips.length) return none;
+  return pasteClips(doc, ids, Math.max(...clips.map(endOf)));
+}
+
+// --------------------------------------------------------------------------
+// Pasted text, to the place the person picks (spec 2026-11-08 §6)
+// --------------------------------------------------------------------------
+
+export type PasteTarget = "new_text" | "replace_text" | "new_caption" | "replace_caption";
+export const PASTE_TARGETS: readonly PasteTarget[] = ["new_text", "replace_text", "new_caption", "replace_caption"];
+
+/** A heading and a caption cue hold at most this many characters (`ShortText`). */
+export const TEXT_LIMIT = 300;
+/** A pasted text clip lasts three seconds, cut at the canvas end. */
+const PASTED_TEXT_SECONDS = 3;
+
+/** The caption cue under `frame`, or the first one. */
+export function cueAt(clip: Extract<Clip, { kind: "caption" }>, frame: number): number {
+  const offset = frame - clip.from_frame;
+  const index = clip.cues.findIndex((cue) => cue.from_frame <= offset && offset < cue.from_frame + cue.duration_in_frames);
+  return Math.max(0, index);
+}
+
+export function pasteTextOperations(
+  doc: EditDocumentV2,
+  target: PasteTarget,
+  text: string,
+  at: { playheadFrame: number; selectedClipId: string },
+): Edit {
+  if (text.length > TEXT_LIMIT) return refuse("too_long");
+  const selected = clipsOf(doc).find((clip) => clip.clip_id === at.selectedClipId);
+  const frame = at.playheadFrame;
+  switch (target) {
+    case "new_text": {
+      const track = doc.tracks.find((entry) => entry.kind === "overlay" && !entry.locked);
+      if (!track) return refuse("no_track");
+      return {
+        operations: [
+          {
+            kind: "add_text_clip",
+            operation_id: newId("op"),
+            clip_id: newId("clip"),
+            track_id: track.track_id,
+            from_frame: frame,
+            duration_in_frames: Math.min(Math.round(PASTED_TEXT_SECONDS * doc.canvas.fps), doc.canvas.duration_in_frames - frame),
+            heading: text,
+            body: "",
+            style_slot: "title",
+          },
+        ],
+      };
+    }
+    case "replace_text":
+      if (selected?.kind !== "text") return refuse("not_text");
+      if (isLocked(doc, selected)) return refuse("locked");
+      return { operations: [{ kind: "replace_text", operation_id: newId("op"), clip_id: selected.clip_id, field: "heading", value: text }] };
+    case "new_caption": {
+      const track = doc.tracks.find((entry) => entry.kind === "caption" && !entry.locked);
+      if (!track) return refuse("no_track");
+      const scene = doc.scenes.find((entry) => entry.start_frame <= frame && frame < entry.start_frame + entry.duration_in_frames);
+      if (!scene) return refuse("no_scene");
+      return {
+        operations: [
+          { kind: "add_caption_clip", operation_id: newId("op"), clip_id: newId("clip"), track_id: track.track_id, scene_id: scene.scene_id, text },
+        ],
+      };
+    }
+    case "replace_caption":
+      if (selected?.kind !== "caption") return refuse("not_caption");
+      if (isLocked(doc, selected)) return refuse("locked");
+      return {
+        operations: [
+          { kind: "set_caption_cue_text", operation_id: newId("op"), clip_id: selected.clip_id, cue_index: cueAt(selected, frame), text },
+        ],
+      };
+  }
+}
+
+// --------------------------------------------------------------------------
+// Every gap at once (spec 2026-11-08 §6)
+// --------------------------------------------------------------------------
+
+/** The first stretch between two clips of one track, or none. */
+function firstGap(doc: EditDocumentV2, trackId: string): { start: number; end: number } | null {
+  const clips = clipsOf(doc)
+    .filter((clip) => clip.track_id === trackId)
+    .sort((left, right) => left.from_frame - right.from_frame);
+  for (let index = 1; index < clips.length; index += 1) {
+    // The same stretch gapAt finds, so closeGap closes exactly this one.
+    const start = endOf(clips[index - 1]!);
+    if (start < clips[index]!.from_frame) return { start, end: clips[index]!.from_frame };
+  }
+  return null;
+}
+
+/** Each gap of one track closed left to right on the evolving document, as "Close this gap" would. */
+export function closeAllGaps(doc: EditDocumentV2, trackId: string): Edit {
+  const operations: EditDocumentOperation[] = [];
+  let current = doc;
+  // ponytail: one pass per gap; a track holds far fewer gaps than this cap.
+  for (let pass = 0; pass < 500; pass += 1) {
+    const gap = firstGap(current, trackId);
+    if (!gap) break;
+    const edit = closeGap(current, trackId, gap.start);
+    if (edit.refusal) return refuse(edit.refusal);
+    operations.push(...edit.operations);
+    current = applied(current, edit.operations);
+  }
+  return operations.length ? { operations } : refuse("no_gap");
+}
+
+/** Every stretch between the first clip and the last where no track holds a clip, closed in one batch. */
+export function closeTimelineGaps(doc: EditDocumentV2): Edit {
+  const spans = clipsOf(doc)
+    .map((clip) => [clip.from_frame, endOf(clip)] as const)
+    .sort((left, right) => left[0] - right[0]);
+  const gaps: { start: number; end: number }[] = [];
+  let reach = spans[0]?.[1] ?? 0;
+  for (const [from, to] of spans.slice(1)) {
+    if (from > reach) gaps.push({ start: reach, end: from });
+    reach = Math.max(reach, to);
+  }
+  if (!gaps.length) return refuse("no_gap");
+  const operations: EditDocumentOperation[] = [];
+  let current = doc;
+  // Right to left, so each stretch is still where it was found when its turn comes.
+  for (const gap of gaps.reverse()) {
+    const refusal = blocked(current, clipsOf(current), gap.start, gap.end);
+    if (refusal) return refuse(refusal);
+    const moves = pullLeft(current, clipsOf(current), gap.end, gap.end - gap.start);
+    operations.push(...moves);
+    current = applied(current, moves);
+  }
+  return { operations };
 }

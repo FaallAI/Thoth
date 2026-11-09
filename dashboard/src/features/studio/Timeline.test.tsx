@@ -1,13 +1,14 @@
 /// <reference types="bun-types" />
 
-import { afterEach, expect, test } from "bun:test";
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { afterEach, expect, mock, test } from "bun:test";
+import { cleanup, createEvent, fireEvent, screen, within } from "@testing-library/react";
 
 import { render } from "@/test-render";
 
+import type { EditDocumentV2 } from "@/api/control-plane";
 import { createEditorState, type EditorAction, type EditorState } from "./editor_state";
 import { Timeline } from "./Timeline";
-import { timelineDocument } from "./timeline-test-fixtures";
+import { textDocument, timelineDocument } from "./timeline-test-fixtures";
 
 afterEach(cleanup);
 
@@ -490,7 +491,7 @@ const committed = (actions: EditorAction[]) =>
 test("a clip's menu offers the editing entries in order", () => {
   mountMenus({ playheadFrame: 60 }, { beatOf: () => "main", onShowInStory: () => {} });
   fireEvent.contextMenu(screen.getByRole("button", { name: "Main video clip" }), { clientX: 5, clientY: 5 });
-  expect(menuNames()).toEqual(["Split at playhead", "Delete", "Ripple delete", "Replace media…", "B-roll", "Hide", "Lock", "Show in Story"]);
+  expect(menuNames()).toEqual(["Split at playhead", "Copy", "Paste", "Duplicate", "Paste text…", "Delete", "Ripple delete", "Replace media…", "B-roll", "Hide", "Lock", "Show in Story"]);
   expect(screen.getByRole("group", { name: "Move to track" })).toBeTruthy();
 });
 
@@ -539,7 +540,7 @@ test("a gap's menu closes the gap, and away from a gap it says there is none", (
 test("a track's menu offers track entries, with the edges and full tracks disabled", () => {
   mountMenus();
   fireEvent.contextMenu(screen.getByRole("button", { name: "Select Main video track" }), { clientX: 5, clientY: 5 });
-  expect(menuNames()).toEqual(["Select track", "Move up", "Move down", "Hide", "Mute", "Lock", "Remove empty track"]);
+  expect(menuNames()).toEqual(["Select track", "Move up", "Move down", "Hide", "Mute", "Lock", "Close all gaps on this track", "Remove empty track"]);
   expect(screen.getByRole("menuitem", { name: "Move up" }).getAttribute("aria-disabled")).toBe("true");
   expect(screen.getByRole("menuitem", { name: "Remove empty track" }).getAttribute("title")).toBe("Remove its clips first");
 });
@@ -581,4 +582,351 @@ test("Space on a focused clip plays, as in common editors", () => {
   const { transport } = mount({ selectedClipId: "clip_main", selectedTrackId: "track_main" });
   key(screen.getByRole("button", { name: "Main video clip" }), " ");
   expect(transport).toEqual(["play"]);
+});
+
+// Tier 2 (spec 2026-11-08 §6): select many clips.
+/** Give each lane well a place on screen, one 44 px row per track, as the browser would. */
+function placeWells() {
+  ["track_main", "track_broll", "track_music"].forEach((trackId, row) => {
+    const well = document.querySelector(`[data-track-id="${trackId}"] [data-lane-well]`)!;
+    const top = row * 44;
+    Object.defineProperty(well, "getBoundingClientRect", {
+      value: () => ({ left: 0, right: 2000, top, bottom: top + 44, width: 2000, height: 44, x: 0, y: top, toJSON: () => ({}) }),
+    });
+  });
+}
+
+test("Shift+click and Ctrl+click add a clip to the selection", () => {
+  const { actions } = mount({ selectedClipId: "clip_main", selectedClipIds: ["clip_main"] });
+  fireEvent.click(screen.getByRole("button", { name: "Music clip" }), { shiftKey: true });
+  fireEvent.click(screen.getByRole("button", { name: "Music clip" }), { ctrlKey: true });
+  expect(actions.filter((action) => action.type === "select_clip")).toEqual([
+    { type: "select_clip", clipId: "clip_music", add: true },
+    { type: "select_clip", clipId: "clip_music", add: true },
+  ]);
+});
+
+test("a drag on empty lane space draws a marquee and selects the unlocked clips it touches", () => {
+  const { actions } = mount({ zoom: 4 });
+  placeWells();
+  const well = document.querySelector('[data-track-id="track_main"] [data-lane-well]')!;
+  fireEvent.pointerDown(well, { clientX: 5, clientY: 10, button: 0 });
+  fireEvent.pointerMove(window, { clientX: 700, clientY: 100 });
+  expect(screen.getByTestId("timeline-marquee")).toBeDefined();
+  fireEvent.pointerUp(window, { clientX: 700, clientY: 100 });
+  expect(actions.at(-1)).toEqual({ type: "select_clips", clipIds: ["clip_main", "clip_music"] });
+  expect(screen.queryByTestId("timeline-marquee")).toBeNull();
+});
+
+test("a short press on empty lane space draws no marquee", () => {
+  const { actions } = mount({ zoom: 4 });
+  placeWells();
+  const well = document.querySelector('[data-track-id="track_main"] [data-lane-well]')!;
+  fireEvent.pointerDown(well, { clientX: 5, clientY: 10, button: 0 });
+  fireEvent.pointerMove(window, { clientX: 7, clientY: 11 });
+  fireEvent.pointerUp(window, { clientX: 7, clientY: 11 });
+  expect(actions.some((action) => action.type === "select_clips")).toBe(false);
+});
+
+test("Ctrl+A selects every clip on visible, unlocked lanes", () => {
+  const { actions } = mount();
+  key(window, "a", { ctrlKey: true });
+  expect(actions.at(-1)).toEqual({ type: "select_clips", clipIds: ["clip_main", "clip_music"] });
+});
+
+test("Ctrl+A in a text field selects no clips", () => {
+  const { actions } = mount();
+  const field = document.body.appendChild(document.createElement("input"));
+  key(field, "a", { ctrlKey: true });
+  expect(actions.some((action) => action.type === "select_clips")).toBe(false);
+  field.remove();
+});
+
+test("Escape clears a selection of many clips", () => {
+  const { actions } = mount({ selectedClipId: "clip_music", selectedClipIds: ["clip_main", "clip_music"] });
+  key(window, "Escape");
+  expect(actions.at(-1)).toEqual({ type: "select_clip", clipId: "" });
+});
+
+test("every selected clip shows as selected", () => {
+  mount({ selectedClipId: "clip_music", selectedClipIds: ["clip_main", "clip_music"] });
+  for (const name of ["Main video clip", "Music clip"]) {
+    expect(screen.getByRole("button", { name }).getAttribute("aria-pressed")).toBe("true");
+  }
+});
+
+// Tier 2 (spec 2026-11-08 §6): edits act on the whole selection as one undo step.
+const both = { selectedClipId: "clip_music", selectedClipIds: ["clip_main", "clip_music"] };
+
+test("Delete with two selected clips commits one batch for both", () => {
+  const { actions } = mount(both);
+  key(window, "Delete");
+  expect(actions.at(-1)).toMatchObject({
+    type: "commit_operations",
+    operations: [
+      { kind: "remove_clip", clip_id: "clip_main" },
+      { kind: "remove_clip", clip_id: "clip_music" },
+    ],
+  });
+});
+
+test("the menu of a selected clip acts on the whole selection", () => {
+  const { actions } = mountMenus(both);
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Main video clip" }), { clientX: 5, clientY: 5 });
+  expect(menuNames()).toContain("Delete 2 clips");
+  expect(menuNames()).toContain("Hide 2 clips");
+  fireEvent.click(screen.getByRole("menuitem", { name: "Delete 2 clips" }));
+  expect(actions.at(-1)).toMatchObject({ type: "commit_operations", operations: [{ kind: "remove_clip" }, { kind: "remove_clip" }] });
+});
+
+test("a group drag previews both clips and commits one batch on drop", () => {
+  const { actions } = mount(both);
+  drag(screen.getByRole("button", { name: "Main video clip" }), 10, 40);
+  const previews = actions.filter((action) => action.type === "preview_timeline_operations");
+  expect(previews.at(-1)).toMatchObject({
+    operations: [
+      { kind: "move_clip", clip_id: "clip_main", from_frame: 30 },
+      { kind: "move_clip", clip_id: "clip_music", from_frame: 180 },
+    ],
+  });
+  expect(actions.slice(-2).map((action) => action.type)).toEqual(["cancel_timeline_preview", "commit_operations"]);
+  expect(actions.at(-1)).toMatchObject({ operations: [{ from_frame: 30 }, { from_frame: 180 }] });
+});
+
+test("Escape during a group drag restores both clips", () => {
+  const { actions } = mount(both);
+  fireEvent.pointerDown(screen.getByRole("button", { name: "Main video clip" }), { clientX: 10, button: 0 });
+  fireEvent.pointerMove(window, { clientX: 40 });
+  key(window, "Escape");
+  expect(actions.at(-1)).toEqual({ type: "cancel_timeline_preview" });
+  fireEvent.pointerUp(window, { clientX: 40 });
+  expect(actions.some((action) => action.type === "commit_operations")).toBe(false);
+});
+
+// Tier 2 (spec 2026-11-08 §6): copy, paste and duplicate inside the open draft.
+const pasted = (actions: EditorAction[]) =>
+  actions.filter((action) => action.type === "commit_operations").flatMap((action) => (action.type === "commit_operations" ? action.operations : []));
+
+test("Ctrl+C then Ctrl+V pastes the selection at the playhead as one undo step", () => {
+  const { actions } = mount({ selectedClipId: "clip_music", selectedClipIds: ["clip_music"], playheadFrame: 0 });
+  key(window, "c", { ctrlKey: true });
+  key(window, "v", { ctrlKey: true });
+  expect(actions.filter((action) => action.type === "commit_operations")).toHaveLength(1);
+  expect(pasted(actions)).toMatchObject([{ kind: "duplicate_clip", clip_id: "clip_music", track_id: "track_music", from_frame: 0 }]);
+});
+
+test("Ctrl+D duplicates the selection after itself", () => {
+  const { actions } = mount({ selectedClipId: "clip_main", selectedClipIds: ["clip_main"] });
+  key(window, "d", { ctrlKey: true });
+  expect(pasted(actions)).toMatchObject([{ kind: "duplicate_clip", clip_id: "clip_main", from_frame: 120 }]);
+});
+
+test("the clip menu copies and pastes, and says so when nothing is copied", () => {
+  const { actions } = mountMenus({ playheadFrame: 0 });
+  const music = screen.getByRole("button", { name: "Music clip" });
+  fireEvent.contextMenu(music, { clientX: 5, clientY: 5 });
+  expect(screen.getByRole("menuitem", { name: "Paste" }).getAttribute("title")).toBe("Copy a clip first");
+  fireEvent.click(screen.getByRole("menuitem", { name: "Copy" }));
+  fireEvent.contextMenu(music, { clientX: 5, clientY: 5 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "Paste" }));
+  expect(actions.at(-1)).toMatchObject({ type: "commit_operations", operations: [{ kind: "duplicate_clip", clip_id: "clip_music", from_frame: 0 }] });
+});
+
+test("Ctrl+C in a text field copies no clips", () => {
+  const { actions } = mount({ selectedClipId: "clip_music", selectedClipIds: ["clip_music"] });
+  const field = document.body.appendChild(document.createElement("input"));
+  key(field, "c", { ctrlKey: true });
+  field.remove();
+  key(window, "v", { ctrlKey: true });
+  expect(pasted(actions)).toEqual([]);
+});
+
+// Tier 2 (spec 2026-11-08 §6): text through the system clipboard, placed where the person picks.
+
+function mountText(overrides: Partial<EditorState> = {}) {
+  const doc = textDocument();
+  return mount({ base: doc, draft: doc, playheadFrame: 30, ...overrides });
+}
+const pasteText = (target: Element | Window, text: string, html = "") =>
+  fireEvent.paste(target, { clipboardData: { getData: (type: string) => (type === "text/plain" ? text : type === "text/html" ? html : "") } });
+
+test("pasting text on the timeline asks where it goes, then places it there", () => {
+  const { actions } = mountText();
+  pasteText(window, "Hello");
+  expect(actions.some((action) => action.type === "commit_operations")).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "New text clip" }));
+  expect(actions.at(-1)).toMatchObject({ type: "commit_operations", operations: [{ kind: "add_text_clip", heading: "Hello", from_frame: 30 }] });
+  expect(screen.queryByRole("dialog", { name: "Paste text" })).toBeNull();
+});
+
+test("a paste into a field, HTML alone or blank text opens nothing", () => {
+  mountText();
+  const field = document.body.appendChild(document.createElement("input"));
+  pasteText(field, "Hello");
+  field.remove();
+  pasteText(window, "", "<b>Bold</b>");
+  pasteText(window, "   ");
+  expect(screen.queryByRole("dialog", { name: "Paste text" })).toBeNull();
+});
+
+test("text over 300 characters leaves every place disabled", () => {
+  mountText();
+  pasteText(window, "x".repeat(301));
+  for (const name of ["New text clip", "Replace the selected text", "New caption", "Replace the caption text"]) {
+    const button = screen.getByRole("button", { name });
+    expect(button.getAttribute("aria-disabled")).toBe("true");
+    expect(button.textContent).toContain("Longer than 300 characters");
+  }
+});
+
+test("Copy text puts a text clip's heading on the system clipboard", () => {
+  const writeText = mock(async (_text: string) => {});
+  Object.defineProperty(navigator, "clipboard", { value: { writeText, readText: async () => "" }, configurable: true });
+  mountMenusOver(textDocument());
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Overlay clip" }), { clientX: 5, clientY: 5 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "Copy text" }));
+  expect(writeText).toHaveBeenCalledWith("Old heading");
+});
+
+test("Paste text… says to use Ctrl+V when the browser will not read the clipboard", async () => {
+  Object.defineProperty(navigator, "clipboard", { value: { writeText: async () => {}, readText: () => Promise.reject(new Error("denied")) }, configurable: true });
+  mountMenusOver(textDocument());
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Overlay clip" }), { clientX: 5, clientY: 5 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "Paste text…" }));
+  expect((await screen.findByRole("status")).textContent).toContain("Use Ctrl+V to paste text");
+});
+
+function mountMenusOver(doc: EditDocumentV2) {
+  return mountMenus({ base: doc, draft: doc, playheadFrame: 30 });
+}
+
+// Tier 2 (spec 2026-11-08 §6): close all gaps from the track menu and the lane menu.
+test("the track menu closes every gap on its track in one batch", () => {
+  const { actions } = mountMenus();
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Select Music track" }), { clientX: 5, clientY: 5 });
+  const close = screen.getByRole("menuitem", { name: "Close all gaps on this track" });
+  expect(close.getAttribute("title")).toBe("There is no gap here");
+  expect(actions).toEqual([]);
+});
+
+test("the lane menu offers to close every gap in the timeline", () => {
+  // The fixture is empty everywhere from 120 to 150; its B-roll clip after that is unlocked here so it may move.
+  const doc = timelineDocument();
+  doc.clips!.find((clip) => clip.clip_id === "clip_locked")!.locked = false;
+  const { actions } = mountMenus({ zoom: 1, base: doc, draft: doc });
+  const well = document.querySelector('[data-track-id="track_main"] [data-lane-well]')!;
+  fireEvent.contextMenu(well, { clientX: 200, clientY: 5 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "Close all gaps in the timeline" }));
+  expect(actions.at(-1)).toMatchObject({
+    type: "commit_operations",
+    operations: [
+      { kind: "move_clip", clip_id: "clip_locked", from_frame: 120 },
+      { kind: "move_clip", clip_id: "clip_music", from_frame: 120 },
+    ],
+  });
+});
+
+// Tier 2 (spec 2026-11-08 §6): an asset dragged from the Assets column onto a lane.
+const assetDrop = (target: Element, assetId: string, clientX: number) => {
+  const event = createEvent.drop(target, {
+    dataTransfer: { types: ["application/x-thoth-asset"], getData: (type: string) => (type === "application/x-thoth-asset" ? assetId : "") },
+  });
+  // The test DOM's DragEvent drops clientX from its init, as its WheelEvent drops ctrlKey.
+  Object.defineProperty(event, "clientX", { value: clientX });
+  fireEvent(target, event);
+};
+
+test("an asset dropped on a lane is placed on that track at the drop point", () => {
+  const dropped: [string, string, number][] = [];
+  const video = { asset_id: "asset_video", project_id: "project_001", kind: "video", media_type: "video/mp4", has_audio: true, validation_state: "ready", duration_in_frames: 30 } as EditorState["assets"][string];
+  mountMenus({ zoom: 1, assets: { asset_video: video } }, { onDropAsset: (...drop) => dropped.push(drop) });
+  assetDrop(document.querySelector('[data-track-id="track_broll"] [data-lane-well]')!, "asset_video", 100);
+  assetDrop(document.querySelector('[data-track-id="track_music"] [data-lane-well]')!, "asset_video", 100);
+  expect(dropped).toEqual([["asset_video", "track_broll", 100]]);
+});
+
+// Tier 2 (spec 2026-11-08 §6): J, K and L.
+test("L shuttles forward, K stops, and J steps back one second", () => {
+  const shuttle: string[] = [];
+  const { actions } = mountMenus({ playheadFrame: 60 }, { onShuttle: (direction) => shuttle.push(direction) });
+  key(window, "l");
+  key(window, "k");
+  key(window, "j");
+  expect(shuttle).toEqual(["forward", "stop"]);
+  expect(actions.at(-1)).toEqual({ type: "set_playhead", frame: 30 });
+});
+
+test("J, K and L do nothing in a text field", () => {
+  const shuttle: string[] = [];
+  const { actions } = mountMenus({ playheadFrame: 60 }, { onShuttle: (direction) => shuttle.push(direction) });
+  const field = document.body.appendChild(document.createElement("input"));
+  for (const letter of ["j", "k", "l"]) key(field, letter);
+  field.remove();
+  expect([shuttle, actions]).toEqual([[], []]);
+});
+
+// Tier 1 review leftovers (2026-11-08), fixed in Tier 2.
+test("a lane that cannot take the dragged clip shows it refuses", () => {
+  mount();
+  const clip = screen.getByRole("button", { name: "Main video clip" });
+  const music = () => document.querySelector('[data-track-id="track_music"] [data-lane-well]')!;
+  withLaneUnderPointer("track_music", () => {
+    fireEvent.pointerDown(clip, { clientX: 10, clientY: 10, button: 0 });
+    fireEvent.pointerMove(window, { clientX: 10, clientY: 100 });
+  });
+  expect(music().getAttribute("data-drop")).toBe("refused");
+  fireEvent.pointerUp(window, { clientX: 10, clientY: 100 });
+  expect(music().getAttribute("data-drop")).toBeNull();
+});
+
+test("Move to track stays in the menu, disabled with a reason, on a locked clip", () => {
+  mountMenus();
+  fireEvent.contextMenu(screen.getByRole("button", { name: "B-roll clip" }), { clientX: 5, clientY: 5 });
+  const move = screen.getByRole("menuitem", { name: "Move to track" });
+  expect([move.getAttribute("aria-disabled"), move.getAttribute("title")]).toEqual(["true", "This clip is locked"]);
+});
+
+test("a second track of one kind has a numbered name for screen readers too", () => {
+  const doc = timelineDocument();
+  doc.tracks.push({ ...doc.tracks.find((track) => track.track_id === "track_broll")!, track_id: "track_broll_2", order: 9, clip_ids: [] });
+  mount({ base: doc, draft: doc });
+  expect(screen.getByRole("group", { name: "B-roll 2 track" })).toBeDefined();
+});
+
+// Final review 2026-11-08, Important 2: a refused key or group drag says why.
+test("Ctrl+V onto a filled Main video says there is no room", () => {
+  const { actions } = mount({ selectedClipId: "clip_main", selectedClipIds: ["clip_main"], playheadFrame: 0 });
+  key(window, "c", { ctrlKey: true });
+  key(window, "v", { ctrlKey: true });
+  expect(actions.some((action) => action.type === "commit_operations")).toBe(false);
+  expect(screen.getByRole("status").textContent).toContain("No room on Main video there");
+});
+
+test("Delete with a locked clip in the selection says the clip is locked", () => {
+  const { actions } = mount({ selectedClipId: "clip_locked", selectedClipIds: ["clip_main", "clip_locked"] });
+  key(window, "Delete");
+  expect(actions.some((action) => action.type === "commit_operations")).toBe(false);
+  expect(screen.getByRole("status").textContent).toContain("This clip is locked");
+});
+
+test("a group drag that holds a locked clip says why it did not move", () => {
+  const { actions } = mount({ selectedClipId: "clip_locked", selectedClipIds: ["clip_main", "clip_locked"] });
+  drag(screen.getByRole("button", { name: "Main video clip" }), 10, 40);
+  expect(actions.some((action) => action.type === "commit_operations")).toBe(false);
+  expect(screen.getByRole("status").textContent).toContain("This clip is locked");
+});
+
+// Final review 2026-11-08, Important 3: the pressed clip is the one the Inspector shows.
+test("a press on a clip of a larger selection makes it the primary clip and keeps the group", () => {
+  const { actions } = mount(both);
+  fireEvent.pointerDown(screen.getByRole("button", { name: "Main video clip" }), { clientX: 10, button: 0 });
+  expect(actions.at(-1)).toEqual({ type: "select_clips", clipIds: ["clip_music", "clip_main"] });
+});
+
+test("a click without a drag on a clip of a larger selection selects that clip alone", () => {
+  const { actions } = mount(both);
+  const main = screen.getByRole("button", { name: "Main video clip" });
+  fireEvent.pointerDown(main, { clientX: 10, button: 0 });
+  fireEvent.pointerUp(window, { clientX: 10 });
+  expect(actions.at(-1)).toEqual({ type: "select_clip", clipId: "clip_main" });
 });

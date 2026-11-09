@@ -230,3 +230,13 @@ test("a material's menu adds it to the open beat, or shows where it is used", ()
   expect(played).toEqual([60]);
   expect(added).toEqual(["footage_000"]);
 });
+
+// Tier 1 review leftovers (2026-11-08): a right click inside the open menu does not reopen it.
+test("a right click inside a material's open menu leaves it where it is", () => {
+  const beats = computeBeats(storyDocument(), storyInventory());
+  render(<MaterialsPanel materials={materials()} uploads={[]} beats={beats} document={storyDocument()} previews={{}} />);
+  const row = screen.getByText("Used in Reactions").closest("li")!;
+  fireEvent.contextMenu(row, { clientX: 5, clientY: 5 });
+  fireEvent.contextMenu(screen.getAllByRole("menuitem")[0]!, { clientX: 300, clientY: 300 });
+  expect(screen.getByRole("menu").style.left).toBe("5px");
+});

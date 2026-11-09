@@ -23,6 +23,9 @@ import { visibleLanes } from "@thoth/remotion-composition";
 
 export { visibleLanes, type TimelineLane } from "@thoth/remotion-composition";
 
+/** The drag payload an Assets row carries onto a Timeline lane (spec 2026-11-08 §6). */
+export const ASSET_DRAG_TYPE = "application/x-thoth-asset";
+
 export type TimelineIssueCode =
   | "main_track_gap"
   | "clip_overlap"
@@ -83,7 +86,6 @@ export function clipLabelSource(
   return { kind: clip.kind };
 }
 
-/** `m:ss.t` for a frame: minutes are never wrapped into hours, and a zero rate reads as 0. */
 /** Time typed by a person ("0:07.5", "7.5", "1:02") as frames; null when it is not a time. */
 export function parseTimecode(text: string, fps: number): number | null {
   const match = /^(?:(\d+):)?(\d+(?:\.\d+)?)$/.exec(text.trim());
@@ -92,20 +94,33 @@ export function parseTimecode(text: string, fps: number): number | null {
   return Number.isFinite(seconds) ? Math.round(seconds * fps) : null;
 }
 
+/** Where a track stands among the tracks of its kind, by order: 0 for the first. */
+function kindIndex(document: EditDocumentV2, track: TimelineTrack): number {
+  return document.tracks
+    .filter((entry) => entry.kind === track.kind)
+    .sort((left, right) => left.order - right.order)
+    .findIndex((entry) => entry.track_id === track.track_id);
+}
+
 /** A track in the reader's words: its kind's name, numbered from the second track of that kind. */
 export function trackName(
   t: (key: `studio.timeline.trackName.${TimelineTrack["kind"]}`) => string,
   document: EditDocumentV2,
   track: TimelineTrack,
 ): string {
-  const same = document.tracks
-    .filter((entry) => entry.kind === track.kind)
-    .sort((left, right) => left.order - right.order);
-  const index = same.findIndex((entry) => entry.track_id === track.track_id);
+  const index = kindIndex(document, track);
   const name = t(`studio.timeline.trackName.${track.kind}`);
   return index > 0 ? `${name} ${index + 1}` : name;
 }
 
+/** The stored label controls are named by, numbered like `trackName` unless the label already is. */
+export function trackLabel(document: EditDocumentV2, track: TimelineTrack): string {
+  const index = kindIndex(document, track);
+  const number = ` ${index + 1}`;
+  return index > 0 && !track.label.endsWith(number) ? `${track.label}${number}` : track.label;
+}
+
+/** `m:ss.t` for a frame: minutes are never wrapped into hours, and a zero rate reads as 0. */
 export function formatTimecode(frame: number, fps: number): string {
   const tenths = fps > 0 ? Math.floor((frame / fps) * 10) : 0;
   const minutes = Math.floor(tenths / 600);
@@ -217,11 +232,16 @@ export function createAddClipFromAssetOperation(
   asset: EditorAsset,
   playheadFrame: number,
   ids: { operationId: string; clipId: string },
+  /** A drop on a lane (spec 2026-11-08 §6): that track at that frame, or nothing. */
+  at?: { trackId: string; frame: number },
 ): Extract<EditDocumentOperation, { kind: "add_clip_from_asset" }> | undefined {
-  const from = Math.max(0, Math.round(playheadFrame));
-  for (const trackId of compatibleTrackIds(document, asset.kind === "audio" ? "audio" : "video")) {
+  const from = Math.max(0, Math.round(at?.frame ?? playheadFrame));
+  const compatible = compatibleTrackIds(document, asset.kind === "audio" ? "audio" : "video");
+  if (at && !compatible.includes(at.trackId)) return undefined;
+  for (const trackId of at ? [at.trackId] : compatible) {
     const slot = freeSlot(document, trackId, from);
-    if (!slot) continue;
+    // A drop lands where it was let go; the next free stretch is not what the person chose.
+    if (!slot || (at && slot.start !== from)) continue;
     return {
       kind: "add_clip_from_asset",
       operation_id: ids.operationId,
@@ -405,6 +425,25 @@ export function applyTimelineOperation(
     case "add_text_clip":
       addTextClip(next, operation);
       break;
+    case "duplicate_clip":
+      duplicateClip(next, operation);
+      break;
+    case "set_clip_fit":
+      unlockedVideoClip(next, operation.clip_id).fit = operation.fit;
+      break;
+    case "set_clip_crop":
+      unlockedVideoClip(next, operation.clip_id).crop = operation.crop ?? null;
+      break;
+    case "set_clip_fades": {
+      const clip = unlockedClip(next, operation.clip_id);
+      if (clip.kind !== "video" && clip.kind !== "audio") throw new Error("fades apply only to video and audio clips");
+      if (operation.fade_in_frames + operation.fade_out_frames > clip.duration_in_frames) {
+        throw new Error("fades must stay inside their clip");
+      }
+      clip.fade_in_frames = operation.fade_in_frames;
+      clip.fade_out_frames = operation.fade_out_frames;
+      break;
+    }
     case "set_caption_cue_text": {
       const clip = unlockedClip(next, operation.clip_id);
       const cue = clip.kind === "caption" ? clip.cues[operation.cue_index] : undefined;
@@ -450,7 +489,47 @@ export function applyTimelineOperation(
     default:
       throw new Error("operation is not a timeline operation");
   }
+  fitFades(next);
   return next;
+}
+
+/** Shrink fades a shorter clip can no longer hold: the fade out first, then the fade in (as the server does). */
+function fitFades(document: EditDocumentV2): void {
+  for (const clip of document.clips ?? []) {
+    if (clip.kind !== "video" && clip.kind !== "audio") continue;
+    const fadeIn = Math.min(clip.fade_in_frames ?? 0, clip.duration_in_frames);
+    const fadeOut = Math.min(clip.fade_out_frames ?? 0, clip.duration_in_frames - fadeIn);
+    // Only a fade that must shrink is written, so a clip stored without fades stays as it was.
+    if (fadeIn !== (clip.fade_in_frames ?? 0)) clip.fade_in_frames = fadeIn;
+    if (fadeOut !== (clip.fade_out_frames ?? 0)) clip.fade_out_frames = fadeOut;
+  }
+}
+
+/** A copy under a new id: media, provenance and styling stay; the scene does not (spec 2026-11-08 §6). */
+function duplicateClip(
+  document: EditDocumentV2,
+  operation: Extract<EditDocumentOperation, { kind: "duplicate_clip" }>,
+): void {
+  const source = clipOf(document, operation.clip_id);
+  const target = unlockedTrack(document, operation.track_id);
+  if ((document.clips ?? []).some((clip) => clip.clip_id === operation.new_clip_id)) {
+    throw new Error("operation reuses an existing clip ID");
+  }
+  if (!TRACK_CLIP_KINDS[target.kind].includes(source.kind)) {
+    throw new Error("clip kind is incompatible with track");
+  }
+  // The server refuses a clip past the canvas when it validates the document.
+  if (operation.from_frame + source.duration_in_frames > document.canvas.duration_in_frames) {
+    throw new Error("clip range exceeds canvas");
+  }
+  const copy = structuredClone(source);
+  copy.clip_id = operation.new_clip_id;
+  copy.track_id = target.track_id;
+  copy.from_frame = operation.from_frame;
+  copy.scene_id = null;
+  copy.locked = false;
+  document.clips = [...(document.clips ?? []), copy];
+  target.clip_ids = [...(target.clip_ids ?? []), copy.clip_id];
 }
 
 function track(document: EditDocumentV2, trackId: string): TimelineTrack {
@@ -534,6 +613,8 @@ function addClipFromAsset(
           fit: operation.fit ?? ("cover" as const),
           position: operation.position ?? null,
           blur_enabled: false,
+          fade_in_frames: 0,
+          fade_out_frames: 0,
           motion: "none" as const,
           hold_after_source: false,
           emphasis: { highlight: false, arrow: false },
@@ -797,6 +878,11 @@ function splitClip(
   right.from_frame = operation.split_frame;
   right.duration_in_frames = endFrame - operation.split_frame;
   if ("source_from_frame" in right) right.source_from_frame += leftDuration;
+  if (clip.kind === "video" || clip.kind === "audio") {
+    // The cut sits between the two parts: neither fades there.
+    clip.fade_out_frames = 0;
+    if (right.kind === "video" || right.kind === "audio") right.fade_in_frames = 0;
+  }
 
   const entry = track(document, clip.track_id);
   const ids = [...(entry.clip_ids ?? [])];

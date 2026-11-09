@@ -5,8 +5,17 @@ import { expect, test } from "bun:test";
 import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane";
 import { applyTimelineOperation } from "./timeline_domain";
 import {
+  closeAllGaps,
   closeGap,
+  closeTimelineGaps,
   deleteClip,
+  deleteClips,
+  duplicateClips,
+  moveClips,
+  pasteClips,
+  pasteTextOperations,
+  rippleDeleteClips,
+  setClipsFlag,
   gapAt,
   moveToTrack,
   moveTrack,
@@ -16,7 +25,7 @@ import {
   splitAt,
   type Edit,
 } from "./timeline_edits";
-import { timelineDocument } from "./timeline-test-fixtures";
+import { textDocument, timelineDocument } from "./timeline-test-fixtures";
 
 type Clip = NonNullable<EditDocumentV2["clips"]>[number];
 
@@ -182,4 +191,153 @@ test("rippleDelete refuses when a later clip would leave its scene", () => {
   doc.scenes.push({ scene_id: "scene_late", role: "source", start_frame: 100, duration_in_frames: 200, clip_ids: ["clip_music"] });
   doc.clips!.find((clip) => clip.clip_id === "clip_music")!.scene_id = "scene_late";
   expect(rippleDelete(doc, "a").refusal).toBe("scene");
+});
+
+// Tier 2 (spec 2026-11-08 §6): one edit for the whole selection, or none.
+test("deleteClips removes every clip in one batch and refuses when one is locked", () => {
+  const doc = timelineDocument();
+  expect(shape(deleteClips(doc, ["clip_main", "clip_music"]))).toEqual([
+    { kind: "remove_clip", clip_id: "clip_main" },
+    { kind: "remove_clip", clip_id: "clip_music" },
+  ]);
+  expect(deleteClips(doc, ["clip_main", "clip_locked"])).toEqual({ operations: [], refusal: "locked" });
+});
+
+test("rippleDeleteClips closes every removed stretch on the evolving document", () => {
+  const doc = threeClips();
+  const edit = rippleDeleteClips(doc, ["a", "clip_music"]);
+  expect(edit.refusal).toBeUndefined();
+  const after = applies(doc, edit);
+  expect(after.clips!.map((clip) => [clip.clip_id, clip.from_frame])).toEqual([
+    ["b", 0],
+    ["c", 40],
+  ]);
+});
+
+test("rippleDeleteClips refuses all when one stretch is refused", () => {
+  expect(rippleDeleteClips(threeClips({ from: 30, length: 60 }), ["a", "c"]).refusal).toBe("crossing");
+});
+
+test("moveClips moves every clip by the same frames on its own track", () => {
+  const doc = timelineDocument();
+  expect(shape(moveClips(doc, ["clip_main", "clip_music"], 30))).toEqual([
+    { kind: "move_clip", clip_id: "clip_main", target_track_id: "track_main", from_frame: 30, ripple: false },
+    { kind: "move_clip", clip_id: "clip_music", target_track_id: "track_music", from_frame: 180, ripple: false },
+  ]);
+  expect(moveClips(doc, ["clip_main", "clip_locked"], 30).refusal).toBe("locked");
+  expect(moveClips(doc, ["clip_main", "clip_music"], -10).refusal).toBe("outside");
+  expect(moveClips(doc, ["clip_main", "clip_music"], 100).refusal).toBe("outside");
+});
+
+test("setClipsFlag hides every clip, and refuses hiding when one is locked", () => {
+  const doc = timelineDocument();
+  expect(shape(setClipsFlag(doc, ["clip_main", "clip_music"], "hidden", true))).toEqual([
+    { kind: "set_clip_hidden", clip_id: "clip_main", hidden: true },
+    { kind: "set_clip_hidden", clip_id: "clip_music", hidden: true },
+  ]);
+  expect(setClipsFlag(doc, ["clip_main", "clip_locked"], "hidden", true).refusal).toBe("locked");
+  expect(setClipsFlag(doc, ["clip_main", "clip_locked"], "locked", true).operations).toHaveLength(2);
+});
+
+// Tier 2 (spec 2026-11-08 §6): copies inside the open draft, never through the system clipboard.
+const withoutNewId = (operation: Record<string, unknown>) => {
+  const { new_clip_id: _id, ...rest } = operation;
+  return rest;
+};
+test("pasteClips places copies at a frame on their own tracks, keeping their offsets", () => {
+  const doc = threeClips({ from: 100, length: 30 });
+  expect(shape(pasteClips(doc, ["c", "clip_music"], 200)).map(withoutNewId)).toEqual([
+    { kind: "duplicate_clip", clip_id: "clip_music", track_id: "track_music", from_frame: 200 },
+    { kind: "duplicate_clip", clip_id: "c", track_id: "track_main", from_frame: 230 },
+  ]);
+  applies(doc, pasteClips(doc, ["c", "clip_music"], 200));
+});
+
+test("pasteClips refuses a filled Main video track, a deleted clip and the canvas end", () => {
+  const doc = threeClips();
+  expect(pasteClips(doc, ["a"], 30).refusal).toBe("no_room");
+  expect(pasteClips(doc, ["gone"], 0).refusal).toBe("gone");
+  expect(pasteClips(doc, ["c"], 280).refusal).toBe("outside");
+});
+
+test("duplicateClips places the copy right after the selection's end", () => {
+  const doc = threeClips();
+  expect(shape(duplicateClips(doc, ["c"])).map(withoutNewId)).toEqual([
+    { kind: "duplicate_clip", clip_id: "c", track_id: "track_main", from_frame: 160 },
+  ]);
+});
+
+// Tier 2 (spec 2026-11-08 §6): text from the system clipboard, to the place the person picks.
+test("pasteTextOperations gives each place its operation", () => {
+  const doc = textDocument();
+  const at = (selectedClipId: string) => ({ playheadFrame: 30, selectedClipId });
+  expect(shape(pasteTextOperations(doc, "new_text", "Hello", at(""))).map(withoutNewClip)).toEqual([
+    { kind: "add_text_clip", track_id: "track_overlay", from_frame: 30, duration_in_frames: 90, heading: "Hello", body: "", style_slot: "title" },
+  ]);
+  expect(shape(pasteTextOperations(doc, "replace_text", "Hello", at("clip_text")))).toEqual([
+    { kind: "replace_text", clip_id: "clip_text", field: "heading", value: "Hello" },
+  ]);
+  expect(shape(pasteTextOperations(doc, "new_caption", "Hello", at(""))).map(withoutNewClip)).toEqual([
+    { kind: "add_caption_clip", track_id: "track_captions", scene_id: "scene_001", text: "Hello" },
+  ]);
+  expect(shape(pasteTextOperations(doc, "replace_caption", "Hello", at("clip_cap")))).toEqual([
+    { kind: "set_caption_cue_text", clip_id: "clip_cap", cue_index: 0, text: "Hello" },
+  ]);
+  for (const target of ["new_text", "new_caption"] as const) applies(doc, pasteTextOperations(doc, target, "Hello", at("")));
+});
+
+test("pasteTextOperations refuses a place that does not apply, and text over 300 characters", () => {
+  const doc = textDocument();
+  const nothing = { playheadFrame: 30, selectedClipId: "" };
+  expect(pasteTextOperations(doc, "replace_text", "Hello", nothing).refusal).toBe("not_text");
+  expect(pasteTextOperations(doc, "replace_caption", "Hello", { playheadFrame: 30, selectedClipId: "clip_text" }).refusal).toBe("not_caption");
+  expect(pasteTextOperations(timelineDocument(), "new_text", "Hello", nothing).refusal).toBe("no_track");
+  expect(pasteTextOperations(doc, "new_text", "x".repeat(301), nothing).refusal).toBe("too_long");
+});
+
+const withoutNewClip = (operation: Record<string, unknown>) => {
+  const { clip_id: _id, ...rest } = operation;
+  return rest;
+};
+
+// Tier 2 (spec 2026-11-08 §6): close every gap at once.
+/** Main clips 0–60, 80–100 and 130–160: two gaps (60–80 and 100–130). */
+function twoGaps(music: { from: number; length: number; locked?: boolean } = { from: 130, length: 30 }): EditDocumentV2 {
+  const doc = threeClips(music);
+  Object.assign(doc.clips!.find((clip) => clip.clip_id === "b")!, { from_frame: 80, duration_in_frames: 20 });
+  return doc;
+}
+const starts = (doc: EditDocumentV2) => doc.clips!.map((clip) => [clip.clip_id, clip.from_frame]);
+
+test("closeAllGaps closes every gap on a track, and the other tracks move with it", () => {
+  const doc = twoGaps();
+  expect(starts(applies(doc, closeAllGaps(doc, "track_main")))).toEqual([
+    ["a", 0],
+    ["b", 60],
+    ["c", 80],
+    ["clip_music", 80],
+  ]);
+  expect(closeAllGaps(threeClips({ from: 130, length: 30 }), "track_music").refusal).toBe("no_gap");
+});
+
+test("closeTimelineGaps closes only stretches where every track is empty", () => {
+  const empty = twoGaps();
+  expect(starts(applies(empty, closeTimelineGaps(empty)))).toEqual([
+    ["a", 0],
+    ["b", 60],
+    ["c", 80],
+    ["clip_music", 80],
+  ]);
+  const held = twoGaps({ from: 100, length: 30 });
+  expect(starts(applies(held, closeTimelineGaps(held)))).toEqual([
+    ["a", 0],
+    ["b", 60],
+    ["c", 110],
+    ["clip_music", 80],
+  ]);
+});
+
+test("closing all gaps refuses when a clip that would move is locked", () => {
+  expect(closeAllGaps(twoGaps({ from: 130, length: 30, locked: true }), "track_main").refusal).toBe("later_locked");
+  expect(closeTimelineGaps(twoGaps({ from: 130, length: 30, locked: true })).refusal).toBe("later_locked");
 });

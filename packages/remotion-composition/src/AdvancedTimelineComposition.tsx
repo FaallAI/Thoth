@@ -19,7 +19,6 @@ import {
 
 type OverlayClip = Extract<TimelineClip, { kind: "overlay" }>;
 type AssetRef = NonNullable<EditDocumentV2["asset_refs"]>[number];
-type AudioClip = Extract<TimelineClip, { kind: "audio" }>;
 type VideoClip = Extract<TimelineClip, { kind: "video" }>;
 
 /** A style the document may select by name, resolved to a local style object. */
@@ -330,7 +329,10 @@ function renderClip(
         clip.hold_after_source && asset?.kind === "video" && asset.duration_in_frames
           ? asset.duration_in_frames - clip.source_from_frame
           : null;
-      return remaining !== null && remaining > 0 ? <HeldClip lastFrame={remaining - 1}>{drawn}</HeldClip> : drawn;
+      const held =
+        remaining !== null && remaining > 0 ? <HeldClip lastFrame={remaining - 1}>{drawn}</HeldClip> : drawn;
+      // Outside the hold, so a held last frame still fades out on time; no fade draws as before.
+      return hasFades(clip) ? <FadingClip clip={clip}>{held}</FadingClip> : held;
     }
     case "audio": {
       const source = resolve(clip.asset_id, sources, onPreviewUnavailable);
@@ -469,9 +471,12 @@ function videoClip(
           src={source}
           trimBefore={clip.source_from_frame}
           muted={muted}
-          // Only narration's ducking passes a volume, so every other render stays as it was.
-          {...(clip.volume_keyframes && clip.volume_keyframes.length > 0
-            ? { volume: (frame: number) => volumeAt(frame, clip.volume_keyframes!, 1) }
+          // Only ducking or a fade passes a volume, so every other render stays as it was.
+          {...(clip.volume_keyframes?.length || hasFades(clip)
+            ? {
+                volume: (frame: number) =>
+                  volumeAt(frame, clip.volume_keyframes ?? [], 1) * fadeMultiplier(frame, clip),
+              }
             : {})}
           objectFit={clip.fit}
           style={media}
@@ -570,11 +575,27 @@ function span(size: number): number {
  * `frame` is relative to the clip, which is exactly how the document stores
  * its fades, so no canvas offset enters the calculation.
  */
-function fadeMultiplier(frame: number, clip: AudioClip): number {
-  const rise = clip.fade_in_frames > 0 ? frame / clip.fade_in_frames : 1;
-  const fall =
-    clip.fade_out_frames > 0 ? (clip.duration_in_frames - frame) / clip.fade_out_frames : 1;
+function fadeMultiplier(frame: number, clip: Faded): number {
+  const fadeIn = clip.fade_in_frames ?? 0;
+  const fadeOut = clip.fade_out_frames ?? 0;
+  const rise = fadeIn > 0 ? frame / fadeIn : 1;
+  const fall = fadeOut > 0 ? (clip.duration_in_frames - frame) / fadeOut : 1;
   return Math.min(1, Math.max(0, Math.min(rise, fall)));
+}
+
+type Faded = { duration_in_frames: number; fade_in_frames?: number; fade_out_frames?: number };
+
+/** A stored draft carries video fades only when they are used (spec 2026-11-08 §6). */
+const hasFades = (clip: Faded) => (clip.fade_in_frames ?? 0) > 0 || (clip.fade_out_frames ?? 0) > 0;
+
+/** The picture's fade, inside the clip's sequence so the frame is clip-relative. */
+function FadingClip({ clip, children }: { clip: Faded; children: ReactNode }) {
+  const frame = useCurrentFrame();
+  return (
+    <AbsoluteFill data-testid="clip-fade" style={{ opacity: fadeMultiplier(frame, clip) }}>
+      {children}
+    </AbsoluteFill>
+  );
 }
 
 function resolve(

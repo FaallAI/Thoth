@@ -6,13 +6,21 @@ import type { LocaleState } from "@/lib/locale";
 import { shortcutKeys } from "./studio_keys";
 import { compatibleTrackIds } from "./timeline_domain";
 import {
+  closeAllGaps,
   closeGap,
+  closeTimelineGaps,
+  cueAt,
   deleteClip,
+  deleteClips,
+  duplicateClips,
+  pasteClips,
   moveToTrack,
   moveTrack,
   removeTrack,
   rippleDelete,
+  rippleDeleteClips,
   setClipFlag,
+  setClipsFlag,
   splitAt,
   type Edit,
 } from "./timeline_edits";
@@ -44,16 +52,52 @@ function editEntry(context: MenuContext, id: string, label: string, edit: Edit, 
 export function clipMenu(
   context: MenuContext,
   clip: Clip,
-  extra: { onReplace: () => void; storyBeat: string | null; onShowInStory?: () => void },
+  extra: {
+    onReplace: () => void;
+    storyBeat: string | null;
+    onShowInStory?: () => void;
+    /** The selection; when it holds this clip and others, delete, ripple, hide and lock act on all. */
+    selection?: readonly string[];
+    /** Clips copied in this page, and where Copy puts them (spec 2026-11-08 §6). */
+    copied?: readonly string[];
+    onCopy?: (ids: readonly string[]) => void;
+    /** Text through the system clipboard (spec 2026-11-08 §6). */
+    onCopyText?: (text: string) => void;
+    onPasteText?: () => void;
+  },
 ): MenuEntry[] {
   const { t, doc, playheadFrame } = context;
+  const group = extra.selection && extra.selection.length > 1 && extra.selection.includes(clip.clip_id) ? extra.selection : null;
+  const count = { count: String(group?.length ?? 1) };
+  const these = group ?? [clip.clip_id];
+  const copied = extra.copied ?? [];
   const locked = clip.locked === true || doc.tracks.find((track) => track.track_id === clip.track_id)?.locked === true;
   const lockedReason = t("studio.menu.reason.locked");
   const targets = compatibleTrackIds(doc, clip.kind).filter((trackId) => trackId !== clip.track_id);
   const entries: MenuEntry[] = [
     editEntry(context, "split", t("studio.menu.split"), splitAt(doc, clip.clip_id, playheadFrame), shortcutKeys("split")),
-    editEntry(context, "delete", t("studio.menu.delete"), deleteClip(doc, clip.clip_id), shortcutKeys("delete")),
-    editEntry(context, "ripple", t("studio.menu.rippleDelete"), rippleDelete(doc, clip.clip_id), shortcutKeys("ripple_delete")),
+    { kind: "item", id: "copy", label: t("studio.menu.copy"), shortcut: shortcutKeys("copy"), onSelect: () => extra.onCopy?.(these) },
+    copied.length
+      ? editEntry(context, "paste", t("studio.menu.paste"), pasteClips(doc, copied, playheadFrame), shortcutKeys("paste"))
+      : { kind: "item", id: "paste", label: t("studio.menu.paste"), shortcut: shortcutKeys("paste"), disabled: true, reason: t("studio.menu.reason.nothingCopied"), onSelect: () => {} },
+    editEntry(context, "duplicate", t("studio.menu.duplicate"), duplicateClips(doc, these), shortcutKeys("duplicate")),
+    ...(clip.kind === "text" || clip.kind === "caption"
+      ? [
+          {
+            kind: "item" as const,
+            id: "copy-text",
+            label: t("studio.menu.copyText"),
+            onSelect: () => extra.onCopyText?.(clip.kind === "text" ? clip.heading : clip.kind === "caption" ? (clip.cues[cueAt(clip, playheadFrame)]?.text ?? "") : ""),
+          },
+        ]
+      : []),
+    { kind: "item", id: "paste-text", label: t("studio.menu.pasteText"), onSelect: () => extra.onPasteText?.() },
+    group
+      ? editEntry(context, "delete", t("studio.menu.deleteMany", count), deleteClips(doc, group), shortcutKeys("delete"))
+      : editEntry(context, "delete", t("studio.menu.delete"), deleteClip(doc, clip.clip_id), shortcutKeys("delete")),
+    group
+      ? editEntry(context, "ripple", t("studio.menu.rippleDeleteMany", count), rippleDeleteClips(doc, group), shortcutKeys("ripple_delete"))
+      : editEntry(context, "ripple", t("studio.menu.rippleDelete"), rippleDelete(doc, clip.clip_id), shortcutKeys("ripple_delete")),
     {
       kind: "item",
       id: "replace",
@@ -73,10 +117,24 @@ export function clipMenu(
         return editEntry(context, `move-${trackId}`, context.trackName(track), moveToTrack(doc, clip.clip_id, trackId));
       }),
     });
+  } else {
+    // Shown even when it cannot act, so the person learns why (final review 2026-11-08).
+    entries.push({
+      kind: "item",
+      id: "move",
+      label: t("studio.menu.moveToTrack"),
+      disabled: true,
+      reason: locked ? lockedReason : t("studio.menu.reason.noTrackFits"),
+      onSelect: () => {},
+    });
   }
   entries.push(
-    editEntry(context, "hide", t(clip.hidden ? "studio.menu.show" : "studio.menu.hide"), setClipFlag(doc, clip.clip_id, "hidden", !clip.hidden)),
-    editEntry(context, "lock", t(clip.locked ? "studio.menu.unlock" : "studio.menu.lock"), setClipFlag(doc, clip.clip_id, "locked", !clip.locked)),
+    group
+      ? editEntry(context, "hide", t(clip.hidden ? "studio.menu.showMany" : "studio.menu.hideMany", count), setClipsFlag(doc, group, "hidden", !clip.hidden))
+      : editEntry(context, "hide", t(clip.hidden ? "studio.menu.show" : "studio.menu.hide"), setClipFlag(doc, clip.clip_id, "hidden", !clip.hidden)),
+    group
+      ? editEntry(context, "lock", t(clip.locked ? "studio.menu.unlockMany" : "studio.menu.lockMany", count), setClipsFlag(doc, group, "locked", !clip.locked))
+      : editEntry(context, "lock", t(clip.locked ? "studio.menu.unlock" : "studio.menu.lock"), setClipFlag(doc, clip.clip_id, "locked", !clip.locked)),
     {
       kind: "item",
       id: "story",
@@ -89,8 +147,12 @@ export function clipMenu(
   return entries;
 }
 
-export function gapMenu(context: MenuContext, trackId: string, frame: number): MenuEntry[] {
-  return [editEntry(context, "close-gap", context.t("studio.menu.closeGap"), closeGap(context.doc, trackId, frame))];
+export function gapMenu(context: MenuContext, trackId: string, frame: number, extra: { onPasteText?: () => void } = {}): MenuEntry[] {
+  return [
+    editEntry(context, "close-gap", context.t("studio.menu.closeGap"), closeGap(context.doc, trackId, frame)),
+    editEntry(context, "close-timeline-gaps", context.t("studio.menu.closeTimelineGaps"), closeTimelineGaps(context.doc)),
+    { kind: "item", id: "paste-text", label: context.t("studio.menu.pasteText"), onSelect: () => extra.onPasteText?.() },
+  ];
 }
 
 export function trackMenu(
@@ -121,6 +183,7 @@ export function trackMenu(
       label: t(track.locked ? "studio.menu.unlock" : "studio.menu.lock"),
       onSelect: () => extra.onToggle("locked", !track.locked),
     },
+    editEntry(context, "close-all-gaps", t("studio.menu.closeAllGaps"), closeAllGaps(doc, track.track_id)),
     editEntry(context, "remove", t("studio.menu.removeTrack"), removeTrack(doc, track.track_id)),
   ];
 }

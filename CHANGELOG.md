@@ -2,6 +2,132 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-09 - Studio Timeline Tier 2: comfort (select many, copy and paste, text paste, fades, assets, J/K/L)
+
+Branch `feat/studio-timeline-tier2` from master `ccddab63`, PR #123. Plan
+`docs/superpowers/plans/2026-11-08-studio-timeline-tier2.md`, spec section 6. Executed natively,
+with one fresh review of the whole branch at the end.
+
+**Merge record carried here.** PR #122 (Studio Timeline Tier 1) was merged as `ccddab63` on
+2026-11-08, on the operator's word. Stage1 still runs the branch image `c5a848b0`. That image is the
+same code as master: the only commit after it holds records and e2e tests.
+
+**What Tier 2 adds.**
+- **Server and contract.**
+  - Four typed operations, mirrored in `timeline_domain.ts`:
+    - `duplicate_clip` (a copy under a new id, with its media, provenance and styling, and without its scene);
+    - `set_clip_fit`;
+    - `set_clip_crop` (`null` restores the whole frame);
+    - `set_clip_fades` (video and audio).
+  - Video clips gain `fade_in_frames` and `fade_out_frames`, defaulting to 0.
+  - Fades are fitted after every operation, so a trim, a split, a scene change or new media never leaves a fade longer than its clip.
+  - `add_text_clip` takes no Story role for pasted text.
+  - `python/openapi.json`, the dashboard types and the renderer schema were regenerated.
+- **Renderer.** A video clip with a fade fades its picture (opacity) and its own sound. A clip without a fade renders exactly as before.
+- **Inspector.**
+  - Fit is a choice (Cover, Contain, Fill).
+  - Crop is four sides in percent, with Reset crop.
+  - Position X and Y and Scale are in percent, with Reset position.
+  - Fade in and Fade out are in seconds, on video and audio clips.
+  - A value that does not fit is refused in place, with its reason.
+- **Selection.**
+  - Shift or Ctrl click adds a clip, a marquee over empty lanes selects what it touches, Ctrl+A selects all, and Escape clears.
+  - Delete, ripple delete, hide, lock and drag act on the whole selection as one undo step, or not at all.
+  - A refused key or drag says why.
+- **Clips copied inside the open draft.** Ctrl+C, Ctrl+V and Ctrl+D, also in the clip menu. Clips never go through the system clipboard.
+- **Text from the system clipboard, to a place the person picks.** The four places are:
+  - a new text clip on Overlay;
+  - replace the selected text;
+  - a new caption;
+  - replace the caption text.
+
+  Ctrl+V uses the browser's paste event; the menu's "Paste text…" reads the clipboard. "Copy text" is on text and caption clips. Text over 300 characters disables every place, with the reason.
+- **Close all gaps** on a track (track menu) or in the whole timeline (lane menu).
+- **Assets column.** A search box and a type filter (All, Video, Image, Audio). Rows drag onto a lane and land at the drop point.
+  - Search and the filter cover only the pages already loaded (20 a page), as the library never pulls a whole project into memory. The server has no search parameter, and the names people see are made in the browser.
+  - An empty result says what it searched: "No match among the N assets loaded so far. Load more to look further." It no longer says "No ready assets yet". The Load more button stays beside it (operator, 2026-11-09, from a side-agent note).
+- **J, K and L.**
+  - L plays, and each further L while playing doubles the speed, up to 4×.
+  - K pauses.
+  - J steps back one second, because a browser cannot play video or audio in reverse.
+  - Any pause brings the speed back to 1.
+- **Tier 1 review leftovers, all 11 fixed:**
+  - a long touch press that moves cancels its menu;
+  - focus returns to the menu's owner without scrolling;
+  - the beat picker request no longer reopens after a remount;
+  - a right click inside a material's menu does not reopen it;
+  - a lane that cannot take a dragged clip shows that it refuses;
+  - "Move to track" stays in the menu, disabled with its reason;
+  - a refused typed time shows the real time again;
+  - `formatTimecode`'s comment sits above its function again;
+  - a second track of one kind has a numbered accessible name;
+  - the shortcut list names every key;
+  - images show an image icon in Replace media.
+
+**Rollback note (operator, 2026-11-08, from a side-agent warning).**
+- **What was checked:** Tier 1 servers forbid unknown fields (`StrictModel`, `extra="forbid"`), and every save writes the whole document.
+- **What was done:** video fades are stored only when used (`Field(exclude_if=…)`). The final reviewer confirmed this on every save and response path.
+- **What it means:** a rollback to the Tier 1 images (`pins-a764c4bc.env` or later) stays safe for every draft that never used a video fade. A draft that did use one will not open there. Treat that like a rollback past a migration.
+
+**Decisions taken by the executor (the full list is in the SDD ledger).**
+- **Refusals are all or nothing.** One locked clip in a selection refuses the whole edit, with the reason. A marquee and Ctrl+A skip locked clips.
+- **Group drag.** A group drag keeps every clip on its own track.
+- **Pressing a selected clip.** A press on a clip of a larger selection makes it the Inspector's clip. A click without a drag then selects it alone.
+- **Asset drops.** A drop lands where it is let go; a drop on a clip places nothing.
+- **Copy and paste.** A paste references live clips only, so a copied clip that was deleted cannot be pasted ("A copied clip was deleted").
+- **Fit.** Fit is a combobox, so the Tier 2 red e2e test now looks for one.
+
+**Carried follow-ups closed.**
+- The three read-only e2e tests tied to one draft's numbers now read the draft's own numbers.
+- The script-panel height test failed because of the test, not the page: it walked up from the Script section to find the scroll box, but the box is inside the section. It now looks inside first. The panel was right, as the 2026-11-08 screenshot showed.
+
+**Final review (fresh reviewer, whole branch).** Verdict: ready with fixes, nothing critical. One fix pass, each fix test-first:
+- **Re-voice failed validation after the voices were paid for** when narration shortened a video clip with fades. `_retime` now fits video fades, as it already did for audio.
+- **Keys and a group drag refused silently.** They now show the reason in the Timeline's status line.
+- **Wrong clip in the Inspector.** A press inside a multi-selection left the Inspector on another clip.
+- **The paste chooser hid its reasons.** They sat in a hover title on disabled buttons. Places now stay reachable, say why in words (`aria-describedby`), and focus returns to where it was on close.
+- **L's speed outlasted a pause** made by Space or the Player. This was graded minor, then re-graded important.
+
+**Verification.**
+- **Dashboard:** 1782 tests pass, and `tsc -b` and the build are clean.
+- **Python:** full `make test` gives 4654 passed, 221 skipped. `make lint` is clean.
+- **Renderer:** `bun test` passes 224.
+- **Read-only e2e at 1440** on stage1 `c5a848b0`: `studio-audit-fixes` 14/14 and `studio-shell-v2` 5/5. These screens are unchanged by Tier 2.
+- **CI on PR #123:** all green.
+- **Write e2e at 1440** on stage1 `7b5d04f8`, in the throwaway project with a one-day write token: `timeline-audit` and `studio-write` gave 49/50 on the first run, including seven of the eight Tier 2 tests.
+  - **The failure was the test.** "Close all gaps on this track" right-clicked the middle of the track name. On hover the track's toggles cover that spot, so Playwright would not click it. A right click there still opens the track menu, because the toggles sit inside the name column. The test now opens the menu from the keyboard: focus on the name, then Shift+F10. It passed on its own rerun.
+  - **Rows before and after:** the operator's project kept 121 revisions, 101 assets and 8 renders. Narrations, runs and proposals did not change. Every new row (210 revisions, 1 asset, 3 renders, 2 review events) is in the throwaway project, together with 8 usage events. These stay behind, because projects cannot be deleted through the API.
+
+**Deploy record.** Stage1 runs the branch image `7b5d04f8` since 2026-11-09:
+- thoth `sha256:1b0956aa4a89…` (api and worker);
+- renderer `sha256:701b65b2e55e…`;
+- web `sha256:1c8b792d6274…`.
+
+No workflow was running at the time. `make deploy` exited 0, and web answered 200. After the deploy, the worker logged no errors and the api returned no 5xx responses. The rollback copy is `D:/thoth-tmp/bu/pins/pins-c5a848b0.env`, and the rollback note above applies.
+
+**Deferred minors** (from the final review):
+- `resizeScene` does not fit fades until the save returns.
+- A paste checks Main video overlap across every Main video track instead of per track.
+- `moveClips` checks neither Main video overlap nor scene bounds.
+- A group drag released at a refused delta returns to its start.
+- Ctrl+D with nothing selected reaches the browser's bookmark shortcut.
+- "New caption" in a narrated draft spans the whole canvas.
+- Inspector values out of range revert silently, and the Inspector's message sits under the fade fields.
+- The paste chooser has no focus trap.
+
+**Open questions for the operator** (from the review's "declined to judge" list):
+- A duplicated Hook or Outro clip keeps its Story role, so a beat can hold two.
+- A paste can land on a hidden Overlay or Captions track.
+
+**Next steps.**
+- **Done:** the write token, push and PR #123, the branch deploy, and the write e2e.
+- **Operator gates, each needing its own authorization:**
+  - a push of the e2e test fix and these records to PR #123;
+  - the operator's own try on stage1;
+  - merge of PR #123.
+- **Then Tier 3** (spec section 7): filmstrips and waveforms, roll and slip, speed, markers, and the phone editing decision.
+- **Carried:** the deferred minors and the two open questions above.
+
 ## 2026-11-08 - Studio Timeline Tier 1: the editing grammar of common editors
 
 Branch `feat/studio-timeline-track` from master `5b20306e`, not pushed.

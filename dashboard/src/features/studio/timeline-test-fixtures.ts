@@ -1,4 +1,5 @@
-import type { EditDocumentV2 } from "@/api/control-plane";
+import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane";
+import { applyTimelineOperation } from "./timeline_domain";
 
 /** One bounded version 2 document shared by the timeline and issues tests. */
 export function timelineDocument(): EditDocumentV2 {
@@ -90,6 +91,8 @@ export function timelineDocument(): EditDocumentV2 {
         locked: false,
         fit: "cover",
         blur_enabled: false,
+        fade_in_frames: 0,
+        fade_out_frames: 0,
         motion: "none",
         hold_after_source: false,
         emphasis: { highlight: false, arrow: false },
@@ -107,6 +110,8 @@ export function timelineDocument(): EditDocumentV2 {
         locked: true,
         fit: "cover",
         blur_enabled: false,
+        fade_in_frames: 0,
+        fade_out_frames: 0,
         motion: "none",
         hold_after_source: false,
         emphasis: { highlight: false, arrow: false },
@@ -290,6 +295,8 @@ export function typedTimelineDocument(): EditDocumentV2 {
         locked: false,
         fit: "cover",
         blur_enabled: false,
+        fade_in_frames: 0,
+        fade_out_frames: 0,
         motion: "none",
         hold_after_source: false,
         emphasis: { highlight: false, arrow: false },
@@ -309,6 +316,8 @@ export function typedTimelineDocument(): EditDocumentV2 {
         locked: false,
         fit: "contain",
         blur_enabled: false,
+        fade_in_frames: 0,
+        fade_out_frames: 0,
         motion: "none",
         hold_after_source: false,
         emphasis: { highlight: false, arrow: false },
@@ -370,6 +379,8 @@ export function typedTimelineDocument(): EditDocumentV2 {
         locked: false,
         fit: "contain",
         blur_enabled: false,
+        fade_in_frames: 0,
+        fade_out_frames: 0,
         motion: "none",
         hold_after_source: false,
         emphasis: { highlight: false, arrow: false },
@@ -431,10 +442,24 @@ export function sceneStripDocument(): EditDocumentV2 {
         locked: false,
         fit: "cover",
         blur_enabled: false,
+        fade_in_frames: 0,
+        fade_out_frames: 0,
         motion: "none",
         hold_after_source: false,
         emphasis: { highlight: false, arrow: false },
       },
     ],
   };
+}
+
+/** Spec 2026-11-08 §6: the fixture with an Overlay track holding one text clip and an open Captions track with one caption. */
+export function textDocument(): EditDocumentV2 {
+  const doc = timelineDocument();
+  doc.tracks.push({ track_id: "track_overlay", kind: "overlay", label: "Overlay", order: 4, hidden: false, muted: false, locked: false, clip_ids: [] });
+  Object.assign(doc.tracks.find((track) => track.track_id === "track_captions")!, { locked: false, hidden: false });
+  const operations: EditDocumentOperation[] = [
+    { kind: "add_text_clip", operation_id: "op_t", clip_id: "clip_text", track_id: "track_overlay", from_frame: 0, duration_in_frames: 60, heading: "Old heading", body: "", style_slot: "title" },
+    { kind: "add_caption_clip", operation_id: "op_c", clip_id: "clip_cap", track_id: "track_captions", scene_id: "scene_001", text: "Old cue" },
+  ];
+  return operations.reduce((current, operation) => applyTimelineOperation(current, operation, {}), doc);
 }

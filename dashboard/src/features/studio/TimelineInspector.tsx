@@ -62,10 +62,9 @@ function TimeField({
     // Only what the person typed: the shown time is rounded, so reading it back could move the clip.
     if (text.trim() === shown) return;
     const next = parseTimecode(text, fps);
-    if (next === null || next === frame) {
-      setText(shown);
-      return;
-    }
+    // The field shows the stored time again; an accepted edit then shows its new time.
+    setText(shown);
+    if (next === null || next === frame) return;
     onCommit(next);
   };
   return (
@@ -92,6 +91,63 @@ function TimeField({
     </div>
   );
 }
+
+/**
+ * A number a person types; it commits on Enter or on leaving the field, never while typing.
+ * `onCommit` answers false to refuse the value, and the field shows the stored value again.
+ */
+function NumberField({
+  id,
+  label,
+  shown,
+  disabled,
+  onCommit,
+}: {
+  id: string;
+  label: string;
+  shown: string;
+  disabled: boolean;
+  onCommit: (value: number) => boolean | void;
+}) {
+  const [text, setText] = useState(shown);
+  useEffect(() => setText(shown), [shown]);
+  const commit = () => {
+    if (text.trim() === shown) return;
+    const value = Number(text.trim().replace(",", "."));
+    // The stored value shows again; an accepted edit then shows its new value.
+    setText(shown);
+    if (text.trim() && Number.isFinite(value)) onCommit(value);
+  };
+  return (
+    <div className={field}>
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        type="text"
+        inputMode="decimal"
+        className={input}
+        value={text}
+        disabled={disabled}
+        onChange={(event) => setText(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            commit();
+          } else if (event.key === "Escape") {
+            setText(shown);
+          }
+        }}
+      />
+    </div>
+  );
+}
+
+/** A fraction as a percent with at most one decimal, and back, without float noise. */
+const percentOf = (fraction: number) => String(Math.round(fraction * 1000) / 10);
+const fractionOf = (percent: number) => Math.round(percent * 100) / 10000;
+/** The server's longest fade (`FadeFrames`). */
+const MAX_FADE_FRAMES = 300;
 
 /** One titled group of fields, like the TIMING, TRANSFORM and AUDIO blocks of the design. */
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -123,8 +179,13 @@ export function TimelineInspector({
     locked: useId(),
     ownership: useId(),
     fit: useId(),
-    crop: useId(),
-    position: useId(),
+    cropLeft: useId(),
+    cropTop: useId(),
+    cropRight: useId(),
+    cropBottom: useId(),
+    positionX: useId(),
+    positionY: useId(),
+    scale: useId(),
     fadeIn: useId(),
     fadeOut: useId(),
     overlayPreset: useId(),
@@ -141,6 +202,9 @@ export function TimelineInspector({
     (candidate) => candidate.track_id === (clip?.track_id ?? selectedTrackId),
   );
   const frozen = clip?.locked === true || track?.locked === true;
+  // Why the last typed value was refused; it belongs to one clip and clears with the selection.
+  const [problem, setProblem] = useState<string | null>(null);
+  useEffect(() => setProblem(null), [selectedClipId]);
   /** A persisted field D1 stores but has no operation to change. */
   const readOnlyField = (id: string, label: string, value: string) => (
     <div className={field} key={id}>
@@ -171,6 +235,140 @@ export function TimelineInspector({
   // Every control emits the same typed operation the timeline gestures emit.
   const emit = (operation: OperationDraft) =>
     onOperation({ ...operation, operation_id: newId() } as EditDocumentOperation);
+
+  type Video = Extract<NonNullable<EditDocumentV2["clips"]>[number], { kind: "video" }>;
+
+  /** Crop as the share cut from each side, in percent (spec 2026-11-08 §6). */
+  const cropFields = (video: Video) => {
+    const crop = video.crop ?? { left: 0, top: 0, width: 1, height: 1 };
+    const sides = { left: crop.left, top: crop.top, right: 1 - crop.left - crop.width, bottom: 1 - crop.top - crop.height };
+    const set = (side: keyof typeof sides, percent: number) => {
+      if (percent < 0 || percent > 100) return false;
+      const next = { ...sides, [side]: fractionOf(percent) };
+      const width = Math.round((1 - next.left - next.right) * 10000) / 10000;
+      const height = Math.round((1 - next.top - next.bottom) * 10000) / 10000;
+      if (width <= 0 || height <= 0) {
+        setProblem(t("studio.timeline.cropNone"));
+        return false;
+      }
+      setProblem(null);
+      emit({ kind: "set_clip_crop", clip_id: video.clip_id, crop: { left: next.left, top: next.top, width, height } });
+    };
+    const fields = [
+      ["left", ids.cropLeft, "studio.timeline.cropLeft"],
+      ["top", ids.cropTop, "studio.timeline.cropTop"],
+      ["right", ids.cropRight, "studio.timeline.cropRight"],
+      ["bottom", ids.cropBottom, "studio.timeline.cropBottom"],
+    ] as const;
+    return (
+      <>
+        {fields.map(([side, id, label]) => (
+          <NumberField
+            key={side}
+            id={id}
+            label={t(label)}
+            shown={percentOf(sides[side])}
+            disabled={frozen}
+            onCommit={(percent) => set(side, percent)}
+          />
+        ))}
+        <button
+          type="button"
+          className={button}
+          disabled={frozen || !video.crop}
+          onClick={() => emit({ kind: "set_clip_crop", clip_id: video.clip_id, crop: null })}
+        >
+          {t("studio.timeline.resetCrop")}
+        </button>
+      </>
+    );
+  };
+
+  /** Offset in percent of the canvas and scale in percent (spec 2026-11-08 §6). */
+  const positionFields = (video: Video) => {
+    const position = video.position ?? { x: 0, y: 0, scale: 1 };
+    const place = (next: Partial<typeof position>) =>
+      emit({ kind: "set_clip_position", clip_id: video.clip_id, position: { ...position, ...next } });
+    const within = (low: number, high: number, apply: (percent: number) => void) => (percent: number) =>
+      percent < low || percent > high ? false : apply(percent);
+    return (
+      <>
+        <NumberField
+          id={ids.positionX}
+          label={t("studio.timeline.positionX")}
+          shown={percentOf(position.x)}
+          disabled={frozen}
+          onCommit={within(-100, 100, (percent) => place({ x: fractionOf(percent) }))}
+        />
+        <NumberField
+          id={ids.positionY}
+          label={t("studio.timeline.positionY")}
+          shown={percentOf(position.y)}
+          disabled={frozen}
+          onCommit={within(-100, 100, (percent) => place({ y: fractionOf(percent) }))}
+        />
+        <NumberField
+          id={ids.scale}
+          label={t("studio.timeline.scale")}
+          shown={percentOf(position.scale)}
+          disabled={frozen}
+          onCommit={within(1, 400, (percent) => place({ scale: fractionOf(percent) }))}
+        />
+        <button
+          type="button"
+          className={button}
+          disabled={frozen || !video.position}
+          onClick={() => place({ x: 0, y: 0, scale: 1 })}
+        >
+          {t("studio.timeline.resetPosition")}
+        </button>
+      </>
+    );
+  };
+
+  /** Fade in and out in seconds, on a video or audio clip (spec 2026-11-08 §6). */
+  const fadeFields = (faded: { clip_id: string; duration_in_frames: number; fade_in_frames?: number; fade_out_frames?: number }) => {
+    const fades = { in: faded.fade_in_frames ?? 0, out: faded.fade_out_frames ?? 0 };
+    const seconds = (frames: number) => String(Math.round((frames / fps) * 10) / 10);
+    const set = (side: "in" | "out", value: number) => {
+      const frames = Math.round(value * fps);
+      if (frames < 0) return false;
+      if (frames > MAX_FADE_FRAMES) {
+        setProblem(t("studio.timeline.fadeMax", { seconds: seconds(MAX_FADE_FRAMES) }));
+        return false;
+      }
+      const next = { ...fades, [side]: frames };
+      if (next.in + next.out > faded.duration_in_frames) {
+        setProblem(t("studio.timeline.fadesTooLong"));
+        return false;
+      }
+      setProblem(null);
+      emit({ kind: "set_clip_fades", clip_id: faded.clip_id, fade_in_frames: next.in, fade_out_frames: next.out });
+    };
+    return (
+      <>
+        <NumberField
+          id={ids.fadeIn}
+          label={t("studio.timeline.fadeIn")}
+          shown={seconds(fades.in)}
+          disabled={frozen}
+          onCommit={(value) => set("in", value)}
+        />
+        <NumberField
+          id={ids.fadeOut}
+          label={t("studio.timeline.fadeOut")}
+          shown={seconds(fades.out)}
+          disabled={frozen}
+          onCommit={(value) => set("out", value)}
+        />
+        {problem ? (
+          <p role="alert" className="text-xs text-destructive">
+            {problem}
+          </p>
+        ) : null}
+      </>
+    );
+  };
 
   if (rail && !clip && !track) {
     return (
@@ -268,17 +466,31 @@ export function TimelineInspector({
                   ))}
                 </div>
               ) : null}
-              {readOnlyField(ids.fit, t("studio.timeline.fit"), clip.fit)}
-              {readOnlyField(
-                ids.crop,
-                t("studio.timeline.crop"),
-                clip.crop ? [clip.crop.left, clip.crop.top, clip.crop.width, clip.crop.height].join(", ") : NOT_SET,
-              )}
-              {readOnlyField(
-                ids.position,
-                t("studio.timeline.position"),
-                clip.position ? `${clip.position.x}, ${clip.position.y} ×${clip.position.scale}` : NOT_SET,
-              )}
+              <div className={field}>
+                <label htmlFor={ids.fit}>{t("studio.timeline.fit")}</label>
+                <select
+                  id={ids.fit}
+                  className={input}
+                  value={clip.fit}
+                  disabled={frozen}
+                  onChange={(event) =>
+                    emit({ kind: "set_clip_fit", clip_id: clip.clip_id, fit: event.target.value as typeof clip.fit })
+                  }
+                >
+                  {(["cover", "contain", "fill"] as const).map((fit) => (
+                    <option key={fit} value={fit}>
+                      {t(`studio.timeline.fit.${fit}`)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div role="group" aria-label={t("studio.timeline.crop")} className="space-y-2">
+                {cropFields(clip)}
+              </div>
+              <div role="group" aria-label={t("studio.timeline.position")} className="space-y-2">
+                {positionFields(clip)}
+              </div>
+              {fadeFields(clip)}
               {clip.blur_regions?.length ? (
                 // Detected subtitles arrive switched off: muting and blurring the speech leaves
                 // the viewer neither the words nor the text until narration replaces it.
@@ -329,8 +541,7 @@ export function TimelineInspector({
                   }
                 />
               </div>
-              {readOnlyField(ids.fadeIn, t("studio.timeline.fadeIn"), String(clip.fade_in_frames ?? 0))}
-              {readOnlyField(ids.fadeOut, t("studio.timeline.fadeOut"), String(clip.fade_out_frames ?? 0))}
+              {fadeFields(clip)}
             </Section>
           ) : clip.kind !== "video" ? (
             // A video sounds through its track mute; every other clip has no sound of its own.

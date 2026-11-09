@@ -19,15 +19,20 @@ import type { EditDocumentV2 } from "@/api/control-plane";
 import type { MenuHandlers } from "@/components/ContextMenu";
 import { useLocale } from "@/lib/locale";
 import { TimelineClip, type GestureMode } from "./TimelineClip";
-import { framesToPixels, type TimelineLane } from "./timeline_domain";
+import { ASSET_DRAG_TYPE, framesToPixels, type TimelineLane } from "./timeline_domain";
 
 type Props = {
   lane: TimelineLane;
   zoom: number;
   widthInFrames: number;
-  selectedClipId: string;
+  /** Every selected clip (spec 2026-11-08 §6). */
+  selectedClipIds: readonly string[];
   onToggle: (field: "hidden" | "muted" | "locked", value: boolean) => void;
-  onSelectClip: (clipId: string) => void;
+  onSelectClip: (clipId: string, add: boolean) => void;
+  /** An asset dropped on the lane, at that many pixels from the lane's start (spec 2026-11-08 §6). */
+  onDropAsset?: (assetId: string, offsetPx: number) => void;
+  /** A press on the empty well that may grow into a marquee (spec 2026-11-08 §6). */
+  onMarqueeStart?: (clientX: number, clientY: number) => void;
   /** The track for the Inspector (spec 2026-11-08 §5.1). */
   onSelectTrack?: () => void;
   /** A press on the lane's empty well, in pixels from the lane's start. */
@@ -43,6 +48,10 @@ type Props = {
   readOnly?: boolean;
   /** The track's plain name (spec 2026-11-08 §5.1); absent, its stored label. */
   name?: string;
+  /** The label controls are named by, numbered from the second track of a kind; absent, the stored label. */
+  accessibleLabel?: string;
+  /** A dragged clip is over this lane and the lane cannot take it. */
+  refusesDrop?: boolean;
 };
 
 type TrackKind = TimelineLane["track"]["kind"];
@@ -64,9 +73,10 @@ export function TimelineTrack({
   lane,
   zoom,
   widthInFrames,
-  selectedClipId,
+  selectedClipIds,
   onToggle,
   onSelectClip,
+  onMarqueeStart,
   onSelectTrack,
   onSeekAt,
   clipMenu,
@@ -77,11 +87,14 @@ export function TimelineTrack({
   labelOf,
   readOnly = false,
   name,
+  onDropAsset,
+  accessibleLabel,
+  refusesDrop = false,
 }: Props) {
   const { t } = useLocale();
   const { track, clips } = lane;
   const Icon = TRACK_ICON[track.kind];
-  const values = { track: track.label };
+  const values = { track: accessibleLabel ?? track.label };
   // A locked track keeps its own lock button live; everything else waits for it.
   const toggles = [
     ["hidden", track.hidden === true, t(track.hidden ? "studio.timeline.showTrack" : "studio.timeline.hideTrack", values), track.hidden ? EyeOff : Eye],
@@ -142,16 +155,29 @@ export function TimelineTrack({
       </div>
       <div
         data-lane-well
-        className="relative h-11 grow bg-well"
+        data-drop={refusesDrop ? "refused" : undefined}
+        className={`relative h-11 grow bg-well ${refusesDrop ? "cursor-not-allowed ring-1 ring-inset ring-destructive/60" : ""}`}
         style={{ minWidth: `${framesToPixels(widthInFrames, zoom)}px` }}
         onContextMenu={(event) => event.target === event.currentTarget && laneMenu?.onContextMenu(event)}
         onPointerUp={laneMenu?.onPointerUp}
         onPointerCancel={laneMenu?.onPointerCancel}
+        onDragOver={(event) => {
+          if (!onDropAsset || !Array.from(event.dataTransfer.types ?? []).includes(ASSET_DRAG_TYPE)) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+        }}
+        onDrop={(event) => {
+          const assetId = event.dataTransfer.getData(ASSET_DRAG_TYPE);
+          if (!onDropAsset || !assetId) return;
+          event.preventDefault();
+          onDropAsset(assetId, event.clientX - event.currentTarget.getBoundingClientRect().left);
+        }}
         onPointerDown={(event) => {
           if (event.target !== event.currentTarget) return;
           laneMenu?.onPointerDown(event);
           if (event.button !== 0) return;
           onSeekAt?.(event.clientX - event.currentTarget.getBoundingClientRect().left);
+          onMarqueeStart?.(event.clientX, event.clientY);
         }}
       >
         {clips.map((clip) => (
@@ -161,9 +187,9 @@ export function TimelineTrack({
             trackKind={track.kind}
             label={track.label}
             zoom={zoom}
-            selected={clip.clip_id === selectedClipId}
+            selected={selectedClipIds.includes(clip.clip_id)}
             locked={clip.locked === true || track.locked === true}
-            onSelect={() => onSelectClip(clip.clip_id)}
+            onSelect={(add) => onSelectClip(clip.clip_id, add)}
             onGestureStart={(mode, clientX) => onGestureStart(clip.clip_id, mode, clientX)}
             onNudge={(frames) => onNudge(clip.clip_id, frames)}
             name={labelOf?.(clip)}

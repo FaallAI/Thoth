@@ -346,3 +346,58 @@ test("write-audit: a view-only library offers no upload", async () => {
   await screen.findByText("No ready assets yet");
   expect(screen.queryByLabelText("Upload file")).toBeNull();
 });
+
+// Tier 2 (spec 2026-11-08 §6): find an asset, and drag it onto a lane.
+const twoKinds = () =>
+  mock(async () =>
+    page({
+      assets: [asset(), asset({ asset_id: "asset_music", kind: "audio", media_type: "audio/mpeg", has_audio: true })],
+      next_cursor: null,
+    }),
+  );
+
+test("search narrows the rows by name", async () => {
+  mount(twoKinds());
+  await screen.findByText(/asset_music/);
+  fireEvent.change(screen.getByRole("searchbox", { name: "Search assets" }), { target: { value: "MUSIC" } });
+  expect(screen.queryByText(/asset_video/)).toBeNull();
+  expect(screen.getByText(/asset_music/)).toBeDefined();
+});
+
+test("the Audio filter shows audio only", async () => {
+  mount(twoKinds());
+  await screen.findByText(/asset_music/);
+  fireEvent.click(screen.getByRole("button", { name: "Audio" }));
+  expect(screen.getByRole("button", { name: "Audio" }).getAttribute("aria-pressed")).toBe("true");
+  expect(screen.queryByText(/asset_video/)).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "All" }));
+  expect(screen.getByText(/asset_video/)).toBeDefined();
+});
+
+test("a row carries its asset when dragged", async () => {
+  mount(twoKinds());
+  const row = (await screen.findByText(/asset_video/)).closest("li")!;
+  expect(row.getAttribute("draggable")).toBe("true");
+  const setData = mock((_type: string, _value: string) => {});
+  fireEvent.dragStart(row, { dataTransfer: { setData, effectAllowed: "" } });
+  expect(setData).toHaveBeenCalledWith("application/x-thoth-asset", "asset_video");
+});
+
+// Side-agent note 2026-11-09 (operator: "Pesan jujur + muat lagi"): search and the filter see the
+// loaded pages only, so an empty result says so instead of "no assets", and offers the next page.
+test("a search with no match says what it searched and offers the next page", async () => {
+  mount(mock(async () => page({ assets: [asset(), asset({ asset_id: "asset_music", kind: "audio" })], next_cursor: "cursor_2" })));
+  await screen.findByText(/asset_music/);
+  fireEvent.change(screen.getByRole("searchbox", { name: "Search assets" }), { target: { value: "zzz" } });
+  expect(screen.getByText("No match among the 2 assets loaded so far. Load more to look further.")).toBeDefined();
+  expect(screen.queryByText("No ready assets yet")).toBeNull();
+  expect(screen.getByRole("button", { name: "Load more assets" })).toBeDefined();
+});
+
+test("a search with no match when everything is loaded says so plainly", async () => {
+  mount(twoKinds());
+  await screen.findByText(/asset_music/);
+  fireEvent.click(screen.getByRole("button", { name: "Image" }));
+  expect(screen.getByText("No match among the 2 assets loaded.")).toBeDefined();
+  expect(screen.queryByText("No ready assets yet")).toBeNull();
+});

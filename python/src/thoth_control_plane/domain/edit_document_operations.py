@@ -17,6 +17,7 @@ from thoth_control_plane.domain.timeline_operations import (
     TimelineOperation,
     apply_timeline_operation,
     carry_scene_clips,
+    fit_fades,
     unlocked_clip,
 )
 
@@ -86,6 +87,9 @@ def apply_edit_operations(
             apply_timeline_operation(result, operation, resolved_assets or {})
         else:
             raise ValueError("operation requires a version 2 document")
+        if isinstance(result, EditDocumentV2):
+            # An edit that shortens a clip (trim, scene length, new media) keeps its fades inside.
+            fit_fades(result)
 
     return type(result).model_validate(result.model_dump())
 
