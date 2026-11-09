@@ -8,6 +8,7 @@
  */
 
 import type { TimelineClip } from "./timeline";
+import { speedPercent } from "./speed";
 
 type VideoClip = Extract<TimelineClip, { kind: "video" }>;
 
@@ -46,7 +47,7 @@ export function blurBoxes(
   const picture = drawn(clip.fit ?? "cover", asset, boxWidth, boxHeight);
   const trim = clip.source_from_frame ?? 0;
   // Source frames to timeline frames at the clip's speed (Tier 3a), rounded outward so the text stays covered.
-  const pct = Math.round((clip.speed ?? 1) * 100);
+  const pct = speedPercent(clip);
   const timeline = (frames: number, round: (value: number) => number) => Math.max(0, round((frames * 100) / pct));
   // A window that ends at or before the clip's trim (after a split or trim) shows nothing.
   const visible = (clip.blur_regions ?? []).filter(

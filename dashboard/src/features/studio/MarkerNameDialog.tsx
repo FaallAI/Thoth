@@ -1,6 +1,7 @@
 // A marker's name (Tier 3a): at most 60 characters, saved only on Save.
 import { useEffect, useId, useRef, useState } from "react";
 
+import { keepTabInside } from "@/lib/focus-trap";
 import { useLocale } from "@/lib/locale";
 
 type Props = {
@@ -34,6 +35,7 @@ export function MarkerNameDialog({ label, onSave, onClose }: Props) {
         aria-modal="true"
         aria-label={t("studio.marker.renameTitle")}
         onKeyDown={(event) => {
+          keepTabInside(event);
           if (event.key !== "Escape") return;
           event.preventDefault();
           event.stopPropagation();

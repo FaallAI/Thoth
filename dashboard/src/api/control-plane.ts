@@ -33,6 +33,8 @@ export type EditDocumentPatchResult =
   | { kind: "conflict"; latest: EditDocument };
 export type EditorAsset = components["schemas"]["EditorAsset"];
 export type EditorAssetPage = components["schemas"]["EditorAssetPage"];
+/** An asset's filmstrip or peaks, for the Timeline (Tier 3b). */
+export type AssetGlance = components["schemas"]["AssetGlance"];
 export type EditorPreviewCapability = components["schemas"]["PreviewCapabilityResponse"];
 export type StudioSourceProjection = components["schemas"]["StudioSourceProjection"];
 export type StudioSourceInspection = components["schemas"]["StudioSourceInspection"];
@@ -315,6 +317,8 @@ export type ControlPlaneClient = {
     projectId: string,
     assetId: string,
   ) => Promise<EditorPreviewCapability>;
+  /** An asset's filmstrip or peaks (Tier 3b); built on the first request, then kept. */
+  getEditorAssetGlance: (projectId: string, assetId: string) => Promise<AssetGlance>;
   /** Stream one local file to the project's assets; never a URL or a path. */
   uploadEditorAsset: (projectId: string, file: Blob) => Promise<EditorAsset>;
   listPromptStages: () => Promise<PromptStageDefinition[]>;
@@ -771,6 +775,10 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
       request<EditorPreviewCapability>(
         `/api/v1/projects/${encodeURIComponent(projectId)}/editor-assets/${encodeURIComponent(assetId)}/preview-capability`,
         { method: "POST", credentials: "include" },
+      ),
+    getEditorAssetGlance: (projectId, assetId) =>
+      request<AssetGlance>(
+        `/api/v1/projects/${encodeURIComponent(projectId)}/editor-assets/${encodeURIComponent(assetId)}/glance`,
       ),
     uploadEditorAsset: (projectId, file) =>
       importCall<EditorAsset>(`/api/v1/projects/${encodeURIComponent(projectId)}/editor-assets`, {

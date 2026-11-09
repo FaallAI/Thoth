@@ -285,7 +285,8 @@ def test_the_production_client_verifies_tls_with_the_certifi_bundle() -> None:
     assert pool["maxsize"] == 8
 
 
-@pytest.mark.parametrize("prefix", ["uploads", "renders", "work", "archive"])
+# Tier 3b: an asset's glance is kept beside it under glance/.
+@pytest.mark.parametrize("prefix", ["uploads", "renders", "work", "archive", "glance"])
 def test_the_new_prefixes_are_valid_locators(store, tmp_path: Path, prefix: str) -> None:
     location = f"{prefix}/job_1/output.mp4"
     store.put_file(location, _file(tmp_path, "o.mp4", b"out"))
@@ -418,3 +419,22 @@ def test_the_metered_store_leaves_copies_to_their_caller(tmp_path) -> None:
         store.copy("reports/wf_1/clip.mp4", "uploads/p1/asset_1.mp4")
     assert sink.events == []
     assert store.probe_source("uploads/p1/asset_1.mp4").endswith("asset_1.mp4")
+
+
+def test_a_glance_is_not_counted_as_stored_media(tmp_path) -> None:
+    # Operator, 2026-11-09: opening the Timeline (a read-only audit included) builds the glance
+    # cache; that must not bill anyone, so a write under glance/ records nothing.
+    from tests.test_metering import Sink
+    from thoth_control_plane import metering
+    from thoth_control_plane.infrastructure.media_store import LocalMediaStore, MeteredMediaStore
+    from thoth_control_plane.metering import MeterScope
+
+    sink = Sink()
+    metering.install(sink)
+    store = MeteredMediaStore(LocalMediaStore(tmp_path / "root"))
+    source = tmp_path / "glance.json"
+    source.write_bytes(b"{}")
+    with metering.scoped(MeterScope("ws_a", project_id="project_001")):
+        store.put_file("glance/project_001/asset_1.v1.json", source)
+    assert sink.events == []
+    assert store.size("glance/project_001/asset_1.v1.json") == 2

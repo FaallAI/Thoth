@@ -281,7 +281,7 @@ test("pasteTextOperations gives each place its operation", () => {
     { kind: "replace_text", clip_id: "clip_text", field: "heading", value: "Hello" },
   ]);
   expect(shape(pasteTextOperations(doc, "new_caption", "Hello", at(""))).map(withoutNewClip)).toEqual([
-    { kind: "add_caption_clip", track_id: "track_captions", scene_id: "scene_001", text: "Hello" },
+    { kind: "add_caption_clip", track_id: "track_captions", scene_id: "scene_001", text: "Hello", from_frame: 30, duration_in_frames: 90 },
   ]);
   expect(shape(pasteTextOperations(doc, "replace_caption", "Hello", at("clip_cap")))).toEqual([
     { kind: "set_caption_cue_text", clip_id: "clip_cap", cue_index: 0, text: "Hello" },
@@ -493,4 +493,47 @@ test("rollCut refuses a cut that would take one clip out of its scene", () => {
   Object.assign(clipOf(doc, "a"), { scene_id: null });
   Object.assign(clipOf(doc, "b"), { scene_id: "scene_b" });
   expect(rollCut(doc, "a", "b", 50).refusal).toBe("scene");
+});
+
+// Carried Tier 2 minors (operator, 2026-11-09).
+function withSecondMain() {
+  // a 0-60, b 60-100 and c 130-160 on track_main; z 0-30 on a second Main video track.
+  const doc = threeClips();
+  const main = doc.tracks.find((track) => track.track_id === "track_main")!;
+  doc.tracks.push({ ...main, track_id: "track_main2", label: "Main video 2", order: 9, clip_ids: ["z"] });
+  doc.clips!.push({ ...clipOf(doc, "a"), clip_id: "z", track_id: "track_main2", from_frame: 0, duration_in_frames: 30 });
+  return doc;
+}
+
+test("a paste checks Main video overlap on its own track only", () => {
+  // z lands at 40 on its own track, which is free there; track_main's a (0-60) is another track.
+  expect(pasteClips(withSecondMain(), ["z"], 40).refusal).toBeUndefined();
+  expect(pasteClips(withSecondMain(), ["z"], 10).refusal).toBe("no_room");
+});
+
+test("a group move refuses a Main video overlap with a clip it does not move", () => {
+  // b moved 10 later ends at 110; c starts at 130: fine. Moved 40 later it reaches c.
+  expect(moveClips(threeClips(), ["b"], 10).refusal).toBeUndefined();
+  expect(moveClips(threeClips(), ["b"], 40).refusal).toBe("no_room");
+  // a and b moved together never collide with each other.
+  expect(moveClips(threeClips(), ["a", "b"], 20).refusal).toBeUndefined();
+});
+
+test("a group move refuses taking a clip out of its scene", () => {
+  const doc = threeClips();
+  doc.scenes = [{ ...doc.scenes[0]!, scene_id: "scene_a", start_frame: 0, duration_in_frames: 60, clip_ids: [] }];
+  Object.assign(clipOf(doc, "a"), { scene_id: "scene_a", duration_in_frames: 50 });
+  expect(moveClips(doc, ["a"], 10).refusal).toBeUndefined();
+  expect(moveClips(doc, ["a"], 20).refusal).toBe("scene");
+});
+
+test("a pasted caption is three seconds at the playhead, cut at its scene's end", () => {
+  // Carried Tier 2 minor (2026-11-09): in a narrated draft the one scene is the whole canvas.
+  const doc = textDocument();
+  const scene = doc.scenes[0]!;
+  const end = scene.start_frame + scene.duration_in_frames;
+  const edit = pasteTextOperations(doc, "new_caption", "Hello", { playheadFrame: end - 20, selectedClipId: "" });
+  expect(edit.operations[0]).toMatchObject({ from_frame: end - 20, duration_in_frames: 20 });
+  const placed = applies(doc, edit).clips!.at(-1)!;
+  expect([placed.from_frame, placed.duration_in_frames]).toEqual([end - 20, 20]);
 });

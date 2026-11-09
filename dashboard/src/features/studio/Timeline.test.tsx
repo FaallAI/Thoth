@@ -760,14 +760,25 @@ test("pasting text on the timeline asks where it goes, then places it there", ()
   expect(screen.queryByRole("dialog", { name: "Paste text" })).toBeNull();
 });
 
-test("a paste onto a hidden-only overlay track says so in the status line", () => {
+test("a paste onto a hidden-only overlay track says so while the pasted clip is there", () => {
   const doc = textDocument();
   doc.tracks.find((track) => track.kind === "overlay")!.hidden = true;
-  const { actions } = mount({ base: doc, draft: doc, playheadFrame: 30 });
+  const actions: EditorAction[] = [];
+  const at = (draft: EditDocumentV2) => (
+    <Timeline state={{ ...createEditorState(doc), draft, playheadFrame: 30 }} dispatch={(action) => actions.push(action)} onPlay={() => {}} onPause={() => {}} />
+  );
+  const { rerender } = render(at(doc));
   pasteText(window, "Hello");
   fireEvent.click(screen.getByRole("button", { name: "New text clip" }));
-  expect(actions.at(-1)).toMatchObject({ type: "commit_operations", operations: [{ kind: "add_text_clip", track_id: "track_overlay" }] });
+  const commit = actions.at(-1) as Extract<EditorAction, { type: "commit_operations" }>;
+  expect(commit).toMatchObject({ type: "commit_operations", operations: [{ kind: "add_text_clip", track_id: "track_overlay" }] });
+  // The draft takes the paste: the note shows.
+  const pasted = commit.operations.reduce((current, operation) => applyTimelineOperation(current, operation, {}), doc);
+  rerender(at(pasted));
   expect(screen.getByRole("status").textContent).toContain("Pasted on a hidden track. Show the track to see it.");
+  // A refused save puts the draft back: the note goes with the clip (carried minor, 2026-11-09).
+  rerender(at(doc));
+  expect(screen.queryByText("Pasted on a hidden track. Show the track to see it.")).toBeNull();
 });
 
 test("a paste into a field, HTML alone or blank text opens nothing", () => {
@@ -1138,4 +1149,197 @@ test("a marker is at least a 24 px target", () => {
   const marker = screen.getByRole("button", { name: "Marker 1 at 0:02.0" });
   expect(marker.className).toContain("h-6");
   expect(marker.className).toContain("w-6");
+});
+
+// Tier 3b: clips show what they hold.
+const VIDEO_GLANCE = {
+  asset_id: "asset_video",
+  strip: { image: "data:image/jpeg;base64,AAAA", frame_width: 128, frame_height: 72, frames: 5, seconds_per_frame: 1 },
+  peaks: null,
+};
+const AUDIO_GLANCE = { asset_id: "asset_music", strip: null, peaks: { seconds_per_peak: 0.1, values: [10, 60, 30] } };
+function mountWithGlances(glanceOf?: (assetId: string) => typeof VIDEO_GLANCE | typeof AUDIO_GLANCE | undefined, doc = timelineDocument()) {
+  render(<Timeline state={createEditorState(doc)} dispatch={() => {}} onPlay={() => {}} onPause={() => {}} glanceOf={glanceOf as never} />);
+}
+
+test("video clips show their filmstrip and audio clips their waveform", () => {
+  mountWithGlances((assetId) => (assetId === "asset_video" ? VIDEO_GLANCE : assetId === "asset_music" ? AUDIO_GLANCE : undefined));
+  const strips = screen.getAllByTestId("clip-filmstrip");
+  expect(strips.length).toBe(2);
+  expect(strips[0]!.outerHTML).toContain("data:image/jpeg;base64,AAAA");
+  expect(screen.getAllByTestId("clip-waveform").length).toBe(1);
+});
+
+test("without a glance a clip draws as before", () => {
+  mountWithGlances(undefined);
+  expect(screen.queryByTestId("clip-filmstrip")).toBeNull();
+  expect(screen.queryByTestId("clip-waveform")).toBeNull();
+});
+
+test("a text clip never shows a filmstrip or a waveform", () => {
+  mountWithGlances(() => VIDEO_GLANCE, textDocument());
+  const text = screen.getByRole("button", { name: /^Overlay clip/ });
+  expect(text.querySelector("[data-testid='clip-filmstrip'], [data-testid='clip-waveform']")).toBeNull();
+});
+
+// Tier 3b: an audio clip's volume line, dragged or keyed; one edit on release.
+function musicAt(volume: number, overrides: Record<string, unknown> = {}) {
+  const doc = timelineDocument();
+  Object.assign(doc.clips!.find((clip) => clip.clip_id === "clip_music")!, { volume, ...overrides });
+  return doc;
+}
+const volumeLine = () => screen.getByRole("slider", { name: "Volume of Music clip" });
+function withBox(element: HTMLElement) {
+  Object.defineProperty(element.parentElement!, "getBoundingClientRect", {
+    value: () => ({ top: 100, bottom: 140, height: 40, left: 0, right: 200, width: 200, x: 0, y: 100, toJSON: () => ({}) }),
+  });
+}
+const volumeOps = (actions: EditorAction[], type: string) =>
+  actions.filter((action) => action.type === type).map((action) => ("operation" in action ? action.operation : null));
+
+test("dragging an audio clip's volume line previews, then commits once at the pointer", () => {
+  const doc = musicAt(0.5);
+  const { actions } = mount({ base: doc, draft: doc });
+  withBox(volumeLine());
+  fireEvent.pointerDown(volumeLine(), { clientY: 120, button: 0 });
+  fireEvent.pointerMove(window, { clientY: 110 });
+  fireEvent.pointerUp(window, { clientY: 110 });
+  expect(volumeOps(actions, "preview_timeline_operation").at(-1)).toMatchObject({ kind: "set_clip_volume", clip_id: "clip_music", volume: 0.75 });
+  expect(volumeOps(actions, "commit_timeline_operation")).toEqual([expect.objectContaining({ kind: "set_clip_volume", volume: 0.75 })]);
+});
+
+test("the volume line steps by 0.05 with arrows, and Home and End go to 0 and 1", () => {
+  const doc = musicAt(0.5);
+  const { actions } = mount({ base: doc, draft: doc });
+  fireEvent.keyDown(volumeLine(), { key: "ArrowUp" });
+  fireEvent.keyDown(volumeLine(), { key: "Home" });
+  fireEvent.keyDown(volumeLine(), { key: "End" });
+  expect(volumeOps(actions, "commit_timeline_operation").map((operation) => (operation as { volume: number }).volume)).toEqual([0.55, 0, 1]);
+});
+
+test("Escape during a volume drag cancels it and nothing commits", () => {
+  const doc = musicAt(0.5);
+  const { actions } = mount({ base: doc, draft: doc });
+  withBox(volumeLine());
+  fireEvent.pointerDown(volumeLine(), { clientY: 120, button: 0 });
+  fireEvent.pointerMove(window, { clientY: 105 });
+  fireEvent.keyDown(window, { key: "Escape" });
+  fireEvent.pointerUp(window, { clientY: 105 });
+  expect(actions.some((action) => action.type === "cancel_timeline_preview")).toBe(true);
+  expect(volumeOps(actions, "commit_timeline_operation")).toEqual([]);
+});
+
+test("a locked audio clip, a view-only timeline and video clips have no volume line", () => {
+  const locked = musicAt(0.5, { locked: true });
+  mount({ base: locked, draft: locked });
+  expect(screen.queryByRole("slider", { name: /^Volume of / })).toBeNull();
+  cleanup();
+  render(<Timeline state={createEditorState(musicAt(0.5))} dispatch={() => {}} readOnly />);
+  expect(screen.queryByRole("slider", { name: /^Volume of / })).toBeNull();
+  cleanup();
+  mount();
+  expect(screen.queryByRole("slider", { name: "Volume of Main video clip" })).toBeNull();
+});
+
+test("a volume above 1 rests at the top of the line", () => {
+  const doc = musicAt(1.6);
+  mount({ base: doc, draft: doc });
+  expect(volumeLine().getAttribute("aria-valuenow")).toBe("100");
+  expect(volumeLine().style.top).toBe("0%");
+});
+
+// Final review 2026-11-09 fixes.
+test("a press on the volume line without a move changes nothing", () => {
+  const doc = musicAt(0.73);
+  const { actions } = mount({ base: doc, draft: doc });
+  withBox(volumeLine());
+  fireEvent.pointerDown(volumeLine(), { clientY: 112, button: 0 });
+  fireEvent.pointerUp(window, { clientY: 112 });
+  expect(volumeOps(actions, "commit_timeline_operation")).toEqual([]);
+});
+
+test("a cancelled pointer ends the volume drag and commits nothing later", () => {
+  const doc = musicAt(0.5);
+  const { actions } = mount({ base: doc, draft: doc });
+  withBox(volumeLine());
+  fireEvent.pointerDown(volumeLine(), { clientY: 120, button: 0 });
+  fireEvent.pointerMove(window, { clientY: 110 });
+  fireEvent.pointerCancel(window);
+  fireEvent.pointerUp(window, { clientY: 101 });
+  expect(actions.some((action) => action.type === "cancel_timeline_preview")).toBe(true);
+  expect(volumeOps(actions, "commit_timeline_operation")).toEqual([]);
+});
+
+test("ArrowUp and End never lower a clip that is already above 1", () => {
+  const doc = musicAt(1.6);
+  const { actions } = mount({ base: doc, draft: doc });
+  fireEvent.keyDown(volumeLine(), { key: "ArrowUp" });
+  fireEvent.keyDown(volumeLine(), { key: "End" });
+  expect(volumeOps(actions, "commit_timeline_operation")).toEqual([]);
+});
+
+test("a filmstrip carries its picture once, not once per tile", () => {
+  mountWithGlances((assetId) => (assetId === "asset_video" ? VIDEO_GLANCE : undefined));
+  const strip = screen.getAllByTestId("clip-filmstrip")[0]!;
+  expect(strip.outerHTML.split("data:image/jpeg;base64,AAAA").length - 1).toBe(1);
+});
+
+test("a volume drag stops when its clip goes away", () => {
+  const doc = musicAt(0.5);
+  const { actions } = mount({ base: doc, draft: doc });
+  withBox(volumeLine());
+  fireEvent.pointerDown(volumeLine(), { clientY: 120, button: 0 });
+  fireEvent.pointerMove(window, { clientY: 110 });
+  cleanup();
+  fireEvent.pointerUp(window, { clientY: 110 });
+  expect(volumeOps(actions, "commit_timeline_operation")).toEqual([]);
+});
+
+// Carried minors (operator, 2026-11-09).
+test("Alt+drag on a text clip just moves it: it has no source to slip", () => {
+  const doc = textDocument();
+  const { actions } = mount({ base: doc, draft: doc, snapping: false });
+  fireEvent.pointerDown(screen.getByRole("button", { name: "Overlay clip" }), { clientX: 10, button: 0, altKey: true });
+  fireEvent.pointerMove(window, { clientX: 40 });
+  fireEvent.pointerUp(window, { clientX: 40 });
+  expect(payload(actions.at(-1)!)).toMatchObject({ kind: "move_clip", clip_id: "clip_text" });
+  expect(screen.queryByRole("status")?.textContent ?? "").not.toContain("An image has no source time");
+});
+
+test("a roll dragged past its limit stops at the limit instead of refusing", () => {
+  const { actions } = touchingPair();
+  // clip_b ends at 120, so the cut can go no further than 119.
+  fireEvent.pointerDown(endHandleOfFirst(), { clientX: 60, button: 0, altKey: true });
+  fireEvent.pointerMove(window, { clientX: 400 });
+  fireEvent.pointerUp(window, { clientX: 400 });
+  const committed = actions.filter((action) => action.type === "commit_operations");
+  expect(committed).toHaveLength(1);
+  expect((committed[0] as { operations: { end_frame?: number }[] }).operations[0]!.end_frame).toBe(119);
+});
+
+test("saving a marker's name unchanged commits nothing", () => {
+  const { actions } = withMarkers([{ marker_id: "m1", frame: 60, label: "Hook" }]);
+  openMarkerMenu("Hook at 0:02.0");
+  fireEvent.click(screen.getByRole("menuitem", { name: "Rename marker…" }));
+  fireEvent.click(within(screen.getByRole("dialog", { name: "Rename marker" })).getByRole("button", { name: "Save" }));
+  expect(actions.some((action) => action.type === "commit_operations")).toBe(false);
+  expect(screen.queryByRole("dialog", { name: "Rename marker" })).toBeNull();
+});
+
+test("a group drag released past a limit stays at its last good place and says why", () => {
+  // Carried Tier 2 minor (2026-11-09): it used to jump back to where it started.
+  const { actions } = mount(both);
+  fireEvent.pointerDown(screen.getByRole("button", { name: "Main video clip" }), { clientX: 10, button: 0 });
+  fireEvent.pointerMove(window, { clientX: 40 });
+  fireEvent.pointerMove(window, { clientX: 100 });
+  fireEvent.pointerUp(window, { clientX: 100 });
+  expect(actions.at(-1)).toMatchObject({ type: "commit_operations", operations: [{ from_frame: 30 }, { from_frame: 180 }] });
+  expect(screen.getByRole("status").textContent?.length).toBeGreaterThan(0);
+});
+
+test("Ctrl+D with nothing selected is claimed, so the browser does not bookmark the page", () => {
+  const { actions } = mount();
+  const notCancelled = fireEvent.keyDown(document.body, { key: "d", ctrlKey: true });
+  expect(notCancelled).toBe(false);
+  expect(actions.some((action) => action.type === "commit_operations")).toBe(false);
 });

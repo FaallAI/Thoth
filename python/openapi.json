@@ -102,12 +102,36 @@
       },
       "AddCaptionClip": {
         "additionalProperties": false,
-        "description": "A caption spanning its scene, with one cue across the whole clip.",
+        "description": "A caption with one cue across the whole clip: its scene, or a stretch of it when given.",
         "properties": {
           "clip_id": {
             "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
             "title": "Clip Id",
             "type": "string"
+          },
+          "duration_in_frames": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration In Frames"
+          },
+          "from_frame": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Frame"
           },
           "kind": {
             "const": "add_caption_clip",
@@ -640,6 +664,42 @@
           "location"
         ],
         "title": "ArtifactRef",
+        "type": "object"
+      },
+      "AssetGlance": {
+        "additionalProperties": false,
+        "description": "What a clip of this asset shows: a video or image has a strip, an audio track its peaks.",
+        "properties": {
+          "asset_id": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+            "title": "Asset Id",
+            "type": "string"
+          },
+          "peaks": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GlancePeaks"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "strip": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GlanceStrip"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "asset_id"
+        ],
+        "title": "AssetGlance",
         "type": "object"
       },
       "AssetRef": {
@@ -2437,6 +2497,74 @@
           }
         },
         "title": "FootageImport",
+        "type": "object"
+      },
+      "GlancePeaks": {
+        "additionalProperties": false,
+        "description": "The loudest sample of each stretch of the track, from its start.",
+        "properties": {
+          "seconds_per_peak": {
+            "exclusiveMinimum": 0.0,
+            "title": "Seconds Per Peak",
+            "type": "number"
+          },
+          "values": {
+            "items": {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "integer"
+            },
+            "maxItems": 2000,
+            "title": "Values",
+            "type": "array"
+          }
+        },
+        "required": [
+          "seconds_per_peak",
+          "values"
+        ],
+        "title": "GlancePeaks",
+        "type": "object"
+      },
+      "GlanceStrip": {
+        "additionalProperties": false,
+        "description": "Frames side by side in one JPEG, the first at the source's start.",
+        "properties": {
+          "frame_height": {
+            "exclusiveMinimum": 0.0,
+            "title": "Frame Height",
+            "type": "integer"
+          },
+          "frame_width": {
+            "exclusiveMinimum": 0.0,
+            "title": "Frame Width",
+            "type": "integer"
+          },
+          "frames": {
+            "maximum": 60.0,
+            "minimum": 1.0,
+            "title": "Frames",
+            "type": "integer"
+          },
+          "image": {
+            "pattern": "^data:image/jpeg;base64,[A-Za-z0-9+/=]+$",
+            "title": "Image",
+            "type": "string"
+          },
+          "seconds_per_frame": {
+            "exclusiveMinimum": 0.0,
+            "title": "Seconds Per Frame",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "image",
+          "frame_width",
+          "frame_height",
+          "frames",
+          "seconds_per_frame"
+        ],
+        "title": "GlanceStrip",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -13294,6 +13422,71 @@
           }
         },
         "summary": "Upload Editor Asset"
+      }
+    },
+    "/api/v1/projects/{project_id}/editor-assets/{asset_id}/glance": {
+      "get": {
+        "description": "The asset's filmstrip or peaks (Tier 3b), built on first request and then kept.",
+        "operationId": "get_editor_asset_glance_api_v1_projects__project_id__editor_assets__asset_id__glance_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetGlance"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Editor Asset Glance"
       }
     },
     "/api/v1/projects/{project_id}/editor-assets/{asset_id}/preview": {

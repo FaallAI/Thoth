@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
-import type { EditDocumentOperation, EditDocumentV2, EditorAsset } from "@/api/control-plane";
+import type { AssetGlance, EditDocumentOperation, EditDocumentV2, EditorAsset } from "@/api/control-plane";
 import { useContextMenu } from "@/components/ContextMenu";
 import { useLocale } from "@/lib/locale";
 import type { EditorAction, EditorState } from "./editor_state";
@@ -21,6 +21,7 @@ import {
   pasteTextOperations,
   rippleDeleteClips,
   rollCut,
+  rollRange,
   slipClip,
   splitAt,
   type Edit,
@@ -63,6 +64,8 @@ type Props = {
   editingKeys?: boolean;
   /** J, K and L (spec 2026-11-08 §6): L plays and speeds up, K stops; J steps back here. */
   onShuttle?: (direction: "forward" | "stop") => void;
+  /** An asset's filmstrip or peaks, when Studio has it (Tier 3b); a clip without one draws plain. */
+  glanceOf?: (assetId: string) => AssetGlance | undefined;
   /** An asset dragged from the Assets column onto a lane that can hold it (spec 2026-11-08 §6). */
   onDropAsset?: (assetId: string, trackId: string, frame: number) => void;
 };
@@ -83,6 +86,8 @@ type Gesture = {
   group?: readonly string[];
   /** A roll moves the cut between these two touching clips (Tier 3a). */
   roll?: { leftId: string; rightId: string };
+  /** The group's last move that was allowed, kept for a release past a limit. */
+  lastGroup?: EditDocumentOperation[];
 };
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
@@ -117,6 +122,7 @@ export function Timeline({
   onPlay,
   onPause,
   labelOf,
+  glanceOf,
   readOnly = false,
   onInspect,
   beatOf,
@@ -161,6 +167,8 @@ export function Timeline({
   // Text on its way from the system clipboard, waiting for the person to pick its place (spec 2026-11-08 §6).
   const [pastedText, setPastedText] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // A paste that landed on a hidden track, by its clip (carried minor, 2026-11-09).
+  const [hiddenPaste, setHiddenPaste] = useState<string | null>(null);
   // The marker whose name is being edited (Tier 3a).
   const [renaming, setRenaming] = useState<string | null>(null);
   const offerText = (text: string) => {
@@ -261,7 +269,15 @@ export function Timeline({
     const origin = current.preview?.draft;
     const before = origin && isTimelineDocument(origin) ? origin : doc;
     if (!before || !active.roll) return { operations: [] };
-    return rollCut(before, active.roll.leftId, active.roll.rightId, frameAt(active, clientX));
+    const wanted = frameAt(active, clientX);
+    const range = rollRange(before, active.roll.leftId, active.roll.rightId);
+    const frame = range ? Math.min(range.max, Math.max(range.min, wanted)) : wanted;
+    const edit = rollCut(before, active.roll.leftId, active.roll.rightId, frame);
+    // Stopped at a limit: the roll goes that far, and says why it stops there.
+    if (frame !== wanted && !edit.refusal) {
+      return { ...edit, refusal: rollCut(before, active.roll.leftId, active.roll.rightId, wanted).refusal };
+    }
+    return edit;
   };
 
   /** A slip (Tier 3a): the content follows the pointer, so a drag right shows earlier source. */
@@ -357,7 +373,10 @@ export function Timeline({
       if (active.group) {
         // A group keeps its tracks and moves by one delta; a refused delta keeps the last preview.
         const { operations } = groupMove(active, event.clientX);
-        if (operations.length) latest.current.dispatch({ type: "preview_timeline_operations", operations });
+        if (operations.length) {
+          active.lastGroup = operations;
+          latest.current.dispatch({ type: "preview_timeline_operations", operations });
+        }
         return;
       }
       followLane(active, event.clientX, event.clientY);
@@ -377,8 +396,8 @@ export function Timeline({
       if (active.roll) {
         const { operations, refusal } = rollFor(active, event.clientX);
         latest.current.dispatch({ type: "cancel_timeline_preview" });
-        if (refusal) setNotice(latest.current.t(`studio.menu.reason.${refusal}`));
-        else if (operations.length) latest.current.dispatch({ type: "commit_operations", operations });
+        if (operations.length) latest.current.dispatch({ type: "commit_operations", operations });
+        setNotice(refusal ? latest.current.t(`studio.menu.reason.${refusal}`) : null);
         return;
       }
       if (active.mode === "slip") {
@@ -391,8 +410,10 @@ export function Timeline({
       if (active.group) {
         const { operations, refusal } = groupMove(active, event.clientX);
         latest.current.dispatch({ type: "cancel_timeline_preview" });
+        // Released past a limit, the group stays where it last could go, and says why it stopped.
+        const kept = refusal ? active.lastGroup : operations;
+        if (kept?.length) latest.current.dispatch({ type: "commit_operations", operations: kept });
         if (refusal) setNotice(latest.current.t(`studio.menu.reason.${refusal}`));
-        else if (operations.length) latest.current.dispatch({ type: "commit_operations", operations });
         return;
       }
       followLane(active, event.clientX, event.clientY);
@@ -506,8 +527,8 @@ export function Timeline({
           commitEdit(pasteClips(doc, copied.current, current.playheadFrame));
           break;
         case "duplicate":
-          if (!selection.length) return;
-          commitEdit(duplicateClips(doc, selection));
+          // Claimed even with nothing selected, so the browser never bookmarks the page instead.
+          if (selection.length) commitEdit(duplicateClips(doc, selection));
           break;
         case "shuttle_forward":
           latest.current.onShuttle?.("forward");
@@ -562,6 +583,8 @@ export function Timeline({
   // Markers in time order, so "Marker 1" is the earliest (Tier 3a).
   const markers = [...(timeline.markers ?? [])].sort((left, right) => left.frame - right.frame);
   const renamedMarker = markers.find((marker) => marker.marker_id === renaming);
+  const shownNotice =
+    notice ?? (hiddenPaste && clips.some((clip) => clip.clip_id === hiddenPaste) ? t("studio.paste.hiddenTrack") : null);
 
   const startGesture = (clipId: string, asked: GestureMode, clientX: number) => {
     const clip = clips.find((candidate) => candidate.clip_id === clipId);
@@ -574,7 +597,9 @@ export function Timeline({
         : asked === "roll_start"
           ? clips.find((other) => other.track_id === clip.track_id && other.from_frame + other.duration_in_frames === clip.from_frame)
           : undefined;
-    const mode: GestureMode = asked === "roll_end" || asked === "roll_start" ? (neighbour ? asked : asked === "roll_end" ? "trim_end" : "trim_start") : asked;
+    const rolled: GestureMode = asked === "roll_end" || asked === "roll_start" ? (neighbour ? asked : asked === "roll_end" ? "trim_end" : "trim_start") : asked;
+    // A text, overlay or caption clip has no source to slip: Alt there is a plain move.
+    const mode: GestureMode = rolled === "slip" && !("source_from_frame" in clip) ? "move" : rolled;
     const roll = neighbour ? (asked === "roll_end" ? { leftId: clip.clip_id, rightId: neighbour.clip_id } : { leftId: neighbour.clip_id, rightId: clip.clip_id }) : undefined;
     gesture.current = {
       clipId,
@@ -772,6 +797,17 @@ export function Timeline({
               widthInFrames={duration}
               selectedClipIds={selectedIds}
               labelOf={labelOf}
+              glanceOf={glanceOf}
+              fps={timeline.canvas.fps}
+              onVolume={(clipId, volume, phase) => {
+                // One edit on release; a drag previews and Escape puts the draft back (Tier 3b).
+                if (phase === "cancel") {
+                  dispatch({ type: "cancel_timeline_preview" });
+                  return;
+                }
+                const operation = { kind: "set_clip_volume" as const, operation_id: newId("op"), clip_id: clipId, volume };
+                dispatch(phase === "preview" ? { type: "preview_timeline_operation", operation } : { type: "commit_timeline_operation", operation });
+              }}
               readOnly={readOnly}
               name={trackName(t, timeline, lane.track)}
               accessibleLabel={trackLabel(timeline, lane.track)}
@@ -852,9 +888,9 @@ export function Timeline({
         </div>
       </div>
       {menu.element}
-      {notice ? (
+      {shownNotice ? (
         <p role="status" className="border-t border-hairline bg-surface px-3 py-2 text-xs text-muted-ink">
-          {notice}
+          {shownNotice}
         </p>
       ) : null}
       {renamedMarker ? (
@@ -863,6 +899,8 @@ export function Timeline({
           onClose={() => setRenaming(null)}
           onSave={(label) => {
             setRenaming(null);
+            // An unchanged name is no edit, so it makes no revision (carried minor, 2026-11-09).
+            if (label === (renamedMarker.label ?? "")) return;
             dispatch({
               type: "commit_operations",
               operations: [{ kind: "set_marker", operation_id: newId("op"), marker_id: renamedMarker.marker_id, frame: renamedMarker.frame, label }],
@@ -882,7 +920,10 @@ export function Timeline({
             const edit = pasteTextOperations(timeline, target, pastedText, { playheadFrame: state.playheadFrame, selectedClipId: state.selectedClipId });
             setPastedText(null);
             if (edit.operations.length) dispatch({ type: "commit_operations", operations: edit.operations });
-            setNotice(edit.notice === "hidden_track" ? t("studio.paste.hiddenTrack") : null);
+            setNotice(null);
+            // The note lasts while the pasted clip is in the draft: a refused save takes both away.
+            const placed = edit.operations[0];
+            setHiddenPaste(edit.notice === "hidden_track" && placed && "clip_id" in placed ? placed.clip_id : null);
           }}
         />
       ) : null}

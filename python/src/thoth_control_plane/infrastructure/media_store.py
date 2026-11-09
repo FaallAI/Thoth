@@ -24,7 +24,8 @@ if TYPE_CHECKING:
 #: The same segment rule as `LocalArtifactRoot`: no dot-segment, separator, or colon.
 _SEGMENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 #: Workflow media (`reports`), editor uploads, render inputs and outputs, and the volume archive.
-_PREFIXES = frozenset({"reports", "uploads", "renders", "work", "archive"})
+#: `glance/` holds each asset's derived filmstrip or peaks (Tier 3b); the upload sweep skips it.
+_PREFIXES = frozenset({"reports", "uploads", "renders", "work", "archive", "glance"})
 _CHUNK = 1024 * 1024
 
 
@@ -87,6 +88,10 @@ class MeteredMediaStore:
 
     def put_file(self, location: str, path: Path) -> None:
         self._inner.put_file(location, path)
+        if location.startswith("glance/"):
+            # Opening the Timeline builds the glance cache, a read-only view included; it bills
+            # nobody (operator, 2026-11-09).
+            return
         from thoth_control_plane import metering
 
         try:

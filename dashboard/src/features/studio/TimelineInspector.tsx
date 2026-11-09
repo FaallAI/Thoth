@@ -120,7 +120,8 @@ function NumberField({
     const value = Number(text.trim().replace(",", "."));
     // The stored value shows again; an accepted edit then shows its new value.
     setText(shown);
-    if (text.trim() && Number.isFinite(value)) onCommit(value);
+    // A non-number arrives as NaN, which every field's range check refuses out loud.
+    if (text.trim()) onCommit(value);
   };
   return (
     <div className={field}>
@@ -238,6 +239,12 @@ export function TimelineInspector({
     </div>
   );
 
+  /** Refuse a typed value in place, saying what the field takes (carried minor, 2026-11-09). */
+  const outOfRange = (low: number | string, high: number | string) => {
+    setProblem(t("studio.timeline.outOfRange", { low: String(low), high: String(high) }));
+    return false as const;
+  };
+
   // Every control emits the same typed operation the timeline gestures emit.
   const emit = (operation: OperationDraft) =>
     onOperation({ ...operation, operation_id: newId() } as EditDocumentOperation);
@@ -249,7 +256,7 @@ export function TimelineInspector({
     const crop = video.crop ?? { left: 0, top: 0, width: 1, height: 1 };
     const sides = { left: crop.left, top: crop.top, right: 1 - crop.left - crop.width, bottom: 1 - crop.top - crop.height };
     const set = (side: keyof typeof sides, percent: number) => {
-      if (percent < 0 || percent > 100) return false;
+      if (!(percent >= 0 && percent <= 100)) return outOfRange(0, 100);
       const next = { ...sides, [side]: fractionOf(percent) };
       const width = Math.round((1 - next.left - next.right) * 10000) / 10000;
       const height = Math.round((1 - next.top - next.bottom) * 10000) / 10000;
@@ -296,7 +303,7 @@ export function TimelineInspector({
     const place = (next: Partial<typeof position>) =>
       emit({ kind: "set_clip_position", clip_id: video.clip_id, position: { ...position, ...next } });
     const within = (low: number, high: number, apply: (percent: number) => void) => (percent: number) =>
-      percent < low || percent > high ? false : apply(percent);
+      percent >= low && percent <= high ? (setProblem(null), apply(percent)) : outOfRange(low, high);
     return (
       <>
         <NumberField
@@ -373,8 +380,8 @@ export function TimelineInspector({
     const tenths = (frames: number) => String(Math.floor((frames / fps) * 10) / 10);
     const set = (seconds: number) => {
       const frames = Math.round(seconds * fps);
-      if (frames < 0) return false;
       const max = typeof range === "string" ? 0 : range.max;
+      if (!(frames >= 0)) return outOfRange(0, tenths(max));
       if (frames > max) {
         setProblem(t("studio.timeline.sourceStartMax", { seconds: tenths(max) }));
         return false;
@@ -399,7 +406,7 @@ export function TimelineInspector({
     const seconds = (frames: number) => String(Math.round((frames / fps) * 10) / 10);
     const set = (side: "in" | "out", value: number) => {
       const frames = Math.round(value * fps);
-      if (frames < 0) return false;
+      if (!(frames >= 0)) return outOfRange(0, seconds(MAX_FADE_FRAMES));
       if (frames > MAX_FADE_FRAMES) {
         setProblem(t("studio.timeline.fadeMax", { seconds: seconds(MAX_FADE_FRAMES) }));
         return false;
@@ -428,11 +435,6 @@ export function TimelineInspector({
           disabled={frozen}
           onCommit={(value) => set("out", value)}
         />
-        {problem ? (
-          <p role="alert" className="text-xs text-destructive">
-            {problem}
-          </p>
-        ) : null}
       </>
     );
   };
@@ -516,6 +518,11 @@ export function TimelineInspector({
             </div>
           </Section>
 
+          {problem ? (
+            <p role="alert" className="text-xs text-destructive">
+              {problem}
+            </p>
+          ) : null}
           {clip.kind === "video" ? (
             <Section title={t("studio.timeline.section.transform")}>
               {clip.position ? (

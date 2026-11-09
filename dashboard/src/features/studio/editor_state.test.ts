@@ -1067,3 +1067,20 @@ test("preview_timeline_operations previews a batch and Escape restores it", () =
   const cancelled = editorReducer(previewed, { type: "cancel_timeline_preview" });
   expect([at(cancelled, "clip_main"), at(cancelled, "clip_music")]).toEqual([0, 150]);
 });
+
+// Carried minors (operator, 2026-11-09): a shorter scene fits fades and markers at once, as the server does.
+test("a shorter scene fits its clip's fades and the late markers before the save returns", () => {
+  const doc = selectionDocument();
+  Object.assign(doc.clips!.find((clip) => clip.clip_id === "clip_main")!, { fade_in_frames: 20, fade_out_frames: 20 });
+  doc.markers = [{ marker_id: "m_late", frame: doc.canvas.duration_in_frames - 1, label: "" }];
+  const resized = editorReducer(createEditorState(doc), {
+    type: "edit_duration",
+    sceneId: "scene_001",
+    durationInFrames: 30,
+    operationId: "op_short",
+  });
+  const draft = resized.draft as EditDocumentV2;
+  const main = draft.clips!.find((clip) => clip.clip_id === "clip_main")!;
+  expect([main.duration_in_frames, (main as { fade_in_frames: number }).fade_in_frames, (main as { fade_out_frames: number }).fade_out_frames]).toEqual([30, 20, 10]);
+  expect(draft.markers![0]!.frame).toBeLessThan(draft.canvas.duration_in_frames);
+});

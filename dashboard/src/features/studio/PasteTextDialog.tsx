@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef } from "react";
 import { X } from "lucide-react";
 
+import { keepTabInside } from "@/lib/focus-trap";
 import { useLocale } from "@/lib/locale";
 import type { PasteTarget } from "./timeline_edits";
 
@@ -37,6 +38,7 @@ export function PasteTextDialog({ text, targets, onPick, onClose }: Props) {
         aria-label={t("studio.paste.title")}
         tabIndex={-1}
         onKeyDown={(event) => {
+          keepTabInside(event);
           if (event.key !== "Escape") return;
           event.preventDefault();
           event.stopPropagation();

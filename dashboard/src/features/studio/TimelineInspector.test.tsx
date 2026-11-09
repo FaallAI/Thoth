@@ -515,3 +515,24 @@ test("an image clip has no Source start", () => {
   mount({ clipId: "clip_main" }, withAsset({ kind: "image" }));
   expect(screen.queryByLabelText("Source start (seconds)")).toBeNull();
 });
+
+// Carried Tier 2 minor (operator, 2026-11-09): a refused value says what would be accepted.
+test.each([
+  ["Crop left", "150", "Enter a number from 0 to 100"],
+  ["Position X", "999", "Enter a number from -100 to 100"],
+  ["Scale", "0.5", "Enter a number from 1 to 400"],
+  ["Fade in (seconds)", "-1", "Enter a number from 0 to 10"],
+  ["Crop top", "abc", "Enter a number from 0 to 100"],
+])("%s refuses %s and says what it takes", (name, value, message) => {
+  const { operations } = mount({ clipId: "clip_main" });
+  typeAndLeave(name, value);
+  expect(operations).toEqual([]);
+  expect(screen.getByRole("alert").textContent).toContain(message);
+});
+
+test("a refusal shows above the fields, not under the fades", () => {
+  mount({ clipId: "clip_main" });
+  typeAndLeave("Crop left", "150");
+  const following = screen.getByRole("alert").compareDocumentPosition(field("Fit" as string)) & Node.DOCUMENT_POSITION_FOLLOWING;
+  expect(following).toBeTruthy();
+});

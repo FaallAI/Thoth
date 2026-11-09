@@ -10,6 +10,8 @@ import type {
 import {
   applyTimelineOperation,
   carrySceneClips,
+  fitFades,
+  fitMarkers,
   clampZoom,
   isTimelineDocument,
   timelineIssues,
@@ -244,11 +246,19 @@ function resizeScene(
     (end, clip) => Math.max(end, Number(clip[startField] ?? 0) + clip.duration_in_frames),
     startFrame,
   );
-  return {
+  const resized = {
     ...withClips(document, clips),
     scenes,
     canvas: { ...document.canvas, duration_in_frames: lastFrame },
   } as EditDocument;
+  if (isTimelineDocument(resized)) {
+    // Fit fades and late markers now, as the server does, not when the save returns (carried
+    // minors, 2026-11-09). The markers are copied first: the document passed in is never changed.
+    resized.markers = resized.markers?.map((marker) => ({ ...marker }));
+    fitFades(resized);
+    fitMarkers(resized);
+  }
+  return resized;
 }
 
 function operationsToRetainDraft(

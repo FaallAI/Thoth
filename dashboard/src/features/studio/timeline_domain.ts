@@ -19,9 +19,9 @@ type AssetRef = NonNullable<EditDocumentV2["asset_refs"]>[number];
 
 // Lane selection is drawn as well as edited, so it lives with the composition
 // the renderer shares; editing callers keep importing it from here.
-import { visibleLanes } from "@thoth/remotion-composition";
+import { speedPercent, visibleLanes } from "@thoth/remotion-composition";
 
-export { visibleLanes, type TimelineLane } from "@thoth/remotion-composition";
+export { speedPercent, visibleLanes, type TimelineLane } from "@thoth/remotion-composition";
 
 /** The drag payload an Assets row carries onto a Timeline lane (spec 2026-11-08 §6). */
 export const ASSET_DRAG_TYPE = "application/x-thoth-asset";
@@ -545,7 +545,7 @@ export function fitMarkers(document: EditDocumentV2): void {
 }
 
 /** Shrink fades a shorter clip can no longer hold: the fade out first, then the fade in (as the server does). */
-function fitFades(document: EditDocumentV2): void {
+export function fitFades(document: EditDocumentV2): void {
   for (const clip of document.clips ?? []) {
     if (clip.kind !== "video" && clip.kind !== "audio") continue;
     const fadeIn = Math.min(clip.fade_in_frames ?? 0, clip.duration_in_frames);
@@ -794,6 +794,7 @@ function addCaptionClip(
   if (!TRACK_CLIP_KINDS[target.kind].includes("caption")) {
     throw new Error("clip kind is incompatible with track");
   }
+  const duration = operation.duration_in_frames ?? scene.duration_in_frames;
   document.clips = [
     ...(document.clips ?? []),
     {
@@ -801,13 +802,13 @@ function addCaptionClip(
       clip_id: operation.clip_id,
       track_id: target.track_id,
       scene_id: scene.scene_id,
-      from_frame: scene.start_frame,
-      duration_in_frames: scene.duration_in_frames,
+      from_frame: operation.from_frame ?? scene.start_frame,
+      duration_in_frames: duration,
       ownership: "user_edited",
       hidden: false,
       locked: false,
       style_slot: "caption_default",
-      cues: [{ from_frame: 0, duration_in_frames: scene.duration_in_frames, text: operation.text }],
+      cues: [{ from_frame: 0, duration_in_frames: duration, text: operation.text }],
     },
   ];
   target.clip_ids = [...(target.clip_ids ?? []), operation.clip_id];
@@ -892,11 +893,6 @@ function repack(document: EditDocumentV2, entry: TimelineTrack, movedClipId: str
 // Speed (Tier 3a): whole percent on both sides, so the mirror and the server agree
 // --------------------------------------------------------------------------
 
-/** A clip's speed in whole percent; a clip without speed plays at 100. */
-export function speedPercent(clip: object): number {
-  const speed = "speed" in clip && typeof clip.speed === "number" ? clip.speed : 1;
-  return Math.round(speed * 100);
-}
 
 /** The source frames a clip plays: its length times its speed, rounded up. */
 export function sourceSpan(clip: { duration_in_frames: number; speed?: number }): number {

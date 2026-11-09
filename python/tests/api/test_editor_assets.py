@@ -490,3 +490,62 @@ def test_the_preview_route_no_longer_promises_a_file_response() -> None:
         _Path(__file__).resolve().parents[2] / "src/thoth_control_plane/api/routes/editor_assets.py"
     ).read_text(encoding="utf-8")
     assert "FileResponse" not in source
+
+
+# Tier 3b: an asset's glance, behind the normal project auth.
+GLANCE_URL = f"{ASSETS_URL}/asset_main/glance"
+STORED_GLANCE = {
+    "asset_id": "asset_main",
+    "strip": None,
+    "peaks": {"seconds_per_peak": 0.1, "values": [4, 8]},
+}
+
+
+@pytest.mark.asyncio
+async def test_a_kept_glance_is_served_with_a_long_private_cache(gateway, tmp_path: Path) -> None:
+    app = preview_app(gateway, tmp_path)
+    kept = tmp_path / "glance" / "project_001" / "asset_main.v1.json"
+    kept.parent.mkdir(parents=True)
+    kept.write_text(json.dumps(STORED_GLANCE), encoding="utf-8")
+    async with client_for(app) as client:
+        response = await client.get(GLANCE_URL, headers=AUTH_HEADERS)
+
+    assert response.status_code == 200
+    assert response.json()["peaks"]["values"] == [4, 8]
+    assert response.headers["cache-control"] == "private, max-age=86400"
+
+
+@pytest.mark.asyncio
+async def test_a_glance_of_an_unknown_asset_is_not_found(gateway, tmp_path: Path) -> None:
+    async with client_for(preview_app(gateway, tmp_path)) as client:
+        response = await client.get(f"{ASSETS_URL}/asset_other/glance", headers=AUTH_HEADERS)
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_a_missing_ffmpeg_answers_503_with_its_code(gateway, tmp_path: Path) -> None:
+    app = preview_app(gateway, tmp_path, THOTH_FFMPEG="/nonexistent/ffmpeg")
+    async with client_for(app) as client:
+        response = await client.get(GLANCE_URL, headers=AUTH_HEADERS)
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": {"code": "ffmpeg_unavailable"}}
+    assert not (tmp_path / "glance").exists()
+
+
+@pytest.mark.asyncio
+async def test_a_glance_needs_authentication(gateway, tmp_path: Path) -> None:
+    async with client_for(preview_app(gateway, tmp_path)) as client:
+        response = await client.get(GLANCE_URL)
+
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_a_glance_of_another_projects_asset_is_not_found(gateway, tmp_path: Path) -> None:
+    other = {("project_002", "asset_main"): record()}
+    async with client_for(preview_app(gateway, tmp_path, records=other)) as client:
+        response = await client.get(GLANCE_URL, headers=AUTH_HEADERS)
+
+    assert response.status_code == 404

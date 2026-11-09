@@ -13,6 +13,7 @@ export {
   volumeAt,
 } from "./AdvancedTimelineComposition";
 export { safePreviewSource } from "./media";
+export { speedPercent } from "./speed";
 // The media box the composition draws, so Story places cards by what is actually visible.
 export { contentBox, emphasisBox } from "./story_effects";
 // One projection for both surfaces: Studio's Player and the parity harness are

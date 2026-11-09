@@ -4,6 +4,7 @@ import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import type { EditDocumentV2, TimelineClip } from "./timeline";
 import { blurBoxes } from "./blur";
+import { speedPercent } from "./speed";
 import { visibleLanes } from "./timeline";
 import { safePreviewSource } from "./media";
 import { COMPOSITION_FONT_FAMILY, useCompositionFonts } from "./fonts";
@@ -390,11 +391,6 @@ function WordHighlightCue({
  * Past the asset's last frame the clip shows that frame, paused. Freeze stays mounted and
  * switches on through `active` (Remotion v4.0.127+), so the decoder is never remounted.
  */
-/** A clip's speed in whole percent, as the server and the editor count it (Tier 3a). */
-function speedPercent(clip: { speed?: number }): number {
-  return Math.round((clip.speed ?? 1) * 100);
-}
-
 function HeldClip({ lastFrame, children }: { lastFrame: number; children: ReactNode }) {
   return (
     <Freeze frame={lastFrame} active={(frame) => frame > lastFrame}>

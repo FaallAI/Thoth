@@ -259,6 +259,19 @@ export function moveClips(doc: EditDocumentV2, ids: readonly string[], delta: nu
   if (clips.some((clip) => isLocked(doc, clip))) return refuse("locked");
   const canvas = doc.canvas.duration_in_frames;
   if (clips.some((clip) => clip.from_frame + delta < 0 || endOf(clip) + delta > canvas)) return refuse("outside");
+  // The server keeps each clip inside its scene and Main video clips apart (carried minors, 2026-11-09).
+  const sceneOf = (clip: Clip) => (clip.scene_id ? doc.scenes.find((scene) => scene.scene_id === clip.scene_id) : undefined);
+  const leaves = (clip: Clip) => {
+    const scene = sceneOf(clip);
+    return scene !== undefined && (clip.from_frame + delta < scene.start_frame || endOf(clip) + delta > scene.start_frame + scene.duration_in_frames);
+  };
+  if (clips.some(leaves)) return refuse("scene");
+  const moving = new Set(clips.map((clip) => clip.clip_id));
+  const stays = clipsOf(doc).filter((clip) => !moving.has(clip.clip_id));
+  const collides = (clip: Clip) =>
+    trackOf(doc, clip.track_id)?.kind === "main_video" &&
+    stays.some((other) => other.track_id === clip.track_id && other.from_frame < endOf(clip) + delta && endOf(other) > clip.from_frame + delta);
+  if (clips.some(collides)) return refuse("no_room");
   return {
     operations: clips.map((clip) => ({
       kind: "move_clip",
@@ -290,12 +303,13 @@ export function pasteClips(doc: EditDocumentV2, ids: readonly string[], at: numb
   }
   if (placed.some(({ clip }) => trackOf(doc, clip.track_id)?.locked)) return refuse("locked");
   // The server keeps Main video clips from overlapping, existing ones and the copies alike.
+  // Per track, as the server checks it (carried minor, 2026-11-09).
   const main = (clip: Clip) => trackOf(doc, clip.track_id)?.kind === "main_video";
-  const taken = clipsOf(doc).filter(main).map((clip) => [clip.from_frame, endOf(clip)] as const);
+  const taken = clipsOf(doc).filter(main).map((clip) => [clip.track_id, clip.from_frame, endOf(clip)] as const);
   for (const { clip, from } of placed.filter(({ clip }) => main(clip))) {
     const end = from + clip.duration_in_frames;
-    if (taken.some(([start, stop]) => start < end && stop > from)) return refuse("no_room");
-    taken.push([from, end]);
+    if (taken.some(([track, start, stop]) => track === clip.track_id && start < end && stop > from)) return refuse("no_room");
+    taken.push([clip.track_id, from, end]);
   }
   return {
     operations: placed.map(({ clip, from }) => ({
@@ -382,7 +396,17 @@ export function pasteTextOperations(
       if (!scene) return refuse("no_scene");
       return {
         operations: [
-          { kind: "add_caption_clip", operation_id: newId("op"), clip_id: newId("clip"), track_id: track.track_id, scene_id: scene.scene_id, text },
+          {
+            kind: "add_caption_clip",
+            operation_id: newId("op"),
+            clip_id: newId("clip"),
+            track_id: track.track_id,
+            scene_id: scene.scene_id,
+            text,
+            // A stretch at the playhead, not the whole scene: a narrated draft's one scene is the whole canvas.
+            from_frame: frame,
+            duration_in_frames: Math.min(Math.round(PASTED_TEXT_SECONDS * doc.canvas.fps), scene.start_frame + scene.duration_in_frames - frame),
+          },
         ],
         ...(track.hidden ? { notice: "hidden_track" as const } : {}),
       };
@@ -536,4 +560,29 @@ export function addMarker(doc: EditDocumentV2, frame: number): Edit {
   if (markers.some((marker) => marker.frame === frame)) return refuse("taken");
   if (markers.length >= MAX_MARKERS) return refuse("too_many");
   return { operations: [{ kind: "add_marker", operation_id: newId("op"), marker_id: newId("marker"), frame, label: "" }] };
+}
+
+/**
+ * The frames the cut between two touching clips may move to, or null when no roll is possible.
+ * A drag past a limit stops at it, as a slip does (carried minor, 2026-11-09).
+ */
+export function rollRange(doc: EditDocumentV2, leftId: string, rightId: string): { min: number; max: number } | null {
+  const left = clipsOf(doc).find((clip) => clip.clip_id === leftId);
+  const right = clipsOf(doc).find((clip) => clip.clip_id === rightId);
+  if (!left || !right || left.track_id !== right.track_id || endOf(left) !== right.from_frame) return null;
+  let min = left.from_frame + 1;
+  let max = endOf(right) - 1;
+  const sceneOf = (clip: Clip) => (clip.scene_id ? doc.scenes.find((scene) => scene.scene_id === clip.scene_id) : undefined);
+  const leftScene = sceneOf(left);
+  const rightScene = sceneOf(right);
+  if (leftScene) max = Math.min(max, leftScene.start_frame + leftScene.duration_in_frames);
+  if (rightScene) min = Math.max(min, rightScene.start_frame);
+  if ("source_from_frame" in left && !(left.kind === "video" && left.hold_after_source)) {
+    const length = doc.asset_refs?.find((ref) => ref.asset_id === left.asset_id)?.duration_in_frames;
+    if (length != null) max = Math.min(max, left.from_frame + Math.floor(((length - left.source_from_frame) * 100) / speedPercent(left)));
+  }
+  if ("source_from_frame" in right) {
+    min = Math.max(min, right.from_frame - Math.floor((right.source_from_frame * 100) / speedPercent(right)));
+  }
+  return min <= max ? { min, max } : null;
 }

@@ -1,10 +1,11 @@
-import type { PointerEvent } from "react";
+import { useEffect, useRef, type KeyboardEvent, type PointerEvent } from "react";
 import { Lock } from "lucide-react";
 
-import type { EditDocumentV2 } from "@/api/control-plane";
+import type { AssetGlance, EditDocumentV2 } from "@/api/control-plane";
 import type { MenuHandlers } from "@/components/ContextMenu";
 import { useLocale, type LocaleState } from "@/lib/locale";
 import { clipLabelSource, framesToPixels } from "./timeline_domain";
+import { glanceWindow, peakSlice, stripTiles } from "./clip_glance";
 
 /** Alt turns a body drag into a slip and a handle drag into a roll (Tier 3a). */
 export type GestureMode = "move" | "trim_start" | "trim_end" | "slip" | "roll_start" | "roll_end";
@@ -28,6 +29,12 @@ type Props = {
   onNudge: (frames: number) => void;
   /** The clip's human name (spec 2026-11-01); absent, the Timeline's own words for it. */
   name?: string;
+  /** The asset's filmstrip or peaks (Tier 3b); a clip without one draws plain. */
+  glance?: AssetGlance;
+  /** The draft's frame rate, to place the glance in seconds. */
+  fps?: number;
+  /** An audio clip's volume line (Tier 3b): a drag previews, a release or a key commits. */
+  onVolume?: (volume: number, phase: "preview" | "commit" | "cancel") => void;
   /** A view-only timeline: no trim handles, no drag. */
   readOnly?: boolean;
   /** The clip's right-click menu (spec 2026-11-08 §5.1). */
@@ -55,6 +62,144 @@ export function clipLabel(t: LocaleState["t"], clip: Clip): string {
     : t(`studio.inventory.role.${source.role}`);
 }
 
+/** A clip's inner height in pixels (h-9 less its border), the filmstrip's height. */
+const GLANCE_HEIGHT = 34;
+
+/** Behind the label: the frames or the sound of the stretch of source the clip plays. */
+function GlanceLayer({ clip, glance, widthPx, fps }: { clip: Clip; glance: AssetGlance; widthPx: number; fps: number }) {
+  if (!("source_from_frame" in clip) || widthPx <= 0) return null;
+  const window = glanceWindow(clip, fps);
+  if ((clip.kind === "video") && glance.strip) {
+    const strip = glance.strip;
+    return (
+      <div
+        data-testid="clip-filmstrip"
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 overflow-hidden opacity-70"
+        // The picture is set once here; every tile points at it (final review 2026-11-09).
+        style={{ ["--strip" as string]: `url("${strip.image}")` }}
+      >
+        {stripTiles(strip, window, widthPx, GLANCE_HEIGHT).map((tile) => (
+          <div
+            key={tile.left}
+            className="absolute top-0 h-full bg-no-repeat"
+            style={{
+              left: `${tile.left}px`,
+              width: `${tile.width}px`,
+              backgroundImage: "var(--strip)",
+              // The frame covers its tile: a widened tile shows it larger, cropped top and bottom.
+              backgroundSize: `${strip.frames * tile.size}px ${Math.round((tile.size * strip.frame_height) / strip.frame_width)}px`,
+              backgroundPosition: `-${tile.frame * tile.size}px center`,
+            }}
+          />
+        ))}
+      </div>
+    );
+  }
+  if (clip.kind === "audio" && glance.peaks) {
+    const values = peakSlice(glance.peaks, window);
+    if (!values.length) return null;
+    const path = values.map((value, index) => `M${index + 0.5} ${50 - value / 2}V${50 + value / 2}`).join("");
+    return (
+      <svg
+        data-testid="clip-waveform"
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 h-full w-full text-copper/50"
+        viewBox={`0 0 ${values.length} 100`}
+        preserveAspectRatio="none"
+      >
+        <path d={path} stroke="currentColor" strokeWidth={0.8} vectorEffect="non-scaling-stroke" />
+      </svg>
+    );
+  }
+  return null;
+}
+
+/** Volume steps of 0.05, from 0 at the line's bottom to 1 at its top, as the Inspector's slider. */
+const volumeStep = (value: number) => Math.min(1, Math.max(0, Math.round(value * 20) / 20));
+
+function VolumeLine({ volume, label, onVolume }: { volume: number; label: string; onVolume: NonNullable<Props["onVolume"]> }) {
+  const shown = Math.min(1, Math.max(0, volume));
+  // A drag in flight ends with its clip: deleted, locked or switched away mid-drag.
+  const stop = useRef<(() => void) | null>(null);
+  useEffect(() => () => stop.current?.(), []);
+  const start = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    // The level moves with the pointer from where it was pressed, so a press alone changes
+    // nothing; only a drag previews, and only a changed level commits (final review 2026-11-09).
+    const height = Math.max(1, event.currentTarget.parentElement!.getBoundingClientRect().height);
+    const pressY = event.clientY;
+    const at = (clientY: number) => volumeStep(shown + (pressY - clientY) / height);
+    let moved = false;
+    let last = shown;
+    const end = () => {
+      stop.current = null;
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("keydown", escape, true);
+    };
+    const cancel = () => {
+      end();
+      if (moved) onVolume(last, "cancel");
+    };
+    const move = (pointer: globalThis.PointerEvent) => {
+      moved = true;
+      last = at(pointer.clientY);
+      onVolume(last, "preview");
+    };
+    const up = (released: globalThis.PointerEvent) => {
+      end();
+      const level = at(released.clientY);
+      if (!moved) return;
+      onVolume(level, level === volume ? "cancel" : "commit");
+    };
+    const escape = (key: globalThis.KeyboardEvent) => {
+      if (key.key !== "Escape") return;
+      key.stopPropagation();
+      cancel();
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+    window.addEventListener("keydown", escape, true);
+    stop.current = end;
+  };
+  const keys = (event: KeyboardEvent<HTMLDivElement>) => {
+    const next =
+      event.key === "ArrowUp" || event.key === "ArrowRight" ? volumeStep(shown + 0.05)
+      : event.key === "ArrowDown" || event.key === "ArrowLeft" ? volumeStep(shown - 0.05)
+      : event.key === "Home" ? 0
+      : event.key === "End" ? 1
+      : null;
+    if (next === null) return;
+    event.preventDefault();
+    // A boosted clip (above 1, set through the API) is never made quieter by a "louder" key.
+    if (volume >= 1 && next >= shown) return;
+    event.stopPropagation();
+    onVolume(next, "commit");
+  };
+  return (
+    <div
+      role="slider"
+      tabIndex={0}
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(shown * 100)}
+      aria-valuetext={`${Math.round(shown * 100)}%`}
+      className="group/volume absolute inset-x-1 z-10 h-3 -translate-y-1/2 cursor-ns-resize focus-visible:outline-2 focus-visible:outline-copper"
+      style={{ top: `${(1 - shown) * 100}%` }}
+      onPointerDown={start}
+      onKeyDown={keys}
+    >
+      <span aria-hidden="true" className="absolute inset-x-0 top-1/2 h-px bg-copper/80 group-hover/volume:h-0.5" />
+    </div>
+  );
+}
+
 const withModifier = (event: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) =>
   event.shiftKey || event.ctrlKey || event.metaKey;
 
@@ -72,6 +217,9 @@ export function TimelineClip({
   onGestureStart,
   onNudge,
   name: given,
+  glance,
+  fps = 30,
+  onVolume,
   readOnly = false,
   menu,
 }: Props) {
@@ -99,7 +247,7 @@ export function TimelineClip({
         id={`timeline-clip-${clip.clip_id}`}
         aria-label={name}
         aria-pressed={selected}
-        className={`flex h-full w-full items-start gap-1 overflow-hidden rounded-md border px-2 py-1 text-left text-xs text-ink transition-colors focus-visible:outline-2 focus-visible:outline-copper ${FILL[trackKind]} ${
+        className={`relative flex h-full w-full items-start gap-1 overflow-hidden rounded-md border px-2 py-1 text-left text-xs text-ink transition-colors focus-visible:outline-2 focus-visible:outline-copper ${FILL[trackKind]} ${
           selected ? "border-2 border-copper" : "border-hairline hover:border-faint"
         }`}
         // A pointer press already selected; a click from the keyboard (detail 0) selects here.
@@ -129,9 +277,13 @@ export function TimelineClip({
           onNudge(step);
         }}
       >
-        {locked ? <Lock aria-hidden="true" size={11} className="mt-0.5 shrink-0 text-faint" /> : null}
-        <span className="truncate rounded bg-well/70 px-1" title={text}>{text}</span>
+        {glance ? <GlanceLayer clip={clip} glance={glance} widthPx={framesToPixels(clip.duration_in_frames, zoom)} fps={fps} /> : null}
+        {locked ? <Lock aria-hidden="true" size={11} className="relative mt-0.5 shrink-0 text-faint" /> : null}
+        <span className="relative truncate rounded bg-well/70 px-1" title={text}>{text}</span>
       </button>
+      {!readOnly && !locked && onVolume && clip.kind === "audio" ? (
+        <VolumeLine volume={clip.volume ?? 1} label={t("studio.timeline.volumeOf", { clip: name })} onVolume={onVolume} />
+      ) : null}
       {readOnly ? null : (
         <>
           <button

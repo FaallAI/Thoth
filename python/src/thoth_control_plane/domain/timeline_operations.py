@@ -172,7 +172,7 @@ class SetCaptionCueText(StrictModel):
 
 
 class AddCaptionClip(StrictModel):
-    """A caption spanning its scene, with one cue across the whole clip."""
+    """A caption with one cue across the whole clip: its scene, or a stretch of it when given."""
 
     kind: Literal["add_caption_clip"]
     operation_id: OpaqueId
@@ -180,6 +180,9 @@ class AddCaptionClip(StrictModel):
     track_id: OpaqueId
     scene_id: OpaqueId
     text: ShortText
+    #: Left out when unused, so an operation without them reads exactly as it always did.
+    from_frame: FrameStart | None = Field(default=None, exclude_if=lambda value: value is None)
+    duration_in_frames: Frame | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class SetCaptionCueTiming(StrictModel):
@@ -587,21 +590,18 @@ def _add_caption_clip(document: EditDocumentV2, operation: AddCaptionClip) -> No
     if "caption" not in TRACK_CLIP_KINDS[track.kind]:
         raise ValueError("clip kind is incompatible with track")
 
+    duration = operation.duration_in_frames or scene.duration_in_frames
     document.clips.append(
         TimelineCaptionClip(
             kind="caption",
             clip_id=operation.clip_id,
             track_id=track.track_id,
             scene_id=scene.scene_id,
-            from_frame=scene.start_frame,
-            duration_in_frames=scene.duration_in_frames,
+            from_frame=scene.start_frame if operation.from_frame is None else operation.from_frame,
+            duration_in_frames=duration,
             ownership="user_edited",
             style_slot="caption_default",
-            cues=[
-                CaptionCue(
-                    from_frame=0, duration_in_frames=scene.duration_in_frames, text=operation.text
-                )
-            ],
+            cues=[CaptionCue(from_frame=0, duration_in_frames=duration, text=operation.text)],
         )
     )
     track.clip_ids.append(operation.clip_id)
