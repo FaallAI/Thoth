@@ -615,8 +615,8 @@ def test_container_workflow_verifies_template_parity_in_the_reference_image() ->
     assert "THOTH_F1_IMAGE_ID=" in job
     assert "docker image inspect" in job
     # Every tracked capsule is verified against its approved golden set (story_mode-v1:
-    # operator approval 2026-10-28; effects-v1: 2026-11-10).
-    assert "for release in vertical_text_story-v1 story_mode-v1 effects-v1; do" in job
+    # operator approval 2026-10-28).
+    assert "for release in vertical_text_story-v1 story_mode-v1; do" in job
     assert 'verify-template-release.ts "${release}"' in job
 
 
