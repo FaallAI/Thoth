@@ -19,7 +19,7 @@ from thoth_control_plane.infrastructure.asset_glance_builder import (
     GlanceBuildFailed,
     GlanceToolMissing,
 )
-from thoth_control_plane.infrastructure.media_store import MediaUnavailable
+from thoth_control_plane.infrastructure.media_store import MediaStoreUnavailable, MediaUnavailable
 
 
 def record() -> EditorAssetRecord:
@@ -118,3 +118,35 @@ def test_the_default_builder_is_the_ffmpeg_one() -> None:
 
     glances = AssetGlanceService(EditorAssetService(Repository()), Media(), "ffmpeg")
     assert glances._build is build_glance
+
+
+class DownMedia(Media):
+    """A store that cannot be reached: the cache read fails, or the source cannot be signed."""
+
+    def __init__(self, where: str) -> None:
+        super().__init__()
+        self.where = where
+
+    def fetch(self, location: str, destination: Path) -> None:
+        if self.where == "fetch":
+            raise MediaStoreUnavailable("down")
+        super().fetch(location, destination)
+
+    def probe_source(self, location: str) -> str:
+        if self.where == "probe":
+            raise MediaStoreUnavailable("down")
+        return super().probe_source(location)
+
+
+@pytest.mark.parametrize("where", ["fetch", "probe"])
+async def test_a_store_outage_is_named_and_nothing_is_built(where: str) -> None:
+    calls: list[str] = []
+
+    async def build(ffmpeg: str, source: str, asset: EditorAsset) -> AssetGlance:
+        calls.append(source)
+        return GLANCE
+
+    with pytest.raises(GlanceUnavailable) as raised:
+        await service(DownMedia(where), build).glance("project_001", "asset_music")
+    assert raised.value.code == "media_store_unavailable"
+    assert calls == []

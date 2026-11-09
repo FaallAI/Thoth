@@ -155,3 +155,65 @@ async def test_ffmpeg_opens_only_the_format_the_asset_type_names(
 async def test_an_unknown_media_type_is_never_opened(tmp_path: Path) -> None:
     with pytest.raises(GlanceBuildFailed):
         await build_glance("ffmpeg", str(tmp_path / "x"), asset("video", 3, "video/quicktime"))
+
+
+def sleeping_ffmpeg(tmp_path: Path, seconds: int) -> tuple[Path, Path]:
+    """A stand-in ffmpeg that records its pid and arguments, then sleeps."""
+    pid, argv = tmp_path / "pid.txt", tmp_path / "argv.txt"
+    fake = tmp_path / "ffmpeg"
+    script = f'#!/bin/sh\necho $$ > {pid}\nprintf "%s\\n" "$@" >> {argv}\nexec sleep {seconds}\n'
+    fake.write_text(script)
+    fake.chmod(0o755)
+    return fake, pid
+
+
+def alive(pid_file: Path) -> bool:
+    import os
+
+    try:
+        os.kill(int(pid_file.read_text()), 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+async def test_a_cancelled_strip_build_stops_ffmpeg(tmp_path: Path) -> None:
+    # Final review minor, fixed 2026-11-09: ffmpeg never outlives a cancelled request.
+    import asyncio
+
+    fake, pid = sleeping_ffmpeg(tmp_path, 30)
+    build = asyncio.create_task(
+        build_glance(str(fake), str(tmp_path / "x.mp4"), asset("video", 3, "video/mp4"))
+    )
+    for _ in range(100):
+        if pid.exists() and pid.read_text().strip():
+            break
+        await asyncio.sleep(0.02)
+    build.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await build
+    await asyncio.sleep(0.1)
+    assert not alive(pid)
+
+
+async def test_a_timed_out_build_fails_and_stops_ffmpeg(tmp_path: Path, monkeypatch) -> None:
+    from thoth_control_plane.infrastructure import asset_glance_builder
+
+    monkeypatch.setattr(asset_glance_builder, "GLANCE_TIMEOUT_SECONDS", 0.3)
+    fake, pid = sleeping_ffmpeg(tmp_path, 30)
+    with pytest.raises(GlanceBuildFailed):
+        await build_glance(str(fake), str(tmp_path / "x.mp4"), asset("video", 3, "video/mp4"))
+    assert not alive(pid)
+
+
+async def test_a_video_strip_decodes_keyframes_only_on_two_threads(tmp_path: Path) -> None:
+    # Final review minor, fixed 2026-11-09: a long 4K video stays cheap to glance at.
+    fake, _ = sleeping_ffmpeg(tmp_path, 0)
+    with pytest.raises(GlanceBuildFailed):
+        await build_glance(str(fake), str(tmp_path / "x.mp4"), asset("video", 3, "video/mp4"))
+    # The first try decodes keyframes only; a video that yields nothing then is decoded in full.
+    args = (tmp_path / "argv.txt").read_text().split("\n")
+    assert args[args.index("-skip_frame") + 1] == "nokey"
+    assert args.index("-skip_frame") < args.index("-i")
+    assert args[args.index("-threads") + 1] == "2"
+    assert args.count("-i") == 2 and args.count("-skip_frame") == 1

@@ -68,7 +68,11 @@ def jpeg_size(data: bytes) -> tuple[int, int]:
 
 
 async def _start(
-    ffmpeg: str, source: str, formats: str, output_args: list[str]
+    ffmpeg: str,
+    source: str,
+    formats: str,
+    output_args: list[str],
+    input_args: tuple[str, ...] = (),
 ) -> asyncio.subprocess.Process:
     remote = source.startswith(("http://", "https://"))
     try:
@@ -80,6 +84,7 @@ async def _start(
             URL_PROTOCOLS if remote else FILE_PROTOCOLS,
             "-format_whitelist",
             formats,
+            *input_args,
             "-i",
             source,
             *output_args,
@@ -91,14 +96,23 @@ async def _start(
         raise GlanceToolMissing(ffmpeg) from error
 
 
-async def _run(ffmpeg: str, source: str, formats: str, output_args: list[str]) -> bytes:
-    process = await _start(ffmpeg, source, formats, output_args)
+async def _run(
+    ffmpeg: str,
+    source: str,
+    formats: str,
+    output_args: list[str],
+    input_args: tuple[str, ...] = (),
+) -> bytes:
+    process = await _start(ffmpeg, source, formats, output_args, input_args)
     try:
         stdout, _ = await asyncio.wait_for(process.communicate(), GLANCE_TIMEOUT_SECONDS)
     except TimeoutError as error:
-        process.kill()
-        await process.wait()
         raise GlanceBuildFailed("timeout") from error
+    finally:
+        # A timeout or a cancelled request: ffmpeg never outlives the build.
+        if process.returncode is None:
+            process.kill()
+            await process.wait()
     if process.returncode != 0 or not stdout:
         raise GlanceBuildFailed("ffmpeg refused the source")
     return stdout
@@ -165,7 +179,21 @@ async def build_glance(ffmpeg: str, source: str, asset: EditorAsset) -> AssetGla
         frames, seconds_per_frame = 1, 1
         video_filter = f"scale=-2:{STRIP_HEIGHT}"
     jpeg_out = ["-frames:v", "1", "-q:v", "5", "-f", "image2pipe", "-vcodec", "mjpeg", "-"]
-    image = await _run(ffmpeg, source, formats, ["-vf", video_filter, *jpeg_out])
+    output_args = ["-vf", f"{video_filter},format=yuvj420p", *jpeg_out]
+    if asset.kind == "video":
+        # Keyframes first, on two threads: a long 4K video stays cheap to glance at, each tile
+        # showing the nearest earlier keyframe. A video with too few keyframes yields nothing that
+        # way and is decoded in full; a timeout is not tried again (final review minor, 2026-11-09).
+        try:
+            image = await _run(
+                ffmpeg, source, formats, output_args, ("-skip_frame", "nokey", "-threads", "2")
+            )
+        except GlanceBuildFailed as error:
+            if str(error) == "timeout":
+                raise
+            image = await _run(ffmpeg, source, formats, output_args, ("-threads", "2"))
+    else:
+        image = await _run(ffmpeg, source, formats, output_args)
     width, height = jpeg_size(image)
     return AssetGlance(
         asset_id=asset.asset_id,

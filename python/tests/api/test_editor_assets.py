@@ -540,3 +540,12 @@ async def test_a_glance_needs_authentication(gateway, tmp_path: Path) -> None:
         response = await client.get(GLANCE_URL)
 
     assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_a_glance_of_another_projects_asset_is_not_found(gateway, tmp_path: Path) -> None:
+    other = {("project_002", "asset_main"): record()}
+    async with client_for(preview_app(gateway, tmp_path, records=other)) as client:
+        response = await client.get(GLANCE_URL, headers=AUTH_HEADERS)
+
+    assert response.status_code == 404
