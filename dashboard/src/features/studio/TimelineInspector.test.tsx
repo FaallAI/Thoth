@@ -536,3 +536,91 @@ test("a refusal shows above the fields, not under the fades", () => {
   const following = screen.getByRole("alert").compareDocumentPosition(field("Fit" as string)) & Node.DOCUMENT_POSITION_FOLLOWING;
   expect(following).toBeTruthy();
 });
+
+// Studio effects layer (spec 2026-11-09): the Effects section for a video clip.
+function mountEffects(document = timelineDocument(), playheadFrame = 0) {
+  const operations: EditDocumentOperation[] = [];
+  render(
+    <TimelineInspector
+      document={document}
+      selectedClipId="clip_main"
+      selectedTrackId=""
+      playheadFrame={playheadFrame}
+      onOperation={(operation) => operations.push(operation)}
+    />,
+  );
+  return { operations };
+}
+
+const withMain = (fields: Record<string, unknown>) => {
+  const document = timelineDocument();
+  Object.assign(document.clips!.find((clip) => clip.clip_id === "clip_main")!, fields);
+  return document;
+};
+
+test("choosing Blur-fill sends set_clip_background", () => {
+  const { operations } = mountEffects();
+  fireEvent.change(screen.getByLabelText("Background"), { target: { value: "blur_fill" } });
+  expect(payload(operations[0]!)).toEqual({ kind: "set_clip_background", operation_id: "op", clip_id: "clip_main", background: "blur_fill" });
+});
+
+test("releasing Dim at 40% sends set_clip_dim 0.4", () => {
+  const { operations } = mountEffects();
+  const dim = screen.getByLabelText("Dim");
+  fireEvent.change(dim, { target: { value: "40" } });
+  expect(operations).toHaveLength(0);
+  fireEvent.pointerUp(dim);
+  expect(payload(operations[0]!)).toEqual({ kind: "set_clip_dim", operation_id: "op", clip_id: "clip_main", dim: 0.4 });
+});
+
+test("Push in sends set_clip_moves with the preset", () => {
+  const { operations } = mountEffects();
+  fireEvent.click(screen.getByRole("button", { name: "Push in" }));
+  expect(payload(operations[0]!)).toEqual({
+    kind: "set_clip_moves",
+    operation_id: "op",
+    clip_id: "clip_main",
+    moves: [
+      { frame: 0, scale: 1, x: 0, y: 0, ease: "linear" },
+      { frame: 119, scale: 1.12, x: 0, y: 0, ease: "linear" },
+    ],
+  });
+});
+
+test("Punch in uses the playhead", () => {
+  const { operations } = mountEffects(timelineDocument(), 60);
+  fireEvent.click(screen.getByRole("button", { name: "Punch in at playhead" }));
+  const moves = (operations[0] as Extract<EditDocumentOperation, { kind: "set_clip_moves" }>).moves;
+  expect(moves.map((move) => [move.frame, move.scale])).toEqual([[59, 1], [68, 1.35]]);
+});
+
+test("removing a keyframe sends the rest", () => {
+  const moves = [
+    { frame: 0, scale: 1, x: 0, y: 0, ease: "linear" as const },
+    { frame: 30, scale: 1.2, x: 0, y: 0, ease: "linear" as const },
+  ];
+  const { operations } = mountEffects(withMain({ moves }));
+  fireEvent.click(screen.getByRole("button", { name: "Remove keyframe at 0:01.0" }));
+  expect((operations[0] as Extract<EditDocumentOperation, { kind: "set_clip_moves" }>).moves).toEqual([moves[0]!]);
+});
+
+test("Add box sends a centred box over the clip's source window", () => {
+  const { operations } = mountEffects();
+  fireEvent.click(screen.getByRole("button", { name: "Add box" }));
+  expect(payload(operations[0]!)).toEqual({
+    kind: "set_clip_marks",
+    operation_id: "op",
+    clip_id: "clip_main",
+    marks: [{ kind: "box", x: 0.35, y: 0.35, w: 0.3, h: 0.3, side: "top", from_frame: 0, to_frame: 120, color: "accent" }],
+  });
+});
+
+test("a mark's end before its start says why and sends nothing", () => {
+  const mark = { kind: "box", x: 0.35, y: 0.35, w: 0.3, h: 0.3, side: "top", from_frame: 30, to_frame: 90, color: "accent" };
+  const { operations } = mountEffects(withMain({ emphasis: { highlight: false, arrow: false, marks: [mark] } }));
+  const until = screen.getByLabelText("Box 1 until");
+  fireEvent.change(until, { target: { value: "0:00.5" } });
+  fireEvent.blur(until);
+  expect(operations).toHaveLength(0);
+  expect(screen.getByRole("alert").textContent).toBe("A mark must end after it starts.");
+});

@@ -8,6 +8,8 @@ import { slipClip, slipRange } from "./timeline_edits";
 import { clipLabel } from "./TimelineClip";
 import { issueSentence } from "./IssuesPanel";
 import { formatTimecode, parseTimecode, sourceSpan, timelineIssues, trackName } from "./timeline_domain";
+import { MOVE_PRESETS, movePreset } from "./move_presets";
+import { speedPercent, type Move } from "@thoth/remotion-composition";
 
 /** The speeds a clip may play at; the server accepts exactly these (Tier 3a). */
 const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4] as const;
@@ -21,6 +23,8 @@ type Props = {
   labelOf?: (clip: NonNullable<EditDocumentV2["clips"]>[number]) => string;
   /** At 1024 an Inspector with nothing selected folds to a narrow rail (spec 2026-11-08 §5.1). */
   rail?: boolean;
+  /** Where Punch in lands (spec 2026-11-09); absent, the clip's first frame. */
+  playheadFrame?: number;
 };
 
 const field = "flex items-center justify-between gap-2 text-xs text-muted-ink";
@@ -154,6 +158,247 @@ const fractionOf = (percent: number) => Math.round(percent * 100) / 10000;
 /** The server's longest fade (`FadeFrames`). */
 const MAX_FADE_FRAMES = 300;
 
+type VideoClipOf = Extract<NonNullable<EditDocumentV2["clips"]>[number], { kind: "video" }>;
+type MarkOf = NonNullable<NonNullable<VideoClipOf["emphasis"]>["marks"]>[number];
+
+/**
+ * Background, Dim, Moves and Marks for one video clip (spec 2026-11-09, 3.7). Every change is one
+ * operation, so one undo step; marks are shown in clip time and stored in source frames.
+ */
+function EffectsFields({
+  clip,
+  fps,
+  frozen,
+  playheadFrame,
+  onOperation,
+  onProblem,
+}: {
+  clip: VideoClipOf;
+  fps: number;
+  frozen: boolean;
+  playheadFrame: number;
+  onOperation: (operation: EditDocumentOperation) => void;
+  onProblem: (problem: string | null) => void;
+}) {
+  const { t } = useLocale();
+  const ids = { background: useId(), dim: useId() };
+  const send = (operation: OperationDraft) =>
+    onOperation({ ...operation, operation_id: newId() } as EditDocumentOperation);
+  const moves = (clip.moves ?? []) as Move[];
+  const marks = clip.emphasis?.marks ?? [];
+  const speed = speedPercent(clip);
+  const toClip = (source: number) => Math.round(((source - clip.source_from_frame) * 100) / speed);
+  const toSource = (frame: number) => clip.source_from_frame + Math.floor((frame * speed) / 100);
+  const stored = Math.round((clip.dim ?? 0) * 100);
+  const [dim, setDim] = useState(stored);
+  useEffect(() => setDim(stored), [stored]);
+  const commitDim = () => {
+    if (dim !== stored) send({ kind: "set_clip_dim", clip_id: clip.clip_id, dim: dim / 100 });
+  };
+  const setMoves = (next: Move[]) => send({ kind: "set_clip_moves", clip_id: clip.clip_id, moves: next });
+  const setMarks = (next: MarkOf[]) => send({ kind: "set_clip_marks", clip_id: clip.clip_id, marks: next });
+  const addMark = (kind: "box" | "arrow") =>
+    setMarks([
+      ...marks,
+      {
+        kind,
+        ...(kind === "box" ? { x: 0.35, y: 0.35, w: 0.3, h: 0.3 } : { x: 0.5, y: 0.5, w: 0, h: 0 }),
+        side: "top",
+        from_frame: clip.source_from_frame,
+        to_frame: toSource(clip.duration_in_frames),
+        color: "accent",
+      },
+    ]);
+  const updateMark = (index: number, change: Partial<MarkOf>) => {
+    const next = { ...marks[index]!, ...change };
+    if (next.to_frame <= next.from_frame) {
+      onProblem(t("studio.effects.markWindow"));
+      return false as const;
+    }
+    if (next.kind === "box" && (next.x + (next.w ?? 0) > 1 || next.y + (next.h ?? 0) > 1)) {
+      onProblem(t("studio.effects.markInside"));
+      return false as const;
+    }
+    setMarks(marks.map((mark, at) => (at === index ? next : mark)));
+  };
+  const percentField = (index: number, name: string, key: "x" | "y" | "w" | "h") => (
+    <NumberField
+      key={key}
+      id={`${clip.clip_id}_mark_${index}_${key}`}
+      label={`${name} ${t(`studio.effects.mark.${key}`)}`}
+      shown={percentOf(marks[index]![key] ?? 0)}
+      disabled={frozen}
+      onCommit={(value) => {
+        if (!(value >= 0 && value <= 100) || ((key === "w" || key === "h") && value === 0)) {
+          onProblem(t("studio.timeline.outOfRange", { low: key === "w" || key === "h" ? "0.1" : "0", high: "100" }));
+          return false;
+        }
+        return updateMark(index, { [key]: fractionOf(value) });
+      }}
+    />
+  );
+
+  return (
+    <>
+      <div className={field}>
+        <label htmlFor={ids.background}>{t("studio.effects.background")}</label>
+        <select
+          id={ids.background}
+          className={input}
+          value={clip.background ?? "none"}
+          disabled={frozen}
+          onChange={(event) =>
+            send({ kind: "set_clip_background", clip_id: clip.clip_id, background: event.target.value as "none" | "blur_fill" })
+          }
+        >
+          {(["none", "blur_fill"] as const).map((value) => (
+            <option key={value} value={value}>
+              {t(`studio.effects.background.${value}`)}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className={field}>
+        <label htmlFor={ids.dim}>{t("studio.effects.dim")}</label>
+        <input
+          id={ids.dim}
+          type="range"
+          min={0}
+          max={80}
+          step={5}
+          value={dim}
+          disabled={frozen}
+          aria-valuetext={`${dim}%`}
+          onChange={(event) => setDim(Number(event.target.value))}
+          onPointerUp={commitDim}
+          onKeyUp={commitDim}
+          onBlur={commitDim}
+        />
+      </div>
+      <div role="group" aria-label={t("studio.effects.moves")} className="space-y-1">
+        <span className="text-xs text-muted-ink">{t("studio.effects.moves")}</span>
+        <div className="flex flex-wrap gap-1">
+          {MOVE_PRESETS.map((kind) => (
+            <button
+              key={kind}
+              type="button"
+              className={button}
+              disabled={frozen}
+              onClick={() =>
+                setMoves(movePreset(kind, clip.duration_in_frames, fps, playheadFrame - clip.from_frame, moves))
+              }
+            >
+              {t(`studio.effects.preset.${kind}`)}
+            </button>
+          ))}
+        </div>
+        {moves.map((move, index) => {
+          const time = formatTimecode(move.frame, fps);
+          return (
+            <div key={move.frame} className={field}>
+              <span className="font-mono">{`${time} · ${Math.round(move.scale * 100)}%`}</span>
+              <button
+                type="button"
+                className={button}
+                disabled={frozen}
+                aria-label={t("studio.effects.removeKeyframe", { time })}
+                onClick={() => setMoves(moves.filter((_, at) => at !== index))}
+              >
+                ×
+              </button>
+            </div>
+          );
+        })}
+        {moves.length ? (
+          <button type="button" className={button} disabled={frozen} onClick={() => setMoves([])}>
+            {t("studio.effects.clearMoves")}
+          </button>
+        ) : null}
+      </div>
+      <div role="group" aria-label={t("studio.effects.marks")} className="space-y-2">
+        <span className="text-xs text-muted-ink">{t("studio.effects.marks")}</span>
+        <div className="flex gap-1">
+          <button type="button" className={button} disabled={frozen} onClick={() => addMark("box")}>
+            {t("studio.effects.addBox")}
+          </button>
+          <button type="button" className={button} disabled={frozen} onClick={() => addMark("arrow")}>
+            {t("studio.effects.addArrow")}
+          </button>
+        </div>
+        {marks.map((mark, index) => {
+          const name = t(`studio.effects.mark.${mark.kind}`, { n: String(index + 1) });
+          return (
+            <div key={index} role="group" aria-label={name} className="space-y-1 rounded-md border border-hairline p-2">
+              {percentField(index, name, "x")}
+              {percentField(index, name, "y")}
+              {mark.kind === "box" ? percentField(index, name, "w") : null}
+              {mark.kind === "box" ? percentField(index, name, "h") : null}
+              <TimeField
+                id={`${clip.clip_id}_mark_${index}_from`}
+                label={`${name} ${t("studio.effects.mark.from")}`}
+                frame={toClip(mark.from_frame)}
+                fps={fps}
+                disabled={frozen}
+                onCommit={(frame) => updateMark(index, { from_frame: Math.max(0, toSource(frame)) })}
+              />
+              <TimeField
+                id={`${clip.clip_id}_mark_${index}_to`}
+                label={`${name} ${t("studio.effects.mark.to")}`}
+                frame={toClip(mark.to_frame)}
+                fps={fps}
+                disabled={frozen}
+                onCommit={(frame) => updateMark(index, { to_frame: Math.max(1, toSource(frame)) })}
+              />
+              <div className={field}>
+                <label htmlFor={`${clip.clip_id}_mark_${index}_color`}>{t("studio.effects.mark.color")}</label>
+                <select
+                  id={`${clip.clip_id}_mark_${index}_color`}
+                  className={input}
+                  value={mark.color ?? "accent"}
+                  disabled={frozen}
+                  onChange={(event) => updateMark(index, { color: event.target.value as "accent" | "alert" })}
+                >
+                  {(["accent", "alert"] as const).map((color) => (
+                    <option key={color} value={color}>
+                      {t(`studio.effects.color.${color}`)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {mark.kind === "arrow" ? (
+                <div className={field}>
+                  <label htmlFor={`${clip.clip_id}_mark_${index}_side`}>{t("studio.effects.mark.side")}</label>
+                  <select
+                    id={`${clip.clip_id}_mark_${index}_side`}
+                    className={input}
+                    value={mark.side ?? "top"}
+                    disabled={frozen}
+                    onChange={(event) => updateMark(index, { side: event.target.value as "top" | "bottom" | "left" | "right" })}
+                  >
+                    {(["top", "bottom", "left", "right"] as const).map((side) => (
+                      <option key={side} value={side}>
+                        {t(`studio.effects.side.${side}`)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+              <button
+                type="button"
+                className={button}
+                disabled={frozen}
+                onClick={() => setMarks(marks.filter((_, at) => at !== index))}
+              >
+                {t("studio.effects.removeMark", { name })}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 /** One titled group of fields, like the TIMING, TRANSFORM and AUDIO blocks of the design. */
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -171,6 +416,7 @@ export function TimelineInspector({
   onOperation,
   labelOf,
   rail = false,
+  playheadFrame = 0,
 }: Props) {
   const { t, plural } = useLocale();
   const ids = {
@@ -596,6 +842,19 @@ export function TimelineInspector({
                   )}
                 </div>
               ) : null}
+            </Section>
+          ) : null}
+
+          {clip.kind === "video" ? (
+            <Section title={t("studio.timeline.section.effects")}>
+              <EffectsFields
+                clip={clip}
+                fps={fps}
+                frozen={frozen}
+                playheadFrame={playheadFrame}
+                onOperation={onOperation}
+                onProblem={setProblem}
+              />
             </Section>
           ) : null}
 

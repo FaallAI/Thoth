@@ -1390,3 +1390,12 @@ describe("fitting on opening", () => {
     expect(open(2)).toEqual([]);
   });
 });
+
+test("a clip with moves shows Has effects", () => {
+  const document = timelineDocument();
+  Object.assign(document.clips!.find((clip) => clip.clip_id === "clip_main")!, {
+    moves: [{ frame: 0, scale: 1, x: 0, y: 0, ease: "linear" }, { frame: 30, scale: 1.2, x: 0, y: 0, ease: "linear" }],
+  });
+  render(<Timeline state={createEditorState(document)} dispatch={() => {}} onPlay={() => {}} onPause={() => {}} />);
+  expect(screen.getAllByLabelText("Has effects")).toHaveLength(1);
+});
