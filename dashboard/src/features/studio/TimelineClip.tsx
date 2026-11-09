@@ -72,7 +72,13 @@ function GlanceLayer({ clip, glance, widthPx, fps }: { clip: Clip; glance: Asset
   if ((clip.kind === "video") && glance.strip) {
     const strip = glance.strip;
     return (
-      <div data-testid="clip-filmstrip" aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden opacity-70">
+      <div
+        data-testid="clip-filmstrip"
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 overflow-hidden opacity-70"
+        // The picture is set once here; every tile points at it (final review 2026-11-09).
+        style={{ ["--strip" as string]: `url("${strip.image}")` }}
+      >
         {stripTiles(strip, window, widthPx, GLANCE_HEIGHT).map((tile) => (
           <div
             key={tile.left}
@@ -80,7 +86,7 @@ function GlanceLayer({ clip, glance, widthPx, fps }: { clip: Clip; glance: Asset
             style={{
               left: `${tile.left}px`,
               width: `${tile.width}px`,
-              backgroundImage: `url("${strip.image}")`,
+              backgroundImage: "var(--strip)",
               backgroundSize: `${strip.frames * Math.round((strip.frame_width * GLANCE_HEIGHT) / strip.frame_height)}px ${GLANCE_HEIGHT}px`,
               backgroundPosition: `-${tile.frame * Math.round((strip.frame_width * GLANCE_HEIGHT) / strip.frame_height)}px 0`,
             }}
@@ -117,32 +123,43 @@ function VolumeLine({ volume, label, onVolume }: { volume: number; label: string
     if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
-    const box = event.currentTarget.parentElement!.getBoundingClientRect();
-    const at = (clientY: number) => volumeStep(1 - (clientY - box.top) / Math.max(1, box.height));
-    let last = at(event.clientY);
+    // The level moves with the pointer from where it was pressed, so a press alone changes
+    // nothing; only a drag previews, and only a changed level commits (final review 2026-11-09).
+    const height = Math.max(1, event.currentTarget.parentElement!.getBoundingClientRect().height);
+    const pressY = event.clientY;
+    const at = (clientY: number) => volumeStep(shown + (pressY - clientY) / height);
+    let moved = false;
+    let last = shown;
     const end = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
       window.removeEventListener("keydown", escape, true);
     };
-    const move = (moved: globalThis.PointerEvent) => {
-      last = at(moved.clientY);
+    const cancel = () => {
+      end();
+      if (moved) onVolume(last, "cancel");
+    };
+    const move = (pointer: globalThis.PointerEvent) => {
+      moved = true;
+      last = at(pointer.clientY);
       onVolume(last, "preview");
     };
     const up = (released: globalThis.PointerEvent) => {
       end();
-      onVolume(at(released.clientY), "commit");
+      const level = at(released.clientY);
+      if (!moved) return;
+      onVolume(level, level === volume ? "cancel" : "commit");
     };
     const escape = (key: globalThis.KeyboardEvent) => {
       if (key.key !== "Escape") return;
       key.stopPropagation();
-      end();
-      onVolume(last, "cancel");
+      cancel();
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
     window.addEventListener("keydown", escape, true);
-    onVolume(last, "preview");
   };
   const keys = (event: KeyboardEvent<HTMLDivElement>) => {
     const next =
@@ -153,6 +170,8 @@ function VolumeLine({ volume, label, onVolume }: { volume: number; label: string
       : null;
     if (next === null) return;
     event.preventDefault();
+    // A boosted clip (above 1, set through the API) is never made quieter by a "louder" key.
+    if (volume >= 1 && next >= shown) return;
     event.stopPropagation();
     onVolume(next, "commit");
   };

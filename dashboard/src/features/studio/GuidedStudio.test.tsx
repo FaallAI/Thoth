@@ -1341,3 +1341,13 @@ test("a refused glance leaves the timeline as it was", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Mute Music" }));
   expect(screen.getByRole("button", { name: "Unmute Music" })).toBeDefined();
 });
+
+test("at most two glances are asked for at a time", async () => {
+  const { timelineDocument } = await import("./timeline-test-fixtures");
+  const doc = timelineDocument();
+  doc.asset_refs = [...doc.asset_refs!, { ...doc.asset_refs![0]!, asset_id: "asset_third" }];
+  const getEditorAssetGlance = mock(() => new Promise<never>(() => {}));
+  await mountAdvanced({ getEditorAssetGlance, getEditDocument: mock(async () => doc as EditDocument) });
+  await act(async () => {});
+  expect(getEditorAssetGlance).toHaveBeenCalledTimes(2);
+});

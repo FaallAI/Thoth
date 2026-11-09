@@ -439,14 +439,23 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
   useEffect(() => {
     const getGlance = client.getEditorAssetGlance;
     if (!advanced || !getGlance || !mediaIds) return;
-    for (const assetId of mediaIds.split(" ")) {
-      if (assetId in glances) continue;
-      setGlances((current) => ({ ...current, [assetId]: null }));
-      void getGlance(projectId, assetId).then(
-        (glance) => setGlances((current) => ({ ...current, [assetId]: glance })),
-        () => {},
-      );
-    }
+    const queue = mediaIds.split(" ").filter((assetId) => !(assetId in glances));
+    if (!queue.length) return;
+    setGlances((current) => ({ ...current, ...Object.fromEntries(queue.map((assetId) => [assetId, null])) }));
+    // Two at a time, so a first look at a big draft never holds the browser's connections that
+    // saves need (final review 2026-11-09).
+    const next = () => {
+      const assetId = queue.shift();
+      if (!assetId) return;
+      void getGlance(projectId, assetId)
+        .then(
+          (glance) => setGlances((current) => ({ ...current, [assetId]: glance })),
+          () => {},
+        )
+        .finally(next);
+    };
+    next();
+    next();
     // glances is read, not watched: each asset is asked for once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [advanced, client, mediaIds, projectId]);

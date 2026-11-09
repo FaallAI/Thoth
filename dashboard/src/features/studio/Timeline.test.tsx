@@ -1155,7 +1155,7 @@ test("video clips show their filmstrip and audio clips their waveform", () => {
   mountWithGlances((assetId) => (assetId === "asset_video" ? VIDEO_GLANCE : assetId === "asset_music" ? AUDIO_GLANCE : undefined));
   const strips = screen.getAllByTestId("clip-filmstrip");
   expect(strips.length).toBe(2);
-  expect(strips[0]!.innerHTML).toContain("data:image/jpeg;base64,AAAA");
+  expect(strips[0]!.outerHTML).toContain("data:image/jpeg;base64,AAAA");
   expect(screen.getAllByTestId("clip-waveform").length).toBe(1);
 });
 
@@ -1235,4 +1235,40 @@ test("a volume above 1 rests at the top of the line", () => {
   mount({ base: doc, draft: doc });
   expect(volumeLine().getAttribute("aria-valuenow")).toBe("100");
   expect(volumeLine().style.top).toBe("0%");
+});
+
+// Final review 2026-11-09 fixes.
+test("a press on the volume line without a move changes nothing", () => {
+  const doc = musicAt(0.73);
+  const { actions } = mount({ base: doc, draft: doc });
+  withBox(volumeLine());
+  fireEvent.pointerDown(volumeLine(), { clientY: 112, button: 0 });
+  fireEvent.pointerUp(window, { clientY: 112 });
+  expect(volumeOps(actions, "commit_timeline_operation")).toEqual([]);
+});
+
+test("a cancelled pointer ends the volume drag and commits nothing later", () => {
+  const doc = musicAt(0.5);
+  const { actions } = mount({ base: doc, draft: doc });
+  withBox(volumeLine());
+  fireEvent.pointerDown(volumeLine(), { clientY: 120, button: 0 });
+  fireEvent.pointerMove(window, { clientY: 110 });
+  fireEvent.pointerCancel(window);
+  fireEvent.pointerUp(window, { clientY: 101 });
+  expect(actions.some((action) => action.type === "cancel_timeline_preview")).toBe(true);
+  expect(volumeOps(actions, "commit_timeline_operation")).toEqual([]);
+});
+
+test("ArrowUp and End never lower a clip that is already above 1", () => {
+  const doc = musicAt(1.6);
+  const { actions } = mount({ base: doc, draft: doc });
+  fireEvent.keyDown(volumeLine(), { key: "ArrowUp" });
+  fireEvent.keyDown(volumeLine(), { key: "End" });
+  expect(volumeOps(actions, "commit_timeline_operation")).toEqual([]);
+});
+
+test("a filmstrip carries its picture once, not once per tile", () => {
+  mountWithGlances((assetId) => (assetId === "asset_video" ? VIDEO_GLANCE : undefined));
+  const strip = screen.getAllByTestId("clip-filmstrip")[0]!;
+  expect(strip.outerHTML.split("data:image/jpeg;base64,AAAA").length - 1).toBe(1);
 });
