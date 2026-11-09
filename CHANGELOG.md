@@ -18,7 +18,7 @@ Branch `feat/studio-full-timeline` from `2b6cbdbf` (the Tier 3b head, because PR
 
 Text can no longer be selected anywhere in the Studio editor, except in inputs, text areas and editable text. Phones and tablets, the Story mode and the Review and Render jobs keep their layouts.
 
-**Added on the operator's word, after the first deploy.** The player bar is also under the video in the Story mode and the Review job, at 1024 px and wider. Story keeps its Space tip under the bar. This commit is not on stage1 yet.
+**Added on the operator's word, after the first deploy.** The player bar is also under the video in the Story mode and the Review job, at 1024 px and wider. Story keeps its Space tip under the bar.
 
 **Found in the browser, fixed test-first.**
 - A rule in `pen-studio.css` dissolves any `div` holding a Play button, which stacked the new bar in three rows. The bar is a `footer` now.
@@ -48,14 +48,15 @@ Text can no longer be selected anywhere in the Studio editor, except in inputs, 
 
 **Declined by the reviewer, not checked.** Whether Space still works in fullscreen while the bar's button holds focus is worth one try by hand.
 
-**Deploy.** Stage1 runs the branch image `02ac8ad9`, which carries Tier 3b too.
-- Digests: thoth `sha256:4fbf34c1f830…`, renderer `sha256:b1bc0a9794bf…`, web `sha256:5f830547d019…`.
-- Rollback pins: `pins-2b10db0c.env`. There is no document field and no migration, so a rollback only brings the old layout back.
-- After the deploy: web answered 200 and no workflow was running.
+**Deploy.** Stage1 runs the branch image `4e73ec36`, which carries Tier 3b too. It replaced `02ac8ad9`, deployed earlier the same day.
+- Digests: thoth `sha256:7b74a98ef070…`, renderer `sha256:7bdab2fe9284…`, web `sha256:43cd2a65731a…`.
+- Rollback pins: `pins-02ac8ad9.env`, and `pins-2b10db0c.env` for the image before the full-width timeline. There is no document field and no migration, so a rollback only brings the old layout back.
+- After the deploy: web answered 200, no workflow was running, and the worker and api logged 0 errors and 0 5xx in the first 10 minutes.
+- CI on `4e73ec36`: the push run and the PR run passed. Read-only e2e on stage1, at 1440: 31/31.
 
 **Next steps.**
 - **Operator gates, each needing its own authorization:**
-  - a push of the player bar commit and these records, with a redeploy so stage1 carries them;
+  - a push of this record, which can ride with the merge;
   - the operator's own try on stage1, of this and of Tier 3b;
   - merge of PR #125, then of PR #126.
 - **Carried from Tier 3b:** a Story scene resize of a sped-up clip that the server can still refuse.
