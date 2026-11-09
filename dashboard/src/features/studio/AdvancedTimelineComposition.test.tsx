@@ -83,9 +83,9 @@ mock.module("remotion", () => ({
 
 // The WebCodecs video tag needs a real decoder; its props are what the composition decides.
 mock.module("@remotion/media", () => ({
-  Video: ({ disallowFallbackToOffthreadVideo, volume, playbackRate, preservePitch, ...rest }: Record<string, unknown>) => {
+  Video: ({ disallowFallbackToOffthreadVideo, volume, playbackRate, preservePitch, onVideoFrame, ...rest }: Record<string, unknown>) => {
     // Speed (Tier 3a) is captured too: a boolean prop cannot sit on a div.
-    mediaProps.video.push({ volume, playbackRate, preservePitch });
+    mediaProps.video.push({ volume, playbackRate, preservePitch, onVideoFrame });
     return (
       <div
         data-testid="video"
@@ -942,6 +942,38 @@ test("blur-fill, dim and a mark draw on the clip", () => {
   expect(screen.getByTestId("clip-blur-fill")).toBeDefined();
   expect((screen.getByTestId("clip-dim") as HTMLElement).style.opacity).toBe("0.5");
   expect(screen.getByTestId("clip-mark").getAttribute("data-mark-kind")).toBe("box");
+});
+
+test("blur-fill blurs an eighth-size copy and scales it up, so a render stays cheap", () => {
+  // A full-canvas blur(48px) made a 60 s render five times slower (plan Task 8, 2026-11-10).
+  render(<AdvancedTimelineComposition document={effectsDocument({ background: "blur_fill" })} previewSources={TYPED_SOURCES} />);
+  const layer = screen.getByTestId("clip-blur-fill-layer") as HTMLElement;
+  expect(layer.style.width).toBe("12.5%");
+  expect(layer.style.transform).toContain("scale(8.8)");
+});
+
+test("a movie's blur-fill blurs each frame inside its small canvas, never as a CSS filter", () => {
+  // A CSS blur over a layer that changes every frame re-rasterizes every frame (plan Task 8, 2026-11-10).
+  mediaProps.video.length = 0;
+  render(<AdvancedTimelineComposition document={effectsDocument({ background: "blur_fill" })} previewSources={TYPED_SOURCES} />);
+  const canvas = screen.getByTestId("clip-blur-fill").querySelector("canvas")!;
+  expect(canvas.style.filter).toBe("");
+  const drawn: { filter: string; args: unknown[] }[] = [];
+  const context = { filter: "none", drawImage: (...args: unknown[]) => drawn.push({ filter: context.filter, args }) };
+  canvas.getContext = (() => context) as never;
+  const onVideoFrame = mediaProps.video.map((props) => props.onVideoFrame).find((call) => typeof call === "function") as (image: unknown) => void;
+  onVideoFrame({ displayWidth: canvas.width * 2, displayHeight: canvas.height });
+  // A frame twice as wide as the canvas covers it by height, centred.
+  expect(drawn).toEqual([{ filter: "blur(6px)", args: [expect.anything(), -canvas.width / 2, 0, canvas.width * 2, canvas.height] }]);
+});
+
+test("blur-fill on a video draws the clip's own frames, with no second decoder", () => {
+  // A second Video of the same source made a 60 s render five times slower (plan Task 8, 2026-11-10).
+  mediaProps.video.length = 0;
+  render(<AdvancedTimelineComposition document={effectsDocument({ background: "blur_fill" })} previewSources={TYPED_SOURCES} />);
+  expect(screen.getByTestId("clip-blur-fill").querySelector('[data-testid="video"]')).toBeNull();
+  expect(mediaProps.video.some((props) => typeof props.onVideoFrame === "function")).toBe(true);
+  expect(screen.getByTestId("clip-blur-fill").querySelector("canvas")).not.toBeNull();
 });
 
 test("a clip without effects draws no blur-fill, dim or marks", () => {

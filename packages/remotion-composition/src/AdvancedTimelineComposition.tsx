@@ -101,13 +101,22 @@ const TEXT_CARD_HEADING: CSSProperties = {
   lineHeight: 1.1,
   textAlign: "center",
 };
-const BLUR_FILL_MEDIA: CSSProperties = {
-  width: "100%",
-  height: "100%",
-  objectFit: "cover",
-  filter: "blur(48px)",
-  transform: "scale(1.1)",
+/**
+ * Blur-fill blurs an eighth-size copy and scales it up 8.8 times (cover plus a 10% bleed), which looks
+ * like blur(48px) at full size. A still takes a CSS blur, drawn once; a movie is blurred inside its
+ * canvas, since a CSS blur over a layer that changes every frame made a 60 s render five times slower
+ * (plan 2026-11-09, Task 8).
+ */
+const BLUR_FILL_RADIUS = "blur(6px)";
+const BLUR_FILL_LAYER: CSSProperties = {
+  position: "absolute",
+  left: "50%",
+  top: "50%",
+  width: "12.5%",
+  height: "12.5%",
+  transform: "translate(-50%, -50%) scale(8.8)",
 };
+const BLUR_FILL_MEDIA: CSSProperties = { width: "100%", height: "100%", objectFit: "cover" };
 
 /**
  * About how many characters two lines of a placed heading hold on this canvas.
@@ -514,6 +523,11 @@ function videoClip(
   if (!source) return <PreviewUnavailable label="Video preview unavailable" />;
   const crop = clip.crop ?? FULL_CROP;
   const position = clip.position ?? NO_POSITION;
+  // A movie's blur-fill is drawn from the clip's own decoded frames: a second decoder of the same
+  // source made a 60 s render five times slower (plan 2026-11-09, Task 8).
+  const blurTarget: { canvas: HTMLCanvasElement | null } = { canvas: null };
+  const onVideoFrame =
+    clip.background === "blur_fill" ? (image: CanvasImageSource) => drawCover(blurTarget.canvas, image) : undefined;
   const media: CSSProperties = {
     position: "absolute",
     width: percent(1 / span(crop.width)),
@@ -554,6 +568,7 @@ function videoClip(
               }
             : {})}
           objectFit={clip.fit}
+          {...(onVideoFrame ? { onVideoFrame } : {})}
           style={media}
         />
       )}
@@ -595,18 +610,20 @@ function videoClip(
   const blurFill =
     clip.background === "blur_fill" ? (
       <AbsoluteFill data-testid="clip-blur-fill" style={{ overflow: "hidden" }}>
-        {kind === "image" ? (
-          <Img src={source} style={BLUR_FILL_MEDIA} />
-        ) : (
-          <Video
-            src={source}
-            trimBefore={clip.source_from_frame}
-            muted
-            {...(speedPercent(clip) !== 100 ? { playbackRate: clip.speed } : {})}
-            objectFit="cover"
-            style={BLUR_FILL_MEDIA}
-          />
-        )}
+        <div data-testid="clip-blur-fill-layer" style={BLUR_FILL_LAYER}>
+          {kind === "image" ? (
+            <Img src={source} style={{ ...BLUR_FILL_MEDIA, filter: BLUR_FILL_RADIUS }} />
+          ) : (
+            <canvas
+              ref={(element) => {
+                blurTarget.canvas = element;
+              }}
+              width={Math.max(1, Math.round(canvas.width / 8))}
+              height={Math.max(1, Math.round(canvas.height / 8))}
+              style={BLUR_FILL_MEDIA}
+            />
+          )}
+        </div>
       </AbsoluteFill>
     ) : null;
   const dim =
@@ -790,6 +807,19 @@ function FadingClip({ clip, children }: { clip: Faded; children: ReactNode }) {
       {children}
     </AbsoluteFill>
   );
+}
+
+/** Draws a decoded frame over the whole target canvas, cropped to cover it. */
+function drawCover(target: HTMLCanvasElement | null, image: CanvasImageSource): void {
+  const context = target?.getContext("2d");
+  if (!target || !context) return;
+  const size = image as { displayWidth?: number; displayHeight?: number; width?: unknown; height?: unknown };
+  const width = Number(size.displayWidth ?? size.width);
+  const height = Number(size.displayHeight ?? size.height);
+  if (!(width > 0 && height > 0)) return;
+  const scale = Math.max(target.width / width, target.height / height);
+  context.filter = BLUR_FILL_RADIUS;
+  context.drawImage(image, (target.width - width * scale) / 2, (target.height - height * scale) / 2, width * scale, height * scale);
 }
 
 function resolve(

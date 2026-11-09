@@ -172,6 +172,11 @@
       ],
       "motion": "pan",
       "background": "blur_fill",
+      "position": {
+        "x": 0.0,
+        "y": 0.0,
+        "scale": 0.8
+      },
       "moves": [
         {
           "frame": 19,
@@ -205,8 +210,8 @@
       "clip_id": "clip_body",
       "track_id": "track_story",
       "scene_id": "scene_source",
-      "from_frame": 60,
-      "duration_in_frames": 60,
+      "from_frame": 100,
+      "duration_in_frames": 20,
       "ownership": "user_edited",
       "kind": "text",
       "heading": "Or the release does not ship",
