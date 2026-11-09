@@ -1543,3 +1543,78 @@ def test_add_text_clip_without_a_story_role() -> None:
         ],
     )
     assert find_clip(result, "clip_pasted").source_role is None
+
+
+# Tier 3a (spec 2026-11-08 section 7): speed keeps the clip's place and changes its source span.
+def test_set_clip_speed_sets_the_speed_and_marks_the_clip_edited() -> None:
+    result = apply_edit_operations(
+        document_v2_fixture(), [op("set_clip_speed", clip_id="clip_main", speed=2.0)]
+    )
+    main = find_clip(result, "clip_main")
+    assert (main.speed, main.ownership) == (2.0, "user_edited")
+    assert (main.from_frame, main.duration_in_frames) == (0, 300)
+
+
+def test_set_clip_speed_refuses_a_locked_clip_a_text_clip_and_an_image() -> None:
+    locked = apply_edit_operations(
+        document_v2_fixture(), [op("set_clip_locked", clip_id="clip_main", locked=True)]
+    )
+    with pytest.raises(ValueError, match="locked"):
+        apply_edit_operations(locked, [op("set_clip_speed", clip_id="clip_main", speed=2.0)])
+    with pytest.raises(ValueError, match="speed"):
+        apply_edit_operations(
+            document_v2_fixture(), [op("set_clip_speed", clip_id="clip_001", speed=2.0)]
+        )
+    payload = document_v2_payload()
+    payload["asset_refs"][0].update(kind="image", duration_in_frames=None, has_audio=False)
+    still = EditDocumentV2.model_validate(payload)
+    with pytest.raises(ValueError, match="an image has no speed"):
+        apply_edit_operations(still, [op("set_clip_speed", clip_id="clip_main", speed=2.0)])
+
+
+def test_a_trim_start_on_a_2x_clip_moves_its_source_twice_as_far() -> None:
+    fast = apply_edit_operations(
+        document_v2_fixture(), [op("set_clip_speed", clip_id="clip_main", speed=2.0)]
+    )
+    result = apply_edit_operations(
+        fast, [op("trim_clip_start", clip_id="clip_main", from_frame=10)]
+    )
+    assert find_clip(result, "clip_main").source_from_frame == 20
+
+
+def test_a_split_of_a_1_5x_clip_starts_the_right_part_at_the_left_span() -> None:
+    fast = apply_edit_operations(
+        document_v2_fixture(), [op("set_clip_speed", clip_id="clip_main", speed=1.5)]
+    )
+    result = apply_edit_operations(
+        fast,
+        [
+            op(
+                "split_clip",
+                clip_id="clip_main",
+                split_frame=31,
+                left_clip_id="clip_left",
+                right_clip_id="clip_right",
+            )
+        ],
+    )
+    left, right = find_clip(result, "clip_left"), find_clip(result, "clip_right")
+    assert right.source_from_frame == 46  # floor(31 * 150 / 100)
+    assert (left.speed, right.speed) == (1.5, 1.5)
+
+
+def test_new_media_on_a_2x_clip_keeps_the_speed_and_fits_the_new_source() -> None:
+    fast = apply_edit_operations(
+        document_v2_fixture(), [op("set_clip_speed", clip_id="clip_main", speed=2.0)]
+    )
+    source = document_v2_payload()["asset_refs"][0]
+    shorter = AssetRef.model_validate(
+        {**source, "asset_id": "asset_short", "duration_in_frames": 400}
+    )
+    result = apply_edit_operations(
+        fast,
+        [op("replace_clip_asset", clip_id="clip_main", asset_id="asset_short")],
+        resolved_assets={"asset_short": shorter},
+    )
+    main = find_clip(result, "clip_main")
+    assert (main.speed, main.duration_in_frames) == (2.0, 200)

@@ -42,6 +42,8 @@ Offset = Annotated[float, Field(ge=-1.0, le=1.0)]
 Scale = Annotated[float, Field(gt=0.0, le=4.0)]
 Volume = Annotated[float, Field(ge=0.0, le=2.0)]
 FadeFrames = Annotated[int, Field(ge=0, le=300)]
+#: A clip's speed is one of these presets, so source maths stays in whole percent (Tier 3a).
+PlaybackSpeed = Literal[0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0]
 Fps = Annotated[float, Field(gt=0.0, le=240.0)]
 
 #: Which clip kinds a track of each kind accepts.
@@ -235,6 +237,9 @@ class TimelineVideoClip(TimelineClipBase):
     #: An unused fade is not stored, so a rollback to images that forbid the field stays safe.
     fade_in_frames: FadeFrames = Field(default=0, exclude_if=lambda frames: frames == 0)
     fade_out_frames: FadeFrames = Field(default=0, exclude_if=lambda frames: frames == 0)
+    #: Speed keeps the clip's place and length and changes how much source it plays (Tier 3a).
+    #: Normal speed is not stored, so a rollback to images that forbid the field stays safe.
+    speed: PlaybackSpeed = Field(default=1.0, exclude_if=lambda speed: speed == 1.0)
 
 
 class TimelineOverlayClip(TimelineClipBase):
@@ -258,6 +263,24 @@ class TimelineAudioClip(TimelineClipBase):
     fade_out_frames: FadeFrames = 0
     #: When present, the curve scales `volume` (the fades still apply).
     volume_keyframes: VolumeKeyframes = Field(default_factory=list)
+    speed: PlaybackSpeed = Field(default=1.0, exclude_if=lambda speed: speed == 1.0)
+
+
+def speed_percent(clip: object) -> int:
+    """A clip's speed in whole percent; a clip without speed plays at 100."""
+    return round(getattr(clip, "speed", 1.0) * 100)
+
+
+def source_span(clip: TimelineClipBase) -> int:
+    """The source frames a clip plays: its length times its speed, rounded up."""
+    return -(-clip.duration_in_frames * speed_percent(clip) // 100)
+
+
+def frames_left(clip: TimelineClipBase, asset: AssetRef) -> int:
+    """The timeline frames until the clip's source ends, at the clip's speed."""
+    assert asset.duration_in_frames is not None
+    remaining = asset.duration_in_frames - getattr(clip, "source_from_frame", 0)
+    return remaining * 100 // speed_percent(clip)
 
 
 TimelineClip: TypeAlias = Annotated[
@@ -380,7 +403,7 @@ class EditDocumentV2(StrictModel):
             return  # the composition holds the last frame past the source
         if (
             asset.duration_in_frames is not None
-            and source_from + clip.duration_in_frames > asset.duration_in_frames
+            and source_from + source_span(clip) > asset.duration_in_frames
         ):
             raise ValueError("clip range exceeds source asset duration")
 

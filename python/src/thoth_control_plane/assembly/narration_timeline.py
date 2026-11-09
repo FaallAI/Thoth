@@ -27,6 +27,7 @@ from thoth_control_plane.domain.edit_document_v2 import (
     TimelineTrack,
     TimelineVideoClip,
     VolumeKeyframe,
+    frames_left,
 )
 from thoth_control_plane.domain.narration import BEAT_ORDER, BeatId, NarrationPreset, SfxCue
 from thoth_control_plane.domain.story_beats import beat_spans, clip_beats
@@ -433,7 +434,7 @@ def _retime(
         remaining = (
             None
             if asset is None or asset.kind != "video" or asset.duration_in_frames is None
-            else asset.duration_in_frames - clip.source_from_frame
+            else frames_left(clip, asset)
         )
         update["hold_after_source"] = remaining is not None and length > remaining
         update["volume_keyframes"] = []
@@ -449,7 +450,7 @@ def _retime(
         asset = assets.get(clip.asset_id)
         if asset is not None and asset.duration_in_frames is not None:
             # Audio cannot hold a frame: a stretched clip stops where its asset ends.
-            length = max(1, min(length, asset.duration_in_frames - clip.source_from_frame))
+            length = max(1, min(length, frames_left(clip, asset)))
             update["duration_in_frames"] = length
         fade_in = min(clip.fade_in_frames, length // 2)
         update.update(

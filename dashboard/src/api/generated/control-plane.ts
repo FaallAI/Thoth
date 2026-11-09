@@ -2322,7 +2322,7 @@ export interface components {
             /** Base Revision */
             base_revision: number;
             /** Operations */
-            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTextPlace"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["DuplicateClip"] | components["schemas"]["SetClipFit"] | components["schemas"]["SetClipCrop"] | components["schemas"]["SetClipFades"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
+            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTextPlace"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["DuplicateClip"] | components["schemas"]["SetClipFit"] | components["schemas"]["SetClipCrop"] | components["schemas"]["SetClipFades"] | components["schemas"]["SetClipSpeed"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
         };
         /**
          * EditDocumentV1
@@ -3834,6 +3834,26 @@ export interface components {
             operation_id: string;
             position: components["schemas"]["Position"];
         };
+        /**
+         * SetClipSpeed
+         * @description A video or audio clip's speed; its place and length stay (Tier 3a).
+         */
+        SetClipSpeed: {
+            /** Clip Id */
+            clip_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_clip_speed";
+            /** Operation Id */
+            operation_id: string;
+            /**
+             * Speed
+             * @enum {number}
+             */
+            speed: 0.25 | 0.5 | 0.75 | 1 | 1.25 | 1.5 | 2 | 3 | 4;
+        };
         /** SetClipVolume */
         SetClipVolume: {
             /** Clip Id */
@@ -4191,7 +4211,7 @@ export interface components {
         /** StoryAssistProposal */
         StoryAssistProposal: {
             /** Operations */
-            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTextPlace"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["DuplicateClip"] | components["schemas"]["SetClipFit"] | components["schemas"]["SetClipCrop"] | components["schemas"]["SetClipFades"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
+            operations: (components["schemas"]["ReplaceText"] | components["schemas"]["SetOwnership"] | components["schemas"]["SetSceneDuration"] | components["schemas"]["AddTrack"] | components["schemas"]["RemoveEmptyTrack"] | components["schemas"]["ReorderTrack"] | components["schemas"]["ReorderScene"] | components["schemas"]["AddClipFromAsset"] | components["schemas"]["RemoveClip"] | components["schemas"]["MoveClip"] | components["schemas"]["TrimClipStart"] | components["schemas"]["TrimClipEnd"] | components["schemas"]["SplitClip"] | components["schemas"]["SetClipHidden"] | components["schemas"]["SetClipLocked"] | components["schemas"]["SetClipVolume"] | components["schemas"]["SetClipBlur"] | components["schemas"]["SetCaptionCueText"] | components["schemas"]["AddCaptionClip"] | components["schemas"]["SetCaptionCueTiming"] | components["schemas"]["SetCaptionStyle"] | components["schemas"]["SetTextPlace"] | components["schemas"]["SetClipPosition"] | components["schemas"]["SetClipMotion"] | components["schemas"]["SetClipEmphasis"] | components["schemas"]["ReplaceClipAsset"] | components["schemas"]["AddTextClip"] | components["schemas"]["DuplicateClip"] | components["schemas"]["SetClipFit"] | components["schemas"]["SetClipCrop"] | components["schemas"]["SetClipFades"] | components["schemas"]["SetClipSpeed"] | components["schemas"]["SetTrackVisibility"] | components["schemas"]["SetTrackMuted"] | components["schemas"]["SetTrackLocked"])[];
             /** Proposal Id */
             proposal_id: string;
             /** Reason */
@@ -4557,6 +4577,12 @@ export interface components {
             source_from_frame: number;
             /** Source Role */
             source_role?: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment" | "hook" | "outro") | null;
+            /**
+             * Speed
+             * @default 1
+             * @enum {number}
+             */
+            speed: 0.25 | 0.5 | 0.75 | 1 | 1.25 | 1.5 | 2 | 3 | 4;
             /** Track Id */
             track_id: string;
             /**
@@ -4795,6 +4821,12 @@ export interface components {
             source_from_frame: number;
             /** Source Role */
             source_role?: ("main" | "main_footage" | "slide" | "post_card" | "profile_page" | "creator_footage" | "creator_photo" | "footage" | "profile_card" | "comment_card" | "comment" | "hook" | "outro") | null;
+            /**
+             * Speed
+             * @default 1
+             * @enum {number}
+             */
+            speed: 0.25 | 0.5 | 0.75 | 1 | 1.25 | 1.5 | 2 | 3 | 4;
             /** Track Id */
             track_id: string;
             /** Volume Keyframes */

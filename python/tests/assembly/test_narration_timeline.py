@@ -497,3 +497,14 @@ def test_a_faded_video_clip_that_narration_shortens_keeps_its_fades_inside() -> 
     shortened = clip(document, "clip_comment_card_000")
     assert shortened.duration_in_frames < before
     assert shortened.fade_in_frames + shortened.fade_out_frames <= shortened.duration_in_frames
+
+
+def test_a_retimed_3x_clip_holds_where_its_source_ends() -> None:
+    # Tier 3a: a sped-up clip spends its source faster, so the re-voice must hold the last frame
+    # instead of failing validation after the voices are paid for.
+    data = payload()
+    next(item for item in data["clips"] if item["clip_id"] == "clip_main")["speed"] = 3.0
+
+    main = clip(narrate_document(draft(data), VOICES, [], PRESET, ROLES), "clip_main")
+
+    assert main.duration_in_frames == 378 and main.hold_after_source is True

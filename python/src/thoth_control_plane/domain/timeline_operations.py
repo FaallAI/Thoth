@@ -27,6 +27,7 @@ from thoth_control_plane.domain.edit_document_v2 import (
     FadeFrames,
     FitMode,
     Motion,
+    PlaybackSpeed,
     Position,
     StoryRole,
     TimelineAudioClip,
@@ -37,6 +38,7 @@ from thoth_control_plane.domain.edit_document_v2 import (
     TimelineVideoClip,
     TrackKind,
     Volume,
+    speed_percent,
 )
 from thoth_control_plane.domain.edit_documents import (
     BodyText,
@@ -290,6 +292,15 @@ class SetClipFades(StrictModel):
     fade_out_frames: FadeFrames
 
 
+class SetClipSpeed(StrictModel):
+    """A video or audio clip's speed; its place and length stay (Tier 3a)."""
+
+    kind: Literal["set_clip_speed"]
+    operation_id: OpaqueId
+    clip_id: OpaqueId
+    speed: PlaybackSpeed
+
+
 class SetTrackVisibility(StrictModel):
     kind: Literal["set_track_visibility"]
     operation_id: OpaqueId
@@ -340,6 +351,7 @@ TimelineOperation: TypeAlias = Annotated[
     | SetClipFit
     | SetClipCrop
     | SetClipFades
+    | SetClipSpeed
     | SetTrackVisibility
     | SetTrackMuted
     | SetTrackLocked,
@@ -424,6 +436,8 @@ def apply_timeline_operation(
             _unlocked_video_clip(document, operation.clip_id).crop = operation.crop
         case SetClipFades():
             _set_clip_fades(document, operation)
+        case SetClipSpeed():
+            _set_clip_speed(document, operation)
         case SetTrackVisibility():
             _unlocked_track(document, operation.track_id).hidden = operation.hidden
         case SetTrackMuted():
@@ -664,8 +678,9 @@ def _replace_clip_asset(
     if asset.kind == "video":
         if asset.duration_in_frames is None:
             raise ValueError("video asset duration is unknown")
-        # Only this clip shortens; its neighbours keep their frames.
-        clip.duration_in_frames = min(clip.duration_in_frames, asset.duration_in_frames)
+        # Only this clip shortens; its neighbours keep their frames. The speed stays (Tier 3a).
+        fits = asset.duration_in_frames * 100 // speed_percent(clip)
+        clip.duration_in_frames = max(1, min(clip.duration_in_frames, fits))
     clip.asset_id = asset.asset_id
     clip.source_from_frame = 0
     # Crop and blur regions are fractions and frames of the old medium; they do not carry over.
@@ -742,9 +757,11 @@ def _trim_clip_start(document: EditDocumentV2, operation: TrimClipStart) -> None
     delta = operation.from_frame - clip.from_frame
     source_from_frame = getattr(clip, "source_from_frame", None)
     if source_from_frame is not None:
-        if source_from_frame + delta < 0:
+        # A faster clip spends its source faster (Tier 3a); offsets round down on both sides.
+        moved = delta * speed_percent(clip) // 100
+        if source_from_frame + moved < 0:
             raise ValueError("trim cannot start before the source")
-        clip.source_from_frame = source_from_frame + delta
+        clip.source_from_frame = source_from_frame + moved
     clip.from_frame = operation.from_frame
     clip.duration_in_frames = end_frame - operation.from_frame
 
@@ -774,7 +791,7 @@ def _split_clip(document: EditDocumentV2, operation: SplitClip) -> None:
     right.from_frame = operation.split_frame
     right.duration_in_frames = end_frame - operation.split_frame
     if getattr(right, "source_from_frame", None) is not None:
-        right.source_from_frame += left_duration
+        right.source_from_frame += left_duration * speed_percent(clip) // 100
 
     track = _track(document, clip.track_id)
     track.clip_ids[track.clip_ids.index(clip.clip_id)] = operation.left_clip_id
@@ -815,6 +832,17 @@ def _set_clip_fades(document: EditDocumentV2, operation: SetClipFades) -> None:
         raise ValueError("fades must stay inside their clip")
     clip.fade_in_frames = operation.fade_in_frames
     clip.fade_out_frames = operation.fade_out_frames
+
+
+def _set_clip_speed(document: EditDocumentV2, operation: SetClipSpeed) -> None:
+    clip = _unlocked_clip(document, operation.clip_id)
+    if not isinstance(clip, TimelineAudioClip | TimelineVideoClip):
+        raise ValueError("speed applies only to video and audio clips")
+    asset = next((ref for ref in document.asset_refs if ref.asset_id == clip.asset_id), None)
+    if asset is not None and asset.kind == "image":
+        raise ValueError("an image has no speed")
+    clip.speed = operation.speed
+    clip.ownership = "user_edited"
 
 
 def fit_fades(document: EditDocumentV2) -> None:
