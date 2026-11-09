@@ -1,4 +1,4 @@
-import type { KeyboardEvent, PointerEvent } from "react";
+import { useEffect, useRef, type KeyboardEvent, type PointerEvent } from "react";
 import { Lock } from "lucide-react";
 
 import type { AssetGlance, EditDocumentV2 } from "@/api/control-plane";
@@ -87,8 +87,9 @@ function GlanceLayer({ clip, glance, widthPx, fps }: { clip: Clip; glance: Asset
               left: `${tile.left}px`,
               width: `${tile.width}px`,
               backgroundImage: "var(--strip)",
-              backgroundSize: `${strip.frames * Math.round((strip.frame_width * GLANCE_HEIGHT) / strip.frame_height)}px ${GLANCE_HEIGHT}px`,
-              backgroundPosition: `-${tile.frame * Math.round((strip.frame_width * GLANCE_HEIGHT) / strip.frame_height)}px 0`,
+              // The frame covers its tile: a widened tile shows it larger, cropped top and bottom.
+              backgroundSize: `${strip.frames * tile.size}px ${Math.round((tile.size * strip.frame_height) / strip.frame_width)}px`,
+              backgroundPosition: `-${tile.frame * tile.size}px center`,
             }}
           />
         ))}
@@ -119,6 +120,9 @@ const volumeStep = (value: number) => Math.min(1, Math.max(0, Math.round(value *
 
 function VolumeLine({ volume, label, onVolume }: { volume: number; label: string; onVolume: NonNullable<Props["onVolume"]> }) {
   const shown = Math.min(1, Math.max(0, volume));
+  // A drag in flight ends with its clip: deleted, locked or switched away mid-drag.
+  const stop = useRef<(() => void) | null>(null);
+  useEffect(() => () => stop.current?.(), []);
   const start = (event: PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
     event.preventDefault();
@@ -131,6 +135,7 @@ function VolumeLine({ volume, label, onVolume }: { volume: number; label: string
     let moved = false;
     let last = shown;
     const end = () => {
+      stop.current = null;
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", cancel);
@@ -160,6 +165,7 @@ function VolumeLine({ volume, label, onVolume }: { volume: number; label: string
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", cancel);
     window.addEventListener("keydown", escape, true);
+    stop.current = end;
   };
   const keys = (event: KeyboardEvent<HTMLDivElement>) => {
     const next =

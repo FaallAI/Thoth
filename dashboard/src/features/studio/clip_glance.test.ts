@@ -37,3 +37,13 @@ test("peakSlice is the peaks inside a slipped clip's window", () => {
 test("peakSlice stops at the end of the peaks", () => {
   expect(peakSlice(peaks, { fromSeconds: 2, seconds: 5 })).toEqual([5, 6]);
 });
+
+test("a very wide clip widens its tiles instead of stopping short", () => {
+  // Portrait frames make 20 px tiles at 36 px tall; 8000 px would need 400, more than the cap.
+  const portrait = { ...strip, frame_width: 40 };
+  const tiles = stripTiles(portrait, { fromSeconds: 0, seconds: 10 }, 8000, 36);
+  expect(tiles.length).toBeLessThanOrEqual(200);
+  const last = tiles.at(-1)!;
+  expect(last.left + last.width).toBe(8000);
+  expect(tiles[0]!.size).toBe(40);
+});

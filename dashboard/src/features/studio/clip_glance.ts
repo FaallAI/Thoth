@@ -25,21 +25,24 @@ export function glanceWindow(
 
 /**
  * Frames at their own shape across the clip; each shows the source frame at its left edge.
- * `frame` indexes the strip, whose frames sit `seconds_per_frame` apart from the source's start.
+ * `frame` indexes the strip, whose frames sit `seconds_per_frame` apart from the source's start;
+ * `size` is the tile's full width, which the frame's picture covers.
  */
 export function stripTiles(
   strip: Strip,
   window: GlanceWindow,
   clipWidthPx: number,
   heightPx: number,
-): { left: number; width: number; frame: number }[] {
-  const tile = Math.max(1, Math.round((strip.frame_width * heightPx) / strip.frame_height));
-  const count = Math.min(MAX_TILES, Math.ceil(clipWidthPx / tile));
+): { left: number; width: number; frame: number; size: number }[] {
+  // A clip wider than MAX_TILES frames widens its tiles, so the strip still reaches its end.
+  const natural = Math.max(1, Math.round((strip.frame_width * heightPx) / strip.frame_height));
+  const tile = Math.max(natural, Math.ceil(clipWidthPx / MAX_TILES));
+  const count = Math.ceil(clipWidthPx / tile);
   return Array.from({ length: Math.max(0, count) }, (_, index) => {
     const left = index * tile;
     const seconds = window.fromSeconds + (left / clipWidthPx) * window.seconds;
     const frame = Math.min(strip.frames - 1, Math.max(0, Math.floor(seconds / strip.seconds_per_frame + EPSILON)));
-    return { left, width: Math.min(tile, clipWidthPx - left), frame };
+    return { left, width: Math.min(tile, clipWidthPx - left), frame, size: tile };
   });
 }
 

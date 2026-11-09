@@ -1272,3 +1272,14 @@ test("a filmstrip carries its picture once, not once per tile", () => {
   const strip = screen.getAllByTestId("clip-filmstrip")[0]!;
   expect(strip.outerHTML.split("data:image/jpeg;base64,AAAA").length - 1).toBe(1);
 });
+
+test("a volume drag stops when its clip goes away", () => {
+  const doc = musicAt(0.5);
+  const { actions } = mount({ base: doc, draft: doc });
+  withBox(volumeLine());
+  fireEvent.pointerDown(volumeLine(), { clientY: 120, button: 0 });
+  fireEvent.pointerMove(window, { clientY: 110 });
+  cleanup();
+  fireEvent.pointerUp(window, { clientY: 110 });
+  expect(volumeOps(actions, "commit_timeline_operation")).toEqual([]);
+});
