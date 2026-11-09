@@ -1,7 +1,7 @@
 // Timeline edits as typed operations (spec 2026-11-08 §5.1). Each helper answers the whole batch
 // one user action commits, or a refusal the menu shows as its reason; it never edits in place.
 import type { EditDocumentOperation, EditDocumentV2 } from "@/api/control-plane";
-import { applyTimelineOperation, compatibleTrackIds, sourceSpan } from "./timeline_domain";
+import { applyTimelineOperation, compatibleTrackIds, sourceSpan, speedPercent } from "./timeline_domain";
 
 export type Refusal =
   | "locked"
@@ -21,7 +21,9 @@ export type Refusal =
   | "not_caption"
   | "too_long"
   | "no_source"
-  | "still";
+  | "still"
+  | "not_touching"
+  | "scene_cut";
 /** Something a successful edit still tells the person (operator, 2026-11-09). */
 export type Notice = "hidden_track";
 export type Edit = { operations: EditDocumentOperation[]; refusal?: Refusal; notice?: Notice };
@@ -476,4 +478,37 @@ export function slipClip(doc: EditDocumentV2, clipId: string, sourceFrom: number
   const start = Math.min(range.max, Math.max(0, Math.round(sourceFrom)));
   if (!("source_from_frame" in clip) || start === clip.source_from_frame) return none;
   return { operations: [{ kind: "slip_clip", operation_id: newId("op"), clip_id: clip.clip_id, source_from_frame: start }] };
+}
+
+// --------------------------------------------------------------------------
+// Roll (Tier 3a): the cut between two touching clips moves; their total stays
+// --------------------------------------------------------------------------
+
+/** Move the cut where `leftId` ends and `rightId` starts to `frame`: two trims in one patch. */
+export function rollCut(doc: EditDocumentV2, leftId: string, rightId: string, frame: number): Edit {
+  const left = clipsOf(doc).find((clip) => clip.clip_id === leftId);
+  const right = clipsOf(doc).find((clip) => clip.clip_id === rightId);
+  if (!left || !right) return refuse("gone");
+  if (left.track_id !== right.track_id || endOf(left) !== right.from_frame) return refuse("not_touching");
+  if (isLocked(doc, left) || isLocked(doc, right)) return refuse("locked");
+  // A clip must stay inside its scene, so a cut between two scenes is not a roll.
+  if (left.scene_id && right.scene_id && left.scene_id !== right.scene_id) return refuse("scene_cut");
+  if (frame <= left.from_frame || frame >= endOf(right)) return refuse("edge");
+  if (frame === right.from_frame) return none;
+  // The left clip plays further into its source; the right one starts earlier or later in its own.
+  if ("source_from_frame" in left && !(left.kind === "video" && left.hold_after_source)) {
+    const length = doc.asset_refs?.find((ref) => ref.asset_id === left.asset_id)?.duration_in_frames;
+    const span = sourceSpan({ duration_in_frames: frame - left.from_frame, speed: left.speed });
+    if (length != null && left.source_from_frame + span > length) return refuse("no_source");
+  }
+  if ("source_from_frame" in right) {
+    const moved = Math.floor(((frame - right.from_frame) * speedPercent(right)) / 100);
+    if (right.source_from_frame + moved < 0) return refuse("no_source");
+  }
+  return {
+    operations: [
+      { kind: "trim_clip_end", operation_id: newId("op"), clip_id: left.clip_id, end_frame: frame },
+      { kind: "trim_clip_start", operation_id: newId("op"), clip_id: right.clip_id, from_frame: frame },
+    ],
+  };
 }

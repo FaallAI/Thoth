@@ -79,3 +79,7 @@ test("the shortcut list includes the second keys and the pointer shortcuts", () 
 test("the shortcut list names the slip gesture (Tier 3a)", () => {
   expect(SHORTCUTS.find((entry) => entry.action === "slip_drag")?.keys).toBe("Alt+drag");
 });
+
+test("the shortcut list names the roll gesture (Tier 3a)", () => {
+  expect(SHORTCUTS.find((entry) => entry.action === "roll_drag")?.keys).toBe("Alt+drag");
+});

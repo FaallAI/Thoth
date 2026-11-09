@@ -6,8 +6,10 @@ import type { MenuHandlers } from "@/components/ContextMenu";
 import { useLocale, type LocaleState } from "@/lib/locale";
 import { clipLabelSource, framesToPixels } from "./timeline_domain";
 
-/** Alt turns a body drag into a slip (Tier 3a). */
-export type GestureMode = "move" | "trim_start" | "trim_end" | "slip";
+/** Alt turns a body drag into a slip and a handle drag into a roll (Tier 3a). */
+export type GestureMode = "move" | "trim_start" | "trim_end" | "slip" | "roll_start" | "roll_end";
+
+const ALT_MODE: Record<"move" | "trim_start" | "trim_end", GestureMode> = { move: "slip", trim_start: "roll_start", trim_end: "roll_end" };
 
 type Clip = NonNullable<EditDocumentV2["clips"]>[number];
 type TrackKind = EditDocumentV2["tracks"][number]["kind"];
@@ -76,12 +78,12 @@ export function TimelineClip({
   const { t } = useLocale();
   const name = t("studio.timeline.clip", { track: label });
   const text = given ?? clipLabel(t, clip);
-  const start = (mode: GestureMode) => (event: PointerEvent) => {
+  const start = (mode: "move" | "trim_start" | "trim_end") => (event: PointerEvent) => {
     if (event.button !== 0) return;
     const add = withModifier(event);
     onSelect(add);
     // A modifier press only changes the selection; it never starts a drag.
-    if (!add) onGestureStart(event.altKey && mode === "move" ? "slip" : mode, event.clientX);
+    if (!add) onGestureStart(event.altKey ? ALT_MODE[mode] : mode, event.clientX);
   };
 
   return (

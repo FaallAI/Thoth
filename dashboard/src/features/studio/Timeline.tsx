@@ -18,6 +18,7 @@ import {
   pasteClips,
   pasteTextOperations,
   rippleDeleteClips,
+  rollCut,
   slipClip,
   splitAt,
   type Edit,
@@ -78,6 +79,8 @@ type Gesture = {
   previewed: boolean;
   /** A move of a clip inside a larger selection drags them all (spec 2026-11-08 §6). */
   group?: readonly string[];
+  /** A roll moves the cut between these two touching clips (Tier 3a). */
+  roll?: { leftId: string; rightId: string };
 };
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
@@ -248,6 +251,15 @@ export function Timeline({
     setRefusedLane((current) => (current === refused ? current : refused));
   };
 
+  /** A roll (Tier 3a): both trims as one patch, measured on the document before the drag. */
+  const rollFor = (active: Gesture, clientX: number): Edit => {
+    const { state: current, timeline: doc } = latest.current;
+    const origin = current.preview?.draft;
+    const before = origin && isTimelineDocument(origin) ? origin : doc;
+    if (!before || !active.roll) return { operations: [] };
+    return rollCut(before, active.roll.leftId, active.roll.rightId, frameAt(active, clientX));
+  };
+
   /** A slip (Tier 3a): the content follows the pointer, so a drag right shows earlier source. */
   const slipFor = (active: Gesture, clientX: number): Edit => {
     const { state: current, timeline: doc } = latest.current;
@@ -328,6 +340,11 @@ export function Timeline({
       const active = gesture.current;
       if (!active) return;
       active.previewed = true;
+      if (active.roll) {
+        const { operations } = rollFor(active, event.clientX);
+        if (operations.length) latest.current.dispatch({ type: "preview_timeline_operations", operations });
+        return;
+      }
       if (active.mode === "slip") {
         const [operation] = slipFor(active, event.clientX).operations;
         if (operation) latest.current.dispatch({ type: "preview_timeline_operation", operation });
@@ -353,6 +370,13 @@ export function Timeline({
       // A click without a drag on a clip of a larger selection selects that clip alone, as editors do.
       if (active?.group && !active.previewed) latest.current.dispatch({ type: "select_clip", clipId: active.clipId });
       if (!active?.previewed) return;
+      if (active.roll) {
+        const { operations, refusal } = rollFor(active, event.clientX);
+        latest.current.dispatch({ type: "cancel_timeline_preview" });
+        if (refusal) setNotice(latest.current.t(`studio.menu.reason.${refusal}`));
+        else if (operations.length) latest.current.dispatch({ type: "commit_operations", operations });
+        return;
+      }
       if (active.mode === "slip") {
         const { operations, refusal } = slipFor(active, event.clientX);
         if (refusal) setNotice(latest.current.t(`studio.menu.reason.${refusal}`));
@@ -529,9 +553,19 @@ export function Timeline({
   const duration = timeline.canvas.duration_in_frames;
   const lanes = visibleLanes(timeline);
 
-  const startGesture = (clipId: string, mode: GestureMode, clientX: number) => {
+  const startGesture = (clipId: string, asked: GestureMode, clientX: number) => {
     const clip = clips.find((candidate) => candidate.clip_id === clipId);
     if (!clip || clip.locked === true || trackOf(clip.track_id)?.locked === true) return;
+    // A roll needs a neighbour touching that edge on the same track; without one the handle trims.
+    const end = clip.from_frame + clip.duration_in_frames;
+    const neighbour =
+      asked === "roll_end"
+        ? clips.find((other) => other.track_id === clip.track_id && other.from_frame === end)
+        : asked === "roll_start"
+          ? clips.find((other) => other.track_id === clip.track_id && other.from_frame + other.duration_in_frames === clip.from_frame)
+          : undefined;
+    const mode: GestureMode = asked === "roll_end" || asked === "roll_start" ? (neighbour ? asked : asked === "roll_end" ? "trim_end" : "trim_start") : asked;
+    const roll = neighbour ? (asked === "roll_end" ? { leftId: clip.clip_id, rightId: neighbour.clip_id } : { leftId: neighbour.clip_id, rightId: clip.clip_id }) : undefined;
     gesture.current = {
       clipId,
       clipKind: clip.kind,
@@ -543,12 +577,13 @@ export function Timeline({
       anchor:
         mode === "slip"
           ? ("source_from_frame" in clip ? clip.source_from_frame : 0)
-          : mode === "trim_end"
+          : mode === "trim_end" || mode === "roll_end"
             ? clip.from_frame + clip.duration_in_frames
             : clip.from_frame,
       operationId: newId("op"),
       previewed: false,
       group: mode === "move" && selectedIds.length > 1 && selectedIds.includes(clipId) ? selectedIds : undefined,
+      roll,
     };
   };
 

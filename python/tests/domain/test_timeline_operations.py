@@ -1661,3 +1661,28 @@ def test_slip_refuses_past_the_source_a_text_clip_an_image_and_a_locked_clip() -
     )
     with pytest.raises(ValueError, match="locked"):
         apply_edit_operations(locked, [op("slip_clip", clip_id="clip_main", source_from_frame=10)])
+
+
+# Tier 3a: a roll is two existing trims in one patch; the server validates the result once.
+@pytest.mark.parametrize("left_first", [True, False])
+def test_a_roll_patch_on_main_video_validates(left_first: bool) -> None:
+    split = apply_edit_operations(
+        document_v2_fixture(),
+        [
+            op(
+                "split_clip",
+                clip_id="clip_main",
+                split_frame=150,
+                left_clip_id="clip_l",
+                right_clip_id="clip_r",
+            )
+        ],
+    )
+    trims = [
+        op("trim_clip_end", clip_id="clip_l", end_frame=180),
+        op("trim_clip_start", clip_id="clip_r", from_frame=180),
+    ]
+    result = apply_edit_operations(split, trims if left_first else trims[::-1])
+    left, right = find_clip(result, "clip_l"), find_clip(result, "clip_r")
+    assert (left.duration_in_frames, right.from_frame, right.duration_in_frames) == (180, 180, 120)
+    assert right.source_from_frame == 180

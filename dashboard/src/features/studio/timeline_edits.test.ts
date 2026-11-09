@@ -20,6 +20,7 @@ import {
   moveToTrack,
   moveTrack,
   removeTrack,
+  rollCut,
   rippleDelete,
   setClipFlag,
   slipClip,
@@ -405,4 +406,60 @@ test("slipClip refuses an image and a locked clip", () => {
 
 test("a clip as long as its source cannot slip", () => {
   expect(slipClip(sourced(120), "clip_main", 10).refusal).toBe("no_source");
+});
+
+// Tier 3a: a roll moves the cut between two touching clips; the pair keeps its total length.
+const clipOf = (doc: EditDocumentV2, id: string) => doc.clips!.find((clip) => clip.clip_id === id)! as Clip & { source_from_frame: number };
+
+test("rollCut moves the cut and keeps the total", () => {
+  // a is 0 to 60 and b is 60 to 100 on Main video.
+  const doc = threeClips();
+  const edit = rollCut(doc, "a", "b", 75);
+  expect(shape(edit)).toEqual([
+    { kind: "trim_clip_end", clip_id: "a", end_frame: 75 },
+    { kind: "trim_clip_start", clip_id: "b", from_frame: 75 },
+  ]);
+  const after = applies(doc, edit);
+  expect([clipOf(after, "a").duration_in_frames, clipOf(after, "b").from_frame, clipOf(after, "b").duration_in_frames]).toEqual([75, 75, 25]);
+  expect(clipOf(after, "b").source_from_frame).toBe(15);
+});
+
+test("rollCut on 2x clips moves the right source by twice the frames", () => {
+  const doc = threeClips();
+  Object.assign(clipOf(doc, "a"), { speed: 2 });
+  Object.assign(clipOf(doc, "b"), { speed: 2, source_from_frame: 40 });
+  expect(clipOf(applies(doc, rollCut(doc, "a", "b", 75)), "b").source_from_frame).toBe(70);
+});
+
+test("rollCut refuses clips that do not touch, and a cut moved to either end", () => {
+  const doc = threeClips();
+  expect(rollCut(doc, "b", "c", 110).refusal).toBe("not_touching");
+  expect(rollCut(doc, "a", "b", 0).refusal).toBe("edge");
+  expect(rollCut(doc, "a", "b", 100).refusal).toBe("edge");
+});
+
+test("rollCut refuses a locked clip", () => {
+  const doc = threeClips();
+  Object.assign(clipOf(doc, "b"), { locked: true });
+  expect(rollCut(doc, "a", "b", 70).refusal).toBe("locked");
+});
+
+test("rollCut refuses a cut that is a scene boundary", () => {
+  const doc = threeClips();
+  doc.scenes = [
+    { ...doc.scenes[0]!, scene_id: "scene_a", start_frame: 0, duration_in_frames: 60, clip_ids: ["a"] },
+    { ...doc.scenes[0]!, scene_id: "scene_b", start_frame: 60, duration_in_frames: 90, clip_ids: ["b"] },
+  ];
+  Object.assign(clipOf(doc, "a"), { scene_id: "scene_a" });
+  Object.assign(clipOf(doc, "b"), { scene_id: "scene_b" });
+  expect(rollCut(doc, "a", "b", 70).refusal).toBe("scene_cut");
+});
+
+test("rollCut refuses a cut past either clip's source", () => {
+  const doc = threeClips();
+  // b starts at the head of its source, so the cut cannot move left of 60.
+  expect(rollCut(doc, "a", "b", 50).refusal).toBe("no_source");
+  // a 70-frame source cannot feed a 75-frame a.
+  Object.assign(doc.asset_refs!.find((ref) => ref.asset_id === "asset_video")!, { duration_in_frames: 70 });
+  expect(rollCut(doc, "a", "b", 75).refusal).toBe("no_source");
 });

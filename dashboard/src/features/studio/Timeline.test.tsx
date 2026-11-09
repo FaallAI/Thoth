@@ -8,6 +8,7 @@ import { render } from "@/test-render";
 import type { EditDocumentV2 } from "@/api/control-plane";
 import { createEditorState, type EditorAction, type EditorState } from "./editor_state";
 import { Timeline } from "./Timeline";
+import { applyTimelineOperation } from "./timeline_domain";
 import { textDocument, timelineDocument } from "./timeline-test-fixtures";
 
 afterEach(cleanup);
@@ -968,4 +969,62 @@ test("a slip that cannot happen says why and commits nothing", () => {
 
   expect(actions.some((action) => action.type === "commit_timeline_operation")).toBe(false);
   expect(screen.getByRole("status").textContent).toContain("An image has no source time");
+});
+
+// Tier 3a: Alt+drag on a trim handle whose edge touches a neighbour rolls the cut between them.
+function touchingPair(rightSource?: number) {
+  const base = timelineDocument();
+  const doc = applyTimelineOperation(base, { kind: "split_clip", operation_id: "op_split", clip_id: "clip_main", split_frame: 60, left_clip_id: "clip_a", right_clip_id: "clip_b" }, {});
+  if (rightSource !== undefined) Object.assign(doc.clips!.find((clip) => clip.clip_id === "clip_b")!, { source_from_frame: rightSource });
+  return mount({ base: doc, draft: doc, snapping: false });
+}
+const endHandleOfFirst = () => screen.getAllByRole("button", { name: "Trim end of Main video clip" })[0]!;
+
+test("Alt+drag on a cut between two clips rolls it as one undo step", () => {
+  const { actions } = touchingPair();
+  fireEvent.pointerDown(endHandleOfFirst(), { clientX: 60, button: 0, altKey: true });
+  fireEvent.pointerMove(window, { clientX: 75 });
+  fireEvent.pointerUp(window, { clientX: 75 });
+
+  const committed = actions.filter((action) => action.type === "commit_operations");
+  expect(committed).toHaveLength(1);
+  const operations: unknown[] = (committed[0] as { operations: Record<string, unknown>[] }).operations.map((operation) => ({ ...operation, operation_id: "op" }));
+  expect(operations).toEqual([
+    { kind: "trim_clip_end", operation_id: "op", clip_id: "clip_a", end_frame: 75 },
+    { kind: "trim_clip_start", operation_id: "op", clip_id: "clip_b", from_frame: 75 },
+  ]);
+});
+
+test("without Alt the same handle trims only its own clip", () => {
+  const { actions } = touchingPair();
+  fireEvent.pointerDown(endHandleOfFirst(), { clientX: 60, button: 0 });
+  fireEvent.pointerMove(window, { clientX: 50 });
+  fireEvent.pointerUp(window, { clientX: 50 });
+  expect(payload(actions.at(-1)!)).toEqual({ kind: "trim_clip_end", operation_id: "op", clip_id: "clip_a", end_frame: 50 });
+});
+
+test("a refused roll says why and commits nothing", () => {
+  // clip_b starts at the head of its source, so the cut cannot move left.
+  const { actions } = touchingPair(0);
+  fireEvent.pointerDown(endHandleOfFirst(), { clientX: 60, button: 0, altKey: true });
+  fireEvent.pointerMove(window, { clientX: 50 });
+  fireEvent.pointerUp(window, { clientX: 50 });
+  expect(actions.some((action) => action.type === "commit_operations" || action.type === "commit_timeline_operation")).toBe(false);
+  expect(screen.getByRole("status").textContent).toContain("The source is too short");
+});
+
+test("a roll across a scene boundary says to resize the scene in Story", () => {
+  const base = timelineDocument();
+  const doc = applyTimelineOperation(base, { kind: "split_clip", operation_id: "op_split", clip_id: "clip_main", split_frame: 60, left_clip_id: "clip_a", right_clip_id: "clip_b" }, {});
+  doc.scenes = [
+    { ...doc.scenes[0]!, scene_id: "scene_a", start_frame: 0, duration_in_frames: 60, clip_ids: [] },
+    { ...doc.scenes[0]!, scene_id: "scene_b", start_frame: 60, duration_in_frames: 90, clip_ids: [] },
+  ];
+  Object.assign(doc.clips!.find((clip) => clip.clip_id === "clip_a")!, { scene_id: "scene_a" });
+  Object.assign(doc.clips!.find((clip) => clip.clip_id === "clip_b")!, { scene_id: "scene_b" });
+  mount({ base: doc, draft: doc, snapping: false });
+  fireEvent.pointerDown(endHandleOfFirst(), { clientX: 60, button: 0, altKey: true });
+  fireEvent.pointerMove(window, { clientX: 70 });
+  fireEvent.pointerUp(window, { clientX: 70 });
+  expect(screen.getByRole("status").textContent).toContain("This cut is a scene boundary. Resize the scene in Story instead");
 });
