@@ -64,7 +64,7 @@ export function NarrationChecking({ variant }: Pick<Props, "variant">) {
 }
 
 /** Refusals a person can act on; any other shows a plain sentence, never its code. */
-const EXPLAINED_REFUSALS = new Set([
+export const EXPLAINED_REFUSALS = new Set([
   "narration_not_available",
   "prompt_not_configured",
   "narration_in_progress",

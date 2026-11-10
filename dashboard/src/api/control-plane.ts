@@ -47,6 +47,9 @@ export type StudioMaterial = StudioMaterials["items"][number];
 export type StoryAssistRequest = components["schemas"]["StoryAssistRequest"];
 // Auto-draft narration (spec 2026-10-31).
 export type NarrationState = components["schemas"]["NarrationState"];
+/** Style templates (spec 2026-11-10). */
+export type StyleSummary = components["schemas"]["StyleSummary"];
+export type AppliedStyleResult = components["schemas"]["AppliedStyleResult"];
 export type NarrationScript = components["schemas"]["NarrationScript"];
 export type NarrationDecision = components["schemas"]["NarrationDecision"];
 export type NarrationPreset = components["schemas"]["NarrationPreset"];
@@ -280,6 +283,21 @@ export type ControlPlaneClient = {
   requestStoryAssist: (projectId: string, documentId: string, request: StoryAssistRequest) => Promise<StoryAssistProposal>;
   /** Narration: start, read, decide, edit a beat, re-voice; the preset; the SFX library. */
   startNarration: (projectId: string, documentId: string) => Promise<NarrationState>;
+  /** Style templates (spec 2026-11-10). */
+  listStyles: (projectId: string) => Promise<StyleSummary[]>;
+  applyStyle: (
+    projectId: string,
+    documentId: string,
+    request: { template_id: string; base_revision: number },
+  ) => Promise<AppliedStyleResult>;
+  /** A style's undo: stops its narration before any voice, then restores the revision. */
+  undoStyle: (
+    projectId: string,
+    documentId: string,
+    request: { base_revision: number; revision: number },
+  ) => Promise<EditDocumentPatchResult>;
+  /** The cut preview while a styled draft's script waits; never saved. */
+  getNarrationPreview: (projectId: string, documentId: string) => Promise<EditDocumentV2>;
   getNarration: (projectId: string, documentId: string) => Promise<NarrationState>;
   decideNarration: (projectId: string, documentId: string, decision: NarrationDecision) => Promise<NarrationState>;
   editNarrationBeat: (projectId: string, documentId: string, beat: BeatName, text: string) => Promise<NarrationScript>;
@@ -706,6 +724,19 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
         request,
       ),
     startNarration: (projectId, documentId) => importPost(narrationPath(projectId, documentId), {}),
+    listStyles: (projectId) => importCall(`/api/v1/projects/${encodeURIComponent(projectId)}/styles`),
+    applyStyle: (projectId, documentId, body) =>
+      importPost(
+        `/api/v1/projects/${encodeURIComponent(projectId)}/edit-documents/${encodeURIComponent(documentId)}/style`,
+        body,
+      ),
+    undoStyle: (projectId, documentId, body) =>
+      documentWrite(
+        `/api/v1/projects/${encodeURIComponent(projectId)}/edit-documents/${encodeURIComponent(documentId)}/style/undo`,
+        "POST",
+        body,
+      ),
+    getNarrationPreview: (projectId, documentId) => importCall(narrationPath(projectId, documentId, "/preview")),
     getNarration: (projectId, documentId) => importCall(narrationPath(projectId, documentId)),
     decideNarration: (projectId, documentId, decision) =>
       importPost(narrationPath(projectId, documentId, "/decision"), decision),

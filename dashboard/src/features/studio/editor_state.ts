@@ -52,6 +52,8 @@ export type EditorState = EditorSnapshot & {
   /** Revisions this session's saves replaced: Undo restores them once the snapshots are gone. */
   savedUndo: number[];
   savedRedo: number[];
+  /** Saved revisions that undo a style (spec 2026-11-10); undone through the style route. */
+  styleUndos?: number[];
   saveStatus: EditorSaveStatus;
   /** The failed save was refused by the document's rules, so retrying it cannot help. */
   saveRefused: boolean;
@@ -85,6 +87,8 @@ export type EditorAction =
   | { type: "save_succeeded"; document: EditDocument; operationIds?: string[] }
   | { type: "save_failed"; refused?: boolean }
   | { type: "restored"; document: EditDocument; direction: "undo" | "redo" }
+  /** A style applied on the server (spec 2026-11-10): one undo step, undone through the style. */
+  | { type: "style_applied"; document: EditDocument; previousRevision: number }
   | { type: "retry_save" }
   | { type: "went_offline" }
   | { type: "went_online" }
@@ -590,6 +594,17 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
         savedUndo,
       };
     }
+    case "style_applied": {
+      const saved = createEditorState(action.document, state.assets);
+      return {
+        ...saved,
+        ...sessionAfterSave(state, action.document, saved),
+        isOffline: state.isOffline,
+        saveStatus: state.isOffline ? "offline" : saved.saveStatus,
+        savedUndo: [...state.savedUndo, action.previousRevision],
+        styleUndos: [...(state.styleUndos ?? []), action.previousRevision],
+      };
+    }
     case "restored": {
       const saved = createEditorState(action.document, state.assets);
       const undoing = action.direction === "undo";
@@ -751,4 +766,17 @@ export function toEditDocumentPatch(
   state: Pick<EditorState, "base" | "pendingOperations">,
 ): EditDocumentPatch {
   return { base_revision: state.base.revision, operations: state.pendingOperations };
+}
+
+/**
+ * The saved revision an Undo or Redo goes to, and whether it undoes a style: a style's undo also
+ * stops the narration the style started (spec 2026-11-10), which a plain restore cannot.
+ */
+export function restoreTarget(
+  state: EditorState,
+  direction: "undo" | "redo",
+): { revision: number; style: boolean } | null {
+  const revision = direction === "undo" ? state.savedUndo.at(-1) : state.savedRedo[0];
+  if (revision === undefined) return null;
+  return { revision, style: direction === "undo" && (state.styleUndos ?? []).includes(revision) };
 }

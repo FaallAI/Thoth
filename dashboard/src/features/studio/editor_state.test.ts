@@ -12,6 +12,7 @@ import {
   canStartUpgrade,
   createEditorState,
   editorReducer,
+  restoreTarget,
   sceneTextClip,
   toEditDocumentPatch,
 } from "./editor_state";
@@ -1083,4 +1084,16 @@ test("a shorter scene fits its clip's fades and the late markers before the save
   const main = draft.clips!.find((clip) => clip.clip_id === "clip_main")!;
   expect([main.duration_in_frames, (main as { fade_in_frames: number }).fade_in_frames, (main as { fade_out_frames: number }).fade_out_frames]).toEqual([30, 20, 10]);
   expect(draft.markers![0]!.frame).toBeLessThan(draft.canvas.duration_in_frames);
+});
+
+// Style templates (spec 2026-11-10): applying a style is one undo step, undone through the style.
+test("a style applied is one saved undo step, marked as the style's", () => {
+  const before = upgradedTextDocument();
+  const state = createEditorState(before, {});
+  const styled = { ...before, revision: before.revision + 1, style: { template_id: "style_a", revision: 1 } };
+  const next = editorReducer(state, { type: "style_applied", document: styled, previousRevision: before.revision });
+  expect(next.base.revision).toBe(before.revision + 1);
+  expect(next.savedUndo.at(-1)).toBe(before.revision);
+  expect(restoreTarget(next, "undo")).toEqual({ revision: before.revision, style: true });
+  expect(restoreTarget(state, "undo")).toBeNull();
 });
