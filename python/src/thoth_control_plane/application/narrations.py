@@ -11,6 +11,8 @@ from typing import Any, Protocol
 from uuid import uuid4
 
 from thoth_control_plane.application.narration_script import STAGE
+from thoth_control_plane.assembly.style_preview import preview_document
+from thoth_control_plane.domain.edit_document_v2 import EditDocumentV2
 from thoth_control_plane.domain.narration import (
     ACTIVE_STATUSES,
     BeatId,
@@ -24,6 +26,7 @@ from thoth_control_plane.domain.narration import (
     NarrationStepInput,
     StoredPreset,
 )
+from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
 
 
 class NarrationRefused(Exception):
@@ -74,8 +77,10 @@ class NarrationService:
         preferences: Any,
         gateway: NarrationGateway | None,
         sfx_assets: Any | None = None,
+        roles: Callable[[str, str], Awaitable[dict[str, str]]] | None = None,
     ) -> None:
         self._sfx_assets = sfx_assets
+        self._roles = roles
         self._store = store
         self._documents = documents
         self._source_run = source_run
@@ -92,6 +97,27 @@ class NarrationService:
         if state is None:
             raise NarrationNotFound()
         return state
+
+    async def preview(self, project_id: str, document_id: str) -> EditDocumentV2:
+        """The cut preview (spec 2026-11-10, 6): a styled draft as its waiting script will cut
+        it, from the script's estimated timing. Computed on request, never saved."""
+        try:
+            state = await self.get(project_id, document_id)
+        except NarrationNotFound as error:
+            raise NarrationRefused("no_script") from error
+        document = await self._documents.get_latest(project_id, document_id)
+        style = getattr(document, "style", None)
+        template = BUILT_IN_STYLES.get(style.template_id) if style is not None else None
+        if state.status != "awaiting_approval" or state.script is None or template is None:
+            raise NarrationRefused("no_script")
+        store = self._require()
+        preset = (
+            await store.get_preset_of(document_id)
+            if hasattr(store, "get_preset_of")
+            else (await store.get_preset(project_id)).preset
+        )
+        roles = await self._roles(project_id, document_id) if self._roles else {}
+        return preview_document(document, template, state.script, preset, roles)
 
     async def is_locked(self, project_id: str, document_id: str) -> bool:
         if self._store is None:

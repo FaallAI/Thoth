@@ -269,10 +269,18 @@ def _narration_service(app: FastAPI, settings: Settings, gateway: Any) -> Narrat
             return None
         return inventory.source_workflow_id
 
+    async def roles(project_id: str, document_id: str) -> dict[str, str]:
+        try:
+            inventory = await app.state.studio_import_service.get_inventory(project_id, document_id)
+        except Exception:  # a draft made in Studio names its beats itself
+            return {}
+        return {item.item_id: item.role for item in inventory.items if item.role}
+
     return NarrationService(
         store=NarrationStore(database.get_secret_value()) if database is not None else None,
         documents=app.state.edit_document_service,
         source_run=source_run,
+        roles=roles,
         preferences=app.state.prompt_proposal_service,
         gateway=gateway,
         sfx_assets=getattr(app.state, "sfx_assets", None),

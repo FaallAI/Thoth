@@ -98,3 +98,26 @@ async def test_undo_waits_once_the_voice_is_being_made() -> None:
         undone = await api.post(UNDO, json={"base_revision": 2, "revision": 1}, headers=AUTH)
     assert (undone.status_code, code(undone)) == (409, "narration_in_progress")
     assert gateway.cancelled == []
+
+
+async def test_the_cut_preview_waits_for_a_script() -> None:
+    async with build(Store(), Gateway()) as api:
+        answer = await api.get(f"{DOC}/narration/preview", headers=AUTH)
+    assert (answer.status_code, code(answer)) == (409, "no_script")
+
+
+async def test_the_cut_preview_is_computed_and_never_saved() -> None:
+    from thoth_control_plane.domain.narration import NarrationScript
+
+    store, gateway = Store(), Gateway()
+    async with build(store, gateway) as api:
+        await apply(api, "style_b")
+        script = NarrationScript.model_validate(
+            {"beats": [{"beat": "main", "text": "Satu dua tiga. Empat lima."}], "sfx_cues": []}
+        )
+        store.state = waiting("awaiting_approval").model_copy(update={"script": script})
+        answer = await api.get(f"{DOC}/narration/preview", headers=AUTH)
+        latest = await api.get(DOC, headers=AUTH)
+    assert answer.status_code == 200
+    assert answer.json()["style"]["template_id"] == "style_b"
+    assert latest.json()["revision"] == 2

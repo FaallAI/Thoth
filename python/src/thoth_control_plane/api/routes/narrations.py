@@ -16,6 +16,7 @@ from thoth_control_plane.application.narrations import (
     NarrationUnavailable,
 )
 from thoth_control_plane.domain import Actor
+from thoth_control_plane.domain.edit_document_v2 import EditDocumentV2
 from thoth_control_plane.domain.editor_assets import EditorAsset
 from thoth_control_plane.domain.models import StrictModel
 from thoth_control_plane.domain.narration import (
@@ -98,6 +99,14 @@ async def read_narration(
     project_id: str, document_id: str, _: Caller, service: Service
 ) -> NarrationState:
     return await _answer(service.get(project_id, document_id))
+
+
+@router.get(f"{DOCUMENT}/preview", response_model=EditDocumentV2)
+async def preview_narration_cuts(
+    project_id: str, document_id: str, _: Caller, service: Service
+) -> EditDocumentV2:
+    """A styled draft's cuts from its waiting script, before any voice (spec 2026-11-10)."""
+    return await _answer(service.preview(project_id, document_id))
 
 
 @router.post(

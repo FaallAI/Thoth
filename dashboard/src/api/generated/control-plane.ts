@@ -453,6 +453,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview Narration Cuts
+         * @description A styled draft's cuts from its waiting script, before any voice (spec 2026-11-10).
+         */
+        get: operations["preview_narration_cuts_api_v1_projects__project_id__edit_documents__document_id__narration_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/restart": {
         parameters: {
             query?: never;
@@ -6690,6 +6710,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NarrationState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_narration_cuts_api_v1_projects__project_id__edit_documents__document_id__narration_preview_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditDocumentV2"];
                 };
             };
             /** @description Validation Error */

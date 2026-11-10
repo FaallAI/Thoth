@@ -13169,6 +13169,74 @@
         ]
       }
     },
+    "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/preview": {
+      "get": {
+        "description": "A styled draft's cuts from its waiting script, before any voice (spec 2026-11-10).",
+        "operationId": "preview_narration_cuts_api_v1_projects__project_id__edit_documents__document_id__narration_preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditDocumentV2"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Narration Cuts",
+        "tags": [
+          "narration"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/edit-documents/{document_id}/narration/restart": {
       "post": {
         "description": "Write a finished narration again from the draft as it is now (a new script, approved\nagain before any voice); new beats such as an added Hook are included.",
