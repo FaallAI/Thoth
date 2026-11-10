@@ -88,6 +88,13 @@ Every new field has a default and is left out of the stored document when unused
 - **Write e2e on stage1 at rw1440, in the throwaway project, with the one-day write token minted 2026-11-09:** `effects.e2e.ts` passes 3/3 (blur-fill and dim, Push in, Add box).
 - **What stays behind:** the project's drafts went from 477 to 480. The three new blank drafts stay in the throwaway project, and the operator's drafts are untouched.
 
+**Redeployed on 2026-11-10 with the Card place in the Timeline,** at `31d4fc65`:
+- **CI:** the push and PR runs pass.
+- **Images:** `thoth@sha256:b57d8a1b2658…`, `thoth-remotion-renderer@sha256:0c130bc7d32f…` and `thoth-web@sha256:26bebd2e95ae…`.
+- **Rollback pins:** `pins-e4353c9a.env`.
+- **Checks:** every service is healthy.
+- **Read-only e2e on stage1 at w1440:** 41/41.
+
 **Next steps** (each its own gate):
 - the operator tries it on stage1;
 - merge PR #127, its own gate.
