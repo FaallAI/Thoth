@@ -78,14 +78,19 @@ Every new field has a default and is left out of the stored document when unused
 - **Renderer and composition:** 262 tests pass. The container contract test gives 56 passed, and actionlint is clean on the workflow.
 - **Read-only e2e against a local dev server of this branch, at 1440:** 41 checks across `studio-shell-v2`, `studio-audit-fixes`, `studio-media` and `studio-menus`, including the new Effects check. All pass after the clock fixes.
 - **Screenshot judged at 1440x900:** the Effects section sits under Fade out, in the same style as the Clip section.
-- **The write checks** (`e2e/tests-write/effects.e2e.ts`: blur-fill and dim, Push in, Add box) are written but not run.
+- **CI on PR #127 at `e4353c9a`:** the push run and the PR run pass, the golden loop with `effects-v1` included.
+
+**Deployed to stage1 on 2026-11-10,** from the branch's CI images of `e4353c9a`, detached:
+- **Images:** `thoth@sha256:a318189e6aaf…`, `thoth-remotion-renderer@sha256:e3dbf3f0ce47…` and `thoth-web@sha256:afcf4f912766…`.
+- **Rollback pins:** `pins-4e73ec36.env`.
+- **Checks:** no workflow was running, `make deploy` exited 0, and every service is healthy.
+- **Read-only e2e on stage1 at w1440:** 41/41.
+- **Write e2e on stage1 at rw1440, in the throwaway project, with the one-day write token minted 2026-11-09:** `effects.e2e.ts` passes 3/3 (blur-fill and dim, Push in, Add box).
+- **What stays behind:** the project's drafts went from 477 to 480. The three new blank drafts stay in the throwaway project, and the operator's drafts are untouched.
 
 **Next steps** (each its own gate):
-- push and PR (authorized 2026-11-10);
-- deploy the branch image to stage1 (authorized 2026-11-10);
-- the write e2e, with a one-day write token (authorized 2026-11-10);
-- the operator tries it;
-- merge.
+- the operator tries it on stage1;
+- merge PR #127, its own gate.
 
 After that comes the planner slice of roadmap item 6.
 
