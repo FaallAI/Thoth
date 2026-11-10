@@ -79,6 +79,14 @@ The built-in styles come from code. A draft records its style in an optional `st
 - **The write checks** (`e2e/tests-write/styles.e2e.ts`) are written but not run.
 - **No paid call was made.** Providers are stubbed in tests.
 
+**Merged, pushed and deployed on 2026-11-10 (operator: merge #127, push and PR, deploy, read-only and write e2e).**
+- **PR #127** was merged as `b565cbf5`. This branch was rebased onto it with an identical tree, pushed, and opened as PR #128.
+- **Deploy:** stage1 runs the CI images of `824ca431`, deployed detached. No workflow was running, and `make deploy` exited 0. Web answered 200, the editor database is at migration 0030, the worker logged no errors, and the api returned no 5xx responses. The rollback copy is `pins-31d4fc65.env`.
+- **Read-only e2e at w1440, on the effects deploy's set of four files:** 41 of 42 pass. The new Style check failed because the confirmation opened inside the one-row header: its text was cut and the panel below took the clicks (screenshot judged at 1440x900).
+- **Fix, `a7ae5771`, not yet deployed:** the confirmation and the Style notes float under the control, and a note closes with Got it. The check also read the revision before the draft had loaded, and now reads it after. On this branch's local dev server at dev1440, the check passes, and the screenshot shows the whole dialog with both buttons.
+- **Outside that set:** `story-assist` needs a model key, and `studio-id` and some other-width checks fail on labels this deploy did not change. Neither was in the baseline. At 430 the Style control is hidden in the phone header, like the narration chip.
+- **Write e2e:** held back, because it applies a style through the same confirmation. A one-day write token was minted for it (the old one expired at 11:48 UTC). The throwaway project holds 480 drafts before the run.
+
 **Next steps** (each its own gate):
 - merge PR #127 first, then push this branch and open its PR;
 - deploy it to stage1;
