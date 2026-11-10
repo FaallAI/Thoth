@@ -303,3 +303,26 @@ async def test_a_style_binding_is_kept_per_variant_beside_a_plain_one(
     assert kept is not None and kept.variant == "style_a"
     plain = await prompts.get_binding(project_id=PROJECT, stage_id="style_script")
     assert plain is None
+
+
+@needs_postgres
+async def test_a_plain_binding_waits_for_the_stage_lock_proposals_take(
+    prompts: PostgresPromptLabRepository,
+) -> None:
+    # Deferred minor (2026-11-10): proposals lock the stage id itself; a plain binding must
+    # take that same key, not "stage:".
+    await save(prompts)
+    holder = editor_sessions(DATABASE_URL)()
+    holder.begin()
+    advisory_xact_lock(holder, PROJECT, STAGE)
+    try:
+        pending = asyncio.ensure_future(
+            prompts.save_binding(project_id=PROJECT, stage_id=STAGE, request=binding())
+        )
+        await asyncio.sleep(0.5)
+        assert not pending.done()
+    finally:
+        holder.rollback()
+        holder.close()
+
+    assert (await asyncio.wait_for(pending, timeout=10)).revision == 1

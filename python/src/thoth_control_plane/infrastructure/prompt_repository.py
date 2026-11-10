@@ -192,7 +192,10 @@ class PostgresPromptLabRepository:
         variant: str = "",
     ) -> ProjectPromptBinding:
         def write(session: Session) -> ProjectPromptBinding:
-            advisory_xact_lock(session, project_id, f"{stage_id}:{variant}")
+            # A plain stage locks the key its proposals lock; a style locks its own variant.
+            advisory_xact_lock(
+                session, project_id, f"{stage_id}:{variant}" if variant else stage_id
+            )
             row = session.scalar(
                 select(ProjectPromptBindingRow)
                 .where(
