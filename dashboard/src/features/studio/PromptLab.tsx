@@ -10,6 +10,8 @@ import {
   promptLabReducer,
   type PromptLabSaveKind,
   type PromptLabState,
+  splitStageKey,
+  stageKey,
 } from "./prompt_lab_state";
 import { useLocale } from "@/lib/locale";
 import { PromptProposalPanel } from "./PromptProposalPanel";
@@ -95,8 +97,8 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
     }
     let active = true;
     void Promise.all([
-      client.listPromptTemplates(projectId, state.selectedStageId),
-      client.getPromptBinding(projectId, state.selectedStageId),
+      client.listPromptTemplates(projectId, splitStageKey(state.selectedStageId).stageId),
+      client.getPromptBinding(projectId, splitStageKey(state.selectedStageId).stageId, splitStageKey(state.selectedStageId).variant),
     ])
       .then(([templates, binding]) => {
         if (!active) return;
@@ -106,7 +108,7 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
       .then(async () => {
         if (!active) return;
         try {
-          const resolved = await client.getResolvedPrompt(projectId, state.selectedStageId);
+          const resolved = await client.getResolvedPrompt(projectId, splitStageKey(state.selectedStageId).stageId, splitStageKey(state.selectedStageId).variant);
           if (active) dispatch({ type: "resolved_loaded", resolved });
         } catch {
           if (active) dispatch({ type: "resolved_loaded", resolved: null });
@@ -131,7 +133,7 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
         const stages = await client.listPromptStages();
         if (!active) return;
         const selectedStageId = stages.some(
-          (stage) => stage.stage_id === selectedStageIdRef.current,
+          (stage) => stageKey(stage) === selectedStageIdRef.current,
         )
           ? selectedStageIdRef.current
           : (stages[0]?.stage_id ?? "");
@@ -144,14 +146,14 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
         }
 
         const [templates, binding] = await Promise.all([
-          client.listPromptTemplates(projectId, selectedStageId),
-          client.getPromptBinding(projectId, selectedStageId),
+          client.listPromptTemplates(projectId, splitStageKey(selectedStageId).stageId),
+          client.getPromptBinding(projectId, splitStageKey(selectedStageId).stageId, splitStageKey(selectedStageId).variant),
         ]);
         if (!active) return;
 
         let resolved = null;
         try {
-          resolved = await client.getResolvedPrompt(projectId, selectedStageId);
+          resolved = await client.getResolvedPrompt(projectId, splitStageKey(selectedStageId).stageId, splitStageKey(selectedStageId).variant);
         } catch {
           // A missing resolved preview is an expected empty state, not a connectivity failure.
         }
@@ -203,7 +205,7 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
   const refreshResolved = async () => {
     if (!state.selectedStageId) return;
     try {
-      const resolved = await client.getResolvedPrompt(projectId, state.selectedStageId);
+      const resolved = await client.getResolvedPrompt(projectId, splitStageKey(state.selectedStageId).stageId, splitStageKey(state.selectedStageId).variant);
       dispatch({ type: "resolved_loaded", resolved });
     } catch {
       dispatch({ type: "resolved_loaded", resolved: null });
@@ -214,7 +216,7 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
     dispatch({ type: "save_started", kind: "template" });
     try {
       const result = await client.savePromptTemplate(projectId, {
-        stage_id: state.selectedStageId as SavePromptTemplateRequest["stage_id"],
+        stage_id: splitStageKey(state.selectedStageId).stageId as SavePromptTemplateRequest["stage_id"],
         language: state.languageDraft,
         body: state.templateBodyDraft,
         template_id: state.templateIdDraft,
@@ -234,12 +236,13 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
     if (state.bindingTemplateIdDraft === null || state.bindingTemplateRevisionDraft === null) return;
     dispatch({ type: "save_started", kind: "binding" });
     try {
-      const result = await client.savePromptBinding(projectId, state.selectedStageId, {
+      const target = splitStageKey(state.selectedStageId);
+      const result = await client.savePromptBinding(projectId, target.stageId, {
         template_id: state.bindingTemplateIdDraft,
         template_revision: state.bindingTemplateRevisionDraft,
         project_override: state.projectOverrideDraft.trim() ? state.projectOverrideDraft : null,
         base_revision: state.bindingBaseRevision,
-      });
+      }, target.variant);
       if (result.kind === "saved") {
         dispatch({ type: "binding_save_succeeded", saved: result.value });
         await refreshResolved();
@@ -323,12 +326,12 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
           <h3>{t("studio.prompt.stages")}</h3>
           {state.stages.map((stage) => (
             <button
-              key={stage.stage_id}
+              key={stageKey(stage)}
               type="button"
               className={toolbarButton}
               disabled={state.saveStatus === "recovering"}
-              aria-pressed={state.selectedStageId === stage.stage_id}
-              onClick={() => dispatch({ type: "select_stage", stageId: stage.stage_id })}
+              aria-pressed={state.selectedStageId === stageKey(stage)}
+              onClick={() => dispatch({ type: "select_stage", stageId: stageKey(stage) })}
             >
               {stage.label}
             </button>
@@ -338,7 +341,7 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
 
         <div className="studio-prompt-template-editor flex min-h-0 min-w-0 flex-col gap-4">
           <header>
-            <h3>{state.stages.find((stage) => stage.stage_id === state.selectedStageId)?.label ?? t("studio.prompt.selectStage")}</h3>
+            <h3>{state.stages.find((stage) => stageKey(stage) === state.selectedStageId)?.label ?? t("studio.prompt.selectStage")}</h3>
             <p>{t("studio.prompt.stageIntro")}</p>
           </header>
           <nav aria-label={t("studio.prompt.templates")} className="flex flex-wrap gap-2">
@@ -421,7 +424,7 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
             <PromptProposalPanel
               client={client}
               projectId={projectId}
-              stageId={state.selectedStageId}
+              stageId={splitStageKey(state.selectedStageId).stageId}
               savedTemplateId={serverBinding?.template_id ?? null}
               savedTemplateRevision={serverBinding?.template_revision ?? null}
               savedBindingRevision={serverBinding?.revision ?? null}
@@ -444,7 +447,7 @@ export function PromptLab({ client, projectId, compactTextOnly = false }: Props)
           <span className="studio-prompt-eyebrow">{t("studio.prompt.resolvedEyebrow")}</span>
           <h3 className="text-sm font-semibold">{t("studio.prompt.resolvedTitle")}</h3>
           <p className="studio-prompt-context">
-            {state.stages.find((stage) => stage.stage_id === state.selectedStageId)?.label ?? t("studio.prompt.noStage")} ·{" "}
+            {state.stages.find((stage) => stageKey(stage) === state.selectedStageId)?.label ?? t("studio.prompt.noStage")} ·{" "}
             {t(state.binding ? "studio.prompt.savedBinding" : "studio.prompt.noBindingShort")}
           </p>
           {state.resolved === null ? (

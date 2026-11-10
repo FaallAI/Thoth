@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from typing import Any
 from uuid import uuid4
 
 from thoth_control_plane.application.ports import (
@@ -14,6 +16,7 @@ from thoth_control_plane.application.ports import (
 from thoth_control_plane.domain.models import ProjectId
 from thoth_control_plane.domain.prompts import (
     PROMPT_STAGES,
+    STYLE_STAGE,
     ProjectPromptBinding,
     PromptStageDefinition,
     PromptStageId,
@@ -23,6 +26,7 @@ from thoth_control_plane.domain.prompts import (
     SavePromptTemplateRequest,
     resolve_prompt_draft,
 )
+from thoth_control_plane.domain.style_templates import StyleTemplate
 
 
 class PromptLabStoreUnavailable(Exception):
@@ -51,12 +55,26 @@ class PromptLabService:
     def __init__(self, repository: PromptLabRepository | None) -> None:
         self._repository = repository
 
-    def list_stages(self) -> tuple[PromptStageDefinition, ...]:
-        """Return the backend-owned, read-only stage registry."""
-        return PROMPT_STAGES
+    def list_stages(
+        self, styles: Sequence[StyleTemplate] = ()
+    ) -> tuple[PromptStageDefinition, ...]:
+        """The backend-owned stage registry, then one `style_script` entry per style template."""
+        return (
+            *PROMPT_STAGES,
+            *(
+                PromptStageDefinition(
+                    stage_id=STYLE_STAGE,
+                    label=f"{style.name} script",
+                    status="draft_only",
+                    variant=style.template_id,
+                )
+                for style in styles
+            ),
+        )
 
     def _require_stage(self, stage_id: str) -> None:
-        if stage_id not in {stage.stage_id for stage in PROMPT_STAGES}:
+        known = {stage.stage_id for stage in PROMPT_STAGES} | {STYLE_STAGE}
+        if stage_id not in known:
             raise PromptStageNotRegistered()
 
     def _require_repository(self) -> PromptLabRepository:
@@ -96,12 +114,12 @@ class PromptLabService:
             raise PromptLabStoreUnavailable() from error
 
     async def get_binding(
-        self, project_id: ProjectId, stage_id: PromptStageId
+        self, project_id: ProjectId, stage_id: PromptStageId, *, variant: str = ""
     ) -> ProjectPromptBinding | None:
         self._require_stage(stage_id)
         try:
             return await self._require_repository().get_binding(
-                project_id=project_id, stage_id=stage_id
+                project_id=project_id, stage_id=stage_id, variant=variant
             )
         except _PASSTHROUGH_ERRORS:
             raise
@@ -113,6 +131,8 @@ class PromptLabService:
         project_id: ProjectId,
         stage_id: PromptStageId,
         request: SaveProjectPromptBindingRequest,
+        *,
+        variant: str = "",
     ) -> ProjectPromptBinding:
         self._require_stage(stage_id)
         template = await self.get_template_revision(
@@ -122,7 +142,7 @@ class PromptLabService:
             raise PromptStageMismatch()
         try:
             return await self._require_repository().save_binding(
-                project_id=project_id, stage_id=stage_id, request=request
+                project_id=project_id, stage_id=stage_id, request=request, variant=variant
             )
         except _PASSTHROUGH_ERRORS:
             raise
@@ -145,10 +165,10 @@ class PromptLabService:
         return template
 
     async def get_resolved_prompt(
-        self, project_id: ProjectId, stage_id: PromptStageId
+        self, project_id: ProjectId, stage_id: PromptStageId, *, variant: str = ""
     ) -> ResolvedPromptDraft:
         self._require_stage(stage_id)
-        binding = await self.get_binding(project_id, stage_id)
+        binding = await self.get_binding(project_id, stage_id, variant=variant)
         if binding is None:
             raise PromptBindingNotFound()
         template = await self.get_template_revision(
@@ -158,3 +178,16 @@ class PromptLabService:
             return resolve_prompt_draft(template, binding)
         except ValueError as error:
             raise PromptStageMismatch() from error
+
+
+async def resolve_style_prompt(prompts: Any, project_id: str, template: StyleTemplate) -> str:
+    """A style's script prompt: the project's binding for that style, else the style's starter."""
+    if prompts is not None:
+        try:
+            resolved = await prompts.get_resolved_prompt(
+                project_id, STYLE_STAGE, variant=template.template_id
+            )
+            return resolved.visible_text
+        except Exception:  # no binding saved, or the prompt store is down: the starter
+            pass
+    return template.narration.starter

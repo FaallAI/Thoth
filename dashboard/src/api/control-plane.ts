@@ -92,6 +92,11 @@ const PROMPT_STAGE_IDS: readonly PromptStageId[] = [
   "visual_plan",
   "caption_copy",
 ];
+/** The style template of a `style_script` binding, as a query (spec 2026-11-10). */
+function variantQuery(variant?: string): string {
+  return variant ? `?variant=${encodeURIComponent(variant)}` : "";
+}
+
 export function isPromptStageId(value: string): value is PromptStageId {
   return (PROMPT_STAGE_IDS as readonly string[]).includes(value);
 }
@@ -327,13 +332,15 @@ export type ControlPlaneClient = {
     projectId: string,
     request: SavePromptTemplateRequest,
   ) => Promise<PromptTemplateSaveResult>;
-  getPromptBinding: (projectId: string, stageId: string) => Promise<ProjectPromptBinding | null>;
+  /** `variant` names the style template of a `style_script` binding (spec 2026-11-10). */
+  getPromptBinding: (projectId: string, stageId: string, variant?: string) => Promise<ProjectPromptBinding | null>;
   savePromptBinding: (
     projectId: string,
     stageId: string,
     request: SaveProjectPromptBindingRequest,
+    variant?: string,
   ) => Promise<PromptBindingSaveResult>;
-  getResolvedPrompt: (projectId: string, stageId: string) => Promise<ResolvedPromptDraft>;
+  getResolvedPrompt: (projectId: string, stageId: string, variant?: string) => Promise<ResolvedPromptDraft>;
   listPromptProviders: () => Promise<PromptProvider[]>;
   getPromptStarter: (stageId: string) => Promise<PromptStarter>;
   getPromptPreference: (
@@ -797,22 +804,22 @@ export function createControlPlaneClient(options: ClientOptions = {}): ControlPl
         "POST",
         request,
       ),
-    getPromptBinding: (projectId, stageId) =>
+    getPromptBinding: (projectId, stageId, variant) =>
       request<ProjectPromptBinding | null>(
-        `/api/v1/projects/${encodeURIComponent(projectId)}/prompt-lab/bindings/${encodeURIComponent(stageId)}`,
+        `/api/v1/projects/${encodeURIComponent(projectId)}/prompt-lab/bindings/${encodeURIComponent(stageId)}${variantQuery(variant)}`,
       ).catch((error: unknown) => {
         if (error instanceof Error && error.message.endsWith("(404)")) return null;
         throw error;
       }),
-    savePromptBinding: (projectId, stageId, request) =>
+    savePromptBinding: (projectId, stageId, request, variant) =>
       saveWithConflict<ProjectPromptBinding>(
-        `/api/v1/projects/${encodeURIComponent(projectId)}/prompt-lab/bindings/${encodeURIComponent(stageId)}`,
+        `/api/v1/projects/${encodeURIComponent(projectId)}/prompt-lab/bindings/${encodeURIComponent(stageId)}${variantQuery(variant)}`,
         "PUT",
         request,
       ),
-    getResolvedPrompt: (projectId, stageId) =>
+    getResolvedPrompt: (projectId, stageId, variant) =>
       request<ResolvedPromptDraft>(
-        `/api/v1/projects/${encodeURIComponent(projectId)}/prompt-lab/resolved/${encodeURIComponent(stageId)}`,
+        `/api/v1/projects/${encodeURIComponent(projectId)}/prompt-lab/resolved/${encodeURIComponent(stageId)}${variantQuery(variant)}`,
       ),
     listPromptProviders: () => request<PromptProvider[]>("/api/v1/prompt-providers"),
     getPromptStarter: (stageId) =>

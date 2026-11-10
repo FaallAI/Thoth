@@ -2301,7 +2301,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             /** Target Language */
             target_language?: string | null;
             /** Target Layer */
@@ -3168,11 +3168,13 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             /** Template Id */
             template_id: string;
             /** Template Revision */
             template_revision: number;
+            /** Variant */
+            variant?: string;
         };
         /** ProjectPromptLayerLock */
         ProjectPromptLayerLock: {
@@ -3191,7 +3193,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             /**
              * Updated At
              * Format: date-time
@@ -3212,7 +3214,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             /**
              * Updated At
              * Format: date-time
@@ -3266,7 +3268,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             /** Started At */
             started_at?: string | null;
             /**
@@ -3361,12 +3363,14 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             /**
              * Status
              * @enum {string}
              */
             status: "draft_only" | "proposal_ready";
+            /** Variant */
+            variant?: string | null;
         };
         /** PromptStarterDefinition */
         PromptStarterDefinition: {
@@ -3393,7 +3397,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             /** Template Id */
             template_id: string;
         };
@@ -3671,7 +3675,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             /** Visible Text */
             visible_text: string;
         };
@@ -3850,7 +3854,7 @@ export interface components {
              * Stage Id
              * @enum {string}
              */
-            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+            stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             /** Template Id */
             template_id?: string | null;
         };
@@ -7342,13 +7346,15 @@ export interface operations {
     };
     get_prompt_binding_api_v1_projects__project_id__prompt_lab_bindings__stage_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                variant?: string;
+            };
             header?: {
                 Authorization?: string | null;
             };
             path: {
                 project_id: string;
-                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             };
             cookie?: never;
         };
@@ -7376,13 +7382,15 @@ export interface operations {
     };
     save_prompt_binding_api_v1_projects__project_id__prompt_lab_bindings__stage_id__put: {
         parameters: {
-            query?: never;
+            query?: {
+                variant?: string;
+            };
             header?: {
                 Authorization?: string | null;
             };
             path: {
                 project_id: string;
-                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             };
             cookie?: never;
         };
@@ -7767,13 +7775,15 @@ export interface operations {
     };
     get_resolved_prompt_api_v1_projects__project_id__prompt_lab_resolved__stage_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                variant?: string;
+            };
             header?: {
                 Authorization?: string | null;
             };
             path: {
                 project_id: string;
-                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             };
             cookie?: never;
         };
@@ -7802,7 +7812,7 @@ export interface operations {
     list_prompt_templates_api_v1_projects__project_id__prompt_lab_templates_get: {
         parameters: {
             query: {
-                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script";
+                stage_id: "narrative_plan" | "visual_plan" | "caption_copy" | "story_assist" | "narration_script" | "style_script";
             };
             header?: {
                 Authorization?: string | null;

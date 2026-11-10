@@ -53,6 +53,8 @@ class ProjectPromptBindingRow(EditorBase):
 
     project_id: Mapped[str] = mapped_column(Text, primary_key=True)
     stage_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    #: Editor migration 0029: a style_script binding per style template; '' otherwise.
+    variant: Mapped[str] = mapped_column(Text, primary_key=True, default="")
     template_id: Mapped[str] = mapped_column(Text)
     template_revision: Mapped[int] = mapped_column(Integer)
     project_override: Mapped[str | None] = mapped_column(Text, nullable=True)

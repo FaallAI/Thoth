@@ -284,3 +284,22 @@ def test_repository_implements_the_application_seam() -> None:
         "save_binding",
     ):
         assert callable(getattr(PostgresPromptLabRepository, method))
+
+
+@needs_postgres
+async def test_a_style_binding_is_kept_per_variant_beside_a_plain_one(
+    prompts: PostgresPromptLabRepository,
+) -> None:
+    # Style templates (spec 2026-11-10): one style stage, its prompt kept per template.
+    await save(prompts, stage_id="style_script")
+    await prompts.save_binding(
+        project_id=PROJECT, stage_id="style_script", request=binding(), variant="style_a"
+    )
+    assert (
+        await prompts.get_binding(project_id=PROJECT, stage_id="style_script", variant="style_b")
+        is None
+    )
+    kept = await prompts.get_binding(project_id=PROJECT, stage_id="style_script", variant="style_a")
+    assert kept is not None and kept.variant == "style_a"
+    plain = await prompts.get_binding(project_id=PROJECT, stage_id="style_script")
+    assert plain is None

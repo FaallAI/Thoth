@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
 
-from thoth_control_plane.api.dependencies import current_actor
+from thoth_control_plane.api.dependencies import current_actor, current_principal
 from thoth_control_plane.application.ports import (
     PromptBindingNotFound,
     PromptBindingRevisionConflict,
@@ -20,6 +20,7 @@ from thoth_control_plane.application.prompt_lab import (
     PromptStageMismatch,
     PromptStageNotRegistered,
 )
+from thoth_control_plane.auth.models import Principal
 from thoth_control_plane.domain import Actor
 from thoth_control_plane.domain.prompts import (
     ProjectPromptBinding,
@@ -32,6 +33,8 @@ from thoth_control_plane.domain.prompts import (
 )
 
 router = APIRouter()
+#: A `style_script` binding's style template (spec 2026-11-10); '' for every other stage.
+Variant = Annotated[str, Query(max_length=128, pattern=r"^[A-Za-z0-9_-]*$")]
 
 _STAGE_ERRORS = (PromptStageMismatch, PromptStageNotRegistered)
 _NOT_FOUND_ERRORS = (PromptTemplateNotFound, PromptBindingNotFound)
@@ -62,10 +65,15 @@ def _stage_mismatch(error: PromptStageMismatch) -> HTTPException:
 
 @router.get("/prompt-stages", response_model=list[PromptStageDefinition])
 async def list_prompt_stages(
+    request: Request,
     _: Annotated[Actor, Depends(current_actor)],
+    principal: Annotated[Principal, Depends(current_principal)],
     service: Annotated[PromptLabService, Depends(get_prompt_lab_service)],
 ) -> list[PromptStageDefinition]:
-    return list(service.list_stages())
+    # Each style template's script prompt is its own entry (spec 2026-11-10).
+    templates = getattr(request.app.state, "style_templates", None)
+    styles = await templates.list_for(principal.workspace_id) if templates is not None else []
+    return list(service.list_stages(styles=styles))
 
 
 @router.get(
@@ -119,9 +127,10 @@ async def get_prompt_binding(
     stage_id: PromptStageId,
     _: Annotated[Actor, Depends(current_actor)],
     service: Annotated[PromptLabService, Depends(get_prompt_lab_service)],
+    variant: Variant = "",
 ) -> ProjectPromptBinding:
     try:
-        binding = await service.get_binding(project_id, stage_id)
+        binding = await service.get_binding(project_id, stage_id, variant=variant)
     except PromptStageNotRegistered as error:
         raise _not_found(error) from error
     except PromptLabStoreUnavailable as error:
@@ -142,9 +151,10 @@ async def save_prompt_binding(
     request: SaveProjectPromptBindingRequest,
     _: Annotated[Actor, Depends(current_actor)],
     service: Annotated[PromptLabService, Depends(get_prompt_lab_service)],
+    variant: Variant = "",
 ) -> ProjectPromptBinding | JSONResponse:
     try:
-        return await service.save_binding(project_id, stage_id, request)
+        return await service.save_binding(project_id, stage_id, request, variant=variant)
     except PromptBindingRevisionConflict as error:
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT, content=error.latest.model_dump(mode="json")
@@ -166,9 +176,10 @@ async def get_resolved_prompt(
     stage_id: PromptStageId,
     _: Annotated[Actor, Depends(current_actor)],
     service: Annotated[PromptLabService, Depends(get_prompt_lab_service)],
+    variant: Variant = "",
 ) -> ResolvedPromptDraft:
     try:
-        return await service.get_resolved_prompt(project_id, stage_id)
+        return await service.get_resolved_prompt(project_id, stage_id, variant=variant)
     except _NOT_FOUND_ERRORS as error:
         raise _not_found(error) from error
     except _STAGE_ERRORS as error:

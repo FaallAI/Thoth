@@ -1609,7 +1609,8 @@
               "visual_plan",
               "caption_copy",
               "story_assist",
-              "narration_script"
+              "narration_script",
+              "style_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -4117,7 +4118,8 @@
               "visual_plan",
               "caption_copy",
               "story_assist",
-              "narration_script"
+              "narration_script",
+              "style_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -4131,6 +4133,10 @@
             "exclusiveMinimum": 0.0,
             "title": "Template Revision",
             "type": "integer"
+          },
+          "variant": {
+            "title": "Variant",
+            "type": "string"
           }
         },
         "required": [
@@ -4174,7 +4180,8 @@
               "visual_plan",
               "caption_copy",
               "story_assist",
-              "narration_script"
+              "narration_script",
+              "style_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -4225,7 +4232,8 @@
               "visual_plan",
               "caption_copy",
               "story_assist",
-              "narration_script"
+              "narration_script",
+              "style_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -4389,7 +4397,8 @@
               "visual_plan",
               "caption_copy",
               "story_assist",
-              "narration_script"
+              "narration_script",
+              "style_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -4692,7 +4701,8 @@
               "visual_plan",
               "caption_copy",
               "story_assist",
-              "narration_script"
+              "narration_script",
+              "style_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -4704,6 +4714,18 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "variant": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variant"
           }
         },
         "required": [
@@ -4779,7 +4801,8 @@
               "visual_plan",
               "caption_copy",
               "story_assist",
-              "narration_script"
+              "narration_script",
+              "style_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -5554,7 +5577,8 @@
               "visual_plan",
               "caption_copy",
               "story_assist",
-              "narration_script"
+              "narration_script",
+              "style_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -6047,7 +6071,8 @@
               "visual_plan",
               "caption_copy",
               "story_assist",
-              "narration_script"
+              "narration_script",
+              "style_script"
             ],
             "title": "Stage Id",
             "type": "string"
@@ -14459,9 +14484,22 @@
                 "visual_plan",
                 "caption_copy",
                 "story_assist",
-                "narration_script"
+                "narration_script",
+                "style_script"
               ],
               "title": "Stage Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "variant",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]*$",
+              "title": "Variant",
               "type": "string"
             }
           },
@@ -14528,9 +14566,22 @@
                 "visual_plan",
                 "caption_copy",
                 "story_assist",
-                "narration_script"
+                "narration_script",
+                "style_script"
               ],
               "title": "Stage Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "variant",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]*$",
+              "title": "Variant",
               "type": "string"
             }
           },
@@ -15290,9 +15341,22 @@
                 "visual_plan",
                 "caption_copy",
                 "story_assist",
-                "narration_script"
+                "narration_script",
+                "style_script"
               ],
               "title": "Stage Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "variant",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]*$",
+              "title": "Variant",
               "type": "string"
             }
           },
@@ -15361,7 +15425,8 @@
                 "visual_plan",
                 "caption_copy",
                 "story_assist",
-                "narration_script"
+                "narration_script",
+                "style_script"
               ],
               "title": "Stage Id",
               "type": "string"
