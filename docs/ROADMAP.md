@@ -154,6 +154,8 @@ The Studio full-width timeline (a resizable bottom row, the player bar under the
 
 The Studio effects layer (moves, blur-fill, dim, marks, kinetic and boxed captions, the card place) is built on `feat/studio-effects-layer`, not pushed. Its `effects-v1` golden set waits for the operator's approval.
 
+Style templates (Style template track step 1: the template schema with built-in Style A and Style B, applied in Studio with a cut preview before any voice) are built on `feat/style-templates`, stacked on PR #127, not pushed.
+
 The red tests are `e2e/tests-write/timeline-audit.e2e.ts`. The Studio shell v2 spec
 (2026-11-01) lists ripple delete as an existing tool, but git history shows no delete control in
 the Timeline, toolbar or Inspector, so it counts as new work here.

@@ -2,6 +2,61 @@
 
 All notable changes to this project will be documented in this changelog.
 
+## 2026-11-10 - Style templates: Style A and Style B as data
+
+Branch `feat/style-templates`, stacked on `feat/studio-effects-layer` (PR #127, not yet merged).
+- **Spec:** `docs/superpowers/specs/2026-11-10-style-templates-design.md`, approved by the operator on 2026-11-10.
+- **Plan:** `docs/superpowers/plans/2026-11-10-style-templates.md`.
+- **Execution:** done natively.
+
+**What changed.** A style is now data, not code. A style template holds:
+- a look per Story beat: move, blur-fill, dim, card emphasis and heading place;
+- cut rules: the longest shot, cuts on sentence ends, materials taking turns, and cards between facts;
+- a caption style;
+- how the narration speaks: its own script prompt, target length, SFX count, and card lines.
+
+Style A (IsseiNugroho) and Style B (WinNews) are the two built-in templates. Choosing one in Studio's new **Style** control:
+- asks first, saying the cuts, look and hand edits are replaced and that no voice is made before an approval with its cost;
+- rebuilds the draft from its own materials as one revision: full-frame picture clips become the style's shots, positioned cards keep their place and take the look, and locked or hidden clips, narration, music, SFX and clips with no beat stay;
+- starts a new narration whose script is written in the style.
+
+While that script waits for approval, the preview plays a **cut preview**: the draft as the style will cut it, using timing estimated from the script, and nothing is saved. After approval, the voice's real sentence ends place the saved cuts, and the main video's new shots duck under the voice as before.
+
+**Undo and narration.** One Undo restores the draft from before the style. A plain restore is refused while a narration runs, so a style's Undo has its own route. That route stops the style's narration first, but only before any voice is made. Once the voice is being made, it waits.
+
+**Prompt Lab.** Each style's script prompt is one `style_script` stage. Its project binding is kept per style template (`variant`), so a copied style later needs no code change. The style stages are listed in Prompt Lab as "Style A script" and "Style B script". The model is the narration script's own.
+
+**Storage.** Migrations 0028 and 0029:
+- add `style_templates` for a workspace's own templates (none exist until the style editor);
+- add the `style_script` stage;
+- give the bindings a `variant` key.
+
+The built-in styles come from code. A draft records its style in an optional `style` field, left out when unset, so rollbacks stay safe for drafts without a style.
+
+**Verification.**
+- **Python:** `make test` gives 4828 passed and 228 skipped. `make test-postgres` gives 208 passed. Lint is clean.
+- **Dashboard:** 1994 tests pass, plus 47 in the e2e package. `tsc -b` and the build are clean.
+- **Renderer and composition:** 262 tests pass.
+- **Read-only e2e against a local dev server of this branch, at 1440:** the 41 existing checks pass.
+- **The new Style check fails there, as expected:** the dev server reaches stage1's API, which answers 404 for `/styles` until this branch is deployed. It runs after the deploy.
+- **The write checks** (`e2e/tests-write/styles.e2e.ts`) are written but not run.
+- **No paid call was made.** Providers are stubbed in tests.
+
+**Next steps** (each its own gate):
+- merge PR #127 first, then push this branch and open its PR;
+- deploy it to stage1;
+- the read-only Style check, the write e2e, and screenshots of the confirmation and a styled draft;
+- the operator tries it on one real narrated draft (a paid voice only when they approve a script);
+- merge.
+
+After that come the style editor, Style B's material flow (a news photo of each person named), and the planner (content-aware cuts, punch-ins and marks).
+
+**Carried forward:**
+- the final whole-branch review of this branch;
+- kinetic captions and a Middle heading share mid-frame;
+- the 8 deferred minors of the effects layer;
+- the understand-anything graph needs `/understand --full`.
+
 ## 2026-11-10 - Studio effects layer
 
 Branch `feat/studio-effects-layer` from master `4971b458` (PR #126 merged; PR #125 merged as `ff4d1004` before it).
