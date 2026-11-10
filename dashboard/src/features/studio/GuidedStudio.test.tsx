@@ -1353,7 +1353,7 @@ test("at most two glances are asked for at a time", async () => {
 });
 
 // Style templates (spec 2026-11-10): applying a style, undoing it, and its cut preview.
-test("a style is applied from the header and one Undo undoes it through the style", async () => {
+test("a style is applied from the header, one Undo undoes it and Redo applies it again", async () => {
   const { timelineDocument } = await import("./timeline-test-fixtures");
   const { GuidedStudio } = await import("./GuidedStudio");
   const { StudioImportRequestError } = await import("@/api/control-plane");
@@ -1393,6 +1393,16 @@ test("a style is applied from the header and one Undo undoes it through the styl
   expect(undoStyle).toHaveBeenCalledWith("project_001", "document_002", {
     base_revision: document.revision + 1,
     revision: document.revision,
+  });
+  // Deferred minor (2026-11-10): Redo goes through the style again, so its narration starts.
+  const redo = screen.getByRole("button", { name: "Redo" }) as HTMLButtonElement;
+  await waitFor(() => expect(redo.disabled).toBe(false));
+  await act(async () => {
+    fireEvent.click(redo);
+  });
+  expect(client.applyStyle).toHaveBeenLastCalledWith("project_001", "document_002", {
+    template_id: "style_a",
+    base_revision: document.revision + 2,
   });
   expect(restoreEditDocument).not.toHaveBeenCalled();
 });

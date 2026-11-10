@@ -689,6 +689,24 @@ function Editor({ client, projectId, documentId, documentTitle, projectName, wor
    * style's undo goes through the style, which also stops its narration (spec 2026-11-10). */
   const restoreRevision = (direction: "undo" | "redo") => {
     const goal = restoreTarget(state, direction);
+    if (goal?.template && client.applyStyle && !restoring) {
+      const requestGeneration = generation.current;
+      setRestoring(true);
+      setRestoreFailed(false);
+      void client
+        .applyStyle(projectId, documentId, { template_id: goal.template, base_revision: base.revision })
+        .then((result) => {
+          if (requestGeneration !== generation.current) return;
+          dispatch({ type: "style_applied", document: result.document, previousRevision: result.previous_revision });
+          if (result.narration) {
+            setNarration(result.narration);
+            setShowScript(true);
+          }
+        })
+        .catch(() => setRestoreFailed(true))
+        .finally(() => setRestoring(false));
+      return;
+    }
     const target = goal?.revision;
     const restore = goal?.style && client.undoStyle ? client.undoStyle : client.restoreEditDocument;
     if (target === undefined || !restore || restoring) return;

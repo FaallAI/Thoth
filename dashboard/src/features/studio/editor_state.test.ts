@@ -1097,3 +1097,12 @@ test("a style applied is one saved undo step, marked as the style's", () => {
   expect(restoreTarget(next, "undo")).toEqual({ revision: before.revision, style: true });
   expect(restoreTarget(state, "undo")).toBeNull();
 });
+
+test("after a style's undo, its redo applies the style again", () => {
+  // Deferred minor (2026-11-10): a plain restore would bring the style back without its narration.
+  const before = upgradedTextDocument();
+  const styled = { ...before, revision: before.revision + 1, style: { template_id: "style_b", revision: 1 } };
+  const applied = editorReducer(createEditorState(before, {}), { type: "style_applied", document: styled, previousRevision: before.revision });
+  const undone = editorReducer(applied, { type: "restored", document: { ...before, revision: before.revision + 2 }, direction: "undo" });
+  expect(restoreTarget(undone, "redo")).toEqual({ revision: styled.revision, style: true, template: "style_b" });
+});

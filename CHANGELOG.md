@@ -30,12 +30,19 @@ While that script waits for approval, the preview plays a **cut preview**: the d
 
 **Prompt Lab.** Each style's script prompt is one `style_script` stage. Its project binding is kept per style template (`variant`), so a copied style later needs no code change. The style stages are listed in Prompt Lab as "Style A script" and "Style B script". The model is the narration script's own.
 
-**Storage.** Migrations 0028 and 0029:
-- add `style_templates` for a workspace's own templates (none exist until the style editor);
+**Storage.** Migrations 0028, 0029 and 0030:
+- add `style_templates` for a workspace's own templates, keyed by workspace (none exist until the style editor);
 - add the `style_script` stage;
-- give the bindings a `variant` key.
+- give the bindings a `variant` key, `''` for every existing binding;
+- give each narration a `previous` copy, for a style's undo, and `intro_frames`, for a styled draft's cut preview.
 
-The built-in styles come from code. A draft records its style in an optional `style` field, left out when unset, so rollbacks stay safe for drafts without a style.
+The built-in styles come from code. A draft records its style in an optional `style` field, left out when unset.
+
+**Rollback note.**
+- Older images never read the new table or columns, so the migrations may stay. Roll back by restoring the pins and `compose up`, never `make deploy` with old pins.
+- A styled draft will not open on older images. Its `style` field, and a style shot's held last frame, are unknown there.
+- A narration whose script has card lines (every Style B script) will not load there either.
+- Drafts and narrations that never used a style stay safe.
 
 **Final review, by a fresh reviewer: 2 Critical, 5 Important, 14 Minor.** Five Minors were re-graded Important. Every fix was test-first:
 - **Subtitle blur.** A style dropped the main video's subtitle blur. Shots now keep their source's blur and crop.
@@ -55,7 +62,6 @@ The built-in styles come from code. A draft records its style in an optional `st
 - Prompt Lab's variant check is loose, and its fallback logs no warning.
 - The advisory lock key drifted.
 - `style_templates` needs `workspace_id` in its key before the editor slice.
-- The rollback notes omit styled drafts.
 - Redo after a style's undo does not restart its narration.
 
 **Verification.**

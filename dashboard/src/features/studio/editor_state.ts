@@ -54,6 +54,8 @@ export type EditorState = EditorSnapshot & {
   savedRedo: number[];
   /** Saved revisions that undo a style (spec 2026-11-10); undone through the style route. */
   styleUndos?: number[];
+  /** Styled revisions a style's undo left behind, by template: Redo applies the style again. */
+  styleRedos?: Record<number, string>;
   saveStatus: EditorSaveStatus;
   /** The failed save was refused by the document's rules, so retrying it cannot help. */
   saveRefused: boolean;
@@ -608,7 +610,10 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
     case "restored": {
       const saved = createEditorState(action.document, state.assets);
       const undoing = action.direction === "undo";
+      const styled = "style" in state.base ? state.base.style?.template_id : undefined;
+      const styleUndo = undoing && styled && (state.styleUndos ?? []).includes(state.savedUndo.at(-1) ?? -1);
       return {
+        ...(styleUndo ? { styleRedos: { ...state.styleRedos, [state.base.revision]: styled } } : {}),
         ...saved,
         ...sessionAfterSave(state, action.document, saved),
         isOffline: state.isOffline,
@@ -775,8 +780,13 @@ export function toEditDocumentPatch(
 export function restoreTarget(
   state: EditorState,
   direction: "undo" | "redo",
-): { revision: number; style: boolean } | null {
+): { revision: number; style: boolean; template?: string } | null {
   const revision = direction === "undo" ? state.savedUndo.at(-1) : state.savedRedo[0];
   if (revision === undefined) return null;
-  return { revision, style: direction === "undo" && (state.styleUndos ?? []).includes(revision) };
+  if (direction === "redo") {
+    // A style's redo applies the style again, so its narration starts too (2026-11-10).
+    const template = state.styleRedos?.[revision];
+    return template ? { revision, style: true, template } : { revision, style: false };
+  }
+  return { revision, style: (state.styleUndos ?? []).includes(revision) };
 }
