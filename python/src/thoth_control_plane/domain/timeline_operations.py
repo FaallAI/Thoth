@@ -102,6 +102,8 @@ class AddClipFromAsset(StrictModel):
     blur_regions: Annotated[list[ClipBlurRegion], Field(max_length=20)] | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
+    #: A style's shot of a movie that has run out holds its last frame.
+    hold_after_source: bool | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class ReorderScene(StrictModel):
@@ -782,6 +784,8 @@ def _add_clip_from_asset(
             layout["blur_enabled"] = operation.blur_enabled
         if operation.blur_regions is not None:
             layout["blur_regions"] = [region.model_copy() for region in operation.blur_regions]
+        if operation.hold_after_source is not None:
+            layout["hold_after_source"] = operation.hold_after_source
         clip = TimelineVideoClip(kind="video", position=operation.position, **layout, **fields)
     clip.source_role = operation.source_role
     document.clips.append(clip)

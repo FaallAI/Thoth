@@ -333,6 +333,7 @@ def test_timeline_operations_carry_no_locator_field_in_their_schema() -> None:
         "background",
         "blur_enabled",
         "blur_regions",
+        "hold_after_source",
     }
 
 

@@ -73,3 +73,14 @@ def test_cards_sit_between_facts() -> None:
 
 def test_no_sources_gives_no_shots() -> None:
     assert plan_shots(0, 100, [], rules(3.0), FPS) == []
+
+
+def test_a_single_movie_that_runs_out_holds_its_last_frame() -> None:
+    # Deferred minor (2026-11-10): one main video holds its last frame, as narration does,
+    # instead of starting again from its first frame.
+    short = ShotSource(asset_id="asset_short", kind="video", source_from_frame=0, source_frames=40)
+    shots = plan_shots(0, 200, [short], rules(3.0), FPS)
+    assert sum(shot.duration for shot in shots) == 200
+    # The first shot plays the movie out and holds; later shots hold its last frame.
+    assert [s.source_from_frame for s in shots] == [0] + [39] * (len(shots) - 1)
+    assert all(s.hold for s in shots)

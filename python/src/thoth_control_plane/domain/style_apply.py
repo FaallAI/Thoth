@@ -289,6 +289,7 @@ def style_operations(
                             # The subtitle blur sits in source frames, so every shot keeps it.
                             blur_enabled=source_clip.blur_enabled if blurred else None,
                             blur_regions=list(source_clip.blur_regions) if blurred else None,
+                            hold_after_source=True if shot.hold else None,
                         )
                     )
                     if source_clip.crop is not None:

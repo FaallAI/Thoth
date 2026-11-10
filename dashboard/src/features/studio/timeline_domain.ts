@@ -725,6 +725,7 @@ function addClipFromAsset(
           // A style's shot keeps its source clip's subtitle blur (spec 2026-11-10).
           ...(operation.blur_enabled != null ? { blur_enabled: operation.blur_enabled } : {}),
           ...(operation.blur_regions ? { blur_regions: operation.blur_regions.map((region) => ({ ...region })) } : {}),
+          ...(operation.hold_after_source != null ? { hold_after_source: operation.hold_after_source } : {}),
         },
   ];
   target.clip_ids = [...(target.clip_ids ?? []), operation.clip_id];

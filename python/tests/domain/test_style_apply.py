@@ -231,3 +231,16 @@ def test_a_tall_card_scrolls_in_style_a() -> None:
         and c.source_role == "comment_card"
     ]
     assert cards and all(c.moves and c.moves[0].y == 0.3 for c in cards)
+
+
+def test_a_short_main_video_holds_its_last_frame_under_the_style() -> None:
+    # Deferred minor (2026-11-10): no restart from the first frame under later beats.
+    data = payload()
+    main = next(c for c in data["clips"] if c["clip_id"] == "clip_main")
+    asset = next(a for a in data["asset_refs"] if a["asset_id"] == main["asset_id"])
+    asset["duration_in_frames"] = 120
+    main["hold_after_source"] = True
+    shots = sorted(_main_shots(styled(narrated(data))), key=lambda c: c.from_frame)
+    starts = [s.source_from_frame for s in shots]
+    assert starts == sorted(starts)  # never back to an earlier frame
+    assert shots[-1].hold_after_source

@@ -33,6 +33,8 @@ class Shot:
     #: None is a card-line slot.
     source: ShotSource | None
     source_from_frame: int = 0
+    #: Past the source's last frame, hold it (one movie that has run out).
+    hold: bool = False
 
 
 def _boundaries(
@@ -134,6 +136,13 @@ def plan_shots(
         while remaining > 0:
             order = [(turn + offset) % len(sources) for offset in range(len(sources))]
             chosen = next((index for index in order if left(index) >= remaining), None)
+            only = sources[0]
+            if chosen is None and len(sources) == 1 and only.source_frames is not None:
+                # One movie plays out, then holds its last frame, as narration does.
+                start_at = min(cursor[0], only.source_frames - 1)
+                shots.append(Shot(position, remaining, only, start_at, hold=True))
+                cursor[0] = only.source_frames
+                break
             if chosen is None:
                 # Every movie has run out: start them again, then take what the longest can give.
                 for index, source in enumerate(sources):

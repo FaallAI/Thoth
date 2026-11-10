@@ -251,6 +251,17 @@
             "title": "From Frame",
             "type": "integer"
           },
+          "hold_after_source": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hold After Source"
+          },
           "kind": {
             "const": "add_clip_from_asset",
             "title": "Kind",

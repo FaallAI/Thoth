@@ -1862,6 +1862,8 @@ export interface components {
             fit?: ("cover" | "contain" | "fill") | null;
             /** From Frame */
             from_frame: number;
+            /** Hold After Source */
+            hold_after_source?: boolean | null;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}

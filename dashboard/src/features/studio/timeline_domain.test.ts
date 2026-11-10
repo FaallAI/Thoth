@@ -1228,3 +1228,24 @@ test("set_document_style records and clears the draft's style", () => {
   const cleared = applyTimelineOperation(styled, { kind: "set_document_style", operation_id: "op_clear", style: null } as never, {});
   expect(cleared.style ?? null).toBeNull();
 });
+
+test("a style's shot of a movie that ran out holds its last frame", () => {
+  // Deferred minor (2026-11-10): mirrors the server's add_clip_from_asset hold.
+  const added = applyTimelineOperation(
+    documentV2(),
+    {
+      kind: "add_clip_from_asset",
+      operation_id: "op_hold",
+      track_id: "track_main",
+      clip_id: "clip_held",
+      asset_id: "asset_new",
+      from_frame: 0,
+      duration_in_frames: 60,
+      source_from_frame: 0,
+      hold_after_source: true,
+    },
+    { asset_new: READY_ASSET },
+  );
+  const held = added.clips!.find((clip) => clip.clip_id === "clip_held");
+  expect(held && "hold_after_source" in held && held.hold_after_source).toBe(true);
+});
