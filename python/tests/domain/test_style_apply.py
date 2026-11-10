@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from tests.assembly.test_narration_timeline import PRESET, ROLES, VOICES, draft, payload
+from tests.domain.test_timeline_operations import op
 from thoth_control_plane.assembly.narration_timeline import narrate_document
 from thoth_control_plane.domain.edit_document_operations import apply_edit_operations
 from thoth_control_plane.domain.edit_document_v2 import (
@@ -127,3 +128,106 @@ def test_b_after_a_gives_the_same_as_b_alone() -> None:
     alone = styled(narrated(), B)
     after_a = styled(styled(narrated()), B)
     assert picture(after_a) == picture(alone)
+
+
+# Final review fixes (2026-11-10).
+def _main_shots(document: EditDocumentV2) -> list[TimelineVideoClip]:
+    main = {t.track_id for t in document.tracks if t.kind == "main_video"}
+    return [c for c in document.clips if isinstance(c, TimelineVideoClip) and c.track_id in main]
+
+
+def test_a_style_keeps_the_main_videos_subtitle_blur() -> None:
+    data = payload()
+    main = next(c for c in data["clips"] if c["clip_id"] == "clip_main")
+    main["blur_enabled"] = True
+    main["blur_regions"] = [{"x": 0.1, "y": 0.65, "w": 0.8, "h": 0.09}]
+    shots = [c for c in _main_shots(styled(narrated(data))) if not c.hidden]
+    assert len(shots) > 1
+    assert all(s.blur_enabled and [r.y for r in s.blur_regions] == [0.65] for s in shots)
+
+
+def test_a_hidden_middle_shot_is_built_around() -> None:
+    once = styled(narrated())
+    middle = sorted(_main_shots(once), key=lambda c: c.from_frame)[1]
+    hidden = apply_edit_operations(
+        once,
+        [op("set_clip_hidden", operation_id="op_hide", clip_id=middle.clip_id, hidden=True)],
+    )
+    again = styled(hidden)
+    assert next(c for c in again.clips if c.clip_id == middle.clip_id) == next(
+        c for c in hidden.clips if c.clip_id == middle.clip_id
+    )
+    renarrated = narrate_document(hidden, VOICES, [], PRESET, ROLES, style=A)
+    assert renarrated.style is not None
+
+
+def test_a_locked_middle_shot_is_built_around() -> None:
+    once = styled(narrated())
+    middle = sorted(_main_shots(once), key=lambda c: c.from_frame)[1]
+    locked = apply_edit_operations(
+        once,
+        [op("set_clip_locked", operation_id="op_lock", clip_id=middle.clip_id, locked=True)],
+    )
+    again = styled(locked, B)
+    assert next(c for c in again.clips if c.clip_id == middle.clip_id) == next(
+        c for c in locked.clips if c.clip_id == middle.clip_id
+    )
+
+
+def _cards(document: EditDocumentV2) -> list[TimelineTextClip]:
+    return [c for c in document.clips if isinstance(c, TimelineTextClip) and c.style_slot == "card"]
+
+
+def test_cards_are_replaced_not_piled_up() -> None:
+    lines = {"hook": "Kok bisa ya?", "reactions": "Serius nih?"}
+    once = styled(narrated(), B, card_lines=lines)
+    twice = styled(once, B, card_lines=lines)
+    assert sorted(c.heading for c in _cards(twice)) == sorted(lines.values())
+    assert _cards(styled(twice, A)) == []
+
+
+def test_switching_styles_resets_every_look() -> None:
+    def looks(document: EditDocumentV2) -> list[tuple[Any, ...]]:
+        return sorted(
+            (
+                c.clip_id,
+                c.dim,
+                c.emphasis.highlight,
+                c.emphasis.arrow,
+                tuple(m.frame for m in c.moves),
+            )
+            for c in document.clips
+            if isinstance(c, TimelineVideoClip) and c.position is not None
+        )
+
+    assert looks(styled(styled(narrated(), A), B)) == looks(styled(narrated(), B))
+    assert looks(styled(styled(narrated(), B), A)) == looks(styled(narrated(), A))
+
+
+def test_the_main_video_cuts_on_every_beats_sentence_ends() -> None:
+    document = narrated()
+    reactions = next(
+        s
+        for s in __import__(
+            "thoth_control_plane.domain.story_beats", fromlist=["beat_spans"]
+        ).beat_spans(document, ROLES)
+        if s.beat == "reactions"
+    )
+    end = reactions.start_frame + 40
+    after = styled(document, sentence_ends={"reactions": [end]})
+    assert end in {c.from_frame for c in _main_shots(after)}
+
+
+def test_a_tall_card_scrolls_in_style_a() -> None:
+    data = payload()
+    card = next(a for a in data["asset_refs"] if a["asset_id"] == "asset_card_a")
+    card["height"] = 4000
+    after = styled(narrated(data))
+    cards = [
+        c
+        for c in after.clips
+        if isinstance(c, TimelineVideoClip)
+        and c.position is not None
+        and c.source_role == "comment_card"
+    ]
+    assert cards and all(c.moves and c.moves[0].y == 0.3 for c in cards)

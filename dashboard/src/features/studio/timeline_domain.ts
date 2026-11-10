@@ -722,6 +722,9 @@ function addClipFromAsset(
           hold_after_source: false,
           emphasis: { highlight: false, arrow: false },
           ...(operation.background ? { background: operation.background } : {}),
+          // A style's shot keeps its source clip's subtitle blur (spec 2026-11-10).
+          ...(operation.blur_enabled != null ? { blur_enabled: operation.blur_enabled } : {}),
+          ...(operation.blur_regions ? { blur_regions: operation.blur_regions.map((region) => ({ ...region })) } : {}),
         },
   ];
   target.clip_ids = [...(target.clip_ids ?? []), operation.clip_id];

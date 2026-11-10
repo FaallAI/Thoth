@@ -194,6 +194,32 @@
             ],
             "title": "Background"
           },
+          "blur_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blur Enabled"
+          },
+          "blur_regions": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ClipBlurRegion"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blur Regions"
+          },
           "clip_id": {
             "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$",
             "title": "Clip Id",

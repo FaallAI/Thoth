@@ -22,6 +22,8 @@ HeadingPlace = Literal["title_top", "title", "title_lower", "card"]
 class BeatLook(StrictModel):
     use: bool = True
     move: MovePreset = "none"
+    #: The move for a picture taller than the canvas, a long post or card (spec 5); none: `move`.
+    tall_move: MovePreset | None = None
     background: Background = "none"
     dim: Dim = 0.0
     highlight: bool = False
@@ -103,9 +105,9 @@ def _a() -> StyleTemplate:
         origin="built_in",
         beats={
             "hook": moving.model_copy(update={"heading_place": "title_top"}),
-            "main": moving,
+            "main": moving.model_copy(update={"tall_move": "pan_across"}),
             "evidence": moving.model_copy(update={"highlight": True, "arrow": True}),
-            "reactions": moving,
+            "reactions": moving.model_copy(update={"tall_move": "scroll_down"}),
             "footage": moving,
             "outro": moving,
         },

@@ -24,6 +24,7 @@ from thoth_control_plane.domain.edit_document_v2 import (
     Background,
     CaptionCue,
     CaptionStyle,
+    ClipBlurRegion,
     Crop,
     Dim,
     EditDocumentV2,
@@ -96,6 +97,11 @@ class AddClipFromAsset(StrictModel):
     source_role: StoryRole | None = None
     #: Blur-fill for full-frame media of another shape (spec 2026-11-09, 3.8).
     background: Background | None = Field(default=None, exclude_if=lambda value: value is None)
+    #: A style's shot keeps its source clip's subtitle blur, in source frames (spec 2026-11-10).
+    blur_enabled: bool | None = Field(default=None, exclude_if=lambda value: value is None)
+    blur_regions: Annotated[list[ClipBlurRegion], Field(max_length=20)] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
 
 class ReorderScene(StrictModel):
@@ -772,6 +778,10 @@ def _add_clip_from_asset(
         layout: dict[str, object] = {"fit": operation.fit} if operation.fit is not None else {}
         if operation.background is not None:
             layout["background"] = operation.background
+        if operation.blur_enabled is not None:
+            layout["blur_enabled"] = operation.blur_enabled
+        if operation.blur_regions is not None:
+            layout["blur_regions"] = [region.model_copy() for region in operation.blur_regions]
         clip = TimelineVideoClip(kind="video", position=operation.position, **layout, **fields)
     clip.source_role = operation.source_role
     document.clips.append(clip)

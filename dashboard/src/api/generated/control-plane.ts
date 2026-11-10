@@ -1850,6 +1850,10 @@ export interface components {
             asset_id: string;
             /** Background */
             background?: ("none" | "blur_fill") | null;
+            /** Blur Enabled */
+            blur_enabled?: boolean | null;
+            /** Blur Regions */
+            blur_regions?: components["schemas"]["ClipBlurRegion"][] | null;
             /** Clip Id */
             clip_id: string;
             /** Duration In Frames */
