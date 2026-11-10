@@ -297,3 +297,41 @@ def test_a_beat_the_model_leaves_empty_is_dropped_not_fatal() -> None:
         answer(beats=beats), beats=BEATS, preset=NarrationPreset(), sfx_ids={"whoosh"}
     )  # type: ignore[arg-type]
     assert [beat.beat for beat in script.beats] == ["hook", "reactions"]
+
+
+# Style templates (spec 2026-11-10): a style may ask for one short card line per beat.
+def _request(**changes: object) -> tuple[str, str]:
+    return build_script_request(
+        prompt="Tulis naskah.",
+        beats=BEATS,  # type: ignore[arg-type]
+        facts=FACTS,
+        transcript=TRANSCRIPT,
+        preset=NarrationPreset(),
+        sfx=[],
+        **changes,  # type: ignore[arg-type]
+    )
+
+
+def test_a_style_b_script_asks_for_card_lines() -> None:
+    plain_system, plain_user = _request()
+    system, user = _request(card_lines=True, card_line_max_words=6)
+    assert "card_line" not in plain_system + plain_user
+    assert "card_line" in system and "6 words" in user
+
+
+def test_an_old_script_without_card_lines_still_parses() -> None:
+    script = parse_script(
+        answer(), beats=BEATS, preset=NarrationPreset(), sfx_ids={"whoosh"}, card_line_max_words=6
+    )  # type: ignore[arg-type]
+    assert all(beat.card_line is None for beat in script.beats)
+    assert "card_line" not in script.model_dump()["beats"][0]
+
+
+def test_a_card_line_is_kept_and_a_too_long_one_dropped() -> None:
+    value = answer()
+    value["beats"][0]["card_line"] = "Kok bisa ya?"  # type: ignore[index]
+    value["beats"][1]["card_line"] = "satu dua tiga empat lima enam tujuh"  # type: ignore[index]
+    script = parse_script(
+        value, beats=BEATS, preset=NarrationPreset(), sfx_ids={"whoosh"}, card_line_max_words=6
+    )  # type: ignore[arg-type]
+    assert [beat.card_line for beat in script.beats] == ["Kok bisa ya?", None, None]

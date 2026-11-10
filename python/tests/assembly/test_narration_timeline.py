@@ -532,3 +532,67 @@ def test_retime_stretches_moves() -> None:
     retimed = clip(document, "clip_main")
     new = retimed.duration_in_frames
     assert [move.frame for move in retimed.moves] == [0, min((old - 1) * new // old, new - 1)]
+
+
+# Style templates (spec 2026-11-10): the narration writes captions and cuts in the draft's style.
+def test_sentence_ends_come_from_the_voice() -> None:
+    from thoth_control_plane.assembly.narration_timeline import sentence_ends
+
+    timed = [
+        WordTiming(text="Satu", start_seconds=0.0, end_seconds=0.4),
+        WordTiming(text="dua.", start_seconds=0.5, end_seconds=1.0),
+        WordTiming(text="Tiga", start_seconds=1.2, end_seconds=1.5),
+        WordTiming(text="empat?", start_seconds=1.6, end_seconds=2.0),
+    ]
+    assert sentence_ends(timed, 100, 30) == [130, 160]
+
+
+def test_a_styled_narration_uses_the_style_caption_and_cuts() -> None:
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    b = BUILT_IN_STYLES["style_b"]
+    styled = narrate_document(draft(), VOICES, [], PRESET, ROLES, style=b)
+    captions = [c for c in styled.clips if isinstance(c, TimelineCaptionClip)]
+    assert captions and {c.style_slot for c in captions} == {"kinetic"}
+    assert styled.style is not None and styled.style.template_id == "style_b"
+    shots = [
+        c
+        for c in styled.clips
+        if isinstance(c, TimelineVideoClip) and c.clip_id.startswith("clip_style_")
+    ]
+    assert shots and all(c.duration_in_frames <= 120 for c in shots)
+
+
+def test_a_styled_narration_cuts_on_real_sentence_ends() -> None:
+    from thoth_control_plane.assembly.narration_timeline import sentence_ends
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    text = "satu dua tiga. empat lima enam."
+    two = [voiced("hook", 2.0), voiced("main", 6.0, text), voiced("reactions", 4.0)]
+    styled = narrate_document(draft(), two, [], PRESET, ROLES, style=BUILT_IN_STYLES["style_a"])
+    main_voice = clip(styled, "clip_narration_main")
+    ends = sentence_ends(words(text, 6.0), main_voice.from_frame, FPS)
+    starts = {
+        c.from_frame
+        for c in styled.clips
+        if isinstance(c, TimelineVideoClip) and c.clip_id.startswith("clip_style_main")
+    }
+    # A cut falls on the latest sentence end a shot can reach (spec 2026-11-10, 4).
+    assert set(ends) & starts
+
+
+def test_a_styled_narration_places_the_card_lines() -> None:
+    from thoth_control_plane.domain.edit_document_v2 import TimelineTextClip
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    styled = narrate_document(
+        draft(),
+        VOICES,
+        [],
+        PRESET,
+        ROLES,
+        style=BUILT_IN_STYLES["style_b"],
+        card_lines={"hook": "Kok bisa ya?"},
+    )
+    cards = [c for c in styled.clips if isinstance(c, TimelineTextClip) and c.style_slot == "card"]
+    assert [c.heading for c in cards] == ["Kok bisa ya?"]

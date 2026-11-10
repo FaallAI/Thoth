@@ -34,6 +34,8 @@ ANSWER_CONTRACT = (
     'a beat id, "moment": why it plays, "word_index": the 0-based word of that beat\'s text it '
     "lands on}]}. Write every listed beat once, in order."
 )
+#: Added when the draft's style shows narrator cards (spec 2026-11-10).
+CARD_CONTRACT = 'Each beat object also has "card_line": the short line for that beat\'s card.'
 #: Always sent as well: a script that mixes up who said what reads as made up.
 SOURCE_RULES = (
     "Comments were written by viewers: never present them as said by the people in the video. "
@@ -96,6 +98,8 @@ def build_script_request(
     preset: NarrationPreset,
     sfx: Sequence[SfxEntry],
     note: str | None = None,
+    card_lines: bool = False,
+    card_line_max_words: int = 6,
 ) -> tuple[str, str]:
     """The system prompt (the stage's prompt plus the contract) and the user message."""
     words = round(preset.target_seconds * preset.words_per_second)
@@ -130,7 +134,16 @@ def build_script_request(
         lines.append("No sound effects are available: sfx_cues must be [].")
     if note:
         lines.append(f"Operator note on the previous script: {_clean(note, 500)}")
-    system = f"{prompt}\n\n{SOURCE_RULES}\n\n{ANSWER_CONTRACT}"
+    contract = ANSWER_CONTRACT
+    if card_lines:
+        # A style's narrator card (spec 2026-11-10): shown on a white card, never read aloud.
+        lines.append(
+            f"Card lines: give every beat a card_line of at most {card_line_max_words} words, "
+            "the narrator's own reaction or question. It shows on a white card and is not "
+            "read aloud."
+        )
+        contract = f"{ANSWER_CONTRACT} {CARD_CONTRACT}"
+    system = f"{prompt}\n\n{SOURCE_RULES}\n\n{contract}"
     return system, "\n".join(line for line in lines if line)
 
 
@@ -144,12 +157,23 @@ def _cue(raw: dict[str, Any]) -> SfxCue | None:
         return None
 
 
+def _card_line(item: dict[str, Any], max_words: int | None) -> dict[str, str]:
+    """A beat's card line when the style asked for one and it is short enough, else nothing."""
+    if max_words is None:
+        return {}
+    line = _HANDLE_AT.sub("", str(item.get("card_line") or "").strip())
+    if not line or len(line.split()) > max_words or len(line) > 80:
+        return {}
+    return {"card_line": line}
+
+
 def parse_script(
     answer: object,
     *,
     beats: Sequence[BeatId],
     preset: NarrationPreset,
     sfx_ids: set[str],
+    card_line_max_words: int | None = None,
 ) -> NarrationScript:
     if not isinstance(answer, dict):
         raise ScriptInvalid("not an object")
@@ -184,7 +208,11 @@ def parse_script(
             {
                 "beats": [
                     # The voice reads "@" aloud, whatever the prompt asked.
-                    {"beat": item["beat"], "text": _HANDLE_AT.sub("", str(item["text"]).strip())}
+                    {
+                        "beat": item["beat"],
+                        "text": _HANDLE_AT.sub("", str(item["text"]).strip()),
+                        **_card_line(item, card_line_max_words),
+                    }
                     for item in ordered
                 ],
                 "sfx_cues": cues,

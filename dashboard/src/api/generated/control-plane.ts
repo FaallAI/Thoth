@@ -3881,6 +3881,8 @@ export interface components {
              * @enum {string}
              */
             beat: "hook" | "main" | "evidence" | "reactions" | "footage" | "outro";
+            /** Card Line */
+            card_line?: string | null;
             /** Text */
             text: string;
         };

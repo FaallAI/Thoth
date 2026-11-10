@@ -6160,6 +6160,18 @@
             "title": "Beat",
             "type": "string"
           },
+          "card_line": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Card Line"
+          },
           "text": {
             "maxLength": 2000,
             "minLength": 1,

@@ -14,10 +14,11 @@ from __future__ import annotations
 
 import math
 from bisect import bisect_right
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from thoth_control_plane.domain.clip_moves import stretch_moves
+from thoth_control_plane.domain.edit_document_operations import apply_edit_operations
 from thoth_control_plane.domain.edit_document_v2 import (
     AssetRef,
     CaptionCue,
@@ -32,6 +33,8 @@ from thoth_control_plane.domain.edit_document_v2 import (
 )
 from thoth_control_plane.domain.narration import BEAT_ORDER, BeatId, NarrationPreset, SfxCue
 from thoth_control_plane.domain.story_beats import beat_spans, clip_beats
+from thoth_control_plane.domain.style_apply import style_operations
+from thoth_control_plane.domain.style_templates import StyleTemplate
 from thoth_control_plane.voice.ports import WordTiming
 
 NARRATION_PREFIX = "clip_narration_"
@@ -86,6 +89,8 @@ def narrate_document(
     *,
     place_sfx: bool | None = None,
     intro_frames: int = 0,
+    style: StyleTemplate | None = None,
+    card_lines: Mapping[BeatId, str] | None = None,
 ) -> EditDocumentV2:
     """`place_sfx`: True places `sfx` and replaces earlier placed SFX (a narration, first or
     recreated); False keeps the draft's SFX as the operator left them (a re-voice). None
@@ -236,9 +241,11 @@ def narrate_document(
         )
         # An unchanged voice keeps the operator's caption fixes; a new one is paged again.
         cues = caption_before.cues if same_voice else _pages(voice.words, fps, length)  # type: ignore[union-attr]
-        style = (
+        caption_style = (
             caption_before.style_slot
             if isinstance(caption_before, TimelineCaptionClip)
+            else style.captions.style
+            if style is not None
             else "word_highlight"
         )
         if cues:
@@ -251,7 +258,7 @@ def narrate_document(
                     duration_in_frames=length,
                     ownership="ai_managed",
                     source_role=role,  # type: ignore[arg-type]
-                    style_slot=style,
+                    style_slot=caption_style,
                     cues=cues,
                 )
             )
@@ -324,7 +331,42 @@ def narrate_document(
             for marker in document.markers
         ],
     )
-    return EditDocumentV2.model_validate(payload)
+    narrated_document = EditDocumentV2.model_validate(payload)
+    if style is None:
+        return narrated_document
+    # The draft's style cuts its beats on the voice's sentence ends (spec 2026-11-10, 6).
+    ends = {
+        beat: sentence_ends(voices[beat].words, start, fps)  # type: ignore[index]
+        for beat, start in starts.items()
+    }
+    operations = style_operations(narrated_document, style, roles_by_item, ends, card_lines)
+    styled = apply_edit_operations(
+        narrated_document,
+        operations,
+        resolved_assets={asset.asset_id: asset for asset in narrated_document.asset_refs},
+    )
+    if not curve:
+        return styled
+    # New shots of the main video duck under the voice like the clip they replaced.
+    restyled = styled.model_dump(mode="python")
+    restyled["clips"] = [
+        (
+            clip.model_copy(update={"volume_keyframes": _clip_keyframes(curve, clip)})
+            if isinstance(clip, TimelineVideoClip) and clip.track_id in main_tracks
+            else clip
+        ).model_dump(mode="python")
+        for clip in styled.clips
+    ]
+    return EditDocumentV2.model_validate(restyled)
+
+
+def sentence_ends(words: Sequence[WordTiming], start: int, fps: float) -> list[int]:
+    """The frames a voice's sentences end on: a word ending in `.`, `?`, `!` or an ellipsis."""
+    return [
+        start + round(word.end_seconds * fps)
+        for word in words
+        if word.text.rstrip().endswith((".", "?", "!", "\u2026"))
+    ]
 
 
 def _old_windows(

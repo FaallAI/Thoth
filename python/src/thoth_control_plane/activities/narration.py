@@ -29,6 +29,7 @@ from thoth_control_plane.application.narration_script import (
     parse_script,
     unsupported_tokens,
 )
+from thoth_control_plane.application.prompt_lab import resolve_style_prompt
 from thoth_control_plane.application.prompt_proposal_ports import ProviderInvalidOutput
 from thoth_control_plane.assembly.narration_timeline import (
     NARRATION_PREFIX,
@@ -53,6 +54,7 @@ from thoth_control_plane.domain.narration import (
 )
 from thoth_control_plane.domain.prompts import PROMPT_STARTERS
 from thoth_control_plane.domain.story_beats import beat_spans
+from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES, StyleTemplate
 from thoth_control_plane.voice.ports import (
     VoiceNotConfigured,
     VoiceRejected,
@@ -84,6 +86,23 @@ class NarrationPorts:
     prices: Callable[[], Awaitable[Mapping[tuple[str, str, str], float]]]
     #: Where a title card the main video opens on ends, in seconds; None when there is none.
     intro_card: Callable[[Path], Awaitable[float | None]] | None = None
+
+
+def _style_of(document: Any) -> StyleTemplate | None:
+    """The style template a draft took. Only the built-in styles exist until the style editor
+    (spec 2026-11-10); an unknown one narrates as before."""
+    applied = getattr(document, "style", None)
+    return BUILT_IN_STYLES.get(applied.template_id) if applied is not None else None
+
+
+def _styled_preset(preset: NarrationPreset, style: StyleTemplate) -> NarrationPreset:
+    """The project's preset with the style's target length and SFX count, when it sets them."""
+    changes: dict[str, Any] = {}
+    if style.narration.target_seconds is not None:
+        changes["target_seconds"] = style.narration.target_seconds
+    if style.narration.max_sfx_cues is not None:
+        changes["max_sfx_cues"] = style.narration.max_sfx_cues
+    return preset.model_copy(update=changes) if changes else preset
 
 
 def _roles(materials: Any) -> dict[str, str]:
@@ -147,14 +166,21 @@ class NarrationActivities:
             beats = [beat for beat in BEAT_ORDER if beat in present] or ["main"]
             transcript = await ports.store.get_transcript(step.document_id)
             sfx = await ports.store.list_sfx()
+            style = _style_of(document)
             prompt = PROMPT_STARTERS[STAGE].body
-            if ports.prompts is not None:
+            if style is not None:
+                # The draft's style speaks in its own voice (spec 2026-11-10, 4).
+                prompt = await resolve_style_prompt(ports.prompts, step.project_id, style)
+                preset = _styled_preset(preset, style)
+            elif ports.prompts is not None:
                 try:
                     prompt = (
                         await ports.prompts.get_resolved_prompt(step.project_id, STAGE)
                     ).visible_text
                 except Exception:  # no binding saved, or the prompt store is down: the starter
                     prompt = PROMPT_STARTERS[STAGE].body
+            card_lines = style is not None and style.narration.card_lines
+            card_words = style.narration.card_line_max_words if style is not None else 6
             system, user = build_script_request(
                 prompt=prompt,
                 beats=beats,  # type: ignore[arg-type]
@@ -163,6 +189,8 @@ class NarrationActivities:
                 preset=preset,
                 sfx=sfx,
                 note=step.note,
+                card_lines=card_lines,
+                card_line_max_words=card_words,
             )
             script = None
             for attempt in range(1, SCRIPT_ATTEMPTS + 1):
@@ -178,6 +206,7 @@ class NarrationActivities:
                         beats=beats,
                         preset=preset,
                         sfx_ids={entry.sfx_id for entry in sfx},  # type: ignore[arg-type]
+                        card_line_max_words=card_words if card_lines else None,
                     )
                     break
                 except (ProviderInvalidOutput, ScriptInvalid) as error:
@@ -303,6 +332,10 @@ class NarrationActivities:
             asset = await ports.sfx_assets.ensure_project_sfx(step.project_id, entry)
             placed.append(PlacedSfx(cue=cue, asset=asset, duration_seconds=entry.duration_seconds))
         intro = await self._intro_frames(step, document)
+        style = _style_of(document)
+        cards = (
+            {beat.beat: beat.card_line for beat in script.beats if beat.card_line} if script else {}
+        )
         narrated = narrate_document(
             document,
             [
@@ -319,6 +352,8 @@ class NarrationActivities:
             _roles(materials),
             place_sfx=place_sfx,
             intro_frames=intro,
+            style=style,
+            card_lines=cards,
         )
         await ports.documents.write_derived_revision(
             step.project_id, step.document_id, document.revision, narrated

@@ -55,6 +55,10 @@ class NarrationPreset(StrictModel):
 class ScriptBeat(StrictModel):
     beat: BeatId
     text: ScriptText
+    #: A style's short card line for the beat, shown on a white card, never voiced (2026-11-10).
+    card_line: Annotated[str, Field(max_length=80)] | None = Field(
+        default_factory=lambda: None, exclude_if=lambda line: line is None
+    )
 
 
 class SfxCue(StrictModel):

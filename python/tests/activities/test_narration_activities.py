@@ -553,3 +553,52 @@ def test_beats_voiced_together_are_stitched_by_request_id() -> None:
         ["req_1"],
         ["req_1", "req_2"],
     ]
+
+
+# Style templates (spec 2026-11-10): a styled draft's script speaks in its style.
+def styled_ports(template_id: str = "style_b", **overrides: Any):  # type: ignore[no-untyped-def]
+    from thoth_control_plane.domain.edit_document_v2 import AppliedStyle
+
+    built, seen = ports(**overrides)
+    documents = seen["documents"]
+    documents.document = documents.document.model_copy(
+        update={"style": AppliedStyle(template_id=template_id, revision=1)}
+    )
+    return built, seen
+
+
+def test_write_script_uses_the_style_prompt() -> None:
+    from thoth_control_plane.domain.style_templates import BUILT_IN_STYLES
+
+    built, seen = styled_ports()
+    run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+    system = seen["provider_requests"][0]["system"]
+    assert BUILT_IN_STYLES["style_b"].narration.starter in system
+    assert "card_line" in system
+
+
+def test_the_style_overrides_target_length_and_sfx() -> None:
+    from thoth_control_plane.domain import style_templates
+
+    a = style_templates.BUILT_IN_STYLES["style_a"]
+    longer = a.model_copy(
+        update={
+            "narration": a.narration.model_copy(update={"target_seconds": 60, "max_sfx_cues": 1})
+        }
+    )
+    original = dict(style_templates.BUILT_IN_STYLES)
+    style_templates.BUILT_IN_STYLES["style_a"] = longer
+    try:
+        built, seen = styled_ports("style_a")
+        run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+    finally:
+        style_templates.BUILT_IN_STYLES.clear()
+        style_templates.BUILT_IN_STYLES.update(original)
+    user = seen["provider_requests"][0]["user"]
+    assert "(60 seconds)" in user and "at most 1" in user
+
+
+def test_an_unstyled_script_keeps_the_project_prompt() -> None:
+    built, seen = ports()
+    run(NarrationActivities(built).write_script(NarrationScriptInput(**STEP.model_dump())))
+    assert "card_line" not in seen["provider_requests"][0]["system"]
