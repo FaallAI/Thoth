@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this changelog.
 Branch `feat/style-templates`, stacked on `feat/studio-effects-layer` (PR #127, not yet merged).
 - **Spec:** `docs/superpowers/specs/2026-11-10-style-templates-design.md`, approved by the operator on 2026-11-10.
 - **Plan:** `docs/superpowers/plans/2026-11-10-style-templates.md`.
-- **Execution:** done natively.
+- **Execution:** done natively, then one fresh review of the whole branch and one fix pass.
 
 **What changed.** A style is now data, not code. A style template holds:
 - a look per Story beat: move, blur-fill, dim, card emphasis and heading place;
@@ -22,7 +22,11 @@ Style A (IsseiNugroho) and Style B (WinNews) are the two built-in templates. Cho
 
 While that script waits for approval, the preview plays a **cut preview**: the draft as the style will cut it, using timing estimated from the script, and nothing is saved. After approval, the voice's real sentence ends place the saved cuts, and the main video's new shots duck under the voice as before.
 
-**Undo and narration.** One Undo restores the draft from before the style. A plain restore is refused while a narration runs, so a style's Undo has its own route. That route stops the style's narration first, but only before any voice is made. Once the voice is being made, it waits.
+**Undo and narration.**
+- One Undo restores the draft from before the style, and brings back the finished narration the style replaced, kept in the new `narrations.previous` column (migration 0030).
+- A plain restore is refused while a narration runs, so a style's Undo has its own route. That route stops the style's narration only while its script waits for approval, and otherwise waits.
+- A workflow's terminal mark now carries its workflow id, so a cancelled style narration cannot overwrite the narration the Undo brought back.
+- A styled draft is cut once, from its first voice. Later re-voices only retime, so hand edits stay.
 
 **Prompt Lab.** Each style's script prompt is one `style_script` stage. Its project binding is kept per style template (`variant`), so a copied style later needs no code change. The style stages are listed in Prompt Lab as "Style A script" and "Style B script". The model is the narration script's own.
 
@@ -33,9 +37,30 @@ While that script waits for approval, the preview plays a **cut preview**: the d
 
 The built-in styles come from code. A draft records its style in an optional `style` field, left out when unset, so rollbacks stay safe for drafts without a style.
 
+**Final review, by a fresh reviewer: 2 Critical, 5 Important, 14 Minor.** Five Minors were re-graded Important. Every fix was test-first:
+- **Subtitle blur.** A style dropped the main video's subtitle blur. Shots now keep their source's blur and crop.
+- **Hidden or locked shots.** A hidden or locked shot made the rebuild overlap it, refusing the style or failing a paid re-voice. The rebuild now works around kept clips.
+- **Card lines.** They piled up on re-voice and re-apply. Old style cards are now replaced.
+- **Switching styles.** A switch left the last style's look on cards. Cards now take absolute values.
+- **Sentence ends.** The main video ignored other beats' sentence ends. All sentence ends are now used.
+- **Narration on undo.** Undo lost the replaced narration. It is now restored, guarded against the workflow race.
+- **Style prompts.** A style's script stage had no starter in Prompt Lab. It now starts from the style's own.
+- **Smaller fixes:** apply now reports a narration failure without losing the saved look; undo answers when the narration will not stop; the style list is read once; the confirmation takes focus and closes on Escape; one write e2e named what it really proves.
+- **Two further fixes:** tall pictures take Style A's pan or scroll (the reviewer disagreed with my first ruling), and a re-voice no longer re-cuts a styled draft (operator, from a side note).
+
+**Deferred minors:**
+- The caption pager ignores the style's words per caption.
+- The cut preview ignores the first narration's title-card skip.
+- A single main video loops instead of holding its last frame.
+- Prompt Lab's variant check is loose, and its fallback logs no warning.
+- The advisory lock key drifted.
+- `style_templates` needs `workspace_id` in its key before the editor slice.
+- The rollback notes omit styled drafts.
+- Redo after a style's undo does not restart its narration.
+
 **Verification.**
-- **Python:** `make test` gives 4828 passed and 228 skipped. `make test-postgres` gives 208 passed. Lint is clean.
-- **Dashboard:** 1994 tests pass, plus 47 in the e2e package. `tsc -b` and the build are clean.
+- **Python:** `make test` gives 4841 passed and 230 skipped. `make test-postgres` gives 210 passed. Lint is clean.
+- **Dashboard:** 1997 tests pass, plus 47 in the e2e package. `tsc -b` and the build are clean.
 - **Renderer and composition:** 262 tests pass.
 - **Read-only e2e against a local dev server of this branch, at 1440:** the 41 existing checks pass.
 - **The new Style check fails there, as expected:** the dev server reaches stage1's API, which answers 404 for `/styles` until this branch is deployed. It runs after the deploy.
@@ -52,7 +77,6 @@ The built-in styles come from code. A draft records its style in an optional `st
 After that come the style editor, Style B's material flow (a news photo of each person named), and the planner (content-aware cuts, punch-ins and marks).
 
 **Carried forward:**
-- the final whole-branch review of this branch;
 - kinetic captions and a Middle heading share mid-frame;
 - the 8 deferred minors of the effects layer;
 - the understand-anything graph needs `/understand --full`.
